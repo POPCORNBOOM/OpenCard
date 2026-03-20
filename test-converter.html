@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Converter Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        #output {
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Card to HTML Converter Test</h1>
+    <div id="output"></div>
+
+    <script type="module">
+        // 模拟导入（实际需要编译 TS）
+        const testCard = {
+            version: 1,
+            canvas: {
+                width: 400,
+                height: 600
+            },
+            components: [
+                {
+                    id: '1',
+                    type: 'text',
+                    anchor: 'lt',
+                    content: 'Hello OpenCard!',
+                    mode: 'plain'
+                },
+                {
+                    id: '2',
+                    type: 'text',
+                    anchor: 'cc',
+                    content: 'Center Text',
+                    mode: 'plain'
+                },
+                {
+                    id: '3',
+                    type: 'image',
+                    anchor: 'lb',
+                    assetId: 'https://via.placeholder.com/150',
+                    fit: 'cover'
+                }
+            ]
+        }
+
+        // 临时实现（等你的 TS 编译后替换）
+        function cardToHtml(doc) {
+            const componentsHTML = doc.components.map(comp => {
+                if (comp.type === 'text') {
+                    return `<div>${comp.content}</div>`
+                }
+                if (comp.type === 'image') {
+                    return `<img src="${comp.assetId}" />`
+                }
+                return ''
+            }).join('')
+
+            return `<div style="width: ${doc.canvas.width}px; height: ${doc.canvas.height}px; border: 2px solid #333;">${componentsHTML}</div>`
+        }
+
+        document.getElementById('output').innerHTML = cardToHtml(testCard)
+    </script>
+</body>
+</html>
