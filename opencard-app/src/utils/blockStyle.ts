@@ -1,26 +1,25 @@
-import { BaseBlock, CSSValue } from '../core/Card'
+import { AnchorPosition, BaseBlock, CSSValue } from '../core/Card'
 
 export function toCSSValue(value: CSSValue | undefined): string {
     if (value === undefined) return '0px'
     return typeof value === 'number' ? `${value}px` : value
 }
 
-export function getPositionStyles(comp: BaseBlock): string {
-    const styles: string[] = ['position: absolute']
+type AbsolutePosition = {
+    anchor?: AnchorPosition
+    x?: CSSValue
+    y?: CSSValue
+}
 
-    // 处理尺寸
-    if (comp.width) styles.push(`width: ${toCSSValue(comp.width)}`)
-    if (comp.height) styles.push(`height: ${toCSSValue(comp.height)}`)
-    if (comp.opacity !== undefined) styles.push(`opacity: ${comp.opacity}`)
-    if (comp.zIndex !== undefined) styles.push(`z-index: ${comp.zIndex}`)
+export function getAbsolutePositionStyles(position: AbsolutePosition): string {
+    const styles: string[] = []
 
-    // 处理 anchor 定位
-    const x = comp.x !== undefined ? toCSSValue(comp.x) : '0px'
-    const y = comp.y !== undefined ? toCSSValue(comp.y) : '0px'
+    const x = position.x !== undefined ? toCSSValue(position.x) : '0px'
+    const y = position.y !== undefined ? toCSSValue(position.y) : '0px'
     let translateX = '0px', translateY = '0px'
 
-    if (comp.anchor) {
-        switch (comp.anchor) {
+    if (position.anchor) {
+        switch (position.anchor) {
             case 'lt':
                 styles.push(`left: ${x}`, `top: ${y}`)
                 break
@@ -56,7 +55,18 @@ export function getPositionStyles(comp: BaseBlock): string {
                 break
         }
     }
-    // 处理 transform-origin
+    styles.push(`transform: translate(${translateX}, ${translateY})`)
+    return styles.join('; ')
+}
+
+export function getBlockBoxStyles(comp: BaseBlock): string {
+    const styles: string[] = []
+
+    if (comp.width) styles.push(`width: ${toCSSValue(comp.width)}`)
+    if (comp.height) styles.push(`height: ${toCSSValue(comp.height)}`)
+    if (comp.opacity !== undefined) styles.push(`opacity: ${comp.opacity}`)
+    if (comp.zIndex !== undefined) styles.push(`z-index: ${comp.zIndex}`)
+
     if (comp.transformAnchor) {
         const originMap: Record<string, string> = {
             'lt': '0% 0%', 'ct': '50% 0%', 'rt': '100% 0%',
@@ -67,9 +77,6 @@ export function getPositionStyles(comp: BaseBlock): string {
     }
 
     const transforms: string[] = []
-    transforms.push(`translate(${translateX}, ${translateY})`)
-
-
     if (comp.translateX || comp.translateY) {
         transforms.push(`translate(${toCSSValue(comp.translateX)}, ${toCSSValue(comp.translateY)})`)
     }
@@ -90,4 +97,9 @@ export function getPositionStyles(comp: BaseBlock): string {
 
     // customCss 覆盖
     return styles.join('; ') + (comp.customCss ? '; ' + comp.customCss : '')
+}
+
+export function getPositionStyles(comp: BaseBlock): string {
+    const baseStyles = getBlockBoxStyles(comp)
+    return ['position: absolute', baseStyles].filter(Boolean).join('; ')
 }

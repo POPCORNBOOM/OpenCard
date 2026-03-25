@@ -3,9 +3,15 @@
         <div class="root-content" @click="handleClick">
             <i class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"></i>
             <span class="root-title">{{ props.title }}</span>
-            <div v-if="props.actions?.length" class="root-actions">
-                <i v-for="(action, i) in props.actions" :key="i" class="codicon action-btn" :class="action.icon"
-                    :title="action.title" @click.stop="action.handler" />
+            <div v-if="treeActions.length" class="root-actions">
+                <i
+                    v-for="action in treeActions"
+                    :key="action.key"
+                    class="codicon action-btn"
+                    :class="action.icon"
+                    :title="action.title"
+                    @click.stop="callAction(action.key, 'tree')"
+                />
             </div>
         </div>
 
@@ -14,14 +20,21 @@
         </div>
     </div>
 </template>
-<script setup lang="ts">
-import { computed, provide, ref } from 'vue';
-import TreeNode, { ITreeNode } from './TreeNode.vue';
 
-export interface ITreeAction {
-    icon: string        // codicon class, e.g. 'codicon-add'
-    title?: string      // tooltip
-    handler: () => void
+<script setup lang="ts">
+import { computed, provide, ref, type ComputedRef } from 'vue'
+import TreeNode, { type ITreeNode } from './TreeNode.vue'
+
+export interface ActionDefinition {
+    key: string
+    icon: string
+    title?: string
+}
+
+export interface NodeTreeActionCalledPayload {
+    actionKey: string
+    caller: 'tree' | 'node'
+    node?: ITreeNode
 }
 
 interface Props {
@@ -29,12 +42,30 @@ interface Props {
     multiSelect?: boolean
     selected?: Map<string, ITreeNode>
     title?: string
-    actions?: ITreeAction[]
+    actions?: Map<string, ActionDefinition>
+    actionKeys?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
     multiSelect: true,
     selected: () => new Map<string, ITreeNode>(),
+    actions: () => new Map<string, ActionDefinition>(),
+    actionKeys: () => [],
+})
+
+const emit = defineEmits<{
+    'update:selected': [value: Map<string, ITreeNode>]
+    'node-dblclick': [node: ITreeNode]
+    'action-called': [payload: NodeTreeActionCalledPayload]
+}>()
+
+const isExpanded = ref(false)
+
+const selectedNodes = computed(() => props.selected || new Map<string, ITreeNode>())
+const treeActions = computed(() => {
+    return props.actionKeys
+        .map((key) => props.actions.get(key))
+        .filter((action): action is ActionDefinition => action !== undefined)
 })
 
 function handleNodeDoubleClick(node: ITreeNode) {
@@ -44,41 +75,38 @@ function handleNodeDoubleClick(node: ITreeNode) {
 function handleNodeClick(key: string, node: ITreeNode, modify: 'ctrl' | 'none') {
     const newSelected = new Map(props.selected || new Map<string, ITreeNode>())
 
-    // modify: 'ctrl' | 'none'
     if (modify === 'ctrl') {
         if (newSelected.has(key)) {
             newSelected.delete(key)
         } else {
             newSelected.set(key, node)
         }
-    }
-    else {
+    } else {
         newSelected.clear()
         newSelected.set(key, node)
     }
+
     emit('update:selected', newSelected)
 }
 
-// 提供方法给子组件调用
+function callAction(actionKey: string, caller: 'tree' | 'node', node?: ITreeNode) {
+    emit('action-called', { actionKey, caller, node })
+}
 
 provide('nodeTree', {
-    selectedNodes: computed(() => props.selected || new Map<string, ITreeNode>()),
-    handleNodeClick: handleNodeClick,
-    handleNodeDoubleClick: handleNodeDoubleClick,
-    multiSelect: props.multiSelect
+    selectedNodes,
+    handleNodeClick,
+    handleNodeDoubleClick,
+    callAction,
+    actions: computed(() => props.actions) as ComputedRef<Map<string, ActionDefinition>>,
+    multiSelect: props.multiSelect,
 })
-
-const emit = defineEmits<{
-    'update:selected': [value: Map<string, ITreeNode>],
-    'node-dblclick': [node: ITreeNode]
-}>()
-
-const isExpanded = ref(false)
 
 function handleClick() {
     isExpanded.value = !isExpanded.value
 }
 </script>
+
 <style scoped>
 .node-tree {
     user-select: none;

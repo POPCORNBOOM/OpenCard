@@ -1,12 +1,15 @@
 <template>
     <div ref="cardCanvasRef" class="card-canvas" :style="canvasStyle">
-        <CardBlock v-for="block in document.blocks" :key="block.id" :block="block" />
+        <div v-for="child in document.children" :key="child.block.id" :style="getChildStyle(child.location)">
+            <CardBlock :block="child.block" layout-mode="static" />
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { CardDocument } from '../../core/Card'
+import { getAbsolutePositionStyles } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
 
 const props = defineProps<{
@@ -21,6 +24,10 @@ const canvasStyle = computed((): Record<string, string> => ({
     height: `${props.document.height}px`,
     background: '#fff'
 }))
+
+function getChildStyle(location: CardDocument['children'][number]['location']) {
+    return `position: absolute; ${getAbsolutePositionStyles(location)}`
+}
 
 // 暴露给父组件使用
 defineExpose({

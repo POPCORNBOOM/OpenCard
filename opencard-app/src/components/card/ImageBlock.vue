@@ -6,11 +6,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ImageBlock } from '../../core/Card'
-import { getPositionStyles } from '../../utils/blockStyle'
+import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 
-const props = defineProps<{ block: ImageBlock }>()
+const props = withDefaults(defineProps<{
+    block: ImageBlock
+    layoutMode?: 'absolute' | 'static'
+}>(), {
+    layoutMode: 'absolute',
+})
 
-const wrapStyle = computed(() => getPositionStyles(props.block) + '; overflow: hidden')
+const wrapStyle = computed(() => {
+    const style = props.layoutMode === 'absolute'
+        ? getPositionStyles(props.block)
+        : getBlockBoxStyles(props.block)
+    return `${style}; overflow: hidden`
+})
 
 const imgStyle = computed(() => {
     const fit = props.block.fit ?? 'cover'

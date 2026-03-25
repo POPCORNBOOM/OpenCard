@@ -142,7 +142,6 @@ const currentContent = ref<string>('')
 
 const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const cardRendererRef = ref<InstanceType<typeof CardRenderer>>()
-const liveCardRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const showCardPreview = ref(false)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)

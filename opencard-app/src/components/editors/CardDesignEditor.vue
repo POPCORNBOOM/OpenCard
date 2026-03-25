@@ -1,54 +1,62 @@
 <template>
   <div class="card-design-editor">
-    <!-- 左侧：可视化画布 -->
     <div class="canvas-area">
       <div class="canvas-scroll">
-        <!-- 可视化画布 -->
         <CardRenderer v-if="cardDoc" :document="cardDoc" />
-        <div class="empty-hint">无法解析 .opencard 文件</div>
+        <div v-else class="empty-hint">无法解析 .opencard 文件</div>
       </div>
     </div>
 
-    <!-- 右侧面板 -->
     <div class="right-panel">
-      <!-- 上方：CardDocument 属性树 -->
       <div class="block-list-panel">
         <div class="panel-header">信息树</div>
         <div class="block-list">
-          <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" @update:selected="onTreeSelect" :actions="[
-            { icon: 'codicon-add', title: '添加', handler: () => addBlock() },
-            { icon: 'codicon-trash', title: '删除', handler: () => deleteBlock() },
-          ]" />
+          <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
+            :action-keys="treeActionKeys" @update:selected="onTreeSelect" @action-called="handleTreeAction" />
         </div>
       </div>
 
-      <!-- 下方：属性编辑器 -->
       <div class="property-panel">
         <div class="panel-header">属性</div>
-        <div class="property-editor">
-
-          <div v-if="!selectedBlocks" class="empty-hint">选择一个 Block 查看属性</div>
-          <template v-else>
-            <div v-for="(value, key) in selectedObjectProps" :key="key" class="prop-row">
-              <label class="prop-label">{{ key }}</label>
-              <input class="prop-input" :value="value"
-                @input="updateBlockProp(key as string, ($event.target as HTMLInputElement).value)" />
-            </div>
-          </template><!---->
+        <div class="panel-header-actions">
+          <button class="panel-icon-button" :class="{ active: propertySortMode === 'category' }" type="button"
+            title="Category" @click="propertySortMode = 'category'">
+            <span class="codicon codicon-list-tree" />
+          </button>
+          <button class="panel-icon-button" :class="{ active: propertySortMode === 'alphabetical' }" type="button"
+            title="A-Z" @click="propertySortMode = 'alphabetical'">
+            <span class="codicon codicon-symbol-string" />
+          </button>
         </div>
+        <PropertyEditor :categories="propertyCategories" :sort-mode="propertySortMode"
+          @update-property="updateBlockProp" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import type { EditorProps, EditorEmits } from '../../core/Editor'
-import { type CardDocument, type CardBlock, block2ITreeNode } from '../../core/Card'
+import { computed, onMounted, ref, watch } from 'vue'
+import type { EditorEmits, EditorProps } from '../../core/Editor'
+import {
+  block2ITreeNode,
+  blockPropertyDefinitions,
+  flowContainerChildLocationDefinitions,
+  rootChildLocationDefinitions,
+  simpleContainerChildLocationDefinitions,
+  type CardBlock,
+  type CardDocument,
+  type CardTreeNodeMetadata,
+  type EditorPropertyDefinition,
+  type PropertyEditorCategory,
+} from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardRenderer from '../card/CardRenderer.vue'
-import NodeTree from '../ui/NodeTree.vue'
+import NodeTree, { type ActionDefinition, type NodeTreeActionCalledPayload } from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
+import PropertyEditor from './PropertyEditor.vue'
+
+type PropertySortMode = 'category' | 'alphabetical'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
@@ -56,38 +64,98 @@ const emit = defineEmits<EditorEmits>()
 const rawContent = ref('')
 const cardDoc = ref<CardDocument | null>(null)
 const isModified = ref(false)
+const propertySortMode = ref<PropertySortMode>('category')
+const treeActions = new Map<string, ActionDefinition>([
+  ['add-root', { key: 'add-root', icon: 'codicon-add', title: '添加' }],
+  ['delete-root', { key: 'delete-root', icon: 'codicon-trash', title: '删除' }],
+  ['add', { key: 'add', icon: 'codicon-add', title: '添加' }],
+])
+const treeActionKeys = ['add-root', 'delete-root']
 
 const selectedBlocks = ref<Map<string, ITreeNode>>(new Map())
-
-const selectedObjectProps = computed(() => {
+const selectedNode = computed<ITreeNode | null>(() => {
   if (selectedBlocks.value.size === 0) return null
-  // 这里只展示第一个选中块的属性
-  const firstBlockNode = selectedBlocks.value.values().next().value
-  return firstBlockNode?.metadata
+  return selectedBlocks.value.values().next().value ?? null
 })
 
-function updateBlockProp(key: string, value: any) {
-  if (selectedBlocks.value.size === 0) return
-  const firstBlockNode = selectedBlocks.value.values().next().value
-  if (!firstBlockNode) return
-  const block = firstBlockNode.metadata as CardBlock
-  // @ts-ignore
-  block[key] = value
+const selectedBlock = computed<CardBlock | null>(() => {
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  return metadata?.block ?? null
+})
+
+const selectedLayout = computed<Record<string, unknown> | null>(() => {
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  return metadata?.location ? (metadata.location as Record<string, unknown>) : null
+})
+
+const propertyCategories = computed<PropertyEditorCategory[]>(() => {
+  const categories: PropertyEditorCategory[] = []
+
+  if (selectedBlock.value) {
+    categories.push({
+      title: 'Block',
+      entries: buildEntries(
+        selectedBlock.value as Record<string, unknown>,
+        blockPropertyDefinitions[selectedBlock.value.type],
+        'Block'
+      ),
+    })
+  }
+
+  const parentBlock = (selectedNode.value?.parent?.metadata as CardTreeNodeMetadata | undefined)?.block
+  if (selectedLayout.value) {
+    categories.push({
+      title: 'Layout',
+      entries: buildEntries(
+        selectedLayout.value,
+        parentBlock ? getLocationDefinitions(parentBlock.type) : rootChildLocationDefinitions,
+        'Layout'
+      ),
+    })
+  }
+
+  return categories.filter((category) => category.entries.length > 0)
+})
+
+const blockTree = computed(() => {
+  if (!cardDoc.value) return []
+  return cardDoc.value.children.map((child) =>
+    withNodeActionKeys(block2ITreeNode(child.block, null, child.location), ['add'])
+  )
+})
+
+function updateBlockProp({
+  target,
+  key,
+  value,
+}: {
+  target: Record<string, unknown>
+  key: string
+  value: unknown
+}) {
+  target[key] = value
   isModified.value = true
 }
 
-
 function onTreeSelect(newSelected: Map<string, ITreeNode>) {
-  console.log('选中块:', Array.from(newSelected.values()).map(n => n.key))
   selectedBlocks.value = newSelected
 }
 
+function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
+  console.info('Tree Action Called:', actionKey, caller, node)
+  if (caller === 'node' && node) {
+    selectedBlocks.value = new Map([[node.key, node]])
+  }
 
-// BlockTree 相关
-const blockTree = computed(() => {
-  if (!cardDoc.value) return []
-  return cardDoc.value.blocks.map(block2ITreeNode)
-})
+  if (actionKey === 'add-root' || actionKey === 'add') {
+    addBlock()
+    return
+  }
+
+  if (actionKey === 'delete-root') {
+    deleteBlock()
+  }
+}
 
 async function loadFile() {
   try {
@@ -102,10 +170,13 @@ async function loadFile() {
 }
 
 const addBlock = () => {
-  //todo
+  // todo
+  console.info('添加块 - 待实现')
 }
+
 const deleteBlock = () => {
-  //todo
+  // todo
+  console.info('删除块 - 待实现')
 }
 
 async function saveFile() {
@@ -124,7 +195,44 @@ async function saveFile() {
 onMounted(loadFile)
 watch(() => props.filePath, loadFile)
 defineExpose({ save: saveFile })
+
+function buildEntries(
+  target: Record<string, unknown>,
+  definitions: Record<string, EditorPropertyDefinition>,
+  sourceCategoryTitle?: string
+): PropertyEditorCategory['entries'] {
+  return Object.entries(target).map(([key, value]) => ({
+    key,
+    definition: definitions[key] ?? { datatype: 'string' },
+    label: definitions[key]?.label,
+    category: definitions[key]?.category,
+    sourceCategoryTitle,
+    value,
+    target,
+  }))
+}
+
+function getLocationDefinitions(
+  type: CardBlock['type']
+): Record<string, EditorPropertyDefinition> {
+  if (type === 'simple-container') {
+    return simpleContainerChildLocationDefinitions
+  }
+  if (type === 'flow-container') {
+    return flowContainerChildLocationDefinitions
+  }
+  return {}
+}
+
+function withNodeActionKeys(node: ITreeNode, actionKeys: string[]): ITreeNode {
+  return {
+    ...node,
+    actionKeys,
+    children: node.children?.map((child) => withNodeActionKeys(child, actionKeys)),
+  }
+}
 </script>
+
 <style scoped>
 .card-design-editor {
   display: flex;
@@ -159,6 +267,7 @@ defineExpose({ save: saveFile })
 
 .property-panel {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -169,11 +278,48 @@ defineExpose({ save: saveFile })
   padding: 0 10px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   text-transform: uppercase;
   font-weight: bold;
   background: #252526;
   border-bottom: 1px solid #000;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  z-index: 1;
+}
+
+.panel-icon-button {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #8f8f8f;
+  cursor: pointer;
+  padding: 0;
+}
+
+.panel-icon-button:hover {
+  color: #d4d4d4;
+  border-color: #3f3f46;
+  background: #2a2d2e;
+}
+
+.panel-icon-button.active {
+  color: #ffffff;
+  border-color: #0e639c;
+  background: #094771;
 }
 
 .block-list {
@@ -206,45 +352,10 @@ defineExpose({ save: saveFile })
   color: #888;
 }
 
-.property-editor {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
-
 .empty-hint {
   color: #666;
   font-size: 12px;
   text-align: center;
   padding: 20px;
-}
-
-.prop-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 0;
-}
-
-.prop-label {
-  font-size: 11px;
-  color: #9cdcfe;
-  min-width: 80px;
-  flex-shrink: 0;
-}
-
-.prop-input {
-  flex: 1;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
-  padding: 2px 6px;
-  font-size: 12px;
-  min-width: 0;
-}
-
-.prop-input:focus {
-  border-color: #007acc;
-  outline: none;
 }
 </style>

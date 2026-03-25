@@ -1,8 +1,10 @@
 import { CardDocument, CardBlock, TextBlock, ImageBlock, SimpleContainerBlock, FlowContainerBlock } from '../core/Card'
-import { getPositionStyles, toCSSValue } from '../utils/blockStyle'
+import { getAbsolutePositionStyles, getPositionStyles, toCSSValue } from '../utils/blockStyle'
 
 export function cardToHtml(doc: CardDocument): string {
-    const blocksHTML = doc.blocks.map(block => blockToHtml(block)).join('')
+    const blocksHTML = doc.children
+        .map(child => `<div style="position: absolute; ${getAbsolutePositionStyles(child.location)}">${blockToHtml(child.block, true)}</div>`)
+        .join('')
     return `<div style="position: relative; width: ${doc.width}px; height: ${doc.height
         } px; background: #fff; color: #000; ">${blocksHTML}</div>`
 }
@@ -44,7 +46,9 @@ function imageBlockToHtml(block: ImageBlock, skipPosition: boolean): string {
 function simpleContainerToHtml(block: SimpleContainerBlock, skipPosition: boolean): string {
     const posStyle = skipPosition ? '' : getPositionStyles(block)
     const style = `${posStyle}; position: relative; overflow: hidden`
-    const children = block.blocks.map(child => blockToHtml(child)).join('')
+    const children = block.children.map(child =>
+        `<div style="position: absolute; ${getAbsolutePositionStyles(child.location)}">${blockToHtml(child.block, true)}</div>`
+    ).join('')
     return `<div style="${style}">${children}</div>`
 }
 
@@ -57,7 +61,10 @@ function flowContainerToHtml(block: FlowContainerBlock, skipPosition: boolean): 
     }
     const posStyle = skipPosition ? '' : getPositionStyles(block)
     const style = `${posStyle}; display: flex; flex-direction: ${directionMap[block.direction]}; gap: ${toCSSValue(block.gap)}`
-    const children = block.blocks.map(child => blockToHtml(child, true)).join('')
+    const children = [...block.children]
+        .sort((a, b) => a.location.index - b.location.index)
+        .map(child => blockToHtml(child.block, true))
+        .join('')
     return `<div style="${style}">${children}</div>`
 }
 

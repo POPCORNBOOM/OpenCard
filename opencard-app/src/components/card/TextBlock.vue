@@ -7,12 +7,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { TextBlock } from '../../core/Card'
-import { getPositionStyles, toCSSValue } from '../../utils/blockStyle'
+import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 
-const props = defineProps<{ block: TextBlock }>()
+const props = withDefaults(defineProps<{
+    block: TextBlock
+    layoutMode?: 'absolute' | 'static'
+}>(), {
+    layoutMode: 'absolute',
+})
 
 const blockStyle = computed(() => {
-    let style = getPositionStyles(props.block)
+    let style = props.layoutMode === 'absolute'
+        ? getPositionStyles(props.block)
+        : getBlockBoxStyles(props.block)
     if (props.block.fontSize) style += `; font-size: ${toCSSValue(props.block.fontSize)}`
     if (props.block.fontFamily) style += `; font-family: ${props.block.fontFamily}`
     if (props.block.fontWeight !== undefined) style += `; font-weight: ${props.block.fontWeight}`
