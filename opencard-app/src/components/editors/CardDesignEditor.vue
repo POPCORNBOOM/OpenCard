@@ -2,7 +2,7 @@
   <div class="card-design-editor">
     <div class="canvas-area">
       <div class="canvas-scroll">
-        <CardRenderer v-if="cardDoc" :document="cardDoc" />
+        <CardRenderer v-if="cardDoc" :document="cardDoc" :selected-block-ids="selectedBlockIds" />
         <div v-else class="empty-hint">无法解析 .opencard 文件</div>
       </div>
     </div>
@@ -28,7 +28,7 @@
             <span class="codicon codicon-symbol-string" />
           </button>
         </div>
-        <PropertyEditor :categories="propertyCategories" :sort-mode="propertySortMode"
+        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode"
           @update-property="updateBlockProp" />
       </div>
     </div>
@@ -48,7 +48,7 @@ import {
   type CardDocument,
   type CardTreeNodeMetadata,
   type EditorPropertyDefinition,
-  type PropertyEditorCategory,
+  type PropertyEditorSource,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardRenderer from '../card/CardRenderer.vue'
@@ -88,33 +88,32 @@ const selectedLayout = computed<Record<string, unknown> | null>(() => {
   return metadata?.location ? (metadata.location as Record<string, unknown>) : null
 })
 
-const propertyCategories = computed<PropertyEditorCategory[]>(() => {
-  const categories: PropertyEditorCategory[] = []
+const selectedBlockIds = computed(() => {
+  if (!selectedBlock.value) return []
+  return [selectedBlock.value.id]
+})
+
+const propertySources = computed<PropertyEditorSource[]>(() => {
+  const sources: PropertyEditorSource[] = []
 
   if (selectedBlock.value) {
-    categories.push({
+    sources.push({
       title: 'Block',
-      entries: buildEntries(
-        selectedBlock.value as Record<string, unknown>,
-        blockPropertyDefinitions[selectedBlock.value.type],
-        'Block'
-      ),
+      target: selectedBlock.value as Record<string, unknown> & { type?: string },
+      typeDefinitions: blockPropertyDefinitions,
     })
   }
 
   const parentBlock = (selectedNode.value?.parent?.metadata as CardTreeNodeMetadata | undefined)?.block
   if (selectedLayout.value) {
-    categories.push({
+    sources.push({
       title: 'Layout',
-      entries: buildEntries(
-        selectedLayout.value,
-        parentBlock ? getLocationDefinitions(parentBlock.type) : rootChildLocationDefinitions,
-        'Layout'
-      ),
+      target: selectedLayout.value as Record<string, unknown> & { type?: string },
+      definitions: parentBlock ? getLocationDefinitions(parentBlock.type) : rootChildLocationDefinitions,
     })
   }
 
-  return categories.filter((category) => category.entries.length > 0)
+  return sources
 })
 
 const blockTree = computed(() => {
@@ -195,22 +194,6 @@ async function saveFile() {
 onMounted(loadFile)
 watch(() => props.filePath, loadFile)
 defineExpose({ save: saveFile })
-
-function buildEntries(
-  target: Record<string, unknown>,
-  definitions: Record<string, EditorPropertyDefinition>,
-  sourceCategoryTitle?: string
-): PropertyEditorCategory['entries'] {
-  return Object.entries(target).map(([key, value]) => ({
-    key,
-    definition: definitions[key] ?? { datatype: 'string' },
-    label: definitions[key]?.label,
-    category: definitions[key]?.category,
-    sourceCategoryTitle,
-    value,
-    target,
-  }))
-}
 
 function getLocationDefinitions(
   type: CardBlock['type']

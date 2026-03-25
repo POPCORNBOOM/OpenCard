@@ -1,10 +1,11 @@
 <template>
     <div :style="blockStyle">
         <div v-for="child in orderedChildren" :key="child.block.id" :style="getChildStyle(child.location)">
-            <CardBlock :block="child.block" layout-mode="static" />
+            <CardBlock :block="child.block" layout-mode="static" :use-wrapper="useWrapper" />
         </div>
     </div>
 </template>
+
 <script setup lang="ts">
 import { computed } from 'vue'
 import { FlowContainerBlock } from '../../core/Card'
@@ -14,8 +15,10 @@ import CardBlock from './CardBlock.vue'
 const props = withDefaults(defineProps<{
     block: FlowContainerBlock
     layoutMode?: 'absolute' | 'static'
+    useWrapper?: boolean
 }>(), {
     layoutMode: 'absolute',
+    useWrapper: true,
 })
 
 const directionMap: Record<FlowContainerBlock['direction'], string> = {

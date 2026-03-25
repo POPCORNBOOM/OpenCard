@@ -259,6 +259,12 @@ export type EditorPropertyDefinition = {
 
 export type TypePropertyDefinitions = Record<string, Record<string, EditorPropertyDefinition>>
 export type BlockPropertyDefinitions = Record<CardBlock['type'], Record<string, EditorPropertyDefinition>>
+export type PropertyEditorSource = {
+    title: string
+    target: PropertyEditorTarget
+    definitions?: Record<string, EditorPropertyDefinition>
+    typeDefinitions?: TypePropertyDefinitions
+}
 export type PropertyEditorEntry = {
     key: string
     label?: string

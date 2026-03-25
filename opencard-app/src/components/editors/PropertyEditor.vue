@@ -1,6 +1,6 @@
 <template>
   <div class="property-editor">
-    <div v-if="categories.length === 0" class="empty-hint">选择一个对象查看属性</div>
+    <div v-if="sources.length === 0" class="empty-hint">选择一个对象查看属性</div>
     <template v-else>
       <section v-for="category in displayCategories" :key="category.title" class="category">
         <div class="category-title">{{ category.title }}</div>
@@ -21,9 +21,11 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import {
+  type EditorPropertyDefinition,
   type PropertyEditorCategory,
   type PropertyDatatype,
   type PropertyEditorEntry,
+  type PropertyEditorSource,
 } from '../../core/Card'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
@@ -46,11 +48,21 @@ const datatypeEditorMap: Record<PropertyDatatype, Component> = {
 type SortMode = 'category' | 'alphabetical'
 
 const props = defineProps<{
-  categories: PropertyEditorCategory[]
+  sources: PropertyEditorSource[]
   sortMode: SortMode
 }>()
+
+const defaultDefinition: EditorPropertyDefinition = { datatype: 'string' }
+
+const mergedCategories = computed<PropertyEditorCategory[]>(() =>
+  props.sources.map((source) => ({
+    title: source.title,
+    entries: buildEntries(source),
+  }))
+)
+
 const visibleCategories = computed(() =>
-  props.categories
+  mergedCategories.value
     .map((category) => ({
       ...category,
       entries: category.entries
@@ -121,6 +133,38 @@ function getEntryLabel(entry: PropertyEditorEntry): string {
 
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
+}
+
+function buildEntries(source: PropertyEditorSource): PropertyEditorEntry[] {
+  const definitions = resolveDefinitions(source)
+  const keys = new Set<string>([
+    ...Object.keys(source.target),
+    ...Object.keys(definitions),
+  ])
+
+  return Array.from(keys).map((key) => {
+    const definition = definitions[key] ?? defaultDefinition
+    return {
+      key,
+      label: definition.label,
+      category: definition.category,
+      sourceCategoryTitle: source.title,
+      value: source.target[key],
+      target: source.target,
+      definition,
+    }
+  })
+}
+
+function resolveDefinitions(source: PropertyEditorSource): Record<string, EditorPropertyDefinition> {
+  const explicitDefinitions = source.definitions ?? {}
+  const targetType = typeof source.target.type === 'string' ? source.target.type : undefined
+  const inferredDefinitions = targetType ? source.typeDefinitions?.[targetType] ?? {} : {}
+
+  return {
+    ...inferredDefinitions,
+    ...explicitDefinitions,
+  }
 }
 </script>
 
