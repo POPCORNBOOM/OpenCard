@@ -3,10 +3,14 @@
         <div class="root-content" @click="handleClick">
             <i class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"></i>
             <span class="root-title">{{ props.title }}</span>
+            <div v-if="props.actions?.length" class="root-actions">
+                <i v-for="(action, i) in props.actions" :key="i" class="codicon action-btn" :class="action.icon"
+                    :title="action.title" @click.stop="action.handler" />
+            </div>
         </div>
 
         <div v-if="isExpanded">
-            <TreeNode v-for="node in nodes" :key="node.path" :node="node" :level="1" />
+            <TreeNode v-for="node in nodes" :key="node.key" :node="node" :level="1" />
         </div>
     </div>
 </template>
@@ -14,36 +18,43 @@
 import { computed, provide, ref } from 'vue';
 import TreeNode, { ITreeNode } from './TreeNode.vue';
 
+export interface ITreeAction {
+    icon: string        // codicon class, e.g. 'codicon-add'
+    title?: string      // tooltip
+    handler: () => void
+}
+
 interface Props {
     nodes: ITreeNode[]
     multiSelect?: boolean
-    selected?: Set<string>
+    selected?: Map<string, ITreeNode>
     title?: string
+    actions?: ITreeAction[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
     multiSelect: true,
-    selected: () => new Set<string>(),
+    selected: () => new Map<string, ITreeNode>(),
 })
 
 function handleNodeDoubleClick(node: ITreeNode) {
     emit('node-dblclick', node)
 }
 
-function handleNodeClick(path: string, modify: 'ctrl' | 'none') {
-    const newSelected = new Set(props.selected || new Set<string>())
+function handleNodeClick(key: string, node: ITreeNode, modify: 'ctrl' | 'none') {
+    const newSelected = new Map(props.selected || new Map<string, ITreeNode>())
 
     // modify: 'ctrl' | 'none'
     if (modify === 'ctrl') {
-        if (newSelected.has(path)) {
-            newSelected.delete(path)
+        if (newSelected.has(key)) {
+            newSelected.delete(key)
         } else {
-            newSelected.add(path)
+            newSelected.set(key, node)
         }
     }
     else {
         newSelected.clear()
-        newSelected.add(path)
+        newSelected.set(key, node)
     }
     emit('update:selected', newSelected)
 }
@@ -51,14 +62,14 @@ function handleNodeClick(path: string, modify: 'ctrl' | 'none') {
 // 提供方法给子组件调用
 
 provide('nodeTree', {
-    selectedNodes: computed(() => props.selected || new Set<string>()),
+    selectedNodes: computed(() => props.selected || new Map<string, ITreeNode>()),
     handleNodeClick: handleNodeClick,
     handleNodeDoubleClick: handleNodeDoubleClick,
     multiSelect: props.multiSelect
 })
 
 const emit = defineEmits<{
-    'update:selected': [value: Set<string>],
+    'update:selected': [value: Map<string, ITreeNode>],
     'node-dblclick': [node: ITreeNode]
 }>()
 
@@ -88,5 +99,27 @@ function handleClick() {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: bold;
+}
+
+.root-actions {
+    display: flex;
+    visibility: hidden;
+    gap: 2px;
+    margin-right: 4px;
+}
+
+.node-tree:hover .root-actions {
+    visibility: visible;
+}
+
+.action-btn {
+    padding: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.action-btn:hover {
+    background: #454545;
 }
 </style>

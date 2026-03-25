@@ -45,7 +45,7 @@
             </button>
             <NodeTree :nodes="openedFiles" title="打开的编辑器" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName"
-              @node-dblclick="node => handleOpenFile(node.path)" v-model:selected="selectedFiles" />
+              @node-dblclick="node => handleOpenFile(node.key)" v-model:selected="selectedFiles" />
             <NodeTree :nodes="fileTree" title="时间线" />
           </div>
 
@@ -64,10 +64,10 @@
       <!-- 编辑器区域 -->
       <div class="editor-container">
         <div class="editor-tabs" v-if="openedFiles.length > 0">
-          <div v-for="file in openedFiles" :key="file.path" class="editor-tab"
-            :class="{ active: currentFile === file.path }" @click="currentFile = file.path">
+          <div v-for="file in openedFiles" :key="file.key" class="editor-tab"
+            :class="{ active: currentFile === file.key }" @click="currentFile = file.key">
             {{ file.name }}
-            <span class="tab-close" @click.stop="closeFile(file.path)">×</span>
+            <span class="tab-close" @click.stop="closeFile(file.key)">×</span>
           </div>
         </div>
         <div class="editor-content">
@@ -79,7 +79,7 @@
         </div>
       </div>
 
-      <!-- 右侧预览面板 -->
+      <!-- 右侧预览面板 
       <div class="preview-panel" v-if="showPreview && previewCardDoc">
         <div class="preview-header">
           <span>卡牌预览</span>
@@ -88,7 +88,7 @@
         <div class="preview-content">
           <CardRenderer ref="liveCardRendererRef" :document="previewCardDoc" />
         </div>
-      </div>
+      </div>-->
     </div>
 
     <!-- 底部状态栏 -->
@@ -117,11 +117,11 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import { useProject } from '../composables/useProject'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
-import { ITreeNode } from '../components/TreeNode.vue'
+import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
-import { editorRegistry } from '../core/editorRegistry'
-import type { CardDocument } from '../core/cardDocument'
+import { editorRegistry } from '../core/Editor'
+import type { CardDocument } from '../core/Card'
 import { toPng } from 'dom-to-image-more'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
@@ -140,7 +140,7 @@ const openedFiles = ref<Array<OpenedFileNode>>([])
 const currentFile = ref<string>('')
 const currentContent = ref<string>('')
 
-const selectedFiles = ref<Set<string>>(new Set())
+const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const cardRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const liveCardRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const showCardPreview = ref(false)
@@ -231,7 +231,7 @@ const fileTree = computed(() => {
 
     const node: ITreeNode = {
       name: displayName,
-      path: fullPath,
+      key: fullPath,
       isExpandable: file.isDirectory || false,
       children: file.isDirectory ? [] : undefined
     }
@@ -292,8 +292,8 @@ async function debugLog(message: string) {
     // 转换为图片
     console.log('正在渲染图片...')
     const dataUrl = await toPng(canvasElement, {
-      width: cardDoc.canvas.width,
-      height: cardDoc.canvas.height,
+      width: cardDoc.width,
+      height: cardDoc.height,
       pixelRatio: 2 // 2x DPI
     })
 
@@ -340,7 +340,7 @@ async function openProject() {
 async function handleOpenFile(path: string) {
   // 检查是否已打开
   debugLog(`尝试打开文件: ${path}`)
-  const existing = openedFiles.value.find(f => f.path === path)
+  const existing = openedFiles.value.find(f => f.key === path)
   if (existing) {
     currentFile.value = path
     currentContent.value = existing.metadata.content
@@ -353,7 +353,7 @@ async function handleOpenFile(path: string) {
     const content = await readFile(path)
     const name = path.split(/[/\\]/).pop() || path
     openedFiles.value.push({
-      path,
+      key: path,
       name,
       isExpandable: false,
       metadata: { content, isModified: false }
@@ -366,11 +366,11 @@ async function handleOpenFile(path: string) {
 }
 
 function closeFile(path: string) {
-  const index = openedFiles.value.findIndex(f => f.path === path)
+  const index = openedFiles.value.findIndex(f => f.key === path)
   if (index !== -1) {
     openedFiles.value.splice(index, 1)
     if (currentFile.value === path) {
-      currentFile.value = openedFiles.value[0]?.path || ''
+      currentFile.value = openedFiles.value[0]?.key || ''
       currentContent.value = openedFiles.value[0]?.metadata.content || ''
     }
   }
@@ -379,10 +379,10 @@ function closeFile(path: string) {
 async function saveCurrentFile() {
   if (!currentFile.value) return
 
-  const file = openedFiles.value.find(f => f.path === currentFile.value)
+  const file = openedFiles.value.find(f => f.key === currentFile.value)
   if (!file) return
 
-  const relativePath = file.path.replace(`${projectPath.value}/`, '')
+  const relativePath = file.key.replace(`${projectPath.value}/`, '')
   try {
     await saveFile(relativePath, currentContent.value)
     file.metadata.content = currentContent.value

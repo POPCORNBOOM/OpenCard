@@ -1,3 +1,5 @@
+import { ITreeNode } from "../components/ui/TreeNode.vue"
+
 export type BaseBlock = {
     id: string
     anchor: AnchorPosition
@@ -58,10 +60,30 @@ export type FlowContainerBlock = BaseBlock & {
 export type CardBlock = TextBlock | ImageBlock | SimpleContainerBlock | FlowContainerBlock
 
 export type CardDocument = {
+    name: string
     version: 1
-    canvas: {
-        width: number
-        height: number
-    }
+    width: number
+    height: number
     blocks: CardBlock[]
+}
+
+
+// 工具函数
+export const block2ITreeNode = (block: CardBlock): ITreeNode => {
+    if (block.type === 'flow-container' || block.type === 'simple-container') {
+        return {
+            name: block.id,
+            key: `${block.type} (${block.id})`,
+            isExpandable: true,
+            children: block.blocks.map(block2ITreeNode),
+            metadata: block
+        }
+    } else {
+        return {
+            name: block.id,
+            key: `${block.type} (${block.id})`,
+            isExpandable: false,
+            metadata: block
+        }
+    }
 }

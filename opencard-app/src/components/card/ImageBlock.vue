@@ -1,11 +1,19 @@
 <template>
-    <img :src="block.assetId" :alt="block.id" />
+    <div :style="wrapStyle">
+        <img :src="block.assetId" :alt="block.id" :style="imgStyle" />
+    </div>
 </template>
 <script setup lang="ts">
-import { ImageBlock } from '../../core/cardDocument';
+import { computed } from 'vue'
+import { ImageBlock } from '../../core/Card'
+import { getPositionStyles } from '../../utils/blockStyle'
 
+const props = defineProps<{ block: ImageBlock }>()
 
-defineProps<{
-    block: ImageBlock
-}>()
+const wrapStyle = computed(() => getPositionStyles(props.block) + '; overflow: hidden')
+
+const imgStyle = computed(() => {
+    const fit = props.block.fit ?? 'cover'
+    return `width: 100%; height: 100%; object-fit: ${fit}; display: block`
+})
 </script>

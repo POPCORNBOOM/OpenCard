@@ -1,4 +1,4 @@
-import { CardDocument, Component } from '../core/cardDocument'
+import { CardDocument, Component } from '../core/Card'
 
 export function cardToHtml(doc: CardDocument): string {
     const componentsHTML = doc.components.map(comp => componentToHTML(comp)).join('')

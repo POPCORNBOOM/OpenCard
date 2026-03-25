@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { CardDocument } from '../../core/cardDocument'
+import { CardDocument } from '../../core/Card'
 import CardBlock from './CardBlock.vue'
 
 const props = defineProps<{
@@ -15,10 +15,10 @@ const props = defineProps<{
 
 const cardCanvasRef = ref<HTMLElement>()
 
-const canvasStyle = computed(() => ({
+const canvasStyle = computed((): Record<string, string> => ({
     position: 'relative',
-    width: `${props.document.canvas.width}px`,
-    height: `${props.document.canvas.height}px`,
+    width: `${props.document.width}px`,
+    height: `${props.document.height}px`,
     background: '#fff'
 }))
 

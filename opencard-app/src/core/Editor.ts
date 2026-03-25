@@ -1,3 +1,15 @@
+/** 所有编辑器组件都要实现的通用接口 */
+
+export interface EditorProps {
+  filePath: string
+}
+
+export interface EditorEmits {
+  (e: 'save'): void
+  (e: 'modified', isModified: boolean): void
+}
+
+
 import type { Component } from 'vue'
 
 // 编辑器接口定义
@@ -54,7 +66,7 @@ import CardDesignEditor from '../components/editors/CardDesignEditor.vue'
 // 单例实例
 export const editorRegistry = new EditorRegistry()
 
-// 注册内置编辑器
+// 在此处注册内置编辑器
 editorRegistry.register({
   id: 'monaco',
   name: 'Monaco Editor',

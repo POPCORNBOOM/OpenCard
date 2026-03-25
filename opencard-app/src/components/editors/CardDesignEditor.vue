@@ -3,28 +3,22 @@
     <!-- 左侧：可视化画布 -->
     <div class="canvas-area">
       <div class="canvas-scroll">
+        <!-- 可视化画布 -->
         <CardRenderer v-if="cardDoc" :document="cardDoc" />
-        <div v-else class="empty-hint">无法解析 .opencard 文件</div>
+        <div class="empty-hint">无法解析 .opencard 文件</div>
       </div>
     </div>
 
     <!-- 右侧面板 -->
     <div class="right-panel">
-      <!-- 上方：Block 列表 -->
+      <!-- 上方：CardDocument 属性树 -->
       <div class="block-list-panel">
-        <div class="panel-header">Blocks</div>
+        <div class="panel-header">信息树</div>
         <div class="block-list">
-          <div
-            v-for="block in blocks"
-            :key="block.id"
-            class="block-item"
-            :class="{ selected: selectedBlockId === block.id }"
-            @click="selectedBlockId = block.id"
-          >
-            <span class="block-type">{{ block.type }}</span>
-            <span class="block-id">{{ block.id }}</span>
-          </div>
-          <div v-if="!blocks.length" class="empty-hint">暂无 Block</div>
+          <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" @update:selected="onTreeSelect" :actions="[
+            { icon: 'codicon-add', title: '添加', handler: () => addBlock() },
+            { icon: 'codicon-trash', title: '删除', handler: () => deleteBlock() },
+          ]" />
         </div>
       </div>
 
@@ -32,17 +26,15 @@
       <div class="property-panel">
         <div class="panel-header">属性</div>
         <div class="property-editor">
-          <div v-if="!selectedBlock" class="empty-hint">选择一个 Block 查看属性</div>
+
+          <div v-if="!selectedBlocks" class="empty-hint">选择一个 Block 查看属性</div>
           <template v-else>
-            <div v-for="(value, key) in selectedBlockProps" :key="key" class="prop-row">
+            <div v-for="(value, key) in selectedObjectProps" :key="key" class="prop-row">
               <label class="prop-label">{{ key }}</label>
-              <input
-                class="prop-input"
-                :value="value"
-                @input="updateBlockProp(key as string, ($event.target as HTMLInputElement).value)"
-              />
+              <input class="prop-input" :value="value"
+                @input="updateBlockProp(key as string, ($event.target as HTMLInputElement).value)" />
             </div>
-          </template>
+          </template><!---->
         </div>
       </div>
     </div>
@@ -51,48 +43,51 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import type { EditorProps, EditorEmits } from '../../core/editorInterface'
-import type { CardDocument, CardBlock } from '../../core/cardDocument'
+import type { EditorProps, EditorEmits } from '../../core/Editor'
+import { type CardDocument, type CardBlock, block2ITreeNode } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardRenderer from '../card/CardRenderer.vue'
+import NodeTree from '../ui/NodeTree.vue'
+import type { ITreeNode } from '../ui/TreeNode.vue'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 
 const rawContent = ref('')
 const cardDoc = ref<CardDocument | null>(null)
-const selectedBlockId = ref<string | null>(null)
 const isModified = ref(false)
 
-const blocks = computed<CardBlock[]>(() => cardDoc.value?.blocks ?? [])
+const selectedBlocks = ref<Map<string, ITreeNode>>(new Map())
 
-const selectedBlock = computed(() =>
-  blocks.value.find(b => b.id === selectedBlockId.value) ?? null
-)
-
-// 将选中 block 的属性展开为 key-value（排除嵌套的 blocks）
-const selectedBlockProps = computed(() => {
-  if (!selectedBlock.value) return {}
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(selectedBlock.value)) {
-    if (key === 'blocks' || key === 'metadata') continue
-    result[key] = value
-  }
-  return result
+const selectedObjectProps = computed(() => {
+  if (selectedBlocks.value.size === 0) return null
+  // 这里只展示第一个选中块的属性
+  const firstBlockNode = selectedBlocks.value.values().next().value
+  return firstBlockNode?.metadata
 })
 
-function updateBlockProp(key: string, rawValue: string) {
-  if (!cardDoc.value || !selectedBlock.value) return
-  const block = cardDoc.value.blocks.find(b => b.id === selectedBlockId.value)
-  if (!block) return
-
-  // 尝试转为数字
-  const numVal = Number(rawValue)
-  ;(block as any)[key] = rawValue === '' ? undefined : isNaN(numVal) ? rawValue : numVal
-
+function updateBlockProp(key: string, value: any) {
+  if (selectedBlocks.value.size === 0) return
+  const firstBlockNode = selectedBlocks.value.values().next().value
+  if (!firstBlockNode) return
+  const block = firstBlockNode.metadata as CardBlock
+  // @ts-ignore
+  block[key] = value
   isModified.value = true
-  emit('modified', true)
 }
+
+
+function onTreeSelect(newSelected: Map<string, ITreeNode>) {
+  console.log('选中块:', Array.from(newSelected.values()).map(n => n.key))
+  selectedBlocks.value = newSelected
+}
+
+
+// BlockTree 相关
+const blockTree = computed(() => {
+  if (!cardDoc.value) return []
+  return cardDoc.value.blocks.map(block2ITreeNode)
+})
 
 async function loadFile() {
   try {
@@ -104,6 +99,13 @@ async function loadFile() {
     console.error('读取 .opencard 文件失败:', e)
     cardDoc.value = null
   }
+}
+
+const addBlock = () => {
+  //todo
+}
+const deleteBlock = () => {
+  //todo
 }
 
 async function saveFile() {
@@ -121,6 +123,7 @@ async function saveFile() {
 
 onMounted(loadFile)
 watch(() => props.filePath, loadFile)
+defineExpose({ save: saveFile })
 </script>
 <style scoped>
 .card-design-editor {

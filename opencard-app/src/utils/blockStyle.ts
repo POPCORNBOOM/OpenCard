@@ -1,4 +1,4 @@
-import { BaseBlock, CSSValue, AnchorPosition } from '../core/cardDocument'
+import { BaseBlock, CSSValue } from '../core/Card'
 
 export function toCSSValue(value: CSSValue | undefined): string {
     if (value === undefined) return '0px'

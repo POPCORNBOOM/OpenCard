@@ -9,7 +9,7 @@
     </div>
 
     <div v-if="node.isExpandable && isExpanded">
-      <TreeNode v-for="child in node.children" :key="child.path" :node="child" :level="level + 1" />
+      <TreeNode v-for="child in node.children" :key="child.key" :node="child" :level="level + 1" />
     </div>
   </div>
 </template>
@@ -18,15 +18,15 @@
 import { computed, inject, ref, type ComputedRef } from 'vue'
 
 const nodeTree = inject<{
-  selectedNodes: ComputedRef<Set<string>>
-  handleNodeClick: (path: string, modify: 'ctrl' | 'none') => void
+  selectedNodes: ComputedRef<Map<string, ITreeNode>>
+  handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
   handleNodeDoubleClick: (node: ITreeNode) => void
   multiSelect: boolean
 }>('nodeTree')
 
 export interface ITreeNode {
   name: string
-  path: string
+  key: string
   isExpandable: boolean
   icon?: string
   children?: ITreeNode[]
@@ -39,13 +39,12 @@ const props = defineProps<{
 }>()
 
 const isSelected = computed(() => {
-  return nodeTree?.selectedNodes.value.has(props.node.path) || false
+  return nodeTree?.selectedNodes.value.has(props.node.key) || false
 })
 const isExpanded = ref(false)
 
 function handleClick(event: MouseEvent) {
   event.stopPropagation()
-
 
   const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
 
@@ -54,7 +53,7 @@ function handleClick(event: MouseEvent) {
       isExpanded.value = !isExpanded.value
     }
   }
-  nodeTree?.handleNodeClick(props.node.path, modify)
+  nodeTree?.handleNodeClick(props.node.key, props.node, modify)
 
 }
 
