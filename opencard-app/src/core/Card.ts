@@ -219,6 +219,7 @@ export type PropertyConstraintMap = {
         minLength?: number
         maxLength?: number
         options?: readonly string[]
+        autocomplete?: readonly string[]
     }
     number: {
         min?: number
@@ -288,15 +289,16 @@ const flowDirectionOptions = ['lr', 'rl', 'tb', 'bt'] as const
 const textModeOptions = ['plain', 'markdown', 'richtext'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
 const textAlignOptions = ['left', 'center', 'right', 'justify'] as const
+const cssLengthAutocomplete = ['px', '%'] as const
 
 export const blockPropertyDefinitions: BlockPropertyDefinitions = {
     text: {
         id: { datatype: 'string', minLength: 1, label: 'ID', category: 'Identity' },
         type: { datatype: 'string', isReadonlyForEditor: true, label: 'Type', category: 'Identity' },
-        width: { datatype: 'string', label: 'Width', category: 'Layout' },
-        height: { datatype: 'string', label: 'Height', category: 'Layout' },
-        translateX: { datatype: 'string', label: 'Translate X', category: 'Transform' },
-        translateY: { datatype: 'string', label: 'Translate Y', category: 'Transform' },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Width', category: 'Layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Height', category: 'Layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate X', category: 'Transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
         transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
@@ -307,21 +309,21 @@ export const blockPropertyDefinitions: BlockPropertyDefinitions = {
         metadata: { datatype: 'object', objectType: 'metadata', isHiddenForEditor: true, label: 'Metadata', category: 'Data' },
         content: { datatype: 'string', label: 'Content', category: 'Content' },
         mode: { datatype: 'string', options: textModeOptions, label: 'Mode', category: 'Content' },
-        fontSize: { datatype: 'string', label: 'Font Size', category: 'Typography' },
+        fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Font Size', category: 'Typography' },
         fontFamily: { datatype: 'string', label: 'Font Family', category: 'Typography' },
         fontWeight: { datatype: 'string', label: 'Font Weight', category: 'Typography' },
         color: { datatype: 'color', enablePicker: true, enableCss: true, label: 'Text Color', category: 'Appearance' },
         backgroundColor: { datatype: 'color', enablePicker: true, enableCss: true, label: 'Background Color', category: 'Appearance' },
         textAlign: { datatype: 'string', options: textAlignOptions, label: 'Text Align', category: 'Typography' },
-        lineHeight: { datatype: 'string', label: 'Line Height', category: 'Typography' },
+        lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Line Height', category: 'Typography' },
     },
     image: {
         id: { datatype: 'string', minLength: 1, label: 'ID', category: 'Identity' },
         type: { datatype: 'string', isReadonlyForEditor: true, label: 'Type', category: 'Identity' },
-        width: { datatype: 'string', label: 'Width', category: 'Layout' },
-        height: { datatype: 'string', label: 'Height', category: 'Layout' },
-        translateX: { datatype: 'string', label: 'Translate X', category: 'Transform' },
-        translateY: { datatype: 'string', label: 'Translate Y', category: 'Transform' },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Width', category: 'Layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Height', category: 'Layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate X', category: 'Transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
         transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
@@ -336,10 +338,10 @@ export const blockPropertyDefinitions: BlockPropertyDefinitions = {
     'simple-container': {
         id: { datatype: 'string', minLength: 1, label: 'ID', category: 'Identity' },
         type: { datatype: 'string', isReadonlyForEditor: true, label: 'Type', category: 'Identity' },
-        width: { datatype: 'string', label: 'Width', category: 'Layout' },
-        height: { datatype: 'string', label: 'Height', category: 'Layout' },
-        translateX: { datatype: 'string', label: 'Translate X', category: 'Transform' },
-        translateY: { datatype: 'string', label: 'Translate Y', category: 'Transform' },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Width', category: 'Layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Height', category: 'Layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate X', category: 'Transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
         transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
@@ -354,10 +356,10 @@ export const blockPropertyDefinitions: BlockPropertyDefinitions = {
         id: { datatype: 'string', minLength: 1, label: 'ID', category: 'Identity' },
         type: { datatype: 'string', isReadonlyForEditor: true, label: 'Type', category: 'Identity' },
         anchor: { datatype: 'string', options: anchorOptions, label: 'Anchor', category: 'Layout' },
-        width: { datatype: 'string', label: 'Width', category: 'Layout' },
-        height: { datatype: 'string', label: 'Height', category: 'Layout' },
-        translateX: { datatype: 'string', label: 'Translate X', category: 'Transform' },
-        translateY: { datatype: 'string', label: 'Translate Y', category: 'Transform' },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Width', category: 'Layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Height', category: 'Layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate X', category: 'Transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
         transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
@@ -367,15 +369,15 @@ export const blockPropertyDefinitions: BlockPropertyDefinitions = {
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHiddenForEditor: true, label: 'Metadata', category: 'Data' },
         direction: { datatype: 'string', options: flowDirectionOptions, label: 'Direction', category: 'Layout' },
-        gap: { datatype: 'string', label: 'Gap', category: 'Layout' },
+        gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Gap', category: 'Layout' },
         children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHiddenForEditor: true, label: 'Children', category: 'Data' },
     },
 }
 
 export const simpleContainerChildLocationDefinitions: Record<string, EditorPropertyDefinition> = {
     anchor: { datatype: 'string', options: anchorOptions, label: 'Anchor', category: 'Position' },
-    x: { datatype: 'string', label: 'X', category: 'Position' },
-    y: { datatype: 'string', label: 'Y', category: 'Position' },
+    x: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'X', category: 'Position' },
+    y: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Y', category: 'Position' },
 }
 
 export const rootChildLocationDefinitions = simpleContainerChildLocationDefinitions
