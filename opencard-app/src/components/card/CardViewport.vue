@@ -161,7 +161,6 @@ onBeforeUnmount(() => {
   left: 0;
   top: 0;
   transform-origin: 0 0;
-  will-change: transform;
 }
 
 .card-viewport-debug {
