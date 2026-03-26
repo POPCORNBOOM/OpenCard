@@ -1,0 +1,96 @@
+{
+  "name": "Image Render Test",
+  "version": 1,
+  "width": 900,
+  "height": 640,
+  "children": [
+    {
+      "block": {
+        "id": "canvas-root",
+        "type": "simple-container-block",
+        "width": "860px",
+        "height": "600px",
+        "children": [
+          {
+            "block": {
+              "id": "title",
+              "type": "text-block",
+              "content": "OpenCard Local Image Test",
+              "mode": "plain",
+              "fontSize": "28px",
+              "fontWeight": "bold",
+              "color": "#ffffff",
+              "width": "420px",
+              "height": "40px"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "28px",
+              "y": "20px"
+            }
+          },
+          {
+            "block": {
+              "id": "hint",
+              "type": "text-block",
+              "content": "Both images below are loaded via project-relative imagePath.",
+              "mode": "plain",
+              "fontSize": "14px",
+              "color": "#d4d4d4",
+              "width": "520px",
+              "lineHeight": "22px"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "28px",
+              "y": "62px"
+            }
+          },
+          {
+            "block": {
+              "id": "left-image",
+              "type": "image-block",
+              "imagePath": "沈星回.jpg",
+              "fit": "cover",
+              "width": "360px",
+              "height": "460px",
+              "customCss": "border-radius: 18px; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "28px",
+              "y": "110px"
+            }
+          },
+          {
+            "block": {
+              "id": "right-image",
+              "type": "image-block",
+              "imagePath": "立绘_圣职初雪_2.png",
+              "fit": "contain",
+              "width": "420px",
+              "height": "460px",
+              "customCss": "border-radius: 18px; background: rgba(255, 255, 255, 0.08); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "412px",
+              "y": "110px"
+            }
+          }
+        ],
+        "customCss": "background: linear-gradient(180deg, #2f3f66 0%, #1b2236 100%); border-radius: 22px;"
+      },
+      "location": {
+        "type": "simple-container-location",
+        "anchor": "cc",
+        "x": 0,
+        "y": 0
+      }
+    }
+  ]
+}

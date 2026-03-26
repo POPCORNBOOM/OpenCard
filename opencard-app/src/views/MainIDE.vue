@@ -45,7 +45,9 @@
             </button>
             <NodeTree :nodes="openedFiles" title="打开的编辑器" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName"
-              @node-dblclick="node => handleOpenFile(node.key)" v-model:selected="selectedFiles" />
+              @node-dblclick="node => handleOpenFile(node.key)"
+              @node-toggle="handleNodeToggle"
+              v-model:selected="selectedFiles" />
             <NodeTree :nodes="fileTree" title="时间线" />
           </div>
 
@@ -115,10 +117,11 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { useProject } from '../composables/useProject'
+import { useProjectStore } from '../stores/projectStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
+import type { NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import type { CardDocument } from '../core/Card'
@@ -133,7 +136,17 @@ type OpenedFileNode = ITreeNode & {
   }
 }
 
-const { projectPath, files, isWatching, openProject: openProjectFn, readFile, saveFile } = useProject()
+const {
+  projectPath,
+  indexedEntries,
+  isWatching,
+  openProject: openProjectFn,
+  isDirectoryExpanded,
+  readDirectoryEntries,
+  readFile,
+  saveFile,
+  setDirectoryExpanded,
+} = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
 const openedFiles = ref<Array<OpenedFileNode>>([])
@@ -216,13 +229,13 @@ watch(currentContent, (newContent) => {
 
 
 const fileTree = computed(() => {
-  if (!files.value.length) return []
+  if (!indexedEntries.value.length) return []
 
   const root: ITreeNode[] = []
   const map = new Map<string, ITreeNode>()
 
   // 先创建所有节点
-  files.value.forEach(file => {
+  indexedEntries.value.forEach(file => {
     const relativePath = file.name
     const fullPath = `${projectPath.value}/${relativePath}`
     const parts = relativePath.split(/[/\\]/)
@@ -232,13 +245,14 @@ const fileTree = computed(() => {
       name: displayName,
       key: fullPath,
       isExpandable: file.isDirectory || false,
+      isExpanded: file.isDirectory ? isDirectoryExpanded(fullPath) : false,
       children: file.isDirectory ? [] : undefined
     }
     map.set(relativePath, node)
   })
 
   // 构建树形结构
-  files.value.forEach(file => {
+  indexedEntries.value.forEach(file => {
     const relativePath = file.name
     const node = map.get(relativePath)
     if (!node) return
@@ -361,6 +375,24 @@ async function handleOpenFile(path: string) {
     currentContent.value = content
   } catch (error) {
     console.error('打开文件失败:', error)
+  }
+}
+
+async function handleNodeToggle({ node, expanded }: NodeTreeTogglePayload) {
+  if (!node.isExpandable) {
+    return
+  }
+
+  setDirectoryExpanded(node.key, expanded)
+
+  if (!expanded) {
+    return
+  }
+
+  try {
+    await readDirectoryEntries(node.key, 1)
+  } catch (error) {
+    console.error('加载目录失败:', error)
   }
 }
 

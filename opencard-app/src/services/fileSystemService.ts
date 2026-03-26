@@ -7,26 +7,20 @@ import {
   remove,
   rename,
   exists,
-  type DirEntry
+  type DirEntry,
 } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface FileSystemService {
-  // 项目管理
   openProject(): Promise<string | null>
-
-  // 文件操作
   readFile(path: string): Promise<string>
   writeFile(path: string, content: string): Promise<void>
   deleteFile(path: string): Promise<void>
   renameFile(oldPath: string, newPath: string): Promise<void>
   fileExists(path: string): Promise<boolean>
-
-  // 目录操作
   readDirectory(path: string, recursive?: boolean): Promise<DirEntry[]>
+  readDirectoryEntries(path: string, depth?: number, basePath?: string): Promise<DirEntry[]>
   createDirectory(path: string): Promise<void>
-
-  // 文件监听
   startWatching(path: string): Promise<void>
   stopWatching(): Promise<void>
 }
@@ -36,8 +30,9 @@ class FileSystemServiceImpl implements FileSystemService {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择项目文件夹'
+      title: '选择项目文件夹',
     })
+
     return selected as string | null
   }
 
@@ -66,27 +61,31 @@ class FileSystemServiceImpl implements FileSystemService {
       return await readDir(path)
     }
 
-    // 递归读取目录
+    return await this.readDirectoryEntries(path, Number.POSITIVE_INFINITY)
+  }
+
+  async readDirectoryEntries(path: string, depth: number = 1, basePath: string = ''): Promise<DirEntry[]> {
+    const maxDepth = Number.isFinite(depth) ? Math.max(1, Math.floor(depth)) : Number.POSITIVE_INFINITY
     const result: DirEntry[] = []
 
-    async function readRecursive(dirPath: string, basePath: string = '') {
+    async function readRecursive(dirPath: string, currentBasePath: string, currentDepth: number) {
       const entries = await readDir(dirPath)
 
       for (const entry of entries) {
-        const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name
+        const relativePath = currentBasePath ? `${currentBasePath}/${entry.name}` : entry.name
         result.push({
           ...entry,
-          name: relativePath
+          name: relativePath,
         })
 
-        if (entry.isDirectory) {
+        if (entry.isDirectory && currentDepth < maxDepth) {
           const fullPath = `${dirPath}/${entry.name}`
-          await readRecursive(fullPath, relativePath)
+          await readRecursive(fullPath, relativePath, currentDepth + 1)
         }
       }
     }
 
-    await readRecursive(path)
+    await readRecursive(path, basePath, 1)
     return result
   }
 

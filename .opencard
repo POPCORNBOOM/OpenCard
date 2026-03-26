@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "workspace": {
+    "indexedEntries": [
+      {
+        "name": ".git",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": "CLAUDE.md",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "converters",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": "core",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": "design.md",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "opencard-app",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": "test-converter.html",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "test.html",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "testOpencardProject",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": "core/cardDocument.ts",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/COMMIT_EDITMSG",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/config",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/description",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/FETCH_HEAD",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/HEAD",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/hooks",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/index",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/info",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/logs",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/objects",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      },
+      {
+        "name": ".git/refs",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      }
+    ],
+    "expandedDirectories": [
+      "core"
+    ]
+  }
+}

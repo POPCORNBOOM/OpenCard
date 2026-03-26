@@ -37,6 +37,11 @@ export interface NodeTreeActionCalledPayload {
     node?: ITreeNode
 }
 
+export interface NodeTreeTogglePayload {
+    node: ITreeNode
+    expanded: boolean
+}
+
 interface Props {
     nodes: ITreeNode[]
     multiSelect?: boolean
@@ -56,6 +61,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
     'update:selected': [value: Map<string, ITreeNode>]
     'node-dblclick': [node: ITreeNode]
+    'node-toggle': [payload: NodeTreeTogglePayload]
     'action-called': [payload: NodeTreeActionCalledPayload]
 }>()
 
@@ -93,10 +99,15 @@ function callAction(actionKey: string, caller: 'tree' | 'node', node?: ITreeNode
     emit('action-called', { actionKey, caller, node })
 }
 
+function handleNodeToggle(node: ITreeNode, expanded: boolean) {
+    emit('node-toggle', { node, expanded })
+}
+
 provide('nodeTree', {
     selectedNodes,
     handleNodeClick,
     handleNodeDoubleClick,
+    handleNodeToggle,
     callAction,
     actions: computed(() => props.actions) as ComputedRef<Map<string, ActionDefinition>>,
     multiSelect: props.multiSelect,

@@ -34,6 +34,7 @@ export interface ITreeNode {
   key: string
   path?: string[]
   isExpandable?: boolean
+  isExpanded?: boolean
   icon?: string
   parent?: ITreeNode | null
   children?: ITreeNode[]
@@ -43,7 +44,7 @@ export interface ITreeNode {
 </script>
 
 <script setup lang="ts">
-import { computed, inject, ref, type ComputedRef } from 'vue'
+import { computed, inject, ref, watch, type ComputedRef } from 'vue'
 import type { ActionDefinition } from './NodeTree.vue'
 
 interface LocalTreeNode {
@@ -51,6 +52,7 @@ interface LocalTreeNode {
   key: string
   path?: string[]
   isExpandable?: boolean
+  isExpanded?: boolean
   icon?: string
   parent?: LocalTreeNode | null
   children?: LocalTreeNode[]
@@ -67,6 +69,7 @@ const nodeTree = inject<{
   selectedNodes: ComputedRef<Map<string, LocalTreeNode>>
   handleNodeClick: (key: string, node: LocalTreeNode, modify: 'ctrl' | 'none') => void
   handleNodeDoubleClick: (node: LocalTreeNode) => void
+  handleNodeToggle: (node: LocalTreeNode, expanded: boolean) => void
   callAction: (actionKey: string, caller: 'tree' | 'node', node?: LocalTreeNode) => void
   actions: ComputedRef<Map<string, ActionDefinition>>
   multiSelect: boolean
@@ -89,7 +92,14 @@ const isExpandable = computed(() => {
   return Boolean(props.node.children?.length)
 })
 
-const isExpanded = ref(false)
+const isExpanded = ref(props.node.isExpanded ?? false)
+
+watch(
+  () => props.node.isExpanded,
+  (nextValue) => {
+    isExpanded.value = nextValue ?? false
+  }
+)
 
 function handleClick(event: MouseEvent) {
   event.stopPropagation()
@@ -98,6 +108,7 @@ function handleClick(event: MouseEvent) {
 
   if (modify === 'none' && isExpandable.value) {
     isExpanded.value = !isExpanded.value
+    nodeTree?.handleNodeToggle(props.node, isExpanded.value)
   }
 
   nodeTree?.handleNodeClick(props.node.key, props.node, modify)
