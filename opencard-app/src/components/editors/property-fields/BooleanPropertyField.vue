@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import type { EditorPropertyDefinition } from '../../../core/Card'
+import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 defineProps<{
   definition: Extract<EditorPropertyDefinition, { datatype: 'boolean' }>

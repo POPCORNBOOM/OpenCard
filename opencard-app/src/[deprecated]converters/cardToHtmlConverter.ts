@@ -11,10 +11,10 @@ export function cardToHtml(doc: CardDocument): string {
 
 export function blockToHtml(block: CardBlock, skipPosition = false): string {
     switch (block.type) {
-        case 'text': return textBlockToHtml(block, skipPosition)
-        case 'image': return imageBlockToHtml(block, skipPosition)
-        case 'simple-container': return simpleContainerToHtml(block, skipPosition)
-        case 'flow-container': return flowContainerToHtml(block, skipPosition)
+        case 'text-block': return textBlockToHtml(block, skipPosition)
+        case 'image-block': return imageBlockToHtml(block, skipPosition)
+        case 'simple-container-block': return simpleContainerToHtml(block, skipPosition)
+        case 'flow-container-block': return flowContainerToHtml(block, skipPosition)
     }
 }
 

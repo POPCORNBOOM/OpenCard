@@ -2,31 +2,57 @@
   <div class="property-editor">
     <div v-if="sources.length === 0" class="empty-hint">选择一个对象查看属性</div>
     <template v-else>
-      <section v-for="category in displayCategories" :key="category.title" class="category">
-        <div class="category-title">{{ category.title }}</div>
-        <div v-for="entry in category.entries" :key="`${category.title}:${entry.key}`" class="prop-row">
-          <label class="prop-label">{{ entry.label ?? entry.key }}</label>
-          <component
-            :is="getEditorComponent(entry.definition.datatype)"
-            :definition="entry.definition"
-            :value="entry.value"
-            @update:value="emit('update-property', { target: entry.target, key: entry.key, value: $event })"
-          />
-        </div>
+      <section v-for="source in displaySources" :key="source.title" class="source-section">
+        <div class="source-title">{{ source.title }}</div>
+        <section v-for="category in source.categories" :key="`${source.title}:${category.title}`" class="category">
+          <div class="category-header">
+            <div class="category-title">{{ category.title }}</div>
+            <div v-if="category.addableFields.length > 0" class="add-field-menu">
+              <button class="add-field-button" type="button" title="添加字段" @click="toggleAddMenu(source.title, category.title)">
+                <span class="codicon codicon-add" />
+              </button>
+              <div
+                v-if="isAddMenuOpen(source.title, category.title)"
+                class="add-field-dropdown"
+              >
+                <button
+                  v-for="field in category.addableFields"
+                  :key="field.key"
+                  class="add-field-option"
+                  type="button"
+                  @click="addField(category, field)"
+                >
+                  {{ field.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`" class="prop-row">
+            <label class="prop-label">{{ entry.label }}</label>
+            <component
+              :is="getEditorComponent(entry.definition.datatype)"
+              :definition="entry.definition"
+              :value="entry.value"
+              @update:value="emit('update-property', { target: entry.target, key: entry.key, value: $event })"
+            />
+          </div>
+        </section>
       </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import {
-  type EditorPropertyDefinition,
-  type PropertyEditorCategory,
-  type PropertyDatatype,
-  type PropertyEditorEntry,
   type PropertyEditorSource,
+  type PropertyEditorTarget,
 } from '../../core/Card'
+import {
+  getTypePropertyEditorSchema,
+  type EditorPropertyDefinition,
+  type PropertyDatatype,
+} from '../../core/propertyEditorSchema'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
 import NumberPropertyField from './property-fields/NumberPropertyField.vue'
@@ -47,123 +73,219 @@ const datatypeEditorMap: Record<PropertyDatatype, Component> = {
 
 type SortMode = 'category' | 'alphabetical'
 
+type PropertyEditorEntry = {
+  key: string
+  label: string
+  value: unknown
+  target: PropertyEditorTarget
+  definition: EditorPropertyDefinition
+}
+
+type AddableField = {
+  key: string
+  label: string
+  definition: EditorPropertyDefinition
+}
+
+type PropertyEditorCategory = {
+  sourceTitle: string
+  title: string
+  target: PropertyEditorTarget
+  entries: PropertyEditorEntry[]
+  addableFields: AddableField[]
+}
+
+type PropertyEditorSourceView = {
+  title: string
+  categories: PropertyEditorCategory[]
+}
+
 const props = defineProps<{
   sources: PropertyEditorSource[]
   sortMode: SortMode
 }>()
 
 const defaultDefinition: EditorPropertyDefinition = { datatype: 'string' }
+const openAddMenuKey = ref<string | null>(null)
 
-const mergedCategories = computed<PropertyEditorCategory[]>(() =>
-  props.sources.map((source) => ({
-    title: source.title,
-    entries: buildEntries(source),
-  }))
-)
-
-const visibleCategories = computed(() =>
-  mergedCategories.value
-    .map((category) => ({
-      ...category,
-      entries: category.entries
-        .filter((entry) => !entry.definition.isHiddenForEditor)
-        .map((entry) => ({
-          ...entry,
-          label: entry.label ?? entry.definition.label ?? entry.key,
-          category: entry.category ?? entry.definition.category,
-          sourceCategoryTitle: entry.sourceCategoryTitle ?? category.title,
-        })),
+const displaySources = computed<PropertyEditorSourceView[]>(() =>
+  props.sources
+    .map((source) => ({
+      title: source.title,
+      categories: buildCategories(source),
     }))
-    .filter((category) => category.entries.length > 0)
+    .filter((source) => source.categories.length > 0)
 )
-
-const displayCategories = computed<PropertyEditorCategory[]>(() => {
-  const flatEntries = visibleCategories.value.flatMap((category) => category.entries)
-  if (props.sortMode === 'alphabetical') {
-    return buildAlphabeticalCategories(flatEntries)
-  }
-  return buildDefinitionCategories(flatEntries)
-})
 
 function getEditorComponent(datatype: PropertyDatatype): Component {
   return datatypeEditorMap[datatype] ?? StringPropertyField
 }
 
-function buildDefinitionCategories(entries: PropertyEditorEntry[]): PropertyEditorCategory[] {
-  const bucket = new Map<string, PropertyEditorEntry[]>()
+function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[] {
+  const definitions = resolveDefinitions(source.target)
+  const targetKeys = new Set(Object.keys(source.target))
+  const visibleDefinitionEntries = Object.entries(definitions).filter(([, definition]) => !definition.isHiddenForEditor)
 
-  for (const entry of sortEntriesByKey(entries)) {
-    const title = entry.category ?? entry.sourceCategoryTitle ?? 'General'
-    if (!bucket.has(title)) {
-      bucket.set(title, [])
-    }
-    bucket.get(title)?.push(entry)
+  if (props.sortMode === 'alphabetical') {
+    const keys = new Set<string>([
+      ...targetKeys,
+      ...visibleDefinitionEntries.map(([key]) => key),
+    ])
+
+    const entries = sortEntriesByLabel(
+      Array.from(keys).map((key) => createEntry(source.target, key, definitions[key]))
+    )
+
+    const addableFields: AddableField[] = []
+
+    return entries.length > 0 || addableFields.length > 0
+      ? [{
+          sourceTitle: source.title,
+          title: 'A-Z',
+          target: source.target,
+          entries,
+          addableFields,
+        }]
+      : []
   }
 
-  return Array.from(bucket.entries())
-    .sort(([left], [right]) => compareText(left, right))
-    .map(([title, groupedEntries]) => ({
-      title,
-      entries: groupedEntries,
-    }))
-}
+  const categoryMap = new Map<string, PropertyEditorCategory>()
+  const visibleKeys = new Set<string>()
 
-function buildAlphabeticalCategories(entries: PropertyEditorEntry[]): PropertyEditorCategory[] {
-  return [
-    {
-      title: 'AZ',
-      entries: sortEntriesByKey(entries),
-    },
-  ]
-}
-
-function sortEntriesByKey(entries: PropertyEditorEntry[]): PropertyEditorEntry[] {
-  return [...entries].sort((left, right) => {
-    const keyCompare = compareText(left.key, right.key)
-    if (keyCompare !== 0) {
-      return keyCompare
+  for (const key of Object.keys(source.target)) {
+    const definition = definitions[key]
+    if (definition?.isHiddenForEditor) {
+      continue
     }
-    return compareText(getEntryLabel(left), getEntryLabel(right))
+    const entry = createEntry(source.target, key, definition)
+    const title = getCategoryTitle(source.title, entry.definition)
+    visibleKeys.add(key)
+    ensureCategory(categoryMap, source, title).entries.push(entry)
+  }
+
+  for (const [key, definition] of visibleDefinitionEntries) {
+    const title = getCategoryTitle(source.title, definition)
+    const category = ensureCategory(categoryMap, source, title)
+
+    if (!visibleKeys.has(key)) {
+      category.addableFields.push({
+        key,
+        label: getEntryLabel(key, definition),
+        definition,
+      })
+    }
+  }
+
+  return Array.from(categoryMap.values())
+    .map((category) => ({
+      ...category,
+      entries: sortEntriesByLabel(category.entries),
+      addableFields: sortAddableFields(category.addableFields),
+    }))
+    .filter((category) => category.entries.length > 0 || category.addableFields.length > 0)
+    .sort((left, right) => compareText(left.title, right.title))
+}
+
+function ensureCategory(
+  categoryMap: Map<string, PropertyEditorCategory>,
+  source: PropertyEditorSource,
+  title: string
+): PropertyEditorCategory {
+  let category = categoryMap.get(title)
+  if (!category) {
+    category = {
+      sourceTitle: source.title,
+      title,
+      target: source.target,
+      entries: [],
+      addableFields: [],
+    }
+    categoryMap.set(title, category)
+  }
+  return category
+}
+
+function createEntry(
+  target: PropertyEditorTarget,
+  key: string,
+  definition?: EditorPropertyDefinition
+): PropertyEditorEntry {
+  const resolvedDefinition = definition ?? defaultDefinition
+  return {
+    key,
+    label: getEntryLabel(key, resolvedDefinition),
+    value: target[key],
+    target,
+    definition: resolvedDefinition,
+  }
+}
+
+function getEntryLabel(key: string, definition: EditorPropertyDefinition): string {
+  return definition.label ?? key
+}
+
+function getCategoryTitle(sourceTitle: string, definition: EditorPropertyDefinition): string {
+  return definition.category ?? sourceTitle
+}
+
+function resolveDefinitions(target: PropertyEditorTarget): Record<string, EditorPropertyDefinition> {
+  const targetType = typeof target.type === 'string' ? target.type : undefined
+  return getTypePropertyEditorSchema(targetType)
+}
+
+function sortEntriesByLabel(entries: PropertyEditorEntry[]): PropertyEditorEntry[] {
+  return [...entries].sort((left, right) => {
+    const labelCompare = compareText(left.label, right.label)
+    if (labelCompare !== 0) {
+      return labelCompare
+    }
+    return compareText(left.key, right.key)
   })
 }
 
-function getEntryLabel(entry: PropertyEditorEntry): string {
-  return entry.label ?? entry.definition.label ?? entry.key
+function sortAddableFields(fields: AddableField[]): AddableField[] {
+  return [...fields].sort((left, right) => compareText(left.label, right.label))
 }
 
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
-function buildEntries(source: PropertyEditorSource): PropertyEditorEntry[] {
-  const definitions = resolveDefinitions(source)
-  const keys = new Set<string>([
-    ...Object.keys(source.target),
-    ...Object.keys(definitions),
-  ])
+function getCategoryMenuKey(sourceTitle: string, categoryTitle: string): string {
+  return `${sourceTitle}:${categoryTitle}`
+}
 
-  return Array.from(keys).map((key) => {
-    const definition = definitions[key] ?? defaultDefinition
-    return {
-      key,
-      label: definition.label,
-      category: definition.category,
-      sourceCategoryTitle: source.title,
-      value: source.target[key],
-      target: source.target,
-      definition,
-    }
+function isAddMenuOpen(sourceTitle: string, categoryTitle: string): boolean {
+  return openAddMenuKey.value === getCategoryMenuKey(sourceTitle, categoryTitle)
+}
+
+function toggleAddMenu(sourceTitle: string, categoryTitle: string): void {
+  const key = getCategoryMenuKey(sourceTitle, categoryTitle)
+  openAddMenuKey.value = openAddMenuKey.value === key ? null : key
+}
+
+function addField(category: PropertyEditorCategory, field: AddableField): void {
+  const value = createDefaultValue(field.definition)
+  category.target[field.key] = value
+  openAddMenuKey.value = null
+  emit('update-property', {
+    target: category.target,
+    key: field.key,
+    value,
   })
 }
 
-function resolveDefinitions(source: PropertyEditorSource): Record<string, EditorPropertyDefinition> {
-  const explicitDefinitions = source.definitions ?? {}
-  const targetType = typeof source.target.type === 'string' ? source.target.type : undefined
-  const inferredDefinitions = targetType ? source.typeDefinitions?.[targetType] ?? {} : {}
-
-  return {
-    ...inferredDefinitions,
-    ...explicitDefinitions,
+function createDefaultValue(definition: EditorPropertyDefinition): unknown {
+  switch (definition.datatype) {
+    case 'string':
+    case 'color':
+      return definition.options?.[0] ?? ''
+    case 'number':
+      return definition.min ?? 0
+    case 'boolean':
+      return false
+    case 'object':
+      return definition.isArray ? [] : {}
   }
 }
 </script>
@@ -182,6 +304,19 @@ function resolveDefinitions(source: PropertyEditorSource): Record<string, Editor
   padding: 20px;
 }
 
+.source-section + .source-section {
+  margin-top: 16px;
+}
+
+.source-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #d7ba7d;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
 .category {
   display: flex;
   flex-direction: column;
@@ -192,12 +327,68 @@ function resolveDefinitions(source: PropertyEditorSource): Record<string, Editor
   margin-top: 12px;
 }
 
+.category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #333;
+}
+
 .category-title {
   font-size: 11px;
   text-transform: uppercase;
   color: #888;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #333;
+}
+
+.add-field-menu {
+  position: relative;
+}
+
+.add-field-button {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3f3f46;
+  background: #252526;
+  color: #c5c5c5;
+  cursor: pointer;
+  padding: 0;
+}
+
+.add-field-button:hover {
+  background: #2a2d2e;
+  border-color: #0e639c;
+}
+
+.add-field-dropdown {
+  position: absolute;
+  top: 22px;
+  right: 0;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  background: #252526;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+.add-field-option {
+  border: 0;
+  background: transparent;
+  color: #ccc;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.add-field-option:hover {
+  background: #094771;
 }
 
 .prop-row {

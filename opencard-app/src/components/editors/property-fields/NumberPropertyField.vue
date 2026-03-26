@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { EditorPropertyDefinition } from '../../../core/Card'
+import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const props = defineProps<{
   definition: Extract<EditorPropertyDefinition, { datatype: 'number' }>

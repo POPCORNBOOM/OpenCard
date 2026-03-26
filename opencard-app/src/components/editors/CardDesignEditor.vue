@@ -38,14 +38,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
   block2ITreeNode,
-  blockPropertyDefinitions,
-  flowContainerChildLocationDefinitions,
-  rootChildLocationDefinitions,
-  simpleContainerChildLocationDefinitions,
   type CardBlock,
   type CardDocument,
   type CardTreeNodeMetadata,
-  type EditorPropertyDefinition,
   type PropertyEditorSource,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
@@ -98,16 +93,13 @@ const propertySources = computed<PropertyEditorSource[]>(() => {
     sources.push({
       title: 'Block',
       target: selectedBlock.value as Record<string, unknown> & { type?: string },
-      typeDefinitions: blockPropertyDefinitions,
     })
   }
 
-  const parentBlock = (selectedNode.value?.parent?.metadata as CardTreeNodeMetadata | undefined)?.block
   if (selectedLayout.value) {
     sources.push({
       title: 'Layout',
       target: selectedLayout.value as Record<string, unknown> & { type?: string },
-      definitions: parentBlock ? getLocationDefinitions(parentBlock.type) : rootChildLocationDefinitions,
     })
   }
 
@@ -192,18 +184,6 @@ async function saveFile() {
 onMounted(loadFile)
 watch(() => props.filePath, loadFile)
 defineExpose({ save: saveFile })
-
-function getLocationDefinitions(
-  type: CardBlock['type']
-): Record<string, EditorPropertyDefinition> {
-  if (type === 'simple-container') {
-    return simpleContainerChildLocationDefinitions
-  }
-  if (type === 'flow-container') {
-    return flowContainerChildLocationDefinitions
-  }
-  return {}
-}
 
 function withNodeActionKeys(node: ITreeNode, actionKeys: string[]): ITreeNode {
   return {
