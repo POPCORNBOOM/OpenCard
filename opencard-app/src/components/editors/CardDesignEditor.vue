@@ -1,10 +1,8 @@
 <template>
   <div class="card-design-editor">
     <div class="canvas-area">
-      <div class="canvas-scroll">
-        <CardRenderer v-if="cardDoc" :document="cardDoc" :selected-block-ids="selectedBlockIds" />
-        <div v-else class="empty-hint">无法解析 .opencard 文件</div>
-      </div>
+      <CardViewport v-if="cardDoc" :document="cardDoc" :selected-block-ids="selectedBlockIds" />
+      <div v-else class="empty-hint">无法解析 .opencard 文件</div>
     </div>
 
     <div class="right-panel">
@@ -51,7 +49,7 @@ import {
   type PropertyEditorSource,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
-import CardRenderer from '../card/CardRenderer.vue'
+import CardViewport from '../card/CardViewport.vue'
 import NodeTree, { type ActionDefinition, type NodeTreeActionCalledPayload } from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
@@ -226,10 +224,7 @@ function withNodeActionKeys(node: ITreeNode, actionKeys: string[]): ITreeNode {
 
 .canvas-area {
   flex: 1;
-  overflow: auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
   background: #2d2d2d;
 }
 
