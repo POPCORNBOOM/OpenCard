@@ -69,7 +69,7 @@
             "block": {
               "id": "right-image",
               "type": "image-block",
-              "imagePath": "立绘_圣职初雪_2.png",
+              "imagePath": "立绘_圣聆初雪_2.png",
               "fit": "contain",
               "width": "420px",
               "height": "460px",
@@ -80,6 +80,23 @@
               "anchor": "lt",
               "x": "412px",
               "y": "110px"
+            }
+          },
+          {
+            "block": {
+              "id": "text-block-2ce1f406-40d5-443f-91fe-fb7554d1b7e5",
+              "name": "Text Block",
+              "width": "50px",
+              "height": "60px",
+              "type": "text-block",
+              "content": "aaaaaaaaaaaaaaaa",
+              "mode": "plain"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": 0,
+              "y": 0
             }
           }
         ],

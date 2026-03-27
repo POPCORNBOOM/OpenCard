@@ -8,33 +8,25 @@
           <div class="category-header">
             <div class="category-title">{{ category.title }}</div>
             <div v-if="category.addableFields.length > 0" class="add-field-menu">
-              <button class="add-field-button" type="button" title="添加字段" @click="toggleAddMenu(source.title, category.title)">
+              <span class="add-field-count">{{ category.addableFields.length }}</span>
+              <button class="add-field-button" type="button" title="添加字段"
+                @click="toggleAddMenu(source.title, category.title)">
                 <span class="codicon codicon-add" />
               </button>
-              <div
-                v-if="isAddMenuOpen(source.title, category.title)"
-                class="add-field-dropdown"
-              >
-                <button
-                  v-for="field in category.addableFields"
-                  :key="field.key"
-                  class="add-field-option"
-                  type="button"
-                  @click="addField(category, field)"
-                >
+              <div v-if="isAddMenuOpen(source.title, category.title)" class="add-field-dropdown">
+                <button v-for="field in category.addableFields" :key="field.key" class="add-field-option" type="button"
+                  @click="addField(category, field)">
                   {{ field.label }}
                 </button>
               </div>
             </div>
           </div>
-          <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`" class="prop-row">
+          <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`"
+            class="prop-row">
             <label class="prop-label">{{ entry.label }}</label>
-            <component
-              :is="getEditorComponent(entry.definition.datatype)"
-              :definition="entry.definition"
+            <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
               :value="entry.value"
-              @update:value="emit('update-property', { target: entry.target, key: entry.key, value: $event })"
-            />
+              @update:value="emit('update-property', { target: entry.target, key: entry.key, value: $event })" />
           </div>
         </section>
       </section>
@@ -124,7 +116,7 @@ function getEditorComponent(datatype: PropertyDatatype): Component {
 function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[] {
   const definitions = resolveDefinitions(source.target)
   const targetKeys = new Set(Object.keys(source.target))
-  const visibleDefinitionEntries = Object.entries(definitions).filter(([, definition]) => !definition.isHiddenForEditor)
+  const visibleDefinitionEntries = Object.entries(definitions).filter(([, definition]) => !definition.isHidden)
 
   if (props.sortMode === 'alphabetical') {
     const keys = new Set<string>([
@@ -140,12 +132,12 @@ function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[]
 
     return entries.length > 0 || addableFields.length > 0
       ? [{
-          sourceTitle: source.title,
-          title: 'A-Z',
-          target: source.target,
-          entries,
-          addableFields,
-        }]
+        sourceTitle: source.title,
+        title: 'A-Z',
+        target: source.target,
+        entries,
+        addableFields,
+      }]
       : []
   }
 
@@ -154,7 +146,7 @@ function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[]
 
   for (const key of Object.keys(source.target)) {
     const definition = definitions[key]
-    if (definition?.isHiddenForEditor) {
+    if (definition?.isHidden) {
       continue
     }
     const entry = createEntry(source.target, key, definition)
@@ -304,7 +296,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   padding: 20px;
 }
 
-.source-section + .source-section {
+.source-section+.source-section {
   margin-top: 16px;
 }
 
@@ -323,7 +315,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: 4px;
 }
 
-.category + .category {
+.category+.category {
   margin-top: 12px;
 }
 
@@ -343,7 +335,17 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 }
 
 .add-field-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   position: relative;
+}
+
+.add-field-count {
+  min-width: 10px;
+  font-size: 11px;
+  color: #888;
+  text-align: right;
 }
 
 .add-field-button {

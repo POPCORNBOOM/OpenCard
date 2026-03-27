@@ -1,6 +1,19 @@
 <template>
   <div class="card-design-editor">
     <div class="canvas-area">
+      <div v-if="cardDoc" class="debug-panel">
+        <div class="debug-panel__title">Debug</div>
+        <div class="debug-panel__content">
+          <div>Selected: {{ selectedBlock?.name || selectedBlock?.id || 'None' }}</div>
+          <div>Tree Nodes: {{ blockTree.length }}</div>
+          <div>Modified: {{ isModified ? 'Yes' : 'No' }}</div>
+          <div>Parent Lookup Size: {{ parentLookup.size }}</div>
+          <div>Parent: {{ parentLookup.get(selectedBlock?.id || '')?.id
+            || parentLookup.get(selectedBlock?.id || '')?.type
+            || 'None' }}</div>
+          <div>{{ selectedNode?.actionKeys }}</div>
+        </div>
+      </div>
       <CardViewport v-if="cardDoc" :document="cardDoc" :selected-block-ids="selectedBlockIds" />
       <div v-else class="empty-hint">无法解析 .opencard 文件</div>
     </div>
@@ -10,7 +23,8 @@
         <div class="panel-header">信息树</div>
         <div class="block-list">
           <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-            :action-keys="treeActionKeys" @update:selected="onTreeSelect" @action-called="handleTreeAction" />
+            :expanded="blockTreeExpanded" :action-keys="treeActionKeys" @update:selected="onTreeSelect"
+            @action-called="handleTreeAction" />
         </div>
       </div>
 
@@ -26,8 +40,7 @@
             <span class="codicon codicon-symbol-string" />
           </button>
         </div>
-        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode"
-          @update-property="updateBlockProp" />
+        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp" />
       </div>
     </div>
   </div>
@@ -37,11 +50,19 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
-  block2ITreeNode,
+  addBlockToContainer,
+  buildParentLookup,
+  blockToTreeNode,
+  BlockContainer,
+  createTextBlock,
+  type ParentLookup,
+  removeBlockFromContainer,
   type CardBlock,
   type CardDocument,
   type CardTreeNodeMetadata,
   type PropertyEditorSource,
+  isBlockContainer,
+  isCardBlock,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardViewport from '../card/CardViewport.vue'
@@ -54,16 +75,23 @@ type PropertySortMode = 'category' | 'alphabetical'
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 
+const blockTreeExpanded = ref(true)
 const rawContent = ref('')
 const cardDoc = ref<CardDocument | null>(null)
+const parentLookup = ref<ParentLookup>(new Map())
+
+watch(parentLookup, (newVal) => {
+  console.log('Parent Lookup Updated:', newVal)
+})
 const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
 const treeActions = new Map<string, ActionDefinition>([
   ['add-root', { key: 'add-root', icon: 'codicon-add', title: '添加' }],
-  ['delete-root', { key: 'delete-root', icon: 'codicon-trash', title: '删除' }],
+  ['delete-selected', { key: 'delete-selected', icon: 'codicon-trash', title: '删除' }],
   ['add', { key: 'add', icon: 'codicon-add', title: '添加' }],
+  ['delete', { key: 'delete', icon: 'codicon-trash', title: '删除' }],
 ])
-const treeActionKeys = ['add-root', 'delete-root']
+const treeActionKeys = ['add-root', 'delete-selected']
 
 const selectedBlocks = ref<Map<string, ITreeNode>>(new Map())
 const selectedNode = computed<ITreeNode | null>(() => {
@@ -109,7 +137,7 @@ const propertySources = computed<PropertyEditorSource[]>(() => {
 const blockTree = computed(() => {
   if (!cardDoc.value) return []
   return cardDoc.value.children.map((child) =>
-    withNodeActionKeys(block2ITreeNode(child.block, null, child.location), ['add'])
+    blockToTreeNode(child.block, null, child.location)
   )
 })
 
@@ -131,41 +159,69 @@ function onTreeSelect(newSelected: Map<string, ITreeNode>) {
 }
 
 function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
-  console.info('Tree Action Called:', actionKey, caller, node)
   if (caller === 'node' && node) {
     selectedBlocks.value = new Map([[node.key, node]])
   }
 
-  if (actionKey === 'add-root' || actionKey === 'add') {
-    addBlock()
-    return
+  const callerObject = caller === 'node' ? getNodeBlock(node) : cardDoc.value
+  if (!callerObject) return
+  if (callerObject.type !== 'card-document') {
+    // 来自节点的操作，callerObject 是一个 Block
+    switch (actionKey) {
+      case 'add-root':
+      case 'add':
+        if (isBlockContainer(callerObject)) createBlockAt(callerObject)
+        return
+      case 'delete':
+        if (isCardBlock(callerObject)) deleteBlock(callerObject)
+        return
+      case 'delete-selected':
+        if (isCardBlock(selectedBlock.value)) deleteBlock(selectedBlock.value)
+        return
+    }
   }
+}
 
-  if (actionKey === 'delete-root') {
-    deleteBlock()
-  }
+function getNodeBlock(node?: ITreeNode): CardBlock | null {
+  const metadata = node?.metadata as CardTreeNodeMetadata | undefined
+  return metadata?.block ?? null
 }
 
 async function loadFile() {
   try {
     const content = await fileSystemService.readFile(props.filePath)
     rawContent.value = content
-    cardDoc.value = JSON.parse(content)
+    const parsed = JSON.parse(content) as CardDocument
+    cardDoc.value = parsed
+    parentLookup.value = buildParentLookup(parsed)
     isModified.value = false
   } catch (e) {
     console.error('读取 .opencard 文件失败:', e)
     cardDoc.value = null
+    parentLookup.value = new Map()
   }
 }
 
-const addBlock = () => {
-  // todo
-  console.info('添加块 - 待实现')
+function createBlockAt(container: BlockContainer) {
+  const newBlock = createTextBlock()
+  addBlockToContainer(container, newBlock, parentLookup.value)
+  isModified.value = true
 }
 
-const deleteBlock = () => {
-  // todo
-  console.info('删除块 - 待实现')
+function deleteBlock(block: CardBlock) {
+  const container = parentLookup.value.get(block.id)
+  if (!container) {
+    return
+  }
+
+  const removedBlock = removeBlockFromContainer(container, block.id, parentLookup.value)
+  if (!removedBlock) {
+    return
+  }
+
+  selectedBlocks.value.delete(block.id)
+  selectedBlocks.value = new Map(selectedBlocks.value)
+  isModified.value = true
 }
 
 async function saveFile() {
@@ -185,13 +241,6 @@ onMounted(loadFile)
 watch(() => props.filePath, loadFile)
 defineExpose({ save: saveFile })
 
-function withNodeActionKeys(node: ITreeNode, actionKeys: string[]): ITreeNode {
-  return {
-    ...node,
-    actionKeys,
-    children: node.children?.map((child) => withNodeActionKeys(child, actionKeys)),
-  }
-}
 </script>
 
 <style scoped>
@@ -205,7 +254,41 @@ function withNodeActionKeys(node: ITreeNode, actionKeys: string[]): ITreeNode {
 .canvas-area {
   flex: 1;
   display: flex;
+  position: relative;
   background: #2d2d2d;
+}
+
+.debug-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  min-width: 180px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.86);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  color: #d4d4d4;
+  pointer-events: none;
+}
+
+.debug-panel__title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7fc8ff;
+}
+
+.debug-panel__content {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .right-panel {

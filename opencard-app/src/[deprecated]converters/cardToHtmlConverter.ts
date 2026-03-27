@@ -40,7 +40,7 @@ function textBlockToHtml(block: TextBlock, skipPosition: boolean): string {
 function imageBlockToHtml(block: ImageBlock, skipPosition: boolean): string {
     const styles: string[] = [`object-fit: ${block.fit}`]
     if (!skipPosition) styles.push(getPositionStyles(block))
-    return `<img style="${styles.join('; ')}" src="${escapeAttr(block.assetId)}" />`
+    return `<img style="${styles.join('; ')}" src="${escapeAttr(block.assetId ?? '')}" />`
 }
 
 function simpleContainerToHtml(block: SimpleContainerBlock, skipPosition: boolean): string {

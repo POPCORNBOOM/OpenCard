@@ -1,24 +1,14 @@
 <template>
   <div class="tree-node">
-    <div
-      class="node-content"
-      :class="{ selected: isSelected }"
-      :style="{ paddingLeft: `${level * 12}px` }"
-      @click="handleClick"
-      @dblclick="handleDoubleClick"
-    >
-      <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'" />
+    <div class="node-content" :class="{ selected: isSelected }" :style="{ paddingLeft: `${level * 12}px` }"
+      @click="handleClick" @dblclick="handleDoubleClick">
+      <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
+        @click="() => nodeTree?.handleNodeToggle(props.node, !isExpanded)" />
       <i v-else class="codicon" :class="node.icon || 'codicon-file'" />
       <span class="node-name">{{ node.name }}</span>
       <div v-if="availableActions.length" class="node-actions">
-        <i
-          v-for="action in availableActions"
-          :key="action.key"
-          class="codicon action-btn"
-          :class="action.icon"
-          :title="action.title"
-          @click.stop="() => nodeTree?.callAction(action.key, 'node', props.node)"
-        />
+        <i v-for="action in availableActions" :key="action.key" class="codicon action-btn" :class="action.icon"
+          :title="action.title" @click.stop="() => nodeTree?.callAction(action.key, 'node', props.node)" />
       </div>
     </div>
 
@@ -47,30 +37,17 @@ export interface ITreeNode {
 import { computed, inject, ref, watch, type ComputedRef } from 'vue'
 import type { ActionDefinition } from './NodeTree.vue'
 
-interface LocalTreeNode {
-  name: string
-  key: string
-  path?: string[]
-  isExpandable?: boolean
-  isExpanded?: boolean
-  icon?: string
-  parent?: LocalTreeNode | null
-  children?: LocalTreeNode[]
-  metadata?: Record<string, any>
-  actionKeys?: string[]
-}
-
 const props = defineProps<{
-  node: LocalTreeNode
+  node: ITreeNode
   level: number
 }>()
 
 const nodeTree = inject<{
-  selectedNodes: ComputedRef<Map<string, LocalTreeNode>>
-  handleNodeClick: (key: string, node: LocalTreeNode, modify: 'ctrl' | 'none') => void
-  handleNodeDoubleClick: (node: LocalTreeNode) => void
-  handleNodeToggle: (node: LocalTreeNode, expanded: boolean) => void
-  callAction: (actionKey: string, caller: 'tree' | 'node', node?: LocalTreeNode) => void
+  selectedNodes: ComputedRef<Map<string, ITreeNode>>
+  handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
+  handleNodeDoubleClick: (node: ITreeNode) => void
+  handleNodeToggle: (node: ITreeNode, expanded: boolean) => void
+  callAction: (actionKey: string, caller: 'tree' | 'node', node?: ITreeNode) => void
   actions: ComputedRef<Map<string, ActionDefinition>>
   multiSelect: boolean
 }>('nodeTree')
@@ -92,13 +69,21 @@ const isExpandable = computed(() => {
   return Boolean(props.node.children?.length)
 })
 
-const isExpanded = ref(props.node.isExpanded ?? false)
+const uncontrolledExpanded = ref(props.node.isExpanded ?? false)
+const isExpandedControlled = computed(() => props.node.isExpanded !== undefined)
+const isExpanded = computed(() => {
+  return isExpandedControlled.value ? props.node.isExpanded ?? false : uncontrolledExpanded.value
+})
 
 watch(
   () => props.node.isExpanded,
-  (nextValue) => {
-    isExpanded.value = nextValue ?? false
-  }
+  (nextExpanded) => {
+    if (nextExpanded === undefined) {
+      return
+    }
+
+    uncontrolledExpanded.value = nextExpanded
+  },
 )
 
 function handleClick(event: MouseEvent) {
@@ -107,8 +92,9 @@ function handleClick(event: MouseEvent) {
   const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
 
   if (modify === 'none' && isExpandable.value) {
-    isExpanded.value = !isExpanded.value
-    nodeTree?.handleNodeToggle(props.node, isExpanded.value)
+    if (!isExpandedControlled.value) {
+      uncontrolledExpanded.value = !isExpanded.value
+    }
   }
 
   nodeTree?.handleNodeClick(props.node.key, props.node, modify)

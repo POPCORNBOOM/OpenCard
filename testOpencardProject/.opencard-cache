@@ -15,13 +15,61 @@
         "isSymlink": false
       },
       {
+        "name": "Image Render Test_2026-03-27T14-33-09.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "image-render-test.opencard",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
       },
       {
+        "name": "sgs-zhenji-test.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "test.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "uno-red-7.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "zhenji-portrait.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "三国杀-甄姬测试卡_2026-03-27T14-42-49.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "三国杀-甄姬测试卡_2026-03-27T14-43-37.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "三国杀-甄姬测试卡_2026-03-27T14-43-54.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "三国杀-甄姬测试卡_2026-03-27T14-44-56.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false

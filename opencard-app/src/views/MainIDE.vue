@@ -7,7 +7,7 @@
         <span class="menu-item">编辑</span>
         <span class="menu-item">查看</span>
         <span class="menu-item">帮助</span>
-        <span @click="debugLog('Debugging...')" class="menu-item">debug</span>
+        <span @click="debugLog('Debugging...')" class="menu-item">测试导出 2x</span>
       </div>
       <div class="window-title">OpenCard</div>
     </div>
@@ -43,12 +43,11 @@
             <button @click="openProject" class="open-folder-btn">
               打开项目文件夹
             </button>
-            <NodeTree :nodes="openedFiles" title="打开的编辑器" />
-            <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName"
-              @node-dblclick="node => handleOpenFile(node.key)"
-              @node-toggle="handleNodeToggle"
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFiles" title="打开的编辑器" />
+            <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
+              @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
               v-model:selected="selectedFiles" />
-            <NodeTree :nodes="fileTree" title="时间线" />
+            <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" title="时间线" />
           </div>
 
           <!-- 版本管理 -->
@@ -77,7 +76,8 @@
             <h1>OpenCard</h1>
             <p>打开项目文件夹开始编辑</p>
           </div>
-          <component v-else :is="currentEditorComponent" v-bind="currentEditorProps" @save="saveCurrentFile" />
+          <component v-else :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
+            @save="handleEditorSave" />
         </div>
       </div>
 
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
@@ -154,7 +154,11 @@ const currentFile = ref<string>('')
 const currentContent = ref<string>('')
 
 const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
+const openedFilesTreeExpanded = ref(false)
+const projectTreeExpanded = ref(true)
+const timelineTreeExpanded = ref(false)
 const cardRendererRef = ref<InstanceType<typeof CardRenderer>>()
+const currentEditorRef = ref<{ save?: () => Promise<void> | void } | null>(null)
 const showCardPreview = ref(false)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
@@ -312,7 +316,7 @@ async function debugLog(message: string) {
 
     // 选择保存位置
     const savePath = await save({
-      defaultPath: 'card.png',
+      defaultPath: `${cardDoc.name || 'card'}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
       filters: [{
         name: 'PNG Image',
         extensions: ['png']
@@ -395,6 +399,61 @@ async function handleNodeToggle({ node, expanded }: NodeTreeTogglePayload) {
     console.error('加载目录失败:', error)
   }
 }
+
+async function handleEditorSave() {
+  const editor = editorRegistry.getEditorByPath(currentFile.value)
+
+  if (editor?.id === 'monaco') {
+    await saveCurrentFile()
+    return
+  }
+
+  if (!currentFile.value) {
+    return
+  }
+
+  try {
+    const refreshedContent = await readFile(currentFile.value)
+    const openedFile = openedFiles.value.find(file => file.key === currentFile.value)
+
+    if (openedFile) {
+      openedFile.metadata.content = refreshedContent
+      openedFile.metadata.isModified = false
+    }
+
+    currentContent.value = refreshedContent
+  } catch (error) {
+    console.error('同步编辑器保存结果失败:', error)
+  }
+}
+
+async function triggerCurrentEditorSave() {
+  const editor = editorRegistry.getEditorByPath(currentFile.value)
+
+  if (editor?.id !== 'monaco' && currentEditorRef.value?.save) {
+    await currentEditorRef.value.save()
+    return
+  }
+
+  await saveCurrentFile()
+}
+
+async function handleGlobalKeydown(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') {
+    return
+  }
+
+  event.preventDefault()
+  await triggerCurrentEditorSave()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+})
 
 function closeFile(path: string) {
   const index = openedFiles.value.findIndex(f => f.key === path)

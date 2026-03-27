@@ -1,8 +1,9 @@
 import { computed, readonly, ref } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
-import { taskScheduler } from '../utils/saveScheduler'
+import { taskScheduler } from '../utils/taskScheduler'
 
 const PROJECT_CACHE_FILE_NAME = '.opencard-cache'
 const PROJECT_CACHE_SAVE_DELAY_MS = 1200
@@ -233,6 +234,14 @@ function isDirectoryExpanded(path: string): boolean {
   return relativePath ? expandedDirectories.value.has(relativePath) : true
 }
 
+function resolveAssetSrc(path: string): string {
+  if (!path) {
+    return ''
+  }
+
+  return convertFileSrc(resolveProjectPath(path))
+}
+
 async function loadFiles() {
   await readDirectoryEntries('', Number.POSITIVE_INFINITY)
 }
@@ -340,6 +349,7 @@ export function useProjectStore() {
     readDirectoryEntries,
     setDirectoryExpanded,
     isDirectoryExpanded,
+    resolveAssetSrc,
     readFile,
     saveFile,
     createFolder,

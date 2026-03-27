@@ -1,26 +1,17 @@
 <template>
-  <select
-    v-if="definition.options?.length"
-    class="prop-input"
-    :value="stringValue"
-    :disabled="definition.isReadonlyForEditor"
-    @change="emit('update:value', ($event.target as HTMLSelectElement).value)"
-  >
+  <div v-if="definition.isReadonly" class="readonly-value" :title="stringValue || '-'">
+    {{ stringValue || '-' }}
+  </div>
+  <select v-else-if="definition.options?.length" class="prop-input" :value="stringValue"
+    @change="emit('update:value', ($event.target as HTMLSelectElement).value)">
     <option v-for="option in definition.options" :key="option" :value="option">
       {{ option }}
     </option>
   </select>
   <div v-else class="autocomplete-field">
-    <input
-      class="prop-input autocomplete-input"
-      type="text"
-      :value="stringValue"
-      :minlength="definition.minLength"
-      :maxlength="definition.maxLength"
-      :readonly="definition.isReadonlyForEditor"
-      @input="emit('update:value', ($event.target as HTMLInputElement).value)"
-      @keydown="handleKeydown"
-    />
+    <input class="prop-input autocomplete-input" type="text" :value="stringValue" :minlength="definition.minLength"
+      :maxlength="definition.maxLength" :readonly="definition.isReadonly"
+      @input="emit('update:value', ($event.target as HTMLInputElement).value)" @keydown="handleKeydown" />
     <div v-if="ghostSuffix" class="autocomplete-ghost" aria-hidden="true">
       <span class="autocomplete-current">{{ stringValue }}</span>
       <span>{{ ghostSuffix }}</span>
@@ -74,7 +65,7 @@ const ghostSuffix = computed(() => {
 })
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Tab' || !autocompleteMatch.value || props.definition.isReadonlyForEditor) {
+  if (event.key !== 'Tab' || !autocompleteMatch.value || props.definition.isReadonly) {
     return
   }
 
@@ -141,5 +132,17 @@ function handleKeydown(event: KeyboardEvent) {
 
 .autocomplete-current {
   visibility: hidden;
+}
+
+.readonly-value {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ccc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

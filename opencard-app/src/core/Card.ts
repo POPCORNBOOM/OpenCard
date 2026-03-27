@@ -1,7 +1,9 @@
 import { ITreeNode } from "../components/ui/TreeNode.vue"
 
+// Block and document data models.
 export type BaseBlock = {
     id: string
+    name?: string
     width?: CSSValue
     height?: CSSValue
     translateX?: CSSValue
@@ -13,7 +15,6 @@ export type BaseBlock = {
     rotation?: number
     opacity?: number
     customCss?: string
-    metadata?: Record<string, unknown>
 }
 
 export type CSSValue = number | string
@@ -40,7 +41,8 @@ export type TextBlock = BaseBlock & {
 
 export type ImageBlock = BaseBlock & {
     type: "image-block"
-    assetId: string
+    assetId?: string
+    imagePath?: string
     fit: "cover" | "contain" | "fill"
 }
 
@@ -85,7 +87,9 @@ export type RootChild = {
 }
 
 export type CardDocument = {
+    type: "card-document"
     name: string
+    id: string
     version: 1
     width: number
     height: number
@@ -101,45 +105,56 @@ export type PropertyEditorSource = {
     target: PropertyEditorTarget
 }
 
+// Extra data attached when a block is projected into the editor tree.
 export type CardTreeNodeMetadata = {
     block: CardBlock
     location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
 }
 
+// Internal helper types for block factory functions.
 type BlockInit = Pick<BaseBlock, 'id'> & Partial<Omit<BaseBlock, 'id'>>
 type TextBlockInit = Partial<Omit<TextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type ImageBlockInit = Partial<Omit<ImageBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type SimpleContainerBlockInit = Partial<Omit<SimpleContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type FlowContainerBlockInit = Partial<Omit<FlowContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 
-let blockIdCounter = 0
-
+// Shared block creation helpers.
 function createBlockId(prefix = 'block'): string {
-    blockIdCounter += 1
-    return `${prefix}-${Date.now()}-${blockIdCounter}`
+    return `${prefix}-${crypto.randomUUID()}`
 }
 
 function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
     return {
         id: init.id ?? createBlockId(),
+        name: init.name,
         width: init.width,
         height: init.height,
-        translateX: init.translateX,
-        translateY: init.translateY,
-        scaleX: init.scaleX,
-        scaleY: init.scaleY,
-        transformAnchor: init.transformAnchor,
         zIndex: init.zIndex,
         rotation: init.rotation,
         opacity: init.opacity,
-        customCss: init.customCss,
-        metadata: init.metadata,
+    }
+}
+
+function getDefaultBlockName(type: CardBlock['type']): string {
+    switch (type) {
+        case 'text-block':
+            return 'Text Block'
+        case 'image-block':
+            return 'Image Block'
+        case 'simple-container-block':
+            return 'Simple Container'
+        case 'flow-container-block':
+            return 'Flow Container'
     }
 }
 
 export function createTextBlock(init: TextBlockInit = {}): TextBlock {
     return {
-        ...createBaseBlock({ id: init.id ?? createBlockId('text-block'), ...init }),
+        ...createBaseBlock({
+            id: init.id ?? createBlockId('text-block'),
+            name: init.name ?? getDefaultBlockName('text-block'),
+            ...init,
+        }),
         type: 'text-block',
         content: init.content ?? '',
         mode: init.mode ?? 'plain',
@@ -147,24 +162,31 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
         fontFamily: init.fontFamily,
         fontWeight: init.fontWeight,
         color: init.color,
-        backgroundColor: init.backgroundColor,
         textAlign: init.textAlign,
-        lineHeight: init.lineHeight,
     }
 }
 
 export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
     return {
-        ...createBaseBlock({ id: init.id ?? createBlockId('image-block'), ...init }),
+        ...createBaseBlock({
+            id: init.id ?? createBlockId('image-block'),
+            name: init.name ?? getDefaultBlockName('image-block'),
+            ...init,
+        }),
         type: 'image-block',
-        assetId: init.assetId ?? '',
+        assetId: init.assetId,
+        imagePath: init.imagePath,
         fit: init.fit ?? 'cover',
     }
 }
 
 export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}): SimpleContainerBlock {
     return {
-        ...createBaseBlock({ id: init.id ?? createBlockId('simple-container-block'), ...init }),
+        ...createBaseBlock({
+            id: init.id ?? createBlockId('simple-container-block'),
+            name: init.name ?? getDefaultBlockName('simple-container-block'),
+            ...init,
+        }),
         type: 'simple-container-block',
         children: init.children ? [...init.children] : [],
     }
@@ -172,7 +194,11 @@ export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}):
 
 export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): FlowContainerBlock {
     return {
-        ...createBaseBlock({ id: init.id ?? createBlockId('flow-container-block'), ...init }),
+        ...createBaseBlock({
+            id: init.id ?? createBlockId('flow-container-block'),
+            name: init.name ?? getDefaultBlockName('flow-container-block'),
+            ...init,
+        }),
         type: 'flow-container-block',
         direction: init.direction ?? 'lr',
         gap: init.gap ?? '10px',
@@ -197,63 +223,186 @@ export function createBlock(type: CardBlock['type'], init: unknown = {}): CardBl
     }
 }
 
-export type ContainerBlock = SimpleContainerBlock | FlowContainerBlock
+export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardDocument
+export type ParentLookup = Map<string, BlockContainer>
 
-export function addContainerChild(
-    container: SimpleContainerBlock,
-    childBlock: CardBlock,
-    location: SimpleContainerLocationInfo
-): void
-export function addContainerChild(
-    container: FlowContainerBlock,
-    childBlock: CardBlock,
-    location: FlowContainerLocationInfo
-): void
-export function addContainerChild(
-    container: ContainerBlock,
-    childBlock: CardBlock,
-    location: SimpleContainerLocationInfo | FlowContainerLocationInfo
+// Default child placement for each container type.
+function createDefaultSimpleContainerLocation(): SimpleContainerLocationInfo {
+    return {
+        type: 'simple-container-location',
+        anchor: 'lt',
+        x: 0,
+        y: 0,
+    }
+}
+
+function createDefaultFlowContainerLocation(container: FlowContainerBlock): FlowContainerLocationInfo {
+    return {
+        type: 'flow-container-location',
+        index: container.children.length,
+    }
+}
+
+// Runtime lookup for finding a block's parent container in O(1).
+export function buildParentLookup(document: CardDocument): ParentLookup {
+    const lookup: ParentLookup = new Map()
+
+    for (const child of document.children) {
+        registerBlockSubtree(child.block, document, lookup)
+    }
+
+    return lookup
+}
+
+function registerBlockSubtree(
+    block: CardBlock,
+    parentContainer: BlockContainer,
+    lookup: ParentLookup
 ): void {
-    if (container.type === 'simple-container-block' && location.type === 'simple-container-location') {
-        container.children.push({ block: childBlock, location })
+    lookup.set(block.id, parentContainer)
+
+    if (!isBlockContainer(block)) {
         return
     }
 
-    if (container.type === 'flow-container-block' && location.type === 'flow-container-location') {
-        container.children.push({ block: childBlock, location })
+    for (const child of block.children) {
+        registerBlockSubtree(child.block, block, lookup)
     }
 }
 
-export function removeContainerChild<T extends ContainerBlock>(
-    container: T,
-    childBlock: CardBlock
+function unregisterBlockSubtree(block: CardBlock, lookup: ParentLookup): void {
+    lookup.delete(block.id)
+
+    if (!isBlockContainer(block)) {
+        return
+    }
+
+    for (const child of block.children) {
+        unregisterBlockSubtree(child.block, lookup)
+    }
+}
+
+function createDefaultLocationForContainer(container: BlockContainer): SimpleContainerLocationInfo | FlowContainerLocationInfo {
+    if (container.type === 'flow-container-block') {
+        return createDefaultFlowContainerLocation(container)
+    }
+
+    return createDefaultSimpleContainerLocation()
+}
+
+function normalizeLocationForContainer(
+    container: BlockContainer,
+    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
+): SimpleContainerLocationInfo | FlowContainerLocationInfo {
+    if (container.type === 'flow-container-block') {
+        return location?.type === 'flow-container-location'
+            ? location
+            : createDefaultFlowContainerLocation(container)
+    }
+
+    return location?.type === 'simple-container-location'
+        ? location
+        : createDefaultSimpleContainerLocation()
+}
+
+function attachBlockToContainer(
+    container: BlockContainer,
+    childBlock: CardBlock,
+    location: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    parentLookup?: ParentLookup
 ): void {
-    const index = container.children.findIndex(child => child.block.id === childBlock.id)
-    if (index !== -1) {
-        container.children.splice(index, 1)
+    if (parentLookup) {
+        registerBlockSubtree(childBlock, container, parentLookup)
+    }
+
+    switch (container.type) {
+        case 'card-document':
+        case 'simple-container-block':
+            container.children.push({
+                block: childBlock,
+                location: location as SimpleContainerLocationInfo,
+            })
+            return
+        case 'flow-container-block':
+            container.children.push({
+                block: childBlock,
+                location: location as FlowContainerLocationInfo,
+            })
+            return
     }
 }
 
-export function isContainerBlock(block: CardBlock): block is ContainerBlock {
-    return block.type === 'simple-container-block' || block.type === 'flow-container-block'
+// Structural mutation helpers. Keep all parent/child changes inside these functions.
+export function addBlockToContainer(
+    container: BlockContainer,
+    childBlock: CardBlock,
+    parentLookup?: ParentLookup,
+    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
+): void {
+    const nextLocation = normalizeLocationForContainer(container, location)
+    attachBlockToContainer(container, childBlock, nextLocation, parentLookup)
 }
 
-export const block2ITreeNode = (
+export function removeBlockFromContainer(
+    container: BlockContainer,
+    childBlockId: string,
+    parentLookup?: ParentLookup
+): CardBlock | null {
+    const index = container.children.findIndex(child => child.block.id === childBlockId)
+    if (index !== -1) {
+        const [removedChild] = container.children.splice(index, 1)
+        if (parentLookup) {
+            unregisterBlockSubtree(removedChild.block, parentLookup)
+        }
+        return removedChild.block
+    }
+
+    return null
+}
+
+export function moveBlockBetweenContainers(
+    sourceContainer: BlockContainer,
+    targetContainer: BlockContainer,
+    childBlockId: string,
+    parentLookup?: ParentLookup,
+    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
+): CardBlock | null {
+    const block = removeBlockFromContainer(sourceContainer, childBlockId, parentLookup)
+    if (!block) {
+        return null
+    }
+
+    const nextLocation = location ?? createDefaultLocationForContainer(targetContainer)
+    addBlockToContainer(targetContainer, block, parentLookup, nextLocation)
+    return block
+}
+
+export function isBlockContainer(target: CardBlock | CardDocument): target is BlockContainer {
+    return target.type === 'simple-container-block' || target.type === 'flow-container-block' || target.type === 'card-document'
+}
+
+export function isCardBlock(target: any): target is CardBlock {
+    //检查对象的type属性是否以-block结尾，以区分是否为CardBlock类型
+    return target && typeof target === 'object' && typeof target.type === 'string' && target.type.endsWith('-block')
+}
+
+// Conversion from card blocks to the generic tree node structure used by the editor UI.
+export const blockToTreeNode = (
     block: CardBlock,
     parent: ITreeNode | null,
     location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
 ): ITreeNode => {
     const newNode: ITreeNode = {
-        name: block.id,
-        key: `${block.type} (${block.id})`,
+        name: block.name?.trim() || block.id,
+        key: block.id,
         path: parent?.path ? [...parent.path, block.id] : [block.id],
         parent,
-        actionKeys: ['add'],
+        actionKeys: isBlockContainer(block) ? ['add', 'delete'] : ['delete'], // 应该是container有add，任何block都有delete
         metadata: { block, location } satisfies CardTreeNodeMetadata,
     }
 
-    if (block.type === 'flow-container-block' || block.type === 'simple-container-block') {
-        newNode.children = block.children.map(child => block2ITreeNode(child.block, newNode, child.location))
+    if (isBlockContainer(block)) {
+        newNode.children = block.children.map(child => blockToTreeNode(child.block, newNode, child.location))
     }
 
     return newNode

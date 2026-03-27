@@ -47,6 +47,8 @@ interface Props {
     multiSelect?: boolean
     selected?: Map<string, ITreeNode>
     title?: string
+    expanded?: boolean
+    defaultExpanded?: boolean
     actions?: Map<string, ActionDefinition>
     actionKeys?: string[]
 }
@@ -54,18 +56,20 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
     multiSelect: true,
     selected: () => new Map<string, ITreeNode>(),
+    defaultExpanded: false,
     actions: () => new Map<string, ActionDefinition>(),
     actionKeys: () => [],
 })
 
 const emit = defineEmits<{
     'update:selected': [value: Map<string, ITreeNode>]
+    'update:expanded': [value: boolean]
     'node-dblclick': [node: ITreeNode]
     'node-toggle': [payload: NodeTreeTogglePayload]
     'action-called': [payload: NodeTreeActionCalledPayload]
 }>()
 
-const isExpanded = ref(false)
+const isExpanded = ref(props.expanded ?? props.defaultExpanded)
 
 const selectedNodes = computed(() => props.selected || new Map<string, ITreeNode>())
 const treeActions = computed(() => {
@@ -114,7 +118,10 @@ provide('nodeTree', {
 })
 
 function handleClick() {
-    isExpanded.value = !isExpanded.value
+    const nextExpanded = !isExpanded.value
+    isExpanded.value = nextExpanded
+
+    emit('update:expanded', nextExpanded)
 }
 </script>
 
