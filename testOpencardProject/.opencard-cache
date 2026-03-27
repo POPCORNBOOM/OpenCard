@@ -39,7 +39,19 @@
         "isSymlink": false
       },
       {
+        "name": "tri.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "uno-red-7.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "yszm.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
@@ -70,6 +82,12 @@
       },
       {
         "name": "三国杀-甄姬测试卡_2026-03-27T14-44-56.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "三国杀-甄姬测试卡_2026-03-27T14-59-25.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false

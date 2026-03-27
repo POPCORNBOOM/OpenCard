@@ -125,9 +125,9 @@ import type { NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import type { CardDocument } from '../core/Card'
-import { toPng } from 'dom-to-image-more'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
+import { exportCardAsImage } from '../utils/exportCard'
 
 type OpenedFileNode = ITreeNode & {
   metadata: {
@@ -308,10 +308,9 @@ async function debugLog(message: string) {
 
     // 转换为图片
     console.log('正在渲染图片...')
-    const dataUrl = await toPng(canvasElement, {
-      width: cardDoc.width,
-      height: cardDoc.height,
-      pixelRatio: 2 // 2x DPI
+    const dataUrl = await exportCardAsImage(canvasElement, {
+      dpi: 192,
+      format: 'png',
     })
 
     // 选择保存位置
