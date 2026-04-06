@@ -3,12 +3,18 @@
     <div class="node-content" :class="{ selected: isSelected }" :style="{ paddingLeft: `${level * 12}px` }"
       @click="handleClick" @dblclick="handleDoubleClick">
       <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
-        @click="() => nodeTree?.handleNodeToggle(props.node, !isExpanded)" />
-      <i v-else class="codicon" :class="node.icon || 'codicon-file'" />
+        @click.stop="handleToggleClick" />
+      <i class="codicon" :class="node.icon || 'codicon-file'" />
       <span class="node-name">{{ node.name }}</span>
       <div v-if="availableActions.length" class="node-actions">
-        <i v-for="action in availableActions" :key="action.key" class="codicon action-btn" :class="action.icon"
-          :title="action.title" @click.stop="() => nodeTree?.callAction(action.key, 'node', props.node)" />
+        <TreeActionButton
+          v-for="action in availableActions"
+          :key="action.key"
+          :action="action"
+          caller="node"
+          :node="props.node"
+          @trigger="handleActionTrigger"
+        />
       </div>
     </div>
 
@@ -35,7 +41,8 @@ export interface ITreeNode {
 
 <script setup lang="ts">
 import { computed, inject, ref, watch, type ComputedRef } from 'vue'
-import type { ActionDefinition } from './NodeTree.vue'
+import TreeActionButton from './TreeActionButton.vue'
+import type { ActionDefinition, ActionCaller } from './NodeTree.vue'
 
 const props = defineProps<{
   node: ITreeNode
@@ -47,7 +54,7 @@ const nodeTree = inject<{
   handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
   handleNodeDoubleClick: (node: ITreeNode) => void
   handleNodeToggle: (node: ITreeNode, expanded: boolean) => void
-  callAction: (actionKey: string, caller: 'tree' | 'node', node?: ITreeNode) => void
+  callAction: (actionKey: string, caller: ActionCaller, node?: ITreeNode) => void
   actions: ComputedRef<Map<string, ActionDefinition>>
   multiSelect: boolean
 }>('nodeTree')
@@ -85,17 +92,18 @@ watch(
     uncontrolledExpanded.value = nextExpanded
   },
 )
+function handleToggleClick() {
+  if (!isExpandedControlled.value) {
+    uncontrolledExpanded.value = !isExpanded.value
+  }
+
+  nodeTree?.handleNodeToggle(props.node, !isExpanded.value)
+}
 
 function handleClick(event: MouseEvent) {
   event.stopPropagation()
 
   const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
-
-  if (modify === 'none' && isExpandable.value) {
-    if (!isExpandedControlled.value) {
-      uncontrolledExpanded.value = !isExpanded.value
-    }
-  }
 
   nodeTree?.handleNodeClick(props.node.key, props.node, modify)
 }
@@ -103,6 +111,10 @@ function handleClick(event: MouseEvent) {
 function handleDoubleClick(event: MouseEvent) {
   event.stopPropagation()
   nodeTree?.handleNodeDoubleClick(props.node)
+}
+
+function handleActionTrigger(payload: { actionKey: string; caller: ActionCaller; node?: ITreeNode }) {
+  nodeTree?.callAction(payload.actionKey, payload.caller, payload.node)
 }
 </script>
 
@@ -153,16 +165,5 @@ function handleDoubleClick(event: MouseEvent) {
 .node-content:hover .node-actions,
 .node-actions:hover {
   visibility: visible;
-}
-
-.action-btn {
-  padding: 2px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.action-btn:hover {
-  background: #454545;
 }
 </style>

@@ -1,5 +1,9 @@
 import { AnchorPosition, BaseBlock, CSSValue } from '../core/Card'
 
+type BlockStyleOptions = {
+    disableTransform?: boolean
+}
+
 export function toCSSValue(value: CSSValue | undefined): string {
     if (value === undefined) return '0px'
     return typeof value === 'number' ? `${value}px` : value
@@ -59,7 +63,7 @@ export function getAbsolutePositionStyles(position: AbsolutePosition): string {
     return styles.join('; ')
 }
 
-export function getBlockBoxStyles(comp: BaseBlock): string {
+export function getBlockBoxStyles(comp: BaseBlock, options: BlockStyleOptions = {}): string {
     const styles: string[] = []
 
     if (comp.width) styles.push(`width: ${toCSSValue(comp.width)}`)
@@ -67,7 +71,7 @@ export function getBlockBoxStyles(comp: BaseBlock): string {
     if (comp.opacity !== undefined) styles.push(`opacity: ${comp.opacity}`)
     if (comp.zIndex !== undefined) styles.push(`z-index: ${comp.zIndex}`)
 
-    if (comp.transformAnchor) {
+    if (!options.disableTransform && comp.transformAnchor) {
         const originMap: Record<string, string> = {
             'lt': '0% 0%', 'ct': '50% 0%', 'rt': '100% 0%',
             'lc': '0% 50%', 'cc': '50% 50%', 'rc': '100% 50%',
@@ -77,29 +81,25 @@ export function getBlockBoxStyles(comp: BaseBlock): string {
     }
 
     const transforms: string[] = []
-    if (comp.translateX || comp.translateY) {
+    if (!options.disableTransform && (comp.translateX || comp.translateY)) {
         transforms.push(`translate(${toCSSValue(comp.translateX)}, ${toCSSValue(comp.translateY)})`)
     }
-    // 处理缩放
-    if (comp.scaleX !== undefined || comp.scaleY !== undefined) {
+    if (!options.disableTransform && (comp.scaleX !== undefined || comp.scaleY !== undefined)) {
         const scaleX = comp.scaleX !== undefined ? comp.scaleX : 1
         const scaleY = comp.scaleY !== undefined ? comp.scaleY : 1
         transforms.push(`scale(${scaleX}, ${scaleY})`)
     }
-    // 处理旋转
-    if (comp.rotation) {
+    if (!options.disableTransform && comp.rotation) {
         transforms.push(`rotate(${comp.rotation}deg)`)
     }
-    // 合并所有 transform
     if (transforms.length > 0) {
         styles.push(`transform: ${transforms.join(' ')}`)
     }
 
-    // customCss 覆盖
     return styles.join('; ') + (comp.customCss ? '; ' + comp.customCss : '')
 }
 
-export function getPositionStyles(comp: BaseBlock): string {
-    const baseStyles = getBlockBoxStyles(comp)
+export function getPositionStyles(comp: BaseBlock, options: BlockStyleOptions = {}): string {
+    const baseStyles = getBlockBoxStyles(comp, options)
     return ['position: absolute', baseStyles].filter(Boolean).join('; ')
 }

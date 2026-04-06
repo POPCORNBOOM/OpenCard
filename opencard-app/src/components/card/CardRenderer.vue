@@ -1,7 +1,7 @@
 <template>
     <div ref="cardCanvasRef" class="card-canvas" :style="canvasStyle">
-        <div v-for="child in document.children" :key="child.block.id" :style="getChildStyle(child.location)">
-            <CardBlock :block="child.block" layout-mode="static" :use-wrapper="useWrapper" />
+        <div v-for="child in visibleChildren" :key="child.block.id" :style="getChildStyle(child)">
+            <CardBlock :block="child.block" layout-mode="static" />
         </div>
     </div>
 </template>
@@ -13,18 +13,23 @@ import { getAbsolutePositionStyles } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 
+const emit = defineEmits<{
+    (e: 'block-click', blockId: string, event: MouseEvent): void
+}>()
+
 const props = withDefaults(defineProps<{
     document: CardDocument
-    selectedBlockIds?: string[]
-    useWrapper?: boolean
+    transformDisabledBlockIds?: string[]
+    visibleRootBlockIds?: string[]
 }>(), {
-    selectedBlockIds: () => [],
-    useWrapper: true,
+    transformDisabledBlockIds: () => [],
+    visibleRootBlockIds: () => [],
 })
 
 const cardCanvasRef = ref<HTMLElement>()
 
-const normalizedSelectedBlockIds = computed(() => new Set(props.selectedBlockIds))
+const normalizedTransformDisabledBlockIds = computed(() => new Set(props.transformDisabledBlockIds))
+const normalizedVisibleRootBlockIds = computed(() => new Set(props.visibleRootBlockIds))
 
 const canvasStyle = computed((): Record<string, string> => ({
     position: 'relative',
@@ -33,12 +38,26 @@ const canvasStyle = computed((): Record<string, string> => ({
     background: '#fff',
 }))
 
-function getChildStyle(location: CardDocument['children'][number]['location']) {
-    return `position: absolute; ${getAbsolutePositionStyles(location)}`
+const visibleChildren = computed(() => {
+    if (normalizedVisibleRootBlockIds.value.size === 0) {
+        return props.document.children
+    }
+
+    return props.document.children.filter(child =>
+        normalizedVisibleRootBlockIds.value.has(child.block.id)
+    )
+})
+
+function getChildStyle(child: CardDocument['children'][number]) {
+    const zIndex = child.block.zIndex !== undefined ? `; z-index: ${child.block.zIndex}` : ''
+    return `position: absolute; ${getAbsolutePositionStyles(child.location)}${zIndex}`
 }
 
 provide(cardEditorContextKey, {
-    selectedBlockIds: normalizedSelectedBlockIds,
+    transformDisabledBlockIds: normalizedTransformDisabledBlockIds,
+    handleBlockClick: (blockId, event) => {
+        emit('block-click', blockId, event)
+    },
 })
 
 defineExpose({

@@ -386,6 +386,19 @@ export function isCardBlock(target: any): target is CardBlock {
     return target && typeof target === 'object' && typeof target.type === 'string' && target.type.endsWith('-block')
 }
 
+export function getBlockTreeIcon(type: CardBlock['type']): string {
+    switch (type) {
+        case 'text-block':
+            return 'codicon-file-text'
+        case 'image-block':
+            return 'codicon-file-media'
+        case 'simple-container-block':
+            return 'codicon-collection'
+        case 'flow-container-block':
+            return 'codicon-layers'
+    }
+}
+
 // Conversion from card blocks to the generic tree node structure used by the editor UI.
 export const blockToTreeNode = (
     block: CardBlock,
@@ -397,6 +410,7 @@ export const blockToTreeNode = (
         key: block.id,
         path: parent?.path ? [...parent.path, block.id] : [block.id],
         parent,
+        icon: getBlockTreeIcon(block.type),
         actionKeys: isBlockContainer(block) ? ['add', 'delete'] : ['delete'], // 应该是container有add，任何block都有delete
         metadata: { block, location } satisfies CardTreeNodeMetadata,
     }

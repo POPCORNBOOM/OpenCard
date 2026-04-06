@@ -112,6 +112,8 @@
     <div v-if="showCardPreview" style="position: fixed; top: -9999px; left: -9999px;">
       <CardRenderer v-if="previewCardDoc" ref="cardRendererRef" :document="previewCardDoc" />
     </div>
+
+    <FloatingMenuHost />
   </div>
 </template>
 
@@ -121,6 +123,7 @@ import { useProjectStore } from '../stores/projectStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
+import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import type { NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'

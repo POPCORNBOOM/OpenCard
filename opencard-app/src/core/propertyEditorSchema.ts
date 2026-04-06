@@ -15,6 +15,9 @@ export type PropertyConstraintMap = {
         options?: readonly string[]
         autocomplete?: readonly string[]
     }
+    anchorPosition: {}
+    alignPosition: {}
+    flowDirection: {}
     number: {
         min?: number
         max?: number
@@ -50,11 +53,8 @@ export type EditorPropertyDefinition = {
 export type TypePropertyDefinitions = Record<string, Record<string, EditorPropertyDefinition>>
 export type PropertyEditorSchemaByType = Record<CardBlock['type'], Record<string, EditorPropertyDefinition>>
 
-const anchorOptions = ['lt', 'ct', 'rt', 'lc', 'cc', 'rc', 'lb', 'cb', 'rb'] as const
-const flowDirectionOptions = ['lr', 'rl', 'tb', 'bt'] as const
 const textModeOptions = ['plain', 'markdown', 'richtext'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
-const textAlignOptions = ['left', 'center', 'right', 'justify'] as const
 const cssLengthAutocomplete = ['px', '%'] as const
 
 export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
@@ -68,7 +68,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
-        transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
+        transformAnchor: { datatype: 'anchorPosition', label: 'Transform Anchor', category: 'Transform' },
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
@@ -81,7 +81,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         fontWeight: { datatype: 'string', label: 'Font Weight', category: 'Typography' },
         color: { datatype: 'color', enablePicker: true, enableCss: true, label: 'Text Color', category: 'Appearance' },
         backgroundColor: { datatype: 'color', enablePicker: true, enableCss: true, label: 'Background Color', category: 'Appearance' },
-        textAlign: { datatype: 'string', options: textAlignOptions, label: 'Text Align', category: 'Typography' },
+        textAlign: { datatype: 'alignPosition', label: 'Text Align', category: 'Typography' },
         lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Line Height', category: 'Typography' },
     },
     'image-block': {
@@ -94,7 +94,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
-        transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
+        transformAnchor: { datatype: 'anchorPosition', label: 'Transform Anchor', category: 'Transform' },
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
@@ -113,7 +113,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
-        transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
+        transformAnchor: { datatype: 'anchorPosition', label: 'Transform Anchor', category: 'Transform' },
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
@@ -131,13 +131,13 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Translate Y', category: 'Transform' },
         scaleX: { datatype: 'number', label: 'Scale X', category: 'Transform' },
         scaleY: { datatype: 'number', label: 'Scale Y', category: 'Transform' },
-        transformAnchor: { datatype: 'string', options: anchorOptions, label: 'Transform Anchor', category: 'Transform' },
+        transformAnchor: { datatype: 'anchorPosition', label: 'Transform Anchor', category: 'Transform' },
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
-        direction: { datatype: 'string', options: flowDirectionOptions, label: 'Direction', category: 'Layout' },
+        direction: { datatype: 'flowDirection', label: 'Direction', category: 'Layout' },
         gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Gap', category: 'Layout' },
         children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, label: 'Children', category: 'Data' },
     },
@@ -145,7 +145,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
 
 export const simpleContainerLocationPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
     type: { datatype: 'string', isReadonly: true, label: 'Type', category: 'Identity' },
-    anchor: { datatype: 'string', options: anchorOptions, label: 'Anchor', category: 'Position' },
+    anchor: { datatype: 'anchorPosition', label: 'Anchor', category: 'Position' },
     x: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'X', category: 'Position' },
     y: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Y', category: 'Position' },
 }
@@ -153,7 +153,7 @@ export const simpleContainerLocationPropertyEditorSchema: Record<string, EditorP
 export const flowContainerLocationPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
     type: { datatype: 'string', isReadonly: true, label: 'Type', category: 'Identity' },
     index: { datatype: 'number', min: 0, label: 'Index', category: 'Flow' },
-    align: { datatype: 'string', options: ['start', 'center', 'end', 'justify'] as const, label: 'Align', category: 'Flow' },
+    align: { datatype: 'alignPosition', label: 'Align', category: 'Flow' },
 }
 
 export const propertyEditorSchemaByType: TypePropertyDefinitions = {

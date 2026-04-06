@@ -1,25 +1,29 @@
 <template>
-    <div :style="blockStyle">
-        <div v-for="child in orderedChildren" :key="child.block.id" :style="getChildStyle(child.location)">
-            <CardBlock :block="child.block" layout-mode="static" :use-wrapper="useWrapper" />
+    <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
+        <div v-for="child in orderedChildren" :key="child.block.id" :style="getChildStyle(child)">
+            <CardBlock :block="child.block" layout-mode="static" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { FlowContainerBlock } from '../../core/Card'
 import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
+import { cardEditorContextKey } from './cardEditorContext'
 
 const props = withDefaults(defineProps<{
     block: FlowContainerBlock
     layoutMode?: 'absolute' | 'static'
-    useWrapper?: boolean
 }>(), {
     layoutMode: 'absolute',
-    useWrapper: true,
 })
+
+const editorContext = inject(cardEditorContextKey, null)
+const isTransformDisabled = computed(() =>
+    editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
+)
 
 const directionMap: Record<FlowContainerBlock['direction'], string> = {
     lr: 'row',
@@ -37,8 +41,8 @@ const alignMap: Record<NonNullable<FlowContainerBlock['children'][number]['locat
 
 const blockStyle = computed(() => {
     const pos = props.layoutMode === 'absolute'
-        ? getPositionStyles(props.block)
-        : getBlockBoxStyles(props.block)
+        ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
+        : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
     const flexDir = directionMap[props.block.direction]
     const gap = toCSSValue(props.block.gap)
     return `${pos}; display: flex; flex-direction: ${flexDir}; gap: ${gap}`
@@ -48,11 +52,18 @@ const orderedChildren = computed(() =>
     [...props.block.children].sort((a, b) => a.location.index - b.location.index)
 )
 
-function getChildStyle(location: FlowContainerBlock['children'][number]['location']) {
-    const styles = [`order: ${location.index}`]
-    if (location.align) {
-        styles.push(`align-self: ${alignMap[location.align]}`)
+function getChildStyle(child: FlowContainerBlock['children'][number]) {
+    const styles = [`order: ${child.location.index}`]
+    if (child.location.align) {
+        styles.push(`align-self: ${alignMap[child.location.align]}`)
+    }
+    if (child.block.zIndex !== undefined) {
+        styles.push(`z-index: ${child.block.zIndex}`)
     }
     return styles.join('; ')
+}
+
+function handleClick(event: MouseEvent) {
+    editorContext?.handleBlockClick?.(props.block.id, event)
 }
 </script>

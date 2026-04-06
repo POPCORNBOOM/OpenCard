@@ -1,20 +1,11 @@
 <template>
   <div class="card-design-editor">
     <div class="canvas-area">
-      <div v-if="cardDoc" class="debug-panel">
-        <div class="debug-panel__title">Debug</div>
-        <div class="debug-panel__content">
-          <div>Selected: {{ selectedBlock?.name || selectedBlock?.id || 'None' }}</div>
-          <div>Tree Nodes: {{ blockTree.length }}</div>
-          <div>Modified: {{ isModified ? 'Yes' : 'No' }}</div>
-          <div>Parent Lookup Size: {{ parentLookup.size }}</div>
-          <div>Parent: {{ parentLookup.get(selectedBlock?.id || '')?.id
-            || parentLookup.get(selectedBlock?.id || '')?.type
-            || 'None' }}</div>
-          <div>{{ selectedNode?.actionKeys }}</div>
-        </div>
-      </div>
-      <CardViewport v-if="cardDoc" :document="cardDoc" :selected-block-ids="selectedBlockIds" />
+      <CardViewport v-if="cardDoc" :document="cardDoc" :selected-block-id="selectedBlock?.id ?? null"
+        :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
+        :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
+        @block-click="handleViewportBlockClick" @blank-click="clearSelection"
+        @resize-selection="handleSelectionResize" />
       <div v-else class="empty-hint">无法解析 .opencard 文件</div>
     </div>
 
@@ -54,7 +45,7 @@ import {
   buildParentLookup,
   blockToTreeNode,
   BlockContainer,
-  createTextBlock,
+  createBlock,
   type ParentLookup,
   removeBlockFromContainer,
   type CardBlock,
@@ -63,6 +54,7 @@ import {
   type PropertyEditorSource,
   isBlockContainer,
   isCardBlock,
+  getBlockTreeIcon,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardViewport from '../card/CardViewport.vue'
@@ -79,16 +71,32 @@ const blockTreeExpanded = ref(true)
 const rawContent = ref('')
 const cardDoc = ref<CardDocument | null>(null)
 const parentLookup = ref<ParentLookup>(new Map())
-
-watch(parentLookup, (newVal) => {
-  console.log('Parent Lookup Updated:', newVal)
-})
 const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
 const treeActions = new Map<string, ActionDefinition>([
-  ['add-root', { key: 'add-root', icon: 'codicon-add', title: '添加' }],
-  ['delete-selected', { key: 'delete-selected', icon: 'codicon-trash', title: '删除' }],
-  ['add', { key: 'add', icon: 'codicon-add', title: '添加' }],
+  ['add-root', {
+    key: 'add-root',
+    icon: 'codicon-add',
+    title: '添加',
+    children: [
+      { key: 'add-text-block', icon: getBlockTreeIcon('text-block'), title: '文本块' },
+      { key: 'add-image-block', icon: getBlockTreeIcon('image-block'), title: '图片块' },
+      { key: 'add-simple-container-block', icon: getBlockTreeIcon('simple-container-block'), title: '简单容器' },
+      { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
+    ],
+  }],
+  ['delete-selected', { key: 'delete-selected', icon: 'codicon-trash', title: '删除选中' }],
+  ['add', {
+    key: 'add',
+    icon: 'codicon-add',
+    title: '添加',
+    children: [
+      { key: 'add-text-block', icon: getBlockTreeIcon('text-block'), title: '文本块' },
+      { key: 'add-image-block', icon: getBlockTreeIcon('image-block'), title: '图片块' },
+      { key: 'add-simple-container-block', icon: getBlockTreeIcon('simple-container-block'), title: '简单容器' },
+      { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
+    ],
+  }],
   ['delete', { key: 'delete', icon: 'codicon-trash', title: '删除' }],
 ])
 const treeActionKeys = ['add-root', 'delete-selected']
@@ -109,9 +117,40 @@ const selectedLayout = computed<Record<string, unknown> | null>(() => {
   return metadata?.location ? (metadata.location as Record<string, unknown>) : null
 })
 
-const selectedBlockIds = computed(() => {
-  if (!selectedBlock.value) return []
-  return [selectedBlock.value.id]
+const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  return metadata?.location?.type ?? null
+})
+const selectedAnchor = computed(() => {
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  return metadata?.location?.type === 'simple-container-location' ? metadata.location.anchor : null
+})
+const selectedParentBlockId = computed(() => {
+  const block = selectedBlock.value
+  if (!block) {
+    return null
+  }
+
+  const parent = parentLookup.value.get(block.id)
+  return parent && parent.type !== 'card-document' ? parent.id : null
+})
+const transformDisabledBlockIds = computed(() => {
+  const block = selectedBlock.value
+  if (!block) {
+    return []
+  }
+
+  const ids: string[] = []
+  let current: CardBlock | null = block
+  while (current) {
+    ids.push(current.id)
+    const parent = parentLookup.value.get(current.id)
+    if (!parent || parent.type === 'card-document') {
+      break
+    }
+    current = parent
+  }
+  return ids
 })
 
 const propertySources = computed<PropertyEditorSource[]>(() => {
@@ -158,33 +197,92 @@ function onTreeSelect(newSelected: Map<string, ITreeNode>) {
   selectedBlocks.value = newSelected
 }
 
+function handleViewportBlockClick(blockId: string) {
+  const clickedNode = findTreeNodeByBlockId(blockTree.value, blockId)
+  if (!clickedNode) {
+    return
+  }
+
+  selectedBlocks.value = new Map([[clickedNode.key, clickedNode]])
+}
+
+function clearSelection() {
+  if (selectedBlocks.value.size === 0) {
+    return
+  }
+
+  selectedBlocks.value = new Map()
+}
+
+function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
+  const block = selectedBlock.value
+  if (!block) {
+    return
+  }
+
+  block.width = Math.round(payload.width * 100) / 100
+  block.height = Math.round(payload.height * 100) / 100
+
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  if (metadata?.location?.type === 'simple-container-location') {
+    metadata.location.x = Math.round((payload.x ?? 0) * 100) / 100
+    metadata.location.y = Math.round((payload.y ?? 0) * 100) / 100
+  }
+
+  isModified.value = true
+}
+
 function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
   if (caller === 'node' && node) {
     selectedBlocks.value = new Map([[node.key, node]])
   }
 
   const callerObject = caller === 'node' ? getNodeBlock(node) : cardDoc.value
-  if (!callerObject) return
-  if (callerObject.type !== 'card-document') {
-    // 来自节点的操作，callerObject 是一个 Block
-    switch (actionKey) {
-      case 'add-root':
-      case 'add':
-        if (isBlockContainer(callerObject)) createBlockAt(callerObject)
-        return
-      case 'delete':
-        if (isCardBlock(callerObject)) deleteBlock(callerObject)
-        return
-      case 'delete-selected':
-        if (isCardBlock(selectedBlock.value)) deleteBlock(selectedBlock.value)
-        return
-    }
+  if (!callerObject) {
+    return
+  }
+
+  switch (actionKey) {
+    case 'add-text-block':
+      if (isBlockContainer(callerObject)) createBlockAt(callerObject, 'text-block')
+      return
+    case 'add-image-block':
+      if (isBlockContainer(callerObject)) createBlockAt(callerObject, 'image-block')
+      return
+    case 'add-simple-container-block':
+      if (isBlockContainer(callerObject)) createBlockAt(callerObject, 'simple-container-block')
+      return
+    case 'add-flow-container-block':
+      if (isBlockContainer(callerObject)) createBlockAt(callerObject, 'flow-container-block')
+      return
+    case 'delete':
+      if (isCardBlock(callerObject)) deleteBlock(callerObject)
+      return
+    case 'delete-selected':
+      if (isCardBlock(selectedBlock.value)) deleteBlock(selectedBlock.value)
+      return
   }
 }
 
 function getNodeBlock(node?: ITreeNode): CardBlock | null {
   const metadata = node?.metadata as CardTreeNodeMetadata | undefined
   return metadata?.block ?? null
+}
+
+function findTreeNodeByBlockId(nodes: ITreeNode[], blockId: string): ITreeNode | null {
+  for (const node of nodes) {
+    const block = getNodeBlock(node)
+    if (block?.id === blockId) {
+      return node
+    }
+
+    const childNode = findTreeNodeByBlockId(node.children ?? [], blockId)
+    if (childNode) {
+      return childNode
+    }
+  }
+
+  return null
 }
 
 async function loadFile() {
@@ -202,8 +300,24 @@ async function loadFile() {
   }
 }
 
-function createBlockAt(container: BlockContainer) {
-  const newBlock = createTextBlock()
+function createBlockAt(container: BlockContainer, type: CardBlock['type']) {
+  let newBlock: CardBlock
+
+  switch (type) {
+    case 'text-block':
+      newBlock = createBlock('text-block')
+      break
+    case 'image-block':
+      newBlock = createBlock('image-block')
+      break
+    case 'simple-container-block':
+      newBlock = createBlock('simple-container-block')
+      break
+    case 'flow-container-block':
+      newBlock = createBlock('flow-container-block')
+      break
+  }
+
   addBlockToContainer(container, newBlock, parentLookup.value)
   isModified.value = true
 }
@@ -256,39 +370,6 @@ defineExpose({ save: saveFile })
   display: flex;
   position: relative;
   background: #2d2d2d;
-}
-
-.debug-panel {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 10;
-  min-width: 180px;
-  max-width: 260px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(20, 20, 20, 0.86);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  color: #d4d4d4;
-  pointer-events: none;
-}
-
-.debug-panel__title {
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #7fc8ff;
-}
-
-.debug-panel__content {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .right-panel {

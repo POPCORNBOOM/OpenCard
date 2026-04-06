@@ -73,7 +73,8 @@
               "fit": "contain",
               "width": "420px",
               "height": "460px",
-              "customCss": "border-radius: 18px; background: rgba(255, 255, 255, 0.08); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);"
+              "customCss": "border-radius: 18px; background: rgba(255, 255, 255, 0.08); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);",
+              "rotation": 123
             },
             "location": {
               "type": "simple-container-location",
@@ -91,6 +92,55 @@
               "type": "text-block",
               "content": "aaaaaaaaaaaaaaaa",
               "mode": "plain"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "block": {
+              "id": "flow-container-block-cc0ea9d8-c51a-46ea-a6f3-eab382dc964a",
+              "name": "Flow Container",
+              "width": 422.21,
+              "height": 600.82,
+              "type": "flow-container-block",
+              "direction": "bt",
+              "gap": "10px",
+              "children": [
+                {
+                  "block": {
+                    "id": "text-block-85f27d95-636f-45ba-9c17-95b1b5935c00",
+                    "name": "Text Block",
+                    "width": 492.8,
+                    "height": 287.65,
+                    "type": "text-block",
+                    "content": "suuuuuuuuuuuuuck ",
+                    "mode": "plain"
+                  },
+                  "location": {
+                    "type": "flow-container-location",
+                    "index": 0
+                  }
+                },
+                {
+                  "block": {
+                    "id": "text-block-73a683dd-7899-4862-aa92-07b2daf2512e",
+                    "name": "Text Block",
+                    "width": 513.85,
+                    "height": 111.11,
+                    "type": "text-block",
+                    "content": "asssssssssssssssssssssssssssssssssssssssssssssssss",
+                    "mode": "plain"
+                  },
+                  "location": {
+                    "type": "flow-container-location",
+                    "index": 1
+                  }
+                }
+              ]
             },
             "location": {
               "type": "simple-container-location",

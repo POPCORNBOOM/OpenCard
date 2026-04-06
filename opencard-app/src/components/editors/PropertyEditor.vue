@@ -10,15 +10,9 @@
             <div v-if="category.addableFields.length > 0" class="add-field-menu">
               <span class="add-field-count">{{ category.addableFields.length }}</span>
               <button class="add-field-button" type="button" title="添加字段"
-                @click="toggleAddMenu(source.title, category.title)">
+                @click="openAddFieldMenu($event, category)">
                 <span class="codicon codicon-add" />
               </button>
-              <div v-if="isAddMenuOpen(source.title, category.title)" class="add-field-dropdown">
-                <button v-for="field in category.addableFields" :key="field.key" class="add-field-option" type="button"
-                  @click="addField(category, field)">
-                  {{ field.label }}
-                </button>
-              </div>
             </div>
           </div>
           <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`"
@@ -35,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, type Component } from 'vue'
 import {
   type PropertyEditorSource,
   type PropertyEditorTarget,
@@ -45,11 +39,15 @@ import {
   type EditorPropertyDefinition,
   type PropertyDatatype,
 } from '../../core/propertyEditorSchema'
+import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
+import AnchorPositionPropertyField from './property-fields/AnchorPositionPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
+import FlowDirectionPropertyField from './property-fields/FlowDirectionPropertyField.vue'
 import NumberPropertyField from './property-fields/NumberPropertyField.vue'
 import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
+import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 
 const emit = defineEmits<{
   (e: 'update-property', payload: { target: Record<string, unknown>; key: string; value: unknown }): void
@@ -57,6 +55,9 @@ const emit = defineEmits<{
 
 const datatypeEditorMap: Record<PropertyDatatype, Component> = {
   string: StringPropertyField,
+  anchorPosition: AnchorPositionPropertyField,
+  alignPosition: AlignPositionPropertyField,
+  flowDirection: FlowDirectionPropertyField,
   number: NumberPropertyField,
   boolean: BooleanPropertyField,
   color: ColorPropertyField,
@@ -98,7 +99,7 @@ const props = defineProps<{
 }>()
 
 const defaultDefinition: EditorPropertyDefinition = { datatype: 'string' }
-const openAddMenuKey = ref<string | null>(null)
+const { openMenu } = useFloatingMenu()
 
 const displaySources = computed<PropertyEditorSourceView[]>(() =>
   props.sources
@@ -243,23 +244,35 @@ function compareText(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
-function getCategoryMenuKey(sourceTitle: string, categoryTitle: string): string {
-  return `${sourceTitle}:${categoryTitle}`
-}
+function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): void {
+  const anchor = event.currentTarget
+  if (!(anchor instanceof HTMLElement)) {
+    return
+  }
 
-function isAddMenuOpen(sourceTitle: string, categoryTitle: string): boolean {
-  return openAddMenuKey.value === getCategoryMenuKey(sourceTitle, categoryTitle)
-}
+  const items: FloatingMenuItem[] = category.addableFields.map((field) => ({
+    key: field.key,
+    label: field.label,
+  }))
 
-function toggleAddMenu(sourceTitle: string, categoryTitle: string): void {
-  const key = getCategoryMenuKey(sourceTitle, categoryTitle)
-  openAddMenuKey.value = openAddMenuKey.value === key ? null : key
+  openMenu({
+    anchor,
+    items,
+    placement: 'bottom-end',
+    onSelect: (fieldKey) => {
+      const field = category.addableFields.find((candidate) => candidate.key === fieldKey)
+      if (!field) {
+        return
+      }
+
+      addField(category, field)
+    },
+  })
 }
 
 function addField(category: PropertyEditorCategory, field: AddableField): void {
   const value = createDefaultValue(field.definition)
   category.target[field.key] = value
-  openAddMenuKey.value = null
   emit('update-property', {
     target: category.target,
     key: field.key,
@@ -272,6 +285,12 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
     case 'string':
     case 'color':
       return definition.options?.[0] ?? ''
+    case 'anchorPosition':
+      return 'cc'
+    case 'alignPosition':
+      return 'start'
+    case 'flowDirection':
+      return 'lr'
     case 'number':
       return definition.min ?? 0
     case 'boolean':
@@ -364,33 +383,6 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 .add-field-button:hover {
   background: #2a2d2e;
   border-color: #0e639c;
-}
-
-.add-field-dropdown {
-  position: absolute;
-  top: 22px;
-  right: 0;
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  background: #252526;
-  border: 1px solid #3f3f46;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-  z-index: 10;
-}
-
-.add-field-option {
-  border: 0;
-  background: transparent;
-  color: #ccc;
-  font-size: 12px;
-  text-align: left;
-  padding: 6px 8px;
-  cursor: pointer;
-}
-
-.add-field-option:hover {
-  background: #094771;
 }
 
 .prop-row {

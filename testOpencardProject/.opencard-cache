@@ -21,6 +21,12 @@
         "isSymlink": false
       },
       {
+        "name": "Image Render Test_2026-04-06T17-21-56.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "image-render-test.opencard",
         "isDirectory": false,
         "isFile": true,

@@ -1,7 +1,8 @@
 import type { ComputedRef, InjectionKey } from 'vue'
 
 export interface CardEditorContext {
-  selectedBlockIds: ComputedRef<Set<string>>
+  transformDisabledBlockIds: ComputedRef<Set<string>>
+  handleBlockClick?: (blockId: string, event: MouseEvent) => void
 }
 
 export const cardEditorContextKey: InjectionKey<CardEditorContext> = Symbol('card-editor-context')

@@ -4,13 +4,12 @@
             <i class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"></i>
             <span class="root-title">{{ props.title }}</span>
             <div v-if="treeActions.length" class="root-actions">
-                <i
+                <TreeActionButton
                     v-for="action in treeActions"
                     :key="action.key"
-                    class="codicon action-btn"
-                    :class="action.icon"
-                    :title="action.title"
-                    @click.stop="callAction(action.key, 'tree')"
+                    :action="action"
+                    caller="tree"
+                    @trigger="handleActionTrigger"
                 />
             </div>
         </div>
@@ -23,17 +22,21 @@
 
 <script setup lang="ts">
 import { computed, provide, ref, type ComputedRef } from 'vue'
+import TreeActionButton from './TreeActionButton.vue'
 import TreeNode, { type ITreeNode } from './TreeNode.vue'
+
+export type ActionCaller = 'tree' | 'node'
 
 export interface ActionDefinition {
     key: string
     icon: string
     title?: string
+    children?: ActionDefinition[]
 }
 
 export interface NodeTreeActionCalledPayload {
     actionKey: string
-    caller: 'tree' | 'node'
+    caller: ActionCaller
     node?: ITreeNode
 }
 
@@ -99,8 +102,12 @@ function handleNodeClick(key: string, node: ITreeNode, modify: 'ctrl' | 'none') 
     emit('update:selected', newSelected)
 }
 
-function callAction(actionKey: string, caller: 'tree' | 'node', node?: ITreeNode) {
+function callAction(actionKey: string, caller: ActionCaller, node?: ITreeNode) {
     emit('action-called', { actionKey, caller, node })
+}
+
+function handleActionTrigger(payload: NodeTreeActionCalledPayload) {
+    callAction(payload.actionKey, payload.caller, payload.node)
 }
 
 function handleNodeToggle(node: ITreeNode, expanded: boolean) {
@@ -156,16 +163,5 @@ function handleClick() {
 
 .node-tree:hover .root-actions {
     visibility: visible;
-}
-
-.action-btn {
-    padding: 2px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.action-btn:hover {
-    background: #454545;
 }
 </style>

@@ -1,13 +1,14 @@
 <template>
-    <div :style="wrapStyle">
+    <div :data-block-id="block.id" :style="wrapStyle" @click.stop="handleClick">
         <img :src="imageSrc" :alt="block.id" :style="imgStyle" />
     </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { ImageBlock } from '../../core/Card'
 import { useProjectStore } from '../../stores/projectStore'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
+import { cardEditorContextKey } from './cardEditorContext'
 
 const props = withDefaults(defineProps<{
     block: ImageBlock
@@ -16,12 +17,17 @@ const props = withDefaults(defineProps<{
     layoutMode: 'absolute',
 })
 
+const editorContext = inject(cardEditorContextKey, null)
+const isTransformDisabled = computed(() =>
+    editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
+)
+
 const { resolveAssetSrc } = useProjectStore()
 
 const wrapStyle = computed(() => {
     const style = props.layoutMode === 'absolute'
-        ? getPositionStyles(props.block)
-        : getBlockBoxStyles(props.block)
+        ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
+        : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
     return `${style}; overflow: hidden`
 })
 
@@ -34,4 +40,8 @@ const imageSrc = computed(() => {
     const imagePath = props.block.imagePath ?? props.block.assetId ?? ''
     return resolveAssetSrc(imagePath)
 })
+
+function handleClick(event: MouseEvent) {
+    editorContext?.handleBlockClick?.(props.block.id, event)
+}
 </script>
