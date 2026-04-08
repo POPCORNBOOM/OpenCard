@@ -43,7 +43,7 @@
             <button @click="openProject" class="open-folder-btn">
               打开项目文件夹
             </button>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFiles" title="打开的编辑器" />
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" title="打开的编辑器" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
               @node-drop="handleFileTreeDrop"
@@ -66,15 +66,15 @@
 
       <!-- 编辑器区域 -->
       <div class="editor-container">
-        <div class="editor-tabs" v-if="openedFiles.length > 0">
-          <div v-for="file in openedFiles" :key="file.key" class="editor-tab"
-            :class="{ active: currentFile === file.key }" @click="currentFile = file.key">
-            {{ file.name }}
-            <span class="tab-close" @click.stop="closeFile(file.key)">×</span>
+        <div class="editor-tabs" v-if="sessions.length > 0">
+          <div v-for="session in sessions" :key="session.id" class="editor-tab"
+            :class="{ active: activeSessionId === session.id }" @click="activateSession(session.id)">
+            {{ session.isDirty ? `${session.name} *` : session.name }}
+            <span class="tab-close" @click.stop="closeFile(session.id)">×</span>
           </div>
         </div>
         <div class="editor-content">
-          <div v-if="!currentFile" class="welcome-screen">
+          <div v-if="!activeSession" class="welcome-screen">
             <h1>OpenCard</h1>
             <p>打开项目文件夹开始编辑</p>
           </div>
@@ -106,7 +106,7 @@
         </span>
       </div>
       <div class="status-right">
-        <span v-if="currentFile">{{ currentLanguage }}</span>
+        <span v-if="activeSession">{{ currentLanguage }}</span>
       </div>
     </div>
 
@@ -122,6 +122,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useProjectStore } from '../stores/projectStore'
+import { useEditorSessionStore } from '../stores/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
@@ -134,13 +135,6 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { exportCardAsImage } from '../utils/exportCard'
 
-type OpenedFileNode = ITreeNode & {
-  metadata: {
-    content: any
-    isModified?: boolean
-  }
-}
-
 const {
   projectPath,
   indexedEntries,
@@ -148,8 +142,6 @@ const {
   openProject: openProjectFn,
   isDirectoryExpanded,
   readDirectoryEntries,
-  readFile,
-  saveFile,
   getFileTreeAllowedDropPositions,
   canMoveEntryByDrop,
   moveEntryByDrop,
@@ -157,10 +149,6 @@ const {
 } = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
-const openedFiles = ref<Array<OpenedFileNode>>([])
-const currentFile = ref<string>('')
-const currentContent = ref<string>('')
-
 const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
@@ -171,14 +159,28 @@ const showCardPreview = ref(false)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
 
+const {
+  sessions,
+  activeSessionId,
+  activeSession,
+  openedFileNodes,
+  openFile: openEditorSession,
+  activateSession,
+  updateDraftContent,
+  closeSession,
+  saveActiveSession,
+  refreshActiveSessionFromDisk,
+  remapSessionPaths,
+} = useEditorSessionStore()
+
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).pop() || ''
 })
 
 const currentLanguage = computed(() => {
-  if (!currentFile.value) return ''
-  const ext = currentFile.value.split('.').pop()
+  if (!activeSession.value) return ''
+  const ext = activeSession.value.path.split('.').pop()
   const langMap: Record<string, string> = {
     'json': 'json',
     'opencard': 'json',  // opencard 文件也用 JSON 语法高亮
@@ -192,8 +194,8 @@ const currentLanguage = computed(() => {
 })
 
 const currentEditorComponent = computed(() => {
-  if (!currentFile.value) return null
-  const editor = editorRegistry.getEditorByPath(currentFile.value)
+  if (!activeSession.value) return null
+  const editor = editorRegistry.getEditorByPath(activeSession.value.path)
   return editor?.component ?? MonacoEditor
 })
 
@@ -201,19 +203,23 @@ const currentEditorComponent = computed(() => {
 // 方案 B 编辑器（如 CardDesignEditor）只需要 filePath
 // 旧式编辑器（如 MonacoEditor）还需要 modelValue + language
 const currentEditorProps = computed(() => {
-  const editor = editorRegistry.getEditorByPath(currentFile.value)
+  if (!activeSession.value) {
+    return {}
+  }
+
+  const editor = editorRegistry.getEditorByPath(activeSession.value.path)
   if (editor && editor.id !== 'monaco') {
-    return { filePath: currentFile.value }
+    return { filePath: activeSession.value.path }
   }
   return {
-    modelValue: currentContent.value,
-    'onUpdate:modelValue': (v: string) => { currentContent.value = v },
+    modelValue: activeSession.value.draftContent,
+    'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     language: currentLanguage.value
   }
 })
 
 // 监听内容变化，自动更新预览
-watch(currentContent, (newContent) => {
+watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   if (!newContent) {
     showPreview.value = false
     previewCardDoc.value = null
@@ -221,7 +227,7 @@ watch(currentContent, (newContent) => {
   }
 
   // 检查是否是 JSON 或 opencard 文件
-  const ext = currentFile.value.split('.').pop()
+  const ext = activeSession.value?.path.split('.').pop()
   if (ext !== 'json' && ext !== 'opencard') {
     showPreview.value = false
     previewCardDoc.value = null
@@ -290,45 +296,6 @@ const fileTree = computed(() => {
   return root
 })
 
-function normalizePath(path: string) {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function getPathBasename(path: string) {
-  const normalizedPath = normalizePath(path)
-  const lastSlashIndex = normalizedPath.lastIndexOf('/')
-  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1)
-}
-
-function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
-  const normalizedTargetPath = normalizePath(targetPath)
-  const normalizedAncestorPath = normalizePath(ancestorPath)
-  return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
-}
-
-function remapOpenedFilePaths(oldPath: string, newPath: string) {
-  const normalizedOldPath = normalizePath(oldPath)
-  const normalizedNewPath = normalizePath(newPath)
-
-  openedFiles.value = openedFiles.value.map((file) => {
-    const normalizedFilePath = normalizePath(file.key)
-    if (!isSameOrDescendantPath(normalizedFilePath, normalizedOldPath)) {
-      return file
-    }
-
-    const nextPath = normalizedNewPath + normalizedFilePath.slice(normalizedOldPath.length)
-    return {
-      ...file,
-      key: nextPath,
-      name: getPathBasename(nextPath),
-    }
-  })
-
-  if (currentFile.value && isSameOrDescendantPath(currentFile.value, normalizedOldPath)) {
-    currentFile.value = normalizedNewPath + normalizePath(currentFile.value).slice(normalizedOldPath.length)
-  }
-}
-
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)
   if (!result.ok) {
@@ -338,7 +305,7 @@ async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
     return
   }
 
-  remapOpenedFilePaths(result.fromPath, result.toPath)
+  remapSessionPaths(result.fromPath, result.toPath)
   selectedFiles.value = new Map()
 }
 
@@ -346,14 +313,15 @@ async function debugLog(message: string) {
   console.log(`[DEBUG] ${message}`)
 
   // 渲染当前 JSON 为卡牌并保存
-  if (!currentContent.value) {
+  const currentContent = activeSession.value?.draftContent ?? ''
+  if (!currentContent) {
     console.error('没有打开的文件')
     return
   }
 
   try {
     // 解析 JSON
-    const cardDoc: CardDocument = JSON.parse(currentContent.value)
+    const cardDoc: CardDocument = JSON.parse(currentContent)
     console.log('解析的卡牌文档:', cardDoc)
 
     // 显示预览
@@ -418,28 +386,9 @@ async function openProject() {
 }
 
 async function handleOpenFile(path: string) {
-  // 检查是否已打开
   debugLog(`尝试打开文件: ${path}`)
-  const existing = openedFiles.value.find(f => f.key === path)
-  if (existing) {
-    currentFile.value = path
-    currentContent.value = existing.metadata.content
-    return
-  }
-
-  // 读取文件内容
   try {
-    // path 已经是完整路径，直接读取
-    const content = await readFile(path)
-    const name = path.split(/[/\\]/).pop() || path
-    openedFiles.value.push({
-      key: path,
-      name,
-      isExpandable: false,
-      metadata: { content, isModified: false }
-    })
-    currentFile.value = path
-    currentContent.value = content
+    await openEditorSession(path)
   } catch (error) {
     console.error('打开文件失败:', error)
   }
@@ -464,41 +413,39 @@ async function handleNodeToggle({ node, expanded }: NodeTreeTogglePayload) {
 }
 
 async function handleEditorSave() {
-  const editor = editorRegistry.getEditorByPath(currentFile.value)
-
-  if (editor?.id === 'monaco') {
-    await saveCurrentFile()
+  const currentPath = activeSession.value?.path
+  if (!currentPath) {
     return
   }
 
-  if (!currentFile.value) {
+  const editor = editorRegistry.getEditorByPath(currentPath)
+
+  if (editor?.id === 'monaco') {
+    await saveActiveSession()
     return
   }
 
   try {
-    const refreshedContent = await readFile(currentFile.value)
-    const openedFile = openedFiles.value.find(file => file.key === currentFile.value)
-
-    if (openedFile) {
-      openedFile.metadata.content = refreshedContent
-      openedFile.metadata.isModified = false
-    }
-
-    currentContent.value = refreshedContent
+    await refreshActiveSessionFromDisk()
   } catch (error) {
     console.error('同步编辑器保存结果失败:', error)
   }
 }
 
 async function triggerCurrentEditorSave() {
-  const editor = editorRegistry.getEditorByPath(currentFile.value)
+  const currentPath = activeSession.value?.path
+  if (!currentPath) {
+    return
+  }
+
+  const editor = editorRegistry.getEditorByPath(currentPath)
 
   if (editor?.id !== 'monaco' && currentEditorRef.value?.save) {
     await currentEditorRef.value.save()
     return
   }
 
-  await saveCurrentFile()
+  await saveActiveSession()
 }
 
 async function handleGlobalKeydown(event: KeyboardEvent) {
@@ -518,32 +465,8 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
-function closeFile(path: string) {
-  const index = openedFiles.value.findIndex(f => f.key === path)
-  if (index !== -1) {
-    openedFiles.value.splice(index, 1)
-    if (currentFile.value === path) {
-      currentFile.value = openedFiles.value[0]?.key || ''
-      currentContent.value = openedFiles.value[0]?.metadata.content || ''
-    }
-  }
-}
-
-async function saveCurrentFile() {
-  if (!currentFile.value) return
-
-  const file = openedFiles.value.find(f => f.key === currentFile.value)
-  if (!file) return
-
-  const relativePath = file.key.replace(`${projectPath.value}/`, '')
-  try {
-    await saveFile(relativePath, currentContent.value)
-    file.metadata.content = currentContent.value
-    file.metadata.isModified = false
-    console.log('文件已保存')
-  } catch (error) {
-    console.error('保存失败:', error)
-  }
+function closeFile(sessionId: string) {
+  closeSession(sessionId)
 }
 </script>
 
