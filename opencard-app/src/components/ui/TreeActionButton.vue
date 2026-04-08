@@ -5,6 +5,8 @@
       :class="{ 'has-children': hasChildren }"
       type="button"
       :title="action.title"
+      data-tree-interactive="true"
+      @mousedown.stop
       @click.stop="handleClick"
     >
       <i class="codicon" :class="action.icon" />

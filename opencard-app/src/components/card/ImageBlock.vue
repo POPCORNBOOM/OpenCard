@@ -37,7 +37,7 @@ const imgStyle = computed(() => {
 })
 
 const imageSrc = computed(() => {
-    const imagePath = props.block.imagePath ?? props.block.assetId ?? ''
+    const imagePath = props.block.image ?? props.block.imagePath ?? props.block.assetId ?? ''
     return resolveAssetSrc(imagePath)
 })
 

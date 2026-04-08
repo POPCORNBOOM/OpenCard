@@ -41,6 +41,7 @@ export type TextBlock = BaseBlock & {
 
 export type ImageBlock = BaseBlock & {
     type: "image-block"
+    image?: string
     assetId?: string
     imagePath?: string
     fit: "cover" | "contain" | "fill"
@@ -174,6 +175,7 @@ export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
             ...init,
         }),
         type: 'image-block',
+        image: init.image ?? init.imagePath ?? init.assetId,
         assetId: init.assetId,
         imagePath: init.imagePath,
         fit: init.fit ?? 'cover',
@@ -305,11 +307,26 @@ function normalizeLocationForContainer(
         : createDefaultSimpleContainerLocation()
 }
 
+function clampInsertionIndex(index: number | undefined, length: number): number {
+    if (index === undefined) {
+        return length
+    }
+
+    return Math.min(Math.max(index, 0), length)
+}
+
+function reindexFlowContainerChildren(container: FlowContainerBlock): void {
+    container.children.forEach((child, index) => {
+        child.location.index = index
+    })
+}
+
 function attachBlockToContainer(
     container: BlockContainer,
     childBlock: CardBlock,
     location: SimpleContainerLocationInfo | FlowContainerLocationInfo,
-    parentLookup?: ParentLookup
+    parentLookup?: ParentLookup,
+    insertionIndex?: number
 ): void {
     if (parentLookup) {
         registerBlockSubtree(childBlock, container, parentLookup)
@@ -318,16 +335,17 @@ function attachBlockToContainer(
     switch (container.type) {
         case 'card-document':
         case 'simple-container-block':
-            container.children.push({
+            container.children.splice(clampInsertionIndex(insertionIndex, container.children.length), 0, {
                 block: childBlock,
                 location: location as SimpleContainerLocationInfo,
             })
             return
         case 'flow-container-block':
-            container.children.push({
+            container.children.splice(clampInsertionIndex(insertionIndex, container.children.length), 0, {
                 block: childBlock,
                 location: location as FlowContainerLocationInfo,
             })
+            reindexFlowContainerChildren(container)
             return
     }
 }
@@ -337,10 +355,11 @@ export function addBlockToContainer(
     container: BlockContainer,
     childBlock: CardBlock,
     parentLookup?: ParentLookup,
-    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
+    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    insertionIndex?: number
 ): void {
     const nextLocation = normalizeLocationForContainer(container, location)
-    attachBlockToContainer(container, childBlock, nextLocation, parentLookup)
+    attachBlockToContainer(container, childBlock, nextLocation, parentLookup, insertionIndex)
 }
 
 export function removeBlockFromContainer(
@@ -351,6 +370,9 @@ export function removeBlockFromContainer(
     const index = container.children.findIndex(child => child.block.id === childBlockId)
     if (index !== -1) {
         const [removedChild] = container.children.splice(index, 1)
+        if (container.type === 'flow-container-block') {
+            reindexFlowContainerChildren(container)
+        }
         if (parentLookup) {
             unregisterBlockSubtree(removedChild.block, parentLookup)
         }
@@ -365,7 +387,8 @@ export function moveBlockBetweenContainers(
     targetContainer: BlockContainer,
     childBlockId: string,
     parentLookup?: ParentLookup,
-    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
+    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    insertionIndex?: number
 ): CardBlock | null {
     const block = removeBlockFromContainer(sourceContainer, childBlockId, parentLookup)
     if (!block) {
@@ -373,7 +396,7 @@ export function moveBlockBetweenContainers(
     }
 
     const nextLocation = location ?? createDefaultLocationForContainer(targetContainer)
-    addBlockToContainer(targetContainer, block, parentLookup, nextLocation)
+    addBlockToContainer(targetContainer, block, parentLookup, nextLocation, insertionIndex)
     return block
 }
 
@@ -410,6 +433,7 @@ export const blockToTreeNode = (
         key: block.id,
         path: parent?.path ? [...parent.path, block.id] : [block.id],
         parent,
+        isExpandable: isBlockContainer(block),
         icon: getBlockTreeIcon(block.type),
         actionKeys: isBlockContainer(block) ? ['add', 'delete'] : ['delete'], // 应该是container有add，任何block都有delete
         metadata: { block, location } satisfies CardTreeNodeMetadata,

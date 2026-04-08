@@ -43,6 +43,7 @@ import AlignPositionPropertyField from './property-fields/AlignPositionPropertyF
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
 import AnchorPositionPropertyField from './property-fields/AnchorPositionPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
+import FilePathPropertyField from './property-fields/FilePathPropertyField.vue'
 import FlowDirectionPropertyField from './property-fields/FlowDirectionPropertyField.vue'
 import NumberPropertyField from './property-fields/NumberPropertyField.vue'
 import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
@@ -61,6 +62,7 @@ const datatypeEditorMap: Record<PropertyDatatype, Component> = {
   number: NumberPropertyField,
   boolean: BooleanPropertyField,
   color: ColorPropertyField,
+  filePath: FilePathPropertyField,
   object: ObjectPropertyField,
 }
 
@@ -283,8 +285,10 @@ function addField(category: PropertyEditorCategory, field: AddableField): void {
 function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   switch (definition.datatype) {
     case 'string':
-    case 'color':
       return definition.options?.[0] ?? ''
+    case 'filePath':
+    case 'color':
+      return ''
     case 'anchorPosition':
       return 'cc'
     case 'alignPosition':

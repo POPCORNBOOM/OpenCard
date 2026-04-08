@@ -4,6 +4,8 @@ import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
 import { taskScheduler } from '../utils/taskScheduler'
+import type { ITreeNode } from '../components/ui/TreeNode.vue'
+import type { NodeTreeAllowedDropPositions, NodeTreeCanDropPayload, NodeTreeDropPayload } from '../components/ui/NodeTree.vue'
 
 const PROJECT_CACHE_FILE_NAME = '.opencard-cache'
 const PROJECT_CACHE_SAVE_DELAY_MS = 1200
@@ -23,6 +25,10 @@ interface FileChangedPayload {
   kind: string
   paths: string[]
 }
+
+type MoveEntryByDropResult =
+  | { ok: true; fromPath: string; toPath: string }
+  | { ok: false; reason: 'project-not-open' | 'invalid-target' | 'self-target' | 'descendant-target' | 'same-path' | 'target-exists' | 'move-failed' }
 
 const projectPath = ref('')
 const indexedEntries = ref<DirEntry[]>([])
@@ -210,6 +216,12 @@ async function readDirectoryEntries(path: string = '', depth: number = 1) {
   await refreshIndexedEntries()
 }
 
+async function listProjectDirectoryEntries(path: string = '') {
+  const relativePath = toRelativeProjectPath(path)
+  const directoryPath = relativePath ? resolveProjectPath(relativePath) : ensureProjectOpen()
+  return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativePath)
+}
+
 function setDirectoryExpanded(path: string, expanded: boolean) {
   const relativePath = toRelativeProjectPath(path)
   if (!relativePath) {
@@ -332,6 +344,180 @@ async function deleteFile(relativePath: string) {
   await refreshIndexedEntries()
 }
 
+function getFileTreeAllowedDropPositions(target: ITreeNode | null) {
+  if (!target) {
+    return ['inside']
+  }
+
+  return target.metadata?.isDirectory ? ['inside'] : []
+}
+
+function getPathDirname(path: string) {
+  const normalizedPath = normalizePath(path)
+  const lastSlashIndex = normalizedPath.lastIndexOf('/')
+  if (lastSlashIndex === -1) {
+    return ''
+  }
+
+  return normalizedPath.slice(0, lastSlashIndex)
+}
+
+function getPathBasename(path: string) {
+  const normalizedPath = normalizePath(path)
+  const lastSlashIndex = normalizedPath.lastIndexOf('/')
+  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1)
+}
+
+function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
+  const normalizedTargetPath = normalizePath(targetPath)
+  const normalizedAncestorPath = normalizePath(ancestorPath)
+  return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
+}
+
+function resolveFileTreeDestination({ dragged, target, position }: NodeTreeCanDropPayload) {
+  if (!projectPath.value) {
+    return null
+  }
+
+  const targetAllowedDropPositions = getFileTreeAllowedDropPositions(target)
+  if (!targetAllowedDropPositions.includes(position)) {
+    return null
+  }
+
+  const draggedPath = normalizePath(dragged.key)
+  const targetPath = target ? normalizePath(target.key) : null
+
+  let destinationDirectory = normalizePath(projectPath.value)
+  if (targetPath) {
+    destinationDirectory = position === 'inside'
+      ? targetPath
+      : getPathDirname(targetPath) || normalizePath(projectPath.value)
+  }
+
+  return {
+    draggedPath,
+    destinationDirectory,
+    destinationPath: `${destinationDirectory}/${getPathBasename(draggedPath)}`,
+    draggedIsDirectory: Boolean(dragged.metadata?.isDirectory),
+    targetPath,
+  }
+}
+
+function canMoveEntryByDrop(payload: NodeTreeCanDropPayload) {
+  const destination = resolveFileTreeDestination(payload)
+  if (!destination) {
+    return false
+  }
+
+  const { draggedPath, destinationDirectory, destinationPath, draggedIsDirectory, targetPath } = destination
+
+  if (targetPath && draggedPath === targetPath) {
+    return false
+  }
+
+  if (targetPath && isSameOrDescendantPath(targetPath, draggedPath)) {
+    return false
+  }
+
+  if (draggedIsDirectory && isSameOrDescendantPath(destinationDirectory, draggedPath)) {
+    return false
+  }
+
+  if (destinationPath === draggedPath) {
+    return false
+  }
+
+  return true
+}
+
+function remapRelativePath(path: string, oldPrefix: string, newPrefix: string): string {
+  if (path === oldPrefix) {
+    return newPrefix
+  }
+
+  if (!path.startsWith(`${oldPrefix}/`)) {
+    return path
+  }
+
+  return `${newPrefix}${path.slice(oldPrefix.length)}`
+}
+
+async function moveEntry(sourcePath: string, targetPath: string) {
+  const sourceRelativePath = toRelativeProjectPath(sourcePath)
+  const targetRelativePath = toRelativeProjectPath(targetPath)
+  const sourceEntry = indexedEntries.value.find((entry) => entry.name === sourceRelativePath)
+
+  await fileSystemService.renameFile(
+    resolveProjectPath(sourceRelativePath),
+    resolveProjectPath(targetRelativePath),
+  )
+
+  if (sourceEntry?.isDirectory) {
+    const nextExpandedDirectories = new Set<string>()
+    for (const relativePath of expandedDirectories.value) {
+      nextExpandedDirectories.add(remapRelativePath(relativePath, sourceRelativePath, targetRelativePath))
+    }
+    expandedDirectories.value = nextExpandedDirectories
+
+    const nextRegisteredDirectories = new Map<string, number>()
+    for (const [relativePath, depth] of registeredDirectories.value.entries()) {
+      nextRegisteredDirectories.set(
+        remapRelativePath(relativePath, sourceRelativePath, targetRelativePath),
+        depth,
+      )
+    }
+    registeredDirectories.value = nextRegisteredDirectories
+  }
+
+  await refreshIndexedEntries()
+}
+
+async function moveEntryByDrop(payload: NodeTreeDropPayload): Promise<MoveEntryByDropResult> {
+  if (!projectPath.value) {
+    return { ok: false, reason: 'project-not-open' }
+  }
+
+  const destination = resolveFileTreeDestination(payload)
+  if (!destination) {
+    return { ok: false, reason: 'invalid-target' }
+  }
+
+  const { draggedPath, destinationDirectory, destinationPath, draggedIsDirectory, targetPath } = destination
+
+  if (targetPath && draggedPath === targetPath) {
+    return { ok: false, reason: 'self-target' }
+  }
+
+  if (targetPath && isSameOrDescendantPath(targetPath, draggedPath)) {
+    return { ok: false, reason: 'descendant-target' }
+  }
+
+  if (draggedIsDirectory && isSameOrDescendantPath(destinationDirectory, draggedPath)) {
+    return { ok: false, reason: 'descendant-target' }
+  }
+
+  if (destinationPath === draggedPath) {
+    return { ok: false, reason: 'same-path' }
+  }
+
+  const targetExists = await fileSystemService.fileExists(destinationPath)
+  if (targetExists) {
+    return { ok: false, reason: 'target-exists' }
+  }
+
+  try {
+    await moveEntry(draggedPath, destinationPath)
+    return {
+      ok: true,
+      fromPath: draggedPath,
+      toPath: destinationPath,
+    }
+  } catch (error) {
+    console.error('移动文件失败:', error)
+    return { ok: false, reason: 'move-failed' }
+  }
+}
+
 export function useProjectStore() {
   return {
     projectPath: readonly(projectPath),
@@ -347,6 +533,7 @@ export function useProjectStore() {
     setProjectPath,
     loadFiles,
     readDirectoryEntries,
+    listProjectDirectoryEntries,
     setDirectoryExpanded,
     isDirectoryExpanded,
     resolveAssetSrc,
@@ -354,6 +541,10 @@ export function useProjectStore() {
     saveFile,
     createFolder,
     deleteFile,
+    getFileTreeAllowedDropPositions: getFileTreeAllowedDropPositions as NodeTreeAllowedDropPositions,
+    canMoveEntryByDrop,
+    moveEntry,
+    moveEntryByDrop,
     startWatching,
     stopWatching,
     resolveProjectPath,

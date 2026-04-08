@@ -104,8 +104,8 @@
             "block": {
               "id": "flow-container-block-cc0ea9d8-c51a-46ea-a6f3-eab382dc964a",
               "name": "Flow Container",
-              "width": 422.21,
-              "height": 600.82,
+              "width": 459.2,
+              "height": 605.81,
               "type": "flow-container-block",
               "direction": "bt",
               "gap": "10px",
@@ -146,7 +146,7 @@
               "type": "simple-container-location",
               "anchor": "lt",
               "x": 0,
-              "y": 0
+              "y": -5
             }
           }
         ],

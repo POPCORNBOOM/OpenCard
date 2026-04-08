@@ -45,6 +45,8 @@
             </button>
             <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFiles" title="打开的编辑器" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
+              :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
+              @node-drop="handleFileTreeDrop"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
               v-model:selected="selectedFiles" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" title="时间线" />
@@ -124,7 +126,7 @@ import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
-import type { NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
+import type { NodeTreeDropPayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import type { CardDocument } from '../core/Card'
@@ -148,6 +150,9 @@ const {
   readDirectoryEntries,
   readFile,
   saveFile,
+  getFileTreeAllowedDropPositions,
+  canMoveEntryByDrop,
+  moveEntryByDrop,
   setDirectoryExpanded,
 } = useProjectStore()
 
@@ -253,7 +258,11 @@ const fileTree = computed(() => {
       key: fullPath,
       isExpandable: file.isDirectory || false,
       isExpanded: file.isDirectory ? isDirectoryExpanded(fullPath) : false,
-      children: file.isDirectory ? [] : undefined
+      children: file.isDirectory ? [] : undefined,
+      metadata: {
+        relativePath,
+        isDirectory: file.isDirectory || false,
+      }
     }
     map.set(relativePath, node)
   })
@@ -280,6 +289,58 @@ const fileTree = computed(() => {
 
   return root
 })
+
+function normalizePath(path: string) {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function getPathBasename(path: string) {
+  const normalizedPath = normalizePath(path)
+  const lastSlashIndex = normalizedPath.lastIndexOf('/')
+  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1)
+}
+
+function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
+  const normalizedTargetPath = normalizePath(targetPath)
+  const normalizedAncestorPath = normalizePath(ancestorPath)
+  return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
+}
+
+function remapOpenedFilePaths(oldPath: string, newPath: string) {
+  const normalizedOldPath = normalizePath(oldPath)
+  const normalizedNewPath = normalizePath(newPath)
+
+  openedFiles.value = openedFiles.value.map((file) => {
+    const normalizedFilePath = normalizePath(file.key)
+    if (!isSameOrDescendantPath(normalizedFilePath, normalizedOldPath)) {
+      return file
+    }
+
+    const nextPath = normalizedNewPath + normalizedFilePath.slice(normalizedOldPath.length)
+    return {
+      ...file,
+      key: nextPath,
+      name: getPathBasename(nextPath),
+    }
+  })
+
+  if (currentFile.value && isSameOrDescendantPath(currentFile.value, normalizedOldPath)) {
+    currentFile.value = normalizedNewPath + normalizePath(currentFile.value).slice(normalizedOldPath.length)
+  }
+}
+
+async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
+  const result = await moveEntryByDrop(payload)
+  if (!result.ok) {
+    if (result.reason !== 'same-path') {
+      console.error('移动文件失败:', result.reason)
+    }
+    return
+  }
+
+  remapOpenedFilePaths(result.fromPath, result.toPath)
+  selectedFiles.value = new Map()
+}
 
 async function debugLog(message: string) {
   console.log(`[DEBUG] ${message}`)

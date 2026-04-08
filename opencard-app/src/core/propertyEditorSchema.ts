@@ -15,6 +15,11 @@ export type PropertyConstraintMap = {
         options?: readonly string[]
         autocomplete?: readonly string[]
     }
+    filePath: {
+        minLength?: number
+        maxLength?: number
+        extensionsFilter?: readonly string[]
+    }
     anchorPosition: {}
     alignPosition: {}
     flowDirection: {}
@@ -100,7 +105,13 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
-        assetId: { datatype: 'string', minLength: 1, label: 'Asset ID', category: 'Content' },
+        image: {
+            datatype: 'filePath',
+            minLength: 1,
+            label: 'Image',
+            category: 'Content',
+            extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
+        },
         fit: { datatype: 'string', options: imageFitOptions, label: 'Fit', category: 'Appearance' },
     },
     'simple-container-block': {

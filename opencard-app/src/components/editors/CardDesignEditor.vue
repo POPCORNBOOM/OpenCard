@@ -14,8 +14,8 @@
         <div class="panel-header">信息树</div>
         <div class="block-list">
           <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-            :expanded="blockTreeExpanded" :action-keys="treeActionKeys" @update:selected="onTreeSelect"
-            @action-called="handleTreeAction" />
+            :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+            @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
         </div>
       </div>
 
@@ -55,10 +55,18 @@ import {
   isBlockContainer,
   isCardBlock,
   getBlockTreeIcon,
+  moveBlockBetweenContainers,
+  type FlowContainerLocationInfo,
+  type SimpleContainerLocationInfo,
 } from '../../core/Card'
 import { fileSystemService } from '../../services/fileSystemService'
 import CardViewport from '../card/CardViewport.vue'
-import NodeTree, { type ActionDefinition, type NodeTreeActionCalledPayload } from '../ui/NodeTree.vue'
+import NodeTree, {
+  type ActionDefinition,
+  type NodeTreeActionCalledPayload,
+  type NodeTreeCanDropPayload,
+  type NodeTreeDropPayload,
+} from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
 
@@ -190,7 +198,28 @@ function updateBlockProp({
   value: unknown
 }) {
   target[key] = value
+
+  if (target.type === 'image-block' && key === 'image') {
+    delete target.assetId
+    delete target.imagePath
+  }
+
   isModified.value = true
+}
+
+function normalizeImageBlockFields(block: CardBlock) {
+  if (block.type === 'image-block') {
+    if (!block.image) {
+      block.image = block.imagePath ?? block.assetId ?? ''
+    }
+    return
+  }
+
+  if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
+    for (const child of block.children) {
+      normalizeImageBlockFields(child.block)
+    }
+  }
 }
 
 function onTreeSelect(newSelected: Map<string, ITreeNode>) {
@@ -285,11 +314,175 @@ function findTreeNodeByBlockId(nodes: ITreeNode[], blockId: string): ITreeNode |
   return null
 }
 
+function isDescendantOrSelfNode(targetNode: ITreeNode, ancestorNode: ITreeNode) {
+  return targetNode.path?.includes(ancestorNode.key) ?? false
+}
+
+function getContainerForDropTarget(targetNode: ITreeNode | null, position: NodeTreeCanDropPayload['position']): BlockContainer | null {
+  if (!targetNode) {
+    return cardDoc.value
+  }
+
+  const targetBlock = getNodeBlock(targetNode)
+  if (!targetBlock) {
+    return null
+  }
+
+  if (position === 'inside') {
+    return isBlockContainer(targetBlock) ? targetBlock : null
+  }
+
+  return parentLookup.value.get(targetBlock.id) ?? null
+}
+
+function getInsertionIndexForDropTarget(targetNode: ITreeNode | null, position: NodeTreeCanDropPayload['position']): number | null {
+  if (!targetNode) {
+    return cardDoc.value?.children.length ?? null
+  }
+
+  const targetBlock = getNodeBlock(targetNode)
+  if (!targetBlock) {
+    return null
+  }
+
+  if (position === 'inside') {
+    const targetContainer = getContainerForDropTarget(targetNode, position)
+    return targetContainer ? targetContainer.children.length : null
+  }
+
+  const targetContainer = parentLookup.value.get(targetBlock.id)
+  if (!targetContainer) {
+    return null
+  }
+
+  const targetIndex = targetContainer.children.findIndex((child) => child.block.id === targetBlock.id)
+  if (targetIndex === -1) {
+    return null
+  }
+
+  return position === 'before' ? targetIndex : targetIndex + 1
+}
+
+function createDropLocation(
+  draggedNode: ITreeNode,
+  targetContainer: BlockContainer,
+  insertionIndex: number,
+): SimpleContainerLocationInfo | FlowContainerLocationInfo {
+  const metadata = draggedNode.metadata as CardTreeNodeMetadata | undefined
+  const currentLocation = metadata?.location
+
+  if (targetContainer.type === 'flow-container-block') {
+    const align = currentLocation?.type === 'flow-container-location' ? currentLocation.align : undefined
+    return {
+      type: 'flow-container-location',
+      index: insertionIndex,
+      align,
+    }
+  }
+
+  if (currentLocation?.type === 'simple-container-location') {
+    return { ...currentLocation }
+  }
+
+  return {
+    type: 'simple-container-location',
+    anchor: 'lt',
+    x: 0,
+    y: 0,
+  }
+}
+
+function canDropTreeNode({ dragged, target, position }: NodeTreeCanDropPayload) {
+  if (target && dragged.key === target.key) {
+    console.debug('[blocktree] canDrop=false same-node', { dragged: dragged.key, target: target.key, position })
+    return false
+  }
+
+  if (target && isDescendantOrSelfNode(target, dragged)) {
+    console.debug('[blocktree] canDrop=false descendant', { dragged: dragged.key, target: target.key, position })
+    return false
+  }
+
+  const draggedBlock = getNodeBlock(dragged)
+  if (!draggedBlock) {
+    return false
+  }
+
+  const sourceContainer = parentLookup.value.get(draggedBlock.id)
+  const targetContainer = getContainerForDropTarget(target, position)
+  const insertionIndex = getInsertionIndexForDropTarget(target, position)
+
+  if (!sourceContainer || !targetContainer || insertionIndex === null) {
+    console.debug('[blocktree] canDrop=false missing-target', {
+      dragged: dragged.key,
+      target: target?.key ?? null,
+      position,
+      sourceContainer: sourceContainer?.type ?? null,
+      targetContainer: targetContainer?.type ?? null,
+      insertionIndex,
+    })
+    return false
+  }
+
+  console.debug('[blocktree] canDrop=true', {
+    dragged: dragged.key,
+    target: target?.key ?? null,
+    position,
+    sourceContainer: sourceContainer.type,
+    targetContainer: targetContainer.type,
+    insertionIndex,
+  })
+  return true
+}
+
+function handleTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
+  const draggedBlock = getNodeBlock(dragged)
+  if (!draggedBlock || !canDropTreeNode({ dragged, target, position })) {
+    return
+  }
+
+  const sourceContainer = parentLookup.value.get(draggedBlock.id)
+  const targetContainer = getContainerForDropTarget(target, position)
+  let insertionIndex = getInsertionIndexForDropTarget(target, position)
+
+  if (!sourceContainer || !targetContainer || insertionIndex === null) {
+    return
+  }
+
+  if (sourceContainer === targetContainer) {
+    const sourceIndex = sourceContainer.children.findIndex((child) => child.block.id === draggedBlock.id)
+    if (sourceIndex !== -1 && sourceIndex < insertionIndex) {
+      insertionIndex -= 1
+    }
+  }
+
+  const location = createDropLocation(dragged, targetContainer, insertionIndex)
+  const movedBlock = moveBlockBetweenContainers(
+    sourceContainer,
+    targetContainer,
+    draggedBlock.id,
+    parentLookup.value,
+    location,
+    insertionIndex,
+  )
+
+  if (!movedBlock) {
+    return
+  }
+
+  const updatedNode = findTreeNodeByBlockId(blockTree.value, draggedBlock.id)
+  selectedBlocks.value = updatedNode ? new Map([[updatedNode.key, updatedNode]]) : new Map()
+  isModified.value = true
+}
+
 async function loadFile() {
   try {
     const content = await fileSystemService.readFile(props.filePath)
     rawContent.value = content
     const parsed = JSON.parse(content) as CardDocument
+    for (const child of parsed.children) {
+      normalizeImageBlockFields(child.block)
+    }
     cardDoc.value = parsed
     parentLookup.value = buildParentLookup(parsed)
     isModified.value = false

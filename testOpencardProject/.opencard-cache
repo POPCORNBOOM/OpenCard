@@ -27,12 +27,6 @@
         "isSymlink": false
       },
       {
-        "name": "image-render-test.opencard",
-        "isDirectory": false,
-        "isFile": true,
-        "isSymlink": false
-      },
-      {
         "name": "sgs-zhenji-test.opencard",
         "isDirectory": false,
         "isFile": true,
@@ -42,6 +36,12 @@
         "name": "test.png",
         "isDirectory": false,
         "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "testfolder",
+        "isDirectory": true,
+        "isFile": false,
         "isSymlink": false
       },
       {
@@ -109,8 +109,16 @@
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
+      },
+      {
+        "name": "testfolder/image-render-test.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
       }
     ],
-    "expandedDirectories": []
+    "expandedDirectories": [
+      "testfolder"
+    ]
   }
 }
