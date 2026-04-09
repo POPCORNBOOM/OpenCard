@@ -20,7 +20,7 @@
             <label class="prop-label">{{ entry.label }}</label>
             <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
               :value="entry.value"
-              @update:value="emit('update-property', { target: entry.target, key: entry.key, value: $event })" />
+              @update:value="emit('update-property', { sourceTitle: category.sourceTitle, target: entry.target, key: entry.key, value: $event })" />
           </div>
         </section>
       </section>
@@ -51,7 +51,8 @@ import StringPropertyField from './property-fields/StringPropertyField.vue'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 
 const emit = defineEmits<{
-  (e: 'update-property', payload: { target: Record<string, unknown>; key: string; value: unknown }): void
+  (e: 'update-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
+  (e: 'add-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
 }>()
 
 const datatypeEditorMap: Record<PropertyDatatype, Component> = {
@@ -274,8 +275,8 @@ function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): 
 
 function addField(category: PropertyEditorCategory, field: AddableField): void {
   const value = createDefaultValue(field.definition)
-  category.target[field.key] = value
-  emit('update-property', {
+  emit('add-property', {
+    sourceTitle: category.sourceTitle,
     target: category.target,
     key: field.key,
     value,

@@ -41,7 +41,8 @@
               "fit": "cover",
               "width": "324px",
               "height": "390px",
-              "customCss": "border-radius: 6px; filter: saturate(1.06) contrast(1.04) brightness(0.98);"
+              "customCss": "border-radius: 6px; filter: saturate(1.06) contrast(1.04) brightness(0.98);",
+              "image": "zhenji-portrait.png"
             },
             "location": {
               "type": "simple-container-location",
@@ -328,6 +329,13 @@
         "x": 0,
         "y": 0
       }
+    }
+  ],
+  "instances": [
+    {
+      "id": "instance-d65e0803-b76c-4fc3-9d27-c1804ca02c5e",
+      "name": "新实例 1",
+      "data": {}
     }
   ]
 }

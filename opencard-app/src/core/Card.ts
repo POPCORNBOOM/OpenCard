@@ -95,6 +95,14 @@ export type CardDocument = {
     width: number
     height: number
     children: RootChild[]
+    instances?: CardInstanceRecord[]
+}
+
+export type CardInstanceRecord = {
+    id: string
+    name: string
+    metadata?: Record<string, unknown>
+    data: Record<string, Record<string, unknown>> // key = `${blockId}
 }
 
 export type PropertyEditorTarget = Record<string, unknown> & {

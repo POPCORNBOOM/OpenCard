@@ -161,5 +161,21 @@
         "y": 0
       }
     }
+  ],
+  "instances": [
+    {
+      "id": "instance-1",
+      "name": "Instance 1",
+      "data": {
+        "hint": {"content": "This text is set via instance data."}
+      }
+    },
+    {
+      "id": "instance-27ff9251-2282-4a45-a319-a6cd9eb2d5e8",
+      "name": "Instance 1 副本",
+      "data": {
+        "hint": {"content": "This text is set via instance data."}
+      }
+    }
   ]
 }
