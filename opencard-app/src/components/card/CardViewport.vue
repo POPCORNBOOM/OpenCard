@@ -33,7 +33,7 @@
         class="selection-frame"
         :class="{ 'selection-frame-movable': showMoveHandle }"
         :style="selectionFrameStyle"
-        @pointerdown.stop.prevent="handleSelectionFramePointerDown"
+        @pointerdown="handleSelectionFramePointerDown"
       >
         <button
           v-for="handle in activeHandles"
@@ -354,6 +354,13 @@ function startMove() {
 }
 
 function handleSelectionFramePointerDown(event: PointerEvent) {
+  if (event.button !== 0) {
+    return
+  }
+
+  event.stopPropagation()
+  event.preventDefault()
+
   const target = event.target
   if (target instanceof Element && target.closest('.selection-handle')) {
     return

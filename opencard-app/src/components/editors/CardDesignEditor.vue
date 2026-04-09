@@ -575,6 +575,10 @@ function formatViewportCssValue(value: number): string {
   return `${safeValue}px`
 }
 
+function applyResizeLocationOffset(value: number | undefined): number {
+  return (value ?? 0) - 2
+}
+
 function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
   const block = selectedBlock.value
   if (!block) {
@@ -586,8 +590,8 @@ function handleSelectionResize(payload: { width: number; height: number; x?: num
 
   const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
   if (metadata?.location?.type === 'simple-container-location') {
-    metadata.location.x = formatViewportCssValue(payload.x ?? 0)
-    metadata.location.y = formatViewportCssValue(payload.y ?? 0)
+    metadata.location.x = formatViewportCssValue(applyResizeLocationOffset(payload.x))
+    metadata.location.y = formatViewportCssValue(applyResizeLocationOffset(payload.y))
   }
 
   markDocumentChanged()
@@ -599,8 +603,8 @@ function handleSelectionMove(payload: { x: number; y: number }) {
     return
   }
 
-  metadata.location.x = formatViewportCssValue(payload.x)
-  metadata.location.y = formatViewportCssValue(payload.y)
+  metadata.location.x = formatViewportCssValue(applyResizeLocationOffset(payload.x))
+  metadata.location.y = formatViewportCssValue(applyResizeLocationOffset(payload.y))
   markDocumentChanged()
 }
 

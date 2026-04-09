@@ -9,6 +9,12 @@
         "isSymlink": false
       },
       {
+        "name": "A.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "card.png",
         "isDirectory": false,
         "isFile": true,

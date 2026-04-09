@@ -159,18 +159,19 @@
               "type": "text-block",
               "content": "甄姬",
               "mode": "plain",
-              "width": "24px",
-              "height": "168px",
+              "width": 38.46,
+              "height": 109.05,
               "fontSize": "36px",
               "fontWeight": 900,
               "color": "#fcfbf8",
-              "customCss": "writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 3px; font-family: STKaiti, KaiTi, serif; text-shadow: -1px 0 #1d120d, 0 1px #1d120d, 1px 0 #1d120d, 0 -1px #1d120d, 0 3px 8px rgba(0, 0, 0, 0.38);"
+              "customCss": "writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 3px; font-family: STKaiti, KaiTi, serif; text-shadow: -1px 0 #1d120d, 0 1px #1d120d, 1px 0 #1d120d, 0 -1px #1d120d, 0 3px 8px rgba(0, 0, 0, 0.38);",
+              "zIndex": 30
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lb",
-              "x": "16px",
-              "y": "52px"
+              "x": 13.37,
+              "y": 116.46
             }
           },
           {
@@ -214,94 +215,6 @@
           },
           {
             "block": {
-              "id": "skill1-tag",
-              "name": "Skill 1 Tag",
-              "type": "text-block",
-              "content": "洛神",
-              "mode": "plain",
-              "width": "56px",
-              "height": "24px",
-              "fontSize": "15px",
-              "fontWeight": 900,
-              "color": "#fff8ec",
-              "textAlign": "center",
-              "lineHeight": "24px",
-              "customCss": "background: linear-gradient(180deg, #7b4838 0%, #593022 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "28px",
-              "y": "492px"
-            }
-          },
-          {
-            "block": {
-              "id": "skill1-text",
-              "name": "Skill 1 Text",
-              "type": "text-block",
-              "content": "准备阶段开始时，你可以判定；若结果为黑色，你获得之，然后可重复此流程。",
-              "mode": "plain",
-              "width": "300px",
-              "height": "38px",
-              "fontSize": "13px",
-              "color": "#33251d",
-              "lineHeight": "18px",
-              "customCss": "font-family: 'Microsoft YaHei UI', sans-serif;"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "92px",
-              "y": "491px"
-            }
-          },
-          {
-            "block": {
-              "id": "skill2-tag",
-              "name": "Skill 2 Tag",
-              "type": "text-block",
-              "content": "倾国",
-              "mode": "plain",
-              "width": "56px",
-              "height": "24px",
-              "fontSize": "15px",
-              "fontWeight": 900,
-              "color": "#fff8ec",
-              "textAlign": "center",
-              "lineHeight": "24px",
-              "customCss": "background: linear-gradient(180deg, #6e5579 0%, #43304e 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "28px",
-              "y": "536px"
-            }
-          },
-          {
-            "block": {
-              "id": "skill2-text",
-              "name": "Skill 2 Text",
-              "type": "text-block",
-              "content": "你可以将一张黑色手牌当【闪】使用或打出。",
-              "mode": "plain",
-              "width": "300px",
-              "height": "24px",
-              "fontSize": "13px",
-              "color": "#33251d",
-              "lineHeight": "18px",
-              "customCss": "font-family: 'Microsoft YaHei UI', sans-serif;"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "92px",
-              "y": "535px"
-            }
-          },
-          {
-            "block": {
               "id": "flavor-text",
               "name": "Flavor Text",
               "type": "text-block",
@@ -320,6 +233,139 @@
               "x": "28px",
               "y": "20px"
             }
+          },
+          {
+            "block": {
+              "id": "flow-container-block-c7846599-29ad-4cae-be09-ddb5ae2aef73",
+              "name": "Skill Flow",
+              "width": "341.63px",
+              "height": "96.19px",
+              "type": "flow-container-block",
+              "direction": "tb",
+              "gap": "10px",
+              "children": [
+                {
+                  "block": {
+                    "id": "flow-container-block-68f11854-0cb9-49d6-8da4-7bac393d0b47",
+                    "name": "Skill 2",
+                    "width": "",
+                    "height": "",
+                    "type": "flow-container-block",
+                    "direction": "lr",
+                    "gap": "10px",
+                    "children": [
+                      {
+                        "block": {
+                          "id": "skill2-tag",
+                          "name": "Skill 2 Tag",
+                          "type": "text-block",
+                          "content": "倾国",
+                          "mode": "plain",
+                          "width": "56px",
+                          "height": "24px",
+                          "fontSize": "15px",
+                          "fontWeight": 900,
+                          "color": "#fff8ec",
+                          "textAlign": "center",
+                          "lineHeight": "24px",
+                          "customCss": "background: linear-gradient(180deg, #6e5579 0%, #43304e 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
+                        },
+                        "location": {
+                          "type": "flow-container-location",
+                          "index": 0
+                        }
+                      },
+                      {
+                        "block": {
+                          "id": "skill2-text",
+                          "name": "Skill 2 Text",
+                          "type": "text-block",
+                          "content": "你可以将一张黑色手牌当【闪】使用或打出。",
+                          "mode": "plain",
+                          "width": "300px",
+                          "height": "",
+                          "fontSize": "13px",
+                          "color": "#33251d",
+                          "lineHeight": "18px",
+                          "customCss": "font-family: 'Microsoft YaHei UI', sans-serif;"
+                        },
+                        "location": {
+                          "type": "flow-container-location",
+                          "index": 1
+                        }
+                      }
+                    ]
+                  },
+                  "location": {
+                    "type": "flow-container-location",
+                    "index": 0
+                  }
+                },
+                {
+                  "block": {
+                    "id": "flow-container-block-8ebbe123-6259-47da-9ca8-28b2d59de580",
+                    "name": "Skill 1",
+                    "width": "",
+                    "height": "",
+                    "type": "flow-container-block",
+                    "direction": "lr",
+                    "gap": "10px",
+                    "children": [
+                      {
+                        "block": {
+                          "id": "skill1-tag",
+                          "name": "Skill 1 Tag",
+                          "type": "text-block",
+                          "content": "洛神",
+                          "mode": "plain",
+                          "width": "56px",
+                          "height": "24px",
+                          "fontSize": "15px",
+                          "fontWeight": 900,
+                          "color": "#fff8ec",
+                          "textAlign": "center",
+                          "lineHeight": "24px",
+                          "customCss": "background: linear-gradient(180deg, #7b4838 0%, #593022 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
+                        },
+                        "location": {
+                          "type": "flow-container-location",
+                          "index": 0
+                        }
+                      },
+                      {
+                        "block": {
+                          "id": "skill1-text",
+                          "name": "Skill 1 Text",
+                          "type": "text-block",
+                          "content": "准备阶段开始时，你可以判定；若结果为黑色，你获得之，然后可重复此流程。",
+                          "mode": "plain",
+                          "width": "393.05px",
+                          "height": "55.62px",
+                          "fontSize": "13px",
+                          "color": "#33251d",
+                          "lineHeight": "18px",
+                          "customCss": "font-family: 'Microsoft YaHei UI', sans-serif;"
+                        },
+                        "location": {
+                          "type": "flow-container-location",
+                          "index": 1
+                        }
+                      }
+                    ]
+                  },
+                  "location": {
+                    "type": "flow-container-location",
+                    "index": 1
+                  }
+                }
+              ]
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "30.47px",
+              "y": "480.91px"
+            }
           }
         ]
       },
@@ -335,7 +381,27 @@
     {
       "id": "instance-d65e0803-b76c-4fc3-9d27-c1804ca02c5e",
       "name": "新实例 1",
-      "data": {}
+      "data": {
+        "portrait-bg": {
+          "content": "assw"
+        },
+        "skill2-text": {
+          "content": "你可以将一张黑色手牌当【闪】使用或打出。自适应自适应自适应自适应自适应自适应自适应自自适应",
+          "height": ""
+        }
+      }
+    },
+    {
+      "id": "instance-8f06c1f9-34a4-4e88-9e8f-c5a13da2743a",
+      "name": "新实例 2",
+      "data": {
+        "skill2-text": {
+          "content": "你可以将一张黑色手牌当【闪】使用或打出。自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应自适应"
+        },
+        "title-name": {
+          "zIndex": 30
+        }
+      }
     }
   ]
 }
