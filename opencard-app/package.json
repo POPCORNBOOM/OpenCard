@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -18,7 +19,8 @@
     "@vscode/codicons": "^0.0.45",
     "dom-to-image-more": "^3.7.2",
     "monaco-editor": "^0.55.1",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-i18n": "^11.3.2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

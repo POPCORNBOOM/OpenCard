@@ -4,7 +4,7 @@
       :data-tree-node-key="props.node.key" @click="handleClick" @dblclick="handleDoubleClick" @mousedown="handleMouseDown">
       <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
         data-tree-interactive="true" @mousedown.stop @click.stop="handleToggleClick" />
-      <i class="codicon" :class="node.icon || 'codicon-file'" />
+      <AppIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
       <span class="node-name">{{ node.name }}</span>
       <div v-if="availableActions.length" class="node-actions">
         <TreeActionButton
@@ -25,6 +25,8 @@
 </template>
 
 <script lang="ts">
+import type { IconTone } from '../../core/icons/iconRegistry'
+
 export interface ITreeNode {
   name: string
   key: string
@@ -32,6 +34,8 @@ export interface ITreeNode {
   isExpandable?: boolean
   isExpanded?: boolean
   icon?: string
+  iconTone?: IconTone
+  iconColor?: string
   parent?: ITreeNode | null
   children?: ITreeNode[]
   metadata?: Record<string, any>
@@ -41,6 +45,7 @@ export interface ITreeNode {
 
 <script setup lang="ts">
 import { computed, inject, ref, watch, type ComputedRef } from 'vue'
+import AppIcon from './AppIcon.vue'
 import TreeActionButton from './TreeActionButton.vue'
 import type { ActionDefinition, ActionCaller, NodeTreeDropPosition } from './NodeTree.vue'
 

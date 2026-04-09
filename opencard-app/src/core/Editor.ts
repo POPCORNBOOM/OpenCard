@@ -2,11 +2,13 @@
 
 export interface EditorProps {
   filePath: string
+  modelValue?: string
 }
 
 export interface EditorEmits {
   (e: 'save'): void
   (e: 'modified', isModified: boolean): void
+  (e: 'update:modelValue', value: string): void
 }
 
 
@@ -18,8 +20,6 @@ export interface IEditor {
   id: string
   // 编辑器显示名称
   name: string
-  // 支持的文件扩展名
-  extensions: string[]
   // Vue 组件引用
   component: Component
   // 是否支持预览
@@ -31,27 +31,14 @@ export interface IEditor {
 // 编辑器注册表
 class EditorRegistry {
   private editors: Map<string, IEditor> = new Map()
-  private extensionMap: Map<string, string> = new Map()
 
   // 注册编辑器
   register(editor: IEditor) {
     this.editors.set(editor.id, editor)
-    // 为每个扩展名建立映射
-    editor.extensions.forEach(ext => {
-      this.extensionMap.set(ext, editor.id)
-    })
   }
 
-  // 根据文件扩展名获取编辑器
-  getEditorByExtension(extension: string): IEditor | undefined {
-    const editorId = this.extensionMap.get(extension)
-    return editorId ? this.editors.get(editorId) : undefined
-  }
-
-  // 根据文件路径获取编辑器
-  getEditorByPath(filePath: string): IEditor | undefined {
-    const ext = filePath.split('.').pop()
-    return ext ? this.getEditorByExtension(ext) : undefined
+  getEditor(editorId: string): IEditor | undefined {
+    return this.editors.get(editorId)
   }
 
   // 获取所有编辑器
@@ -70,7 +57,6 @@ export const editorRegistry = new EditorRegistry()
 editorRegistry.register({
   id: 'monaco',
   name: 'Monaco Editor',
-  extensions: ['md', 'txt', 'css', 'html', 'json'],
   component: MonacoEditor,
   hasPreview: false
 })
@@ -78,7 +64,6 @@ editorRegistry.register({
 editorRegistry.register({
   id: 'card-designer',
   name: 'Card Designer',
-  extensions: ['opencard'],
   component: CardDesignEditor,
   hasPreview: false
 })

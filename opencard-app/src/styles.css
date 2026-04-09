@@ -3,6 +3,31 @@
   --scrollbar-track: #1f1f1f;
   --scrollbar-thumb: #4e4e4e;
   --scrollbar-thumb-hover: #666666;
+  --icon-default: currentColor;
+  --icon-muted: #8b949e;
+  --icon-primary: #58a6ff;
+  --icon-success: #3fb950;
+  --icon-warning: #d29922;
+  --icon-danger: #f85149;
+  --icon-opencard: #f59e0b;
+  --icon-json: #f5c542;
+  --icon-markdown: #8b949e;
+  --icon-typescript: #3178c6;
+  --icon-javascript: #f7df1e;
+  --icon-vue: #42b883;
+  --icon-html: #e34f26;
+  --icon-css: #1572b6;
+  --icon-image: #a855f7;
+  --icon-package: #cb3837;
+  --icon-config: #10b981;
+  --icon-folder-default: #7d8590;
+  --icon-folder-open: #e3b341;
+  --icon-folder-src: #58a6ff;
+  --icon-folder-assets: #c084fc;
+  --icon-folder-components: #42b883;
+  --icon-folder-views: #f59e0b;
+  --icon-folder-locales: #22c55e;
+  --icon-folder-core: #94a3b8;
 }
 
 * {

@@ -1,13 +1,13 @@
 <template>
   <div class="ide-layout">
     <!-- 顶部菜单栏 -->
-    <div class="menu-bar">
-      <div class="menu-items">
-        <span class="menu-item">文件</span>
-        <span class="menu-item">编辑</span>
-        <span class="menu-item">查看</span>
-        <span class="menu-item">帮助</span>
-        <span @click="debugLog('Debugging...')" class="menu-item">测试导出 2x</span>
+      <div class="menu-bar">
+        <div class="menu-items">
+        <span class="menu-item">{{ t('app.menu.file') }}</span>
+        <span class="menu-item">{{ t('app.menu.edit') }}</span>
+        <span class="menu-item">{{ t('app.menu.view') }}</span>
+        <span class="menu-item">{{ t('app.menu.help') }}</span>
+        <span @click="debugLog('Debugging...')" class="menu-item">{{ t('app.menu.export2x') }}</span>
       </div>
       <div class="window-title">OpenCard</div>
     </div>
@@ -17,15 +17,15 @@
       <div class="activity-bar">
         <div class="activity-icons">
           <div class="activity-icon" :class="{ active: activeView === 'files' }" @click="activeView = 'files'"
-            title="文件浏览器">
-            <i class="codicon codicon-files"></i>
+            :title="t('sidebar.files')">
+            <AppIcon name="app.files" tone="primary" />
           </div>
-          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'" title="版本管理">
-            <i class="codicon codicon-source-control"></i>
+          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'" :title="t('sidebar.git')">
+            <AppIcon name="app.git" tone="danger" />
           </div>
           <div class="activity-icon" :class="{ active: activeView === 'publish' }" @click="activeView = 'publish'"
-            title="发布">
-            <i class="codicon codicon-rocket"></i>
+            :title="t('sidebar.publish')">
+            <AppIcon name="app.publish" tone="warning" />
           </div>
         </div>
       </div>
@@ -33,33 +33,33 @@
       <!-- 左侧边栏 -->
       <div class="sidebar" v-if="activeView">
         <div class="sidebar-header">
-          <span v-if="activeView === 'files'">文件浏览器</span>
-          <span v-else-if="activeView === 'git'">版本管理</span>
-          <span v-else-if="activeView === 'publish'">发布</span>
+          <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
+          <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
+          <span v-else-if="activeView === 'publish'">{{ t('sidebar.publish') }}</span>
         </div>
         <div class="sidebar-content">
           <!-- 文件浏览器 -->
           <div v-if="activeView === 'files'">
             <button @click="openProject" class="open-folder-btn">
-              打开项目文件夹
+              {{ t('sidebar.openProject') }}
             </button>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" title="打开的编辑器" />
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
               @node-drop="handleFileTreeDrop"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
               v-model:selected="selectedFiles" />
-            <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" title="时间线" />
+            <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
           </div>
 
           <!-- 版本管理 -->
           <div v-else-if="activeView === 'git'">
-            <p class="placeholder">Git 功能开发中...</p>
+            <p class="placeholder">{{ t('panels.gitPlaceholder') }}</p>
           </div>
 
           <!-- 发布 -->
           <div v-else-if="activeView === 'publish'">
-            <p class="placeholder">发布功能开发中...</p>
+            <p class="placeholder">{{ t('panels.publishPlaceholder') }}</p>
           </div>
         </div>
       </div>
@@ -75,8 +75,8 @@
         </div>
         <div class="editor-content">
           <div v-if="!activeSession" class="welcome-screen">
-            <h1>OpenCard</h1>
-            <p>打开项目文件夹开始编辑</p>
+            <h1>{{ t('app.welcome.title') }}</h1>
+            <p>{{ t('app.welcome.subtitle') }}</p>
           </div>
           <component v-else :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
             @save="handleEditorSave" />
@@ -86,8 +86,8 @@
       <!-- 右侧预览面板 
       <div class="preview-panel" v-if="showPreview && previewCardDoc">
         <div class="preview-header">
-          <span>卡牌预览</span>
-          <i class="codicon codicon-close" @click="showPreview = false"></i>
+          <span>{{ t('panels.cardPreview') }}</span>
+          <AppIcon name="app.close" @click="showPreview = false" />
         </div>
         <div class="preview-content">
           <CardRenderer ref="liveCardRendererRef" :document="previewCardDoc" />
@@ -99,10 +99,10 @@
     <div class="status-bar">
       <div class="status-left">
         <span v-if="projectPath">
-          <i class="codicon codicon-folder-opened"></i> {{ projectPath }}
+          <AppIcon name="status.folderOpen" /> {{ projectPath }}
         </span>
         <span v-if="isWatching" class="status-watching">
-          <i class="codicon codicon-eye"></i> 监听中
+          <AppIcon name="status.watching" /> {{ t('status.watching') }}
         </span>
       </div>
       <div class="status-right">
@@ -121,19 +121,24 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/projectStore'
 import { useEditorSessionStore } from '../stores/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import type { NodeTreeDropPayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
+import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
 import type { CardDocument } from '../core/Card'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { exportCardAsImage } from '../utils/exportCard'
+
+const { t } = useI18n()
 
 const {
   projectPath,
@@ -169,7 +174,6 @@ const {
   updateDraftContent,
   closeSession,
   saveActiveSession,
-  refreshActiveSessionFromDisk,
   remapSessionPaths,
 } = useEditorSessionStore()
 
@@ -180,22 +184,12 @@ const projectName = computed(() => {
 
 const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
-  const ext = activeSession.value.path.split('.').pop()
-  const langMap: Record<string, string> = {
-    'json': 'json',
-    'opencard': 'json',  // opencard 文件也用 JSON 语法高亮
-    'ts': 'typescript',
-    'js': 'javascript',
-    'vue': 'vue',
-    'md': 'markdown',
-    'txt': 'plaintext'
-  }
-  return langMap[ext || ''] || 'plaintext'
+  return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
 
 const currentEditorComponent = computed(() => {
   if (!activeSession.value) return null
-  const editor = editorRegistry.getEditorByPath(activeSession.value.path)
+  const editor = editorRegistry.getEditor(activeSession.value.editorId)
   return editor?.component ?? MonacoEditor
 })
 
@@ -207,9 +201,14 @@ const currentEditorProps = computed(() => {
     return {}
   }
 
-  const editor = editorRegistry.getEditorByPath(activeSession.value.path)
+  const fileType = resolveFileType(activeSession.value.path)
+  const editor = editorRegistry.getEditor(fileType.editorId)
   if (editor && editor.id !== 'monaco') {
-    return { filePath: activeSession.value.path }
+    return {
+      filePath: activeSession.value.path,
+      modelValue: activeSession.value.draftContent,
+      'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
+    }
   }
   return {
     modelValue: activeSession.value.draftContent,
@@ -226,9 +225,8 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
     return
   }
 
-  // 检查是否是 JSON 或 opencard 文件
-  const ext = activeSession.value?.path.split('.').pop()
-  if (ext !== 'json' && ext !== 'opencard') {
+  const fileType = resolveFileType(activeSession.value?.path ?? '')
+  if (!fileType.previewable) {
     showPreview.value = false
     previewCardDoc.value = null
     return
@@ -259,11 +257,20 @@ const fileTree = computed(() => {
     const parts = relativePath.split(/[/\\]/)
     const displayName = parts[parts.length - 1]
 
+    const entryIcon = resolveEntryIcon(
+      relativePath,
+      file.isDirectory || false,
+      file.isDirectory ? isDirectoryExpanded(fullPath) : false,
+    )
+
     const node: ITreeNode = {
       name: displayName,
       key: fullPath,
       isExpandable: file.isDirectory || false,
       isExpanded: file.isDirectory ? isDirectoryExpanded(fullPath) : false,
+      icon: entryIcon.icon,
+      iconTone: entryIcon.tone,
+      iconColor: entryIcon.color,
       children: file.isDirectory ? [] : undefined,
       metadata: {
         relativePath,
@@ -413,20 +420,12 @@ async function handleNodeToggle({ node, expanded }: NodeTreeTogglePayload) {
 }
 
 async function handleEditorSave() {
-  const currentPath = activeSession.value?.path
-  if (!currentPath) {
-    return
-  }
-
-  const editor = editorRegistry.getEditorByPath(currentPath)
-
-  if (editor?.id === 'monaco') {
-    await saveActiveSession()
+  if (!activeSession.value) {
     return
   }
 
   try {
-    await refreshActiveSessionFromDisk()
+    await saveActiveSession()
   } catch (error) {
     console.error('同步编辑器保存结果失败:', error)
   }
@@ -438,7 +437,7 @@ async function triggerCurrentEditorSave() {
     return
   }
 
-  const editor = editorRegistry.getEditorByPath(currentPath)
+  const editor = editorRegistry.getEditor(activeSession.value.editorId)
 
   if (editor?.id !== 'monaco' && currentEditorRef.value?.save) {
     await currentEditorRef.value.save()

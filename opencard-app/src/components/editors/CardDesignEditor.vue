@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
   addBlockToContainer,
@@ -59,7 +59,6 @@ import {
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../core/Card'
-import { fileSystemService } from '../../services/fileSystemService'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree, {
   type ActionDefinition,
@@ -188,6 +187,26 @@ const blockTree = computed(() => {
   )
 })
 
+function syncDocumentContent() {
+  if (!cardDoc.value) {
+    return
+  }
+
+  const content = JSON.stringify(cardDoc.value, null, 2)
+  if (content === rawContent.value) {
+    return
+  }
+
+  rawContent.value = content
+  emit('update:modelValue', content)
+}
+
+function markDocumentChanged() {
+  isModified.value = true
+  emit('modified', true)
+  syncDocumentContent()
+}
+
 function updateBlockProp({
   target,
   key,
@@ -204,7 +223,7 @@ function updateBlockProp({
     delete target.imagePath
   }
 
-  isModified.value = true
+  markDocumentChanged()
 }
 
 function normalizeImageBlockFields(block: CardBlock) {
@@ -258,7 +277,7 @@ function handleSelectionResize(payload: { width: number; height: number; x?: num
     metadata.location.y = Math.round((payload.y ?? 0) * 100) / 100
   }
 
-  isModified.value = true
+  markDocumentChanged()
 }
 
 function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
@@ -472,13 +491,14 @@ function handleTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
 
   const updatedNode = findTreeNodeByBlockId(blockTree.value, draggedBlock.id)
   selectedBlocks.value = updatedNode ? new Map([[updatedNode.key, updatedNode]]) : new Map()
-  isModified.value = true
+  markDocumentChanged()
 }
 
-async function loadFile() {
+function applyDocumentContent(content: string) {
+  rawContent.value = content
+  selectedBlocks.value = new Map()
+
   try {
-    const content = await fileSystemService.readFile(props.filePath)
-    rawContent.value = content
     const parsed = JSON.parse(content) as CardDocument
     for (const child of parsed.children) {
       normalizeImageBlockFields(child.block)
@@ -486,10 +506,13 @@ async function loadFile() {
     cardDoc.value = parsed
     parentLookup.value = buildParentLookup(parsed)
     isModified.value = false
+    emit('modified', false)
   } catch (e) {
     console.error('读取 .opencard 文件失败:', e)
     cardDoc.value = null
     parentLookup.value = new Map()
+    isModified.value = false
+    emit('modified', false)
   }
 }
 
@@ -512,7 +535,7 @@ function createBlockAt(container: BlockContainer, type: CardBlock['type']) {
   }
 
   addBlockToContainer(container, newBlock, parentLookup.value)
-  isModified.value = true
+  markDocumentChanged()
 }
 
 function deleteBlock(block: CardBlock) {
@@ -528,24 +551,36 @@ function deleteBlock(block: CardBlock) {
 
   selectedBlocks.value.delete(block.id)
   selectedBlocks.value = new Map(selectedBlocks.value)
-  isModified.value = true
+  markDocumentChanged()
 }
 
 async function saveFile() {
   if (!cardDoc.value) return
   try {
     const content = JSON.stringify(cardDoc.value, null, 2)
-    await fileSystemService.writeFile(props.filePath, content)
     rawContent.value = content
     isModified.value = false
+    emit('update:modelValue', content)
+    emit('modified', false)
     emit('save')
   } catch (e) {
     console.error('保存失败:', e)
   }
 }
 
-onMounted(loadFile)
-watch(() => props.filePath, loadFile)
+watch(
+  () => props.modelValue,
+  (nextValue) => {
+    const content = nextValue ?? ''
+    if (!content || content === rawContent.value) {
+      return
+    }
+
+    applyDocumentContent(content)
+  },
+  { immediate: true },
+)
+
 defineExpose({ save: saveFile })
 
 </script>

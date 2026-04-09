@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue'
 import type { ITreeNode } from '../components/ui/TreeNode.vue'
-import { editorRegistry } from '../core/Editor'
+import { resolveFileType } from '../core/files/fileTypes'
 import { useProjectStore } from './projectStore'
 
 export type EditorSession = {
@@ -40,16 +40,22 @@ export function useEditorSessionStore() {
   )
 
   const openedFileNodes = computed<ITreeNode[]>(() =>
-    sessions.value.map((session) => ({
-      key: session.path,
-      name: session.isDirty ? `${session.name} *` : session.name,
-      isExpandable: false,
-      metadata: {
-        sessionId: session.id,
-        content: session.draftContent,
-        isModified: session.isDirty,
-      },
-    }))
+    sessions.value.map((session) => {
+      const fileType = resolveFileType(session.path)
+      return {
+        key: session.path,
+        name: session.isDirty ? `${session.name} *` : session.name,
+        isExpandable: false,
+        icon: fileType.icon,
+        iconTone: fileType.iconTone,
+        iconColor: fileType.iconColor,
+        metadata: {
+          sessionId: session.id,
+          content: session.draftContent,
+          isModified: session.isDirty,
+        },
+      }
+    })
   )
 
   async function openFile(path: string) {
@@ -61,13 +67,13 @@ export function useEditorSessionStore() {
     }
 
     const content = await readFile(normalizedPath)
-    const editor = editorRegistry.getEditorByPath(normalizedPath)
+    const fileType = resolveFileType(normalizedPath)
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
       path: normalizedPath,
       name: getPathBasename(normalizedPath),
-      editorId: editor?.id ?? 'monaco',
+      editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
       isDirty: false,
