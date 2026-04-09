@@ -19,3 +19,7 @@
 当前规则已经明确：`Layout` 永远写蓝图；只有 `Block` 会在实例模式下写入 `instance.data[blockId][fieldName]`。这条边界不要轻易打破，因为它保证了“蓝图提供结构，实例提供数据”这个核心模型不被 layout 覆盖侵蚀。
 
 因此 `propertySources` 里的 `Block` 可以是“蓝图默认值 + 实例覆盖值”合成出来的显示目标，但 `Layout` 必须继续指向真实蓝图对象。显示层可以是投影，写回策略仍然必须在这里依据当前上下文做分流。
+
+Renderer / viewport 的最佳接入点是在这里预计算 `resolvedCardDoc`，而不是把实例覆盖规则下沉到 `CardRenderer.vue`。`resolvedCardDoc` 是纯显示投影：它保留蓝图结构和 layout，只把 block 字段按 `instance.data[blockId]` 合并后交给渲染层。未来不要反过来把这个投影对象当成写回真相。
+
+Viewport 拖拽/缩放得到的是像素空间结果，因此由 viewport 驱动的 `width` / `height` / `x` / `y` 写回时应保留为带 `px` 的字符串，而不是裸 number。当前约定是保留两位小数后再写成 `px` 字符串，这样既能去掉测量噪声，也不会丢失显式单位语义。

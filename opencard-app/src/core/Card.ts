@@ -102,7 +102,7 @@ export type CardInstanceRecord = {
     id: string
     name: string
     metadata?: Record<string, unknown>
-    data: Record<string, Record<string, unknown>> // key = `${blockId}
+    data: Record<string, Record<string, unknown>>
 }
 
 export type PropertyEditorTarget = Record<string, unknown> & {
@@ -427,6 +427,58 @@ export function getBlockTreeIcon(type: CardBlock['type']): string {
             return 'codicon-collection'
         case 'flow-container-block':
             return 'codicon-layers'
+    }
+}
+
+function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceRecord): CardBlock {
+    const overrides = instance.data[block.id] ?? {}
+
+    switch (block.type) {
+        case 'text-block':
+            return {
+                ...block,
+                ...overrides,
+            }
+        case 'image-block':
+            return {
+                ...block,
+                ...overrides,
+            }
+        case 'simple-container-block':
+            return {
+                ...block,
+                ...overrides,
+                children: block.children.map((child) => ({
+                    location: { ...child.location },
+                    block: cloneBlockWithInstanceData(child.block, instance),
+                })),
+            }
+        case 'flow-container-block':
+            return {
+                ...block,
+                ...overrides,
+                children: block.children.map((child) => ({
+                    location: { ...child.location },
+                    block: cloneBlockWithInstanceData(child.block, instance),
+                })),
+            }
+    }
+}
+
+export function resolveCardDocumentInstanceView(
+    document: CardDocument,
+    instance: CardInstanceRecord | null
+): CardDocument {
+    if (!instance) {
+        return document
+    }
+
+    return {
+        ...document,
+        children: document.children.map((child) => ({
+            location: { ...child.location },
+            block: cloneBlockWithInstanceData(child.block, instance),
+        })),
     }
 }
 

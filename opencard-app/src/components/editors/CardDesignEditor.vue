@@ -1,7 +1,7 @@
 <template>
   <div class="card-design-editor">
     <div class="canvas-area">
-      <CardViewport v-if="cardDoc" :document="cardDoc" :selected-block-id="selectedBlock?.id ?? null"
+      <CardViewport v-if="resolvedCardDoc" :document="resolvedCardDoc" :selected-block-id="selectedBlock?.id ?? null"
         :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
         :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
@@ -51,6 +51,7 @@ import {
   blockToTreeNode,
   BlockContainer,
   createBlock,
+  resolveCardDocumentInstanceView,
   type ParentLookup,
   removeBlockFromContainer,
   type CardBlock,
@@ -224,6 +225,17 @@ const blockTree = computed(() => {
   return cardDoc.value.children.map((child) =>
     blockToTreeNode(child.block, null, child.location)
   )
+})
+const resolvedCardDoc = computed<CardDocument | null>(() => {
+  if (!cardDoc.value) {
+    return null
+  }
+
+  if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
+    return cardDoc.value
+  }
+
+  return resolveCardDocumentInstanceView(cardDoc.value, selectedCard.value)
 })
 
 const instanceTree = computed<ITreeNode[]>(() => {
@@ -557,19 +569,25 @@ function deleteInstance(instanceId: string) {
   markDocumentChanged()
 }
 
+function formatViewportCssValue(value: number): string {
+  const normalized = Math.round(value * 100) / 100
+  const safeValue = Object.is(normalized, -0) ? 0 : normalized
+  return `${safeValue}px`
+}
+
 function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
   const block = selectedBlock.value
   if (!block) {
     return
   }
 
-  block.width = Math.round(payload.width * 100) / 100
-  block.height = Math.round(payload.height * 100) / 100
+  block.width = formatViewportCssValue(payload.width)
+  block.height = formatViewportCssValue(payload.height)
 
   const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
   if (metadata?.location?.type === 'simple-container-location') {
-    metadata.location.x = Math.round((payload.x ?? 0) * 100) / 100
-    metadata.location.y = Math.round((payload.y ?? 0) * 100) / 100
+    metadata.location.x = formatViewportCssValue(payload.x ?? 0)
+    metadata.location.y = formatViewportCssValue(payload.y ?? 0)
   }
 
   markDocumentChanged()
@@ -581,8 +599,8 @@ function handleSelectionMove(payload: { x: number; y: number }) {
     return
   }
 
-  metadata.location.x = Math.round(payload.x * 100) / 100
-  metadata.location.y = Math.round(payload.y * 100) / 100
+  metadata.location.x = formatViewportCssValue(payload.x)
+  metadata.location.y = formatViewportCssValue(payload.y)
   markDocumentChanged()
 }
 

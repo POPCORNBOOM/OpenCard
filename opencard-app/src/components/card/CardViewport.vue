@@ -82,6 +82,7 @@ type MovePayload = {
   x: number
   y: number
 }
+const TRANSFORM_EPSILON = 0.01
 
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
@@ -325,6 +326,7 @@ function startResize(handle: ResizeHandle) {
   }
 
   activeHandle.value = handle
+  isMovingSelection.value = false
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
   selectionFrame.value = measurement.frame
@@ -342,6 +344,7 @@ function startMove() {
     return
   }
 
+  activeHandle.value = null
   isMovingSelection.value = true
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
@@ -350,7 +353,12 @@ function startMove() {
   bindTransformListeners()
 }
 
-function handleSelectionFramePointerDown() {
+function handleSelectionFramePointerDown(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Element && target.closest('.selection-handle')) {
+    return
+  }
+
   if (!showMoveHandle.value) {
     return
   }
@@ -471,17 +479,36 @@ function buildMovePayload(preview: SelectionFrame, measurement: SelectionMeasure
   }
 }
 
+function hasMeaningfulResizeChange(preview: SelectionFrame, measurement: SelectionMeasurement): boolean {
+  const resizePayload = buildAbsoluteResizePayload(preview, measurement)
+  return (
+    Math.abs(preview.width - measurement.worldRect.width) > TRANSFORM_EPSILON ||
+    Math.abs(preview.height - measurement.worldRect.height) > TRANSFORM_EPSILON ||
+    Math.abs((resizePayload.x ?? 0) - buildAbsoluteResizePayload(measurement.worldRect, measurement).x!) > TRANSFORM_EPSILON ||
+    Math.abs((resizePayload.y ?? 0) - buildAbsoluteResizePayload(measurement.worldRect, measurement).y!) > TRANSFORM_EPSILON
+  )
+}
+
+function hasMeaningfulMoveChange(preview: SelectionFrame, measurement: SelectionMeasurement): boolean {
+  const movePayload = buildMovePayload(preview, measurement)
+  const originalPayload = buildMovePayload(measurement.worldRect, measurement)
+  return (
+    Math.abs(movePayload.x - originalPayload.x) > TRANSFORM_EPSILON ||
+    Math.abs(movePayload.y - originalPayload.y) > TRANSFORM_EPSILON
+  )
+}
+
 function stopTransform() {
   const measurement = dragMeasurement.value
   const preview = previewWorldRect.value
   if (measurement && preview) {
-    if (isMovingSelection.value) {
-      emit('move-selection', buildMovePayload(preview, measurement))
-    } else if (activeHandle.value) {
+    if (activeHandle.value && hasMeaningfulResizeChange(preview, measurement)) {
       const payload = resizeMode.value === 'flow'
         ? { width: preview.width, height: preview.height }
         : buildAbsoluteResizePayload(preview, measurement)
       emit('resize-selection', payload)
+    } else if (isMovingSelection.value && hasMeaningfulMoveChange(preview, measurement)) {
+      emit('move-selection', buildMovePayload(preview, measurement))
     }
   }
 
