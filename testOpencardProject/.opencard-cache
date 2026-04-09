@@ -27,6 +27,12 @@
         "isSymlink": false
       },
       {
+        "name": "image-render-test.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "sgs-zhenji-test.opencard",
         "isDirectory": false,
         "isFile": true,
@@ -106,12 +112,6 @@
       },
       {
         "name": "立绘_圣聆初雪_2.png",
-        "isDirectory": false,
-        "isFile": true,
-        "isSymlink": false
-      },
-      {
-        "name": "testfolder/image-render-test.opencard",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
