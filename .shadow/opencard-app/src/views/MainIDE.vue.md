@@ -7,3 +7,5 @@
 这里最容易被未来代理“看起来更方便地”破坏的地方，是重新引入 `currentContent + currentFile + openedFiles` 这样的并行状态源。一旦页面层重新拥有这些真相，文件移动、编辑器切换、草稿保护就会再次分叉。
 
 判断是否该继续瘦身 `MainIDE.vue` 的标准很简单：如果一段逻辑回答的是“磁盘上现在是什么”，它应去 `projectStore`；如果回答的是“用户当前正在编辑什么、改到了什么程度”，它应去 `editorSessionStore`。
+
+文件 Tree 的选中态也应服从这个边界：活动编辑器路径是页面层可消费的“当前文档真相”，`MainIDE.vue` 只负责把它投影到“已打开编辑器”Tree 与项目 Tree 上，而不应再维护一套独立于 `activeSession` 的长期选中来源。

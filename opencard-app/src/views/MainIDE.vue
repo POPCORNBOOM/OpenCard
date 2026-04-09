@@ -43,7 +43,8 @@
             <button @click="openProject" class="open-folder-btn">
               {{ t('sidebar.openProject') }}
             </button>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')" />
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')"
+              :selected="openedEditorSelectedFiles" @update:selected="handleOpenedEditorsSelect" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
               @node-drop="handleFileTreeDrop"
@@ -155,6 +156,7 @@ const {
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
 const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
+const openedEditorSelectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
@@ -171,6 +173,7 @@ const {
   openedFileNodes,
   openFile: openEditorSession,
   activateSession,
+  activatePath,
   updateDraftContent,
   closeSession,
   saveActiveSession,
@@ -186,6 +189,10 @@ const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
+
+function normalizeIdePath(path: string) {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
 
 const currentEditorComponent = computed(() => {
   if (!activeSession.value) return null
@@ -243,6 +250,14 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   }
 })
 
+watch(
+  () => activeSession.value?.path ?? null,
+  (path) => {
+    syncSelectionFromActiveSession(path)
+  },
+  { immediate: true }
+)
+
 
 const fileTree = computed(() => {
   if (!indexedEntries.value.length) return []
@@ -253,7 +268,7 @@ const fileTree = computed(() => {
   // 先创建所有节点
   indexedEntries.value.forEach(file => {
     const relativePath = file.name
-    const fullPath = `${projectPath.value}/${relativePath}`
+    const fullPath = normalizeIdePath(`${projectPath.value}/${relativePath}`)
     const parts = relativePath.split(/[/\\]/)
     const displayName = parts[parts.length - 1]
 
@@ -302,6 +317,50 @@ const fileTree = computed(() => {
 
   return root
 })
+
+function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
+  for (const node of nodes) {
+    if (normalizeIdePath(node.key) === normalizeIdePath(key)) {
+      return node
+    }
+
+    const childNode = findTreeNodeByKey(node.children ?? [], key)
+    if (childNode) {
+      return childNode
+    }
+  }
+
+  return null
+}
+
+function syncSelectionFromActiveSession(path: string | null) {
+  if (!path) {
+    openedEditorSelectedFiles.value = new Map()
+    selectedFiles.value = new Map()
+    return
+  }
+
+  const normalizedPath = normalizeIdePath(path)
+
+  const openedEditorNode = openedFileNodes.value.find((node) => normalizeIdePath(node.key) === normalizedPath)
+  openedEditorSelectedFiles.value = openedEditorNode
+    ? new Map([[openedEditorNode.key, openedEditorNode]])
+    : new Map()
+
+  const projectTreeNode = findTreeNodeByKey(fileTree.value, normalizedPath)
+  selectedFiles.value = projectTreeNode
+    ? new Map([[projectTreeNode.key, projectTreeNode]])
+    : new Map()
+}
+
+function handleOpenedEditorsSelect(newSelected: Map<string, ITreeNode>) {
+  openedEditorSelectedFiles.value = newSelected
+
+  const selectedPath = newSelected.values().next().value?.key
+  if (selectedPath) {
+    activatePath(selectedPath)
+  }
+}
 
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)
@@ -393,7 +452,6 @@ async function openProject() {
 }
 
 async function handleOpenFile(path: string) {
-  debugLog(`尝试打开文件: ${path}`)
   try {
     await openEditorSession(path)
   } catch (error) {

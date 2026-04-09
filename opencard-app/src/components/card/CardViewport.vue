@@ -28,7 +28,13 @@
       </div>
     </div>
     <div class="card-selection-layer">
-      <div v-if="selectionFrame" class="selection-frame" :style="selectionFrameStyle">
+      <div
+        v-if="selectionFrame"
+        class="selection-frame"
+        :class="{ 'selection-frame-movable': showMoveHandle }"
+        :style="selectionFrameStyle"
+        @pointerdown.stop.prevent="handleSelectionFramePointerDown"
+      >
         <button
           v-for="handle in activeHandles"
           :key="handle"
@@ -72,11 +78,16 @@ type ResizePayload = {
   x?: number
   y?: number
 }
+type MovePayload = {
+  x: number
+  y: number
+}
 
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
   (e: 'blank-click', event: MouseEvent): void
   (e: 'resize-selection', payload: ResizePayload): void
+  (e: 'move-selection', payload: MovePayload): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -106,6 +117,7 @@ const lastPointerX = ref(0)
 const lastPointerY = ref(0)
 const selectionFrame = ref<SelectionFrame | null>(null)
 const activeHandle = ref<ResizeHandle | null>(null)
+const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
 
@@ -163,6 +175,7 @@ const activeHandles = computed<ResizeHandle[]>(() => {
   }
   return []
 })
+const showMoveHandle = computed(() => props.selectedLocationType === 'simple-container-location')
 const selectionFrameStyle = computed(() => {
   const frame = selectionFrame.value
   if (!frame) {
@@ -302,7 +315,7 @@ async function syncSelectionFrame() {
 }
 
 function startResize(handle: ResizeHandle) {
-  if (resizeMode.value === 'none') {
+  if (resizeMode.value === 'none' || isMovingSelection.value) {
     return
   }
 
@@ -316,63 +329,99 @@ function startResize(handle: ResizeHandle) {
   previewWorldRect.value = { ...measurement.worldRect }
   selectionFrame.value = measurement.frame
 
-  window.addEventListener('pointermove', handleResizeMove)
-  window.addEventListener('pointerup', stopResize)
-  window.addEventListener('pointercancel', stopResize)
+  bindTransformListeners()
 }
 
-function handleResizeMove(event: PointerEvent) {
-  const measurement = dragMeasurement.value
-  const preview = previewWorldRect.value
-  if (!measurement || !preview || !activeHandle.value) {
+function startMove() {
+  if (!showMoveHandle.value || activeHandle.value || isMovingSelection.value) {
     return
   }
 
-  const minSize = 24
+  const measurement = measureSelection()
+  if (!measurement) {
+    return
+  }
+
+  isMovingSelection.value = true
+  dragMeasurement.value = measurement
+  previewWorldRect.value = { ...measurement.worldRect }
+  selectionFrame.value = measurement.frame
+
+  bindTransformListeners()
+}
+
+function handleSelectionFramePointerDown() {
+  if (!showMoveHandle.value) {
+    return
+  }
+
+  startMove()
+}
+
+function bindTransformListeners() {
+  window.addEventListener('pointermove', handleTransformMove)
+  window.addEventListener('pointerup', stopTransform)
+  window.addEventListener('pointercancel', stopTransform)
+}
+
+function handleTransformMove(event: PointerEvent) {
+  const measurement = dragMeasurement.value
+  const preview = previewWorldRect.value
+  if (!measurement || !preview) {
+    return
+  }
+
   const deltaX = event.movementX / (scale.value || 1)
   const deltaY = event.movementY / (scale.value || 1)
 
-  switch (activeHandle.value) {
-    case 'lt':
-      preview.left += deltaX
-      preview.top += deltaY
-      preview.width -= deltaX
-      preview.height -= deltaY
-      break
-    case 'rt':
-      preview.top += deltaY
-      preview.width += deltaX
-      preview.height -= deltaY
-      break
-    case 'lb':
-      preview.left += deltaX
-      preview.width -= deltaX
-      preview.height += deltaY
-      break
-    case 'rb':
-      preview.width += deltaX
-      preview.height += deltaY
-      break
-    case 'r':
-      preview.width += deltaX
-      break
-    case 'b':
-      preview.height += deltaY
-      break
-  }
+  if (isMovingSelection.value) {
+    preview.left += deltaX
+    preview.top += deltaY
+  } else if (activeHandle.value) {
+    const minSize = 24
 
-  if (preview.width < minSize) {
-    if (activeHandle.value === 'lt' || activeHandle.value === 'lb') {
-      preview.left -= minSize - preview.width
+    switch (activeHandle.value) {
+      case 'lt':
+        preview.left += deltaX
+        preview.top += deltaY
+        preview.width -= deltaX
+        preview.height -= deltaY
+        break
+      case 'rt':
+        preview.top += deltaY
+        preview.width += deltaX
+        preview.height -= deltaY
+        break
+      case 'lb':
+        preview.left += deltaX
+        preview.width -= deltaX
+        preview.height += deltaY
+        break
+      case 'rb':
+        preview.width += deltaX
+        preview.height += deltaY
+        break
+      case 'r':
+        preview.width += deltaX
+        break
+      case 'b':
+        preview.height += deltaY
+        break
     }
-    preview.width = minSize
-  }
 
-  if (preview.height < minSize) {
-    if (activeHandle.value === 'lt' || activeHandle.value === 'rt') {
-      preview.top -= minSize - preview.height
+    if (preview.width < minSize) {
+      if (activeHandle.value === 'lt' || activeHandle.value === 'lb') {
+        preview.left -= minSize - preview.width
+      }
+      preview.width = minSize
     }
-    preview.height = minSize
+
+    if (preview.height < minSize) {
+      if (activeHandle.value === 'lt' || activeHandle.value === 'rt') {
+        preview.top -= minSize - preview.height
+      }
+      preview.height = minSize
+    }
   }
 
   selectionFrame.value = {
@@ -414,22 +463,35 @@ function buildAbsoluteResizePayload(preview: SelectionFrame, measurement: Select
   }
 }
 
-function stopResize() {
+function buildMovePayload(preview: SelectionFrame, measurement: SelectionMeasurement): MovePayload {
+  const absolutePayload = buildAbsoluteResizePayload(preview, measurement)
+  return {
+    x: absolutePayload.x ?? 0,
+    y: absolutePayload.y ?? 0,
+  }
+}
+
+function stopTransform() {
   const measurement = dragMeasurement.value
   const preview = previewWorldRect.value
-  if (measurement && preview && activeHandle.value) {
-    const payload = resizeMode.value === 'flow'
-      ? { width: preview.width, height: preview.height }
-      : buildAbsoluteResizePayload(preview, measurement)
-    emit('resize-selection', payload)
+  if (measurement && preview) {
+    if (isMovingSelection.value) {
+      emit('move-selection', buildMovePayload(preview, measurement))
+    } else if (activeHandle.value) {
+      const payload = resizeMode.value === 'flow'
+        ? { width: preview.width, height: preview.height }
+        : buildAbsoluteResizePayload(preview, measurement)
+      emit('resize-selection', payload)
+    }
   }
 
   activeHandle.value = null
+  isMovingSelection.value = false
   dragMeasurement.value = null
   previewWorldRect.value = null
-  window.removeEventListener('pointermove', handleResizeMove)
-  window.removeEventListener('pointerup', stopResize)
-  window.removeEventListener('pointercancel', stopResize)
+  window.removeEventListener('pointermove', handleTransformMove)
+  window.removeEventListener('pointerup', stopTransform)
+  window.removeEventListener('pointercancel', stopTransform)
   void syncSelectionFrame()
 }
 
@@ -455,7 +517,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  stopResize()
+  stopTransform()
   resizeObserver?.disconnect()
   resizeObserver = null
 })
@@ -472,7 +534,7 @@ watch(
     translateY.value,
   ],
   () => {
-    if (activeHandle.value) {
+    if (activeHandle.value || isMovingSelection.value) {
       return
     }
     void syncSelectionFrame()
@@ -482,7 +544,7 @@ watch(
 watch(
   () => props.document,
   () => {
-    if (activeHandle.value) {
+    if (activeHandle.value || isMovingSelection.value) {
       return
     }
     void syncSelectionFrame()
@@ -570,6 +632,11 @@ watch(
   border-radius: 4px;
   box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.25);
   pointer-events: none;
+}
+
+.selection-frame-movable {
+  pointer-events: auto;
+  cursor: move;
 }
 
 .selection-handle {

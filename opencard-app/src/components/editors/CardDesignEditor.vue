@@ -5,7 +5,7 @@
         :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
         :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleViewportBlockClick" @blank-click="clearSelection"
-        @resize-selection="handleSelectionResize" />
+        @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove" />
       <div v-else class="empty-hint">无法解析 .opencard 文件</div>
     </div>
 
@@ -13,9 +13,10 @@
       <div class="block-list-panel">
         <div class="panel-header">信息树</div>
         <div class="block-list">
-          <NodeTree title="元素块" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
+          <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
             :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
             @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
+          <NodeTree title="创建的卡牌" :nodes="[]" />
         </div>
       </div>
 
@@ -277,6 +278,17 @@ function handleSelectionResize(payload: { width: number; height: number; x?: num
     metadata.location.y = Math.round((payload.y ?? 0) * 100) / 100
   }
 
+  markDocumentChanged()
+}
+
+function handleSelectionMove(payload: { x: number; y: number }) {
+  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+  if (metadata?.location?.type !== 'simple-container-location') {
+    return
+  }
+
+  metadata.location.x = Math.round(payload.x * 100) / 100
+  metadata.location.y = Math.round(payload.y * 100) / 100
   markDocumentChanged()
 }
 

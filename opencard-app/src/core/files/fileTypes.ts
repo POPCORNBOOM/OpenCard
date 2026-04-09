@@ -113,7 +113,7 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
     icon: 'file.image',
     iconColor: 'var(--icon-image)',
-    editorId: 'monaco',
+    editorId: 'image-preview',
   },
   {
     id: 'env',

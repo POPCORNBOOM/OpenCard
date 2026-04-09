@@ -49,6 +49,7 @@ class EditorRegistry {
 
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import CardDesignEditor from '../components/editors/CardDesignEditor.vue'
+import ImagePreviewEditor from '../components/editors/ImagePreviewEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -66,4 +67,11 @@ editorRegistry.register({
   name: 'Card Designer',
   component: CardDesignEditor,
   hasPreview: false
+})
+
+editorRegistry.register({
+  id: 'image-preview',
+  name: 'Image Preview',
+  component: ImagePreviewEditor,
+  hasPreview: false,
 })

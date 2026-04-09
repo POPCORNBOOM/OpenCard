@@ -5,3 +5,5 @@
 不要再把这里改回 `watch(filePath) -> 读磁盘 -> 覆盖内部状态` 的模式。那种写法看起来直观，但会直接破坏编辑会话层对未保存草稿的保护，也会让“移动文件但保留草稿”重新失效。
 
 这里还保留了卡牌领域特有的编辑职责，例如 block tree、property editor、viewport 交互、卡牌结构归一化。这些是它应当继续拥有的；但文件读写、tab 状态、dirty 真相、路径 remap，都不应再回流到这里。
+
+其中 viewport 交互的边界应保持清晰：`CardViewport` 负责测量选区、提供 resize / move 手柄并发出语义化事件；`CardDesignEditor.vue` 只负责把这些事件翻译为对 block 尺寸或 `simple-container-location` 坐标的更新。不要把 DOM 测量或拖拽过程反向塞进这里。

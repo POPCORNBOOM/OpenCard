@@ -66,8 +66,10 @@ export function useEditorSessionStore() {
       return existingSession
     }
 
-    const content = await readFile(normalizedPath)
     const fileType = resolveFileType(normalizedPath)
+    const content = fileType.editorId === 'image-preview'
+      ? ''
+      : await readFile(normalizedPath)
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
@@ -134,6 +136,10 @@ export function useEditorSessionStore() {
       return
     }
 
+    if (session.editorId === 'image-preview') {
+      return
+    }
+
     await saveFile(session.path, session.draftContent)
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
@@ -157,6 +163,10 @@ export function useEditorSessionStore() {
   async function refreshSessionFromDisk(sessionId: string) {
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
+      return
+    }
+
+    if (session.editorId === 'image-preview') {
       return
     }
 
