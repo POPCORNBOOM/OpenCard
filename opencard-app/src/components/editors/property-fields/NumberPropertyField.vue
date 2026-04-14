@@ -1,6 +1,6 @@
 <template>
   <input
-    class="prop-input"
+    class="prop-input oc-input"
     type="number"
     :value="numberValue"
     :min="definition.min"
@@ -38,17 +38,10 @@ function onInput(event: Event) {
 
 <style scoped>
 .prop-input {
-  flex: 1;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 12px;
-  min-width: 0;
 }
 
 .prop-input:focus {
-  border-color: #007acc;
-  outline: none;
+  border-color: var(--oc-accent);
 }
 </style>

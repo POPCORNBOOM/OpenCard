@@ -1,21 +1,22 @@
 <template>
   <div class="action-entry">
-    <button
-      class="action-trigger"
+    <OcButton
+      class="action-trigger oc-button--tree-action"
+      variant="icon"
+      icon-only
+      :icon="action.icon"
       :class="{ 'has-children': hasChildren }"
-      type="button"
       :title="action.title"
       data-tree-interactive="true"
       @mousedown.stop
       @click.stop="handleClick"
-    >
-      <i class="codicon" :class="action.icon" />
-    </button>
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
+import OcButton from '../base/OcButton.vue'
 import type { ITreeNode } from './TreeNode.vue'
 import type { ActionDefinition, ActionCaller } from './NodeTree.vue'
 
@@ -75,22 +76,13 @@ function handleClick(event: MouseEvent) {
 
 <style scoped>
 .action-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  min-height: 20px;
-  padding: 2px;
   border: 0;
   border-radius: 4px;
-  background: transparent;
   color: inherit;
-  cursor: pointer;
-  font: inherit;
 }
 
 .action-trigger:hover,
 .action-entry:hover > .action-trigger {
-  background: #454545;
+  background: var(--oc-bg-hover-strong);
 }
 </style>

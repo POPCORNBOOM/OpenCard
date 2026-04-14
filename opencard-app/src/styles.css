@@ -3,6 +3,59 @@
   --scrollbar-track: #1f1f1f;
   --scrollbar-thumb: #4e4e4e;
   --scrollbar-thumb-hover: #666666;
+  --oc-bg-base: #1e1e1e;
+  --oc-bg-app-chrome: #323233;
+  --oc-bg-sidebar: #333333;
+  --oc-bg-panel: #252526;
+  --oc-bg-elevated: #2d2d2d;
+  --oc-bg-hover: #2a2d2e;
+  --oc-bg-hover-strong: #454545;
+  --oc-bg-input: #3c3c3c;
+  --oc-bg-active: #094771;
+  --oc-bg-selected: #04395e;
+  --oc-bg-accent: #0e639c;
+  --oc-bg-accent-hover: #1177bb;
+  --oc-bg-accent-soft: rgba(14, 99, 156, 0.2);
+  --oc-bg-accent-tint-strong: rgba(14, 99, 156, 0.16);
+  --oc-bg-accent-tint-soft: rgba(14, 99, 156, 0.08);
+  --oc-bg-accent-tint-subtle: rgba(14, 99, 156, 0.05);
+  --oc-bg-overlay-strong: rgba(20, 20, 20, 0.88);
+  --oc-bg-overlay-soft: rgba(24, 24, 24, 0.82);
+  --oc-bg-checker-soft: rgba(255, 255, 255, 0.04);
+  --oc-bg-checker-preview: rgba(255, 255, 255, 0.05);
+  --oc-bg-grid-dot: rgba(255, 255, 255, 0.12);
+  --oc-border-strong: #000;
+  --oc-border-muted: #333;
+  --oc-border-subtle: #3f3f46;
+  --oc-border-input: #555;
+  --oc-border-surface: #3a3d41;
+  --oc-border-overlay: rgba(255, 255, 255, 0.14);
+  --oc-border-overlay-soft: rgba(255, 255, 255, 0.12);
+  --oc-border-overlay-faint: rgba(255, 255, 255, 0.08);
+  --oc-accent: #007acc;
+  --oc-accent-bright: #4da3ff;
+  --oc-accent-glow: rgba(10, 132, 255, 0.25);
+  --oc-accent-contrast: #d9ecff;
+  --oc-accent-preview-text: #9fd4ff;
+  --oc-handle-shadow: rgba(16, 23, 31, 0.45);
+  --oc-danger: #f14c4c;
+  --oc-danger-strong: #f85149;
+  --oc-bg-danger-tint-strong: rgba(241, 76, 76, 0.12);
+  --oc-bg-danger-tint-soft: rgba(241, 76, 76, 0.06);
+  --oc-bg-danger-tint-subtle: rgba(241, 76, 76, 0.04);
+  --oc-text-primary: #cccccc;
+  --oc-text-muted: #888;
+  --oc-text-secondary: #8c8c8c;
+  --oc-text-dim: #666;
+  --oc-text-soft: #8f8f8f;
+  --oc-text-disabled: #6f6f6f;
+  --oc-text-highlight: #d4d4d4;
+  --oc-text-overlay: #c8c8c8;
+  --oc-text-label: #d7ba7d;
+  --oc-text-info: #9cdcfe;
+  --oc-label-size: 11px;
+  --oc-body-size: 12px;
+  --oc-shadow-overlay: 0 10px 28px rgba(0, 0, 0, 0.32);
   --icon-default: currentColor;
   --icon-muted: #8b949e;
   --icon-primary: #58a6ff;
@@ -56,4 +109,201 @@
 
 *::-webkit-scrollbar-corner {
   background: var(--scrollbar-track);
+}
+
+body {
+  background: var(--oc-bg-base);
+  color: var(--oc-text-primary);
+}
+
+.oc-panel-header {
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--oc-label-size);
+  text-transform: uppercase;
+  font-weight: bold;
+  background: var(--oc-bg-panel);
+  border-bottom: 1px solid var(--oc-border-strong);
+}
+
+.oc-empty-hint {
+  color: var(--oc-text-dim);
+  font-size: var(--oc-body-size);
+  text-align: center;
+  padding: 20px;
+}
+
+.oc-scroll-y {
+  overflow-y: auto;
+}
+
+.oc-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.oc-panel-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.oc-panel-scroll-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.oc-panel-scroll-body.oc-scroll-y {
+  overflow-y: auto;
+}
+
+.oc-editor-stage {
+  flex: 1;
+  display: flex;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.oc-stage-surface {
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--oc-bg-elevated);
+}
+
+.oc-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.oc-checkerboard-stage {
+  background-image:
+    linear-gradient(45deg, var(--oc-bg-checker-soft) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--oc-bg-checker-soft) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--oc-bg-checker-soft) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--oc-bg-checker-soft) 75%);
+}
+
+.oc-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--oc-bg-input);
+  border: 1px solid var(--oc-border-input);
+  color: var(--oc-text-primary);
+  padding: 2px 6px;
+  font-size: var(--oc-body-size);
+  box-sizing: border-box;
+}
+
+.oc-input:focus {
+  border-color: var(--oc-accent);
+  outline: none;
+}
+
+.oc-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--oc-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--oc-body-size);
+  line-height: 1.2;
+  text-decoration: none;
+  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+
+.oc-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.oc-button--primary {
+  padding: 8px 12px;
+  background: var(--oc-bg-accent);
+  color: #ffffff;
+}
+
+.oc-button--primary:hover:not(:disabled) {
+  background: var(--oc-bg-accent-hover);
+}
+
+.oc-button--secondary {
+  padding: 6px 10px;
+  border-color: var(--oc-border-subtle);
+  background: var(--oc-bg-panel);
+}
+
+.oc-button--secondary:hover:not(:disabled) {
+  border-color: var(--oc-bg-accent);
+  background: var(--oc-bg-hover);
+}
+
+.oc-button--ghost:hover:not(:disabled) {
+  background: var(--oc-bg-hover);
+}
+
+.oc-button--icon {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--oc-text-soft);
+}
+
+.oc-button--icon:hover:not(:disabled) {
+  color: var(--oc-text-highlight);
+  border-color: var(--oc-border-subtle);
+  background: var(--oc-bg-hover);
+}
+
+.oc-button--icon.is-active {
+  color: #ffffff;
+  border-color: var(--oc-bg-accent);
+  background: var(--oc-bg-active);
+}
+
+.oc-floating-surface {
+  min-width: 148px;
+  padding: 3px;
+  border: 1px solid var(--oc-border-surface);
+  border-radius: 6px;
+  background: var(--oc-bg-panel);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.oc-button--choice {
+  min-width: 0;
+  border: 1px solid var(--oc-border-input);
+  background: var(--oc-bg-input);
+  color: var(--oc-text-primary);
+}
+
+.oc-button--choice:hover:not(:disabled) {
+  border-color: var(--oc-bg-accent);
+  background: var(--oc-bg-hover);
+}
+
+.oc-button--choice.is-active {
+  border-color: var(--oc-bg-accent);
+  background: var(--oc-bg-active);
+}
+
+.oc-button--tree-action:hover:not(:disabled) {
+  background: var(--oc-bg-hover-strong);
 }

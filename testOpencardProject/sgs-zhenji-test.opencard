@@ -12,7 +12,7 @@
         "type": "simple-container-block",
         "width": "419.67px",
         "height": "640.5px",
-        "customCss": "background: linear-gradient(180deg, #1a1520 0%, #2d1f1a 14%, #d29a62 14.5%, #f5d0a2 100%); ",
+        "customCss": "",
         "children": [
           {
             "block": {
@@ -23,33 +23,16 @@
               "mode": "plain",
               "width": "420.91px",
               "height": "640.72px",
-              "customCss": "border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(240, 218, 188, 0.18);",
-              "background": "linear-gradient(180deg, rgba(13, 17, 43, 0.94) 0%, rgba(28, 39, 82, 0.84) 100%); border: 3px solid #713b22; "
+              "customCss": "",
+              "background": "linear-gradient(180deg, rgba(13, 17, 43, 1) 0%, rgba(28, 39, 82, 1) 100%);",
+              "borderRadius": "16px",
+              "outline": "3px solid #713b22"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "-0.22px",
-              "y": "0.34px"
-            }
-          },
-          {
-            "block": {
-              "id": "text-block-a5672e21-8f50-4a28-8320-4a18908a4073",
-              "name": "Title Strip",
-              "width": "246px",
-              "height": "334px",
-              "type": "text-block",
-              "content": "落水之华",
-              "mode": "plain",
-              "backgroundColor": "",
-              "customCss": "background: linear-gradient(180deg, #3f2314 0%, #71452b 36%, #f2d7bd 100%); border: 2px solid #4d2411; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(255, 247, 236, 0.16);"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "13px",
-              "y": "92.75px"
+              "x": "-0.23px",
+              "y": "-0.97px"
             }
           },
           {
@@ -67,7 +50,7 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "53.5px",
+              "x": "49.69px",
               "y": "47.25px"
             }
           },
@@ -106,13 +89,14 @@
               "fontSize": "20px",
               "fontWeight": 700,
               "color": "#ffcfdb",
-              "customCss": "letter-spacing: 2px; text-shadow: 0 1px 3px rgba(88, 12, 18, 0.55);"
+              "customCss": "letter-spacing: 2px; text-shadow: 0 1px 3px rgba(88, 12, 18, 0.55);",
+              "textAlign": "end"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "rt",
-              "x": "20px",
-              "y": "18px"
+              "x": "3.06px",
+              "y": "3.48px"
             }
           },
           {
@@ -154,26 +138,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lb",
-              "x": 13.37,
-              "y": 116.46
-            }
-          },
-          {
-            "block": {
-              "id": "info-panel",
-              "name": "Info Panel",
-              "type": "text-block",
-              "content": "",
-              "mode": "plain",
-              "width": "356px",
-              "height": "154px",
-              "customCss": "background: linear-gradient(180deg, #efe7d8 0%, #ddcfbc 100%); border: 2px solid #5e3e2a; border-radius: 10px 10px 14px 14px; box-shadow: inset 0 0 0 2px rgba(255, 250, 242, 0.35);"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "cb",
-              "x": 0,
-              "y": "18px"
+              "x": "9.55px",
+              "y": "193.35px"
             }
           },
           {
@@ -193,8 +159,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "38px",
-              "y": "456px"
+              "x": "34.25px",
+              "y": "450.19px"
             }
           },
           {
@@ -323,8 +289,8 @@
                           "type": "text-block",
                           "content": "准备阶段开始时，你可以判定；若结果为黑色，你获得之，然后可重复此流程。",
                           "mode": "plain",
-                          "width": "393.05px",
-                          "height": "55.62px",
+                          "width": "287.75px",
+                          "height": "55.61px",
                           "fontSize": "13px",
                           "color": "#33251d",
                           "lineHeight": "18px",
@@ -342,7 +308,10 @@
                     "index": 1
                   }
                 }
-              ]
+              ],
+              "background": "linear-gradient(180deg, #efe7d8 0%, #ddcfbc 100%)",
+              "outline": "2px solid #5e3e2a;",
+              "borderRadius": "10px 10px 14px 14px; "
             },
             "location": {
               "type": "simple-container-location",

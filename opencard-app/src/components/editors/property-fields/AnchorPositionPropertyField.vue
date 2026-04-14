@@ -1,11 +1,12 @@
 <template>
   <div class="anchor-grid" role="radiogroup" aria-label="Anchor position">
-    <button
+    <OcButton
       v-for="option in anchorOptions"
       :key="option.value"
-      type="button"
       class="anchor-cell"
+      variant="choice"
       :class="{ active: currentValue === option.value }"
+      :active="currentValue === option.value"
       :title="option.label"
       :aria-label="option.label"
       :aria-checked="currentValue === option.value"
@@ -14,12 +15,13 @@
       @click="emit('update:value', option.value)"
     >
       <span class="anchor-dot" />
-    </button>
+    </OcButton>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcButton from '../../base/OcButton.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const anchorOptions = [
@@ -60,31 +62,15 @@ const currentValue = computed(() => {
 
 .anchor-cell {
   aspect-ratio: 1;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #555;
-  background: #3c3c3c;
-  color: #ccc;
   padding: 0;
-  cursor: pointer;
-  transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
 .anchor-cell:hover:not(:disabled) {
-  border-color: #0e639c;
-  background: #2a2d2e;
-}
-
-.anchor-cell:disabled {
-  cursor: default;
-  opacity: 0.7;
+  border-color: var(--oc-bg-accent);
 }
 
 .anchor-cell.active {
-  border-color: #0e639c;
-  background: #094771;
+  border-color: var(--oc-bg-accent);
 }
 
 .anchor-dot {

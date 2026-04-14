@@ -2,14 +2,14 @@
   <div v-if="definition.isReadonly" class="readonly-value" :title="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
-  <select v-else-if="definition.options?.length" class="prop-input" :value="stringValue"
+  <select v-else-if="definition.options?.length" class="prop-input oc-input" :value="stringValue"
     @change="emit('update:value', ($event.target as HTMLSelectElement).value)">
     <option v-for="option in definition.options" :key="option" :value="option">
       {{ option }}
     </option>
   </select>
   <div v-else class="autocomplete-field">
-    <input class="prop-input autocomplete-input" type="text" :value="stringValue" :minlength="definition.minLength"
+    <input class="prop-input oc-input autocomplete-input" type="text" :value="stringValue" :minlength="definition.minLength"
       :maxlength="definition.maxLength" :readonly="definition.isReadonly"
       @input="emit('update:value', ($event.target as HTMLInputElement).value)" @keydown="handleKeydown" />
     <div v-if="ghostSuffix" class="autocomplete-ghost" aria-hidden="true">
@@ -81,24 +81,17 @@ function handleKeydown(event: KeyboardEvent) {
   position: relative;
   flex: 1;
   min-width: 0;
-  background: #3c3c3c;
-  border: 1px solid #555;
+  background: var(--oc-bg-input);
+  border: 1px solid var(--oc-border-input);
   box-sizing: border-box;
 }
 
 .prop-input {
-  flex: 1;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 12px;
-  min-width: 0;
 }
 
 .prop-input:focus {
-  border-color: #007acc;
-  outline: none;
+  border-color: var(--oc-accent);
 }
 
 .autocomplete-input {
@@ -118,16 +111,16 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: var(--oc-body-size);
   line-height: normal;
-  color: #6f6f6f;
+  color: var(--oc-text-disabled);
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .autocomplete-field:focus-within {
-  border-color: #007acc;
+  border-color: var(--oc-accent);
 }
 
 .autocomplete-current {
@@ -138,9 +131,9 @@ function handleKeydown(event: KeyboardEvent) {
   flex: 1;
   min-width: 0;
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: var(--oc-body-size);
   line-height: 1.5;
-  color: #ccc;
+  color: var(--oc-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -412,12 +412,12 @@ function handleClick() {
 
 .node-tree.drag-over-root .root-content,
 .node-tree.drag-over-root .tree-children {
-    box-shadow: inset 0 0 0 1px #0e639c;
+    box-shadow: inset 0 0 0 1px var(--oc-bg-accent);
 }
 
 .node-tree.drag-over-root.drop-invalid .root-content,
 .node-tree.drag-over-root.drop-invalid .tree-children {
-    box-shadow: inset 0 0 0 1px #f14c4c;
+    box-shadow: inset 0 0 0 1px var(--oc-danger);
 }
 
 .root-content {

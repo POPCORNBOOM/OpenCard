@@ -7,6 +7,9 @@
         <span class="menu-item">{{ t('app.menu.edit') }}</span>
         <span class="menu-item">{{ t('app.menu.view') }}</span>
         <span class="menu-item">{{ t('app.menu.help') }}</span>
+        <OcButton class="menu-link" variant="ghost" @click="openButtonShowcase">
+          Buttons
+        </OcButton>
         <span @click="debugLog('Debugging...')" class="menu-item">{{ t('app.menu.export2x') }}</span>
       </div>
       <div class="window-title">OpenCard</div>
@@ -31,18 +34,18 @@
       </div>
 
       <!-- 左侧边栏 -->
-      <div class="sidebar" v-if="activeView">
-        <div class="sidebar-header">
+      <div class="sidebar oc-panel-stack" v-if="activeView">
+        <div class="sidebar-header oc-panel-header">
           <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
           <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
           <span v-else-if="activeView === 'publish'">{{ t('sidebar.publish') }}</span>
         </div>
-        <div class="sidebar-content">
+        <div class="sidebar-content oc-panel-scroll-body oc-scroll-y">
           <!-- 文件浏览器 -->
           <div v-if="activeView === 'files'">
-            <button @click="openProject" class="open-folder-btn">
+            <OcButton @click="openProject" class="open-folder-btn" variant="primary">
               {{ t('sidebar.openProject') }}
-            </button>
+            </OcButton>
             <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')"
               :selected="openedEditorSelectedFiles" @update:selected="handleOpenedEditorsSelect" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
@@ -55,18 +58,18 @@
 
           <!-- 版本管理 -->
           <div v-else-if="activeView === 'git'">
-            <p class="placeholder">{{ t('panels.gitPlaceholder') }}</p>
+            <p class="placeholder oc-empty-hint">{{ t('panels.gitPlaceholder') }}</p>
           </div>
 
           <!-- 发布 -->
           <div v-else-if="activeView === 'publish'">
-            <p class="placeholder">{{ t('panels.publishPlaceholder') }}</p>
+            <p class="placeholder oc-empty-hint">{{ t('panels.publishPlaceholder') }}</p>
           </div>
         </div>
       </div>
 
       <!-- 编辑器区域 -->
-      <div class="editor-container">
+      <div class="editor-container oc-panel-stack">
         <div class="editor-tabs" v-if="sessions.length > 0">
           <div v-for="session in sessions" :key="session.id" class="editor-tab"
             :class="{ active: activeSessionId === session.id }" @click="activateSession(session.id)">
@@ -74,10 +77,10 @@
             <span class="tab-close" @click.stop="closeFile(session.id)">×</span>
           </div>
         </div>
-        <div class="editor-content">
+        <div class="editor-content oc-panel-body">
           <div v-if="!activeSession" class="welcome-screen">
             <h1>{{ t('app.welcome.title') }}</h1>
-            <p>{{ t('app.welcome.subtitle') }}</p>
+            <p class="oc-empty-hint">{{ t('app.welcome.subtitle') }}</p>
           </div>
           <component v-else :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
             @save="handleEditorSave" />
@@ -86,11 +89,11 @@
 
       <!-- 右侧预览面板 
       <div class="preview-panel" v-if="showPreview && previewCardDoc">
-        <div class="preview-header">
+        <div class="preview-header oc-panel-header">
           <span>{{ t('panels.cardPreview') }}</span>
           <AppIcon name="app.close" @click="showPreview = false" />
         </div>
-        <div class="preview-content">
+        <div class="preview-content oc-stage-surface">
           <CardRenderer ref="liveCardRendererRef" :document="previewCardDoc" />
         </div>
       </div>-->
@@ -130,6 +133,7 @@ import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
+import OcButton from '../components/base/OcButton.vue'
 import type { NodeTreeDropPayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
@@ -522,6 +526,10 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
+function openButtonShowcase() {
+  window.location.search = '?view=buttons'
+}
+
 function closeFile(sessionId: string) {
   closeSession(sessionId)
 }
@@ -532,22 +540,23 @@ function closeFile(sessionId: string) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #1e1e1e;
-  color: #cccccc;
+  background: var(--oc-bg-base);
+  color: var(--oc-text-primary);
 }
 
 .menu-bar {
   height: 35px;
-  background: #323233;
+  background: var(--oc-bg-app-chrome);
   display: flex;
   align-items: center;
   padding: 0 10px;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--oc-border-strong);
 }
 
 .menu-items {
   display: flex;
   gap: 15px;
+  align-items: center;
 }
 
 .menu-item {
@@ -557,14 +566,19 @@ function closeFile(sessionId: string) {
 }
 
 .menu-item:hover {
-  background: #2a2d2e;
+  background: var(--oc-bg-hover);
+}
+
+.menu-link {
+  padding: 5px 10px;
+  font-size: 13px;
 }
 
 .window-title {
   flex: 1;
   text-align: center;
   font-size: 12px;
-  color: #888;
+  color: var(--oc-text-muted);
 }
 
 .main-container {
@@ -575,8 +589,8 @@ function closeFile(sessionId: string) {
 
 .activity-bar {
   width: 48px;
-  background: #333333;
-  border-right: 1px solid #000;
+  background: var(--oc-bg-sidebar);
+  border-right: 1px solid var(--oc-border-strong);
 }
 
 .activity-icons {
@@ -597,11 +611,11 @@ function closeFile(sessionId: string) {
 }
 
 .activity-icon:hover {
-  background: #2a2d2e;
+  background: var(--oc-bg-hover);
 }
 
 .activity-icon.active {
-  background: #1e1e1e;
+  background: var(--oc-bg-base);
 }
 
 .activity-icon.active::before {
@@ -611,75 +625,50 @@ function closeFile(sessionId: string) {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #007acc;
+  background: var(--oc-accent);
 }
 
 .sidebar {
   width: 250px;
-  background: #252526;
-  border-right: 1px solid #000;
-  display: flex;
-  flex-direction: column;
+  background: var(--oc-bg-panel);
+  border-right: 1px solid var(--oc-border-strong);
 }
 
 .sidebar-header {
-  height: 35px;
   padding: 0 15px;
-  display: flex;
-  align-items: center;
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: bold;
-  border-bottom: 1px solid #000;
+  min-height: 35px;
 }
 
 .sidebar-content {
-  flex: 1;
-  overflow-y: auto;
   padding: 10px;
 }
 
 .open-folder-btn {
   width: 100%;
-  padding: 8px;
-  background: #0e639c;
-  color: white;
   border: none;
   border-radius: 2px;
-  cursor: pointer;
   font-size: 12px;
 }
 
 .open-folder-btn:hover {
-  background: #1177bb;
-}
-
-
-.placeholder {
-  color: #888;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 20px;
+  border-color: transparent;
 }
 
 .editor-container {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
 .editor-tabs {
   display: flex;
-  background: #2d2d2d;
-  border-bottom: 1px solid #000;
+  background: var(--oc-bg-elevated);
+  border-bottom: 1px solid var(--oc-border-strong);
   overflow-x: auto;
 }
 
 .editor-tab {
   padding: 8px 15px;
-  background: #2d2d2d;
-  border-right: 1px solid #000;
+  background: var(--oc-bg-elevated);
+  border-right: 1px solid var(--oc-border-strong);
   cursor: pointer;
   font-size: 13px;
   display: flex;
@@ -689,11 +678,11 @@ function closeFile(sessionId: string) {
 }
 
 .editor-tab:hover {
-  background: #1e1e1e;
+  background: var(--oc-bg-base);
 }
 
 .editor-tab.active {
-  background: #1e1e1e;
+  background: var(--oc-bg-base);
 }
 
 .tab-close {
@@ -707,29 +696,19 @@ function closeFile(sessionId: string) {
 }
 
 .editor-content {
-  flex: 1;
-  overflow: hidden;
 }
 
 .preview-panel {
   width: 450px;
-  background: #1e1e1e;
-  border-left: 1px solid #000;
+  background: var(--oc-bg-base);
+  border-left: 1px solid var(--oc-border-strong);
   display: flex;
   flex-direction: column;
 }
 
 .preview-header {
-  height: 35px;
   padding: 0 15px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: bold;
-  border-bottom: 1px solid #000;
-  background: #252526;
+  min-height: 35px;
 }
 
 .preview-header i {
@@ -738,17 +717,11 @@ function closeFile(sessionId: string) {
 }
 
 .preview-header i:hover {
-  background: #2a2d2e;
+  background: var(--oc-bg-hover);
 }
 
 .preview-content {
   flex: 1;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: #2d2d2d;
 }
 
 .welcome-screen {
@@ -757,7 +730,7 @@ function closeFile(sessionId: string) {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #888;
+  color: var(--oc-text-muted);
 }
 
 .welcome-screen h1 {
@@ -768,7 +741,7 @@ function closeFile(sessionId: string) {
 
 .status-bar {
   height: 22px;
-  background: #007acc;
+  background: var(--oc-accent);
   display: flex;
   align-items: center;
   justify-content: space-between;

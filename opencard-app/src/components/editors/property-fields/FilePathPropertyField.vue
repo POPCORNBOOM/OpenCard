@@ -2,7 +2,7 @@
   <div class="file-path-field">
     <input
       ref="inputElement"
-      class="prop-input"
+      class="prop-input oc-input"
       type="text"
       :value="stringValue"
       :minlength="definition.minLength"
@@ -314,20 +314,13 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .prop-input {
-  flex: 1;
   width: 100%;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 12px;
-  min-width: 0;
   box-sizing: border-box;
 }
 
 .prop-input:focus {
-  border-color: #007acc;
-  outline: none;
+  border-color: var(--oc-accent);
 }
 
 .suggestion-menu {
@@ -340,8 +333,8 @@ function handleKeydown(event: KeyboardEvent) {
   flex-direction: column;
   gap: 1px;
   padding: 4px;
-  background: #252526;
-  border: 1px solid #3c3c3c;
+  background: var(--oc-bg-panel);
+  border: 1px solid var(--oc-bg-input);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   max-height: 220px;
   overflow-y: auto;
@@ -355,14 +348,14 @@ function handleKeydown(event: KeyboardEvent) {
   width: 100%;
   border: 0;
   background: transparent;
-  color: #cccccc;
+  color: var(--oc-text-primary);
   padding: 6px 8px;
   font-size: 12px;
   text-align: left;
 }
 
 .suggestion-item.selected {
-  background: #094771;
+  background: var(--oc-bg-active);
 }
 
 .suggestion-main {
@@ -373,8 +366,8 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .suggestion-detail {
-  color: #8c8c8c;
-  font-size: 11px;
+  color: var(--oc-text-secondary);
+  font-size: var(--oc-label-size);
   white-space: nowrap;
 }
 </style>

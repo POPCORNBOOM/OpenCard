@@ -1,6 +1,6 @@
 <template>
-  <div class="property-editor">
-    <div v-if="sources.length === 0" class="empty-hint">选择一个对象查看属性</div>
+  <div class="property-editor oc-panel-scroll-body oc-scroll-y">
+    <div v-if="sources.length === 0" class="empty-hint oc-empty-hint">选择一个对象查看属性</div>
     <template v-else>
       <section v-for="source in displaySources" :key="source.title" class="source-section">
         <div class="source-title">{{ source.title }}</div>
@@ -9,10 +9,10 @@
             <div class="category-title">{{ category.title }}</div>
             <div v-if="category.addableFields.length > 0" class="add-field-menu">
               <span class="add-field-count">{{ category.addableFields.length }}</span>
-              <button class="add-field-button" type="button" title="添加字段"
+              <OcButton class="add-field-button" icon-only variant="secondary" title="添加字段"
                 @click="openAddFieldMenu($event, category)">
                 <span class="codicon codicon-add" />
-              </button>
+              </OcButton>
             </div>
           </div>
           <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`"
@@ -51,6 +51,7 @@ import NumberPropertyField from './property-fields/NumberPropertyField.vue'
 import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
+import OcButton from '../base/OcButton.vue'
 
 const emit = defineEmits<{
   (e: 'update-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
@@ -338,15 +339,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 <style scoped>
 .property-editor {
   flex: 1;
-  overflow-y: auto;
   padding: 8px;
-}
-
-.empty-hint {
-  color: #666;
-  font-size: 12px;
-  text-align: center;
-  padding: 20px;
 }
 
 .source-section+.source-section {
@@ -354,12 +347,12 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 }
 
 .source-title {
-  font-size: 11px;
+  font-size: var(--oc-label-size);
   text-transform: uppercase;
-  color: #d7ba7d;
+  color: var(--oc-text-label);
   padding-bottom: 6px;
   margin-bottom: 8px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--oc-border-muted);
 }
 
 .category {
@@ -378,13 +371,13 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--oc-border-muted);
 }
 
 .category-title {
-  font-size: 11px;
+  font-size: var(--oc-label-size);
   text-transform: uppercase;
-  color: #888;
+  color: var(--oc-text-muted);
 }
 
 .add-field-menu {
@@ -396,27 +389,9 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 
 .add-field-count {
   min-width: 10px;
-  font-size: 11px;
-  color: #888;
+  font-size: var(--oc-label-size);
+  color: var(--oc-text-muted);
   text-align: right;
-}
-
-.add-field-button {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #3f3f46;
-  background: #252526;
-  color: #c5c5c5;
-  cursor: pointer;
-  padding: 0;
-}
-
-.add-field-button:hover {
-  background: #2a2d2e;
-  border-color: #0e639c;
 }
 
 .prop-row {
@@ -427,8 +402,8 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 }
 
 .prop-label {
-  font-size: 11px;
-  color: #9cdcfe;
+  font-size: var(--oc-label-size);
+  color: var(--oc-text-info);
   min-width: 80px;
   flex-shrink: 0;
 }

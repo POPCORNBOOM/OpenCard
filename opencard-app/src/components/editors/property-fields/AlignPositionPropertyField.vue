@@ -1,11 +1,12 @@
 <template>
   <div class="option-grid" role="radiogroup" aria-label="Align position">
-    <button
+    <OcButton
       v-for="option in alignOptions"
       :key="option.value"
-      type="button"
       class="option-button"
+      variant="choice"
       :class="{ active: currentValue === option.value }"
+      :active="currentValue === option.value"
       :title="option.label"
       :aria-label="option.label"
       :aria-checked="currentValue === option.value"
@@ -14,12 +15,13 @@
       @click="emit('update:value', option.value)"
     >
       <span class="codicon" :class="option.icon" />
-    </button>
+    </OcButton>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcButton from '../../base/OcButton.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const alignOptions = [
@@ -54,31 +56,15 @@ const currentValue = computed(() => {
 }
 
 .option-button {
-  min-width: 0;
   min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #555;
-  background: #3c3c3c;
-  color: #ccc;
   padding: 0;
-  cursor: pointer;
-  transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
 .option-button:hover:not(:disabled) {
-  border-color: #0e639c;
-  background: #2a2d2e;
-}
-
-.option-button:disabled {
-  cursor: default;
-  opacity: 0.7;
+  border-color: var(--oc-bg-accent);
 }
 
 .option-button.active {
-  border-color: #0e639c;
-  background: #094771;
+  border-color: var(--oc-bg-accent);
 }
 </style>

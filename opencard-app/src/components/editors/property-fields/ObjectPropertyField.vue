@@ -23,7 +23,7 @@ const summary = computed(() => {
 
 <style scoped>
 .prop-unsupported {
-  color: #888;
-  font-size: 12px;
+  color: var(--oc-text-muted);
+  font-size: var(--oc-body-size);
 }
 </style>

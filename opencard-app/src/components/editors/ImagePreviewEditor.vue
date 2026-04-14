@@ -1,9 +1,9 @@
 <template>
-  <div class="image-preview-editor">
-    <div v-if="imageSrc" class="image-preview-stage">
+  <div class="image-preview-editor oc-panel-body">
+    <div v-if="imageSrc" class="image-preview-stage oc-stage-surface oc-checkerboard-stage">
       <img class="image-preview" :src="imageSrc" :alt="fileName" @load="handleLoad" @error="handleError" />
     </div>
-    <div v-if="loadError" class="image-preview-empty">
+    <div v-if="loadError" class="image-preview-empty oc-empty-state">
       <div class="empty-title">无法预览图片</div>
       <div class="empty-subtitle">{{ fileName }}</div>
     </div>
@@ -45,24 +45,12 @@ defineExpose({ save })
 
 <style scoped>
 .image-preview-editor {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  background: #1e1e1e;
+  background: var(--oc-bg-base);
 }
 
 .image-preview-stage {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 24px;
-  overflow: auto;
-  background-image:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
   background-size: 24px 24px;
   background-position: 0 0, 0 12px, 12px -12px, -12px 0;
 }
@@ -76,21 +64,17 @@ defineExpose({ save })
 
 .image-preview-empty {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
   color: #b3b3b3;
 }
 
 .empty-title {
   font-size: 14px;
-  color: #d4d4d4;
+  color: var(--oc-text-highlight);
 }
 
 .empty-subtitle {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--oc-text-secondary);
 }
 </style>

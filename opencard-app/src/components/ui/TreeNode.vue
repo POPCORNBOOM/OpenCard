@@ -175,12 +175,12 @@ function handleMouseDown(event: MouseEvent) {
 }
 
 .tree-node.drop-inside-target {
-  background: linear-gradient(180deg, rgba(14, 99, 156, 0.16), rgba(14, 99, 156, 0.08));
+  background: linear-gradient(180deg, var(--oc-bg-accent-tint-strong), var(--oc-bg-accent-tint-soft));
   border-radius: 4px;
 }
 
 .tree-node.drop-inside-invalid {
-  background: linear-gradient(180deg, rgba(241, 76, 76, 0.12), rgba(241, 76, 76, 0.06));
+  background: linear-gradient(180deg, var(--oc-bg-danger-tint-strong), var(--oc-bg-danger-tint-soft));
   border-radius: 4px;
 }
 
@@ -194,7 +194,7 @@ function handleMouseDown(event: MouseEvent) {
 }
 
 .node-content:hover {
-  background: #2a2d2e;
+  background: var(--oc-bg-hover);
 }
 
 .node-name {
@@ -205,7 +205,7 @@ function handleMouseDown(event: MouseEvent) {
 }
 
 .node-content.selected {
-  background: #04395e;
+  background: var(--oc-bg-selected);
 }
 
 .node-content.dragging {
@@ -213,33 +213,33 @@ function handleMouseDown(event: MouseEvent) {
 }
 
 .node-content.drop-before {
-  box-shadow: inset 0 2px 0 #0e639c;
+  box-shadow: inset 0 2px 0 var(--oc-bg-accent);
 }
 
 .node-content.drop-inside {
-  background: #0e639c33;
+  background: var(--oc-bg-accent-soft);
 }
 
 .node-content.drop-after {
-  box-shadow: inset 0 -2px 0 #0e639c;
+  box-shadow: inset 0 -2px 0 var(--oc-bg-accent);
 }
 
 .node-content.drop-invalid {
-  box-shadow: inset 0 0 0 1px #f14c4c;
+  box-shadow: inset 0 0 0 1px var(--oc-danger);
 }
 
 .node-children.drop-inside-children {
   box-shadow: inset 1px 0 0 rgba(14, 99, 156, 0.75);
-  background: rgba(14, 99, 156, 0.05);
+  background: var(--oc-bg-accent-tint-subtle);
 }
 
 .node-children.drop-inside-children-invalid {
   box-shadow: inset 1px 0 0 rgba(241, 76, 76, 0.8);
-  background: rgba(241, 76, 76, 0.04);
+  background: var(--oc-bg-danger-tint-subtle);
 }
 
 .node-content.focused {
-  background: #094771;
+  background: var(--oc-bg-active);
 }
 
 .codicon {

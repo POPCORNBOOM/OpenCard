@@ -571,8 +571,8 @@ watch(
   flex: 1;
   position: relative;
   overflow: hidden;
-  background-color: #2d2d2d;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-color: var(--oc-bg-elevated);
+  background-image: radial-gradient(circle, var(--oc-bg-grid-dot) 1px, transparent 1px);
   background-size: 18px 18px;
   background-position: 9px 9px;
   cursor: default;
@@ -601,17 +601,17 @@ watch(
   left: 12px;
   z-index: 6;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--oc-border-overlay);
   border-radius: 10px;
-  background: rgba(20, 20, 20, 0.88);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  background: var(--oc-bg-overlay-strong);
+  box-shadow: var(--oc-shadow-overlay);
   pointer-events: none;
 }
 
 .transform-preview-title {
   margin-bottom: 8px;
-  color: #9fd4ff;
-  font-size: 11px;
+  color: var(--oc-accent-preview-text);
+  font-size: var(--oc-label-size);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -621,11 +621,11 @@ watch(
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%),
-    linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.05) 75%);
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%);
   background-position: 0 0, 6px 6px;
   background-size: 12px 12px;
-  outline: 1px solid rgba(255, 255, 255, 0.08);
+  outline: 1px solid var(--oc-border-overlay-faint);
 }
 
 .transform-preview-stage-shell {
@@ -641,9 +641,9 @@ watch(
 
 .selection-frame {
   position: absolute;
-  border: 2px solid #4da3ff;
+  border: 2px solid var(--oc-accent-bright);
   border-radius: 4px;
-  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.25);
+  box-shadow: 0 0 0 1px var(--oc-accent-glow);
   pointer-events: none;
 }
 
@@ -656,10 +656,10 @@ watch(
   position: absolute;
   width: 10px;
   height: 10px;
-  border: 1px solid #d9ecff;
+  border: 1px solid var(--oc-accent-contrast);
   border-radius: 2px;
-  background: #4da3ff;
-  box-shadow: 0 0 0 1px rgba(16, 23, 31, 0.45);
+  background: var(--oc-accent-bright);
+  box-shadow: 0 0 0 1px var(--oc-handle-shadow);
   pointer-events: auto;
   padding: 0;
 }
@@ -705,11 +705,11 @@ watch(
   left: 12px;
   bottom: 12px;
   padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--oc-border-overlay-soft);
   border-radius: 6px;
-  background: rgba(24, 24, 24, 0.82);
-  color: #c8c8c8;
-  font-size: 11px;
+  background: var(--oc-bg-overlay-soft);
+  color: var(--oc-text-overlay);
+  font-size: var(--oc-label-size);
   line-height: 1.4;
   pointer-events: none;
 }

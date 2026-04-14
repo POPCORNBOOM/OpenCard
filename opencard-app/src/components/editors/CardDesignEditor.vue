@@ -1,14 +1,14 @@
 <template>
   <div ref="editorRootRef" class="card-design-editor">
-    <div class="left-panel" :class="{ collapsed: !isInstancePanelExpanded }">
-      <div class="panel-header left-panel-header">
+    <div class="left-panel oc-panel-stack" :class="{ collapsed: !isInstancePanelExpanded }">
+      <div class="panel-header oc-panel-header left-panel-header">
         <span v-if="isInstancePanelExpanded">创建的卡牌</span>
-        <button class="panel-icon-button left-panel-toggle" type="button" @click="toggleInstancePanel"
+        <OcButton class="panel-icon-button left-panel-toggle" variant="icon" icon-only @click="toggleInstancePanel"
           :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'">
           <span class="codicon" :class="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'" />
-        </button>
+        </OcButton>
       </div>
-      <div v-if="isInstancePanelExpanded" class="left-panel-content">
+      <div v-if="isInstancePanelExpanded" class="left-panel-content oc-panel-scroll-body oc-scroll-y">
         <NodeTree title="创建的卡牌" :nodes="instanceTree" :selected="selectedCards" :actions="instanceTreeActions"
           :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
           :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
@@ -16,21 +16,21 @@
       </div>
     </div>
 
-    <div class="canvas-area">
+    <div class="canvas-area oc-editor-stage">
       <CardViewport v-if="resolvedCardDoc" :document="resolvedCardDoc" :selected-block-id="selectedBlock?.id ?? null"
         :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
         :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
         @move-selection="handleSelectionMove" />
-      <div v-else class="empty-hint">无法解析 .opencard 文件</div>
+      <div v-else class="empty-hint oc-empty-hint">无法解析 .opencard 文件</div>
     </div>
 
     <div class="panel-resizer panel-resizer--vertical" @mousedown.prevent="startRightPanelResize" />
 
-    <div ref="rightPanelRef" class="right-panel" :style="{ width: `${rightPanelWidth}px` }">
-      <div class="block-list-panel" :style="{ height: `${treePanelHeight}px` }">
-        <div class="panel-header">信息树</div>
-        <div class="block-list">
+    <div ref="rightPanelRef" class="right-panel oc-panel-stack" :style="{ width: `${rightPanelWidth}px` }">
+      <div class="block-list-panel oc-panel-stack" :style="{ height: `${treePanelHeight}px` }">
+        <div class="panel-header oc-panel-header">信息树</div>
+        <div class="block-list oc-panel-scroll-body oc-scroll-y">
           <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
             :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
             @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
@@ -38,17 +38,19 @@
       </div>
       <div class="panel-resizer panel-resizer--horizontal" @mousedown.prevent="startTreePanelResize" />
 
-      <div class="property-panel">
-        <div class="panel-header">属性</div>
+      <div class="property-panel oc-panel-stack">
+        <div class="panel-header oc-panel-header">属性</div>
         <div class="panel-header-actions">
-          <button class="panel-icon-button" :class="{ active: propertySortMode === 'category' }" type="button"
+          <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
+            :class="{ active: propertySortMode === 'category' }" :active="propertySortMode === 'category'"
             title="Category" @click="propertySortMode = 'category'">
             <span class="codicon codicon-list-tree" />
-          </button>
-          <button class="panel-icon-button" :class="{ active: propertySortMode === 'alphabetical' }" type="button"
+          </OcButton>
+          <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
+            :class="{ active: propertySortMode === 'alphabetical' }" :active="propertySortMode === 'alphabetical'"
             title="A-Z" @click="propertySortMode = 'alphabetical'">
             <span class="codicon codicon-symbol-string" />
-          </button>
+          </OcButton>
         </div>
         <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp"
           @add-property="addBlockProp" />
@@ -91,6 +93,7 @@ import NodeTree, {
 } from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
+import OcButton from '../base/OcButton.vue'
 
 type PropertySortMode = 'category' | 'alphabetical'
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -1055,15 +1058,13 @@ onUnmounted(() => {
 .card-design-editor {
   display: flex;
   height: 100%;
-  background: #1e1e1e;
-  color: #ccc;
+  background: var(--oc-bg-base);
+  color: var(--oc-text-primary);
 }
 
 .left-panel {
   width: 260px;
-  border-right: 1px solid #000;
-  display: flex;
-  flex-direction: column;
+  border-right: 1px solid var(--oc-border-strong);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -1081,52 +1082,29 @@ onUnmounted(() => {
 }
 
 .left-panel-content {
-  flex: 1;
-  overflow-y: auto;
   padding: 4px 0;
 }
 
 .canvas-area {
-  flex: 1;
-  display: flex;
-  position: relative;
-  background: #2d2d2d;
+  background: var(--oc-bg-elevated);
 }
 
 .right-panel {
-  border-left: 1px solid #000;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  border-left: 1px solid var(--oc-border-strong);
 }
 
 .block-list-panel {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--oc-border-strong);
   overflow: hidden;
 }
 
 .property-panel {
-  flex: 1;
   position: relative;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 
 .panel-header {
-  height: 30px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: bold;
-  background: #252526;
-  border-bottom: 1px solid #000;
+  position: relative;
 }
 
 .panel-header-actions {
@@ -1140,33 +1118,10 @@ onUnmounted(() => {
 }
 
 .panel-icon-button {
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #8f8f8f;
-  cursor: pointer;
-  padding: 0;
-}
-
-.panel-icon-button:hover {
-  color: #d4d4d4;
-  border-color: #3f3f46;
-  background: #2a2d2e;
-}
-
-.panel-icon-button.active {
-  color: #ffffff;
-  border-color: #0e639c;
-  background: #094771;
+  flex-shrink: 0;
 }
 
 .block-list {
-  flex: 1;
-  overflow-y: auto;
   padding: 4px 0;
 }
 
@@ -1194,13 +1149,6 @@ onUnmounted(() => {
   color: #888;
 }
 
-.empty-hint {
-  color: #666;
-  font-size: 12px;
-  text-align: center;
-  padding: 20px;
-}
-
 .panel-resizer {
   background: #2b2b2b;
   transition: background-color 120ms ease;
@@ -1218,8 +1166,8 @@ onUnmounted(() => {
 .panel-resizer--horizontal {
   height: 6px;
   cursor: row-resize;
-  border-top: 1px solid #000;
-  border-bottom: 1px solid #000;
+  border-top: 1px solid var(--oc-border-strong);
+  border-bottom: 1px solid var(--oc-border-strong);
 }
 
 :global(body.is-resizing-panels) {

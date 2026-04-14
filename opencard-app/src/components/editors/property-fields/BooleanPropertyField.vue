@@ -23,5 +23,6 @@ const emit = defineEmits<{
 <style scoped>
 .prop-checkbox {
   justify-self: flex-start;
+  accent-color: var(--oc-accent);
 }
 </style>

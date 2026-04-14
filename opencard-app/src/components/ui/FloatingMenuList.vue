@@ -17,7 +17,7 @@
         <i v-if="item.children?.length" class="codicon codicon-chevron-right floating-menu-chevron" />
       </button>
 
-      <div v-if="item.children?.length" class="floating-submenu">
+      <div v-if="item.children?.length" class="floating-submenu oc-floating-surface">
         <FloatingMenuList :items="item.children" @select="emit('select', $event)" />
       </div>
     </div>
@@ -67,7 +67,7 @@ function handleItemClick(item: FloatingMenuItem): void {
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #cccccc;
+  color: var(--oc-text-primary);
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -76,11 +76,11 @@ function handleItemClick(item: FloatingMenuItem): void {
 
 .floating-menu-button:hover,
 .floating-menu-item:hover > .floating-menu-button {
-  background: #094771;
+  background: var(--oc-bg-active);
 }
 
 .floating-menu-item.is-disabled > .floating-menu-button {
-  color: #6f6f6f;
+  color: var(--oc-text-disabled);
   cursor: default;
 }
 
@@ -113,12 +113,6 @@ function handleItemClick(item: FloatingMenuItem): void {
   top: -3px;
   left: calc(100% - 3px);
   display: none;
-  min-width: 148px;
-  padding: 3px;
-  border: 1px solid #3a3d41;
-  border-radius: 6px;
-  background: #252526;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
 }
 
 .floating-menu-item:hover > .floating-submenu {

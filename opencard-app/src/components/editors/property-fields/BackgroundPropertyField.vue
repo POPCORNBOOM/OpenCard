@@ -1,50 +1,51 @@
 <template>
   <div class="background-field">
     <div class="mode-tabs">
-      <button
+      <OcButton
         v-for="option in modeOptions"
         :key="option.value"
         class="mode-tab"
+        variant="choice"
         :class="{ active: mode === option.value }"
-        type="button"
+        :active="mode === option.value"
         @click="setMode(option.value)"
       >
         {{ option.label }}
-      </button>
+      </OcButton>
     </div>
 
     <div class="preview" :style="previewStyle" />
 
     <template v-if="mode === 'color'">
       <div class="row">
-        <input class="prop-input" type="text" :value="draftColor" @input="updateColor(($event.target as HTMLInputElement).value)" />
+        <input class="prop-input oc-input" type="text" :value="draftColor" @input="updateColor(($event.target as HTMLInputElement).value)" />
         <input class="color-picker" type="color" :value="pickerValue" @input="updateColor(($event.target as HTMLInputElement).value)" />
       </div>
     </template>
 
     <template v-else-if="mode === 'gradient'">
-      <textarea class="raw-input" :value="draftGradient" rows="3"
+      <textarea class="raw-input oc-input" :value="draftGradient" rows="3"
         @input="updateGradient(($event.target as HTMLTextAreaElement).value)" />
     </template>
 
     <template v-else-if="mode === 'image'">
       <div class="stack">
-        <input class="prop-input" type="text" :value="draftImage.image" placeholder="Image URL or path"
+        <input class="prop-input oc-input" type="text" :value="draftImage.image" placeholder="Image URL or path"
           @input="updateImageField('image', ($event.target as HTMLInputElement).value)" />
         <div class="row">
-          <input class="prop-input" type="text" :value="draftImage.position" placeholder="Position"
+          <input class="prop-input oc-input" type="text" :value="draftImage.position" placeholder="Position"
             @input="updateImageField('position', ($event.target as HTMLInputElement).value)" />
-          <input class="prop-input" type="text" :value="draftImage.size" placeholder="Size"
+          <input class="prop-input oc-input" type="text" :value="draftImage.size" placeholder="Size"
             @input="updateImageField('size', ($event.target as HTMLInputElement).value)" />
         </div>
-        <select class="prop-input" :value="draftImage.repeat" @change="updateImageField('repeat', ($event.target as HTMLSelectElement).value)">
+        <select class="prop-input oc-input" :value="draftImage.repeat" @change="updateImageField('repeat', ($event.target as HTMLSelectElement).value)">
           <option v-for="option in repeatOptions" :key="option" :value="option">{{ option }}</option>
         </select>
       </div>
     </template>
 
     <template v-else>
-      <textarea class="raw-input" :value="stringValue" rows="3"
+      <textarea class="raw-input oc-input" :value="stringValue" rows="3"
         @input="emit('update:value', ($event.target as HTMLTextAreaElement).value)" />
     </template>
   </div>
@@ -52,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import OcButton from '../../base/OcButton.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 type BackgroundMode = 'color' | 'gradient' | 'image' | 'raw'
@@ -238,22 +240,18 @@ function wrapUrl(value: string): string {
 }
 
 .mode-tab {
-  background: #2a2d2e;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 11px;
-  cursor: pointer;
+  font-size: var(--oc-label-size);
 }
 
 .mode-tab.active {
-  border-color: #007acc;
-  background: #094771;
+  border-color: var(--oc-accent);
+  background: var(--oc-bg-active);
 }
 
 .preview {
   height: 28px;
-  border: 1px solid #555;
+  border: 1px solid var(--oc-border-input);
   background-image:
     linear-gradient(45deg, #666 25%, transparent 25%),
     linear-gradient(-45deg, #666 25%, transparent 25%),
@@ -276,19 +274,12 @@ function wrapUrl(value: string): string {
 
 .prop-input,
 .raw-input {
-  flex: 1;
-  min-width: 0;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 12px;
 }
 
 .prop-input:focus,
 .raw-input:focus {
-  border-color: #007acc;
-  outline: none;
+  border-color: var(--oc-accent);
 }
 
 .raw-input {

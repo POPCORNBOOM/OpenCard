@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="state.isOpen && state.anchorRect" class="floating-menu-layer">
-      <div ref="panelRef" class="floating-menu-panel" :style="panelStyle" role="menu">
+      <div ref="panelRef" class="floating-menu-panel oc-floating-surface" :style="panelStyle" role="menu">
         <FloatingMenuList :items="state.items" @select="handleSelect" />
       </div>
     </div>
@@ -125,12 +125,6 @@ watch(
 
 .floating-menu-panel {
   position: fixed;
-  min-width: 148px;
-  padding: 3px;
-  border: 1px solid #3a3d41;
-  border-radius: 6px;
-  background: #252526;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
 }
 </style>

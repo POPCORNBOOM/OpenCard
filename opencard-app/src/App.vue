@@ -1,10 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import MainIDE from "./views/MainIDE.vue";
+import ButtonShowcase from "./views/ButtonShowcase.vue";
 import '@vscode/codicons/dist/codicon.css'
+
+const currentView = new URLSearchParams(window.location.search).get("view");
+const isButtonsView = computed(() => currentView === "buttons");
 </script>
 
 <template>
-  <MainIDE />
+  <div class="app-shell" :class="{ 'app-shell-scrollable': isButtonsView }">
+    <ButtonShowcase v-if="isButtonsView" />
+    <MainIDE v-else />
+  </div>
 </template>
 
 <style>
@@ -17,11 +25,21 @@ import '@vscode/codicons/dist/codicon.css'
 body, html {
   width: 100%;
   height: 100%;
-  overflow: hidden;
 }
 
 #app {
   width: 100%;
   height: 100%;
+}
+
+.app-shell {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-shell-scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 </style>

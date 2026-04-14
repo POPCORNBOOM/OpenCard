@@ -3,14 +3,14 @@
     <span class="color-preview" :style="previewStyle" />
     <input
       v-if="definition.enableCss !== false"
-      class="prop-input"
+      class="prop-input oc-input"
       type="text"
       :value="stringValue"
       @input="emit('update:value', ($event.target as HTMLInputElement).value)"
     />
     <input
       v-else
-      class="prop-input"
+      class="prop-input oc-input"
       type="text"
       :value="stringValue"
       readonly
@@ -82,7 +82,7 @@ function toHexColor(value: string): string | null {
 .color-preview {
   width: 16px;
   height: 16px;
-  border: 1px solid #555;
+  border: 1px solid var(--oc-border-input);
   background-image:
     linear-gradient(45deg, #666 25%, transparent 25%),
     linear-gradient(-45deg, #666 25%, transparent 25%),
@@ -94,18 +94,11 @@ function toHexColor(value: string): string | null {
 }
 
 .prop-input {
-  flex: 1;
-  background: #3c3c3c;
-  border: 1px solid #555;
-  color: #ccc;
   padding: 2px 6px;
-  font-size: 12px;
-  min-width: 0;
 }
 
 .prop-input:focus {
-  border-color: #007acc;
-  outline: none;
+  border-color: var(--oc-accent);
 }
 
 .color-picker {
