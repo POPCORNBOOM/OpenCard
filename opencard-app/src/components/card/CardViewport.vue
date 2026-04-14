@@ -1,21 +1,10 @@
 <template>
-  <div
-    ref="viewportRef"
-    class="card-viewport"
-    :class="{ 'card-viewport-panning': isPanning }"
-    @click="handleViewportClick"
-    @mousedown="handleMouseDown"
-    @mousemove="handleMouseMove"
-    @mouseup="handleMouseUp"
-    @mouseleave="handleMouseUp"
-    @wheel.prevent="handleWheel"
-  >
+  <div ref="viewportRef" class="card-viewport" :class="{ 'card-viewport-panning': isPanning }"
+    @click="handleViewportClick" @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
+    @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
-      <CardRenderer
-        :document="document"
-        :transform-disabled-block-ids="transformDisabledBlockIds"
-        @block-click="handleBlockClick"
-      />
+      <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
+        @block-click="handleBlockClick" />
     </div>
     <div v-if="showTransformPreview" class="transform-preview-window" aria-hidden="true">
       <div class="transform-preview-title">Transform Preview</div>
@@ -28,22 +17,11 @@
       </div>
     </div>
     <div class="card-selection-layer">
-      <div
-        v-if="selectionFrame"
-        class="selection-frame"
-        :class="{ 'selection-frame-movable': showMoveHandle }"
-        :style="selectionFrameStyle"
-        @pointerdown="handleSelectionFramePointerDown"
-      >
-        <button
-          v-for="handle in activeHandles"
-          :key="handle"
-          type="button"
-          class="selection-handle"
-          :class="`selection-handle-${handle}`"
-          :title="`Resize ${handle}`"
-          @pointerdown.stop.prevent="startResize(handle)"
-        />
+      <div v-if="selectionFrame" class="selection-frame" :class="{ 'selection-frame-movable': showMoveHandle }"
+        :style="selectionFrameStyle" @pointerdown="handleSelectionFramePointerDown">
+        <button v-for="handle in activeHandles" :key="handle" type="button" class="selection-handle"
+          :class="`selection-handle-${handle}`" :title="`Resize ${handle}`"
+          @pointerdown.stop.prevent="startResize(handle)" />
       </div>
     </div>
     <div class="card-viewport-debug">
@@ -513,6 +491,7 @@ function stopTransform() {
       const payload = resizeMode.value === 'flow'
         ? { width: preview.width, height: preview.height }
         : buildAbsoluteResizePayload(preview, measurement)
+      //console.log(payload)
       emit('resize-selection', payload)
     } else if (isMovingSelection.value && hasMeaningfulMoveChange(preview, measurement)) {
       emit('move-selection', buildMovePayload(preview, measurement))

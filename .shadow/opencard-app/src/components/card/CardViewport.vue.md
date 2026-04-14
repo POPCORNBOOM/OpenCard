@@ -6,3 +6,7 @@
 这意味着 selection frame 不能在模板层无条件使用 `@pointerdown.stop.prevent`；否则中键虽然在处理函数里被忽略，事件仍然已经被 Vue 修饰符截断。正确做法是放开模板修饰符，只在左键 move 分支里手动 `stopPropagation()` / `preventDefault()`。
 
 当前项目里 viewport 反推简单容器 `location.x/y` 会带一个稳定的常量偏移，现阶段采用的是编辑器层的固定补偿而不是更复杂的 DOM 坐标系重建：`handleSelectionResize` 和 `handleSelectionMove` 在写回简单容器的 `location.x/y` 时统一减去 `2px`。这条约束是为了消除实测稳定出现的 `+2px/+2px` 漂移；后续如果重做 viewport 测量，再重新验证这条补偿是否还能保留。
+
+Root child 的测量和普通简单容器 child 应尽量走同一条 parent 查找链。更稳的办法是在 `CardRenderer.vue` 渲染层临时构造一个根 simple container，并让 `selectedParentBlockId` 对 document 根子块返回 `document.id`；这样 viewport 查 parent 时总能命中一个真实的容器 DOM，而不是把 root 场景退化成 `.card-canvas` 特判。
+
+选中预览阶段的“禁用 transform”不能只停留在结构化字段（`translateX/Y`、`scaleX/Y`、`rotation`、`transformAnchor`）。`customCss` 也可能携带 `transform`、`transform-origin` 或其它会影响盒模型/测量的样式，因此在 `disableTransform` 模式下应一并跳过 `customCss` 拼接。

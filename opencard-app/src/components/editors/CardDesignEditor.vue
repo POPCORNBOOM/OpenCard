@@ -35,8 +35,8 @@
             <span class="codicon codicon-symbol-string" />
           </button>
         </div>
-        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode"
-          @update-property="updateBlockProp" @add-property="addBlockProp" />
+        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp"
+          @add-property="addBlockProp" />
       </div>
     </div>
   </div>
@@ -163,7 +163,7 @@ const selectedParentBlockId = computed(() => {
   }
 
   const parent = parentLookup.value.get(block.id)
-  return parent && parent.type !== 'card-document' ? parent.id : null
+  return parent?.id ?? null
 })
 const transformDisabledBlockIds = computed(() => {
   const block = selectedBlock.value
@@ -334,7 +334,7 @@ function updateBlockProp({
     return
   }
 
-  ;(block as Record<string, unknown>)[key] = value
+  ; (block as Record<string, unknown>)[key] = value
   if (block.type === 'image-block' && key === 'image') {
     delete (block as Record<string, unknown>).assetId
     delete (block as Record<string, unknown>).imagePath
@@ -376,7 +376,7 @@ function addBlockProp({
     return
   }
 
-  ;(block as Record<string, unknown>)[key] = value
+  ; (block as Record<string, unknown>)[key] = value
   markDocumentChanged()
 }
 
@@ -575,11 +575,10 @@ function formatViewportCssValue(value: number): string {
   return `${safeValue}px`
 }
 
-function applyResizeLocationOffset(value: number | undefined): number {
-  return (value ?? 0) - 2
-}
+
 
 function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
+  //console.log('handleSelectionResize', payload)
   const block = selectedBlock.value
   if (!block) {
     return
@@ -590,8 +589,8 @@ function handleSelectionResize(payload: { width: number; height: number; x?: num
 
   const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
   if (metadata?.location?.type === 'simple-container-location') {
-    metadata.location.x = formatViewportCssValue(applyResizeLocationOffset(payload.x))
-    metadata.location.y = formatViewportCssValue(applyResizeLocationOffset(payload.y))
+    metadata.location.x = formatViewportCssValue(payload.x ?? 0)
+    metadata.location.y = formatViewportCssValue(payload.y ?? 0)
   }
 
   markDocumentChanged()
@@ -603,8 +602,8 @@ function handleSelectionMove(payload: { x: number; y: number }) {
     return
   }
 
-  metadata.location.x = formatViewportCssValue(applyResizeLocationOffset(payload.x))
-  metadata.location.y = formatViewportCssValue(applyResizeLocationOffset(payload.y))
+  metadata.location.x = formatViewportCssValue(payload.x)
+  metadata.location.y = formatViewportCssValue(payload.y)
   markDocumentChanged()
 }
 

@@ -10,9 +10,9 @@
         "id": "card-root",
         "name": "Card Root",
         "type": "simple-container-block",
-        "width": "433.47px",
-        "height": "652.76px",
-        "customCss": "background: linear-gradient(180deg, #1a1520 0%, #2d1f1a 14%, #d29a62 14.5%, #f5d0a2 100%); border-radius: 22px; border: 2px solid #5e2d17; overflow: hidden; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), inset 0 0 0 2px rgba(255, 233, 206, 0.18);",
+        "width": "200px",
+        "height": "200px",
+        "customCss": "background: linear-gradient(180deg, #1a1520 0%, #2d1f1a 14%, #d29a62 14.5%, #f5d0a2 100%); ",
         "children": [
           {
             "block": {
@@ -21,15 +21,15 @@
               "type": "text-block",
               "content": "",
               "mode": "plain",
-              "width": "338px",
-              "height": "404px",
+              "width": "335.46px",
+              "height": "401.64px",
               "customCss": "background: linear-gradient(180deg, rgba(13, 17, 43, 0.94) 0%, rgba(28, 39, 82, 0.84) 100%); border: 3px solid #713b22; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(240, 218, 188, 0.18);"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "42px",
-              "y": "36px"
+              "x": "-0.23px",
+              "y": "0.35px"
             }
           },
           {
@@ -47,8 +47,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "10px",
-              "y": "88px"
+              "x": "13px",
+              "y": "92.75px"
             }
           },
           {
@@ -77,15 +77,16 @@
               "type": "text-block",
               "content": "",
               "mode": "plain",
-              "width": "324px",
-              "height": "390px",
-              "customCss": "border-radius: 6px; background: linear-gradient(180deg, rgba(11, 11, 14, 0.00) 0%, rgba(11, 11, 14, 0.08) 52%, rgba(11, 11, 14, 0.34) 100%);"
+              "width": "403.3px",
+              "height": "469.3px",
+              "customCss": "border-radius: 6px; background: linear-gradient(180deg, rgba(11, 11, 14, 0.00) 0%, rgba(11, 11, 14, 0.08) 52%, rgba(11, 11, 14, 0.34) 100%);",
+              "rotation": 48
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "70.88px",
-              "y": "58.25px"
+              "x": "5.03px",
+              "y": "7.04px"
             }
           },
           {
@@ -102,13 +103,13 @@
               "color": "#f9f4ec",
               "textAlign": "center",
               "lineHeight": "46px",
-              "customCss": "background: radial-gradient(circle at 30% 30%, #8572ff 0%, #4e3ec7 45%, #25165a 100%); border: 2px solid rgba(255, 245, 232, 0.78); border-radius: 999px; box-shadow: 0 6px 18px rgba(34, 22, 93, 0.34);"
+              "customCss": ""
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "18px",
-              "y": "14px"
+              "x": "5.5px",
+              "y": "6.25px"
             }
           },
           {
@@ -149,8 +150,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "21px",
-              "y": "88px"
+              "x": "69.75px",
+              "y": "88.75px"
             }
           },
           {
@@ -372,9 +373,28 @@
       },
       "location": {
         "type": "simple-container-location",
+        "anchor": "lc",
+        "x": "0",
+        "y": "0"
+      }
+    },
+    {
+      "block": {
+        "id": "text-block-588ce18b-7131-435e-a6fe-ae4b336d717c",
+        "name": "Text Block",
+        "type": "text-block",
+        "content": "test",
+        "mode": "plain",
+        "color": "#ff0000",
+        "width": "420.74px",
+        "height": "29.22px",
+        "textAlign": "center"
+      },
+      "location": {
+        "type": "simple-container-location",
         "anchor": "lt",
-        "x": "88.86px",
-        "y": "101.49px"
+        "x": "-0.33px",
+        "y": "-0.33px"
       }
     }
   ],

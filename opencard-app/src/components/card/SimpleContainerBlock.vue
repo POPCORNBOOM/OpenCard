@@ -34,6 +34,8 @@ const blockStyle = computed(() => {
 
 function getChildStyle(child: SimpleContainerBlock['children'][number]) {
     const zIndex = child.block.zIndex !== undefined ? `; z-index: ${child.block.zIndex}` : ''
+    //const width = child.block.width ? `width: ${child.block.width};` : ''
+    //const height = child.block.height ? `height: ${child.block.height};` : ''
     return `position: absolute; ${getAbsolutePositionStyles(child.location)}${zIndex}`
 }
 

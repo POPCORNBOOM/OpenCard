@@ -26,8 +26,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "28px",
-              "y": "20px"
+              "x": "-0.25px",
+              "y": "0.5px"
             }
           },
           {
@@ -62,8 +62,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "28px",
-              "y": "110px"
+              "x": "21.02px",
+              "y": "72.11px"
             }
           },
           {
@@ -81,8 +81,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": 459.92,
-              "y": 110
+              "x": "379.88px",
+              "y": "71.55px"
             }
           },
           {
@@ -116,8 +116,8 @@
                   "block": {
                     "id": "text-block-85f27d95-636f-45ba-9c17-95b1b5935c00",
                     "name": "Text Block",
-                    "width": 492.8,
-                    "height": 287.65,
+                    "width": "716.92px",
+                    "height": "320.16px",
                     "type": "text-block",
                     "content": "suuuuuuuuuuuuuck ",
                     "mode": "plain"
@@ -131,8 +131,8 @@
                   "block": {
                     "id": "text-block-73a683dd-7899-4862-aa92-07b2daf2512e",
                     "name": "Text Block",
-                    "width": 513.85,
-                    "height": 111.11,
+                    "width": "603.7px",
+                    "height": "111.11px",
                     "type": "text-block",
                     "content": "asssssssssssssssssssssssssssssssssssssssssssssssss",
                     "mode": "plain"
@@ -147,8 +147,26 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": 0,
-              "y": -5
+              "x": "0",
+              "y": "0"
+            }
+          },
+          {
+            "block": {
+              "id": "flow-container-block-ab50baad-b7ac-459c-8037-d0d1852b6c3d",
+              "name": "Flow Container",
+              "width": "373.88px",
+              "height": "362.41px",
+              "type": "flow-container-block",
+              "direction": "lr",
+              "gap": "10px",
+              "children": []
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "58.8px",
+              "y": "36.94px"
             }
           }
         ],
@@ -157,8 +175,8 @@
       "location": {
         "type": "simple-container-location",
         "anchor": "cc",
-        "x": 0,
-        "y": 0
+        "x": "0",
+        "y": "0"
       }
     }
   ],
@@ -167,14 +185,18 @@
       "id": "instance-1",
       "name": "Instance 1",
       "data": {
-        "hint": {"content": "This text is set via instance data."}
+        "hint": {
+          "content": "This text is set via instance data."
+        }
       }
     },
     {
       "id": "instance-27ff9251-2282-4a45-a319-a6cd9eb2d5e8",
       "name": "Instance 1 副本",
       "data": {
-        "hint": {"content": "This text is set via instance data."}
+        "hint": {
+          "content": "This text is set via instance data."
+        }
       }
     }
   ]

@@ -96,7 +96,7 @@ export function getBlockBoxStyles(comp: BaseBlock, options: BlockStyleOptions = 
         styles.push(`transform: ${transforms.join(' ')}`)
     }
 
-    return styles.join('; ') + (comp.customCss ? '; ' + comp.customCss : '')
+    return styles.join('; ') + (!options.disableTransform && comp.customCss ? '; ' + comp.customCss : '')
 }
 
 export function getPositionStyles(comp: BaseBlock, options: BlockStyleOptions = {}): string {
