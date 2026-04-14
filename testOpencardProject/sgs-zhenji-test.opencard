@@ -10,8 +10,8 @@
         "id": "card-root",
         "name": "Card Root",
         "type": "simple-container-block",
-        "width": "400px",
-        "height": "620px",
+        "width": "433.47px",
+        "height": "652.76px",
         "customCss": "background: linear-gradient(180deg, #1a1520 0%, #2d1f1a 14%, #d29a62 14.5%, #f5d0a2 100%); border-radius: 22px; border: 2px solid #5e2d17; overflow: hidden; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42), inset 0 0 0 2px rgba(255, 233, 206, 0.18);",
         "children": [
           {
@@ -34,6 +34,25 @@
           },
           {
             "block": {
+              "id": "text-block-a5672e21-8f50-4a28-8320-4a18908a4073",
+              "name": "Title Strip",
+              "width": "246px",
+              "height": "334px",
+              "type": "text-block",
+              "content": "落水之华",
+              "mode": "plain",
+              "backgroundColor": "",
+              "customCss": "background: linear-gradient(180deg, #3f2314 0%, #71452b 36%, #f2d7bd 100%); border: 2px solid #4d2411; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(255, 247, 236, 0.16);"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "10px",
+              "y": "88px"
+            }
+          },
+          {
+            "block": {
               "id": "portrait-image",
               "name": "Portrait Image",
               "type": "image-block",
@@ -47,8 +66,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "49px",
-              "y": "43px"
+              "x": "53.5px",
+              "y": "47.25px"
             }
           },
           {
@@ -65,8 +84,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "49px",
-              "y": "43px"
+              "x": "70.88px",
+              "y": "58.25px"
             }
           },
           {
@@ -115,30 +134,12 @@
           },
           {
             "block": {
-              "id": "title-strip",
-              "name": "Title Strip",
-              "type": "text-block",
-              "content": "",
-              "mode": "plain",
-              "width": "44px",
-              "height": "322px",
-              "customCss": "background: linear-gradient(180deg, #3f2314 0%, #71452b 36%, #f2d7bd 100%); border: 2px solid #4d2411; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(255, 247, 236, 0.16);"
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "10px",
-              "y": "72px"
-            }
-          },
-          {
-            "block": {
               "id": "title-subname",
               "name": "Sub Name",
               "type": "text-block",
               "content": "洛水之华",
               "mode": "plain",
-              "width": "18px",
+              "width": "39px",
               "height": "160px",
               "fontSize": "15px",
               "fontWeight": 700,
@@ -371,9 +372,9 @@
       },
       "location": {
         "type": "simple-container-location",
-        "anchor": "cc",
-        "x": 0,
-        "y": 0
+        "anchor": "lt",
+        "x": "88.86px",
+        "y": "101.49px"
       }
     }
   ],
@@ -400,6 +401,10 @@
         },
         "title-name": {
           "zIndex": 30
+        },
+        "text-block-a5672e21-8f50-4a28-8320-4a18908a4073": {
+          "name": "Title Strip",
+          "customCss": "background: linear-gradient(180deg, #3f2314 0%, #71452b 36%, #f2d7bd 100%); border: 2px solid #4d2411; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(255, 247, 236, 0.16);"
         }
       }
     }

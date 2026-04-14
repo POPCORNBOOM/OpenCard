@@ -38,6 +38,7 @@ import {
   getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
   type PropertyDatatype,
+  type PropertyEditorSchemaOverride,
 } from '../../core/propertyEditorSchema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
@@ -118,7 +119,7 @@ function getEditorComponent(datatype: PropertyDatatype): Component {
 }
 
 function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[] {
-  const definitions = resolveDefinitions(source.target)
+  const definitions = resolveDefinitions(source.target, source.schemaOverride)
   const targetKeys = new Set(Object.keys(source.target))
   const visibleDefinitionEntries = Object.entries(definitions).filter(([, definition]) => !definition.isHidden)
 
@@ -224,9 +225,34 @@ function getCategoryTitle(sourceTitle: string, definition: EditorPropertyDefinit
   return definition.category ?? sourceTitle
 }
 
-function resolveDefinitions(target: PropertyEditorTarget): Record<string, EditorPropertyDefinition> {
+function resolveDefinitions(
+  target: PropertyEditorTarget,
+  schemaOverride?: PropertyEditorSchemaOverride,
+): Record<string, EditorPropertyDefinition> {
   const targetType = typeof target.type === 'string' ? target.type : undefined
-  return getTypePropertyEditorSchema(targetType)
+  const baseDefinitions = getTypePropertyEditorSchema(targetType)
+
+  if (!schemaOverride) {
+    return baseDefinitions
+  }
+
+  const mergedDefinitions: Record<string, EditorPropertyDefinition> = { ...baseDefinitions }
+  for (const [key, override] of Object.entries(schemaOverride)) {
+    const baseDefinition = mergedDefinitions[key]
+    if (baseDefinition) {
+      mergedDefinitions[key] = {
+        ...baseDefinition,
+        ...override,
+      } as EditorPropertyDefinition
+      continue
+    }
+
+    if (override.datatype) {
+      mergedDefinitions[key] = override as EditorPropertyDefinition
+    }
+  }
+
+  return mergedDefinitions
 }
 
 function sortEntriesByLabel(entries: PropertyEditorEntry[]): PropertyEditorEntry[] {

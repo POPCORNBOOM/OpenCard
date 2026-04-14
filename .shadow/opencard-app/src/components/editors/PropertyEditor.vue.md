@@ -7,3 +7,5 @@
 “添加字段”也应被视为一种编辑意图，而不是组件内部的直接对象突变。这里应该发出事件，把真正的写回交给 `CardDesignEditor.vue` 处理，由外层根据当前上下文决定加到蓝图、布局还是实例覆盖。
 
 当前一个关键约束是：这里回传的事件需要携带 source 语义，例如 `Block` / `Layout`。因为外层的写回策略已经不再只看 `target` 身份；在实例模式下，`Block.target` 可能只是合成后的临时视图对象。
+
+这里可以支持通用的运行时 schema 覆写能力，例如调用方传入某个字段的 `isReadonly` / `isHidden` / `label` 覆写。这个能力本身是通用 UI 能力，不带业务语义；`PropertyEditor.vue` 只负责把默认 schema 和传入的 `schemaOverride` 合并后渲染，不应知道为什么某个场景要把字段设为只读。

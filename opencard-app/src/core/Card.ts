@@ -1,4 +1,5 @@
 import { ITreeNode } from "../components/ui/TreeNode.vue"
+import type { PropertyEditorSchemaOverride } from './propertyEditorSchema'
 
 // Block and document data models.
 export type BaseBlock = {
@@ -112,6 +113,7 @@ export type PropertyEditorTarget = Record<string, unknown> & {
 export type PropertyEditorSource = {
     title: string
     target: PropertyEditorTarget
+    schemaOverride?: PropertyEditorSchemaOverride
 }
 
 // Extra data attached when a block is projected into the editor tree.
