@@ -1,5 +1,21 @@
 <template>
-  <div class="card-design-editor">
+  <div ref="editorRootRef" class="card-design-editor">
+    <div class="left-panel" :class="{ collapsed: !isInstancePanelExpanded }">
+      <div class="panel-header left-panel-header">
+        <span v-if="isInstancePanelExpanded">创建的卡牌</span>
+        <button class="panel-icon-button left-panel-toggle" type="button" @click="toggleInstancePanel"
+          :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'">
+          <span class="codicon" :class="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'" />
+        </button>
+      </div>
+      <div v-if="isInstancePanelExpanded" class="left-panel-content">
+        <NodeTree title="创建的卡牌" :nodes="instanceTree" :selected="selectedCards" :actions="instanceTreeActions"
+          :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
+          :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
+          @action-called="handleInstanceTreeAction" @node-drop="handleInstanceTreeDrop" />
+      </div>
+    </div>
+
     <div class="canvas-area">
       <CardViewport v-if="resolvedCardDoc" :document="resolvedCardDoc" :selected-block-id="selectedBlock?.id ?? null"
         :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
@@ -9,19 +25,18 @@
       <div v-else class="empty-hint">无法解析 .opencard 文件</div>
     </div>
 
-    <div class="right-panel">
-      <div class="block-list-panel">
+    <div class="panel-resizer panel-resizer--vertical" @mousedown.prevent="startRightPanelResize" />
+
+    <div ref="rightPanelRef" class="right-panel" :style="{ width: `${rightPanelWidth}px` }">
+      <div class="block-list-panel" :style="{ height: `${treePanelHeight}px` }">
         <div class="panel-header">信息树</div>
         <div class="block-list">
           <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
             :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
             @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
-          <NodeTree title="创建的卡牌" :nodes="instanceTree" :selected="selectedCards" :actions="instanceTreeActions"
-            :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-            :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
-            @action-called="handleInstanceTreeAction" @node-drop="handleInstanceTreeDrop" />
         </div>
       </div>
+      <div class="panel-resizer panel-resizer--horizontal" @mousedown.prevent="startTreePanelResize" />
 
       <div class="property-panel">
         <div class="panel-header">属性</div>
@@ -43,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
   addBlockToContainer,
@@ -89,6 +104,18 @@ const cardDoc = ref<CardDocument | null>(null)
 const parentLookup = ref<ParentLookup>(new Map())
 const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
+const isInstancePanelExpanded = ref(true)
+const editorRootRef = ref<HTMLElement | null>(null)
+const rightPanelRef = ref<HTMLElement | null>(null)
+const rightPanelWidth = ref(320)
+const treePanelHeight = ref(320)
+const MIN_RIGHT_PANEL_WIDTH = 220
+const MAX_RIGHT_PANEL_WIDTH = 640
+const MIN_CANVAS_WIDTH = 320
+const MIN_TREE_PANEL_HEIGHT = 140
+const MIN_PROPERTY_PANEL_HEIGHT = 180
+const HORIZONTAL_RESIZER_HEIGHT = 6
+const resizeState = ref<null | 'right-panel' | 'tree-panel'>(null)
 const treeActions = new Map<string, ActionDefinition>([
   ['add-root', {
     key: 'add-root',
@@ -280,6 +307,10 @@ const instanceTree = computed<ITreeNode[]>(() => {
     }),
   ]
 })
+
+function toggleInstancePanel() {
+  isInstancePanelExpanded.value = !isInstancePanelExpanded.value
+}
 
 function syncDocumentContent() {
   if (!cardDoc.value) {
@@ -573,6 +604,71 @@ function formatViewportCssValue(value: number): string {
   const normalized = Math.round(value * 100) / 100
   const safeValue = Object.is(normalized, -0) ? 0 : normalized
   return `${safeValue}px`
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+function getRightPanelMaxWidth(): number {
+  const editorWidth = editorRootRef.value?.clientWidth ?? 0
+  const viewportMax = editorWidth > 0 ? editorWidth - MIN_CANVAS_WIDTH : MAX_RIGHT_PANEL_WIDTH
+  return Math.max(MIN_RIGHT_PANEL_WIDTH, Math.min(MAX_RIGHT_PANEL_WIDTH, viewportMax))
+}
+
+function getTreePanelMaxHeight(): number {
+  const panelHeight = rightPanelRef.value?.clientHeight ?? 0
+  const maxHeight = panelHeight - MIN_PROPERTY_PANEL_HEIGHT - HORIZONTAL_RESIZER_HEIGHT
+  return Math.max(MIN_TREE_PANEL_HEIGHT, maxHeight)
+}
+
+function syncPanelBounds() {
+  rightPanelWidth.value = clamp(rightPanelWidth.value, MIN_RIGHT_PANEL_WIDTH, getRightPanelMaxWidth())
+  treePanelHeight.value = clamp(treePanelHeight.value, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
+}
+
+function startRightPanelResize() {
+  resizeState.value = 'right-panel'
+  document.body.classList.add('is-resizing-panels')
+  document.body.style.cursor = 'col-resize'
+}
+
+function startTreePanelResize() {
+  resizeState.value = 'tree-panel'
+  document.body.classList.add('is-resizing-panels')
+  document.body.style.cursor = 'row-resize'
+}
+
+function handleGlobalMouseMove(event: MouseEvent) {
+  if (!resizeState.value) {
+    return
+  }
+
+  if (resizeState.value === 'right-panel') {
+    const rootRect = editorRootRef.value?.getBoundingClientRect()
+    if (!rootRect) {
+      return
+    }
+    const nextWidth = rootRect.right - event.clientX
+    rightPanelWidth.value = clamp(nextWidth, MIN_RIGHT_PANEL_WIDTH, getRightPanelMaxWidth())
+    return
+  }
+
+  const panelRect = rightPanelRef.value?.getBoundingClientRect()
+  if (!panelRect) {
+    return
+  }
+  const nextTreeHeight = event.clientY - panelRect.top
+  treePanelHeight.value = clamp(nextTreeHeight, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
+}
+
+function stopPanelResize() {
+  if (!resizeState.value) {
+    return
+  }
+  resizeState.value = null
+  document.body.classList.remove('is-resizing-panels')
+  document.body.style.cursor = ''
 }
 
 
@@ -938,6 +1034,21 @@ watch(
 
 defineExpose({ save: saveFile })
 
+onMounted(() => {
+  syncPanelBounds()
+  window.addEventListener('mousemove', handleGlobalMouseMove)
+  window.addEventListener('mouseup', stopPanelResize)
+  window.addEventListener('resize', syncPanelBounds)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', handleGlobalMouseMove)
+  window.removeEventListener('mouseup', stopPanelResize)
+  window.removeEventListener('resize', syncPanelBounds)
+  document.body.classList.remove('is-resizing-panels')
+  document.body.style.cursor = ''
+})
+
 </script>
 
 <style scoped>
@@ -948,6 +1059,33 @@ defineExpose({ save: saveFile })
   color: #ccc;
 }
 
+.left-panel {
+  width: 260px;
+  border-right: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.left-panel.collapsed {
+  width: 36px;
+}
+
+.left-panel-header {
+  justify-content: space-between;
+}
+
+.left-panel-toggle {
+  margin-left: auto;
+}
+
+.left-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
 .canvas-area {
   flex: 1;
   display: flex;
@@ -956,14 +1094,13 @@ defineExpose({ save: saveFile })
 }
 
 .right-panel {
-  width: 280px;
   border-left: 1px solid #000;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .block-list-panel {
-  flex: 1;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid #000;
@@ -1062,5 +1199,30 @@ defineExpose({ save: saveFile })
   font-size: 12px;
   text-align: center;
   padding: 20px;
+}
+
+.panel-resizer {
+  background: #2b2b2b;
+  transition: background-color 120ms ease;
+}
+
+.panel-resizer:hover {
+  background: #3a3a3a;
+}
+
+.panel-resizer--vertical {
+  width: 6px;
+  cursor: col-resize;
+}
+
+.panel-resizer--horizontal {
+  height: 6px;
+  cursor: row-resize;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
+:global(body.is-resizing-panels) {
+  user-select: none;
 }
 </style>

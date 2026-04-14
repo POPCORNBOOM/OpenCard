@@ -7,6 +7,8 @@ export type BaseBlock = {
     name?: string
     width?: CSSValue
     height?: CSSValue
+    outline?: string
+    borderRadius?: CSSValue
     background?: string
     translateX?: CSSValue
     translateY?: CSSValue

@@ -9,3 +9,5 @@
 当前一个关键约束是：这里回传的事件需要携带 source 语义，例如 `Block` / `Layout`。因为外层的写回策略已经不再只看 `target` 身份；在实例模式下，`Block.target` 可能只是合成后的临时视图对象。
 
 这里可以支持通用的运行时 schema 覆写能力，例如调用方传入某个字段的 `isReadonly` / `isHidden` / `label` 覆写。这个能力本身是通用 UI 能力，不带业务语义；`PropertyEditor.vue` 只负责把默认 schema 和传入的 `schemaOverride` 合并后渲染，不应知道为什么某个场景要把字段设为只读。
+
+像 `background` 这样的复杂 CSS 简写字段，应通过独立 datatype 对应到专门 field 组件，而不是继续塞进普通字符串输入框。`PropertyEditor.vue` 这里的职责仍然只是根据 datatype 选择编辑器组件，不参与具体的 CSS 解释逻辑。

@@ -21,15 +21,16 @@
               "type": "text-block",
               "content": "",
               "mode": "plain",
-              "width": "335.46px",
-              "height": "401.64px",
-              "customCss": "background: linear-gradient(180deg, rgba(13, 17, 43, 0.94) 0%, rgba(28, 39, 82, 0.84) 100%); border: 3px solid #713b22; border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(240, 218, 188, 0.18);"
+              "width": "420.91px",
+              "height": "640.72px",
+              "customCss": "border-radius: 10px; box-shadow: inset 0 0 0 2px rgba(240, 218, 188, 0.18);",
+              "background": "linear-gradient(180deg, rgba(13, 17, 43, 0.94) 0%, rgba(28, 39, 82, 0.84) 100%); border: 3px solid #713b22; "
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "-0.23px",
-              "y": "0.35px"
+              "x": "-0.22px",
+              "y": "0.34px"
             }
           },
           {
@@ -68,25 +69,6 @@
               "anchor": "lt",
               "x": "53.5px",
               "y": "47.25px"
-            }
-          },
-          {
-            "block": {
-              "id": "portrait-shade",
-              "name": "Portrait Shade",
-              "type": "text-block",
-              "content": "",
-              "mode": "plain",
-              "width": "403.3px",
-              "height": "469.3px",
-              "customCss": "border-radius: 6px; background: linear-gradient(180deg, rgba(11, 11, 14, 0.00) 0%, rgba(11, 11, 14, 0.08) 52%, rgba(11, 11, 14, 0.34) 100%);",
-              "rotation": 48
-            },
-            "location": {
-              "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "5.03px",
-              "y": "7.04px"
             }
           },
           {
@@ -376,25 +358,6 @@
         "anchor": "lt",
         "x": "0px",
         "y": "0px"
-      }
-    },
-    {
-      "block": {
-        "id": "text-block-588ce18b-7131-435e-a6fe-ae4b336d717c",
-        "name": "Text Block",
-        "type": "text-block",
-        "content": "test",
-        "mode": "plain",
-        "color": "#ff0000",
-        "width": "420.74px",
-        "height": "29.22px",
-        "textAlign": "center"
-      },
-      "location": {
-        "type": "simple-container-location",
-        "anchor": "lt",
-        "x": "-0.33px",
-        "y": "-0.33px"
       }
     }
   ],

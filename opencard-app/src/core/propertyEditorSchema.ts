@@ -20,6 +20,7 @@ export type PropertyConstraintMap = {
         maxLength?: number
         extensionsFilter?: readonly string[]
     }
+    background: {}
     anchorPosition: {}
     alignPosition: {}
     flowDirection: {}
@@ -78,7 +79,9 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
-        background: { datatype: 'string', label: 'Background', category: 'Appearance' },
+        outline: { datatype: 'string', label: 'Outline', category: 'Appearance' },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Border Radius', category: 'Appearance' },
+        background: { datatype: 'background', label: 'Background', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
         content: { datatype: 'string', label: 'Content', category: 'Content' },
@@ -104,7 +107,9 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
-        background: { datatype: 'string', label: 'Background', category: 'Appearance' },
+        outline: { datatype: 'string', label: 'Outline', category: 'Appearance' },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Border Radius', category: 'Appearance' },
+        background: { datatype: 'background', label: 'Background', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
         image: {
@@ -130,7 +135,9 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
-        background: { datatype: 'string', label: 'Background', category: 'Appearance' },
+        outline: { datatype: 'string', label: 'Outline', category: 'Appearance' },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Border Radius', category: 'Appearance' },
+        background: { datatype: 'background', label: 'Background', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
         children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, label: 'Children', category: 'Data' },
@@ -149,7 +156,9 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         zIndex: { datatype: 'number', label: 'Z-Index', category: 'Layout' },
         rotation: { datatype: 'number', label: 'Rotation', category: 'Transform' },
         opacity: { datatype: 'number', min: 0, max: 1, label: 'Opacity', category: 'Appearance' },
-        background: { datatype: 'string', label: 'Background', category: 'Appearance' },
+        outline: { datatype: 'string', label: 'Outline', category: 'Appearance' },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Border Radius', category: 'Appearance' },
+        background: { datatype: 'background', label: 'Background', category: 'Appearance' },
         customCss: { datatype: 'string', label: 'Custom CSS', category: 'Appearance' },
         metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, label: 'Metadata', category: 'Data' },
         direction: { datatype: 'flowDirection', label: 'Direction', category: 'Layout' },

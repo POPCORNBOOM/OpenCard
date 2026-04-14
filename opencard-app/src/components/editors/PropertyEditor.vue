@@ -41,6 +41,7 @@ import {
   type PropertyEditorSchemaOverride,
 } from '../../core/propertyEditorSchema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
+import BackgroundPropertyField from './property-fields/BackgroundPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
 import AnchorPositionPropertyField from './property-fields/AnchorPositionPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
@@ -58,6 +59,7 @@ const emit = defineEmits<{
 
 const datatypeEditorMap: Record<PropertyDatatype, Component> = {
   string: StringPropertyField,
+  background: BackgroundPropertyField,
   anchorPosition: AnchorPositionPropertyField,
   alignPosition: AlignPositionPropertyField,
   flowDirection: FlowDirectionPropertyField,
@@ -313,6 +315,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   switch (definition.datatype) {
     case 'string':
       return definition.options?.[0] ?? ''
+    case 'background':
     case 'filePath':
     case 'color':
       return ''
