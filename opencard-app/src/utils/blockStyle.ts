@@ -68,6 +68,7 @@ export function getBlockBoxStyles(comp: BaseBlock, options: BlockStyleOptions = 
 
     if (comp.width) styles.push(`width: ${toCSSValue(comp.width)}`)
     if (comp.height) styles.push(`height: ${toCSSValue(comp.height)}`)
+    if (comp.background) styles.push(`background: ${comp.background}`)
     if (comp.opacity !== undefined) styles.push(`opacity: ${comp.opacity}`)
     if (comp.zIndex !== undefined) styles.push(`z-index: ${comp.zIndex}`)
 

@@ -7,6 +7,7 @@ export type BaseBlock = {
     name?: string
     width?: CSSValue
     height?: CSSValue
+    background?: string
     translateX?: CSSValue
     translateY?: CSSValue
     scaleX?: number
@@ -35,7 +36,6 @@ export type TextBlock = BaseBlock & {
     fontFamily?: string
     fontWeight?: 'normal' | 'bold' | number
     color?: string
-    backgroundColor?: string
     textAlign?: AlignmentPosition
     lineHeight?: CSSValue
 }
@@ -140,6 +140,7 @@ function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
         name: init.name,
         width: init.width,
         height: init.height,
+        background: init.background,
         zIndex: init.zIndex,
         rotation: init.rotation,
         opacity: init.opacity,

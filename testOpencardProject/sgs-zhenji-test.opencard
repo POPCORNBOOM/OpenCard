@@ -10,8 +10,8 @@
         "id": "card-root",
         "name": "Card Root",
         "type": "simple-container-block",
-        "width": "200px",
-        "height": "200px",
+        "width": "419.67px",
+        "height": "640.5px",
         "customCss": "background: linear-gradient(180deg, #1a1520 0%, #2d1f1a 14%, #d29a62 14.5%, #f5d0a2 100%); ",
         "children": [
           {
@@ -373,9 +373,9 @@
       },
       "location": {
         "type": "simple-container-location",
-        "anchor": "lc",
-        "x": "0",
-        "y": "0"
+        "anchor": "lt",
+        "x": "0px",
+        "y": "0px"
       }
     },
     {

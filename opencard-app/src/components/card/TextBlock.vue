@@ -30,7 +30,6 @@ const blockStyle = computed(() => {
     if (props.block.fontFamily) style += `; font-family: ${props.block.fontFamily}`
     if (props.block.fontWeight !== undefined) style += `; font-weight: ${props.block.fontWeight}`
     if (props.block.color) style += `; color: ${props.block.color}`
-    if (props.block.backgroundColor) style += `; background-color: ${props.block.backgroundColor}`
     if (props.block.textAlign) style += `; text-align: ${props.block.textAlign}`
     if (props.block.lineHeight !== undefined) style += `; line-height: ${toCSSValue(props.block.lineHeight)}`
     return style
