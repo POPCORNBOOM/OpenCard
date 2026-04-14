@@ -6,7 +6,25 @@ type BlockStyleOptions = {
 
 export function toCSSValue(value: CSSValue | undefined): string {
     if (value === undefined) return '0px'
-    return typeof value === 'number' ? `${value}px` : value
+    if (typeof value === 'number') {
+        return `${value}px`
+    }
+
+    const trimmed = value.trim()
+    if (trimmed === '') {
+        return trimmed
+    }
+
+    if (/^calc\(.+\)$/i.test(trimmed)) {
+        return trimmed
+    }
+
+    // Allow users to input expressions like "100% - 16px" directly.
+    if (/\S\s+[+\-*/]\s+\S/.test(trimmed)) {
+        return `calc(${trimmed})`
+    }
+
+    return trimmed
 }
 
 type AbsolutePosition = {
@@ -15,11 +33,30 @@ type AbsolutePosition = {
     y?: CSSValue
 }
 
+function resolvePositionValue(value: CSSValue | undefined): string {
+    if (value === undefined || value === null) {
+        return '0px'
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (trimmed === '') {
+            return '0px'
+        }
+
+        if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            return `${trimmed}px`
+        }
+    }
+
+    return toCSSValue(value)
+}
+
 export function getAbsolutePositionStyles(position: AbsolutePosition): string {
     const styles: string[] = []
 
-    const x = position.x !== undefined ? toCSSValue(position.x) : '0px'
-    const y = position.y !== undefined ? toCSSValue(position.y) : '0px'
+    const x = resolvePositionValue(position.x)
+    const y = resolvePositionValue(position.y)
     let translateX = '0px', translateY = '0px'
 
     if (position.anchor) {

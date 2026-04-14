@@ -9,3 +9,5 @@ Flow 容器里的顺序真相现在是 children 数组顺序本身，而不是 l
 实例覆盖仍然只允许覆盖 block 内容/表现字段，不允许覆盖 `simpleLayout` / `flowLayout`。因为 layout 已经回到 block 自身，如果这里不显式排除，实例系统会悄悄侵入蓝图结构语义。
 
 `normalizeCardDocument()` 是兼容旧 `.opencard` 结构的入口。读取文件后应先过这层，再进入编辑/渲染链路；不要把旧格式兼容分散到各组件里。
+
+`TextBlock.writingMode` 属于文本表现语义（与 `fontSize`、`lineHeight` 同级），不要把它当成布局字段。它应直接承载 CSS `writing-mode` 原值，避免额外枚举映射层把表达能力锁死。

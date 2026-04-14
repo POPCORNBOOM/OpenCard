@@ -32,6 +32,7 @@ const blockStyle = computed(() => {
     if (props.block.color) style += `; color: ${props.block.color}`
     if (props.block.textAlign) style += `; text-align: ${props.block.textAlign}`
     if (props.block.lineHeight !== undefined) style += `; line-height: ${toCSSValue(props.block.lineHeight)}`
+    if (props.block.writingMode) style += `; writing-mode: ${props.block.writingMode}`
     return style
 })
 

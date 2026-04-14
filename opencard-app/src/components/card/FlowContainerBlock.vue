@@ -1,14 +1,14 @@
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
         <div v-for="child in orderedChildren" :key="child.block.id" :style="getChildStyle(child)">
-            <CardBlock :block="child.block" layout-mode="static" />
+            <CardBlock :block="getChildRenderBlock(child)" layout-mode="static" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { FlowContainerBlock } from '../../core/Card'
+import { CardBlock as CardBlockModel, FlowContainerBlock } from '../../core/Card'
 import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
 import { cardEditorContextKey } from './cardEditorContext'
@@ -54,6 +54,12 @@ const orderedChildren = computed(() =>
 
 function getChildStyle(child: FlowContainerBlock['children'][number]) {
     const styles = [`order: ${child.location.index}`]
+    if (child.block.width !== undefined) {
+        styles.push(`width: ${toCSSValue(child.block.width)}`)
+    }
+    if (child.block.height !== undefined) {
+        styles.push(`height: ${toCSSValue(child.block.height)}`)
+    }
     if (child.location.align) {
         styles.push(`align-self: ${alignMap[child.location.align]}`)
     }
@@ -61,6 +67,22 @@ function getChildStyle(child: FlowContainerBlock['children'][number]) {
         styles.push(`z-index: ${child.block.zIndex}`)
     }
     return styles.join('; ')
+}
+
+function getChildRenderBlock(child: FlowContainerBlock['children'][number]): CardBlockModel {
+    const { block } = child
+    const hasWidth = block.width !== undefined
+    const hasHeight = block.height !== undefined
+
+    if (!hasWidth && !hasHeight) {
+        return block
+    }
+
+    return {
+        ...block,
+        width: hasWidth ? '100%' : block.width,
+        height: hasHeight ? '100%' : block.height,
+    } as CardBlockModel
 }
 
 function handleClick(event: MouseEvent) {

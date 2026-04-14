@@ -21,18 +21,18 @@
               "type": "text-block",
               "content": "",
               "mode": "plain",
-              "width": "420.91px",
-              "height": "640.72px",
+              "width": "100% - 16px",
+              "height": "100% - 16px",
               "customCss": "",
               "background": "linear-gradient(180deg, rgba(13, 17, 43, 1) 0%, rgba(28, 39, 82, 1) 100%);",
               "borderRadius": "16px",
-              "outline": "3px solid #713b22"
+              "outline": "8px ridge rgba(170, 50, 220, 1);"
             },
             "location": {
               "type": "simple-container-location",
-              "anchor": "lt",
-              "x": "-0.23px",
-              "y": "-0.97px"
+              "anchor": "cc",
+              "x": "0px",
+              "y": "0px"
             }
           },
           {
@@ -40,12 +40,11 @@
               "id": "portrait-image",
               "name": "Portrait Image",
               "type": "image-block",
-              "imagePath": "zhenji-portrait.png",
-              "fit": "cover",
+              "fit": "contain",
               "width": "324px",
               "height": "390px",
               "customCss": "border-radius: 6px; filter: saturate(1.06) contrast(1.04) brightness(0.98);",
-              "image": "zhenji-portrait.png"
+              "image": "2x.png"
             },
             "location": {
               "type": "simple-container-location",
@@ -95,8 +94,8 @@
             "location": {
               "type": "simple-container-location",
               "anchor": "rt",
-              "x": "3.06px",
-              "y": "3.48px"
+              "x": "16.24px",
+              "y": "6.76px"
             }
           },
           {
@@ -106,18 +105,20 @@
               "type": "text-block",
               "content": "洛水之华",
               "mode": "plain",
-              "width": "39px",
-              "height": "160px",
+              "width": "42px",
+              "height": "181px",
               "fontSize": "15px",
               "fontWeight": 700,
               "color": "#efe35e",
-              "customCss": "writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);"
+              "customCss": "",
+              "textAlign": "start",
+              "writingMode": "vertical-lr"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "69.75px",
-              "y": "88.75px"
+              "x": "19.75px",
+              "y": "63.75px"
             }
           },
           {
@@ -127,19 +128,22 @@
               "type": "text-block",
               "content": "甄姬",
               "mode": "plain",
-              "width": 38.46,
-              "height": 109.05,
+              "width": "53.47px",
+              "height": "131.56px",
               "fontSize": "36px",
               "fontWeight": 900,
               "color": "#fcfbf8",
-              "customCss": "writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 3px; font-family: STKaiti, KaiTi, serif; text-shadow: -1px 0 #1d120d, 0 1px #1d120d, 1px 0 #1d120d, 0 -1px #1d120d, 0 3px 8px rgba(0, 0, 0, 0.38);",
-              "zIndex": 30
+              "customCss": "",
+              "zIndex": 30,
+              "writingMode": "vertical-lr",
+              "fontFamily": " STKaiti, KaiTi, serif",
+              "textAlign": "end"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lb",
-              "x": "9.55px",
-              "y": "193.35px"
+              "x": "17.72px",
+              "y": "165.03px"
             }
           },
           {
@@ -149,17 +153,20 @@
               "type": "text-block",
               "content": "魏 · 女性 · 3体力",
               "mode": "plain",
-              "width": "200px",
+              "width": "188px",
               "height": "24px",
               "fontSize": "13px",
               "fontWeight": 700,
-              "color": "#5a3120",
-              "customCss": "letter-spacing: 1px;"
+              "color": "#ffffff",
+              "customCss": "letter-spacing: 1px;",
+              "fontFamily": "STKaiti, KaiTi, serif",
+              "textAlign": "center",
+              "writingMode": "horizontal-tb"
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "34.25px",
+              "x": "47.25px",
               "y": "450.19px"
             }
           },
@@ -175,7 +182,8 @@
               "fontSize": "12px",
               "fontWeight": 700,
               "color": "#7a5a4b",
-              "customCss": "font-style: italic;"
+              "customCss": "font-style: italic;",
+              "fontFamily": ""
             },
             "location": {
               "type": "simple-container-location",
@@ -211,14 +219,16 @@
                           "type": "text-block",
                           "content": "倾国",
                           "mode": "plain",
-                          "width": "56px",
-                          "height": "24px",
+                          "width": "60px",
+                          "height": "",
                           "fontSize": "15px",
                           "fontWeight": 900,
                           "color": "#fff8ec",
                           "textAlign": "center",
                           "lineHeight": "24px",
-                          "customCss": "background: linear-gradient(180deg, #6e5579 0%, #43304e 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
+                          "customCss": "padding: 3px 3px;",
+                          "background": "linear-gradient(180deg, #6e5579 0%, #43304e 100%);",
+                          "borderRadius": "6px"
                         },
                         "location": {
                           "type": "flow-container-location",
@@ -275,7 +285,9 @@
                           "color": "#fff8ec",
                           "textAlign": "center",
                           "lineHeight": "24px",
-                          "customCss": "background: linear-gradient(180deg, #7b4838 0%, #593022 100%); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(255, 236, 213, 0.24);"
+                          "customCss": "",
+                          "background": "linear-gradient(180deg, #7b4838 0%, #593022 100%);",
+                          "borderRadius": "6px"
                         },
                         "location": {
                           "type": "flow-container-location",
@@ -289,8 +301,8 @@
                           "type": "text-block",
                           "content": "准备阶段开始时，你可以判定；若结果为黑色，你获得之，然后可重复此流程。",
                           "mode": "plain",
-                          "width": "287.75px",
-                          "height": "55.61px",
+                          "width": "100%",
+                          "height": "",
                           "fontSize": "13px",
                           "color": "#33251d",
                           "lineHeight": "18px",

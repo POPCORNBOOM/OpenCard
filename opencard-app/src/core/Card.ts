@@ -29,6 +29,7 @@ export type AnchorPosition =
     | 'lb' | 'cb' | 'rb'
 
 export type AlignmentPosition = 'start' | 'center' | 'end' | 'justify'
+export type TextWritingMode = 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
 
 export type TextBlock = BaseBlock & {
     type: "text-block"
@@ -40,6 +41,7 @@ export type TextBlock = BaseBlock & {
     color?: string
     textAlign?: AlignmentPosition
     lineHeight?: CSSValue
+    writingMode?: TextWritingMode
 }
 
 export type ImageBlock = BaseBlock & {
@@ -177,6 +179,7 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
         fontWeight: init.fontWeight,
         color: init.color,
         textAlign: init.textAlign,
+        writingMode: init.writingMode,
     }
 }
 

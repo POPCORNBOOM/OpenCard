@@ -9,6 +9,12 @@
         "isSymlink": false
       },
       {
+        "name": "2x.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
         "name": "A.png",
         "isDirectory": false,
         "isFile": true,
@@ -16,6 +22,12 @@
       },
       {
         "name": "card.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "h.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
@@ -34,6 +46,12 @@
       },
       {
         "name": "image-render-test.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "pple.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false

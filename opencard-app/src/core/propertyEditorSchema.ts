@@ -61,6 +61,7 @@ export type TypePropertyDefinitions = Record<string, Record<string, EditorProper
 export type PropertyEditorSchemaByType = Record<CardBlock['type'], Record<string, EditorPropertyDefinition>>
 
 const textModeOptions = ['plain', 'markdown', 'richtext'] as const
+const textWritingModeOptions = ['horizontal-tb', 'vertical-rl', 'vertical-lr'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
 const cssLengthAutocomplete = ['px', '%'] as const
 
@@ -92,6 +93,7 @@ export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
         color: { datatype: 'color', enablePicker: true, enableCss: true, label: 'Text Color', category: 'Appearance' },
         textAlign: { datatype: 'alignPosition', label: 'Text Align', category: 'Typography' },
         lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, label: 'Line Height', category: 'Typography' },
+        writingMode: { datatype: 'string', options: textWritingModeOptions, label: 'Text Flow', category: 'Typography' },
     },
     'image-block': {
         id: { datatype: 'string', isReadonly: true, minLength: 1, label: 'ID', category: 'Identity' },

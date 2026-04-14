@@ -1,15 +1,15 @@
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
         <div v-for="child in block.children" :key="child.block.id" :style="getChildStyle(child)">
-            <CardBlock :block="child.block" layout-mode="static" />
+            <CardBlock :block="getChildRenderBlock(child)" layout-mode="static" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { SimpleContainerBlock } from '../../core/Card'
-import { getAbsolutePositionStyles, getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
+import { CardBlock as CardBlockModel, SimpleContainerBlock } from '../../core/Card'
+import { getAbsolutePositionStyles, getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 
@@ -34,9 +34,25 @@ const blockStyle = computed(() => {
 
 function getChildStyle(child: SimpleContainerBlock['children'][number]) {
     const zIndex = child.block.zIndex !== undefined ? `; z-index: ${child.block.zIndex}` : ''
-    //const width = child.block.width ? `width: ${child.block.width};` : ''
-    //const height = child.block.height ? `height: ${child.block.height};` : ''
-    return `position: absolute; ${getAbsolutePositionStyles(child.location)}${zIndex}`
+    const width = child.block.width !== undefined ? `; width: ${toCSSValue(child.block.width)}` : ''
+    const height = child.block.height !== undefined ? `; height: ${toCSSValue(child.block.height)}` : ''
+    return `position: absolute; ${getAbsolutePositionStyles(child.location)}${zIndex}${width}${height}`
+}
+
+function getChildRenderBlock(child: SimpleContainerBlock['children'][number]): CardBlockModel {
+    const { block } = child
+    const hasWidth = block.width !== undefined
+    const hasHeight = block.height !== undefined
+
+    if (!hasWidth && !hasHeight) {
+        return block
+    }
+
+    return {
+        ...block,
+        width: hasWidth ? '100%' : block.width,
+        height: hasHeight ? '100%' : block.height,
+    } as CardBlockModel
 }
 
 function handleClick(event: MouseEvent) {
