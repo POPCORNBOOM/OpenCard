@@ -34,13 +34,19 @@
       </div>
 
       <!-- 左侧边栏 -->
-      <div class="sidebar oc-panel-stack" v-if="activeView">
-        <div class="sidebar-header oc-panel-header">
+      <OcPanelSection
+        v-if="activeView"
+        class="sidebar"
+        header-class="sidebar-header"
+        body-class="sidebar-content"
+        :scroll-body="true"
+      >
+        <template #title>
           <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
           <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
           <span v-else-if="activeView === 'publish'">{{ t('sidebar.publish') }}</span>
-        </div>
-        <div class="sidebar-content oc-panel-scroll-body oc-scroll-y">
+        </template>
+        <template #default>
           <!-- 文件浏览器 -->
           <div v-if="activeView === 'files'">
             <OcButton @click="openProject" class="open-folder-btn" variant="primary">
@@ -65,8 +71,8 @@
           <div v-else-if="activeView === 'publish'">
             <p class="placeholder oc-empty-hint">{{ t('panels.publishPlaceholder') }}</p>
           </div>
-        </div>
-      </div>
+        </template>
+      </OcPanelSection>
 
       <!-- 编辑器区域 -->
       <div class="editor-container oc-panel-stack">
@@ -134,6 +140,7 @@ import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
+import OcPanelSection from '../components/base/OcPanelSection.vue'
 import type { NodeTreeDropPayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
