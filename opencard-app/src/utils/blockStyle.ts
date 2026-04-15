@@ -4,6 +4,29 @@ type BlockStyleOptions = {
     disableTransform?: boolean
 }
 
+function hasCSSValue(value: CSSValue | undefined): boolean {
+    if (typeof value === 'number') {
+        return true
+    }
+    if (typeof value === 'string') {
+        return value.trim().length > 0
+    }
+    return false
+}
+
+function isZeroCSSValue(value: CSSValue | undefined): boolean {
+    if (value === undefined || value === null) {
+        return true
+    }
+
+    if (typeof value === 'number') {
+        return value === 0
+    }
+
+    const normalized = value.trim().toLowerCase()
+    return normalized === '' || normalized === '0' || normalized === '0px' || normalized === '0%'
+}
+
 export function toCSSValue(value: CSSValue | undefined): string {
     if (value === undefined) return '0px'
     if (typeof value === 'number') {
@@ -103,15 +126,15 @@ export function getAbsolutePositionStyles(position: AbsolutePosition): string {
 export function getBlockBoxStyles(comp: BaseBlock, options: BlockStyleOptions = {}): string {
     const styles: string[] = []
 
-    if (comp.width) styles.push(`width: ${toCSSValue(comp.width)}`)
-    if (comp.height) styles.push(`height: ${toCSSValue(comp.height)}`)
-    if (comp.outline) styles.push(`outline: ${comp.outline}`)
-    if (comp.borderRadius !== undefined) styles.push(`border-radius: ${toCSSValue(comp.borderRadius)}`)
-    if (comp.background) styles.push(`background: ${comp.background}`)
-    if (comp.opacity !== undefined) styles.push(`opacity: ${comp.opacity}`)
-    if (comp.zIndex !== undefined) styles.push(`z-index: ${comp.zIndex}`)
+    if (hasCSSValue(comp.width)) styles.push(`width: ${toCSSValue(comp.width)}`)
+    if (hasCSSValue(comp.height)) styles.push(`height: ${toCSSValue(comp.height)}`)
+    if (typeof comp.outline === 'string' && comp.outline.trim().length > 0) styles.push(`outline: ${comp.outline}`)
+    if (hasCSSValue(comp.borderRadius)) styles.push(`border-radius: ${toCSSValue(comp.borderRadius)}`)
+    if (typeof comp.background === 'string' && comp.background.trim().length > 0) styles.push(`background: ${comp.background}`)
+    if (comp.opacity !== undefined && comp.opacity !== 1) styles.push(`opacity: ${comp.opacity}`)
+    if (comp.zIndex !== undefined && comp.zIndex !== 0) styles.push(`z-index: ${comp.zIndex}`)
 
-    if (!options.disableTransform && comp.transformAnchor) {
+    if (!options.disableTransform && comp.transformAnchor && comp.transformAnchor !== 'cc') {
         const originMap: Record<string, string> = {
             'lt': '0% 0%', 'ct': '50% 0%', 'rt': '100% 0%',
             'lc': '0% 50%', 'cc': '50% 50%', 'rc': '100% 50%',
@@ -121,22 +144,23 @@ export function getBlockBoxStyles(comp: BaseBlock, options: BlockStyleOptions = 
     }
 
     const transforms: string[] = []
-    if (!options.disableTransform && (comp.translateX || comp.translateY)) {
+    if (!options.disableTransform && (!isZeroCSSValue(comp.translateX) || !isZeroCSSValue(comp.translateY))) {
         transforms.push(`translate(${toCSSValue(comp.translateX)}, ${toCSSValue(comp.translateY)})`)
     }
-    if (!options.disableTransform && (comp.scaleX !== undefined || comp.scaleY !== undefined)) {
+    if (!options.disableTransform && ((comp.scaleX ?? 1) !== 1 || (comp.scaleY ?? 1) !== 1)) {
         const scaleX = comp.scaleX !== undefined ? comp.scaleX : 1
         const scaleY = comp.scaleY !== undefined ? comp.scaleY : 1
         transforms.push(`scale(${scaleX}, ${scaleY})`)
     }
-    if (!options.disableTransform && comp.rotation) {
+    if (!options.disableTransform && comp.rotation !== undefined && comp.rotation !== 0) {
         transforms.push(`rotate(${comp.rotation}deg)`)
     }
     if (transforms.length > 0) {
         styles.push(`transform: ${transforms.join(' ')}`)
     }
 
-    return styles.join('; ') + (!options.disableTransform && comp.customCss ? '; ' + comp.customCss : '')
+    const customCss = typeof comp.customCss === 'string' ? comp.customCss.trim() : ''
+    return styles.join('; ') + (!options.disableTransform && customCss ? '; ' + customCss : '')
 }
 
 export function getPositionStyles(comp: BaseBlock, options: BlockStyleOptions = {}): string {

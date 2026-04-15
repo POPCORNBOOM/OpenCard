@@ -32,12 +32,12 @@ const wrapStyle = computed(() => {
 })
 
 const imgStyle = computed(() => {
-    const fit = props.block.fit ?? 'cover'
+    const fit = props.block.fit
     return `width: 100%; height: 100%; object-fit: ${fit}; display: block`
 })
 
 const imageSrc = computed(() => {
-    const imagePath = props.block.image ?? props.block.imagePath ?? props.block.assetId ?? ''
+    const imagePath = props.block.image
     return resolveAssetSrc(imagePath)
 })
 

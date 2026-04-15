@@ -92,6 +92,7 @@ import {
   blockToTreeNode,
   BlockContainer,
   createBlock,
+  materializeCardDocument,
   resolveCardDocumentInstanceView,
   type ParentLookup,
   removeBlockFromContainer,
@@ -107,6 +108,7 @@ import {
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../core/Card'
+import { materializeSchemaTarget } from '../../core/propertyEditorSchema'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree, {
   type ActionDefinition,
@@ -249,10 +251,10 @@ const selectedBlockPropertyTarget = computed<Record<string, unknown> & { type?: 
   }
 
   const blockOverrides = selectedCard.value.data[block.id] ?? {}
-  return {
+  return materializeSchemaTarget(block.type, {
     ...block,
     ...blockOverrides,
-  } as Record<string, unknown> & { type?: string }
+  }) as Record<string, unknown> & { type?: string }
 })
 
 const propertySources = computed<PropertyEditorSource[]>(() => {
@@ -395,7 +397,6 @@ function updateBlockProp({
 
   ; (block as Record<string, unknown>)[key] = value
   if (block.type === 'image-block' && key === 'image') {
-    delete (block as Record<string, unknown>).assetId
     delete (block as Record<string, unknown>).imagePath
   }
 
@@ -437,21 +438,6 @@ function addBlockProp({
 
   ; (block as Record<string, unknown>)[key] = value
   markDocumentChanged()
-}
-
-function normalizeImageBlockFields(block: CardBlock) {
-  if (block.type === 'image-block') {
-    if (!block.image) {
-      block.image = block.imagePath ?? block.assetId ?? ''
-    }
-    return
-  }
-
-  if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
-    for (const child of block.children) {
-      normalizeImageBlockFields(child.block)
-    }
-  }
 }
 
 function onTreeSelect(newSelected: Map<string, ITreeNode>) {
@@ -952,10 +938,7 @@ function applyDocumentContent(content: string) {
   selectedCardId.value = BLUEPRINT_CARD_ID
 
   try {
-    const parsed = JSON.parse(content) as CardDocument
-    for (const child of parsed.children) {
-      normalizeImageBlockFields(child.block)
-    }
+    const parsed = materializeCardDocument(JSON.parse(content))
     cardDoc.value = parsed
     parentLookup.value = buildParentLookup(parsed)
     isModified.value = false

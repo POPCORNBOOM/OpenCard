@@ -1,4 +1,5 @@
 import { ITreeNode } from "../components/ui/TreeNode.vue"
+import { materializeSchemaTarget } from './propertyEditorSchema'
 import type { PropertyEditorSchemaOverride } from './propertyEditorSchema'
 
 // Block and document data models.
@@ -46,8 +47,7 @@ export type TextBlock = BaseBlock & {
 
 export type ImageBlock = BaseBlock & {
     type: "image-block"
-    image?: string
-    assetId?: string
+    image: string
     imagePath?: string
     fit: "cover" | "contain" | "fill"
 }
@@ -110,6 +110,147 @@ export type CardInstanceRecord = {
     data: Record<string, Record<string, unknown>>
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return {}
+    }
+
+    return value as Record<string, unknown>
+}
+
+function toRecordArray(value: unknown): Record<string, unknown>[] {
+    if (!Array.isArray(value)) {
+        return []
+    }
+
+    return value
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+}
+
+function resolveBlockType(typeName: unknown): CardBlock['type'] {
+    switch (typeName) {
+        case 'text-block':
+        case 'image-block':
+        case 'simple-container-block':
+        case 'flow-container-block':
+            return typeName
+        default:
+            return 'text-block'
+    }
+}
+
+function materializeSimpleContainerLocation(locationInput: unknown): SimpleContainerLocationInfo {
+    return materializeSchemaTarget('simple-container-location', toRecord(locationInput)) as SimpleContainerLocationInfo
+}
+
+function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex: number): FlowContainerLocationInfo {
+    const source = toRecord(locationInput)
+    const materialized = materializeSchemaTarget('flow-container-location', source) as FlowContainerLocationInfo
+    if (!Object.prototype.hasOwnProperty.call(source, 'index') || source.index === null || source.index === undefined) {
+        materialized.index = fallbackIndex
+    }
+    return materialized
+}
+
+function materializeInstanceData(rawData: unknown): Record<string, Record<string, unknown>> {
+    const source = toRecord(rawData)
+    const normalized: Record<string, Record<string, unknown>> = {}
+
+    for (const [blockId, overrideValue] of Object.entries(source)) {
+        normalized[blockId] = toRecord(overrideValue)
+    }
+
+    return normalized
+}
+
+function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceRecord {
+    const source = toRecord(instanceInput)
+    const materialized = materializeSchemaTarget('card-instance-record', source) as CardInstanceRecord
+    const instanceId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
+        ? materialized.id
+        : createBlockId('instance')
+
+    const instanceName = typeof materialized.name === 'string' && materialized.name.trim().length > 0
+        ? materialized.name
+        : instanceId
+
+    return {
+        ...materialized,
+        id: instanceId,
+        name: instanceName,
+        data: materializeInstanceData(source.data),
+    }
+}
+
+export function materializeCardBlock(blockInput: unknown): CardBlock {
+    const source = toRecord(blockInput)
+    const type = resolveBlockType(source.type)
+    const materialized = materializeSchemaTarget(type, source) as CardBlock
+    const normalizedId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
+        ? materialized.id
+        : createBlockId(type)
+
+    switch (type) {
+        case 'text-block':
+        case 'image-block':
+            return {
+                ...materialized,
+                id: normalizedId,
+                type,
+            } as CardBlock
+        case 'simple-container-block': {
+            const children = toRecordArray(source.children).map((childInput) => ({
+                block: materializeCardBlock(childInput.block),
+                location: materializeSimpleContainerLocation(childInput.location),
+            }))
+
+            return {
+                ...materialized,
+                id: normalizedId,
+                type,
+                children,
+            } as CardBlock
+        }
+        case 'flow-container-block': {
+            const children = toRecordArray(source.children).map((childInput, index) => ({
+                block: materializeCardBlock(childInput.block),
+                location: materializeFlowContainerLocation(childInput.location, index),
+            }))
+
+            return {
+                ...materialized,
+                id: normalizedId,
+                type,
+                children,
+            } as CardBlock
+        }
+    }
+}
+
+export function materializeCardDocument(documentInput: unknown): CardDocument {
+    const source = toRecord(documentInput)
+    const materialized = materializeSchemaTarget('card-document', source) as CardDocument
+    const documentId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
+        ? materialized.id
+        : createBlockId('card-document')
+
+    const children = toRecordArray(source.children).map((childInput) => ({
+        block: materializeCardBlock(childInput.block),
+        location: materializeSimpleContainerLocation(childInput.location),
+    }))
+
+    const instances = toRecordArray(source.instances).map((instanceInput) =>
+        materializeCardInstanceRecord(instanceInput)
+    )
+
+    return {
+        ...materialized,
+        id: documentId,
+        children,
+        instances,
+    }
+}
+
 export type PropertyEditorTarget = Record<string, unknown> & {
     type?: string
 }
@@ -144,10 +285,18 @@ function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
         name: init.name,
         width: init.width,
         height: init.height,
+        outline: init.outline,
+        borderRadius: init.borderRadius,
         background: init.background,
+        translateX: init.translateX,
+        translateY: init.translateY,
+        scaleX: init.scaleX,
+        scaleY: init.scaleY,
+        transformAnchor: init.transformAnchor,
         zIndex: init.zIndex,
         rotation: init.rotation,
         opacity: init.opacity,
+        customCss: init.customCss,
     }
 }
 
@@ -165,7 +314,7 @@ function getDefaultBlockName(type: CardBlock['type']): string {
 }
 
 export function createTextBlock(init: TextBlockInit = {}): TextBlock {
-    return {
+    const block: TextBlock = {
         ...createBaseBlock({
             id: init.id ?? createBlockId('text-block'),
             name: init.name ?? getDefaultBlockName('text-block'),
@@ -179,27 +328,31 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
         fontWeight: init.fontWeight,
         color: init.color,
         textAlign: init.textAlign,
+        lineHeight: init.lineHeight,
         writingMode: init.writingMode,
     }
+
+    return materializeCardBlock(block) as TextBlock
 }
 
 export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
-    return {
+    const block: ImageBlock = {
         ...createBaseBlock({
             id: init.id ?? createBlockId('image-block'),
             name: init.name ?? getDefaultBlockName('image-block'),
             ...init,
         }),
         type: 'image-block',
-        image: init.image ?? init.imagePath ?? init.assetId,
-        assetId: init.assetId,
+        image: init.image ?? init.imagePath ?? '',
         imagePath: init.imagePath,
         fit: init.fit ?? 'cover',
     }
+
+    return materializeCardBlock(block) as ImageBlock
 }
 
 export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}): SimpleContainerBlock {
-    return {
+    const block: SimpleContainerBlock = {
         ...createBaseBlock({
             id: init.id ?? createBlockId('simple-container-block'),
             name: init.name ?? getDefaultBlockName('simple-container-block'),
@@ -208,10 +361,12 @@ export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}):
         type: 'simple-container-block',
         children: init.children ? [...init.children] : [],
     }
+
+    return materializeCardBlock(block) as SimpleContainerBlock
 }
 
 export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): FlowContainerBlock {
-    return {
+    const block: FlowContainerBlock = {
         ...createBaseBlock({
             id: init.id ?? createBlockId('flow-container-block'),
             name: init.name ?? getDefaultBlockName('flow-container-block'),
@@ -222,6 +377,8 @@ export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): Flo
         gap: init.gap ?? '10px',
         children: init.children ? [...init.children] : [],
     }
+
+    return materializeCardBlock(block) as FlowContainerBlock
 }
 
 export function createBlock(type: 'text-block', init?: TextBlockInit): TextBlock
@@ -440,22 +597,23 @@ export function getBlockTreeIcon(type: CardBlock['type']): string {
 
 function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceRecord): CardBlock {
     const overrides = instance.data[block.id] ?? {}
+    const merged = materializeSchemaTarget(block.type, {
+        ...block,
+        ...overrides,
+    }) as CardBlock
 
     switch (block.type) {
         case 'text-block':
             return {
-                ...block,
-                ...overrides,
+                ...(merged as TextBlock),
             }
         case 'image-block':
             return {
-                ...block,
-                ...overrides,
+                ...(merged as ImageBlock),
             }
         case 'simple-container-block':
             return {
-                ...block,
-                ...overrides,
+                ...(merged as SimpleContainerBlock),
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: cloneBlockWithInstanceData(child.block, instance),
@@ -463,8 +621,7 @@ function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceReco
             }
         case 'flow-container-block':
             return {
-                ...block,
-                ...overrides,
+                ...(merged as FlowContainerBlock),
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: cloneBlockWithInstanceData(child.block, instance),
