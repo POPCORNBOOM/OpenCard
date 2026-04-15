@@ -8,14 +8,14 @@
       role="menuitem"
       :aria-disabled="item.disabled ? 'true' : 'false'"
     >
-      <button class="floating-menu-button" type="button" :disabled="item.disabled" @click="handleItemClick(item)">
-        <span class="floating-menu-main">
-          <i v-if="item.icon" class="codicon" :class="item.icon" />
-          <span v-else class="floating-menu-icon-placeholder" />
-          <span class="floating-menu-label">{{ item.label }}</span>
-        </span>
-        <i v-if="item.children?.length" class="codicon codicon-chevron-right floating-menu-chevron" />
-      </button>
+      <OcMenuItemButton
+        class="floating-menu-button"
+        :label="item.label"
+        :icon="item.icon"
+        :has-children="Boolean(item.children?.length)"
+        :disabled="Boolean(item.disabled)"
+        @click="handleItemClick(item)"
+      />
 
       <div v-if="item.children?.length" class="floating-submenu oc-floating-surface">
         <FloatingMenuList :items="item.children" @select="emit('select', $event)" />
@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import type { FloatingMenuItem } from '../../composables/useFloatingMenu'
+import OcMenuItemButton from '../base/OcMenuItemButton.vue'
 
 defineOptions({ name: 'FloatingMenuList' })
 
@@ -57,23 +58,6 @@ function handleItemClick(item: FloatingMenuItem): void {
   position: relative;
 }
 
-.floating-menu-button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 5px 7px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--oc-text-primary);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
 .floating-menu-button:hover,
 .floating-menu-item:hover > .floating-menu-button {
   background: var(--oc-bg-active);
@@ -86,26 +70,6 @@ function handleItemClick(item: FloatingMenuItem): void {
 
 .floating-menu-item.is-disabled > .floating-menu-button:hover {
   background: transparent;
-}
-
-.floating-menu-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.floating-menu-icon-placeholder {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-}
-
-.floating-menu-label {
-  white-space: nowrap;
-}
-
-.floating-menu-chevron {
-  font-size: 10px;
 }
 
 .floating-submenu {
