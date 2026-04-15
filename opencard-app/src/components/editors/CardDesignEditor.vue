@@ -1,20 +1,37 @@
 <template>
   <div ref="editorRootRef" class="card-design-editor">
-    <div class="left-panel oc-panel-stack" :class="{ collapsed: !isInstancePanelExpanded }">
-      <div class="panel-header oc-panel-header left-panel-header">
+    <OcPanelSection
+      class="left-panel"
+      :class="{ collapsed: !isInstancePanelExpanded }"
+      header-class="panel-header left-panel-header"
+      body-class="left-panel-content"
+      :scroll-body="true"
+    >
+      <template #title>
         <span v-if="isInstancePanelExpanded">创建的卡牌</span>
+      </template>
+      <template #actions>
         <OcButton class="panel-icon-button left-panel-toggle" variant="icon" icon-only @click="toggleInstancePanel"
           :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'">
           <span class="codicon" :class="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'" />
         </OcButton>
-      </div>
-      <div v-if="isInstancePanelExpanded" class="left-panel-content oc-panel-scroll-body oc-scroll-y">
-        <NodeTree title="创建的卡牌" :nodes="instanceTree" :selected="selectedCards" :actions="instanceTreeActions"
-          :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-          :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
-          @action-called="handleInstanceTreeAction" @node-drop="handleInstanceTreeDrop" />
-      </div>
-    </div>
+      </template>
+      <template #default>
+        <NodeTree
+          v-if="isInstancePanelExpanded"
+          title="创建的卡牌"
+          :nodes="instanceTree"
+          :selected="selectedCards"
+          :actions="instanceTreeActions"
+          :action-keys="instanceTreeActionKeys"
+          :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
+          :can-drop="canDropInstanceTreeNode"
+          @update:selected="onInstanceTreeSelect"
+          @action-called="handleInstanceTreeAction"
+          @node-drop="handleInstanceTreeDrop"
+        />
+      </template>
+    </OcPanelSection>
 
     <div class="canvas-area oc-editor-stage">
       <CardViewport v-if="resolvedCardDoc" :document="resolvedCardDoc" :selected-block-id="selectedBlock?.id ?? null"
@@ -28,33 +45,40 @@
     <div class="panel-resizer panel-resizer--vertical" @mousedown.prevent="startRightPanelResize" />
 
     <div ref="rightPanelRef" class="right-panel oc-panel-stack" :style="{ width: `${rightPanelWidth}px` }">
-      <div class="block-list-panel oc-panel-stack" :style="{ height: `${treePanelHeight}px` }">
-        <div class="panel-header oc-panel-header">信息树</div>
-        <div class="block-list oc-panel-scroll-body oc-scroll-y">
-          <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-            :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-            @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
-        </div>
-      </div>
+      <OcPanelSection
+        class="block-list-panel"
+        :style="{ height: `${treePanelHeight}px` }"
+        title="信息树"
+        header-class="panel-header"
+        body-class="block-list"
+        :scroll-body="true"
+      >
+        <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
+          :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+          @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
+      </OcPanelSection>
       <div class="panel-resizer panel-resizer--horizontal" @mousedown.prevent="startTreePanelResize" />
 
-      <div class="property-panel oc-panel-stack">
-        <div class="panel-header oc-panel-header">属性</div>
-        <div class="panel-header-actions">
-          <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
-            :class="{ active: propertySortMode === 'category' }" :active="propertySortMode === 'category'"
-            title="Category" @click="propertySortMode = 'category'">
-            <span class="codicon codicon-list-tree" />
-          </OcButton>
-          <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
-            :class="{ active: propertySortMode === 'alphabetical' }" :active="propertySortMode === 'alphabetical'"
-            title="A-Z" @click="propertySortMode = 'alphabetical'">
-            <span class="codicon codicon-symbol-string" />
-          </OcButton>
-        </div>
-        <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp"
-          @add-property="addBlockProp" />
-      </div>
+      <OcPanelSection class="property-panel" title="属性" header-class="panel-header">
+        <template #actions>
+          <div class="panel-header-actions">
+            <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
+              :class="{ active: propertySortMode === 'category' }" :active="propertySortMode === 'category'"
+              title="Category" @click="propertySortMode = 'category'">
+              <span class="codicon codicon-list-tree" />
+            </OcButton>
+            <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
+              :class="{ active: propertySortMode === 'alphabetical' }" :active="propertySortMode === 'alphabetical'"
+              title="A-Z" @click="propertySortMode = 'alphabetical'">
+              <span class="codicon codicon-symbol-string" />
+            </OcButton>
+          </div>
+        </template>
+        <template #default>
+          <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp"
+            @add-property="addBlockProp" />
+        </template>
+      </OcPanelSection>
     </div>
   </div>
 </template>
@@ -94,6 +118,7 @@ import NodeTree, {
 import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
+import OcPanelSection from '../base/OcPanelSection.vue'
 
 type PropertySortMode = 'category' | 'alphabetical'
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -1111,10 +1136,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  position: absolute;
-  top: 5px;
-  right: 10px;
-  z-index: 1;
 }
 
 .panel-icon-button {

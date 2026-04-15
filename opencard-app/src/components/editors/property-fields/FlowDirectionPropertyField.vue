@@ -1,27 +1,21 @@
 <template>
-  <div class="option-grid" role="radiogroup" aria-label="Flow direction">
-    <OcButton
-      v-for="option in directionOptions"
-      :key="option.value"
-      class="option-button"
-      variant="choice"
-      :class="{ active: currentValue === option.value }"
-      :active="currentValue === option.value"
-      :title="option.label"
-      :aria-label="option.label"
-      :aria-checked="currentValue === option.value"
-      :disabled="definition.isReadonly"
-      role="radio"
-      @click="emit('update:value', option.value)"
-    >
+  <OcOptionGroup
+    :options="directionOptions"
+    :model-value="currentValue"
+    aria-label="Flow direction"
+    :columns="4"
+    :disabled="definition.isReadonly"
+    @update:modelValue="emit('update:value', $event)"
+  >
+    <template #option="{ option }">
       <span class="option-label">{{ option.shortLabel }}</span>
-    </OcButton>
-  </div>
+    </template>
+  </OcOptionGroup>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcButton from '../../base/OcButton.vue'
+import OcOptionGroup from '../../base/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const directionOptions = [
@@ -47,27 +41,6 @@ const currentValue = computed(() => {
 </script>
 
 <style scoped>
-.option-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-
-.option-button {
-  min-height: 30px;
-  padding: 0 6px;
-}
-
-.option-button:hover:not(:disabled) {
-  border-color: var(--oc-bg-accent);
-}
-
-.option-button.active {
-  border-color: var(--oc-bg-accent);
-}
-
 .option-label {
   font-size: var(--oc-label-size);
   font-weight: 600;

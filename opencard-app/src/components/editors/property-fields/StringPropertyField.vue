@@ -2,16 +2,23 @@
   <div v-if="definition.isReadonly" class="readonly-value" :title="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
-  <select v-else-if="definition.options?.length" class="prop-input oc-input" :value="stringValue"
+  <OcFieldInput v-else-if="definition.options?.length" as="select" :value="stringValue"
     @change="emit('update:value', ($event.target as HTMLSelectElement).value)">
     <option v-for="option in definition.options" :key="option" :value="option">
       {{ option }}
     </option>
-  </select>
+  </OcFieldInput>
   <div v-else class="autocomplete-field">
-    <input class="prop-input oc-input autocomplete-input" type="text" :value="stringValue" :minlength="definition.minLength"
+    <OcFieldInput
+      as="input"
+      input-class="autocomplete-input"
+      type="text"
+      :value="stringValue"
+      :minlength="definition.minLength"
       :maxlength="definition.maxLength" :readonly="definition.isReadonly"
-      @input="emit('update:value', ($event.target as HTMLInputElement).value)" @keydown="handleKeydown" />
+      @input="emit('update:value', ($event.target as HTMLInputElement).value)"
+      @keydown="handleKeydown"
+    />
     <div v-if="ghostSuffix" class="autocomplete-ghost" aria-hidden="true">
       <span class="autocomplete-current">{{ stringValue }}</span>
       <span>{{ ghostSuffix }}</span>
@@ -21,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcFieldInput from '../../base/OcFieldInput.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const props = defineProps<{
@@ -84,14 +92,6 @@ function handleKeydown(event: KeyboardEvent) {
   background: var(--oc-bg-input);
   border: 1px solid var(--oc-border-input);
   box-sizing: border-box;
-}
-
-.prop-input {
-  padding: 2px 6px;
-}
-
-.prop-input:focus {
-  border-color: var(--oc-accent);
 }
 
 .autocomplete-input {

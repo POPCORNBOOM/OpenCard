@@ -15,13 +15,15 @@
               </OcButton>
             </div>
           </div>
-          <div v-for="entry in category.entries" :key="`${source.title}:${category.title}:${entry.key}`"
-            class="prop-row">
-            <label class="prop-label">{{ entry.label }}</label>
+          <OcPropertyRow
+            v-for="entry in category.entries"
+            :key="`${source.title}:${category.title}:${entry.key}`"
+            :label="entry.label"
+          >
             <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
               :value="entry.value"
               @update:value="emit('update-property', { sourceTitle: category.sourceTitle, target: entry.target, key: entry.key, value: $event })" />
-          </div>
+          </OcPropertyRow>
         </section>
       </section>
     </template>
@@ -52,6 +54,7 @@ import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import OcButton from '../base/OcButton.vue'
+import OcPropertyRow from '../base/OcPropertyRow.vue'
 
 const emit = defineEmits<{
   (e: 'update-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
@@ -394,17 +397,4 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   text-align: right;
 }
 
-.prop-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 0;
-}
-
-.prop-label {
-  font-size: var(--oc-label-size);
-  color: var(--oc-text-info);
-  min-width: 80px;
-  flex-shrink: 0;
-}
 </style>

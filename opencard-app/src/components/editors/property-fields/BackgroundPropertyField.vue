@@ -1,18 +1,14 @@
 <template>
   <div class="background-field">
-    <div class="mode-tabs">
-      <OcButton
-        v-for="option in modeOptions"
-        :key="option.value"
-        class="mode-tab"
-        variant="choice"
-        :class="{ active: mode === option.value }"
-        :active="mode === option.value"
-        @click="setMode(option.value)"
-      >
-        {{ option.label }}
-      </OcButton>
-    </div>
+    <OcOptionGroup
+      class="mode-tabs"
+      :options="modeOptions"
+      :model-value="mode"
+      aria-label="Background mode"
+      :columns="modeOptions.length"
+      size="sm"
+      @update:modelValue="handleModeChange"
+    />
 
     <div class="preview" :style="previewStyle" />
 
@@ -53,7 +49,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import OcButton from '../../base/OcButton.vue'
+import OcOptionGroup from '../../base/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 type BackgroundMode = 'color' | 'gradient' | 'image' | 'raw'
@@ -134,6 +130,10 @@ function setMode(nextMode: BackgroundMode) {
   } else if (nextMode === 'image' && !draftImage.value.image) {
     emit('update:value', serializeImageBackground(draftImage.value))
   }
+}
+
+function handleModeChange(nextMode: string) {
+  setMode(nextMode as BackgroundMode)
 }
 
 function updateColor(value: string) {
@@ -232,21 +232,6 @@ function wrapUrl(value: string): string {
   gap: 8px;
   flex: 1;
   min-width: 0;
-}
-
-.mode-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.mode-tab {
-  padding: 2px 6px;
-  font-size: var(--oc-label-size);
-}
-
-.mode-tab.active {
-  border-color: var(--oc-accent);
-  background: var(--oc-bg-active);
 }
 
 .preview {

@@ -1,16 +1,16 @@
 <template>
   <div class="color-field">
     <span class="color-preview" :style="previewStyle" />
-    <input
+    <OcFieldInput
       v-if="definition.enableCss !== false"
-      class="prop-input oc-input"
+      as="input"
       type="text"
       :value="stringValue"
       @input="emit('update:value', ($event.target as HTMLInputElement).value)"
     />
-    <input
+    <OcFieldInput
       v-else
-      class="prop-input oc-input"
+      as="input"
       type="text"
       :value="stringValue"
       readonly
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcFieldInput from '../../base/OcFieldInput.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const props = defineProps<{
@@ -91,14 +92,6 @@ function toHexColor(value: string): string | null {
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0;
   flex-shrink: 0;
-}
-
-.prop-input {
-  padding: 2px 6px;
-}
-
-.prop-input:focus {
-  border-color: var(--oc-accent);
 }
 
 .color-picker {
