@@ -3,14 +3,27 @@
     <!-- 顶部菜单栏 -->
       <div class="menu-bar">
         <div class="menu-items">
-        <span class="menu-item">{{ t('app.menu.file') }}</span>
-        <span class="menu-item">{{ t('app.menu.edit') }}</span>
-        <span class="menu-item">{{ t('app.menu.view') }}</span>
-        <span class="menu-item">{{ t('app.menu.help') }}</span>
+        <OcButton class="menu-link" variant="ghost" :disabled="true">
+          {{ t('app.menu.file') }}
+        </OcButton>
+        <OcButton class="menu-link" variant="ghost" :disabled="true">
+          {{ t('app.menu.edit') }}
+        </OcButton>
+        <OcButton class="menu-link" variant="ghost" :disabled="true">
+          {{ t('app.menu.view') }}
+        </OcButton>
+        <OcButton class="menu-link" variant="ghost" :disabled="true">
+          {{ t('app.menu.help') }}
+        </OcButton>
         <OcButton class="menu-link" variant="ghost" @click="openButtonShowcase">
           Buttons
         </OcButton>
-        <span @click="debugLog('Debugging...')" class="menu-item">{{ t('app.menu.export2x') }}</span>
+        <OcButton class="menu-link" variant="ghost" :disabled="!canExportActiveCard" @click="exportActiveCard2x">
+          {{ t('app.menu.export2x') }}
+        </OcButton>
+        <OcButton class="menu-link" variant="ghost" :disabled="!canExportActiveCard" @click="exportAllCardViews">
+          {{ t('app.menu.exportAll') }}
+        </OcButton>
       </div>
       <div class="window-title">OpenCard</div>
     </div>
@@ -121,9 +134,9 @@
       </div>
     </div>
 
-    <!-- 隐藏的卡牌渲染器 -->
-    <div v-if="showCardPreview" style="position: fixed; top: -9999px; left: -9999px;">
-      <CardRenderer v-if="previewCardDoc" ref="cardRendererRef" :document="previewCardDoc" />
+    <!-- 隐藏的导出渲染器 -->
+    <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
+      <CardRenderer v-if="exportCardDoc" ref="exportRendererRef" :document="exportCardDoc" />
     </div>
 
     <FloatingMenuHost />
@@ -146,8 +159,12 @@ import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload 
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
-import type { CardDocument } from '../core/Card'
-import { save } from '@tauri-apps/plugin-dialog'
+import {
+  materializeCardDocument,
+  resolveCardDocumentInstanceView,
+  type CardDocument,
+} from '../core/Card'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { exportCardAsImage } from '../utils/exportCard'
 
@@ -173,11 +190,12 @@ const openedEditorSelectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
-const cardRendererRef = ref<InstanceType<typeof CardRenderer>>()
+const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const currentEditorRef = ref<{ save?: () => Promise<void> | void } | null>(null)
-const showCardPreview = ref(false)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
+const showExportRenderer = ref(false)
+const exportCardDoc = ref<CardDocument | null>(null)
 
 const {
   sessions,
@@ -204,8 +222,177 @@ const currentLanguage = computed(() => {
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
 
+const canExportActiveCard = computed(() =>
+  Boolean(activeSession.value) && resolveFileType(activeSession.value!.path).id === 'opencard'
+)
+
 function normalizeIdePath(path: string) {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function stripFileExtension(fileName: string) {
+  const lastDotIndex = fileName.lastIndexOf('.')
+  return lastDotIndex > 0 ? fileName.slice(0, lastDotIndex) : fileName
+}
+
+function sanitizeFileNameSegment(value: string, fallback: string) {
+  const sanitized = value
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/[. ]+$/g, '')
+
+  return sanitized.length > 0 ? sanitized : fallback
+}
+
+function buildFilePath(directoryPath: string, fileName: string) {
+  const separator = directoryPath.includes('\\') ? '\\' : '/'
+  return `${directoryPath.replace(/[\\/]+$/, '')}${separator}${fileName}`
+}
+
+function dataUrlToBytes(dataUrl: string) {
+  const base64Data = dataUrl.split(',')[1] ?? ''
+  const binaryData = atob(base64Data)
+  const bytes = new Uint8Array(binaryData.length)
+
+  for (let index = 0; index < binaryData.length; index += 1) {
+    bytes[index] = binaryData.charCodeAt(index)
+  }
+
+  return bytes
+}
+
+function waitForNextPaint() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
+async function waitForImageElement(imageElement: HTMLImageElement) {
+  if (imageElement.complete) {
+    if (typeof imageElement.decode === 'function') {
+      try {
+        await imageElement.decode()
+      } catch {
+        // Ignore decode failures so export can continue with the best available state.
+      }
+    }
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    const finalize = () => {
+      imageElement.removeEventListener('load', finalize)
+      imageElement.removeEventListener('error', finalize)
+      resolve()
+    }
+
+    imageElement.addEventListener('load', finalize, { once: true })
+    imageElement.addEventListener('error', finalize, { once: true })
+  })
+
+  if (typeof imageElement.decode === 'function') {
+    try {
+      await imageElement.decode()
+    } catch {
+      // Ignore decode failures so export can continue with the best available state.
+    }
+  }
+}
+
+async function waitForExportAssets(rootElement: HTMLElement) {
+  const images = Array.from(rootElement.querySelectorAll('img'))
+  await Promise.all(images.map((imageElement) => waitForImageElement(imageElement)))
+  await waitForNextPaint()
+}
+
+function getActiveCardExportContext() {
+  if (!activeSession.value) {
+    console.error('没有打开的文件')
+    return null
+  }
+
+  if (resolveFileType(activeSession.value.path).id !== 'opencard') {
+    console.error('当前活动文件不是 .opencard')
+    return null
+  }
+
+  const currentContent = activeSession.value.draftContent.trim()
+  if (!currentContent) {
+    console.error('当前 .opencard 内容为空')
+    return null
+  }
+
+  try {
+    return {
+      fileNameStem: sanitizeFileNameSegment(stripFileExtension(activeSession.value.name), 'card'),
+      document: materializeCardDocument(JSON.parse(currentContent)),
+    }
+  } catch (error) {
+    console.error('解析 .opencard 失败:', error)
+    return null
+  }
+}
+
+function createExportFileName(baseFileName: string, suffix: string, usedFileNames: Set<string>) {
+  const normalizedSuffix = sanitizeFileNameSegment(suffix, 'export')
+  let nextStem = `${baseFileName}_${normalizedSuffix}`
+  let nextFileName = `${nextStem}.png`
+  let dedupeIndex = 2
+
+  while (usedFileNames.has(nextFileName.toLowerCase())) {
+    nextStem = `${baseFileName}_${normalizedSuffix}_${dedupeIndex}`
+    nextFileName = `${nextStem}.png`
+    dedupeIndex += 1
+  }
+
+  usedFileNames.add(nextFileName.toLowerCase())
+  return nextFileName
+}
+
+function buildCardExportQueue(baseFileName: string, document: CardDocument) {
+  const usedFileNames = new Set<string>()
+  const exportQueue = [
+    {
+      fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
+      document: resolveCardDocumentInstanceView(document, null),
+    },
+  ]
+
+  for (const instance of document.instances ?? []) {
+    const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
+    exportQueue.push({
+      fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
+      document: resolveCardDocumentInstanceView(document, instance),
+    })
+  }
+
+  return exportQueue
+}
+
+async function renderCardDocumentToImage(document: CardDocument) {
+  showExportRenderer.value = true
+  exportCardDoc.value = document
+
+  await nextTick()
+  await waitForNextPaint()
+
+  const canvasElement = exportRendererRef.value?.getCanvasElement()
+  if (!canvasElement) {
+    throw new Error('无法获取导出 canvas 元素')
+  }
+
+  await waitForExportAssets(canvasElement)
+
+  return await exportCardAsImage(canvasElement, {
+    dpi: 192,
+    format: 'png',
+  })
+}
+
+function resetExportRenderer() {
+  showExportRenderer.value = false
+  exportCardDoc.value = null
 }
 
 const currentEditorComponent = computed(() => {
@@ -254,7 +441,7 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   }
 
   try {
-    const cardDoc: CardDocument = JSON.parse(newContent)
+    const cardDoc = materializeCardDocument(JSON.parse(newContent))
     previewCardDoc.value = cardDoc
     showPreview.value = true
   } catch (error) {
@@ -424,74 +611,64 @@ async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
     : new Map()
 }
 
-async function debugLog(message: string) {
-  console.log(`[DEBUG] ${message}`)
+async function exportActiveCard2x() {
+  const context = getActiveCardExportContext()
+  if (!context) {
+    return
+  }
 
-  // 渲染当前 JSON 为卡牌并保存
-  const currentContent = activeSession.value?.draftContent ?? ''
-  if (!currentContent) {
-    console.error('没有打开的文件')
+  const savePath = await save({
+    defaultPath: `${context.fileNameStem}_blueprint_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
+    filters: [{
+      name: 'PNG Image',
+      extensions: ['png'],
+    }],
+  })
+
+  if (!savePath) {
     return
   }
 
   try {
-    // 解析 JSON
-    const cardDoc: CardDocument = JSON.parse(currentContent)
-    console.log('解析的卡牌文档:', cardDoc)
-
-    // 显示预览
-    previewCardDoc.value = cardDoc
-    showCardPreview.value = true
-
-    // 等待 DOM 更新
-    await nextTick()
-
-    // 获取 canvas 元素
-    const canvasElement = cardRendererRef.value?.getCanvasElement()
-    if (!canvasElement) {
-      console.error('无法获取 canvas 元素')
-      return
-    }
-
-    // 转换为图片
-    console.log('正在渲染图片...')
-    const dataUrl = await exportCardAsImage(canvasElement, {
-      dpi: 192,
-      format: 'png',
-    })
-
-    // 选择保存位置
-    const savePath = await save({
-      defaultPath: `${cardDoc.name || 'card'}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
-      filters: [{
-        name: 'PNG Image',
-        extensions: ['png']
-      }]
-    })
-
-    if (!savePath) {
-      console.log('用户取消保存')
-      return
-    }
-
-    // 将 base64 转换为 Uint8Array
-    const base64Data = dataUrl.split(',')[1]
-    const binaryData = atob(base64Data)
-    const bytes = new Uint8Array(binaryData.length)
-    for (let i = 0; i < binaryData.length; i++) {
-      bytes[i] = binaryData.charCodeAt(i)
-    }
-
-    // 保存文件
-    await writeFile(savePath, bytes)
+    const dataUrl = await renderCardDocumentToImage(context.document)
+    await writeFile(savePath, dataUrlToBytes(dataUrl))
     console.log('图片已保存到:', savePath)
-
-    // 隐藏预览
-    showCardPreview.value = false
-    previewCardDoc.value = null
-
   } catch (error) {
-    console.error('渲染失败:', error)
+    console.error('导出图片失败:', error)
+  } finally {
+    resetExportRenderer()
+  }
+}
+
+async function exportAllCardViews() {
+  const context = getActiveCardExportContext()
+  if (!context) {
+    return
+  }
+
+  const exportDirectory = await open({
+    directory: true,
+    multiple: false,
+    title: t('app.menu.exportAll'),
+  })
+
+  if (typeof exportDirectory !== 'string' || !exportDirectory) {
+    return
+  }
+
+  try {
+    const exportQueue = buildCardExportQueue(context.fileNameStem, context.document)
+
+    for (const entry of exportQueue) {
+      const dataUrl = await renderCardDocumentToImage(entry.document)
+      const targetPath = buildFilePath(exportDirectory, entry.fileName)
+      await writeFile(targetPath, dataUrlToBytes(dataUrl))
+      console.log('图片已保存到:', targetPath)
+    }
+  } catch (error) {
+    console.error('批量导出图片失败:', error)
+  } finally {
+    resetExportRenderer()
   }
 }
 

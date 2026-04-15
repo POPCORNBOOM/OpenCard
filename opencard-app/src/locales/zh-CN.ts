@@ -6,6 +6,7 @@ export default {
       view: '查看',
       help: '帮助',
       export2x: '测试导出 2x',
+      exportAll: '导出全部',
     },
     welcome: {
       title: 'OpenCard',

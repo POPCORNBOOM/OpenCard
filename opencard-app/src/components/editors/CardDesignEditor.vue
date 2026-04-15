@@ -35,6 +35,7 @@
           :can-drop="canDropInstanceTreeNode"
           @update:selected="onInstanceTreeSelect"
           @action-called="handleInstanceTreeAction"
+          @node-rename="handleInstanceTreeRename"
           @node-drop="handleInstanceTreeDrop"
         />
       </template>
@@ -62,7 +63,7 @@
       >
         <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
           :expanded="blockTreeExpanded" :default-node-expanded="true" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-          @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
+          @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
       </OcPanelSection>
       <div class="panel-resizer panel-resizer--horizontal" :class="{ active: resizeState === 'tree-panel' }"
         @mousedown.prevent="startTreePanelResize($event)" />
@@ -124,6 +125,7 @@ import NodeTree, {
   type NodeTreeCanDropPayload,
   type NodeTreeDropPayload,
   type NodeTreeDropPosition,
+  type NodeTreeRenamePayload,
 } from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
@@ -330,6 +332,7 @@ const instanceTree = computed<ITreeNode[]>(() => {
     name: '蓝图',
     path: [BLUEPRINT_CARD_ID],
     parent: null,
+    renamable: false,
     isExpandable: false,
     icon: 'codicon-symbol-class',
     metadata: {
@@ -503,6 +506,25 @@ function handleInstanceTreeAction({ actionKey, caller, node }: NodeTreeActionCal
       }
       return
   }
+}
+
+function handleInstanceTreeRename({ node, name }: NodeTreeRenamePayload) {
+  if (!cardDoc.value?.instances || node.key === BLUEPRINT_CARD_ID) {
+    return
+  }
+
+  const nextName = name.trim()
+  if (!nextName) {
+    return
+  }
+
+  const instance = cardDoc.value.instances.find((item) => item.id === node.key)
+  if (!instance || instance.name === nextName) {
+    return
+  }
+
+  instance.name = nextName
+  markDocumentChanged()
 }
 
 function handleViewportBlockClick(blockId: string) {
@@ -830,6 +852,21 @@ function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPaylo
       if (isCardBlock(selectedBlock.value)) deleteBlock(selectedBlock.value)
       return
   }
+}
+
+function handleTreeRename({ node, name }: NodeTreeRenamePayload) {
+  const block = getNodeBlock(node)
+  if (!block) {
+    return
+  }
+
+  const nextName = name.trim()
+  if (!nextName || block.name === nextName) {
+    return
+  }
+
+  block.name = nextName
+  markDocumentChanged()
 }
 
 function getNodeBlock(node?: ITreeNode): CardBlock | null {

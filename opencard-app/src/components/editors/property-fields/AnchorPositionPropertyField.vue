@@ -48,6 +48,15 @@ const currentValue = computed(() => {
 </script>
 
 <style scoped>
+.anchor-grid.anchor-grid {
+  --anchor-grid-max-size: 96px;
+  flex: 0 1 var(--anchor-grid-max-size);
+  width: 100%;
+  max-width: var(--anchor-grid-max-size);
+  max-height: var(--anchor-grid-max-size);
+  margin-inline: auto;
+}
+
 .anchor-dot {
   width: 6px;
   height: 6px;

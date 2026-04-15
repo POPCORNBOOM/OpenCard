@@ -6,6 +6,7 @@ export default {
       view: 'View',
       help: 'Help',
       export2x: 'Test Export 2x',
+      exportAll: 'Export All',
     },
     welcome: {
       title: 'OpenCard',
