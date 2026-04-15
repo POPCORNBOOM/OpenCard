@@ -21,7 +21,25 @@
               "fontWeight": "bold",
               "color": "#ffffff",
               "width": "420px",
-              "height": "40px"
+              "height": "40px",
+              "name": "",
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "customCss": "",
+              "metadata": {},
+              "fontFamily": "",
+              "textAlign": "start",
+              "lineHeight": "",
+              "writingMode": "horizontal-tb"
             },
             "location": {
               "type": "simple-container-location",
@@ -39,7 +57,26 @@
               "fontSize": "14px",
               "color": "#d4d4d4",
               "width": "520px",
-              "lineHeight": "22px"
+              "lineHeight": "22px",
+              "name": "",
+              "height": "",
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "customCss": "",
+              "metadata": {},
+              "fontFamily": "",
+              "fontWeight": "normal",
+              "textAlign": "start",
+              "writingMode": "horizontal-tb"
             },
             "location": {
               "type": "simple-container-location",
@@ -57,7 +94,20 @@
               "width": "360px",
               "height": "460px",
               "customCss": "border-radius: 18px; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);",
-              "image": "沈星回.jpg"
+              "image": "沈星回.jpg",
+              "name": "",
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "metadata": {}
             },
             "location": {
               "type": "simple-container-location",
@@ -76,13 +126,25 @@
               "height": 191.14,
               "customCss": "border-radius: 18px; background: rgba(255, 255, 255, 0.08); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);",
               "rotation": 123,
-              "image": "立绘_圣聆初雪_2.png"
+              "image": "立绘_圣聆初雪_2.png",
+              "name": "",
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "metadata": {}
             },
             "location": {
               "type": "simple-container-location",
               "anchor": "lt",
-              "x": "379.88px",
-              "y": "71.55px"
+              "x": "401.17px",
+              "y": "107.48px"
             }
           },
           {
@@ -93,7 +155,27 @@
               "height": "60px",
               "type": "text-block",
               "content": "aaaaaaaaaaaaaaaa",
-              "mode": "plain"
+              "mode": "plain",
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "customCss": "",
+              "metadata": {},
+              "fontSize": "",
+              "fontFamily": "",
+              "fontWeight": "normal",
+              "color": "",
+              "textAlign": "start",
+              "lineHeight": "",
+              "writingMode": "horizontal-tb"
             },
             "location": {
               "type": "simple-container-location",
@@ -120,11 +202,32 @@
                     "height": "320.16px",
                     "type": "text-block",
                     "content": "suuuuuuuuuuuuuck ",
-                    "mode": "plain"
+                    "mode": "plain",
+                    "translateX": "0px",
+                    "translateY": "0px",
+                    "scaleX": 1,
+                    "scaleY": 1,
+                    "transformAnchor": "cc",
+                    "zIndex": 0,
+                    "rotation": 0,
+                    "opacity": 1,
+                    "outline": "",
+                    "borderRadius": "",
+                    "background": "",
+                    "customCss": "",
+                    "metadata": {},
+                    "fontSize": "",
+                    "fontFamily": "",
+                    "fontWeight": "normal",
+                    "color": "",
+                    "textAlign": "start",
+                    "lineHeight": "",
+                    "writingMode": "horizontal-tb"
                   },
                   "location": {
                     "type": "flow-container-location",
-                    "index": 0
+                    "index": 0,
+                    "align": "start"
                   }
                 },
                 {
@@ -135,14 +238,48 @@
                     "height": "111.11px",
                     "type": "text-block",
                     "content": "asssssssssssssssssssssssssssssssssssssssssssssssss",
-                    "mode": "plain"
+                    "mode": "plain",
+                    "translateX": "0px",
+                    "translateY": "0px",
+                    "scaleX": 1,
+                    "scaleY": 1,
+                    "transformAnchor": "cc",
+                    "zIndex": 0,
+                    "rotation": 0,
+                    "opacity": 1,
+                    "outline": "",
+                    "borderRadius": "",
+                    "background": "",
+                    "customCss": "",
+                    "metadata": {},
+                    "fontSize": "",
+                    "fontFamily": "",
+                    "fontWeight": "normal",
+                    "color": "",
+                    "textAlign": "start",
+                    "lineHeight": "",
+                    "writingMode": "horizontal-tb"
                   },
                   "location": {
                     "type": "flow-container-location",
-                    "index": 1
+                    "index": 1,
+                    "align": "start"
                   }
                 }
-              ]
+              ],
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "customCss": "",
+              "metadata": {}
             },
             "location": {
               "type": "simple-container-location",
@@ -160,7 +297,20 @@
               "type": "flow-container-block",
               "direction": "lr",
               "gap": "10px",
-              "children": []
+              "children": [],
+              "translateX": "0px",
+              "translateY": "0px",
+              "scaleX": 1,
+              "scaleY": 1,
+              "transformAnchor": "cc",
+              "zIndex": 0,
+              "rotation": 0,
+              "opacity": 1,
+              "outline": "",
+              "borderRadius": "",
+              "background": "",
+              "customCss": "",
+              "metadata": {}
             },
             "location": {
               "type": "simple-container-location",
@@ -170,7 +320,20 @@
             }
           }
         ],
-        "customCss": "background: linear-gradient(180deg, #2f3f66 0%, #1b2236 100%); border-radius: 22px;"
+        "customCss": "background: linear-gradient(180deg, #2f3f66 0%, #1b2236 100%); border-radius: 22px;",
+        "name": "",
+        "translateX": "0px",
+        "translateY": "0px",
+        "scaleX": 1,
+        "scaleY": 1,
+        "transformAnchor": "cc",
+        "zIndex": 0,
+        "rotation": 0,
+        "opacity": 1,
+        "outline": "",
+        "borderRadius": "",
+        "background": "",
+        "metadata": {}
       },
       "location": {
         "type": "simple-container-location",
@@ -188,7 +351,8 @@
         "hint": {
           "content": "This text is set via instance data."
         }
-      }
+      },
+      "metadata": {}
     },
     {
       "id": "instance-27ff9251-2282-4a45-a319-a6cd9eb2d5e8",
@@ -197,7 +361,10 @@
         "hint": {
           "content": "This text is set via instance data."
         }
-      }
+      },
+      "metadata": {}
     }
-  ]
+  ],
+  "type": "card-document",
+  "id": "card-document-f4e0fa4f-2615-40da-97b5-b556c47b1fa6"
 }

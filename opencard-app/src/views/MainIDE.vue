@@ -57,8 +57,9 @@
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
               @node-drop="handleFileTreeDrop"
+              @node-rename="handleFileTreeRename"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
-              v-model:selected="selectedFiles" />
+              :selected="selectedFiles" @update:selected="handleFileTreeSelect" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
           </div>
 
@@ -141,7 +142,7 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
 import OcPanelSection from '../components/base/OcPanelSection.vue'
-import type { NodeTreeDropPayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
+import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
@@ -162,6 +163,7 @@ const {
   getFileTreeAllowedDropPositions,
   canMoveEntryByDrop,
   moveEntryByDrop,
+  renameEntry,
   setDirectoryExpanded,
 } = useProjectStore()
 
@@ -183,6 +185,7 @@ const {
   activeSession,
   openedFileNodes,
   openFile: openEditorSession,
+  openPreviewFile,
   activateSession,
   activatePath,
   updateDraftContent,
@@ -373,6 +376,25 @@ function handleOpenedEditorsSelect(newSelected: Map<string, ITreeNode>) {
   }
 }
 
+async function handleFileTreeSelect(newSelected: Map<string, ITreeNode>) {
+  selectedFiles.value = newSelected
+
+  if (newSelected.size !== 1) {
+    return
+  }
+
+  const selectedNode = newSelected.values().next().value as ITreeNode | undefined
+  if (!selectedNode || selectedNode.metadata?.isDirectory) {
+    return
+  }
+
+  try {
+    await openPreviewFile(selectedNode.key)
+  } catch (error) {
+    console.error('预览打开文件失败:', error)
+  }
+}
+
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)
   if (!result.ok) {
@@ -384,6 +406,22 @@ async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
 
   remapSessionPaths(result.fromPath, result.toPath)
   selectedFiles.value = new Map()
+}
+
+async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
+  const result = await renameEntry(node.key, name)
+  if (!result.ok) {
+    if (result.reason !== 'same-path') {
+      console.error('重命名文件失败:', result.reason)
+    }
+    return
+  }
+
+  remapSessionPaths(result.fromPath, result.toPath)
+  const renamedNode = findTreeNodeByKey(fileTree.value, result.toPath)
+  selectedFiles.value = renamedNode
+    ? new Map([[renamedNode.key, renamedNode]])
+    : new Map()
 }
 
 async function debugLog(message: string) {

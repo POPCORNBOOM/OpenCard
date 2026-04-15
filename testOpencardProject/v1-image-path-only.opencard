@@ -1,0 +1,54 @@
+{
+  "type": "card-document",
+  "name": "V1 Image Path Only",
+  "id": "doc-image-path-only",
+  "version": 1,
+  "width": 640,
+  "height": 360,
+  "children": [
+    {
+      "block": {
+        "id": "root-image-path",
+        "type": "simple-container-block",
+        "children": [
+          {
+            "block": {
+              "id": "image-path-only",
+              "type": "image-block",
+              "imagePath": "沈星回.jpg",
+              "width": "280px",
+              "height": "320px"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "20px",
+              "y": "20px"
+            }
+          },
+          {
+            "block": {
+              "id": "hint-text",
+              "type": "text-block",
+              "content": "This fixture checks whether imagePath-only input is materialized to image.",
+              "width": "280px",
+              "lineHeight": "20px"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "320px",
+              "y": "20px"
+            }
+          }
+        ]
+      },
+      "location": {
+        "type": "simple-container-location",
+        "anchor": "cc",
+        "x": "0px",
+        "y": "0px"
+      }
+    }
+  ]
+}

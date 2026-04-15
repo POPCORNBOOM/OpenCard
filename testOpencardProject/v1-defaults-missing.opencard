@@ -1,0 +1,77 @@
+{
+  "name": "V1 Defaults Missing",
+  "width": 640,
+  "height": 360,
+  "children": [
+    {
+      "block": {
+        "id": "root-defaults",
+        "type": "simple-container-block",
+        "children": [
+          {
+            "block": {
+              "id": "text-defaults",
+              "type": "text-block",
+              "content": "Defaults should be materialized from schema."
+            },
+            "location": {
+              "type": "simple-container-location"
+            }
+          },
+          {
+            "block": {
+              "id": "image-defaults",
+              "type": "image-block",
+              "image": "A.png"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "320px",
+              "y": "20px"
+            }
+          },
+          {
+            "block": {
+              "id": "flow-defaults",
+              "type": "flow-container-block",
+              "children": [
+                {
+                  "block": {
+                    "id": "flow-text-a",
+                    "type": "text-block",
+                    "content": "Flow A"
+                  },
+                  "location": {
+                    "type": "flow-container-location"
+                  }
+                },
+                {
+                  "block": {
+                    "id": "flow-text-b",
+                    "type": "text-block",
+                    "content": "Flow B"
+                  },
+                  "location": {
+                    "type": "flow-container-location",
+                    "index": 7
+                  }
+                }
+              ]
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "20px",
+              "y": "140px"
+            }
+          }
+        ]
+      },
+      "location": {
+        "type": "simple-container-location",
+        "anchor": "cc"
+      }
+    }
+  ]
+}

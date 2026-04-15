@@ -9,3 +9,5 @@
 判断是否该继续瘦身 `MainIDE.vue` 的标准很简单：如果一段逻辑回答的是“磁盘上现在是什么”，它应去 `projectStore`；如果回答的是“用户当前正在编辑什么、改到了什么程度”，它应去 `editorSessionStore`。
 
 文件 Tree 的选中态也应服从这个边界：活动编辑器路径是页面层可消费的“当前文档真相”，`MainIDE.vue` 只负责把它投影到“已打开编辑器”Tree 与项目 Tree 上，而不应再维护一套独立于 `activeSession` 的长期选中来源。
+
+文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selected` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。

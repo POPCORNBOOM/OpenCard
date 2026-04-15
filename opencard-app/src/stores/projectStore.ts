@@ -30,6 +30,10 @@ type MoveEntryByDropResult =
   | { ok: true; fromPath: string; toPath: string }
   | { ok: false; reason: 'project-not-open' | 'invalid-target' | 'self-target' | 'descendant-target' | 'same-path' | 'target-exists' | 'move-failed' }
 
+type RenameEntryResult =
+  | { ok: true; fromPath: string; toPath: string }
+  | { ok: false; reason: 'project-not-open' | 'invalid-name' | 'same-path' | 'target-exists' | 'rename-failed' }
+
 const projectPath = ref('')
 const indexedEntries = ref<DirEntry[]>([])
 const isWatching = ref(false)
@@ -374,6 +378,26 @@ function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
   return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
 }
 
+function isValidEntryName(name: string) {
+  if (!name) {
+    return false
+  }
+
+  if (name === '.' || name === '..') {
+    return false
+  }
+
+  if (/[<>:"/\\|?*\u0000-\u001F]/.test(name)) {
+    return false
+  }
+
+  if (/[. ]$/.test(name)) {
+    return false
+  }
+
+  return !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(name)
+}
+
 function resolveFileTreeDestination({ dragged, target, position }: NodeTreeCanDropPayload) {
   if (!projectPath.value) {
     return null
@@ -472,6 +496,41 @@ async function moveEntry(sourcePath: string, targetPath: string) {
   await refreshIndexedEntries()
 }
 
+async function renameEntry(path: string, nextName: string): Promise<RenameEntryResult> {
+  if (!projectPath.value) {
+    return { ok: false, reason: 'project-not-open' }
+  }
+
+  const sourcePath = normalizePath(path)
+  const trimmedName = nextName.trim()
+  if (!isValidEntryName(trimmedName)) {
+    return { ok: false, reason: 'invalid-name' }
+  }
+
+  const targetDirectory = getPathDirname(sourcePath)
+  const targetPath = `${targetDirectory}/${trimmedName}`
+  if (targetPath === sourcePath) {
+    return { ok: false, reason: 'same-path' }
+  }
+
+  const targetExists = await fileSystemService.fileExists(targetPath)
+  if (targetExists) {
+    return { ok: false, reason: 'target-exists' }
+  }
+
+  try {
+    await moveEntry(sourcePath, targetPath)
+    return {
+      ok: true,
+      fromPath: sourcePath,
+      toPath: targetPath,
+    }
+  } catch (error) {
+    console.error('重命名文件失败:', error)
+    return { ok: false, reason: 'rename-failed' }
+  }
+}
+
 async function moveEntryByDrop(payload: NodeTreeDropPayload): Promise<MoveEntryByDropResult> {
   if (!projectPath.value) {
     return { ok: false, reason: 'project-not-open' }
@@ -545,6 +604,7 @@ export function useProjectStore() {
     canMoveEntryByDrop,
     moveEntry,
     moveEntryByDrop,
+    renameEntry,
     startWatching,
     stopWatching,
     resolveProjectPath,

@@ -1,0 +1,73 @@
+{
+  "type": "card-document",
+  "name": "V1 Instance Null Reset",
+  "id": "doc-instance-null",
+  "version": 1,
+  "width": 700,
+  "height": 420,
+  "children": [
+    {
+      "block": {
+        "id": "root-instance",
+        "type": "simple-container-block",
+        "children": [
+          {
+            "block": {
+              "id": "title",
+              "type": "text-block",
+              "content": "Blueprint Title",
+              "fontSize": "36px",
+              "color": "#ff0000",
+              "textAlign": "center"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "ct",
+              "y": "20px"
+            }
+          },
+          {
+            "block": {
+              "id": "portrait",
+              "type": "image-block",
+              "image": "沈星回.jpg",
+              "fit": "contain",
+              "width": "280px",
+              "height": "320px"
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "20px",
+              "y": "70px"
+            }
+          }
+        ]
+      },
+      "location": {
+        "type": "simple-container-location",
+        "anchor": "cc",
+        "x": "0px",
+        "y": "0px"
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "instance-null-reset",
+      "name": "Null Reset Instance",
+      "data": {
+        "title": {
+          "content": "Instance Title",
+          "fontSize": null,
+          "color": null,
+          "textAlign": null,
+          "extNote": null
+        },
+        "portrait": {
+          "fit": null
+        }
+      }
+    }
+  ]
+}

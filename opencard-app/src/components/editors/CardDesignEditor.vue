@@ -1,5 +1,10 @@
 <template>
-  <div ref="editorRootRef" class="card-design-editor">
+  <div
+    ref="editorRootRef"
+    class="card-design-editor"
+    :class="{ 'card-design-editor--resizing': Boolean(resizeState) }"
+    :style="editorStyle"
+  >
     <OcPanelSection
       class="left-panel"
       :class="{ collapsed: !isInstancePanelExpanded }"
@@ -21,6 +26,8 @@
           v-if="isInstancePanelExpanded"
           title="创建的卡牌"
           :nodes="instanceTree"
+          :default-expanded="true"
+          :default-node-expanded="true"
           :selected="selectedCards"
           :actions="instanceTreeActions"
           :action-keys="instanceTreeActionKeys"
@@ -42,22 +49,23 @@
       <div v-else class="empty-hint oc-empty-hint">无法解析 .opencard 文件</div>
     </div>
 
-    <div class="panel-resizer panel-resizer--vertical" @mousedown.prevent="startRightPanelResize" />
+    <div class="panel-resizer panel-resizer--vertical" :class="{ active: resizeState === 'right-panel' }"
+      @mousedown.prevent="startRightPanelResize($event)" />
 
-    <div ref="rightPanelRef" class="right-panel oc-panel-stack" :style="{ width: `${rightPanelWidth}px` }">
+    <div ref="rightPanelRef" class="right-panel oc-panel-stack">
       <OcPanelSection
         class="block-list-panel"
-        :style="{ height: `${treePanelHeight}px` }"
         title="信息树"
         header-class="panel-header"
         body-class="block-list"
         :scroll-body="true"
       >
         <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-          :expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+          :expanded="blockTreeExpanded" :default-node-expanded="true" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
           @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-drop="handleTreeDrop" />
       </OcPanelSection>
-      <div class="panel-resizer panel-resizer--horizontal" @mousedown.prevent="startTreePanelResize" />
+      <div class="panel-resizer panel-resizer--horizontal" :class="{ active: resizeState === 'tree-panel' }"
+        @mousedown.prevent="startTreePanelResize($event)" />
 
       <OcPanelSection class="property-panel" title="属性" header-class="panel-header">
         <template #actions>
@@ -139,6 +147,10 @@ const editorRootRef = ref<HTMLElement | null>(null)
 const rightPanelRef = ref<HTMLElement | null>(null)
 const rightPanelWidth = ref(320)
 const treePanelHeight = ref(320)
+const editorStyle = computed(() => ({
+  '--card-editor-right-panel-width': `${rightPanelWidth.value}px`,
+  '--card-editor-tree-panel-height': `${treePanelHeight.value}px`,
+}))
 const MIN_RIGHT_PANEL_WIDTH = 220
 const MAX_RIGHT_PANEL_WIDTH = 640
 const MIN_CANVAS_WIDTH = 320
@@ -146,6 +158,17 @@ const MIN_TREE_PANEL_HEIGHT = 140
 const MIN_PROPERTY_PANEL_HEIGHT = 180
 const HORIZONTAL_RESIZER_HEIGHT = 6
 const resizeState = ref<null | 'right-panel' | 'tree-panel'>(null)
+const resizeSnapshot = ref<{
+  clientX: number
+  clientY: number
+  rightPanelWidth: number
+  treePanelHeight: number
+} | null>(null)
+let resizePreview = {
+  rightPanelWidth: rightPanelWidth.value,
+  treePanelHeight: treePanelHeight.value,
+}
+let resizeFrameId: number | null = null
 const treeActions = new Map<string, ActionDefinition>([
   ['add-root', {
     key: 'add-root',
@@ -283,6 +306,7 @@ const blockTree = computed(() => {
     blockToTreeNode(child.block, null, child.location)
   )
 })
+
 const resolvedCardDoc = computed<CardDocument | null>(() => {
   if (!cardDoc.value) {
     return null
@@ -296,6 +320,10 @@ const resolvedCardDoc = computed<CardDocument | null>(() => {
 })
 
 const instanceTree = computed<ITreeNode[]>(() => {
+  if (!cardDoc.value) {
+    return []
+  }
+
   const instances = cardDoc.value?.instances
   const blueprintNode: ITreeNode = {
     key: BLUEPRINT_CARD_ID,
@@ -641,46 +669,101 @@ function syncPanelBounds() {
   treePanelHeight.value = clamp(treePanelHeight.value, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
 }
 
-function startRightPanelResize() {
+function writeResizePreview() {
+  const root = editorRootRef.value
+  if (!root) {
+    return
+  }
+
+  root.style.setProperty('--card-editor-right-panel-width', `${resizePreview.rightPanelWidth}px`)
+  root.style.setProperty('--card-editor-tree-panel-height', `${resizePreview.treePanelHeight}px`)
+}
+
+function scheduleResizePreview() {
+  if (resizeFrameId !== null) {
+    return
+  }
+
+  resizeFrameId = window.requestAnimationFrame(() => {
+    resizeFrameId = null
+    writeResizePreview()
+  })
+}
+
+function flushResizePreview() {
+  if (resizeFrameId !== null) {
+    window.cancelAnimationFrame(resizeFrameId)
+    resizeFrameId = null
+  }
+
+  writeResizePreview()
+}
+
+function startRightPanelResize(event: MouseEvent) {
   resizeState.value = 'right-panel'
+  resizeSnapshot.value = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    rightPanelWidth: rightPanelWidth.value,
+    treePanelHeight: treePanelHeight.value,
+  }
+  resizePreview = {
+    rightPanelWidth: rightPanelWidth.value,
+    treePanelHeight: treePanelHeight.value,
+  }
   document.body.classList.add('is-resizing-panels')
   document.body.style.cursor = 'col-resize'
 }
 
-function startTreePanelResize() {
+function startTreePanelResize(event: MouseEvent) {
   resizeState.value = 'tree-panel'
+  resizeSnapshot.value = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    rightPanelWidth: rightPanelWidth.value,
+    treePanelHeight: treePanelHeight.value,
+  }
+  resizePreview = {
+    rightPanelWidth: rightPanelWidth.value,
+    treePanelHeight: treePanelHeight.value,
+  }
   document.body.classList.add('is-resizing-panels')
   document.body.style.cursor = 'row-resize'
 }
 
 function handleGlobalMouseMove(event: MouseEvent) {
-  if (!resizeState.value) {
+  if (!resizeState.value || !resizeSnapshot.value) {
     return
   }
 
   if (resizeState.value === 'right-panel') {
-    const rootRect = editorRootRef.value?.getBoundingClientRect()
-    if (!rootRect) {
-      return
-    }
-    const nextWidth = rootRect.right - event.clientX
-    rightPanelWidth.value = clamp(nextWidth, MIN_RIGHT_PANEL_WIDTH, getRightPanelMaxWidth())
+    resizePreview.rightPanelWidth = clamp(
+      resizeSnapshot.value.rightPanelWidth - (event.clientX - resizeSnapshot.value.clientX),
+      MIN_RIGHT_PANEL_WIDTH,
+      getRightPanelMaxWidth(),
+    )
+    scheduleResizePreview()
     return
   }
 
-  const panelRect = rightPanelRef.value?.getBoundingClientRect()
-  if (!panelRect) {
-    return
-  }
-  const nextTreeHeight = event.clientY - panelRect.top
-  treePanelHeight.value = clamp(nextTreeHeight, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
+  resizePreview.treePanelHeight = clamp(
+    resizeSnapshot.value.treePanelHeight + (event.clientY - resizeSnapshot.value.clientY),
+    MIN_TREE_PANEL_HEIGHT,
+    getTreePanelMaxHeight(),
+  )
+  scheduleResizePreview()
 }
 
 function stopPanelResize() {
   if (!resizeState.value) {
     return
   }
+
+  flushResizePreview()
+  rightPanelWidth.value = resizePreview.rightPanelWidth
+  treePanelHeight.value = resizePreview.treePanelHeight
   resizeState.value = null
+  resizeSnapshot.value = null
   document.body.classList.remove('is-resizing-panels')
   document.body.style.cursor = ''
 }
@@ -1053,6 +1136,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (resizeFrameId !== null) {
+    window.cancelAnimationFrame(resizeFrameId)
+    resizeFrameId = null
+  }
   window.removeEventListener('mousemove', handleGlobalMouseMove)
   window.removeEventListener('mouseup', stopPanelResize)
   window.removeEventListener('resize', syncPanelBounds)
@@ -1068,6 +1155,8 @@ onUnmounted(() => {
   height: 100%;
   background: var(--oc-bg-base);
   color: var(--oc-text-primary);
+  --card-editor-right-panel-width: 320px;
+  --card-editor-tree-panel-height: 320px;
 }
 
 .left-panel {
@@ -1075,10 +1164,30 @@ onUnmounted(() => {
   border-right: 1px solid var(--oc-border-strong);
   overflow: hidden;
   flex-shrink: 0;
+  transition: width 160ms ease;
 }
 
 .left-panel.collapsed {
-  width: 36px;
+  width: 44px;
+}
+
+.left-panel.collapsed :deep(.oc-panel-header) {
+  padding: 0;
+  justify-content: center;
+}
+
+.left-panel.collapsed :deep(.oc-panel-section__title) {
+  display: none;
+}
+
+.left-panel.collapsed :deep(.oc-panel-section__actions) {
+  width: 100%;
+  margin-left: 0;
+  justify-content: center;
+}
+
+.left-panel.collapsed :deep(.oc-panel-section__body) {
+  display: none;
 }
 
 .left-panel-header {
@@ -1087,6 +1196,10 @@ onUnmounted(() => {
 
 .left-panel-toggle {
   margin-left: auto;
+}
+
+.left-panel.collapsed .left-panel-toggle {
+  margin-left: 0;
 }
 
 .left-panel-content {
@@ -1098,10 +1211,12 @@ onUnmounted(() => {
 }
 
 .right-panel {
+  width: var(--card-editor-right-panel-width);
   border-left: 1px solid var(--oc-border-strong);
 }
 
 .block-list-panel {
+  height: var(--card-editor-tree-panel-height);
   border-bottom: 1px solid var(--oc-border-strong);
   overflow: hidden;
 }
@@ -1154,12 +1269,27 @@ onUnmounted(() => {
 }
 
 .panel-resizer {
-  background: #2b2b2b;
-  transition: background-color 120ms ease;
+  position: relative;
+  flex-shrink: 0;
+  background: transparent;
+  touch-action: none;
 }
 
-.panel-resizer:hover {
-  background: #3a3a3a;
+.panel-resizer::before {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+  background: var(--oc-border-strong);
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.panel-resizer:hover::before {
+  background: var(--oc-bg-hover-strong);
+}
+
+.panel-resizer.active::before {
+  background: var(--oc-bg-accent);
+  box-shadow: 0 0 0 1px var(--oc-bg-accent-soft);
 }
 
 .panel-resizer--vertical {
@@ -1167,11 +1297,32 @@ onUnmounted(() => {
   cursor: col-resize;
 }
 
+.panel-resizer--vertical::before {
+  inset: 0 2px;
+}
+
 .panel-resizer--horizontal {
   height: 6px;
   cursor: row-resize;
-  border-top: 1px solid var(--oc-border-strong);
-  border-bottom: 1px solid var(--oc-border-strong);
+}
+
+.panel-resizer--horizontal::before {
+  inset: 2px 0;
+}
+
+.card-design-editor--resizing .canvas-area,
+.card-design-editor--resizing .left-panel,
+.card-design-editor--resizing .block-list-panel,
+.card-design-editor--resizing .property-panel {
+  pointer-events: none;
+}
+
+.card-design-editor--resizing .right-panel {
+  will-change: width;
+}
+
+.card-design-editor--resizing .block-list-panel {
+  will-change: height;
 }
 
 :global(body.is-resizing-panels) {

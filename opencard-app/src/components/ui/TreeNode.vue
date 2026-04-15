@@ -5,7 +5,28 @@
       <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
         data-tree-interactive="true" @mousedown.stop @click.stop="handleToggleClick" />
       <AppIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
-      <span class="node-name">{{ node.name }}</span>
+      <span
+        v-if="!isRenaming"
+        class="node-name node-name-label"
+        @click.stop="handleNameClick"
+        @dblclick.stop
+      >
+        {{ node.name }}
+      </span>
+      <OcFieldInput
+        v-else
+        ref="renameInputElement"
+        class="node-name node-rename-input"
+        type="text"
+        :value="nodeTree?.renameDraft.value ?? ''"
+        data-tree-interactive="true"
+        @mousedown.stop
+        @dblclick.stop
+        @click.stop
+        @input="handleRenameInput"
+        @keydown="handleRenameKeydown"
+        @blur="handleRenameBlur"
+      />
       <div v-if="availableActions.length" class="node-actions">
         <TreeActionButton
           v-for="action in availableActions"
@@ -31,6 +52,7 @@ export interface ITreeNode {
   name: string
   key: string
   path?: string[]
+  renamable?: boolean
   isExpandable?: boolean
   isExpanded?: boolean
   icon?: string
@@ -44,8 +66,9 @@ export interface ITreeNode {
 </script>
 
 <script setup lang="ts">
-import { computed, inject, ref, watch, type ComputedRef } from 'vue'
+import { computed, inject, nextTick, ref, watch, type ComputedRef } from 'vue'
 import AppIcon from './AppIcon.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
 import TreeActionButton from './TreeActionButton.vue'
 import type { ActionDefinition, ActionCaller, NodeTreeDropPosition } from './NodeTree.vue'
 
@@ -70,6 +93,14 @@ const nodeTree = inject<{
   handleNodeDragEnd: () => void
   actions: ComputedRef<Map<string, ActionDefinition>>
   multiSelect: boolean
+  defaultNodeExpanded: boolean
+  renameEnabled: boolean
+  renamingNodeKey: { value: string | null }
+  renameDraft: { value: string }
+  startNodeRename: (node: ITreeNode) => void
+  updateRenameDraft: (value: string) => void
+  cancelNodeRename: () => void
+  submitNodeRename: (node: ITreeNode) => void
 }>('nodeTree')
 
 const availableActions = computed(() => {
@@ -81,6 +112,18 @@ const availableActions = computed(() => {
 
 const isSelected = computed(() => {
   return nodeTree?.selectedNodes.value.has(props.node.key) || false
+})
+
+const isOnlySelected = computed(() => {
+  return nodeTree?.selectedNodes.value.size === 1 && isSelected.value
+})
+
+const isRenamable = computed(() => {
+  return props.node.renamable !== false && (nodeTree?.renameEnabled ?? false)
+})
+
+const isRenaming = computed(() => {
+  return nodeTree?.renamingNodeKey.value === props.node.key
 })
 
 const isExpandable = computed(() => {
@@ -118,11 +161,12 @@ const childrenClass = computed(() => ({
   'drop-inside-children-invalid': dropState.value.isActiveTarget && dropState.value.position === 'inside' && !dropState.value.allowed,
 }))
 
-const uncontrolledExpanded = ref(props.node.isExpanded ?? false)
+const uncontrolledExpanded = ref(props.node.isExpanded ?? nodeTree?.defaultNodeExpanded ?? false)
 const isExpandedControlled = computed(() => props.node.isExpanded !== undefined)
 const isExpanded = computed(() => {
   return isExpandedControlled.value ? props.node.isExpanded ?? false : uncontrolledExpanded.value
 })
+const renameInputElement = ref<{ $el?: Element | null } | null>(null)
 
 watch(
   () => props.node.isExpanded,
@@ -134,6 +178,25 @@ watch(
     uncontrolledExpanded.value = nextExpanded
   },
 )
+
+watch(
+  isRenaming,
+  async (nextIsRenaming) => {
+    if (!nextIsRenaming) {
+      return
+    }
+
+    await nextTick()
+    const inputElement = renameInputElement.value?.$el
+    if (!(inputElement instanceof HTMLInputElement)) {
+      return
+    }
+
+    inputElement.focus()
+    inputElement.select()
+  },
+)
+
 function handleToggleClick() {
   if (!isExpandedControlled.value) {
     uncontrolledExpanded.value = !isExpanded.value
@@ -153,6 +216,21 @@ function handleClick(event: MouseEvent) {
   nodeTree?.handleNodeClick(props.node.key, props.node, modify)
 }
 
+function handleNameClick(event: MouseEvent) {
+  event.stopPropagation()
+  if (nodeTree?.suppressClick.value) {
+    return
+  }
+
+  const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
+  if (modify === 'none' && isOnlySelected.value && isRenamable.value) {
+    nodeTree?.startNodeRename(props.node)
+    return
+  }
+
+  nodeTree?.handleNodeClick(props.node.key, props.node, modify)
+}
+
 function handleDoubleClick(event: MouseEvent) {
   event.stopPropagation()
   nodeTree?.handleNodeDoubleClick(props.node)
@@ -165,6 +243,32 @@ function handleActionTrigger(payload: { actionKey: string; caller: ActionCaller;
 function handleMouseDown(event: MouseEvent) {
   event.stopPropagation()
   nodeTree?.handleNodePointerDown(props.node, event)
+}
+
+function handleRenameInput(event: Event) {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  nodeTree?.updateRenameDraft(target.value)
+}
+
+function handleRenameKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    nodeTree?.submitNodeRename(props.node)
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    nodeTree?.cancelNodeRename()
+  }
+}
+
+function handleRenameBlur() {
+  nodeTree?.cancelNodeRename()
 }
 
 </script>
@@ -202,6 +306,15 @@ function handleMouseDown(event: MouseEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.node-name-label {
+  min-width: 0;
+}
+
+.node-rename-input {
+  min-width: 0;
+  width: 100%;
 }
 
 .node-content.selected {

@@ -11,6 +11,7 @@ export type EditorSession = {
   savedContent: string
   draftContent: string
   isDirty: boolean
+  isPreview: boolean
 }
 
 const sessions = ref<EditorSession[]>([])
@@ -58,10 +59,26 @@ export function useEditorSessionStore() {
     })
   )
 
-  async function openFile(path: string) {
+  function setSessionPreviewState(sessionId: string, isPreview: boolean) {
+    sessions.value = sessions.value.map((session) =>
+      session.id === sessionId
+        ? {
+            ...session,
+            isPreview,
+          }
+        : session
+    )
+  }
+
+  async function openSession(path: string, options?: { preview?: boolean }) {
     const normalizedPath = normalizePath(path)
+    const preview = options?.preview ?? false
     const existingSession = sessions.value.find((session) => session.path === normalizedPath)
     if (existingSession) {
+      if (!preview && existingSession.isPreview) {
+        setSessionPreviewState(existingSession.id, false)
+      }
+
       activeSessionId.value = existingSession.id
       return existingSession
     }
@@ -79,11 +96,24 @@ export function useEditorSessionStore() {
       savedContent: content,
       draftContent: content,
       isDirty: false,
+      isPreview: preview,
     }
 
-    sessions.value = [...sessions.value, session]
+    const nextSessions = preview
+      ? sessions.value.filter((candidate) => !candidate.isPreview)
+      : sessions.value
+
+    sessions.value = [...nextSessions, session]
     activeSessionId.value = session.id
     return session
+  }
+
+  async function openFile(path: string) {
+    return await openSession(path)
+  }
+
+  async function openPreviewFile(path: string) {
+    return await openSession(path, { preview: true })
   }
 
   function activateSession(sessionId: string) {
@@ -102,13 +132,19 @@ export function useEditorSessionStore() {
 
   function updateDraftContent(sessionId: string, content: string) {
     sessions.value = sessions.value.map((session) =>
-      session.id === sessionId
-        ? {
-            ...session,
-            draftContent: content,
-            isDirty: content !== session.savedContent,
-          }
-        : session
+      {
+        if (session.id !== sessionId) {
+          return session
+        }
+
+        const isDirty = content !== session.savedContent
+        return {
+          ...session,
+          draftContent: content,
+          isDirty,
+          isPreview: isDirty ? false : session.isPreview,
+        }
+      }
     )
   }
 
@@ -215,6 +251,7 @@ export function useEditorSessionStore() {
     activeSession,
     openedFileNodes,
     openFile,
+    openPreviewFile,
     activateSession,
     activatePath,
     updateDraftContent,

@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, provide, ref, type ComputedRef } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, provide, ref, watch, type ComputedRef } from 'vue'
 import TreeActionButton from './TreeActionButton.vue'
 import TreeNode, { type ITreeNode } from './TreeNode.vue'
 
@@ -43,6 +43,11 @@ export interface NodeTreeActionCalledPayload {
 export interface NodeTreeTogglePayload {
     node: ITreeNode
     expanded: boolean
+}
+
+export interface NodeTreeRenamePayload {
+    node: ITreeNode
+    name: string
 }
 
 export type NodeTreeDropPosition = 'before' | 'inside' | 'after'
@@ -67,6 +72,7 @@ interface Props {
     title?: string
     expanded?: boolean
     defaultExpanded?: boolean
+    defaultNodeExpanded?: boolean
     actions?: Map<string, ActionDefinition>
     actionKeys?: string[]
     canDrop?: (payload: NodeTreeCanDropPayload) => boolean
@@ -77,6 +83,7 @@ const props = withDefaults(defineProps<Props>(), {
     multiSelect: true,
     selected: () => new Map<string, ITreeNode>(),
     defaultExpanded: false,
+    defaultNodeExpanded: false,
     actions: () => new Map<string, ActionDefinition>(),
     actionKeys: () => [],
     canDrop: undefined,
@@ -88,6 +95,7 @@ const emit = defineEmits<{
     'update:expanded': [value: boolean]
     'node-dblclick': [node: ITreeNode]
     'node-toggle': [payload: NodeTreeTogglePayload]
+    'node-rename': [payload: NodeTreeRenamePayload]
     'action-called': [payload: NodeTreeActionCalledPayload]
     'drag-start': [node: ITreeNode]
     'drag-end': [node: ITreeNode]
@@ -103,6 +111,22 @@ const dropTargetNode = ref<ITreeNode | null>(null)
 const dropPosition = ref<NodeTreeDropPosition | null>(null)
 const dropAllowed = ref(false)
 const suppressClick = ref(false)
+const renamingNodeKey = ref<string | null>(null)
+const renameDraft = ref('')
+const instance = getCurrentInstance()
+const vnodeProps = (instance?.vnode.props ?? {}) as Record<string, unknown>
+const renameEnabled = Boolean(vnodeProps.onNodeRename || vnodeProps.onNodeRenameOnce)
+
+watch(
+    () => props.expanded,
+    (nextExpanded) => {
+        if (nextExpanded === undefined) {
+            return
+        }
+
+        isExpanded.value = nextExpanded
+    },
+)
 
 const selectedNodes = computed(() => props.selected || new Map<string, ITreeNode>())
 const treeActions = computed(() => {
@@ -110,6 +134,19 @@ const treeActions = computed(() => {
         .map((key) => props.actions.get(key))
         .filter((action): action is ActionDefinition => action !== undefined)
 })
+
+watch(
+    selectedNodes,
+    (nextSelected) => {
+        if (!renamingNodeKey.value) {
+            return
+        }
+
+        if (nextSelected.size !== 1 || !nextSelected.has(renamingNodeKey.value)) {
+            cancelNodeRename()
+        }
+    },
+)
 
 function findNodeByKey(key: string, nodes: ITreeNode[]): ITreeNode | null {
     for (const node of nodes) {
@@ -131,6 +168,10 @@ function handleNodeDoubleClick(node: ITreeNode) {
 }
 
 function handleNodeClick(key: string, node: ITreeNode, modify: 'ctrl' | 'none') {
+    if (renamingNodeKey.value && renamingNodeKey.value !== key) {
+        cancelNodeRename()
+    }
+
     const newSelected = new Map(props.selected || new Map<string, ITreeNode>())
 
     if (modify === 'ctrl') {
@@ -157,6 +198,42 @@ function handleActionTrigger(payload: NodeTreeActionCalledPayload) {
 
 function handleNodeToggle(node: ITreeNode, expanded: boolean) {
     emit('node-toggle', { node, expanded })
+}
+
+function startNodeRename(node: ITreeNode) {
+    if (!renameEnabled || node.renamable === false) {
+        return
+    }
+
+    renamingNodeKey.value = node.key
+    renameDraft.value = node.name
+}
+
+function updateRenameDraft(value: string) {
+    renameDraft.value = value
+}
+
+function cancelNodeRename() {
+    renamingNodeKey.value = null
+    renameDraft.value = ''
+}
+
+function submitNodeRename(node: ITreeNode) {
+    if (renamingNodeKey.value !== node.key) {
+        return
+    }
+
+    const nextName = renameDraft.value
+    cancelNodeRename()
+
+    if (nextName === node.name) {
+        return
+    }
+
+    emit('node-rename', {
+        node,
+        name: nextName,
+    })
 }
 
 function clearDragState() {
@@ -391,9 +468,18 @@ provide('nodeTree', {
     handleNodeDragEnd,
     actions: computed(() => props.actions) as ComputedRef<Map<string, ActionDefinition>>,
     multiSelect: props.multiSelect,
+    defaultNodeExpanded: props.defaultNodeExpanded,
+    renameEnabled,
+    renamingNodeKey,
+    renameDraft,
+    startNodeRename,
+    updateRenameDraft,
+    cancelNodeRename,
+    submitNodeRename,
 })
 
 function handleClick() {
+    cancelNodeRename()
     const nextExpanded = !isExpanded.value
     isExpanded.value = nextExpanded
 

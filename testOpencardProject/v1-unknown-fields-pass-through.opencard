@@ -1,0 +1,72 @@
+{
+  "type": "card-document",
+  "name": "V1 Unknown Fields",
+  "id": "doc-unknown",
+  "version": 1,
+  "width": 680,
+  "height": 380,
+  "extDocFlag": "should-stay",
+  "extDocObject": {
+    "level": 1,
+    "tags": [
+      "alpha",
+      "beta"
+    ]
+  },
+  "children": [
+    {
+      "block": {
+        "id": "root-unknown",
+        "type": "simple-container-block",
+        "extRootObject": {
+          "owner": "qa",
+          "round": 1
+        },
+        "children": [
+          {
+            "block": {
+              "id": "text-unknown",
+              "type": "text-block",
+              "content": "Unknown fields should round-trip unchanged.",
+              "extBadge": "badge-A",
+              "extState": {
+                "active": true,
+                "score": 10
+              }
+            },
+            "location": {
+              "type": "simple-container-location",
+              "anchor": "lt",
+              "x": "20px",
+              "y": "20px"
+            }
+          }
+        ]
+      },
+      "location": {
+        "type": "simple-container-location",
+        "anchor": "cc",
+        "x": "0px",
+        "y": "0px"
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "instance-unknown",
+      "name": "Unknown Instance",
+      "metadata": {
+        "extInstanceMeta": "meta-A"
+      },
+      "data": {
+        "text-unknown": {
+          "content": "Instance override with unknown payload",
+          "extInstancePayload": {
+            "source": "instance",
+            "enabled": true
+          }
+        }
+      }
+    }
+  ]
+}

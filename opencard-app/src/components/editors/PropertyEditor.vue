@@ -32,6 +32,7 @@
 
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   type PropertyEditorSource,
   type PropertyEditorTarget,
@@ -110,6 +111,7 @@ const props = defineProps<{
 
 const defaultDefinition: EditorPropertyDefinition = { datatype: 'string' }
 const { openMenu } = useFloatingMenu()
+const { t, te } = useI18n()
 
 const displaySources = computed<PropertyEditorSourceView[]>(() =>
   props.sources
@@ -224,11 +226,19 @@ function createEntry(
 }
 
 function getEntryLabel(key: string, definition: EditorPropertyDefinition): string {
-  return definition.label ?? key
+  return resolveLocalizedText(definition.labelKey, definition.label ?? key)
 }
 
 function getCategoryTitle(sourceTitle: string, definition: EditorPropertyDefinition): string {
-  return definition.category ?? sourceTitle
+  return resolveLocalizedText(definition.categoryKey, definition.category ?? sourceTitle)
+}
+
+function resolveLocalizedText(messageKey: string | undefined, fallback: string): string {
+  if (messageKey && te(messageKey)) {
+    return t(messageKey)
+  }
+
+  return fallback
 }
 
 function resolveDefinitions(

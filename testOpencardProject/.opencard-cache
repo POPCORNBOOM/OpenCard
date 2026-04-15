@@ -57,13 +57,13 @@
         "isSymlink": false
       },
       {
-        "name": "sgs-zhenji-test.opencard",
+        "name": "sgs-test.opencard",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
       },
       {
-        "name": "test.png",
+        "name": "test3.png",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
@@ -82,6 +82,36 @@
       },
       {
         "name": "uno-red-7.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "V1 Defaults Missing_2026-04-15T08-05-54.png",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "v1-defaults-missing.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "v1-image-path-only.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "v1-instance-null-reset.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "v1-unknown-fields-pass-through.opencard",
         "isDirectory": false,
         "isFile": true,
         "isSymlink": false
