@@ -1,3 +1,5 @@
 export { default as OcButton } from './OcButton.vue'
+export { default as OcFieldInput } from './OcFieldInput.vue'
 export { default as OcOptionGroup } from './OcOptionGroup.vue'
 export { default as OcPanelSection } from './OcPanelSection.vue'
+export { default as OcPropertyRow } from './OcPropertyRow.vue'

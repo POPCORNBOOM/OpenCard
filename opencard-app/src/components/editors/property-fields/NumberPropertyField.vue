@@ -1,6 +1,6 @@
 <template>
-  <input
-    class="prop-input oc-input"
+  <OcFieldInput
+    as="input"
     type="number"
     :value="numberValue"
     :min="definition.min"
@@ -11,6 +11,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcFieldInput from '../../base/OcFieldInput.vue'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 const props = defineProps<{
@@ -35,13 +36,3 @@ function onInput(event: Event) {
   emit('update:value', Number.isFinite(nextValue) ? nextValue : props.value)
 }
 </script>
-
-<style scoped>
-.prop-input {
-  padding: 2px 6px;
-}
-
-.prop-input:focus {
-  border-color: var(--oc-accent);
-}
-</style>
