@@ -116,6 +116,7 @@ import type { ITreeNode } from '../ui/TreeNode.vue'
 import PropertyEditor from './PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
+import { useCdePanelResize } from '../../composables/useCdePanelResize'
 
 type PropertySortMode = 'category' | 'alphabetical'
 type PropertyEditorMutation = {
@@ -144,41 +145,17 @@ const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
 
-// 面板 DOM 引用
-const editorRootRef = ref<HTMLElement | null>(null)
-const rightPanelRef = ref<HTMLElement | null>(null)
-
-// 面板尺寸状态
-const rightPanelWidth = ref(320)
-const treePanelAbsoluteHeight = ref(320)
-const editorStyle = computed(() => ({
-  '--card-editor-right-panel-width': `${rightPanelWidth.value}px`,
-  '--card-editor-tree-panel-height': `${treePanelAbsoluteHeight.value}px`,
-  '--card-editor-horizontal-resizer-height': `${HORIZONTAL_RESIZER_HEIGHT}px`,
-  '--card-editor-min-property-panel-height': `${MIN_PROPERTY_PANEL_HEIGHT}px`,
-}))
-
-// 尺寸限制常量
-const MIN_RIGHT_PANEL_WIDTH = 220
-const MAX_RIGHT_PANEL_WIDTH = 640
-const MIN_CANVAS_WIDTH = 320
-const MIN_TREE_PANEL_HEIGHT = 140
-const MIN_PROPERTY_PANEL_HEIGHT = 180
-const HORIZONTAL_RESIZER_HEIGHT = 6
-
-// 拖拽缩放状态
-const resizeState = ref<null | 'right-panel' | 'tree-panel'>(null)
-const resizeSnapshot = ref<{
-  clientX: number
-  clientY: number
-  rightPanelWidth: number
-  treePanelAbsoluteHeight: number
-} | null>(null)
-let resizePreview = {
-  rightPanelWidth: rightPanelWidth.value,
-  treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
-}
-let resizeFrameId: number | null = null
+// 面板尺寸与拖拽状态。
+const {
+  editorRootRef,
+  rightPanelRef,
+  editorStyle,
+  resizeState,
+  startRightPanelResize,
+  startTreePanelResize,
+  mountPanelResizeListeners,
+  unmountPanelResizeListeners,
+} = useCdePanelResize()
 
 // 结构树操作定义
 const treeActions = new Map<string, ActionDefinition>([
@@ -759,128 +736,6 @@ function formatViewportCssValue(value: number): string {
   return `${safeValue}px`
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
-}
-
-function getRightPanelMaxWidth(): number {
-  const editorWidth = editorRootRef.value?.clientWidth ?? 0
-  const viewportMax = editorWidth > 0 ? editorWidth - MIN_CANVAS_WIDTH : MAX_RIGHT_PANEL_WIDTH
-  return Math.max(MIN_RIGHT_PANEL_WIDTH, Math.min(MAX_RIGHT_PANEL_WIDTH, viewportMax))
-}
-
-function getTreePanelMaxHeight(): number {
-  const panelHeight = rightPanelRef.value?.clientHeight ?? 0
-  const maxHeight = panelHeight - MIN_PROPERTY_PANEL_HEIGHT - HORIZONTAL_RESIZER_HEIGHT
-  return Math.max(MIN_TREE_PANEL_HEIGHT, maxHeight)
-}
-
-function syncPanelBounds() {
-  rightPanelWidth.value = clamp(rightPanelWidth.value, MIN_RIGHT_PANEL_WIDTH, getRightPanelMaxWidth())
-  treePanelAbsoluteHeight.value = clamp(treePanelAbsoluteHeight.value, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
-}
-
-function writeResizePreview() {
-  const root = editorRootRef.value
-  if (!root) {
-    return
-  }
-
-  root.style.setProperty('--card-editor-right-panel-width', `${resizePreview.rightPanelWidth}px`)
-  root.style.setProperty('--card-editor-tree-panel-height', `${resizePreview.treePanelAbsoluteHeight}px`)
-}
-
-function scheduleResizePreview() {
-  if (resizeFrameId !== null) {
-    return
-  }
-
-  resizeFrameId = window.requestAnimationFrame(() => {
-    resizeFrameId = null
-    writeResizePreview()
-  })
-}
-
-function flushResizePreview() {
-  if (resizeFrameId !== null) {
-    window.cancelAnimationFrame(resizeFrameId)
-    resizeFrameId = null
-  }
-
-  writeResizePreview()
-}
-
-function startRightPanelResize(event: MouseEvent) {
-  resizeState.value = 'right-panel'
-  resizeSnapshot.value = {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    rightPanelWidth: rightPanelWidth.value,
-    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
-  }
-  resizePreview = {
-    rightPanelWidth: rightPanelWidth.value,
-    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
-  }
-  document.body.classList.add('is-resizing-panels')
-  document.body.style.cursor = 'col-resize'
-}
-
-function startTreePanelResize(event: MouseEvent) {
-  resizeState.value = 'tree-panel'
-  resizeSnapshot.value = {
-    clientX: event.clientX,
-    clientY: event.clientY,
-    rightPanelWidth: rightPanelWidth.value,
-    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
-  }
-  resizePreview = {
-    rightPanelWidth: rightPanelWidth.value,
-    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
-  }
-  document.body.classList.add('is-resizing-panels')
-  document.body.style.cursor = 'row-resize'
-}
-
-function handleGlobalMouseMove(event: MouseEvent) {
-  if (!resizeState.value || !resizeSnapshot.value) {
-    return
-  }
-
-  if (resizeState.value === 'right-panel') {
-    resizePreview.rightPanelWidth = clamp(
-      resizeSnapshot.value.rightPanelWidth - (event.clientX - resizeSnapshot.value.clientX),
-      MIN_RIGHT_PANEL_WIDTH,
-      getRightPanelMaxWidth(),
-    )
-    scheduleResizePreview()
-    return
-  }
-
-  resizePreview.treePanelAbsoluteHeight = clamp(
-    resizeSnapshot.value.treePanelAbsoluteHeight + (event.clientY - resizeSnapshot.value.clientY),
-    MIN_TREE_PANEL_HEIGHT,
-    getTreePanelMaxHeight(),
-  )
-  scheduleResizePreview()
-}
-
-function stopPanelResize() {
-  if (!resizeState.value) {
-    return
-  }
-
-  flushResizePreview()
-  rightPanelWidth.value = resizePreview.rightPanelWidth
-  treePanelAbsoluteHeight.value = resizePreview.treePanelAbsoluteHeight
-  resizeState.value = null
-  resizeSnapshot.value = null
-  document.body.classList.remove('is-resizing-panels')
-  document.body.style.cursor = ''
-}
-
-
-
 function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
   //console.log('handleSelectionResize', payload)
   const block = selectedBlock.value
@@ -1268,22 +1123,11 @@ watch(
 defineExpose({ save: saveFile })
 
 onMounted(() => {
-  syncPanelBounds()
-  window.addEventListener('mousemove', handleGlobalMouseMove)
-  window.addEventListener('mouseup', stopPanelResize)
-  window.addEventListener('resize', syncPanelBounds)
+  mountPanelResizeListeners()
 })
 
 onUnmounted(() => {
-  if (resizeFrameId !== null) {
-    window.cancelAnimationFrame(resizeFrameId)
-    resizeFrameId = null
-  }
-  window.removeEventListener('mousemove', handleGlobalMouseMove)
-  window.removeEventListener('mouseup', stopPanelResize)
-  window.removeEventListener('resize', syncPanelBounds)
-  document.body.classList.remove('is-resizing-panels')
-  document.body.style.cursor = ''
+  unmountPanelResizeListeners()
 })
 
 </script>
