@@ -38,6 +38,7 @@
             v-for="entry in category.entries"
             :key="`${source.key}:${category.key}:${entry.key}`"
             :label="entry.label"
+            :label-icon="getEditorIconClass(entry.definition.datatype)"
           >
             <div class="entry-control">
               <OcButton
@@ -148,17 +149,22 @@ const props = defineProps<{
 }>()
 
 // 运行时依赖与编辑器映射。
-const datatypeEditorMap: Record<PropertyDatatype, Component> = {
-  string: StringPropertyField,
-  background: BackgroundPropertyField,
-  anchorPosition: AnchorPositionPropertyField,
-  alignPosition: AlignPositionPropertyField,
-  flowDirection: FlowDirectionPropertyField,
-  number: NumberPropertyField,
-  boolean: BooleanPropertyField,
-  color: ColorPropertyField,
-  filePath: FilePathPropertyField,
-  object: ObjectPropertyField,
+type DatatypeEditorEntry = {
+  component: Component
+  icon: string
+}
+
+const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
+  string: { component: StringPropertyField, icon: 'codicon-symbol-string' },
+  background: { component: BackgroundPropertyField, icon: 'codicon-symbol-color' },
+  anchorPosition: { component: AnchorPositionPropertyField, icon: 'codicon-compass' },
+  alignPosition: { component: AlignPositionPropertyField, icon: 'codicon-list-selection' },
+  flowDirection: { component: FlowDirectionPropertyField, icon: 'codicon-arrow-right' },
+  number: { component: NumberPropertyField, icon: 'codicon-symbol-number' },
+  boolean: { component: BooleanPropertyField, icon: 'codicon-symbol-boolean' },
+  color: { component: ColorPropertyField, icon: 'codicon-symbol-color' },
+  filePath: { component: FilePathPropertyField, icon: 'codicon-file' },
+  object: { component: ObjectPropertyField, icon: 'codicon-symbol-class' },
 }
 
 const readonlyExtraFieldDefinition: EditorPropertyDefinition = {
@@ -190,7 +196,11 @@ const displaySources = computed<PropertyEditorSourceView[]>(() =>
 )
 
 function getEditorComponent(datatype: PropertyDatatype): Component {
-  return datatypeEditorMap[datatype] ?? StringPropertyField
+  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
+}
+
+function getEditorIconClass(datatype: PropertyDatatype): string {
+  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).icon
 }
 
 // 分类与字段构建逻辑。
@@ -376,6 +386,7 @@ function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): 
   const items: FloatingMenuItem[] = category.addableFields.map((field) => ({
     key: field.key,
     label: field.label,
+    icon: getEditorIconClass(field.definition.datatype),
   }))
 
   openMenu({

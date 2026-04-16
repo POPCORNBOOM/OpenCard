@@ -17,6 +17,7 @@
 
 字段展示约束：
 - schema 已定义字段：按 datatype 分派对应 field 组件。
+- datatype 分派表是单一事实源：每个 datatype 必须同时声明 `component + icon`，行标签图标与“添加字段”菜单图标共用同一映射。
 - schema 外字段：统一按只读 string 展示（不做 datatype 推断）。
 - `isHidden` 字段无论是否存在于 record 都不显示。
 

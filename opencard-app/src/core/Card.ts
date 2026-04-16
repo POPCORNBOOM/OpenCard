@@ -106,7 +106,7 @@ export type CardDocument = {
 export type CardInstanceRecord = {
     id: string
     name: string
-    metadata?: Record<string, unknown>
+    amount: number
     data: Record<string, Record<string, unknown>>
 }
 
