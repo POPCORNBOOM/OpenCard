@@ -110,11 +110,15 @@ import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 
 type PropertySortMode = 'category' | 'alphabetical'
+
+// 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
 
+// 组件输入输出
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 
+// 文档与编辑器状态
 const blockTreeExpanded = ref(true)
 const rawContent = ref('')
 const cardDoc = ref<CardDocument | null>(null)
@@ -122,20 +126,28 @@ const parentLookup = ref<ParentLookup>(new Map())
 const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
+
+// 面板 DOM 引用
 const editorRootRef = ref<HTMLElement | null>(null)
 const rightPanelRef = ref<HTMLElement | null>(null)
+
+// 面板尺寸状态
 const rightPanelWidth = ref(320)
 const treePanelHeight = ref(320)
 const editorStyle = computed(() => ({
   '--card-editor-right-panel-width': `${rightPanelWidth.value}px`,
   '--card-editor-tree-panel-height': `${treePanelHeight.value}px`,
 }))
+
+// 尺寸限制常量
 const MIN_RIGHT_PANEL_WIDTH = 220
 const MAX_RIGHT_PANEL_WIDTH = 640
 const MIN_CANVAS_WIDTH = 320
 const MIN_TREE_PANEL_HEIGHT = 140
 const MIN_PROPERTY_PANEL_HEIGHT = 180
 const HORIZONTAL_RESIZER_HEIGHT = 6
+
+// 拖拽缩放状态
 const resizeState = ref<null | 'right-panel' | 'tree-panel'>(null)
 const resizeSnapshot = ref<{
   clientX: number
@@ -148,6 +160,8 @@ let resizePreview = {
   treePanelHeight: treePanelHeight.value,
 }
 let resizeFrameId: number | null = null
+
+// 结构树操作定义
 const treeActions = new Map<string, ActionDefinition>([
   ['add-root', {
     key: 'add-root',
@@ -182,9 +196,12 @@ const instanceTreeActions = new Map<string, ActionDefinition>([
 ])
 const instanceTreeActionKeys = ['add-instance']
 
+// 当前选择状态
 const selectedBlocks = ref<Map<string, ITreeNode>>(new Map())
 const selectedCards = ref<Map<string, ITreeNode>>(new Map())
 const selectedCardId = ref<string | null>(BLUEPRINT_CARD_ID)
+
+// 当前选择派生信息
 const selectedNode = computed<ITreeNode | null>(() => {
   if (selectedBlocks.value.size === 0) return null
   return selectedBlocks.value.values().next().value ?? null
@@ -242,6 +259,8 @@ const transformDisabledBlockIds = computed(() => {
   }
   return ids
 })
+
+// 属性面板输入源
 // Build the property-editor input for the selected block with instance overrides and null resolution.
 const blockPropsView = computed<Record<string, unknown> & { type?: string } | null>(() => {
   const block = selectedBlock.value
@@ -283,6 +302,7 @@ const propertySources = computed<PropertyEditorSource[]>(() => {
   return sources
 })
 
+// 结构树与渲染视图
 const blockTree = computed(() => {
   if (!cardDoc.value) return []
   return cardDoc.value.children.map((child) =>
