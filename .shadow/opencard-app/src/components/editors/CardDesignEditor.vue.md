@@ -8,3 +8,11 @@ Block 属性面板目标值使用“只解析已有键”的默认值修正（`r
 - `Layout` 永远写蓝图结构
 - `Block` 在实例模式写 `instance.data[blockId]`
 不要把投影对象当成写回真相。
+
+Tree 选中态约束：
+- 只存 key（`selectedBlockKeys` / `selectedCardKeys`），不长期保存 `Map<key,node>`。
+- 需要 node 时按 key 从当前树回查，避免把 UI 节点对象当成跨时段真相。
+
+NodeTree 协议约束：
+- 只使用 `selectedKeys/update:selectedKeys`、`actionKeys`、`expanded`。
+- 严禁回退到 `selected/update:selected`、`rootActionKeys` 等旧接口。

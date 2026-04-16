@@ -13,12 +13,11 @@
         </OcButton>
       </template>
       <template #default>
-        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :default-expanded="true"
-          :default-node-expanded="true" :selected="selectedCards" :actions="instanceTreeActions"
-          :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-          :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
-          @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
-          @node-drop="handleInstanceTreeDrop" />
+        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
+          :selected-keys="selectedCardKeys" :actions="instanceTreeActions" :action-keys="instanceTreeActionKeys"
+          :allowed-drop-positions="getInstanceTreeAllowedDropPositions" :can-drop="canDropInstanceTreeNode"
+          @update:selected-keys="onInstanceTreeSelect" @action-called="handleInstanceTreeAction"
+          @node-rename="handleInstanceTreeRename" @node-drop="handleInstanceTreeDrop" />
       </template>
     </OcPanelSection>
 
@@ -37,10 +36,10 @@
     <div ref="rightPanelRef" class="right-panel oc-panel-stack">
       <OcPanelSection class="block-list-panel" title="信息树" header-class="panel-header" body-class="block-list"
         :scroll-body="true">
-        <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-          :expanded="blockTreeExpanded" :default-node-expanded="true" :action-keys="treeActionKeys"
-          :can-drop="canDropTreeNode" @update:selected="onTreeSelect" @action-called="handleTreeAction"
-          @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
+        <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
+          v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+          @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
+          @node-drop="handleTreeDrop" />
       </OcPanelSection>
       <div class="panel-resizer panel-resizer--horizontal" :class="{ active: resizeState === 'tree-panel' }"
         @mousedown.prevent="startTreePanelResize($event)" />
@@ -197,14 +196,15 @@ const instanceTreeActions = new Map<string, ActionDefinition>([
 const instanceTreeActionKeys = ['add-instance']
 
 // 当前选择状态
-const selectedBlocks = ref<Map<string, ITreeNode>>(new Map())
-const selectedCards = ref<Map<string, ITreeNode>>(new Map())
+const selectedBlockKeys = ref<string[]>([])
+const selectedCardKeys = ref<string[]>([])
 const selectedCardId = ref<string | null>(BLUEPRINT_CARD_ID)
 
 // 当前选择派生信息
 const selectedNode = computed<ITreeNode | null>(() => {
-  if (selectedBlocks.value.size === 0) return null
-  return selectedBlocks.value.values().next().value ?? null
+  const selectedKey = selectedBlockKeys.value[0]
+  if (!selectedKey) return null
+  return findTreeNodeByKey(blockTree.value, selectedKey)
 })
 const selectedCard = computed<CardInstanceRecord | null>(() => {
   if (!selectedCardId.value) {
@@ -331,13 +331,13 @@ const instanceTree = computed<ITreeNode[]>(() => {
 
   const instances = cardDoc.value?.instances
   const blueprintNode: ITreeNode = {
-    key: BLUEPRINT_CARD_ID,
-    name: '蓝图',
-    path: [BLUEPRINT_CARD_ID],
-    parent: null,
-    renamable: false,
-    isExpandable: false,
-    icon: 'codicon-symbol-class',
+      key: BLUEPRINT_CARD_ID,
+      name: '蓝图',
+      path: [BLUEPRINT_CARD_ID],
+      parent: null,
+      renamable: false,
+      isExpandable: false,
+      icon: 'codicon-symbol-class',
     metadata: {
       instanceId: BLUEPRINT_CARD_ID,
       kind: 'blueprint',
@@ -474,13 +474,13 @@ function addBlockProp({
   markDocumentChanged()
 }
 
-function onTreeSelect(newSelected: Map<string, ITreeNode>) {
-  selectedBlocks.value = newSelected
+function onTreeSelect(nextSelectedKeys: string[]) {
+  selectedBlockKeys.value = nextSelectedKeys
 }
 
-function onInstanceTreeSelect(newSelected: Map<string, ITreeNode>) {
-  selectedCards.value = newSelected
-  const selectedNode = newSelected.values().next().value as ITreeNode | undefined
+function onInstanceTreeSelect(nextSelectedKeys: string[]) {
+  selectedCardKeys.value = nextSelectedKeys
+  const selectedNode = nextSelectedKeys[0] ? findTreeNodeByKey(instanceTree.value, nextSelectedKeys[0]) : null
   const instanceId = selectedNode?.metadata && typeof selectedNode.metadata === 'object'
     ? (selectedNode.metadata as { instanceId?: unknown }).instanceId
     : undefined
@@ -490,7 +490,7 @@ function onInstanceTreeSelect(newSelected: Map<string, ITreeNode>) {
 
 function handleInstanceTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
   if (caller === 'node' && node) {
-    selectedCards.value = new Map([[node.key, node]])
+    selectedCardKeys.value = [node.key]
     selectedCardId.value = node.key
   }
 
@@ -536,15 +536,15 @@ function handleViewportBlockClick(blockId: string) {
     return
   }
 
-  selectedBlocks.value = new Map([[clickedNode.key, clickedNode]])
+  selectedBlockKeys.value = [clickedNode.key]
 }
 
 function clearSelection() {
-  if (selectedBlocks.value.size === 0) {
+  if (selectedBlockKeys.value.length === 0) {
     return
   }
 
-  selectedBlocks.value = new Map()
+  selectedBlockKeys.value = []
 }
 
 function getInstanceTreeAllowedDropPositions(target: ITreeNode | null) {
@@ -827,7 +827,7 @@ function handleSelectionMove(payload: { x: number; y: number }) {
 
 function handleTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
   if (caller === 'node' && node) {
-    selectedBlocks.value = new Map([[node.key, node]])
+    selectedBlockKeys.value = [node.key]
   }
 
   const callerObject = caller === 'node' ? getNodeBlock(node) : cardDoc.value
@@ -875,6 +875,21 @@ function handleTreeRename({ node, name }: NodeTreeRenamePayload) {
 function getNodeBlock(node?: ITreeNode): CardBlock | null {
   const metadata = node?.metadata as CardTreeNodeMetadata | undefined
   return metadata?.block ?? null
+}
+
+function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
+  for (const node of nodes) {
+    if (node.key === key) {
+      return node
+    }
+
+    const childNode = findTreeNodeByKey(node.children ?? [], key)
+    if (childNode) {
+      return childNode
+    }
+  }
+
+  return null
 }
 
 function findTreeNodeByBlockId(nodes: ITreeNode[], blockId: string): ITreeNode | null {
@@ -1050,15 +1065,15 @@ function handleTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
   }
 
   const updatedNode = findTreeNodeByBlockId(blockTree.value, draggedBlock.id)
-  selectedBlocks.value = updatedNode ? new Map([[updatedNode.key, updatedNode]]) : new Map()
+  selectedBlockKeys.value = updatedNode ? [updatedNode.key] : []
   markDocumentChanged()
 }
 
 // Load raw document JSON into editor state and reset current selections safely.
 function loadRawDoc(content: string) {
   rawContent.value = content
-  selectedBlocks.value = new Map()
-  selectedCards.value = new Map()
+  selectedBlockKeys.value = []
+  selectedCardKeys.value = []
   selectedCardId.value = BLUEPRINT_CARD_ID
 
   try {
@@ -1109,8 +1124,7 @@ function deleteBlock(block: CardBlock) {
     return
   }
 
-  selectedBlocks.value.delete(block.id)
-  selectedBlocks.value = new Map(selectedBlocks.value)
+  selectedBlockKeys.value = selectedBlockKeys.value.filter((key) => key !== block.id)
   markDocumentChanged()
 }
 
@@ -1145,24 +1159,22 @@ watch(
   [instanceTree, selectedCardId],
   ([nodes, instanceId]) => {
     if (!instanceId) {
-      if (selectedCards.value.size > 0) {
-        selectedCards.value = new Map()
+      if (selectedCardKeys.value.length > 0) {
+        selectedCardKeys.value = []
       }
       return
     }
 
     const matchedNode = nodes.find((node) => node.key === instanceId) ?? null
-    const nextSelected = matchedNode
-      ? new Map([[matchedNode.key, matchedNode]])
-      : new Map<string, ITreeNode>()
+    const nextSelectedKeys = matchedNode ? [matchedNode.key] : []
 
-    const currentKey = selectedCards.value.values().next().value?.key ?? null
-    const nextKey = nextSelected.values().next().value?.key ?? null
-    if (currentKey === nextKey && selectedCards.value.size === nextSelected.size) {
+    const currentKey = selectedCardKeys.value[0] ?? null
+    const nextKey = nextSelectedKeys[0] ?? null
+    if (currentKey === nextKey && selectedCardKeys.value.length === nextSelectedKeys.length) {
       return
     }
 
-    selectedCards.value = nextSelected
+    selectedCardKeys.value = nextSelectedKeys
   },
   { immediate: true },
 )

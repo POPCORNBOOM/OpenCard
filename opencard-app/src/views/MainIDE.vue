@@ -62,13 +62,13 @@
               {{ t('sidebar.openProject') }}
             </OcButton>
             <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
-              :title="t('sidebar.openedEditors')" :selected="openedEditorSelectedFiles"
-              @update:selected="handleOpenedEditorsSelect" />
+              :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
+              @update:selected-keys="handleOpenedEditorsSelect" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
               @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
-              :selected="selectedFiles" @update:selected="handleFileTreeSelect" />
+              :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
           </div>
 
@@ -181,8 +181,8 @@ const {
 } = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
-const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
-const openedEditorSelectedFiles = ref<Map<string, ITreeNode>>(new Map())
+const selectedFileKeys = ref<string[]>([])
+const openedEditorSelectedKeys = ref<string[]>([])
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
@@ -532,41 +532,35 @@ function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
 
 function syncSelectionFromActiveSession(path: string | null) {
   if (!path) {
-    openedEditorSelectedFiles.value = new Map()
-    selectedFiles.value = new Map()
+    openedEditorSelectedKeys.value = []
+    selectedFileKeys.value = []
     return
   }
 
   const normalizedPath = normalizeIdePath(path)
 
   const openedEditorNode = openedFileNodes.value.find((node) => normalizeIdePath(node.key) === normalizedPath)
-  openedEditorSelectedFiles.value = openedEditorNode
-    ? new Map([[openedEditorNode.key, openedEditorNode]])
-    : new Map()
+  openedEditorSelectedKeys.value = openedEditorNode ? [openedEditorNode.key] : []
 
   const projectTreeNode = findTreeNodeByKey(fileTree.value, normalizedPath)
-  selectedFiles.value = projectTreeNode
-    ? new Map([[projectTreeNode.key, projectTreeNode]])
-    : new Map()
+  selectedFileKeys.value = projectTreeNode ? [projectTreeNode.key] : []
 }
 
-function handleOpenedEditorsSelect(newSelected: Map<string, ITreeNode>) {
-  openedEditorSelectedFiles.value = newSelected
-
-  const selectedPath = newSelected.values().next().value?.key
+function handleOpenedEditorsSelect(nextSelectedKeys: string[]) {
+  openedEditorSelectedKeys.value = nextSelectedKeys
+  const selectedPath = nextSelectedKeys[0]
   if (selectedPath) {
     activatePath(selectedPath)
   }
 }
 
-async function handleFileTreeSelect(newSelected: Map<string, ITreeNode>) {
-  selectedFiles.value = newSelected
-
-  if (newSelected.size !== 1) {
+async function handleFileTreeSelect(nextSelectedKeys: string[]) {
+  selectedFileKeys.value = nextSelectedKeys
+  if (nextSelectedKeys.length !== 1) {
     return
   }
 
-  const selectedNode = newSelected.values().next().value as ITreeNode | undefined
+  const selectedNode = findTreeNodeByKey(fileTree.value, nextSelectedKeys[0])
   if (!selectedNode || selectedNode.metadata?.isDirectory) {
     return
   }
@@ -588,7 +582,7 @@ async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   }
 
   remapSessionPaths(result.fromPath, result.toPath)
-  selectedFiles.value = new Map()
+  selectedFileKeys.value = []
 }
 
 async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
@@ -602,9 +596,7 @@ async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
 
   remapSessionPaths(result.fromPath, result.toPath)
   const renamedNode = findTreeNodeByKey(fileTree.value, result.toPath)
-  selectedFiles.value = renamedNode
-    ? new Map([[renamedNode.key, renamedNode]])
-    : new Map()
+  selectedFileKeys.value = renamedNode ? [renamedNode.key] : []
 }
 
 async function exportActiveCard2x() {

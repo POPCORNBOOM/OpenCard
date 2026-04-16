@@ -1,9 +1,31 @@
+<!--
+  使用说明：
+  - 仅作为 NodeTree 的子节点渲染单元使用，不应独立挂载。
+  - 输入为 `node` 与 `level`，其余交互能力由 NodeTree 注入。
+
+  职责边界：
+  - 负责节点 UI 呈现与交互转发（选中、展开、重命名输入、拖拽态）。
+  - 不承载业务规则；领域判断与数据落地必须由外层模块处理。
+-->
 <template>
   <div class="tree-node" :class="treeNodeClass">
-    <div class="node-content" :class="nodeContentClass" :style="{ paddingLeft: `${level * 12}px` }"
-      :data-tree-node-key="props.node.key" @click="handleClick" @dblclick="handleDoubleClick" @mousedown="handleMouseDown">
-      <i v-if="isExpandable" class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
-        data-tree-interactive="true" @mousedown.stop @click.stop="handleToggleClick" />
+    <div
+      class="node-content"
+      :class="nodeContentClass"
+      :style="{ paddingLeft: `${level * 12}px` }"
+      :data-tree-node-key="props.node.key"
+      @click="handleClick"
+      @dblclick="handleDoubleClick"
+      @mousedown="handleMouseDown"
+    >
+      <i
+        v-if="isExpandable"
+        class="codicon"
+        :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
+        data-tree-interactive="true"
+        @mousedown.stop
+        @click.stop="handleToggleClick"
+      />
       <AppIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
       <span
         v-if="!isRenaming"
@@ -18,7 +40,7 @@
         ref="renameInputElement"
         class="node-name node-rename-input"
         type="text"
-        :value="nodeTree?.renameDraft.value ?? ''"
+        :value="nodeTree.renameDraft.value"
         data-tree-interactive="true"
         @mousedown.stop
         @dblclick.stop
@@ -46,6 +68,7 @@
 </template>
 
 <script lang="ts">
+// Tree 节点通用数据结构。
 import type { IconTone } from '../../core/icons/iconRegistry'
 
 export interface ITreeNode {
@@ -60,88 +83,68 @@ export interface ITreeNode {
   iconColor?: string
   parent?: ITreeNode | null
   children?: ITreeNode[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   actionKeys?: string[]
 }
 </script>
 
 <script setup lang="ts">
-import { computed, inject, nextTick, ref, watch, type ComputedRef } from 'vue'
+// Vue 能力与依赖组件。
+import { computed, inject, nextTick, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import TreeActionButton from './TreeActionButton.vue'
-import type { ActionDefinition, ActionCaller, NodeTreeDropPosition } from './NodeTree.vue'
+import type { ActionDefinition, ActionCaller, NodeTreeContext } from './NodeTree.vue'
 
+// 当前节点输入。
 const props = defineProps<{
   node: ITreeNode
   level: number
 }>()
 
-const nodeTree = inject<{
-  selectedNodes: ComputedRef<Map<string, ITreeNode>>
-  handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
-  handleNodeDoubleClick: (node: ITreeNode) => void
-  handleNodeToggle: (node: ITreeNode, expanded: boolean) => void
-  callAction: (actionKey: string, caller: ActionCaller, node?: ITreeNode) => void
-  suppressClick: { value: boolean }
-  handleNodePointerDown: (node: ITreeNode, event: MouseEvent) => void
-  draggedNode: { value: ITreeNode | null }
-  dropTargetNode: { value: ITreeNode | null }
-  dropPosition: { value: NodeTreeDropPosition | null }
-  dropAllowed: { value: boolean }
-  handleNodePointerOver: (node: ITreeNode, position: NodeTreeDropPosition) => boolean
-  handleNodeDragEnd: () => void
-  actions: ComputedRef<Map<string, ActionDefinition>>
-  multiSelect: boolean
-  defaultNodeExpanded: boolean
-  renameEnabled: boolean
-  renamingNodeKey: { value: string | null }
-  renameDraft: { value: string }
-  startNodeRename: (node: ITreeNode) => void
-  updateRenameDraft: (value: string) => void
-  cancelNodeRename: () => void
-  submitNodeRename: (node: ITreeNode) => void
-}>('nodeTree')
+// 注入上层 NodeTree 交互上下文。
+const injectedNodeTree = inject<NodeTreeContext>('nodeTree')
+if (!injectedNodeTree) {
+  throw new Error('TreeNode must be used inside NodeTree.')
+}
+const nodeTree = injectedNodeTree
 
+// 节点可见操作列表。
 const availableActions = computed(() => {
-  if (!props.node.actionKeys || props.node.actionKeys.length === 0) return []
+  if (!props.node.actionKeys || props.node.actionKeys.length === 0) {
+    return []
+  }
+
   return props.node.actionKeys
-    .map((key) => nodeTree?.actions.value.get(key))
+    .map((key) => nodeTree.actions.value.get(key))
     .filter((action): action is ActionDefinition => action !== undefined)
 })
 
-const isSelected = computed(() => {
-  return nodeTree?.selectedNodes.value.has(props.node.key) || false
-})
+// 节点选择与重命名状态。
+const isSelected = computed(() => nodeTree.selectedKeySet.value.has(props.node.key))
+const isOnlySelected = computed(() => nodeTree.selectedKeys.value.length === 1 && isSelected.value)
+const isRenamable = computed(() => props.node.renamable !== false && nodeTree.renameEnabled.value)
+const isRenaming = computed(() => nodeTree.renamingNodeKey.value === props.node.key)
 
-const isOnlySelected = computed(() => {
-  return nodeTree?.selectedNodes.value.size === 1 && isSelected.value
-})
-
-const isRenamable = computed(() => {
-  return props.node.renamable !== false && (nodeTree?.renameEnabled ?? false)
-})
-
-const isRenaming = computed(() => {
-  return nodeTree?.renamingNodeKey.value === props.node.key
-})
-
+// 节点是否可展开。
 const isExpandable = computed(() => {
   if (props.node.isExpandable === true) return true
   if (props.node.isExpandable === false) return false
   return Boolean(props.node.children?.length)
 })
 
+// 拖拽命中状态。
 const dropState = computed(() => {
-  const isActiveTarget = nodeTree?.dropTargetNode.value?.key === props.node.key
+  const isActiveTarget = nodeTree.dropTargetNode.value?.key === props.node.key
   return {
-    isDragging: nodeTree?.draggedNode.value?.key === props.node.key,
+    isDragging: nodeTree.draggedNode.value?.key === props.node.key,
     isActiveTarget,
-    position: isActiveTarget ? nodeTree?.dropPosition.value ?? null : null,
-    allowed: isActiveTarget ? nodeTree?.dropAllowed.value ?? false : false,
+    position: isActiveTarget ? nodeTree.dropPosition.value ?? null : null,
+    allowed: isActiveTarget ? nodeTree.dropAllowed.value : false,
   }
 })
 
+// 节点内容动态样式。
 const nodeContentClass = computed(() => ({
   selected: isSelected.value,
   dragging: dropState.value.isDragging,
@@ -151,34 +154,43 @@ const nodeContentClass = computed(() => ({
   'drop-invalid': dropState.value.isActiveTarget && !dropState.value.allowed,
 }))
 
+// 节点容器动态样式。
 const treeNodeClass = computed(() => ({
   'drop-inside-target': dropState.value.isActiveTarget && dropState.value.position === 'inside' && dropState.value.allowed,
   'drop-inside-invalid': dropState.value.isActiveTarget && dropState.value.position === 'inside' && !dropState.value.allowed,
 }))
 
+// 子节点容器动态样式。
 const childrenClass = computed(() => ({
   'drop-inside-children': dropState.value.isActiveTarget && dropState.value.position === 'inside' && dropState.value.allowed,
   'drop-inside-children-invalid': dropState.value.isActiveTarget && dropState.value.position === 'inside' && !dropState.value.allowed,
 }))
 
-const uncontrolledExpanded = ref(props.node.isExpanded ?? nodeTree?.defaultNodeExpanded ?? false)
+// 展开状态（支持受控/非受控）。
+const localExpanded = ref(props.node.isExpanded ?? true)
 const isExpandedControlled = computed(() => props.node.isExpanded !== undefined)
 const isExpanded = computed(() => {
-  return isExpandedControlled.value ? props.node.isExpanded ?? false : uncontrolledExpanded.value
+  if (isExpandedControlled.value) {
+    return Boolean(props.node.isExpanded)
+  }
+  return localExpanded.value
 })
+
+// 重命名输入引用。
 const renameInputElement = ref<{ $el?: Element | null } | null>(null)
 
+// 受控展开值同步。
 watch(
   () => props.node.isExpanded,
   (nextExpanded) => {
     if (nextExpanded === undefined) {
       return
     }
-
-    uncontrolledExpanded.value = nextExpanded
+    localExpanded.value = nextExpanded
   },
 )
 
+// 进入重命名时自动聚焦输入框。
 watch(
   isRenaming,
   async (nextIsRenaming) => {
@@ -197,80 +209,87 @@ watch(
   },
 )
 
+// 点击折叠箭头。
 function handleToggleClick() {
+  const nextExpanded = !isExpanded.value
   if (!isExpandedControlled.value) {
-    uncontrolledExpanded.value = !isExpanded.value
+    localExpanded.value = nextExpanded
   }
 
-  nodeTree?.handleNodeToggle(props.node, !isExpanded.value)
+  nodeTree.handleNodeToggle(props.node, nextExpanded)
 }
 
+// 点击节点正文。
 function handleClick(event: MouseEvent) {
   event.stopPropagation()
-  if (nodeTree?.suppressClick.value) {
+  if (nodeTree.suppressClick.value) {
     return
   }
 
-  const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
-
-  nodeTree?.handleNodeClick(props.node.key, props.node, modify)
+  const modify: 'ctrl' | 'none' = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
+  nodeTree.handleNodeClick(props.node.key, props.node, modify)
 }
 
+// 点击节点名称（支持单选后进入重命名）。
 function handleNameClick(event: MouseEvent) {
   event.stopPropagation()
-  if (nodeTree?.suppressClick.value) {
+  if (nodeTree.suppressClick.value) {
     return
   }
 
-  const modify = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
+  const modify: 'ctrl' | 'none' = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
   if (modify === 'none' && isOnlySelected.value && isRenamable.value) {
-    nodeTree?.startNodeRename(props.node)
+    nodeTree.startNodeRename(props.node)
     return
   }
 
-  nodeTree?.handleNodeClick(props.node.key, props.node, modify)
+  nodeTree.handleNodeClick(props.node.key, props.node, modify)
 }
 
+// 双击节点。
 function handleDoubleClick(event: MouseEvent) {
   event.stopPropagation()
-  nodeTree?.handleNodeDoubleClick(props.node)
+  nodeTree.handleNodeDoubleClick(props.node)
 }
 
+// 转发节点 action。
 function handleActionTrigger(payload: { actionKey: string; caller: ActionCaller; node?: ITreeNode }) {
-  nodeTree?.callAction(payload.actionKey, payload.caller, payload.node)
+  nodeTree.callAction(payload.actionKey, payload.caller, payload.node)
 }
 
+// 节点按下事件（拖拽起点）。
 function handleMouseDown(event: MouseEvent) {
   event.stopPropagation()
-  nodeTree?.handleNodePointerDown(props.node, event)
+  nodeTree.handleNodePointerDown(props.node, event)
 }
 
+// 重命名输入实时更新。
 function handleRenameInput(event: Event) {
   const target = event.target
   if (!(target instanceof HTMLInputElement)) {
     return
   }
-
-  nodeTree?.updateRenameDraft(target.value)
+  nodeTree.updateRenameDraft(target.value)
 }
 
+// 重命名键盘提交/取消。
 function handleRenameKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
-    nodeTree?.submitNodeRename(props.node)
+    nodeTree.submitNodeRename(props.node)
     return
   }
 
   if (event.key === 'Escape') {
     event.preventDefault()
-    nodeTree?.cancelNodeRename()
+    nodeTree.cancelNodeRename()
   }
 }
 
+// 重命名失焦取消。
 function handleRenameBlur() {
-  nodeTree?.cancelNodeRename()
+  nodeTree.cancelNodeRename()
 }
-
 </script>
 
 <style scoped>

@@ -10,7 +10,11 @@
 
 文件 Tree 的选中态也应服从这个边界：活动编辑器路径是页面层可消费的“当前文档真相”，`MainIDE.vue` 只负责把它投影到“已打开编辑器”Tree 与项目 Tree 上，而不应再维护一套独立于 `activeSession` 的长期选中来源。
 
-文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selected` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。
+文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selectedKeys` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。
+
+NodeTree 集成约束：
+- 页面层只传 `selectedKeys`（字符串数组）和 `v-model:expanded`。
+- 严禁重新引入 `selected/update:selected` 这类对象耦合协议。
 
 导出能力也属于页面壳层可编排职责，但它只能消费“当前活动 session 的草稿内容”，不能绕回磁盘再读一份，否则会把未保存编辑丢掉。页面层负责选目录、命名、触发渲染；实例覆写语义必须继续复用 `Card.ts` 的投影 helper，不要在 `MainIDE.vue` 里重新手搓 `instance.data` 合并规则。
 
