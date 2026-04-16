@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
   addBlockToContainer,
@@ -86,7 +86,6 @@ import {
   removeBlockFromContainer,
   type CardBlock,
   type CardDocument,
-  type CardInstanceRecord,
   type CardTreeNodeMetadata,
   type PropertyEditorInput,
   isBlockContainer,
@@ -107,7 +106,6 @@ import NodeTree, {
   type NodeTreeActionCalledPayload,
   type NodeTreeCanDropPayload,
   type NodeTreeDropPayload,
-  type NodeTreeDropPosition,
   type NodeTreeRenamePayload,
 } from '../ui/NodeTree.vue'
 import type { ITreeNode } from '../ui/TreeNode.vue'
@@ -116,6 +114,7 @@ import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
+import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
 
 type PropertySortMode = 'category' | 'alphabetical'
 type PropertyEditorMutation = {
@@ -211,18 +210,29 @@ const {
   },
 })
 
+// 实例树与实例编辑协议。
+const {
+  selectedCard,
+  instanceTree,
+  onInstanceTreeSelect,
+  handleInstanceTreeAction,
+  handleInstanceTreeRename,
+  getInstanceTreeAllowedDropPositions,
+  canDropInstanceTreeNode,
+  handleInstanceTreeDrop,
+} = useCdeInstanceOps({
+  cardDoc,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  selectedCardId,
+  selectedCardKeys,
+  markDocumentChanged,
+})
+
 // 当前选择派生信息
 const selectedNode = computed<ITreeNode | null>(() => {
   const selectedKey = selectedBlockKeys.value[0]
   if (!selectedKey) return null
   return findTreeNodeByKey(blockTree.value, selectedKey)
-})
-const selectedCard = computed<CardInstanceRecord | null>(() => {
-  if (!selectedCardId.value) {
-    return null
-  }
-
-  return cardDoc.value?.instances?.find((instance) => instance.id === selectedCardId.value) ?? null
 })
 
 const selectedBlock = computed<CardBlock | null>(() => {
@@ -359,54 +369,6 @@ const viewDoc = computed<CardDocument | null>(() => {
   return toViewDoc(projected)
 })
 
-const instanceTree = computed<ITreeNode[]>(() => {
-  if (!cardDoc.value) {
-    return []
-  }
-
-  const instances = cardDoc.value?.instances
-  const blueprintNode: ITreeNode = {
-    key: BLUEPRINT_CARD_ID,
-    name: '蓝图',
-    path: [BLUEPRINT_CARD_ID],
-    parent: null,
-    renamable: false,
-    isExpandable: false,
-    icon: 'codicon-symbol-class',
-    metadata: {
-      instanceId: BLUEPRINT_CARD_ID,
-      kind: 'blueprint',
-    },
-  }
-
-  if (!instances || instances.length === 0) {
-    return [blueprintNode]
-  }
-
-  return [
-    blueprintNode,
-    ...instances.map((instance: CardInstanceRecord, index) => {
-      const instanceId = instance.id?.trim() || `instance-${index + 1}`
-      const displayName = instance.name?.trim() || instanceId
-
-      const rootNode: ITreeNode = {
-        key: instanceId,
-        name: displayName,
-        path: [instanceId],
-        parent: null,
-        icon: 'codicon-account',
-        actionKeys: ['duplicate-instance', 'delete-instance'],
-        metadata: {
-          instance,
-          instanceId,
-        },
-      }
-
-      return rootNode
-    }),
-  ]
-})
-
 function toggleInstancePanel() {
   isInstancePanelExpanded.value = !isInstancePanelExpanded.value
 }
@@ -535,58 +497,6 @@ function onTreeSelect(nextSelectedKeys: string[]) {
   selectedBlockKeys.value = nextSelectedKeys
 }
 
-function onInstanceTreeSelect(nextSelectedKeys: string[]) {
-  selectedCardKeys.value = nextSelectedKeys
-  const selectedNode = nextSelectedKeys[0] ? findTreeNodeByKey(instanceTree.value, nextSelectedKeys[0]) : null
-  const instanceId = selectedNode?.metadata && typeof selectedNode.metadata === 'object'
-    ? (selectedNode.metadata as { instanceId?: unknown }).instanceId
-    : undefined
-
-  selectedCardId.value = typeof instanceId === 'string' ? instanceId : null
-}
-
-function handleInstanceTreeAction({ actionKey, caller, node }: NodeTreeActionCalledPayload) {
-  if (caller === 'node' && node) {
-    selectedCardKeys.value = [node.key]
-    selectedCardId.value = node.key
-  }
-
-  switch (actionKey) {
-    case 'add-instance':
-      createInstance()
-      return
-    case 'duplicate-instance':
-      if (node) {
-        duplicateInstance(node.key)
-      }
-      return
-    case 'delete-instance':
-      if (node) {
-        deleteInstance(node.key)
-      }
-      return
-  }
-}
-
-function handleInstanceTreeRename({ node, name }: NodeTreeRenamePayload) {
-  if (!cardDoc.value?.instances || node.key === BLUEPRINT_CARD_ID) {
-    return
-  }
-
-  const nextName = name.trim()
-  if (!nextName) {
-    return
-  }
-
-  const instance = cardDoc.value.instances.find((item) => item.id === node.key)
-  if (!instance || instance.name === nextName) {
-    return
-  }
-
-  instance.name = nextName
-  markDocumentChanged()
-}
-
 function handleViewportBlockClick(blockId: string) {
   const clickedNode = findTreeNodeByBlockId(blockTree.value, blockId)
   if (!clickedNode) {
@@ -604,125 +514,6 @@ function clearSelection() {
   selectedBlockKeys.value = []
 }
 
-function getInstanceTreeAllowedDropPositions(target: ITreeNode | null) {
-  if (!target) {
-    return ['inside'] as NodeTreeDropPosition[]
-  }
-
-  if (target.key === BLUEPRINT_CARD_ID) {
-    return ['after'] as NodeTreeDropPosition[]
-  }
-
-  return ['before', 'after'] as NodeTreeDropPosition[]
-}
-
-function canDropInstanceTreeNode({ dragged, target, position }: NodeTreeCanDropPayload) {
-  if (dragged.key === BLUEPRINT_CARD_ID) {
-    return false
-  }
-
-  if (target && target.key === dragged.key) {
-    return false
-  }
-
-  if (target && target.key === BLUEPRINT_CARD_ID) {
-    return position === 'after'
-  }
-
-  if (target === null) {
-    return position === 'inside'
-  }
-
-  return position === 'before' || position === 'after'
-}
-
-function handleInstanceTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
-  if (!cardDoc.value?.instances || !canDropInstanceTreeNode({ dragged, target, position })) {
-    return
-  }
-
-  const instances = [...cardDoc.value.instances]
-  const sourceIndex = instances.findIndex((instance) => instance.id === dragged.key)
-  if (sourceIndex === -1) {
-    return
-  }
-
-  const [draggedInstance] = instances.splice(sourceIndex, 1)
-  let insertionIndex = instances.length
-
-  if (target && target.key !== BLUEPRINT_CARD_ID) {
-    const targetIndex = instances.findIndex((instance) => instance.id === target.key)
-    if (targetIndex === -1) {
-      return
-    }
-    insertionIndex = position === 'before' ? targetIndex : targetIndex + 1
-  } else if (target?.key === BLUEPRINT_CARD_ID) {
-    insertionIndex = 0
-  }
-
-  instances.splice(insertionIndex, 0, draggedInstance)
-  cardDoc.value.instances = instances
-  markDocumentChanged()
-}
-
-function createInstance() {
-  if (!cardDoc.value) {
-    return
-  }
-
-  const nextIndex = (cardDoc.value.instances?.length ?? 0) + 1
-  const nextInstance: CardInstanceRecord = {
-    id: `instance-${crypto.randomUUID()}`,
-    name: `新实例 ${nextIndex}`,
-    data: {},
-  }
-
-  cardDoc.value.instances = [...(cardDoc.value.instances ?? []), nextInstance]
-  selectedCardId.value = nextInstance.id
-  markDocumentChanged()
-}
-
-function duplicateInstance(instanceId: string) {
-  if (!cardDoc.value?.instances || instanceId === BLUEPRINT_CARD_ID) {
-    return
-  }
-
-  const sourceInstance = cardDoc.value.instances.find((item) => item.id === instanceId)
-  if (!sourceInstance) {
-    return
-  }
-
-  const rawInstance = toRaw(sourceInstance)
-  const duplicatedInstance: CardInstanceRecord = {
-    ...structuredClone(rawInstance),
-    id: `instance-${crypto.randomUUID()}`,
-    name: `${sourceInstance.name} 副本`,
-  }
-
-  const sourceIndex = cardDoc.value.instances.findIndex((item) => item.id === instanceId)
-  const nextInstances = [...cardDoc.value.instances]
-  nextInstances.splice(sourceIndex + 1, 0, duplicatedInstance)
-  cardDoc.value.instances = nextInstances
-  selectedCardId.value = duplicatedInstance.id
-  markDocumentChanged()
-}
-
-function deleteInstance(instanceId: string) {
-  if (!cardDoc.value?.instances || instanceId === BLUEPRINT_CARD_ID) {
-    return
-  }
-
-  const instance = cardDoc.value.instances.find((item) => item.id === instanceId)
-  if (!instance) {
-    return
-  }
-
-  cardDoc.value.instances = cardDoc.value.instances.filter((item) => item.id !== instanceId)
-  if (selectedCardId.value === instanceId) {
-    selectedCardId.value = BLUEPRINT_CARD_ID
-  }
-  markDocumentChanged()
-}
 
 function formatViewportCssValue(value: number): string {
   const normalized = Math.round(value * 100) / 100
@@ -1054,30 +845,6 @@ watch(
     }
 
     loadRawDoc(content)
-  },
-  { immediate: true },
-)
-
-watch(
-  [instanceTree, selectedCardId],
-  ([nodes, instanceId]) => {
-    if (!instanceId) {
-      if (selectedCardKeys.value.length > 0) {
-        selectedCardKeys.value = []
-      }
-      return
-    }
-
-    const matchedNode = nodes.find((node) => node.key === instanceId) ?? null
-    const nextSelectedKeys = matchedNode ? [matchedNode.key] : []
-
-    const currentKey = selectedCardKeys.value[0] ?? null
-    const nextKey = nextSelectedKeys[0] ?? null
-    if (currentKey === nextKey && selectedCardKeys.value.length === nextSelectedKeys.length) {
-      return
-    }
-
-    selectedCardKeys.value = nextSelectedKeys
   },
   { immediate: true },
 )
