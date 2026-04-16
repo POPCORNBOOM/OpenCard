@@ -1,21 +1,10 @@
-`CardDesignEditor.vue` 的入口契约是：读取 `modelValue` 后先 `JSON.parse`，再立即走 `materializeCardDocument()`。不要在组件内恢复“手写字段兜底”或“按 block 类型各自补缺省”的逻辑。
+这里的关键职责是维护“编辑真相是 raw 文档”。`applyDocumentContent` 只做 parse，不做整文档 materialize。
 
-实例模式下的 Block 属性面板必须展示“物化后的最终值”：`block + instance override` 合并后再过 `materializeSchemaTarget()`。这样 `null` 覆写会在 UI 与渲染中一致地回落到 schema 默认值。
+渲染使用 `resolvedCardDoc` 投影：先按实例做覆写，再 `materializeCardDocument`。这样渲染拿到完整值，但存储仍保持稀疏。
 
-写回边界保持不变：
-- `Layout` 始终写蓝图结构
+Block 属性面板目标值使用“只解析已有键”的默认值修正（`resolveSchemaDefaultsForPresentKeys`），目的是让 null 显示为默认值，同时保留缺失字段的 `+` 入口。
+
+写回策略边界不变：
+- `Layout` 永远写蓝图结构
 - `Block` 在实例模式写 `instance.data[blockId]`
-不要把这两条边界放松，否则会把实例层变成结构层，破坏蓝图/实例职责分离。
-
-这个组件继续负责“编辑策略与上下文分流”，不负责定义默认值语义。默认值真相只来自 schema。
-
-面板分隔条的拖拽要保持“相对起点增量”语义，不要回到按当前鼠标绝对坐标直接映射宽高。这里的分隔条本来就很窄，绝对映射会在按下瞬间产生细小跳变，用户会直接感知成“拖拽手感发飘”。
-
-左侧“创建的卡牌”折叠态应表现为窄轨按钮，而不是把完整 panel 骨架硬压成超窄宽度。后续如果继续做侧栏收纳，优先保留明确的切换 affordance，避免保留空标题和空 body 造成别扭的占位感。
-
-两棵树的重命名边界也要保持清楚：
-- “创建的卡牌”树改的是 `CardInstanceRecord.name`
-- “模板结构”树改的是蓝图 block 的 `block.name`
-- 蓝图节点本身只是实例视图里的固定入口，不允许重命名
-
-不要把实例树重命名误接到 `cardDoc.name`，也不要在实例模式下把模板树重命名写成 instance override。树显示虽然都在一个编辑器里，但实例命名与蓝图结构命名仍然是两条不同的 domain 线。
+不要把投影对象当成写回真相。
