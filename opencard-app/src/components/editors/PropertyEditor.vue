@@ -326,6 +326,10 @@ function addField(category: PropertyEditorCategory, field: AddableField): void {
 }
 
 function createDefaultValue(definition: EditorPropertyDefinition): unknown {
+  if (definition.defaultValue !== undefined) {
+    return structuredClone(definition.defaultValue)
+  }
+
   switch (definition.datatype) {
     case 'string':
       return definition.options?.[0] ?? ''

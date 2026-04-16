@@ -117,7 +117,7 @@ import {
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../core/Card'
-import { materializeSchemaTarget } from '../../core/propertyEditorSchema'
+import { resolveSchemaDefaultsForPresentKeys } from '../../core/propertyEditorSchema'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree, {
   type ActionDefinition,
@@ -272,11 +272,14 @@ const selectedBlockPropertyTarget = computed<Record<string, unknown> & { type?: 
   }
 
   if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return block as Record<string, unknown> & { type?: string }
+    return resolveSchemaDefaultsForPresentKeys(
+      block.type,
+      block as Record<string, unknown>
+    ) as Record<string, unknown> & { type?: string }
   }
 
   const blockOverrides = selectedCard.value.data[block.id] ?? {}
-  return materializeSchemaTarget(block.type, {
+  return resolveSchemaDefaultsForPresentKeys(block.type, {
     ...block,
     ...blockOverrides,
   }) as Record<string, unknown> & { type?: string }
@@ -315,10 +318,11 @@ const resolvedCardDoc = computed<CardDocument | null>(() => {
   }
 
   if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return cardDoc.value
+    return materializeCardDocument(cardDoc.value)
   }
 
-  return resolveCardDocumentInstanceView(cardDoc.value, selectedCard.value)
+  const projected = resolveCardDocumentInstanceView(cardDoc.value, selectedCard.value)
+  return materializeCardDocument(projected)
 })
 
 const instanceTree = computed<ITreeNode[]>(() => {
@@ -1058,7 +1062,7 @@ function applyDocumentContent(content: string) {
   selectedCardId.value = BLUEPRINT_CARD_ID
 
   try {
-    const parsed = materializeCardDocument(JSON.parse(content))
+    const parsed = JSON.parse(content) as CardDocument
     cardDoc.value = parsed
     parentLookup.value = buildParentLookup(parsed)
     isModified.value = false

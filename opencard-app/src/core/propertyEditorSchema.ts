@@ -389,6 +389,32 @@ export function getSchemaDefaultValue(typeName: string | undefined, fieldName: s
     return cloneDefaultValue(definition.defaultValue)
 }
 
+export function resolveSchemaDefaultsForPresentKeys(
+    typeName: string | undefined,
+    target: Record<string, unknown> | undefined
+): Record<string, unknown> {
+    const source = target ?? {}
+    const schema = getTypePropertyEditorSchema(typeName)
+    if (Object.keys(schema).length === 0) {
+        return { ...source }
+    }
+
+    const resolved: Record<string, unknown> = { ...source }
+    for (const key of Object.keys(source)) {
+        const definition = schema[key]
+        if (!definition || definition.defaultValue === undefined) {
+            continue
+        }
+
+        const currentValue = source[key]
+        if (currentValue === null || currentValue === undefined) {
+            resolved[key] = cloneDefaultValue(definition.defaultValue)
+        }
+    }
+
+    return resolved
+}
+
 export function materializeSchemaTarget(
     typeName: string | undefined,
     target: Record<string, unknown> | undefined
