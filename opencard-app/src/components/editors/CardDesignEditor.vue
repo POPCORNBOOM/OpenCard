@@ -78,13 +78,11 @@ import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import type { EditorEmits, EditorProps } from '../../core/Editor'
 import {
   addBlockToContainer,
-  buildParentLookup,
   blockToTreeNode,
   BlockContainer,
   createBlock,
   toViewDoc,
   applyInstance,
-  type ParentLookup,
   removeBlockFromContainer,
   type CardBlock,
   type CardDocument,
@@ -117,6 +115,7 @@ import PropertyEditor from './PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
+import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 
 type PropertySortMode = 'category' | 'alphabetical'
 type PropertyEditorMutation = {
@@ -138,10 +137,6 @@ const emit = defineEmits<EditorEmits>()
 
 // 文档与编辑器状态
 const blockTreeExpanded = ref(true)
-const rawContent = ref('')
-const cardDoc = ref<CardDocument | null>(null)
-const parentLookup = ref<ParentLookup>(new Map())
-const isModified = ref(false)
 const propertySortMode = ref<PropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
 
@@ -196,6 +191,25 @@ const instanceTreeActionKeys = ['add-instance']
 const selectedBlockKeys = ref<string[]>([])
 const selectedCardKeys = ref<string[]>([])
 const selectedCardId = ref<string | null>(BLUEPRINT_CARD_ID)
+
+// 文档状态与读写协议。
+const {
+  rawContent,
+  cardDoc,
+  parentLookup,
+  markDocumentChanged,
+  loadRawDoc,
+  saveFile: saveDocumentFile,
+} = useCdeDocumentState({
+  emitModelValueUpdate: (content) => emit('update:modelValue', content),
+  emitModified: (modified) => emit('modified', modified),
+  emitSave: () => emit('save'),
+  resetSelection: () => {
+    selectedBlockKeys.value = []
+    selectedCardKeys.value = []
+    selectedCardId.value = BLUEPRINT_CARD_ID
+  },
+})
 
 // 当前选择派生信息
 const selectedNode = computed<ITreeNode | null>(() => {
@@ -395,26 +409,6 @@ const instanceTree = computed<ITreeNode[]>(() => {
 
 function toggleInstancePanel() {
   isInstancePanelExpanded.value = !isInstancePanelExpanded.value
-}
-
-function syncDocumentContent() {
-  if (!cardDoc.value) {
-    return
-  }
-
-  const content = JSON.stringify(cardDoc.value, null, 2)
-  if (content === rawContent.value) {
-    return
-  }
-
-  rawContent.value = content
-  emit('update:modelValue', content)
-}
-
-function markDocumentChanged() {
-  isModified.value = true
-  emit('modified', true)
-  syncDocumentContent()
 }
 
 function updateBlockProp({
@@ -1010,28 +1004,6 @@ function handleTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
   markDocumentChanged()
 }
 
-// Load raw document JSON into editor state and reset current selections safely.
-function loadRawDoc(content: string) {
-  rawContent.value = content
-  selectedBlockKeys.value = []
-  selectedCardKeys.value = []
-  selectedCardId.value = BLUEPRINT_CARD_ID
-
-  try {
-    const parsed = JSON.parse(content) as CardDocument
-    cardDoc.value = parsed
-    parentLookup.value = buildParentLookup(parsed)
-    isModified.value = false
-    emit('modified', false)
-  } catch (e) {
-    console.error('读取 .opencard 文件失败:', e)
-    cardDoc.value = null
-    parentLookup.value = new Map()
-    isModified.value = false
-    emit('modified', false)
-  }
-}
-
 function createBlockAt(container: BlockContainer, type: CardBlock['type']) {
   let newBlock: CardBlock
 
@@ -1070,17 +1042,7 @@ function deleteBlock(block: CardBlock) {
 }
 
 async function saveFile() {
-  if (!cardDoc.value) return
-  try {
-    const content = JSON.stringify(cardDoc.value, null, 2)
-    rawContent.value = content
-    isModified.value = false
-    emit('update:modelValue', content)
-    emit('modified', false)
-    emit('save')
-  } catch (e) {
-    console.error('保存失败:', e)
-  }
+  await saveDocumentFile()
 }
 
 watch(
