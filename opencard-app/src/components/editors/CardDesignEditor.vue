@@ -101,6 +101,7 @@ import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
+import { resetInstanceOverrideField } from '../../composables/cdeInstanceOverride'
 
 type PropertySortMode = 'category' | 'alphabetical'
 type PropertyEditorMutation = {
@@ -455,14 +456,9 @@ function resetBlockProp({
   }
 
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
-    const instanceBlockData = selectedCard.value.data[block.id]
-    if (!instanceBlockData || !Object.prototype.hasOwnProperty.call(instanceBlockData, fieldKey)) {
+    const didResetOverride = resetInstanceOverrideField(selectedCard.value.data, block.id, fieldKey)
+    if (!didResetOverride) {
       return
-    }
-
-    delete instanceBlockData[fieldKey]
-    if (Object.keys(instanceBlockData).length === 0) {
-      delete selectedCard.value.data[block.id]
     }
     markDocumentChanged()
     return
