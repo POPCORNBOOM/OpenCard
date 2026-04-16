@@ -60,8 +60,13 @@
           </div>
         </template>
         <template #default>
-          <PropertyEditor :sources="propertySources" :sort-mode="propertySortMode" @update-property="updateBlockProp"
-            @add-property="addBlockProp" />
+          <PropertyEditor
+            :inputs="propertyInputs"
+            :sort-mode="propertySortMode"
+            @update-property="updateBlockProp"
+            @add-property="addBlockProp"
+            @reset-property="resetBlockProp"
+          />
         </template>
       </OcPanelSection>
     </div>
@@ -85,7 +90,7 @@ import {
   type CardDocument,
   type CardInstanceRecord,
   type CardTreeNodeMetadata,
-  type PropertyEditorSource,
+  type PropertyEditorInput,
   isBlockContainer,
   isCardBlock,
   getBlockTreeIcon,
@@ -93,7 +98,11 @@ import {
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../core/Card'
-import { resolveNulls } from '../../core/propertyEditorSchema'
+import {
+  getDefault,
+  resolveNulls,
+  type PropertyEditorSchemaOverride,
+} from '../../core/propertyEditorSchema'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree, {
   type ActionDefinition,
@@ -109,6 +118,15 @@ import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 
 type PropertySortMode = 'category' | 'alphabetical'
+type PropertyEditorMutation = {
+  sourceKey: string
+  fieldKey: string
+  value: unknown
+}
+type PropertyEditorResetMutation = {
+  sourceKey: string
+  fieldKey: string
+}
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -132,10 +150,12 @@ const rightPanelRef = ref<HTMLElement | null>(null)
 
 // 面板尺寸状态
 const rightPanelWidth = ref(320)
-const treePanelHeight = ref(320)
+const treePanelAbsoluteHeight = ref(320)
 const editorStyle = computed(() => ({
   '--card-editor-right-panel-width': `${rightPanelWidth.value}px`,
-  '--card-editor-tree-panel-height': `${treePanelHeight.value}px`,
+  '--card-editor-tree-panel-height': `${treePanelAbsoluteHeight.value}px`,
+  '--card-editor-horizontal-resizer-height': `${HORIZONTAL_RESIZER_HEIGHT}px`,
+  '--card-editor-min-property-panel-height': `${MIN_PROPERTY_PANEL_HEIGHT}px`,
 }))
 
 // 尺寸限制常量
@@ -152,11 +172,11 @@ const resizeSnapshot = ref<{
   clientX: number
   clientY: number
   rightPanelWidth: number
-  treePanelHeight: number
+  treePanelAbsoluteHeight: number
 } | null>(null)
 let resizePreview = {
   rightPanelWidth: rightPanelWidth.value,
-  treePanelHeight: treePanelHeight.value,
+  treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
 }
 let resizeFrameId: number | null = null
 
@@ -282,24 +302,48 @@ const blockPropsView = computed<Record<string, unknown> & { type?: string } | nu
   }) as Record<string, unknown> & { type?: string }
 })
 
-const propertySources = computed<PropertyEditorSource[]>(() => {
-  const sources: PropertyEditorSource[] = []
+const blockInputOverride = computed<PropertyEditorSchemaOverride | undefined>(() => {
+  const block = selectedBlock.value
+  if (!block || selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
+    return undefined
+  }
+
+  const instanceBlockData = selectedCard.value.data[block.id]
+  if (!instanceBlockData) {
+    return undefined
+  }
+
+  const overrideEntries = Object.keys(instanceBlockData).map((fieldKey) => [
+    fieldKey,
+    { resettable: true },
+  ] as const)
+
+  if (overrideEntries.length === 0) {
+    return undefined
+  }
+
+  return Object.fromEntries(overrideEntries)
+})
+
+const propertyInputs = computed<PropertyEditorInput[]>(() => {
+  const inputs: PropertyEditorInput[] = []
 
   if (blockPropsView.value) {
-    sources.push({
-      title: 'Block',
-      target: blockPropsView.value,
+    inputs.push({
+      key: 'block',
+      record: blockPropsView.value,
+      override: blockInputOverride.value,
     })
   }
 
   if (selectedLayout.value) {
-    sources.push({
-      title: 'Layout',
-      target: selectedLayout.value as Record<string, unknown> & { type?: string },
+    inputs.push({
+      key: 'layout',
+      record: selectedLayout.value as Record<string, unknown> & { type?: string },
     })
   }
 
-  return sources
+  return inputs
 })
 
 // 结构树与渲染视图
@@ -331,13 +375,13 @@ const instanceTree = computed<ITreeNode[]>(() => {
 
   const instances = cardDoc.value?.instances
   const blueprintNode: ITreeNode = {
-      key: BLUEPRINT_CARD_ID,
-      name: '蓝图',
-      path: [BLUEPRINT_CARD_ID],
-      parent: null,
-      renamable: false,
-      isExpandable: false,
-      icon: 'codicon-symbol-class',
+    key: BLUEPRINT_CARD_ID,
+    name: '蓝图',
+    path: [BLUEPRINT_CARD_ID],
+    parent: null,
+    renamable: false,
+    isExpandable: false,
+    icon: 'codicon-symbol-class',
     metadata: {
       instanceId: BLUEPRINT_CARD_ID,
       kind: 'blueprint',
@@ -397,22 +441,17 @@ function markDocumentChanged() {
 }
 
 function updateBlockProp({
-  sourceTitle,
-  key,
+  sourceKey,
+  fieldKey,
   value,
-}: {
-  sourceTitle: string
-  target: Record<string, unknown>
-  key: string
-  value: unknown
-}) {
-  if (sourceTitle === 'Layout') {
+}: PropertyEditorMutation) {
+  if (sourceKey === 'layout') {
     const layout = selectedLayout.value
     if (!layout) {
       return
     }
 
-    layout[key] = value
+    layout[fieldKey] = value
     markDocumentChanged()
     return
   }
@@ -424,13 +463,13 @@ function updateBlockProp({
 
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
     const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
-    instanceBlockData[key] = value
+    instanceBlockData[fieldKey] = value
     markDocumentChanged()
     return
   }
 
-  ; (block as Record<string, unknown>)[key] = value
-  if (block.type === 'image-block' && key === 'image') {
+  ; (block as Record<string, unknown>)[fieldKey] = value
+  if (block.type === 'image-block' && fieldKey === 'image') {
     delete (block as Record<string, unknown>).imagePath
   }
 
@@ -438,22 +477,17 @@ function updateBlockProp({
 }
 
 function addBlockProp({
-  sourceTitle,
-  key,
+  sourceKey,
+  fieldKey,
   value,
-}: {
-  sourceTitle: string
-  target: Record<string, unknown>
-  key: string
-  value: unknown
-}) {
-  if (sourceTitle === 'Layout') {
+}: PropertyEditorMutation) {
+  if (sourceKey === 'layout') {
     const layout = selectedLayout.value
     if (!layout) {
       return
     }
 
-    layout[key] = value
+    layout[fieldKey] = value
     markDocumentChanged()
     return
   }
@@ -465,12 +499,64 @@ function addBlockProp({
 
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
     const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
-    instanceBlockData[key] = value
+    instanceBlockData[fieldKey] = value
     markDocumentChanged()
     return
   }
 
-  ; (block as Record<string, unknown>)[key] = value
+  ; (block as Record<string, unknown>)[fieldKey] = value
+  markDocumentChanged()
+}
+
+function resetBlockProp({
+  sourceKey,
+  fieldKey,
+}: PropertyEditorResetMutation) {
+  if (sourceKey === 'layout') {
+    const layout = selectedLayout.value
+    if (!layout) {
+      return
+    }
+
+    const layoutType = typeof layout.type === 'string' ? layout.type : undefined
+    const defaultValue = getDefault(layoutType, fieldKey)
+    if (defaultValue === undefined) {
+      delete layout[fieldKey]
+    } else {
+      layout[fieldKey] = defaultValue
+    }
+    markDocumentChanged()
+    return
+  }
+
+  const block = selectedBlock.value
+  if (!block) {
+    return
+  }
+
+  if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
+    const instanceBlockData = selectedCard.value.data[block.id]
+    if (!instanceBlockData || !Object.prototype.hasOwnProperty.call(instanceBlockData, fieldKey)) {
+      return
+    }
+
+    delete instanceBlockData[fieldKey]
+    if (Object.keys(instanceBlockData).length === 0) {
+      delete selectedCard.value.data[block.id]
+    }
+    markDocumentChanged()
+    return
+  }
+
+  const defaultValue = getDefault(block.type, fieldKey)
+  if (defaultValue === undefined) {
+    delete (block as Record<string, unknown>)[fieldKey]
+  } else {
+    ; (block as Record<string, unknown>)[fieldKey] = defaultValue
+  }
+  if (block.type === 'image-block' && fieldKey === 'image') {
+    delete (block as Record<string, unknown>).imagePath
+  }
   markDocumentChanged()
 }
 
@@ -691,7 +777,7 @@ function getTreePanelMaxHeight(): number {
 
 function syncPanelBounds() {
   rightPanelWidth.value = clamp(rightPanelWidth.value, MIN_RIGHT_PANEL_WIDTH, getRightPanelMaxWidth())
-  treePanelHeight.value = clamp(treePanelHeight.value, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
+  treePanelAbsoluteHeight.value = clamp(treePanelAbsoluteHeight.value, MIN_TREE_PANEL_HEIGHT, getTreePanelMaxHeight())
 }
 
 function writeResizePreview() {
@@ -701,7 +787,7 @@ function writeResizePreview() {
   }
 
   root.style.setProperty('--card-editor-right-panel-width', `${resizePreview.rightPanelWidth}px`)
-  root.style.setProperty('--card-editor-tree-panel-height', `${resizePreview.treePanelHeight}px`)
+  root.style.setProperty('--card-editor-tree-panel-height', `${resizePreview.treePanelAbsoluteHeight}px`)
 }
 
 function scheduleResizePreview() {
@@ -730,11 +816,11 @@ function startRightPanelResize(event: MouseEvent) {
     clientX: event.clientX,
     clientY: event.clientY,
     rightPanelWidth: rightPanelWidth.value,
-    treePanelHeight: treePanelHeight.value,
+    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
   }
   resizePreview = {
     rightPanelWidth: rightPanelWidth.value,
-    treePanelHeight: treePanelHeight.value,
+    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
   }
   document.body.classList.add('is-resizing-panels')
   document.body.style.cursor = 'col-resize'
@@ -746,11 +832,11 @@ function startTreePanelResize(event: MouseEvent) {
     clientX: event.clientX,
     clientY: event.clientY,
     rightPanelWidth: rightPanelWidth.value,
-    treePanelHeight: treePanelHeight.value,
+    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
   }
   resizePreview = {
     rightPanelWidth: rightPanelWidth.value,
-    treePanelHeight: treePanelHeight.value,
+    treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
   }
   document.body.classList.add('is-resizing-panels')
   document.body.style.cursor = 'row-resize'
@@ -771,8 +857,8 @@ function handleGlobalMouseMove(event: MouseEvent) {
     return
   }
 
-  resizePreview.treePanelHeight = clamp(
-    resizeSnapshot.value.treePanelHeight + (event.clientY - resizeSnapshot.value.clientY),
+  resizePreview.treePanelAbsoluteHeight = clamp(
+    resizeSnapshot.value.treePanelAbsoluteHeight + (event.clientY - resizeSnapshot.value.clientY),
     MIN_TREE_PANEL_HEIGHT,
     getTreePanelMaxHeight(),
   )
@@ -786,7 +872,7 @@ function stopPanelResize() {
 
   flushResizePreview()
   rightPanelWidth.value = resizePreview.rightPanelWidth
-  treePanelHeight.value = resizePreview.treePanelHeight
+  treePanelAbsoluteHeight.value = resizePreview.treePanelAbsoluteHeight
   resizeState.value = null
   resizeSnapshot.value = null
   document.body.classList.remove('is-resizing-panels')
@@ -1270,11 +1356,15 @@ onUnmounted(() => {
 
 .block-list-panel {
   height: var(--card-editor-tree-panel-height);
+  flex: 0 0 auto;
   border-bottom: 1px solid var(--oc-border-strong);
   overflow: hidden;
 }
 
 .property-panel {
+  height: calc(100% - var(--card-editor-tree-panel-height) - var(--card-editor-horizontal-resizer-height));
+  min-height: var(--card-editor-min-property-panel-height);
+  flex: 0 0 auto;
   position: relative;
   overflow: hidden;
 }

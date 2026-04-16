@@ -1,18 +1,31 @@
-这里的关键职责是维护“编辑真相是 raw 文档”。`loadRawDoc` 只做 parse，不做整文档 materialize。
+`CardDesignEditor.vue` 是“文档真相层”，负责消费属性编辑意图并落地写回：
+- 编辑真相是 raw 文档；渲染使用 `viewDoc` 投影。
+- `resolveNulls` 仅用于属性面板展示，避免把稀疏文档写满。
 
-渲染使用 `viewDoc` 投影：先按实例做覆写，再 `toViewDoc`。这样渲染拿到完整值，但存储仍保持稀疏。
+与 `PropertyEditor` 的协议边界：
+- 输入给属性编辑器：`{ key, record, override? }[]`。
+- 回收事件：`update-property`、`add-property`、`reset-property`。
+- 路由分流只看 `sourceKey`，不依赖标题文案。
 
-Block 属性面板目标值使用“只解析已有键”的默认值修正（`resolveNulls`），目的是让 null 显示为默认值，同时保留缺失字段的 `+` 入口。
+写回策略：
+- `sourceKey = layout`：始终写蓝图布局对象。
+- `sourceKey = block`：
+  - 蓝图模式写 block 本体。
+  - 实例模式写 `instance.data[blockId]` 覆写。
 
-写回策略边界不变：
-- `Layout` 永远写蓝图结构
-- `Block` 在实例模式写 `instance.data[blockId]`
-不要把投影对象当成写回真相。
+重置策略（业务层定义）：
+- 蓝图/layout：重置为 schema 默认值；无默认值则删键。
+- 实例 block：删除 override 键，使其回落到蓝图值。
+- 当实例 block 的 override 变空时，删除该 block 的 override 对象。
 
-Tree 选中态约束：
-- 只存 key（`selectedBlockKeys` / `selectedCardKeys`），不长期保存 `Map<key,node>`。
-- 需要 node 时按 key 从当前树回查，避免把 UI 节点对象当成跨时段真相。
+override 注入策略：
+- 在实例模式下，`PropertyEditor` 输入的 `override` 会把当前 override 键标记为 `resettable: true`。
+- 这样 reset 按钮只出现在“当前确实有实例覆写”的字段上。
 
-NodeTree 协议约束：
-- 只使用 `selectedKeys/update:selectedKeys`、`actionKeys`、`expanded`。
-- 严禁回退到 `selected/update:selected`、`rootActionKeys` 等旧接口。
+不可回退约束：
+- 不得回退到通过对象身份判断写回目标。
+- 不得让 `PropertyEditor` 承担写回语义。
+
+面板尺寸语义约束：
+- 右侧“信息树/属性”分隔拖拽以“信息树绝对像素高度”为真相，不使用比例分配。
+- 属性面板高度应由 `总高度 - 信息树高度 - 分隔条高度` 推导。

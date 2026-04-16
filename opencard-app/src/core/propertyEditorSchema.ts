@@ -4,6 +4,7 @@ type EditorPropertyBase = {
     isHidden?: boolean
     isArray?: boolean
     isReadonly?: boolean
+    resettable?: boolean
     label?: string
     labelKey?: string
     category?: string

@@ -40,6 +40,15 @@ export default {
       typography: 'Typography',
       position: 'Position',
       flow: 'Flow',
+      uncategorized: 'Other',
+    },
+    sources: {
+      block: 'Block',
+      layout: 'Layout',
+    },
+    actions: {
+      addField: 'Add Field',
+      reset: 'Reset',
     },
     fields: {
       id: 'ID',

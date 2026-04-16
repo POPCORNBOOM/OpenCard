@@ -259,14 +259,14 @@ export function toViewDoc(documentInput: unknown): CardDocument {
     }
 }
 
-export type PropertyEditorTarget = Record<string, unknown> & {
+export type PropertyEditorRecord = Record<string, unknown> & {
     type?: string
 }
 
-export type PropertyEditorSource = {
-    title: string
-    target: PropertyEditorTarget
-    schemaOverride?: PropertyEditorSchemaOverride
+export type PropertyEditorInput = {
+    key: string
+    record: PropertyEditorRecord
+    override?: PropertyEditorSchemaOverride
 }
 
 // Extra data attached when a block is projected into the editor tree.
