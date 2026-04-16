@@ -23,11 +23,23 @@ import type {
 } from '../components/ui/NodeTree.vue'
 import type { ITreeNode } from '../components/ui/TreeNode.vue'
 
+const ENABLE_CDE_TREE_DND_DEBUG = import.meta.env.DEV && Boolean(
+  (globalThis as { __OC_DEBUG_CDE_TREE_DND__?: unknown }).__OC_DEBUG_CDE_TREE_DND__,
+)
+
 type UseCdeTreeOpsOptions = {
   cardDoc: Ref<CardDocument | null>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
   markDocumentChanged: () => void
+}
+
+function logTreeDndDebug(message: string, payloadFactory: () => Record<string, unknown>) {
+  if (!ENABLE_CDE_TREE_DND_DEBUG) {
+    return
+  }
+
+  console.debug(message, payloadFactory())
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
@@ -122,12 +134,20 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function canDropTreeNode({ dragged, target, position }: NodeTreeCanDropPayload) {
     if (target && dragged.key === target.key) {
-      console.debug('[blocktree] canDrop=false same-node', { dragged: dragged.key, target: target.key, position })
+      logTreeDndDebug('[blocktree] canDrop=false same-node', () => ({
+        dragged: dragged.key,
+        target: target.key,
+        position,
+      }))
       return false
     }
 
     if (target && isDescendantOrSelfNode(target, dragged)) {
-      console.debug('[blocktree] canDrop=false descendant', { dragged: dragged.key, target: target.key, position })
+      logTreeDndDebug('[blocktree] canDrop=false descendant', () => ({
+        dragged: dragged.key,
+        target: target.key,
+        position,
+      }))
       return false
     }
 
@@ -141,25 +161,25 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const insertionIndex = getInsertionIndexForDropTarget(target, position)
 
     if (!sourceContainer || !targetContainer || insertionIndex === null) {
-      console.debug('[blocktree] canDrop=false missing-target', {
+      logTreeDndDebug('[blocktree] canDrop=false missing-target', () => ({
         dragged: dragged.key,
         target: target?.key ?? null,
         position,
         sourceContainer: sourceContainer?.type ?? null,
         targetContainer: targetContainer?.type ?? null,
         insertionIndex,
-      })
+      }))
       return false
     }
 
-    console.debug('[blocktree] canDrop=true', {
+    logTreeDndDebug('[blocktree] canDrop=true', () => ({
       dragged: dragged.key,
       target: target?.key ?? null,
       position,
       sourceContainer: sourceContainer.type,
       targetContainer: targetContainer.type,
       insertionIndex,
-    })
+    }))
     return true
   }
 
