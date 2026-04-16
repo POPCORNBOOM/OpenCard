@@ -1,7 +1,7 @@
 这个文件承载两套能力：属性编辑元信息，以及默认值规则。默认值规则分两类调用：
 
-1) `materializeSchemaTarget`：补齐完整字段（缺失/null/undefined 都补默认值），用于渲染投影。
-2) `resolveSchemaDefaultsForPresentKeys`：只修正“已存在键”的 null/undefined，不补缺失键，用于属性面板显示以保留 `+` 体验。
+1) `fillDefaults`：补齐完整字段（缺失/null/undefined 都补默认值），用于渲染投影。
+2) `resolveNulls`：只修正“已存在键”的 null/undefined，不补缺失键，用于属性面板显示以保留 `+` 体验。
 
 关键约束：不要把这两种模式混用。编辑真相层只能用第 2 类或不用默认值解析；否则会把稀疏文档写满，破坏“缺省可缺失”的产品语义。
 

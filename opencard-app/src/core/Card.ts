@@ -1,5 +1,5 @@
 import { ITreeNode } from "../components/ui/TreeNode.vue"
-import { materializeSchemaTarget } from './propertyEditorSchema'
+import { fillDefaults } from './propertyEditorSchema'
 import type { PropertyEditorSchemaOverride } from './propertyEditorSchema'
 
 // Block and document data models.
@@ -146,12 +146,12 @@ function resolveBlockType(typeName: unknown): CardBlock['type'] {
 }
 
 function materializeSimpleContainerLocation(locationInput: unknown): SimpleContainerLocationInfo {
-    return materializeSchemaTarget('simple-container-location', toRecord(locationInput)) as SimpleContainerLocationInfo
+    return fillDefaults('simple-container-location', toRecord(locationInput)) as SimpleContainerLocationInfo
 }
 
 function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex: number): FlowContainerLocationInfo {
     const source = toRecord(locationInput)
-    const materialized = materializeSchemaTarget('flow-container-location', source) as FlowContainerLocationInfo
+    const materialized = fillDefaults('flow-container-location', source) as FlowContainerLocationInfo
     if (!Object.prototype.hasOwnProperty.call(source, 'index') || source.index === null || source.index === undefined) {
         materialized.index = fallbackIndex
     }
@@ -171,7 +171,7 @@ function materializeInstanceData(rawData: unknown): Record<string, Record<string
 
 function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceRecord {
     const source = toRecord(instanceInput)
-    const materialized = materializeSchemaTarget('card-instance-record', source) as CardInstanceRecord
+    const materialized = fillDefaults('card-instance-record', source) as CardInstanceRecord
     const instanceId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId('instance')
@@ -188,10 +188,11 @@ function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceReco
     }
 }
 
-export function materializeCardBlock(blockInput: unknown): CardBlock {
+// Materialize one block into a render-safe view block with schema defaults.
+export function toViewBlock(blockInput: unknown): CardBlock {
     const source = toRecord(blockInput)
     const type = resolveBlockType(source.type)
-    const materialized = materializeSchemaTarget(type, source) as CardBlock
+    const materialized = fillDefaults(type, source) as CardBlock
     const normalizedId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId(type)
@@ -206,7 +207,7 @@ export function materializeCardBlock(blockInput: unknown): CardBlock {
             } as CardBlock
         case 'simple-container-block': {
             const children = toRecordArray(source.children).map((childInput) => ({
-                block: materializeCardBlock(childInput.block),
+                block: toViewBlock(childInput.block),
                 location: materializeSimpleContainerLocation(childInput.location),
             }))
 
@@ -219,7 +220,7 @@ export function materializeCardBlock(blockInput: unknown): CardBlock {
         }
         case 'flow-container-block': {
             const children = toRecordArray(source.children).map((childInput, index) => ({
-                block: materializeCardBlock(childInput.block),
+                block: toViewBlock(childInput.block),
                 location: materializeFlowContainerLocation(childInput.location, index),
             }))
 
@@ -233,15 +234,16 @@ export function materializeCardBlock(blockInput: unknown): CardBlock {
     }
 }
 
-export function materializeCardDocument(documentInput: unknown): CardDocument {
+// Materialize a raw document into a render-safe view document for UI usage.
+export function toViewDoc(documentInput: unknown): CardDocument {
     const source = toRecord(documentInput)
-    const materialized = materializeSchemaTarget('card-document', source) as CardDocument
+    const materialized = fillDefaults('card-document', source) as CardDocument
     const documentId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId('card-document')
 
     const children = toRecordArray(source.children).map((childInput) => ({
-        block: materializeCardBlock(childInput.block),
+        block: toViewBlock(childInput.block),
         location: materializeSimpleContainerLocation(childInput.location),
     }))
 
@@ -606,7 +608,8 @@ export function getBlockTreeIcon(type: CardBlock['type']): string {
     }
 }
 
-function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceRecord): CardBlock {
+// Apply a single instance's overrides onto one block subtree recursively.
+function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): CardBlock {
     const overrides = instance.data[block.id] ?? {}
 
     switch (block.type) {
@@ -626,7 +629,7 @@ function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceReco
                 ...overrides,
                 children: block.children.map((child) => ({
                     location: { ...child.location },
-                    block: cloneBlockWithInstanceData(child.block, instance),
+                    block: mergeBlockOverride(child.block, instance),
                 })),
             }
         case 'flow-container-block':
@@ -635,13 +638,14 @@ function cloneBlockWithInstanceData(block: CardBlock, instance: CardInstanceReco
                 ...overrides,
                 children: block.children.map((child) => ({
                     location: { ...child.location },
-                    block: cloneBlockWithInstanceData(child.block, instance),
+                    block: mergeBlockOverride(child.block, instance),
                 })),
             }
     }
 }
 
-export function resolveCardDocumentInstanceView(
+// Project one instance onto the blueprint document to produce an overridden tree.
+export function applyInstance(
     document: CardDocument,
     instance: CardInstanceRecord | null
 ): CardDocument {
@@ -653,7 +657,7 @@ export function resolveCardDocumentInstanceView(
         ...document,
         children: document.children.map((child) => ({
             location: { ...child.location },
-            block: cloneBlockWithInstanceData(child.block, instance),
+            block: mergeBlockOverride(child.block, instance),
         })),
     }
 }

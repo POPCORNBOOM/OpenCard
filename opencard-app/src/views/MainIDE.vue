@@ -1,8 +1,8 @@
 <template>
   <div class="ide-layout">
     <!-- 顶部菜单栏 -->
-      <div class="menu-bar">
-        <div class="menu-items">
+    <div class="menu-bar">
+      <div class="menu-items">
         <OcButton class="menu-link" variant="ghost" :disabled="true">
           {{ t('app.menu.file') }}
         </OcButton>
@@ -36,7 +36,8 @@
             :title="t('sidebar.files')">
             <AppIcon name="app.files" tone="primary" />
           </div>
-          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'" :title="t('sidebar.git')">
+          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'"
+            :title="t('sidebar.git')">
             <AppIcon name="app.git" tone="danger" />
           </div>
           <div class="activity-icon" :class="{ active: activeView === 'publish' }" @click="activeView = 'publish'"
@@ -47,13 +48,8 @@
       </div>
 
       <!-- 左侧边栏 -->
-      <OcPanelSection
-        v-if="activeView"
-        class="sidebar"
-        header-class="sidebar-header"
-        body-class="sidebar-content"
-        :scroll-body="true"
-      >
+      <OcPanelSection v-if="activeView" class="sidebar" header-class="sidebar-header" body-class="sidebar-content"
+        :scroll-body="true">
         <template #title>
           <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
           <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
@@ -65,12 +61,12 @@
             <OcButton @click="openProject" class="open-folder-btn" variant="primary">
               {{ t('sidebar.openProject') }}
             </OcButton>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')"
-              :selected="openedEditorSelectedFiles" @update:selected="handleOpenedEditorsSelect" />
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
+              :title="t('sidebar.openedEditors')" :selected="openedEditorSelectedFiles"
+              @update:selected="handleOpenedEditorsSelect" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
-              @node-drop="handleFileTreeDrop"
-              @node-rename="handleFileTreeRename"
+              @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
               :selected="selectedFiles" @update:selected="handleFileTreeSelect" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
@@ -160,8 +156,8 @@ import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../core/Editor'
 import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
 import {
-  materializeCardDocument,
-  resolveCardDocumentInstanceView,
+  toViewDoc,
+  applyInstance,
   type CardDocument,
 } from '../core/Card'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -326,7 +322,7 @@ function getActiveCardExportContext() {
   try {
     return {
       fileNameStem: sanitizeFileNameSegment(stripFileExtension(activeSession.value.name), 'card'),
-      document: materializeCardDocument(JSON.parse(currentContent)),
+      document: toViewDoc(JSON.parse(currentContent)),
     }
   } catch (error) {
     console.error('解析 .opencard 失败:', error)
@@ -355,7 +351,7 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument) {
   const exportQueue = [
     {
       fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      document: resolveCardDocumentInstanceView(document, null),
+      document: applyInstance(document, null),
     },
   ]
 
@@ -363,7 +359,7 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument) {
     const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
     exportQueue.push({
       fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      document: resolveCardDocumentInstanceView(document, instance),
+      document: applyInstance(document, instance),
     })
   }
 
@@ -441,7 +437,7 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   }
 
   try {
-    const cardDoc = materializeCardDocument(JSON.parse(newContent))
+    const cardDoc = toViewDoc(JSON.parse(newContent))
     previewCardDoc.value = cardDoc
     showPreview.value = true
   } catch (error) {
@@ -917,8 +913,7 @@ function closeFile(sessionId: string) {
   opacity: 1;
 }
 
-.editor-content {
-}
+.editor-content {}
 
 .preview-panel {
   width: 450px;

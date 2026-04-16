@@ -1,17 +1,8 @@
 <template>
-  <div
-    ref="editorRootRef"
-    class="card-design-editor"
-    :class="{ 'card-design-editor--resizing': Boolean(resizeState) }"
-    :style="editorStyle"
-  >
-    <OcPanelSection
-      class="left-panel"
-      :class="{ collapsed: !isInstancePanelExpanded }"
-      header-class="panel-header left-panel-header"
-      body-class="left-panel-content"
-      :scroll-body="true"
-    >
+  <div ref="editorRootRef" class="card-design-editor" :class="{ 'card-design-editor--resizing': Boolean(resizeState) }"
+    :style="editorStyle">
+    <OcPanelSection class="left-panel" :class="{ collapsed: !isInstancePanelExpanded }"
+      header-class="panel-header left-panel-header" body-class="left-panel-content" :scroll-body="true">
       <template #title>
         <span v-if="isInstancePanelExpanded">创建的卡牌</span>
       </template>
@@ -22,27 +13,17 @@
         </OcButton>
       </template>
       <template #default>
-        <NodeTree
-          v-if="isInstancePanelExpanded"
-          title="创建的卡牌"
-          :nodes="instanceTree"
-          :default-expanded="true"
-          :default-node-expanded="true"
-          :selected="selectedCards"
-          :actions="instanceTreeActions"
-          :action-keys="instanceTreeActionKeys"
-          :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-          :can-drop="canDropInstanceTreeNode"
-          @update:selected="onInstanceTreeSelect"
-          @action-called="handleInstanceTreeAction"
-          @node-rename="handleInstanceTreeRename"
-          @node-drop="handleInstanceTreeDrop"
-        />
+        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :default-expanded="true"
+          :default-node-expanded="true" :selected="selectedCards" :actions="instanceTreeActions"
+          :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
+          :can-drop="canDropInstanceTreeNode" @update:selected="onInstanceTreeSelect"
+          @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
+          @node-drop="handleInstanceTreeDrop" />
       </template>
     </OcPanelSection>
 
     <div class="canvas-area oc-editor-stage">
-      <CardViewport v-if="resolvedCardDoc" :document="resolvedCardDoc" :selected-block-id="selectedBlock?.id ?? null"
+      <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
         :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
         :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
@@ -54,16 +35,12 @@
       @mousedown.prevent="startRightPanelResize($event)" />
 
     <div ref="rightPanelRef" class="right-panel oc-panel-stack">
-      <OcPanelSection
-        class="block-list-panel"
-        title="信息树"
-        header-class="panel-header"
-        body-class="block-list"
-        :scroll-body="true"
-      >
+      <OcPanelSection class="block-list-panel" title="信息树" header-class="panel-header" body-class="block-list"
+        :scroll-body="true">
         <NodeTree title="模板结构" :nodes="blockTree" :selected="selectedBlocks" :actions="treeActions"
-          :expanded="blockTreeExpanded" :default-node-expanded="true" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-          @update:selected="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
+          :expanded="blockTreeExpanded" :default-node-expanded="true" :action-keys="treeActionKeys"
+          :can-drop="canDropTreeNode" @update:selected="onTreeSelect" @action-called="handleTreeAction"
+          @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
       </OcPanelSection>
       <div class="panel-resizer panel-resizer--horizontal" :class="{ active: resizeState === 'tree-panel' }"
         @mousedown.prevent="startTreePanelResize($event)" />
@@ -101,8 +78,8 @@ import {
   blockToTreeNode,
   BlockContainer,
   createBlock,
-  materializeCardDocument,
-  resolveCardDocumentInstanceView,
+  toViewDoc,
+  applyInstance,
   type ParentLookup,
   removeBlockFromContainer,
   type CardBlock,
@@ -117,7 +94,7 @@ import {
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../core/Card'
-import { resolveSchemaDefaultsForPresentKeys } from '../../core/propertyEditorSchema'
+import { resolveNulls } from '../../core/propertyEditorSchema'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree, {
   type ActionDefinition,
@@ -265,21 +242,22 @@ const transformDisabledBlockIds = computed(() => {
   }
   return ids
 })
-const selectedBlockPropertyTarget = computed<Record<string, unknown> & { type?: string } | null>(() => {
+// Build the property-editor input for the selected block with instance overrides and null resolution.
+const blockPropsView = computed<Record<string, unknown> & { type?: string } | null>(() => {
   const block = selectedBlock.value
   if (!block) {
     return null
   }
 
   if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return resolveSchemaDefaultsForPresentKeys(
+    return resolveNulls(
       block.type,
       block as Record<string, unknown>
     ) as Record<string, unknown> & { type?: string }
   }
 
   const blockOverrides = selectedCard.value.data[block.id] ?? {}
-  return resolveSchemaDefaultsForPresentKeys(block.type, {
+  return resolveNulls(block.type, {
     ...block,
     ...blockOverrides,
   }) as Record<string, unknown> & { type?: string }
@@ -288,10 +266,10 @@ const selectedBlockPropertyTarget = computed<Record<string, unknown> & { type?: 
 const propertySources = computed<PropertyEditorSource[]>(() => {
   const sources: PropertyEditorSource[] = []
 
-  if (selectedBlockPropertyTarget.value) {
+  if (blockPropsView.value) {
     sources.push({
       title: 'Block',
-      target: selectedBlockPropertyTarget.value,
+      target: blockPropsView.value,
     })
   }
 
@@ -312,17 +290,18 @@ const blockTree = computed(() => {
   )
 })
 
-const resolvedCardDoc = computed<CardDocument | null>(() => {
+// Build the render/view document by projecting the selected instance onto the blueprint document.
+const viewDoc = computed<CardDocument | null>(() => {
   if (!cardDoc.value) {
     return null
   }
 
   if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return materializeCardDocument(cardDoc.value)
+    return toViewDoc(cardDoc.value)
   }
 
-  const projected = resolveCardDocumentInstanceView(cardDoc.value, selectedCard.value)
-  return materializeCardDocument(projected)
+  const projected = applyInstance(cardDoc.value, selectedCard.value)
+  return toViewDoc(projected)
 })
 
 const instanceTree = computed<ITreeNode[]>(() => {
@@ -1055,7 +1034,8 @@ function handleTreeDrop({ dragged, target, position }: NodeTreeDropPayload) {
   markDocumentChanged()
 }
 
-function applyDocumentContent(content: string) {
+// Load raw document JSON into editor state and reset current selections safely.
+function loadRawDoc(content: string) {
   rawContent.value = content
   selectedBlocks.value = new Map()
   selectedCards.value = new Map()
@@ -1136,7 +1116,7 @@ watch(
       return
     }
 
-    applyDocumentContent(content)
+    loadRawDoc(content)
   },
   { immediate: true },
 )

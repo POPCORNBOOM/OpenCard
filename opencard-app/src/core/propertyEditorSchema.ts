@@ -380,7 +380,8 @@ export function getTypePropertyEditorSchema(typeName: string | undefined): Recor
     return propertyEditorSchemaByType[typeName] ?? {}
 }
 
-export function getSchemaDefaultValue(typeName: string | undefined, fieldName: string): unknown {
+// Return a cloned default value for one schema field, or undefined if absent.
+export function getDefault(typeName: string | undefined, fieldName: string): unknown {
     const schema = getTypePropertyEditorSchema(typeName)
     const definition = schema[fieldName]
     if (!definition || definition.defaultValue === undefined) {
@@ -389,7 +390,8 @@ export function getSchemaDefaultValue(typeName: string | undefined, fieldName: s
     return cloneDefaultValue(definition.defaultValue)
 }
 
-export function resolveSchemaDefaultsForPresentKeys(
+// Resolve only existing null/undefined fields in a target object using schema defaults.
+export function resolveNulls(
     typeName: string | undefined,
     target: Record<string, unknown> | undefined
 ): Record<string, unknown> {
@@ -415,7 +417,8 @@ export function resolveSchemaDefaultsForPresentKeys(
     return resolved
 }
 
-export function materializeSchemaTarget(
+// 使用此函数给一个Record按照type去schema里补齐默认值。会克隆默认值以避免引用类型的共享。
+export function fillDefaults(
     typeName: string | undefined,
     target: Record<string, unknown> | undefined
 ): Record<string, unknown> {
