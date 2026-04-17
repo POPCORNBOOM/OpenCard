@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../features/workspace/store/projectStore'
 import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
@@ -156,12 +156,9 @@ import { editorRegistry } from '../features/editor-runtime/registry/editorRegist
 import { resolveEntryIcon, resolveFileType } from '../features/workspace/model/fileTypes'
 import {
   toViewDoc,
-  applyInstance,
   type CardDocument,
 } from '../core/Card'
-import { open, save } from '@tauri-apps/plugin-dialog'
-import { writeFile } from '@tauri-apps/plugin-fs'
-import { exportCardAsImage } from '../utils/exportCard'
+import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 
 const { t } = useI18n()
 
@@ -189,8 +186,6 @@ const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const currentEditorRef = ref<{ save?: () => Promise<void> | void } | null>(null)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
-const showExportRenderer = ref(false)
-const exportCardDoc = ref<CardDocument | null>(null)
 
 const {
   sessions,
@@ -207,6 +202,18 @@ const {
   remapSessionPaths,
 } = useEditorSessionStore()
 
+const {
+  canExportActiveCard,
+  showExportRenderer,
+  exportCardDoc,
+  exportActiveCard2x,
+  exportAllCardViews,
+} = useIdeExport({
+  activeSession,
+  exportRendererRef,
+  translate: t,
+})
+
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).pop() || ''
@@ -217,177 +224,8 @@ const currentLanguage = computed(() => {
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
 
-const canExportActiveCard = computed(() =>
-  Boolean(activeSession.value) && resolveFileType(activeSession.value!.path).id === 'opencard'
-)
-
 function normalizeIdePath(path: string) {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function stripFileExtension(fileName: string) {
-  const lastDotIndex = fileName.lastIndexOf('.')
-  return lastDotIndex > 0 ? fileName.slice(0, lastDotIndex) : fileName
-}
-
-function sanitizeFileNameSegment(value: string, fallback: string) {
-  const sanitized = value
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
-    .replace(/\s+/g, '_')
-    .replace(/[. ]+$/g, '')
-
-  return sanitized.length > 0 ? sanitized : fallback
-}
-
-function buildFilePath(directoryPath: string, fileName: string) {
-  const separator = directoryPath.includes('\\') ? '\\' : '/'
-  return `${directoryPath.replace(/[\\/]+$/, '')}${separator}${fileName}`
-}
-
-function dataUrlToBytes(dataUrl: string) {
-  const base64Data = dataUrl.split(',')[1] ?? ''
-  const binaryData = atob(base64Data)
-  const bytes = new Uint8Array(binaryData.length)
-
-  for (let index = 0; index < binaryData.length; index += 1) {
-    bytes[index] = binaryData.charCodeAt(index)
-  }
-
-  return bytes
-}
-
-function waitForNextPaint() {
-  return new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve())
-  })
-}
-
-async function waitForImageElement(imageElement: HTMLImageElement) {
-  if (imageElement.complete) {
-    if (typeof imageElement.decode === 'function') {
-      try {
-        await imageElement.decode()
-      } catch {
-        // Ignore decode failures so export can continue with the best available state.
-      }
-    }
-    return
-  }
-
-  await new Promise<void>((resolve) => {
-    const finalize = () => {
-      imageElement.removeEventListener('load', finalize)
-      imageElement.removeEventListener('error', finalize)
-      resolve()
-    }
-
-    imageElement.addEventListener('load', finalize, { once: true })
-    imageElement.addEventListener('error', finalize, { once: true })
-  })
-
-  if (typeof imageElement.decode === 'function') {
-    try {
-      await imageElement.decode()
-    } catch {
-      // Ignore decode failures so export can continue with the best available state.
-    }
-  }
-}
-
-async function waitForExportAssets(rootElement: HTMLElement) {
-  const images = Array.from(rootElement.querySelectorAll('img'))
-  await Promise.all(images.map((imageElement) => waitForImageElement(imageElement)))
-  await waitForNextPaint()
-}
-
-function getActiveCardExportContext() {
-  if (!activeSession.value) {
-    console.error('没有打开的文件')
-    return null
-  }
-
-  if (resolveFileType(activeSession.value.path).id !== 'opencard') {
-    console.error('当前活动文件不是 .opencard')
-    return null
-  }
-
-  const currentContent = activeSession.value.draftContent.trim()
-  if (!currentContent) {
-    console.error('当前 .opencard 内容为空')
-    return null
-  }
-
-  try {
-    return {
-      fileNameStem: sanitizeFileNameSegment(stripFileExtension(activeSession.value.name), 'card'),
-      document: toViewDoc(JSON.parse(currentContent)),
-    }
-  } catch (error) {
-    console.error('解析 .opencard 失败:', error)
-    return null
-  }
-}
-
-function createExportFileName(baseFileName: string, suffix: string, usedFileNames: Set<string>) {
-  const normalizedSuffix = sanitizeFileNameSegment(suffix, 'export')
-  let nextStem = `${baseFileName}_${normalizedSuffix}`
-  let nextFileName = `${nextStem}.png`
-  let dedupeIndex = 2
-
-  while (usedFileNames.has(nextFileName.toLowerCase())) {
-    nextStem = `${baseFileName}_${normalizedSuffix}_${dedupeIndex}`
-    nextFileName = `${nextStem}.png`
-    dedupeIndex += 1
-  }
-
-  usedFileNames.add(nextFileName.toLowerCase())
-  return nextFileName
-}
-
-function buildCardExportQueue(baseFileName: string, document: CardDocument) {
-  const usedFileNames = new Set<string>()
-  const exportQueue = [
-    {
-      fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      document: applyInstance(document, null),
-    },
-  ]
-
-  for (const instance of document.instances ?? []) {
-    const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
-    exportQueue.push({
-      fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      document: applyInstance(document, instance),
-    })
-  }
-
-  return exportQueue
-}
-
-async function renderCardDocumentToImage(document: CardDocument) {
-  showExportRenderer.value = true
-  exportCardDoc.value = document
-
-  await nextTick()
-  await waitForNextPaint()
-
-  const canvasElement = exportRendererRef.value?.getCanvasElement()
-  if (!canvasElement) {
-    throw new Error('无法获取导出 canvas 元素')
-  }
-
-  await waitForExportAssets(canvasElement)
-
-  return await exportCardAsImage(canvasElement, {
-    dpi: 192,
-    format: 'png',
-  })
-}
-
-function resetExportRenderer() {
-  showExportRenderer.value = false
-  exportCardDoc.value = null
 }
 
 const currentEditorComponent = computed(() => {
@@ -596,67 +434,6 @@ async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
   remapSessionPaths(result.fromPath, result.toPath)
   const renamedNode = findTreeNodeByKey(fileTree.value, result.toPath)
   selectedFileKeys.value = renamedNode ? [renamedNode.key] : []
-}
-
-async function exportActiveCard2x() {
-  const context = getActiveCardExportContext()
-  if (!context) {
-    return
-  }
-
-  const savePath = await save({
-    defaultPath: `${context.fileNameStem}_blueprint_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
-    filters: [{
-      name: 'PNG Image',
-      extensions: ['png'],
-    }],
-  })
-
-  if (!savePath) {
-    return
-  }
-
-  try {
-    const dataUrl = await renderCardDocumentToImage(context.document)
-    await writeFile(savePath, dataUrlToBytes(dataUrl))
-    console.log('图片已保存到:', savePath)
-  } catch (error) {
-    console.error('导出图片失败:', error)
-  } finally {
-    resetExportRenderer()
-  }
-}
-
-async function exportAllCardViews() {
-  const context = getActiveCardExportContext()
-  if (!context) {
-    return
-  }
-
-  const exportDirectory = await open({
-    directory: true,
-    multiple: false,
-    title: t('app.menu.exportAll'),
-  })
-
-  if (typeof exportDirectory !== 'string' || !exportDirectory) {
-    return
-  }
-
-  try {
-    const exportQueue = buildCardExportQueue(context.fileNameStem, context.document)
-
-    for (const entry of exportQueue) {
-      const dataUrl = await renderCardDocumentToImage(entry.document)
-      const targetPath = buildFilePath(exportDirectory, entry.fileName)
-      await writeFile(targetPath, dataUrlToBytes(dataUrl))
-      console.log('图片已保存到:', targetPath)
-    }
-  } catch (error) {
-    console.error('批量导出图片失败:', error)
-  } finally {
-    resetExportRenderer()
-  }
 }
 
 async function openProject() {
