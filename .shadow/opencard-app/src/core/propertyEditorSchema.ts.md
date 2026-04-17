@@ -1,16 +1,7 @@
-`propertyEditorSchema.ts` 维护属性编辑元协议与默认值规则，是 UI 与领域间的“字段真相字典”。
+`core/propertyEditorSchema.ts` 现为兼容出口（re-export shim）：
+- 真实 schema 实现已迁移到 `src\entities\card\schema.ts`。
+- 保留该文件用于旧引用平滑过渡。
 
-双默认值策略必须严格区分：
-- `fillDefaults`：补齐缺失/空值，服务渲染投影。
-- `resolveNulls`：只修复已有键的空值，服务属性面板显示。
-- 禁止混用，避免把稀疏编辑态写满默认字段。
-
-新增协议字段：
-- `resettable?: boolean`。
-- 缺省或缺失时语义为 `false`。
-- 该字段只声明“可重置能力”，不定义重置如何落地。
-
-扩展约束：
-- 新字段要同步：schema 定义 + 默认值映射（如需要默认值）。
-- `labelKey/categoryKey` 优先用于本地化，文本值仅作回退。
-- schema 外字段保持透传，由上层决定是否展示/写回。
+约束：
+- 新代码优先直接依赖 `entities/card/schema`。
+- 兼容层只做导出转发，不新增业务规则。
