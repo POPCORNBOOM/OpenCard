@@ -1,0 +1,77 @@
+/** 所有编辑器组件都要实现的通用接口 */
+
+export interface EditorProps {
+  filePath: string
+  modelValue?: string
+}
+
+export interface EditorEmits {
+  (e: 'save'): void
+  (e: 'modified', isModified: boolean): void
+  (e: 'update:modelValue', value: string): void
+}
+
+
+import type { Component } from 'vue'
+
+// 编辑器接口定义
+export interface IEditor {
+  // 编辑器唯一标识
+  id: string
+  // 编辑器显示名称
+  name: string
+  // Vue 组件引用
+  component: Component
+  // 是否支持预览
+  hasPreview?: boolean
+  // 预览组件名称
+  previewComponent?: string
+}
+
+// 编辑器注册表
+class EditorRegistry {
+  private editors: Map<string, IEditor> = new Map()
+
+  // 注册编辑器
+  register(editor: IEditor) {
+    this.editors.set(editor.id, editor)
+  }
+
+  getEditor(editorId: string): IEditor | undefined {
+    return this.editors.get(editorId)
+  }
+
+  // 获取所有编辑器
+  getAllEditors(): IEditor[] {
+    return Array.from(this.editors.values())
+  }
+}
+
+import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
+import CardDesignEditor from '../../../components/editors/CardDesignEditor.vue'
+import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
+
+// 单例实例
+export const editorRegistry = new EditorRegistry()
+
+// 在此处注册内置编辑器
+editorRegistry.register({
+  id: 'monaco',
+  name: 'Monaco Editor',
+  component: MonacoEditor,
+  hasPreview: false
+})
+
+editorRegistry.register({
+  id: 'card-designer',
+  name: 'Card Designer',
+  component: CardDesignEditor,
+  hasPreview: false
+})
+
+editorRegistry.register({
+  id: 'image-preview',
+  name: 'Image Preview',
+  component: ImagePreviewEditor,
+  hasPreview: false,
+})

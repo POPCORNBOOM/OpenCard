@@ -152,7 +152,7 @@ import OcButton from '../components/base/OcButton.vue'
 import OcPanelSection from '../components/base/OcPanelSection.vue'
 import type { ITreeNode, NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
 import CardRenderer from '../components/card/CardRenderer.vue'
-import { editorRegistry } from '../core/Editor'
+import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
 import {
   toViewDoc,

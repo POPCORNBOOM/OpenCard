@@ -1,5 +1,7 @@
-`Editor.ts` 现在只负责“编辑器实现注册”，不再负责“文件路径属于哪种语义类型”。
+`core/Editor.ts` 现为兼容出口（re-export shim）：
+- 真实注册实现已迁移到 `src\features\editor-runtime\registry\editorRegistry.ts`。
+- 保留该文件仅为平滑迁移旧引用。
 
-不要把扩展名判断、特殊文件名判断、language、图标这些规则重新塞回这里。那些都属于文件类型语义层，应该统一留在 `fileTypes.ts`。
-
-这里要保持的边界是：`editorId -> component`。这样一个编辑器实现可以服务多种文件类型，而不会把“文件语义”和“组件实现”重新耦合死。
+约束：
+- 新代码直接依赖 `features/editor-runtime/registry/editorRegistry`。
+- 兼容层不新增业务逻辑。

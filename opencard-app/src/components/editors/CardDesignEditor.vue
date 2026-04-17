@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { EditorEmits, EditorProps } from '../../core/Editor'
+import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import {
   toViewDoc,
   applyInstance,
