@@ -7,3 +7,6 @@
 文件树重命名现在也遵守同一个原则：`NodeTree` 只发起 rename 事件，页面层只转发，真正的名字校验、目标路径推导、重名检查、目录 remap 仍然收口在这里。不要为了“少绕一层”就在 `MainIDE.vue` 里直接拼新路径或直接调 `fileSystemService.renameFile`。
 
 未来如果要增加外部文件变更处理、重命名、复制、批量移动，优先继续扩展这里；不要让页面层自己拼接路径和判断文件系统规则。
+
+类型边界约束：
+- 文件树交互相关类型必须来自共享协议层（`src\shared\ui\tree\tree.types.ts`），不要再从 `components/ui/*.vue` 反向取类型。

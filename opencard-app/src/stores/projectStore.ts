@@ -4,8 +4,7 @@ import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
 import { taskScheduler } from '../utils/taskScheduler'
-import type { ITreeNode } from '../components/ui/TreeNode.vue'
-import type { NodeTreeAllowedDropPositions, NodeTreeCanDropPayload, NodeTreeDropPayload } from '../components/ui/NodeTree.vue'
+import type { ITreeNode, NodeTreeAllowedDropPositions, NodeTreeCanDropPayload, NodeTreeDropPayload } from '../shared/ui/tree/tree.types'
 
 const PROJECT_CACHE_FILE_NAME = '.opencard-cache'
 const PROJECT_CACHE_SAVE_DELAY_MS = 1200

@@ -1,4 +1,4 @@
-import { ITreeNode } from "../components/ui/TreeNode.vue"
+import type { ITreeNode } from '../shared/ui/tree/tree.types'
 import { fillDefaults } from './propertyEditorSchema'
 import type { PropertyEditorSchemaOverride } from './propertyEditorSchema'
 

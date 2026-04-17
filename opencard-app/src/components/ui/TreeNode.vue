@@ -67,34 +67,13 @@
   </div>
 </template>
 
-<script lang="ts">
-// Tree 节点通用数据结构。
-import type { IconTone } from '../../core/icons/iconRegistry'
-
-export interface ITreeNode {
-  name: string
-  key: string
-  path?: string[]
-  renamable?: boolean
-  isExpandable?: boolean
-  isExpanded?: boolean
-  icon?: string
-  iconTone?: IconTone
-  iconColor?: string
-  parent?: ITreeNode | null
-  children?: ITreeNode[]
-  metadata?: Record<string, unknown>
-  actionKeys?: string[]
-}
-</script>
-
 <script setup lang="ts">
 // Vue 能力与依赖组件。
 import { computed, inject, nextTick, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import TreeActionButton from './TreeActionButton.vue'
-import type { ActionDefinition, ActionCaller, NodeTreeContext } from './NodeTree.vue'
+import type { ActionCaller, ActionDefinition, ITreeNode, NodeTreeContext } from '../../shared/ui/tree/tree.types'
 
 // 当前节点输入。
 const props = defineProps<{

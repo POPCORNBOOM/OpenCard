@@ -1,5 +1,5 @@
 import { computed, readonly, ref } from 'vue'
-import type { ITreeNode } from '../components/ui/TreeNode.vue'
+import type { ITreeNode } from '../shared/ui/tree/tree.types'
 import { resolveFileType } from '../core/files/fileTypes'
 import { useProjectStore } from './projectStore'
 

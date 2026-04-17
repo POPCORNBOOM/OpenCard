@@ -44,79 +44,23 @@
 
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
-import { computed, getCurrentInstance, onBeforeUnmount, onMounted, provide, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import TreeActionButton from './TreeActionButton.vue'
-import TreeNode, { type ITreeNode } from './TreeNode.vue'
-
-// Action 调用来源。
-export type ActionCaller = 'tree' | 'node'
-
-// 操作按钮定义。
-export interface ActionDefinition {
-  key: string
-  icon: string
-  title?: string
-  children?: ActionDefinition[]
-}
-
-// 业务层收到的 action 事件载荷。
-export interface NodeTreeActionCalledPayload {
-  actionKey: string
-  caller: ActionCaller
-  node?: ITreeNode
-}
-
-// 节点展开事件载荷。
-export interface NodeTreeTogglePayload {
-  node: ITreeNode
-  expanded: boolean
-}
-
-// 节点重命名事件载荷。
-export interface NodeTreeRenamePayload {
-  node: ITreeNode
-  name: string
-}
-
-// 拖拽落点协议。
-export type NodeTreeDropPosition = 'before' | 'inside' | 'after'
-export type NodeTreeAllowedDropPositions = (target: ITreeNode | null) => NodeTreeDropPosition[]
-
-export interface NodeTreeCanDropPayload {
-  dragged: ITreeNode
-  target: ITreeNode | null
-  position: NodeTreeDropPosition
-}
-
-export interface NodeTreeRepositioningPayload extends NodeTreeCanDropPayload {
-  canDrop: boolean
-}
-
-export interface NodeTreeDropPayload extends NodeTreeCanDropPayload {}
-
-// 注入给 TreeNode 的交互上下文。
-export interface NodeTreeContext {
-  selectedKeys: ComputedRef<string[]>
-  selectedKeySet: ComputedRef<Set<string>>
-  handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
-  handleNodeDoubleClick: (node: ITreeNode) => void
-  handleNodeToggle: (node: ITreeNode, expanded: boolean) => void
-  callAction: (actionKey: string, caller: ActionCaller, node?: ITreeNode) => void
-  suppressClick: Ref<boolean>
-  handleNodePointerDown: (node: ITreeNode, event: MouseEvent) => void
-  draggedNode: Ref<ITreeNode | null>
-  dropTargetNode: Ref<ITreeNode | null>
-  dropPosition: Ref<NodeTreeDropPosition | null>
-  dropAllowed: Ref<boolean>
-  actions: ComputedRef<Map<string, ActionDefinition>>
-  renameEnabled: ComputedRef<boolean>
-  renamingNodeKey: Ref<string | null>
-  renameDraft: Ref<string>
-  startNodeRename: (node: ITreeNode) => void
-  updateRenameDraft: (value: string) => void
-  cancelNodeRename: () => void
-  submitNodeRename: (node: ITreeNode) => void
-}
+import TreeNode from './TreeNode.vue'
+import type {
+  ActionCaller,
+  ActionDefinition,
+  ITreeNode,
+  NodeTreeActionCalledPayload,
+  NodeTreeAllowedDropPositions,
+  NodeTreeCanDropPayload,
+  NodeTreeContext,
+  NodeTreeDropPayload,
+  NodeTreeDropPosition,
+  NodeTreeRenamePayload,
+  NodeTreeRepositioningPayload,
+  NodeTreeTogglePayload,
+} from '../../shared/ui/tree/tree.types'
 
 // 组件输入协议。
 interface Props {

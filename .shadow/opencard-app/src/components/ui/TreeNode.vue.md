@@ -16,6 +16,10 @@
 - 严禁再读 `isNodeRenamable` 等历史字段。
 - 调用方必须统一改为 `renamable`。
 
+协议来源约束：
+- `TreeNode.vue` 不再承载 `ITreeNode` 类型定义。
+- 统一从 `src\shared\ui\tree\tree.types.ts` 取协议，避免 UI 实现文件被业务层当成“类型入口”。
+
 重构原则（本文件）：
 - 保持模板渲染职责单一。
 - 避免把 `NodeTree` 的状态机逻辑复制到 `TreeNode`。

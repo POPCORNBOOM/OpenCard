@@ -91,9 +91,7 @@ import {
   type PropertyEditorSchemaOverride,
 } from '../../core/propertyEditorSchema'
 import CardViewport from '../card/CardViewport.vue'
-import NodeTree, {
-  type ActionDefinition,
-} from '../ui/NodeTree.vue'
+import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
@@ -102,6 +100,7 @@ import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
 import { resetInstanceOverrideField } from '../../composables/cdeInstanceOverride'
+import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
 
 type PropertySortMode = 'category' | 'alphabetical'
 type PropertyEditorMutation = {

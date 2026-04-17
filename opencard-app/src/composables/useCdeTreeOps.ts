@@ -16,12 +16,12 @@ import {
   isCardBlock,
 } from '../core/Card'
 import type {
+  ITreeNode,
   NodeTreeActionCalledPayload,
   NodeTreeCanDropPayload,
   NodeTreeDropPayload,
   NodeTreeRenamePayload,
-} from '../components/ui/NodeTree.vue'
-import type { ITreeNode } from '../components/ui/TreeNode.vue'
+} from '../shared/ui/tree/tree.types'
 
 const ENABLE_CDE_TREE_DND_DEBUG = import.meta.env.DEV && Boolean(
   (globalThis as { __OC_DEBUG_CDE_TREE_DND__?: unknown }).__OC_DEBUG_CDE_TREE_DND__,

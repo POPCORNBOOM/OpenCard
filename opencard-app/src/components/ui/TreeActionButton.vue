@@ -17,8 +17,7 @@
 <script setup lang="ts">
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import OcButton from '../base/OcButton.vue'
-import type { ITreeNode } from './TreeNode.vue'
-import type { ActionDefinition, ActionCaller } from './NodeTree.vue'
+import type { ActionCaller, ActionDefinition, ITreeNode } from '../../shared/ui/tree/tree.types'
 
 defineOptions({ name: 'TreeActionButton' })
 
