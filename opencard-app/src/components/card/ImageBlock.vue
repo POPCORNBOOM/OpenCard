@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { ImageBlock } from '../../core/Card'
-import { useProjectStore } from '../../stores/projectStore'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import { cardEditorContextKey } from './cardEditorContext'
 

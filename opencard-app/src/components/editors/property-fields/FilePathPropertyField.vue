@@ -36,7 +36,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useProjectStore } from '../../../stores/projectStore'
+import { useProjectStore } from '../../../features/workspace/store/projectStore'
 import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
 
 type FilePathDefinition = Extract<EditorPropertyDefinition, { datatype: 'filePath' }>

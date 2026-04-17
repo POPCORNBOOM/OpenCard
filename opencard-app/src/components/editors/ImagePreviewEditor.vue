@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
-import { useProjectStore } from '../../stores/projectStore'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()

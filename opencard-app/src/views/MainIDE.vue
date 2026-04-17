@@ -142,8 +142,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useProjectStore } from '../stores/projectStore'
-import { useEditorSessionStore } from '../stores/editorSessionStore'
+import { useProjectStore } from '../features/workspace/store/projectStore'
+import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
