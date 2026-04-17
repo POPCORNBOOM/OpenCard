@@ -40,6 +40,15 @@ export default {
       typography: '排版',
       position: '位置',
       flow: '流式',
+      uncategorized: '其他',
+    },
+    sources: {
+      block: '块',
+      layout: '布局',
+    },
+    actions: {
+      addField: '添加字段',
+      reset: '重置',
     },
     fields: {
       id: 'ID',

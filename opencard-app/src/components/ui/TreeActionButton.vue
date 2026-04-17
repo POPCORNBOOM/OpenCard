@@ -1,3 +1,15 @@
+<!--
+  使用说明：
+  - 输入 `action` 定义按钮与可选子菜单动作
+  - 输入 `caller/node` 标记动作来源上下文
+
+  职责边界：
+  - 负责树动作按钮渲染与浮动菜单触发
+  - 只上抛动作意图 不执行业务规则
+
+  主要输出事件：
+  - `trigger`（动作触发）
+-->
 <template>
   <div class="action-entry">
     <OcButton
@@ -17,8 +29,7 @@
 <script setup lang="ts">
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import OcButton from '../base/OcButton.vue'
-import type { ITreeNode } from './TreeNode.vue'
-import type { ActionDefinition, ActionCaller } from './NodeTree.vue'
+import type { ActionCaller, ActionDefinition, ITreeNode } from '../../shared/ui/tree/tree.types'
 
 defineOptions({ name: 'TreeActionButton' })
 

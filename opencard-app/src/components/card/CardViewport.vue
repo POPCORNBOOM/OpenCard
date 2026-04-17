@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AnchorPosition, CardDocument } from '../../core/Card'
+import type { AnchorPosition, CardDocument } from '../../entities/card/model'
 import CardRenderer from './CardRenderer.vue'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'r' | 'b'
@@ -61,6 +61,13 @@ type MovePayload = {
   y: number
 }
 const TRANSFORM_EPSILON = 0.01
+const MIN_SCALE = 0.2
+const MAX_SCALE = 4
+const WHEEL_ZOOM_SENSITIVITY = 0.0015
+const WHEEL_LINE_HEIGHT = 16
+const MAX_WHEEL_DELTA_PX = 240
+const ZOOM_ANIMATION_SMOOTHING = 0.25
+const ZOOM_ANIMATION_EPSILON = 0.001
 
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
@@ -91,6 +98,9 @@ const viewportHeight = ref(0)
 const panX = ref(0)
 const panY = ref(0)
 const scale = ref(1)
+const targetPanX = ref(0)
+const targetPanY = ref(0)
+const targetScale = ref(1)
 const isPanning = ref(false)
 const lastPointerX = ref(0)
 const lastPointerY = ref(0)
@@ -101,13 +111,14 @@ const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
 
 let resizeObserver: ResizeObserver | null = null
+let zoomAnimationFrame: number | null = null
 
 const baseOffsetX = computed(() => {
-  return (viewportWidth.value - props.document.width * scale.value) / 2
+  return getBaseOffsetXForScale(scale.value)
 })
 
 const baseOffsetY = computed(() => {
-  return (viewportHeight.value - props.document.height * scale.value) / 2
+  return getBaseOffsetYForScale(scale.value)
 })
 
 const translateX = computed(() => baseOffsetX.value + panX.value)
@@ -172,6 +183,7 @@ function handleMouseDown(event: MouseEvent) {
   if (event.button !== 1) return
 
   event.preventDefault()
+  stopZoomAnimation()
   isPanning.value = true
   lastPointerX.value = event.clientX
   lastPointerY.value = event.clientY
@@ -185,6 +197,8 @@ function handleMouseMove(event: MouseEvent) {
 
   panX.value += deltaX
   panY.value += deltaY
+  targetPanX.value = panX.value
+  targetPanY.value = panY.value
 
   lastPointerX.value = event.clientX
   lastPointerY.value = event.clientY
@@ -201,19 +215,83 @@ function handleWheel(event: WheelEvent) {
   const rect = viewport.getBoundingClientRect()
   const mouseX = event.clientX - rect.left
   const mouseY = event.clientY - rect.top
-  const previousScale = scale.value
-  const nextScale = clamp(previousScale * (event.deltaY < 0 ? 1.1 : 1 / 1.1), 0.2, 4)
+  const previousScale = targetScale.value
+  const normalizedDelta = normalizeWheelDelta(event)
+  if (Math.abs(normalizedDelta) < 0.01) return
+  const zoomFactor = Math.exp(-normalizedDelta * WHEEL_ZOOM_SENSITIVITY)
+  const nextScale = clamp(previousScale * zoomFactor, MIN_SCALE, MAX_SCALE)
+  if (Math.abs(nextScale - previousScale) < 0.0001) return
 
-  const worldX = (mouseX - translateX.value) / previousScale
-  const worldY = (mouseY - translateY.value) / previousScale
+  const previousTranslateX = getBaseOffsetXForScale(previousScale) + targetPanX.value
+  const previousTranslateY = getBaseOffsetYForScale(previousScale) + targetPanY.value
+  const worldX = (mouseX - previousTranslateX) / previousScale
+  const worldY = (mouseY - previousTranslateY) / previousScale
+  const nextBaseOffsetX = getBaseOffsetXForScale(nextScale)
+  const nextBaseOffsetY = getBaseOffsetYForScale(nextScale)
 
-  scale.value = nextScale
+  targetScale.value = nextScale
+  targetPanX.value = mouseX - nextBaseOffsetX - worldX * nextScale
+  targetPanY.value = mouseY - nextBaseOffsetY - worldY * nextScale
+  startZoomAnimation()
+}
 
-  const nextBaseOffsetX = (viewportWidth.value - props.document.width * nextScale) / 2
-  const nextBaseOffsetY = (viewportHeight.value - props.document.height * nextScale) / 2
+function normalizeWheelDelta(event: WheelEvent): number {
+  let delta = event.deltaY
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    delta *= WHEEL_LINE_HEIGHT
+  } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    delta *= viewportHeight.value || window.innerHeight
+  }
+  return clamp(delta, -MAX_WHEEL_DELTA_PX, MAX_WHEEL_DELTA_PX)
+}
 
-  panX.value = mouseX - nextBaseOffsetX - worldX * nextScale
-  panY.value = mouseY - nextBaseOffsetY - worldY * nextScale
+function getBaseOffsetXForScale(value: number): number {
+  return (viewportWidth.value - props.document.width * value) / 2
+}
+
+function getBaseOffsetYForScale(value: number): number {
+  return (viewportHeight.value - props.document.height * value) / 2
+}
+
+function startZoomAnimation() {
+  if (zoomAnimationFrame !== null) {
+    return
+  }
+
+  const animate = () => {
+    const scaleDelta = targetScale.value - scale.value
+    const panXDelta = targetPanX.value - panX.value
+    const panYDelta = targetPanY.value - panY.value
+
+    if (
+      Math.abs(scaleDelta) < ZOOM_ANIMATION_EPSILON &&
+      Math.abs(panXDelta) < ZOOM_ANIMATION_EPSILON &&
+      Math.abs(panYDelta) < ZOOM_ANIMATION_EPSILON
+    ) {
+      scale.value = targetScale.value
+      panX.value = targetPanX.value
+      panY.value = targetPanY.value
+      zoomAnimationFrame = null
+      return
+    }
+
+    scale.value += scaleDelta * ZOOM_ANIMATION_SMOOTHING
+    panX.value += panXDelta * ZOOM_ANIMATION_SMOOTHING
+    panY.value += panYDelta * ZOOM_ANIMATION_SMOOTHING
+    zoomAnimationFrame = requestAnimationFrame(animate)
+  }
+
+  zoomAnimationFrame = requestAnimationFrame(animate)
+}
+
+function stopZoomAnimation() {
+  if (zoomAnimationFrame !== null) {
+    cancelAnimationFrame(zoomAnimationFrame)
+    zoomAnimationFrame = null
+  }
+  targetScale.value = scale.value
+  targetPanX.value = panX.value
+  targetPanY.value = panY.value
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -531,6 +609,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopTransform()
+  stopZoomAnimation()
   resizeObserver?.disconnect()
   resizeObserver = null
 })

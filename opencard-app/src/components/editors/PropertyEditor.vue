@@ -1,28 +1,64 @@
+<!--
+  使用说明：
+  - 作为通用字段编辑器使用，输入 `inputs` 与 `sortMode`。
+  - 字段更新/添加/重置都通过事件上抛，不直接改写传入 record。
+
+  职责边界：
+  - 负责 schema 解析、分类展示（含本地化）、field 编辑器分派与“+ 添加字段”交互。
+  - 只上抛编辑意图，不承载业务写回策略。
+
+  主要输出事件：
+  - `update-property`（字段更新意图）
+  - `add-property`（字段新增意图）
+  - `reset-property`（字段重置意图）
+-->
 <template>
   <div class="property-editor oc-panel-scroll-body oc-scroll-y">
-    <div v-if="sources.length === 0" class="empty-hint oc-empty-hint">选择一个对象查看属性</div>
+    <div v-if="inputs.length === 0" class="empty-hint oc-empty-hint">选择一个对象查看属性</div>
     <template v-else>
-      <section v-for="source in displaySources" :key="source.title" class="source-section">
+      <section v-for="source in displaySources" :key="source.key" class="source-section">
         <div class="source-title">{{ source.title }}</div>
-        <section v-for="category in source.categories" :key="`${source.title}:${category.title}`" class="category">
+        <section v-for="category in source.categories" :key="`${source.key}:${category.key}`" class="category">
           <div class="category-header">
             <div class="category-title">{{ category.title }}</div>
             <div v-if="category.addableFields.length > 0" class="add-field-menu">
               <span class="add-field-count">{{ category.addableFields.length }}</span>
-              <OcButton class="add-field-button" icon-only variant="secondary" title="添加字段"
-                @click="openAddFieldMenu($event, category)">
+              <OcButton
+                class="add-field-button"
+                icon-only
+                variant="secondary"
+                :title="addFieldActionText"
+                @click="openAddFieldMenu($event, category)"
+              >
                 <span class="codicon codicon-add" />
               </OcButton>
             </div>
           </div>
           <OcPropertyRow
             v-for="entry in category.entries"
-            :key="`${source.title}:${category.title}:${entry.key}`"
+            :key="`${source.key}:${category.key}:${entry.key}`"
             :label="entry.label"
+            :label-icon="getEditorIconClass(entry.definition.datatype)"
           >
-            <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
-              :value="entry.value"
-              @update:value="emit('update-property', { sourceTitle: category.sourceTitle, target: entry.target, key: entry.key, value: $event })" />
+            <div class="entry-control">
+              <OcButton
+                v-if="entry.definition.resettable"
+                class="reset-field-button"
+                icon-only
+                size="sm"
+                variant="secondary"
+                :title="resetFieldActionText"
+                @click.stop="emitResetProperty(category.sourceKey, entry.key)"
+              >
+                <span class="codicon codicon-discard" />
+              </OcButton>
+              <component
+                :is="getEditorComponent(entry.definition.datatype)"
+                :definition="entry.definition"
+                :value="entry.value"
+                @update:value="emit('update-property', { sourceKey: category.sourceKey, fieldKey: entry.key, value: $event })"
+              />
+            </div>
           </OcPropertyRow>
         </section>
       </section>
@@ -31,18 +67,19 @@
 </template>
 
 <script setup lang="ts">
+// Vue 基础能力与依赖组件。
 import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  type PropertyEditorSource,
-  type PropertyEditorTarget,
-} from '../../core/Card'
+  type PropertyEditorInput,
+  type PropertyEditorRecord,
+} from '../../entities/card/model'
 import {
   getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
   type PropertyDatatype,
   type PropertyEditorSchemaOverride,
-} from '../../core/propertyEditorSchema'
+} from '../../entities/card/schema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
 import BackgroundPropertyField from './property-fields/BackgroundPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
@@ -57,31 +94,31 @@ import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFlo
 import OcButton from '../base/OcButton.vue'
 import OcPropertyRow from '../base/OcPropertyRow.vue'
 
-const emit = defineEmits<{
-  (e: 'update-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
-  (e: 'add-property', payload: { sourceTitle: string; target: Record<string, unknown>; key: string; value: unknown }): void
-}>()
-
-const datatypeEditorMap: Record<PropertyDatatype, Component> = {
-  string: StringPropertyField,
-  background: BackgroundPropertyField,
-  anchorPosition: AnchorPositionPropertyField,
-  alignPosition: AlignPositionPropertyField,
-  flowDirection: FlowDirectionPropertyField,
-  number: NumberPropertyField,
-  boolean: BooleanPropertyField,
-  color: ColorPropertyField,
-  filePath: FilePathPropertyField,
-  object: ObjectPropertyField,
+// 输出事件协议。
+type PropertyEditorMutation = {
+  sourceKey: string
+  fieldKey: string
+  value: unknown
 }
 
+type PropertyEditorResetMutation = {
+  sourceKey: string
+  fieldKey: string
+}
+
+const emit = defineEmits<{
+  (e: 'update-property', payload: PropertyEditorMutation): void
+  (e: 'add-property', payload: PropertyEditorMutation): void
+  (e: 'reset-property', payload: PropertyEditorResetMutation): void
+}>()
+
+// 视图模型。
 type SortMode = 'category' | 'alphabetical'
 
 type PropertyEditorEntry = {
   key: string
   label: string
   value: unknown
-  target: PropertyEditorTarget
   definition: EditorPropertyDefinition
 }
 
@@ -92,93 +129,130 @@ type AddableField = {
 }
 
 type PropertyEditorCategory = {
-  sourceTitle: string
+  sourceKey: string
+  key: string
   title: string
-  target: PropertyEditorTarget
   entries: PropertyEditorEntry[]
   addableFields: AddableField[]
 }
 
 type PropertyEditorSourceView = {
+  key: string
   title: string
   categories: PropertyEditorCategory[]
 }
 
+// 组件输入协议。
 const props = defineProps<{
-  sources: PropertyEditorSource[]
+  inputs: PropertyEditorInput[]
   sortMode: SortMode
 }>()
 
-const defaultDefinition: EditorPropertyDefinition = { datatype: 'string' }
+// 运行时依赖与编辑器映射。
+type DatatypeEditorEntry = {
+  component: Component
+  icon: string
+}
+
+const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
+  string: { component: StringPropertyField, icon: 'codicon-symbol-string' },
+  background: { component: BackgroundPropertyField, icon: 'codicon-symbol-color' },
+  anchorPosition: { component: AnchorPositionPropertyField, icon: 'codicon-compass' },
+  alignPosition: { component: AlignPositionPropertyField, icon: 'codicon-list-selection' },
+  flowDirection: { component: FlowDirectionPropertyField, icon: 'codicon-arrow-right' },
+  number: { component: NumberPropertyField, icon: 'codicon-symbol-number' },
+  boolean: { component: BooleanPropertyField, icon: 'codicon-symbol-boolean' },
+  color: { component: ColorPropertyField, icon: 'codicon-symbol-color' },
+  filePath: { component: FilePathPropertyField, icon: 'codicon-file' },
+  object: { component: ObjectPropertyField, icon: 'codicon-symbol-class' },
+}
+
+const readonlyExtraFieldDefinition: EditorPropertyDefinition = {
+  datatype: 'string',
+  isReadonly: true,
+  category: 'Other',
+  categoryKey: 'propertyEditor.categories.uncategorized',
+}
+
 const { openMenu } = useFloatingMenu()
 const { t, te } = useI18n()
 
+const addFieldActionText = computed(() =>
+  resolveLocalizedText('propertyEditor.actions.addField', 'Add Field')
+)
+const resetFieldActionText = computed(() =>
+  resolveLocalizedText('propertyEditor.actions.reset', 'Reset')
+)
+
+// 属性面板展示源派生。
 const displaySources = computed<PropertyEditorSourceView[]>(() =>
-  props.sources
+  props.inputs
     .map((source) => ({
-      title: source.title,
+      key: source.key,
+      title: getSourceTitle(source.key),
       categories: buildCategories(source),
     }))
     .filter((source) => source.categories.length > 0)
 )
 
 function getEditorComponent(datatype: PropertyDatatype): Component {
-  return datatypeEditorMap[datatype] ?? StringPropertyField
+  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
 }
 
-function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[] {
-  const definitions = resolveDefinitions(source.target, source.schemaOverride)
-  const targetKeys = new Set(Object.keys(source.target))
-  const visibleDefinitionEntries = Object.entries(definitions).filter(([, definition]) => !definition.isHidden)
+function getEditorIconClass(datatype: PropertyDatatype): string {
+  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).icon
+}
+
+// 分类与字段构建逻辑。
+function buildCategories(source: PropertyEditorInput): PropertyEditorCategory[] {
+  const definitions = resolveDefinitions(source.record, source.override)
+  const visibleDefinitionEntries = Object.entries(definitions)
+    .filter(([, definition]) => !definition.isHidden)
+
+  const existingEntries = Object.keys(source.record)
+    .map((fieldKey) => {
+      const schemaDefinition = definitions[fieldKey]
+      if (schemaDefinition?.isHidden) {
+        return null
+      }
+
+      const resolvedDefinition = schemaDefinition ?? readonlyExtraFieldDefinition
+      return createEntry(source.record, fieldKey, resolvedDefinition)
+    })
+    .filter((entry): entry is PropertyEditorEntry => entry !== null)
+
+  const addableFields = visibleDefinitionEntries
+    .filter(([fieldKey]) => !Object.prototype.hasOwnProperty.call(source.record, fieldKey))
+    .map(([fieldKey, definition]) => ({
+      key: fieldKey,
+      label: getEntryLabel(fieldKey, definition),
+      definition,
+    }))
 
   if (props.sortMode === 'alphabetical') {
-    const keys = new Set<string>([
-      ...targetKeys,
-      ...visibleDefinitionEntries.map(([key]) => key),
-    ])
-
-    const entries = sortEntriesByLabel(
-      Array.from(keys).map((key) => createEntry(source.target, key, definitions[key]))
-    )
-
-    const addableFields: AddableField[] = []
-
-    return entries.length > 0 || addableFields.length > 0
+    const sortedEntries = sortEntriesByLabel(existingEntries)
+    const sortedAddableFields = sortAddableFields(addableFields)
+    return sortedEntries.length > 0 || sortedAddableFields.length > 0
       ? [{
-        sourceTitle: source.title,
+        sourceKey: source.key,
+        key: 'a-z',
         title: 'A-Z',
-        target: source.target,
-        entries,
-        addableFields,
+        entries: sortedEntries,
+        addableFields: sortedAddableFields,
       }]
       : []
   }
 
   const categoryMap = new Map<string, PropertyEditorCategory>()
-  const visibleKeys = new Set<string>()
 
-  for (const key of Object.keys(source.target)) {
-    const definition = definitions[key]
-    if (definition?.isHidden) {
-      continue
-    }
-    const entry = createEntry(source.target, key, definition)
-    const title = getCategoryTitle(source.title, entry.definition)
-    visibleKeys.add(key)
-    ensureCategory(categoryMap, source, title).entries.push(entry)
+  for (const entry of existingEntries) {
+    const category = ensureCategory(categoryMap, source.key, entry.definition, source.key)
+    category.entries.push(entry)
   }
 
-  for (const [key, definition] of visibleDefinitionEntries) {
-    const title = getCategoryTitle(source.title, definition)
-    const category = ensureCategory(categoryMap, source, title)
-
-    if (!visibleKeys.has(key)) {
-      category.addableFields.push({
-        key,
-        label: getEntryLabel(key, definition),
-        definition,
-      })
-    }
+  for (const field of addableFields) {
+    const category = ensureCategory(categoryMap, source.key, field.definition, source.key)
+    category.addableFields.push(field)
   }
 
   return Array.from(categoryMap.values())
@@ -193,44 +267,51 @@ function buildCategories(source: PropertyEditorSource): PropertyEditorCategory[]
 
 function ensureCategory(
   categoryMap: Map<string, PropertyEditorCategory>,
-  source: PropertyEditorSource,
-  title: string
+  sourceKey: string,
+  definition: EditorPropertyDefinition,
+  sourceFallbackKey: string,
 ): PropertyEditorCategory {
-  let category = categoryMap.get(title)
+  const categoryKey = definition.categoryKey ?? `fallback:${sourceFallbackKey}`
+  const categoryTitle = resolveLocalizedText(
+    definition.categoryKey,
+    definition.category ?? getSourceTitle(sourceFallbackKey),
+  )
+
+  let category = categoryMap.get(categoryKey)
   if (!category) {
     category = {
-      sourceTitle: source.title,
-      title,
-      target: source.target,
+      sourceKey,
+      key: categoryKey,
+      title: categoryTitle,
       entries: [],
       addableFields: [],
     }
-    categoryMap.set(title, category)
+    categoryMap.set(categoryKey, category)
   }
+
   return category
 }
 
 function createEntry(
-  target: PropertyEditorTarget,
-  key: string,
-  definition?: EditorPropertyDefinition
+  record: PropertyEditorRecord,
+  fieldKey: string,
+  definition: EditorPropertyDefinition,
 ): PropertyEditorEntry {
-  const resolvedDefinition = definition ?? defaultDefinition
   return {
-    key,
-    label: getEntryLabel(key, resolvedDefinition),
-    value: target[key],
-    target,
-    definition: resolvedDefinition,
+    key: fieldKey,
+    label: getEntryLabel(fieldKey, definition),
+    value: record[fieldKey],
+    definition,
   }
 }
 
-function getEntryLabel(key: string, definition: EditorPropertyDefinition): string {
-  return resolveLocalizedText(definition.labelKey, definition.label ?? key)
+// 文案解析与 schema 合并。
+function getSourceTitle(sourceKey: string): string {
+  return resolveLocalizedText(`propertyEditor.sources.${sourceKey}`, sourceKey)
 }
 
-function getCategoryTitle(sourceTitle: string, definition: EditorPropertyDefinition): string {
-  return resolveLocalizedText(definition.categoryKey, definition.category ?? sourceTitle)
+function getEntryLabel(fieldKey: string, definition: EditorPropertyDefinition): string {
+  return resolveLocalizedText(definition.labelKey, definition.label ?? fieldKey)
 }
 
 function resolveLocalizedText(messageKey: string | undefined, fallback: string): string {
@@ -242,35 +323,35 @@ function resolveLocalizedText(messageKey: string | undefined, fallback: string):
 }
 
 function resolveDefinitions(
-  target: PropertyEditorTarget,
-  schemaOverride?: PropertyEditorSchemaOverride,
+  record: PropertyEditorRecord,
+  override?: PropertyEditorSchemaOverride,
 ): Record<string, EditorPropertyDefinition> {
-  const targetType = typeof target.type === 'string' ? target.type : undefined
-  const baseDefinitions = getTypePropertyEditorSchema(targetType)
-
-  if (!schemaOverride) {
+  const recordType = typeof record.type === 'string' ? record.type : undefined
+  const baseDefinitions = getTypePropertyEditorSchema(recordType)
+  if (!override) {
     return baseDefinitions
   }
 
   const mergedDefinitions: Record<string, EditorPropertyDefinition> = { ...baseDefinitions }
-  for (const [key, override] of Object.entries(schemaOverride)) {
-    const baseDefinition = mergedDefinitions[key]
+  for (const [fieldKey, fieldOverride] of Object.entries(override)) {
+    const baseDefinition = mergedDefinitions[fieldKey]
     if (baseDefinition) {
-      mergedDefinitions[key] = {
+      mergedDefinitions[fieldKey] = {
         ...baseDefinition,
-        ...override,
+        ...fieldOverride,
       } as EditorPropertyDefinition
       continue
     }
 
-    if (override.datatype) {
-      mergedDefinitions[key] = override as EditorPropertyDefinition
+    if (fieldOverride.datatype) {
+      mergedDefinitions[fieldKey] = fieldOverride as EditorPropertyDefinition
     }
   }
 
   return mergedDefinitions
 }
 
+// 排序工具。
 function sortEntriesByLabel(entries: PropertyEditorEntry[]): PropertyEditorEntry[] {
   return [...entries].sort((left, right) => {
     const labelCompare = compareText(left.label, right.label)
@@ -282,13 +363,20 @@ function sortEntriesByLabel(entries: PropertyEditorEntry[]): PropertyEditorEntry
 }
 
 function sortAddableFields(fields: AddableField[]): AddableField[] {
-  return [...fields].sort((left, right) => compareText(left.label, right.label))
+  return [...fields].sort((left, right) => {
+    const labelCompare = compareText(left.label, right.label)
+    if (labelCompare !== 0) {
+      return labelCompare
+    }
+    return compareText(left.key, right.key)
+  })
 }
 
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }
 
+// 添加字段与重置交互。
 function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): void {
   const anchor = event.currentTarget
   if (!(anchor instanceof HTMLElement)) {
@@ -298,6 +386,7 @@ function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): 
   const items: FloatingMenuItem[] = category.addableFields.map((field) => ({
     key: field.key,
     label: field.label,
+    icon: getEditorIconClass(field.definition.datatype),
   }))
 
   openMenu({
@@ -310,22 +399,25 @@ function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): 
         return
       }
 
-      addField(category, field)
+      emit('add-property', {
+        sourceKey: category.sourceKey,
+        fieldKey: field.key,
+        value: createDefaultValue(field.definition),
+      })
     },
   })
 }
 
-function addField(category: PropertyEditorCategory, field: AddableField): void {
-  const value = createDefaultValue(field.definition)
-  emit('add-property', {
-    sourceTitle: category.sourceTitle,
-    target: category.target,
-    key: field.key,
-    value,
-  })
+function emitResetProperty(sourceKey: string, fieldKey: string): void {
+  emit('reset-property', { sourceKey, fieldKey })
 }
 
+// 字段默认值策略。
 function createDefaultValue(definition: EditorPropertyDefinition): unknown {
+  if (definition.defaultValue !== undefined) {
+    return structuredClone(definition.defaultValue)
+  }
+
   switch (definition.datatype) {
     case 'string':
       return definition.options?.[0] ?? ''
@@ -355,7 +447,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   padding: 8px;
 }
 
-.source-section+.source-section {
+.source-section + .source-section {
   margin-top: 16px;
 }
 
@@ -374,7 +466,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: 4px;
 }
 
-.category+.category {
+.category + .category {
   margin-top: 12px;
 }
 
@@ -407,4 +499,15 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   text-align: right;
 }
 
+.entry-control {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reset-field-button {
+  flex-shrink: 0;
+}
 </style>

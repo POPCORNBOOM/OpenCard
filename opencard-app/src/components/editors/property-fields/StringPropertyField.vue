@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
-import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
+import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 const props = defineProps<{
   definition: Extract<EditorPropertyDefinition, { datatype: 'string' }>

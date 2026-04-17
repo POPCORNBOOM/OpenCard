@@ -6,7 +6,7 @@
 </template>
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { TextBlock } from '../../core/Card'
+import { TextBlock } from '../../entities/card/model'
 import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 import { cardEditorContextKey } from './cardEditorContext'
 

@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import OcOptionGroup from '../../base/OcOptionGroup.vue'
-import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
+import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 const alignOptions = [
   { value: 'start', label: 'Start', icon: 'codicon-list-selection' },

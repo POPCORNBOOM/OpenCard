@@ -1,21 +1,31 @@
-`CardDesignEditor.vue` 的入口契约是：读取 `modelValue` 后先 `JSON.parse`，再立即走 `materializeCardDocument()`。不要在组件内恢复“手写字段兜底”或“按 block 类型各自补缺省”的逻辑。
+`CardDesignEditor.vue` 是“文档真相层”，负责消费属性编辑意图并落地写回：
+- 编辑真相是 raw 文档；渲染使用 `viewDoc` 投影。
+- `resolveNulls` 仅用于属性面板展示，避免把稀疏文档写满。
 
-实例模式下的 Block 属性面板必须展示“物化后的最终值”：`block + instance override` 合并后再过 `materializeSchemaTarget()`。这样 `null` 覆写会在 UI 与渲染中一致地回落到 schema 默认值。
+与 `PropertyEditor` 的协议边界：
+- 输入给属性编辑器：`{ key, record, override? }[]`。
+- 回收事件：`update-property`、`add-property`、`reset-property`。
+- 路由分流只看 `sourceKey`，不依赖标题文案。
 
-写回边界保持不变：
-- `Layout` 始终写蓝图结构
-- `Block` 在实例模式写 `instance.data[blockId]`
-不要把这两条边界放松，否则会把实例层变成结构层，破坏蓝图/实例职责分离。
+写回策略：
+- `sourceKey = layout`：始终写蓝图布局对象。
+- `sourceKey = block`：
+  - 蓝图模式写 block 本体。
+  - 实例模式写 `instance.data[blockId]` 覆写。
 
-这个组件继续负责“编辑策略与上下文分流”，不负责定义默认值语义。默认值真相只来自 schema。
+重置策略（业务层定义）：
+- 蓝图/layout：重置为 schema 默认值；无默认值则删键。
+- 实例 block：删除 override 键，使其回落到蓝图值。
+- 当实例 block 的 override 变空时，删除该 block 的 override 对象。
 
-面板分隔条的拖拽要保持“相对起点增量”语义，不要回到按当前鼠标绝对坐标直接映射宽高。这里的分隔条本来就很窄，绝对映射会在按下瞬间产生细小跳变，用户会直接感知成“拖拽手感发飘”。
+override 注入策略：
+- 在实例模式下，`PropertyEditor` 输入的 `override` 会把当前 override 键标记为 `resettable: true`。
+- 这样 reset 按钮只出现在“当前确实有实例覆写”的字段上。
 
-左侧“创建的卡牌”折叠态应表现为窄轨按钮，而不是把完整 panel 骨架硬压成超窄宽度。后续如果继续做侧栏收纳，优先保留明确的切换 affordance，避免保留空标题和空 body 造成别扭的占位感。
+不可回退约束：
+- 不得回退到通过对象身份判断写回目标。
+- 不得让 `PropertyEditor` 承担写回语义。
 
-两棵树的重命名边界也要保持清楚：
-- “创建的卡牌”树改的是 `CardInstanceRecord.name`
-- “模板结构”树改的是蓝图 block 的 `block.name`
-- 蓝图节点本身只是实例视图里的固定入口，不允许重命名
-
-不要把实例树重命名误接到 `cardDoc.name`，也不要在实例模式下把模板树重命名写成 instance override。树显示虽然都在一个编辑器里，但实例命名与蓝图结构命名仍然是两条不同的 domain 线。
+面板尺寸语义约束：
+- 右侧“信息树/属性”分隔拖拽以“信息树绝对像素高度”为真相，不使用比例分配。
+- 属性面板高度应由 `总高度 - 信息树高度 - 分隔条高度` 推导。

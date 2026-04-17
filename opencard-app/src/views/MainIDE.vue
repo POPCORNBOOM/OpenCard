@@ -1,8 +1,20 @@
+<!--
+  使用说明：
+  - 作为 IDE 壳层页面挂载项目树 编辑器区 状态栏与导出入口
+  - 依赖 workspace store 与 editor session store 提供真相状态
+
+  职责边界：
+  - 负责页面布局 编排与交互意图转发
+  - 不沉淀文件系统规则与会话生命周期规则
+
+  主要输出事件：
+  - 无 页面组件通过内部编排调用 store/composable
+-->
 <template>
   <div class="ide-layout">
     <!-- 顶部菜单栏 -->
-      <div class="menu-bar">
-        <div class="menu-items">
+    <div class="menu-bar">
+      <div class="menu-items">
         <OcButton class="menu-link" variant="ghost" :disabled="true">
           {{ t('app.menu.file') }}
         </OcButton>
@@ -36,7 +48,8 @@
             :title="t('sidebar.files')">
             <AppIcon name="app.files" tone="primary" />
           </div>
-          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'" :title="t('sidebar.git')">
+          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'"
+            :title="t('sidebar.git')">
             <AppIcon name="app.git" tone="danger" />
           </div>
           <div class="activity-icon" :class="{ active: activeView === 'publish' }" @click="activeView = 'publish'"
@@ -47,13 +60,8 @@
       </div>
 
       <!-- 左侧边栏 -->
-      <OcPanelSection
-        v-if="activeView"
-        class="sidebar"
-        header-class="sidebar-header"
-        body-class="sidebar-content"
-        :scroll-body="true"
-      >
+      <OcPanelSection v-if="activeView" class="sidebar" header-class="sidebar-header" body-class="sidebar-content"
+        :scroll-body="true">
         <template #title>
           <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
           <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
@@ -65,14 +73,14 @@
             <OcButton @click="openProject" class="open-folder-btn" variant="primary">
               {{ t('sidebar.openProject') }}
             </OcButton>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes" :title="t('sidebar.openedEditors')"
-              :selected="openedEditorSelectedFiles" @update:selected="handleOpenedEditorsSelect" />
+            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
+              :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
+              @update:selected-keys="handleOpenedEditorsSelect" />
             <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
               :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
-              @node-drop="handleFileTreeDrop"
-              @node-rename="handleFileTreeRename"
+              @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
-              :selected="selectedFiles" @update:selected="handleFileTreeSelect" />
+              :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
           </div>
 
@@ -144,29 +152,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useProjectStore } from '../stores/projectStore'
-import { useEditorSessionStore } from '../stores/editorSessionStore'
+import { useProjectStore } from '../features/workspace/store/projectStore'
+import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
-import { ITreeNode } from '../components/ui/TreeNode.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
 import OcPanelSection from '../components/base/OcPanelSection.vue'
-import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../components/ui/NodeTree.vue'
+import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
 import CardRenderer from '../components/card/CardRenderer.vue'
-import { editorRegistry } from '../core/Editor'
-import { resolveEntryIcon, resolveFileType } from '../core/files/fileTypes'
+import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
+import { resolveFileType } from '../features/workspace/model/fileTypes'
 import {
-  materializeCardDocument,
-  resolveCardDocumentInstanceView,
+  toViewDoc,
   type CardDocument,
-} from '../core/Card'
-import { open, save } from '@tauri-apps/plugin-dialog'
-import { writeFile } from '@tauri-apps/plugin-fs'
-import { exportCardAsImage } from '../utils/exportCard'
+} from '../entities/card/model'
+import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
+import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 
 const { t } = useI18n()
 
@@ -185,8 +190,6 @@ const {
 } = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
-const selectedFiles = ref<Map<string, ITreeNode>>(new Map())
-const openedEditorSelectedFiles = ref<Map<string, ITreeNode>>(new Map())
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
@@ -194,8 +197,6 @@ const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const currentEditorRef = ref<{ save?: () => Promise<void> | void } | null>(null)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
-const showExportRenderer = ref(false)
-const exportCardDoc = ref<CardDocument | null>(null)
 
 const {
   sessions,
@@ -212,6 +213,37 @@ const {
   remapSessionPaths,
 } = useEditorSessionStore()
 
+const activeSessionPath = computed(() => activeSession.value?.path ?? null)
+
+const {
+  canExportActiveCard,
+  showExportRenderer,
+  exportCardDoc,
+  exportActiveCard2x,
+  exportAllCardViews,
+} = useIdeExport({
+  activeSession,
+  exportRendererRef,
+  translate: t,
+})
+
+const {
+  fileTree,
+  selectedFileKeys,
+  openedEditorSelectedKeys,
+  handleOpenedEditorsSelect,
+  handleFileTreeSelect,
+  findTreeNodeByKey,
+} = useIdeFileTree({
+  projectPath,
+  indexedEntries,
+  openedFileNodes,
+  activeSessionPath,
+  isDirectoryExpanded,
+  activatePath,
+  openPreviewFile,
+})
+
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).pop() || ''
@@ -221,179 +253,6 @@ const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
-
-const canExportActiveCard = computed(() =>
-  Boolean(activeSession.value) && resolveFileType(activeSession.value!.path).id === 'opencard'
-)
-
-function normalizeIdePath(path: string) {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function stripFileExtension(fileName: string) {
-  const lastDotIndex = fileName.lastIndexOf('.')
-  return lastDotIndex > 0 ? fileName.slice(0, lastDotIndex) : fileName
-}
-
-function sanitizeFileNameSegment(value: string, fallback: string) {
-  const sanitized = value
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
-    .replace(/\s+/g, '_')
-    .replace(/[. ]+$/g, '')
-
-  return sanitized.length > 0 ? sanitized : fallback
-}
-
-function buildFilePath(directoryPath: string, fileName: string) {
-  const separator = directoryPath.includes('\\') ? '\\' : '/'
-  return `${directoryPath.replace(/[\\/]+$/, '')}${separator}${fileName}`
-}
-
-function dataUrlToBytes(dataUrl: string) {
-  const base64Data = dataUrl.split(',')[1] ?? ''
-  const binaryData = atob(base64Data)
-  const bytes = new Uint8Array(binaryData.length)
-
-  for (let index = 0; index < binaryData.length; index += 1) {
-    bytes[index] = binaryData.charCodeAt(index)
-  }
-
-  return bytes
-}
-
-function waitForNextPaint() {
-  return new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve())
-  })
-}
-
-async function waitForImageElement(imageElement: HTMLImageElement) {
-  if (imageElement.complete) {
-    if (typeof imageElement.decode === 'function') {
-      try {
-        await imageElement.decode()
-      } catch {
-        // Ignore decode failures so export can continue with the best available state.
-      }
-    }
-    return
-  }
-
-  await new Promise<void>((resolve) => {
-    const finalize = () => {
-      imageElement.removeEventListener('load', finalize)
-      imageElement.removeEventListener('error', finalize)
-      resolve()
-    }
-
-    imageElement.addEventListener('load', finalize, { once: true })
-    imageElement.addEventListener('error', finalize, { once: true })
-  })
-
-  if (typeof imageElement.decode === 'function') {
-    try {
-      await imageElement.decode()
-    } catch {
-      // Ignore decode failures so export can continue with the best available state.
-    }
-  }
-}
-
-async function waitForExportAssets(rootElement: HTMLElement) {
-  const images = Array.from(rootElement.querySelectorAll('img'))
-  await Promise.all(images.map((imageElement) => waitForImageElement(imageElement)))
-  await waitForNextPaint()
-}
-
-function getActiveCardExportContext() {
-  if (!activeSession.value) {
-    console.error('没有打开的文件')
-    return null
-  }
-
-  if (resolveFileType(activeSession.value.path).id !== 'opencard') {
-    console.error('当前活动文件不是 .opencard')
-    return null
-  }
-
-  const currentContent = activeSession.value.draftContent.trim()
-  if (!currentContent) {
-    console.error('当前 .opencard 内容为空')
-    return null
-  }
-
-  try {
-    return {
-      fileNameStem: sanitizeFileNameSegment(stripFileExtension(activeSession.value.name), 'card'),
-      document: materializeCardDocument(JSON.parse(currentContent)),
-    }
-  } catch (error) {
-    console.error('解析 .opencard 失败:', error)
-    return null
-  }
-}
-
-function createExportFileName(baseFileName: string, suffix: string, usedFileNames: Set<string>) {
-  const normalizedSuffix = sanitizeFileNameSegment(suffix, 'export')
-  let nextStem = `${baseFileName}_${normalizedSuffix}`
-  let nextFileName = `${nextStem}.png`
-  let dedupeIndex = 2
-
-  while (usedFileNames.has(nextFileName.toLowerCase())) {
-    nextStem = `${baseFileName}_${normalizedSuffix}_${dedupeIndex}`
-    nextFileName = `${nextStem}.png`
-    dedupeIndex += 1
-  }
-
-  usedFileNames.add(nextFileName.toLowerCase())
-  return nextFileName
-}
-
-function buildCardExportQueue(baseFileName: string, document: CardDocument) {
-  const usedFileNames = new Set<string>()
-  const exportQueue = [
-    {
-      fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      document: resolveCardDocumentInstanceView(document, null),
-    },
-  ]
-
-  for (const instance of document.instances ?? []) {
-    const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
-    exportQueue.push({
-      fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      document: resolveCardDocumentInstanceView(document, instance),
-    })
-  }
-
-  return exportQueue
-}
-
-async function renderCardDocumentToImage(document: CardDocument) {
-  showExportRenderer.value = true
-  exportCardDoc.value = document
-
-  await nextTick()
-  await waitForNextPaint()
-
-  const canvasElement = exportRendererRef.value?.getCanvasElement()
-  if (!canvasElement) {
-    throw new Error('无法获取导出 canvas 元素')
-  }
-
-  await waitForExportAssets(canvasElement)
-
-  return await exportCardAsImage(canvasElement, {
-    dpi: 192,
-    format: 'png',
-  })
-}
-
-function resetExportRenderer() {
-  showExportRenderer.value = false
-  exportCardDoc.value = null
-}
 
 const currentEditorComponent = computed(() => {
   if (!activeSession.value) return null
@@ -441,7 +300,7 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   }
 
   try {
-    const cardDoc = materializeCardDocument(JSON.parse(newContent))
+    const cardDoc = toViewDoc(JSON.parse(newContent))
     previewCardDoc.value = cardDoc
     showPreview.value = true
   } catch (error) {
@@ -450,137 +309,6 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
     previewCardDoc.value = null
   }
 })
-
-watch(
-  () => activeSession.value?.path ?? null,
-  (path) => {
-    syncSelectionFromActiveSession(path)
-  },
-  { immediate: true }
-)
-
-
-const fileTree = computed(() => {
-  if (!indexedEntries.value.length) return []
-
-  const root: ITreeNode[] = []
-  const map = new Map<string, ITreeNode>()
-
-  // 先创建所有节点
-  indexedEntries.value.forEach(file => {
-    const relativePath = file.name
-    const fullPath = normalizeIdePath(`${projectPath.value}/${relativePath}`)
-    const parts = relativePath.split(/[/\\]/)
-    const displayName = parts[parts.length - 1]
-
-    const entryIcon = resolveEntryIcon(
-      relativePath,
-      file.isDirectory || false,
-      file.isDirectory ? isDirectoryExpanded(fullPath) : false,
-    )
-
-    const node: ITreeNode = {
-      name: displayName,
-      key: fullPath,
-      isExpandable: file.isDirectory || false,
-      isExpanded: file.isDirectory ? isDirectoryExpanded(fullPath) : false,
-      icon: entryIcon.icon,
-      iconTone: entryIcon.tone,
-      iconColor: entryIcon.color,
-      children: file.isDirectory ? [] : undefined,
-      metadata: {
-        relativePath,
-        isDirectory: file.isDirectory || false,
-      }
-    }
-    map.set(relativePath, node)
-  })
-
-  // 构建树形结构
-  indexedEntries.value.forEach(file => {
-    const relativePath = file.name
-    const node = map.get(relativePath)
-    if (!node) return
-
-    const parts = relativePath.split(/[/\\]/)
-    if (parts.length === 1) {
-      // 根目录文件
-      root.push(node)
-    } else {
-      // 子文件，找到父节点
-      const parentRelativePath = parts.slice(0, -1).join('/')
-      const parent = map.get(parentRelativePath)
-      if (parent && parent.children) {
-        parent.children.push(node)
-      }
-    }
-  })
-
-  return root
-})
-
-function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
-  for (const node of nodes) {
-    if (normalizeIdePath(node.key) === normalizeIdePath(key)) {
-      return node
-    }
-
-    const childNode = findTreeNodeByKey(node.children ?? [], key)
-    if (childNode) {
-      return childNode
-    }
-  }
-
-  return null
-}
-
-function syncSelectionFromActiveSession(path: string | null) {
-  if (!path) {
-    openedEditorSelectedFiles.value = new Map()
-    selectedFiles.value = new Map()
-    return
-  }
-
-  const normalizedPath = normalizeIdePath(path)
-
-  const openedEditorNode = openedFileNodes.value.find((node) => normalizeIdePath(node.key) === normalizedPath)
-  openedEditorSelectedFiles.value = openedEditorNode
-    ? new Map([[openedEditorNode.key, openedEditorNode]])
-    : new Map()
-
-  const projectTreeNode = findTreeNodeByKey(fileTree.value, normalizedPath)
-  selectedFiles.value = projectTreeNode
-    ? new Map([[projectTreeNode.key, projectTreeNode]])
-    : new Map()
-}
-
-function handleOpenedEditorsSelect(newSelected: Map<string, ITreeNode>) {
-  openedEditorSelectedFiles.value = newSelected
-
-  const selectedPath = newSelected.values().next().value?.key
-  if (selectedPath) {
-    activatePath(selectedPath)
-  }
-}
-
-async function handleFileTreeSelect(newSelected: Map<string, ITreeNode>) {
-  selectedFiles.value = newSelected
-
-  if (newSelected.size !== 1) {
-    return
-  }
-
-  const selectedNode = newSelected.values().next().value as ITreeNode | undefined
-  if (!selectedNode || selectedNode.metadata?.isDirectory) {
-    return
-  }
-
-  try {
-    await openPreviewFile(selectedNode.key)
-  } catch (error) {
-    console.error('预览打开文件失败:', error)
-  }
-}
 
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)
@@ -592,7 +320,7 @@ async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   }
 
   remapSessionPaths(result.fromPath, result.toPath)
-  selectedFiles.value = new Map()
+  selectedFileKeys.value = []
 }
 
 async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
@@ -606,70 +334,7 @@ async function handleFileTreeRename({ node, name }: NodeTreeRenamePayload) {
 
   remapSessionPaths(result.fromPath, result.toPath)
   const renamedNode = findTreeNodeByKey(fileTree.value, result.toPath)
-  selectedFiles.value = renamedNode
-    ? new Map([[renamedNode.key, renamedNode]])
-    : new Map()
-}
-
-async function exportActiveCard2x() {
-  const context = getActiveCardExportContext()
-  if (!context) {
-    return
-  }
-
-  const savePath = await save({
-    defaultPath: `${context.fileNameStem}_blueprint_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
-    filters: [{
-      name: 'PNG Image',
-      extensions: ['png'],
-    }],
-  })
-
-  if (!savePath) {
-    return
-  }
-
-  try {
-    const dataUrl = await renderCardDocumentToImage(context.document)
-    await writeFile(savePath, dataUrlToBytes(dataUrl))
-    console.log('图片已保存到:', savePath)
-  } catch (error) {
-    console.error('导出图片失败:', error)
-  } finally {
-    resetExportRenderer()
-  }
-}
-
-async function exportAllCardViews() {
-  const context = getActiveCardExportContext()
-  if (!context) {
-    return
-  }
-
-  const exportDirectory = await open({
-    directory: true,
-    multiple: false,
-    title: t('app.menu.exportAll'),
-  })
-
-  if (typeof exportDirectory !== 'string' || !exportDirectory) {
-    return
-  }
-
-  try {
-    const exportQueue = buildCardExportQueue(context.fileNameStem, context.document)
-
-    for (const entry of exportQueue) {
-      const dataUrl = await renderCardDocumentToImage(entry.document)
-      const targetPath = buildFilePath(exportDirectory, entry.fileName)
-      await writeFile(targetPath, dataUrlToBytes(dataUrl))
-      console.log('图片已保存到:', targetPath)
-    }
-  } catch (error) {
-    console.error('批量导出图片失败:', error)
-  } finally {
-    resetExportRenderer()
-  }
+  selectedFileKeys.value = renamedNode ? [renamedNode.key] : []
 }
 
 async function openProject() {
@@ -917,8 +582,7 @@ function closeFile(sessionId: string) {
   opacity: 1;
 }
 
-.editor-content {
-}
+.editor-content {}
 
 .preview-panel {
   width: 450px;

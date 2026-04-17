@@ -1,1 +1,4 @@
 /testOpencardProject/
+
+# Ignore OpenCard cache files at any directory level
+.opencard-cache

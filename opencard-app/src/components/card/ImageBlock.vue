@@ -1,3 +1,15 @@
+<!--
+  使用说明：
+  - 输入 `block` 提供图片块结构与样式字段
+  - `layoutMode` 决定走绝对定位还是静态布局样式
+
+  职责边界：
+  - 负责图片块渲染与样式投影
+  - 只通过编辑器上下文回传点击意图 不处理文档写回
+
+  主要输出事件：
+  - 无 通过注入的 `handleBlockClick` 上抛选择意图
+-->
 <template>
     <div :data-block-id="block.id" :style="wrapStyle" @click.stop="handleClick">
         <img :src="imageSrc" :alt="block.id" :style="imgStyle" />
@@ -5,8 +17,8 @@
 </template>
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { ImageBlock } from '../../core/Card'
-import { useProjectStore } from '../../stores/projectStore'
+import { ImageBlock } from '../../entities/card/model'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import { cardEditorContextKey } from './cardEditorContext'
 

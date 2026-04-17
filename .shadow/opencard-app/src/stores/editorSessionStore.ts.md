@@ -1,15 +1,3 @@
-`editorSessionStore.ts` 是“编辑会话真相”，它存在的目的就是把“路径”与“正在编辑的内容”解耦。
-
-这里维护的是打开的会话、活动会话、草稿内容、已保存内容、dirty 状态、预览态，以及路径变更后的会话 remap。核心语义是：路径可以变化，但编辑会话身份不能因为路径变化而丢失。
-
-现在文件树单击使用“预览会话”语义，类似 VSCode 的 preview tab：
-- 同一时刻最多只有一个未固定的 preview 会话
-- 下一次单击文件树会替换旧 preview
-- 一旦用户修改内容，这个会话必须立即脱离 preview，变成普通会话并保留下来
-- 双击文件树打开则直接进入普通会话，不占用 preview 位
-
-这套规则要继续收口在这里，不要让 `MainIDE.vue` 自己维护“临时打开文件 id”之类的并行状态。
-
-不要把这个 store 退化成 `openedFiles` 的薄包装。它不是为了保存 tab 列表本身，而是为了保护未保存草稿、统一保存流程，并给未来的关闭确认、外部变更冲突检测、恢复会话留出稳定边界。
-
-如果未来某个编辑器需要额外的会话态，优先在这里扩展会话模型，或在这里挂接专门的 editor-state，而不是重新回到 `MainIDE.vue` 里做散装状态同步。
+`stores/editorSessionStore.ts` 现为兼容出口（re-export shim）：
+- 真实实现已迁移到 `src\features\workspace\store\editorSessionStore.ts`。
+- 新代码应直接依赖 feature 路径。

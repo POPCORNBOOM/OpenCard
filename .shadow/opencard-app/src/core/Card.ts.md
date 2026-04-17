@@ -1,7 +1,7 @@
-`Card.ts` 的当前核心约束是“渲染前必须先物化”，不要再让组件层自己兜底缺省值。入口是 `materializeCardDocument()` / `materializeCardBlock()`，它们负责把 schema 默认值补齐并修正最小结构（如缺失 id 生成、children/location 结构归一）。
+`core/Card.ts` 现为兼容出口（re-export shim）：
+- 真实领域实现已迁移到 `src\entities\card\model.ts`。
+- 保留该文件是为了让旧调用方可平滑迁移，不在这里继续新增业务实现。
 
-实例覆写语义在这里被定死：对 schema 已知字段，`null` / `undefined` / 缺失都会回到 schema 默认值；对 schema 未知字段，保持原样透传。这让“灵活扩展字段”与“稳定核心字段”同时成立。
-
-`resolveCardDocumentInstanceView()` 产出的对象是“显示投影”，不是写回真相。它保留蓝图层级结构，用 instance 数据覆写 block 字段后再递归返回。未来不要把该投影对象拿去做结构编辑写回。
-
-`createTextBlock/createImageBlock/createSimpleContainerBlock/createFlowContainerBlock` 必须继续返回“已物化块”。后续新增 block 类型时，务必补齐：type schema、默认值、materialize 分支、factory 分支。
+约束：
+- 新代码优先直接依赖 `entities/card/model`。
+- 兼容层只做导出转发，不承载新增语义。

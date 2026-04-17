@@ -10,10 +10,22 @@
 
 文件 Tree 的选中态也应服从这个边界：活动编辑器路径是页面层可消费的“当前文档真相”，`MainIDE.vue` 只负责把它投影到“已打开编辑器”Tree 与项目 Tree 上，而不应再维护一套独立于 `activeSession` 的长期选中来源。
 
-文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selected` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。
+文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selectedKeys` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。
+
+当前约束更新：
+- 文件树构建与选中同步细节已抽到 `features/ide-shell/composables/useIdeFileTree.ts`。
+- `MainIDE.vue` 只保留树组件绑定与 store 意图转发，不再直接维护树投影算法。
+
+NodeTree 集成约束：
+- 页面层只传 `selectedKeys`（字符串数组）和 `v-model:expanded`。
+- 严禁重新引入 `selected/update:selected` 这类对象耦合协议。
 
 导出能力也属于页面壳层可编排职责，但它只能消费“当前活动 session 的草稿内容”，不能绕回磁盘再读一份，否则会把未保存编辑丢掉。页面层负责选目录、命名、触发渲染；实例覆写语义必须继续复用 `Card.ts` 的投影 helper，不要在 `MainIDE.vue` 里重新手搓 `instance.data` 合并规则。
 
 隐藏导出渲染器应与可见预览状态分离。未来如果恢复右侧预览面板，不要为了省状态把批量导出临时文档塞回预览状态源，否则导出流程会反向污染页面展示。
 
 导出截图前不能只等 `nextTick + requestAnimationFrame`，因为 `<img>` 资源加载晚于 DOM 提交。只要蓝图/实例之间可能切换图片，页面层就必须先等隐藏导出树里的图片完成 `load/decode`，否则批量导出会截到空白图或上一张图。
+
+当前约束更新：
+- 导出流程细节已抽到 `features/ide-shell/composables/useIdeExport.ts`。
+- `MainIDE.vue` 只保留菜单按钮绑定与隐藏导出渲染器挂载，不再维护导出命名、队列、图片等待、写文件等细节实现。

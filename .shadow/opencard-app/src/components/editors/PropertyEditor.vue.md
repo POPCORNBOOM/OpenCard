@@ -1,15 +1,35 @@
-`PropertyEditor.vue` 的理想职责是：字段展示器、字段编辑器分配器、以及事件回传器。
+`PropertyEditor.vue` 是“属性协议解释器”，不是业务写回器：
+- 输入：`inputs: { key, record, override? }[]` 与 `sortMode`。
+- 输出：`update-property`、`add-property`、`reset-property`。
+- 负责：schema 解析、分类展示（含本地化）、field 编辑器分派、缺失字段添加入口。
+- 不负责：蓝图/实例/布局具体写回语义。
 
-它可以根据 schema 决定显示哪些字段、归类和排序字段、为不同 datatype 选择不同的 field 组件；但它不应持有“写蓝图还是写实例”的领域判断。
+设计哲学（本模块）：
+- 显式优先于隐式：事件只传稳定标识与意图，不传对象引用。
+- 可见性优先于“数据整洁幻觉”：record 里的 schema 外字段必须可见，不允许静默吞掉。
+- 缺失字段是能力入口：schema 定义但 record 缺失，必须进入 `+` 添加路径。
+- 重置是协议能力：`resettable` 只声明可重置，不在本模块实现重置业务规则。
 
-尤其不要在这里直接修改传入的 `target`。`target` 在未来很可能只是蓝图 + 实例覆盖计算后的临时视图对象，而不是真实持久化对象。看起来方便的 `target[key] = value` 会让实例模式下的写回语义失真。
+通信协议约束：
+- 更新/新增 payload：`{ sourceKey, fieldKey, value }`。
+- 重置 payload：`{ sourceKey, fieldKey }`。
+- 禁止回传 `record`、`target` 或任何可变对象引用。
 
-“添加字段”也应被视为一种编辑意图，而不是组件内部的直接对象突变。这里应该发出事件，把真正的写回交给 `CardDesignEditor.vue` 处理，由外层根据当前上下文决定加到蓝图、布局还是实例覆盖。
+字段展示约束：
+- schema 已定义字段：按 datatype 分派对应 field 组件。
+- datatype 分派表是单一事实源：每个 datatype 必须同时声明 `component + icon`，行标签图标与“添加字段”菜单图标共用同一映射。
+- schema 外字段：统一按只读 string 展示（不做 datatype 推断）。
+- `isHidden` 字段无论是否存在于 record 都不显示。
 
-当前一个关键约束是：这里回传的事件需要携带 source 语义，例如 `Block` / `Layout`。因为外层的写回策略已经不再只看 `target` 身份；在实例模式下，`Block.target` 可能只是合成后的临时视图对象。
+分类与本地化约束：
+- 分类标题优先走 `categoryKey`，缺失回退 `category`，再回退 source 标题。
+- source 标题优先走 `propertyEditor.sources.<key>`。
+- schema 外字段统一归入 `propertyEditor.categories.uncategorized`。
 
-这里可以支持通用的运行时 schema 覆写能力，例如调用方传入某个字段的 `isReadonly` / `isHidden` / `label` 覆写。这个能力本身是通用 UI 能力，不带业务语义；`PropertyEditor.vue` 只负责把默认 schema 和传入的 `schemaOverride` 合并后渲染，不应知道为什么某个场景要把字段设为只读。
+不可回退约束：
+- 不得回退到对象引用事件协议。
+- 不得在组件内加入业务写回、持久化或实例策略判断。
 
-像 `background` 这样的复杂 CSS 简写字段，应通过独立 datatype 对应到专门 field 组件，而不是继续塞进普通字符串输入框。`PropertyEditor.vue` 这里的职责仍然只是根据 datatype 选择编辑器组件，不参与具体的 CSS 解释逻辑。
-
-现在 schema 字段名和分类名允许通过 i18n key 渲染，但本组件仍应保持“展示层解析、无文案所有权”的边界：优先用 schema 提供的 key 取翻译，缺失时退回 schema 自带纯文本；不要把翻译 key 推导规则硬编码成依赖业务 type 或外层上下文的逻辑。
+注释风格约束：
+- 与 `NodeTree.vue` 对齐：顶部块注释 + 脚本内短句单行注释。
+- 模板固化在 `.shadow/CODE_COMMENT_TEMPLATE.md`。
