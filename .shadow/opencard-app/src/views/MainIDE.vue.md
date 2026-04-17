@@ -12,6 +12,10 @@
 
 文件树单击预览打开也应遵守这个原则：`MainIDE.vue` 只负责在 `update:selectedKeys` 时调用 session store 的 preview/open API，不自己保存“临时标签页是谁”“哪个 tab 可被替换”这类规则。凡是回答“下一次单击会替换谁”的逻辑，都属于 `editorSessionStore.ts`。
 
+当前约束更新：
+- 文件树构建与选中同步细节已抽到 `features/ide-shell/composables/useIdeFileTree.ts`。
+- `MainIDE.vue` 只保留树组件绑定与 store 意图转发，不再直接维护树投影算法。
+
 NodeTree 集成约束：
 - 页面层只传 `selectedKeys`（字符串数组）和 `v-model:expanded`。
 - 严禁重新引入 `selected/update:selected` 这类对象耦合协议。

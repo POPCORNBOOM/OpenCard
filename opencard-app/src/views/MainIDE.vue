@@ -150,15 +150,16 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
 import OcPanelSection from '../components/base/OcPanelSection.vue'
-import type { ITreeNode, NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
+import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
-import { resolveEntryIcon, resolveFileType } from '../features/workspace/model/fileTypes'
+import { resolveFileType } from '../features/workspace/model/fileTypes'
 import {
   toViewDoc,
   type CardDocument,
 } from '../core/Card'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
+import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 
 const { t } = useI18n()
 
@@ -177,8 +178,6 @@ const {
 } = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
-const selectedFileKeys = ref<string[]>([])
-const openedEditorSelectedKeys = ref<string[]>([])
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
@@ -202,6 +201,8 @@ const {
   remapSessionPaths,
 } = useEditorSessionStore()
 
+const activeSessionPath = computed(() => activeSession.value?.path ?? null)
+
 const {
   canExportActiveCard,
   showExportRenderer,
@@ -214,6 +215,23 @@ const {
   translate: t,
 })
 
+const {
+  fileTree,
+  selectedFileKeys,
+  openedEditorSelectedKeys,
+  handleOpenedEditorsSelect,
+  handleFileTreeSelect,
+  findTreeNodeByKey,
+} = useIdeFileTree({
+  projectPath,
+  indexedEntries,
+  openedFileNodes,
+  activeSessionPath,
+  isDirectoryExpanded,
+  activatePath,
+  openPreviewFile,
+})
+
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).pop() || ''
@@ -223,10 +241,6 @@ const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
 })
-
-function normalizeIdePath(path: string) {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
 
 const currentEditorComponent = computed(() => {
   if (!activeSession.value) return null
@@ -283,131 +297,6 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
     previewCardDoc.value = null
   }
 })
-
-watch(
-  () => activeSession.value?.path ?? null,
-  (path) => {
-    syncSelectionFromActiveSession(path)
-  },
-  { immediate: true }
-)
-
-
-const fileTree = computed(() => {
-  if (!indexedEntries.value.length) return []
-
-  const root: ITreeNode[] = []
-  const map = new Map<string, ITreeNode>()
-
-  // 先创建所有节点
-  indexedEntries.value.forEach(file => {
-    const relativePath = file.name
-    const fullPath = normalizeIdePath(`${projectPath.value}/${relativePath}`)
-    const parts = relativePath.split(/[/\\]/)
-    const displayName = parts[parts.length - 1]
-
-    const entryIcon = resolveEntryIcon(
-      relativePath,
-      file.isDirectory || false,
-      file.isDirectory ? isDirectoryExpanded(fullPath) : false,
-    )
-
-    const node: ITreeNode = {
-      name: displayName,
-      key: fullPath,
-      isExpandable: file.isDirectory || false,
-      isExpanded: file.isDirectory ? isDirectoryExpanded(fullPath) : false,
-      icon: entryIcon.icon,
-      iconTone: entryIcon.tone,
-      iconColor: entryIcon.color,
-      children: file.isDirectory ? [] : undefined,
-      metadata: {
-        relativePath,
-        isDirectory: file.isDirectory || false,
-      }
-    }
-    map.set(relativePath, node)
-  })
-
-  // 构建树形结构
-  indexedEntries.value.forEach(file => {
-    const relativePath = file.name
-    const node = map.get(relativePath)
-    if (!node) return
-
-    const parts = relativePath.split(/[/\\]/)
-    if (parts.length === 1) {
-      // 根目录文件
-      root.push(node)
-    } else {
-      // 子文件，找到父节点
-      const parentRelativePath = parts.slice(0, -1).join('/')
-      const parent = map.get(parentRelativePath)
-      if (parent && parent.children) {
-        parent.children.push(node)
-      }
-    }
-  })
-
-  return root
-})
-
-function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
-  for (const node of nodes) {
-    if (normalizeIdePath(node.key) === normalizeIdePath(key)) {
-      return node
-    }
-
-    const childNode = findTreeNodeByKey(node.children ?? [], key)
-    if (childNode) {
-      return childNode
-    }
-  }
-
-  return null
-}
-
-function syncSelectionFromActiveSession(path: string | null) {
-  if (!path) {
-    openedEditorSelectedKeys.value = []
-    selectedFileKeys.value = []
-    return
-  }
-
-  const normalizedPath = normalizeIdePath(path)
-
-  const openedEditorNode = openedFileNodes.value.find((node) => normalizeIdePath(node.key) === normalizedPath)
-  openedEditorSelectedKeys.value = openedEditorNode ? [openedEditorNode.key] : []
-
-  const projectTreeNode = findTreeNodeByKey(fileTree.value, normalizedPath)
-  selectedFileKeys.value = projectTreeNode ? [projectTreeNode.key] : []
-}
-
-function handleOpenedEditorsSelect(nextSelectedKeys: string[]) {
-  openedEditorSelectedKeys.value = nextSelectedKeys
-  const selectedPath = nextSelectedKeys[0]
-  if (selectedPath) {
-    activatePath(selectedPath)
-  }
-}
-
-async function handleFileTreeSelect(nextSelectedKeys: string[]) {
-  selectedFileKeys.value = nextSelectedKeys
-  if (nextSelectedKeys.length !== 1) {
-    return
-  }
-
-  const selectedNode = findTreeNodeByKey(fileTree.value, nextSelectedKeys[0])
-  if (!selectedNode || selectedNode.metadata?.isDirectory) {
-    return
-  }
-
-  try {
-    await openPreviewFile(selectedNode.key)
-  } catch (error) {
-    console.error('预览打开文件失败:', error)
-  }
-}
 
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)
