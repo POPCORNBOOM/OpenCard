@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 封装 Tauri 文件系统 API 提供统一文件服务接口
+ * 职责边界：
+ * - 只负责 IO 适配 不处理路径合法性业务规则
+ */
 import { open } from '@tauri-apps/plugin-dialog'
 import {
   readTextFile,

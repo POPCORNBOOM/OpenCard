@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { computed, provide, ref } from 'vue'
-import type { CardDocument, SimpleContainerBlock } from '../../core/Card'
+import type { CardDocument, SimpleContainerBlock } from '../../entities/card/model'
 import CardBlock from './CardBlock.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 

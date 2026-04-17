@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 定义文件类型语义与文件树图标解析规则
+ * 职责边界：
+ * - 只返回文件语义结果 不处理编辑器渲染流程
+ */
 import type { IconName, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
 export interface FileTypeDefinition {

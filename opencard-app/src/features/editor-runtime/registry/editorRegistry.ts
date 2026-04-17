@@ -1,4 +1,9 @@
-/** 所有编辑器组件都要实现的通用接口 */
+/**
+ * 模块说明：
+ * - 维护编辑器协议定义与内置编辑器注册表
+ * 职责边界：
+ * - 只负责 `editorId -> component` 映射 不处理文件类型判定
+ */
 
 export interface EditorProps {
   filePath: string

@@ -1,3 +1,16 @@
+<!--
+  使用说明：
+  - 输入 `filePath` 指向当前图片资源路径
+  - 由外层通过编辑器协议触发 `save` 与会话状态同步
+
+  职责边界：
+  - 负责图片预览展示与加载结果反馈
+  - 只上抛保存与修改状态 不处理文件读写
+
+  主要输出事件：
+  - `modified`（同步预览状态）
+  - `save`（转发保存意图）
+-->
 <template>
   <div class="image-preview-editor oc-panel-body">
     <div v-if="imageSrc" class="image-preview-stage oc-stage-surface oc-checkerboard-stage">

@@ -1,3 +1,15 @@
+<!--
+  使用说明：
+  - 作为 IDE 壳层页面挂载项目树 编辑器区 状态栏与导出入口
+  - 依赖 workspace store 与 editor session store 提供真相状态
+
+  职责边界：
+  - 负责页面布局 编排与交互意图转发
+  - 不沉淀文件系统规则与会话生命周期规则
+
+  主要输出事件：
+  - 无 页面组件通过内部编排调用 store/composable
+-->
 <template>
   <div class="ide-layout">
     <!-- 顶部菜单栏 -->
@@ -157,7 +169,7 @@ import { resolveFileType } from '../features/workspace/model/fileTypes'
 import {
   toViewDoc,
   type CardDocument,
-} from '../core/Card'
+} from '../entities/card/model'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 

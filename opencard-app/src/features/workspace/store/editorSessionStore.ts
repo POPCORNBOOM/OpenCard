@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 维护编辑会话状态 包括活动会话 草稿 脏状态与预览会话语义
+ * 职责边界：
+ * - 只管理会话真相 不处理文件系统目录索引
+ */
 import { computed, readonly, ref } from 'vue'
 import type { ITreeNode } from '../../../shared/ui/tree/tree.types'
 import { resolveFileType } from '../model/fileTypes'

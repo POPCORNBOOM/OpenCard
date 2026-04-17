@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 定义树组件通用协议 包括节点结构 动作载荷与上下文类型
+ * 职责边界：
+ * - 只维护类型契约 不包含运行时业务实现
+ */
 import type { ComputedRef, Ref } from 'vue'
 
 export type TreeIconTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'danger'

@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 定义图标语义键到具体图标实现的统一注册表
+ * 职责边界：
+ * - 只描述图标映射 不定义颜色尺寸等展示策略
+ */
 import {
   mdiBroadcast,
   mdiCardTextOutline,

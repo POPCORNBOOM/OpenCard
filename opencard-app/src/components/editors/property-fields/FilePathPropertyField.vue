@@ -1,3 +1,15 @@
+<!--
+  使用说明：
+  - 输入 `definition` 描述文件路径字段约束
+  - 输入 `value` 作为当前路径值 支持目录与文件建议
+
+  职责边界：
+  - 负责路径输入 自动补全建议与键盘选择交互
+  - 只上抛 `update:value` 不直接改领域对象
+
+  主要输出事件：
+  - `update:value`（字段值变更）
+-->
 <template>
   <div class="file-path-field">
     <input
@@ -37,7 +49,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useProjectStore } from '../../../features/workspace/store/projectStore'
-import type { EditorPropertyDefinition } from '../../../core/propertyEditorSchema'
+import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 type FilePathDefinition = Extract<EditorPropertyDefinition, { datatype: 'filePath' }>
 

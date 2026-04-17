@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 维护项目路径 目录索引 监听与文件树移动重命名事务
+ * 职责边界：
+ * - 只管理文件系统真相 不管理编辑草稿与会话状态
+ */
 import { computed, readonly, ref } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'

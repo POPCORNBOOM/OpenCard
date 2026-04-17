@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 管理 IDE 导出流程 包括导出上下文 队列与隐藏渲染器状态
+ * 职责边界：
+ * - 只编排导出动作与资源等待 不维护项目或会话真相
+ */
 import { computed, nextTick, ref, type Ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'

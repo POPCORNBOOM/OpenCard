@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 定义卡牌领域模型 物化转换 树结构操作与实例投影
+ * 职责边界：
+ * - 维护领域结构真相 不包含组件渲染实现
+ */
 import type { ITreeNode } from '../../shared/ui/tree/tree.types'
 import { fillDefaults } from './schema'
 import type { PropertyEditorSchemaOverride } from './schema'

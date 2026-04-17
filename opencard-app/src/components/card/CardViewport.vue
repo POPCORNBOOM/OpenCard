@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AnchorPosition, CardDocument } from '../../core/Card'
+import type { AnchorPosition, CardDocument } from '../../entities/card/model'
 import CardRenderer from './CardRenderer.vue'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'r' | 'b'

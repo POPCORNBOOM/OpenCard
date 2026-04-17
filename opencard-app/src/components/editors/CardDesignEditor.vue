@@ -1,3 +1,17 @@
+<!--
+  使用说明：
+  - 输入 `filePath` 与 `modelValue` 作为卡牌编辑源
+  - 通过 `save/modified/update:modelValue` 与外层会话同步
+
+  职责边界：
+  - 负责卡牌编辑器编排 实例树 结构树 画布与属性面板协同
+  - 只上抛编辑意图与内容变更 不负责文件系统持久化规则
+
+  主要输出事件：
+  - `update:modelValue`（同步文档文本）
+  - `modified`（同步脏状态）
+  - `save`（请求外层执行保存）
+-->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :class="{ 'card-design-editor--resizing': Boolean(resizeState) }"
     :style="editorStyle">
@@ -84,12 +98,12 @@ import {
   type CardTreeNodeMetadata,
   type PropertyEditorInput,
   getBlockTreeIcon,
-} from '../../core/Card'
+} from '../../entities/card/model'
 import {
   getDefault,
   resolveNulls,
   type PropertyEditorSchemaOverride,
-} from '../../core/propertyEditorSchema'
+} from '../../entities/card/schema'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { buildParentLookup, type CardDocument } from '../../core/Card'
+import { buildParentLookup, type CardDocument } from '../../entities/card/model'
 import { useCdeTreeOps } from '../useCdeTreeOps'
 
 function createDocumentForTreeReorder(): CardDocument {

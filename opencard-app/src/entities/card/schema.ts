@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 定义属性编辑 schema 默认值与字段物化策略
+ * 职责边界：
+ * - 只维护字段协议与默认值 不承载 UI 写回逻辑
+ */
 import type { CardBlock } from './model'
 
 type EditorPropertyBase = {

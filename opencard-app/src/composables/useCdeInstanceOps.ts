@@ -1,8 +1,14 @@
+/**
+ * 模块说明：
+ * - 管理卡牌实例树 选择 重命名 增删复制与拖拽排序
+ * 职责边界：
+ * - 只操作内存文档与上抛变更意图 不处理保存落盘
+ */
 import { computed, toRaw, watch, type Ref } from 'vue'
 import type {
   CardDocument,
   CardInstanceRecord,
-} from '../core/Card'
+} from '../entities/card/model'
 import type {
   ITreeNode,
   NodeTreeActionCalledPayload,

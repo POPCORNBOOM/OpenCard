@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 管理卡牌结构树 选择 重命名 增删块与拖拽重排
+ * 职责边界：
+ * - 只处理文档结构编辑与选择同步 不处理文件系统规则
+ */
 import { computed, type Ref } from 'vue'
 import {
   addBlockToContainer,
@@ -14,7 +20,7 @@ import {
   type SimpleContainerLocationInfo,
   isBlockContainer,
   isCardBlock,
-} from '../core/Card'
+} from '../entities/card/model'
 import type {
   ITreeNode,
   NodeTreeActionCalledPayload,

@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { CardBlock } from '../../core/Card'
+import { CardBlock } from '../../entities/card/model'
 import FlowContainerBlock from './FlowContainerBlock.vue'
 import ImageBlock from './ImageBlock.vue'
 import SimpleContainerBlock from './SimpleContainerBlock.vue'

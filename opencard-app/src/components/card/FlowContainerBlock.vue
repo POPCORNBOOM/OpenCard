@@ -8,7 +8,7 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { CardBlock as CardBlockModel, FlowContainerBlock } from '../../core/Card'
+import { CardBlock as CardBlockModel, FlowContainerBlock } from '../../entities/card/model'
 import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
 import CardBlock from './CardBlock.vue'
 import { cardEditorContextKey } from './cardEditorContext'

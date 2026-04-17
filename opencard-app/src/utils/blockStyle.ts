@@ -1,4 +1,4 @@
-import { AnchorPosition, BaseBlock, CSSValue } from '../core/Card'
+import { AnchorPosition, BaseBlock, CSSValue } from '../entities/card/model'
 
 type BlockStyleOptions = {
     disableTransform?: boolean

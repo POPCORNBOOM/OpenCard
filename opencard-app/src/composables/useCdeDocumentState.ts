@@ -4,7 +4,7 @@ import {
   toViewDoc,
   type CardDocument,
   type ParentLookup,
-} from '../core/Card'
+} from '../entities/card/model'
 
 type UseCdeDocumentStateOptions = {
   emitModelValueUpdate: (content: string) => void

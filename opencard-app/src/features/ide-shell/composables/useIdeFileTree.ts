@@ -1,3 +1,9 @@
+/**
+ * 模块说明：
+ * - 管理 IDE 文件树投影与项目树 已打开树选中同步
+ * 职责边界：
+ * - 只处理视图投影与交互编排 不处理底层文件规则
+ */
 import { computed, ref, watch, type Ref } from 'vue'
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { ITreeNode } from '../../../shared/ui/tree/tree.types'

@@ -73,13 +73,13 @@ import { useI18n } from 'vue-i18n'
 import {
   type PropertyEditorInput,
   type PropertyEditorRecord,
-} from '../../core/Card'
+} from '../../entities/card/model'
 import {
   getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
   type PropertyDatatype,
   type PropertyEditorSchemaOverride,
-} from '../../core/propertyEditorSchema'
+} from '../../entities/card/schema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
 import BackgroundPropertyField from './property-fields/BackgroundPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
