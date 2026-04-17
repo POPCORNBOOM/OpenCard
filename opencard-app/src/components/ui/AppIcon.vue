@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { resolveIcon, type IconDefinition, type IconName, type IconTone } from '../../core/icons/iconRegistry'
+import { resolveIcon, type IconDefinition, type IconName, type IconTone } from '../../shared/ui/icon/iconRegistry'
 
 defineOptions({
   inheritAttrs: false,

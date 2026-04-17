@@ -1,4 +1,4 @@
-import type { IconName, IconTone } from '../../../core/icons/iconRegistry'
+import type { IconName, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
 export interface FileTypeDefinition {
   id: string
