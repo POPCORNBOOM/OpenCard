@@ -164,6 +164,7 @@ const treeActions = new Map<string, ActionDefinition>([
       { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
     ],
   }],
+  ['duplicate-selected', { key: 'duplicate-selected', icon: 'codicon-copy', title: '复制选中' }],
   ['delete-selected', { key: 'delete-selected', icon: 'codicon-trash', title: '删除选中' }],
   ['add', {
     key: 'add',
@@ -176,9 +177,10 @@ const treeActions = new Map<string, ActionDefinition>([
       { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
     ],
   }],
+  ['duplicate', { key: 'duplicate', icon: 'codicon-copy', title: '复制' }],
   ['delete', { key: 'delete', icon: 'codicon-trash', title: '删除' }],
 ])
-const treeActionKeys = ['add-root', 'delete-selected']
+const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
 const instanceTreeActions = new Map<string, ActionDefinition>([
   ['add-instance', { key: 'add-instance', icon: 'codicon-add', title: '新建实例' }],
   ['duplicate-instance', { key: 'duplicate-instance', icon: 'codicon-copy', title: '复制' }],

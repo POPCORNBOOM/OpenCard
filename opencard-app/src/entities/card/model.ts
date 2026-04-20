@@ -681,7 +681,7 @@ export const blockToTreeNode = (
         parent,
         isExpandable: isBlockContainer(block),
         icon: getBlockTreeIcon(block.type),
-        actionKeys: isBlockContainer(block) ? ['add', 'delete'] : ['delete'], // 应该是container有add，任何block都有delete
+        actionKeys: isBlockContainer(block) ? ['add', 'duplicate', 'delete'] : ['duplicate', 'delete'],
         metadata: { block, location } satisfies CardTreeNodeMetadata,
     }
 

@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只处理文档结构编辑与选择同步 不处理文件系统规则
  */
-import { computed, type Ref } from 'vue'
+import { computed, toRaw, type Ref } from 'vue'
 import {
   addBlockToContainer,
   blockToTreeNode,
@@ -114,8 +114,14 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       case 'add-flow-container-block':
         if (isBlockContainer(callerObject)) createBlockAt(callerObject, 'flow-container-block')
         return
+      case 'duplicate':
+        if (isCardBlock(callerObject)) duplicateBlock(callerObject)
+        return
       case 'delete':
         if (isCardBlock(callerObject)) deleteBlock(callerObject)
+        return
+      case 'duplicate-selected':
+        if (isCardBlock(selectedBlock.value)) duplicateBlock(selectedBlock.value)
         return
       case 'delete-selected':
         if (isCardBlock(selectedBlock.value)) deleteBlock(selectedBlock.value)
@@ -264,6 +270,96 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
     options.selectedBlockKeys.value = options.selectedBlockKeys.value.filter((key) => key !== block.id)
     options.markDocumentChanged()
+  }
+
+  function duplicateBlock(block: CardBlock) {
+    const container = options.parentLookup.value.get(block.id)
+    if (!container) {
+      return
+    }
+
+    const sourceIndex = container.children.findIndex((child) => child.block.id === block.id)
+    if (sourceIndex === -1) {
+      return
+    }
+
+    const sourceChild = container.children[sourceIndex]
+    const duplicatedBlock = cloneBlockWithNewIds(sourceChild.block)
+    const insertionIndex = sourceIndex + 1
+    const duplicatedLocation = cloneLocationForDuplicate(sourceChild.location, container, insertionIndex)
+
+    addBlockToContainer(
+      container,
+      duplicatedBlock,
+      options.parentLookup.value,
+      duplicatedLocation,
+      insertionIndex,
+    )
+
+    const duplicatedNode = findTreeNodeByBlockId(blockTree.value, duplicatedBlock.id)
+    options.selectedBlockKeys.value = duplicatedNode ? [duplicatedNode.key] : []
+    options.markDocumentChanged()
+  }
+
+  function cloneBlockWithNewIds(sourceBlock: CardBlock): CardBlock {
+    const rawSourceBlock = toRaw(sourceBlock) as CardBlock
+    const rootDisplayName = typeof rawSourceBlock.name === 'string' && rawSourceBlock.name.trim().length > 0
+      ? rawSourceBlock.name.trim()
+      : rawSourceBlock.id
+
+    let duplicatedBlock: CardBlock
+    try {
+      duplicatedBlock = structuredClone(rawSourceBlock) as CardBlock
+    } catch {
+      duplicatedBlock = JSON.parse(JSON.stringify(rawSourceBlock)) as CardBlock
+    }
+
+    remapDuplicatedBlockIds(duplicatedBlock, true, rootDisplayName)
+    return duplicatedBlock
+  }
+
+  function remapDuplicatedBlockIds(block: CardBlock, isRoot: boolean, rootDisplayName?: string) {
+    block.id = `${block.type}-${crypto.randomUUID()}`
+
+    if (isRoot) {
+      const nextName = rootDisplayName && rootDisplayName.trim().length > 0
+        ? rootDisplayName.trim()
+        : (typeof block.name === 'string' && block.name.trim().length > 0 ? block.name.trim() : block.id)
+      block.name = `${nextName} 副本`
+    }
+
+    if (!isBlockContainer(block)) {
+      return
+    }
+
+    for (const child of block.children) {
+      remapDuplicatedBlockIds(child.block, false)
+    }
+  }
+
+  function cloneLocationForDuplicate(
+    location: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    targetContainer: BlockContainer,
+    insertionIndex: number,
+  ): SimpleContainerLocationInfo | FlowContainerLocationInfo {
+    if (targetContainer.type === 'flow-container-block') {
+      return {
+        type: 'flow-container-location',
+        index: insertionIndex,
+        align: location.type === 'flow-container-location' ? location.align : undefined,
+      }
+    }
+
+    if (location.type === 'simple-container-location') {
+      return { ...location }
+    }
+
+    return {
+      type: 'simple-container-location',
+      anchor: 'lt',
+      x: 0,
+      y: 0,
+    }
   }
 
   function getNodeBlock(node?: ITreeNode): CardBlock | null {
