@@ -7,7 +7,14 @@
 import { computed, nextTick, ref, type Ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
-import { applyInstance, toViewDoc, type CardDocument } from '../../../entities/card/model'
+import {
+  applyInstance,
+  prepareDocumentForRender,
+  resolveReferences,
+  type CardDocument,
+  type CardInstanceRecord,
+  type ReferenceResolveIssue,
+} from '../../../entities/card/model'
 import { resolveFileType } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
@@ -30,6 +37,7 @@ type CardExportContext = {
 type ExportQueueEntry = {
   fileName: string
   document: CardDocument
+  issues: ReferenceResolveIssue[]
 }
 
 function stripFileExtension(fileName: string) {
@@ -129,7 +137,7 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
   const exportQueue: ExportQueueEntry[] = [
     {
       fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      document: applyInstance(document, null),
+      ...buildRenderableCardDocument(document, null),
     },
   ]
 
@@ -137,11 +145,25 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
     const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
     exportQueue.push({
       fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      document: applyInstance(document, instance),
+      ...buildRenderableCardDocument(document, instance),
     })
   }
 
   return exportQueue
+}
+
+function buildRenderableCardDocument(
+  document: CardDocument,
+  instance: CardInstanceRecord | null,
+): { document: CardDocument, issues: ReferenceResolveIssue[] } {
+  const safeSource = prepareDocumentForRender(document)
+  const projected = applyInstance(safeSource, instance)
+  const resolved = resolveReferences(projected)
+
+  return {
+    document: prepareDocumentForRender(resolved.document),
+    issues: resolved.issues,
+  }
 }
 
 export function useIdeExport(options: UseIdeExportOptions) {
@@ -171,9 +193,10 @@ export function useIdeExport(options: UseIdeExportOptions) {
     }
 
     try {
+      const parsed = JSON.parse(currentContent) as unknown
       return {
         fileNameStem: sanitizeFileNameSegment(stripFileExtension(session.name), 'card'),
-        document: toViewDoc(JSON.parse(currentContent)),
+        document: parsed as CardDocument,
       }
     } catch (error) {
       console.error('解析 .opencard 失败:', error)
@@ -225,7 +248,12 @@ export function useIdeExport(options: UseIdeExportOptions) {
     }
 
     try {
-      const dataUrl = await renderCardDocumentToImage(context.document)
+      const renderResult = buildRenderableCardDocument(context.document, null)
+      if (renderResult.issues.length > 0) {
+        console.warn('[export] resolveReferences issues:', renderResult.issues)
+      }
+
+      const dataUrl = await renderCardDocumentToImage(renderResult.document)
       await writeFile(savePath, dataUrlToBytes(dataUrl))
       console.log('图片已保存到:', savePath)
     } catch (error) {
@@ -255,6 +283,10 @@ export function useIdeExport(options: UseIdeExportOptions) {
       const exportQueue = buildCardExportQueue(context.fileNameStem, context.document)
 
       for (const entry of exportQueue) {
+        if (entry.issues.length > 0) {
+          console.warn(`[export] resolveReferences issues in ${entry.fileName}:`, entry.issues)
+        }
+
         const dataUrl = await renderCardDocumentToImage(entry.document)
         const targetPath = buildFilePath(exportDirectory, entry.fileName)
         await writeFile(targetPath, dataUrlToBytes(dataUrl))

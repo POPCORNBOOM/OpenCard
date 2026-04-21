@@ -8,7 +8,7 @@ function createDocumentForTreeReorder(): CardDocument {
     type: 'card-document',
     name: 'test',
     id: 'doc-1',
-    version: 1,
+    version: '1.0.0',
     width: 1000,
     height: 600,
     children: [

@@ -22,8 +22,9 @@
 - `isHidden` 字段无论是否存在于 record 都不显示。
 
 分类与本地化约束：
-- 分类标题优先走 `categoryKey`，缺失回退 `category`，再回退 source 标题。
+- 分类标题从 schema 的 `categoryId` 组装 `propertyEditor.categories.<categoryId>`；缺失 `categoryId` 时回退 source 标题。
 - source 标题优先走 `propertyEditor.sources.<key>`。
+- 字段标题默认按 `propertyEditor.fields.<fieldKey>` 解析；若 schema 提供 `displayFieldKey`，按该 key 解析（用于语义别名字段）。
 - schema 外字段统一归入 `propertyEditor.categories.uncategorized`。
 
 不可回退约束：

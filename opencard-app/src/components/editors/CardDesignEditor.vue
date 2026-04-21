@@ -89,10 +89,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import {
-  toViewDoc,
+  prepareDocumentForRender,
   applyInstance,
+  resolveReferences,
   type CardBlock,
   type CardDocument,
   type CardTreeNodeMetadata,
@@ -133,6 +135,7 @@ const BLUEPRINT_CARD_ID = '__blueprint__'
 // 组件输入输出
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
+const { t } = useI18n()
 
 // 文档与编辑器状态
 const blockTreeExpanded = ref(true)
@@ -205,6 +208,7 @@ const {
   emitModelValueUpdate: (content) => emit('update:modelValue', content),
   emitModified: (modified) => emit('modified', modified),
   emitSave: () => emit('save'),
+  getDefaultDocumentName: () => t('fileTypes.opencard'),
   resetSelection: () => {
     selectedBlockKeys.value = []
     selectedCardKeys.value = []
@@ -364,12 +368,16 @@ const viewDoc = computed<CardDocument | null>(() => {
     return null
   }
 
-  if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return toViewDoc(cardDoc.value)
+  const projected = applyInstance(
+    cardDoc.value,
+    selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null,
+  )
+  const resolved = resolveReferences(projected)
+  if (resolved.issues.length > 0) {
+    console.warn('[cde] resolveReferences issues:', resolved.issues)
   }
 
-  const projected = applyInstance(cardDoc.value, selectedCard.value)
-  return toViewDoc(projected)
+  return prepareDocumentForRender(resolved.document)
 })
 
 function toggleInstancePanel() {

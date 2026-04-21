@@ -167,7 +167,7 @@ import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType } from '../features/workspace/model/fileTypes'
 import {
-  toViewDoc,
+  prepareDocumentForRender,
   type CardDocument,
 } from '../entities/card/model'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
@@ -300,7 +300,7 @@ watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
   }
 
   try {
-    const cardDoc = toViewDoc(JSON.parse(newContent))
+    const cardDoc = prepareDocumentForRender(JSON.parse(newContent) as CardDocument)
     previewCardDoc.value = cardDoc
     showPreview.value = true
   } catch (error) {

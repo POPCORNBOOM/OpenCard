@@ -10,3 +10,7 @@
 边界约束：
 - 可依赖共享协议类型（`shared/ui/tree/tree.types.ts`）。
 - 禁止依赖任何具体 UI 组件文件（`.vue`）。
+
+父引用解析约束：
+- `resolveParentFieldReferenceKey` 仅负责引用 token 到 `ownerId:field` 的纯映射，不做字段读取与替换副作用。
+- 支持 `p.p...:field`（父链）与 `d:field`（文档）两类来源；`p` 引用链遇到 `card-document` 即返回空。

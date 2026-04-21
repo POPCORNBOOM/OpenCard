@@ -170,8 +170,7 @@ const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
 const readonlyExtraFieldDefinition: EditorPropertyDefinition = {
   datatype: 'string',
   isReadonly: true,
-  category: 'Other',
-  categoryKey: 'propertyEditor.categories.uncategorized',
+  categoryId: 'uncategorized',
 }
 
 const { openMenu } = useFloatingMenu()
@@ -271,11 +270,11 @@ function ensureCategory(
   definition: EditorPropertyDefinition,
   sourceFallbackKey: string,
 ): PropertyEditorCategory {
-  const categoryKey = definition.categoryKey ?? `fallback:${sourceFallbackKey}`
-  const categoryTitle = resolveLocalizedText(
-    definition.categoryKey,
-    definition.category ?? getSourceTitle(sourceFallbackKey),
-  )
+  const categoryId = definition.categoryId
+  const categoryKey = categoryId ? `category:${categoryId}` : `fallback:${sourceFallbackKey}`
+  const categoryTitle = categoryId
+    ? resolveLocalizedText(`propertyEditor.categories.${categoryId}`, categoryId)
+    : getSourceTitle(sourceFallbackKey)
 
   let category = categoryMap.get(categoryKey)
   if (!category) {
@@ -311,7 +310,8 @@ function getSourceTitle(sourceKey: string): string {
 }
 
 function getEntryLabel(fieldKey: string, definition: EditorPropertyDefinition): string {
-  return resolveLocalizedText(definition.labelKey, definition.label ?? fieldKey)
+  const localizedFieldKey = definition.displayFieldKey ?? fieldKey
+  return resolveLocalizedText(`propertyEditor.fields.${localizedFieldKey}`, fieldKey)
 }
 
 function resolveLocalizedText(messageKey: string | undefined, fallback: string): string {

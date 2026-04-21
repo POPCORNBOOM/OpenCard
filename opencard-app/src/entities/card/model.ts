@@ -5,7 +5,7 @@
  * - 维护领域结构真相 不包含组件渲染实现
  */
 import type { ITreeNode } from '../../shared/ui/tree/tree.types'
-import { fillDefaults } from './schema'
+import { fillDefaults, isReferenceFieldReadable } from './schema'
 import type { PropertyEditorSchemaOverride } from './schema'
 
 // Block and document data models.
@@ -102,11 +102,11 @@ export type CardDocument = {
     type: "card-document"
     name: string
     id: string
-    version: 1
+    version: string
     width: number
     height: number
     children: RootChild[]
-    instances?: CardInstanceRecord[]
+    instances: CardInstanceRecord[]
 }
 
 export type CardInstanceRecord = {
@@ -137,6 +137,23 @@ function toRecordArray(value: unknown): Record<string, unknown>[] {
 
     return value
         .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+}
+
+function toNonEmptyString(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null
+    }
+
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+        return null
+    }
+
+    return trimmed
+}
+
+function toFiniteNumber(value: unknown): number | null {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
 function resolveBlockType(typeName: unknown): CardBlock['type'] {
@@ -240,26 +257,64 @@ export function toViewBlock(blockInput: unknown): CardBlock {
     }
 }
 
-// Materialize a raw document into a render-safe view document for UI usage.
-export function toViewDoc(documentInput: unknown): CardDocument {
-    const source = toRecord(documentInput)
-    const materialized = fillDefaults('card-document', source) as CardDocument
-    const documentId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
-        ? materialized.id
-        : createBlockId('card-document')
+export type ImportDocumentOptions = {
+    defaultName?: string
+}
 
+// Import checks: normalize only document-level identity/version/size defaults.
+export function prepareDocumentForImport(
+    documentInput: unknown,
+    options: ImportDocumentOptions = {}
+): CardDocument {
+    const source = toRecord(documentInput)
+    const fallbackName = toNonEmptyString(options.defaultName) ?? 'OpenCard Document'
+    const documentId = toNonEmptyString(source.id) ?? createBlockId('card-document')
+    const width = toFiniteNumber(source.width) ?? 540
+    const height = toFiniteNumber(source.height) ?? 850
+    const name = toNonEmptyString(source.name) ?? fallbackName
+    const version = toNonEmptyString(source.version) ?? '1.0.0'
+    const children = Array.isArray(source.children)
+        ? source.children as RootChild[]
+        : []
+    const instances = Array.isArray(source.instances)
+        ? source.instances as CardInstanceRecord[]
+        : []
+
+    return {
+        type: 'card-document',
+        id: documentId,
+        width,
+        height,
+        name,
+        version,
+        children,
+        instances,
+    }
+}
+
+// Render precheck: ensure renderer-facing structure is safe to traverse.
+export function prepareDocumentForRender(documentInput: CardDocument): CardDocument {
+    const source = toRecord(documentInput)
+    const documentId = toNonEmptyString(source.id) ?? createBlockId('card-document')
+    const width = toFiniteNumber(source.width) ?? 540
+    const height = toFiniteNumber(source.height) ?? 850
+    const name = typeof source.name === 'string' ? source.name : ''
+    const version = toNonEmptyString(source.version) ?? '1.0.0'
     const children = toRecordArray(source.children).map((childInput) => ({
         block: toViewBlock(childInput.block),
         location: materializeSimpleContainerLocation(childInput.location),
     }))
-
     const instances = toRecordArray(source.instances).map((instanceInput) =>
         materializeCardInstanceRecord(instanceInput)
     )
 
     return {
-        ...materialized,
+        type: 'card-document',
         id: documentId,
+        width,
+        height,
+        name,
+        version,
         children,
         instances,
     }
@@ -419,6 +474,11 @@ export function createBlock(type: CardBlock['type'], init: unknown = {}): CardBl
 
 export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardDocument
 export type ParentLookup = Map<string, BlockContainer>
+const parentFieldReferencePattern = /^(p(?:\.p)*)\s*:\s*([^\s:][^:]*)$/
+const documentFieldReferencePattern = /^d\s*:\s*([^\s:][^:]*)$/
+const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
+const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
+const maxReferenceDepth = 24
 
 // Default child placement for each container type.
 function createDefaultSimpleContainerLocation(): SimpleContainerLocationInfo {
@@ -446,6 +506,474 @@ export function buildParentLookup(document: CardDocument): ParentLookup {
     }
 
     return lookup
+}
+
+type FieldReferenceDescriptor =
+    | {
+        kind: 'parent'
+        parentDepth: number
+        fieldKey: string
+    }
+    | {
+        kind: 'document'
+        fieldKey: string
+    }
+
+function parseFieldReference(reference: string): FieldReferenceDescriptor | null {
+    const normalized = reference.trim()
+    const documentMatch = documentFieldReferencePattern.exec(normalized)
+    if (documentMatch) {
+        const fieldKey = documentMatch[1].trim()
+        if (!fieldKey) {
+            return null
+        }
+        return {
+            kind: 'document',
+            fieldKey,
+        }
+    }
+
+    const matched = parentFieldReferencePattern.exec(normalized)
+    if (!matched) {
+        return null
+    }
+
+    const parentChain = matched[1]
+    const fieldKey = matched[2].trim()
+    if (!fieldKey) {
+        return null
+    }
+
+    const parentDepth = parentChain.split('.').length
+    return {
+        kind: 'parent',
+        parentDepth,
+        fieldKey,
+    }
+}
+
+// Resolve `p...:field` and `d:field` references to a concrete `ownerId:field` key.
+export function resolveParentFieldReferenceKey(
+    blockId: string,
+    reference: string,
+    parentLookup: ParentLookup
+): string | null {
+    const descriptor = parseFieldReference(reference)
+    if (!descriptor) {
+        return null
+    }
+
+    if (descriptor.kind === 'document') {
+        let currentBlockId = blockId
+        while (true) {
+            const parent = parentLookup.get(currentBlockId)
+            if (!parent) {
+                return null
+            }
+            if (parent.type === 'card-document') {
+                return `${parent.id}:${descriptor.fieldKey}`
+            }
+            currentBlockId = parent.id
+        }
+    }
+
+    let currentBlockId = blockId
+    for (let depth = 0; depth < descriptor.parentDepth; depth += 1) {
+        const parent = parentLookup.get(currentBlockId)
+        if (!parent || parent.type === 'card-document') {
+            return null
+        }
+
+        currentBlockId = parent.id
+    }
+
+    return `${currentBlockId}:${descriptor.fieldKey}`
+}
+
+export type ReferenceResolveIssueCode =
+    | 'INVALID_TOKEN'
+    | 'SOURCE_NOT_FOUND'
+    | 'FIELD_NOT_ALLOWED'
+    | 'FIELD_NOT_FOUND'
+    | 'CYCLE'
+    | 'MAX_DEPTH'
+    | 'TYPE_MISMATCH'
+
+export type ReferenceResolveIssue = {
+    path: string
+    token: string
+    code: ReferenceResolveIssueCode
+    reason: string
+}
+
+export type ResolveReferencesResult = {
+    document: CardDocument
+    issues: ReferenceResolveIssue[]
+}
+
+type ReferenceOwnerKind = 'document' | 'block' | 'location'
+type ReferenceOwner = {
+    kind: ReferenceOwnerKind
+    key: string
+    id: string
+    typeName: string
+    source: Record<string, unknown>
+    target: Record<string, unknown>
+    pathPrefix: string
+    anchorBlockId: string | null
+}
+
+type ResolveFieldResult =
+    | { ok: true, value: unknown }
+    | { ok: false, value: unknown }
+
+type ResolveMemoState = 'resolving' | 'done' | 'failed'
+
+// Resolve field reference templates before materializing render defaults.
+export function resolveReferences(document: CardDocument): ResolveReferencesResult {
+    const sourceDocument = document
+    const cloneBlockTree = (block: CardBlock): CardBlock => {
+        if (block.type === 'simple-container-block') {
+            return {
+                ...block,
+                children: block.children.map((child) => ({
+                    block: cloneBlockTree(child.block),
+                    location: { ...child.location },
+                })),
+            }
+        }
+
+        if (block.type === 'flow-container-block') {
+            return {
+                ...block,
+                children: block.children.map((child) => ({
+                    block: cloneBlockTree(child.block),
+                    location: { ...child.location },
+                })),
+            }
+        }
+
+        return { ...block }
+    }
+
+    const targetDocument: CardDocument = {
+        ...document,
+        children: document.children.map((child) => ({
+            block: cloneBlockTree(child.block),
+            location: { ...child.location },
+        })),
+        instances: document.instances?.map((instance) => ({
+            ...instance,
+            data: { ...instance.data },
+        })),
+    }
+    const parentLookup = buildParentLookup(sourceDocument)
+    const issues: ReferenceResolveIssue[] = []
+    const valueMemo = new Map<string, unknown>()
+    const stateMemo = new Map<string, ResolveMemoState>()
+    const owners: ReferenceOwner[] = []
+    const targetOwnersById = new Map<string, ReferenceOwner>()
+    const documentOwner: ReferenceOwner = {
+        kind: 'document',
+        key: `doc:${sourceDocument.id}`,
+        id: sourceDocument.id,
+        typeName: sourceDocument.type,
+        source: sourceDocument as unknown as Record<string, unknown>,
+        target: targetDocument as unknown as Record<string, unknown>,
+        pathPrefix: '$',
+        anchorBlockId: null,
+    }
+    owners.push(documentOwner)
+    targetOwnersById.set(documentOwner.id, documentOwner)
+
+    const visitChildren = (
+        sourceChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+        targetChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+        parentPath: string
+    ): void => {
+        for (let index = 0; index < sourceChildren.length; index += 1) {
+            const sourceChild = sourceChildren[index]
+            const targetChild = targetChildren[index]
+            if (!sourceChild || !targetChild) {
+                continue
+            }
+
+            const childPath = `${parentPath}.children[${index}]`
+            const sourceBlock = sourceChild.block
+            const targetBlock = targetChild.block
+
+            const blockOwner: ReferenceOwner = {
+                kind: 'block',
+                key: `block:${sourceBlock.id}`,
+                id: sourceBlock.id,
+                typeName: sourceBlock.type,
+                source: sourceBlock as unknown as Record<string, unknown>,
+                target: targetBlock as unknown as Record<string, unknown>,
+                pathPrefix: `${childPath}.block`,
+                anchorBlockId: sourceBlock.id,
+            }
+            owners.push(blockOwner)
+            targetOwnersById.set(blockOwner.id, blockOwner)
+
+            const sourceLocation = sourceChild.location as unknown as Record<string, unknown>
+            const targetLocation = targetChild.location as unknown as Record<string, unknown>
+            const locationType = typeof sourceLocation.type === 'string'
+                ? sourceLocation.type
+                : sourceChild.location.type
+            owners.push({
+                kind: 'location',
+                key: `layout:${sourceBlock.id}`,
+                id: sourceBlock.id,
+                typeName: locationType,
+                source: sourceLocation,
+                target: targetLocation,
+                pathPrefix: `${childPath}.location`,
+                anchorBlockId: sourceBlock.id,
+            })
+
+            if (isBlockContainer(sourceBlock) && isBlockContainer(targetBlock)) {
+                visitChildren(
+                    sourceBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+                    targetBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+                    `${childPath}.block`
+                )
+            }
+        }
+    }
+
+    visitChildren(
+        sourceDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+        targetDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+        '$'
+    )
+
+    function buildFieldPath(owner: ReferenceOwner, fieldKey: string): string {
+        return `${owner.pathPrefix}.${fieldKey}`
+    }
+
+    function buildMemoKey(owner: ReferenceOwner, fieldKey: string): string {
+        return `${owner.key}:${fieldKey}`
+    }
+
+    function pushIssue(
+        path: string,
+        token: string,
+        code: ReferenceResolveIssueCode,
+        reason: string
+    ): void {
+        issues.push({
+            path,
+            token,
+            code,
+            reason,
+        })
+    }
+
+    function resolveTokenValue(
+        owner: ReferenceOwner,
+        tokenBody: string,
+        fieldPath: string,
+        recursionDepth: number
+    ): ResolveFieldResult {
+        if (recursionDepth > maxReferenceDepth) {
+            pushIssue(fieldPath, `{{${tokenBody}}}`, 'MAX_DEPTH', `引用深度超过限制 ${maxReferenceDepth}`)
+            return { ok: false, value: null }
+        }
+
+        const tokenDescriptor = parseFieldReference(tokenBody)
+        if (!tokenDescriptor) {
+            pushIssue(fieldPath, `{{${tokenBody}}}`, 'INVALID_TOKEN', '无效的引用语法')
+            return { ok: false, value: null }
+        }
+
+        let targetReference: string | null = null
+        if (owner.anchorBlockId) {
+            targetReference = resolveParentFieldReferenceKey(owner.anchorBlockId, tokenBody, parentLookup)
+            if (!targetReference) {
+                pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', '无法解析引用来源')
+                return { ok: false, value: null }
+            }
+        } else if (tokenDescriptor.kind === 'document') {
+            targetReference = `${documentOwner.id}:${tokenDescriptor.fieldKey}`
+        } else {
+            pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', '文档级字段不支持父链引用')
+            return { ok: false, value: null }
+        }
+
+        const separatorIndex = targetReference.indexOf(':')
+        if (separatorIndex < 1) {
+            pushIssue(fieldPath, `{{${tokenBody}}}`, 'INVALID_TOKEN', '解析后的引用目标无效')
+            return { ok: false, value: null }
+        }
+
+        const targetOwnerId = targetReference.slice(0, separatorIndex)
+        const targetFieldKey = targetReference.slice(separatorIndex + 1)
+        const targetOwner = targetOwnersById.get(targetOwnerId)
+        if (!targetOwner) {
+            pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', `未找到引用对象 ${targetOwnerId}`)
+            return { ok: false, value: null }
+        }
+
+        if (!isReferenceFieldReadable(targetOwner.typeName, targetFieldKey)) {
+            pushIssue(
+                fieldPath,
+                `{{${tokenBody}}}`,
+                'FIELD_NOT_ALLOWED',
+                `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`
+            )
+            return { ok: false, value: null }
+        }
+
+        if (!Object.prototype.hasOwnProperty.call(targetOwner.source, targetFieldKey)) {
+            pushIssue(
+                fieldPath,
+                `{{${tokenBody}}}`,
+                'FIELD_NOT_FOUND',
+                `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`
+            )
+            return { ok: false, value: null }
+        }
+
+        const targetMemoKey = buildMemoKey(targetOwner, targetFieldKey)
+        if (stateMemo.get(targetMemoKey) === 'resolving') {
+            pushIssue(
+                fieldPath,
+                `{{${tokenBody}}}`,
+                'CYCLE',
+                `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`
+            )
+            return { ok: false, value: null }
+        }
+
+        return resolveOwnerField(targetOwner, targetFieldKey, recursionDepth + 1)
+    }
+
+    function resolveStringField(
+        owner: ReferenceOwner,
+        fieldKey: string,
+        sourceValue: string,
+        recursionDepth: number
+    ): ResolveFieldResult {
+        const fieldPath = buildFieldPath(owner, fieldKey)
+        if (!sourceValue.includes('{{')) {
+            return { ok: true, value: sourceValue }
+        }
+
+        const singleTokenMatch = singleTemplateTokenPattern.exec(sourceValue)
+        if (singleTokenMatch) {
+            const tokenBody = singleTokenMatch[1].trim()
+            const tokenResult = resolveTokenValue(owner, tokenBody, fieldPath, recursionDepth + 1)
+            if (!tokenResult.ok) {
+                return { ok: false, value: sourceValue }
+            }
+            return tokenResult
+        }
+
+        let hasToken = false
+        let resolvedValue = ''
+        let cursor = 0
+        templateTokenPattern.lastIndex = 0
+
+        while (true) {
+            const matched = templateTokenPattern.exec(sourceValue)
+            if (!matched) {
+                break
+            }
+            hasToken = true
+            resolvedValue += sourceValue.slice(cursor, matched.index)
+
+            const tokenBody = matched[1].trim()
+            const tokenResult = resolveTokenValue(owner, tokenBody, fieldPath, recursionDepth + 1)
+            if (!tokenResult.ok) {
+                return { ok: false, value: sourceValue }
+            }
+
+            if (
+                tokenResult.value !== null
+                && tokenResult.value !== undefined
+                && typeof tokenResult.value !== 'string'
+                && typeof tokenResult.value !== 'number'
+                && typeof tokenResult.value !== 'boolean'
+                && typeof tokenResult.value !== 'bigint'
+            ) {
+                pushIssue(
+                    fieldPath,
+                    matched[0],
+                    'TYPE_MISMATCH',
+                    '内插值仅支持 string/number/boolean/bigint/null/undefined'
+                )
+                return { ok: false, value: sourceValue }
+            }
+
+            resolvedValue += tokenResult.value == null ? '' : String(tokenResult.value)
+            cursor = matched.index + matched[0].length
+        }
+
+        if (!hasToken) {
+            return { ok: true, value: sourceValue }
+        }
+
+        resolvedValue += sourceValue.slice(cursor)
+        return { ok: true, value: resolvedValue }
+    }
+
+    function resolveOwnerField(
+        owner: ReferenceOwner,
+        fieldKey: string,
+        recursionDepth: number
+    ): ResolveFieldResult {
+        const memoKey = buildMemoKey(owner, fieldKey)
+        if (valueMemo.has(memoKey)) {
+            return { ok: true, value: valueMemo.get(memoKey) }
+        }
+
+        if (stateMemo.get(memoKey) === 'failed') {
+            return { ok: false, value: owner.source[fieldKey] }
+        }
+
+        if (recursionDepth > maxReferenceDepth) {
+            pushIssue(
+                buildFieldPath(owner, fieldKey),
+                `${owner.id}:${fieldKey}`,
+                'MAX_DEPTH',
+                `引用深度超过限制 ${maxReferenceDepth}`
+            )
+            stateMemo.set(memoKey, 'failed')
+            return { ok: false, value: owner.source[fieldKey] }
+        }
+
+        const sourceValue = owner.source[fieldKey]
+        if (typeof sourceValue !== 'string') {
+            const stableValue = owner.target[fieldKey]
+            valueMemo.set(memoKey, stableValue)
+            stateMemo.set(memoKey, 'done')
+            return { ok: true, value: stableValue }
+        }
+
+        stateMemo.set(memoKey, 'resolving')
+        const resolved = resolveStringField(owner, fieldKey, sourceValue, recursionDepth + 1)
+        if (!resolved.ok) {
+            stateMemo.set(memoKey, 'failed')
+            return resolved
+        }
+
+        valueMemo.set(memoKey, resolved.value)
+        stateMemo.set(memoKey, 'done')
+        return resolved
+    }
+
+    for (const owner of owners) {
+        const fieldKeys = Object.keys(owner.source)
+        for (const fieldKey of fieldKeys) {
+            const resolved = resolveOwnerField(owner, fieldKey, 0)
+            owner.target[fieldKey] = resolved.value
+        }
+    }
+
+    return {
+        document: targetDocument,
+        issues,
+    }
 }
 
 function registerBlockSubtree(

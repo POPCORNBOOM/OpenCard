@@ -11,10 +11,9 @@ type EditorPropertyBase = {
     isArray?: boolean
     isReadonly?: boolean
     resettable?: boolean
-    label?: string
-    labelKey?: string
-    category?: string
-    categoryKey?: string
+    referenceReadable?: boolean
+    categoryId?: PropertyEditorCategoryId
+    displayFieldKey?: string
     defaultValue?: unknown
 }
 
@@ -80,141 +79,103 @@ type PropertyEditorCategoryId =
     | 'typography'
     | 'position'
     | 'flow'
+    | 'uncategorized'
 
 const textModeOptions = ['plain', 'markdown', 'richtext'] as const
 const textWritingModeOptions = ['horizontal-tb', 'vertical-rl', 'vertical-lr'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
 const cssLengthAutocomplete = ['px', '%'] as const
 
-const propertyEditorCategoryText: Record<PropertyEditorCategoryId, { label: string; key: string }> = {
-    identity: { label: 'Identity', key: 'propertyEditor.categories.identity' },
-    layout: { label: 'Layout', key: 'propertyEditor.categories.layout' },
-    transform: { label: 'Transform', key: 'propertyEditor.categories.transform' },
-    appearance: { label: 'Appearance', key: 'propertyEditor.categories.appearance' },
-    data: { label: 'Data', key: 'propertyEditor.categories.data' },
-    content: { label: 'Content', key: 'propertyEditor.categories.content' },
-    typography: { label: 'Typography', key: 'propertyEditor.categories.typography' },
-    position: { label: 'Position', key: 'propertyEditor.categories.position' },
-    flow: { label: 'Flow', key: 'propertyEditor.categories.flow' },
-}
-
-function createLocalizedPropertyText(
-    label: string,
-    fieldKey: string,
-    categoryId: PropertyEditorCategoryId
-): Pick<EditorPropertyBase, 'label' | 'labelKey' | 'category' | 'categoryKey'> {
-    const categoryText = propertyEditorCategoryText[categoryId]
-
-    return {
-        label,
-        labelKey: `propertyEditor.fields.${fieldKey}`,
-        category: categoryText.label,
-        categoryKey: categoryText.key,
-    }
-}
-
 function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
     return {
-        id: { datatype: 'string', isReadonly: true, minLength: 1, ...createLocalizedPropertyText('ID', 'id', 'identity') },
-        name: { datatype: 'string', ...createLocalizedPropertyText('Name', 'name', 'identity') },
-        type: { datatype: 'string', isReadonly: true, ...createLocalizedPropertyText('Type', 'type', 'identity') },
-        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Width', 'width', 'layout') },
-        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Height', 'height', 'layout') },
-        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Translate X', 'translateX', 'transform') },
-        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Translate Y', 'translateY', 'transform') },
-        scaleX: { datatype: 'number', ...createLocalizedPropertyText('Scale X', 'scaleX', 'transform') },
-        scaleY: { datatype: 'number', ...createLocalizedPropertyText('Scale Y', 'scaleY', 'transform') },
-        transformAnchor: { datatype: 'anchorPosition', ...createLocalizedPropertyText('Transform Anchor', 'transformAnchor', 'transform') },
-        zIndex: { datatype: 'number', ...createLocalizedPropertyText('Z-Index', 'zIndex', 'layout') },
-        rotation: { datatype: 'number', ...createLocalizedPropertyText('Rotation', 'rotation', 'transform') },
-        opacity: { datatype: 'number', min: 0, max: 1, ...createLocalizedPropertyText('Opacity', 'opacity', 'appearance') },
-        outline: { datatype: 'string', ...createLocalizedPropertyText('Outline', 'outline', 'appearance') },
-        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Border Radius', 'borderRadius', 'appearance') },
-        background: { datatype: 'background', ...createLocalizedPropertyText('Background', 'background', 'appearance') },
-        customCss: { datatype: 'string', ...createLocalizedPropertyText('Custom CSS', 'customCss', 'appearance') },
-        metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, ...createLocalizedPropertyText('Metadata', 'metadata', 'data') },
+        id: { datatype: 'string', isReadonly: true, minLength: 1, categoryId: 'identity' },
+        name: { datatype: 'string', categoryId: 'identity' },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
+        scaleX: { datatype: 'number', categoryId: 'transform' },
+        scaleY: { datatype: 'number', categoryId: 'transform' },
+        transformAnchor: { datatype: 'anchorPosition', categoryId: 'transform' },
+        zIndex: { datatype: 'number', categoryId: 'layout' },
+        rotation: { datatype: 'number', categoryId: 'transform' },
+        opacity: { datatype: 'number', min: 0, max: 1, categoryId: 'appearance' },
+        outline: { datatype: 'string', categoryId: 'appearance' },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance' },
+        background: { datatype: 'background', categoryId: 'appearance' },
+        customCss: { datatype: 'string', categoryId: 'appearance' },
+        metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, categoryId: 'data' },
     }
 }
 
-export const blockPropertyEditorSchema: PropertyEditorSchemaByType = {
+const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     'text-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        content: { datatype: 'string', ...createLocalizedPropertyText('Content', 'content', 'content') },
-        mode: { datatype: 'string', options: textModeOptions, ...createLocalizedPropertyText('Mode', 'mode', 'content') },
-        fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Font Size', 'fontSize', 'typography') },
-        fontFamily: { datatype: 'string', ...createLocalizedPropertyText('Font Family', 'fontFamily', 'typography') },
-        fontWeight: { datatype: 'string', ...createLocalizedPropertyText('Font Weight', 'fontWeight', 'typography') },
-        color: { datatype: 'color', enablePicker: true, enableCss: true, ...createLocalizedPropertyText('Text Color', 'textColor', 'appearance') },
-        textAlign: { datatype: 'alignPosition', ...createLocalizedPropertyText('Text Align', 'textAlign', 'typography') },
-        lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Line Height', 'lineHeight', 'typography') },
-        writingMode: { datatype: 'string', options: textWritingModeOptions, ...createLocalizedPropertyText('Text Flow', 'writingMode', 'typography') },
+        content: { datatype: 'string', categoryId: 'content' },
+        mode: { datatype: 'string', options: textModeOptions, categoryId: 'content' },
+        fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
+        fontFamily: { datatype: 'string', categoryId: 'typography' },
+        fontWeight: { datatype: 'string', categoryId: 'typography' },
+        color: { datatype: 'color', enablePicker: true, enableCss: true, categoryId: 'appearance', displayFieldKey: 'textColor' },
+        textAlign: { datatype: 'alignPosition', categoryId: 'typography' },
+        lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
+        writingMode: { datatype: 'string', options: textWritingModeOptions, categoryId: 'typography' },
     },
     'image-block': {
         ...createBaseBlockPropertyEditorSchema(),
         image: {
             datatype: 'filePath',
             minLength: 0,
-            ...createLocalizedPropertyText('Image', 'image', 'content'),
+            categoryId: 'content',
             extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
         },
         imagePath: {
             datatype: 'filePath',
             minLength: 0,
             isHidden: true,
-            ...createLocalizedPropertyText('Image Path', 'imagePath', 'data'),
+            categoryId: 'data',
             extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
         },
-        fit: { datatype: 'string', options: imageFitOptions, ...createLocalizedPropertyText('Fit', 'fit', 'appearance') },
+        fit: { datatype: 'string', options: imageFitOptions, categoryId: 'appearance' },
     },
     'simple-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, ...createLocalizedPropertyText('Children', 'children', 'data') },
+        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data' },
     },
     'flow-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        direction: { datatype: 'flowDirection', ...createLocalizedPropertyText('Direction', 'direction', 'layout') },
-        gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Gap', 'gap', 'layout') },
-        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, ...createLocalizedPropertyText('Children', 'children', 'data') },
+        direction: { datatype: 'flowDirection', categoryId: 'layout' },
+        gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data' },
     },
-}
-
-export const simpleContainerLocationPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
-    type: { datatype: 'string', isReadonly: true, ...createLocalizedPropertyText('Type', 'type', 'identity') },
-    anchor: { datatype: 'anchorPosition', ...createLocalizedPropertyText('Anchor', 'anchor', 'position') },
-    x: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('X', 'x', 'position') },
-    y: { datatype: 'string', autocomplete: cssLengthAutocomplete, ...createLocalizedPropertyText('Y', 'y', 'position') },
-}
-
-export const flowContainerLocationPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
-    type: { datatype: 'string', isReadonly: true, ...createLocalizedPropertyText('Type', 'type', 'identity') },
-    index: { datatype: 'number', min: 0, ...createLocalizedPropertyText('Index', 'index', 'flow') },
-    align: { datatype: 'alignPosition', ...createLocalizedPropertyText('Align', 'align', 'flow') },
-}
-
-const cardDocumentPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
-    type: { datatype: 'string', isReadonly: true, ...createLocalizedPropertyText('Type', 'type', 'identity') },
-    name: { datatype: 'string', ...createLocalizedPropertyText('Name', 'name', 'identity') },
-    id: { datatype: 'string', ...createLocalizedPropertyText('ID', 'id', 'identity') },
-    version: { datatype: 'number', min: 1, max: 1, ...createLocalizedPropertyText('Version', 'version', 'identity') },
-    width: { datatype: 'number', min: 0, ...createLocalizedPropertyText('Width', 'width', 'layout') },
-    height: { datatype: 'number', min: 0, ...createLocalizedPropertyText('Height', 'height', 'layout') },
-    children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, ...createLocalizedPropertyText('Children', 'children', 'data') },
-    instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, ...createLocalizedPropertyText('Instances', 'instances', 'data') },
-}
-
-const cardInstanceRecordPropertyEditorSchema: Record<string, EditorPropertyDefinition> = {
-    id: { datatype: 'string', ...createLocalizedPropertyText('ID', 'id', 'identity') },
-    name: { datatype: 'string', ...createLocalizedPropertyText('Name', 'name', 'identity') },
-    metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, ...createLocalizedPropertyText('Metadata', 'metadata', 'data') },
-    data: { datatype: 'object', objectType: 'instanceData', ...createLocalizedPropertyText('Data', 'data', 'data') },
-}
-
-const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
-    ...blockPropertyEditorSchema,
-    'simple-container-location': simpleContainerLocationPropertyEditorSchema,
-    'flow-container-location': flowContainerLocationPropertyEditorSchema,
-    'card-document': cardDocumentPropertyEditorSchema,
-    'card-instance-record': cardInstanceRecordPropertyEditorSchema,
+    'simple-container-location': {
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        anchor: { datatype: 'anchorPosition', categoryId: 'position' },
+        x: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
+        y: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
+    },
+    'flow-container-location': {
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        index: { datatype: 'number', min: 0, categoryId: 'flow' },
+        align: { datatype: 'alignPosition', categoryId: 'flow' },
+    },
+    'card-document': {
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        name: { datatype: 'string', categoryId: 'identity' },
+        id: { datatype: 'string', categoryId: 'identity' },
+        version: { datatype: 'string', categoryId: 'identity' },
+        width: { datatype: 'number', min: 0, categoryId: 'layout' },
+        height: { datatype: 'number', min: 0, categoryId: 'layout' },
+        children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data' },
+        instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data' },
+    },
+    'card-instance-record': {
+        id: { datatype: 'string', categoryId: 'identity' },
+        name: { datatype: 'string', categoryId: 'identity' },
+        metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, categoryId: 'data' },
+        data: { datatype: 'object', objectType: 'instanceData', categoryId: 'data' },
+    },
 }
 
 const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
@@ -329,9 +290,9 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         type: 'card-document',
         name: '',
         id: '',
-        version: 1,
-        width: 0,
-        height: 0,
+        version: '1.0.0',
+        width: 540,
+        height: 850,
         children: [],
         instances: [],
     },
@@ -385,6 +346,24 @@ export function getTypePropertyEditorSchema(typeName: string | undefined): Recor
         return {}
     }
     return propertyEditorSchemaByType[typeName] ?? {}
+}
+
+export function isReferenceFieldReadable(typeName: string | undefined, fieldName: string): boolean {
+    const schema = getTypePropertyEditorSchema(typeName)
+    const definition = schema[fieldName]
+    if (!definition) {
+        return true
+    }
+
+    if (definition.referenceReadable !== undefined) {
+        return definition.referenceReadable
+    }
+
+    if (definition.isHidden || definition.isArray || definition.datatype === 'object') {
+        return false
+    }
+
+    return true
 }
 
 // Return a cloned default value for one schema field, or undefined if absent.

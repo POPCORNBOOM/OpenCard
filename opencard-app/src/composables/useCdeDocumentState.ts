@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import {
   buildParentLookup,
-  toViewDoc,
+  prepareDocumentForImport,
   type CardDocument,
   type ParentLookup,
 } from '../entities/card/model'
@@ -11,59 +11,7 @@ type UseCdeDocumentStateOptions = {
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function isCardDocumentShape(value: unknown): value is CardDocument {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  if (value.type !== 'card-document') {
-    return false
-  }
-
-  if (typeof value.id !== 'string') {
-    return false
-  }
-
-  if (typeof value.name !== 'string') {
-    return false
-  }
-
-  if (value.version !== 1) {
-    return false
-  }
-
-  if (!isFiniteNumber(value.width) || !isFiniteNumber(value.height)) {
-    return false
-  }
-
-  if (!Array.isArray(value.children)) {
-    return false
-  }
-
-  if (value.instances !== undefined && !Array.isArray(value.instances)) {
-    return false
-  }
-
-  return true
-}
-
-function materializeDocumentForEditing(parsed: unknown): CardDocument {
-  if (isCardDocumentShape(parsed)) {
-    return parsed
-  }
-
-  console.warn('[cde] loadRawDoc: invalid document shape, fallback to materialized view document')
-  return toViewDoc(parsed)
+  getDefaultDocumentName: () => string
 }
 
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
@@ -98,7 +46,9 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
     try {
       const parsed = JSON.parse(content) as unknown
-      const nextDocument = materializeDocumentForEditing(parsed)
+      const nextDocument = prepareDocumentForImport(parsed, {
+        defaultName: options.getDefaultDocumentName(),
+      })
       cardDoc.value = nextDocument
       parentLookup.value = buildParentLookup(nextDocument)
       isModified.value = false

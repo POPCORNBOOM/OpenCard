@@ -7,5 +7,6 @@
 
 扩展约束：
 - 新字段要同步：schema 定义 + 默认值映射（如需要默认值）。
-- `labelKey/categoryKey` 优先用于本地化，文本值仅作回退。
+- schema 只维护字段语义，不维护 `label/labelKey/category/categoryKey` 等本地化解析细节。
+- 分类只通过 `categoryId` 表达；若字段展示文案需要特殊 key（如 `color -> textColor`），通过 `displayFieldKey` 提供语义映射。
 - schema 外字段保持透传，由上层决定是否展示/写回。
