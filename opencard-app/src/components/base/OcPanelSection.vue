@@ -1,5 +1,5 @@
 <template>
-  <section class="oc-panel-section oc-panel-stack">
+  <OcSurface as="section" class="oc-panel-section oc-panel-stack" variant="panel">
     <header
       v-if="hasHeader"
       class="oc-panel-header oc-panel-section__header"
@@ -12,14 +12,18 @@
         <slot name="actions" />
       </div>
     </header>
-    <div class="oc-panel-section__body" :class="bodyClasses">
+    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass" axis="y">
+      <slot />
+    </OcScrollArea>
+    <div v-else class="oc-panel-section__body oc-panel-body" :class="bodyClass">
       <slot />
     </div>
-  </section>
+  </OcSurface>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots, type HTMLAttributes } from 'vue'
+import { OcScrollArea, OcSurface } from '../../shared/ui/primitives'
 
 defineOptions({ name: 'OcPanelSection' })
 
@@ -47,10 +51,7 @@ const hasHeader = computed(() => {
   return Boolean(props.title) || Boolean(slots.title) || Boolean(slots.actions)
 })
 
-const bodyClasses = computed(() => [
-  props.bodyClass,
-  props.scrollBody ? 'oc-panel-scroll-body oc-scroll-y' : 'oc-panel-body',
-])
+const bodyClass = computed(() => props.bodyClass)
 </script>
 
 <style scoped>

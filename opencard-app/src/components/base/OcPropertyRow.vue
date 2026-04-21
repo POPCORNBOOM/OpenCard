@@ -1,16 +1,18 @@
 <template>
-  <div class="oc-property-row">
+  <OcBox class="oc-property-row" inline>
     <label class="oc-property-row__label">
-      <span v-if="labelIcon" class="codicon oc-property-row__label-icon" :class="labelIcon" aria-hidden="true" />
-      <span class="oc-property-row__label-text">{{ label }}</span>
+      <OcIcon v-if="labelIcon" class="oc-property-row__label-icon" :name="labelIcon" tone="muted" size="sm" />
+      <OcText as="span" class="oc-property-row__label-text" tone="info" size="label">{{ label }}</OcText>
     </label>
-    <div class="oc-property-row__content">
+    <OcBox class="oc-property-row__content" inline>
       <slot />
-    </div>
-  </div>
+    </OcBox>
+  </OcBox>
 </template>
 
 <script setup lang="ts">
+import { OcBox, OcIcon, OcText } from '../../shared/ui/primitives'
+
 defineOptions({ name: 'OcPropertyRow' })
 
 defineProps<{
@@ -31,14 +33,8 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--oc-label-size);
-  color: var(--oc-text-info);
   min-width: 80px;
   flex-shrink: 0;
-}
-
-.oc-property-row__label-icon {
-  color: var(--oc-text-muted);
 }
 
 .oc-property-row__content {

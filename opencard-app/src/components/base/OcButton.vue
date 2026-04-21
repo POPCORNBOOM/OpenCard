@@ -1,28 +1,33 @@
 <template>
-  <button
-    class="oc-button oc-base-button"
+  <OcPressable
+    class="oc-base-button"
     :class="buttonClass"
-    :type="type"
+    :variant="variant"
+    :size="size"
+    :radius="radius"
+    :icon-only="isIconOnly"
+    :active="active"
+    :block="block"
     :disabled="disabled"
+    :type="type"
   >
-    <span
+    <OcIcon
       v-if="icon && iconPosition === 'left'"
-      class="oc-base-button__icon codicon"
-      :class="icon"
-      aria-hidden="true"
+      class="oc-base-button__icon"
+      :name="icon"
     />
     <slot />
-    <span
+    <OcIcon
       v-if="icon && iconPosition === 'right'"
-      class="oc-base-button__icon codicon"
-      :class="icon"
-      aria-hidden="true"
+      class="oc-base-button__icon"
+      :name="icon"
     />
-  </button>
+  </OcPressable>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
+import { OcIcon, OcPressable } from '../../shared/ui/primitives'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'
 type ButtonSize = 'sm' | 'md' | 'lg'
@@ -60,93 +65,28 @@ const hasDefaultSlot = computed(() => Boolean(slots.default?.().length))
 const isIconOnly = computed(() => props.iconOnly || (!hasDefaultSlot.value && Boolean(props.icon)))
 
 const buttonClass = computed(() => [
-  `oc-button--${props.variant}`,
+  `oc-base-button--variant-${props.variant}`,
   `oc-base-button--size-${props.size}`,
-  `oc-base-button--radius-${props.radius}`,
   {
-    'oc-base-button--block': props.block,
     'oc-base-button--icon-only': isIconOnly.value,
-    'is-active': props.active,
   },
 ])
 </script>
 
 <style scoped>
-.oc-base-button {
-  border-radius: 2px;
-}
-
-.oc-base-button--block {
-  width: 100%;
-}
-
 .oc-base-button__icon {
-  font-size: 14px;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
-.oc-base-button--size-sm:not(.oc-base-button--icon-only) {
-  min-height: 22px;
-  padding: 3px 7px;
-  font-size: 11px;
-}
-
-.oc-base-button--size-md:not(.oc-base-button--icon-only) {
-  min-height: 26px;
-  padding: 5px 10px;
+.oc-base-button--size-sm :deep(.oc-icon) {
   font-size: 12px;
 }
 
-.oc-base-button--size-lg:not(.oc-base-button--icon-only) {
-  min-height: 32px;
-  padding: 7px 14px;
-  font-size: 13px;
-}
-
-.oc-base-button--radius-none {
-  border-radius: 0;
-}
-
-.oc-base-button--radius-sm {
-  border-radius: 2px;
-}
-
-.oc-base-button--radius-md {
-  border-radius: 6px;
-}
-
-.oc-base-button--radius-lg {
-  border-radius: 999px;
-}
-
-.oc-base-button--icon-only {
-  padding: 0;
-}
-
-.oc-base-button--size-sm.oc-base-button--icon-only {
-  width: 18px;
-  height: 18px;
-}
-
-.oc-base-button--size-sm.oc-base-button--icon-only .oc-base-button__icon {
-  font-size: 12px;
-}
-
-.oc-base-button--size-md.oc-base-button--icon-only {
-  width: 22px;
-  height: 22px;
-}
-
-.oc-base-button--size-md.oc-base-button--icon-only .oc-base-button__icon {
+.oc-base-button--size-md :deep(.oc-icon) {
   font-size: 14px;
 }
 
-.oc-base-button--size-lg.oc-base-button--icon-only {
-  width: 28px;
-  height: 28px;
-}
-
-.oc-base-button--size-lg.oc-base-button--icon-only .oc-base-button__icon {
+.oc-base-button--size-lg :deep(.oc-icon) {
   font-size: 18px;
 }
 </style>

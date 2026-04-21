@@ -1,20 +1,24 @@
 <template>
-  <button
+  <OcPressable
     class="oc-menu-item-button"
-    type="button"
+    variant="ghost"
+    size="md"
+    radius="md"
     :disabled="disabled"
     @click="emit('click', $event)"
   >
     <span class="oc-menu-item-button__main">
-      <i v-if="icon" class="codicon" :class="icon" />
+      <OcIcon v-if="icon" :name="icon" size="sm" />
       <span v-else class="oc-menu-item-button__icon-placeholder" />
-      <span class="oc-menu-item-button__label">{{ label }}</span>
+      <OcText as="span" class="oc-menu-item-button__label">{{ label }}</OcText>
     </span>
-    <i v-if="hasChildren" class="codicon codicon-chevron-right oc-menu-item-button__chevron" />
-  </button>
+    <OcIcon v-if="hasChildren" name="codicon-chevron-right" class="oc-menu-item-button__chevron" size="sm" />
+  </OcPressable>
 </template>
 
 <script setup lang="ts">
+import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
+
 defineOptions({ name: 'OcMenuItemButton' })
 
 withDefaults(defineProps<{
@@ -41,23 +45,7 @@ const emit = defineEmits<{
   justify-content: space-between;
   gap: 10px;
   padding: 5px 7px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--oc-text-primary);
-  font: inherit;
-  font-size: var(--oc-body-size);
   text-align: left;
-  cursor: pointer;
-}
-
-.oc-menu-item-button:hover:not(:disabled) {
-  background: var(--oc-bg-active);
-}
-
-.oc-menu-item-button:disabled {
-  color: var(--oc-text-disabled);
-  cursor: default;
 }
 
 .oc-menu-item-button__main {

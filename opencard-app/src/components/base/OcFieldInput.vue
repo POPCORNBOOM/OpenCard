@@ -1,16 +1,18 @@
 <template>
-  <component
-    :is="as"
-    class="oc-field-input oc-input"
-    :class="inputClass"
+  <OcFieldCore
+    ref="fieldRef"
+    :as="as"
+    class="oc-field-input"
+    :input-class="inputClass"
     v-bind="attrs"
   >
     <slot />
-  </component>
+  </OcFieldCore>
 </template>
 
 <script setup lang="ts">
-import { useAttrs, type HTMLAttributes } from 'vue'
+import { ref, useAttrs, type HTMLAttributes } from 'vue'
+import { OcFieldCore } from '../../shared/ui/primitives'
 
 defineOptions({
   name: 'OcFieldInput',
@@ -26,14 +28,20 @@ withDefaults(defineProps<{
 })
 
 const attrs = useAttrs()
+const fieldRef = ref<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null)
+
+defineExpose({
+  focus() {
+    fieldRef.value?.focus()
+  },
+  blur() {
+    fieldRef.value?.blur()
+  },
+})
 </script>
 
 <style scoped>
 .oc-field-input {
   padding: 2px 6px;
-}
-
-.oc-field-input:focus {
-  border-color: var(--oc-accent);
 }
 </style>
