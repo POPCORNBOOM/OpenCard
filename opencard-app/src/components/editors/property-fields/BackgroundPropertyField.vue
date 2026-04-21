@@ -14,34 +14,36 @@
 
     <template v-if="mode === 'color'">
       <div class="row">
-        <input class="prop-input oc-input" type="text" :value="draftColor" @input="updateColor(($event.target as HTMLInputElement).value)" />
+        <OcFieldInput class="prop-input" as="input" type="text" :value="draftColor" @input="updateColor(($event.target as HTMLInputElement).value)" />
         <input class="color-picker" type="color" :value="pickerValue" @input="updateColor(($event.target as HTMLInputElement).value)" />
       </div>
     </template>
 
     <template v-else-if="mode === 'gradient'">
-      <textarea class="raw-input oc-input" :value="draftGradient" rows="3"
+      <OcFieldInput class="raw-input" as="textarea" :value="draftGradient" rows="3"
         @input="updateGradient(($event.target as HTMLTextAreaElement).value)" />
     </template>
 
     <template v-else-if="mode === 'image'">
       <div class="stack">
-        <input class="prop-input oc-input" type="text" :value="draftImage.image" placeholder="Image URL or path"
+        <OcFieldInput class="prop-input" as="input" type="text" :value="draftImage.image" placeholder="Image URL or path"
           @input="updateImageField('image', ($event.target as HTMLInputElement).value)" />
+
         <div class="row">
-          <input class="prop-input oc-input" type="text" :value="draftImage.position" placeholder="Position"
+          <OcFieldInput class="prop-input" as="input" type="text" :value="draftImage.position" placeholder="Position"
             @input="updateImageField('position', ($event.target as HTMLInputElement).value)" />
-          <input class="prop-input oc-input" type="text" :value="draftImage.size" placeholder="Size"
+          <OcFieldInput class="prop-input" as="input" type="text" :value="draftImage.size" placeholder="Size"
             @input="updateImageField('size', ($event.target as HTMLInputElement).value)" />
         </div>
-        <select class="prop-input oc-input" :value="draftImage.repeat" @change="updateImageField('repeat', ($event.target as HTMLSelectElement).value)">
+
+        <OcFieldInput class="prop-input" as="select" :value="draftImage.repeat" @change="updateImageField('repeat', ($event.target as HTMLSelectElement).value)">
           <option v-for="option in repeatOptions" :key="option" :value="option">{{ option }}</option>
-        </select>
+        </OcFieldInput>
       </div>
     </template>
 
     <template v-else>
-      <textarea class="raw-input oc-input" :value="stringValue" rows="3"
+      <OcFieldInput class="raw-input" as="textarea" :value="stringValue" rows="3"
         @input="emit('update:value', ($event.target as HTMLTextAreaElement).value)" />
     </template>
   </div>
@@ -49,6 +51,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import OcFieldInput from '../../base/OcFieldInput.vue'
 import OcOptionGroup from '../../base/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
@@ -260,11 +263,6 @@ function wrapUrl(value: string): string {
 .prop-input,
 .raw-input {
   padding: 2px 6px;
-}
-
-.prop-input:focus,
-.raw-input:focus {
-  border-color: var(--oc-accent);
 }
 
 .raw-input {

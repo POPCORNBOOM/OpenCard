@@ -12,10 +12,10 @@
 -->
 <template>
   <div class="file-path-field">
-    <input
+    <OcFieldInput
       ref="inputElement"
-      class="prop-input oc-input"
-      type="text"
+      class="prop-input"
+      as="input"
       :value="stringValue"
       :minlength="definition.minLength"
       :maxlength="definition.maxLength"
@@ -27,13 +27,17 @@
       @input="handleInput"
       @keydown="handleKeydown"
     />
+
     <div v-if="isMenuOpen && visibleSuggestions.length > 0" class="suggestion-menu">
-      <button
+      <OcButton
         v-for="(suggestion, index) in visibleSuggestions"
         :key="suggestion.key"
         class="suggestion-item"
         :class="{ selected: index === selectedIndex }"
-        type="button"
+        variant="ghost"
+        size="md"
+        radius="none"
+        block
         @mousedown.prevent="applySuggestion(suggestion)"
       >
         <span class="suggestion-main">
@@ -41,13 +45,15 @@
           <span>{{ suggestion.label }}</span>
         </span>
         <span v-if="suggestion.detail" class="suggestion-detail">{{ suggestion.detail }}</span>
-      </button>
+      </OcButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import OcButton from '../../base/OcButton.vue'
+import OcFieldInput from '../../base/OcFieldInput.vue'
 import { useProjectStore } from '../../../features/workspace/store/projectStore'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
@@ -62,6 +68,10 @@ type SuggestionItem = {
   icon: string
 }
 
+type FocusableInput = {
+  focus: () => void
+}
+
 const props = defineProps<{
   definition: FilePathDefinition
   value: unknown
@@ -73,7 +83,7 @@ const emit = defineEmits<{
 
 const { projectPath, indexedEntries, listProjectDirectoryEntries } = useProjectStore()
 
-const inputElement = ref<HTMLInputElement | null>(null)
+const inputElement = ref<FocusableInput | null>(null)
 const isFocused = ref(false)
 const isMenuOpen = ref(false)
 const selectedIndex = ref(0)
@@ -327,12 +337,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 .prop-input {
   width: 100%;
-  padding: 2px 6px;
   box-sizing: border-box;
-}
-
-.prop-input:focus {
-  border-color: var(--oc-accent);
 }
 
 .suggestion-menu {
@@ -357,10 +362,6 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--oc-text-primary);
   padding: 6px 8px;
   font-size: 12px;
   text-align: left;
