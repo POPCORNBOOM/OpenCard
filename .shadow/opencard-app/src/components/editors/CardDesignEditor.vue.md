@@ -29,3 +29,13 @@ override 注入策略：
 面板尺寸语义约束：
 - 右侧“信息树/属性”分隔拖拽以“信息树绝对像素高度”为真相，不使用比例分配。
 - 属性面板高度应由 `总高度 - 信息树高度 - 分隔条高度` 推导。
+
+撤销入口约束（新增）：
+- 所有文档修改必须通过 `markDocumentChanged(mode)` 上报：
+  - 属性 `@input` 路径使用 `mode='typing'`。
+  - 树/实例增删改拖拽、reset、rename、resize/move 使用 `mode='action'`。
+- 不允许在组件内再维护第二套防抖或历史栈。
+
+编辑器暴露协议（新增）：
+- `defineExpose` 必须提供 `save/undo/redo/canUndo/canRedo`。
+- `undo/redo` 后只做“选择有效性修正”，不恢复历史选择快照。

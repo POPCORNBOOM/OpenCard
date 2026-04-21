@@ -29,3 +29,8 @@ NodeTree 集成约束：
 当前约束更新：
 - 导出流程细节已抽到 `features/ide-shell/composables/useIdeExport.ts`。
 - `MainIDE.vue` 只保留菜单按钮绑定与隐藏导出渲染器挂载，不再维护导出命名、队列、图片等待、写文件等细节实现。
+
+全局快捷键路由约束（新增）：
+- `Ctrl/Cmd+S` 继续走“当前编辑器 save 或会话 save”分发。
+- `Ctrl/Cmd+Z`、`Ctrl/Cmd+Shift+Z`、`Ctrl/Cmd+Y` 仅在活动编辑器为 `card-designer` 时拦截并转发到编辑器暴露的 `undo/redo`。
+- 不得在页面层实现文档回放逻辑；页面层只做键盘事件路由与 `preventDefault` 控制。

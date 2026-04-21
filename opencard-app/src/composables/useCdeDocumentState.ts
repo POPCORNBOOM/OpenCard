@@ -1,10 +1,14 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useManualRefHistory } from '@vueuse/core'
 import {
   buildParentLookup,
   prepareDocumentForImport,
   type CardDocument,
   type ParentLookup,
 } from '../entities/card/model'
+
+const TYPING_DEBOUNCE_MS = 300
+type DocumentChangeMode = 'typing' | 'action'
 
 type UseCdeDocumentStateOptions = {
   emitModelValueUpdate: (content: string) => void
@@ -19,6 +23,51 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const cardDoc = ref<CardDocument | null>(null)
   const parentLookup = ref<ParentLookup>(new Map())
   const isModified = ref(false)
+  const savedContent = ref('')
+  const historyDepth = ref(0)
+  const hasPendingTypingCommit = ref(false)
+  let typingTimer: ReturnType<typeof setTimeout> | null = null
+
+  const {
+    canUndo: historyCanUndo,
+    canRedo: historyCanRedo,
+    undo: historyUndo,
+    redo: historyRedo,
+    clear: clearHistory,
+    commit: commitHistory,
+  } = useManualRefHistory<CardDocument | null, string>(cardDoc, {
+    capacity: 100,
+    dump: (value) => JSON.stringify(value, null, 2),
+    parse: (value) => JSON.parse(value) as CardDocument | null,
+  })
+  const canUndo = computed(() => historyCanUndo.value && historyDepth.value > 0)
+  const canRedo = computed(() => historyCanRedo.value)
+
+  const hasDocument = computed(() => Boolean(cardDoc.value))
+
+  function updateModifiedState(nextContent: string) {
+    const nextIsModified = nextContent !== savedContent.value
+    if (nextIsModified === isModified.value) {
+      return
+    }
+
+    isModified.value = nextIsModified
+    options.emitModified(nextIsModified)
+  }
+
+  function rebuildParentLookup() {
+    parentLookup.value = cardDoc.value ? buildParentLookup(cardDoc.value) : new Map()
+  }
+
+  function applyDocumentContent(content: string) {
+    const hasChanged = content !== rawContent.value
+    if (hasChanged) {
+      rawContent.value = content
+      options.emitModelValueUpdate(content)
+    }
+
+    updateModifiedState(content)
+  }
 
   function syncDocumentContent() {
     if (!cardDoc.value) {
@@ -26,21 +75,106 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     }
 
     const content = JSON.stringify(cardDoc.value, null, 2)
-    if (content === rawContent.value) {
+    applyDocumentContent(content)
+  }
+
+  function clearTypingTimer() {
+    if (typingTimer === null) {
       return
     }
 
-    rawContent.value = content
-    options.emitModelValueUpdate(content)
+    clearTimeout(typingTimer)
+    typingTimer = null
   }
 
-  function markDocumentChanged() {
+  function commitCurrentDocument() {
+    if (!cardDoc.value) {
+      return false
+    }
+
+    const content = JSON.stringify(cardDoc.value, null, 2)
+    if (content === rawContent.value) {
+      updateModifiedState(content)
+      return false
+    }
+
+    commitHistory()
+    historyDepth.value += 1
+    applyDocumentContent(content)
+    return true
+  }
+
+  function flushPendingChangesSync() {
+    const hasPending = hasPendingTypingCommit.value
+    clearTypingTimer()
+
+    if (!hasPending) {
+      return false
+    }
+
+    hasPendingTypingCommit.value = false
+    return commitCurrentDocument()
+  }
+
+  function scheduleTypingCommit() {
+    hasPendingTypingCommit.value = true
+    clearTypingTimer()
+    typingTimer = setTimeout(() => {
+      typingTimer = null
+      if (!hasPendingTypingCommit.value) {
+        return
+      }
+
+      hasPendingTypingCommit.value = false
+      commitCurrentDocument()
+    }, TYPING_DEBOUNCE_MS)
+  }
+
+  function markDirtyImmediately() {
+    if (isModified.value) {
+      return
+    }
+
     isModified.value = true
     options.emitModified(true)
-    syncDocumentContent()
+  }
+
+  function markDocumentChanged(mode: DocumentChangeMode = 'action') {
+    if (!hasDocument.value) {
+      return
+    }
+
+    markDirtyImmediately()
+
+    if (mode === 'typing') {
+      scheduleTypingCommit()
+      return
+    }
+
+    const committedPendingChange = flushPendingChangesSync()
+    if (!committedPendingChange) {
+      commitCurrentDocument()
+    }
+  }
+
+  async function flushPendingChanges() {
+    flushPendingChangesSync()
+  }
+
+  function resetDocumentHistory() {
+    clearHistory()
+    commitHistory()
+    historyDepth.value = 0
+  }
+
+  function setSavedContent(content: string) {
+    savedContent.value = content
+    updateModifiedState(content)
   }
 
   function loadRawDoc(content: string) {
+    clearTypingTimer()
+    hasPendingTypingCommit.value = false
     rawContent.value = content
     options.resetSelection()
 
@@ -50,30 +184,60 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
         defaultName: options.getDefaultDocumentName(),
       })
       cardDoc.value = nextDocument
-      parentLookup.value = buildParentLookup(nextDocument)
-      isModified.value = false
-      options.emitModified(false)
+      rebuildParentLookup()
+      setSavedContent(content)
+      resetDocumentHistory()
     } catch (e) {
       console.error('读取 .opencard 文件失败:', e)
       cardDoc.value = null
-      parentLookup.value = new Map()
-      isModified.value = false
-      options.emitModified(false)
+      rebuildParentLookup()
+      setSavedContent(content)
+      clearHistory()
+      historyDepth.value = 0
     }
+  }
+
+  async function undo() {
+    await flushPendingChanges()
+    if (!canUndo.value) {
+      return
+    }
+
+    historyUndo()
+    historyDepth.value = Math.max(0, historyDepth.value - 1)
+    rebuildParentLookup()
+    syncDocumentContent()
+  }
+
+  async function redo() {
+    await flushPendingChanges()
+    if (!canRedo.value) {
+      return
+    }
+
+    historyRedo()
+    historyDepth.value += 1
+    rebuildParentLookup()
+    syncDocumentContent()
   }
 
   async function saveFile() {
     if (!cardDoc.value) return
     try {
+      await flushPendingChanges()
       const content = JSON.stringify(cardDoc.value, null, 2)
       rawContent.value = content
-      isModified.value = false
+      setSavedContent(content)
       options.emitModelValueUpdate(content)
-      options.emitModified(false)
       options.emitSave()
     } catch (e) {
       console.error('保存失败:', e)
     }
+  }
+
+  function dispose() {
+    clearTypingTimer()
+    hasPendingTypingCommit.value = false
   }
 
   return {
@@ -81,9 +245,15 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     cardDoc,
     parentLookup,
     isModified,
+    canUndo,
+    canRedo,
     syncDocumentContent,
     markDocumentChanged,
+    flushPendingChanges,
+    undo,
+    redo,
     loadRawDoc,
     saveFile,
+    dispose,
   }
 }

@@ -201,9 +201,15 @@ const {
   rawContent,
   cardDoc,
   parentLookup,
+  canUndo,
+  canRedo,
   markDocumentChanged,
+  flushPendingChanges,
+  undo: undoDocumentState,
+  redo: redoDocumentState,
   loadRawDoc,
   saveFile: saveDocumentFile,
+  dispose: disposeDocumentState,
 } = useCdeDocumentState({
   emitModelValueUpdate: (content) => emit('update:modelValue', content),
   emitModified: (modified) => emit('modified', modified),
@@ -396,7 +402,7 @@ function updateBlockProp({
     }
 
     layout[fieldKey] = value
-    markDocumentChanged()
+    markDocumentChanged('typing')
     return
   }
 
@@ -408,7 +414,7 @@ function updateBlockProp({
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
     const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
     instanceBlockData[fieldKey] = value
-    markDocumentChanged()
+    markDocumentChanged('typing')
     return
   }
 
@@ -417,7 +423,7 @@ function updateBlockProp({
     delete (block as Record<string, unknown>).imagePath
   }
 
-  markDocumentChanged()
+  markDocumentChanged('typing')
 }
 
 function addBlockProp({
@@ -432,7 +438,7 @@ function addBlockProp({
     }
 
     layout[fieldKey] = value
-    markDocumentChanged()
+    markDocumentChanged('action')
     return
   }
 
@@ -444,12 +450,12 @@ function addBlockProp({
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
     const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
     instanceBlockData[fieldKey] = value
-    markDocumentChanged()
+    markDocumentChanged('action')
     return
   }
 
   ; (block as Record<string, unknown>)[fieldKey] = value
-  markDocumentChanged()
+  markDocumentChanged('action')
 }
 
 function resetBlockProp({
@@ -469,7 +475,7 @@ function resetBlockProp({
     } else {
       layout[fieldKey] = defaultValue
     }
-    markDocumentChanged()
+    markDocumentChanged('action')
     return
   }
 
@@ -483,7 +489,7 @@ function resetBlockProp({
     if (!didResetOverride) {
       return
     }
-    markDocumentChanged()
+    markDocumentChanged('action')
     return
   }
 
@@ -496,7 +502,7 @@ function resetBlockProp({
   if (block.type === 'image-block' && fieldKey === 'image') {
     delete (block as Record<string, unknown>).imagePath
   }
-  markDocumentChanged()
+  markDocumentChanged('action')
 }
 
 function formatViewportCssValue(value: number): string {
@@ -521,7 +527,7 @@ function handleSelectionResize(payload: { width: number; height: number; x?: num
     metadata.location.y = formatViewportCssValue(payload.y ?? 0)
   }
 
-  markDocumentChanged()
+  markDocumentChanged('action')
 }
 
 function handleSelectionMove(payload: { x: number; y: number }) {
@@ -532,11 +538,32 @@ function handleSelectionMove(payload: { x: number; y: number }) {
 
   metadata.location.x = formatViewportCssValue(payload.x)
   metadata.location.y = formatViewportCssValue(payload.y)
-  markDocumentChanged()
+  markDocumentChanged('action')
 }
 
 async function saveFile() {
+  await flushPendingChanges()
   await saveDocumentFile()
+}
+
+function ensureSelectionValidity() {
+  if (selectedBlockKeys.value.length > 0 && !selectedNode.value) {
+    selectedBlockKeys.value = []
+  }
+
+  if (selectedCardId.value !== BLUEPRINT_CARD_ID && !selectedCard.value) {
+    selectedCardId.value = BLUEPRINT_CARD_ID
+  }
+}
+
+async function undoFile() {
+  await undoDocumentState()
+  ensureSelectionValidity()
+}
+
+async function redoFile() {
+  await redoDocumentState()
+  ensureSelectionValidity()
 }
 
 watch(
@@ -552,13 +579,20 @@ watch(
   { immediate: true },
 )
 
-defineExpose({ save: saveFile })
+defineExpose({
+  save: saveFile,
+  undo: undoFile,
+  redo: redoFile,
+  canUndo,
+  canRedo,
+})
 
 onMounted(() => {
   mountPanelResizeListeners()
 })
 
 onUnmounted(() => {
+  disposeDocumentState()
   unmountPanelResizeListeners()
 })
 

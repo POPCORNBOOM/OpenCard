@@ -174,6 +174,13 @@ import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 
 const { t } = useI18n()
+type CurrentEditorRef = {
+  save?: () => Promise<void> | void
+  undo?: () => Promise<void> | void
+  redo?: () => Promise<void> | void
+  canUndo?: boolean
+  canRedo?: boolean
+}
 
 const {
   projectPath,
@@ -194,7 +201,7 @@ const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
 const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
-const currentEditorRef = ref<{ save?: () => Promise<void> | void } | null>(null)
+const currentEditorRef = ref<CurrentEditorRef | null>(null)
 const showPreview = ref(false)
 const previewCardDoc = ref<CardDocument | null>(null)
 
@@ -396,13 +403,74 @@ async function triggerCurrentEditorSave() {
   await saveActiveSession()
 }
 
-async function handleGlobalKeydown(event: KeyboardEvent) {
-  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') {
+function isActiveCardDesignerEditor() {
+  const editorId = activeSession.value?.editorId
+  if (!editorId) {
+    return false
+  }
+
+  return editorRegistry.getEditor(editorId)?.id === 'card-designer'
+}
+
+async function triggerCurrentEditorUndo() {
+  if (!isActiveCardDesignerEditor()) {
     return
   }
 
-  event.preventDefault()
-  await triggerCurrentEditorSave()
+  if (currentEditorRef.value?.canUndo === false || !currentEditorRef.value?.undo) {
+    return
+  }
+
+  await currentEditorRef.value.undo()
+}
+
+async function triggerCurrentEditorRedo() {
+  if (!isActiveCardDesignerEditor()) {
+    return
+  }
+
+  if (currentEditorRef.value?.canRedo === false || !currentEditorRef.value?.redo) {
+    return
+  }
+
+  await currentEditorRef.value.redo()
+}
+
+async function handleGlobalKeydown(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey)) {
+    return
+  }
+
+  const key = event.key.toLowerCase()
+  if (key === 's') {
+    event.preventDefault()
+    await triggerCurrentEditorSave()
+    return
+  }
+
+  if (key === 'z') {
+    if (!isActiveCardDesignerEditor()) {
+      return
+    }
+
+    event.preventDefault()
+    if (event.shiftKey) {
+      await triggerCurrentEditorRedo()
+      return
+    }
+
+    await triggerCurrentEditorUndo()
+    return
+  }
+
+  if (key === 'y') {
+    if (!isActiveCardDesignerEditor()) {
+      return
+    }
+
+    event.preventDefault()
+    await triggerCurrentEditorRedo()
+  }
 }
 
 onMounted(() => {
