@@ -153,6 +153,7 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
         'OcTabBar / OcTab',
         'OcToolbar / OcToolButton',
         'OcSplitPane / OcResizer',
+        'OcFloatingPanelShell',
       ],
     examples: [
       {
@@ -215,6 +216,13 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
         id: 'base-oc-split-pane',
         title: 'OcSplitPane / OcResizer',
         purpose: '分栏容器与拖拽分隔条，统一 IDE 类布局中的可调面板关系。',
+        demoBlocks: SHOWCASE_MATRIX_COLUMNS,
+        stateCoverage: ['hover', 'active', 'focus'],
+      },
+      {
+        id: 'base-oc-floating-panel-shell',
+        title: 'OcFloatingPanelShell',
+        purpose: '悬浮面板外壳，统一 overlay 工具面与小型预览浮层。',
         demoBlocks: SHOWCASE_MATRIX_COLUMNS,
         stateCoverage: ['hover', 'active', 'focus'],
       },

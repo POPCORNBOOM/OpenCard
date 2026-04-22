@@ -531,6 +531,7 @@
     <template v-else-if="column === 'states'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--states">
         <OcResizer orientation="vertical" aria-label="Hover resizer" />
+        <OcResizer orientation="vertical" variant="edge" aria-label="Edge resizer" />
         <OcResizer orientation="vertical" :active="true" aria-label="Active resizer" />
       </OcSurface>
     </template>
@@ -561,6 +562,36 @@
     </template>
   </div>
 
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-floating-panel-shell'">
+    <template v-if="column === 'default'">
+      <OcFloatingPanelShell class="floating-shell-demo">
+        <OcText size="title">Overlay Shell</OcText>
+      </OcFloatingPanelShell>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcFloatingPanelShell class="floating-shell-demo" padding="sm">
+        <OcText tone="secondary">padding-sm</OcText>
+      </OcFloatingPanelShell>
+      <OcFloatingPanelShell class="floating-shell-demo" padding="md" :blurred="false">
+        <OcText tone="secondary">padding-md / no blur</OcText>
+      </OcFloatingPanelShell>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcFloatingPanelShell class="floating-shell-demo">
+        <OcToolbar kind="panel" aria-label="Overlay tools">
+          <OcToolButton kind="panel" iconOnly icon="codicon-list-tree" aria-label="Tree" :active="true" />
+          <OcToolButton kind="panel" iconOnly icon="codicon-symbol-string" aria-label="A-Z" />
+        </OcToolbar>
+      </OcFloatingPanelShell>
+    </template>
+    <template v-else>
+      <OcFloatingPanelShell class="floating-shell-demo floating-shell-demo--layout" padding="sm">
+        <OcText size="title">Transform Preview</OcText>
+        <div class="floating-shell-preview" />
+      </OcFloatingPanelShell>
+    </template>
+  </div>
+
   <div v-else class="unknown-example">
     <OcText tone="muted" size="label">No renderer for {{ exampleId }} / {{ column }}</OcText>
   </div>
@@ -576,6 +607,7 @@ import OcPanelSection from '../base/OcPanelSection.vue'
 import OcPropertyRow from '../base/OcPropertyRow.vue'
 import OcTab from '../base/OcTab.vue'
 import OcTabBar from '../base/OcTabBar.vue'
+import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
 import OcToolButton from '../base/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
 import OcResizer from '../base/OcResizer.vue'
@@ -883,6 +915,29 @@ const modeOptions: OptionItem[] = [
 .split-demo-pane--secondary {
   background: var(--oc-bg-panel);
   border: 1px solid var(--oc-border-subtle);
+}
+
+.floating-shell-demo {
+  width: 100%;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-space-2);
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.floating-shell-demo--layout {
+  min-height: 132px;
+}
+
+.floating-shell-preview {
+  width: 120px;
+  height: 68px;
+  border-radius: var(--oc-radius-md);
+  background:
+    linear-gradient(135deg, var(--oc-bg-hover) 0%, var(--oc-bg-accent-soft) 100%);
+  border: 1px solid var(--oc-border-overlay-soft);
 }
 
 .panel-demo {

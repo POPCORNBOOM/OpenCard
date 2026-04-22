@@ -9,8 +9,12 @@ export default {
       exportAll: '导出全部',
     },
     welcome: {
+      eyebrow: '工作区',
       title: 'OpenCard',
       subtitle: '打开项目文件夹开始编辑',
+      featureExplore: '资源浏览',
+      featureDesign: '卡牌设计',
+      featurePreview: '图像预览',
     },
   },
   sidebar: {
@@ -22,9 +26,11 @@ export default {
     openProject: '打开项目文件夹',
   },
   panels: {
+    codeEditor: '代码编辑器',
     gitPlaceholder: 'Git 功能开发中...',
     publishPlaceholder: '发布功能开发中...',
     cardPreview: '卡牌预览',
+    transformPreview: '变换预览',
   },
   status: {
     watching: '监听中',

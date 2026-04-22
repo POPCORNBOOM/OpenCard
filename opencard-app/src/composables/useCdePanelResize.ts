@@ -39,9 +39,25 @@ export function useCdePanelResize() {
     return Math.min(Math.max(value, min), max)
   }
 
+  function readRootMetric(variableName: string, fallback: number): number {
+    const root = editorRootRef.value
+    if (!root || typeof getComputedStyle !== 'function') {
+      return fallback
+    }
+
+    const rawValue = getComputedStyle(root).getPropertyValue(variableName).trim()
+    const parsedValue = Number.parseFloat(rawValue)
+    return Number.isFinite(parsedValue) ? parsedValue : fallback
+  }
+
   function getRightPanelMaxWidth(): number {
     const editorWidth = editorRootRef.value?.clientWidth ?? 0
-    const viewportMax = editorWidth > 0 ? editorWidth - MIN_CANVAS_WIDTH : MAX_RIGHT_PANEL_WIDTH
+    const overlayInsetX = readRootMetric('--card-editor-overlay-inset-x', 24)
+    const centerSafeWidth = readRootMetric('--card-editor-center-safe-width', MIN_CANVAS_WIDTH)
+    const leftPanelWidth = readRootMetric('--card-editor-left-panel-width', MIN_RIGHT_PANEL_WIDTH)
+    const viewportMax = editorWidth > 0
+      ? editorWidth - leftPanelWidth - overlayInsetX - overlayInsetX - centerSafeWidth
+      : MAX_RIGHT_PANEL_WIDTH
     return Math.max(MIN_RIGHT_PANEL_WIDTH, Math.min(MAX_RIGHT_PANEL_WIDTH, viewportMax))
   }
 

@@ -9,8 +9,12 @@ export default {
       exportAll: 'Export All',
     },
     welcome: {
+      eyebrow: 'Workspace',
       title: 'OpenCard',
       subtitle: 'Open a project folder to start editing',
+      featureExplore: 'Explorer',
+      featureDesign: 'Designer',
+      featurePreview: 'Preview',
     },
   },
   sidebar: {
@@ -22,9 +26,11 @@ export default {
     openProject: 'Open Project Folder',
   },
   panels: {
+    codeEditor: 'Code Editor',
     gitPlaceholder: 'Git features are under development...',
     publishPlaceholder: 'Publish features are under development...',
     cardPreview: 'Card Preview',
+    transformPreview: 'Transform Preview',
   },
   status: {
     watching: 'Watching',

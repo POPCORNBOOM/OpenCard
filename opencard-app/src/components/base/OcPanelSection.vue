@@ -1,5 +1,5 @@
 <template>
-  <OcSurface as="section" class="oc-panel-section" variant="panel">
+  <OcSurface as="section" class="oc-panel-section" :class="`oc-panel-section--tone-${props.tone}`" :variant="surfaceVariant">
     <header
       v-if="hasHeader"
       class="oc-panel-header oc-panel-section__header"
@@ -31,12 +31,14 @@ const props = withDefaults(defineProps<{
   title?: string
   header?: boolean
   scrollBody?: boolean
+  tone?: 'default' | 'overlay'
   headerClass?: HTMLAttributes['class']
   bodyClass?: HTMLAttributes['class']
 }>(), {
   title: undefined,
   header: true,
   scrollBody: false,
+  tone: 'default',
   headerClass: undefined,
   bodyClass: undefined,
 })
@@ -52,6 +54,7 @@ const hasHeader = computed(() => {
 })
 
 const bodyClass = computed(() => props.bodyClass)
+const surfaceVariant = computed(() => (props.tone === 'overlay' ? 'transparent' : 'panel'))
 </script>
 
 <style scoped>
@@ -63,17 +66,29 @@ const bodyClass = computed(() => props.bodyClass)
 }
 
 .oc-panel-header {
-  height: 30px;
-  padding: 0 10px;
+  min-height: 38px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: var(--oc-label-size);
-  text-transform: uppercase;
-  font-weight: bold;
-  background: var(--oc-bg-panel);
+  gap: var(--oc-space-2);
+  font-size: var(--oc-title-size);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--oc-text-primary);
+  background: linear-gradient(180deg, var(--oc-bg-panel) 0%, var(--oc-bg-subtle) 100%);
   border-bottom: 1px solid var(--oc-border-strong);
+}
+
+.oc-panel-section--tone-overlay .oc-panel-header {
+  background: transparent;
+  border-bottom-color: var(--oc-border-overlay-soft);
+}
+
+.oc-panel-section--tone-overlay .oc-panel-body,
+.oc-panel-section--tone-overlay .oc-panel-scroll-body,
+.oc-panel-section--tone-overlay .oc-panel-section__body {
+  background: transparent;
 }
 
 .oc-panel-body {
@@ -91,14 +106,14 @@ const bodyClass = computed(() => props.bodyClass)
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  gap: 6px;
+  gap: var(--oc-space-2);
 }
 
 .oc-panel-section__actions {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--oc-space-1);
   flex-shrink: 0;
 }
 

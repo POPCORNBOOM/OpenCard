@@ -187,6 +187,7 @@
   - `orientation?: 'horizontal' | 'vertical'`
   - `active?: boolean`
   - `ariaLabel?: string`
+  - `variant?: 'line' | 'edge'`
 - emits:
   - `mousedown(event: MouseEvent)`
 - 推荐用法:
@@ -211,6 +212,20 @@
   - 双栏或上下分栏场景，配合 CSS 变量与 `OcResizer` 控制固定 pane 尺寸。
 - 禁用用法:
   - 不要把三栏复杂编排、拖拽状态机直接塞进 `OcSplitPane`。
+
+### `OcFloatingPanelShell`
+
+- props:
+  - `as?: string`
+  - `padding?: 'none' | 'sm' | 'md'`
+  - `radius?: 'sm' | 'md' | 'lg'`
+  - `shadow?: 'sm' | 'md' | 'overlay'`
+  - `blurred?: boolean`
+- emits: 无
+- 推荐用法:
+  - 编辑器内悬浮检查区、小型工具浮层、overlay widget 外壳。
+- 禁用用法:
+  - 不要把 header/body 结构职责塞进 `OcFloatingPanelShell`，它只负责浮层外壳。
 
 ## UI Kit Registration Workflow
 

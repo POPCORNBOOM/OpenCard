@@ -6,8 +6,8 @@
       <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleBlockClick" />
     </div>
-    <div v-if="showTransformPreview" class="transform-preview-window" aria-hidden="true">
-      <div class="transform-preview-title">Transform Preview</div>
+    <OcFloatingPanelShell v-if="showTransformPreview" class="transform-preview-window" padding="sm" aria-hidden="true">
+      <div class="transform-preview-title">{{ t('panels.transformPreview') }}</div>
       <div class="transform-preview-viewport" :style="transformPreviewViewportStyle">
         <div class="transform-preview-stage-shell" :style="transformPreviewShellStyle">
           <div class="transform-preview-stage" :style="transformPreviewStageStyle">
@@ -15,7 +15,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </OcFloatingPanelShell>
     <div class="card-selection-layer">
       <div v-if="selectionFrame" class="selection-frame" :class="{ 'selection-frame-movable': showMoveHandle }"
         :style="selectionFrameStyle" @pointerdown="handleSelectionFramePointerDown">
@@ -32,7 +32,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { AnchorPosition, CardDocument } from '../../entities/card/model'
+import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
 import CardRenderer from './CardRenderer.vue'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'r' | 'b'
@@ -75,6 +77,7 @@ const emit = defineEmits<{
   (e: 'resize-selection', payload: ResizePayload): void
   (e: 'move-selection', payload: MovePayload): void
 }>()
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   document: CardDocument
@@ -676,22 +679,17 @@ watch(
 
 .transform-preview-window {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 6;
-  padding: 8px;
-  border: 1px solid var(--oc-border-overlay);
-  border-radius: 10px;
-  background: var(--oc-bg-overlay-strong);
-  box-shadow: var(--oc-shadow-overlay);
+  top: calc(var(--card-editor-overlay-inset-y, 20px) - 6px);
+  right: calc(var(--card-editor-right-panel-width, 320px) + var(--card-editor-overlay-inset-x, 24px) + 16px);
+  z-index: 4;
   pointer-events: none;
 }
 
 .transform-preview-title {
-  margin-bottom: 8px;
-  color: var(--oc-accent-preview-text);
+  margin-bottom: 6px;
+  color: var(--oc-text-info);
   font-size: var(--oc-label-size);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }

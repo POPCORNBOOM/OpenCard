@@ -14,125 +14,131 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :class="{ 'card-design-editor--resizing': Boolean(resizeState) }"
-    :style="editorStyle">
-    <OcPanelSection class="left-panel" :class="{ collapsed: !isInstancePanelExpanded }"
-      header-class="panel-header left-panel-header" body-class="left-panel-content" :scroll-body="true">
-      <template #title>
-        <span v-if="isInstancePanelExpanded">创建的卡牌</span>
-      </template>
-      <template #actions>
-        <OcToolButton
-          class="left-panel-toggle"
-          kind="panel"
-          icon-only
-          :icon="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'"
-          :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
-          :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
-          @click="toggleInstancePanel"
-        />
-      </template>
-      <template #default>
-        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
-          :selected-keys="selectedCardKeys" :actions="instanceTreeActions" :action-keys="instanceTreeActionKeys"
-          :allowed-drop-positions="getInstanceTreeAllowedDropPositions" :can-drop="canDropInstanceTreeNode"
-          @update:selected-keys="onInstanceTreeSelect" @action-called="handleInstanceTreeAction"
-          @node-rename="handleInstanceTreeRename" @node-drop="handleInstanceTreeDrop" />
-      </template>
-    </OcPanelSection>
+    :style="editorShellStyle">
+    <div class="canvas-area">
+      <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
+        :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
+        :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
+        @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
+        @move-selection="handleSelectionMove" />
+      <div v-else class="empty-hint">无法解析 .opencard 文件</div>
+    </div>
 
-    <OcSplitPane
-      class="editor-main-split"
-      orientation="horizontal"
-      fixedPane="secondary"
-      fixedSize="var(--card-editor-right-panel-width)"
-      secondaryMinSize="220px"
-    >
-      <template #primary>
-        <div class="canvas-area">
-          <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
-            :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
-            :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
-            @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
-            @move-selection="handleSelectionMove" />
-          <div v-else class="empty-hint">无法解析 .opencard 文件</div>
-        </div>
-      </template>
-      <template #resizer>
+    <div class="left-panel" :class="{ collapsed: !isInstancePanelExpanded }">
+      <OcFloatingPanelShell class="left-panel-shell">
+        <OcPanelSection
+          tone="overlay"
+          header-class="panel-header left-panel-header"
+          body-class="left-panel-content"
+          :scroll-body="true"
+        >
+          <template #title>
+            <span v-if="isInstancePanelExpanded">创建的卡牌</span>
+          </template>
+          <template #actions>
+            <OcToolButton
+              class="left-panel-toggle"
+              kind="panel"
+              icon-only
+              :icon="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'"
+              :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
+              :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
+              @click="toggleInstancePanel"
+            />
+          </template>
+          <template #default>
+            <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
+              :selected-keys="selectedCardKeys" :actions="instanceTreeActions" :action-keys="instanceTreeActionKeys"
+              :allowed-drop-positions="getInstanceTreeAllowedDropPositions" :can-drop="canDropInstanceTreeNode"
+              @update:selected-keys="onInstanceTreeSelect" @action-called="handleInstanceTreeAction"
+              @node-rename="handleInstanceTreeRename" @node-drop="handleInstanceTreeDrop" />
+          </template>
+        </OcPanelSection>
+      </OcFloatingPanelShell>
+    </div>
+
+    <div ref="rightPanelRef" class="right-panel">
+      <div class="right-panel__width-resizer">
         <OcResizer
-          class="card-editor-resizer"
           orientation="vertical"
+          variant="edge"
           aria-label="调整右侧检查器宽度"
           :active="resizeState === 'right-panel'"
           @mousedown="startRightPanelResize"
         />
-      </template>
-      <template #secondary>
-        <div ref="rightPanelRef" class="right-panel">
-          <OcSplitPane
-            class="right-panel-split"
-            orientation="vertical"
-            fixedPane="primary"
-            fixedSize="var(--card-editor-tree-panel-height)"
-            primaryMinSize="140px"
-            secondaryMinSize="var(--card-editor-min-property-panel-height)"
-          >
-            <template #primary>
-              <OcPanelSection class="block-list-panel" title="信息树" header-class="panel-header" body-class="block-list"
-                :scroll-body="true">
-                <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
-                  v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-                  @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
-                  @node-drop="handleTreeDrop" />
-              </OcPanelSection>
-            </template>
-            <template #resizer>
-              <OcResizer
-                class="card-editor-resizer"
-                orientation="horizontal"
-                aria-label="调整信息树高度"
-                :active="resizeState === 'tree-panel'"
-                @mousedown="startTreePanelResize"
-              />
-            </template>
-            <template #secondary>
-              <OcPanelSection class="property-panel" title="属性" header-class="panel-header">
-                <template #actions>
-                  <OcToolbar class="panel-header-actions" kind="panel" aria-label="Property sort tools">
-                    <OcToolButton
-                      kind="panel"
-                      icon-only
-                      icon="codicon-list-tree"
-                      :active="propertySortMode === 'category'"
-                      title="Category"
-                      aria-label="Category"
-                      @click="propertySortMode = 'category'"
-                    />
-                    <OcToolButton
-                      kind="panel"
-                      icon-only
-                      icon="codicon-symbol-string"
-                      :active="propertySortMode === 'alphabetical'"
-                      title="A-Z"
-                      aria-label="A-Z"
-                      @click="propertySortMode = 'alphabetical'"
-                    />
-                  </OcToolbar>
-                </template>
-                <template #default>
-                  <PropertyEditor
-                    :inputs="propertyInputs"
-                    :sort-mode="propertySortMode"
-                    @update-property="updateBlockProp"
-                    @add-property="addBlockProp"
-                    @reset-property="resetBlockProp"
+      </div>
+
+      <OcFloatingPanelShell class="right-panel-shell">
+        <OcSplitPane
+          class="right-panel-split"
+          orientation="vertical"
+          fixedPane="primary"
+          fixedSize="var(--card-editor-tree-panel-height)"
+          primaryMinSize="140px"
+          secondaryMinSize="var(--card-editor-min-property-panel-height)"
+        >
+          <template #primary>
+            <OcPanelSection
+              class="block-list-panel"
+              title="信息树"
+              tone="overlay"
+              header-class="panel-header"
+              body-class="block-list"
+              :scroll-body="true"
+            >
+              <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
+                v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+                @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
+                @node-drop="handleTreeDrop" />
+            </OcPanelSection>
+          </template>
+          <template #resizer>
+            <OcResizer
+              orientation="horizontal"
+              variant="edge"
+              aria-label="调整信息树高度"
+              :active="resizeState === 'tree-panel'"
+              @mousedown="startTreePanelResize"
+            />
+          </template>
+          <template #secondary>
+            <OcPanelSection class="property-panel" title="属性" tone="overlay" header-class="panel-header">
+              <template #actions>
+                <OcToolbar class="panel-header-actions" kind="panel" aria-label="Property sort tools">
+                  <OcToolButton
+                    kind="panel"
+                    icon-only
+                    icon="codicon-list-tree"
+                    :active="propertySortMode === 'category'"
+                    title="Category"
+                    aria-label="Category"
+                    @click="propertySortMode = 'category'"
                   />
-                </template>
-              </OcPanelSection>
-            </template>
-          </OcSplitPane>
-        </div>
-      </template>
-    </OcSplitPane>
+                  <OcToolButton
+                    kind="panel"
+                    icon-only
+                    icon="codicon-symbol-string"
+                    :active="propertySortMode === 'alphabetical'"
+                    title="A-Z"
+                    aria-label="A-Z"
+                    @click="propertySortMode = 'alphabetical'"
+                  />
+                </OcToolbar>
+              </template>
+              <template #default>
+                <PropertyEditor
+                  :inputs="propertyInputs"
+                  :sort-mode="propertySortMode"
+                  @update-property="updateBlockProp"
+                  @add-property="addBlockProp"
+                  @reset-property="resetBlockProp"
+                />
+              </template>
+            </OcPanelSection>
+          </template>
+        </OcSplitPane>
+      </OcFloatingPanelShell>
+    </div>
   </div>
 </template>
 
@@ -158,6 +164,7 @@ import {
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
+import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 import OcResizer from '../base/OcResizer.vue'
 import OcSplitPane from '../base/OcSplitPane.vue'
@@ -193,6 +200,16 @@ const { t } = useI18n()
 const blockTreeExpanded = ref(true)
 const propertySortMode = ref<PropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
+const currentLeftPanelWidth = computed(() => (isInstancePanelExpanded.value ? 272 : 56))
+const editorShellStyle = computed(() => ({
+  ...editorStyle.value,
+  '--card-editor-overlay-inset-x': '24px',
+  '--card-editor-overlay-inset-y': '20px',
+  '--card-editor-center-safe-width': '420px',
+  '--card-editor-left-panel-width-expanded': '272px',
+  '--card-editor-left-panel-width-collapsed': '56px',
+  '--card-editor-left-panel-width': `${currentLeftPanelWidth.value}px`,
+}))
 
 // 面板尺寸与拖拽状态。
 const {
@@ -652,24 +669,33 @@ onUnmounted(() => {
 
 <style scoped>
 .card-design-editor {
-  display: flex;
+  flex: 1;
+  width: 100%;
   height: 100%;
-  background: var(--oc-bg-base);
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  background: transparent;
   color: var(--oc-text-primary);
+  overflow: hidden;
   --card-editor-right-panel-width: 320px;
   --card-editor-tree-panel-height: 320px;
 }
 
 .left-panel {
-  width: 260px;
-  border-right: 1px solid var(--oc-border-strong);
-  overflow: hidden;
+  position: absolute;
+  top: var(--card-editor-overlay-inset-y);
+  left: var(--card-editor-overlay-inset-x);
+  bottom: var(--card-editor-overlay-inset-y);
+  z-index: 5;
+  width: var(--card-editor-left-panel-width);
   flex-shrink: 0;
   transition: width var(--oc-motion-duration-base) var(--oc-motion-ease-standard);
 }
 
-.left-panel.collapsed {
-  width: 44px;
+.left-panel-shell {
+  width: 100%;
+  height: 100%;
 }
 
 .left-panel.collapsed :deep(.oc-panel-header) {
@@ -714,33 +740,52 @@ onUnmounted(() => {
   position: relative;
   min-width: 0;
   min-height: 0;
-  background: var(--oc-bg-elevated);
-}
-
-.editor-main-split {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
+  background-color: var(--oc-bg-elevated);
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--oc-border-subtle) 1px, transparent 0);
+  background-size: 22px 22px;
 }
 
 .right-panel {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: var(--card-editor-overlay-inset-y);
+  right: var(--card-editor-overlay-inset-x);
+  bottom: var(--card-editor-overlay-inset-y);
+  z-index: 5;
+  width: min(
+    var(--card-editor-right-panel-width),
+    calc(100% - var(--card-editor-overlay-inset-x) - var(--card-editor-overlay-inset-x) - var(--card-editor-left-panel-width) - var(--card-editor-center-safe-width))
+  );
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--oc-border-strong);
+  overflow: visible;
+}
+
+.right-panel__width-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 14px;
+  display: flex;
+}
+
+.right-panel-shell {
+  width: 100%;
+  height: 100%;
 }
 
 .right-panel-split {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  border-radius: 16px;
 }
 
 .block-list-panel {
   height: 100%;
-  border-bottom: 1px solid var(--oc-border-strong);
   overflow: hidden;
 }
 
@@ -805,7 +850,7 @@ onUnmounted(() => {
   color: var(--oc-text-dim);
   font-size: var(--oc-body-size);
   text-align: center;
-  padding: 20px;
+  padding: 24px;
   width: 100%;
 }
 

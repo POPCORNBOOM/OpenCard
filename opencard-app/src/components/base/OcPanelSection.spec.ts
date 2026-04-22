@@ -30,5 +30,19 @@ describe('OcPanelSection', () => {
     expect(wrapper.find('.oc-panel-scroll-body').exists()).toBe(true)
     expect(wrapper.find('.oc-scroll-area--y').exists()).toBe(true)
   })
-})
 
+  it('supports overlay tone without removing section structure', () => {
+    const wrapper = mount(OcPanelSection, {
+      props: {
+        title: 'Overlay Inspector',
+        tone: 'overlay',
+      },
+      slots: {
+        default: '<div>body</div>',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('oc-panel-section--tone-overlay')
+    expect(wrapper.find('.oc-panel-header').exists()).toBe(true)
+  })
+})

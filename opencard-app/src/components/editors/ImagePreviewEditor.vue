@@ -13,23 +13,31 @@
 -->
 <template>
   <div class="image-preview-editor">
-    <div v-if="imageSrc" class="image-preview-stage image-preview-stage--checkerboard">
-      <img class="image-preview" :src="imageSrc" :alt="fileName" @load="handleLoad" @error="handleError" />
-    </div>
-    <div v-if="loadError" class="image-preview-empty">
-      <div class="empty-title">无法预览图片</div>
-      <div class="empty-subtitle">{{ fileName }}</div>
+    <header class="image-preview-header">
+      <div class="image-preview-header__eyebrow">{{ t('fileTypes.image') }}</div>
+      <div class="image-preview-header__name">{{ fileName }}</div>
+    </header>
+    <div class="image-preview-body">
+      <div v-if="imageSrc" class="image-preview-stage image-preview-stage--checkerboard">
+        <img class="image-preview" :src="imageSrc" :alt="fileName" @load="handleLoad" @error="handleError" />
+      </div>
+      <div v-if="loadError" class="image-preview-empty">
+        <div class="empty-title">无法预览图片</div>
+        <div class="empty-subtitle">{{ fileName }}</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
+const { t } = useI18n()
 
 const { resolveAssetSrc } = useProjectStore()
 
@@ -63,7 +71,41 @@ defineExpose({ save })
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--oc-bg-base);
+  border: 1px solid var(--oc-border-strong);
+  border-radius: 16px;
+  background: var(--oc-bg-panel);
+  box-shadow: var(--oc-shadow-md);
+}
+
+.image-preview-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--oc-border-subtle);
+  background: linear-gradient(180deg, var(--oc-bg-panel) 0%, var(--oc-bg-subtle) 100%);
+}
+
+.image-preview-header__eyebrow {
+  font-size: var(--oc-label-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--oc-text-info);
+}
+
+.image-preview-header__name {
+  font-size: var(--oc-title-size);
+  color: var(--oc-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.image-preview-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: linear-gradient(180deg, var(--oc-bg-subtle) 0%, var(--oc-bg-base) 100%);
 }
 
 .image-preview-stage {
@@ -114,5 +156,6 @@ defineExpose({ save })
 .empty-subtitle {
   font-size: var(--oc-body-size);
   color: var(--oc-text-secondary);
+  text-align: center;
 }
 </style>

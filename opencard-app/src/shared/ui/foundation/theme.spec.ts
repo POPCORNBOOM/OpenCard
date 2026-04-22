@@ -22,14 +22,19 @@ describe('theme registry', () => {
     expect(root.style.getPropertyValue('--oc-bg-base')).toBe(OC_THEME_REGISTRY.dark['--oc-bg-base'])
   })
 
-  it('falls back to dark theme when theme id is unknown', () => {
+  it('keeps dark and light themes on the same accent family', () => {
+    expect(OC_THEME_REGISTRY.dark['--oc-accent']).toBe(OC_THEME_REGISTRY.light['--oc-accent'])
+    expect(OC_THEME_REGISTRY.dark['--oc-bg-accent']).toBe(OC_THEME_REGISTRY.light['--oc-bg-accent'])
+  })
+
+  it('falls back to light theme when theme id is unknown', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     setOcTheme('unknown-theme')
 
     const root = document.documentElement
-    expect(getOcTheme()).toBe('dark')
-    expect(root.dataset.ocTheme).toBe('dark')
+    expect(getOcTheme()).toBe('light')
+    expect(root.dataset.ocTheme).toBe('light')
     expect(warnSpy).toHaveBeenCalledTimes(1)
   })
 })

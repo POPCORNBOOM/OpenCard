@@ -13,6 +13,7 @@
 import { computed } from 'vue'
 
 type ResizerOrientation = 'horizontal' | 'vertical'
+type ResizerVariant = 'line' | 'edge'
 
 defineOptions({ name: 'OcResizer' })
 
@@ -20,10 +21,12 @@ const props = withDefaults(defineProps<{
   orientation?: ResizerOrientation
   active?: boolean
   ariaLabel?: string
+  variant?: ResizerVariant
 }>(), {
   orientation: 'vertical',
   active: false,
   ariaLabel: undefined,
+  variant: 'line',
 })
 
 const emit = defineEmits<{
@@ -32,6 +35,7 @@ const emit = defineEmits<{
 
 const resizerClass = computed(() => [
   `oc-resizer--${props.orientation}`,
+  `oc-resizer--${props.variant}`,
   {
     'is-active': props.active,
   },
@@ -56,7 +60,9 @@ function handleMouseDown(event: MouseEvent): void {
   position: absolute;
   border-radius: var(--oc-radius-pill);
   background: var(--oc-border-strong);
+  opacity: 1;
   transition:
+    opacity var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
     background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
     box-shadow var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
 }
@@ -86,5 +92,33 @@ function handleMouseDown(event: MouseEvent): void {
 
 .oc-resizer--horizontal::before {
   inset: 2px 0;
+}
+
+.oc-resizer--edge::before {
+  opacity: 0;
+}
+
+.oc-resizer--vertical.oc-resizer--edge {
+  width: 14px;
+}
+
+.oc-resizer--vertical.oc-resizer--edge::before {
+  inset: 0 6px;
+}
+
+.oc-resizer--horizontal.oc-resizer--edge {
+  height: 12px;
+}
+
+.oc-resizer--horizontal.oc-resizer--edge::before {
+  inset: 5px 0;
+}
+
+.oc-resizer--edge:hover::before {
+  opacity: 0.5;
+}
+
+.oc-resizer--edge.is-active::before {
+  opacity: 1;
 }
 </style>

@@ -12,71 +12,17 @@
 -->
 <template>
   <div class="ide-layout">
-    <!-- 顶部菜单栏 -->
-    <div class="menu-bar">
-      <OcToolbar class="menu-items" kind="menu" aria-label="Main menu">
-        <OcToolButton kind="menu" :label="t('app.menu.file')" :disabled="true" />
-        <OcToolButton kind="menu" :label="t('app.menu.edit')" :disabled="true" />
-        <OcToolButton kind="menu" :label="t('app.menu.view')" :disabled="true" />
-        <OcToolButton kind="menu" :label="t('app.menu.help')" :disabled="true" />
-        <OcToolButton kind="menu" label="UI Kit" @click="openUiKitShowcase" />
-        <OcToolButton kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard" @click="exportActiveCard2x" />
-        <OcToolButton kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard" @click="exportAllCardViews" />
-      </OcToolbar>
-      <div class="window-title">OpenCard</div>
-    </div>
+    <MainIdeTopBar
+      :project-name="projectName"
+      :can-export-active-card="canExportActiveCard"
+      @open-ui-kit="openUiKitShowcase"
+      @export-active-card2x="exportActiveCard2x"
+      @export-all-card-views="exportAllCardViews"
+    />
 
     <div class="main-container">
-      <!-- 左侧活动栏 -->
-      <div class="activity-bar">
-        <OcToolbar class="activity-icons" kind="sidebar" aria-label="Activity bar">
-          <OcToolButton
-            class="activity-icon"
-            kind="sidebar"
-            icon-only
-            :active="activeView === 'files'"
-            :title="t('sidebar.files')"
-            :aria-label="t('sidebar.files')"
-            @click="activeView = 'files'"
-          >
-            <AppIcon name="app.files" tone="primary" />
-          </OcToolButton>
-          <OcToolButton
-            class="activity-icon"
-            kind="sidebar"
-            icon-only
-            :active="activeView === 'git'"
-            :title="t('sidebar.git')"
-            :aria-label="t('sidebar.git')"
-            @click="activeView = 'git'"
-          >
-            <AppIcon name="app.git" tone="danger" />
-          </OcToolButton>
-          <OcToolButton
-            class="activity-icon"
-            kind="sidebar"
-            icon-only
-            :active="activeView === 'publish'"
-            :title="t('sidebar.publish')"
-            :aria-label="t('sidebar.publish')"
-            @click="activeView = 'publish'"
-          >
-            <AppIcon name="app.publish" tone="warning" />
-          </OcToolButton>
-        </OcToolbar>
-      </div>
-
-      <!-- 左侧边栏 -->
-      <OcPanelSection v-if="activeView" class="sidebar" header-class="sidebar-header" body-class="sidebar-content"
-        :scroll-body="true">
-        <template #title>
-          <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
-          <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
-          <span v-else-if="activeView === 'publish'">{{ t('sidebar.publish') }}</span>
-        </template>
-        <template #default>
-          <!-- 文件浏览器 -->
-          <div v-if="activeView === 'files'">
+      <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
+        <template #files>
             <OcButton @click="openProject" class="open-folder-btn" variant="primary">
               {{ t('sidebar.openProject') }}
             </OcButton>
@@ -89,70 +35,36 @@
               @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
               :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
             <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
-          </div>
-
-          <!-- 版本管理 -->
-          <div v-else-if="activeView === 'git'">
-            <p class="placeholder placeholder--empty">{{ t('panels.gitPlaceholder') }}</p>
-          </div>
-
-          <!-- 发布 -->
-          <div v-else-if="activeView === 'publish'">
-            <p class="placeholder placeholder--empty">{{ t('panels.publishPlaceholder') }}</p>
-          </div>
         </template>
-      </OcPanelSection>
+      </MainIdeSidebarShell>
 
-      <!-- 编辑器区域 -->
-      <div class="editor-container">
-        <OcTabBar v-if="sessions.length > 0" class="editor-tabs" :aria-label="t('sidebar.openedEditors')">
-          <OcTab
-            v-for="session in sessions"
-            :key="session.id"
-            :label="session.name"
-            :title="session.name"
-            :active="activeSessionId === session.id"
-            :dirty="Boolean(session.isDirty)"
-            :closable="true"
-            :close-aria-label="`Close ${session.name}`"
-            @select="activateSession(session.id)"
-            @close="closeFile(session.id)"
-          />
-        </OcTabBar>
-        <div class="editor-content">
-          <div v-if="!activeSession" class="welcome-screen">
-            <h1>{{ t('app.welcome.title') }}</h1>
-            <p class="welcome-subtitle">{{ t('app.welcome.subtitle') }}</p>
-          </div>
-          <component v-else :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
-            @save="handleEditorSave" />
-        </div>
-      </div>
-
-      <!-- 右侧预览面板 
-      <div class="preview-panel" v-if="showPreview && previewCardDoc">
-        <div class="preview-header">
-          <span>{{ t('panels.cardPreview') }}</span>
-          <AppIcon name="app.close" @click="showPreview = false" />
-        </div>
-        <div class="preview-content">
-          <CardRenderer ref="liveCardRendererRef" :document="previewCardDoc" />
-        </div>
-      </div>-->
+      <EditorWorkbenchFrame
+        :sessions="sessions"
+        :active-session-id="activeSessionId ?? null"
+        :has-active-session="Boolean(activeSession)"
+        :surface-mode="activeSession?.editorId === 'card-designer' ? 'immersive' : 'padded'"
+        @select-session="activateSession"
+        @close-session="closeFile"
+        @open-project="openProject"
+        @open-ui-kit="openUiKitShowcase"
+      >
+        <component :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
+          @save="handleEditorSave" />
+      </EditorWorkbenchFrame>
     </div>
 
     <!-- 底部状态栏 -->
     <div class="status-bar">
       <div class="status-left">
-        <span v-if="projectPath">
+        <span v-if="projectPath" class="status-chip">
           <AppIcon name="status.folderOpen" /> {{ projectPath }}
         </span>
-        <span v-if="isWatching" class="status-watching">
+        <span v-if="isWatching" class="status-chip status-watching">
           <AppIcon name="status.watching" /> {{ t('status.watching') }}
         </span>
       </div>
       <div class="status-right">
-        <span v-if="activeSession">{{ currentLanguage }}</span>
+        <span v-if="activeSession" class="status-chip">{{ currentLanguage }}</span>
       </div>
     </div>
 
@@ -166,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../features/workspace/store/projectStore'
 import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
@@ -175,19 +87,13 @@ import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
-import OcPanelSection from '../components/base/OcPanelSection.vue'
-import OcTab from '../components/base/OcTab.vue'
-import OcTabBar from '../components/base/OcTabBar.vue'
-import OcToolButton from '../components/base/OcToolButton.vue'
-import OcToolbar from '../components/base/OcToolbar.vue'
+import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
+import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
+import EditorWorkbenchFrame from '../features/ide-shell/components/EditorWorkbenchFrame.vue'
 import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType } from '../features/workspace/model/fileTypes'
-import {
-  prepareDocumentForRender,
-  type CardDocument,
-} from '../entities/card/model'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 
@@ -220,8 +126,6 @@ const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
 const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const currentEditorRef = ref<CurrentEditorRef | null>(null)
-const showPreview = ref(false)
-const previewCardDoc = ref<CardDocument | null>(null)
 
 const {
   sessions,
@@ -306,32 +210,6 @@ const currentEditorProps = computed(() => {
     modelValue: activeSession.value.draftContent,
     'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     language: currentLanguage.value
-  }
-})
-
-// 监听内容变化，自动更新预览
-watch(() => activeSession.value?.draftContent ?? '', (newContent) => {
-  if (!newContent) {
-    showPreview.value = false
-    previewCardDoc.value = null
-    return
-  }
-
-  const fileType = resolveFileType(activeSession.value?.path ?? '')
-  if (!fileType.previewable) {
-    showPreview.value = false
-    previewCardDoc.value = null
-    return
-  }
-
-  try {
-    const cardDoc = prepareDocumentForRender(JSON.parse(newContent) as CardDocument)
-    previewCardDoc.value = cardDoc
-    showPreview.value = true
-  } catch (error) {
-    // JSON 解析失败，隐藏预览
-    showPreview.value = false
-    previewCardDoc.value = null
   }
 })
 
@@ -517,161 +395,49 @@ function closeFile(sessionId: string) {
   color: var(--oc-text-primary);
 }
 
-.menu-bar {
-  height: 35px;
-  background: var(--oc-bg-app-chrome);
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--oc-border-strong);
-}
-
-.menu-items {
-  min-width: 0;
-}
-
-.window-title {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  color: var(--oc-text-muted);
-}
-
 .main-container {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-.activity-bar {
-  width: 48px;
-  background: var(--oc-bg-sidebar);
-  border-right: 1px solid var(--oc-border-strong);
-}
-
-.activity-icons {
-  padding: 10px 0;
-}
-
-.sidebar {
-  width: 250px;
-  background: var(--oc-bg-panel);
-  border-right: 1px solid var(--oc-border-strong);
-}
-
-.sidebar-header {
-  padding: 0 15px;
-  min-height: 35px;
-}
-
-.sidebar-content {
-  padding: 10px;
-}
-
 .open-folder-btn {
   width: 100%;
   border: none;
-  border-radius: 2px;
-  font-size: 12px;
-}
-
-.open-folder-btn:hover {
-  border-color: transparent;
-}
-
-.editor-container {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.editor-content {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.preview-panel {
-  width: 450px;
-  background: var(--oc-bg-base);
-  border-left: 1px solid var(--oc-border-strong);
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-header {
-  padding: 0 15px;
-  min-height: 35px;
-}
-
-.preview-header i {
-  cursor: pointer;
-  padding: 4px;
-}
-
-.preview-header i:hover {
-  background: var(--oc-bg-hover);
-}
-
-.preview-content {
-  flex: 1;
-}
-
-.welcome-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--oc-text-muted);
-}
-
-.welcome-screen h1 {
-  font-size: 48px;
-  font-weight: 300;
-  margin-bottom: 20px;
-}
-
-.welcome-subtitle,
-.placeholder--empty {
-  color: var(--oc-text-dim);
-  font-size: var(--oc-body-size);
-  text-align: center;
-  padding: 20px;
+  min-height: 36px;
 }
 
 .status-bar {
-  height: 22px;
-  background: var(--oc-accent);
+  height: 24px;
+  background: var(--oc-bg-app-chrome);
+  border-top: 1px solid var(--oc-border-strong);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 14px;
   font-size: 12px;
-  color: var(--oc-accent-contrast);
+  color: var(--oc-text-secondary);
 }
 
 .status-left,
 .status-right {
   display: flex;
-  gap: 15px;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  padding: 0 8px;
+  border-radius: var(--oc-radius-pill);
+  background: var(--oc-bg-panel);
+  border: 1px solid var(--oc-border-subtle);
 }
 
 .status-watching {
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
+  color: var(--oc-text-info);
 }
 </style>

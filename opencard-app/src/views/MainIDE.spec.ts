@@ -2,8 +2,70 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const activateSessionSpy = vi.fn()
-const closeSessionSpy = vi.fn()
+const mocked = vi.hoisted(() => {
+  const monacoStub = {
+    name: 'MonacoEditor',
+    template: '<div class="monaco-editor-stub" />',
+  }
+  const cardDesignerStub = {
+    name: 'CardDesignEditor',
+    template: '<div class="card-design-editor-stub" />',
+  }
+  const imagePreviewStub = {
+    name: 'ImagePreviewEditor',
+    template: '<div class="image-preview-editor-stub" />',
+  }
+
+  return {
+    activateSessionSpy: vi.fn(),
+    closeSessionSpy: vi.fn(),
+    openProjectSpy: vi.fn(),
+    monacoStub,
+    cardDesignerStub,
+    imagePreviewStub,
+    editorRegistryGetEditorSpy: vi.fn((editorId: string) => {
+      const registry = {
+        monaco: { id: 'monaco', component: monacoStub },
+        'card-designer': { id: 'card-designer', component: cardDesignerStub },
+        'image-preview': { id: 'image-preview', component: imagePreviewStub },
+      }
+
+      return registry[editorId as keyof typeof registry]
+    }),
+    resolveFileTypeMock: vi.fn((path: string) => {
+      if (path.endsWith('.opencard')) {
+        return { language: 'json', previewable: false, editorId: 'card-designer' }
+      }
+
+      if (path.endsWith('.png')) {
+        return { language: 'image', previewable: true, editorId: 'image-preview' }
+      }
+
+      return { language: 'plaintext', previewable: false, editorId: 'monaco' }
+    }),
+  }
+})
+
+const sessionsRef = ref([
+  {
+    id: 'session-1',
+    name: 'Uno.opencard',
+    path: 'Assets/Cards/Uno.opencard',
+    draftContent: '{"cards":[]}',
+    editorId: 'monaco',
+    isDirty: false,
+  },
+  {
+    id: 'session-2',
+    name: 'Blue.opencard',
+    path: 'Assets/Cards/Blue.opencard',
+    draftContent: '{"cards":[]}',
+    editorId: 'monaco',
+    isDirty: true,
+  },
+])
+const activeSessionIdRef = ref('session-1')
+const activeSessionRef = ref<(typeof sessionsRef.value)[number] | null>(null)
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -16,7 +78,7 @@ vi.mock('../features/workspace/store/projectStore', () => ({
     projectPath: ref(''),
     indexedEntries: ref([]),
     isWatching: ref(false),
-    openProject: vi.fn(),
+    openProject: mocked.openProjectSpy,
     isDirectoryExpanded: vi.fn(() => false),
     readDirectoryEntries: vi.fn(),
     getFileTreeAllowedDropPositions: vi.fn(() => ['inside']),
@@ -29,27 +91,16 @@ vi.mock('../features/workspace/store/projectStore', () => ({
 
 vi.mock('../features/workspace/store/editorSessionStore', () => ({
   useEditorSessionStore: () => ({
-    sessions: ref([
-      {
-        id: 'session-1',
-        name: 'Uno.opencard',
-        isDirty: false,
-      },
-      {
-        id: 'session-2',
-        name: 'Blue.opencard',
-        isDirty: true,
-      },
-    ]),
-    activeSessionId: ref('session-1'),
-    activeSession: ref(null),
+    sessions: sessionsRef,
+    activeSessionId: activeSessionIdRef,
+    activeSession: activeSessionRef,
     openedFileNodes: ref([]),
     openFile: vi.fn(),
     openPreviewFile: vi.fn(),
-    activateSession: activateSessionSpy,
+    activateSession: mocked.activateSessionSpy,
     activatePath: vi.fn(),
     updateDraftContent: vi.fn(),
-    closeSession: closeSessionSpy,
+    closeSession: mocked.closeSessionSpy,
     saveActiveSession: vi.fn(),
     remapSessionPaths: vi.fn(),
   }),
@@ -78,19 +129,12 @@ vi.mock('../features/ide-shell/composables/useIdeFileTree', () => ({
 
 vi.mock('../features/editor-runtime/registry/editorRegistry', () => ({
   editorRegistry: {
-    getEditor: vi.fn(() => ({
-      id: 'monaco',
-      component: null,
-    })),
+    getEditor: mocked.editorRegistryGetEditorSpy,
   },
 }))
 
 vi.mock('../features/workspace/model/fileTypes', () => ({
-  resolveFileType: vi.fn(() => ({
-    language: 'plaintext',
-    previewable: false,
-    editorId: 'monaco',
-  })),
+  resolveFileType: mocked.resolveFileTypeMock,
 }))
 
 vi.mock('../entities/card/model', () => ({
@@ -98,18 +142,38 @@ vi.mock('../entities/card/model', () => ({
 }))
 
 vi.mock('../components/editors/MonacoEditor.vue', () => ({
-  default: {
-    name: 'MonacoEditor',
-    template: '<div class="monaco-editor-stub" />',
-  },
+  default: mocked.monacoStub,
 }))
 
 import MainIDE from './MainIDE.vue'
 
 describe('MainIDE', () => {
   beforeEach(() => {
-    activateSessionSpy.mockClear()
-    closeSessionSpy.mockClear()
+    mocked.activateSessionSpy.mockClear()
+    mocked.closeSessionSpy.mockClear()
+    mocked.openProjectSpy.mockClear()
+    mocked.editorRegistryGetEditorSpy.mockClear()
+    mocked.resolveFileTypeMock.mockClear()
+    sessionsRef.value = [
+      {
+        id: 'session-1',
+        name: 'Uno.opencard',
+        path: 'Assets/Cards/Uno.opencard',
+        draftContent: '{"cards":[]}',
+        editorId: 'monaco',
+        isDirty: false,
+      },
+      {
+        id: 'session-2',
+        name: 'Blue.opencard',
+        path: 'Assets/Cards/Blue.opencard',
+        draftContent: '{"cards":[]}',
+        editorId: 'monaco',
+        isDirty: true,
+      },
+    ]
+    activeSessionIdRef.value = 'session-1'
+    activeSessionRef.value = null
   })
 
   it('keeps tab activation scoped to the tab row instead of the close button', async () => {
@@ -130,7 +194,7 @@ describe('MainIDE', () => {
 
     const closeButton = wrapper.get('.oc-tab[aria-selected="true"] .oc-tab__close')
     await closeButton.trigger('keydown', { key: 'Enter' })
-    expect(activateSessionSpy).not.toHaveBeenCalled()
+    expect(mocked.activateSessionSpy).not.toHaveBeenCalled()
   })
 
   it('routes arrow-key navigation through the new tab bar', async () => {
@@ -151,6 +215,78 @@ describe('MainIDE', () => {
 
     const activeTab = wrapper.get('.oc-tab[aria-selected="true"]')
     await activeTab.trigger('keydown', { key: 'ArrowRight' })
-    expect(activateSessionSpy).toHaveBeenCalledWith('session-2')
+    expect(mocked.activateSessionSpy).toHaveBeenCalledWith('session-2')
+  })
+
+  it('renders the upgraded welcome shell and actions when no editor is active', async () => {
+    const wrapper = mount(MainIDE, {
+      global: {
+        stubs: {
+          AppIcon: true,
+          NodeTree: true,
+          FloatingMenuHost: true,
+          CardRenderer: true,
+          MonacoEditor: true,
+          OcPanelSection: {
+            template: '<section><slot name="title" /><slot /></section>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.find('.welcome-screen').exists()).toBe(true)
+    expect(wrapper.text()).toContain('app.welcome.title')
+
+    await wrapper.get('.welcome-actions .oc-pressable--primary').trigger('click')
+    expect(mocked.openProjectSpy).toHaveBeenCalled()
+  })
+
+  it('mounts the registered editor shells for monaco, card designer, and image preview', async () => {
+    const wrapper = mount(MainIDE, {
+      global: {
+        stubs: {
+          AppIcon: true,
+          NodeTree: true,
+          FloatingMenuHost: true,
+          CardRenderer: true,
+          OcPanelSection: {
+            template: '<section><slot name="title" /><slot /></section>',
+          },
+        },
+      },
+    })
+
+    activeSessionRef.value = {
+      id: 'session-monaco',
+      name: 'README.md',
+      path: 'README.md',
+      draftContent: '# OpenCard',
+      editorId: 'monaco',
+      isDirty: false,
+    }
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.monaco-editor-stub').exists()).toBe(true)
+
+    activeSessionRef.value = {
+      id: 'session-card',
+      name: 'Uno.opencard',
+      path: 'Assets/Cards/Uno.opencard',
+      draftContent: '{"cards":[]}',
+      editorId: 'card-designer',
+      isDirty: false,
+    }
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.card-design-editor-stub').exists()).toBe(true)
+
+    activeSessionRef.value = {
+      id: 'session-image',
+      name: 'preview.png',
+      path: 'Assets/Images/preview.png',
+      draftContent: '',
+      editorId: 'image-preview',
+      isDirty: false,
+    }
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.image-preview-editor-stub').exists()).toBe(true)
   })
 })

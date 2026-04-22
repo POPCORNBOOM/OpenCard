@@ -47,4 +47,33 @@ describe('useCdePanelResize', () => {
 
     panelResize.unmountPanelResizeListeners()
   })
+
+  it('limits right panel width against overlay safe area and center workspace', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0)
+      return 1
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    const panelResize = useCdePanelResize()
+    const editorRoot = document.createElement('div')
+    const rightPanel = document.createElement('div')
+    setClientSize(editorRoot, 1200, 800)
+    setClientSize(rightPanel, 320, 500)
+    editorRoot.style.setProperty('--card-editor-overlay-inset-x', '24px')
+    editorRoot.style.setProperty('--card-editor-center-safe-width', '420px')
+    editorRoot.style.setProperty('--card-editor-left-panel-width', '272px')
+
+    panelResize.editorRootRef.value = editorRoot
+    panelResize.rightPanelRef.value = rightPanel
+    panelResize.mountPanelResizeListeners()
+
+    panelResize.startRightPanelResize({ clientX: 0, clientY: 0 } as MouseEvent)
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: -1000, clientY: 0 }))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+
+    expect(panelResize.editorStyle.value['--card-editor-right-panel-width']).toBe('460px')
+
+    panelResize.unmountPanelResizeListeners()
+  })
 })

@@ -28,4 +28,16 @@ describe('OcResizer', () => {
     expect(wrapper.emitted('mousedown')).toHaveLength(1)
     expect(wrapper.classes()).toContain('is-active')
   })
+
+  it('supports edge variant without changing separator semantics', () => {
+    const wrapper = mount(OcResizer, {
+      props: {
+        orientation: 'vertical',
+        variant: 'edge',
+      },
+    })
+
+    expect(wrapper.attributes('role')).toBe('separator')
+    expect(wrapper.classes()).toContain('oc-resizer--edge')
+  })
 })
