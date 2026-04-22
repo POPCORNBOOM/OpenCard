@@ -21,10 +21,15 @@
         <span v-if="isInstancePanelExpanded">创建的卡牌</span>
       </template>
       <template #actions>
-        <OcButton class="panel-icon-button left-panel-toggle" variant="icon" icon-only @click="toggleInstancePanel"
-          :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'">
-          <span class="codicon" :class="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'" />
-        </OcButton>
+        <OcToolButton
+          class="left-panel-toggle"
+          kind="panel"
+          icon-only
+          :icon="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'"
+          :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
+          :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
+          @click="toggleInstancePanel"
+        />
       </template>
       <template #default>
         <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
@@ -35,55 +40,99 @@
       </template>
     </OcPanelSection>
 
-    <div class="canvas-area oc-editor-stage">
-      <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
-        :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
-        :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
-        @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
-        @move-selection="handleSelectionMove" />
-      <div v-else class="empty-hint oc-empty-hint">无法解析 .opencard 文件</div>
-    </div>
-
-    <div class="panel-resizer panel-resizer--vertical" :class="{ active: resizeState === 'right-panel' }"
-      @mousedown.prevent="startRightPanelResize($event)" />
-
-    <div ref="rightPanelRef" class="right-panel oc-panel-stack">
-      <OcPanelSection class="block-list-panel" title="信息树" header-class="panel-header" body-class="block-list"
-        :scroll-body="true">
-        <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
-          v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-          @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
-          @node-drop="handleTreeDrop" />
-      </OcPanelSection>
-      <div class="panel-resizer panel-resizer--horizontal" :class="{ active: resizeState === 'tree-panel' }"
-        @mousedown.prevent="startTreePanelResize($event)" />
-
-      <OcPanelSection class="property-panel" title="属性" header-class="panel-header">
-        <template #actions>
-          <div class="panel-header-actions">
-            <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
-              :class="{ active: propertySortMode === 'category' }" :active="propertySortMode === 'category'"
-              title="Category" @click="propertySortMode = 'category'">
-              <span class="codicon codicon-list-tree" />
-            </OcButton>
-            <OcButton class="panel-icon-button" variant="icon" icon-only radius="none"
-              :class="{ active: propertySortMode === 'alphabetical' }" :active="propertySortMode === 'alphabetical'"
-              title="A-Z" @click="propertySortMode = 'alphabetical'">
-              <span class="codicon codicon-symbol-string" />
-            </OcButton>
-          </div>
-        </template>
-        <template #default>
-          <PropertyEditor
-            :inputs="propertyInputs"
-            :sort-mode="propertySortMode"
-            @update-property="updateBlockProp"
-            @add-property="addBlockProp"
-            @reset-property="resetBlockProp"
-          />
-        </template>
-      </OcPanelSection>
-    </div>
+    <OcSplitPane
+      class="editor-main-split"
+      orientation="horizontal"
+      fixedPane="secondary"
+      fixedSize="var(--card-editor-right-panel-width)"
+      secondaryMinSize="220px"
+    >
+      <template #primary>
+        <div class="canvas-area">
+          <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
+            :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
+            :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
+            @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
+            @move-selection="handleSelectionMove" />
+          <div v-else class="empty-hint">无法解析 .opencard 文件</div>
+        </div>
+      </template>
+      <template #resizer>
+        <OcResizer
+          class="card-editor-resizer"
+          orientation="vertical"
+          aria-label="调整右侧检查器宽度"
+          :active="resizeState === 'right-panel'"
+          @mousedown="startRightPanelResize"
+        />
+      </template>
+      <template #secondary>
+        <div ref="rightPanelRef" class="right-panel">
+          <OcSplitPane
+            class="right-panel-split"
+            orientation="vertical"
+            fixedPane="primary"
+            fixedSize="var(--card-editor-tree-panel-height)"
+            primaryMinSize="140px"
+            secondaryMinSize="var(--card-editor-min-property-panel-height)"
+          >
+            <template #primary>
+              <OcPanelSection class="block-list-panel" title="信息树" header-class="panel-header" body-class="block-list"
+                :scroll-body="true">
+                <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
+                  v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
+                  @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
+                  @node-drop="handleTreeDrop" />
+              </OcPanelSection>
+            </template>
+            <template #resizer>
+              <OcResizer
+                class="card-editor-resizer"
+                orientation="horizontal"
+                aria-label="调整信息树高度"
+                :active="resizeState === 'tree-panel'"
+                @mousedown="startTreePanelResize"
+              />
+            </template>
+            <template #secondary>
+              <OcPanelSection class="property-panel" title="属性" header-class="panel-header">
+                <template #actions>
+                  <OcToolbar class="panel-header-actions" kind="panel" aria-label="Property sort tools">
+                    <OcToolButton
+                      kind="panel"
+                      icon-only
+                      icon="codicon-list-tree"
+                      :active="propertySortMode === 'category'"
+                      title="Category"
+                      aria-label="Category"
+                      @click="propertySortMode = 'category'"
+                    />
+                    <OcToolButton
+                      kind="panel"
+                      icon-only
+                      icon="codicon-symbol-string"
+                      :active="propertySortMode === 'alphabetical'"
+                      title="A-Z"
+                      aria-label="A-Z"
+                      @click="propertySortMode = 'alphabetical'"
+                    />
+                  </OcToolbar>
+                </template>
+                <template #default>
+                  <PropertyEditor
+                    :inputs="propertyInputs"
+                    :sort-mode="propertySortMode"
+                    @update-property="updateBlockProp"
+                    @add-property="addBlockProp"
+                    @reset-property="resetBlockProp"
+                  />
+                </template>
+              </OcPanelSection>
+            </template>
+          </OcSplitPane>
+        </div>
+      </template>
+    </OcSplitPane>
   </div>
 </template>
 
@@ -109,8 +158,11 @@ import {
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
-import OcButton from '../base/OcButton.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
+import OcResizer from '../base/OcResizer.vue'
+import OcSplitPane from '../base/OcSplitPane.vue'
+import OcToolButton from '../base/OcToolButton.vue'
+import OcToolbar from '../base/OcToolbar.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
@@ -613,7 +665,7 @@ onUnmounted(() => {
   border-right: 1px solid var(--oc-border-strong);
   overflow: hidden;
   flex-shrink: 0;
-  transition: width 160ms ease;
+  transition: width var(--oc-motion-duration-base) var(--oc-motion-ease-standard);
 }
 
 .left-panel.collapsed {
@@ -652,29 +704,48 @@ onUnmounted(() => {
 }
 
 .left-panel-content {
-  padding: 4px 0;
+  padding: var(--oc-space-1) 0;
 }
 
 .canvas-area {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
   background: var(--oc-bg-elevated);
 }
 
+.editor-main-split {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 .right-panel {
-  width: var(--card-editor-right-panel-width);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid var(--oc-border-strong);
 }
 
+.right-panel-split {
+  width: 100%;
+  height: 100%;
+}
+
 .block-list-panel {
-  height: var(--card-editor-tree-panel-height);
-  flex: 0 0 auto;
+  height: 100%;
   border-bottom: 1px solid var(--oc-border-strong);
   overflow: hidden;
 }
 
 .property-panel {
-  height: calc(100% - var(--card-editor-tree-panel-height) - var(--card-editor-horizontal-resizer-height));
-  min-height: var(--card-editor-min-property-panel-height);
-  flex: 0 0 auto;
+  height: 100%;
   position: relative;
   overflow: hidden;
 }
@@ -684,83 +755,35 @@ onUnmounted(() => {
 }
 
 .panel-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.panel-icon-button {
   flex-shrink: 0;
 }
 
 .block-list {
-  padding: 4px 0;
+  padding: var(--oc-space-1) 0;
 }
 
 .block-item {
-  padding: 4px 10px;
+  padding: var(--oc-space-1) var(--oc-space-3);
   cursor: pointer;
   display: flex;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--oc-space-2);
+  font-size: var(--oc-body-size);
 }
 
 .block-item:hover {
-  background: #2a2d2e;
+  background: var(--oc-bg-hover);
 }
 
 .block-item.selected {
-  background: #094771;
+  background: var(--oc-bg-active);
 }
 
 .block-type {
-  color: #569cd6;
+  color: var(--oc-text-info);
 }
 
 .block-id {
-  color: #888;
-}
-
-.panel-resizer {
-  position: relative;
-  flex-shrink: 0;
-  background: transparent;
-  touch-action: none;
-}
-
-.panel-resizer::before {
-  content: '';
-  position: absolute;
-  border-radius: 999px;
-  background: var(--oc-border-strong);
-  transition: background-color 120ms ease, box-shadow 120ms ease;
-}
-
-.panel-resizer:hover::before {
-  background: var(--oc-bg-hover-strong);
-}
-
-.panel-resizer.active::before {
-  background: var(--oc-bg-accent);
-  box-shadow: 0 0 0 1px var(--oc-bg-accent-soft);
-}
-
-.panel-resizer--vertical {
-  width: 6px;
-  cursor: col-resize;
-}
-
-.panel-resizer--vertical::before {
-  inset: 0 2px;
-}
-
-.panel-resizer--horizontal {
-  height: 6px;
-  cursor: row-resize;
-}
-
-.panel-resizer--horizontal::before {
-  inset: 2px 0;
+  color: var(--oc-text-muted);
 }
 
 .card-design-editor--resizing .canvas-area,
@@ -776,6 +799,14 @@ onUnmounted(() => {
 
 .card-design-editor--resizing .block-list-panel {
   will-change: height;
+}
+
+.empty-hint {
+  color: var(--oc-text-dim);
+  font-size: var(--oc-body-size);
+  text-align: center;
+  padding: 20px;
+  width: 100%;
 }
 
 :global(body.is-resizing-panels) {

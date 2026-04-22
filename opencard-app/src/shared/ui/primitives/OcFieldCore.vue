@@ -32,7 +32,7 @@ const attrs = useAttrs()
 const fieldClass = computed(() => [
   props.inputClass,
   {
-    'oc-input': props.chromed,
+    'is-chromed': props.chromed,
   },
 ])
 </script>
@@ -45,7 +45,15 @@ const fieldClass = computed(() => [
   line-height: 1.4;
 }
 
-.oc-field-core.oc-input:focus {
+.oc-field-core.is-chromed {
+  background: var(--oc-bg-input);
+  border: 1px solid var(--oc-border-input);
+  color: var(--oc-text-primary);
+  padding: 2px 6px;
+}
+
+.oc-field-core.is-chromed:focus,
+.oc-field-core.is-chromed:focus-visible {
   border-color: var(--oc-accent);
   outline: none;
 }

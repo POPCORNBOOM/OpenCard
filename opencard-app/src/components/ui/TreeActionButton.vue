@@ -13,7 +13,7 @@
 <template>
   <div class="action-entry">
     <OcButton
-      class="action-trigger oc-button--tree-action"
+      class="action-trigger"
       variant="icon"
       icon-only
       :icon="action.icon"

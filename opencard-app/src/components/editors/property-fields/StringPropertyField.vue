@@ -101,7 +101,7 @@ function handleKeydown(event: KeyboardEvent) {
   z-index: 1;
   background: transparent;
   border: 0;
-  padding: 2px 6px;
+  padding: var(--oc-space-1) var(--oc-space-2);
   line-height: normal;
 }
 
@@ -110,7 +110,7 @@ function handleKeydown(event: KeyboardEvent) {
   inset: 0;
   display: flex;
   align-items: center;
-  padding: 2px 6px;
+  padding: var(--oc-space-1) var(--oc-space-2);
   font-size: var(--oc-body-size);
   line-height: normal;
   color: var(--oc-text-disabled);
@@ -121,6 +121,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 .autocomplete-field:focus-within {
   border-color: var(--oc-accent);
+  box-shadow: 0 0 0 var(--oc-focus-ring-width) var(--oc-accent-glow);
 }
 
 .autocomplete-current {
@@ -130,9 +131,9 @@ function handleKeydown(event: KeyboardEvent) {
 .readonly-value {
   flex: 1;
   min-width: 0;
-  padding: 2px 6px;
+  padding: var(--oc-space-1) var(--oc-space-2);
   font-size: var(--oc-body-size);
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--oc-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;

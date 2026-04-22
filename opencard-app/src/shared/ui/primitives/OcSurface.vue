@@ -74,15 +74,15 @@ const surfaceClass = computed(() => [
 }
 
 .oc-surface--radius-sm {
-  border-radius: 2px;
+  border-radius: var(--oc-radius-sm);
 }
 
 .oc-surface--radius-md {
-  border-radius: 6px;
+  border-radius: var(--oc-radius-md);
 }
 
 .oc-surface--radius-lg {
-  border-radius: 10px;
+  border-radius: var(--oc-radius-lg);
 }
 
 .oc-surface--shadow-none {
@@ -90,15 +90,14 @@ const surfaceClass = computed(() => [
 }
 
 .oc-surface--shadow-sm {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--oc-shadow-sm);
 }
 
 .oc-surface--shadow-md {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--oc-shadow-md);
 }
 
 .oc-surface--shadow-overlay {
   box-shadow: var(--oc-shadow-overlay);
 }
 </style>
-

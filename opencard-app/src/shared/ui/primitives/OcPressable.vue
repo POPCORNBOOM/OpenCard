@@ -1,9 +1,10 @@
 <template>
   <component
     :is="as"
-    class="oc-pressable oc-button"
+    class="oc-pressable"
     :class="pressableClass"
     v-bind="resolvedAttrs"
+    @keydown="handleNonButtonKeydown"
   >
     <slot />
   </component>
@@ -57,16 +58,24 @@ const resolvedAttrs = computed(() => {
     }
   }
 
+  const resolvedRole = typeof nextAttrs.role === 'string'
+    ? nextAttrs.role
+    : 'button'
+
+  const resolvedTabindex = props.disabled
+    ? -1
+    : (nextAttrs.tabindex ?? 0)
+
   return {
     ...nextAttrs,
+    role: resolvedRole,
     'aria-disabled': props.disabled ? 'true' : undefined,
-    tabindex: props.disabled ? -1 : nextAttrs.tabindex,
+    tabindex: resolvedTabindex,
   }
 })
 
 const pressableClass = computed(() => [
   `oc-pressable--${props.variant}`,
-  `oc-button--${props.variant}`,
   `oc-pressable--size-${props.size}`,
   `oc-pressable--radius-${props.radius}`,
   {
@@ -75,6 +84,26 @@ const pressableClass = computed(() => [
     'is-icon-only': props.iconOnly,
   },
 ])
+
+function handleNonButtonKeydown(event: KeyboardEvent): void {
+  if (isButtonElement.value || props.disabled || event.repeat) {
+    return
+  }
+
+  const isEnter = event.key === 'Enter'
+  const isSpace = event.key === ' ' || event.key === 'Spacebar'
+  if (!isEnter && !isSpace) {
+    return
+  }
+
+  event.preventDefault()
+  const currentTarget = event.currentTarget
+  if (!(currentTarget instanceof HTMLElement)) {
+    return
+  }
+
+  currentTarget.click()
+}
 </script>
 
 <style scoped>
@@ -91,7 +120,10 @@ const pressableClass = computed(() => [
   font-size: var(--oc-body-size);
   line-height: 1.2;
   text-decoration: none;
-  transition: border-color 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  transition:
+    border-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
+    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
+    color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
 }
 
 .oc-pressable:disabled,
@@ -102,7 +134,7 @@ const pressableClass = computed(() => [
 }
 
 .oc-pressable:focus-visible {
-  outline: 2px solid var(--oc-accent-glow);
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
   outline-offset: 1px;
 }
 
@@ -115,15 +147,15 @@ const pressableClass = computed(() => [
 }
 
 .oc-pressable--radius-sm {
-  border-radius: 2px;
+  border-radius: var(--oc-radius-sm);
 }
 
 .oc-pressable--radius-md {
-  border-radius: 6px;
+  border-radius: var(--oc-radius-md);
 }
 
 .oc-pressable--radius-lg {
-  border-radius: 999px;
+  border-radius: var(--oc-radius-pill);
 }
 
 .oc-pressable--size-sm:not(.is-icon-only) {
@@ -218,4 +250,3 @@ const pressableClass = computed(() => [
   background: var(--oc-bg-active);
 }
 </style>
-

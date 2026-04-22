@@ -11,6 +11,11 @@ const hexEnforcedRoots = [
 ]
 const hexEnforcedFiles = new Set([
   path.join(srcRoot, 'views', 'UiKitShowcase.vue'),
+  path.join(srcRoot, 'views', 'MainIDE.vue'),
+  path.join(srcRoot, 'components', 'editors', 'CardDesignEditor.vue'),
+  path.join(srcRoot, 'components', 'editors', 'ImagePreviewEditor.vue'),
+  path.join(srcRoot, 'components', 'ui', 'TreeNode.vue'),
+  path.join(srcRoot, 'components', 'editors', 'property-fields', 'FilePathPropertyField.vue'),
 ])
 
 const allowedHexFiles = new Set([
@@ -86,20 +91,86 @@ function checkHexColors(fullPath, content) {
 
 async function checkUiKitShowcaseStructure() {
   const viewPath = path.join(srcRoot, 'views', 'UiKitShowcase.vue')
+  const catalogPath = path.join(srcRoot, 'views', 'ui-kit', 'catalog.ts')
   const gridPath = path.join(srcRoot, 'components', 'ui-kit', 'ExampleGrid.vue')
+  const rendererPath = path.join(srcRoot, 'components', 'ui-kit', 'ShowcaseExampleRenderer.vue')
 
   const viewContent = await fs.readFile(viewPath, 'utf8')
+  const catalogContent = await fs.readFile(catalogPath, 'utf8')
   const gridContent = await fs.readFile(gridPath, 'utf8')
+  const rendererContent = await fs.readFile(rendererPath, 'utf8')
 
-  for (const sectionId of uiKitRequiredSectionIds) {
-    if (!viewContent.includes(`id="${sectionId}"`)) {
-      pushViolation('ui-kit-structure', viewPath, `Missing section id "${sectionId}"`)
+  const usesCatalogDrivenSectionLoop =
+    viewContent.includes(':id="section.id"')
+    && viewContent.includes('UI_KIT_SECTIONS')
+
+  if (usesCatalogDrivenSectionLoop) {
+    for (const sectionId of uiKitRequiredSectionIds) {
+      if (!catalogContent.includes(`id: '${sectionId}'`)) {
+        pushViolation('ui-kit-structure', catalogPath, `Missing section id "${sectionId}" in catalog`)
+      }
     }
+  } else {
+    for (const sectionId of uiKitRequiredSectionIds) {
+      if (!viewContent.includes(`id="${sectionId}"`)) {
+        pushViolation('ui-kit-structure', viewPath, `Missing section id "${sectionId}"`)
+      }
+    }
+  }
+
+  if (!viewContent.includes('<ShowcaseExampleRenderer')) {
+    pushViolation('ui-kit-structure', viewPath, 'UiKitShowcase must render demos via <ShowcaseExampleRenderer>')
   }
 
   for (const title of uiKitRequiredColumnTitles) {
     if (!gridContent.includes(title)) {
       pushViolation('ui-kit-structure', gridPath, `Missing matrix column "${title}"`)
+    }
+  }
+
+  const catalogIds = [...catalogContent.matchAll(/id:\s*'([^']+)'/g)].map((match) => match[1])
+  const exampleIds = catalogIds.filter((id) => !uiKitRequiredSectionIds.includes(id))
+
+  const demoBlocksCount = (catalogContent.match(/demoBlocks:\s*SHOWCASE_MATRIX_COLUMNS/g) ?? []).length
+  if (demoBlocksCount !== exampleIds.length) {
+    pushViolation(
+      'ui-kit-structure',
+      catalogPath,
+      `Every example must use SHOWCASE_MATRIX_COLUMNS. expected=${exampleIds.length} actual=${demoBlocksCount}`,
+    )
+  }
+
+  const stateCoverageCount = (catalogContent.match(/stateCoverage:\s*\[/g) ?? []).length
+  if (stateCoverageCount !== exampleIds.length) {
+    pushViolation(
+      'ui-kit-structure',
+      catalogPath,
+      `Every example must define stateCoverage. expected=${exampleIds.length} actual=${stateCoverageCount}`,
+    )
+  }
+
+  for (const exampleId of exampleIds) {
+    const marker = `exampleId === '${exampleId}'`
+    const start = rendererContent.indexOf(marker)
+    if (start < 0) {
+      pushViolation('ui-kit-structure', rendererPath, `Missing renderer case for "${exampleId}"`)
+      continue
+    }
+
+    const next = rendererContent.indexOf("exampleId === '", start + marker.length)
+    const block = rendererContent.slice(start, next >= 0 ? next : undefined)
+
+    const hasDefault = block.includes("column === 'default'")
+    const hasVariants = block.includes("column === 'variants'")
+    const hasStates = block.includes("column === 'states'")
+    const hasLayoutFallback = block.includes('v-else')
+
+    if (!hasDefault || !hasVariants || !hasStates || !hasLayoutFallback) {
+      pushViolation(
+        'ui-kit-structure',
+        rendererPath,
+        `Renderer "${exampleId}" must cover Default/Variants/States/Layout columns`,
+      )
     }
   }
 }
@@ -144,6 +215,28 @@ async function checkStateCompleteness() {
   }
 }
 
+async function checkNoLegacyGlobalUiClasses() {
+  const stylesPath = path.join(srcRoot, 'styles.css')
+  const stylesContent = await fs.readFile(stylesPath, 'utf8')
+  const forbiddenSelectors = [
+    '.oc-button--',
+    '.oc-input',
+    '.oc-panel-stack',
+    '.oc-panel-body',
+    '.oc-panel-scroll-body',
+  ]
+
+  for (const selector of forbiddenSelectors) {
+    if (stylesContent.includes(selector)) {
+      pushViolation(
+        'legacy-global-style',
+        stylesPath,
+        `Move "${selector}" out of global styles and into primitives/base`,
+      )
+    }
+  }
+}
+
 async function main() {
   const files = await walk(srcRoot)
   for (const fullPath of files) {
@@ -157,6 +250,7 @@ async function main() {
 
   await checkStateCompleteness()
   await checkUiKitShowcaseStructure()
+  await checkNoLegacyGlobalUiClasses()
 
   if (violations.length > 0) {
     console.error('[ui-audit] FAILED')

@@ -14,7 +14,6 @@ describe('OcButton', () => {
     })
 
     expect(wrapper.classes()).toContain('oc-pressable--primary')
-    expect(wrapper.classes()).toContain('oc-button--primary')
   })
 
   it('renders icon when icon prop is provided', () => {
@@ -30,4 +29,3 @@ describe('OcButton', () => {
     expect(wrapper.find('.oc-base-button__icon').exists()).toBe(true)
   })
 })
-

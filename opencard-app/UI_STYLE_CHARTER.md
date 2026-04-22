@@ -141,6 +141,18 @@ OpenCard 的产品 UI 是「专业创作工具界面」，不是营销站点。
 - 示例矩阵固定四列：`Default / Variants / States / Layout`。
 - 任何组件风格调整以 UI Kit 页面观感为第一验收标准，再进入业务页面联调。
 
+## 9.2 UI Kit 登记流程（强制）
+
+新增/改动 `primitives/base` 组件时，必须同时完成：
+
+1. 在 `src/views/ui-kit/catalog.ts` 增加/更新组件条目（标题、用途、状态覆盖）。
+2. 在 `src/components/ui-kit/ShowcaseExampleRenderer.vue` 增加/更新同 `exampleId` 的四列渲染。
+3. 保证 `view=ui-kit` 页面可见且矩阵完整，再跑门禁命令：
+   - `npm run lint:ui`
+   - `npm test`
+   - `npm run build`
+4. 任一步缺失，视为 UI 任务未完成，不允许进入业务联调提交。
+
 ## 10. 给 Agent 的直接 Prompt 模板
 
 ```md

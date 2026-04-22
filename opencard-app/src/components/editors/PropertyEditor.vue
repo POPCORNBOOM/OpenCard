@@ -13,8 +13,8 @@
   - `reset-property`（字段重置意图）
 -->
 <template>
-  <div class="property-editor oc-panel-scroll-body oc-scroll-y">
-    <div v-if="inputs.length === 0" class="empty-hint oc-empty-hint">选择一个对象查看属性</div>
+  <div class="property-editor">
+    <div v-if="inputs.length === 0" class="empty-hint">选择一个对象查看属性</div>
     <template v-else>
       <section v-for="source in displaySources" :key="source.key" class="source-section">
         <div class="source-title">{{ source.title }}</div>
@@ -26,8 +26,10 @@
               <OcButton
                 class="add-field-button"
                 icon-only
+                size="sm"
                 variant="secondary"
                 :title="addFieldActionText"
+                :aria-label="addFieldActionText"
                 @click="openAddFieldMenu($event, category)"
               >
                 <span class="codicon codicon-add" />
@@ -48,6 +50,7 @@
                 size="sm"
                 variant="secondary"
                 :title="resetFieldActionText"
+                :aria-label="`${resetFieldActionText}: ${entry.label}`"
                 @click.stop="emitResetProperty(category.sourceKey, entry.key)"
               >
                 <span class="codicon codicon-discard" />
@@ -444,38 +447,47 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 <style scoped>
 .property-editor {
   flex: 1;
-  padding: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--oc-space-2);
+}
+
+.empty-hint {
+  color: var(--oc-text-dim);
+  font-size: var(--oc-body-size);
+  text-align: center;
+  padding: var(--oc-space-5);
 }
 
 .source-section + .source-section {
-  margin-top: 16px;
+  margin-top: var(--oc-space-4);
 }
 
 .source-title {
   font-size: var(--oc-label-size);
   text-transform: uppercase;
   color: var(--oc-text-label);
-  padding-bottom: 6px;
-  margin-bottom: 8px;
+  padding-bottom: var(--oc-space-1);
+  margin-bottom: var(--oc-space-2);
   border-bottom: 1px solid var(--oc-border-muted);
 }
 
 .category {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--oc-space-1);
 }
 
 .category + .category {
-  margin-top: 12px;
+  margin-top: var(--oc-space-3);
 }
 
 .category-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 4px;
+  gap: var(--oc-space-2);
+  padding-bottom: var(--oc-space-1);
   border-bottom: 1px solid var(--oc-border-muted);
 }
 
@@ -488,12 +500,12 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 .add-field-menu {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--oc-space-2);
   position: relative;
 }
 
 .add-field-count {
-  min-width: 10px;
+  min-width: var(--oc-space-3);
   font-size: var(--oc-label-size);
   color: var(--oc-text-muted);
   text-align: right;
@@ -504,9 +516,10 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--oc-space-2);
 }
 
+.add-field-button,
 .reset-field-button {
   flex-shrink: 0;
 }

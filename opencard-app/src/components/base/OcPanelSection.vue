@@ -1,5 +1,5 @@
 <template>
-  <OcSurface as="section" class="oc-panel-section oc-panel-stack" variant="panel">
+  <OcSurface as="section" class="oc-panel-section" variant="panel">
     <header
       v-if="hasHeader"
       class="oc-panel-header oc-panel-section__header"
@@ -56,6 +56,34 @@ const bodyClass = computed(() => props.bodyClass)
 
 <style scoped>
 .oc-panel-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.oc-panel-header {
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--oc-label-size);
+  text-transform: uppercase;
+  font-weight: bold;
+  background: var(--oc-bg-panel);
+  border-bottom: 1px solid var(--oc-border-strong);
+}
+
+.oc-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.oc-panel-scroll-body {
+  flex: 1;
   min-height: 0;
 }
 

@@ -20,8 +20,7 @@ withDefaults(defineProps<{
 }
 
 .oc-focus-ring:focus-within {
-  outline: 2px solid var(--oc-accent-glow);
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
   outline-offset: 1px;
 }
 </style>
-

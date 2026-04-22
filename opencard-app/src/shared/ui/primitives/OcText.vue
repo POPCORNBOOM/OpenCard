@@ -69,7 +69,7 @@ const textClass = computed(() => [
 }
 
 .oc-text--size-title {
-  font-size: 13px;
+  font-size: var(--oc-title-size);
 }
 
 .oc-text.is-truncate {
@@ -78,4 +78,3 @@ const textClass = computed(() => [
   white-space: nowrap;
 }
 </style>
-

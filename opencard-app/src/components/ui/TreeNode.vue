@@ -14,9 +14,14 @@
       :class="nodeContentClass"
       :style="{ paddingLeft: `${level * 12}px` }"
       :data-tree-node-key="props.node.key"
+      role="treeitem"
+      tabindex="0"
+      :aria-selected="isSelected ? 'true' : 'false'"
+      :aria-expanded="isExpandable ? isExpanded : undefined"
       @click="handleClick"
       @dblclick="handleDoubleClick"
       @mousedown="handleMouseDown"
+      @keydown="handleKeydown"
     >
       <i
         v-if="isExpandable"
@@ -61,7 +66,7 @@
       </div>
     </div>
 
-    <div v-if="isExpandable && isExpanded" class="node-children" :class="childrenClass">
+    <div v-if="isExpandable && isExpanded" class="node-children" :class="childrenClass" role="group">
       <TreeNode v-for="child in node.children" :key="child.key" :node="child" :level="level + 1" />
     </div>
   </div>
@@ -269,6 +274,37 @@ function handleRenameKeydown(event: KeyboardEvent) {
 function handleRenameBlur() {
   nodeTree.cancelNodeRename()
 }
+
+// 键盘交互：选择、展开/收起、重命名。
+function handleKeydown(event: KeyboardEvent) {
+  if (event.target !== event.currentTarget) {
+    return
+  }
+
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    const modify: 'ctrl' | 'none' = (event.metaKey || event.ctrlKey) ? 'ctrl' : 'none'
+    nodeTree.handleNodeClick(props.node.key, props.node, modify)
+    return
+  }
+
+  if (event.key === 'ArrowRight' && isExpandable.value && !isExpanded.value) {
+    event.preventDefault()
+    handleToggleClick()
+    return
+  }
+
+  if (event.key === 'ArrowLeft' && isExpandable.value && isExpanded.value) {
+    event.preventDefault()
+    handleToggleClick()
+    return
+  }
+
+  if (event.key === 'F2' && isOnlySelected.value && isRenamable.value) {
+    event.preventDefault()
+    nodeTree.startNodeRename(props.node)
+  }
+}
 </script>
 
 <style scoped>
@@ -289,14 +325,19 @@ function handleRenameBlur() {
 .node-content {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--oc-space-1);
+  padding: var(--oc-space-1) var(--oc-space-2);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--oc-body-size);
 }
 
 .node-content:hover {
   background: var(--oc-bg-hover);
+}
+
+.node-content:focus-visible {
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
+  outline-offset: -1px;
 }
 
 .node-name {
@@ -340,12 +381,12 @@ function handleRenameBlur() {
 }
 
 .node-children.drop-inside-children {
-  box-shadow: inset 1px 0 0 rgba(14, 99, 156, 0.75);
+  box-shadow: inset 1px 0 0 var(--oc-bg-accent);
   background: var(--oc-bg-accent-tint-subtle);
 }
 
 .node-children.drop-inside-children-invalid {
-  box-shadow: inset 1px 0 0 rgba(241, 76, 76, 0.8);
+  box-shadow: inset 1px 0 0 var(--oc-danger);
   background: var(--oc-bg-danger-tint-subtle);
 }
 
@@ -360,11 +401,12 @@ function handleRenameBlur() {
 .node-actions {
   display: flex;
   visibility: hidden;
-  gap: 2px;
-  margin-right: 4px;
+  gap: var(--oc-space-1);
+  margin-right: var(--oc-space-1);
 }
 
 .node-content:hover .node-actions,
+.node-content:focus-within .node-actions,
 .node-actions:hover {
   visibility: visible;
 }

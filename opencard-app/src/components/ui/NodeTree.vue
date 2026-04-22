@@ -16,13 +16,22 @@
   <div
     ref="treeRootElement"
     class="node-tree"
+    role="tree"
+    :aria-label="props.title"
     :class="{
       'drag-over-root': draggedNode && !dropTargetNode && dropPosition,
       'drop-invalid': draggedNode && !dropTargetNode && dropPosition && !dropAllowed,
       dragging: draggedNode,
     }"
   >
-    <div class="root-content" @click="handleClick">
+    <div
+      class="root-content"
+      role="button"
+      tabindex="0"
+      :aria-expanded="isExpanded"
+      @click="handleClick"
+      @keydown="handleRootKeydown"
+    >
       <i class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"></i>
       <span class="root-title">{{ props.title }}</span>
       <div v-if="treeActions.length" class="root-actions">
@@ -36,7 +45,7 @@
       </div>
     </div>
 
-    <div v-if="isExpanded" class="tree-children">
+    <div v-if="isExpanded" class="tree-children" role="group">
       <TreeNode v-for="node in nodes" :key="node.key" :node="node" :level="1" />
     </div>
   </div>
@@ -499,6 +508,19 @@ function handleClick() {
 
   emit('update:expanded', nextExpanded)
 }
+
+function handleRootKeydown(event: KeyboardEvent) {
+  if (event.target !== event.currentTarget) {
+    return
+  }
+
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
+    return
+  }
+
+  event.preventDefault()
+  handleClick()
+}
 </script>
 
 <style scoped>
@@ -523,10 +545,15 @@ function handleClick() {
 .root-content {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 0;
+  gap: var(--oc-space-1);
+  padding: var(--oc-space-1) 0;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--oc-body-size);
+}
+
+.root-content:focus-visible {
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
+  outline-offset: 1px;
 }
 
 .root-title {
@@ -540,11 +567,13 @@ function handleClick() {
 .root-actions {
   display: flex;
   visibility: hidden;
-  gap: 2px;
-  margin-right: 4px;
+  gap: var(--oc-space-1);
+  margin-right: var(--oc-space-1);
 }
 
-.node-tree:hover .root-actions {
+.root-content:hover .root-actions,
+.root-content:focus-within .root-actions,
+.root-actions:hover {
   visibility: visible;
 }
 </style>

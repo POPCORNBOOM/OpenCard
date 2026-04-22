@@ -14,49 +14,56 @@
   <div class="ide-layout">
     <!-- 顶部菜单栏 -->
     <div class="menu-bar">
-      <div class="menu-items">
-        <OcButton class="menu-link" variant="ghost" :disabled="true">
-          {{ t('app.menu.file') }}
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" :disabled="true">
-          {{ t('app.menu.edit') }}
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" :disabled="true">
-          {{ t('app.menu.view') }}
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" :disabled="true">
-          {{ t('app.menu.help') }}
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" @click="openUiKitShowcase">
-          UI Kit
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" :disabled="!canExportActiveCard" @click="exportActiveCard2x">
-          {{ t('app.menu.export2x') }}
-        </OcButton>
-        <OcButton class="menu-link" variant="ghost" :disabled="!canExportActiveCard" @click="exportAllCardViews">
-          {{ t('app.menu.exportAll') }}
-        </OcButton>
-      </div>
+      <OcToolbar class="menu-items" kind="menu" aria-label="Main menu">
+        <OcToolButton kind="menu" :label="t('app.menu.file')" :disabled="true" />
+        <OcToolButton kind="menu" :label="t('app.menu.edit')" :disabled="true" />
+        <OcToolButton kind="menu" :label="t('app.menu.view')" :disabled="true" />
+        <OcToolButton kind="menu" :label="t('app.menu.help')" :disabled="true" />
+        <OcToolButton kind="menu" label="UI Kit" @click="openUiKitShowcase" />
+        <OcToolButton kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard" @click="exportActiveCard2x" />
+        <OcToolButton kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard" @click="exportAllCardViews" />
+      </OcToolbar>
       <div class="window-title">OpenCard</div>
     </div>
 
     <div class="main-container">
       <!-- 左侧活动栏 -->
       <div class="activity-bar">
-        <div class="activity-icons">
-          <div class="activity-icon" :class="{ active: activeView === 'files' }" @click="activeView = 'files'"
-            :title="t('sidebar.files')">
+        <OcToolbar class="activity-icons" kind="sidebar" aria-label="Activity bar">
+          <OcToolButton
+            class="activity-icon"
+            kind="sidebar"
+            icon-only
+            :active="activeView === 'files'"
+            :title="t('sidebar.files')"
+            :aria-label="t('sidebar.files')"
+            @click="activeView = 'files'"
+          >
             <AppIcon name="app.files" tone="primary" />
-          </div>
-          <div class="activity-icon" :class="{ active: activeView === 'git' }" @click="activeView = 'git'"
-            :title="t('sidebar.git')">
+          </OcToolButton>
+          <OcToolButton
+            class="activity-icon"
+            kind="sidebar"
+            icon-only
+            :active="activeView === 'git'"
+            :title="t('sidebar.git')"
+            :aria-label="t('sidebar.git')"
+            @click="activeView = 'git'"
+          >
             <AppIcon name="app.git" tone="danger" />
-          </div>
-          <div class="activity-icon" :class="{ active: activeView === 'publish' }" @click="activeView = 'publish'"
-            :title="t('sidebar.publish')">
+          </OcToolButton>
+          <OcToolButton
+            class="activity-icon"
+            kind="sidebar"
+            icon-only
+            :active="activeView === 'publish'"
+            :title="t('sidebar.publish')"
+            :aria-label="t('sidebar.publish')"
+            @click="activeView = 'publish'"
+          >
             <AppIcon name="app.publish" tone="warning" />
-          </div>
-        </div>
+          </OcToolButton>
+        </OcToolbar>
       </div>
 
       <!-- 左侧边栏 -->
@@ -86,29 +93,36 @@
 
           <!-- 版本管理 -->
           <div v-else-if="activeView === 'git'">
-            <p class="placeholder oc-empty-hint">{{ t('panels.gitPlaceholder') }}</p>
+            <p class="placeholder placeholder--empty">{{ t('panels.gitPlaceholder') }}</p>
           </div>
 
           <!-- 发布 -->
           <div v-else-if="activeView === 'publish'">
-            <p class="placeholder oc-empty-hint">{{ t('panels.publishPlaceholder') }}</p>
+            <p class="placeholder placeholder--empty">{{ t('panels.publishPlaceholder') }}</p>
           </div>
         </template>
       </OcPanelSection>
 
       <!-- 编辑器区域 -->
-      <div class="editor-container oc-panel-stack">
-        <div class="editor-tabs" v-if="sessions.length > 0">
-          <div v-for="session in sessions" :key="session.id" class="editor-tab"
-            :class="{ active: activeSessionId === session.id }" @click="activateSession(session.id)">
-            {{ session.isDirty ? `${session.name} *` : session.name }}
-            <span class="tab-close" @click.stop="closeFile(session.id)">×</span>
-          </div>
-        </div>
-        <div class="editor-content oc-panel-body">
+      <div class="editor-container">
+        <OcTabBar v-if="sessions.length > 0" class="editor-tabs" :aria-label="t('sidebar.openedEditors')">
+          <OcTab
+            v-for="session in sessions"
+            :key="session.id"
+            :label="session.name"
+            :title="session.name"
+            :active="activeSessionId === session.id"
+            :dirty="Boolean(session.isDirty)"
+            :closable="true"
+            :close-aria-label="`Close ${session.name}`"
+            @select="activateSession(session.id)"
+            @close="closeFile(session.id)"
+          />
+        </OcTabBar>
+        <div class="editor-content">
           <div v-if="!activeSession" class="welcome-screen">
             <h1>{{ t('app.welcome.title') }}</h1>
-            <p class="oc-empty-hint">{{ t('app.welcome.subtitle') }}</p>
+            <p class="welcome-subtitle">{{ t('app.welcome.subtitle') }}</p>
           </div>
           <component v-else :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
             @save="handleEditorSave" />
@@ -117,11 +131,11 @@
 
       <!-- 右侧预览面板 
       <div class="preview-panel" v-if="showPreview && previewCardDoc">
-        <div class="preview-header oc-panel-header">
+        <div class="preview-header">
           <span>{{ t('panels.cardPreview') }}</span>
           <AppIcon name="app.close" @click="showPreview = false" />
         </div>
-        <div class="preview-content oc-stage-surface">
+        <div class="preview-content">
           <CardRenderer ref="liveCardRendererRef" :document="previewCardDoc" />
         </div>
       </div>-->
@@ -162,6 +176,10 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import OcButton from '../components/base/OcButton.vue'
 import OcPanelSection from '../components/base/OcPanelSection.vue'
+import OcTab from '../components/base/OcTab.vue'
+import OcTabBar from '../components/base/OcTabBar.vue'
+import OcToolButton from '../components/base/OcToolButton.vue'
+import OcToolbar from '../components/base/OcToolbar.vue'
 import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
@@ -509,24 +527,7 @@ function closeFile(sessionId: string) {
 }
 
 .menu-items {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-
-.menu-item {
-  padding: 5px 10px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.menu-item:hover {
-  background: var(--oc-bg-hover);
-}
-
-.menu-link {
-  padding: 5px 10px;
-  font-size: 13px;
+  min-width: 0;
 }
 
 .window-title {
@@ -549,38 +550,7 @@ function closeFile(sessionId: string) {
 }
 
 .activity-icons {
-  display: flex;
-  flex-direction: column;
   padding: 10px 0;
-}
-
-.activity-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 20px;
-  position: relative;
-}
-
-.activity-icon:hover {
-  background: var(--oc-bg-hover);
-}
-
-.activity-icon.active {
-  background: var(--oc-bg-base);
-}
-
-.activity-icon.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--oc-accent);
 }
 
 .sidebar {
@@ -611,46 +581,17 @@ function closeFile(sessionId: string) {
 
 .editor-container {
   flex: 1;
-}
-
-.editor-tabs {
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  background: var(--oc-bg-elevated);
-  border-bottom: 1px solid var(--oc-border-strong);
-  overflow-x: auto;
+  flex-direction: column;
 }
 
-.editor-tab {
-  padding: 8px 15px;
-  background: var(--oc-bg-elevated);
-  border-right: 1px solid var(--oc-border-strong);
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
+.editor-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
-
-.editor-tab:hover {
-  background: var(--oc-bg-base);
-}
-
-.editor-tab.active {
-  background: var(--oc-bg-base);
-}
-
-.tab-close {
-  font-size: 18px;
-  line-height: 1;
-  opacity: 0.6;
-}
-
-.tab-close:hover {
-  opacity: 1;
-}
-
-.editor-content {}
 
 .preview-panel {
   width: 450px;
@@ -693,6 +634,14 @@ function closeFile(sessionId: string) {
   margin-bottom: 20px;
 }
 
+.welcome-subtitle,
+.placeholder--empty {
+  color: var(--oc-text-dim);
+  font-size: var(--oc-body-size);
+  text-align: center;
+  padding: 20px;
+}
+
 .status-bar {
   height: 22px;
   background: var(--oc-accent);
@@ -701,7 +650,7 @@ function closeFile(sessionId: string) {
   justify-content: space-between;
   padding: 0 10px;
   font-size: 12px;
-  color: white;
+  color: var(--oc-accent-contrast);
 }
 
 .status-left,

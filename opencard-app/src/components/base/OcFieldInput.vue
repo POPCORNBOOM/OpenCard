@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useAttrs, type HTMLAttributes } from 'vue'
+import { ref, useAttrs, type ComponentPublicInstance, type HTMLAttributes } from 'vue'
 import { OcFieldCore } from '../../shared/ui/primitives'
 
 defineOptions({
@@ -28,20 +28,38 @@ withDefaults(defineProps<{
 })
 
 const attrs = useAttrs()
-const fieldRef = ref<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null)
+const fieldRef = ref<
+  | HTMLInputElement
+  | HTMLTextAreaElement
+  | HTMLSelectElement
+  | ComponentPublicInstance
+  | null
+>(null)
+
+function resolveNativeField() {
+  const current = fieldRef.value
+  if (!current) {
+    return null
+  }
+
+  if (current instanceof HTMLInputElement || current instanceof HTMLTextAreaElement || current instanceof HTMLSelectElement) {
+    return current
+  }
+
+  const element = (current as ComponentPublicInstance).$el
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+    return element
+  }
+
+  return null
+}
 
 defineExpose({
   focus() {
-    fieldRef.value?.focus()
+    resolveNativeField()?.focus()
   },
   blur() {
-    fieldRef.value?.blur()
+    resolveNativeField()?.blur()
   },
 })
 </script>
-
-<style scoped>
-.oc-field-input {
-  padding: 2px 6px;
-}
-</style>

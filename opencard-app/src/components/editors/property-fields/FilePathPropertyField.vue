@@ -22,13 +22,15 @@
       :readonly="definition.isReadonly"
       autocomplete="off"
       spellcheck="false"
+      aria-haspopup="listbox"
+      :aria-expanded="isMenuOpen && visibleSuggestions.length > 0"
       @focus="handleFocus"
       @blur="handleBlur"
       @input="handleInput"
       @keydown="handleKeydown"
     />
 
-    <div v-if="isMenuOpen && visibleSuggestions.length > 0" class="suggestion-menu">
+    <div v-if="isMenuOpen && visibleSuggestions.length > 0" class="suggestion-menu" role="listbox" aria-label="Path suggestions">
       <OcButton
         v-for="(suggestion, index) in visibleSuggestions"
         :key="suggestion.key"
@@ -38,6 +40,8 @@
         size="md"
         radius="none"
         block
+        role="option"
+        :aria-selected="index === selectedIndex"
         @mousedown.prevent="applySuggestion(suggestion)"
       >
         <span class="suggestion-main">
@@ -342,17 +346,17 @@ function handleKeydown(event: KeyboardEvent) {
 
 .suggestion-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--oc-space-1));
   left: 0;
   right: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 4px;
+  padding: var(--oc-space-1);
   background: var(--oc-bg-panel);
   border: 1px solid var(--oc-bg-input);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--oc-shadow-overlay);
   max-height: 220px;
   overflow-y: auto;
 }
@@ -361,9 +365,9 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  font-size: 12px;
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-1) var(--oc-space-2);
+  font-size: var(--oc-body-size);
   text-align: left;
 }
 
@@ -374,7 +378,7 @@ function handleKeydown(event: KeyboardEvent) {
 .suggestion-main {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--oc-space-2);
   min-width: 0;
 }
 

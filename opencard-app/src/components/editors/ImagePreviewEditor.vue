@@ -12,11 +12,11 @@
   - `save`（转发保存意图）
 -->
 <template>
-  <div class="image-preview-editor oc-panel-body">
-    <div v-if="imageSrc" class="image-preview-stage oc-stage-surface oc-checkerboard-stage">
+  <div class="image-preview-editor">
+    <div v-if="imageSrc" class="image-preview-stage image-preview-stage--checkerboard">
       <img class="image-preview" :src="imageSrc" :alt="fileName" @load="handleLoad" @error="handleError" />
     </div>
-    <div v-if="loadError" class="image-preview-empty oc-empty-state">
+    <div v-if="loadError" class="image-preview-empty">
       <div class="empty-title">无法预览图片</div>
       <div class="empty-subtitle">{{ fileName }}</div>
     </div>
@@ -58,36 +58,61 @@ defineExpose({ save })
 
 <style scoped>
 .image-preview-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--oc-bg-base);
 }
 
 .image-preview-stage {
   flex: 1;
-  padding: 24px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--oc-space-6);
+}
+
+.image-preview-stage--checkerboard {
   background-size: 24px 24px;
   background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+  background-image:
+    linear-gradient(45deg, var(--oc-bg-checker-soft) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--oc-bg-checker-soft) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--oc-bg-checker-soft) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--oc-bg-checker-soft) 75%);
 }
 
 .image-preview {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--oc-shadow-overlay);
 }
 
 .image-preview-empty {
   flex: 1;
-  gap: 8px;
-  color: #b3b3b3;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-2);
+  color: var(--oc-text-secondary);
 }
 
 .empty-title {
-  font-size: 14px;
+  font-size: var(--oc-title-size);
   color: var(--oc-text-highlight);
 }
 
 .empty-subtitle {
-  font-size: 12px;
+  font-size: var(--oc-body-size);
   color: var(--oc-text-secondary);
 }
 </style>
