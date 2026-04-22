@@ -40,7 +40,9 @@ const fieldClass = computed(() => [
 <style scoped>
 .oc-field-core {
   min-width: 0;
-  font: inherit;
+  font-family: var(--oc-font-family-ui);
+  font-size: var(--oc-body-size);
+  line-height: 1.4;
 }
 
 .oc-field-core.oc-input:focus {
@@ -48,4 +50,3 @@ const fieldClass = computed(() => [
   outline: none;
 }
 </style>
-

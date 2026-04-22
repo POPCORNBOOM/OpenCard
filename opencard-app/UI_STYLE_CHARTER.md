@@ -134,6 +134,13 @@ OpenCard 的产品 UI 是「专业创作工具界面」，不是营销站点。
 
 只要有任一项为“否”，该 UI 任务视为未完成。
 
+## 9.1 UI Kit 基线（强制）
+
+- `src/views/UiKitShowcase.vue` 是组件视觉验收基线页面。
+- 新增或改动 `primitives/base` 组件时，必须在 UI Kit 单页补齐对应示例矩阵。
+- 示例矩阵固定四列：`Default / Variants / States / Layout`。
+- 任何组件风格调整以 UI Kit 页面观感为第一验收标准，再进入业务页面联调。
+
 ## 10. 给 Agent 的直接 Prompt 模板
 
 ```md

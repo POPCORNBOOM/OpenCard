@@ -37,6 +37,7 @@
 body {
   background: var(--oc-bg-base);
   color: var(--oc-text-primary);
+  font-family: var(--oc-font-family-ui);
 }
 
 .oc-panel-header {

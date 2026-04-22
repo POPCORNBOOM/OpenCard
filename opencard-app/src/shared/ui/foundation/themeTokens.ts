@@ -55,6 +55,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-text-overlay',
   '--oc-text-label',
   '--oc-text-info',
+  '--oc-font-family-ui',
   '--oc-label-size',
   '--oc-body-size',
   '--oc-shadow-overlay',
@@ -87,4 +88,3 @@ export const OC_THEME_TOKEN_KEYS = [
 
 export type OcThemeTokenKey = (typeof OC_THEME_TOKEN_KEYS)[number]
 export type OcThemeTokens = Record<OcThemeTokenKey, string>
-

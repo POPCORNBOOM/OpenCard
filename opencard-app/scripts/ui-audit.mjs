@@ -5,9 +5,13 @@ const projectRoot = process.cwd()
 const srcRoot = path.join(projectRoot, 'src')
 const hexEnforcedRoots = [
   path.join(srcRoot, 'components', 'base'),
+  path.join(srcRoot, 'components', 'ui-kit'),
   path.join(srcRoot, 'shared', 'ui', 'primitives'),
   path.join(srcRoot, 'shared', 'ui', 'foundation'),
 ]
+const hexEnforcedFiles = new Set([
+  path.join(srcRoot, 'views', 'UiKitShowcase.vue'),
+])
 
 const allowedHexFiles = new Set([
   path.join(srcRoot, 'shared', 'ui', 'foundation', 'themes.ts'),
@@ -23,6 +27,9 @@ const allowedRawControlFiles = new Set([
 const stateRequiredFiles = [
   path.join(srcRoot, 'shared', 'ui', 'primitives', 'OcPressable.vue'),
 ]
+
+const uiKitRequiredSectionIds = ['foundation', 'primitives', 'base']
+const uiKitRequiredColumnTitles = ['Default', 'Variants', 'States', 'Layout']
 
 const violations = []
 
@@ -61,6 +68,7 @@ function checkHexColors(fullPath, content) {
     return
   }
   const shouldEnforce = hexEnforcedRoots.some((rootPath) => fullPath.startsWith(rootPath))
+    || hexEnforcedFiles.has(fullPath)
   if (!shouldEnforce) {
     return
   }
@@ -74,6 +82,26 @@ function checkHexColors(fullPath, content) {
   }
 
   pushViolation('hex-color', fullPath, `Found hard-coded color(s): ${matches.join(', ')}`)
+}
+
+async function checkUiKitShowcaseStructure() {
+  const viewPath = path.join(srcRoot, 'views', 'UiKitShowcase.vue')
+  const gridPath = path.join(srcRoot, 'components', 'ui-kit', 'ExampleGrid.vue')
+
+  const viewContent = await fs.readFile(viewPath, 'utf8')
+  const gridContent = await fs.readFile(gridPath, 'utf8')
+
+  for (const sectionId of uiKitRequiredSectionIds) {
+    if (!viewContent.includes(`id="${sectionId}"`)) {
+      pushViolation('ui-kit-structure', viewPath, `Missing section id "${sectionId}"`)
+    }
+  }
+
+  for (const title of uiKitRequiredColumnTitles) {
+    if (!gridContent.includes(title)) {
+      pushViolation('ui-kit-structure', gridPath, `Missing matrix column "${title}"`)
+    }
+  }
 }
 
 function checkRawControls(fullPath, content) {
@@ -128,6 +156,7 @@ async function main() {
   }
 
   await checkStateCompleteness()
+  await checkUiKitShowcaseStructure()
 
   if (violations.length > 0) {
     console.error('[ui-audit] FAILED')

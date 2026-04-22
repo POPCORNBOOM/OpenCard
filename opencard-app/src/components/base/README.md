@@ -9,3 +9,9 @@
 - 业务组件优先从这里组合，而不是重复写原生控件样式。
 - `base` 组件必须由 `src/shared/ui/primitives` 组合实现，不可新增独立视觉体系。
 - 非必要场景禁止在业务组件直接写原生 `button/input/select/textarea`；优先使用 `OcButton/OcFieldInput`。
+
+UI Kit 维护流程：
+
+1. 新增或调整 `base` 组件后，在 `src/views/UiKitShowcase.vue` 增加/更新对应卡片。
+2. 每个组件卡片必须覆盖四列：`Default`、`Variants`、`States`、`Layout`。
+3. 合入前执行 `npm run lint:ui && npm test && npm run build`。

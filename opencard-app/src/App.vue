@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watchEffect } from "vue";
 import MainIDE from "./views/MainIDE.vue";
 import UiKitShowcase from "./views/UiKitShowcase.vue";
+import { setOcTheme, type OcThemeId } from "./shared/ui/foundation";
+import { resolveAppView } from "./appView";
 import '@vscode/codicons/dist/codicon.css'
 
-const currentView = new URLSearchParams(window.location.search).get("view");
-const isUiKitView = computed(() => currentView === "ui-kit" || currentView === "buttons");
+const currentView = resolveAppView(window.location.search);
+const isUiKitView = computed(() => currentView === "ui-kit");
+
+watchEffect(() => {
+  const theme: OcThemeId = isUiKitView.value ? "light" : "dark";
+  setOcTheme(theme);
+})
 </script>
 
 <template>

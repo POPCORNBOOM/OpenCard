@@ -55,6 +55,7 @@ const darkThemeTokens: OcThemeTokens = {
   '--oc-text-overlay': '#c8c8c8',
   '--oc-text-label': '#d7ba7d',
   '--oc-text-info': '#9cdcfe',
+  '--oc-font-family-ui': '"Segoe UI Variable Text", "SF Pro Text", "Inter", "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif',
   '--oc-label-size': '11px',
   '--oc-body-size': '12px',
   '--oc-shadow-overlay': '0 10px 28px rgba(0, 0, 0, 0.32)',
@@ -140,6 +141,7 @@ const lightThemeTokens: OcThemeTokens = {
   '--oc-text-overlay': '#2a3140',
   '--oc-text-label': '#6c52af',
   '--oc-text-info': '#3750b5',
+  '--oc-font-family-ui': '"Segoe UI Variable Text", "SF Pro Text", "Inter", "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif',
   '--oc-label-size': '11px',
   '--oc-body-size': '12px',
   '--oc-shadow-overlay': '0 10px 28px rgba(31, 36, 48, 0.2)',
@@ -176,4 +178,3 @@ export const OC_THEME_REGISTRY: Record<OcThemeId, OcThemeTokens> = {
   dark: darkThemeTokens,
   light: lightThemeTokens,
 }
-
