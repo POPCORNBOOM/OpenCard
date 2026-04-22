@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import MainIDE from "./views/MainIDE.vue";
-import ButtonShowcase from "./views/ButtonShowcase.vue";
+import UiKitShowcase from "./views/UiKitShowcase.vue";
 import '@vscode/codicons/dist/codicon.css'
 
 const currentView = new URLSearchParams(window.location.search).get("view");
-const isButtonsView = computed(() => currentView === "buttons");
+const isUiKitView = computed(() => currentView === "ui-kit" || currentView === "buttons");
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app-shell-scrollable': isButtonsView }">
-    <ButtonShowcase v-if="isButtonsView" />
+  <div class="app-shell" :class="{ 'app-shell-scrollable': isUiKitView }">
+    <UiKitShowcase v-if="isUiKitView" />
     <MainIDE v-else />
   </div>
 </template>

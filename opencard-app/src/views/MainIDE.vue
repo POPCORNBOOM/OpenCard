@@ -27,8 +27,8 @@
         <OcButton class="menu-link" variant="ghost" :disabled="true">
           {{ t('app.menu.help') }}
         </OcButton>
-        <OcButton class="menu-link" variant="ghost" @click="openButtonShowcase">
-          Buttons
+        <OcButton class="menu-link" variant="ghost" @click="openUiKitShowcase">
+          UI Kit
         </OcButton>
         <OcButton class="menu-link" variant="ghost" :disabled="!canExportActiveCard" @click="exportActiveCard2x">
           {{ t('app.menu.export2x') }}
@@ -481,8 +481,8 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
 
-function openButtonShowcase() {
-  window.location.search = '?view=buttons'
+function openUiKitShowcase() {
+  window.location.search = '?view=ui-kit'
 }
 
 function closeFile(sessionId: string) {
