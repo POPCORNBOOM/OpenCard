@@ -12,7 +12,7 @@
       <span v-else class="oc-menu-item-button__icon-placeholder" />
       <OcText as="span" class="oc-menu-item-button__label">{{ label }}</OcText>
     </span>
-    <OcIcon v-if="hasChildren" name="codicon-chevron-right" class="oc-menu-item-button__chevron" size="sm" />
+    <OcIcon v-if="hasChildren" name="icon.chevron-right" class="oc-menu-item-button__chevron" size="sm" />
   </OcPressable>
 </template>
 

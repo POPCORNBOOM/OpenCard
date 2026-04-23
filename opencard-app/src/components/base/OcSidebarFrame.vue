@@ -1,33 +1,48 @@
 <template>
-  <div class="oc-sidebar-frame" :style="frameStyle">
-    <aside class="oc-sidebar-frame__activity">
+  <div class="oc-sidebar-frame" :class="frameClass">
+    <OcSurface
+      as="aside"
+      class="oc-sidebar-frame__activity"
+      variant="elevated"
+      radius="none"
+    >
       <slot name="activity" />
-    </aside>
-    <section v-if="panelVisible" class="oc-sidebar-frame__panel">
+    </OcSurface>
+    <OcSurface
+      v-if="panelVisible"
+      as="section"
+      class="oc-sidebar-frame__panel"
+      variant="panel"
+      radius="none"
+    >
       <slot name="panel" />
-    </section>
+    </OcSurface>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed } from 'vue'
+import { OcSurface } from '../../shared/ui/primitives'
+
+type SidebarActivitySize = 'compact' | 'default' | 'spacious'
+type SidebarPanelSize = 'compact' | 'default' | 'spacious'
 
 defineOptions({ name: 'OcSidebarFrame' })
 
 const props = withDefaults(defineProps<{
-  activityWidth?: string
-  panelWidth?: string
+  activitySize?: SidebarActivitySize
+  panelSize?: SidebarPanelSize
   panelVisible?: boolean
 }>(), {
-  activityWidth: '68px',
-  panelWidth: '288px',
+  activitySize: 'default',
+  panelSize: 'default',
   panelVisible: true,
 })
 
-const frameStyle = computed<CSSProperties>(() => ({
-  '--oc-sidebar-frame-activity-width': props.activityWidth,
-  '--oc-sidebar-frame-panel-width': props.panelWidth,
-}))
+const frameClass = computed(() => [
+  `oc-sidebar-frame--activity-${props.activitySize}`,
+  `oc-sidebar-frame--panel-${props.panelSize}`,
+])
 </script>
 
 <style scoped>
@@ -38,22 +53,44 @@ const frameStyle = computed<CSSProperties>(() => ({
 }
 
 .oc-sidebar-frame__activity {
-  width: var(--oc-sidebar-frame-activity-width);
+  width: 68px;
   min-width: 0;
   min-height: 0;
   flex: 0 0 auto;
-  background: var(--oc-bg-app-chrome);
   border-right: 1px solid var(--oc-border-strong);
 }
 
 .oc-sidebar-frame__panel {
-  width: var(--oc-sidebar-frame-panel-width);
+  width: 288px;
   min-width: 0;
   min-height: 0;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  background: var(--oc-bg-panel);
   border-right: 1px solid var(--oc-border-strong);
+}
+
+.oc-sidebar-frame--activity-compact .oc-sidebar-frame__activity {
+  width: 60px;
+}
+
+.oc-sidebar-frame--activity-default .oc-sidebar-frame__activity {
+  width: 68px;
+}
+
+.oc-sidebar-frame--activity-spacious .oc-sidebar-frame__activity {
+  width: 72px;
+}
+
+.oc-sidebar-frame--panel-compact .oc-sidebar-frame__panel {
+  width: 220px;
+}
+
+.oc-sidebar-frame--panel-default .oc-sidebar-frame__panel {
+  width: 288px;
+}
+
+.oc-sidebar-frame--panel-spacious .oc-sidebar-frame__panel {
+  width: 320px;
 }
 </style>

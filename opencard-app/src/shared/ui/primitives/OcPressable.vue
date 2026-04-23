@@ -11,11 +11,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useAttrs } from 'vue'
-
-type PressableVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'
-type PressableSize = 'sm' | 'md' | 'lg'
-type PressableRadius = 'none' | 'sm' | 'md' | 'lg'
+import { useAttrs } from 'vue'
+import {
+  useOcPressableA11y,
+  useOcPressableCapabilities,
+  type OcPressableDensity,
+  type OcPressableRadius,
+  type OcPressableSize,
+  type OcPressableVariant,
+} from '../composables/useOcPressableCapabilities'
 
 defineOptions({
   name: 'OcPressable',
@@ -24,9 +28,10 @@ defineOptions({
 
 const props = withDefaults(defineProps<{
   as?: string
-  variant?: PressableVariant
-  size?: PressableSize
-  radius?: PressableRadius
+  variant?: OcPressableVariant
+  size?: OcPressableSize
+  density?: OcPressableDensity
+  radius?: OcPressableRadius
   active?: boolean
   block?: boolean
   disabled?: boolean
@@ -36,6 +41,7 @@ const props = withDefaults(defineProps<{
   as: 'button',
   variant: 'secondary',
   size: 'md',
+  density: 'comfortable',
   radius: 'sm',
   active: false,
   block: false,
@@ -45,79 +51,44 @@ const props = withDefaults(defineProps<{
 })
 
 const attrs = useAttrs()
-
-const isButtonElement = computed(() => props.as === 'button')
-
-const resolvedAttrs = computed(() => {
-  const nextAttrs = { ...attrs }
-  if (isButtonElement.value) {
-    return {
-      ...nextAttrs,
-      type: props.type,
-      disabled: props.disabled,
-    }
-  }
-
-  const resolvedRole = typeof nextAttrs.role === 'string'
-    ? nextAttrs.role
-    : 'button'
-
-  const resolvedTabindex = props.disabled
-    ? -1
-    : (nextAttrs.tabindex ?? 0)
-
-  return {
-    ...nextAttrs,
-    role: resolvedRole,
-    'aria-disabled': props.disabled ? 'true' : undefined,
-    tabindex: resolvedTabindex,
-  }
+const { pressableClass } = useOcPressableCapabilities({
+  variant: props.variant,
+  size: props.size,
+  density: props.density,
+  radius: props.radius,
+  active: props.active,
+  block: props.block,
+  disabled: props.disabled,
+  iconOnly: props.iconOnly,
 })
 
-const pressableClass = computed(() => [
-  `oc-pressable--${props.variant}`,
-  `oc-pressable--size-${props.size}`,
-  `oc-pressable--radius-${props.radius}`,
-  {
-    'is-active': props.active,
-    'is-block': props.block,
-    'is-icon-only': props.iconOnly,
-  },
-])
-
-function handleNonButtonKeydown(event: KeyboardEvent): void {
-  if (isButtonElement.value || props.disabled || event.repeat) {
-    return
-  }
-
-  const isEnter = event.key === 'Enter'
-  const isSpace = event.key === ' ' || event.key === 'Spacebar'
-  if (!isEnter && !isSpace) {
-    return
-  }
-
-  event.preventDefault()
-  const currentTarget = event.currentTarget
-  if (!(currentTarget instanceof HTMLElement)) {
-    return
-  }
-
-  currentTarget.click()
-}
+const { resolvedAttrs, handleNonButtonKeydown } = useOcPressableA11y({
+  as: props.as,
+  type: props.type,
+  disabled: props.disabled,
+}, attrs)
 </script>
 
 <style scoped>
 .oc-pressable {
+  --oc-pressable-gap: 6px;
+  --oc-pressable-min-height: 26px;
+  --oc-pressable-padding-block: 5px;
+  --oc-pressable-padding-inline: 10px;
+  --oc-pressable-font-size: 12px;
+  --oc-pressable-density-padding-block: 0px;
+  --oc-pressable-density-padding-inline: 0px;
+  --oc-pressable-density-font-size: 0px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--oc-pressable-gap);
   border: 1px solid transparent;
   background: transparent;
   color: var(--oc-text-primary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--oc-body-size);
+  font-size: calc(var(--oc-pressable-font-size) + var(--oc-pressable-density-font-size));
   line-height: 1.2;
   text-decoration: none;
   transition:
@@ -126,6 +97,14 @@ function handleNonButtonKeydown(event: KeyboardEvent): void {
     color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
 }
 
+.oc-pressable:not(.is-icon-only) {
+  min-height: var(--oc-pressable-min-height);
+  padding:
+    calc(var(--oc-pressable-padding-block) + var(--oc-pressable-density-padding-block))
+    calc(var(--oc-pressable-padding-inline) + var(--oc-pressable-density-padding-inline));
+}
+
+.oc-pressable.is-disabled,
 .oc-pressable:disabled,
 .oc-pressable[aria-disabled='true'] {
   cursor: default;
@@ -158,22 +137,46 @@ function handleNonButtonKeydown(event: KeyboardEvent): void {
   border-radius: var(--oc-radius-pill);
 }
 
-.oc-pressable--size-sm:not(.is-icon-only) {
-  min-height: 22px;
-  padding: 3px 7px;
-  font-size: 11px;
+.oc-pressable--size-sm {
+  --oc-pressable-min-height: 22px;
+  --oc-pressable-padding-block: 3px;
+  --oc-pressable-padding-inline: 7px;
+  --oc-pressable-font-size: 11px;
 }
 
-.oc-pressable--size-md:not(.is-icon-only) {
-  min-height: 26px;
-  padding: 5px 10px;
-  font-size: 12px;
+.oc-pressable--size-md {
+  --oc-pressable-min-height: 26px;
+  --oc-pressable-padding-block: 5px;
+  --oc-pressable-padding-inline: 10px;
+  --oc-pressable-font-size: 12px;
 }
 
-.oc-pressable--size-lg:not(.is-icon-only) {
-  min-height: 32px;
-  padding: 7px 14px;
-  font-size: 13px;
+.oc-pressable--size-lg {
+  --oc-pressable-min-height: 32px;
+  --oc-pressable-padding-block: 7px;
+  --oc-pressable-padding-inline: 14px;
+  --oc-pressable-font-size: 13px;
+}
+
+.oc-pressable--density-compact {
+  --oc-pressable-gap: 4px;
+  --oc-pressable-density-padding-block: -1px;
+  --oc-pressable-density-padding-inline: -2px;
+  --oc-pressable-density-font-size: -1px;
+}
+
+.oc-pressable--density-comfortable {
+  --oc-pressable-gap: 6px;
+  --oc-pressable-density-padding-block: 0px;
+  --oc-pressable-density-padding-inline: 0px;
+  --oc-pressable-density-font-size: 0px;
+}
+
+.oc-pressable--density-spacious {
+  --oc-pressable-gap: 8px;
+  --oc-pressable-density-padding-block: 1px;
+  --oc-pressable-density-padding-inline: 2px;
+  --oc-pressable-density-font-size: 0px;
 }
 
 .oc-pressable.is-icon-only {

@@ -23,15 +23,16 @@
       @mousedown="handleMouseDown"
       @keydown="handleKeydown"
     >
-      <i
+      <OcIcon
         v-if="isExpandable"
-        class="codicon"
-        :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"
+        class="tree-node__chevron"
+        :name="isExpanded ? 'tree.chevronDown' : 'tree.chevronRight'"
+        size="sm"
         data-tree-interactive="true"
         @mousedown.stop
         @click.stop="handleToggleClick"
       />
-      <AppIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
+      <OcIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
       <span
         v-if="!isRenaming"
         class="node-name node-name-label"
@@ -75,7 +76,7 @@
 <script setup lang="ts">
 // Vue 能力与依赖组件。
 import { computed, inject, nextTick, ref, watch } from 'vue'
-import AppIcon from './AppIcon.vue'
+import { OcIcon } from '../../shared/ui/primitives'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import TreeActionButton from './TreeActionButton.vue'
 import type { ActionCaller, ActionDefinition, ITreeNode, NodeTreeContext } from '../../shared/ui/tree/tree.types'
@@ -394,7 +395,7 @@ function handleKeydown(event: KeyboardEvent) {
   background: var(--oc-bg-active);
 }
 
-.codicon {
+.tree-node__chevron {
   flex-shrink: 0;
 }
 

@@ -1132,13 +1132,13 @@ export function isCardBlock(target: any): target is CardBlock {
 export function getBlockTreeIcon(type: CardBlock['type']): string {
     switch (type) {
         case 'text-block':
-            return 'codicon-file-text'
+            return 'icon.file-text'
         case 'image-block':
-            return 'codicon-file-media'
+            return 'icon.file-media'
         case 'simple-container-block':
-            return 'codicon-collection'
+            return 'icon.collection'
         case 'flow-container-block':
-            return 'codicon-layers'
+            return 'icon.layers'
     }
 }
 

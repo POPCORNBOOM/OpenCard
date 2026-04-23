@@ -1,22 +1,32 @@
 <template>
-  <span
+  <i
+    v-if="icon.kind === 'codicon'"
     class="oc-icon codicon"
-    :class="[name, sizeClass]"
+    :class="[icon.value, sizeClass]"
     :style="iconStyle"
     aria-hidden="true"
+    v-bind="$attrs"
   />
+  <svg
+    v-else
+    class="oc-icon oc-icon-svg"
+    :class="[sizeClass]"
+    :style="iconStyle"
+    :viewBox="icon.viewBox ?? '0 0 24 24'"
+    fill="currentColor"
+    aria-hidden="true"
+    v-bind="$attrs"
+  >
+    <path :d="icon.value" />
+  </svg>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { resolveIcon, type IconResolvable, type IconTone } from '../icon/iconRegistry'
 
 type OcIconTone =
-  | 'default'
-  | 'muted'
-  | 'primary'
-  | 'success'
-  | 'warning'
-  | 'danger'
+  | IconTone
   | 'opencard'
   | 'json'
   | 'markdown'
@@ -37,18 +47,25 @@ type OcIconTone =
   | 'folder-locales'
   | 'folder-core'
 
-type OcIconSize = 'sm' | 'md' | 'lg'
+type OcIconSize = 'sm' | 'md' | 'lg' | number | string
 
-defineOptions({ name: 'OcIcon' })
+defineOptions({
+  name: 'OcIcon',
+  inheritAttrs: false,
+})
 
 const props = withDefaults(defineProps<{
-  name: string
+  name?: IconResolvable
   tone?: OcIconTone
   size?: OcIconSize
+  color?: string
 }>(), {
+  name: 'file.default',
   tone: 'default',
   size: 'md',
 })
+
+const icon = computed(() => resolveIcon(props.name))
 
 const iconColorMap: Record<OcIconTone, string> = {
   default: 'var(--icon-default)',
@@ -78,28 +95,66 @@ const iconColorMap: Record<OcIconTone, string> = {
   'folder-core': 'var(--icon-folder-core)',
 }
 
-const iconStyle = computed(() => ({
-  color: iconColorMap[props.tone],
-}))
+const sizeClass = computed(() => {
+  if (props.size === 'sm' || props.size === 'md' || props.size === 'lg') {
+    return `oc-icon--${props.size}`
+  }
 
-const sizeClass = computed(() => `oc-icon--${props.size}`)
+  return null
+})
+
+const customSize = computed(() => {
+  if (sizeClass.value) {
+    return null
+  }
+
+  if (props.size === undefined || props.size === null) {
+    return null
+  }
+
+  return typeof props.size === 'number' ? `${props.size}px` : props.size
+})
+
+const iconStyle = computed(() => ({
+  color: props.color ?? iconColorMap[props.tone],
+  ...(customSize.value
+    ? {
+      fontSize: customSize.value,
+      width: customSize.value,
+      height: customSize.value,
+    }
+    : {}),
+}))
 </script>
 
 <style scoped>
 .oc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   line-height: 1;
+}
+
+.oc-icon-svg {
+  overflow: visible;
 }
 
 .oc-icon--sm {
   font-size: 12px;
+  width: 12px;
+  height: 12px;
 }
 
 .oc-icon--md {
   font-size: 14px;
+  width: 14px;
+  height: 14px;
 }
 
 .oc-icon--lg {
   font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 </style>
-

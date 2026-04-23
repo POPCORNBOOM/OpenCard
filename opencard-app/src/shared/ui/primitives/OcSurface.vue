@@ -3,20 +3,27 @@
     :is="as"
     class="oc-surface"
     :class="surfaceClass"
+    v-bind="forwardedAttrs"
   >
     <slot />
   </component>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { useAttrs } from 'vue'
+import {
+  useOcSurfaceCapabilities,
+  type OcSurfacePattern,
+  type OcSurfaceRadius,
+  type OcSurfaceShadow,
+  type OcSurfaceVariant,
+} from '../composables/useOcSurfaceCapabilities'
+import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
 
-type OcSurfaceVariant = 'panel' | 'elevated' | 'input' | 'floating' | 'transparent'
-type OcSurfaceRadius = 'none' | 'sm' | 'md' | 'lg'
-type OcSurfaceShadow = 'none' | 'sm' | 'md' | 'overlay'
-type OcSurfacePattern = 'none' | 'dot-grid' | 'checker-preview'
-
-defineOptions({ name: 'OcSurface' })
+defineOptions({
+  name: 'OcSurface',
+  inheritAttrs: false,
+})
 
 const props = withDefaults(defineProps<{
   as?: string
@@ -36,14 +43,16 @@ const props = withDefaults(defineProps<{
   pattern: 'none',
 })
 
-const surfaceClass = computed(() => [
-  `oc-surface--${props.variant}`,
-  `oc-surface--radius-${props.radius}`,
-  `oc-surface--shadow-${props.shadow}`,
-  `oc-surface--pattern-${props.pattern}`,
-  { 'is-fill': props.fill },
-  { 'is-bordered': props.bordered },
-])
+const attrs = useAttrs()
+const forwardedAttrs = useOcForwardAttrs(attrs)
+const { surfaceClass } = useOcSurfaceCapabilities({
+  variant: props.variant,
+  radius: props.radius,
+  shadow: props.shadow,
+  pattern: props.pattern,
+  bordered: props.bordered,
+  fill: props.fill,
+})
 </script>
 
 <style scoped>

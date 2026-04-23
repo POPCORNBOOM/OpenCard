@@ -1,9 +1,10 @@
 <template>
-  <component
-    :is="as"
+  <OcSurface
+    :as="as"
     class="oc-bar"
     :class="barClass"
-    :style="barStyle"
+    variant="transparent"
+    radius="none"
   >
     <div v-if="slots.start" class="oc-bar__start">
       <slot name="start" />
@@ -14,28 +15,31 @@
     <div v-if="slots.end" class="oc-bar__end">
       <slot name="end" />
     </div>
-  </component>
+  </OcSurface>
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots, type CSSProperties } from 'vue'
+import { computed, useSlots } from 'vue'
+import { OcSurface } from '../../shared/ui/primitives'
 
 type BarKind = 'top' | 'status' | 'section'
 type BarBorder = 'none' | 'top' | 'bottom'
+type BarSpacing = 'compact' | 'default' | 'spacious'
+type BarInset = 'none' | 'compact' | 'default' | 'spacious'
 
 defineOptions({ name: 'OcBar' })
 
 const props = withDefaults(defineProps<{
   as?: string
   kind?: BarKind
-  padding?: string
-  gap?: string
+  spacing?: BarSpacing
+  inset?: BarInset
   border?: BarBorder
 }>(), {
   as: 'div',
   kind: 'section',
-  padding: undefined,
-  gap: undefined,
+  spacing: undefined,
+  inset: undefined,
   border: 'none',
 })
 
@@ -44,12 +48,9 @@ const slots = useSlots()
 const barClass = computed(() => [
   `oc-bar--kind-${props.kind}`,
   `oc-bar--border-${props.border}`,
+  props.spacing ? `oc-bar--spacing-${props.spacing}` : null,
+  props.inset ? `oc-bar--inset-${props.inset}` : null,
 ])
-
-const barStyle = computed<CSSProperties>(() => ({
-  ...(props.padding ? { '--oc-bar-padding': props.padding } : {}),
-  ...(props.gap ? { '--oc-bar-gap': props.gap } : {}),
-}))
 </script>
 
 <style scoped>
@@ -82,6 +83,34 @@ const barStyle = computed<CSSProperties>(() => ({
 
 .oc-bar--kind-section {
   min-height: 24px;
+}
+
+.oc-bar--spacing-compact {
+  --oc-bar-gap: var(--oc-space-1);
+}
+
+.oc-bar--spacing-default {
+  --oc-bar-gap: var(--oc-space-2);
+}
+
+.oc-bar--spacing-spacious {
+  --oc-bar-gap: var(--oc-space-3);
+}
+
+.oc-bar--inset-none {
+  --oc-bar-padding: 0;
+}
+
+.oc-bar--inset-compact {
+  --oc-bar-padding: 0 var(--oc-space-1);
+}
+
+.oc-bar--inset-default {
+  --oc-bar-padding: 0 var(--oc-space-2);
+}
+
+.oc-bar--inset-spacious {
+  --oc-bar-padding: 0 var(--oc-space-3);
 }
 
 .oc-bar--border-top {

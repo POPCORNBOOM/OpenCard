@@ -3,15 +3,24 @@
     :is="as"
     class="oc-box"
     :class="boxClass"
-    :style="boxStyle"
-    v-bind="attrs"
+    v-bind="forwardedAttrs"
   >
     <slot />
   </component>
 </template>
 
 <script setup lang="ts">
-import { computed, useAttrs, type CSSProperties, type HTMLAttributes } from 'vue'
+import { useAttrs } from 'vue'
+import {
+  useOcBoxCapabilities,
+  type OcBoxAlign,
+  type OcBoxDimensionToken,
+  type OcBoxInsetToken,
+  type OcBoxJustify,
+  type OcBoxOverflow,
+  type OcBoxPointer,
+} from '../composables/useOcBoxCapabilities'
+import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
 
 defineOptions({
   name: 'OcBox',
@@ -28,14 +37,13 @@ const props = withDefaults(defineProps<{
   fill?: boolean
   relative?: boolean
   absolute?: boolean
-  inset?: string
-  width?: string
-  height?: string
-  pointer?: 'auto' | 'none'
-  align?: 'start' | 'center' | 'end' | 'stretch'
-  justify?: 'start' | 'center' | 'end' | 'between'
-  overflow?: 'visible' | 'hidden' | 'auto'
-  class?: HTMLAttributes['class']
+  inset?: OcBoxInsetToken
+  width?: OcBoxDimensionToken
+  height?: OcBoxDimensionToken
+  pointer?: OcBoxPointer
+  align?: OcBoxAlign
+  justify?: OcBoxJustify
+  overflow?: OcBoxOverflow
 }>(), {
   as: 'div',
   inline: false,
@@ -46,60 +54,136 @@ const props = withDefaults(defineProps<{
   fill: false,
   relative: false,
   absolute: false,
-  inset: undefined,
-  width: undefined,
-  height: undefined,
-  pointer: undefined,
-  align: undefined,
-  justify: undefined,
-  overflow: undefined,
-  class: undefined,
+  inset: 'none',
+  width: 'auto',
+  height: 'auto',
+  pointer: 'auto',
+  align: 'start',
+  justify: 'start',
+  overflow: 'visible',
 })
 
 const attrs = useAttrs()
-
-function mapAlign(align: NonNullable<typeof props.align>): CSSProperties['alignItems'] {
-  if (align === 'start') return 'flex-start'
-  if (align === 'end') return 'flex-end'
-  return align
-}
-
-function mapJustify(justify: NonNullable<typeof props.justify>): CSSProperties['justifyContent'] {
-  if (justify === 'start') return 'flex-start'
-  if (justify === 'end') return 'flex-end'
-  if (justify === 'between') return 'space-between'
-  return justify
-}
-
-const boxClass = computed(() => [
-  props.class,
-  {
-    'is-inline': props.inline,
-    'is-stack': props.stack,
-    'is-center': props.center,
-    'is-grow': props.grow,
-    'is-scroll-y': props.scrollY,
-    'is-fill': props.fill,
-    'is-relative': props.relative,
-    'is-absolute': props.absolute,
-  },
-])
-
-const boxStyle = computed<CSSProperties>(() => ({
-  ...(props.width ? { width: props.width } : {}),
-  ...(props.height ? { height: props.height } : {}),
-  ...(props.inset ? { inset: props.inset } : {}),
-  ...(props.pointer ? { pointerEvents: props.pointer } : {}),
-  ...(props.align ? { alignItems: mapAlign(props.align) } : {}),
-  ...(props.justify ? { justifyContent: mapJustify(props.justify) } : {}),
-  ...(props.overflow ? { overflow: props.overflow } : {}),
-}))
+const forwardedAttrs = useOcForwardAttrs(attrs)
+const { boxClass } = useOcBoxCapabilities({
+  inline: props.inline,
+  stack: props.stack,
+  center: props.center,
+  grow: props.grow,
+  scrollY: props.scrollY,
+  fill: props.fill,
+  relative: props.relative,
+  absolute: props.absolute,
+  inset: props.inset,
+  width: props.width,
+  height: props.height,
+  pointer: props.pointer,
+  align: props.align,
+  justify: props.justify,
+  overflow: props.overflow,
+})
 </script>
 
 <style scoped>
 .oc-box {
   min-width: 0;
   min-height: 0;
+}
+
+.oc-box--width-auto {
+  width: auto;
+}
+
+.oc-box--width-content {
+  width: fit-content;
+}
+
+.oc-box--width-full {
+  width: 100%;
+}
+
+.oc-box--width-screen {
+  width: 100vw;
+}
+
+.oc-box--height-auto {
+  height: auto;
+}
+
+.oc-box--height-content {
+  height: fit-content;
+}
+
+.oc-box--height-full {
+  height: 100%;
+}
+
+.oc-box--height-screen {
+  height: 100vh;
+}
+
+.oc-box--inset-none {
+  inset: auto;
+}
+
+.oc-box--inset-cover {
+  inset: 0;
+}
+
+.oc-box--inset-origin {
+  inset: 0 auto auto 0;
+}
+
+.oc-box--pointer-auto {
+  pointer-events: auto;
+}
+
+.oc-box--pointer-none {
+  pointer-events: none;
+}
+
+.oc-box--align-start {
+  align-items: flex-start;
+}
+
+.oc-box--align-center {
+  align-items: center;
+}
+
+.oc-box--align-end {
+  align-items: flex-end;
+}
+
+.oc-box--align-stretch {
+  align-items: stretch;
+}
+
+.oc-box--justify-start {
+  justify-content: flex-start;
+}
+
+.oc-box--justify-center {
+  justify-content: center;
+}
+
+.oc-box--justify-end {
+  justify-content: flex-end;
+}
+
+.oc-box--justify-between {
+  justify-content: space-between;
+}
+
+.oc-box--overflow-visible {
+  overflow: visible;
+}
+
+.oc-box--overflow-hidden {
+  overflow: hidden;
+}
+
+.oc-box--overflow-auto {
+  overflow: auto;
 }
 
 .oc-box.is-inline {

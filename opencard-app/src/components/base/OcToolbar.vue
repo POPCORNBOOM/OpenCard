@@ -1,23 +1,27 @@
 <template>
-  <div
+  <OcBox
+    as="div"
+    inline
     class="oc-toolbar"
     :class="toolbarClass"
-    :style="toolbarStyle"
     role="toolbar"
     :aria-orientation="resolvedOrientation"
     :aria-label="ariaLabel"
   >
     <slot />
-  </div>
+  </OcBox>
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed } from 'vue'
+import { OcBox } from '../../shared/ui/primitives'
 
 type ToolbarKind = 'menu' | 'sidebar' | 'panel'
 type ToolbarOrientation = 'horizontal' | 'vertical'
 type ToolbarAlign = 'start' | 'center' | 'end' | 'stretch'
 type ToolbarJustify = 'start' | 'center' | 'end' | 'between'
+type ToolbarSpacing = 'none' | 'tight' | 'normal' | 'loose'
+type ToolbarInset = 'none' | 'compact' | 'comfortable'
 
 defineOptions({ name: 'OcToolbar' })
 
@@ -27,8 +31,8 @@ const props = withDefaults(defineProps<{
   ariaLabel?: string
   align?: ToolbarAlign
   justify?: ToolbarJustify
-  gap?: string
-  padding?: string
+  spacing?: ToolbarSpacing
+  inset?: ToolbarInset
   grow?: boolean
   shrink?: boolean
   fill?: boolean
@@ -38,8 +42,8 @@ const props = withDefaults(defineProps<{
   ariaLabel: undefined,
   align: undefined,
   justify: undefined,
-  gap: undefined,
-  padding: undefined,
+  spacing: undefined,
+  inset: undefined,
   grow: false,
   shrink: true,
   fill: false,
@@ -53,9 +57,35 @@ const resolvedOrientation = computed<ToolbarOrientation>(() => {
   return props.kind === 'sidebar' ? 'vertical' : 'horizontal'
 })
 
+const resolvedSpacing = computed<ToolbarSpacing>(() => {
+  if (props.spacing) {
+    return props.spacing
+  }
+
+  if (props.kind === 'menu') {
+    return 'tight'
+  }
+
+  if (props.kind === 'sidebar') {
+    return 'none'
+  }
+
+  return 'tight'
+})
+
+const resolvedInset = computed<ToolbarInset>(() => {
+  if (props.inset) {
+    return props.inset
+  }
+
+  return props.kind === 'sidebar' ? 'comfortable' : 'none'
+})
+
 const toolbarClass = computed(() => [
   `oc-toolbar--${props.kind}`,
   `oc-toolbar--${resolvedOrientation.value}`,
+  `oc-toolbar--spacing-${resolvedSpacing.value}`,
+  `oc-toolbar--inset-${resolvedInset.value}`,
   props.align ? `oc-toolbar--align-${props.align}` : null,
   props.justify ? `oc-toolbar--justify-${props.justify}` : null,
   {
@@ -64,20 +94,13 @@ const toolbarClass = computed(() => [
     'is-fill': props.fill,
   },
 ])
-
-const toolbarStyle = computed<CSSProperties>(() => ({
-  ...(props.gap ? { '--oc-toolbar-gap': props.gap } : {}),
-  ...(props.padding ? { '--oc-toolbar-padding': props.padding } : {}),
-}))
 </script>
 
 <style scoped>
 .oc-toolbar {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--oc-toolbar-gap, 0);
-  padding: var(--oc-toolbar-padding, 0);
+  gap: 0;
+  padding: 0;
 }
 
 .oc-toolbar--horizontal {
@@ -89,16 +112,55 @@ const toolbarStyle = computed<CSSProperties>(() => ({
 }
 
 .oc-toolbar--menu {
-  --oc-toolbar-gap: 2px;
+  /* semantic kind hook */
 }
 
 .oc-toolbar--sidebar {
   width: 100%;
-  --oc-toolbar-gap: 0;
 }
 
 .oc-toolbar--panel {
-  --oc-toolbar-gap: var(--oc-space-1);
+  /* semantic kind hook */
+}
+
+.oc-toolbar--spacing-none {
+  gap: 0;
+}
+
+.oc-toolbar--spacing-tight {
+  gap: var(--oc-space-1);
+}
+
+.oc-toolbar--spacing-normal {
+  gap: var(--oc-space-2);
+}
+
+.oc-toolbar--spacing-loose {
+  gap: var(--oc-space-3);
+}
+
+.oc-toolbar--horizontal.oc-toolbar--inset-none {
+  padding: 0;
+}
+
+.oc-toolbar--horizontal.oc-toolbar--inset-compact {
+  padding: 0 var(--oc-space-1);
+}
+
+.oc-toolbar--horizontal.oc-toolbar--inset-comfortable {
+  padding: 0 var(--oc-space-3);
+}
+
+.oc-toolbar--vertical.oc-toolbar--inset-none {
+  padding: 0;
+}
+
+.oc-toolbar--vertical.oc-toolbar--inset-compact {
+  padding: var(--oc-space-1) 0;
+}
+
+.oc-toolbar--vertical.oc-toolbar--inset-comfortable {
+  padding: var(--oc-space-3) 0;
 }
 
 .oc-toolbar--align-start {

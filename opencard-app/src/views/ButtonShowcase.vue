@@ -8,7 +8,7 @@
       </p>
       <div class="showcase-hero-actions">
         <OcButton variant="secondary" @click="goToIde">Back To IDE</OcButton>
-        <OcButton variant="primary" icon="codicon-add">Create Card</OcButton>
+        <OcButton variant="primary" icon="icon.add">Create Card</OcButton>
       </div>
     </header>
 
@@ -23,7 +23,7 @@
         <OcButton variant="ghost">Ghost</OcButton>
         <OcButton variant="choice">Choice</OcButton>
         <OcButton variant="choice" :active="true">Choice Active</OcButton>
-        <OcButton variant="icon" icon="codicon-settings-gear" icon-only title="Icon Action" />
+        <OcButton variant="icon" icon="icon.settings-gear" icon-only title="Icon Action" />
       </div>
     </section>
 
@@ -36,9 +36,9 @@
         <OcButton size="sm" variant="secondary">Small</OcButton>
         <OcButton size="md" variant="secondary">Medium</OcButton>
         <OcButton size="lg" variant="secondary">Large</OcButton>
-        <OcButton size="sm" variant="icon" icon="codicon-search" icon-only title="Small Icon" />
-        <OcButton size="md" variant="icon" icon="codicon-search" icon-only title="Medium Icon" />
-        <OcButton size="lg" variant="icon" icon="codicon-search" icon-only title="Large Icon" />
+        <OcButton size="sm" variant="icon" icon="icon.search" icon-only title="Small Icon" />
+        <OcButton size="md" variant="icon" icon="icon.search" icon-only title="Medium Icon" />
+        <OcButton size="lg" variant="icon" icon="icon.search" icon-only title="Large Icon" />
       </div>
     </section>
 
@@ -61,10 +61,10 @@
         <h2>图标能力</h2>
       </div>
       <div class="button-row">
-        <OcButton variant="secondary" icon="codicon-folder-opened">Left Icon</OcButton>
-        <OcButton variant="secondary" icon="codicon-arrow-right" icon-position="right">Right Icon</OcButton>
-        <OcButton variant="primary" icon="codicon-save">Save</OcButton>
-        <OcButton variant="icon" icon="codicon-list-tree" icon-only title="Tree" />
+        <OcButton variant="secondary" icon="icon.folder-opened">Left Icon</OcButton>
+        <OcButton variant="secondary" icon="icon.arrow-right" icon-position="right">Right Icon</OcButton>
+        <OcButton variant="primary" icon="icon.save">Save</OcButton>
+        <OcButton variant="icon" icon="icon.list-tree" icon-only title="Tree" />
       </div>
     </section>
 
@@ -75,10 +75,10 @@
       </div>
       <div class="button-row">
         <OcButton variant="primary" disabled>Disabled</OcButton>
-        <OcButton variant="icon" icon="codicon-symbol-string" icon-only :active="true" title="Active Icon" />
+        <OcButton variant="icon" icon="icon.symbol-string" icon-only :active="true" title="Active Icon" />
       </div>
       <div class="block-row">
-        <OcButton variant="primary" block icon="codicon-add">Block Button</OcButton>
+        <OcButton variant="primary" block icon="icon.add">Block Button</OcButton>
       </div>
     </section>
   </main>

@@ -1,5 +1,5 @@
 import { DEFAULT_OC_THEME, OC_THEME_REGISTRY } from './themes'
-import type { OcThemeId, OcThemeTokenKey } from './themeTokens'
+import { OC_THEME_TOKEN_KEYS, type OcThemeId } from './themeTokens'
 
 let currentTheme: OcThemeId = DEFAULT_OC_THEME
 
@@ -20,8 +20,15 @@ function applyTheme(themeId: OcThemeId) {
 
   const root = document.documentElement
   const tokens = OC_THEME_REGISTRY[themeId]
-  for (const [token, value] of Object.entries(tokens)) {
-    root.style.setProperty(token as OcThemeTokenKey, value)
+  for (const token of OC_THEME_TOKEN_KEYS) {
+    const value = tokens[token]
+
+    if (typeof value !== 'string') {
+      console.warn(`[OpenCard/UI] Missing theme token "${token}" in theme "${themeId}".`)
+      continue
+    }
+
+    root.style.setProperty(token, value)
   }
 
   root.dataset.ocTheme = themeId
@@ -35,4 +42,3 @@ export function setOcTheme(themeId: OcThemeId | string): void {
 export function getOcTheme(): OcThemeId {
   return currentTheme
 }
-

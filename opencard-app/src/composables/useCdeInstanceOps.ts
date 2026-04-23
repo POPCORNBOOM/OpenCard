@@ -48,7 +48,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       parent: null,
       renamable: false,
       isExpandable: false,
-      icon: 'codicon-symbol-class',
+      icon: 'icon.symbol-class',
       metadata: {
         instanceId: options.blueprintCardId,
         kind: 'blueprint',
@@ -70,7 +70,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
           name: displayName,
           path: [instanceId],
           parent: null,
-          icon: 'codicon-account',
+          icon: 'icon.account',
           actionKeys: ['duplicate-instance', 'delete-instance'],
           metadata: {
             instance,

@@ -41,7 +41,7 @@ describe('OcToolButton', () => {
         iconOnly: true,
         kind: 'panel',
         label: 'Sort by category',
-        icon: 'codicon-list-tree',
+        icon: 'icon.list-tree',
       },
     })
 

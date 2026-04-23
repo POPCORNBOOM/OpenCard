@@ -1,104 +1,26 @@
-<!--
-  使用说明：
-  - 输入 `name/size/color/tone` 描述图标语义与展示样式
-  - 支持 codicon 与 mdi 两类图标源统一渲染
-
-  职责边界：
-  - 负责图标语义解析与统一视图输出
-  - 不承载业务语义判定与主题策略定义
-
-  主要输出事件：
-  - 无 纯展示组件
--->
 <template>
-  <i
-    v-if="icon.kind === 'codicon'"
-    class="app-icon codicon"
-    :class="[icon.value, toneClass]"
-    :style="iconStyle"
+  <OcIcon
+    :name="name"
+    :size="size"
+    :color="color"
+    :tone="tone"
     v-bind="$attrs"
   />
-  <svg
-    v-else
-    class="app-icon app-icon-svg"
-    :class="toneClass"
-    :style="iconStyle"
-    :viewBox="icon.viewBox ?? '0 0 24 24'"
-    fill="currentColor"
-    aria-hidden="true"
-    v-bind="$attrs"
-  >
-    <path :d="icon.value" />
-  </svg>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { resolveIcon, type IconDefinition, type IconName, type IconTone } from '../../shared/ui/icon/iconRegistry'
+import type { IconDefinition, IconName } from '../../shared/ui/icon/iconRegistry'
+import OcIcon from '../../shared/ui/primitives/OcIcon.vue'
 
 defineOptions({
+  name: 'AppIcon',
   inheritAttrs: false,
 })
 
-const props = defineProps<{
-  name?: IconName | string | { icon?: string } | IconDefinition
+defineProps<{
+  name?: IconName | string | { icon?: IconName | string } | IconDefinition
   size?: number | string
   color?: string
-  tone?: IconTone
+  tone?: string
 }>()
-
-const icon = computed(() => resolveIcon(props.name))
-const toneClass = computed(() => (props.tone ? `app-icon-tone-${props.tone}` : ''))
-const normalizedSize = computed(() => {
-  if (props.size === undefined) {
-    return '1em'
-  }
-
-  return typeof props.size === 'number' ? `${props.size}px` : props.size
-})
-
-const iconStyle = computed(() => ({
-  fontSize: normalizedSize.value,
-  width: normalizedSize.value,
-  height: normalizedSize.value,
-  color: props.color,
-}))
 </script>
-
-<style scoped>
-.app-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--icon-default);
-}
-
-.app-icon-svg {
-  overflow: visible;
-}
-
-.app-icon-tone-default {
-  color: var(--icon-default);
-}
-
-.app-icon-tone-muted {
-  color: var(--icon-muted);
-}
-
-.app-icon-tone-primary {
-  color: var(--icon-primary);
-}
-
-.app-icon-tone-success {
-  color: var(--icon-success);
-}
-
-.app-icon-tone-warning {
-  color: var(--icon-warning);
-}
-
-.app-icon-tone-danger {
-  color: var(--icon-danger);
-}
-</style>

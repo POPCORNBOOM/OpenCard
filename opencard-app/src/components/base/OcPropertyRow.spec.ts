@@ -19,7 +19,7 @@ describe('OcPropertyRow', () => {
     const wrapper = mount(OcPropertyRow, {
       props: {
         label: 'Name',
-        labelIcon: 'codicon-symbol-string',
+        labelIcon: 'icon.symbol-string',
       },
     })
 

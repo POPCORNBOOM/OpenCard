@@ -19,7 +19,7 @@ describe('OcButton', () => {
   it('renders icon when icon prop is provided', () => {
     const wrapper = mount(OcButton, {
       props: {
-        icon: 'codicon-add',
+        icon: 'icon.add',
       },
       slots: {
         default: 'Add',

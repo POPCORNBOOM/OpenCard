@@ -77,12 +77,68 @@ export const iconRegistry = {
   'folder.coreExpanded': { kind: 'mdi', value: mdiFolderOpenOutline },
   'misc.preview': { kind: 'mdi', value: mdiBroadcast },
   'misc.code': { kind: 'mdi', value: mdiFileCodeOutline },
+  // Strict-route semantic aliases for all codicon usages in repository.
+  'icon.account': { kind: 'codicon', value: 'codicon-account' },
+  'icon.add': { kind: 'codicon', value: 'codicon-add' },
+  'icon.arrow-left-right': { kind: 'codicon', value: 'codicon-arrow-left-right' },
+  'icon.arrow-right': { kind: 'codicon', value: 'codicon-arrow-right' },
+  'icon.arrow-swap': { kind: 'codicon', value: 'codicon-arrow-swap' },
+  'icon.arrow-up': { kind: 'codicon', value: 'codicon-arrow-up' },
+  'icon.check': { kind: 'codicon', value: 'codicon-check' },
+  'icon.chevron-down': { kind: 'codicon', value: 'codicon-chevron-down' },
+  'icon.chevron-left': { kind: 'codicon', value: 'codicon-chevron-left' },
+  'icon.chevron-right': { kind: 'codicon', value: 'codicon-chevron-right' },
+  'icon.circle-slash': { kind: 'codicon', value: 'codicon-circle-slash' },
+  'icon.close': { kind: 'codicon', value: 'codicon-close' },
+  'icon.collection': { kind: 'codicon', value: 'codicon-collection' },
+  'icon.compass': { kind: 'codicon', value: 'codicon-compass' },
+  'icon.copy': { kind: 'codicon', value: 'codicon-copy' },
+  'icon.debug-restart': { kind: 'codicon', value: 'codicon-debug-restart' },
+  'icon.discard': { kind: 'codicon', value: 'codicon-discard' },
+  'icon.edit': { kind: 'codicon', value: 'codicon-edit' },
+  'icon.error': { kind: 'codicon', value: 'codicon-error' },
+  'icon.export': { kind: 'codicon', value: 'codicon-export' },
+  'icon.eye': { kind: 'codicon', value: 'codicon-eye' },
+  'icon.file': { kind: 'codicon', value: 'codicon-file' },
+  'icon.file-code': { kind: 'codicon', value: 'codicon-file-code' },
+  'icon.file-media': { kind: 'codicon', value: 'codicon-file-media' },
+  'icon.file-text': { kind: 'codicon', value: 'codicon-file-text' },
+  'icon.files': { kind: 'codicon', value: 'codicon-files' },
+  'icon.folder': { kind: 'codicon', value: 'codicon-folder' },
+  'icon.folder-opened': { kind: 'codicon', value: 'codicon-folder-opened' },
+  'icon.globe': { kind: 'codicon', value: 'codicon-globe' },
+  'icon.json': { kind: 'codicon', value: 'codicon-json' },
+  'icon.key': { kind: 'codicon', value: 'codicon-key' },
+  'icon.layers': { kind: 'codicon', value: 'codicon-layers' },
+  'icon.layout': { kind: 'codicon', value: 'codicon-layout' },
+  'icon.list-selection': { kind: 'codicon', value: 'codicon-list-selection' },
+  'icon.list-tree': { kind: 'codicon', value: 'codicon-list-tree' },
+  'icon.lock': { kind: 'codicon', value: 'codicon-lock' },
+  'icon.menu': { kind: 'codicon', value: 'codicon-menu' },
+  'icon.package': { kind: 'codicon', value: 'codicon-package' },
+  'icon.play': { kind: 'codicon', value: 'codicon-play' },
+  'icon.rocket': { kind: 'codicon', value: 'codicon-rocket' },
+  'icon.save': { kind: 'codicon', value: 'codicon-save' },
+  'icon.search': { kind: 'codicon', value: 'codicon-search' },
+  'icon.settings': { kind: 'codicon', value: 'codicon-settings' },
+  'icon.settings-gear': { kind: 'codicon', value: 'codicon-settings-gear' },
+  'icon.source-control': { kind: 'codicon', value: 'codicon-source-control' },
+  'icon.star-full': { kind: 'codicon', value: 'codicon-star-full' },
+  'icon.symbol-boolean': { kind: 'codicon', value: 'codicon-symbol-boolean' },
+  'icon.symbol-class': { kind: 'codicon', value: 'codicon-symbol-class' },
+  'icon.symbol-color': { kind: 'codicon', value: 'codicon-symbol-color' },
+  'icon.symbol-key': { kind: 'codicon', value: 'codicon-symbol-key' },
+  'icon.symbol-number': { kind: 'codicon', value: 'codicon-symbol-number' },
+  'icon.symbol-string': { kind: 'codicon', value: 'codicon-symbol-string' },
+  'icon.trash': { kind: 'codicon', value: 'codicon-trash' },
+  'icon.warning': { kind: 'codicon', value: 'codicon-warning' },
 } as const satisfies Record<string, CodiconIconDefinition | MdiIconDefinition>
 
 export type IconName = keyof typeof iconRegistry
 
 export type IconDefinition = CodiconIconDefinition | MdiIconDefinition
 export type IconTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'danger'
+export type IconResolvable = IconName | string | { icon?: IconName | string } | IconDefinition
 
 function isIconDefinition(value: unknown): value is IconDefinition {
   if (!value || typeof value !== 'object') {
@@ -96,7 +152,7 @@ function isIconDefinition(value: unknown): value is IconDefinition {
   )
 }
 
-export function resolveIcon(name?: string | { icon?: string } | IconDefinition): IconDefinition {
+export function resolveIcon(name?: IconResolvable): IconDefinition {
   if (isIconDefinition(name)) {
     return name
   }
@@ -107,13 +163,6 @@ export function resolveIcon(name?: string | { icon?: string } | IconDefinition):
 
   if (typeof name === 'string' && name in iconRegistry) {
     return iconRegistry[name as IconName]
-  }
-
-  if (typeof name === 'string' && name.startsWith('codicon-')) {
-    return {
-      kind: 'codicon',
-      value: name,
-    }
   }
 
   return iconRegistry['file.default']

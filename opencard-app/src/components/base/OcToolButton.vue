@@ -2,10 +2,10 @@
   <OcPressable
     class="oc-tool-button"
     :class="toolButtonClass"
-    :style="toolButtonStyle"
     :variant="resolvedVariant"
     :size="resolvedSize"
     :radius="resolvedRadius"
+    :block="resolvedBlock"
     :icon-only="iconOnly"
     :active="active"
     :disabled="disabled"
@@ -26,10 +26,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed } from 'vue'
 import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'
+type ToolButtonSize = 'sm' | 'md' | 'lg'
 
 defineOptions({ name: 'OcToolButton' })
 
@@ -42,10 +43,8 @@ const props = withDefaults(defineProps<{
   title?: string
   ariaLabel?: string
   kind?: ToolButtonKind
-  width?: string
-  minWidth?: string
-  height?: string
-  minHeight?: string
+  size?: ToolButtonSize
+  block?: boolean
 }>(), {
   label: undefined,
   icon: undefined,
@@ -55,10 +54,8 @@ const props = withDefaults(defineProps<{
   title: undefined,
   ariaLabel: undefined,
   kind: 'panel',
-  width: undefined,
-  minWidth: undefined,
-  height: undefined,
-  minHeight: undefined,
+  size: undefined,
+  block: undefined,
 })
 
 const emit = defineEmits<{
@@ -66,24 +63,26 @@ const emit = defineEmits<{
 }>()
 
 const resolvedVariant = computed(() => props.iconOnly ? 'icon' : 'ghost')
-const resolvedSize = computed(() => props.kind === 'panel' ? 'sm' : 'md')
+const resolvedSize = computed<ToolButtonSize>(() => {
+  if (props.size) {
+    return props.size
+  }
+
+  return props.kind === 'panel' ? 'sm' : 'md'
+})
 const resolvedRadius = computed(() => props.kind === 'menu' ? 'sm' : 'none')
+const resolvedBlock = computed(() => props.block ?? (props.kind === 'sidebar'))
 const resolvedTitle = computed(() => props.title ?? props.label ?? props.ariaLabel)
 const resolvedAriaLabel = computed(() => props.ariaLabel ?? (props.iconOnly ? props.label ?? props.title : undefined))
 
 const toolButtonClass = computed(() => [
   `oc-tool-button--${props.kind}`,
+  `oc-tool-button--size-${resolvedSize.value}`,
   {
     'is-icon-only': props.iconOnly,
+    'is-block': resolvedBlock.value,
   },
 ])
-
-const toolButtonStyle = computed<CSSProperties>(() => ({
-  ...(props.width ? { width: props.width } : {}),
-  ...(props.minWidth ? { minWidth: props.minWidth } : {}),
-  ...(props.height ? { height: props.height } : {}),
-  ...(props.minHeight ? { minHeight: props.minHeight } : {}),
-}))
 </script>
 
 <style scoped>
@@ -103,29 +102,48 @@ const toolButtonStyle = computed<CSSProperties>(() => ({
   white-space: nowrap;
 }
 
-.oc-tool-button--menu:not(.is-icon-only) {
+.oc-tool-button--menu.oc-tool-button--size-sm:not(.is-icon-only) {
+  min-height: 24px;
+  padding: 0 var(--oc-space-1);
+  font-size: 13px;
+}
+
+.oc-tool-button--menu.oc-tool-button--size-md:not(.is-icon-only) {
   min-height: 28px;
   padding: 0 var(--oc-space-2);
   font-size: 13px;
 }
 
+.oc-tool-button--menu.oc-tool-button--size-lg:not(.is-icon-only) {
+  min-height: 32px;
+  padding: 0 var(--oc-space-3);
+  font-size: 13px;
+}
+
 .oc-tool-button--sidebar {
-  width: 48px;
-  height: 48px;
   position: relative;
   border-radius: 0;
 }
 
-.oc-tool-button--sidebar:hover {
-  background: var(--oc-bg-hover);
+.oc-tool-button--sidebar.is-block.is-icon-only {
+  width: 100%;
+  height: auto;
+}
+
+.oc-tool-button--sidebar.oc-tool-button--size-sm {
+  min-height: 44px;
+}
+
+.oc-tool-button--sidebar.oc-tool-button--size-md {
+  min-height: 48px;
+}
+
+.oc-tool-button--sidebar.oc-tool-button--size-lg {
+  min-height: 56px;
 }
 
 .oc-tool-button--sidebar:focus-visible {
   outline-offset: -2px;
-}
-
-.oc-tool-button--sidebar.is-active {
-  background: var(--oc-bg-base);
 }
 
 .oc-tool-button--sidebar.is-active::before {
@@ -138,8 +156,23 @@ const toolButtonStyle = computed<CSSProperties>(() => ({
   background: var(--oc-accent);
 }
 
-.oc-tool-button--panel {
+.oc-tool-button--panel.oc-tool-button--size-sm {
   min-width: 22px;
+}
+
+.oc-tool-button--panel.oc-tool-button--size-sm.is-icon-only {
   min-height: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+.oc-tool-button--panel.oc-tool-button--size-md.is-icon-only {
+  width: 26px;
+  height: 26px;
+}
+
+.oc-tool-button--panel.oc-tool-button--size-lg.is-icon-only {
+  width: 32px;
+  height: 32px;
 }
 </style>

@@ -5,7 +5,7 @@ import type { ActionDefinition, ITreeNode } from '../../shared/ui/tree/tree.type
 
 const renameAction: ActionDefinition = {
   key: 'rename',
-  icon: 'codicon-edit',
+  icon: 'icon.edit',
   title: 'Rename',
 }
 

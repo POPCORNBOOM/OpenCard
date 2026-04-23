@@ -32,7 +32,7 @@
       @click="handleClick"
       @keydown="handleRootKeydown"
     >
-      <i class="codicon" :class="isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'"></i>
+      <OcIcon :name="isExpanded ? 'icon.chevron-down' : 'icon.chevron-right'" size="sm" />
       <span class="root-title">{{ props.title }}</span>
       <div v-if="treeActions.length" class="root-actions">
         <TreeActionButton
@@ -54,6 +54,7 @@
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import { OcIcon } from '../../shared/ui/primitives'
 import TreeActionButton from './TreeActionButton.vue'
 import TreeNode from './TreeNode.vue'
 import type {

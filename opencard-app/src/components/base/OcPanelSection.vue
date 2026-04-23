@@ -4,12 +4,14 @@
     class="oc-panel-section"
     :class="[
       `oc-panel-section--tone-${props.tone}`,
+      `oc-panel-section--header-density-${props.headerDensity}`,
+      `oc-panel-section--header-inset-${props.headerInset}`,
+      `oc-panel-section--body-inset-${props.bodyInset}`,
       {
         'is-collapsed': props.collapsed,
         'is-fill': props.fill,
       },
     ]"
-    :style="panelStyle"
     :variant="surfaceVariant"
   >
     <header
@@ -34,8 +36,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots, type CSSProperties, type HTMLAttributes } from 'vue'
+import { computed, useSlots, type HTMLAttributes } from 'vue'
 import { OcScrollArea, OcSurface } from '../../shared/ui/primitives'
+
+type PanelHeaderDensity = 'compact' | 'default' | 'comfortable'
+type PanelHeaderInset = 'default' | 'comfortable'
+type PanelBodyInset = 'none' | 'compact' | 'comfortable'
 
 defineOptions({ name: 'OcPanelSection' })
 
@@ -45,9 +51,9 @@ const props = withDefaults(defineProps<{
   scrollBody?: boolean
   tone?: 'default' | 'overlay'
   collapsed?: boolean
-  headerPadding?: string
-  headerMinHeight?: string
-  bodyPadding?: string
+  headerDensity?: PanelHeaderDensity
+  headerInset?: PanelHeaderInset
+  bodyInset?: PanelBodyInset
   fill?: boolean
   headerClass?: HTMLAttributes['class']
   bodyClass?: HTMLAttributes['class']
@@ -57,9 +63,9 @@ const props = withDefaults(defineProps<{
   scrollBody: false,
   tone: 'default',
   collapsed: false,
-  headerPadding: undefined,
-  headerMinHeight: undefined,
-  bodyPadding: undefined,
+  headerDensity: 'default',
+  headerInset: 'default',
+  bodyInset: 'none',
   fill: false,
   headerClass: undefined,
   bodyClass: undefined,
@@ -77,22 +83,49 @@ const hasHeader = computed(() => {
 
 const bodyClass = computed(() => props.bodyClass)
 const surfaceVariant = computed(() => (props.tone === 'overlay' ? 'transparent' : 'panel'))
-const panelStyle = computed<CSSProperties>(() => ({
-  ...(props.headerPadding ? { '--oc-panel-header-padding': props.headerPadding } : {}),
-  ...(props.headerMinHeight ? { '--oc-panel-header-min-height': props.headerMinHeight } : {}),
-  ...(props.bodyPadding ? { '--oc-panel-body-padding': props.bodyPadding } : {}),
-}))
 </script>
 
 <style scoped>
 .oc-panel-section {
-  --oc-panel-header-padding: 0 14px;
+  --oc-panel-header-padding-inline: 14px;
   --oc-panel-header-min-height: 38px;
   --oc-panel-body-padding: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+}
+
+.oc-panel-section--header-density-compact {
+  --oc-panel-header-min-height: 32px;
+}
+
+.oc-panel-section--header-density-default {
+  --oc-panel-header-min-height: 38px;
+}
+
+.oc-panel-section--header-density-comfortable {
+  --oc-panel-header-min-height: 40px;
+}
+
+.oc-panel-section--header-inset-default {
+  --oc-panel-header-padding-inline: 14px;
+}
+
+.oc-panel-section--header-inset-comfortable {
+  --oc-panel-header-padding-inline: 18px;
+}
+
+.oc-panel-section--body-inset-none {
+  --oc-panel-body-padding: 0;
+}
+
+.oc-panel-section--body-inset-compact {
+  --oc-panel-body-padding: var(--oc-space-1) 0;
+}
+
+.oc-panel-section--body-inset-comfortable {
+  --oc-panel-body-padding: 14px 16px 16px;
 }
 
 .oc-panel-section.is-fill {
@@ -102,7 +135,7 @@ const panelStyle = computed<CSSProperties>(() => ({
 
 .oc-panel-header {
   min-height: var(--oc-panel-header-min-height);
-  padding: var(--oc-panel-header-padding);
+  padding: 0 var(--oc-panel-header-padding-inline);
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -37,7 +37,7 @@
                   :aria-label="addFieldActionText"
                   @click="openAddFieldMenu($event, category)"
                 >
-                  <span class="codicon codicon-add" />
+                  <OcIcon name="icon.add" size="sm" />
                 </OcButton>
               </div>
             </template>
@@ -59,7 +59,7 @@
                 :aria-label="`${resetFieldActionText}: ${entry.label}`"
                 @click.stop="emitResetProperty(category.sourceKey, entry.key)"
               >
-                <span class="codicon codicon-discard" />
+                <OcIcon name="icon.discard" size="sm" />
               </OcButton>
               <component
                 :is="getEditorComponent(entry.definition.datatype)"
@@ -101,6 +101,7 @@ import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
+import { OcIcon } from '../../shared/ui/primitives'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
@@ -163,16 +164,16 @@ type DatatypeEditorEntry = {
 }
 
 const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
-  string: { component: StringPropertyField, icon: 'codicon-symbol-string' },
-  background: { component: BackgroundPropertyField, icon: 'codicon-symbol-color' },
-  anchorPosition: { component: AnchorPositionPropertyField, icon: 'codicon-compass' },
-  alignPosition: { component: AlignPositionPropertyField, icon: 'codicon-list-selection' },
-  flowDirection: { component: FlowDirectionPropertyField, icon: 'codicon-arrow-right' },
-  number: { component: NumberPropertyField, icon: 'codicon-symbol-number' },
-  boolean: { component: BooleanPropertyField, icon: 'codicon-symbol-boolean' },
-  color: { component: ColorPropertyField, icon: 'codicon-symbol-color' },
-  filePath: { component: FilePathPropertyField, icon: 'codicon-file' },
-  object: { component: ObjectPropertyField, icon: 'codicon-symbol-class' },
+  string: { component: StringPropertyField, icon: 'icon.symbol-string' },
+  background: { component: BackgroundPropertyField, icon: 'icon.symbol-color' },
+  anchorPosition: { component: AnchorPositionPropertyField, icon: 'icon.compass' },
+  alignPosition: { component: AlignPositionPropertyField, icon: 'icon.list-selection' },
+  flowDirection: { component: FlowDirectionPropertyField, icon: 'icon.arrow-right' },
+  number: { component: NumberPropertyField, icon: 'icon.symbol-number' },
+  boolean: { component: BooleanPropertyField, icon: 'icon.symbol-boolean' },
+  color: { component: ColorPropertyField, icon: 'icon.symbol-color' },
+  filePath: { component: FilePathPropertyField, icon: 'icon.file' },
+  object: { component: ObjectPropertyField, icon: 'icon.symbol-class' },
 }
 
 const readonlyExtraFieldDefinition: EditorPropertyDefinition = {

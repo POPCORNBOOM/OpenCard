@@ -45,7 +45,7 @@
         @mousedown.prevent="applySuggestion(suggestion)"
       >
         <span class="suggestion-main">
-          <span class="codicon" :class="suggestion.icon" />
+          <OcIcon :name="suggestion.icon" size="sm" />
           <span>{{ suggestion.label }}</span>
         </span>
         <span v-if="suggestion.detail" class="suggestion-detail">{{ suggestion.detail }}</span>
@@ -58,6 +58,7 @@
 import { computed, ref, watch } from 'vue'
 import OcButton from '../../base/OcButton.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
+import { OcIcon } from '../../../shared/ui/primitives'
 import { useProjectStore } from '../../../features/workspace/store/projectStore'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
@@ -191,7 +192,7 @@ async function loadSuggestions() {
         value: parentDirectory ? `${parentDirectory}/` : '',
         isDirectory: true,
         detail: '返回上一级',
-        icon: 'codicon-arrow-up',
+        icon: 'icon.arrow-up',
       })
     }
 
@@ -210,7 +211,7 @@ async function loadSuggestions() {
         value: isDirectory ? `${relativePath}/` : relativePath,
         isDirectory,
         detail: directory ? relativePath : undefined,
-        icon: isDirectory ? 'codicon-folder' : 'codicon-file',
+        icon: isDirectory ? 'icon.folder' : 'icon.file',
       })
     }
 

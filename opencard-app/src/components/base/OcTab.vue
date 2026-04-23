@@ -17,7 +17,7 @@
       v-if="closable"
       class="oc-tab__close"
       variant="icon"
-      icon="codicon-close"
+      icon="icon.close"
       icon-only
       size="sm"
       :disabled="disabled"

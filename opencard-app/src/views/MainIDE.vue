@@ -56,11 +56,11 @@
     <OcBar as="footer" kind="status" border="top">
       <template #start>
         <OcChip v-if="projectPath" truncate max-width="420px">
-          <AppIcon name="status.folderOpen" />
+          <OcIcon name="status.folderOpen" />
           {{ projectPath }}
         </OcChip>
         <OcChip v-if="isWatching" tone="info">
-          <AppIcon name="status.watching" />
+          <OcIcon name="status.watching" />
           {{ t('status.watching') }}
         </OcChip>
       </template>
@@ -85,9 +85,9 @@ import { useProjectStore } from '../features/workspace/store/projectStore'
 import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
-import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import { OcBar, OcButton, OcChip } from '../components/base'
+import { OcIcon } from '../shared/ui/primitives'
 import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
 import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
 import EditorWorkbenchFrame from '../features/ide-shell/components/EditorWorkbenchFrame.vue'

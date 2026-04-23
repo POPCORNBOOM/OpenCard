@@ -48,7 +48,7 @@
                   <OcToolButton
                     kind="panel"
                     icon-only
-                    :icon="isInstancePanelExpanded ? 'codicon-chevron-left' : 'codicon-chevron-right'"
+                    :icon="isInstancePanelExpanded ? 'icon.chevron-left' : 'icon.chevron-right'"
                     :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
                     :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
                     @click="toggleInstancePanel"
@@ -151,7 +151,7 @@
                           <OcToolButton
                             kind="panel"
                             icon-only
-                            icon="codicon-list-tree"
+                            icon="icon.list-tree"
                             :active="propertySortMode === 'category'"
                             title="Category"
                             aria-label="Category"
@@ -160,7 +160,7 @@
                           <OcToolButton
                             kind="panel"
                             icon-only
-                            icon="codicon-symbol-string"
+                            icon="icon.symbol-string"
                             :active="propertySortMode === 'alphabetical'"
                             title="A-Z"
                             aria-label="A-Z"
@@ -314,7 +314,7 @@ const {
 const treeActions = new Map<string, ActionDefinition>([
   ['add-root', {
     key: 'add-root',
-    icon: 'codicon-add',
+    icon: 'icon.add',
     title: '添加',
     children: [
       { key: 'add-text-block', icon: getBlockTreeIcon('text-block'), title: '文本块' },
@@ -323,11 +323,11 @@ const treeActions = new Map<string, ActionDefinition>([
       { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
     ],
   }],
-  ['duplicate-selected', { key: 'duplicate-selected', icon: 'codicon-copy', title: '复制选中' }],
-  ['delete-selected', { key: 'delete-selected', icon: 'codicon-trash', title: '删除选中' }],
+  ['duplicate-selected', { key: 'duplicate-selected', icon: 'icon.copy', title: '复制选中' }],
+  ['delete-selected', { key: 'delete-selected', icon: 'icon.trash', title: '删除选中' }],
   ['add', {
     key: 'add',
-    icon: 'codicon-add',
+    icon: 'icon.add',
     title: '添加',
     children: [
       { key: 'add-text-block', icon: getBlockTreeIcon('text-block'), title: '文本块' },
@@ -336,14 +336,14 @@ const treeActions = new Map<string, ActionDefinition>([
       { key: 'add-flow-container-block', icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' },
     ],
   }],
-  ['duplicate', { key: 'duplicate', icon: 'codicon-copy', title: '复制' }],
-  ['delete', { key: 'delete', icon: 'codicon-trash', title: '删除' }],
+  ['duplicate', { key: 'duplicate', icon: 'icon.copy', title: '复制' }],
+  ['delete', { key: 'delete', icon: 'icon.trash', title: '删除' }],
 ])
 const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
 const instanceTreeActions = new Map<string, ActionDefinition>([
-  ['add-instance', { key: 'add-instance', icon: 'codicon-add', title: '新建实例' }],
-  ['duplicate-instance', { key: 'duplicate-instance', icon: 'codicon-copy', title: '复制' }],
-  ['delete-instance', { key: 'delete-instance', icon: 'codicon-trash', title: '删除' }],
+  ['add-instance', { key: 'add-instance', icon: 'icon.add', title: '新建实例' }],
+  ['duplicate-instance', { key: 'duplicate-instance', icon: 'icon.copy', title: '复制' }],
+  ['delete-instance', { key: 'delete-instance', icon: 'icon.trash', title: '删除' }],
 ])
 const instanceTreeActionKeys = ['add-instance']
 

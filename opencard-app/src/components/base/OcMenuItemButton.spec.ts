@@ -14,7 +14,7 @@ describe('OcMenuItemButton', () => {
 
   it('emits click when enabled and maps disabled to underlying pressable', async () => {
     const enabled = mount(OcMenuItemButton, {
-      props: { label: 'Export', icon: 'codicon-export' },
+      props: { label: 'Export', icon: 'icon.export' },
     })
     await enabled.get('button').trigger('click')
     expect(enabled.emitted('click')).toHaveLength(1)

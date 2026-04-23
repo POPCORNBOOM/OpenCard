@@ -176,7 +176,7 @@
     </template>
     <template v-else-if="column === 'states'">
       <OcPressable variant="icon" icon-only active>
-        <OcIcon name="codicon-star-full" />
+        <OcIcon name="icon.star-full" />
       </OcPressable>
       <OcPressable disabled>Disabled</OcPressable>
     </template>
@@ -263,20 +263,20 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'primitive-oc-icon'">
     <template v-if="column === 'default'">
-      <OcIcon name="codicon-symbol-color" />
+      <OcIcon name="icon.symbol-color" />
     </template>
     <template v-else-if="column === 'variants'">
-      <OcIcon name="codicon-folder" tone="folder-default" />
-      <OcIcon name="codicon-folder-opened" tone="folder-open" />
-      <OcIcon name="codicon-warning" tone="warning" />
+      <OcIcon name="icon.folder" tone="folder-default" />
+      <OcIcon name="icon.folder-opened" tone="folder-open" />
+      <OcIcon name="icon.warning" tone="warning" />
     </template>
     <template v-else-if="column === 'states'">
-      <OcIcon name="codicon-error" tone="danger" size="lg" />
-      <OcIcon name="codicon-check" tone="success" size="lg" />
+      <OcIcon name="icon.error" tone="danger" size="lg" />
+      <OcIcon name="icon.check" tone="success" size="lg" />
     </template>
     <template v-else>
       <OcBox inline class="demo-row">
-        <OcIcon name="codicon-file-code" tone="typescript" />
+        <OcIcon name="icon.file-code" tone="typescript" />
         <OcText tone="secondary">src/main.ts</OcText>
       </OcBox>
     </template>
@@ -292,7 +292,7 @@
       <OcButton variant="choice">Choice</OcButton>
     </template>
     <template v-else-if="column === 'states'">
-      <OcButton variant="icon" icon="codicon-settings-gear" icon-only :active="true" />
+      <OcButton variant="icon" icon="icon.settings-gear" icon-only :active="true" />
       <OcButton disabled>Disabled</OcButton>
     </template>
     <template v-else>
@@ -338,7 +338,7 @@
             <OcText size="label" tone="muted">Category</OcText>
           </template>
           <template #end>
-            <OcButton variant="icon" icon="codicon-add" icon-only />
+            <OcButton variant="icon" icon="icon.add" icon-only />
           </template>
         </OcBar>
       </OcSurface>
@@ -561,19 +561,19 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-menu-item-button'">
     <template v-if="column === 'default'">
-      <OcMenuItemButton label="Open Project" icon="codicon-folder-opened" />
+      <OcMenuItemButton label="Open Project" icon="icon.folder-opened" />
     </template>
     <template v-else-if="column === 'variants'">
-      <OcMenuItemButton label="Export All" icon="codicon-export" />
-      <OcMenuItemButton label="Submenu Item" icon="codicon-list-tree" has-children />
+      <OcMenuItemButton label="Export All" icon="icon.export" />
+      <OcMenuItemButton label="Submenu Item" icon="icon.list-tree" has-children />
     </template>
     <template v-else-if="column === 'states'">
-      <OcMenuItemButton label="Disabled Item" icon="codicon-circle-slash" :disabled="true" />
+      <OcMenuItemButton label="Disabled Item" icon="icon.circle-slash" :disabled="true" />
     </template>
     <template v-else>
       <OcSurface variant="floating" bordered radius="md" class="menu-shell">
-        <OcMenuItemButton label="Action One" icon="codicon-play" />
-        <OcMenuItemButton label="Action Two" icon="codicon-debug-restart" />
+        <OcMenuItemButton label="Action One" icon="icon.play" />
+        <OcMenuItemButton label="Action Two" icon="icon.debug-restart" />
       </OcSurface>
     </template>
   </div>
@@ -603,7 +603,7 @@
     <template v-else-if="column === 'variants'">
       <OcPanelSection title="Actions">
         <template #actions>
-          <OcButton variant="icon" icon="codicon-add" icon-only />
+          <OcButton variant="icon" icon="icon.add" icon-only />
         </template>
         <OcText tone="secondary">With action slot</OcText>
       </OcPanelSection>
@@ -622,17 +622,17 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-property-row'">
     <template v-if="column === 'default'">
-      <OcPropertyRow label="Name" label-icon="codicon-symbol-string">
+      <OcPropertyRow label="Name" label-icon="icon.symbol-string">
         <OcFieldInput as="input" value="OpenCard" />
       </OcPropertyRow>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcPropertyRow label="Width" label-icon="codicon-arrow-left-right">
+      <OcPropertyRow label="Width" label-icon="icon.arrow-left-right">
         <OcFieldInput as="input" value="540" />
       </OcPropertyRow>
     </template>
     <template v-else-if="column === 'states'">
-      <OcPropertyRow label="ReadOnly" label-icon="codicon-lock">
+      <OcPropertyRow label="ReadOnly" label-icon="icon.lock">
         <OcFieldInput as="input" value="Locked value" readonly />
       </OcPropertyRow>
     </template>
@@ -708,15 +708,15 @@
         <OcToolbar kind="sidebar" aria-label="Activity tools">
           <OcToolButton kind="sidebar" iconOnly :active="toolView === 'files'" aria-label="Files"
             @click="toolView = 'files'">
-            <OcIcon name="codicon-files" />
+            <OcIcon name="icon.files" />
           </OcToolButton>
           <OcToolButton kind="sidebar" iconOnly :active="toolView === 'search'" aria-label="Search"
             @click="toolView = 'search'">
-            <OcIcon name="codicon-search" />
+            <OcIcon name="icon.search" />
           </OcToolButton>
           <OcToolButton kind="sidebar" iconOnly :active="toolView === 'publish'" aria-label="Publish"
             @click="toolView = 'publish'">
-            <OcIcon name="codicon-rocket" />
+            <OcIcon name="icon.rocket" />
           </OcToolButton>
         </OcToolbar>
       </OcSurface>
@@ -724,11 +724,11 @@
     <template v-else-if="column === 'states'">
       <OcSurface variant="panel" bordered radius="md" class="toolbar-shell">
         <OcToolbar kind="panel" aria-label="Panel actions">
-          <OcToolButton kind="panel" icon="codicon-list-tree" aria-label="Tree mode" :active="toolPanelMode === 'tree'"
+          <OcToolButton kind="panel" icon="icon.list-tree" aria-label="Tree mode" :active="toolPanelMode === 'tree'"
             @click="toolPanelMode = 'tree'" />
-          <OcToolButton kind="panel" icon="codicon-symbol-string" aria-label="Alphabetical mode"
+          <OcToolButton kind="panel" icon="icon.symbol-string" aria-label="Alphabetical mode"
             :active="toolPanelMode === 'alpha'" @click="toolPanelMode = 'alpha'" />
-          <OcToolButton kind="panel" icon="codicon-lock" aria-label="Disabled action" disabled />
+          <OcToolButton kind="panel" icon="icon.lock" aria-label="Disabled action" disabled />
         </OcToolbar>
       </OcSurface>
     </template>
@@ -797,7 +797,7 @@
           </template>
           <template #secondary>
             <div class="split-demo-pane split-demo-pane--secondary">
-              <OcToolButton kind="panel" iconOnly icon="codicon-arrow-swap" aria-label="Toggle split preview"
+              <OcToolButton kind="panel" iconOnly icon="icon.arrow-swap" aria-label="Toggle split preview"
                 @click="splitPaneMode = splitPaneMode === 'left' ? 'right' : 'left'" />
             </div>
           </template>
@@ -823,8 +823,8 @@
     <template v-else-if="column === 'states'">
       <OcFloatingPanelShell class="floating-shell-demo">
         <OcToolbar kind="panel" aria-label="Overlay tools">
-          <OcToolButton kind="panel" iconOnly icon="codicon-list-tree" aria-label="Tree" :active="true" />
-          <OcToolButton kind="panel" iconOnly icon="codicon-symbol-string" aria-label="A-Z" />
+          <OcToolButton kind="panel" iconOnly icon="icon.list-tree" aria-label="Tree" :active="true" />
+          <OcToolButton kind="panel" iconOnly icon="icon.symbol-string" aria-label="A-Z" />
         </OcToolbar>
       </OcFloatingPanelShell>
     </template>
@@ -842,7 +842,7 @@
         <OcSidebarFrame>
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity">
-              <OcToolButton kind="sidebar" icon-only icon="codicon-files" aria-label="Files" :active="true" />
+              <OcToolButton kind="sidebar" icon-only icon="icon.files" aria-label="Files" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
@@ -856,7 +856,7 @@
         <OcSidebarFrame activity-width="60px" panel-width="220px">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity compact">
-              <OcToolButton kind="sidebar" icon-only icon="codicon-search" aria-label="Search" :active="true" />
+              <OcToolButton kind="sidebar" icon-only icon="icon.search" aria-label="Search" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
@@ -870,7 +870,7 @@
         <OcSidebarFrame :panel-visible="false">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity hidden panel">
-              <OcToolButton kind="sidebar" icon-only icon="codicon-list-tree" aria-label="Tree" :active="true" />
+              <OcToolButton kind="sidebar" icon-only icon="icon.list-tree" aria-label="Tree" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
@@ -884,7 +884,7 @@
         <OcSidebarFrame activity-width="72px" panel-width="250px">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity layout">
-              <OcToolButton kind="sidebar" icon-only icon="codicon-rocket" aria-label="Publish" :active="true" />
+              <OcToolButton kind="sidebar" icon-only icon="icon.rocket" aria-label="Publish" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
