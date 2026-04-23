@@ -23,7 +23,7 @@
     <div class="main-container">
       <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
         <template #files>
-            <OcButton @click="openProject" class="open-folder-btn" variant="primary">
+            <OcButton @click="openProject" variant="primary" block min-height="36px">
               {{ t('sidebar.openProject') }}
             </OcButton>
             <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
@@ -53,20 +53,21 @@
       </EditorWorkbenchFrame>
     </div>
 
-    <!-- 底部状态栏 -->
-    <div class="status-bar">
-      <div class="status-left">
-        <span v-if="projectPath" class="status-chip">
-          <AppIcon name="status.folderOpen" /> {{ projectPath }}
-        </span>
-        <span v-if="isWatching" class="status-chip status-watching">
-          <AppIcon name="status.watching" /> {{ t('status.watching') }}
-        </span>
-      </div>
-      <div class="status-right">
-        <span v-if="activeSession" class="status-chip">{{ currentLanguage }}</span>
-      </div>
-    </div>
+    <OcBar as="footer" kind="status" border="top">
+      <template #start>
+        <OcChip v-if="projectPath" truncate max-width="420px">
+          <AppIcon name="status.folderOpen" />
+          {{ projectPath }}
+        </OcChip>
+        <OcChip v-if="isWatching" tone="info">
+          <AppIcon name="status.watching" />
+          {{ t('status.watching') }}
+        </OcChip>
+      </template>
+      <template #end>
+        <OcChip v-if="activeSession">{{ currentLanguage }}</OcChip>
+      </template>
+    </OcBar>
 
     <!-- 隐藏的导出渲染器 -->
     <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
@@ -86,7 +87,7 @@ import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
-import OcButton from '../components/base/OcButton.vue'
+import { OcBar, OcButton, OcChip } from '../components/base'
 import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
 import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
 import EditorWorkbenchFrame from '../features/ide-shell/components/EditorWorkbenchFrame.vue'
@@ -399,45 +400,5 @@ function closeFile(sessionId: string) {
   display: flex;
   flex: 1;
   overflow: hidden;
-}
-
-.open-folder-btn {
-  width: 100%;
-  border: none;
-  min-height: 36px;
-}
-
-.status-bar {
-  height: 24px;
-  background: var(--oc-bg-app-chrome);
-  border-top: 1px solid var(--oc-border-strong);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
-  font-size: 12px;
-  color: var(--oc-text-secondary);
-}
-
-.status-left,
-.status-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 18px;
-  padding: 0 8px;
-  border-radius: var(--oc-radius-pill);
-  background: var(--oc-bg-panel);
-  border: 1px solid var(--oc-border-subtle);
-}
-
-.status-watching {
-  color: var(--oc-text-info);
 }
 </style>

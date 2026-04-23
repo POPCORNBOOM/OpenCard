@@ -14,28 +14,34 @@
 -->
 <template>
   <div class="property-editor">
-    <div v-if="inputs.length === 0" class="empty-hint">选择一个对象查看属性</div>
+    <OcEmptyHint v-if="inputs.length === 0">选择一个对象查看属性</OcEmptyHint>
     <template v-else>
       <section v-for="source in displaySources" :key="source.key" class="source-section">
-        <div class="source-title">{{ source.title }}</div>
+        <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
+          <span class="source-title">{{ source.title }}</span>
+        </OcBar>
         <section v-for="category in source.categories" :key="`${source.key}:${category.key}`" class="category">
-          <div class="category-header">
-            <div class="category-title">{{ category.title }}</div>
-            <div v-if="category.addableFields.length > 0" class="add-field-menu">
-              <span class="add-field-count">{{ category.addableFields.length }}</span>
-              <OcButton
-                class="add-field-button"
-                icon-only
-                size="sm"
-                variant="secondary"
-                :title="addFieldActionText"
-                :aria-label="addFieldActionText"
-                @click="openAddFieldMenu($event, category)"
-              >
-                <span class="codicon codicon-add" />
-              </OcButton>
-            </div>
-          </div>
+          <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
+            <template #start>
+              <span class="category-title">{{ category.title }}</span>
+            </template>
+            <template #end>
+              <div v-if="category.addableFields.length > 0" class="add-field-menu">
+                <OcChip>{{ category.addableFields.length }}</OcChip>
+                <OcButton
+                  class="add-field-button"
+                  icon-only
+                  size="sm"
+                  variant="secondary"
+                  :title="addFieldActionText"
+                  :aria-label="addFieldActionText"
+                  @click="openAddFieldMenu($event, category)"
+                >
+                  <span class="codicon codicon-add" />
+                </OcButton>
+              </div>
+            </template>
+          </OcBar>
           <OcPropertyRow
             v-for="entry in category.entries"
             :key="`${source.key}:${category.key}:${entry.key}`"
@@ -94,8 +100,7 @@ import NumberPropertyField from './property-fields/NumberPropertyField.vue'
 import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
-import OcButton from '../base/OcButton.vue'
-import OcPropertyRow from '../base/OcPropertyRow.vue'
+import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
@@ -452,25 +457,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   padding: var(--oc-space-2);
 }
 
-.empty-hint {
-  color: var(--oc-text-dim);
-  font-size: var(--oc-body-size);
-  text-align: center;
-  padding: var(--oc-space-5);
-}
-
-.source-section + .source-section {
-  margin-top: var(--oc-space-4);
-}
-
-.source-title {
-  font-size: var(--oc-label-size);
-  text-transform: uppercase;
-  color: var(--oc-text-label);
-  padding-bottom: var(--oc-space-1);
-  margin-bottom: var(--oc-space-2);
-  border-bottom: 1px solid var(--oc-border-muted);
-}
+.source-section + .source-section { margin-top: var(--oc-space-3); }
 
 .category {
   display: flex;
@@ -478,37 +465,12 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: var(--oc-space-1);
 }
 
-.category + .category {
-  margin-top: var(--oc-space-3);
-}
-
-.category-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--oc-space-2);
-  padding-bottom: var(--oc-space-1);
-  border-bottom: 1px solid var(--oc-border-muted);
-}
-
-.category-title {
-  font-size: var(--oc-label-size);
-  text-transform: uppercase;
-  color: var(--oc-text-muted);
-}
+.category + .category { margin-top: var(--oc-space-3); }
 
 .add-field-menu {
   display: inline-flex;
   align-items: center;
   gap: var(--oc-space-2);
-  position: relative;
-}
-
-.add-field-count {
-  min-width: var(--oc-space-3);
-  font-size: var(--oc-label-size);
-  color: var(--oc-text-muted);
-  text-align: right;
 }
 
 .entry-control {
@@ -519,8 +481,5 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: var(--oc-space-2);
 }
 
-.add-field-button,
-.reset-field-button {
-  flex-shrink: 0;
-}
+.add-field-button, .reset-field-button { flex-shrink: 0; }
 </style>

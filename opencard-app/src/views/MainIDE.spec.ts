@@ -66,6 +66,8 @@ const sessionsRef = ref([
 ])
 const activeSessionIdRef = ref('session-1')
 const activeSessionRef = ref<(typeof sessionsRef.value)[number] | null>(null)
+const projectPathRef = ref('')
+const isWatchingRef = ref(false)
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -75,9 +77,9 @@ vi.mock('vue-i18n', () => ({
 
 vi.mock('../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
-    projectPath: ref(''),
+    projectPath: projectPathRef,
     indexedEntries: ref([]),
-    isWatching: ref(false),
+    isWatching: isWatchingRef,
     openProject: mocked.openProjectSpy,
     isDirectoryExpanded: vi.fn(() => false),
     readDirectoryEntries: vi.fn(),
@@ -174,6 +176,8 @@ describe('MainIDE', () => {
     ]
     activeSessionIdRef.value = 'session-1'
     activeSessionRef.value = null
+    projectPathRef.value = ''
+    isWatchingRef.value = false
   })
 
   it('keeps tab activation scoped to the tab row instead of the close button', async () => {
@@ -237,8 +241,44 @@ describe('MainIDE', () => {
     expect(wrapper.find('.welcome-screen').exists()).toBe(true)
     expect(wrapper.text()).toContain('app.welcome.title')
 
-    await wrapper.get('.welcome-actions .oc-pressable--primary').trigger('click')
+    const openProjectButton = wrapper.findAll('button')
+      .find((button) => button.text().includes('sidebar.openProject'))
+    expect(openProjectButton).toBeDefined()
+    await openProjectButton!.trigger('click')
     expect(mocked.openProjectSpy).toHaveBeenCalled()
+  })
+
+  it('renders status shell with project and language chips when workspace is active', () => {
+    projectPathRef.value = 'D:/Projects/OpenCard/demo'
+    isWatchingRef.value = true
+    activeSessionRef.value = {
+      id: 'session-card',
+      name: 'Uno.opencard',
+      path: 'Assets/Cards/Uno.opencard',
+      draftContent: '{"cards":[]}',
+      editorId: 'card-designer',
+      isDirty: false,
+    }
+
+    const wrapper = mount(MainIDE, {
+      global: {
+        stubs: {
+          AppIcon: true,
+          NodeTree: true,
+          FloatingMenuHost: true,
+          CardRenderer: true,
+          MonacoEditor: true,
+          OcPanelSection: {
+            template: '<section><slot name="title" /><slot /></section>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.find('footer.oc-bar--kind-status').exists()).toBe(true)
+    expect(wrapper.text()).toContain('D:/Projects/OpenCard/demo')
+    expect(wrapper.text()).toContain('status.watching')
+    expect(wrapper.text()).toContain('json')
   })
 
   it('mounts the registered editor shells for monaco, card designer, and image preview', async () => {

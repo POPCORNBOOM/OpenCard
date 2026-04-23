@@ -29,4 +29,16 @@ describe('OcSurface', () => {
 
     expect(wrapper.element.tagName.toLowerCase()).toBe('section')
   })
+
+  it('supports fill and pattern classes', () => {
+    const wrapper = mount(OcSurface, {
+      props: {
+        fill: true,
+        pattern: 'checker-preview',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('is-fill')
+    expect(wrapper.classes()).toContain('oc-surface--pattern-checker-preview')
+  })
 })

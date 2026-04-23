@@ -45,4 +45,37 @@ describe('OcPanelSection', () => {
     expect(wrapper.classes()).toContain('oc-panel-section--tone-overlay')
     expect(wrapper.find('.oc-panel-header').exists()).toBe(true)
   })
+
+  it('supports collapsed mode and panel layout style props', () => {
+    const wrapper = mount(OcPanelSection, {
+      props: {
+        title: 'Collapsed Section',
+        collapsed: true,
+        headerPadding: '0 18px',
+        headerMinHeight: '40px',
+        bodyPadding: '10px',
+      },
+      slots: {
+        default: '<div>body</div>',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('is-collapsed')
+    expect(wrapper.attributes('style')).toContain('--oc-panel-header-padding: 0 18px;')
+    expect(wrapper.attributes('style')).toContain('--oc-panel-header-min-height: 40px;')
+    expect(wrapper.attributes('style')).toContain('--oc-panel-body-padding: 10px;')
+  })
+
+  it('supports fill mode for full-height panel hosting', () => {
+    const wrapper = mount(OcPanelSection, {
+      props: {
+        fill: true,
+      },
+      slots: {
+        default: '<div>content</div>',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('is-fill')
+  })
 })

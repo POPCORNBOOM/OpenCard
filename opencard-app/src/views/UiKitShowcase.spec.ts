@@ -21,5 +21,6 @@ describe('UiKitShowcase', () => {
     expect(text).toContain('Layout')
     expect(text).toContain('OcPressable')
     expect(text).toContain('OcButton')
+    expect(text).toContain('示例代码')
   })
 })

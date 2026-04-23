@@ -36,7 +36,8 @@
     <template v-else-if="column === 'states'">
       <OcText size="body" tone="muted">Muted text</OcText>
       <OcText size="body" tone="label">Label tone</OcText>
-      <OcText size="body" tone="secondary" truncate class="truncate-box">Long text for truncate preview in UI kit matrix.</OcText>
+      <OcText size="body" tone="secondary" truncate class="truncate-box">Long text for truncate preview in UI kit
+        matrix.</OcText>
     </template>
     <template v-else>
       <OcBox stack class="demo-stack">
@@ -140,7 +141,8 @@
       <OcText tone="label">Label style</OcText>
     </template>
     <template v-else>
-      <OcText truncate class="truncate-box">This is a long line to verify truncation behavior in the layout cell.</OcText>
+      <OcText truncate class="truncate-box">This is a long line to verify truncation behavior in the layout cell.
+      </OcText>
     </template>
   </div>
 
@@ -239,7 +241,8 @@
       <OcSurface variant="elevated" bordered class="scroll-shell">
         <OcScrollArea axis="x" class="scroll-area scroll-area--x">
           <OcBox inline class="scroll-row">
-            <OcSurface v-for="line in 6" :key="`x-${line}`" variant="panel" bordered class="scroll-chip">Item {{ line }}</OcSurface>
+            <OcSurface v-for="line in 6" :key="`x-${line}`" variant="panel" bordered class="scroll-chip">Item {{ line }}
+            </OcSurface>
           </OcBox>
         </OcScrollArea>
       </OcSurface>
@@ -297,6 +300,244 @@
     </template>
   </div>
 
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-bar'">
+    <template v-if="column === 'default'">
+      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+        <OcBar kind="top" border="bottom">
+          <template #start>
+            <OcText size="title">OpenCard</OcText>
+          </template>
+          <OcText tone="secondary">Main Menu</OcText>
+          <template #end>
+            <OcChip tone="info">Ready</OcChip>
+          </template>
+        </OcBar>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+        <OcBar kind="status" border="top">
+          <template #start>
+            <OcChip>project.opencard</OcChip>
+          </template>
+          <template #end>
+            <OcChip tone="info">Watching</OcChip>
+          </template>
+        </OcBar>
+      </OcSurface>
+      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+        <OcBar kind="section" border="bottom" gap="6px" padding="0 6px">
+          <OcText size="label" tone="muted">Section Header</OcText>
+        </OcBar>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+        <OcBar kind="section" border="bottom">
+          <template #start>
+            <OcText size="label" tone="muted">Category</OcText>
+          </template>
+          <template #end>
+            <OcButton variant="icon" icon="codicon-add" icon-only />
+          </template>
+        </OcBar>
+      </OcSurface>
+    </template>
+    <template v-else>
+      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+        <OcBar kind="top" border="bottom">
+          <template #start>
+            <OcText size="title">Left</OcText>
+          </template>
+          <OcText tone="secondary">Center grows</OcText>
+          <template #end>
+            <OcToolButton kind="menu" label="Action" />
+          </template>
+        </OcBar>
+      </OcSurface>
+    </template>
+  </div>
+
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-chip'">
+    <template v-if="column === 'default'">
+      <OcChip>Default Chip</OcChip>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcChip size="sm">size-sm</OcChip>
+      <OcChip size="md">size-md</OcChip>
+      <OcChip tone="info">tone-info</OcChip>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcChip truncate max-width="140px">Long chip value for truncation preview</OcChip>
+    </template>
+    <template v-else>
+      <OcBox inline class="chip-demo-row">
+        <OcChip>Deck A</OcChip>
+        <OcChip>Deck B</OcChip>
+        <OcChip tone="info">Synced</OcChip>
+      </OcBox>
+    </template>
+  </div>
+
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-empty-hint'">
+    <template v-if="column === 'default'">
+      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+        <OcEmptyHint>No selection.</OcEmptyHint>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+        <OcEmptyHint tone="muted" size="label">No files loaded.</OcEmptyHint>
+      </OcSurface>
+      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+        <OcEmptyHint tone="dim" size="body">Open a project to continue.</OcEmptyHint>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+        <OcEmptyHint align="start" padding="8px 10px">Hint aligned to start.</OcEmptyHint>
+      </OcSurface>
+    </template>
+    <template v-else>
+      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+        <OcEmptyHint align="center" padding="14px 10px">Use this in side panels and editors.</OcEmptyHint>
+      </OcSurface>
+    </template>
+  </div>
+
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-overlay'">
+    <template v-if="column === 'default'">
+      <OcOverlay class="overlay-demo-shell">
+        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+          <OcText tone="secondary">Canvas Content</OcText>
+        </OcSurface>
+        <template #overlay>
+          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+            <OcText size="label">Overlay Layer</OcText>
+          </OcFloatingPanelShell>
+        </template>
+      </OcOverlay>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcOverlay class="overlay-demo-shell" :visible="false">
+        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+          <OcText tone="secondary">visible=false</OcText>
+        </OcSurface>
+        <template #overlay>
+          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+            <OcText size="label">Hidden Overlay</OcText>
+          </OcFloatingPanelShell>
+        </template>
+      </OcOverlay>
+      <OcOverlay class="overlay-demo-shell" :interactive="false" inset="8px">
+        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+          <OcText tone="secondary">interactive=false</OcText>
+        </OcSurface>
+        <template #overlay>
+          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+            <OcText size="label">Click-through Overlay</OcText>
+          </OcFloatingPanelShell>
+        </template>
+      </OcOverlay>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcOverlay class="overlay-demo-shell" inset="10px 12px">
+        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+          <OcText tone="secondary">Inset 10px 12px</OcText>
+        </OcSurface>
+        <template #overlay>
+          <OcSurface variant="floating" bordered radius="md" class="overlay-demo-chip">
+            <OcText size="label">Overlay Inset</OcText>
+          </OcSurface>
+        </template>
+      </OcOverlay>
+    </template>
+    <template v-else>
+      <OcOverlay class="overlay-demo-shell">
+        <OcSurface variant="elevated" bordered radius="md" class="overlay-demo-layout">
+          <OcText size="title">Workspace</OcText>
+          <OcText tone="secondary">Base keeps structure, overlay adds tools.</OcText>
+        </OcSurface>
+        <template #overlay>
+          <OcAxisLayout axis="vertical" :regions="overlayLayoutRegions" class="overlay-demo-overlay-layout">
+            <template #top-tools>
+              <OcFloatingPanelShell padding="sm" class="overlay-demo-float">
+                <OcText size="label">Top Tool</OcText>
+              </OcFloatingPanelShell>
+            </template>
+            <template #overlay-spacer>
+              <div class="overlay-demo-spacer" />
+            </template>
+            <template #bottom-info>
+              <OcSurface variant="floating" bordered radius="md" class="overlay-demo-chip">
+                <OcText size="label">Bottom Info</OcText>
+              </OcSurface>
+            </template>
+          </OcAxisLayout>
+        </template>
+      </OcOverlay>
+    </template>
+  </div>
+
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-axis-layout'">
+    <template v-if="column === 'default'">
+      <OcAxisLayout axis="horizontal" :regions="axisHorizontalRegions" class="axis-demo-horizontal">
+        <template #leftRail>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">Left</OcSurface>
+        </template>
+        <template #centerStage>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">Center</OcSurface>
+        </template>
+        <template #rightInspector>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--right">Right</OcSurface>
+        </template>
+      </OcAxisLayout>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcAxisLayout axis="vertical" :regions="axisVerticalRegions" class="axis-demo-vertical">
+        <template #topBar>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--top">Top</OcSurface>
+        </template>
+        <template #centerContent>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">Center</OcSurface>
+        </template>
+        <template #bottomInfo>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--bottom">Bottom</OcSurface>
+        </template>
+      </OcAxisLayout>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcAxisLayout axis="horizontal" :regions="axisStatesRegions" class="axis-demo-horizontal">
+        <template #leftTools>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">72px</OcSurface>
+        </template>
+        <template #leftNav>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">96px</OcSurface>
+        </template>
+        <template #centerMain>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">track=* (fill)
+          </OcSurface>
+        </template>
+      </OcAxisLayout>
+    </template>
+    <template v-else>
+      <OcAxisLayout axis="horizontal" :regions="axisLayoutRegions" class="axis-demo-layout">
+        <template #leftActivity>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">48-64</OcSurface>
+        </template>
+        <template #leftExplorer>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">2*</OcSurface>
+        </template>
+        <template #centerCanvas>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">*</OcSurface>
+        </template>
+        <template #rightPanel>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--right">auto</OcSurface>
+        </template>
+      </OcAxisLayout>
+    </template>
+  </div>
+
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-field-input'">
     <template v-if="column === 'default'">
       <OcFieldInput as="input" value="text input" />
@@ -345,7 +586,8 @@
       <OcOptionGroup v-model="modeValue" :options="modeOptions" :columns="2" size="sm" aria-label="mode" />
     </template>
     <template v-else-if="column === 'states'">
-      <OcOptionGroup v-model="alignValue" :options="alignOptions" :columns="3" :disabled="true" aria-label="align-disabled" />
+      <OcOptionGroup v-model="alignValue" :options="alignOptions" :columns="3" :disabled="true"
+        aria-label="align-disabled" />
     </template>
     <template v-else>
       <OcOptionGroup v-model="alignValue" :options="alignOptions" :columns="1" square aria-label="align-square" />
@@ -419,13 +661,12 @@
     <template v-else-if="column === 'variants'">
       <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell">
         <OcTabBar aria-label="Editor variants">
-          <OcTab label="Overview" :active="tabVariantValue === 'overview'" :closable="false" @select="tabVariantValue = 'overview'" />
-          <OcTab
-            label="Assets with a very long document name.opencard"
-            :active="tabVariantValue === 'assets'"
-            @select="tabVariantValue = 'assets'"
-          />
-          <OcTab label="Disabled" :active="tabVariantValue === 'disabled'" disabled @select="tabVariantValue = 'disabled'" />
+          <OcTab label="Overview" :active="tabVariantValue === 'overview'" :closable="false"
+            @select="tabVariantValue = 'overview'" />
+          <OcTab label="Assets with a very long document name.opencard" :active="tabVariantValue === 'assets'"
+            @select="tabVariantValue = 'assets'" />
+          <OcTab label="Disabled" :active="tabVariantValue === 'disabled'" disabled
+            @select="tabVariantValue = 'disabled'" />
         </OcTabBar>
       </OcSurface>
     </template>
@@ -442,7 +683,8 @@
       <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell tab-bar-shell--narrow">
         <OcTabBar aria-label="Overflow tabs">
           <OcTab label="Card_01.opencard" :active="tabLayoutValue === 'card-1'" @select="tabLayoutValue = 'card-1'" />
-          <OcTab label="Card_02.opencard" :active="tabLayoutValue === 'card-2'" dirty @select="tabLayoutValue = 'card-2'" />
+          <OcTab label="Card_02.opencard" :active="tabLayoutValue === 'card-2'" dirty
+            @select="tabLayoutValue = 'card-2'" />
           <OcTab label="Card_03.opencard" :active="tabLayoutValue === 'card-3'" @select="tabLayoutValue = 'card-3'" />
           <OcTab label="Card_04.opencard" :active="tabLayoutValue === 'card-4'" @select="tabLayoutValue = 'card-4'" />
           <OcTab label="Card_05.opencard" :active="tabLayoutValue === 'card-5'" @select="tabLayoutValue = 'card-5'" />
@@ -464,13 +706,16 @@
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="toolbar-shell toolbar-shell--activity">
         <OcToolbar kind="sidebar" aria-label="Activity tools">
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'files'" aria-label="Files" @click="toolView = 'files'">
+          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'files'" aria-label="Files"
+            @click="toolView = 'files'">
             <OcIcon name="codicon-files" />
           </OcToolButton>
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'search'" aria-label="Search" @click="toolView = 'search'">
+          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'search'" aria-label="Search"
+            @click="toolView = 'search'">
             <OcIcon name="codicon-search" />
           </OcToolButton>
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'publish'" aria-label="Publish" @click="toolView = 'publish'">
+          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'publish'" aria-label="Publish"
+            @click="toolView = 'publish'">
             <OcIcon name="codicon-rocket" />
           </OcToolButton>
         </OcToolbar>
@@ -479,8 +724,10 @@
     <template v-else-if="column === 'states'">
       <OcSurface variant="panel" bordered radius="md" class="toolbar-shell">
         <OcToolbar kind="panel" aria-label="Panel actions">
-          <OcToolButton kind="panel" icon="codicon-list-tree" aria-label="Tree mode" :active="toolPanelMode === 'tree'" @click="toolPanelMode = 'tree'" />
-          <OcToolButton kind="panel" icon="codicon-symbol-string" aria-label="Alphabetical mode" :active="toolPanelMode === 'alpha'" @click="toolPanelMode = 'alpha'" />
+          <OcToolButton kind="panel" icon="codicon-list-tree" aria-label="Tree mode" :active="toolPanelMode === 'tree'"
+            @click="toolPanelMode = 'tree'" />
+          <OcToolButton kind="panel" icon="codicon-symbol-string" aria-label="Alphabetical mode"
+            :active="toolPanelMode === 'alpha'" @click="toolPanelMode = 'alpha'" />
           <OcToolButton kind="panel" icon="codicon-lock" aria-label="Disabled action" disabled />
         </OcToolbar>
       </OcSurface>
@@ -515,7 +762,8 @@
     </template>
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--stack">
-        <OcSplitPane orientation="vertical" fixedPane="primary" fixedSize="84px" primaryMinSize="64px" secondaryMinSize="96px">
+        <OcSplitPane orientation="vertical" fixedPane="primary" fixedSize="84px" primaryMinSize="64px"
+          secondaryMinSize="96px">
           <template #primary>
             <div class="split-demo-pane split-demo-pane--secondary">Tree</div>
           </template>
@@ -537,7 +785,8 @@
     </template>
     <template v-else>
       <OcSurface variant="panel" bordered radius="md" class="split-shell">
-        <OcSplitPane orientation="horizontal" fixedPane="secondary" :fixedSize="splitPaneMode === 'left' ? '96px' : '144px'" secondaryMinSize="96px">
+        <OcSplitPane orientation="horizontal" fixedPane="secondary"
+          :fixedSize="splitPaneMode === 'left' ? '96px' : '144px'" secondaryMinSize="96px">
           <template #primary>
             <div class="split-demo-pane split-demo-pane--primary">
               {{ splitPaneMode === 'left' ? 'Wide Canvas' : 'Compact Canvas' }}
@@ -548,13 +797,8 @@
           </template>
           <template #secondary>
             <div class="split-demo-pane split-demo-pane--secondary">
-              <OcToolButton
-                kind="panel"
-                iconOnly
-                icon="codicon-arrow-swap"
-                aria-label="Toggle split preview"
-                @click="splitPaneMode = splitPaneMode === 'left' ? 'right' : 'left'"
-              />
+              <OcToolButton kind="panel" iconOnly icon="codicon-arrow-swap" aria-label="Toggle split preview"
+                @click="splitPaneMode = splitPaneMode === 'left' ? 'right' : 'left'" />
             </div>
           </template>
         </OcSplitPane>
@@ -592,6 +836,67 @@
     </template>
   </div>
 
+  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-sidebar-frame'">
+    <template v-if="column === 'default'">
+      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+        <OcSidebarFrame>
+          <template #activity>
+            <OcToolbar kind="sidebar" aria-label="Sidebar activity">
+              <OcToolButton kind="sidebar" icon-only icon="codicon-files" aria-label="Files" :active="true" />
+            </OcToolbar>
+          </template>
+          <template #panel>
+            <OcEmptyHint align="start" padding="12px">Panel area</OcEmptyHint>
+          </template>
+        </OcSidebarFrame>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'variants'">
+      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+        <OcSidebarFrame activity-width="60px" panel-width="220px">
+          <template #activity>
+            <OcToolbar kind="sidebar" aria-label="Sidebar activity compact">
+              <OcToolButton kind="sidebar" icon-only icon="codicon-search" aria-label="Search" :active="true" />
+            </OcToolbar>
+          </template>
+          <template #panel>
+            <OcEmptyHint align="start" padding="10px">Compact panel</OcEmptyHint>
+          </template>
+        </OcSidebarFrame>
+      </OcSurface>
+    </template>
+    <template v-else-if="column === 'states'">
+      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+        <OcSidebarFrame :panel-visible="false">
+          <template #activity>
+            <OcToolbar kind="sidebar" aria-label="Sidebar activity hidden panel">
+              <OcToolButton kind="sidebar" icon-only icon="codicon-list-tree" aria-label="Tree" :active="true" />
+            </OcToolbar>
+          </template>
+          <template #panel>
+            <OcText>Hidden</OcText>
+          </template>
+        </OcSidebarFrame>
+      </OcSurface>
+    </template>
+    <template v-else>
+      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+        <OcSidebarFrame activity-width="72px" panel-width="250px">
+          <template #activity>
+            <OcToolbar kind="sidebar" aria-label="Sidebar activity layout">
+              <OcToolButton kind="sidebar" icon-only icon="codicon-rocket" aria-label="Publish" :active="true" />
+            </OcToolbar>
+          </template>
+          <template #panel>
+            <OcPanelSection title="Explorer" :header-min-height="'32px'" fill>
+              <OcEmptyHint align="start" padding="8px">Nested section in sidebar frame.</OcEmptyHint>
+            </OcPanelSection>
+          </template>
+        </OcSidebarFrame>
+      </OcSurface>
+    </template>
+  </div>
+
   <div v-else class="unknown-example">
     <OcText tone="muted" size="label">No renderer for {{ exampleId }} / {{ column }}</OcText>
   </div>
@@ -599,12 +904,18 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import OcAxisLayout from '../base/OcAxisLayout.vue'
+import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
+import OcChip from '../base/OcChip.vue'
+import OcEmptyHint from '../base/OcEmptyHint.vue'
+import OcOverlay from '../base/OcOverlay.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcMenuItemButton from '../base/OcMenuItemButton.vue'
 import OcOptionGroup from '../base/OcOptionGroup.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 import OcPropertyRow from '../base/OcPropertyRow.vue'
+import OcSidebarFrame from '../base/OcSidebarFrame.vue'
 import OcTab from '../base/OcTab.vue'
 import OcTabBar from '../base/OcTabBar.vue'
 import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
@@ -647,6 +958,37 @@ const tabLayoutValue = ref('card-1')
 const toolView = ref('files')
 const toolPanelMode = ref('tree')
 const splitPaneMode = ref('left')
+
+const overlayLayoutRegions = [
+  { slot: 'top-tools', track: 'auto' },
+  { slot: 'overlay-spacer', track: '*' },
+  { slot: 'bottom-info', track: 'auto' },
+]
+
+const axisHorizontalRegions = [
+  { slot: 'leftRail', track: '84px' },
+  { slot: 'centerStage', track: '*' },
+  { slot: 'rightInspector', track: '112px' },
+]
+
+const axisVerticalRegions = [
+  { slot: 'topBar', track: '48px' },
+  { slot: 'centerContent', track: '*' },
+  { slot: 'bottomInfo', track: '42px' },
+]
+
+const axisStatesRegions = [
+  { slot: 'leftTools', track: '72px' },
+  { slot: 'leftNav', track: '96px' },
+  { slot: 'centerMain', track: '*' },
+]
+
+const axisLayoutRegions = [
+  { slot: 'leftActivity', track: 'minmax(48px, 64px)' },
+  { slot: 'leftExplorer', track: '2*' },
+  { slot: 'centerCanvas', track: '*' },
+  { slot: 'rightPanel', track: 'auto' },
+]
 
 const alignOptions: OptionItem[] = [
   { value: 'left', label: 'Left', shortLabel: 'L' },
@@ -853,6 +1195,23 @@ const modeOptions: OptionItem[] = [
   gap: 4px;
 }
 
+.bar-demo-shell {
+  width: 100%;
+  overflow: hidden;
+}
+
+.chip-demo-row {
+  width: 100%;
+  gap: var(--oc-space-2);
+}
+
+.empty-hint-shell {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+}
+
 .tab-bar-shell {
   width: 100%;
   overflow: hidden;
@@ -940,6 +1299,12 @@ const modeOptions: OptionItem[] = [
   border: 1px solid var(--oc-border-overlay-soft);
 }
 
+.sidebar-frame-shell {
+  width: 100%;
+  min-height: 124px;
+  overflow: hidden;
+}
+
 .panel-demo {
   width: 100%;
   min-height: 100px;
@@ -1024,8 +1389,70 @@ const modeOptions: OptionItem[] = [
   box-shadow: var(--oc-shadow-sm);
 }
 
+.overlay-demo-shell {
+  width: 100%;
+  min-height: 96px;
+}
+
+.overlay-demo-base,
+.overlay-demo-layout {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--oc-space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--oc-space-1);
+}
+
+.overlay-demo-float {
+  width: fit-content;
+}
+
+.overlay-demo-chip {
+  width: fit-content;
+  padding: var(--oc-space-1) var(--oc-space-2);
+}
+
+.overlay-demo-spacer {
+  width: 100%;
+  height: 100%;
+}
+
+.overlay-demo-overlay-layout {
+  width: 100%;
+  height: 100%;
+  padding: var(--oc-space-2);
+}
+
+.axis-demo-horizontal,
+.axis-demo-layout {
+  width: 100%;
+  min-height: 92px;
+}
+
+.axis-demo-vertical {
+  width: 100%;
+  min-height: 132px;
+}
+
+.axis-demo-pane {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--oc-label-size);
+  color: var(--oc-text-secondary);
+}
+
+.axis-demo-pane--center {
+  color: var(--oc-text-primary);
+}
+
 .unknown-example {
   width: 100%;
 }
 </style>
-

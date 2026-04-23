@@ -56,4 +56,20 @@ describe('OcSplitPane', () => {
     expect(primaryPane.attributes('style')).toContain('height: 280px;')
     expect(primaryPane.attributes('style')).toContain('min-height: 140px;')
   })
+
+  it('supports clip and radius options', () => {
+    const wrapper = mount(OcSplitPane, {
+      props: {
+        clip: true,
+        radius: 'md',
+      },
+      slots: {
+        primary: '<div>Primary</div>',
+        secondary: '<div>Secondary</div>',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('is-clip')
+    expect(wrapper.classes()).toContain('oc-split-pane--radius-md')
+  })
 })

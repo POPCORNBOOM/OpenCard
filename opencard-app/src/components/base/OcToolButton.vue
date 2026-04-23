@@ -2,6 +2,7 @@
   <OcPressable
     class="oc-tool-button"
     :class="toolButtonClass"
+    :style="toolButtonStyle"
     :variant="resolvedVariant"
     :size="resolvedSize"
     :radius="resolvedRadius"
@@ -25,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type CSSProperties } from 'vue'
 import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'
@@ -41,6 +42,10 @@ const props = withDefaults(defineProps<{
   title?: string
   ariaLabel?: string
   kind?: ToolButtonKind
+  width?: string
+  minWidth?: string
+  height?: string
+  minHeight?: string
 }>(), {
   label: undefined,
   icon: undefined,
@@ -50,6 +55,10 @@ const props = withDefaults(defineProps<{
   title: undefined,
   ariaLabel: undefined,
   kind: 'panel',
+  width: undefined,
+  minWidth: undefined,
+  height: undefined,
+  minHeight: undefined,
 })
 
 const emit = defineEmits<{
@@ -68,6 +77,13 @@ const toolButtonClass = computed(() => [
     'is-icon-only': props.iconOnly,
   },
 ])
+
+const toolButtonStyle = computed<CSSProperties>(() => ({
+  ...(props.width ? { width: props.width } : {}),
+  ...(props.minWidth ? { minWidth: props.minWidth } : {}),
+  ...(props.height ? { height: props.height } : {}),
+  ...(props.minHeight ? { minHeight: props.minHeight } : {}),
+}))
 </script>
 
 <style scoped>

@@ -34,6 +34,9 @@ export function useCdePanelResize() {
     treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
   }
   let resizeFrameId: number | null = null
+  let previousBodyCursor = ''
+  let previousBodyUserSelect = ''
+  let isBodyInteractionLocked = false
 
   function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max)
@@ -102,6 +105,29 @@ export function useCdePanelResize() {
     writeResizePreview()
   }
 
+  function applyResizeBodyState(cursor: 'col-resize' | 'row-resize') {
+    if (!isBodyInteractionLocked) {
+      previousBodyCursor = document.body.style.cursor
+      previousBodyUserSelect = document.body.style.userSelect
+      isBodyInteractionLocked = true
+    }
+
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = cursor
+  }
+
+  function clearResizeBodyState() {
+    if (!isBodyInteractionLocked) {
+      return
+    }
+
+    document.body.style.cursor = previousBodyCursor
+    document.body.style.userSelect = previousBodyUserSelect
+    previousBodyCursor = ''
+    previousBodyUserSelect = ''
+    isBodyInteractionLocked = false
+  }
+
   function startRightPanelResize(event: MouseEvent) {
     resizeState.value = 'right-panel'
     resizeSnapshot.value = {
@@ -114,8 +140,7 @@ export function useCdePanelResize() {
       rightPanelWidth: rightPanelWidth.value,
       treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
     }
-    document.body.classList.add('is-resizing-panels')
-    document.body.style.cursor = 'col-resize'
+    applyResizeBodyState('col-resize')
   }
 
   function startTreePanelResize(event: MouseEvent) {
@@ -130,8 +155,7 @@ export function useCdePanelResize() {
       rightPanelWidth: rightPanelWidth.value,
       treePanelAbsoluteHeight: treePanelAbsoluteHeight.value,
     }
-    document.body.classList.add('is-resizing-panels')
-    document.body.style.cursor = 'row-resize'
+    applyResizeBodyState('row-resize')
   }
 
   function handleGlobalMouseMove(event: MouseEvent) {
@@ -167,8 +191,7 @@ export function useCdePanelResize() {
     treePanelAbsoluteHeight.value = resizePreview.treePanelAbsoluteHeight
     resizeState.value = null
     resizeSnapshot.value = null
-    document.body.classList.remove('is-resizing-panels')
-    document.body.style.cursor = ''
+    clearResizeBodyState()
   }
 
   function mountPanelResizeListeners() {
@@ -187,8 +210,7 @@ export function useCdePanelResize() {
     window.removeEventListener('mousemove', handleGlobalMouseMove)
     window.removeEventListener('mouseup', stopPanelResize)
     window.removeEventListener('resize', syncPanelBounds)
-    document.body.classList.remove('is-resizing-panels')
-    document.body.style.cursor = ''
+    clearResizeBodyState()
   }
 
   return {

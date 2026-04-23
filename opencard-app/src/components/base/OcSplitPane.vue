@@ -15,6 +15,7 @@ import { computed } from 'vue'
 
 type SplitPaneOrientation = 'horizontal' | 'vertical'
 type FixedPane = 'primary' | 'secondary'
+type SplitPaneRadius = 'none' | 'sm' | 'md' | 'lg'
 
 defineOptions({ name: 'OcSplitPane' })
 
@@ -24,17 +25,23 @@ const props = withDefaults(defineProps<{
   fixedSize?: string
   primaryMinSize?: string
   secondaryMinSize?: string
+  clip?: boolean
+  radius?: SplitPaneRadius
 }>(), {
   orientation: 'horizontal',
   fixedPane: 'secondary',
   fixedSize: undefined,
   primaryMinSize: undefined,
   secondaryMinSize: undefined,
+  clip: false,
+  radius: 'none',
 })
 
 const splitPaneClass = computed(() => [
   `oc-split-pane--${props.orientation}`,
   `oc-split-pane--fixed-${props.fixedPane}`,
+  `oc-split-pane--radius-${props.radius}`,
+  { 'is-clip': props.clip },
 ])
 
 function resolveFixedPaneStyle(targetPane: FixedPane, minSize?: string) {
@@ -72,12 +79,32 @@ const secondaryPaneStyle = computed(() => resolveFixedPaneStyle('secondary', pro
   display: flex;
 }
 
+.oc-split-pane.is-clip {
+  overflow: hidden;
+}
+
 .oc-split-pane--horizontal {
   flex-direction: row;
 }
 
 .oc-split-pane--vertical {
   flex-direction: column;
+}
+
+.oc-split-pane--radius-none {
+  border-radius: 0;
+}
+
+.oc-split-pane--radius-sm {
+  border-radius: var(--oc-radius-sm);
+}
+
+.oc-split-pane--radius-md {
+  border-radius: var(--oc-radius-md);
+}
+
+.oc-split-pane--radius-lg {
+  border-radius: var(--oc-radius-lg);
 }
 
 .oc-split-pane__pane {

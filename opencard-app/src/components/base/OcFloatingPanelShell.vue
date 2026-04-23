@@ -3,6 +3,7 @@
     :as="as"
     class="oc-floating-panel-shell"
     :class="shellClass"
+    :style="shellStyle"
     variant="transparent"
     :radius="radius"
     :shadow="shadow"
@@ -12,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type CSSProperties } from 'vue'
 import { OcSurface } from '../../shared/ui/primitives'
 
 type FloatingPanelShellPadding = 'none' | 'sm' | 'md'
@@ -27,12 +28,20 @@ const props = withDefaults(defineProps<{
   radius?: FloatingPanelShellRadius
   shadow?: FloatingPanelShellShadow
   blurred?: boolean
+  width?: string
+  height?: string
+  marginTop?: string
+  pointerEvents?: 'auto' | 'none'
 }>(), {
   as: 'div',
   padding: 'none',
   radius: 'lg',
   shadow: 'overlay',
   blurred: true,
+  width: undefined,
+  height: undefined,
+  marginTop: undefined,
+  pointerEvents: undefined,
 })
 
 const shellClass = computed(() => [
@@ -41,6 +50,13 @@ const shellClass = computed(() => [
     'is-blurred': props.blurred,
   },
 ])
+
+const shellStyle = computed<CSSProperties>(() => ({
+  ...(props.width ? { width: props.width } : {}),
+  ...(props.height ? { height: props.height } : {}),
+  ...(props.marginTop ? { marginTop: props.marginTop } : {}),
+  ...(props.pointerEvents ? { pointerEvents: props.pointerEvents } : {}),
+}))
 </script>
 
 <style scoped>

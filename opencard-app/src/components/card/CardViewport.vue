@@ -6,16 +6,6 @@
       <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleBlockClick" />
     </div>
-    <OcFloatingPanelShell v-if="showTransformPreview" class="transform-preview-window" padding="sm" aria-hidden="true">
-      <div class="transform-preview-title">{{ t('panels.transformPreview') }}</div>
-      <div class="transform-preview-viewport" :style="transformPreviewViewportStyle">
-        <div class="transform-preview-stage-shell" :style="transformPreviewShellStyle">
-          <div class="transform-preview-stage" :style="transformPreviewStageStyle">
-            <CardRenderer :document="document" />
-          </div>
-        </div>
-      </div>
-    </OcFloatingPanelShell>
     <div class="card-selection-layer">
       <div v-if="selectionFrame" class="selection-frame" :class="{ 'selection-frame-movable': showMoveHandle }"
         :style="selectionFrameStyle" @pointerdown="handleSelectionFramePointerDown">
@@ -24,17 +14,12 @@
           @pointerdown.stop.prevent="startResize(handle)" />
       </div>
     </div>
-    <div class="card-viewport-debug">
-      x: {{ Math.round(panX) }}, y: {{ Math.round(panY) }}, scale: {{ scale.toFixed(2) }}
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import type { AnchorPosition, CardDocument } from '../../entities/card/model'
-import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
 import CardRenderer from './CardRenderer.vue'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'r' | 'b'
@@ -76,8 +61,8 @@ const emit = defineEmits<{
   (e: 'blank-click', event: MouseEvent): void
   (e: 'resize-selection', payload: ResizePayload): void
   (e: 'move-selection', payload: MovePayload): void
+  (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
 }>()
-const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   document: CardDocument
@@ -130,29 +115,6 @@ const translateY = computed(() => baseOffsetY.value + panY.value)
 const stageStyle = computed(() => ({
   transform: `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value})`,
 }))
-const transformPreviewScale = computed(() => {
-  const previewWidth = 220
-  const previewHeight = 150
-  return Math.min(
-    previewWidth / props.document.width,
-    previewHeight / props.document.height,
-    1,
-  )
-})
-const transformPreviewStageStyle = computed(() => ({
-  transform: `scale(${transformPreviewScale.value})`,
-  width: `${props.document.width}px`,
-  height: `${props.document.height}px`,
-}))
-const transformPreviewShellStyle = computed(() => ({
-  width: `${props.document.width}px`,
-  height: `${props.document.height}px`,
-}))
-const transformPreviewViewportStyle = computed(() => ({
-  width: `${Math.round(props.document.width * transformPreviewScale.value)}px`,
-  height: `${Math.round(props.document.height * transformPreviewScale.value)}px`,
-}))
-const showTransformPreview = computed(() => props.selectedBlockId !== null)
 const resizeMode = computed<ResizeMode>(() => {
   if (!props.selectedBlockId) {
     return 'none'
@@ -597,6 +559,18 @@ function updateViewportSize() {
   viewportHeight.value = viewport.clientHeight
 }
 
+watch(
+  () => [panX.value, panY.value, scale.value] as const,
+  ([x, y, zoomScale]) => {
+    emit('viewport-transform-change', {
+      x,
+      y,
+      scale: zoomScale,
+    })
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
   updateViewportSize()
 
@@ -677,45 +651,6 @@ watch(
   pointer-events: none;
 }
 
-.transform-preview-window {
-  position: absolute;
-  top: calc(var(--card-editor-overlay-inset-y, 20px) - 6px);
-  right: calc(var(--card-editor-right-panel-width, 320px) + var(--card-editor-overlay-inset-x, 24px) + 16px);
-  z-index: 4;
-  pointer-events: none;
-}
-
-.transform-preview-title {
-  margin-bottom: 6px;
-  color: var(--oc-text-info);
-  font-size: var(--oc-label-size);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.transform-preview-viewport {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
-    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%);
-  background-position: 0 0, 6px 6px;
-  background-size: 12px 12px;
-  outline: 1px solid var(--oc-border-overlay-faint);
-}
-
-.transform-preview-stage-shell {
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-
-.transform-preview-stage {
-  transform-origin: 0 0;
-  line-height: 0;
-}
-
 .selection-frame {
   position: absolute;
   border: 2px solid var(--oc-accent-bright);
@@ -775,19 +710,5 @@ watch(
   left: calc(50% - 5px);
   bottom: -6px;
   cursor: ns-resize;
-}
-
-.card-viewport-debug {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  padding: 4px 8px;
-  border: 1px solid var(--oc-border-overlay-soft);
-  border-radius: 6px;
-  background: var(--oc-bg-overlay-soft);
-  color: var(--oc-text-overlay);
-  font-size: var(--oc-label-size);
-  line-height: 1.4;
-  pointer-events: none;
 }
 </style>

@@ -2,6 +2,7 @@
   <OcPressable
     class="oc-base-button"
     :class="buttonClass"
+    :style="buttonStyle"
     :variant="variant"
     :size="size"
     :radius="radius"
@@ -26,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots } from 'vue'
+import { computed, useSlots, type CSSProperties } from 'vue'
 import { OcIcon, OcPressable } from '../../shared/ui/primitives'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'
@@ -39,6 +40,7 @@ const props = withDefaults(defineProps<{
   variant?: ButtonVariant
   size?: ButtonSize
   radius?: ButtonRadius
+  minHeight?: string
   icon?: string
   iconPosition?: 'left' | 'right'
   iconOnly?: boolean
@@ -50,6 +52,7 @@ const props = withDefaults(defineProps<{
   variant: 'secondary',
   size: 'md',
   radius: 'sm',
+  minHeight: undefined,
   icon: undefined,
   iconPosition: 'left',
   iconOnly: false,
@@ -63,6 +66,15 @@ const slots = useSlots()
 
 const hasDefaultSlot = computed(() => Boolean(slots.default?.().length))
 const isIconOnly = computed(() => props.iconOnly || (!hasDefaultSlot.value && Boolean(props.icon)))
+const buttonStyle = computed<CSSProperties>(() => {
+  if (!props.minHeight) {
+    return {}
+  }
+
+  return {
+    minHeight: props.minHeight,
+  }
+})
 
 const buttonClass = computed(() => [
   `oc-base-button--variant-${props.variant}`,

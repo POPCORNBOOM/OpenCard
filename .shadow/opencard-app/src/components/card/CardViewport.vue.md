@@ -10,3 +10,8 @@
 Root child 的测量和普通简单容器 child 应尽量走同一条 parent 查找链。更稳的办法是在 `CardRenderer.vue` 渲染层临时构造一个根 simple container，并让 `selectedParentBlockId` 对 document 根子块返回 `document.id`；这样 viewport 查 parent 时总能命中一个真实的容器 DOM，而不是把 root 场景退化成 `.card-canvas` 特判。
 
 选中预览阶段的“禁用 transform”不能只停留在结构化字段（`translateX/Y`、`scaleX/Y`、`rotation`、`transformAnchor`）。`customCss` 也可能携带 `transform`、`transform-origin` 或其它会影响盒模型/测量的样式，因此在 `disableTransform` 模式下应一并跳过 `customCss` 拼接。
+
+外层协同约束（更新）：
+- `CardViewport` 不再承载 preview/坐标 UI；它只负责画布交互与意图发射。
+- 变换信息通过 `viewport-transform-change` 持续上抛给外层，外层可据此渲染坐标信息。
+- 任何“外层浮层显示需求”都应优先在 `CardDesignEditor` overlay 里实现，不要把展示层逻辑回灌进 viewport。

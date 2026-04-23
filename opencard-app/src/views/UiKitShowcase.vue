@@ -37,6 +37,7 @@
               :key="example.id"
               :title="example.title"
               :description="buildExampleDescription(example)"
+              :code-by-column="getShowcaseCode(example.id)"
             >
               <template #default>
                 <ShowcaseExampleRenderer :example-id="example.id" column="default" />
@@ -65,6 +66,7 @@ import ShowcaseCard from '../components/ui-kit/ShowcaseCard.vue'
 import ShowcaseExampleRenderer from '../components/ui-kit/ShowcaseExampleRenderer.vue'
 import { getOcTheme } from '../shared/ui/foundation'
 import { UI_KIT_SECTIONS, type ShowcaseExample } from './ui-kit/catalog'
+import { getShowcaseCode } from './ui-kit/showcaseCode'
 
 defineOptions({ name: 'UiKitShowcase' })
 

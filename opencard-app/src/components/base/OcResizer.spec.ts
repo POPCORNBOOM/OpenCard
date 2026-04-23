@@ -40,4 +40,21 @@ describe('OcResizer', () => {
     expect(wrapper.attributes('role')).toBe('separator')
     expect(wrapper.classes()).toContain('oc-resizer--edge')
   })
+
+  it('supports docked edge positioning', () => {
+    const wrapper = mount(OcResizer, {
+      props: {
+        orientation: 'vertical',
+        variant: 'edge',
+        dock: 'left',
+        dockOffset: '-14px',
+      },
+    })
+
+    const style = wrapper.attributes('style')
+    expect(style).toContain('position: absolute;')
+    expect(style).toContain('left: -14px;')
+    expect(style).toContain('top: 0px;')
+    expect(style).toContain('bottom: 0px;')
+  })
 })

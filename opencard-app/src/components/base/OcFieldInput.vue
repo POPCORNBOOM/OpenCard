@@ -4,6 +4,11 @@
     :as="as"
     class="oc-field-input"
     :input-class="inputClass"
+    :chromed="chromed"
+    :full-width="fullWidth"
+    :monospace="monospace"
+    :padding="padding"
+    :resize="resize"
     v-bind="attrs"
   >
     <slot />
@@ -22,9 +27,19 @@ defineOptions({
 withDefaults(defineProps<{
   as?: 'input' | 'select' | 'textarea'
   inputClass?: HTMLAttributes['class']
+  chromed?: boolean
+  fullWidth?: boolean
+  monospace?: boolean
+  padding?: string
+  resize?: 'none' | 'horizontal' | 'vertical' | 'both'
 }>(), {
   as: 'input',
   inputClass: undefined,
+  chromed: true,
+  fullWidth: false,
+  monospace: false,
+  padding: undefined,
+  resize: undefined,
 })
 
 const attrs = useAttrs()

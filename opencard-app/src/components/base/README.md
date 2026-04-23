@@ -16,6 +16,7 @@
   - `variant?: 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'`
   - `size?: 'sm' | 'md' | 'lg'`
   - `radius?: 'none' | 'sm' | 'md' | 'lg'`
+  - `minHeight?: string`
   - `icon?: string`
   - `iconPosition?: 'left' | 'right'`
   - `iconOnly?: boolean`
@@ -30,11 +31,109 @@
 - 禁用用法:
   - 不要在业务组件直接复写按钮视觉状态类。
 
+### `OcBar`
+
+- props:
+  - `as?: string`
+  - `kind?: 'top' | 'status' | 'section'`
+  - `padding?: string`
+  - `gap?: string`
+  - `border?: 'none' | 'top' | 'bottom'`
+- slots:
+  - `start`
+  - `default`
+  - `end`
+- emits: 无
+- 推荐用法:
+  - 顶栏、状态栏、分节行等壳层条带统一入口。
+- 禁用用法:
+  - 不要在业务层重复手写顶部/状态条骨架。
+
+### `OcChip`
+
+- props:
+  - `tone?: 'default' | 'info'`
+  - `size?: 'sm' | 'md'`
+  - `truncate?: boolean`
+  - `maxWidth?: string`
+- slots:
+  - `default`
+- emits: 无
+- 推荐用法:
+  - 路径、状态、轻量标签统一胶囊样式。
+- 禁用用法:
+  - 不要在业务层新写“chip/badge/pill”样式分支。
+
+### `OcEmptyHint`
+
+- props:
+  - `tone?: 'dim' | 'muted'`
+  - `size?: 'label' | 'body'`
+  - `align?: 'start' | 'center'`
+  - `padding?: string`
+- slots:
+  - `default`
+- emits: 无
+- 推荐用法:
+  - 空态提示、占位提示统一文本容器。
+- 禁用用法:
+  - 不要在业务层重复定义 empty-hint 文本与对齐规则。
+
+### `OcOverlay`
+
+- props:
+  - `as?: string`
+  - `visible?: boolean`
+  - `inset?: string`
+  - `interactive?: boolean`
+- slots:
+  - `default`
+  - `overlay`
+- emits: 无
+- 推荐用法:
+  - 在已有内容层上叠加单层工具条、预览窗、信息浮层。
+  - 组件默认占满父容器（`100% x 100%`）；需要自然尺寸时应由父容器控制尺寸。
+- 禁用用法:
+  - 不要把 modal/focus trap/portal/多层 overlay 栈管理塞进 `OcOverlay`。
+
+### `OcAxisLayout`
+
+- props:
+  - `as?: string`
+  - `axis?: 'horizontal' | 'vertical'`
+  - `gap?: string`
+  - `fill?: boolean`
+  - `interactive?: boolean`
+  - `regions: readonly { slot: string; track?: string }[]`
+- slots:
+  - 动态具名 slot（与 `regions[].slot` 对应）
+- emits: 无
+- 约束:
+  - 布局顺序只由 `regions` 数组顺序决定
+  - `track` 默认 `auto`，支持 `*` / `3*` 语法，分别映射为 `minmax(0, 1fr)` / `minmax(0, 3fr)`
+  - `track` 也支持原生 CSS 轨道值（如 `280px`、`minmax(220px, 30%)`、`1fr`）
+- 推荐用法:
+  - IDE 工作区/overlay 的单轴排布，固定栏位使用像素轨道，主工作区使用 `*` 轨道。
+- 禁用用法:
+  - 不要把拖拽分栏、二维网格、响应式重排策略塞进 `OcAxisLayout`。
+
+## Layout Principles
+
+- `Layout` 型组件只负责区域分配与排布关系，不承载业务视觉语义。
+- `OcAxisLayout` 只负责轨道（`track`）和区域间距（`gap`），不提供内边距（padding）策略。
+- 兄弟间距离优先由父级 `gap` 管理，组件内部留白由子组件 `padding` 管理。
+- 不使用子组件 `margin` 充当主布局手段；`margin` 仅用于个别外部逃逸场景。
+
 ### `OcFieldInput`
 
 - props:
   - `as?: 'input' | 'select' | 'textarea'`
   - `inputClass?: string | string[] | Record<string, boolean>`
+  - `chromed?: boolean`
+  - `fullWidth?: boolean`
+  - `monospace?: boolean`
+  - `padding?: string`
+  - `resize?: 'none' | 'horizontal' | 'vertical' | 'both'`
 - emits: 无（原生输入事件透传）
 - expose:
   - `focus(): void`
@@ -86,6 +185,12 @@
   - `title?: string`
   - `header?: boolean`
   - `scrollBody?: boolean`
+  - `tone?: 'default' | 'overlay'`
+  - `collapsed?: boolean`
+  - `headerPadding?: string`
+  - `headerMinHeight?: string`
+  - `bodyPadding?: string`
+  - `fill?: boolean`
   - `headerClass?: string | string[] | Record<string, boolean>`
   - `bodyClass?: string | string[] | Record<string, boolean>`
 - slots:
@@ -157,6 +262,10 @@
   - `title?: string`
   - `ariaLabel?: string`
   - `kind?: 'menu' | 'sidebar' | 'panel'`
+  - `width?: string`
+  - `minWidth?: string`
+  - `height?: string`
+  - `minHeight?: string`
 - emits:
   - `click(event: MouseEvent)`
 - 可访问性保证:
@@ -173,6 +282,13 @@
   - `kind?: 'menu' | 'sidebar' | 'panel'`
   - `orientation?: 'horizontal' | 'vertical'`
   - `ariaLabel?: string`
+  - `align?: 'start' | 'center' | 'end' | 'stretch'`
+  - `justify?: 'start' | 'center' | 'end' | 'between'`
+  - `gap?: string`
+  - `padding?: string`
+  - `grow?: boolean`
+  - `shrink?: boolean`
+  - `fill?: boolean`
 - emits: 无
 - 可访问性保证:
   - `role="toolbar"` + `aria-orientation`
@@ -188,10 +304,13 @@
   - `active?: boolean`
   - `ariaLabel?: string`
   - `variant?: 'line' | 'edge'`
+  - `dock?: 'left' | 'right' | 'top' | 'bottom'`
+  - `dockOffset?: string`
 - emits:
   - `mousedown(event: MouseEvent)`
 - 推荐用法:
   - 与 `OcSplitPane` 配合承载 IDE/编辑器的拖拽分隔条。
+  - 需要贴边命中区时，使用 `dock + dockOffset`，不要额外再包一层绝对定位容器。
 - 禁用用法:
   - 不要在业务层重复定义一套新的 resizer 视觉。
 
@@ -203,6 +322,8 @@
   - `fixedSize?: string`
   - `primaryMinSize?: string`
   - `secondaryMinSize?: string`
+  - `clip?: boolean`
+  - `radius?: 'none' | 'sm' | 'md' | 'lg'`
 - slots:
   - `primary`
   - `resizer`
@@ -221,11 +342,30 @@
   - `radius?: 'sm' | 'md' | 'lg'`
   - `shadow?: 'sm' | 'md' | 'overlay'`
   - `blurred?: boolean`
+  - `width?: string`
+  - `height?: string`
+  - `marginTop?: string`
+  - `pointerEvents?: 'auto' | 'none'`
 - emits: 无
 - 推荐用法:
   - 编辑器内悬浮检查区、小型工具浮层、overlay widget 外壳。
 - 禁用用法:
   - 不要把 header/body 结构职责塞进 `OcFloatingPanelShell`，它只负责浮层外壳。
+
+### `OcSidebarFrame`
+
+- props:
+  - `activityWidth?: string`
+  - `panelWidth?: string`
+  - `panelVisible?: boolean`
+- slots:
+  - `activity`
+  - `panel`
+- emits: 无
+- 推荐用法:
+  - IDE 左侧活动栏 + 面板组合外壳。
+- 禁用用法:
+  - 不要在业务层再手写同构 sidebar frame 结构。
 
 ## UI Kit Registration Workflow
 

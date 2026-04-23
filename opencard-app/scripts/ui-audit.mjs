@@ -36,6 +36,53 @@ const stateRequiredFiles = [
 const uiKitRequiredSectionIds = ['foundation', 'primitives', 'base']
 const uiKitRequiredColumnTitles = ['Default', 'Variants', 'States', 'Layout']
 
+const styleBudgetFiles = [
+  {
+    file: path.join(srcRoot, 'components', 'editors', 'CardDesignEditor.vue'),
+    maxLines: 90,
+  },
+  {
+    file: path.join(srcRoot, 'components', 'editors', 'PropertyEditor.vue'),
+    maxLines: 30,
+  },
+]
+
+const styleBudgetGroups = [
+  {
+    name: 'ide-shell',
+    maxLines: 130,
+    files: [
+      path.join(srcRoot, 'views', 'MainIDE.vue'),
+      path.join(srcRoot, 'features', 'ide-shell', 'components', 'MainIdeTopBar.vue'),
+      path.join(srcRoot, 'features', 'ide-shell', 'components', 'MainIdeSidebarShell.vue'),
+      path.join(srcRoot, 'features', 'ide-shell', 'components', 'EditorWorkbenchFrame.vue'),
+    ],
+  },
+]
+
+const scopedSelectorGuards = [
+  {
+    file: path.join(srcRoot, 'views', 'MainIDE.vue'),
+    selectors: ['.status-bar', '.status-left', '.status-right', '.status-chip', '.status-watching'],
+  },
+  {
+    file: path.join(srcRoot, 'components', 'editors', 'PropertyEditor.vue'),
+    selectors: ['.empty-hint', '.category-header', '.add-field-count'],
+  },
+  {
+    file: path.join(srcRoot, 'components', 'editors', 'CardDesignEditor.vue'),
+    selectors: [
+      '.card-design-editor-overlay',
+      '.editor-overlay-layout',
+      '.right-panel-split',
+      '.block-item',
+      '.block-type',
+      '.block-id',
+      '.empty-hint',
+    ],
+  },
+]
+
 const violations = []
 
 async function walk(dirPath) {
@@ -87,6 +134,19 @@ function checkHexColors(fullPath, content) {
   }
 
   pushViolation('hex-color', fullPath, `Found hard-coded color(s): ${matches.join(', ')}`)
+}
+
+function extractScopedStyleContent(content) {
+  const match = content.match(/<style\b[^>]*\bscoped\b[^>]*>([\s\S]*?)<\/style>/i)
+  return match ? match[1] : ''
+}
+
+function countNonEmptyLines(content) {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .length
 }
 
 async function checkUiKitShowcaseStructure() {
@@ -237,6 +297,64 @@ async function checkNoLegacyGlobalUiClasses() {
   }
 }
 
+async function checkScopedStyleBudgets() {
+  const fileLineCount = new Map()
+
+  for (const target of styleBudgetFiles) {
+    const content = await fs.readFile(target.file, 'utf8')
+    const styleContent = extractScopedStyleContent(content)
+    const lineCount = countNonEmptyLines(styleContent)
+    fileLineCount.set(target.file, lineCount)
+
+    if (lineCount > target.maxLines) {
+      pushViolation(
+        'style-budget',
+        target.file,
+        `Scoped style lines ${lineCount} exceed budget ${target.maxLines}`,
+      )
+    }
+  }
+
+  for (const group of styleBudgetGroups) {
+    let total = 0
+    for (const fullPath of group.files) {
+      if (!fileLineCount.has(fullPath)) {
+        const content = await fs.readFile(fullPath, 'utf8')
+        const styleContent = extractScopedStyleContent(content)
+        fileLineCount.set(fullPath, countNonEmptyLines(styleContent))
+      }
+      total += fileLineCount.get(fullPath) ?? 0
+    }
+
+    if (total > group.maxLines) {
+      const groupFiles = group.files
+        .map((fullPath) => path.relative(projectRoot, fullPath))
+        .join(', ')
+      pushViolation(
+        'style-budget',
+        group.files[0],
+        `Scoped style group "${group.name}" lines ${total} exceed budget ${group.maxLines}. files: ${groupFiles}`,
+      )
+    }
+  }
+}
+
+async function checkScopedSelectorGuards() {
+  for (const guard of scopedSelectorGuards) {
+    const content = await fs.readFile(guard.file, 'utf8')
+    const styleContent = extractScopedStyleContent(content)
+    for (const selector of guard.selectors) {
+      if (styleContent.includes(selector)) {
+        pushViolation(
+          'style-selector-guard',
+          guard.file,
+          `Selector "${selector}" is not allowed in upper-level scoped styles`,
+        )
+      }
+    }
+  }
+}
+
 async function main() {
   const files = await walk(srcRoot)
   for (const fullPath of files) {
@@ -251,6 +369,8 @@ async function main() {
   await checkStateCompleteness()
   await checkUiKitShowcaseStructure()
   await checkNoLegacyGlobalUiClasses()
+  await checkScopedStyleBudgets()
+  await checkScopedSelectorGuards()
 
   if (violations.length > 0) {
     console.error('[ui-audit] FAILED')

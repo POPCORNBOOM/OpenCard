@@ -16,6 +16,8 @@ function setClientSize(element: HTMLElement, width: number, height: number) {
 describe('useCdePanelResize', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
   })
 
   it('clamps info-tree absolute height during drag resize', () => {
@@ -28,6 +30,8 @@ describe('useCdePanelResize', () => {
     const panelResize = useCdePanelResize()
     const editorRoot = document.createElement('div')
     const rightPanel = document.createElement('div')
+    document.body.style.userSelect = 'text'
+    document.body.style.cursor = 'auto'
     setClientSize(editorRoot, 1200, 800)
     setClientSize(rightPanel, 320, 500)
 
@@ -36,9 +40,13 @@ describe('useCdePanelResize', () => {
     panelResize.mountPanelResizeListeners()
 
     panelResize.startTreePanelResize({ clientX: 0, clientY: 0 } as MouseEvent)
+    expect(document.body.style.userSelect).toBe('none')
+    expect(document.body.style.cursor).toBe('row-resize')
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: -1000 }))
     window.dispatchEvent(new MouseEvent('mouseup'))
     expect(panelResize.editorStyle.value['--card-editor-tree-panel-height']).toBe('140px')
+    expect(document.body.style.userSelect).toBe('text')
+    expect(document.body.style.cursor).toBe('auto')
 
     panelResize.startTreePanelResize({ clientX: 0, clientY: 0 } as MouseEvent)
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: 1000 }))

@@ -14,8 +14,8 @@
   <div class="file-path-field">
     <OcFieldInput
       ref="inputElement"
-      class="prop-input"
       as="input"
+      full-width
       :value="stringValue"
       :minlength="definition.minLength"
       :maxlength="definition.maxLength"
@@ -337,11 +337,6 @@ function handleKeydown(event: KeyboardEvent) {
   position: relative;
   flex: 1;
   min-width: 0;
-}
-
-.prop-input {
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .suggestion-menu {

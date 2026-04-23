@@ -39,3 +39,12 @@ override 注入策略：
 编辑器暴露协议（新增）：
 - `defineExpose` 必须提供 `save/undo/redo/canUndo/canRedo`。
 - `undo/redo` 后只做“选择有效性修正”，不恢复历史选择快照。
+
+Overlay 语义布局约束（新增）：
+- 编辑器结构采用 `OcOverlay`：画布是 base，所有外层 UI（preview、坐标、左右面板）都在 overlay。
+- 外层统一为单横轴 `OcAxisLayout`，固定顺序：`cardtree -> xy -> 空置(center) -> preview -> 结构tree`。
+- `OcOverlay` 本身必须 `interactive=false`；否则 overlay layer 会吞掉 viewport 命中。
+- overlay 根层默认 `pointer-events: none`，只对左右侧栏区域开启命中；xy/preview/空置必须保持穿透。
+- 左栏宽度语义只来自 `--card-editor-left-panel-width`，折叠动画应跟随该变量，不要再引入第二套宽度真相。
+- 右栏尺寸语义继续由 `--card-editor-right-panel-width` 与 `useCdePanelResize` 驱动；`OcAxisLayout` 只做承载，不接管拖拽状态机。
+- 右栏内部“信息树/属性”仍由 `OcSplitPane + OcResizer` 管理，不要迁移到 `OcAxisLayout`。

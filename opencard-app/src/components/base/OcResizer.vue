@@ -2,6 +2,7 @@
   <div
     class="oc-resizer"
     :class="resizerClass"
+    :style="resizerStyle"
     role="separator"
     :aria-orientation="orientation"
     :aria-label="ariaLabel"
@@ -10,10 +11,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type CSSProperties } from 'vue'
 
 type ResizerOrientation = 'horizontal' | 'vertical'
 type ResizerVariant = 'line' | 'edge'
+type ResizerDock = 'left' | 'right' | 'top' | 'bottom'
 
 defineOptions({ name: 'OcResizer' })
 
@@ -22,11 +24,15 @@ const props = withDefaults(defineProps<{
   active?: boolean
   ariaLabel?: string
   variant?: ResizerVariant
+  dock?: ResizerDock
+  dockOffset?: string
 }>(), {
   orientation: 'vertical',
   active: false,
   ariaLabel: undefined,
   variant: 'line',
+  dock: undefined,
+  dockOffset: '0',
 })
 
 const emit = defineEmits<{
@@ -40,6 +46,30 @@ const resizerClass = computed(() => [
     'is-active': props.active,
   },
 ])
+
+const resizerStyle = computed<CSSProperties | undefined>(() => {
+  if (!props.dock) {
+    return undefined
+  }
+
+  if (props.orientation === 'vertical') {
+    const edge = props.dock === 'right' ? 'right' : 'left'
+    return {
+      position: 'absolute',
+      top: '0',
+      bottom: '0',
+      [edge]: props.dockOffset,
+    }
+  }
+
+  const edge = props.dock === 'bottom' ? 'bottom' : 'top'
+  return {
+    position: 'absolute',
+    left: '0',
+    right: '0',
+    [edge]: props.dockOffset,
+  }
+})
 
 function handleMouseDown(event: MouseEvent): void {
   event.preventDefault()

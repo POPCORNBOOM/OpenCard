@@ -47,4 +47,19 @@ describe('OcToolButton', () => {
 
     expect(wrapper.attributes('aria-label')).toBe('Sort by category')
   })
+
+  it('applies size props through inline style', () => {
+    const wrapper = mount(OcToolButton, {
+      props: {
+        iconOnly: true,
+        kind: 'sidebar',
+        ariaLabel: 'Files',
+        width: '100%',
+        height: '56px',
+      },
+    })
+
+    expect(wrapper.attributes('style')).toContain('width: 100%;')
+    expect(wrapper.attributes('style')).toContain('height: 56px;')
+  })
 })
