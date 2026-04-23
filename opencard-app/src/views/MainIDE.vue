@@ -23,7 +23,13 @@
     <div class="main-container">
       <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
         <template #files>
-            <OcButton @click="openProject" variant="primary" block min-height="36px">
+            <OcButton
+              @click="openProject"
+              variant="primary"
+              size="lg"
+              density="spacious"
+              block
+            >
               {{ t('sidebar.openProject') }}
             </OcButton>
             <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
@@ -55,17 +61,17 @@
 
     <OcBar as="footer" kind="status" border="top">
       <template #start>
-        <OcChip v-if="projectPath" truncate max-width="420px">
-          <OcIcon name="status.folderOpen" />
+        <OcChip v-if="projectPath" icon="status.folderOpen" icon-tone="muted" truncate max-width="full">
           {{ projectPath }}
         </OcChip>
-        <OcChip v-if="isWatching" tone="info">
-          <OcIcon name="status.watching" />
+        <OcChip v-if="isWatching" tone="info" icon="status.watching" icon-tone="primary">
           {{ t('status.watching') }}
         </OcChip>
       </template>
       <template #end>
-        <OcChip v-if="activeSession">{{ currentLanguage }}</OcChip>
+        <OcChip v-if="activeSession" :icon="currentLanguageIcon" :icon-tone="currentLanguageIconTone">
+          {{ currentLanguage }}
+        </OcChip>
       </template>
     </OcBar>
 
@@ -87,7 +93,6 @@ import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import NodeTree from '../components/ui/NodeTree.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import { OcBar, OcButton, OcChip } from '../components/base'
-import { OcIcon } from '../shared/ui/primitives'
 import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
 import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
 import EditorWorkbenchFrame from '../features/ide-shell/components/EditorWorkbenchFrame.vue'
@@ -182,6 +187,16 @@ const projectName = computed(() => {
 const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
   return resolveFileType(activeSession.value.path).language ?? 'plaintext'
+})
+
+const currentLanguageIcon = computed(() => {
+  if (!activeSession.value) return 'misc.code'
+  return resolveFileType(activeSession.value.path).icon ?? 'misc.code'
+})
+
+const currentLanguageIconTone = computed(() => {
+  if (!activeSession.value) return 'muted'
+  return resolveFileType(activeSession.value.path).iconTone ?? 'muted'
 })
 
 const currentEditorComponent = computed(() => {
@@ -399,6 +414,8 @@ function closeFile(sessionId: string) {
 .main-container {
   display: flex;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 </style>

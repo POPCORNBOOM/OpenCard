@@ -19,11 +19,11 @@ describe('showcaseCode', () => {
   it('includes referenced setup constants for simple bound props', () => {
     const axisCode = getShowcaseCode('base-oc-axis-layout')
 
-    expect(axisCode.default).toContain("const axisHorizontalRegions = [")
-    expect(axisCode.layout).toContain("const axisLayoutRegions = [")
+    expect(axisCode.default).toContain('const axisHorizontalRegions')
+    expect(axisCode.layout).toContain('const axisLayoutRegions')
     expect(axisCode.layout).not.toContain('const alignOptions')
 
     const overlayCode = getShowcaseCode('base-oc-overlay')
-    expect(overlayCode.layout).toContain("const overlayLayoutRegions = [")
+    expect(overlayCode.layout).toContain('const overlayLayoutRegions')
   })
 })

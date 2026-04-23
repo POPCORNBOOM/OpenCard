@@ -2,9 +2,9 @@
   <OcPressable
     class="oc-base-button"
     :class="buttonClass"
-    :style="buttonStyle"
     :variant="variant"
     :size="size"
+    :density="density"
     :radius="radius"
     :icon-only="isIconOnly"
     :active="active"
@@ -27,20 +27,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots, type CSSProperties } from 'vue'
+import { computed, useSlots } from 'vue'
 import { OcIcon, OcPressable } from '../../shared/ui/primitives'
-
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'
-type ButtonSize = 'sm' | 'md' | 'lg'
-type ButtonRadius = 'none' | 'sm' | 'md' | 'lg'
+import type {
+  OcPressableDensity,
+  OcPressableRadius,
+  OcPressableSize,
+  OcPressableVariant,
+} from '../../shared/ui/composables/useOcPressableCapabilities'
 
 defineOptions({ name: 'OcButton' })
 
 const props = withDefaults(defineProps<{
-  variant?: ButtonVariant
-  size?: ButtonSize
-  radius?: ButtonRadius
-  minHeight?: string
+  variant?: OcPressableVariant
+  size?: OcPressableSize
+  density?: OcPressableDensity
+  radius?: OcPressableRadius
   icon?: string
   iconPosition?: 'left' | 'right'
   iconOnly?: boolean
@@ -51,8 +53,8 @@ const props = withDefaults(defineProps<{
 }>(), {
   variant: 'secondary',
   size: 'md',
+  density: 'comfortable',
   radius: 'sm',
-  minHeight: undefined,
   icon: undefined,
   iconPosition: 'left',
   iconOnly: false,
@@ -66,15 +68,6 @@ const slots = useSlots()
 
 const hasDefaultSlot = computed(() => Boolean(slots.default?.().length))
 const isIconOnly = computed(() => props.iconOnly || (!hasDefaultSlot.value && Boolean(props.icon)))
-const buttonStyle = computed<CSSProperties>(() => {
-  if (!props.minHeight) {
-    return {}
-  }
-
-  return {
-    minHeight: props.minHeight,
-  }
-})
 
 const buttonClass = computed(() => [
   `oc-base-button--variant-${props.variant}`,

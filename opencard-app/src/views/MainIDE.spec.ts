@@ -68,6 +68,54 @@ const activeSessionIdRef = ref('session-1')
 const activeSessionRef = ref<(typeof sessionsRef.value)[number] | null>(null)
 const projectPathRef = ref('')
 const isWatchingRef = ref(false)
+const semanticIconSizes = new Set(['sm', 'md', 'lg'])
+const semanticIconTones = new Set([
+  'default',
+  'muted',
+  'primary',
+  'success',
+  'warning',
+  'danger',
+  'opencard',
+  'json',
+  'markdown',
+  'typescript',
+  'javascript',
+  'vue',
+  'html',
+  'css',
+  'image',
+  'package',
+  'config',
+  'folder-default',
+  'folder-open',
+  'folder-src',
+  'folder-assets',
+  'folder-components',
+  'folder-views',
+  'folder-locales',
+  'folder-core',
+])
+const appIconStub = {
+  name: 'AppIcon',
+  props: {
+    name: {
+      type: [String, Object],
+      default: 'file.default',
+    },
+    size: {
+      type: String,
+      default: 'md',
+      validator: (value: unknown) => typeof value === 'string' && semanticIconSizes.has(value),
+    },
+    tone: {
+      type: String,
+      default: 'default',
+      validator: (value: unknown) => typeof value === 'string' && semanticIconTones.has(value),
+    },
+  },
+  template: '<span class="app-icon-stub" />',
+}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -184,7 +232,7 @@ describe('MainIDE', () => {
     const wrapper = mount(MainIDE, {
       global: {
         stubs: {
-          AppIcon: true,
+          AppIcon: appIconStub,
           NodeTree: true,
           FloatingMenuHost: true,
           CardRenderer: true,
@@ -205,7 +253,7 @@ describe('MainIDE', () => {
     const wrapper = mount(MainIDE, {
       global: {
         stubs: {
-          AppIcon: true,
+          AppIcon: appIconStub,
           NodeTree: true,
           FloatingMenuHost: true,
           CardRenderer: true,
@@ -226,7 +274,7 @@ describe('MainIDE', () => {
     const wrapper = mount(MainIDE, {
       global: {
         stubs: {
-          AppIcon: true,
+          AppIcon: appIconStub,
           NodeTree: true,
           FloatingMenuHost: true,
           CardRenderer: true,
@@ -263,7 +311,7 @@ describe('MainIDE', () => {
     const wrapper = mount(MainIDE, {
       global: {
         stubs: {
-          AppIcon: true,
+          AppIcon: appIconStub,
           NodeTree: true,
           FloatingMenuHost: true,
           CardRenderer: true,
@@ -285,7 +333,7 @@ describe('MainIDE', () => {
     const wrapper = mount(MainIDE, {
       global: {
         stubs: {
-          AppIcon: true,
+          AppIcon: appIconStub,
           NodeTree: true,
           FloatingMenuHost: true,
           CardRenderer: true,

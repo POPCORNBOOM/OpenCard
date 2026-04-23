@@ -59,7 +59,6 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
         isExpanded: isDirectory ? options.isDirectoryExpanded(fullPath) : false,
         icon: entryIcon.icon,
         iconTone: entryIcon.tone,
-        iconColor: entryIcon.color,
         children: isDirectory ? [] : undefined,
         metadata: {
           relativePath,

@@ -3,7 +3,6 @@
     :as="as"
     class="oc-floating-panel-shell"
     :class="shellClass"
-    :style="shellStyle"
     variant="transparent"
     :radius="radius"
     :shadow="shadow"
@@ -13,12 +12,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed } from 'vue'
 import { OcSurface } from '../../shared/ui/primitives'
 
 type FloatingPanelShellPadding = 'none' | 'sm' | 'md'
 type FloatingPanelShellRadius = 'sm' | 'md' | 'lg'
 type FloatingPanelShellShadow = 'sm' | 'md' | 'overlay'
+type FloatingPanelShellDimension = 'auto' | 'content' | 'full' | 'screen' | 'panel'
+type FloatingPanelShellInset = 'none' | 'compact' | 'default' | 'spacious' | 'overlay'
+type FloatingPanelShellPointer = 'auto' | 'none'
 
 defineOptions({ name: 'OcFloatingPanelShell' })
 
@@ -28,35 +30,32 @@ const props = withDefaults(defineProps<{
   radius?: FloatingPanelShellRadius
   shadow?: FloatingPanelShellShadow
   blurred?: boolean
-  width?: string
-  height?: string
-  marginTop?: string
-  pointerEvents?: 'auto' | 'none'
+  width?: FloatingPanelShellDimension
+  height?: FloatingPanelShellDimension
+  inset?: FloatingPanelShellInset
+  pointer?: FloatingPanelShellPointer
 }>(), {
   as: 'div',
   padding: 'none',
   radius: 'lg',
   shadow: 'overlay',
   blurred: true,
-  width: undefined,
-  height: undefined,
-  marginTop: undefined,
-  pointerEvents: undefined,
+  width: 'auto',
+  height: 'auto',
+  inset: 'none',
+  pointer: 'auto',
 })
 
 const shellClass = computed(() => [
   `oc-floating-panel-shell--padding-${props.padding}`,
+  `oc-floating-panel-shell--width-${props.width}`,
+  `oc-floating-panel-shell--height-${props.height}`,
+  `oc-floating-panel-shell--inset-${props.inset}`,
+  `oc-floating-panel-shell--pointer-${props.pointer}`,
   {
     'is-blurred': props.blurred,
   },
 ])
-
-const shellStyle = computed<CSSProperties>(() => ({
-  ...(props.width ? { width: props.width } : {}),
-  ...(props.height ? { height: props.height } : {}),
-  ...(props.marginTop ? { marginTop: props.marginTop } : {}),
-  ...(props.pointerEvents ? { pointerEvents: props.pointerEvents } : {}),
-}))
 </script>
 
 <style scoped>
@@ -82,5 +81,73 @@ const shellStyle = computed<CSSProperties>(() => ({
 
 .oc-floating-panel-shell--padding-md {
   padding: var(--oc-space-3);
+}
+
+.oc-floating-panel-shell--width-auto {
+  width: auto;
+}
+
+.oc-floating-panel-shell--width-content {
+  width: fit-content;
+}
+
+.oc-floating-panel-shell--width-full {
+  width: 100%;
+}
+
+.oc-floating-panel-shell--width-screen {
+  width: 100vw;
+}
+
+.oc-floating-panel-shell--width-panel {
+  width: var(--oc-floating-panel-shell-width, 280px);
+}
+
+.oc-floating-panel-shell--height-auto {
+  height: auto;
+}
+
+.oc-floating-panel-shell--height-content {
+  height: fit-content;
+}
+
+.oc-floating-panel-shell--height-full {
+  height: 100%;
+}
+
+.oc-floating-panel-shell--height-screen {
+  height: 100vh;
+}
+
+.oc-floating-panel-shell--height-panel {
+  height: var(--oc-floating-panel-shell-height, 180px);
+}
+
+.oc-floating-panel-shell--inset-none {
+  margin-top: 0;
+}
+
+.oc-floating-panel-shell--inset-compact {
+  margin-top: var(--oc-space-1);
+}
+
+.oc-floating-panel-shell--inset-default {
+  margin-top: var(--oc-space-2);
+}
+
+.oc-floating-panel-shell--inset-spacious {
+  margin-top: var(--oc-space-3);
+}
+
+.oc-floating-panel-shell--inset-overlay {
+  margin-top: var(--oc-floating-panel-shell-inset-overlay, calc(var(--card-editor-overlay-inset-y, 20px) - 6px));
+}
+
+.oc-floating-panel-shell--pointer-auto {
+  pointer-events: auto;
+}
+
+.oc-floating-panel-shell--pointer-none {
+  pointer-events: none;
 }
 </style>

@@ -55,7 +55,32 @@ describe('OcOverlay', () => {
     expect(wrapper.find('.oc-overlay__layer').classes()).toContain('is-non-interactive')
   })
 
-  it('applies overlay inset style', () => {
+  it.each([
+    ['none', /inset:\s0(?:px)?;/],
+    ['compact', 'var(--oc-space-1)'],
+    ['default', 'var(--oc-space-2)'],
+    ['workspace', 'var(--card-editor-overlay-inset-y, 20px) var(--card-editor-overlay-inset-x, 24px)'],
+  ] as const)('maps semantic inset "%s" to layer style', (inset, expectedInset) => {
+    const wrapper = mount(OcOverlay, {
+      props: {
+        inset,
+      },
+      slots: {
+        default: '<div>base</div>',
+        overlay: '<div>overlay</div>',
+      },
+    })
+
+    const overlayLayer = wrapper.find('.oc-overlay__layer')
+    const inlineStyle = overlayLayer.attributes('style') ?? ''
+    if (expectedInset instanceof RegExp) {
+      expect(inlineStyle).toMatch(expectedInset)
+      return
+    }
+    expect(inlineStyle).toContain(`inset: ${expectedInset};`)
+  })
+
+  it('keeps legacy inset string as fallback', () => {
     const wrapper = mount(OcOverlay, {
       props: {
         inset: '24px 12px 16px 8px',
@@ -69,5 +94,4 @@ describe('OcOverlay', () => {
     const overlayLayer = wrapper.find('.oc-overlay__layer')
     expect(overlayLayer.attributes('style')).toContain('inset: 24px 12px 16px 8px;')
   })
-
 })

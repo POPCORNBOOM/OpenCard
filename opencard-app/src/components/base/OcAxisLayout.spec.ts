@@ -5,9 +5,9 @@ import OcAxisLayout, { type AxisRegion } from './OcAxisLayout.vue'
 describe('OcAxisLayout', () => {
   it('renders regions in declaration order', () => {
     const regions: AxisRegion[] = [
-      { slot: 'right', track: '120px' },
-      { slot: 'left', track: '80px' },
-      { slot: 'center', track: '*' },
+      { slot: 'right', track: 'size-xl' },
+      { slot: 'left', track: 'size-md' },
+      { slot: 'center', track: 'fill' },
     ]
 
     const wrapper = mount(OcAxisLayout, {
@@ -26,14 +26,40 @@ describe('OcAxisLayout', () => {
     expect(regionTexts).toEqual(['right', 'left', 'center'])
   })
 
-  it('maps horizontal tracks and star syntax to grid template columns', () => {
+  it('exposes stable region semantic hooks bound to slot names', () => {
+    const wrapper = mount(OcAxisLayout, {
+      props: {
+        regions: [
+          { slot: 'Left-Pane', track: 'size-md' },
+          { slot: 'Main_Content', track: 'fill' },
+        ],
+      },
+      slots: {
+        'Left-Pane': '<div>left</div>',
+        Main_Content: '<div>main</div>',
+      },
+    })
+
+    const regions = wrapper.findAll('.oc-axis-layout__region')
+    expect(regions).toHaveLength(2)
+
+    expect(regions[0].attributes('data-slot')).toBe('Left-Pane')
+    expect(regions[0].classes()).toContain('oc-axis-layout__region')
+    expect(regions[0].classes()).toContain('oc-axis-layout__region--slot-left-pane')
+
+    expect(regions[1].attributes('data-slot')).toBe('Main_Content')
+    expect(regions[1].classes()).toContain('oc-axis-layout__region')
+    expect(regions[1].classes()).toContain('oc-axis-layout__region--slot-main_content')
+  })
+
+  it('maps horizontal track tokens to grid template columns', () => {
     const wrapper = mount(OcAxisLayout, {
       props: {
         axis: 'horizontal',
         regions: [
-          { slot: 'left', track: '80px' },
-          { slot: 'main', track: '*' },
-          { slot: 'preview', track: '3*' },
+          { slot: 'left', track: 'size-md' },
+          { slot: 'main', track: 'fill' },
+          { slot: 'preview', track: 'fill-3' },
           { slot: 'right', track: 'auto' },
         ],
       },
@@ -46,18 +72,18 @@ describe('OcAxisLayout', () => {
     })
 
     const style = wrapper.attributes('style')
-    expect(style).toContain('grid-template-columns: 80px minmax(0, 1fr) minmax(0, 3fr) auto;')
+    expect(style).toContain('grid-template-columns: 72px minmax(0, 1fr) minmax(0, 3fr) auto;')
     expect(style).toContain('grid-template-rows: minmax(0, 1fr);')
   })
 
-  it('maps vertical tracks to grid template rows', () => {
+  it('maps vertical track tokens to grid template rows', () => {
     const wrapper = mount(OcAxisLayout, {
       props: {
         axis: 'vertical',
         regions: [
-          { slot: 'top', track: '48px' },
-          { slot: 'content', track: '*' },
-          { slot: 'bottom', track: '36px' },
+          { slot: 'top', track: 'size-sm' },
+          { slot: 'content', track: 'fill' },
+          { slot: 'bottom', track: 'size-xs' },
         ],
       },
       slots: {
@@ -96,7 +122,7 @@ describe('OcAxisLayout', () => {
         axis: 'horizontal',
         regions: [
           { slot: 'left', track: 'auto' },
-          { slot: 'right', track: '*' },
+          { slot: 'right', track: 'fill' },
         ],
       },
       slots: {
@@ -115,9 +141,9 @@ describe('OcAxisLayout', () => {
     const wrapper = mount(OcAxisLayout, {
       props: {
         regions: [
-          { slot: 'left', track: '72px' },
-          { slot: 'missing', track: '*' },
-          { slot: 'right', track: '96px' },
+          { slot: 'left', track: 'size-md' },
+          { slot: 'missing', track: 'fill' },
+          { slot: 'right', track: 'size-lg' },
         ],
       },
       slots: {
@@ -134,17 +160,18 @@ describe('OcAxisLayout', () => {
     ))
     expect(axisWarnings).toContainEqual([
       '[OcAxisLayout] slot "missing" is not provided',
-      { slot: 'missing', track: '*' },
+      { slot: 'missing', track: 'fill' },
     ])
   })
 
-  it('falls back to auto when star track weight is invalid', () => {
+  it('falls back to auto when track token is invalid', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const invalidRegion = { slot: 'left', track: 'legacy-px' } as unknown as AxisRegion
     const wrapper = mount(OcAxisLayout, {
       props: {
         regions: [
-          { slot: 'left', track: '0*' },
-          { slot: 'right', track: '*' },
+          invalidRegion,
+          { slot: 'right', track: 'fill' },
         ],
       },
       slots: {
@@ -155,8 +182,8 @@ describe('OcAxisLayout', () => {
 
     expect(wrapper.attributes('style')).toContain('grid-template-columns: auto minmax(0, 1fr);')
     expect(warnSpy).toHaveBeenCalledWith(
-      '[OcAxisLayout] track "0*" is invalid, fallback to "auto"',
-      { slot: 'left', track: '0*' },
+      '[OcAxisLayout] track token "legacy-px" is invalid, fallback to "auto"',
+      invalidRegion,
     )
   })
 
@@ -166,7 +193,7 @@ describe('OcAxisLayout', () => {
         fill: true,
         interactive: false,
         regions: [
-          { slot: 'content', track: '*' },
+          { slot: 'content', track: 'fill' },
         ],
       },
       slots: {
@@ -176,5 +203,21 @@ describe('OcAxisLayout', () => {
 
     expect(wrapper.classes()).toContain('is-fill')
     expect(wrapper.classes()).toContain('is-non-interactive')
+  })
+
+  it('maps spacing token to semantic class', () => {
+    const wrapper = mount(OcAxisLayout, {
+      props: {
+        spacing: 'loose',
+        regions: [
+          { slot: 'content', track: 'fill' },
+        ],
+      },
+      slots: {
+        content: '<div>content</div>',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('oc-axis-layout--spacing-loose')
   })
 })

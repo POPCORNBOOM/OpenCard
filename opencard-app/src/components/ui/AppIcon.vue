@@ -2,15 +2,38 @@
   <OcIcon
     :name="name"
     :size="size"
-    :color="color"
     :tone="tone"
     v-bind="$attrs"
   />
 </template>
 
 <script setup lang="ts">
-import type { IconDefinition, IconName } from '../../shared/ui/icon/iconRegistry'
+import type { IconResolvable, IconTone } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from '../../shared/ui/primitives/OcIcon.vue'
+
+type AppIconTone =
+  | IconTone
+  | 'opencard'
+  | 'json'
+  | 'markdown'
+  | 'typescript'
+  | 'javascript'
+  | 'vue'
+  | 'html'
+  | 'css'
+  | 'image'
+  | 'package'
+  | 'config'
+  | 'folder-default'
+  | 'folder-open'
+  | 'folder-src'
+  | 'folder-assets'
+  | 'folder-components'
+  | 'folder-views'
+  | 'folder-locales'
+  | 'folder-core'
+
+type AppIconSize = 'sm' | 'md' | 'lg'
 
 defineOptions({
   name: 'AppIcon',
@@ -18,9 +41,8 @@ defineOptions({
 })
 
 defineProps<{
-  name?: IconName | string | { icon?: IconName | string } | IconDefinition
-  size?: number | string
-  color?: string
-  tone?: string
+  name?: IconResolvable
+  size?: AppIconSize
+  tone?: AppIconTone
 }>()
 </script>

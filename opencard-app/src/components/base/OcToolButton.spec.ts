@@ -48,18 +48,51 @@ describe('OcToolButton', () => {
     expect(wrapper.attributes('aria-label')).toBe('Sort by category')
   })
 
-  it('applies size props through inline style', () => {
+  it('supports icon and iconTone combination in default content path', () => {
+    const wrapper = mount(OcToolButton, {
+      props: {
+        kind: 'menu',
+        label: 'Warn',
+        icon: 'icon.warning',
+        iconTone: 'warning',
+      },
+    })
+
+    const icon = wrapper.findComponent({ name: 'OcIcon' })
+    expect(icon.exists()).toBe(true)
+    expect(icon.props('tone')).toBe('warning')
+  })
+
+  it('keeps icon-only contract compatible when iconTone is provided', () => {
+    const wrapper = mount(OcToolButton, {
+      props: {
+        iconOnly: true,
+        kind: 'panel',
+        label: 'Delete',
+        icon: 'icon.warning',
+        iconTone: 'danger',
+      },
+    })
+
+    const icon = wrapper.findComponent({ name: 'OcIcon' })
+    expect(icon.exists()).toBe(true)
+    expect(icon.props('tone')).toBe('danger')
+    expect(wrapper.classes()).toContain('is-icon-only')
+    expect(wrapper.attributes('aria-label')).toBe('Delete')
+  })
+
+  it('maps sidebar sizing semantics through classes', () => {
     const wrapper = mount(OcToolButton, {
       props: {
         iconOnly: true,
         kind: 'sidebar',
+        size: 'lg',
         ariaLabel: 'Files',
-        width: '100%',
-        height: '56px',
       },
     })
 
-    expect(wrapper.attributes('style')).toContain('width: 100%;')
-    expect(wrapper.attributes('style')).toContain('height: 56px;')
+    expect(wrapper.classes()).toContain('oc-tool-button--sidebar')
+    expect(wrapper.classes()).toContain('oc-tool-button--size-lg')
+    expect(wrapper.classes()).toContain('is-block')
   })
 })

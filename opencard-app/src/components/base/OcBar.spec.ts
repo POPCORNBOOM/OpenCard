@@ -32,18 +32,18 @@ describe('OcBar', () => {
     expect(wrapper.classes()).toContain('oc-bar--border-bottom')
   })
 
-  it('applies custom gap and padding style variables', () => {
+  it('supports semantic spacing and inset props', () => {
     const wrapper = mount(OcBar, {
       props: {
-        gap: '6px',
-        padding: '2px 4px',
+        spacing: 'spacious',
+        inset: 'compact',
       },
       slots: {
         default: '<span>content</span>',
       },
     })
 
-    expect(wrapper.attributes('style')).toContain('--oc-bar-gap: 6px;')
-    expect(wrapper.attributes('style')).toContain('--oc-bar-padding: 2px 4px;')
+    expect(wrapper.classes()).toContain('oc-bar--spacing-spacious')
+    expect(wrapper.classes()).toContain('oc-bar--inset-compact')
   })
 })

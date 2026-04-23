@@ -3,11 +3,11 @@
     ref="fieldRef"
     :as="as"
     class="oc-field-input"
-    :input-class="inputClass"
-    :chromed="chromed"
+    :variant="variant"
     :full-width="fullWidth"
     :monospace="monospace"
-    :padding="padding"
+    :size="size"
+    :density="density"
     :resize="resize"
     v-bind="attrs"
   >
@@ -16,8 +16,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, useAttrs, type ComponentPublicInstance, type HTMLAttributes } from 'vue'
+import { ref, useAttrs, type ComponentPublicInstance } from 'vue'
 import { OcFieldCore } from '../../shared/ui/primitives'
+import {
+  type OcFieldCoreDensity,
+  type OcFieldCoreResize,
+  type OcFieldCoreSize,
+  type OcFieldCoreVariant,
+} from '../../shared/ui/composables/useOcFieldCoreCapabilities'
 
 defineOptions({
   name: 'OcFieldInput',
@@ -26,20 +32,20 @@ defineOptions({
 
 withDefaults(defineProps<{
   as?: 'input' | 'select' | 'textarea'
-  inputClass?: HTMLAttributes['class']
-  chromed?: boolean
+  variant?: OcFieldCoreVariant
   fullWidth?: boolean
   monospace?: boolean
-  padding?: string
-  resize?: 'none' | 'horizontal' | 'vertical' | 'both'
+  size?: OcFieldCoreSize
+  density?: OcFieldCoreDensity
+  resize?: OcFieldCoreResize
 }>(), {
   as: 'input',
-  inputClass: undefined,
-  chromed: true,
+  variant: 'chromed',
   fullWidth: false,
   monospace: false,
-  padding: undefined,
-  resize: undefined,
+  size: 'md',
+  density: 'comfortable',
+  resize: 'none',
 })
 
 const attrs = useAttrs()

@@ -14,168 +14,111 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
-    <OcOverlay
-      :inset="'var(--card-editor-overlay-inset-y) var(--card-editor-overlay-inset-x)'"
-      :interactive="false"
-    >
-      <OcBox stack fill relative :pointer="panelPointerEvents">
-        <CardViewport v-if="viewDoc" :document="viewDoc" :selected-block-id="selectedBlock?.id ?? null"
-          :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
-          :selected-parent-block-id="selectedParentBlockId" :transform-disabled-block-ids="transformDisabledBlockIds"
-          @block-click="handleViewportBlockClick" @blank-click="clearSelection" @resize-selection="handleSelectionResize"
-          @move-selection="handleSelectionMove" @viewport-transform-change="handleViewportTransformChange" />
+    <OcOverlay :inset="'var(--card-editor-overlay-inset-y) var(--card-editor-overlay-inset-x)'" :interactive="false">
+      <OcBox class="card-design-editor__viewport-host" stack fill relative :pointer="panelPointerEvents">
+        <CardViewport v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
+          :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
+          :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
+          :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
+          @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
+          @viewport-transform-change="handleViewportTransformChange" />
         <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
       </OcBox>
       <template #overlay>
-        <OcAxisLayout axis="horizontal" :regions="overlayHorizontalRegions" fill :interactive="false">
+        <OcAxisLayout class="card-design-editor__overlay-layout" axis="horizontal" :regions="overlayHorizontalRegions"
+          fill :interactive="false">
           <template #left-cardtree>
-            <OcFloatingPanelShell
-              width="var(--card-editor-left-panel-width)"
-              height="100%"
-              :pointer-events="panelPointerEvents"
-            >
-              <OcPanelSection
-                fill
-                tone="overlay"
-                :collapsed="!isInstancePanelExpanded"
-                body-padding="var(--oc-space-1) 0"
-                :scroll-body="true"
-              >
+            <OcFloatingPanelShell width="full" height="full" :pointer="panelPointerEvents">
+              <OcPanelSection fill tone="overlay" :collapsed="!isInstancePanelExpanded"
+                body-padding="var(--oc-space-1) 0" :scroll-body="true">
                 <template #title>
                   <span v-if="isInstancePanelExpanded">创建的卡牌</span>
                 </template>
                 <template #actions>
-                  <OcToolButton
-                    kind="panel"
-                    icon-only
+                  <OcToolButton kind="panel" icon-only
                     :icon="isInstancePanelExpanded ? 'icon.chevron-left' : 'icon.chevron-right'"
                     :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
-                    :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
-                    @click="toggleInstancePanel"
-                  />
+                    :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'" @click="toggleInstancePanel" />
                 </template>
                 <template #default>
                   <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
-                    :selected-keys="selectedCardKeys" :actions="instanceTreeActions" :action-keys="instanceTreeActionKeys"
-                    :allowed-drop-positions="getInstanceTreeAllowedDropPositions" :can-drop="canDropInstanceTreeNode"
-                    @update:selected-keys="onInstanceTreeSelect" @action-called="handleInstanceTreeAction"
-                    @node-rename="handleInstanceTreeRename" @node-drop="handleInstanceTreeDrop" />
+                    :multi-select="false"
+                    :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
+                    :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
+                    :can-drop="canDropInstanceTreeNode" @update:selected-keys="onInstanceTreeSelect"
+                    @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
+                    @node-drop="handleInstanceTreeDrop" />
                 </template>
               </OcPanelSection>
             </OcFloatingPanelShell>
           </template>
-          <template #xy-info>
-            <OcBox inline height="100%" pointer="none" align="end">
-              <OcBar kind="section" padding="0 0 12px 12px">
-                <OcChip>
-                  x: {{ Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{ viewportTransform.scale.toFixed(2) }}
-                </OcChip>
-              </OcBar>
-            </OcBox>
-          </template>
           <template #center-spacer>
-            <div />
-          </template>
-          <template #preview-panel>
-            <OcBox inline height="100%" pointer="none" align="start">
-              <OcFloatingPanelShell
-                v-if="showTransformPreview && viewDoc"
-                padding="sm"
-                margin-top="calc(var(--card-editor-overlay-inset-y, 20px) - 6px)"
-                pointer-events="none"
-                aria-hidden="true"
-              >
-                <OcBar kind="section" padding="0 0 6px 0">
-                  <OcChip tone="info">{{ t('panels.transformPreview') }}</OcChip>
+            <div class="card-design-editor__center-track">
+              <div class="card-design-editor__center-hud card-design-editor__center-hud--xy">
+                <OcBar kind="section" padding="0 0 12px 12px">
+                  <OcChip>
+                    x: {{ Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
+                      viewportTransform.scale.toFixed(2) }}
+                  </OcChip>
                 </OcBar>
-                <OcBox relative overflow="hidden" :style="transformPreviewViewportStyle">
-                  <OcSurface fill pattern="checker-preview" />
-                  <OcBox absolute inset="0 auto auto 0" :style="transformPreviewShellStyle">
-                    <OcBox :style="transformPreviewStageStyle">
-                      <CardRenderer :document="viewDoc" />
-                    </OcBox>
-                  </OcBox>
-                </OcBox>
-              </OcFloatingPanelShell>
-            </OcBox>
+              </div>
+              <div class="card-design-editor__center-hud card-design-editor__center-hud--preview">
+                <OcFloatingPanelShell v-if="showTransformPreview && viewDoc" padding="sm" inset="overlay" pointer="none"
+                  aria-hidden="true">
+                  <OcBar kind="section" padding="0 0 6px 0">
+                    <OcChip tone="info">{{ t('panels.transformPreview') }}</OcChip>
+                  </OcBar>
+                  <div class="transform-preview-viewport" :style="transformPreviewViewportStyle">
+                    <OcSurface fill pattern="checker-preview" />
+                    <div class="transform-preview-shell" :style="transformPreviewShellStyle">
+                      <div class="transform-preview-stage" :style="transformPreviewStageStyle">
+                        <CardRenderer :document="viewDoc" />
+                      </div>
+                    </div>
+                  </div>
+                </OcFloatingPanelShell>
+              </div>
+            </div>
           </template>
           <template #right-structuretree>
             <div ref="rightPanelRef" :style="rightPanelShellStyle">
-              <OcResizer
-                orientation="vertical"
-                variant="edge"
-                dock="left"
-                dock-offset="-14px"
-                aria-label="调整右侧检查器宽度"
-                :active="resizeState === 'right-panel'"
-                @mousedown="startRightPanelResize"
-              />
+              <OcResizer orientation="vertical" variant="edge" dock="left" dock-offset="-14px" aria-label="调整右侧检查器宽度"
+                :active="resizeState === 'right-panel'" @mousedown="startRightPanelResize" />
 
-              <OcFloatingPanelShell width="100%" height="100%" :pointer-events="panelPointerEvents">
-                <OcSplitPane
-                  orientation="vertical"
-                  fixedPane="primary"
-                  fixedSize="var(--card-editor-tree-panel-height)"
-                  primaryMinSize="140px"
-                  secondaryMinSize="var(--card-editor-min-property-panel-height)"
-                  clip
-                  radius="lg"
-                >
+              <OcFloatingPanelShell width="full" height="full" :pointer="panelPointerEvents">
+                <OcSplitPane orientation="vertical" fixedPane="primary" fixedSize="var(--card-editor-tree-panel-height)"
+                  primaryMinSize="140px" secondaryMinSize="var(--card-editor-min-property-panel-height)" clip
+                  radius="lg">
                   <template #primary>
-                    <OcPanelSection
-                      fill
-                      title="结构树"
-                      tone="overlay"
-                      body-padding="var(--oc-space-1) 0"
-                      :scroll-body="true"
-                    >
-                      <NodeTree title="模板结构" :nodes="blockTree" :selected-keys="selectedBlockKeys" :actions="treeActions"
-                        v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys" :can-drop="canDropTreeNode"
-                        @update:selected-keys="onTreeSelect" @action-called="handleTreeAction" @node-rename="handleTreeRename"
-                        @node-drop="handleTreeDrop" />
+                    <OcPanelSection fill title="结构树" tone="overlay" body-padding="var(--oc-space-1) 0"
+                      :scroll-body="true">
+                      <NodeTree title="模板结构" :nodes="blockTree" :multi-select="false"
+                        :selected-keys="selectedBlockKeys"
+                        :actions="treeActions" v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys"
+                        :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
+                        @action-called="handleTreeAction" @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
                     </OcPanelSection>
                   </template>
                   <template #resizer>
-                    <OcResizer
-                      orientation="horizontal"
-                      variant="edge"
-                      aria-label="调整信息树高度"
-                      :active="resizeState === 'tree-panel'"
-                      @mousedown="startTreePanelResize"
-                    />
+                    <OcResizer orientation="horizontal" variant="edge" aria-label="调整信息树高度"
+                      :active="resizeState === 'tree-panel'" @mousedown="startTreePanelResize" />
                   </template>
                   <template #secondary>
                     <OcPanelSection fill title="属性" tone="overlay">
                       <template #actions>
                         <OcToolbar kind="panel" :shrink="false" aria-label="Property sort tools">
-                          <OcToolButton
-                            kind="panel"
-                            icon-only
-                            icon="icon.list-tree"
-                            :active="propertySortMode === 'category'"
-                            title="Category"
-                            aria-label="Category"
-                            @click="propertySortMode = 'category'"
-                          />
-                          <OcToolButton
-                            kind="panel"
-                            icon-only
-                            icon="icon.symbol-string"
-                            :active="propertySortMode === 'alphabetical'"
-                            title="A-Z"
-                            aria-label="A-Z"
-                            @click="propertySortMode = 'alphabetical'"
-                          />
+                          <OcToolButton kind="panel" icon-only icon="icon.list-tree"
+                            :active="propertySortMode === 'category'" title="Category" aria-label="Category"
+                            @click="propertySortMode = 'category'" />
+                          <OcToolButton kind="panel" icon-only icon="icon.symbol-string"
+                            :active="propertySortMode === 'alphabetical'" title="A-Z" aria-label="A-Z"
+                            @click="propertySortMode = 'alphabetical'" />
                         </OcToolbar>
                       </template>
                       <template #default>
-                        <PropertyEditor
-                          :inputs="propertyInputs"
-                          :sort-mode="propertySortMode"
-                          @update-property="updateBlockProp"
-                          @add-property="addBlockProp"
-                          @reset-property="resetBlockProp"
-                        />
+                        <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode"
+                          @update-property="updateBlockProp" @add-property="addBlockProp"
+                          @reset-property="resetBlockProp" />
                       </template>
                     </OcPanelSection>
                   </template>
@@ -200,20 +143,14 @@ import {
   type CardBlock,
   type CardDocument,
   type CardTreeNodeMetadata,
-  type PropertyEditorInput,
   getBlockTreeIcon,
 } from '../../entities/card/model'
-import {
-  getDefault,
-  resolveNulls,
-  type PropertyEditorSchemaOverride,
-} from '../../entities/card/schema'
 import { OcBox, OcSurface } from '../../shared/ui/primitives'
 import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
-import OcAxisLayout from '../base/OcAxisLayout.vue'
+import OcAxisLayout, { type AxisRegion } from '../base/OcAxisLayout.vue'
 import OcBar from '../base/OcBar.vue'
 import OcChip from '../base/OcChip.vue'
 import OcEmptyHint from '../base/OcEmptyHint.vue'
@@ -227,20 +164,12 @@ import OcToolbar from '../base/OcToolbar.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
+import {
+  useCdePropertyPanelState,
+  type CdePropertySortMode,
+} from '../../composables/useCdePropertyPanelState'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
-import { resetInstanceOverrideField } from '../../composables/cdeInstanceOverride'
 import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
-
-type PropertySortMode = 'category' | 'alphabetical'
-type PropertyEditorMutation = {
-  sourceKey: string
-  fieldKey: string
-  value: unknown
-}
-type PropertyEditorResetMutation = {
-  sourceKey: string
-  fieldKey: string
-}
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -252,7 +181,7 @@ const { t } = useI18n()
 
 // 文档与编辑器状态
 const blockTreeExpanded = ref(true)
-const propertySortMode = ref<PropertySortMode>('category')
+const propertySortMode = ref<CdePropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
 const currentLeftPanelWidth = computed(() => (isInstancePanelExpanded.value ? 272 : 56))
 const editorShellStyle = computed<CSSProperties>(() => ({
@@ -268,6 +197,9 @@ const editorShellStyle = computed<CSSProperties>(() => ({
   '--card-editor-overlay-inset-x': '24px',
   '--card-editor-overlay-inset-y': '20px',
   '--card-editor-center-safe-width': '420px',
+  '--card-editor-center-track-min-width': '220px',
+  '--oc-axis-layout-track-sidebar': 'minmax(0, var(--card-editor-left-panel-width))',
+  '--oc-axis-layout-track-inspector': 'minmax(0, var(--card-editor-right-panel-width))',
   '--card-editor-left-panel-width-expanded': '272px',
   '--card-editor-left-panel-width-collapsed': '56px',
   '--card-editor-left-panel-width': `${currentLeftPanelWidth.value}px`,
@@ -277,12 +209,10 @@ const viewportTransform = ref({
   y: 0,
   scale: 1,
 })
-const overlayHorizontalRegions = [
-  { slot: 'left-cardtree', track: 'auto' },
-  { slot: 'xy-info', track: 'auto' },
-  { slot: 'center-spacer', track: '*' },
-  { slot: 'preview-panel', track: 'auto' },
-  { slot: 'right-structuretree', track: 'var(--card-editor-right-panel-width)' },
+const overlayHorizontalRegions: AxisRegion[] = [
+  { slot: 'left-cardtree', track: 'sidebar' },
+  { slot: 'center-spacer', track: 'fill' },
+  { slot: 'right-structuretree', track: 'inspector' },
 ]
 const panelPointerEvents = computed<'auto' | 'none'>(() => (resizeState.value ? 'none' : 'auto'))
 const rightPanelStyle = computed<CSSProperties>(() => ({
@@ -416,10 +346,18 @@ const {
 })
 
 // 当前选择派生信息
-
-const selectedLayout = computed<Record<string, unknown> | null>(() => {
-  const metadata = selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
-  return metadata?.location ? (metadata.location as Record<string, unknown>) : null
+const {
+  propertyInputs,
+  updateProperty: updateBlockProp,
+  addProperty: addBlockProp,
+  resetProperty: resetBlockProp,
+} = useCdePropertyPanelState({
+  selectedNode,
+  selectedBlock,
+  selectedCard,
+  selectedCardId,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  markDocumentChanged,
 })
 
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
@@ -456,72 +394,6 @@ const transformDisabledBlockIds = computed(() => {
     current = parent
   }
   return ids
-})
-
-// 属性面板输入源
-// Build the property-editor input for the selected block with instance overrides and null resolution.
-const blockPropsView = computed<Record<string, unknown> & { type?: string } | null>(() => {
-  const block = selectedBlock.value
-  if (!block) {
-    return null
-  }
-
-  if (selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return resolveNulls(
-      block.type,
-      block as Record<string, unknown>
-    ) as Record<string, unknown> & { type?: string }
-  }
-
-  const blockOverrides = selectedCard.value.data[block.id] ?? {}
-  return resolveNulls(block.type, {
-    ...block,
-    ...blockOverrides,
-  }) as Record<string, unknown> & { type?: string }
-})
-
-const blockInputOverride = computed<PropertyEditorSchemaOverride | undefined>(() => {
-  const block = selectedBlock.value
-  if (!block || selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value) {
-    return undefined
-  }
-
-  const instanceBlockData = selectedCard.value.data[block.id]
-  if (!instanceBlockData) {
-    return undefined
-  }
-
-  const overrideEntries = Object.keys(instanceBlockData).map((fieldKey) => [
-    fieldKey,
-    { resettable: true },
-  ] as const)
-
-  if (overrideEntries.length === 0) {
-    return undefined
-  }
-
-  return Object.fromEntries(overrideEntries)
-})
-
-const propertyInputs = computed<PropertyEditorInput[]>(() => {
-  const inputs: PropertyEditorInput[] = []
-
-  if (blockPropsView.value) {
-    inputs.push({
-      key: 'block',
-      record: blockPropsView.value,
-      override: blockInputOverride.value,
-    })
-  }
-
-  if (selectedLayout.value) {
-    inputs.push({
-      key: 'layout',
-      record: selectedLayout.value as Record<string, unknown> & { type?: string },
-    })
-  }
-
-  return inputs
 })
 
 // Build the render/view document by projecting the selected instance onto the blueprint document.
@@ -599,121 +471,6 @@ function toggleInstancePanel() {
 
 function handleViewportTransformChange(payload: { x: number; y: number; scale: number }) {
   viewportTransform.value = payload
-}
-
-function updateBlockProp({
-  sourceKey,
-  fieldKey,
-  value,
-}: PropertyEditorMutation) {
-  if (sourceKey === 'layout') {
-    const layout = selectedLayout.value
-    if (!layout) {
-      return
-    }
-
-    layout[fieldKey] = value
-    markDocumentChanged('typing')
-    return
-  }
-
-  const block = selectedBlock.value
-  if (!block) {
-    return
-  }
-
-  if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
-    const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
-    instanceBlockData[fieldKey] = value
-    markDocumentChanged('typing')
-    return
-  }
-
-  ; (block as Record<string, unknown>)[fieldKey] = value
-  if (block.type === 'image-block' && fieldKey === 'image') {
-    delete (block as Record<string, unknown>).imagePath
-  }
-
-  markDocumentChanged('typing')
-}
-
-function addBlockProp({
-  sourceKey,
-  fieldKey,
-  value,
-}: PropertyEditorMutation) {
-  if (sourceKey === 'layout') {
-    const layout = selectedLayout.value
-    if (!layout) {
-      return
-    }
-
-    layout[fieldKey] = value
-    markDocumentChanged('action')
-    return
-  }
-
-  const block = selectedBlock.value
-  if (!block) {
-    return
-  }
-
-  if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
-    const instanceBlockData = selectedCard.value.data[block.id] ?? (selectedCard.value.data[block.id] = {})
-    instanceBlockData[fieldKey] = value
-    markDocumentChanged('action')
-    return
-  }
-
-  ; (block as Record<string, unknown>)[fieldKey] = value
-  markDocumentChanged('action')
-}
-
-function resetBlockProp({
-  sourceKey,
-  fieldKey,
-}: PropertyEditorResetMutation) {
-  if (sourceKey === 'layout') {
-    const layout = selectedLayout.value
-    if (!layout) {
-      return
-    }
-
-    const layoutType = typeof layout.type === 'string' ? layout.type : undefined
-    const defaultValue = getDefault(layoutType, fieldKey)
-    if (defaultValue === undefined) {
-      delete layout[fieldKey]
-    } else {
-      layout[fieldKey] = defaultValue
-    }
-    markDocumentChanged('action')
-    return
-  }
-
-  const block = selectedBlock.value
-  if (!block) {
-    return
-  }
-
-  if (selectedCardId.value !== BLUEPRINT_CARD_ID && selectedCard.value) {
-    const didResetOverride = resetInstanceOverrideField(selectedCard.value.data, block.id, fieldKey)
-    if (!didResetOverride) {
-      return
-    }
-    markDocumentChanged('action')
-    return
-  }
-
-  const defaultValue = getDefault(block.type, fieldKey)
-  if (defaultValue === undefined) {
-    delete (block as Record<string, unknown>)[fieldKey]
-  } else {
-    ; (block as Record<string, unknown>)[fieldKey] = defaultValue
-  }
-  if (block.type === 'image-block' && fieldKey === 'image') {
-    delete (block as Record<string, unknown>).imagePath
-  }
-  markDocumentChanged('action')
 }
 
 function formatViewportCssValue(value: number): string {
@@ -808,3 +565,99 @@ onUnmounted(() => {
 })
 
 </script>
+
+<style scoped>
+.card-design-editor__viewport-host {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card-design-editor__viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.card-design-editor__overlay-layout {
+  min-width: 0;
+  min-height: 0;
+}
+
+.card-design-editor__center-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: var(--card-editor-center-track-min-width, 220px);
+  min-height: 0;
+}
+
+.card-design-editor__center-hud {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.card-design-editor__center-hud--xy {
+  left: 0;
+  bottom: 0;
+}
+
+.card-design-editor__center-hud--preview {
+  top: 0;
+  right: 0;
+}
+
+.transform-preview-viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+.transform-preview-shell {
+  position: absolute;
+  inset: 0 auto auto 0;
+}
+
+.transform-preview-stage {
+  line-height: 0;
+}
+
+/* CDE: layer + track-width safeguards for overlay side panes */
+.card-design-editor {
+  --oc-axis-layout-track-sidebar: var(--card-editor-left-panel-width, 272px);
+  --oc-axis-layout-track-inspector: var(--card-editor-right-panel-width, 320px);
+  --card-editor-overlay-xy-track-width: 160px;
+  --card-editor-overlay-preview-track-width: 260px;
+  --card-editor-center-safe-width: calc(420px + var(--card-editor-overlay-xy-track-width) + var(--card-editor-overlay-preview-track-width)) !important;
+}
+
+.card-design-editor .oc-overlay__base {
+  position: relative;
+  z-index: 0;
+}
+
+.card-design-editor .oc-overlay__layer {
+  z-index: 2;
+}
+
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='center-spacer']),
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-center-spacer) {
+  min-width: 0 !important;
+}
+
+.card-design-editor__center-hud--xy {
+  width: var(--card-editor-overlay-xy-track-width);
+}
+
+.card-design-editor__center-hud--preview {
+  width: var(--card-editor-overlay-preview-track-width);
+}
+
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='left-cardtree']),
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-left-cardtree),
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='right-structuretree']),
+.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-right-structuretree) {
+  position: relative;
+  z-index: 1;
+}
+</style>

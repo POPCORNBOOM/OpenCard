@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只处理文档结构编辑与选择同步 不处理文件系统规则
  */
-import { computed, toRaw, type Ref } from 'vue'
+import { computed, toRaw, watch, type Ref } from 'vue'
 import {
   addBlockToContainer,
   blockToTreeNode,
@@ -21,6 +21,7 @@ import {
   isBlockContainer,
   isCardBlock,
 } from '../entities/card/model'
+import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import type {
   ITreeNode,
   NodeTreeActionCalledPayload,
@@ -37,7 +38,7 @@ type UseCdeTreeOpsOptions = {
   cardDoc: Ref<CardDocument | null>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
-  markDocumentChanged: () => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
 function logTreeDndDebug(message: string, payloadFactory: () => Record<string, unknown>) {
@@ -73,8 +74,31 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return metadata?.block ?? null
   })
 
+  // Normalize selection keys without forcing a fallback node:
+  // - allow empty selection for viewport blank-click clear
+  // - collapse multi-select payloads to a single key
+  // - drop stale keys that no longer exist in tree
+  watch(
+    [blockTree, options.selectedBlockKeys],
+    ([nodes, selectedKeys]) => {
+      const currentKey = selectedKeys[0] ?? null
+      const matchedNode = currentKey ? findTreeNodeByKey(nodes, currentKey) : null
+      const normalizedSelectedKeys = matchedNode ? [matchedNode.key] : []
+
+      if (
+        currentKey === normalizedSelectedKeys[0]
+        && selectedKeys.length === normalizedSelectedKeys.length
+      ) {
+        return
+      }
+
+      options.selectedBlockKeys.value = normalizedSelectedKeys
+    },
+    { immediate: true },
+  )
+
   function onTreeSelect(nextSelectedKeys: string[]) {
-    options.selectedBlockKeys.value = nextSelectedKeys
+    options.selectedBlockKeys.value = nextSelectedKeys.length > 0 ? [nextSelectedKeys[0]] : []
   }
 
   function handleViewportBlockClick(blockId: string) {
@@ -141,7 +165,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     block.name = nextName
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function canDropTreeNode({ dragged, target, position }: NodeTreeCanDropPayload) {
@@ -232,7 +256,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
     const updatedNode = findTreeNodeByBlockId(blockTree.value, draggedBlock.id)
     options.selectedBlockKeys.value = updatedNode ? [updatedNode.key] : []
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function createBlockAt(container: BlockContainer, type: CardBlock['type']) {
@@ -254,7 +278,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     addBlockToContainer(container, newBlock, options.parentLookup.value)
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function deleteBlock(block: CardBlock) {
@@ -269,7 +293,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     options.selectedBlockKeys.value = options.selectedBlockKeys.value.filter((key) => key !== block.id)
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function duplicateBlock(block: CardBlock) {
@@ -298,7 +322,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
     const duplicatedNode = findTreeNodeByBlockId(blockTree.value, duplicatedBlock.id)
     options.selectedBlockKeys.value = duplicatedNode ? [duplicatedNode.key] : []
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function cloneBlockWithNewIds(sourceBlock: CardBlock): CardBlock {

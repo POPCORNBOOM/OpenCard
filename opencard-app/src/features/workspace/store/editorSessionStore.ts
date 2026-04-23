@@ -6,7 +6,7 @@
  */
 import { computed, readonly, ref } from 'vue'
 import type { ITreeNode } from '../../../shared/ui/tree/tree.types'
-import { resolveFileType } from '../model/fileTypes'
+import { resolveEntryIcon, resolveFileType } from '../model/fileTypes'
 import { useProjectStore } from './projectStore'
 
 export type EditorSession = {
@@ -48,14 +48,13 @@ export function useEditorSessionStore() {
 
   const openedFileNodes = computed<ITreeNode[]>(() =>
     sessions.value.map((session) => {
-      const fileType = resolveFileType(session.path)
+      const entryIcon = resolveEntryIcon(session.path, false)
       return {
         key: session.path,
         name: session.isDirty ? `${session.name} *` : session.name,
         isExpandable: false,
-        icon: fileType.icon,
-        iconTone: fileType.iconTone,
-        iconColor: fileType.iconColor,
+        icon: entryIcon.icon,
+        iconTone: entryIcon.tone,
         metadata: {
           sessionId: session.id,
           content: session.draftContent,

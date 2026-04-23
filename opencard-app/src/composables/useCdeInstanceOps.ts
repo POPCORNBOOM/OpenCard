@@ -9,6 +9,7 @@ import type {
   CardDocument,
   CardInstanceRecord,
 } from '../entities/card/model'
+import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import type {
   ITreeNode,
   NodeTreeActionCalledPayload,
@@ -23,7 +24,7 @@ type UseCdeInstanceOpsOptions = {
   blueprintCardId: string
   selectedCardId: Ref<string | null>
   selectedCardKeys: Ref<string[]>
-  markDocumentChanged: () => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
 export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
@@ -125,7 +126,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     }
 
     instance.name = nextName
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function getInstanceTreeAllowedDropPositions(target: ITreeNode | null) {
@@ -186,7 +187,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     instances.splice(insertionIndex, 0, draggedInstance)
     options.cardDoc.value.instances = instances
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function createInstance() {
@@ -204,7 +205,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     options.cardDoc.value.instances = [...(options.cardDoc.value.instances ?? []), nextInstance]
     options.selectedCardId.value = nextInstance.id
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function duplicateInstance(instanceId: string) {
@@ -229,7 +230,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     nextInstances.splice(sourceIndex + 1, 0, duplicatedInstance)
     options.cardDoc.value.instances = nextInstances
     options.selectedCardId.value = duplicatedInstance.id
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   function deleteInstance(instanceId: string) {
@@ -246,7 +247,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     if (options.selectedCardId.value === instanceId) {
       options.selectedCardId.value = options.blueprintCardId
     }
-    options.markDocumentChanged()
+    options.markDocumentChanged('action')
   }
 
   watch(

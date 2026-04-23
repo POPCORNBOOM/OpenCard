@@ -30,16 +30,48 @@ describe('OcChip', () => {
     expect(wrapper.classes()).toContain('is-truncate')
   })
 
-  it('applies maxWidth style when provided', () => {
+  it('maps maxWidth token to semantic class', () => {
     const wrapper = mount(OcChip, {
       props: {
-        maxWidth: '180px',
+        maxWidth: 'md',
       },
       slots: {
         default: 'content',
       },
     })
 
-    expect(wrapper.attributes('style')).toContain('max-width: 180px;')
+    expect(wrapper.classes()).toContain('oc-chip--max-width-md')
+  })
+
+  it('renders semantic icon props without bypassing the default slot', () => {
+    const wrapper = mount(OcChip, {
+      props: {
+        icon: 'icon.warning',
+        iconTone: 'warning',
+      },
+      slots: {
+        default: 'content',
+      },
+    })
+
+    const icon = wrapper.find('.oc-chip__icon')
+    expect(icon.exists()).toBe(true)
+    expect(icon.attributes('style')).toContain('var(--icon-warning)')
+    expect(wrapper.text()).toContain('content')
+  })
+
+  it('keeps slot-based icon composition compatible', () => {
+    const wrapper = mount(OcChip, {
+      props: {
+        icon: 'icon.warning',
+      },
+      slots: {
+        icon: '<span class="chip-icon-slot">slot-icon</span>',
+        default: 'content',
+      },
+    })
+
+    expect(wrapper.find('.chip-icon-slot').exists()).toBe(true)
+    expect(wrapper.find('.oc-chip__icon').exists()).toBe(false)
   })
 })

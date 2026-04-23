@@ -40,8 +40,8 @@ describe('OcToolbar', () => {
         shrink: false,
         align: 'center',
         justify: 'between',
-        gap: '6px',
-        padding: '4px 8px',
+        spacing: 'loose',
+        inset: 'comfortable',
       },
     })
 
@@ -49,7 +49,7 @@ describe('OcToolbar', () => {
     expect(wrapper.classes()).toContain('is-no-shrink')
     expect(wrapper.classes()).toContain('oc-toolbar--align-center')
     expect(wrapper.classes()).toContain('oc-toolbar--justify-between')
-    expect(wrapper.attributes('style')).toContain('--oc-toolbar-gap: 6px;')
-    expect(wrapper.attributes('style')).toContain('--oc-toolbar-padding: 4px 8px;')
+    expect(wrapper.classes()).toContain('oc-toolbar--spacing-loose')
+    expect(wrapper.classes()).toContain('oc-toolbar--inset-comfortable')
   })
 })

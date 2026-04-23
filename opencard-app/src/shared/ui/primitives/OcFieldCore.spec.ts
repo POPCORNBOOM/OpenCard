@@ -11,7 +11,7 @@ describe('OcFieldCore', () => {
     })
 
     expect(wrapper.element.tagName.toLowerCase()).toBe('input')
-    expect(wrapper.classes()).toContain('is-chromed')
+    expect(wrapper.classes()).toContain('oc-field-core--variant-chromed')
     expect(wrapper.attributes('placeholder')).toBe('Type value')
   })
 
@@ -23,9 +23,9 @@ describe('OcFieldCore', () => {
     expect(select.element.tagName.toLowerCase()).toBe('select')
 
     const textarea = mount(OcFieldCore, {
-      props: { as: 'textarea', chromed: false },
+      props: { as: 'textarea', variant: 'plain' },
     })
     expect(textarea.element.tagName.toLowerCase()).toBe('textarea')
-    expect(textarea.classes()).not.toContain('is-chromed')
+    expect(textarea.classes()).toContain('oc-field-core--variant-plain')
   })
 })

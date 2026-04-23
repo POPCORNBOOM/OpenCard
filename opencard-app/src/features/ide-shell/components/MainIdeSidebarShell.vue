@@ -12,37 +12,37 @@
           size="lg"
           block
           icon-only
+          icon="app.files"
+          :icon-tone="activeView === 'files' ? 'primary' : 'muted'"
           :active="activeView === 'files'"
           :title="t('sidebar.files')"
           :aria-label="t('sidebar.files')"
           @click="emit('update:activeView', 'files')"
-        >
-          <OcIcon name="app.files" tone="primary" />
-        </OcToolButton>
+        />
         <OcToolButton
           kind="sidebar"
           size="lg"
           block
           icon-only
+          icon="app.git"
+          :icon-tone="activeView === 'git' ? 'primary' : 'muted'"
           :active="activeView === 'git'"
           :title="t('sidebar.git')"
           :aria-label="t('sidebar.git')"
           @click="emit('update:activeView', 'git')"
-        >
-          <OcIcon name="app.git" tone="danger" />
-        </OcToolButton>
+        />
         <OcToolButton
           kind="sidebar"
           size="lg"
           block
           icon-only
+          icon="app.publish"
+          :icon-tone="activeView === 'publish' ? 'primary' : 'muted'"
           :active="activeView === 'publish'"
           :title="t('sidebar.publish')"
           :aria-label="t('sidebar.publish')"
           @click="emit('update:activeView', 'publish')"
-        >
-          <OcIcon name="app.publish" tone="warning" />
-        </OcToolButton>
+        />
       </OcToolbar>
     </template>
 
@@ -65,11 +65,11 @@
             <slot name="files" />
           </div>
 
-          <OcEmptyHint v-else-if="activeView === 'git'" align="start" padding="0" class="main-ide-sidebar-shell__empty">
+          <OcEmptyHint v-else-if="activeView === 'git'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
             {{ t('panels.gitPlaceholder') }}
           </OcEmptyHint>
 
-          <OcEmptyHint v-else-if="activeView === 'publish'" align="start" padding="0" class="main-ide-sidebar-shell__empty">
+          <OcEmptyHint v-else-if="activeView === 'publish'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
             {{ t('panels.publishPlaceholder') }}
           </OcEmptyHint>
         </template>
@@ -81,7 +81,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { OcEmptyHint, OcPanelSection, OcSidebarFrame, OcToolButton, OcToolbar } from '../../../components/base'
-import { OcIcon } from '../../../shared/ui/primitives'
 
 defineOptions({ name: 'MainIdeSidebarShell' })
 

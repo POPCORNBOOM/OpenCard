@@ -60,18 +60,45 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import OcButton from '../components/base/OcButton.vue'
 import ShowcaseCard from '../components/ui-kit/ShowcaseCard.vue'
 import ShowcaseExampleRenderer from '../components/ui-kit/ShowcaseExampleRenderer.vue'
-import { getOcTheme } from '../shared/ui/foundation'
 import { UI_KIT_SECTIONS, type ShowcaseExample } from './ui-kit/catalog'
 import { getShowcaseCode } from './ui-kit/showcaseCode'
 
 defineOptions({ name: 'UiKitShowcase' })
 
 const uiKitSections = UI_KIT_SECTIONS
-const currentTheme = computed(() => getOcTheme())
+
+// Bridge theme from app-level DOM dataset to avoid view -> foundation direct import.
+function readThemeFromDataset(): string {
+  if (typeof document === 'undefined') {
+    return 'light'
+  }
+
+  return document.documentElement.dataset.ocTheme ?? 'light'
+}
+
+const currentTheme = ref(readThemeFromDataset())
+let themeObserver: MutationObserver | null = null
+
+onMounted(() => {
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
+    return
+  }
+
+  const root = document.documentElement
+  themeObserver = new MutationObserver(() => {
+    currentTheme.value = readThemeFromDataset()
+  })
+  themeObserver.observe(root, { attributes: true, attributeFilter: ['data-oc-theme'] })
+})
+
+onBeforeUnmount(() => {
+  themeObserver?.disconnect()
+  themeObserver = null
+})
 
 function buildExampleDescription(example: ShowcaseExample): string {
   const stateLine = example.stateCoverage.join(' / ')

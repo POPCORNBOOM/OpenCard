@@ -15,10 +15,10 @@
   >
     <slot>
       <template v-if="iconOnly">
-        <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" />
+        <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" :tone="iconTone" />
       </template>
       <template v-else>
-        <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" />
+        <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" :tone="iconTone" />
         <OcText v-if="label" as="span" class="oc-tool-button__label">{{ label }}</OcText>
       </template>
     </slot>
@@ -28,6 +28,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
+import type { IconTone } from '../../shared/ui/icon/iconRegistry'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'
 type ToolButtonSize = 'sm' | 'md' | 'lg'
@@ -37,6 +38,7 @@ defineOptions({ name: 'OcToolButton' })
 const props = withDefaults(defineProps<{
   label?: string
   icon?: string
+  iconTone?: IconTone
   iconOnly?: boolean
   active?: boolean
   disabled?: boolean
@@ -48,6 +50,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   label: undefined,
   icon: undefined,
+  iconTone: undefined,
   iconOnly: false,
   active: false,
   disabled: false,

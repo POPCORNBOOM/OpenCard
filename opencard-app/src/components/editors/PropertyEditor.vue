@@ -77,17 +77,14 @@
 
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
-import { computed, type Component } from 'vue'
+import { computed, toRef, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   type PropertyEditorInput,
-  type PropertyEditorRecord,
 } from '../../entities/card/model'
 import {
-  getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
   type PropertyDatatype,
-  type PropertyEditorSchemaOverride,
 } from '../../entities/card/schema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
 import BackgroundPropertyField from './property-fields/BackgroundPropertyField.vue'
@@ -99,6 +96,11 @@ import FlowDirectionPropertyField from './property-fields/FlowDirectionPropertyF
 import NumberPropertyField from './property-fields/NumberPropertyField.vue'
 import ObjectPropertyField from './property-fields/ObjectPropertyField.vue'
 import StringPropertyField from './property-fields/StringPropertyField.vue'
+import {
+  useCdePropertyEditorView,
+  type CdePropertyEditorCategory,
+} from '../../composables/useCdePropertyEditorView'
+import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelState'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
 import { OcIcon } from '../../shared/ui/primitives'
@@ -121,40 +123,10 @@ const emit = defineEmits<{
   (e: 'reset-property', payload: PropertyEditorResetMutation): void
 }>()
 
-// 视图模型。
-type SortMode = 'category' | 'alphabetical'
-
-type PropertyEditorEntry = {
-  key: string
-  label: string
-  value: unknown
-  definition: EditorPropertyDefinition
-}
-
-type AddableField = {
-  key: string
-  label: string
-  definition: EditorPropertyDefinition
-}
-
-type PropertyEditorCategory = {
-  sourceKey: string
-  key: string
-  title: string
-  entries: PropertyEditorEntry[]
-  addableFields: AddableField[]
-}
-
-type PropertyEditorSourceView = {
-  key: string
-  title: string
-  categories: PropertyEditorCategory[]
-}
-
 // 组件输入协议。
 const props = defineProps<{
   inputs: PropertyEditorInput[]
-  sortMode: SortMode
+  sortMode: CdePropertySortMode
 }>()
 
 // 运行时依赖与编辑器映射。
@@ -176,14 +148,16 @@ const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
   object: { component: ObjectPropertyField, icon: 'icon.symbol-class' },
 }
 
-const readonlyExtraFieldDefinition: EditorPropertyDefinition = {
-  datatype: 'string',
-  isReadonly: true,
-  categoryId: 'uncategorized',
-}
-
 const { openMenu } = useFloatingMenu()
 const { t, te } = useI18n()
+
+function resolveLocalizedText(messageKey: string, fallback: string): string {
+  if (te(messageKey)) {
+    return t(messageKey)
+  }
+
+  return fallback
+}
 
 const addFieldActionText = computed(() =>
   resolveLocalizedText('propertyEditor.actions.addField', 'Add Field')
@@ -192,16 +166,12 @@ const resetFieldActionText = computed(() =>
   resolveLocalizedText('propertyEditor.actions.reset', 'Reset')
 )
 
-// 属性面板展示源派生。
-const displaySources = computed<PropertyEditorSourceView[]>(() =>
-  props.inputs
-    .map((source) => ({
-      key: source.key,
-      title: getSourceTitle(source.key),
-      categories: buildCategories(source),
-    }))
-    .filter((source) => source.categories.length > 0)
-)
+const { displaySources } = useCdePropertyEditorView({
+  inputs: toRef(props, 'inputs'),
+  sortMode: toRef(props, 'sortMode'),
+  translate: (messageKey) => t(messageKey),
+  hasMessage: (messageKey) => te(messageKey),
+})
 
 function getEditorComponent(datatype: PropertyDatatype): Component {
   return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
@@ -211,182 +181,8 @@ function getEditorIconClass(datatype: PropertyDatatype): string {
   return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).icon
 }
 
-// 分类与字段构建逻辑。
-function buildCategories(source: PropertyEditorInput): PropertyEditorCategory[] {
-  const definitions = resolveDefinitions(source.record, source.override)
-  const visibleDefinitionEntries = Object.entries(definitions)
-    .filter(([, definition]) => !definition.isHidden)
-
-  const existingEntries = Object.keys(source.record)
-    .map((fieldKey) => {
-      const schemaDefinition = definitions[fieldKey]
-      if (schemaDefinition?.isHidden) {
-        return null
-      }
-
-      const resolvedDefinition = schemaDefinition ?? readonlyExtraFieldDefinition
-      return createEntry(source.record, fieldKey, resolvedDefinition)
-    })
-    .filter((entry): entry is PropertyEditorEntry => entry !== null)
-
-  const addableFields = visibleDefinitionEntries
-    .filter(([fieldKey]) => !Object.prototype.hasOwnProperty.call(source.record, fieldKey))
-    .map(([fieldKey, definition]) => ({
-      key: fieldKey,
-      label: getEntryLabel(fieldKey, definition),
-      definition,
-    }))
-
-  if (props.sortMode === 'alphabetical') {
-    const sortedEntries = sortEntriesByLabel(existingEntries)
-    const sortedAddableFields = sortAddableFields(addableFields)
-    return sortedEntries.length > 0 || sortedAddableFields.length > 0
-      ? [{
-        sourceKey: source.key,
-        key: 'a-z',
-        title: 'A-Z',
-        entries: sortedEntries,
-        addableFields: sortedAddableFields,
-      }]
-      : []
-  }
-
-  const categoryMap = new Map<string, PropertyEditorCategory>()
-
-  for (const entry of existingEntries) {
-    const category = ensureCategory(categoryMap, source.key, entry.definition, source.key)
-    category.entries.push(entry)
-  }
-
-  for (const field of addableFields) {
-    const category = ensureCategory(categoryMap, source.key, field.definition, source.key)
-    category.addableFields.push(field)
-  }
-
-  return Array.from(categoryMap.values())
-    .map((category) => ({
-      ...category,
-      entries: sortEntriesByLabel(category.entries),
-      addableFields: sortAddableFields(category.addableFields),
-    }))
-    .filter((category) => category.entries.length > 0 || category.addableFields.length > 0)
-    .sort((left, right) => compareText(left.title, right.title))
-}
-
-function ensureCategory(
-  categoryMap: Map<string, PropertyEditorCategory>,
-  sourceKey: string,
-  definition: EditorPropertyDefinition,
-  sourceFallbackKey: string,
-): PropertyEditorCategory {
-  const categoryId = definition.categoryId
-  const categoryKey = categoryId ? `category:${categoryId}` : `fallback:${sourceFallbackKey}`
-  const categoryTitle = categoryId
-    ? resolveLocalizedText(`propertyEditor.categories.${categoryId}`, categoryId)
-    : getSourceTitle(sourceFallbackKey)
-
-  let category = categoryMap.get(categoryKey)
-  if (!category) {
-    category = {
-      sourceKey,
-      key: categoryKey,
-      title: categoryTitle,
-      entries: [],
-      addableFields: [],
-    }
-    categoryMap.set(categoryKey, category)
-  }
-
-  return category
-}
-
-function createEntry(
-  record: PropertyEditorRecord,
-  fieldKey: string,
-  definition: EditorPropertyDefinition,
-): PropertyEditorEntry {
-  return {
-    key: fieldKey,
-    label: getEntryLabel(fieldKey, definition),
-    value: record[fieldKey],
-    definition,
-  }
-}
-
-// 文案解析与 schema 合并。
-function getSourceTitle(sourceKey: string): string {
-  return resolveLocalizedText(`propertyEditor.sources.${sourceKey}`, sourceKey)
-}
-
-function getEntryLabel(fieldKey: string, definition: EditorPropertyDefinition): string {
-  const localizedFieldKey = definition.displayFieldKey ?? fieldKey
-  return resolveLocalizedText(`propertyEditor.fields.${localizedFieldKey}`, fieldKey)
-}
-
-function resolveLocalizedText(messageKey: string | undefined, fallback: string): string {
-  if (messageKey && te(messageKey)) {
-    return t(messageKey)
-  }
-
-  return fallback
-}
-
-function resolveDefinitions(
-  record: PropertyEditorRecord,
-  override?: PropertyEditorSchemaOverride,
-): Record<string, EditorPropertyDefinition> {
-  const recordType = typeof record.type === 'string' ? record.type : undefined
-  const baseDefinitions = getTypePropertyEditorSchema(recordType)
-  if (!override) {
-    return baseDefinitions
-  }
-
-  const mergedDefinitions: Record<string, EditorPropertyDefinition> = { ...baseDefinitions }
-  for (const [fieldKey, fieldOverride] of Object.entries(override)) {
-    const baseDefinition = mergedDefinitions[fieldKey]
-    if (baseDefinition) {
-      mergedDefinitions[fieldKey] = {
-        ...baseDefinition,
-        ...fieldOverride,
-      } as EditorPropertyDefinition
-      continue
-    }
-
-    if (fieldOverride.datatype) {
-      mergedDefinitions[fieldKey] = fieldOverride as EditorPropertyDefinition
-    }
-  }
-
-  return mergedDefinitions
-}
-
-// 排序工具。
-function sortEntriesByLabel(entries: PropertyEditorEntry[]): PropertyEditorEntry[] {
-  return [...entries].sort((left, right) => {
-    const labelCompare = compareText(left.label, right.label)
-    if (labelCompare !== 0) {
-      return labelCompare
-    }
-    return compareText(left.key, right.key)
-  })
-}
-
-function sortAddableFields(fields: AddableField[]): AddableField[] {
-  return [...fields].sort((left, right) => {
-    const labelCompare = compareText(left.label, right.label)
-    if (labelCompare !== 0) {
-      return labelCompare
-    }
-    return compareText(left.key, right.key)
-  })
-}
-
-function compareText(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { sensitivity: 'base' })
-}
-
 // 添加字段与重置交互。
-function openAddFieldMenu(event: MouseEvent, category: PropertyEditorCategory): void {
+function openAddFieldMenu(event: MouseEvent, category: CdePropertyEditorCategory): void {
   const anchor = event.currentTarget
   if (!(anchor instanceof HTMLElement)) {
     return

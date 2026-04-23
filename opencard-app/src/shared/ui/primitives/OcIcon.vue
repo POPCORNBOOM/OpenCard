@@ -5,7 +5,7 @@
     :class="[icon.value, sizeClass]"
     :style="iconStyle"
     aria-hidden="true"
-    v-bind="$attrs"
+    v-bind="forwardedAttrs"
   />
   <svg
     v-else
@@ -15,14 +15,14 @@
     :viewBox="icon.viewBox ?? '0 0 24 24'"
     fill="currentColor"
     aria-hidden="true"
-    v-bind="$attrs"
+    v-bind="forwardedAttrs"
   >
     <path :d="icon.value" />
   </svg>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useAttrs } from 'vue'
 import { resolveIcon, type IconResolvable, type IconTone } from '../icon/iconRegistry'
 
 type OcIconTone =
@@ -47,7 +47,7 @@ type OcIconTone =
   | 'folder-locales'
   | 'folder-core'
 
-type OcIconSize = 'sm' | 'md' | 'lg' | number | string
+type OcIconSize = 'sm' | 'md' | 'lg'
 
 defineOptions({
   name: 'OcIcon',
@@ -58,14 +58,18 @@ const props = withDefaults(defineProps<{
   name?: IconResolvable
   tone?: OcIconTone
   size?: OcIconSize
-  color?: string
 }>(), {
   name: 'file.default',
   tone: 'default',
   size: 'md',
 })
 
+const attrs = useAttrs()
 const icon = computed(() => resolveIcon(props.name))
+const forwardedAttrs = computed(() => {
+  const { color: _deprecatedColor, ...restAttrs } = attrs
+  return restAttrs
+})
 
 const iconColorMap: Record<OcIconTone, string> = {
   default: 'var(--icon-default)',
@@ -96,34 +100,11 @@ const iconColorMap: Record<OcIconTone, string> = {
 }
 
 const sizeClass = computed(() => {
-  if (props.size === 'sm' || props.size === 'md' || props.size === 'lg') {
-    return `oc-icon--${props.size}`
-  }
-
-  return null
-})
-
-const customSize = computed(() => {
-  if (sizeClass.value) {
-    return null
-  }
-
-  if (props.size === undefined || props.size === null) {
-    return null
-  }
-
-  return typeof props.size === 'number' ? `${props.size}px` : props.size
+  return `oc-icon--${props.size}`
 })
 
 const iconStyle = computed(() => ({
-  color: props.color ?? iconColorMap[props.tone],
-  ...(customSize.value
-    ? {
-      fontSize: customSize.value,
-      width: customSize.value,
-      height: customSize.value,
-    }
-    : {}),
+  color: iconColorMap[props.tone] ?? iconColorMap.default,
 }))
 </script>
 

@@ -32,7 +32,7 @@
         @mousedown.stop
         @click.stop="handleToggleClick"
       />
-      <OcIcon :name="node.icon || 'file.default'" :tone="node.iconTone" :color="node.iconColor" />
+      <OcIcon :name="node.icon || 'file.default'" :tone="node.iconTone" />
       <span
         v-if="!isRenaming"
         class="node-name node-name-label"

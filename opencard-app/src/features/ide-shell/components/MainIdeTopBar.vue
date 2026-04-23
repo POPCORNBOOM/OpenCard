@@ -3,7 +3,7 @@
     <template #start>
       <div class="main-ide-top-bar__brand" aria-label="OpenCard workspace">
         <div class="main-ide-top-bar__name">OpenCard</div>
-        <OcChip v-if="projectName" class="main-ide-top-bar__project" truncate max-width="220px">
+        <OcChip v-if="projectName" class="main-ide-top-bar__project" truncate max-width="lg">
           {{ projectName }}
         </OcChip>
       </div>

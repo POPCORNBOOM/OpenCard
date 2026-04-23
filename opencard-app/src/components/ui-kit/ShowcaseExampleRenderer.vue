@@ -326,7 +326,7 @@
         </OcBar>
       </OcSurface>
       <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
-        <OcBar kind="section" border="bottom" gap="6px" padding="0 6px">
+        <OcBar kind="section" border="bottom" spacing="compact" inset="compact">
           <OcText size="label" tone="muted">Section Header</OcText>
         </OcBar>
       </OcSurface>
@@ -368,7 +368,7 @@
       <OcChip tone="info">tone-info</OcChip>
     </template>
     <template v-else-if="column === 'states'">
-      <OcChip truncate max-width="140px">Long chip value for truncation preview</OcChip>
+      <OcChip truncate>Long chip value for truncation preview</OcChip>
     </template>
     <template v-else>
       <OcBox inline class="chip-demo-row">
@@ -395,12 +395,12 @@
     </template>
     <template v-else-if="column === 'states'">
       <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
-        <OcEmptyHint align="start" padding="8px 10px">Hint aligned to start.</OcEmptyHint>
+        <OcEmptyHint align="start" inset="compact">Hint aligned to start.</OcEmptyHint>
       </OcSurface>
     </template>
     <template v-else>
       <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
-        <OcEmptyHint align="center" padding="14px 10px">Use this in side panels and editors.</OcEmptyHint>
+        <OcEmptyHint align="center" inset="comfortable">Use this in side panels and editors.</OcEmptyHint>
       </OcSurface>
     </template>
   </div>
@@ -429,7 +429,7 @@
           </OcFloatingPanelShell>
         </template>
       </OcOverlay>
-      <OcOverlay class="overlay-demo-shell" :interactive="false" inset="8px">
+      <OcOverlay class="overlay-demo-shell" :interactive="false" inset="var(--oc-space-2)">
         <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
           <OcText tone="secondary">interactive=false</OcText>
         </OcSurface>
@@ -441,9 +441,9 @@
       </OcOverlay>
     </template>
     <template v-else-if="column === 'states'">
-      <OcOverlay class="overlay-demo-shell" inset="10px 12px">
+      <OcOverlay class="overlay-demo-shell" inset="var(--oc-space-2) var(--oc-space-3)">
         <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
-          <OcText tone="secondary">Inset 10px 12px</OcText>
+          <OcText tone="secondary">Inset space-2 / space-3</OcText>
         </OcSurface>
         <template #overlay>
           <OcSurface variant="floating" bordered radius="md" class="overlay-demo-chip">
@@ -515,21 +515,20 @@
           <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">96px</OcSurface>
         </template>
         <template #centerMain>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">track=* (fill)
-          </OcSurface>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">track=fill</OcSurface>
         </template>
       </OcAxisLayout>
     </template>
     <template v-else>
       <OcAxisLayout axis="horizontal" :regions="axisLayoutRegions" class="axis-demo-layout">
         <template #leftActivity>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">48-64</OcSurface>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">size-sm</OcSurface>
         </template>
         <template #leftExplorer>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">2*</OcSurface>
+          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">fill-2</OcSurface>
         </template>
         <template #centerCanvas>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">*</OcSurface>
+          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">fill</OcSurface>
         </template>
         <template #rightPanel>
           <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--right">auto</OcSurface>
@@ -706,15 +705,15 @@
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="toolbar-shell toolbar-shell--activity">
         <OcToolbar kind="sidebar" aria-label="Activity tools">
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'files'" aria-label="Files"
+          <OcToolButton kind="sidebar" icon-only :active="toolView === 'files'" aria-label="Files"
             @click="toolView = 'files'">
             <OcIcon name="icon.files" />
           </OcToolButton>
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'search'" aria-label="Search"
+          <OcToolButton kind="sidebar" icon-only :active="toolView === 'search'" aria-label="Search"
             @click="toolView = 'search'">
             <OcIcon name="icon.search" />
           </OcToolButton>
-          <OcToolButton kind="sidebar" iconOnly :active="toolView === 'publish'" aria-label="Publish"
+          <OcToolButton kind="sidebar" icon-only :active="toolView === 'publish'" aria-label="Publish"
             @click="toolView = 'publish'">
             <OcIcon name="icon.rocket" />
           </OcToolButton>
@@ -747,7 +746,12 @@
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-split-pane'">
     <template v-if="column === 'default'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell">
-        <OcSplitPane orientation="horizontal" fixedPane="secondary" fixedSize="120px" secondaryMinSize="96px">
+        <OcSplitPane
+          orientation="horizontal"
+          fixed-pane="secondary"
+          fixed-size="calc(var(--oc-space-6) * 5)"
+          secondary-min-size="calc(var(--oc-space-6) * 4)"
+        >
           <template #primary>
             <div class="split-demo-pane split-demo-pane--primary">Canvas</div>
           </template>
@@ -762,8 +766,13 @@
     </template>
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--stack">
-        <OcSplitPane orientation="vertical" fixedPane="primary" fixedSize="84px" primaryMinSize="64px"
-          secondaryMinSize="96px">
+        <OcSplitPane
+          orientation="vertical"
+          fixed-pane="primary"
+          fixed-size="calc(var(--oc-space-3) * 7)"
+          primary-min-size="calc(var(--oc-space-4) * 4)"
+          secondary-min-size="calc(var(--oc-space-6) * 4)"
+        >
           <template #primary>
             <div class="split-demo-pane split-demo-pane--secondary">Tree</div>
           </template>
@@ -785,8 +794,12 @@
     </template>
     <template v-else>
       <OcSurface variant="panel" bordered radius="md" class="split-shell">
-        <OcSplitPane orientation="horizontal" fixedPane="secondary"
-          :fixedSize="splitPaneMode === 'left' ? '96px' : '144px'" secondaryMinSize="96px">
+        <OcSplitPane
+          orientation="horizontal"
+          fixed-pane="secondary"
+          :fixed-size="splitPaneMode === 'left' ? 'calc(var(--oc-space-6) * 4)' : 'calc(var(--oc-space-6) * 6)'"
+          secondary-min-size="calc(var(--oc-space-6) * 4)"
+        >
           <template #primary>
             <div class="split-demo-pane split-demo-pane--primary">
               {{ splitPaneMode === 'left' ? 'Wide Canvas' : 'Compact Canvas' }}
@@ -797,7 +810,7 @@
           </template>
           <template #secondary>
             <div class="split-demo-pane split-demo-pane--secondary">
-              <OcToolButton kind="panel" iconOnly icon="icon.arrow-swap" aria-label="Toggle split preview"
+              <OcToolButton kind="panel" icon-only icon="icon.arrow-swap" aria-label="Toggle split preview"
                 @click="splitPaneMode = splitPaneMode === 'left' ? 'right' : 'left'" />
             </div>
           </template>
@@ -823,8 +836,8 @@
     <template v-else-if="column === 'states'">
       <OcFloatingPanelShell class="floating-shell-demo">
         <OcToolbar kind="panel" aria-label="Overlay tools">
-          <OcToolButton kind="panel" iconOnly icon="icon.list-tree" aria-label="Tree" :active="true" />
-          <OcToolButton kind="panel" iconOnly icon="icon.symbol-string" aria-label="A-Z" />
+          <OcToolButton kind="panel" icon-only icon="icon.list-tree" aria-label="Tree" :active="true" />
+          <OcToolButton kind="panel" icon-only icon="icon.symbol-string" aria-label="A-Z" />
         </OcToolbar>
       </OcFloatingPanelShell>
     </template>
@@ -846,21 +859,21 @@
             </OcToolbar>
           </template>
           <template #panel>
-            <OcEmptyHint align="start" padding="12px">Panel area</OcEmptyHint>
+            <OcEmptyHint align="start" inset="compact">Panel area</OcEmptyHint>
           </template>
         </OcSidebarFrame>
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
-        <OcSidebarFrame activity-width="60px" panel-width="220px">
+        <OcSidebarFrame activity-size="compact" panel-size="compact">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity compact">
               <OcToolButton kind="sidebar" icon-only icon="icon.search" aria-label="Search" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
-            <OcEmptyHint align="start" padding="10px">Compact panel</OcEmptyHint>
+            <OcEmptyHint align="start" inset="compact">Compact panel</OcEmptyHint>
           </template>
         </OcSidebarFrame>
       </OcSurface>
@@ -881,15 +894,15 @@
     </template>
     <template v-else>
       <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
-        <OcSidebarFrame activity-width="72px" panel-width="250px">
+        <OcSidebarFrame activity-size="spacious" panel-size="default">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity layout">
               <OcToolButton kind="sidebar" icon-only icon="icon.rocket" aria-label="Publish" :active="true" />
             </OcToolbar>
           </template>
           <template #panel>
-            <OcPanelSection title="Explorer" :header-min-height="'32px'" fill>
-              <OcEmptyHint align="start" padding="8px">Nested section in sidebar frame.</OcEmptyHint>
+            <OcPanelSection title="Explorer" header-density="compact" fill>
+              <OcEmptyHint align="start" inset="compact">Nested section in sidebar frame.</OcEmptyHint>
             </OcPanelSection>
           </template>
         </OcSidebarFrame>
@@ -904,7 +917,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import OcAxisLayout from '../base/OcAxisLayout.vue'
+import OcAxisLayout, { type AxisRegion } from '../base/OcAxisLayout.vue'
 import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
 import OcChip from '../base/OcChip.vue'
@@ -959,34 +972,34 @@ const toolView = ref('files')
 const toolPanelMode = ref('tree')
 const splitPaneMode = ref('left')
 
-const overlayLayoutRegions = [
+const overlayLayoutRegions: AxisRegion[] = [
   { slot: 'top-tools', track: 'auto' },
-  { slot: 'overlay-spacer', track: '*' },
+  { slot: 'overlay-spacer', track: 'fill' },
   { slot: 'bottom-info', track: 'auto' },
 ]
 
-const axisHorizontalRegions = [
-  { slot: 'leftRail', track: '84px' },
-  { slot: 'centerStage', track: '*' },
-  { slot: 'rightInspector', track: '112px' },
+const axisHorizontalRegions: AxisRegion[] = [
+  { slot: 'leftRail', track: 'sidebar' },
+  { slot: 'centerStage', track: 'fill' },
+  { slot: 'rightInspector', track: 'size-xl' },
 ]
 
-const axisVerticalRegions = [
-  { slot: 'topBar', track: '48px' },
-  { slot: 'centerContent', track: '*' },
-  { slot: 'bottomInfo', track: '42px' },
+const axisVerticalRegions: AxisRegion[] = [
+  { slot: 'topBar', track: 'size-sm' },
+  { slot: 'centerContent', track: 'fill' },
+  { slot: 'bottomInfo', track: 'size-xs' },
 ]
 
-const axisStatesRegions = [
-  { slot: 'leftTools', track: '72px' },
-  { slot: 'leftNav', track: '96px' },
-  { slot: 'centerMain', track: '*' },
+const axisStatesRegions: AxisRegion[] = [
+  { slot: 'leftTools', track: 'size-md' },
+  { slot: 'leftNav', track: 'size-lg' },
+  { slot: 'centerMain', track: 'fill' },
 ]
 
-const axisLayoutRegions = [
-  { slot: 'leftActivity', track: 'minmax(48px, 64px)' },
-  { slot: 'leftExplorer', track: '2*' },
-  { slot: 'centerCanvas', track: '*' },
+const axisLayoutRegions: AxisRegion[] = [
+  { slot: 'leftActivity', track: 'size-sm' },
+  { slot: 'leftExplorer', track: 'fill-2' },
+  { slot: 'centerCanvas', track: 'fill' },
   { slot: 'rightPanel', track: 'auto' },
 ]
 

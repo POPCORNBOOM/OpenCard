@@ -3,6 +3,7 @@
     :is="as"
     class="oc-surface"
     :class="surfaceClass"
+    :style="forwardedStyle"
     v-bind="forwardedAttrs"
   >
     <slot />
@@ -10,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { useAttrs } from 'vue'
+import { computed, useAttrs } from 'vue'
 import {
   useOcSurfaceCapabilities,
   type OcSurfacePattern,
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<{
 
 const attrs = useAttrs()
 const forwardedAttrs = useOcForwardAttrs(attrs)
+const forwardedStyle = computed(() => attrs.style)
 const { surfaceClass } = useOcSurfaceCapabilities({
   variant: props.variant,
   radius: props.radius,

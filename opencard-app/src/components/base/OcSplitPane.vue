@@ -16,15 +16,31 @@ import { computed } from 'vue'
 type SplitPaneOrientation = 'horizontal' | 'vertical'
 type FixedPane = 'primary' | 'secondary'
 type SplitPaneRadius = 'none' | 'sm' | 'md' | 'lg'
+type SplitPaneSizePreset = 'sm' | 'md' | 'lg' | 'workspace'
+type SplitPaneSize = SplitPaneSizePreset | (string & {})
+
+const SPLIT_PANE_FIXED_SIZE_PRESETS: Record<SplitPaneSizePreset, string> = {
+  sm: 'var(--oc-split-pane-fixed-sm, 220px)',
+  md: 'var(--oc-split-pane-fixed-md, 320px)',
+  lg: 'var(--oc-split-pane-fixed-lg, 420px)',
+  workspace: 'var(--oc-split-pane-fixed-workspace, var(--card-editor-tree-panel-height, 320px))',
+}
+
+const SPLIT_PANE_MIN_SIZE_PRESETS: Record<SplitPaneSizePreset, string> = {
+  sm: 'var(--oc-split-pane-min-sm, 140px)',
+  md: 'var(--oc-split-pane-min-md, 180px)',
+  lg: 'var(--oc-split-pane-min-lg, 220px)',
+  workspace: 'var(--oc-split-pane-min-workspace, var(--card-editor-min-property-panel-height, 180px))',
+}
 
 defineOptions({ name: 'OcSplitPane' })
 
 const props = withDefaults(defineProps<{
   orientation?: SplitPaneOrientation
   fixedPane?: FixedPane
-  fixedSize?: string
-  primaryMinSize?: string
-  secondaryMinSize?: string
+  fixedSize?: SplitPaneSize
+  primaryMinSize?: SplitPaneSize
+  secondaryMinSize?: SplitPaneSize
   clip?: boolean
   radius?: SplitPaneRadius
 }>(), {
@@ -44,7 +60,22 @@ const splitPaneClass = computed(() => [
   { 'is-clip': props.clip },
 ])
 
-function resolveFixedPaneStyle(targetPane: FixedPane, minSize?: string) {
+function resolveSplitPaneSize(
+  size: SplitPaneSize | undefined,
+  presets: Record<SplitPaneSizePreset, string>,
+): string | undefined {
+  if (size === undefined) {
+    return undefined
+  }
+
+  return presets[size as SplitPaneSizePreset] ?? size
+}
+
+const resolvedFixedSize = computed(() => resolveSplitPaneSize(props.fixedSize, SPLIT_PANE_FIXED_SIZE_PRESETS))
+const resolvedPrimaryMinSize = computed(() => resolveSplitPaneSize(props.primaryMinSize, SPLIT_PANE_MIN_SIZE_PRESETS))
+const resolvedSecondaryMinSize = computed(() => resolveSplitPaneSize(props.secondaryMinSize, SPLIT_PANE_MIN_SIZE_PRESETS))
+
+function resolveFixedPaneStyle(targetPane: FixedPane, fixedSize?: string, minSize?: string) {
   if (props.fixedPane !== targetPane) {
     return {
       minWidth: props.orientation === 'horizontal' ? minSize : undefined,
@@ -52,7 +83,7 @@ function resolveFixedPaneStyle(targetPane: FixedPane, minSize?: string) {
     }
   }
 
-  if (!props.fixedSize) {
+  if (!fixedSize) {
     return {
       minWidth: props.orientation === 'horizontal' ? minSize : undefined,
       minHeight: props.orientation === 'vertical' ? minSize : undefined,
@@ -60,16 +91,16 @@ function resolveFixedPaneStyle(targetPane: FixedPane, minSize?: string) {
   }
 
   return {
-    flexBasis: props.fixedSize,
-    width: props.orientation === 'horizontal' ? props.fixedSize : undefined,
-    height: props.orientation === 'vertical' ? props.fixedSize : undefined,
+    flexBasis: fixedSize,
+    width: props.orientation === 'horizontal' ? fixedSize : undefined,
+    height: props.orientation === 'vertical' ? fixedSize : undefined,
     minWidth: props.orientation === 'horizontal' ? minSize : undefined,
     minHeight: props.orientation === 'vertical' ? minSize : undefined,
   }
 }
 
-const primaryPaneStyle = computed(() => resolveFixedPaneStyle('primary', props.primaryMinSize))
-const secondaryPaneStyle = computed(() => resolveFixedPaneStyle('secondary', props.secondaryMinSize))
+const primaryPaneStyle = computed(() => resolveFixedPaneStyle('primary', resolvedFixedSize.value, resolvedPrimaryMinSize.value))
+const secondaryPaneStyle = computed(() => resolveFixedPaneStyle('secondary', resolvedFixedSize.value, resolvedSecondaryMinSize.value))
 </script>
 
 <style scoped>

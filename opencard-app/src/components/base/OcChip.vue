@@ -1,14 +1,26 @@
 <template>
-  <span class="oc-chip" :class="chipClass" :style="chipStyle">
+  <span class="oc-chip" :class="chipClass">
+    <slot name="icon">
+      <OcIcon
+        v-if="props.icon"
+        class="oc-chip__icon"
+        :name="props.icon"
+        :tone="props.iconTone"
+        size="sm"
+      />
+    </slot>
     <slot />
   </span>
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue'
+import { computed } from 'vue'
+import type { IconResolvable, IconTone } from '../../shared/ui/icon/iconRegistry'
+import { OcIcon } from '../../shared/ui/primitives'
 
 type ChipTone = 'default' | 'info'
 type ChipSize = 'sm' | 'md'
+type ChipDimension = 'none' | 'sm' | 'md' | 'lg' | 'full'
 
 defineOptions({ name: 'OcChip' })
 
@@ -16,23 +28,24 @@ const props = withDefaults(defineProps<{
   tone?: ChipTone
   size?: ChipSize
   truncate?: boolean
-  maxWidth?: string
+  maxWidth?: ChipDimension
+  icon?: IconResolvable
+  iconTone?: IconTone
 }>(), {
   tone: 'default',
   size: 'sm',
   truncate: false,
-  maxWidth: undefined,
+  maxWidth: 'none',
+  icon: undefined,
+  iconTone: 'default',
 })
 
 const chipClass = computed(() => [
   `oc-chip--tone-${props.tone}`,
   `oc-chip--size-${props.size}`,
+  `oc-chip--max-width-${props.maxWidth}`,
   { 'is-truncate': props.truncate },
 ])
-
-const chipStyle = computed<CSSProperties>(() => ({
-  ...(props.maxWidth ? { maxWidth: props.maxWidth } : {}),
-}))
 </script>
 
 <style scoped>
@@ -48,6 +61,10 @@ const chipStyle = computed<CSSProperties>(() => ({
   color: var(--oc-text-primary);
 }
 
+.oc-chip__icon {
+  flex-shrink: 0;
+}
+
 .oc-chip--size-sm {
   min-height: 18px;
   font-size: var(--oc-label-size);
@@ -60,6 +77,26 @@ const chipStyle = computed<CSSProperties>(() => ({
 
 .oc-chip--tone-info {
   color: var(--oc-text-info);
+}
+
+.oc-chip--max-width-none {
+  max-width: none;
+}
+
+.oc-chip--max-width-sm {
+  max-width: 120px;
+}
+
+.oc-chip--max-width-md {
+  max-width: 180px;
+}
+
+.oc-chip--max-width-lg {
+  max-width: 240px;
+}
+
+.oc-chip--max-width-full {
+  max-width: 100%;
 }
 
 .oc-chip.is-truncate {

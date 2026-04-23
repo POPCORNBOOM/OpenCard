@@ -211,10 +211,16 @@ function normalizeWheelDelta(event: WheelEvent): number {
 }
 
 function getBaseOffsetXForScale(value: number): number {
+  if (viewportWidth.value <= 0) {
+    return 0
+  }
   return (viewportWidth.value - props.document.width * value) / 2
 }
 
 function getBaseOffsetYForScale(value: number): number {
+  if (viewportHeight.value <= 0) {
+    return 0
+  }
   return (viewportHeight.value - props.document.height * value) / 2
 }
 
@@ -624,7 +630,11 @@ watch(
 
 <style scoped>
 .card-viewport {
-  flex: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   background-color: var(--oc-bg-elevated);

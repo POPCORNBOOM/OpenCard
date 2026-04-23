@@ -16,7 +16,7 @@ describe('OcSplitPane', () => {
     expect(wrapper.classes()).toContain('oc-split-pane--horizontal')
   })
 
-  it('applies fixed secondary size in horizontal mode', () => {
+  it('keeps legacy fixed/min string sizes in horizontal mode', () => {
     const wrapper = mount(OcSplitPane, {
       props: {
         orientation: 'horizontal',
@@ -36,13 +36,14 @@ describe('OcSplitPane', () => {
     expect(secondaryPane.attributes('style')).toContain('min-width: 220px;')
   })
 
-  it('applies fixed primary size in vertical mode', () => {
+  it('resolves semantic fixed/min sizes', () => {
     const wrapper = mount(OcSplitPane, {
       props: {
         orientation: 'vertical',
         fixedPane: 'primary',
-        fixedSize: '280px',
-        primaryMinSize: '140px',
+        fixedSize: 'md',
+        primaryMinSize: 'sm',
+        secondaryMinSize: 'lg',
       },
       slots: {
         primary: '<div>Primary</div>',
@@ -51,10 +52,32 @@ describe('OcSplitPane', () => {
     })
 
     const primaryPane = wrapper.find('.oc-split-pane__pane--primary')
+    const secondaryPane = wrapper.find('.oc-split-pane__pane--secondary')
     expect(wrapper.classes()).toContain('oc-split-pane--vertical')
-    expect(primaryPane.attributes('style')).toContain('flex-basis: 280px;')
-    expect(primaryPane.attributes('style')).toContain('height: 280px;')
-    expect(primaryPane.attributes('style')).toContain('min-height: 140px;')
+    expect(primaryPane.attributes('style')).toContain('flex-basis: var(--oc-split-pane-fixed-md, 320px);')
+    expect(primaryPane.attributes('style')).toContain('height: var(--oc-split-pane-fixed-md, 320px);')
+    expect(primaryPane.attributes('style')).toContain('min-height: var(--oc-split-pane-min-sm, 140px);')
+    expect(secondaryPane.attributes('style')).toContain('min-height: var(--oc-split-pane-min-lg, 220px);')
+  })
+
+  it('resolves workspace semantic size for fixed/min props', () => {
+    const wrapper = mount(OcSplitPane, {
+      props: {
+        orientation: 'horizontal',
+        fixedPane: 'secondary',
+        fixedSize: 'workspace',
+        secondaryMinSize: 'workspace',
+      },
+      slots: {
+        primary: '<div>Primary</div>',
+        secondary: '<div>Secondary</div>',
+      },
+    })
+
+    const secondaryPane = wrapper.find('.oc-split-pane__pane--secondary')
+    expect(secondaryPane.attributes('style')).toContain('flex-basis: var(--oc-split-pane-fixed-workspace, var(--card-editor-tree-panel-height, 320px));')
+    expect(secondaryPane.attributes('style')).toContain('width: var(--oc-split-pane-fixed-workspace, var(--card-editor-tree-panel-height, 320px));')
+    expect(secondaryPane.attributes('style')).toContain('min-width: var(--oc-split-pane-min-workspace, var(--card-editor-min-property-panel-height, 180px));')
   })
 
   it('supports clip and radius options', () => {

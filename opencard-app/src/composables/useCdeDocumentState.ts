@@ -8,7 +8,7 @@ import {
 } from '../entities/card/model'
 
 const TYPING_DEBOUNCE_MS = 300
-type DocumentChangeMode = 'typing' | 'action'
+export type CdeDocumentChangeMode = 'typing' | 'action'
 
 type UseCdeDocumentStateOptions = {
   emitModelValueUpdate: (content: string) => void
@@ -139,7 +139,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     options.emitModified(true)
   }
 
-  function markDocumentChanged(mode: DocumentChangeMode = 'action') {
+  function markDocumentChanged(mode: CdeDocumentChangeMode = 'action') {
     if (!hasDocument.value) {
       return
     }

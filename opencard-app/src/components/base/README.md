@@ -31,6 +31,22 @@
 - 禁用用法:
   - 不要在业务组件直接复写按钮视觉状态类。
 
+### `OcCheckbox`
+
+- props:
+  - `checked?: boolean`
+  - `disabled?: boolean`
+  - `label?: string`
+- slots:
+  - `default`（可覆盖 `label`）
+- emits:
+  - `update:checked(value: boolean)`
+  - `change(value: boolean, event: Event)`
+- 推荐用法:
+  - 作为布尔开关的统一 checkbox 入口，保持原生键盘与表单语义。
+- 禁用用法:
+  - 不要在业务层重复编写自定义勾选框视觉与交互。
+
 ### `OcBar`
 
 - props:

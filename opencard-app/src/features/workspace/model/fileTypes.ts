@@ -13,7 +13,6 @@ export interface FileTypeDefinition {
   fileNames?: string[]
   icon: IconName
   iconTone?: IconTone
-  iconColor?: string
   language?: string
   editorId: string
   previewable?: boolean
@@ -22,8 +21,29 @@ export interface FileTypeDefinition {
 export interface EntryIconPresentation {
   icon: IconName
   tone?: IconTone
-  color?: string
 }
+
+const iconTone = {
+  opencard: 'primary',
+  json: 'primary',
+  markdown: 'muted',
+  typescript: 'primary',
+  javascript: 'warning',
+  vue: 'success',
+  html: 'warning',
+  css: 'primary',
+  image: 'success',
+  package: 'primary',
+  config: 'muted',
+  folderDefault: 'muted',
+  folderOpen: 'primary',
+  folderSrc: 'primary',
+  folderAssets: 'warning',
+  folderComponents: 'success',
+  folderViews: 'primary',
+  folderLocales: 'default',
+  folderCore: 'danger',
+} as const satisfies Record<string, IconTone>
 
 const defaultFileType: FileTypeDefinition = {
   id: 'plaintext',
@@ -41,7 +61,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.opencard',
     extensions: ['opencard'],
     icon: 'file.opencard',
-    iconColor: 'var(--icon-opencard)',
+    iconTone: iconTone.opencard,
     language: 'json',
     editorId: 'card-designer',
     previewable: true,
@@ -52,7 +72,7 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['json'],
     fileNames: ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json'],
     icon: 'file.json',
-    iconColor: 'var(--icon-json)',
+    iconTone: iconTone.json,
     language: 'json',
     editorId: 'monaco',
     previewable: true,
@@ -63,7 +83,7 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['md'],
     fileNames: ['readme.md'],
     icon: 'file.markdown',
-    iconColor: 'var(--icon-markdown)',
+    iconTone: iconTone.markdown,
     language: 'markdown',
     editorId: 'monaco',
   },
@@ -73,7 +93,7 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['ts', 'tsx'],
     fileNames: ['vite.config.ts'],
     icon: 'file.typescript',
-    iconColor: 'var(--icon-typescript)',
+    iconTone: iconTone.typescript,
     language: 'typescript',
     editorId: 'monaco',
   },
@@ -82,7 +102,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.javascript',
     extensions: ['js', 'jsx', 'mjs', 'cjs'],
     icon: 'file.javascript',
-    iconColor: 'var(--icon-javascript)',
+    iconTone: iconTone.javascript,
     language: 'javascript',
     editorId: 'monaco',
   },
@@ -91,7 +111,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.vue',
     extensions: ['vue'],
     icon: 'file.vue',
-    iconColor: 'var(--icon-vue)',
+    iconTone: iconTone.vue,
     language: 'vue',
     editorId: 'monaco',
   },
@@ -100,7 +120,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.html',
     extensions: ['html'],
     icon: 'file.html',
-    iconColor: 'var(--icon-html)',
+    iconTone: iconTone.html,
     language: 'html',
     editorId: 'monaco',
   },
@@ -109,7 +129,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.css',
     extensions: ['css', 'scss', 'sass', 'less'],
     icon: 'file.css',
-    iconColor: 'var(--icon-css)',
+    iconTone: iconTone.css,
     language: 'css',
     editorId: 'monaco',
   },
@@ -118,7 +138,7 @@ const fileTypes: FileTypeDefinition[] = [
     labelKey: 'fileTypes.image',
     extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
     icon: 'file.image',
-    iconColor: 'var(--icon-image)',
+    iconTone: iconTone.image,
     editorId: 'image-preview',
   },
   {
@@ -142,37 +162,37 @@ const fileTypes: FileTypeDefinition[] = [
 ]
 
 const specialFileIcons: Record<string, EntryIconPresentation> = {
-  'package.json': { icon: 'file.package', color: 'var(--icon-package)' },
+  'package.json': { icon: 'file.package', tone: iconTone.package },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
-  'tsconfig.json': { icon: 'file.settings', color: 'var(--icon-config)' },
-  'jsconfig.json': { icon: 'file.settings', color: 'var(--icon-config)' },
-  'vite.config.ts': { icon: 'file.settings', color: 'var(--icon-config)' },
+  'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
+  'jsconfig.json': { icon: 'file.settings', tone: iconTone.config },
+  'vite.config.ts': { icon: 'file.settings', tone: iconTone.config },
 }
 
 const directoryIcons: Record<string, { collapsed: EntryIconPresentation; expanded: EntryIconPresentation }> = {
   src: {
-    collapsed: { icon: 'folder.src', color: 'var(--icon-folder-src)' },
-    expanded: { icon: 'folder.srcExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.src', tone: iconTone.folderSrc },
+    expanded: { icon: 'folder.srcExpanded', tone: iconTone.folderOpen },
   },
   assets: {
-    collapsed: { icon: 'folder.assets', color: 'var(--icon-folder-assets)' },
-    expanded: { icon: 'folder.assetsExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.assets', tone: iconTone.folderAssets },
+    expanded: { icon: 'folder.assetsExpanded', tone: iconTone.folderOpen },
   },
   components: {
-    collapsed: { icon: 'folder.components', color: 'var(--icon-folder-components)' },
-    expanded: { icon: 'folder.componentsExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.components', tone: iconTone.folderComponents },
+    expanded: { icon: 'folder.componentsExpanded', tone: iconTone.folderOpen },
   },
   views: {
-    collapsed: { icon: 'folder.views', color: 'var(--icon-folder-views)' },
-    expanded: { icon: 'folder.viewsExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.views', tone: iconTone.folderViews },
+    expanded: { icon: 'folder.viewsExpanded', tone: iconTone.folderOpen },
   },
   locales: {
-    collapsed: { icon: 'folder.locales', color: 'var(--icon-folder-locales)' },
-    expanded: { icon: 'folder.localesExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.locales', tone: iconTone.folderLocales },
+    expanded: { icon: 'folder.localesExpanded', tone: iconTone.folderOpen },
   },
   core: {
-    collapsed: { icon: 'folder.core', color: 'var(--icon-folder-core)' },
-    expanded: { icon: 'folder.coreExpanded', color: 'var(--icon-folder-open)' },
+    collapsed: { icon: 'folder.core', tone: iconTone.folderCore },
+    expanded: { icon: 'folder.coreExpanded', tone: iconTone.folderOpen },
   },
 }
 
@@ -208,7 +228,6 @@ export function resolveFileType(path: string): FileTypeDefinition {
       ...fileNameMatch,
       icon: specialPresentation?.icon ?? fileNameMatch.icon,
       iconTone: specialPresentation?.tone ?? fileNameMatch.iconTone,
-      iconColor: specialPresentation?.color ?? fileNameMatch.iconColor,
     }
   }
 
@@ -232,7 +251,7 @@ export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIc
 
   return {
     icon: isExpanded ? 'folder.defaultExpanded' : 'folder.default',
-    color: isExpanded ? 'var(--icon-folder-open)' : 'var(--icon-folder-default)',
+    tone: isExpanded ? iconTone.folderOpen : iconTone.folderDefault,
   }
 }
 
@@ -245,6 +264,5 @@ export function resolveEntryIcon(path: string, isDirectory: boolean, isExpanded 
   return {
     icon: fileType.icon,
     tone: fileType.iconTone,
-    color: fileType.iconColor,
   }
 }

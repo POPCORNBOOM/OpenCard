@@ -35,13 +35,13 @@ describe('OcBox', () => {
     expect(wrapper.classes()).toContain('custom-class')
   })
 
-  it('applies style props for sizing, positioning, and flex alignment', () => {
+  it('maps semantic sizing, positioning, and flex alignment props to classes', () => {
     const wrapper = mount(OcBox, {
       props: {
         absolute: true,
-        inset: '0 auto auto 0',
-        width: '240px',
-        height: '120px',
+        inset: 'origin',
+        width: 'full',
+        height: 'full',
         pointer: 'none',
         align: 'end',
         justify: 'between',
@@ -49,14 +49,13 @@ describe('OcBox', () => {
       },
     })
 
-    const style = wrapper.attributes('style')
     expect(wrapper.classes()).toContain('is-absolute')
-    expect(style).toContain('inset: 0 auto auto 0;')
-    expect(style).toContain('width: 240px;')
-    expect(style).toContain('height: 120px;')
-    expect(style).toContain('pointer-events: none;')
-    expect(style).toContain('align-items: flex-end;')
-    expect(style).toContain('justify-content: space-between;')
-    expect(style).toContain('overflow: hidden;')
+    expect(wrapper.classes()).toContain('oc-box--inset-origin')
+    expect(wrapper.classes()).toContain('oc-box--width-full')
+    expect(wrapper.classes()).toContain('oc-box--height-full')
+    expect(wrapper.classes()).toContain('oc-box--pointer-none')
+    expect(wrapper.classes()).toContain('oc-box--align-end')
+    expect(wrapper.classes()).toContain('oc-box--justify-between')
+    expect(wrapper.classes()).toContain('oc-box--overflow-hidden')
   })
 })

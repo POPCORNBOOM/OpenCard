@@ -30,11 +30,11 @@ describe('OcSidebarFrame', () => {
     expect(wrapper.find('.panel-slot').exists()).toBe(false)
   })
 
-  it('applies custom activity/panel widths via style variables', () => {
+  it('applies semantic activity/panel size classes', () => {
     const wrapper = mount(OcSidebarFrame, {
       props: {
-        activityWidth: '72px',
-        panelWidth: '300px',
+        activitySize: 'spacious',
+        panelSize: 'spacious',
       },
       slots: {
         activity: '<div>activity</div>',
@@ -42,7 +42,7 @@ describe('OcSidebarFrame', () => {
       },
     })
 
-    expect(wrapper.attributes('style')).toContain('--oc-sidebar-frame-activity-width: 72px;')
-    expect(wrapper.attributes('style')).toContain('--oc-sidebar-frame-panel-width: 300px;')
+    expect(wrapper.classes()).toContain('oc-sidebar-frame--activity-spacious')
+    expect(wrapper.classes()).toContain('oc-sidebar-frame--panel-spacious')
   })
 })

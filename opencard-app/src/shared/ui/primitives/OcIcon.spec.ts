@@ -13,6 +13,9 @@ describe('OcIcon', () => {
 
     expect(wrapper.find('i').exists()).toBe(true)
     expect(wrapper.classes()).toContain('oc-icon--lg')
+    expect(wrapper.attributes('style')).not.toContain('font-size')
+    expect(wrapper.attributes('style')).not.toContain('width')
+    expect(wrapper.attributes('style')).not.toContain('height')
   })
 
   it('maps tone to semantic icon token color', () => {

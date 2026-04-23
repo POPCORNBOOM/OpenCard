@@ -19,20 +19,32 @@ import { computed } from 'vue'
 
 defineOptions({ name: 'OcOverlay' })
 
+type OverlayInsetSemantic = 'none' | 'compact' | 'default' | 'workspace'
+type OverlayInset = OverlayInsetSemantic | (string & {})
+
+const OVERLAY_INSET_PRESETS: Record<OverlayInsetSemantic, string> = {
+  none: '0',
+  compact: 'var(--oc-space-1)',
+  default: 'var(--oc-space-2)',
+  workspace: 'var(--card-editor-overlay-inset-y, 20px) var(--card-editor-overlay-inset-x, 24px)',
+}
+
 const props = withDefaults(defineProps<{
   as?: string
   visible?: boolean
-  inset?: string
+  inset?: OverlayInset
   interactive?: boolean
 }>(), {
   as: 'div',
   visible: true,
-  inset: '0',
+  inset: 'none',
   interactive: true,
 })
 
+const resolvedInset = computed(() => OVERLAY_INSET_PRESETS[props.inset as OverlayInsetSemantic] ?? props.inset)
+
 const overlayLayerStyle = computed(() => ({
-  inset: props.inset,
+  inset: resolvedInset.value,
 }))
 </script>
 
