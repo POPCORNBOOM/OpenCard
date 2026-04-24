@@ -1,11 +1,5 @@
 <template>
-  <OcSurface
-    :as="as"
-    class="oc-bar"
-    :class="barClass"
-    variant="transparent"
-    radius="none"
-  >
+  <OcSurface :as="as" class="oc-bar" :class="barClass" radius="none">
     <div v-if="slots.start" class="oc-bar__start">
       <slot name="start" />
     </div>

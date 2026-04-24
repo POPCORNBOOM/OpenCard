@@ -350,24 +350,6 @@
 - 禁用用法:
   - 不要把三栏复杂编排、拖拽状态机直接塞进 `OcSplitPane`。
 
-### `OcFloatingPanelShell`
-
-- props:
-  - `as?: string`
-  - `padding?: 'none' | 'sm' | 'md'`
-  - `radius?: 'sm' | 'md' | 'lg'`
-  - `shadow?: 'sm' | 'md' | 'overlay'`
-  - `blurred?: boolean`
-  - `width?: string`
-  - `height?: string`
-  - `marginTop?: string`
-  - `pointerEvents?: 'auto' | 'none'`
-- emits: 无
-- 推荐用法:
-  - 编辑器内悬浮检查区、小型工具浮层、overlay widget 外壳。
-- 禁用用法:
-  - 不要把 header/body 结构职责塞进 `OcFloatingPanelShell`，它只负责浮层外壳。
-
 ### `OcSidebarFrame`
 
 - props:

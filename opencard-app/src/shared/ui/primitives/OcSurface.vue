@@ -1,11 +1,5 @@
 <template>
-  <component
-    :is="as"
-    class="oc-surface"
-    :class="surfaceClass"
-    :style="forwardedStyle"
-    v-bind="forwardedAttrs"
-  >
+  <component :is="as" class="oc-surface" :class="surfaceClass" :style="forwardedStyle" v-bind="forwardedAttrs">
     <slot />
   </component>
 </template>
@@ -86,6 +80,11 @@ const { surfaceClass } = useOcSurfaceCapabilities({
 
 .oc-surface--transparent {
   background: transparent;
+}
+
+.oc-surface--glass {
+  background: var(--oc-bg-overlay-soft);
+  backdrop-filter: blur(14px);
 }
 
 .oc-surface.is-bordered {

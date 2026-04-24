@@ -13,6 +13,19 @@
         <OcButton variant="ghost" disabled>Theme: {{ currentTheme }}</OcButton>
       </div>
     </header>
+    <div>
+      <OcSurface variant="glass" radius="md" shadow="sm" fill>
+        <OcBox stack fill>
+          <Header>
+            ass
+          </Header>
+
+          <Body>
+            body
+          </Body>
+        </OcBox>
+      </OcSurface>
+    </div>
 
     <div class="ui-kit-layout">
       <aside class="ui-kit-nav">
@@ -32,13 +45,8 @@
           </div>
 
           <div class="ui-kit-cards">
-            <ShowcaseCard
-              v-for="example in section.examples"
-              :key="example.id"
-              :title="example.title"
-              :description="buildExampleDescription(example)"
-              :code-by-column="getShowcaseCode(example.id)"
-            >
+            <ShowcaseCard v-for="example in section.examples" :key="example.id" :title="example.title"
+              :description="buildExampleDescription(example)" :code-by-column="getShowcaseCode(example.id)">
               <template #default>
                 <ShowcaseExampleRenderer :example-id="example.id" column="default" />
               </template>
@@ -66,6 +74,9 @@ import ShowcaseCard from '../components/ui-kit/ShowcaseCard.vue'
 import ShowcaseExampleRenderer from '../components/ui-kit/ShowcaseExampleRenderer.vue'
 import { UI_KIT_SECTIONS, type ShowcaseExample } from './ui-kit/catalog'
 import { getShowcaseCode } from './ui-kit/showcaseCode'
+import OcBox from '../shared/ui/primitives/OcBox.vue'
+import OcText from '../shared/ui/primitives/OcText.vue'
+import OcSurface from '../shared/ui/primitives/OcSurface.vue'
 
 defineOptions({ name: 'UiKitShowcase' })
 

@@ -1,16 +1,22 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcForwardAttrs, useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
+import {
+  OC_PRESSABLE_DENSITIES as FOUNDATION_OC_PRESSABLE_DENSITIES,
+  OC_PRESSABLE_RADII as FOUNDATION_OC_PRESSABLE_RADII,
+  OC_PRESSABLE_SIZES as FOUNDATION_OC_PRESSABLE_SIZES,
+  OC_PRESSABLE_VARIANTS as FOUNDATION_OC_PRESSABLE_VARIANTS,
+} from '../foundation/tokenRegistry'
 
-export const OC_PRESSABLE_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
+export const OC_PRESSABLE_VARIANTS = FOUNDATION_OC_PRESSABLE_VARIANTS
 export type OcPressableVariant = (typeof OC_PRESSABLE_VARIANTS)[number]
 
-export const OC_PRESSABLE_SIZES = ['sm', 'md', 'lg'] as const
+export const OC_PRESSABLE_SIZES = FOUNDATION_OC_PRESSABLE_SIZES
 export type OcPressableSize = (typeof OC_PRESSABLE_SIZES)[number]
 
-export const OC_PRESSABLE_DENSITIES = ['compact', 'comfortable', 'spacious'] as const
+export const OC_PRESSABLE_DENSITIES = FOUNDATION_OC_PRESSABLE_DENSITIES
 export type OcPressableDensity = (typeof OC_PRESSABLE_DENSITIES)[number]
 
-export const OC_PRESSABLE_RADII = ['none', 'sm', 'md', 'lg'] as const
+export const OC_PRESSABLE_RADII = FOUNDATION_OC_PRESSABLE_RADII
 export type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
 
 export interface OcPressableCapabilityProps {

@@ -1,24 +1,15 @@
 <template>
-  <OcSurface
-    as="section"
-    class="oc-panel-section"
-    :class="[
-      `oc-panel-section--tone-${props.tone}`,
-      `oc-panel-section--header-density-${props.headerDensity}`,
-      `oc-panel-section--header-inset-${props.headerInset}`,
-      `oc-panel-section--body-inset-${props.bodyInset}`,
-      {
-        'is-collapsed': props.collapsed,
-        'is-fill': props.fill,
-      },
-    ]"
-    :variant="surfaceVariant"
-  >
-    <header
-      v-if="hasHeader"
-      class="oc-panel-header oc-panel-section__header"
-      :class="headerClass"
-    >
+  <OcSurface as="section" class="oc-panel-section" :class="[
+    `oc-panel-section--tone-${props.tone}`,
+    `oc-panel-section--header-density-${props.headerDensity}`,
+    `oc-panel-section--header-inset-${props.headerInset}`,
+    `oc-panel-section--body-inset-${props.bodyInset}`,
+    {
+      'is-collapsed': props.collapsed,
+      'is-fill': props.fill,
+    },
+  ]" :variant="tone">
+    <header v-if="hasHeader" class="oc-panel-header oc-panel-section__header" :class="headerClass">
       <div class="oc-panel-section__title">
         <slot name="title">{{ title }}</slot>
       </div>
@@ -26,7 +17,8 @@
         <slot name="actions" />
       </div>
     </header>
-    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass" axis="y">
+    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass"
+      axis="y">
       <slot />
     </OcScrollArea>
     <div v-else class="oc-panel-section__body oc-panel-body" :class="bodyClass">
@@ -38,6 +30,7 @@
 <script setup lang="ts">
 import { computed, useSlots, type HTMLAttributes } from 'vue'
 import { OcScrollArea, OcSurface } from '../../shared/ui/primitives'
+import { OcSurfaceVariant } from '../../shared/ui/composables/useOcSurfaceCapabilities'
 
 type PanelHeaderDensity = 'compact' | 'default' | 'comfortable'
 type PanelHeaderInset = 'default' | 'comfortable'
@@ -49,7 +42,7 @@ const props = withDefaults(defineProps<{
   title?: string
   header?: boolean
   scrollBody?: boolean
-  tone?: 'default' | 'overlay'
+  tone?: OcSurfaceVariant
   collapsed?: boolean
   headerDensity?: PanelHeaderDensity
   headerInset?: PanelHeaderInset
@@ -60,8 +53,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   title: undefined,
   header: true,
-  scrollBody: false,
-  tone: 'default',
+  scrollBody: true,
   collapsed: false,
   headerDensity: 'default',
   headerInset: 'default',
@@ -82,7 +74,6 @@ const hasHeader = computed(() => {
 })
 
 const bodyClass = computed(() => props.bodyClass)
-const surfaceVariant = computed(() => (props.tone === 'overlay' ? 'transparent' : 'panel'))
 </script>
 
 <style scoped>

@@ -1,16 +1,22 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
+import {
+  OC_SURFACE_PATTERNS as FOUNDATION_OC_SURFACE_PATTERNS,
+  OC_SURFACE_RADII as FOUNDATION_OC_SURFACE_RADII,
+  OC_SURFACE_SHADOWS as FOUNDATION_OC_SURFACE_SHADOWS,
+  OC_SURFACE_VARIANTS as FOUNDATION_OC_SURFACE_VARIANTS,
+} from '../foundation/tokenRegistry'
 
-export const OC_SURFACE_VARIANTS = ['panel', 'elevated', 'input', 'floating', 'transparent'] as const
+export const OC_SURFACE_VARIANTS = FOUNDATION_OC_SURFACE_VARIANTS
 export type OcSurfaceVariant = (typeof OC_SURFACE_VARIANTS)[number]
 
-export const OC_SURFACE_RADII = ['none', 'sm', 'md', 'lg'] as const
+export const OC_SURFACE_RADII = FOUNDATION_OC_SURFACE_RADII
 export type OcSurfaceRadius = (typeof OC_SURFACE_RADII)[number]
 
-export const OC_SURFACE_SHADOWS = ['none', 'sm', 'md', 'overlay'] as const
+export const OC_SURFACE_SHADOWS = FOUNDATION_OC_SURFACE_SHADOWS
 export type OcSurfaceShadow = (typeof OC_SURFACE_SHADOWS)[number]
 
-export const OC_SURFACE_PATTERNS = ['none', 'dot-grid', 'checker-preview'] as const
+export const OC_SURFACE_PATTERNS = FOUNDATION_OC_SURFACE_PATTERNS
 export type OcSurfacePattern = (typeof OC_SURFACE_PATTERNS)[number]
 
 export interface OcSurfaceCapabilityProps {

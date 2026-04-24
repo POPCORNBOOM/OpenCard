@@ -412,9 +412,10 @@
           <OcText tone="secondary">Canvas Content</OcText>
         </OcSurface>
         <template #overlay>
-          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+            class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
             <OcText size="label">Overlay Layer</OcText>
-          </OcFloatingPanelShell>
+          </OcSurface>
         </template>
       </OcOverlay>
     </template>
@@ -424,9 +425,10 @@
           <OcText tone="secondary">visible=false</OcText>
         </OcSurface>
         <template #overlay>
-          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+            class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
             <OcText size="label">Hidden Overlay</OcText>
-          </OcFloatingPanelShell>
+          </OcSurface>
         </template>
       </OcOverlay>
       <OcOverlay class="overlay-demo-shell" :interactive="false" inset="var(--oc-space-2)">
@@ -434,9 +436,10 @@
           <OcText tone="secondary">interactive=false</OcText>
         </OcSurface>
         <template #overlay>
-          <OcFloatingPanelShell class="overlay-demo-float" padding="sm">
+          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+            class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
             <OcText size="label">Click-through Overlay</OcText>
-          </OcFloatingPanelShell>
+          </OcSurface>
         </template>
       </OcOverlay>
     </template>
@@ -461,9 +464,10 @@
         <template #overlay>
           <OcAxisLayout axis="vertical" :regions="overlayLayoutRegions" class="overlay-demo-overlay-layout">
             <template #top-tools>
-              <OcFloatingPanelShell padding="sm" class="overlay-demo-float">
+              <OcSurface variant="transparent" radius="lg" shadow="overlay"
+                class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
                 <OcText size="label">Top Tool</OcText>
-              </OcFloatingPanelShell>
+              </OcSurface>
             </template>
             <template #overlay-spacer>
               <div class="overlay-demo-spacer" />
@@ -746,12 +750,8 @@
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-split-pane'">
     <template v-if="column === 'default'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell">
-        <OcSplitPane
-          orientation="horizontal"
-          fixed-pane="secondary"
-          fixed-size="calc(var(--oc-space-6) * 5)"
-          secondary-min-size="calc(var(--oc-space-6) * 4)"
-        >
+        <OcSplitPane orientation="horizontal" fixed-pane="secondary" fixed-size="calc(var(--oc-space-6) * 5)"
+          secondary-min-size="calc(var(--oc-space-6) * 4)">
           <template #primary>
             <div class="split-demo-pane split-demo-pane--primary">Canvas</div>
           </template>
@@ -766,13 +766,8 @@
     </template>
     <template v-else-if="column === 'variants'">
       <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--stack">
-        <OcSplitPane
-          orientation="vertical"
-          fixed-pane="primary"
-          fixed-size="calc(var(--oc-space-3) * 7)"
-          primary-min-size="calc(var(--oc-space-4) * 4)"
-          secondary-min-size="calc(var(--oc-space-6) * 4)"
-        >
+        <OcSplitPane orientation="vertical" fixed-pane="primary" fixed-size="calc(var(--oc-space-3) * 7)"
+          primary-min-size="calc(var(--oc-space-4) * 4)" secondary-min-size="calc(var(--oc-space-6) * 4)">
           <template #primary>
             <div class="split-demo-pane split-demo-pane--secondary">Tree</div>
           </template>
@@ -794,12 +789,9 @@
     </template>
     <template v-else>
       <OcSurface variant="panel" bordered radius="md" class="split-shell">
-        <OcSplitPane
-          orientation="horizontal"
-          fixed-pane="secondary"
+        <OcSplitPane orientation="horizontal" fixed-pane="secondary"
           :fixed-size="splitPaneMode === 'left' ? 'calc(var(--oc-space-6) * 4)' : 'calc(var(--oc-space-6) * 6)'"
-          secondary-min-size="calc(var(--oc-space-6) * 4)"
-        >
+          secondary-min-size="calc(var(--oc-space-6) * 4)">
           <template #primary>
             <div class="split-demo-pane split-demo-pane--primary">
               {{ splitPaneMode === 'left' ? 'Wide Canvas' : 'Compact Canvas' }}
@@ -816,36 +808,6 @@
           </template>
         </OcSplitPane>
       </OcSurface>
-    </template>
-  </div>
-
-  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-floating-panel-shell'">
-    <template v-if="column === 'default'">
-      <OcFloatingPanelShell class="floating-shell-demo">
-        <OcText size="title">Overlay Shell</OcText>
-      </OcFloatingPanelShell>
-    </template>
-    <template v-else-if="column === 'variants'">
-      <OcFloatingPanelShell class="floating-shell-demo" padding="sm">
-        <OcText tone="secondary">padding-sm</OcText>
-      </OcFloatingPanelShell>
-      <OcFloatingPanelShell class="floating-shell-demo" padding="md" :blurred="false">
-        <OcText tone="secondary">padding-md / no blur</OcText>
-      </OcFloatingPanelShell>
-    </template>
-    <template v-else-if="column === 'states'">
-      <OcFloatingPanelShell class="floating-shell-demo">
-        <OcToolbar kind="panel" aria-label="Overlay tools">
-          <OcToolButton kind="panel" icon-only icon="icon.list-tree" aria-label="Tree" :active="true" />
-          <OcToolButton kind="panel" icon-only icon="icon.symbol-string" aria-label="A-Z" />
-        </OcToolbar>
-      </OcFloatingPanelShell>
-    </template>
-    <template v-else>
-      <OcFloatingPanelShell class="floating-shell-demo floating-shell-demo--layout" padding="sm">
-        <OcText size="title">Transform Preview</OcText>
-        <div class="floating-shell-preview" />
-      </OcFloatingPanelShell>
     </template>
   </div>
 
@@ -931,7 +893,6 @@ import OcPropertyRow from '../base/OcPropertyRow.vue'
 import OcSidebarFrame from '../base/OcSidebarFrame.vue'
 import OcTab from '../base/OcTab.vue'
 import OcTabBar from '../base/OcTabBar.vue'
-import OcFloatingPanelShell from '../base/OcFloatingPanelShell.vue'
 import OcToolButton from '../base/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
 import OcResizer from '../base/OcResizer.vue'
@@ -979,7 +940,7 @@ const overlayLayoutRegions: AxisRegion[] = [
 ]
 
 const axisHorizontalRegions: AxisRegion[] = [
-  { slot: 'leftRail', track: 'sidebar' },
+  { slot: 'leftRail', track: 'auto' },
   { slot: 'centerStage', track: 'fill' },
   { slot: 'rightInspector', track: 'size-xl' },
 ]
@@ -1289,29 +1250,6 @@ const modeOptions: OptionItem[] = [
   border: 1px solid var(--oc-border-subtle);
 }
 
-.floating-shell-demo {
-  width: 100%;
-  min-height: 88px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--oc-space-2);
-  align-items: flex-start;
-  justify-content: center;
-}
-
-.floating-shell-demo--layout {
-  min-height: 132px;
-}
-
-.floating-shell-preview {
-  width: 120px;
-  height: 68px;
-  border-radius: var(--oc-radius-md);
-  background:
-    linear-gradient(135deg, var(--oc-bg-hover) 0%, var(--oc-bg-accent-soft) 100%);
-  border: 1px solid var(--oc-border-overlay-soft);
-}
-
 .sidebar-frame-shell {
   width: 100%;
   min-height: 124px;
@@ -1420,6 +1358,19 @@ const modeOptions: OptionItem[] = [
 
 .overlay-demo-float {
   width: fit-content;
+}
+
+.ui-floating-shell {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--oc-border-overlay-soft);
+  background: var(--oc-bg-overlay-soft);
+  backdrop-filter: blur(14px);
+}
+
+.ui-floating-shell--padding-sm {
+  padding: var(--oc-space-2);
 }
 
 .overlay-demo-chip {

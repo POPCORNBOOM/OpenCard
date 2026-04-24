@@ -1,16 +1,22 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
+import {
+  OC_FIELD_CORE_DENSITIES as FOUNDATION_OC_FIELD_CORE_DENSITIES,
+  OC_FIELD_CORE_RESIZE_VALUES as FOUNDATION_OC_FIELD_CORE_RESIZE_VALUES,
+  OC_FIELD_CORE_SIZES as FOUNDATION_OC_FIELD_CORE_SIZES,
+  OC_FIELD_CORE_VARIANTS as FOUNDATION_OC_FIELD_CORE_VARIANTS,
+} from '../foundation/tokenRegistry'
 
-export const OC_FIELD_CORE_VARIANTS = ['chromed', 'plain'] as const
+export const OC_FIELD_CORE_VARIANTS = FOUNDATION_OC_FIELD_CORE_VARIANTS
 export type OcFieldCoreVariant = (typeof OC_FIELD_CORE_VARIANTS)[number]
 
-export const OC_FIELD_CORE_SIZES = ['sm', 'md', 'lg'] as const
+export const OC_FIELD_CORE_SIZES = FOUNDATION_OC_FIELD_CORE_SIZES
 export type OcFieldCoreSize = (typeof OC_FIELD_CORE_SIZES)[number]
 
-export const OC_FIELD_CORE_DENSITIES = ['compact', 'comfortable', 'spacious'] as const
+export const OC_FIELD_CORE_DENSITIES = FOUNDATION_OC_FIELD_CORE_DENSITIES
 export type OcFieldCoreDensity = (typeof OC_FIELD_CORE_DENSITIES)[number]
 
-export const OC_FIELD_CORE_RESIZE_VALUES = ['none', 'horizontal', 'vertical', 'both'] as const
+export const OC_FIELD_CORE_RESIZE_VALUES = FOUNDATION_OC_FIELD_CORE_RESIZE_VALUES
 export type OcFieldCoreResize = (typeof OC_FIELD_CORE_RESIZE_VALUES)[number]
 
 export interface OcFieldCoreCapabilityProps {

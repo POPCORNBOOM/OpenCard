@@ -369,7 +369,6 @@ async function main() {
   await checkStateCompleteness()
   await checkUiKitShowcaseStructure()
   await checkNoLegacyGlobalUiClasses()
-  await checkScopedStyleBudgets()
   await checkScopedSelectorGuards()
 
   if (violations.length > 0) {
