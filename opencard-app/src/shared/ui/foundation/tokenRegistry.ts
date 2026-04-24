@@ -64,13 +64,16 @@ export const OC_TRACK_BOUND_SIZE_TOKENS = [
 
 export type OcBoundSize = (typeof OC_TRACK_BOUND_SIZE_TOKENS)[number]
 export type OcTrackBoundSizeMetric = number | { cssVar: string; fallback: number }
+export const OC_TRACK_HANDLE_SIZE_TOKENS = ['sm', 'md', 'lg'] as const
+export type OcTrackHandleSize = (typeof OC_TRACK_HANDLE_SIZE_TOKENS)[number]
 
 export interface OcTrackRegion {
   slot: string
   size?: OcSize
   min?: OcBoundSize
   max?: OcBoundSize
-  resizable?: boolean
+  resizableStart?: boolean
+  resizableEnd?: boolean
   resizerAriaLabel?: string
 }
 
@@ -116,8 +119,18 @@ export const OC_TRACK_BOUND_METRIC_MAP: Record<OcBoundSize, OcTrackBoundSizeMetr
   'workspace-property-min': { cssVar: '--card-editor-min-property-panel-height', fallback: 180 },
 }
 
+export const OC_TRACK_HANDLE_SIZE_MAP: Record<OcTrackHandleSize, string> = {
+  sm: '4px',
+  md: '6px',
+  lg: '8px',
+}
+
 export function resolveOcTrackSizeTemplate(size: OcSize | undefined): string {
   return OC_TRACK_SIZE_TEMPLATE_MAP[size ?? OC_TRACK_DEFAULT_SIZE_TOKEN]
+}
+
+export function resolveOcTrackHandleSize(size: OcTrackHandleSize | undefined): string {
+  return OC_TRACK_HANDLE_SIZE_MAP[size ?? 'md']
 }
 
 type CssVariableReader = (cssVar: string, fallback: number) => number

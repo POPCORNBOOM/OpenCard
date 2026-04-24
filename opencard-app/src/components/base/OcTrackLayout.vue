@@ -1,14 +1,8 @@
 <template>
-  <component
-    :is="as"
+  <div
     ref="rootRef"
     class="oc-track-layout"
-    :class="[
-      `oc-track-layout--${props.axis}`,
-      {
-        'is-fill': props.fill,
-      },
-    ]"
+    :class="`oc-track-layout--${props.axis}`"
     :style="layoutStyle"
     v-bind="attrs"
   >
@@ -27,18 +21,20 @@
         class="oc-track-layout__resizer"
         :class="{
           'is-active': activeHandleIndex === item.handleIndex,
-          'is-disabled': !props.interactive,
         }"
         role="separator"
         :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
-        :aria-label="item.ariaLabel ?? `Resize ${item.leftSlot}`"
+        :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`"
         @mousedown="handleResizeStart($event, item.handleIndex)"
       />
     </template>
-  </component>
+  </div>
 </template>
 
 <script setup lang="ts">
+/**
+ * 多轨道布局容器：按区域配置渲染网格并支持相邻轨道的拖拽尺寸调整。
+ */
 import {
   computed,
   onBeforeUnmount,
@@ -49,21 +45,14 @@ import {
   type ComponentPublicInstance,
 } from 'vue'
 import {
-  OC_TRACK_BOUND_SIZE_TOKENS,
-  OC_TRACK_SIZE_TOKENS,
+  resolveOcTrackHandleSize,
   resolveOcTrackBoundPixels,
   resolveOcTrackSizeTemplate,
-  type OcBoundSize as SharedOcBoundSize,
-  type OcSize as SharedOcSize,
-  type OcTrackRegion as SharedOcTrackRegion,
+  type OcTrackHandleSize,
+  type OcTrackRegion,
 } from '../../shared/ui/foundation/tokenRegistry'
 
-export type OcTrackLayoutAxis = 'horizontal' | 'vertical'
-export const OC_SIZE_TOKENS = OC_TRACK_SIZE_TOKENS
-export const OC_BOUND_SIZE_TOKENS = OC_TRACK_BOUND_SIZE_TOKENS
-export type OcSize = SharedOcSize
-export type OcBoundSize = SharedOcBoundSize
-export type OcTrackRegion = SharedOcTrackRegion
+type OcTrackLayoutAxis = 'horizontal' | 'vertical'
 
 type RegionItem = {
   type: 'region'
@@ -76,7 +65,7 @@ type HandleItem = {
   type: 'handle'
   key: string
   handleIndex: number
-  leftSlot: string
+  beforeSlot: string
   ariaLabel?: string
 }
 
@@ -84,12 +73,15 @@ type LayoutItem = RegionItem | HandleItem
 
 type DragState = {
   handleIndex: number
+  mode: Exclude<BoundaryControlMode, null>
   startPointer: number
-  startLeftSize: number
+  startBeforeSize: number
   totalSize: number
-  leftMin: number
-  leftMax: number
+  beforeMin: number
+  beforeMax: number
 }
+
+type BoundaryControlMode = 'before' | 'after' | 'both' | null
 
 const DEFAULT_TRACK_SIZE = resolveOcTrackSizeTemplate(undefined)
 
@@ -98,25 +90,28 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
-  as?: string
+interface OcTrackLayoutProps {
+  /** 主轴方向：horizontal=横向分栏，vertical=纵向分栏。 */
   axis?: OcTrackLayoutAxis
-  fill?: boolean
-  interactive?: boolean
-  handleSize?: string
+  /** 拖拽条尺寸token：sm|md|lg。 */
+  handleSize?: OcTrackHandleSize
+  /** 轨道区域定义数组。 */
   regions: readonly OcTrackRegion[]
-}>(), {
-  as: 'div',
+}
+
+const props = withDefaults(defineProps<OcTrackLayoutProps>(), {
   axis: 'horizontal',
-  fill: true,
-  interactive: true,
-  handleSize: '6px',
+  handleSize: 'md',
 })
 
-const emit = defineEmits<{
+interface OcTrackLayoutEmits {
+  /** 轨道拖拽过程事件，返回当前轨道与相邻轨道的新尺寸。 */
   resize: [payload: { index: number; size: string; adjacentSize: string }]
+  /** 轨道拖拽结束事件，返回最终尺寸。 */
   resizeEnd: [payload: { index: number; size: string; adjacentSize: string }]
-}>()
+}
+
+const emit = defineEmits<OcTrackLayoutEmits>()
 
 const attrs = useAttrs()
 const rootRef = ref<HTMLElement | null>(null)
@@ -124,6 +119,44 @@ const regionRefs = ref<Array<HTMLElement | null>>([])
 const trackSizes = ref<string[]>([])
 const activeHandleIndex = ref<number | null>(null)
 const dragState = ref<DragState | null>(null)
+
+function hasBoundaryHandle(beforeRegionIndex: number): boolean {
+  return resolveBoundaryControlMode(beforeRegionIndex) !== null
+}
+
+function resolveBoundaryControlMode(beforeRegionIndex: number): BoundaryControlMode {
+  const beforeRegion = props.regions[beforeRegionIndex]
+  const afterRegion = props.regions[beforeRegionIndex + 1]
+  if (!beforeRegion || !afterRegion) {
+    return null
+  }
+
+  const beforeEnabled = Boolean(beforeRegion.resizableEnd)
+  const afterEnabled = Boolean(afterRegion.resizableStart)
+  if (beforeEnabled && afterEnabled) {
+    return 'both'
+  }
+  if (beforeEnabled) {
+    return 'before'
+  }
+  if (afterEnabled) {
+    return 'after'
+  }
+  return null
+}
+
+function resolveBoundaryAriaLabel(beforeRegionIndex: number): string | undefined {
+  const beforeRegion = props.regions[beforeRegionIndex]
+  const afterRegion = props.regions[beforeRegionIndex + 1]
+  const mode = resolveBoundaryControlMode(beforeRegionIndex)
+  if (mode === 'before') {
+    return beforeRegion?.resizerAriaLabel ?? afterRegion?.resizerAriaLabel
+  }
+  if (mode === 'after') {
+    return afterRegion?.resizerAriaLabel ?? beforeRegion?.resizerAriaLabel
+  }
+  return beforeRegion?.resizerAriaLabel ?? afterRegion?.resizerAriaLabel
+}
 
 function setRegionRef(index: number, element: Element | ComponentPublicInstance | null): void {
   if (element instanceof HTMLElement) {
@@ -158,13 +191,13 @@ const layoutItems = computed<LayoutItem[]>(() => {
       slot: region.slot,
     })
 
-    if (region.resizable && index < props.regions.length - 1) {
+    if (index < props.regions.length - 1 && hasBoundaryHandle(index)) {
       items.push({
         type: 'handle',
         key: `handle-${index}`,
         handleIndex: index,
-        leftSlot: region.slot,
-        ariaLabel: region.resizerAriaLabel,
+        beforeSlot: region.slot,
+        ariaLabel: resolveBoundaryAriaLabel(index),
       })
     }
   })
@@ -175,7 +208,7 @@ const trackTemplate = computed(() => {
   const segments: string[] = []
   props.regions.forEach((region, index) => {
     segments.push(trackSizes.value[index] ?? DEFAULT_TRACK_SIZE)
-    if (region.resizable && index < props.regions.length - 1) {
+    if (index < props.regions.length - 1 && hasBoundaryHandle(index)) {
       segments.push('var(--oc-track-layout-handle-size)')
     }
   })
@@ -184,7 +217,7 @@ const trackTemplate = computed(() => {
 
 const layoutStyle = computed<CSSProperties>(() => {
   const baseStyle: CSSProperties = {
-    '--oc-track-layout-handle-size': props.handleSize,
+    '--oc-track-layout-handle-size': resolveOcTrackHandleSize(props.handleSize),
   }
 
   if (props.axis === 'vertical') {
@@ -253,43 +286,61 @@ function cleanupDraggingListeners(): void {
 }
 
 function handleResizeStart(event: MouseEvent, handleIndex: number): void {
-  if (!props.interactive || event.button !== 0) {
+  if (event.button !== 0) {
     return
   }
 
   const rootElement = rootRef.value
-  const leftRegion = regionRefs.value[handleIndex]
-  const rightRegion = regionRefs.value[handleIndex + 1]
+  const beforeRegion = regionRefs.value[handleIndex]
+  const afterRegion = regionRefs.value[handleIndex + 1]
 
-  if (!rootElement || !leftRegion || !rightRegion) {
+  if (!rootElement || !beforeRegion || !afterRegion) {
     return
   }
 
   const containerSize = readMainAxisSize(rootElement)
-  const leftSize = readMainAxisSize(leftRegion)
-  const rightSize = readMainAxisSize(rightRegion)
-  const totalSize = leftSize + rightSize
+  const beforeSize = readMainAxisSize(beforeRegion)
+  const afterSize = readMainAxisSize(afterRegion)
+  const totalSize = beforeSize + afterSize
 
   if (containerSize <= 0 || totalSize <= 0) {
     return
   }
 
-  const leftBounds = resolveRegionBounds(handleIndex)
-  const rightBounds = resolveRegionBounds(handleIndex + 1)
+  const beforeBounds = resolveRegionBounds(handleIndex)
+  const afterBounds = resolveRegionBounds(handleIndex + 1)
+  const mode = resolveBoundaryControlMode(handleIndex)
+  if (!mode) {
+    return
+  }
 
-  const leftMin = Math.max(leftBounds.min, totalSize - rightBounds.max)
-  const leftMax = Math.min(leftBounds.max, totalSize - rightBounds.min)
-  if (!(leftMin <= leftMax)) {
+  const beforeMinByBefore = beforeBounds.min
+  const beforeMaxByBefore = beforeBounds.max
+  const beforeMinByAfter = totalSize - afterBounds.max
+  const beforeMaxByAfter = totalSize - afterBounds.min
+
+  let beforeMin = beforeMinByBefore
+  let beforeMax = beforeMaxByBefore
+  if (mode === 'after') {
+    beforeMin = beforeMinByAfter
+    beforeMax = beforeMaxByAfter
+  }
+  if (mode === 'both') {
+    beforeMin = Math.max(beforeMinByBefore, beforeMinByAfter)
+    beforeMax = Math.min(beforeMaxByBefore, beforeMaxByAfter)
+  }
+  if (!(beforeMin <= beforeMax)) {
     return
   }
 
   dragState.value = {
     handleIndex,
+    mode,
     startPointer: readMainAxisPointer(event),
-    startLeftSize: leftSize,
+    startBeforeSize: beforeSize,
     totalSize,
-    leftMin,
-    leftMax,
+    beforeMin,
+    beforeMax,
   }
 
   activeHandleIndex.value = handleIndex
@@ -306,15 +357,19 @@ function handleResizeMove(event: MouseEvent): void {
   }
 
   const delta = readMainAxisPointer(event) - currentDragState.startPointer
-  const nextLeftSize = clamp(
-    currentDragState.startLeftSize + delta,
-    currentDragState.leftMin,
-    currentDragState.leftMax,
+  const nextBeforeSize = clamp(
+    currentDragState.startBeforeSize + delta,
+    currentDragState.beforeMin,
+    currentDragState.beforeMax,
   )
-  const nextRightSize = currentDragState.totalSize - nextLeftSize
+  const nextAfterSize = currentDragState.totalSize - nextBeforeSize
   const nextSizes = [...trackSizes.value]
-  nextSizes[currentDragState.handleIndex] = formatPixelSize(nextLeftSize)
-  nextSizes[currentDragState.handleIndex + 1] = formatPixelSize(nextRightSize)
+  if (currentDragState.mode === 'before' || currentDragState.mode === 'both') {
+    nextSizes[currentDragState.handleIndex] = formatPixelSize(nextBeforeSize)
+  }
+  if (currentDragState.mode === 'after' || currentDragState.mode === 'both') {
+    nextSizes[currentDragState.handleIndex + 1] = formatPixelSize(nextAfterSize)
+  }
   trackSizes.value = nextSizes
 
   emit('resize', {
@@ -350,14 +405,11 @@ onBeforeUnmount(() => {
 <style scoped>
 .oc-track-layout {
   --oc-track-layout-handle-size: 6px;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   display: grid;
-}
-
-.oc-track-layout.is-fill {
-  width: 100%;
-  height: 100%;
 }
 
 .oc-track-layout__region {
@@ -419,8 +471,4 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px var(--oc-bg-accent-soft);
 }
 
-.oc-track-layout__resizer.is-disabled {
-  cursor: default;
-  pointer-events: none;
-}
 </style>

@@ -5,3 +5,9 @@
 尺寸与间距等能力优先使用受控token类型而非宽泛string
 重构按模块清单逐项打磨直到主观体验满意
 删掉冗余中间composable，能力直接归并到foundation或组件本体
+重构允许破坏式重定义UI文件，不为向后兼容保留藕断丝连过渡层
+重构时每个UI文件需文件头一句话简介并为每个prop与emit写注释
+轨道slot需支持resizableStart和resizableEnd并按边界统一生成resizer
+轨道resizer控制权归声明方所有，双侧声明时同时控制两侧并叠加双方minmax约束
+布局主轴语义统一用before/after命名，避免left/right在vertical场景误导
+思想记录只保留设计原则与决策，不记录具体实现细则

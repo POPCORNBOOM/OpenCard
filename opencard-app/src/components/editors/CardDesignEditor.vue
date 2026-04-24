@@ -248,14 +248,14 @@ const rightPanelTrackRegions = ref<OcTrackRegion[]>([
     slot: 'tree-panel',
     size: 'workspace-tree',
     min: 'panel-sm',
-    resizable: true,
+    resizableEnd: true,
     resizerAriaLabel: '调整信息树高度',
   },
   {
     slot: 'property-panel',
     size: 'fill',
     min: 'panel-md',
-  },
+  }
 ])
 
 function handleRightPanelTrackResizeEnd(payload: { index: number; size: string }) {
