@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
 
 export const OC_SURFACE_VARIANTS = ['panel', 'elevated', 'input', 'floating', 'transparent'] as const
@@ -14,25 +14,25 @@ export const OC_SURFACE_PATTERNS = ['none', 'dot-grid', 'checker-preview'] as co
 export type OcSurfacePattern = (typeof OC_SURFACE_PATTERNS)[number]
 
 export interface OcSurfaceCapabilityProps {
-  variant: OcSurfaceVariant
-  radius: OcSurfaceRadius
-  shadow: OcSurfaceShadow
-  pattern: OcSurfacePattern
-  bordered: boolean
-  fill: boolean
+  variant: MaybeRefOrGetter<OcSurfaceVariant>
+  radius: MaybeRefOrGetter<OcSurfaceRadius>
+  shadow: MaybeRefOrGetter<OcSurfaceShadow>
+  pattern: MaybeRefOrGetter<OcSurfacePattern>
+  bordered: MaybeRefOrGetter<boolean>
+  fill: MaybeRefOrGetter<boolean>
 }
 
 export function useOcSurfaceCapabilities(props: OcSurfaceCapabilityProps) {
   const modifierClasses = useOcModifierClasses('oc-surface', () => [
-    { value: props.variant },
-    { namespace: 'radius', value: props.radius },
-    { namespace: 'shadow', value: props.shadow },
-    { namespace: 'pattern', value: props.pattern },
+    { value: toValue(props.variant) },
+    { namespace: 'radius', value: toValue(props.radius) },
+    { namespace: 'shadow', value: toValue(props.shadow) },
+    { namespace: 'pattern', value: toValue(props.pattern) },
   ])
 
   const stateClasses = useOcStateClasses(() => ({
-    bordered: props.bordered,
-    fill: props.fill,
+    bordered: toValue(props.bordered),
+    fill: toValue(props.fill),
   }))
 
   const surfaceClass = computed(() => [

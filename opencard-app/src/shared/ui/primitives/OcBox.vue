@@ -66,21 +66,21 @@ const props = withDefaults(defineProps<{
 const attrs = useAttrs()
 const forwardedAttrs = useOcForwardAttrs(attrs)
 const { boxClass } = useOcBoxCapabilities({
-  inline: props.inline,
-  stack: props.stack,
-  center: props.center,
-  grow: props.grow,
-  scrollY: props.scrollY,
-  fill: props.fill,
-  relative: props.relative,
-  absolute: props.absolute,
-  inset: props.inset,
-  width: props.width,
-  height: props.height,
-  pointer: props.pointer,
-  align: props.align,
-  justify: props.justify,
-  overflow: props.overflow,
+  inline: () => props.inline,
+  stack: () => props.stack,
+  center: () => props.center,
+  grow: () => props.grow,
+  scrollY: () => props.scrollY,
+  fill: () => props.fill,
+  relative: () => props.relative,
+  absolute: () => props.absolute,
+  inset: () => props.inset,
+  width: () => props.width,
+  height: () => props.height,
+  pointer: () => props.pointer,
+  align: () => props.align,
+  justify: () => props.justify,
+  overflow: () => props.overflow,
 })
 </script>
 

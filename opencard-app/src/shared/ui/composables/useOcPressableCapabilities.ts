@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcForwardAttrs, useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
 
 export const OC_PRESSABLE_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
@@ -14,35 +14,35 @@ export const OC_PRESSABLE_RADII = ['none', 'sm', 'md', 'lg'] as const
 export type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
 
 export interface OcPressableCapabilityProps {
-  variant: OcPressableVariant
-  size: OcPressableSize
-  density: OcPressableDensity
-  radius: OcPressableRadius
-  active: boolean
-  block: boolean
-  disabled: boolean
-  iconOnly: boolean
+  variant: MaybeRefOrGetter<OcPressableVariant>
+  size: MaybeRefOrGetter<OcPressableSize>
+  density: MaybeRefOrGetter<OcPressableDensity>
+  radius: MaybeRefOrGetter<OcPressableRadius>
+  active: MaybeRefOrGetter<boolean>
+  block: MaybeRefOrGetter<boolean>
+  disabled: MaybeRefOrGetter<boolean>
+  iconOnly: MaybeRefOrGetter<boolean>
 }
 
 export interface OcPressableA11yProps {
-  as: string
-  type: 'button' | 'submit' | 'reset'
-  disabled: boolean
+  as: MaybeRefOrGetter<string>
+  type: MaybeRefOrGetter<'button' | 'submit' | 'reset'>
+  disabled: MaybeRefOrGetter<boolean>
 }
 
 export function useOcPressableCapabilities(props: OcPressableCapabilityProps) {
   const modifierClasses = useOcModifierClasses('oc-pressable', () => [
-    { value: props.variant },
-    { namespace: 'size', value: props.size },
-    { namespace: 'density', value: props.density },
-    { namespace: 'radius', value: props.radius },
+    { value: toValue(props.variant) },
+    { namespace: 'size', value: toValue(props.size) },
+    { namespace: 'density', value: toValue(props.density) },
+    { namespace: 'radius', value: toValue(props.radius) },
   ])
 
   const stateClasses = useOcStateClasses(() => ({
-    active: props.active,
-    block: props.block,
-    disabled: props.disabled,
-    'icon-only': props.iconOnly,
+    active: toValue(props.active),
+    block: toValue(props.block),
+    disabled: toValue(props.disabled),
+    'icon-only': toValue(props.iconOnly),
   }))
 
   const pressableClass = computed(() => [
@@ -59,7 +59,7 @@ export function useOcPressableA11y(
   props: OcPressableA11yProps,
   attrs: Record<string, unknown>,
 ) {
-  const isButtonElement = computed(() => props.as === 'button')
+  const isButtonElement = computed(() => toValue(props.as) === 'button')
   const forwardedAttrs = useOcForwardAttrs(attrs)
 
   const resolvedAttrs = computed<Record<string, unknown>>(() => {
@@ -67,8 +67,8 @@ export function useOcPressableA11y(
     if (isButtonElement.value) {
       return {
         ...nextAttrs,
-        type: props.type,
-        disabled: props.disabled,
+        type: toValue(props.type),
+        disabled: toValue(props.disabled),
       }
     }
 
@@ -78,7 +78,7 @@ export function useOcPressableA11y(
       : 'button'
 
     const tabindexAttr = nextAttrs.tabindex
-    const resolvedTabindex = props.disabled
+    const resolvedTabindex = toValue(props.disabled)
       ? -1
       : (
           typeof tabindexAttr === 'string' || typeof tabindexAttr === 'number'
@@ -90,12 +90,12 @@ export function useOcPressableA11y(
       ...nextAttrs,
       role: resolvedRole,
       tabindex: resolvedTabindex,
-      'aria-disabled': props.disabled ? 'true' : undefined,
+      'aria-disabled': toValue(props.disabled) ? 'true' : undefined,
     }
   })
 
   function handleNonButtonKeydown(event: KeyboardEvent): void {
-    if (isButtonElement.value || props.disabled || event.repeat) {
+    if (isButtonElement.value || toValue(props.disabled) || event.repeat) {
       return
     }
 

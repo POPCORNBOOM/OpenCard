@@ -18,6 +18,19 @@ export type EditorSession = {
   draftContent: string
   isDirty: boolean
   isPreview: boolean
+  uiState?: EditorSessionUiState
+}
+
+export type CardDesignerViewportTransform = {
+  x: number
+  y: number
+  scale: number
+}
+
+export type EditorSessionUiState = {
+  cardDesigner?: {
+    viewportTransform?: CardDesignerViewportTransform
+  }
 }
 
 const sessions = ref<EditorSession[]>([])
@@ -153,6 +166,28 @@ export function useEditorSessionStore() {
     )
   }
 
+  function updateSessionUiState(sessionId: string, patch: EditorSessionUiState) {
+    sessions.value = sessions.value.map((session) => {
+      if (session.id !== sessionId) {
+        return session
+      }
+
+      return {
+        ...session,
+        uiState: {
+          ...session.uiState,
+          ...patch,
+          cardDesigner: patch.cardDesigner
+            ? {
+                ...session.uiState?.cardDesigner,
+                ...patch.cardDesigner,
+              }
+            : session.uiState?.cardDesigner,
+        },
+      }
+    })
+  }
+
   function closeSession(sessionId: string) {
     const index = sessions.value.findIndex((session) => session.id === sessionId)
     if (index === -1) {
@@ -260,6 +295,7 @@ export function useEditorSessionStore() {
     activateSession,
     activatePath,
     updateDraftContent,
+    updateSessionUiState,
     closeSession,
     saveSession,
     saveActiveSession,

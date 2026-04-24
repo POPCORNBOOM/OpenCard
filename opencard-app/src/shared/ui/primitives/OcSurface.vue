@@ -48,12 +48,12 @@ const attrs = useAttrs()
 const forwardedAttrs = useOcForwardAttrs(attrs)
 const forwardedStyle = computed(() => attrs.style)
 const { surfaceClass } = useOcSurfaceCapabilities({
-  variant: props.variant,
-  radius: props.radius,
-  shadow: props.shadow,
-  pattern: props.pattern,
-  bordered: props.bordered,
-  fill: props.fill,
+  variant: () => props.variant,
+  radius: () => props.radius,
+  shadow: () => props.shadow,
+  pattern: () => props.pattern,
+  bordered: () => props.bordered,
+  fill: () => props.fill,
 })
 </script>
 

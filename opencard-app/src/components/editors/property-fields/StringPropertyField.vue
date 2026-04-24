@@ -11,6 +11,8 @@
   <div v-else class="autocomplete-field">
     <OcFieldInput
       as="input"
+      full-width
+      class="autocomplete-input"
       input-class="autocomplete-input"
       type="text"
       :value="stringValue"
@@ -88,6 +90,7 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   position: relative;
   flex: 1;
+  min-height: 26px;
   min-width: 0;
   background: var(--oc-bg-input);
   border: 1px solid var(--oc-border-input);
@@ -96,6 +99,8 @@ function handleKeydown(event: KeyboardEvent) {
 
 .autocomplete-input {
   width: 100%;
+  height: 100%;
+  align-self: stretch;
   box-sizing: border-box;
   position: relative;
   z-index: 1;

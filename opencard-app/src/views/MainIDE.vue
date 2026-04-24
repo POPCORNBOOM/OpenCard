@@ -54,8 +54,8 @@
         @open-project="openProject"
         @open-ui-kit="openUiKitShowcase"
       >
-        <component :is="currentEditorComponent" ref="currentEditorRef" v-bind="currentEditorProps"
-          @save="handleEditorSave" />
+        <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef" v-bind="currentEditorProps"
+          @save="handleEditorSave" @update-viewport-transform="handleViewportTransformUpdate" />
       </EditorWorkbenchFrame>
     </div>
 
@@ -143,6 +143,7 @@ const {
   activateSession,
   activatePath,
   updateDraftContent,
+  updateSessionUiState,
   closeSession,
   saveActiveSession,
   remapSessionPaths,
@@ -205,6 +206,15 @@ const currentEditorComponent = computed(() => {
   return editor?.component ?? MonacoEditor
 })
 
+const currentEditorKey = computed(() => {
+  if (!activeSession.value) return 'none'
+  return [
+    activeSession.value.id,
+    activeSession.value.path,
+    activeSession.value.editorId,
+  ].join('|')
+})
+
 // 根据编辑器类型传不同的 props
 // 方案 B 编辑器（如 CardDesignEditor）只需要 filePath
 // 旧式编辑器（如 MonacoEditor）还需要 modelValue + language
@@ -216,11 +226,20 @@ const currentEditorProps = computed(() => {
   const fileType = resolveFileType(activeSession.value.path)
   const editor = editorRegistry.getEditor(fileType.editorId)
   if (editor && editor.id !== 'monaco') {
-    return {
+    const baseProps = {
       filePath: activeSession.value.path,
       modelValue: activeSession.value.draftContent,
       'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     }
+
+    if (editor.id === 'card-designer') {
+      return {
+        ...baseProps,
+        viewportTransform: activeSession.value.uiState?.cardDesigner?.viewportTransform,
+      }
+    }
+
+    return baseProps
   }
   return {
     modelValue: activeSession.value.draftContent,
@@ -228,6 +247,19 @@ const currentEditorProps = computed(() => {
     language: currentLanguage.value
   }
 })
+
+function handleViewportTransformUpdate(value: { x: number; y: number; scale: number }) {
+  const session = activeSession.value
+  if (!session || session.editorId !== 'card-designer') {
+    return
+  }
+
+  updateSessionUiState(session.id, {
+    cardDesigner: {
+      viewportTransform: value,
+    },
+  })
+}
 
 async function handleFileTreeDrop(payload: NodeTreeDropPayload) {
   const result = await moveEntryByDrop(payload)

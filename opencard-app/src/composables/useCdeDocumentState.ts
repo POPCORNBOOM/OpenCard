@@ -26,6 +26,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const savedContent = ref('')
   const historyDepth = ref(0)
   const hasPendingTypingCommit = ref(false)
+  const documentRevision = ref(0)
   let typingTimer: ReturnType<typeof setTimeout> | null = null
 
   const {
@@ -57,6 +58,16 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
   function rebuildParentLookup() {
     parentLookup.value = cardDoc.value ? buildParentLookup(cardDoc.value) : new Map()
+  }
+
+  function refreshDocumentState() {
+    if (!cardDoc.value) {
+      rebuildParentLookup()
+      return
+    }
+
+    documentRevision.value += 1
+    rebuildParentLookup()
   }
 
   function applyDocumentContent(content: string) {
@@ -243,12 +254,14 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   return {
     rawContent,
     cardDoc,
+    documentRevision,
     parentLookup,
     isModified,
     canUndo,
     canRedo,
     syncDocumentContent,
     markDocumentChanged,
+    refreshDocumentState,
     flushPendingChanges,
     undo,
     redo,

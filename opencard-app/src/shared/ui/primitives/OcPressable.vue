@@ -52,20 +52,20 @@ const props = withDefaults(defineProps<{
 
 const attrs = useAttrs()
 const { pressableClass } = useOcPressableCapabilities({
-  variant: props.variant,
-  size: props.size,
-  density: props.density,
-  radius: props.radius,
-  active: props.active,
-  block: props.block,
-  disabled: props.disabled,
-  iconOnly: props.iconOnly,
+  variant: () => props.variant,
+  size: () => props.size,
+  density: () => props.density,
+  radius: () => props.radius,
+  active: () => props.active,
+  block: () => props.block,
+  disabled: () => props.disabled,
+  iconOnly: () => props.iconOnly,
 })
 
 const { resolvedAttrs, handleNonButtonKeydown } = useOcPressableA11y({
-  as: props.as,
-  type: props.type,
-  disabled: props.disabled,
+  as: () => props.as,
+  type: () => props.type,
+  disabled: () => props.disabled,
 }, attrs)
 </script>
 

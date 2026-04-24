@@ -19,18 +19,10 @@
     <template #end>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
         <OcToolButton kind="menu" label="UI Kit" @click="emit('openUiKit')" />
-        <OcToolButton
-          kind="menu"
-          :label="t('app.menu.export2x')"
-          :disabled="!canExportActiveCard"
-          @click="emit('exportActiveCard2x')"
-        />
-        <OcToolButton
-          kind="menu"
-          :label="t('app.menu.exportAll')"
-          :disabled="!canExportActiveCard"
-          @click="emit('exportAllCardViews')"
-        />
+        <OcToolButton kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
+          @click="emit('exportActiveCard2x')" />
+        <OcToolButton kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard"
+          @click="emit('exportAllCardViews')" />
       </OcToolbar>
     </template>
   </OcBar>
@@ -57,14 +49,17 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
-.main-ide-top-bar { --oc-bar-gap: 18px; --oc-bar-padding: 0 18px; }
+.main-ide-top-bar {
+  --oc-bar-gap: 18px;
+  --oc-bar-padding: 0 18px;
+}
 
 .main-ide-top-bar__brand {
-  min-width: 0;
+  min-width: max-content;
   display: flex;
   align-items: baseline;
   gap: var(--oc-space-3);
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .main-ide-top-bar__name {
@@ -72,11 +67,5 @@ const { t } = useI18n()
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--oc-text-primary);
-}
-
-@media (max-width: 1024px) {
-  .main-ide-top-bar { --oc-bar-padding: 0 12px; --oc-bar-gap: 12px; }
-  .main-ide-top-bar__name { font-size: 18px; }
-  .main-ide-top-bar__project { display: none; }
 }
 </style>

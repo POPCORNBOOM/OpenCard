@@ -1,25 +1,14 @@
 <template>
-  <component
-    :is="as"
-    class="oc-axis-layout"
-    :class="[
-      `oc-axis-layout--${axis}`,
-      `oc-axis-layout--spacing-${props.spacing}`,
-      {
-        'is-fill': props.fill,
-        'is-non-interactive': !props.interactive,
-      },
-    ]"
-    :style="layoutStyle"
-  >
-    <div
-      v-for="region in resolvedRegions"
-      :key="region.key"
-      class="oc-axis-layout__region"
-      :class="region.semanticClass"
-      :data-slot="region.slot"
-      :style="getRegionStyle(region)"
-    >
+  <component :is="as" class="oc-axis-layout" :class="[
+    `oc-axis-layout--${axis}`,
+    `oc-axis-layout--spacing-${props.spacing}`,
+    {
+      'is-fill': props.fill,
+      'is-non-interactive': !props.interactive,
+    },
+  ]" :style="layoutStyle">
+    <div v-for="region in resolvedRegions" :key="region.key" class="oc-axis-layout__region"
+      :class="region.semanticClass" :data-slot="region.slot" :style="getRegionStyle(region)">
       <slot :name="region.slot" />
     </div>
   </component>
@@ -41,9 +30,7 @@ type AxisRegionTrack =
   | 'size-lg'
   | 'size-xl'
   | 'size-2xl'
-  | 'sidebar'
-  | 'panel'
-  | 'inspector'
+  | 'size-3xl'
 
 const AXIS_REGION_TRACK_MAP: Record<AxisRegionTrack, string> = {
   auto: 'auto',
@@ -56,9 +43,7 @@ const AXIS_REGION_TRACK_MAP: Record<AxisRegionTrack, string> = {
   'size-lg': '96px',
   'size-xl': '120px',
   'size-2xl': '160px',
-  sidebar: 'var(--oc-axis-layout-track-sidebar, 84px)',
-  panel: 'var(--oc-axis-layout-track-panel, 272px)',
-  inspector: 'var(--oc-axis-layout-track-inspector, 320px)',
+  'size-3xl': '320px',
 }
 
 export type AxisRegion = {
@@ -85,7 +70,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   as: 'div',
   axis: 'horizontal',
-  spacing: 'none',
+  spacing: 'normal',
   fill: false,
   interactive: true,
 })

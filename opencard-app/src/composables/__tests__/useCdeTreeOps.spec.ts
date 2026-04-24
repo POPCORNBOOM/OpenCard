@@ -51,14 +51,20 @@ describe('useCdeTreeOps', () => {
   it('reorders blocks by drag/drop and marks document changed', () => {
     const document = createDocumentForTreeReorder()
     const cardDoc = ref<CardDocument | null>(document)
+    const documentRevision = ref(0)
     const parentLookup = ref(buildParentLookup(document))
     const selectedBlockKeys = ref<string[]>([])
+    const refreshDocumentState = vi.fn(() => {
+      parentLookup.value = buildParentLookup(document)
+    })
     const markDocumentChanged = vi.fn()
 
     const treeOps = useCdeTreeOps({
       cardDoc,
+      documentRevision,
       parentLookup,
       selectedBlockKeys,
+      refreshDocumentState,
       markDocumentChanged,
     })
 
@@ -76,16 +82,22 @@ describe('useCdeTreeOps', () => {
   it('duplicates a selected block and inserts it after source block', () => {
     const document = createDocumentForTreeReorder()
     const cardDoc = ref<CardDocument | null>(document)
+    const documentRevision = ref(0)
     const parentLookup = ref(buildParentLookup(document))
     const selectedBlockKeys = ref<string[]>([])
+    const refreshDocumentState = vi.fn(() => {
+      parentLookup.value = buildParentLookup(document)
+    })
     const markDocumentChanged = vi.fn()
 
     const randomUuidSpy = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001')
 
     const treeOps = useCdeTreeOps({
       cardDoc,
+      documentRevision,
       parentLookup,
       selectedBlockKeys,
+      refreshDocumentState,
       markDocumentChanged,
     })
 
@@ -108,3 +120,5 @@ describe('useCdeTreeOps', () => {
     randomUuidSpy.mockRestore()
   })
 })
+
+

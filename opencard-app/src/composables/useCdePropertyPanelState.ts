@@ -39,7 +39,9 @@ type UseCdePropertyPanelStateOptions = {
   selectedBlock: Readonly<ComputedRef<CardBlock | null>>
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
   selectedCardId: Readonly<Ref<string | null>>
+  documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
+  refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
@@ -49,11 +51,13 @@ function isCdePropertySourceKey(sourceKey: string): sourceKey is CdePropertySour
 
 export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOptions) {
   const selectedLayout = computed<Record<string, unknown> | null>(() => {
+    options.documentRevision.value
     const metadata = options.selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
     return metadata?.location ? (metadata.location as Record<string, unknown>) : null
   })
 
   const blockPropsView = computed<Record<string, unknown> & { type?: string } | null>(() => {
+    options.documentRevision.value
     const block = options.selectedBlock.value
     if (!block) {
       return null
@@ -74,6 +78,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   })
 
   const blockInputOverride = computed<PropertyEditorSchemaOverride | undefined>(() => {
+    options.documentRevision.value
     const block = options.selectedBlock.value
     if (!block || options.selectedCardId.value === options.blueprintCardId || !options.selectedCard.value) {
       return undefined
@@ -124,6 +129,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
 
     layout[fieldKey] = value
+    options.refreshDocumentState()
     options.markDocumentChanged(mode)
     return true
   }
@@ -137,6 +143,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     const instanceBlockData = selectedCard.data[block.id] ?? (selectedCard.data[block.id] = {})
     instanceBlockData[fieldKey] = value
+    options.refreshDocumentState()
     options.markDocumentChanged(mode)
     return true
   }
@@ -157,6 +164,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       delete (block as Record<string, unknown>).imagePath
     }
 
+    options.refreshDocumentState()
     options.markDocumentChanged(mode)
     return true
   }
@@ -217,6 +225,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       layout[fieldKey] = defaultValue
     }
 
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
     return true
   }
@@ -233,6 +242,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         return false
       }
 
+      options.refreshDocumentState()
       options.markDocumentChanged('action')
       return true
     }
@@ -248,6 +258,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       delete (block as Record<string, unknown>).imagePath
     }
 
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
     return true
   }

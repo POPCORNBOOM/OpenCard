@@ -46,13 +46,13 @@ const props = withDefaults(defineProps<{
 const attrs = useAttrs()
 const forwardedAttrs = useOcForwardAttrs(attrs)
 const { fieldClass } = useOcFieldCoreCapabilities({
-  as: props.as,
-  variant: props.variant,
-  fullWidth: props.fullWidth,
-  monospace: props.monospace,
-  size: props.size,
-  density: props.density,
-  resize: props.resize,
+  as: () => props.as,
+  variant: () => props.variant,
+  fullWidth: () => props.fullWidth,
+  monospace: () => props.monospace,
+  size: () => props.size,
+  density: () => props.density,
+  resize: () => props.resize,
 })
 </script>
 

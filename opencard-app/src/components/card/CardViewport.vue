@@ -1,6 +1,6 @@
 <template>
   <div ref="viewportRef" class="card-viewport" :class="{ 'card-viewport-panning': isPanning }"
-    @click="handleViewportClick" @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
+    @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
     @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
       <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
@@ -47,6 +47,11 @@ type MovePayload = {
   x: number
   y: number
 }
+type ViewportTransform = {
+  x: number
+  y: number
+  scale: number
+}
 const TRANSFORM_EPSILON = 0.01
 const MIN_SCALE = 0.2
 const MAX_SCALE = 4
@@ -66,16 +71,20 @@ const emit = defineEmits<{
 
 const props = withDefaults(defineProps<{
   document: CardDocument
+  restoreKey?: string
   selectedBlockId?: string | null
   selectedLocationType?: 'simple-container-location' | 'flow-container-location' | null
   selectedAnchor?: AnchorPosition | null
   selectedParentBlockId?: string | null
+  initialTransform?: ViewportTransform
   transformDisabledBlockIds?: string[]
 }>(), {
+  restoreKey: undefined,
   selectedBlockId: null,
   selectedLocationType: null,
   selectedAnchor: null,
   selectedParentBlockId: null,
+  initialTransform: undefined,
   transformDisabledBlockIds: () => [],
 })
 
@@ -100,6 +109,24 @@ const previewWorldRect = ref<SelectionFrame | null>(null)
 
 let resizeObserver: ResizeObserver | null = null
 let zoomAnimationFrame: number | null = null
+let lastEmittedTransform: ViewportTransform | null = null
+
+function applyViewportTransform(transform: ViewportTransform | undefined) {
+  const nextTransform = transform ?? { x: 0, y: 0, scale: 1 }
+  panX.value = nextTransform.x
+  panY.value = nextTransform.y
+  scale.value = clamp(nextTransform.scale, MIN_SCALE, MAX_SCALE)
+  targetPanX.value = panX.value
+  targetPanY.value = panY.value
+  targetScale.value = scale.value
+}
+
+function hasSameViewportTransform(left: ViewportTransform | null, right: ViewportTransform) {
+  return Boolean(left)
+    && Math.abs(left!.x - right.x) < TRANSFORM_EPSILON
+    && Math.abs(left!.y - right.y) < TRANSFORM_EPSILON
+    && Math.abs(left!.scale - right.scale) < TRANSFORM_EPSILON
+}
 
 const baseOffsetX = computed(() => {
   return getBaseOffsetXForScale(scale.value)
@@ -273,17 +300,21 @@ function handleBlockClick(blockId: string, event: MouseEvent) {
   emit('block-click', blockId, event)
 }
 
-function handleViewportClick(event: MouseEvent) {
+function handleViewportPointerDown(event: PointerEvent) {
+  if (event.button !== 0) {
+    return
+  }
+
   const target = event.target
   if (!(target instanceof Element)) {
     return
   }
 
-  if (target.closest('[data-block-id]') || target.closest('.selection-frame')) {
+  if (target.closest('[data-block-id]') || target.closest('.selection-frame') || target.closest('.selection-handle')) {
     return
   }
 
-  emit('blank-click', event)
+  emit('blank-click', event as unknown as MouseEvent)
 }
 
 function getElementFrame(element: Element, viewportRect: DOMRect): SelectionFrame {
@@ -568,16 +599,40 @@ function updateViewportSize() {
 watch(
   () => [panX.value, panY.value, scale.value] as const,
   ([x, y, zoomScale]) => {
-    emit('viewport-transform-change', {
+    const nextTransform = {
       x,
       y,
       scale: zoomScale,
-    })
+    }
+    if (hasSameViewportTransform(lastEmittedTransform, nextTransform)) {
+      return
+    }
+
+    lastEmittedTransform = nextTransform
+    emit('viewport-transform-change', nextTransform)
   },
-  { immediate: true }
+)
+
+watch(
+  () => props.restoreKey,
+  () => {
+    applyViewportTransform(props.initialTransform)
+    lastEmittedTransform = {
+      x: panX.value,
+      y: panY.value,
+      scale: scale.value,
+    }
+    void syncSelectionFrame()
+  },
 )
 
 onMounted(() => {
+  applyViewportTransform(props.initialTransform)
+  lastEmittedTransform = {
+    x: panX.value,
+    y: panY.value,
+    scale: scale.value,
+  }
   updateViewportSize()
 
   if (viewportRef.value) {
@@ -653,6 +708,11 @@ watch(
   left: 0;
   top: 0;
   transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.card-viewport-stage :deep([data-block-id]) {
+  pointer-events: auto;
 }
 
 .card-selection-layer {

@@ -36,8 +36,10 @@ const ENABLE_CDE_TREE_DND_DEBUG = import.meta.env.DEV && Boolean(
 
 type UseCdeTreeOpsOptions = {
   cardDoc: Ref<CardDocument | null>
+  documentRevision: Readonly<Ref<number>>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
+  refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
@@ -51,6 +53,7 @@ function logTreeDndDebug(message: string, payloadFactory: () => Record<string, u
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   const blockTree = computed<ITreeNode[]>(() => {
+    options.documentRevision.value
     if (!options.cardDoc.value) {
       return []
     }
@@ -84,9 +87,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       const currentKey = selectedKeys[0] ?? null
       const matchedNode = currentKey ? findTreeNodeByKey(nodes, currentKey) : null
       const normalizedSelectedKeys = matchedNode ? [matchedNode.key] : []
+      const normalizedKey = normalizedSelectedKeys[0] ?? null
 
       if (
-        currentKey === normalizedSelectedKeys[0]
+        currentKey === normalizedKey
         && selectedKeys.length === normalizedSelectedKeys.length
       ) {
         return
@@ -98,13 +102,23 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   )
 
   function onTreeSelect(nextSelectedKeys: string[]) {
-    options.selectedBlockKeys.value = nextSelectedKeys.length > 0 ? [nextSelectedKeys[0]] : []
+    const nextKey = nextSelectedKeys[0] ?? null
+    const currentKey = options.selectedBlockKeys.value[0] ?? null
+    if (nextKey === currentKey && options.selectedBlockKeys.value.length === (nextKey ? 1 : 0)) {
+      return
+    }
+
+    options.selectedBlockKeys.value = nextKey ? [nextKey] : []
   }
 
   function handleViewportBlockClick(blockId: string) {
     const clickedNode = findTreeNodeByBlockId(blockTree.value, blockId)
     if (!clickedNode) {
-      options.selectedBlockKeys.value = []
+      clearSelection()
+      return
+    }
+
+    if (options.selectedBlockKeys.value.length === 1 && options.selectedBlockKeys.value[0] === clickedNode.key) {
       return
     }
 
@@ -112,6 +126,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function clearSelection() {
+    if (options.selectedBlockKeys.value.length === 0) {
+      return
+    }
+
     options.selectedBlockKeys.value = []
   }
 
@@ -165,6 +183,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     block.name = nextName
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -254,6 +273,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       return
     }
 
+    options.refreshDocumentState()
     const updatedNode = findTreeNodeByBlockId(blockTree.value, draggedBlock.id)
     options.selectedBlockKeys.value = updatedNode ? [updatedNode.key] : []
     options.markDocumentChanged('action')
@@ -278,6 +298,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     addBlockToContainer(container, newBlock, options.parentLookup.value)
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -293,6 +314,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     options.selectedBlockKeys.value = options.selectedBlockKeys.value.filter((key) => key !== block.id)
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -320,6 +342,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       insertionIndex,
     )
 
+    options.refreshDocumentState()
     const duplicatedNode = findTreeNodeByBlockId(blockTree.value, duplicatedBlock.id)
     options.selectedBlockKeys.value = duplicatedNode ? [duplicatedNode.key] : []
     options.markDocumentChanged('action')

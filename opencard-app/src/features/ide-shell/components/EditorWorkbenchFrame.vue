@@ -1,18 +1,10 @@
 <template>
   <div class="editor-workbench-frame">
     <OcTabBar v-if="sessions.length > 0" :aria-label="t('sidebar.openedEditors')">
-      <OcTab
-        v-for="session in sessions"
-        :key="session.id"
-        :label="session.name"
-        :title="session.name"
-        :active="activeSessionId === session.id"
-        :dirty="Boolean(session.isDirty)"
-        :closable="true"
-        :close-aria-label="`Close ${session.name}`"
-        @select="emit('selectSession', session.id)"
-        @close="emit('closeSession', session.id)"
-      />
+      <OcTab v-for="session in sessions" :key="session.id" :label="session.name" :title="session.name"
+        :active="activeSessionId === session.id" :dirty="Boolean(session.isDirty)" :closable="true"
+        :close-aria-label="`Close ${session.name}`" @select="emit('selectSession', session.id)"
+        @close="emit('closeSession', session.id)" />
     </OcTabBar>
 
     <div class="editor-workbench-frame__content" :class="`editor-workbench-frame__content--${props.surfaceMode}`">
@@ -74,9 +66,10 @@ const { t } = useI18n()
 
 .editor-workbench-frame__content {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
-  overflow: auto;
+  overflow: hidden;
   padding: 16px;
   background: var(--oc-bg-base);
 }
@@ -129,16 +122,10 @@ const { t } = useI18n()
   display: flex;
 }
 
-.editor-workbench-frame__workbench > :deep(*) {
+.editor-workbench-frame__workbench> :deep(*) {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
   min-height: 0;
-}
-
-@media (max-width: 1024px) {
-  .editor-workbench-frame__content {
-    padding: 12px;
-  }
 }
 </style>

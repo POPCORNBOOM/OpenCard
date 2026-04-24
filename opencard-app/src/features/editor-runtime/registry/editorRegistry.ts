@@ -8,12 +8,14 @@
 export interface EditorProps {
   filePath: string
   modelValue?: string
+  viewportTransform?: { x: number; y: number; scale: number }
 }
 
 export interface EditorEmits {
   (e: 'save'): void
   (e: 'modified', isModified: boolean): void
   (e: 'update:modelValue', value: string): void
+  (e: 'update-viewport-transform', value: { x: number; y: number; scale: number }): void
 }
 
 

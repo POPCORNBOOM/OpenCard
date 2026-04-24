@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed, toValue, type MaybeRefOrGetter } from 'vue'
 import { useOcModifierClasses, useOcStateClasses } from './useOcCapabilityClasses'
 
 export const OC_BOX_DIMENSION_TOKENS = ['auto', 'content', 'full', 'screen'] as const
@@ -20,43 +20,43 @@ export const OC_BOX_OVERFLOW_VALUES = ['visible', 'hidden', 'auto'] as const
 export type OcBoxOverflow = (typeof OC_BOX_OVERFLOW_VALUES)[number]
 
 export interface OcBoxCapabilityProps {
-  inline: boolean
-  stack: boolean
-  center: boolean
-  grow: boolean
-  scrollY: boolean
-  fill: boolean
-  relative: boolean
-  absolute: boolean
-  inset: OcBoxInsetToken
-  width: OcBoxDimensionToken
-  height: OcBoxDimensionToken
-  pointer: OcBoxPointer
-  align: OcBoxAlign
-  justify: OcBoxJustify
-  overflow: OcBoxOverflow
+  inline: MaybeRefOrGetter<boolean>
+  stack: MaybeRefOrGetter<boolean>
+  center: MaybeRefOrGetter<boolean>
+  grow: MaybeRefOrGetter<boolean>
+  scrollY: MaybeRefOrGetter<boolean>
+  fill: MaybeRefOrGetter<boolean>
+  relative: MaybeRefOrGetter<boolean>
+  absolute: MaybeRefOrGetter<boolean>
+  inset: MaybeRefOrGetter<OcBoxInsetToken>
+  width: MaybeRefOrGetter<OcBoxDimensionToken>
+  height: MaybeRefOrGetter<OcBoxDimensionToken>
+  pointer: MaybeRefOrGetter<OcBoxPointer>
+  align: MaybeRefOrGetter<OcBoxAlign>
+  justify: MaybeRefOrGetter<OcBoxJustify>
+  overflow: MaybeRefOrGetter<OcBoxOverflow>
 }
 
 export function useOcBoxCapabilities(props: OcBoxCapabilityProps) {
   const modifierClasses = useOcModifierClasses('oc-box', () => [
-    { namespace: 'inset', value: props.inset },
-    { namespace: 'width', value: props.width },
-    { namespace: 'height', value: props.height },
-    { namespace: 'pointer', value: props.pointer },
-    { namespace: 'align', value: props.align },
-    { namespace: 'justify', value: props.justify },
-    { namespace: 'overflow', value: props.overflow },
+    { namespace: 'inset', value: toValue(props.inset) },
+    { namespace: 'width', value: toValue(props.width) },
+    { namespace: 'height', value: toValue(props.height) },
+    { namespace: 'pointer', value: toValue(props.pointer) },
+    { namespace: 'align', value: toValue(props.align) },
+    { namespace: 'justify', value: toValue(props.justify) },
+    { namespace: 'overflow', value: toValue(props.overflow) },
   ])
 
   const stateClasses = useOcStateClasses(() => ({
-    inline: props.inline,
-    stack: props.stack,
-    center: props.center,
-    grow: props.grow,
-    'scroll-y': props.scrollY,
-    fill: props.fill,
-    relative: props.relative,
-    absolute: props.absolute,
+    inline: toValue(props.inline),
+    stack: toValue(props.stack),
+    center: toValue(props.center),
+    grow: toValue(props.grow),
+    'scroll-y': toValue(props.scrollY),
+    fill: toValue(props.fill),
+    relative: toValue(props.relative),
+    absolute: toValue(props.absolute),
   }))
 
   const boxClass = computed(() => [

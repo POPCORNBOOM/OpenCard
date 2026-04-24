@@ -127,7 +127,7 @@ const barClass = computed(() => [
   display: inline-flex;
   align-items: center;
   gap: var(--oc-bar-gap);
-  flex-shrink: 0;
+  flex: 0 1 auto;
 }
 
 .oc-bar__main {

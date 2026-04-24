@@ -21,14 +21,17 @@ import type {
 
 type UseCdeInstanceOpsOptions = {
   cardDoc: Ref<CardDocument | null>
+  documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
   selectedCardId: Ref<string | null>
   selectedCardKeys: Ref<string[]>
+  refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
 export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   const selectedCard = computed<CardInstanceRecord | null>(() => {
+    options.documentRevision.value
     if (!options.selectedCardId.value) {
       return null
     }
@@ -37,6 +40,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   })
 
   const instanceTree = computed<ITreeNode[]>(() => {
+    options.documentRevision.value
     if (!options.cardDoc.value) {
       return []
     }
@@ -126,6 +130,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     }
 
     instance.name = nextName
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -187,6 +192,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     instances.splice(insertionIndex, 0, draggedInstance)
     options.cardDoc.value.instances = instances
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -205,6 +211,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     options.cardDoc.value.instances = [...(options.cardDoc.value.instances ?? []), nextInstance]
     options.selectedCardId.value = nextInstance.id
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -230,6 +237,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     nextInstances.splice(sourceIndex + 1, 0, duplicatedInstance)
     options.cardDoc.value.instances = nextInstances
     options.selectedCardId.value = duplicatedInstance.id
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 
@@ -247,6 +255,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     if (options.selectedCardId.value === instanceId) {
       options.selectedCardId.value = options.blueprintCardId
     }
+    options.refreshDocumentState()
     options.markDocumentChanged('action')
   }
 

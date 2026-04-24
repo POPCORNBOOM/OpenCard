@@ -108,6 +108,8 @@ const secondaryPaneStyle = computed(() => resolveFixedPaneStyle('secondary', res
   min-width: 0;
   min-height: 0;
   display: flex;
+  width: 100%;
+  height: 100%;
 }
 
 .oc-split-pane.is-clip {

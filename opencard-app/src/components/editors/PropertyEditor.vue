@@ -247,12 +247,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 </script>
 
 <style scoped>
-.property-editor {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--oc-space-2);
-}
+.property-editor { min-width: 0; padding: var(--oc-space-2); font-family: var(--oc-font-family-ui); font-size: var(--oc-body-size); line-height: 1.4; }
 
 .source-section + .source-section { margin-top: var(--oc-space-3); }
 
@@ -279,4 +274,6 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 }
 
 .add-field-button, .reset-field-button { flex-shrink: 0; }
+
+.source-title, .category-title { font-size: var(--oc-label-size); color: var(--oc-text-secondary); }
 </style>
