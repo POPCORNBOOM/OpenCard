@@ -1,13 +1,6 @@
 <template>
-  <OcBox
-    as="div"
-    inline
-    class="oc-toolbar"
-    :class="toolbarClass"
-    role="toolbar"
-    :aria-orientation="resolvedOrientation"
-    :aria-label="ariaLabel"
-  >
+  <OcBox as="div" inline class="oc-toolbar" :class="toolbarClass" role="toolbar" :aria-orientation="resolvedOrientation"
+    :aria-label="ariaLabel">
     <slot />
   </OcBox>
 </template>

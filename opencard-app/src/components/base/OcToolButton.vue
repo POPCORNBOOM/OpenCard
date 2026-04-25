@@ -1,19 +1,8 @@
 <!-- 工具按钮：在 OcButton 之上提供 menu/sidebar/panel 语义尺寸与状态表达。 -->
 <template>
-  <OcButton
-    class="oc-tool-button"
-    :class="toolButtonClass"
-    :variant="resolvedVariant"
-    :size="resolvedSize"
-    :radius="resolvedRadius"
-    :block="resolvedBlock"
-    :icon-only="iconOnly"
-    :active="active"
-    :disabled="disabled"
-    :title="resolvedTitle"
-    :aria-label="resolvedAriaLabel"
-    @click="emit('click', $event)"
-  >
+  <OcButton variant="ghost" class="oc-tool-button" :class="toolButtonClass" :size="resolvedSize"
+    :radius="resolvedRadius" :block="resolvedBlock" :icon-only="iconOnly" :active="active" :disabled="disabled"
+    :title="resolvedTitle" :aria-label="resolvedAriaLabel" @click="emit('click', $event)">
     <slot>
       <template v-if="iconOnly">
         <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" :tone="iconTone" />
@@ -56,7 +45,7 @@ interface OcToolButtonProps {
   kind?: ToolButtonKind
   /** 组件尺寸。 */
   size?: ToolButtonSize
-  /** 是否占满容器宽度。 */
+  /** 是否占满容器副轴。 */
   block?: boolean
 }
 
@@ -83,7 +72,6 @@ const props = withDefaults(defineProps<OcToolButtonProps>(), {
 
 const emit = defineEmits<OcToolButtonEmits>()
 
-const resolvedVariant = computed(() => props.iconOnly ? 'icon' : 'ghost')
 const resolvedSize = computed<ToolButtonSize>(() => {
   if (props.size) {
     return props.size
@@ -147,7 +135,6 @@ const toolButtonClass = computed(() => [
 }
 
 .oc-tool-button--sidebar.is-block.is-icon-only {
-  width: 100%;
   height: auto;
 }
 

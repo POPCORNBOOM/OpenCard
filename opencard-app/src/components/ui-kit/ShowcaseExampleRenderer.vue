@@ -684,70 +684,6 @@
     </template>
   </div>
 
-  <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-split-pane'">
-    <template v-if="column === 'default'">
-      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell">
-        <OcSplitPane orientation="horizontal" fixed-pane="secondary" fixed-size="calc(var(--oc-space-6) * 5)"
-          secondary-min-size="calc(var(--oc-space-6) * 4)">
-          <template #primary>
-            <div class="split-demo-pane split-demo-pane--primary">Canvas</div>
-          </template>
-          <template #resizer>
-            <OcResizer orientation="vertical" aria-label="Resize side panel" />
-          </template>
-          <template #secondary>
-            <div class="split-demo-pane split-demo-pane--secondary">Inspector</div>
-          </template>
-        </OcSplitPane>
-      </OcSurface>
-    </template>
-    <template v-else-if="column === 'variants'">
-      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell split-shell--stack">
-        <OcSplitPane orientation="vertical" fixed-pane="primary" fixed-size="calc(var(--oc-space-3) * 7)"
-          primary-min-size="calc(var(--oc-space-4) * 4)" secondary-min-size="calc(var(--oc-space-6) * 4)">
-          <template #primary>
-            <div class="split-demo-pane split-demo-pane--secondary">Tree</div>
-          </template>
-          <template #resizer>
-            <OcResizer orientation="horizontal" aria-label="Resize lower panel" />
-          </template>
-          <template #secondary>
-            <div class="split-demo-pane split-demo-pane--primary">Properties</div>
-          </template>
-        </OcSplitPane>
-      </OcSurface>
-    </template>
-    <template v-else-if="column === 'states'">
-      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell split-shell--states">
-        <OcResizer orientation="vertical" aria-label="Hover resizer" />
-        <OcResizer orientation="vertical" variant="edge" aria-label="Edge resizer" />
-        <OcResizer orientation="vertical" :active="true" aria-label="Active resizer" />
-      </OcSurface>
-    </template>
-    <template v-else>
-      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell">
-        <OcSplitPane orientation="horizontal" fixed-pane="secondary"
-          :fixed-size="splitPaneMode === 'left' ? 'calc(var(--oc-space-6) * 4)' : 'calc(var(--oc-space-6) * 6)'"
-          secondary-min-size="calc(var(--oc-space-6) * 4)">
-          <template #primary>
-            <div class="split-demo-pane split-demo-pane--primary">
-              {{ splitPaneMode === 'left' ? 'Wide Canvas' : 'Compact Canvas' }}
-            </div>
-          </template>
-          <template #resizer>
-            <OcResizer orientation="vertical" :active="true" aria-label="Resize preview pane" />
-          </template>
-          <template #secondary>
-            <div class="split-demo-pane split-demo-pane--secondary">
-              <OcToolButton kind="panel" icon-only icon="icon.arrow-swap" aria-label="Toggle split preview"
-                @click="splitPaneMode = splitPaneMode === 'left' ? 'right' : 'left'" />
-            </div>
-          </template>
-        </OcSplitPane>
-      </OcSurface>
-    </template>
-  </div>
-
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-sidebar-frame'">
     <template v-if="column === 'default'">
       <OcSurface tone="panel" border="subtle" radius="md" class="sidebar-frame-shell">
@@ -831,8 +767,6 @@ import OcTab from '../base/OcTab.vue'
 import OcTabBar from '../base/OcTabBar.vue'
 import OcToolButton from '../base/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
-import OcResizer from '../base/OcResizer.vue'
-import OcSplitPane from '../base/OcSplitPane.vue'
 import type { ShowcaseMatrixColumn } from '../../views/ui-kit/catalog'
 import {
   OcBox,
@@ -867,7 +801,6 @@ const tabVariantValue = ref('overview')
 const tabLayoutValue = ref('card-1')
 const toolView = ref('files')
 const toolPanelMode = ref('tree')
-const splitPaneMode = ref('left')
 
 const alignOptions: OptionItem[] = [
   { value: 'left', label: 'Left', shortLabel: 'L' },
@@ -1113,46 +1046,6 @@ const modeOptions: OptionItem[] = [
 .toolbar-shell--wide {
   max-width: 240px;
   overflow: hidden;
-}
-
-.split-shell {
-  width: 100%;
-  min-height: 110px;
-  padding: var(--oc-space-1);
-}
-
-.split-shell--stack {
-  min-height: 180px;
-}
-
-.split-shell--states {
-  min-height: 76px;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: var(--oc-space-4);
-}
-
-.split-demo-pane {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--oc-label-size);
-  color: var(--oc-text-secondary);
-  border-radius: var(--oc-radius-md);
-}
-
-.split-demo-pane--primary {
-  background: var(--oc-bg-elevated);
-}
-
-.split-demo-pane--secondary {
-  background: var(--oc-bg-panel);
-  border: 1px solid var(--oc-border-subtle);
 }
 
 .sidebar-frame-shell {

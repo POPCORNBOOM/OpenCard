@@ -157,7 +157,6 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
       'OcPropertyRow',
       'OcTabBar / OcTab',
       'OcToolbar / OcToolButton',
-      'OcSplitPane / OcResizer',
       'OcSidebarFrame',
     ],
     examples: [
@@ -251,13 +250,6 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
         purpose: '工具栏容器与工具按钮，统一顶栏、活动栏与面板头部动作。',
         demoBlocks: SHOWCASE_MATRIX_COLUMNS,
         stateCoverage: ['hover', 'active', 'focus', 'disabled'],
-      },
-      {
-        id: 'base-oc-split-pane',
-        title: 'OcSplitPane / OcResizer',
-        purpose: '分栏容器与拖拽分隔条，统一 IDE 类布局中的可调面板关系。',
-        demoBlocks: SHOWCASE_MATRIX_COLUMNS,
-        stateCoverage: ['hover', 'active', 'focus'],
       },
       {
         id: 'base-oc-sidebar-frame',

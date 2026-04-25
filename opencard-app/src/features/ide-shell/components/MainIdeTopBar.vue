@@ -10,18 +10,18 @@
     </template>
 
     <OcToolbar kind="menu" grow aria-label="Main menu">
-      <OcToolButton kind="menu" :label="t('app.menu.file')" :disabled="true" />
-      <OcToolButton kind="menu" :label="t('app.menu.edit')" :disabled="true" />
-      <OcToolButton kind="menu" :label="t('app.menu.view')" :disabled="true" />
-      <OcToolButton kind="menu" :label="t('app.menu.help')" :disabled="true" />
+      <OcToolButton block kind="menu" :label="t('app.menu.file')" :disabled="true" />
+      <OcToolButton block kind="menu" :label="t('app.menu.edit')" :disabled="true" />
+      <OcToolButton block kind="menu" :label="t('app.menu.view')" :disabled="true" />
+      <OcToolButton block kind="menu" :label="t('app.menu.help')" :disabled="true" />
     </OcToolbar>
 
     <template #end>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
-        <OcToolButton kind="menu" label="UI Kit" @click="emit('openUiKit')" />
-        <OcToolButton kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
+        <OcToolButton block kind="menu" label="UI Kit" @click="emit('openUiKit')" />
+        <OcToolButton block kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
           @click="emit('exportActiveCard2x')" />
-        <OcToolButton kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard"
+        <OcToolButton block kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard"
           @click="emit('exportAllCardViews')" />
       </OcToolbar>
     </template>
@@ -51,7 +51,6 @@ const { t } = useI18n()
 <style scoped>
 .main-ide-top-bar {
   --oc-bar-gap: 18px;
-  --oc-bar-padding: 0 18px;
 }
 
 .main-ide-top-bar__brand {
@@ -60,6 +59,7 @@ const { t } = useI18n()
   align-items: baseline;
   gap: var(--oc-space-3);
   flex: 0 0 auto;
+  align-self: stretch;
 }
 
 .main-ide-top-bar__name {

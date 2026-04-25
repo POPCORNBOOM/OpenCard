@@ -27,7 +27,7 @@ interface OcPressableProps {
   size?: OcPressableSize
   /** 点击区域圆角 token。 */
   radius?: OcPressableRadius
-  /** 是否占满可用宽度。 */
+  /** 是否占满父布局副轴（flex/grid 语境下生效）。 */
   block?: boolean
   /** 是否禁用交互。 */
   disabled?: boolean
@@ -161,7 +161,9 @@ function handleNonButtonKeydown(event: KeyboardEvent): void {
 }
 
 .oc-pressable.is-block {
-  width: 100%;
+  align-self: stretch;
+  justify-self: stretch;
+  width: auto;
 }
 
 .oc-pressable.is-disabled,

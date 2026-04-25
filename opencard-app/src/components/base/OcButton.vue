@@ -1,25 +1,9 @@
 <!-- 组合按钮：由按压语义原语与表面样式原语组合而成，统一承载按钮视觉变体。 -->
 <template>
-  <OcPressable
-    class="oc-base-button"
-    :class="buttonClass"
-    :size="size"
-    :radius="radius"
-    :icon-only="isIconOnly"
-    :block="block"
-    :disabled="disabled"
-    :type="type"
-    @click="handleClick"
-  >
-    <OcSurface
-      as="span"
-      class="oc-base-button__surface"
-      :tone="resolvedSurface.tone"
-      :border="resolvedSurface.border"
-      :elevation="resolvedSurface.elevation"
-      :radius="radius"
-      fill
-    >
+  <OcPressable class="oc-base-button" :class="buttonClass" :size="size" :radius="radius" :icon-only="isIconOnly"
+    :block="block" :disabled="disabled" :type="type" @click="handleClick">
+    <OcSurface as="span" class="oc-base-button__surface" :tone="resolvedSurface.tone" :border="resolvedSurface.border"
+      :elevation="resolvedSurface.elevation" :radius="radius" fill>
       <OcIcon v-if="icon && iconPosition === 'left'" class="oc-base-button__icon" :name="icon" />
       <span v-if="!isIconOnly" class="oc-base-button__label">
         <slot />
@@ -40,7 +24,7 @@ import {
 } from '../../shared/ui/foundation/tokenRegistry'
 import { OcIcon, OcPressable, OcSurface } from '../../shared/ui/primitives'
 
-type OcButtonVariant = 'primary' | 'secondary' | 'ghost' | 'choice' | 'icon'
+type OcButtonVariant = 'primary' | 'secondary' | 'ghost' | 'choice'
 type OcPressableSize = (typeof OC_PRESSABLE_SIZES)[number]
 type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
 type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
@@ -62,7 +46,7 @@ interface OcButtonProps {
   iconOnly?: boolean
   /** 是否显示激活态。 */
   active?: boolean
-  /** 是否占满可用宽度。 */
+  /** 是否占满父布局副轴（flex/grid 语境下生效）。 */
   block?: boolean
   /** 是否禁用按钮。 */
   disabled?: boolean

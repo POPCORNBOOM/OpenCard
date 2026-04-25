@@ -6,11 +6,10 @@
         :data-region-index="item.regionIndex" :ref="(el) => setRegionRef(item.regionIndex, el)">
         <slot :name="item.slot" />
       </div>
-      <OcPressable v-else as="div" radius="none" size="sm" class="oc-track-layout__resizer-hit"
-        :class="[
-          `oc-track-layout__resizer-hit--${props.axis}`,
-          { 'is-active': activeHandleIndex === item.handleIndex },
-        ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
+      <OcPressable v-else as="div" radius="none" size="sm" class="oc-track-layout__resizer-hit" :class="[
+        `oc-track-layout__resizer-hit--${props.axis}`,
+        { 'is-active': activeHandleIndex === item.handleIndex },
+      ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
         :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`"
         @mousedown="handleResizeStart($event, item.handleIndex)">
       </OcPressable>

@@ -157,6 +157,8 @@ function goToIde() {
 }
 
 .block-row {
+  display: flex;
+  flex-direction: column;
   margin-top: 12px;
   max-width: 380px;
 }
