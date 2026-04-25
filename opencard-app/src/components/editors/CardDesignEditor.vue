@@ -14,7 +14,7 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
-    <OcOverlay :inset="'var(--card-editor-overlay-inset-y) var(--card-editor-overlay-inset-x)'" :interactive="false">
+    <OcOverlay>
       <OcBox class="card-design-editor__viewport-host" stack fill relative :pointer="panelPointerEvents">
         <CardViewport v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
           :restore-key="props.filePath" :initial-transform="viewportTransform"
@@ -26,10 +26,13 @@
         <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
       </OcBox>
       <template #overlay>
-        <OcAxisLayout class="card-design-editor__overlay-layout" axis="horizontal" :regions="overlayHorizontalRegions"
-          fill :interactive="false">
+        <OcTrackLayout
+          class="card-design-editor__overlay-layout"
+          axis="horizontal"
+          :regions="overlayHorizontalRegions"
+        >
           <template #left-cardtree>
-            <OcSurface variant="glass" radius="lg" shadow="overlay" fill class="card-design-editor__floating-shell"
+            <OcSurface tone="glass" radius="lg" elevation="overlay" fill class="card-design-editor__floating-shell"
               :style="{ pointerEvents: panelPointerEvents }">
               <OcPanelSection fill tone="glass" :collapsed="!isInstancePanelExpanded" body-padding="var(--oc-space-1) 0"
                 :scroll-body="true">
@@ -54,7 +57,7 @@
             </OcSurface>
           </template>
           <template #left-position>
-            <OcSurface variant="glass" radius="lg" shadow="overlay"
+            <OcSurface tone="glass" radius="lg" elevation="overlay"
               class="card-design-editor__floating-shell card-design-editor__floating-shell--padding-sm">
               <OcText>
 
@@ -66,7 +69,7 @@
 
           </template>
           <template #transform-preview>
-            <OcSurface v-if="showTransformPreview && viewDoc" variant="glass" radius="lg" shadow="overlay"
+            <OcSurface v-if="showTransformPreview && viewDoc" tone="glass" radius="lg" elevation="overlay"
               class="card-design-editor__floating-shell card-design-editor__floating-shell--padding-sm"
               :style="{ pointerEvents: 'none' }">
               <OcBar kind="section">
@@ -83,13 +86,8 @@
             </OcSurface>
 
           </template>
-          <template #right-resizer>
-            <OcResizer orientation="vertical" variant="edge" dock="left" dock-offset="-10px"
-              :active="resizeState === 'right-panel'" @mousedown="startRightPanelResize" />
-          </template>
           <template #right-structuretree>
-
-            <OcSurface variant="glass" radius="lg" shadow="overlay" fill class="card-design-editor__floating-shell"
+            <OcSurface tone="glass" radius="lg" elevation="overlay" fill class="card-design-editor__floating-shell"
               :style="{ pointerEvents: panelPointerEvents }">
               <OcTrackLayout class="card-design-editor__right-split" axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
@@ -124,7 +122,7 @@
               </OcTrackLayout>
             </OcSurface>
           </template>
-        </OcAxisLayout>
+        </OcTrackLayout>
       </template>
     </OcOverlay>
   </div>
@@ -148,13 +146,11 @@ import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
-import OcAxisLayout, { type AxisRegion } from '../base/OcAxisLayout.vue'
 import OcBar from '../base/OcBar.vue'
 import OcChip from '../base/OcChip.vue'
 import OcEmptyHint from '../base/OcEmptyHint.vue'
 import OcOverlay from '../base/OcOverlay.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
-import OcResizer from '../base/OcResizer.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
 import OcToolButton from '../base/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
@@ -211,37 +207,25 @@ const viewportTransform = ref({
   scale: 1,
 })
 const loadedFilePath = ref<string | null>(null)
-const overlayHorizontalRegions: AxisRegion[] = [
-  { slot: 'left-cardtree', track: 'auto' },
-  { slot: 'left-position', track: 'auto' },
-  { slot: 'center-spacer', track: 'fill' },
-  { slot: 'transform-preview', track: 'auto' },
-  { slot: 'right-resizer', track: 'auto' },
-  { slot: 'right-structuretree', track: 'size-3xl' },
-]
+
 const panelPointerEvents = computed<'auto' | 'none'>(() => (resizeState.value ? 'none' : 'auto'))
-const rightPanelStyle = computed<CSSProperties>(() => ({
-  pointerEvents: panelPointerEvents.value,
-  ...(resizeState.value === 'right-panel' ? { willChange: 'width' } : {}),
-}))
-const rightPanelShellStyle = computed<CSSProperties>(() => ({
-  width: '100%',
-  height: '100%',
-  minWidth: '0',
-  minHeight: '0',
-  position: 'relative',
-  ...rightPanelStyle.value,
-}))
 
 // 面板尺寸与拖拽状态。
 const {
   editorRootRef,
   editorStyle,
   resizeState,
-  startRightPanelResize,
   mountPanelResizeListeners,
   unmountPanelResizeListeners,
 } = useCdePanelResize()
+
+const overlayHorizontalRegions = ref<OcTrackRegion[]>([
+  { slot: 'left-cardtree', size: 'auto' },
+  { slot: 'left-position', size: 'auto' },
+  { slot: 'center-spacer', size: 'fill' },
+  { slot: 'transform-preview', size: 'auto' },
+  { slot: 'right-structuretree', size: 'size-3xl', resizableStart: true, min: 'panel-md' },
+])
 
 const rightPanelTrackRegions = ref<OcTrackRegion[]>([
   {
@@ -254,6 +238,7 @@ const rightPanelTrackRegions = ref<OcTrackRegion[]>([
   {
     slot: 'property-panel',
     size: 'fill',
+    resizableStart: true,
     min: 'panel-md',
   }
 ])
@@ -708,11 +693,6 @@ onUnmounted(() => {
   z-index: 2;
 }
 
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='center-spacer']),
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-center-spacer) {
-  min-width: 0 !important;
-}
-
 .card-design-editor__center-hud--xy {
   width: var(--card-editor-overlay-xy-track-width);
 }
@@ -721,11 +701,5 @@ onUnmounted(() => {
   width: var(--card-editor-overlay-preview-track-width);
 }
 
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='left-cardtree']),
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-left-cardtree),
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region[data-slot='right-structuretree']),
-.card-design-editor__overlay-layout :deep(.oc-axis-layout__region--slot-right-structuretree) {
-  position: relative;
-  z-index: 1;
-}
 </style>
+

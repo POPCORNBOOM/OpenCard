@@ -149,7 +149,7 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
       'OcChip',
       'OcEmptyHint',
       'OcOverlay',
-      'OcAxisLayout',
+      'OcTrackLayout',
       'OcFieldInput',
       'OcMenuItemButton',
       'OcOptionGroup',
@@ -198,7 +198,7 @@ export const UI_KIT_SECTIONS: readonly ShowcaseSection[] = [
       },
       {
         id: 'base-oc-axis-layout',
-        title: 'OcAxisLayout',
+        title: 'OcTrackLayout',
         purpose: '单轴语义化布局容器，按 left/right/top/bottom/center 排布区域。',
         demoBlocks: SHOWCASE_MATRIX_COLUMNS,
         stateCoverage: ['n/a'],

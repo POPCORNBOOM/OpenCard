@@ -1,5 +1,6 @@
+<!-- 工具按钮：在 OcButton 之上提供 menu/sidebar/panel 语义尺寸与状态表达。 -->
 <template>
-  <OcPressable
+  <OcButton
     class="oc-tool-button"
     :class="toolButtonClass"
     :variant="resolvedVariant"
@@ -22,32 +23,51 @@
         <OcText v-if="label" as="span" class="oc-tool-button__label">{{ label }}</OcText>
       </template>
     </slot>
-  </OcPressable>
+  </OcButton>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
+import OcButton from './OcButton.vue'
+import { OcIcon, OcText } from '../../shared/ui/primitives'
 import type { IconTone } from '../../shared/ui/icon/iconRegistry'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'
 type ToolButtonSize = 'sm' | 'md' | 'lg'
 
+interface OcToolButtonProps {
+  /** 文案标签。 */
+  label?: string
+  /** 图标名。 */
+  icon?: string
+  /** 图标色调。 */
+  iconTone?: IconTone
+  /** 是否 icon-only。 */
+  iconOnly?: boolean
+  /** 是否激活。 */
+  active?: boolean
+  /** 是否禁用。 */
+  disabled?: boolean
+  /** title 文本。 */
+  title?: string
+  /** aria-label 文本。 */
+  ariaLabel?: string
+  /** 工具栏语义类型。 */
+  kind?: ToolButtonKind
+  /** 组件尺寸。 */
+  size?: ToolButtonSize
+  /** 是否占满容器宽度。 */
+  block?: boolean
+}
+
+interface OcToolButtonEmits {
+  /** 点击工具按钮时抛出。 */
+  click: [event: MouseEvent]
+}
+
 defineOptions({ name: 'OcToolButton' })
 
-const props = withDefaults(defineProps<{
-  label?: string
-  icon?: string
-  iconTone?: IconTone
-  iconOnly?: boolean
-  active?: boolean
-  disabled?: boolean
-  title?: string
-  ariaLabel?: string
-  kind?: ToolButtonKind
-  size?: ToolButtonSize
-  block?: boolean
-}>(), {
+const props = withDefaults(defineProps<OcToolButtonProps>(), {
   label: undefined,
   icon: undefined,
   iconTone: undefined,
@@ -61,9 +81,7 @@ const props = withDefaults(defineProps<{
   block: undefined,
 })
 
-const emit = defineEmits<{
-  click: [event: MouseEvent]
-}>()
+const emit = defineEmits<OcToolButtonEmits>()
 
 const resolvedVariant = computed(() => props.iconOnly ? 'icon' : 'ghost')
 const resolvedSize = computed<ToolButtonSize>(() => {

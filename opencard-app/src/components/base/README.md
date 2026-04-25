@@ -112,7 +112,7 @@
 - 禁用用法:
   - 不要把 modal/focus trap/portal/多层 overlay 栈管理塞进 `OcOverlay`。
 
-### `OcAxisLayout`
+### `OcTrackLayout`
 
 - props:
   - `as?: string`
@@ -131,12 +131,12 @@
 - 推荐用法:
   - IDE 工作区/overlay 的单轴排布，固定栏位使用像素轨道，主工作区使用 `*` 轨道。
 - 禁用用法:
-  - 不要把拖拽分栏、二维网格、响应式重排策略塞进 `OcAxisLayout`。
+  - 不要把拖拽分栏、二维网格、响应式重排策略塞进 `OcTrackLayout`。
 
 ## Layout Principles
 
 - `Layout` 型组件只负责区域分配与排布关系，不承载业务视觉语义。
-- `OcAxisLayout` 只负责轨道（`track`）和区域间距（`gap`），不提供内边距（padding）策略。
+- `OcTrackLayout` 只负责轨道（`track`）和区域间距（`gap`），不提供内边距（padding）策略。
 - 兄弟间距离优先由父级 `gap` 管理，组件内部留白由子组件 `padding` 管理。
 - 不使用子组件 `margin` 充当主布局手段；`margin` 仅用于个别外部逃逸场景。
 

@@ -3,9 +3,9 @@
     <OcSurface
       v-if="preview"
       class="oc-color-field__preview"
-      variant="input"
+      tone="input"
       radius="sm"
-      :bordered="true"
+      border="subtle"
       pattern="checker-preview"
       aria-hidden="true"
     >
@@ -160,3 +160,4 @@ function toHexColor(value: string): string | null {
   cursor: not-allowed;
 }
 </style>
+

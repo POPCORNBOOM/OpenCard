@@ -14,7 +14,7 @@
       </div>
     </header>
     <div>
-      <OcSurface variant="glass" radius="md" shadow="sm" fill>
+      <OcSurface tone="glass" radius="md" elevation="sm" fill>
         <OcBox stack fill>
           <Header>
             ass
@@ -75,7 +75,6 @@ import ShowcaseExampleRenderer from '../components/ui-kit/ShowcaseExampleRendere
 import { UI_KIT_SECTIONS, type ShowcaseExample } from './ui-kit/catalog'
 import { getShowcaseCode } from './ui-kit/showcaseCode'
 import OcBox from '../shared/ui/primitives/OcBox.vue'
-import OcText from '../shared/ui/primitives/OcText.vue'
 import OcSurface from '../shared/ui/primitives/OcSurface.vue'
 
 defineOptions({ name: 'UiKitShowcase' })
@@ -277,3 +276,4 @@ function goToIde() {
   }
 }
 </style>
+

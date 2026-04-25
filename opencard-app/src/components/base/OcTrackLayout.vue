@@ -1,32 +1,19 @@
 <template>
-  <div
-    ref="rootRef"
-    class="oc-track-layout"
-    :class="`oc-track-layout--${props.axis}`"
-    :style="layoutStyle"
-    v-bind="attrs"
-  >
+  <div ref="rootRef" class="oc-track-layout" :class="`oc-track-layout--${props.axis}`" :style="layoutStyle"
+    v-bind="attrs">
     <template v-for="item in layoutItems" :key="item.key">
-      <div
-        v-if="item.type === 'region'"
-        class="oc-track-layout__region"
-        :data-slot="item.slot"
-        :data-region-index="item.regionIndex"
-        :ref="(el) => setRegionRef(item.regionIndex, el)"
-      >
+      <div v-if="item.type === 'region'" class="oc-track-layout__region" :data-slot="item.slot"
+        :data-region-index="item.regionIndex" :ref="(el) => setRegionRef(item.regionIndex, el)">
         <slot :name="item.slot" />
       </div>
-      <div
-        v-else
-        class="oc-track-layout__resizer"
-        :class="{
-          'is-active': activeHandleIndex === item.handleIndex,
-        }"
-        role="separator"
-        :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
+      <OcPressable v-else as="div" radius="none" size="sm" class="oc-track-layout__resizer-hit"
+        :class="[
+          `oc-track-layout__resizer-hit--${props.axis}`,
+          { 'is-active': activeHandleIndex === item.handleIndex },
+        ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
         :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`"
-        @mousedown="handleResizeStart($event, item.handleIndex)"
-      />
+        @mousedown="handleResizeStart($event, item.handleIndex)">
+      </OcPressable>
     </template>
   </div>
 </template>
@@ -51,6 +38,7 @@ import {
   type OcTrackHandleSize,
   type OcTrackRegion,
 } from '../../shared/ui/foundation/tokenRegistry'
+import { OcPressable } from '../../shared/ui/primitives'
 
 type OcTrackLayoutAxis = 'horizontal' | 'vertical'
 
@@ -206,7 +194,7 @@ const layoutItems = computed<LayoutItem[]>(() => {
 
 const trackTemplate = computed(() => {
   const segments: string[] = []
-  props.regions.forEach((region, index) => {
+  props.regions.forEach((_, index) => {
     segments.push(trackSizes.value[index] ?? DEFAULT_TRACK_SIZE)
     if (index < props.regions.length - 1 && hasBoundaryHandle(index)) {
       segments.push('var(--oc-track-layout-handle-size)')
@@ -410,6 +398,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   display: grid;
+  pointer-events: none;
 }
 
 .oc-track-layout__region {
@@ -417,58 +406,31 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
-.oc-track-layout__resizer {
+.oc-track-layout__region :slotted(*) {
+  pointer-events: auto;
+}
+
+.oc-track-layout__resizer-hit {
   position: relative;
   min-width: 0;
   min-height: 0;
   width: 100%;
   height: 100%;
-  background: transparent;
+  padding: 0;
+  border: 0;
   touch-action: none;
   user-select: none;
+  pointer-events: auto;
 }
 
-.oc-track-layout__resizer::before {
-  content: '';
-  position: absolute;
-  border-radius: var(--oc-radius-pill);
-  background: var(--oc-border-strong);
-  transition:
-    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    box-shadow var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
-}
-
-.oc-track-layout--horizontal .oc-track-layout__resizer {
+.oc-track-layout__resizer-hit--horizontal {
   cursor: col-resize;
 }
 
-.oc-track-layout--horizontal .oc-track-layout__resizer::before {
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 1px);
-  width: 2px;
-}
-
-.oc-track-layout--vertical .oc-track-layout__resizer {
+.oc-track-layout__resizer-hit--vertical {
   cursor: row-resize;
 }
-
-.oc-track-layout--vertical .oc-track-layout__resizer::before {
-  left: 0;
-  right: 0;
-  top: calc(50% - 1px);
-  height: 2px;
-}
-
-.oc-track-layout__resizer:hover::before {
-  background: var(--oc-bg-hover-strong);
-}
-
-.oc-track-layout__resizer.is-active::before {
-  background: var(--oc-bg-accent);
-  box-shadow: 0 0 0 1px var(--oc-bg-accent-soft);
-}
-
 </style>

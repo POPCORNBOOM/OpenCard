@@ -3,7 +3,7 @@
     <OcSurface
       as="aside"
       class="oc-sidebar-frame__activity"
-      variant="elevated"
+      tone="elevated"
       radius="none"
     >
       <slot name="activity" />
@@ -12,7 +12,7 @@
       v-if="panelVisible"
       as="section"
       class="oc-sidebar-frame__panel"
-      variant="panel"
+      tone="panel"
       radius="none"
     >
       <slot name="panel" />
@@ -94,3 +94,4 @@ const frameClass = computed(() => [
   width: 320px;
 }
 </style>
+

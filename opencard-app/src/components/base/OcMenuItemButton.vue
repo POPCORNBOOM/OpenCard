@@ -1,9 +1,11 @@
+<!-- 菜单项按钮：封装菜单行布局与图标占位，交互和视觉由 OcButton 承载。 -->
 <template>
-  <OcPressable
+  <OcButton
     class="oc-menu-item-button"
     variant="ghost"
     size="md"
     radius="md"
+    block
     :disabled="disabled"
     @click="emit('click', $event)"
   >
@@ -13,38 +15,49 @@
       <OcText as="span" class="oc-menu-item-button__label">{{ label }}</OcText>
     </span>
     <OcIcon v-if="hasChildren" name="icon.chevron-right" class="oc-menu-item-button__chevron" size="sm" />
-  </OcPressable>
+  </OcButton>
 </template>
 
 <script setup lang="ts">
-import { OcIcon, OcPressable, OcText } from '../../shared/ui/primitives'
+import OcButton from './OcButton.vue'
+import { OcIcon, OcText } from '../../shared/ui/primitives'
+
+interface OcMenuItemButtonProps {
+  /** 菜单主文案。 */
+  label: string
+  /** 左侧图标名。 */
+  icon?: string
+  /** 是否显示右侧子菜单箭头。 */
+  hasChildren?: boolean
+  /** 是否禁用菜单项。 */
+  disabled?: boolean
+}
+
+interface OcMenuItemButtonEmits {
+  /** 点击菜单项时抛出。 */
+  click: [event: MouseEvent]
+}
 
 defineOptions({ name: 'OcMenuItemButton' })
 
-withDefaults(defineProps<{
-  label: string
-  icon?: string
-  hasChildren?: boolean
-  disabled?: boolean
-}>(), {
+withDefaults(defineProps<OcMenuItemButtonProps>(), {
   icon: undefined,
   hasChildren: false,
   disabled: false,
 })
 
-const emit = defineEmits<{
-  (e: 'click', event: MouseEvent): void
-}>()
+const emit = defineEmits<OcMenuItemButtonEmits>()
 </script>
 
 <style scoped>
 .oc-menu-item-button {
   width: 100%;
-  display: flex;
-  align-items: center;
+}
+
+.oc-menu-item-button :deep(.oc-base-button__surface) {
+  width: 100%;
   justify-content: space-between;
   gap: 10px;
-  padding: 5px 7px;
   text-align: left;
 }
 

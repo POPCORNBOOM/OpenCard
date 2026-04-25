@@ -5,7 +5,7 @@ export const OC_BOX_ALIGN_VALUES = ['start', 'center', 'end', 'stretch'] as cons
 export const OC_BOX_JUSTIFY_VALUES = ['start', 'center', 'end', 'between'] as const
 export const OC_BOX_OVERFLOW_VALUES = ['visible', 'hidden', 'auto'] as const
 
-export const OC_PRESSABLE_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
+export const OC_BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
 export const OC_PRESSABLE_SIZES = ['sm', 'md', 'lg'] as const
 export const OC_PRESSABLE_DENSITIES = ['compact', 'comfortable', 'spacious'] as const
 export const OC_PRESSABLE_RADII = ['none', 'sm', 'md', 'lg'] as const

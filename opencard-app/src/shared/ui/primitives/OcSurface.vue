@@ -1,3 +1,4 @@
+<!-- 表面样式原语：只负责背景、边框、圆角、阴影和图案，不承担交互语义。 -->
 <template>
   <component :is="as" class="oc-surface" :class="surfaceClass" :style="forwardedStyle" v-bind="forwardedAttrs">
     <slot />
@@ -6,49 +7,66 @@
 
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
-import {
-  useOcSurfaceCapabilities,
-  type OcSurfacePattern,
-  type OcSurfaceRadius,
-  type OcSurfaceShadow,
-  type OcSurfaceVariant,
-} from '../composables/useOcSurfaceCapabilities'
 import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
+import {
+  OC_SURFACE_PATTERNS,
+  OC_SURFACE_RADII,
+  OC_SURFACE_SHADOWS,
+  OC_SURFACE_VARIANTS,
+} from '../foundation/tokenRegistry'
+
+type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
+type OcSurfaceRadius = (typeof OC_SURFACE_RADII)[number]
+type OcSurfaceElevation = (typeof OC_SURFACE_SHADOWS)[number]
+type OcSurfacePattern = (typeof OC_SURFACE_PATTERNS)[number]
+type OcSurfaceBorder = 'none' | 'subtle' | 'strong' | 'overlay'
+
+interface OcSurfaceProps {
+  /** 根元素标签。 */
+  as?: string
+  /** 表面底色语义。 */
+  tone?: OcSurfaceTone
+  /** 表面圆角 token。 */
+  radius?: OcSurfaceRadius
+  /** 表面阴影层级 token。 */
+  elevation?: OcSurfaceElevation
+  /** 表面边框语义。 */
+  border?: OcSurfaceBorder
+  /** 表面图案语义。 */
+  pattern?: OcSurfacePattern
+  /** 是否铺满父容器。 */
+  fill?: boolean
+}
 
 defineOptions({
   name: 'OcSurface',
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
-  as?: string
-  variant?: OcSurfaceVariant
-  radius?: OcSurfaceRadius
-  shadow?: OcSurfaceShadow
-  bordered?: boolean
-  fill?: boolean
-  pattern?: OcSurfacePattern
-}>(), {
+const props = withDefaults(defineProps<OcSurfaceProps>(), {
   as: 'div',
-  variant: 'panel',
+  tone: 'panel',
   radius: 'sm',
-  shadow: 'none',
-  bordered: false,
-  fill: false,
+  elevation: 'none',
+  border: 'none',
   pattern: 'none',
+  fill: false,
 })
 
 const attrs = useAttrs()
-const forwardedAttrs = useOcForwardAttrs(attrs)
+const forwardedAttrs = useOcForwardAttrs(attrs, ['style', 'variant', 'shadow', 'bordered'])
 const forwardedStyle = computed(() => attrs.style)
-const { surfaceClass } = useOcSurfaceCapabilities({
-  variant: () => props.variant,
-  radius: () => props.radius,
-  shadow: () => props.shadow,
-  pattern: () => props.pattern,
-  bordered: () => props.bordered,
-  fill: () => props.fill,
-})
+
+const surfaceClass = computed(() => [
+  `oc-surface--tone-${props.tone}`,
+  `oc-surface--radius-${props.radius}`,
+  `oc-surface--elevation-${props.elevation}`,
+  `oc-surface--border-${props.border}`,
+  `oc-surface--pattern-${props.pattern}`,
+  {
+    'is-fill': props.fill,
+  },
+])
 </script>
 
 <style scoped>
@@ -62,33 +80,45 @@ const { surfaceClass } = useOcSurfaceCapabilities({
   height: 100%;
 }
 
-.oc-surface--panel {
+.oc-surface--tone-panel {
   background: var(--oc-bg-panel);
 }
 
-.oc-surface--elevated {
+.oc-surface--tone-elevated {
   background: var(--oc-bg-elevated);
 }
 
-.oc-surface--input {
+.oc-surface--tone-input {
   background: var(--oc-bg-input);
 }
 
-.oc-surface--floating {
+.oc-surface--tone-floating {
   background: var(--oc-bg-panel);
 }
 
-.oc-surface--transparent {
+.oc-surface--tone-transparent {
   background: transparent;
 }
 
-.oc-surface--glass {
+.oc-surface--tone-glass {
   background: var(--oc-bg-overlay-soft);
   backdrop-filter: blur(14px);
 }
 
-.oc-surface.is-bordered {
+.oc-surface--border-none {
+  border: 1px solid transparent;
+}
+
+.oc-surface--border-subtle {
   border: 1px solid var(--oc-border-surface);
+}
+
+.oc-surface--border-strong {
+  border: 1px solid var(--oc-border-strong);
+}
+
+.oc-surface--border-overlay {
+  border: 1px solid var(--oc-border-overlay-soft);
 }
 
 .oc-surface--radius-none {
@@ -107,19 +137,19 @@ const { surfaceClass } = useOcSurfaceCapabilities({
   border-radius: var(--oc-radius-lg);
 }
 
-.oc-surface--shadow-none {
+.oc-surface--elevation-none {
   box-shadow: none;
 }
 
-.oc-surface--shadow-sm {
+.oc-surface--elevation-sm {
   box-shadow: var(--oc-shadow-sm);
 }
 
-.oc-surface--shadow-md {
+.oc-surface--elevation-md {
   box-shadow: var(--oc-shadow-md);
 }
 
-.oc-surface--shadow-overlay {
+.oc-surface--elevation-overlay {
   box-shadow: var(--oc-shadow-overlay);
 }
 

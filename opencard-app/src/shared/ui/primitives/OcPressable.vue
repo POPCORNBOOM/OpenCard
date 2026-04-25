@@ -1,8 +1,10 @@
+<!-- 交互语义原语：只负责按压语义、可访问性与点击区域几何，不承载视觉状态样式。 -->
 <template>
   <component
     :is="as"
     class="oc-pressable"
     :class="pressableClass"
+    :style="forwardedStyle"
     v-bind="resolvedAttrs"
     @keydown="handleNonButtonKeydown"
   >
@@ -11,39 +13,39 @@
 </template>
 
 <script setup lang="ts">
-import { useAttrs } from 'vue'
-import {
-  useOcPressableA11y,
-  useOcPressableCapabilities,
-  type OcPressableDensity,
-  type OcPressableRadius,
-  type OcPressableSize,
-  type OcPressableVariant,
-} from '../composables/useOcPressableCapabilities'
+import { computed, useAttrs } from 'vue'
+import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
+import { OC_PRESSABLE_RADII, OC_PRESSABLE_SIZES } from '../foundation/tokenRegistry'
+
+type OcPressableSize = (typeof OC_PRESSABLE_SIZES)[number]
+type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
+
+interface OcPressableProps {
+  /** 根元素标签。 */
+  as?: string
+  /** 点击区域尺寸 token。 */
+  size?: OcPressableSize
+  /** 点击区域圆角 token。 */
+  radius?: OcPressableRadius
+  /** 是否占满可用宽度。 */
+  block?: boolean
+  /** 是否禁用交互。 */
+  disabled?: boolean
+  /** 是否使用正方形点击区域。 */
+  iconOnly?: boolean
+  /** 当 as=button 时生效的按钮类型。 */
+  type?: 'button' | 'submit' | 'reset'
+}
 
 defineOptions({
   name: 'OcPressable',
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
-  as?: string
-  variant?: OcPressableVariant
-  size?: OcPressableSize
-  density?: OcPressableDensity
-  radius?: OcPressableRadius
-  active?: boolean
-  block?: boolean
-  disabled?: boolean
-  iconOnly?: boolean
-  type?: 'button' | 'submit' | 'reset'
-}>(), {
+const props = withDefaults(defineProps<OcPressableProps>(), {
   as: 'button',
-  variant: 'secondary',
   size: 'md',
-  density: 'comfortable',
   radius: 'sm',
-  active: false,
   block: false,
   disabled: false,
   iconOnly: false,
@@ -51,65 +53,124 @@ const props = withDefaults(defineProps<{
 })
 
 const attrs = useAttrs()
-const { pressableClass } = useOcPressableCapabilities({
-  variant: () => props.variant,
-  size: () => props.size,
-  density: () => props.density,
-  radius: () => props.radius,
-  active: () => props.active,
-  block: () => props.block,
-  disabled: () => props.disabled,
-  iconOnly: () => props.iconOnly,
+const forwardedAttrs = useOcForwardAttrs(attrs, [
+  'style',
+  'variant',
+  'density',
+  'active',
+  'icon-only',
+  'iconOnly',
+  'slotted-fill',
+  'slottedFill',
+])
+const forwardedStyle = computed(() => attrs.style)
+const isButtonElement = computed(() => props.as === 'button')
+
+const resolvedRole = computed(() => {
+  if (isButtonElement.value) {
+    return undefined
+  }
+
+  const roleAttr = forwardedAttrs.value.role
+  return typeof roleAttr === 'string' ? roleAttr : 'button'
 })
 
-const { resolvedAttrs, handleNonButtonKeydown } = useOcPressableA11y({
-  as: () => props.as,
-  type: () => props.type,
-  disabled: () => props.disabled,
-}, attrs)
+const isButtonLikeRole = computed(() => resolvedRole.value === 'button')
+
+const resolvedAttrs = computed<Record<string, unknown>>(() => {
+  const nextAttrs = { ...forwardedAttrs.value }
+
+  if (isButtonElement.value) {
+    return {
+      ...nextAttrs,
+      type: props.type,
+      disabled: props.disabled,
+    }
+  }
+
+  const tabindexAttr = nextAttrs.tabindex
+  const resolvedTabindex = props.disabled
+    ? -1
+    : (
+        typeof tabindexAttr === 'string' || typeof tabindexAttr === 'number'
+          ? tabindexAttr
+          : 0
+      )
+
+  return {
+    ...nextAttrs,
+    role: resolvedRole.value,
+    tabindex: resolvedTabindex,
+    'aria-disabled': props.disabled ? 'true' : undefined,
+  }
+})
+
+const pressableClass = computed(() => [
+  `oc-pressable--size-${props.size}`,
+  `oc-pressable--radius-${props.radius}`,
+  {
+    'is-block': props.block,
+    'is-disabled': props.disabled,
+    'is-icon-only': props.iconOnly,
+  },
+])
+
+function handleNonButtonKeydown(event: KeyboardEvent): void {
+  if (isButtonElement.value || props.disabled || event.repeat || !isButtonLikeRole.value) {
+    return
+  }
+
+  const isEnter = event.key === 'Enter'
+  const isSpace = event.key === ' ' || event.key === 'Spacebar'
+  if (!isEnter && !isSpace) {
+    return
+  }
+
+  event.preventDefault()
+  const currentTarget = event.currentTarget
+  if (!(currentTarget instanceof HTMLElement)) {
+    return
+  }
+
+  currentTarget.click()
+}
 </script>
 
 <style scoped>
 .oc-pressable {
-  --oc-pressable-gap: 6px;
-  --oc-pressable-min-height: 26px;
-  --oc-pressable-padding-block: 5px;
-  --oc-pressable-padding-inline: 10px;
-  --oc-pressable-font-size: 12px;
-  --oc-pressable-density-padding-block: 0px;
-  --oc-pressable-density-padding-inline: 0px;
-  --oc-pressable-density-font-size: 0px;
+  --oc-pressable-hit-size: 26px;
+  min-width: 0;
+  min-height: var(--oc-pressable-hit-size);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--oc-pressable-gap);
-  border: 1px solid transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
   background: transparent;
-  color: var(--oc-text-primary);
+  color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: calc(var(--oc-pressable-font-size) + var(--oc-pressable-density-font-size));
-  line-height: 1.2;
+  line-height: inherit;
   text-decoration: none;
-  transition:
-    border-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
 }
 
-.oc-pressable:not(.is-icon-only) {
-  min-height: var(--oc-pressable-min-height);
-  padding:
-    calc(var(--oc-pressable-padding-block) + var(--oc-pressable-density-padding-block))
-    calc(var(--oc-pressable-padding-inline) + var(--oc-pressable-density-padding-inline));
+.oc-pressable.is-icon-only {
+  width: var(--oc-pressable-hit-size);
+  height: var(--oc-pressable-hit-size);
+  min-height: 0;
+}
+
+.oc-pressable.is-block {
+  width: 100%;
 }
 
 .oc-pressable.is-disabled,
 .oc-pressable:disabled,
 .oc-pressable[aria-disabled='true'] {
   cursor: default;
-  opacity: 0.7;
   pointer-events: none;
+  opacity: 0.7;
 }
 
 .oc-pressable:focus-visible {
@@ -117,8 +178,12 @@ const { resolvedAttrs, handleNonButtonKeydown } = useOcPressableA11y({
   outline-offset: 1px;
 }
 
-.oc-pressable.is-block {
-  width: 100%;
+.oc-pressable:hover:not(:disabled):not([aria-disabled='true']) {
+  background: transparent;
+}
+
+.oc-pressable:active:not(:disabled):not([aria-disabled='true']) {
+  background: transparent;
 }
 
 .oc-pressable--radius-none {
@@ -138,118 +203,14 @@ const { resolvedAttrs, handleNonButtonKeydown } = useOcPressableA11y({
 }
 
 .oc-pressable--size-sm {
-  --oc-pressable-min-height: 22px;
-  --oc-pressable-padding-block: 3px;
-  --oc-pressable-padding-inline: 7px;
-  --oc-pressable-font-size: 11px;
+  --oc-pressable-hit-size: 22px;
 }
 
 .oc-pressable--size-md {
-  --oc-pressable-min-height: 26px;
-  --oc-pressable-padding-block: 5px;
-  --oc-pressable-padding-inline: 10px;
-  --oc-pressable-font-size: 12px;
+  --oc-pressable-hit-size: 26px;
 }
 
 .oc-pressable--size-lg {
-  --oc-pressable-min-height: 32px;
-  --oc-pressable-padding-block: 7px;
-  --oc-pressable-padding-inline: 14px;
-  --oc-pressable-font-size: 13px;
-}
-
-.oc-pressable--density-compact {
-  --oc-pressable-gap: 4px;
-  --oc-pressable-density-padding-block: -1px;
-  --oc-pressable-density-padding-inline: -2px;
-  --oc-pressable-density-font-size: -1px;
-}
-
-.oc-pressable--density-comfortable {
-  --oc-pressable-gap: 6px;
-  --oc-pressable-density-padding-block: 0px;
-  --oc-pressable-density-padding-inline: 0px;
-  --oc-pressable-density-font-size: 0px;
-}
-
-.oc-pressable--density-spacious {
-  --oc-pressable-gap: 8px;
-  --oc-pressable-density-padding-block: 1px;
-  --oc-pressable-density-padding-inline: 2px;
-  --oc-pressable-density-font-size: 0px;
-}
-
-.oc-pressable.is-icon-only {
-  padding: 0;
-}
-
-.oc-pressable--size-sm.is-icon-only {
-  width: 18px;
-  height: 18px;
-}
-
-.oc-pressable--size-md.is-icon-only {
-  width: 22px;
-  height: 22px;
-}
-
-.oc-pressable--size-lg.is-icon-only {
-  width: 28px;
-  height: 28px;
-}
-
-.oc-pressable--primary {
-  background: var(--oc-bg-accent);
-  color: var(--oc-accent-contrast);
-}
-
-.oc-pressable--primary:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--oc-bg-accent-hover);
-}
-
-.oc-pressable--secondary {
-  border-color: var(--oc-border-subtle);
-  background: var(--oc-bg-panel);
-}
-
-.oc-pressable--secondary:hover:not(:disabled):not([aria-disabled='true']) {
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-hover);
-}
-
-.oc-pressable--ghost:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--oc-bg-hover);
-}
-
-.oc-pressable--icon {
-  color: var(--oc-text-soft);
-}
-
-.oc-pressable--icon:hover:not(:disabled):not([aria-disabled='true']) {
-  color: var(--oc-text-highlight);
-  border-color: var(--oc-border-subtle);
-  background: var(--oc-bg-hover);
-}
-
-.oc-pressable--icon.is-active {
-  color: var(--oc-text-highlight);
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-active);
-}
-
-.oc-pressable--choice {
-  min-width: 0;
-  border-color: var(--oc-border-input);
-  background: var(--oc-bg-input);
-}
-
-.oc-pressable--choice:hover:not(:disabled):not([aria-disabled='true']) {
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-hover);
-}
-
-.oc-pressable--choice.is-active {
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-active);
+  --oc-pressable-hit-size: 32px;
 }
 </style>

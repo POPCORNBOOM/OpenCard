@@ -11,3 +11,15 @@
 轨道resizer控制权归声明方所有，双侧声明时同时控制两侧并叠加双方minmax约束
 布局主轴语义统一用before/after命名，避免left/right在vertical场景误导
 思想记录只保留设计原则与决策，不记录具体实现细则
+布局体系逐步移除OcResizer与OcTrackLayout并统一到OcTrackLayout/原语组合
+Overlay语义默认空白区域事件穿透，仅叠加内容本体可交互
+架构分层固定为METRIC层、PRIMITIVE层、基础控件层
+METRIC层负责定义数值类型、有限项选择和解析器，用于消灭魔法数字
+全局UI必须优先消费METRIC有限项，禁止随意填写尺寸字符串或裸number
+仅允许受控逃生口输入结构化度量：cssVar+fallback
+PRIMITIVE层每个组件只做单一基础能力，不承载业务variant语义
+PRIMITIVE层对外暴露token化能力参数，机制实现留在原语内部
+基础控件层内部编排多个PRIMITIVE，对外收敛参数并表达业务语义
+variant只做语义映射链路：variant到token组合再到primitive props
+职责分配固定为机制归原语、策略归基础控件、语义归variant
+交互高光机制归OcPressable实现，基础控件仅可控制高光强度档位

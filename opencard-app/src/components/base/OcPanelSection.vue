@@ -1,3 +1,4 @@
+<!-- 面板区块容器：统一渲染头部/主体结构并承载可滚动区域布局。 -->
 <template>
   <OcSurface as="section" class="oc-panel-section" :class="[
     `oc-panel-section--tone-${props.tone}`,
@@ -8,7 +9,7 @@
       'is-collapsed': props.collapsed,
       'is-fill': props.fill,
     },
-  ]" :variant="tone">
+  ]" :tone="tone">
     <header v-if="hasHeader" class="oc-panel-header oc-panel-section__header" :class="headerClass">
       <div class="oc-panel-section__title">
         <slot name="title">{{ title }}</slot>
@@ -17,8 +18,7 @@
         <slot name="actions" />
       </div>
     </header>
-    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass"
-      axis="y">
+    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass" axis="y">
       <slot />
     </OcScrollArea>
     <div v-else class="oc-panel-section__body oc-panel-body" :class="bodyClass">
@@ -29,31 +29,46 @@
 
 <script setup lang="ts">
 import { computed, useSlots, type HTMLAttributes } from 'vue'
+import { OC_SURFACE_VARIANTS } from '../../shared/ui/foundation/tokenRegistry'
 import { OcScrollArea, OcSurface } from '../../shared/ui/primitives'
-import { OcSurfaceVariant } from '../../shared/ui/composables/useOcSurfaceCapabilities'
 
+type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
 type PanelHeaderDensity = 'compact' | 'default' | 'comfortable'
 type PanelHeaderInset = 'default' | 'comfortable'
 type PanelBodyInset = 'none' | 'compact' | 'comfortable'
 
+interface OcPanelSectionProps {
+  /** 头部默认标题文案。 */
+  title?: string
+  /** 是否展示头部。 */
+  header?: boolean
+  /** 是否将主体渲染为纵向滚动区域。 */
+  scrollBody?: boolean
+  /** 面板表面色调。 */
+  tone?: OcSurfaceTone
+  /** 是否折叠主体内容。 */
+  collapsed?: boolean
+  /** 头部密度。 */
+  headerDensity?: PanelHeaderDensity
+  /** 头部水平内边距。 */
+  headerInset?: PanelHeaderInset
+  /** 主体内边距。 */
+  bodyInset?: PanelBodyInset
+  /** 是否填满父容器。 */
+  fill?: boolean
+  /** 头部附加 class。 */
+  headerClass?: HTMLAttributes['class']
+  /** 主体附加 class。 */
+  bodyClass?: HTMLAttributes['class']
+}
+
 defineOptions({ name: 'OcPanelSection' })
 
-const props = withDefaults(defineProps<{
-  title?: string
-  header?: boolean
-  scrollBody?: boolean
-  tone?: OcSurfaceVariant
-  collapsed?: boolean
-  headerDensity?: PanelHeaderDensity
-  headerInset?: PanelHeaderInset
-  bodyInset?: PanelBodyInset
-  fill?: boolean
-  headerClass?: HTMLAttributes['class']
-  bodyClass?: HTMLAttributes['class']
-}>(), {
+const props = withDefaults(defineProps<OcPanelSectionProps>(), {
   title: undefined,
   header: true,
   scrollBody: true,
+  tone: 'panel',
   collapsed: false,
   headerDensity: 'default',
   headerInset: 'default',
@@ -139,14 +154,18 @@ const bodyClass = computed(() => props.bodyClass)
   border-bottom: 1px solid var(--oc-border-strong);
 }
 
-.oc-panel-section--tone-overlay .oc-panel-header {
+.oc-panel-section--tone-glass .oc-panel-header,
+.oc-panel-section--tone-transparent .oc-panel-header {
   background: transparent;
   border-bottom-color: var(--oc-border-overlay-soft);
 }
 
-.oc-panel-section--tone-overlay .oc-panel-body,
-.oc-panel-section--tone-overlay .oc-panel-scroll-body,
-.oc-panel-section--tone-overlay .oc-panel-section__body {
+.oc-panel-section--tone-glass .oc-panel-body,
+.oc-panel-section--tone-glass .oc-panel-scroll-body,
+.oc-panel-section--tone-glass .oc-panel-section__body,
+.oc-panel-section--tone-transparent .oc-panel-body,
+.oc-panel-section--tone-transparent .oc-panel-scroll-body,
+.oc-panel-section--tone-transparent .oc-panel-section__body {
   background: transparent;
 }
 

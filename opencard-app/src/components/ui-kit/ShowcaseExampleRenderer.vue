@@ -16,7 +16,7 @@
       <div class="token-swatch token-swatch--danger">danger</div>
     </template>
     <template v-else>
-      <OcSurface variant="elevated" bordered radius="md" class="token-layout-box">
+      <OcSurface tone="elevated" border="subtle" radius="md" class="token-layout-box">
         <OcText tone="secondary" size="label">Surface + Border + Radius</OcText>
       </OcSurface>
     </template>
@@ -50,22 +50,22 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'foundation-radius-shadow'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="sm" class="shape-box">sm</OcSurface>
-      <OcSurface variant="panel" bordered radius="md" class="shape-box">md</OcSurface>
-      <OcSurface variant="panel" bordered radius="lg" class="shape-box">lg</OcSurface>
+      <OcSurface tone="panel" border="subtle" radius="sm" class="shape-box">sm</OcSurface>
+      <OcSurface tone="panel" border="subtle" radius="md" class="shape-box">md</OcSurface>
+      <OcSurface tone="panel" border="subtle" radius="lg" class="shape-box">lg</OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="elevated" bordered radius="md" shadow="sm" class="shape-box">shadow-sm</OcSurface>
-      <OcSurface variant="elevated" bordered radius="md" shadow="md" class="shape-box">shadow-md</OcSurface>
+      <OcSurface tone="elevated" border="subtle" radius="md" elevation="sm" class="shape-box">shadow-sm</OcSurface>
+      <OcSurface tone="elevated" border="subtle" radius="md" elevation="md" class="shape-box">shadow-md</OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="input" bordered radius="md" class="shape-box">input</OcSurface>
-      <OcSurface variant="floating" bordered radius="md" class="shape-box">floating</OcSurface>
+      <OcSurface tone="input" border="subtle" radius="md" class="shape-box">input</OcSurface>
+      <OcSurface tone="floating" border="subtle" radius="md" class="shape-box">floating</OcSurface>
     </template>
     <template v-else>
       <OcBox class="shadow-layout">
-        <OcSurface variant="panel" bordered radius="md" class="shadow-layout__top">Layer 1</OcSurface>
-        <OcSurface variant="elevated" bordered radius="md" shadow="sm" class="shadow-layout__bottom">Layer 2</OcSurface>
+        <OcSurface tone="panel" border="subtle" radius="md" class="shadow-layout__top">Layer 1</OcSurface>
+        <OcSurface tone="elevated" border="subtle" radius="md" elevation="sm" class="shadow-layout__bottom">Layer 2</OcSurface>
       </OcBox>
     </template>
   </div>
@@ -95,14 +95,14 @@
       <OcText class="font-token-sample font-token-sample--display">display / --oc-display-size</OcText>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered class="motion-token-chip">fast 120ms</OcSurface>
-      <OcSurface variant="panel" bordered class="motion-token-chip">base 160ms</OcSurface>
-      <OcSurface variant="panel" bordered class="motion-token-chip">slow 220ms</OcSurface>
+      <OcSurface tone="panel" border="subtle" class="motion-token-chip">fast 120ms</OcSurface>
+      <OcSurface tone="panel" border="subtle" class="motion-token-chip">base 160ms</OcSurface>
+      <OcSurface tone="panel" border="subtle" class="motion-token-chip">slow 220ms</OcSurface>
     </template>
     <template v-else>
       <div class="motion-demo-row">
-        <OcPressable variant="secondary" class="motion-demo-tile">hover me</OcPressable>
-        <OcPressable variant="primary" class="motion-demo-tile">focus me</OcPressable>
+        <OcButton variant="secondary" class="motion-demo-tile">hover me</OcButton>
+        <OcButton variant="primary" class="motion-demo-tile">focus me</OcButton>
       </div>
     </template>
   </div>
@@ -148,17 +148,17 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'primitive-oc-surface'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered class="surface-sample">panel</OcSurface>
+      <OcSurface tone="panel" border="subtle" class="surface-sample">panel</OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="elevated" bordered class="surface-sample">elevated</OcSurface>
-      <OcSurface variant="input" bordered class="surface-sample">input</OcSurface>
+      <OcSurface tone="elevated" border="subtle" class="surface-sample">elevated</OcSurface>
+      <OcSurface tone="input" border="subtle" class="surface-sample">input</OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="floating" bordered shadow="md" class="surface-sample">floating</OcSurface>
+      <OcSurface tone="floating" border="subtle" elevation="md" class="surface-sample">floating</OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered class="surface-stack">
+      <OcSurface tone="panel" border="subtle" class="surface-stack">
         <OcText size="label" tone="muted">title</OcText>
         <OcText size="body">body content</OcText>
       </OcSurface>
@@ -170,12 +170,12 @@
       <OcPressable>Default</OcPressable>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcPressable variant="primary">Primary</OcPressable>
-      <OcPressable variant="ghost">Ghost</OcPressable>
-      <OcPressable variant="choice">Choice</OcPressable>
+      <OcPressable size="sm">Small</OcPressable>
+      <OcPressable size="lg">Large</OcPressable>
+      <OcPressable radius="lg">Round</OcPressable>
     </template>
     <template v-else-if="column === 'states'">
-      <OcPressable variant="icon" icon-only active>
+      <OcPressable icon-only>
         <OcIcon name="icon.star-full" />
       </OcPressable>
       <OcPressable disabled>Disabled</OcPressable>
@@ -193,7 +193,7 @@
     </template>
     <template v-else-if="column === 'variants'">
       <OcFocusRing class="focus-shell">
-        <OcPressable variant="primary">Action</OcPressable>
+        <OcButton variant="primary">Action</OcButton>
       </OcFocusRing>
     </template>
     <template v-else-if="column === 'states'">
@@ -231,29 +231,29 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'primitive-oc-scroll-area'">
     <template v-if="column === 'default'">
-      <OcSurface variant="elevated" bordered class="scroll-shell">
+      <OcSurface tone="elevated" border="subtle" class="scroll-shell">
         <OcScrollArea axis="y" class="scroll-area">
           <OcText v-for="line in scrollLines" :key="`y-${line}`" tone="secondary">Line {{ line }}</OcText>
         </OcScrollArea>
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="elevated" bordered class="scroll-shell">
+      <OcSurface tone="elevated" border="subtle" class="scroll-shell">
         <OcScrollArea axis="x" class="scroll-area scroll-area--x">
           <OcBox inline class="scroll-row">
-            <OcSurface v-for="line in 6" :key="`x-${line}`" variant="panel" bordered class="scroll-chip">Item {{ line }}
+            <OcSurface v-for="line in 6" :key="`x-${line}`" tone="panel" border="subtle" class="scroll-chip">Item {{ line }}
             </OcSurface>
           </OcBox>
         </OcScrollArea>
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered class="scroll-shell">
+      <OcSurface tone="panel" border="subtle" class="scroll-shell">
         <OcText tone="muted" size="label">No state variant</OcText>
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="elevated" bordered class="scroll-shell scroll-shell--layout">
+      <OcSurface tone="elevated" border="subtle" class="scroll-shell scroll-shell--layout">
         <OcScrollArea axis="both" class="scroll-area">
           <div class="scroll-big-plane" />
         </OcScrollArea>
@@ -302,7 +302,7 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-bar'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="bar-demo-shell">
         <OcBar kind="top" border="bottom">
           <template #start>
             <OcText size="title">OpenCard</OcText>
@@ -315,7 +315,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="bar-demo-shell">
         <OcBar kind="status" border="top">
           <template #start>
             <OcChip>project.opencard</OcChip>
@@ -325,14 +325,14 @@
           </template>
         </OcBar>
       </OcSurface>
-      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="bar-demo-shell">
         <OcBar kind="section" border="bottom" spacing="compact" inset="compact">
           <OcText size="label" tone="muted">Section Header</OcText>
         </OcBar>
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="bar-demo-shell">
         <OcBar kind="section" border="bottom">
           <template #start>
             <OcText size="label" tone="muted">Category</OcText>
@@ -344,7 +344,7 @@
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered radius="md" class="bar-demo-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="bar-demo-shell">
         <OcBar kind="top" border="bottom">
           <template #start>
             <OcText size="title">Left</OcText>
@@ -381,25 +381,25 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-empty-hint'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="empty-hint-shell">
         <OcEmptyHint>No selection.</OcEmptyHint>
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="empty-hint-shell">
         <OcEmptyHint tone="muted" size="label">No files loaded.</OcEmptyHint>
       </OcSurface>
-      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="empty-hint-shell">
         <OcEmptyHint tone="dim" size="body">Open a project to continue.</OcEmptyHint>
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="empty-hint-shell">
         <OcEmptyHint align="start" inset="compact">Hint aligned to start.</OcEmptyHint>
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered radius="md" class="empty-hint-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="empty-hint-shell">
         <OcEmptyHint align="center" inset="comfortable">Use this in side panels and editors.</OcEmptyHint>
       </OcSurface>
     </template>
@@ -408,11 +408,11 @@
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-overlay'">
     <template v-if="column === 'default'">
       <OcOverlay class="overlay-demo-shell">
-        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+        <OcSurface tone="panel" border="subtle" radius="md" class="overlay-demo-base">
           <OcText tone="secondary">Canvas Content</OcText>
         </OcSurface>
         <template #overlay>
-          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+          <OcSurface tone="transparent" radius="lg" elevation="overlay"
             class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
             <OcText size="label">Overlay Layer</OcText>
           </OcSurface>
@@ -421,35 +421,35 @@
     </template>
     <template v-else-if="column === 'variants'">
       <OcOverlay class="overlay-demo-shell" :visible="false">
-        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+        <OcSurface tone="panel" border="subtle" radius="md" class="overlay-demo-base">
           <OcText tone="secondary">visible=false</OcText>
         </OcSurface>
         <template #overlay>
-          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+          <OcSurface tone="transparent" radius="lg" elevation="overlay"
             class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
             <OcText size="label">Hidden Overlay</OcText>
           </OcSurface>
         </template>
       </OcOverlay>
-      <OcOverlay class="overlay-demo-shell" :interactive="false" inset="var(--oc-space-2)">
-        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
-          <OcText tone="secondary">interactive=false</OcText>
+      <OcOverlay class="overlay-demo-shell" :interactive="true" inset="var(--oc-space-2)">
+        <OcSurface tone="panel" border="subtle" radius="md" class="overlay-demo-base">
+          <OcText tone="secondary">interactive=true</OcText>
         </OcSurface>
         <template #overlay>
-          <OcSurface variant="transparent" radius="lg" shadow="overlay"
+          <OcSurface tone="transparent" radius="lg" elevation="overlay"
             class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
-            <OcText size="label">Click-through Overlay</OcText>
+            <OcText size="label">Layer Captures Empty Area</OcText>
           </OcSurface>
         </template>
       </OcOverlay>
     </template>
     <template v-else-if="column === 'states'">
       <OcOverlay class="overlay-demo-shell" inset="var(--oc-space-2) var(--oc-space-3)">
-        <OcSurface variant="panel" bordered radius="md" class="overlay-demo-base">
+        <OcSurface tone="panel" border="subtle" radius="md" class="overlay-demo-base">
           <OcText tone="secondary">Inset space-2 / space-3</OcText>
         </OcSurface>
         <template #overlay>
-          <OcSurface variant="floating" bordered radius="md" class="overlay-demo-chip">
+          <OcSurface tone="floating" border="subtle" radius="md" class="overlay-demo-chip">
             <OcText size="label">Overlay Inset</OcText>
           </OcSurface>
         </template>
@@ -457,27 +457,11 @@
     </template>
     <template v-else>
       <OcOverlay class="overlay-demo-shell">
-        <OcSurface variant="elevated" bordered radius="md" class="overlay-demo-layout">
+        <OcSurface tone="elevated" border="subtle" radius="md" class="overlay-demo-layout">
           <OcText size="title">Workspace</OcText>
           <OcText tone="secondary">Base keeps structure, overlay adds tools.</OcText>
         </OcSurface>
         <template #overlay>
-          <OcAxisLayout axis="vertical" :regions="overlayLayoutRegions" class="overlay-demo-overlay-layout">
-            <template #top-tools>
-              <OcSurface variant="transparent" radius="lg" shadow="overlay"
-                class="overlay-demo-float ui-floating-shell ui-floating-shell--padding-sm">
-                <OcText size="label">Top Tool</OcText>
-              </OcSurface>
-            </template>
-            <template #overlay-spacer>
-              <div class="overlay-demo-spacer" />
-            </template>
-            <template #bottom-info>
-              <OcSurface variant="floating" bordered radius="md" class="overlay-demo-chip">
-                <OcText size="label">Bottom Info</OcText>
-              </OcSurface>
-            </template>
-          </OcAxisLayout>
         </template>
       </OcOverlay>
     </template>
@@ -485,59 +469,12 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-axis-layout'">
     <template v-if="column === 'default'">
-      <OcAxisLayout axis="horizontal" :regions="axisHorizontalRegions" class="axis-demo-horizontal">
-        <template #leftRail>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">Left</OcSurface>
-        </template>
-        <template #centerStage>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">Center</OcSurface>
-        </template>
-        <template #rightInspector>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--right">Right</OcSurface>
-        </template>
-      </OcAxisLayout>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcAxisLayout axis="vertical" :regions="axisVerticalRegions" class="axis-demo-vertical">
-        <template #topBar>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--top">Top</OcSurface>
-        </template>
-        <template #centerContent>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">Center</OcSurface>
-        </template>
-        <template #bottomInfo>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--bottom">Bottom</OcSurface>
-        </template>
-      </OcAxisLayout>
     </template>
     <template v-else-if="column === 'states'">
-      <OcAxisLayout axis="horizontal" :regions="axisStatesRegions" class="axis-demo-horizontal">
-        <template #leftTools>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">72px</OcSurface>
-        </template>
-        <template #leftNav>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">96px</OcSurface>
-        </template>
-        <template #centerMain>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">track=fill</OcSurface>
-        </template>
-      </OcAxisLayout>
     </template>
     <template v-else>
-      <OcAxisLayout axis="horizontal" :regions="axisLayoutRegions" class="axis-demo-layout">
-        <template #leftActivity>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">size-sm</OcSurface>
-        </template>
-        <template #leftExplorer>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--left">fill-2</OcSurface>
-        </template>
-        <template #centerCanvas>
-          <OcSurface variant="elevated" bordered class="axis-demo-pane axis-demo-pane--center">fill</OcSurface>
-        </template>
-        <template #rightPanel>
-          <OcSurface variant="panel" bordered class="axis-demo-pane axis-demo-pane--right">auto</OcSurface>
-        </template>
-      </OcAxisLayout>
     </template>
   </div>
 
@@ -574,7 +511,7 @@
       <OcMenuItemButton label="Disabled Item" icon="icon.circle-slash" :disabled="true" />
     </template>
     <template v-else>
-      <OcSurface variant="floating" bordered radius="md" class="menu-shell">
+      <OcSurface tone="floating" border="subtle" radius="md" class="menu-shell">
         <OcMenuItemButton label="Action One" icon="icon.play" />
         <OcMenuItemButton label="Action Two" icon="icon.debug-restart" />
       </OcSurface>
@@ -653,7 +590,7 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-tab-bar'">
     <template v-if="column === 'default'">
-      <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell">
+      <OcSurface tone="elevated" border="subtle" radius="md" class="tab-bar-shell">
         <OcTabBar aria-label="Editor tabs">
           <OcTab label="Uno.opencard" :active="tabValue === 'uno'" @select="tabValue = 'uno'" />
           <OcTab label="Blue.opencard" :active="tabValue === 'blue'" @select="tabValue = 'blue'" />
@@ -662,7 +599,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell">
+      <OcSurface tone="elevated" border="subtle" radius="md" class="tab-bar-shell">
         <OcTabBar aria-label="Editor variants">
           <OcTab label="Overview" :active="tabVariantValue === 'overview'" :closable="false"
             @select="tabVariantValue = 'overview'" />
@@ -674,7 +611,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell">
+      <OcSurface tone="elevated" border="subtle" radius="md" class="tab-bar-shell">
         <OcTabBar aria-label="Editor states">
           <OcTab label="Active" active />
           <OcTab label="Dirty" dirty />
@@ -683,7 +620,7 @@
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="elevated" bordered radius="md" class="tab-bar-shell tab-bar-shell--narrow">
+      <OcSurface tone="elevated" border="subtle" radius="md" class="tab-bar-shell tab-bar-shell--narrow">
         <OcTabBar aria-label="Overflow tabs">
           <OcTab label="Card_01.opencard" :active="tabLayoutValue === 'card-1'" @select="tabLayoutValue = 'card-1'" />
           <OcTab label="Card_02.opencard" :active="tabLayoutValue === 'card-2'" dirty
@@ -698,7 +635,7 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-toolbar'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="md" class="toolbar-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="toolbar-shell">
         <OcToolbar kind="menu" aria-label="Main menu">
           <OcToolButton kind="menu" label="File" />
           <OcToolButton kind="menu" label="Edit" />
@@ -707,7 +644,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="panel" bordered radius="md" class="toolbar-shell toolbar-shell--activity">
+      <OcSurface tone="panel" border="subtle" radius="md" class="toolbar-shell toolbar-shell--activity">
         <OcToolbar kind="sidebar" aria-label="Activity tools">
           <OcToolButton kind="sidebar" icon-only :active="toolView === 'files'" aria-label="Files"
             @click="toolView = 'files'">
@@ -725,7 +662,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered radius="md" class="toolbar-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="toolbar-shell">
         <OcToolbar kind="panel" aria-label="Panel actions">
           <OcToolButton kind="panel" icon="icon.list-tree" aria-label="Tree mode" :active="toolPanelMode === 'tree'"
             @click="toolPanelMode = 'tree'" />
@@ -736,7 +673,7 @@
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered radius="md" class="toolbar-shell toolbar-shell--wide">
+      <OcSurface tone="panel" border="subtle" radius="md" class="toolbar-shell toolbar-shell--wide">
         <OcToolbar kind="menu" aria-label="Overflow menu tools">
           <OcToolButton kind="menu" label="Export 2x" />
           <OcToolButton kind="menu" label="Export All Views" />
@@ -749,7 +686,7 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-split-pane'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="md" class="split-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell">
         <OcSplitPane orientation="horizontal" fixed-pane="secondary" fixed-size="calc(var(--oc-space-6) * 5)"
           secondary-min-size="calc(var(--oc-space-6) * 4)">
           <template #primary>
@@ -765,7 +702,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--stack">
+      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell split-shell--stack">
         <OcSplitPane orientation="vertical" fixed-pane="primary" fixed-size="calc(var(--oc-space-3) * 7)"
           primary-min-size="calc(var(--oc-space-4) * 4)" secondary-min-size="calc(var(--oc-space-6) * 4)">
           <template #primary>
@@ -781,14 +718,14 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered radius="md" class="split-shell split-shell--states">
+      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell split-shell--states">
         <OcResizer orientation="vertical" aria-label="Hover resizer" />
         <OcResizer orientation="vertical" variant="edge" aria-label="Edge resizer" />
         <OcResizer orientation="vertical" :active="true" aria-label="Active resizer" />
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered radius="md" class="split-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="split-shell">
         <OcSplitPane orientation="horizontal" fixed-pane="secondary"
           :fixed-size="splitPaneMode === 'left' ? 'calc(var(--oc-space-6) * 4)' : 'calc(var(--oc-space-6) * 6)'"
           secondary-min-size="calc(var(--oc-space-6) * 4)">
@@ -813,7 +750,7 @@
 
   <div class="showcase-example-case" v-else-if="exampleId === 'base-oc-sidebar-frame'">
     <template v-if="column === 'default'">
-      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="sidebar-frame-shell">
         <OcSidebarFrame>
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity">
@@ -827,7 +764,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'variants'">
-      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="sidebar-frame-shell">
         <OcSidebarFrame activity-size="compact" panel-size="compact">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity compact">
@@ -841,7 +778,7 @@
       </OcSurface>
     </template>
     <template v-else-if="column === 'states'">
-      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="sidebar-frame-shell">
         <OcSidebarFrame :panel-visible="false">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity hidden panel">
@@ -855,7 +792,7 @@
       </OcSurface>
     </template>
     <template v-else>
-      <OcSurface variant="panel" bordered radius="md" class="sidebar-frame-shell">
+      <OcSurface tone="panel" border="subtle" radius="md" class="sidebar-frame-shell">
         <OcSidebarFrame activity-size="spacious" panel-size="default">
           <template #activity>
             <OcToolbar kind="sidebar" aria-label="Sidebar activity layout">
@@ -879,7 +816,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import OcAxisLayout, { type AxisRegion } from '../base/OcAxisLayout.vue'
 import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
 import OcChip from '../base/OcChip.vue'
@@ -932,37 +868,6 @@ const tabLayoutValue = ref('card-1')
 const toolView = ref('files')
 const toolPanelMode = ref('tree')
 const splitPaneMode = ref('left')
-
-const overlayLayoutRegions: AxisRegion[] = [
-  { slot: 'top-tools', track: 'auto' },
-  { slot: 'overlay-spacer', track: 'fill' },
-  { slot: 'bottom-info', track: 'auto' },
-]
-
-const axisHorizontalRegions: AxisRegion[] = [
-  { slot: 'leftRail', track: 'auto' },
-  { slot: 'centerStage', track: 'fill' },
-  { slot: 'rightInspector', track: 'size-xl' },
-]
-
-const axisVerticalRegions: AxisRegion[] = [
-  { slot: 'topBar', track: 'size-sm' },
-  { slot: 'centerContent', track: 'fill' },
-  { slot: 'bottomInfo', track: 'size-xs' },
-]
-
-const axisStatesRegions: AxisRegion[] = [
-  { slot: 'leftTools', track: 'size-md' },
-  { slot: 'leftNav', track: 'size-lg' },
-  { slot: 'centerMain', track: 'fill' },
-]
-
-const axisLayoutRegions: AxisRegion[] = [
-  { slot: 'leftActivity', track: 'size-sm' },
-  { slot: 'leftExplorer', track: 'fill-2' },
-  { slot: 'centerCanvas', track: 'fill' },
-  { slot: 'rightPanel', track: 'auto' },
-]
 
 const alignOptions: OptionItem[] = [
   { value: 'left', label: 'Left', shortLabel: 'L' },
@@ -1420,3 +1325,4 @@ const modeOptions: OptionItem[] = [
   width: 100%;
 }
 </style>
+

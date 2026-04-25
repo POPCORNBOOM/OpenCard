@@ -1,4 +1,4 @@
-`OcAxisLayout.vue` 是“单轴 track 布局件”，不是通用网格/分栏系统：
+`OcTrackLayout.vue` 是“单轴 track 布局件”，不是通用网格/分栏系统：
 
 - 核心语义是“声明顺序 + 轨道分配”，而非位置枚举。
 - `regions` 按数组顺序落位，`track` 决定每段所占空间。

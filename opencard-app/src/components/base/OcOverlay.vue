@@ -6,7 +6,7 @@
     <div
       v-if="visible"
       class="oc-overlay__layer"
-      :class="{ 'is-non-interactive': !interactive }"
+      :class="{ 'is-layer-interactive': interactive }"
       :style="overlayLayerStyle"
     >
       <slot name="overlay" />
@@ -15,6 +15,9 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 在基底内容之上叠加展示层，默认仅让叠加内容本体可交互，空白区域保持穿透。
+ */
 import { computed } from 'vue'
 
 defineOptions({ name: 'OcOverlay' })
@@ -30,15 +33,19 @@ const OVERLAY_INSET_PRESETS: Record<OverlayInsetSemantic, string> = {
 }
 
 const props = withDefaults(defineProps<{
+  /** 根元素标签。 */
   as?: string
+  /** 控制叠加层显隐。 */
   visible?: boolean
+  /** 叠加层 inset 预设或自定义值。 */
   inset?: OverlayInset
+  /** 是否让整层（包含空白区）也拦截交互。 */
   interactive?: boolean
 }>(), {
   as: 'div',
   visible: true,
   inset: 'none',
-  interactive: true,
+  interactive: false,
 })
 
 const resolvedInset = computed(() => OVERLAY_INSET_PRESETS[props.inset as OverlayInsetSemantic] ?? props.inset)
@@ -70,9 +77,14 @@ const overlayLayerStyle = computed(() => ({
   min-height: 0;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
-.oc-overlay__layer.is-non-interactive {
-  pointer-events: none;
+.oc-overlay__layer > * {
+  pointer-events: auto;
+}
+
+.oc-overlay__layer.is-layer-interactive {
+  pointer-events: auto;
 }
 </style>
