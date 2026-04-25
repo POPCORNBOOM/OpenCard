@@ -1,3 +1,4 @@
+<!-- 字段核心原语：只负责输入控件基线几何与字体密度，不承载业务语义。 -->
 <template>
   <component
     :is="as"
@@ -25,15 +26,24 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
+interface OcFieldCoreProps {
+  /** 根元素标签，仅允许原生表单元素。 */
   as?: 'input' | 'select' | 'textarea'
+  /** 视觉变体语义 token。 */
   variant?: OcFieldCoreVariant
+  /** 是否占满可用宽度。 */
   fullWidth?: boolean
+  /** 是否切换为等宽字体。 */
   monospace?: boolean
+  /** 字号 token。 */
   size?: OcFieldCoreSize
+  /** 内边距密度 token。 */
   density?: OcFieldCoreDensity
+  /** resize 行为 token（主要作用于 textarea）。 */
   resize?: OcFieldCoreResize
-}>(), {
+}
+
+const props = withDefaults(defineProps<OcFieldCoreProps>(), {
   as: 'input',
   variant: 'chromed',
   fullWidth: false,

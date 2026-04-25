@@ -12,50 +12,36 @@
 -->
 <template>
   <div class="ide-layout">
-    <MainIdeTopBar
-      :project-name="projectName"
-      :can-export-active-card="canExportActiveCard"
-      @open-ui-kit="openUiKitShowcase"
-      @export-active-card2x="exportActiveCard2x"
-      @export-all-card-views="exportAllCardViews"
-    />
+    <MainIdeTopBar :project-name="projectName" :can-export-active-card="canExportActiveCard"
+      @open-ui-kit="openUiKitShowcase" @export-active-card2x="exportActiveCard2x"
+      @export-all-card-views="exportAllCardViews" />
 
     <div class="main-container">
       <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
         <template #files>
-            <OcButton
-              @click="openProject"
-              variant="primary"
-              size="lg"
-              density="spacious"
-              block
-            >
-              {{ t('sidebar.openProject') }}
-            </OcButton>
-            <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
-              :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
-              @update:selected-keys="handleOpenedEditorsSelect" />
-            <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
-              :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
-              @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
-              @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
-              :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
-            <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
+          <OcButton @click="openProject" variant="primary" size="lg" block>
+            {{ t('sidebar.openProject') }}
+          </OcButton>
+          <NodeTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
+            :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
+            @update:selected-keys="handleOpenedEditorsSelect" />
+          <NodeTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
+            :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
+            @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
+            @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
+            :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
+          <NodeTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
         </template>
       </MainIdeSidebarShell>
 
-      <EditorWorkbenchFrame
-        :sessions="sessions"
-        :active-session-id="activeSessionId ?? null"
+      <EditorWorkbenchFrame :sessions="sessions" :active-session-id="activeSessionId ?? null"
         :has-active-session="Boolean(activeSession)"
         :surface-mode="activeSession?.editorId === 'card-designer' ? 'immersive' : 'padded'"
-        @select-session="activateSession"
-        @close-session="closeFile"
-        @open-project="openProject"
-        @open-ui-kit="openUiKitShowcase"
-      >
-        <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef" v-bind="currentEditorProps"
-          @save="handleEditorSave" @update-viewport-transform="handleViewportTransformUpdate" />
+        @select-session="activateSession" @close-session="closeFile" @open-project="openProject"
+        @open-ui-kit="openUiKitShowcase">
+        <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef"
+          v-bind="currentEditorProps" @save="handleEditorSave"
+          @update-viewport-transform="handleViewportTransformUpdate" />
       </EditorWorkbenchFrame>
     </div>
 

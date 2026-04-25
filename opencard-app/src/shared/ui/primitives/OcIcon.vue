@@ -1,3 +1,4 @@
+<!-- 图标渲染原语：统一 codicon 与 svg 路径图标解析和尺寸/色调映射。 -->
 <template>
   <i
     v-if="icon.kind === 'codicon'"
@@ -54,11 +55,16 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
+interface OcIconProps {
+  /** 图标注册键或可解析图标描述。 */
   name?: IconResolvable
+  /** 图标色调语义 token。 */
   tone?: OcIconTone
+  /** 图标尺寸 token。 */
   size?: OcIconSize
-}>(), {
+}
+
+const props = withDefaults(defineProps<OcIconProps>(), {
   name: 'file.default',
   tone: 'default',
   size: 'md',

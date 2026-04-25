@@ -1,3 +1,4 @@
+<!-- 滚动容器原语：只负责滚动轴策略，不承载内容布局语义。 -->
 <template>
   <component
     :is="as"
@@ -15,10 +16,14 @@ type ScrollAxis = 'x' | 'y' | 'both'
 
 defineOptions({ name: 'OcScrollArea' })
 
-const props = withDefaults(defineProps<{
+interface OcScrollAreaProps {
+  /** 根元素标签。 */
   as?: string
+  /** 滚动轴策略。 */
   axis?: ScrollAxis
-}>(), {
+}
+
+const props = withDefaults(defineProps<OcScrollAreaProps>(), {
   as: 'div',
   axis: 'y',
 })
@@ -46,4 +51,3 @@ const scrollClass = computed(() => `oc-scroll-area--${props.axis}`)
   overflow: auto;
 }
 </style>
-

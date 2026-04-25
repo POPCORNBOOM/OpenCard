@@ -1,3 +1,4 @@
+<!-- 文本呈现原语：只负责排版层级与文本色调，不承载交互语义。 -->
 <template>
   <component
     :is="as"
@@ -16,12 +17,18 @@ type OcTextSize = 'label' | 'body' | 'title'
 
 defineOptions({ name: 'OcText' })
 
-const props = withDefaults(defineProps<{
+interface OcTextProps {
+  /** 根元素标签。 */
   as?: string
+  /** 文本色调语义 token。 */
   tone?: OcTextTone
+  /** 文本排版层级 token。 */
   size?: OcTextSize
+  /** 是否启用单行省略。 */
   truncate?: boolean
-}>(), {
+}
+
+const props = withDefaults(defineProps<OcTextProps>(), {
   as: 'span',
   tone: 'primary',
   size: 'body',

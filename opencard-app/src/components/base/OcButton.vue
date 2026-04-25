@@ -33,7 +33,6 @@
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
 import {
-  OC_PRESSABLE_DENSITIES,
   OC_PRESSABLE_RADII,
   OC_PRESSABLE_SIZES,
   OC_SURFACE_SHADOWS,
@@ -43,7 +42,6 @@ import { OcIcon, OcPressable, OcSurface } from '../../shared/ui/primitives'
 
 type OcButtonVariant = 'primary' | 'secondary' | 'ghost' | 'choice' | 'icon'
 type OcPressableSize = (typeof OC_PRESSABLE_SIZES)[number]
-type OcPressableDensity = (typeof OC_PRESSABLE_DENSITIES)[number]
 type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
 type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
 type OcSurfaceElevation = (typeof OC_SURFACE_SHADOWS)[number]
@@ -54,8 +52,6 @@ interface OcButtonProps {
   variant?: OcButtonVariant
   /** 点击区域尺寸 token（OcPressable）。 */
   size?: OcPressableSize
-  /** 显示区域内容密度 token（OcButton/OcSurface 组合层）。 */
-  density?: OcPressableDensity
   /** 点击区域圆角 token（OcPressable）。 */
   radius?: OcPressableRadius
   /** 左右图标名。 */
@@ -84,7 +80,6 @@ defineOptions({ name: 'OcButton' })
 const props = withDefaults(defineProps<OcButtonProps>(), {
   variant: 'secondary',
   size: 'md',
-  density: 'comfortable',
   radius: 'sm',
   icon: undefined,
   iconPosition: 'left',
@@ -132,7 +127,6 @@ const resolvedSurface = computed<{
 const buttonClass = computed(() => [
   `oc-base-button--variant-${props.variant}`,
   `oc-base-button--size-${props.size}`,
-  `oc-base-button--density-${props.density}`,
   {
     'oc-base-button--icon-only': isIconOnly.value,
     'oc-base-button--active': props.active,
@@ -151,9 +145,6 @@ function handleClick(event: MouseEvent): void {
   --oc-button-padding-block: 5px;
   --oc-button-padding-inline: 10px;
   --oc-button-font-size: 12px;
-  --oc-button-density-padding-block: 0px;
-  --oc-button-density-padding-inline: 0px;
-  --oc-button-density-font-size: 0px;
   min-width: 0;
   color: var(--oc-text-primary);
 }
@@ -165,10 +156,8 @@ function handleClick(event: MouseEvent): void {
   justify-content: center;
   gap: var(--oc-button-gap);
   min-height: var(--oc-button-min-height);
-  padding:
-    calc(var(--oc-button-padding-block) + var(--oc-button-density-padding-block))
-    calc(var(--oc-button-padding-inline) + var(--oc-button-density-padding-inline));
-  font-size: calc(var(--oc-button-font-size) + var(--oc-button-density-font-size));
+  padding: var(--oc-button-padding-block) var(--oc-button-padding-inline);
+  font-size: var(--oc-button-font-size);
   line-height: 1.2;
   color: inherit;
   white-space: nowrap;
@@ -224,27 +213,6 @@ function handleClick(event: MouseEvent): void {
   --oc-button-padding-block: 7px;
   --oc-button-padding-inline: 14px;
   --oc-button-font-size: 13px;
-}
-
-.oc-base-button--density-compact {
-  --oc-button-gap: 4px;
-  --oc-button-density-padding-block: -1px;
-  --oc-button-density-padding-inline: -2px;
-  --oc-button-density-font-size: -1px;
-}
-
-.oc-base-button--density-comfortable {
-  --oc-button-gap: 6px;
-  --oc-button-density-padding-block: 0px;
-  --oc-button-density-padding-inline: 0px;
-  --oc-button-density-font-size: 0px;
-}
-
-.oc-base-button--density-spacious {
-  --oc-button-gap: 8px;
-  --oc-button-density-padding-block: 1px;
-  --oc-button-density-padding-inline: 2px;
-  --oc-button-density-font-size: 0px;
 }
 
 .oc-base-button--variant-primary {

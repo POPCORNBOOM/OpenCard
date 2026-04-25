@@ -7,7 +7,6 @@ export const OC_BOX_OVERFLOW_VALUES = ['visible', 'hidden', 'auto'] as const
 
 export const OC_BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
 export const OC_PRESSABLE_SIZES = ['sm', 'md', 'lg'] as const
-export const OC_PRESSABLE_DENSITIES = ['compact', 'comfortable', 'spacious'] as const
 export const OC_PRESSABLE_RADII = ['none', 'sm', 'md', 'lg'] as const
 
 export const OC_FIELD_CORE_VARIANTS = ['chromed', 'plain'] as const

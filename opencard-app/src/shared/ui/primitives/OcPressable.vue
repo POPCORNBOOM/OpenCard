@@ -56,7 +56,6 @@ const attrs = useAttrs()
 const forwardedAttrs = useOcForwardAttrs(attrs, [
   'style',
   'variant',
-  'density',
   'active',
   'icon-only',
   'iconOnly',

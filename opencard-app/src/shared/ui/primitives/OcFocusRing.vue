@@ -1,3 +1,4 @@
+<!-- 焦点环原语：只负责焦点可见性轮廓，不承载交互行为本身。 -->
 <template>
   <component :is="as" class="oc-focus-ring">
     <slot />
@@ -7,9 +8,12 @@
 <script setup lang="ts">
 defineOptions({ name: 'OcFocusRing' })
 
-withDefaults(defineProps<{
+interface OcFocusRingProps {
+  /** 根元素标签。 */
   as?: string
-}>(), {
+}
+
+withDefaults(defineProps<OcFocusRingProps>(), {
   as: 'span',
 })
 </script>
