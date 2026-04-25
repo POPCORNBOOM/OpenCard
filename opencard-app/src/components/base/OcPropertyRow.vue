@@ -1,24 +1,29 @@
+<!-- Base 属性行：独立实现 label + field 双栏布局，不依赖 shared primitives。 -->
 <template>
-  <OcBox class="oc-property-row" inline>
+  <div class="oc-property-row">
     <label class="oc-property-row__label">
       <OcIcon v-if="labelIcon" class="oc-property-row__label-icon" :name="labelIcon" tone="muted" size="sm" />
-      <OcText as="span" class="oc-property-row__label-text" tone="info" size="label">{{ label }}</OcText>
+      <span class="oc-property-row__label-text">{{ label }}</span>
     </label>
-    <OcBox class="oc-property-row__content" inline>
+    <div class="oc-property-row__content">
       <slot />
-    </OcBox>
-  </OcBox>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { OcBox, OcIcon, OcText } from '../../shared/ui/primitives'
+import OcIcon from './OcIcon.vue'
+
+interface OcPropertyRowProps {
+  /** 左侧标签文案。 */
+  label: string
+  /** 左侧标签图标。 */
+  labelIcon?: string
+}
 
 defineOptions({ name: 'OcPropertyRow' })
 
-defineProps<{
-  label: string
-  labelIcon?: string
-}>()
+defineProps<OcPropertyRowProps>()
 </script>
 
 <style scoped>
@@ -35,6 +40,11 @@ defineProps<{
   gap: 6px;
   min-width: 80px;
   flex-shrink: 0;
+}
+
+.oc-property-row__label-text {
+  color: var(--oc-text-info);
+  font-size: var(--oc-label-size);
 }
 
 .oc-property-row__content {

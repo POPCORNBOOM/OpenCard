@@ -1,4 +1,4 @@
-<!-- 滚动容器原语：只负责滚动轴策略，不承载内容布局语义。 -->
+<!-- Base 滚动区域：独立实现滚动轴策略，不依赖 shared primitives。 -->
 <template>
   <component
     :is="as"
@@ -14,14 +14,14 @@ import { computed } from 'vue'
 
 type ScrollAxis = 'x' | 'y' | 'both'
 
-defineOptions({ name: 'OcScrollArea' })
-
 interface OcScrollAreaProps {
   /** 根元素标签。 */
   as?: string
   /** 滚动轴策略。 */
   axis?: ScrollAxis
 }
+
+defineOptions({ name: 'OcScrollArea' })
 
 const props = withDefaults(defineProps<OcScrollAreaProps>(), {
   as: 'div',

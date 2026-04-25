@@ -1,24 +1,19 @@
+<!-- 应用根壳：固定进入 IDE 视图并初始化全局主题。 -->
 <script setup lang="ts">
-import { computed, watchEffect } from "vue";
+import { watchEffect } from "vue";
 import MainIDE from "./views/MainIDE.vue";
-import UiKitShowcase from "./views/UiKitShowcase.vue";
 import { setOcTheme, type OcThemeId } from "./shared/ui/foundation";
-import { resolveAppView } from "./appView";
 import '@vscode/codicons/dist/codicon.css'
 
-const currentView = resolveAppView(window.location.search);
-const isUiKitView = computed(() => currentView === "ui-kit");
-
 watchEffect(() => {
-  const theme: OcThemeId = isUiKitView.value ? "light" : "dark";
+  const theme: OcThemeId = "dark";
   setOcTheme(theme);
 })
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'app-shell-scrollable': isUiKitView }">
-    <UiKitShowcase v-if="isUiKitView" />
-    <MainIDE v-else />
+  <div class="app-shell">
+    <MainIDE />
   </div>
 </template>
 
@@ -43,10 +38,5 @@ body, html {
   width: 100%;
   height: 100%;
   overflow: hidden;
-}
-
-.app-shell-scrollable {
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 </style>

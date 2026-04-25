@@ -1,3 +1,4 @@
+<!-- Standard 标签页：组合 OcButton 实现 tab 行为、脏标记与关闭动作。 -->
 <template>
   <div
     class="oc-tab"
@@ -12,7 +13,7 @@
     @keydown="handleKeydown"
   >
     <span v-if="dirty" class="oc-tab__dirty-dot" aria-hidden="true" />
-    <OcText as="span" class="oc-tab__label" tone="primary">{{ label }}</OcText>
+    <span class="oc-tab__label">{{ label }}</span>
     <OcButton
       v-if="closable"
       class="oc-tab__close"
@@ -31,20 +32,35 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { OcText } from '../../shared/ui/primitives'
-import OcButton from './OcButton.vue'
+import OcButton from '../base/OcButton.vue'
+
+interface OcTabProps {
+  /** 标签文案。 */
+  label: string
+  /** 是否处于激活态。 */
+  active?: boolean
+  /** 是否显示脏标记。 */
+  dirty?: boolean
+  /** 是否显示关闭按钮。 */
+  closable?: boolean
+  /** 是否禁用。 */
+  disabled?: boolean
+  /** 鼠标悬停 title。 */
+  title?: string
+  /** 关闭按钮 aria-label。 */
+  closeAriaLabel?: string
+}
+
+interface OcTabEmits {
+  /** 请求激活当前 tab。 */
+  select: []
+  /** 请求关闭当前 tab。 */
+  close: []
+}
 
 defineOptions({ name: 'OcTab' })
 
-const props = withDefaults(defineProps<{
-  label: string
-  active?: boolean
-  dirty?: boolean
-  closable?: boolean
-  disabled?: boolean
-  title?: string
-  closeAriaLabel?: string
-}>(), {
+const props = withDefaults(defineProps<OcTabProps>(), {
   active: false,
   dirty: false,
   closable: true,
@@ -53,10 +69,7 @@ const props = withDefaults(defineProps<{
   closeAriaLabel: undefined,
 })
 
-const emit = defineEmits<{
-  select: []
-  close: []
-}>()
+const emit = defineEmits<OcTabEmits>()
 
 const resolvedTitle = computed(() => props.title ?? props.label)
 const resolvedCloseLabel = computed(() => props.closeAriaLabel ?? `Close ${props.label}`)
@@ -173,6 +186,7 @@ function handleKeydown(event: KeyboardEvent): void {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--oc-text-primary);
 }
 
 .oc-tab__close {

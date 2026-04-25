@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
-import OcOptionGroup from '../../base/OcOptionGroup.vue'
+import OcOptionGroup from '../../standard/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 type BackgroundMode = 'color' | 'gradient' | 'image' | 'raw'

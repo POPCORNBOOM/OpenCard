@@ -1,14 +1,11 @@
+<!-- Base 覆盖层容器：在基底内容之上渲染可控交互的 overlay 图层。 -->
 <template>
   <component :is="as" class="oc-overlay">
     <div class="oc-overlay__base">
       <slot />
     </div>
-    <div
-      v-if="visible"
-      class="oc-overlay__layer"
-      :class="{ 'is-layer-interactive': interactive }"
-      :style="overlayLayerStyle"
-    >
+    <div v-if="visible" class="oc-overlay__layer" :class="{ 'is-layer-interactive': interactive }"
+      :style="overlayLayerStyle">
       <slot name="overlay" />
     </div>
   </component>
@@ -22,10 +19,10 @@ import { computed } from 'vue'
 
 defineOptions({ name: 'OcOverlay' })
 
-type OverlayInsetSemantic = 'none' | 'compact' | 'default' | 'workspace'
-type OverlayInset = OverlayInsetSemantic | (string & {})
+type OverlayInset = 'none' | 'compact' | 'default' | 'workspace'
+type OverlayInsetValue = OverlayInset | string
 
-const OVERLAY_INSET_PRESETS: Record<OverlayInsetSemantic, string> = {
+const OVERLAY_INSET_PRESETS: Record<OverlayInset, string> = {
   none: '0',
   compact: 'var(--oc-space-1)',
   default: 'var(--oc-space-2)',
@@ -38,7 +35,7 @@ const props = withDefaults(defineProps<{
   /** 控制叠加层显隐。 */
   visible?: boolean
   /** 叠加层 inset 预设或自定义值。 */
-  inset?: OverlayInset
+  inset?: OverlayInsetValue
   /** 是否让整层（包含空白区）也拦截交互。 */
   interactive?: boolean
 }>(), {
@@ -48,7 +45,7 @@ const props = withDefaults(defineProps<{
   interactive: false,
 })
 
-const resolvedInset = computed(() => OVERLAY_INSET_PRESETS[props.inset as OverlayInsetSemantic] ?? props.inset)
+const resolvedInset = computed(() => OVERLAY_INSET_PRESETS[props.inset as OverlayInset] ?? props.inset)
 
 const overlayLayerStyle = computed(() => ({
   inset: resolvedInset.value,
@@ -80,7 +77,7 @@ const overlayLayerStyle = computed(() => ({
   pointer-events: none;
 }
 
-.oc-overlay__layer > * {
+.oc-overlay__layer>* {
   pointer-events: auto;
 }
 

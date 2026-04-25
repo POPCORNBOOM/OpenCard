@@ -1,4 +1,4 @@
-<!-- 布局容器原语：只负责空间、定位与流式排列，不承载视觉皮肤。 -->
+<!-- Base 布局容器：独立实现空间、定位与流式排列能力，不依赖 shared primitives。 -->
 <template>
   <component
     :is="as"
@@ -11,22 +11,22 @@
 </template>
 
 <script setup lang="ts">
-import { useAttrs } from 'vue'
+import { computed, useAttrs } from 'vue'
 import {
-  useOcBoxCapabilities,
-  type OcBoxAlign,
-  type OcBoxDimensionToken,
-  type OcBoxInsetToken,
-  type OcBoxJustify,
-  type OcBoxOverflow,
-  type OcBoxPointer,
-} from '../composables/useOcBoxCapabilities'
-import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
+  OC_BOX_ALIGN_VALUES,
+  OC_BOX_DIMENSION_TOKENS,
+  OC_BOX_INSET_TOKENS,
+  OC_BOX_JUSTIFY_VALUES,
+  OC_BOX_OVERFLOW_VALUES,
+  OC_BOX_POINTER_VALUES,
+} from '../../shared/ui/foundation/tokenRegistry'
 
-defineOptions({
-  name: 'OcBox',
-  inheritAttrs: false,
-})
+type OcBoxDimensionToken = (typeof OC_BOX_DIMENSION_TOKENS)[number]
+type OcBoxInsetToken = (typeof OC_BOX_INSET_TOKENS)[number]
+type OcBoxPointer = (typeof OC_BOX_POINTER_VALUES)[number]
+type OcBoxAlign = (typeof OC_BOX_ALIGN_VALUES)[number]
+type OcBoxJustify = (typeof OC_BOX_JUSTIFY_VALUES)[number]
+type OcBoxOverflow = (typeof OC_BOX_OVERFLOW_VALUES)[number]
 
 interface OcBoxProps {
   /** 根元素标签。 */
@@ -63,6 +63,11 @@ interface OcBoxProps {
   overflow?: OcBoxOverflow
 }
 
+defineOptions({
+  name: 'OcBox',
+  inheritAttrs: false,
+})
+
 const props = withDefaults(defineProps<OcBoxProps>(), {
   as: 'div',
   inline: false,
@@ -83,24 +88,30 @@ const props = withDefaults(defineProps<OcBoxProps>(), {
 })
 
 const attrs = useAttrs()
-const forwardedAttrs = useOcForwardAttrs(attrs)
-const { boxClass } = useOcBoxCapabilities({
-  inline: () => props.inline,
-  stack: () => props.stack,
-  center: () => props.center,
-  grow: () => props.grow,
-  scrollY: () => props.scrollY,
-  fill: () => props.fill,
-  relative: () => props.relative,
-  absolute: () => props.absolute,
-  inset: () => props.inset,
-  width: () => props.width,
-  height: () => props.height,
-  pointer: () => props.pointer,
-  align: () => props.align,
-  justify: () => props.justify,
-  overflow: () => props.overflow,
+const forwardedAttrs = computed(() => {
+  const { class: _class, ...restAttrs } = attrs
+  return restAttrs
 })
+
+const boxClass = computed(() => [
+  `oc-box--width-${props.width}`,
+  `oc-box--height-${props.height}`,
+  `oc-box--inset-${props.inset}`,
+  `oc-box--pointer-${props.pointer}`,
+  `oc-box--align-${props.align}`,
+  `oc-box--justify-${props.justify}`,
+  `oc-box--overflow-${props.overflow}`,
+  {
+    'is-inline': props.inline,
+    'is-stack': props.stack,
+    'is-center': props.center,
+    'is-grow': props.grow,
+    'is-scroll-y': props.scrollY,
+    'is-fill': props.fill,
+    'is-relative': props.relative,
+    'is-absolute': props.absolute,
+  },
+])
 </script>
 
 <style scoped>

@@ -1,4 +1,4 @@
-<!-- 表面样式原语：只负责背景、边框、圆角、阴影和图案，不承担交互语义。 -->
+<!-- 静态表面原语：只负责背景、边框、圆角、阴影与图案渲染，不承载交互状态。 -->
 <template>
   <component :is="as" class="oc-surface" :class="surfaceClass" :style="forwardedStyle" v-bind="forwardedAttrs">
     <slot />
@@ -7,19 +7,45 @@
 
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
-import { useOcForwardAttrs } from '../composables/useOcCapabilityClasses'
-import {
-  OC_SURFACE_PATTERNS,
-  OC_SURFACE_RADII,
-  OC_SURFACE_SHADOWS,
-  OC_SURFACE_VARIANTS,
-} from '../foundation/tokenRegistry'
 
-type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
+const OC_SURFACE_TONES = [
+  'panel',
+  'elevated',
+  'input',
+  'floating',
+  'transparent',
+  'glass',
+  'accent',
+  'accent-hover',
+  'hover',
+  'active',
+] as const
+
+const OC_SURFACE_RADII = [
+  'none',
+  'sm',
+  'md',
+  'lg',
+] as const
+
+const OC_SURFACE_ELEVATIONS = [
+  'none',
+  'sm',
+  'md',
+  'overlay',
+] as const
+
+const OC_SURFACE_PATTERNS = [
+  'none',
+  'dot-grid',
+  'checker-preview',
+] as const
+
+type OcSurfaceTone = (typeof OC_SURFACE_TONES)[number]
 type OcSurfaceRadius = (typeof OC_SURFACE_RADII)[number]
-type OcSurfaceElevation = (typeof OC_SURFACE_SHADOWS)[number]
+type OcSurfaceElevation = (typeof OC_SURFACE_ELEVATIONS)[number]
 type OcSurfacePattern = (typeof OC_SURFACE_PATTERNS)[number]
-type OcSurfaceBorder = 'none' | 'subtle' | 'strong' | 'overlay'
+type OcSurfaceBorder = 'none' | 'subtle' | 'strong' | 'overlay' | 'accent'
 
 interface OcSurfaceProps {
   /** 根元素标签。 */
@@ -54,7 +80,17 @@ const props = withDefaults(defineProps<OcSurfaceProps>(), {
 })
 
 const attrs = useAttrs()
-const forwardedAttrs = useOcForwardAttrs(attrs, ['style', 'variant', 'shadow', 'bordered'])
+const forwardedAttrs = computed(() => {
+  const {
+    style: _style,
+    variant: _variant,
+    shadow: _shadow,
+    bordered: _bordered,
+    ...restAttrs
+  } = attrs as Record<string, unknown>
+
+  return restAttrs
+})
 const forwardedStyle = computed(() => attrs.style)
 
 const surfaceClass = computed(() => [
@@ -73,6 +109,13 @@ const surfaceClass = computed(() => [
 .oc-surface {
   min-width: 0;
   min-height: 0;
+  --oc-surface-bg: transparent;
+  --oc-surface-border: transparent;
+  border: var(--oc-thickness-1) solid var(--oc-surface-border);
+  background: var(--oc-surface-bg);
+  transition:
+    border-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
+    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
 }
 
 .oc-surface.is-fill {
@@ -81,44 +124,64 @@ const surfaceClass = computed(() => [
 }
 
 .oc-surface--tone-panel {
-  background: var(--oc-bg-panel);
+  --oc-surface-bg: var(--oc-bg-panel);
 }
 
 .oc-surface--tone-elevated {
-  background: var(--oc-bg-elevated);
+  --oc-surface-bg: var(--oc-bg-elevated);
 }
 
 .oc-surface--tone-input {
-  background: var(--oc-bg-input);
+  --oc-surface-bg: var(--oc-bg-input);
 }
 
 .oc-surface--tone-floating {
-  background: var(--oc-bg-panel);
+  --oc-surface-bg: var(--oc-bg-panel);
 }
 
 .oc-surface--tone-transparent {
-  background: transparent;
+  --oc-surface-bg: transparent;
 }
 
 .oc-surface--tone-glass {
-  background: var(--oc-bg-overlay-soft);
+  --oc-surface-bg: var(--oc-bg-overlay-soft);
   backdrop-filter: blur(14px);
 }
 
+.oc-surface--tone-accent {
+  --oc-surface-bg: var(--oc-bg-accent);
+}
+
+.oc-surface--tone-accent-hover {
+  --oc-surface-bg: var(--oc-bg-accent-hover);
+}
+
+.oc-surface--tone-hover {
+  --oc-surface-bg: var(--oc-bg-hover);
+}
+
+.oc-surface--tone-active {
+  --oc-surface-bg: var(--oc-bg-active);
+}
+
 .oc-surface--border-none {
-  border: 1px solid transparent;
+  --oc-surface-border: transparent;
 }
 
 .oc-surface--border-subtle {
-  border: 1px solid var(--oc-border-surface);
+  --oc-surface-border: var(--oc-border-surface);
 }
 
 .oc-surface--border-strong {
-  border: 1px solid var(--oc-border-strong);
+  --oc-surface-border: var(--oc-border-strong);
 }
 
 .oc-surface--border-overlay {
-  border: 1px solid var(--oc-border-overlay-soft);
+  --oc-surface-border: var(--oc-border-overlay-soft);
+}
+
+.oc-surface--border-accent {
+  --oc-surface-border: var(--oc-bg-accent);
 }
 
 .oc-surface--radius-none {
@@ -158,13 +221,14 @@ const surfaceClass = computed(() => [
 }
 
 .oc-surface--pattern-dot-grid {
-  background-color: var(--oc-bg-elevated);
+  background-color: var(--oc-surface-bg);
   background-image: radial-gradient(circle at 1px 1px, var(--oc-border-subtle) 1px, transparent 0);
   background-size: 22px 22px;
 }
 
 .oc-surface--pattern-checker-preview {
-  background:
+  background-color: var(--oc-surface-bg);
+  background-image:
     linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
     linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%);
   background-position: 0 0, 6px 6px;

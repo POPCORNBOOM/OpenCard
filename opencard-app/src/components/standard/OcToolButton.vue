@@ -1,4 +1,4 @@
-<!-- 工具按钮：在 OcButton 之上提供 menu/sidebar/panel 语义尺寸与状态表达。 -->
+<!-- Standard 工具按钮：组合 OcButton 与 OcIcon 扩展 menu/sidebar/panel 语义。 -->
 <template>
   <OcButton variant="ghost" class="oc-tool-button" :class="toolButtonClass" :size="resolvedSize"
     :radius="resolvedRadius" :block="resolvedBlock" :icon-only="iconOnly" :active="active" :disabled="disabled"
@@ -9,7 +9,7 @@
       </template>
       <template v-else>
         <OcIcon v-if="icon" class="oc-tool-button__icon" :name="icon" :tone="iconTone" />
-        <OcText v-if="label" as="span" class="oc-tool-button__label">{{ label }}</OcText>
+        <span v-if="label" class="oc-tool-button__label">{{ label }}</span>
       </template>
     </slot>
   </OcButton>
@@ -17,8 +17,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcButton from './OcButton.vue'
-import { OcIcon, OcText } from '../../shared/ui/primitives'
+import OcButton from '../base/OcButton.vue'
+import OcIcon from '../base/OcIcon.vue'
 import type { IconTone } from '../../shared/ui/icon/iconRegistry'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'

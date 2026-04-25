@@ -1,3 +1,4 @@
+<!-- Standard 选项组：组合 OcButton 实现单选组语义与 roving tabindex 行为。 -->
 <template>
   <div
     ref="groupRef"
@@ -36,29 +37,48 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import OcButton from './OcButton.vue'
+import OcButton from '../base/OcButton.vue'
 
 type OptionGroupSize = 'sm' | 'md' | 'lg'
 
 export interface OcOptionGroupItem {
+  /** 选项值。 */
   value: string
+  /** 选项完整标签。 */
   label: string
+  /** 可选短标签。 */
   shortLabel?: string
+  /** 可选图标类名。 */
   icon?: string
+  /** 是否禁用当前选项。 */
   disabled?: boolean
+}
+
+interface OcOptionGroupProps {
+  /** 当前选中值。 */
+  modelValue: string
+  /** 选项列表。 */
+  options: readonly OcOptionGroupItem[]
+  /** radiogroup 的 aria-label。 */
+  ariaLabel?: string
+  /** 列数。 */
+  columns?: number
+  /** 尺寸语义。 */
+  size?: OptionGroupSize
+  /** 是否禁用整组。 */
+  disabled?: boolean
+  /** 是否强制方形按钮。 */
+  square?: boolean
+}
+
+interface OcOptionGroupEmits {
+  /** 选中项变化时抛出。 */
+  'update:modelValue': [value: string]
 }
 
 defineOptions({ name: 'OcOptionGroup' })
 
-const props = withDefaults(defineProps<{
-  modelValue: string
-  options: readonly OcOptionGroupItem[]
-  ariaLabel?: string
-  columns?: number
-  size?: OptionGroupSize
-  disabled?: boolean
-  square?: boolean
-}>(), {
+const props = withDefaults(defineProps<OcOptionGroupProps>(), {
   ariaLabel: undefined,
   columns: 1,
   size: 'md',
@@ -66,9 +86,7 @@ const props = withDefaults(defineProps<{
   square: false,
 })
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-}>()
+const emit = defineEmits<OcOptionGroupEmits>()
 
 const groupRef = ref<HTMLElement | null>(null)
 const rovingIndex = ref(-1)

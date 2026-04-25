@@ -14,7 +14,7 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
-    <OcOverlay>
+    <OcOverlay inset="default">
       <OcBox class="card-design-editor__viewport-host" stack fill relative :pointer="panelPointerEvents">
         <CardViewport v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
           :restore-key="props.filePath" :initial-transform="viewportTransform"
@@ -26,11 +26,7 @@
         <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
       </OcBox>
       <template #overlay>
-        <OcTrackLayout
-          class="card-design-editor__overlay-layout"
-          axis="horizontal"
-          :regions="overlayHorizontalRegions"
-        >
+        <OcTrackLayout class="card-design-editor__overlay-layout" axis="horizontal" :regions="overlayHorizontalRegions">
           <template #left-cardtree>
             <OcSurface tone="glass" radius="lg" elevation="overlay" fill class="card-design-editor__floating-shell"
               :style="{ pointerEvents: panelPointerEvents }">
@@ -141,7 +137,8 @@ import {
   type CardTreeNodeMetadata,
   getBlockTreeIcon,
 } from '../../entities/card/model'
-import { OcBox, OcSurface } from '../../shared/ui/primitives'
+import OcBox from '../base/OcBox.vue'
+import OcSurface from '../base/OcSurface.vue'
 import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
@@ -152,7 +149,7 @@ import OcEmptyHint from '../base/OcEmptyHint.vue'
 import OcOverlay from '../base/OcOverlay.vue'
 import OcPanelSection from '../base/OcPanelSection.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
-import OcToolButton from '../base/OcToolButton.vue'
+import OcToolButton from '../standard/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
@@ -164,7 +161,7 @@ import {
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
 import type { OcTrackRegion } from '../../shared/ui/foundation/tokenRegistry'
 import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
-import OcText from '../../shared/ui/primitives/OcText.vue'
+import OcText from '../base/OcText.vue'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -700,6 +697,4 @@ onUnmounted(() => {
 .card-design-editor__center-hud--preview {
   width: var(--card-editor-overlay-preview-track-width);
 }
-
 </style>
-

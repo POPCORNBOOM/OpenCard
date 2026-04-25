@@ -1,4 +1,4 @@
-<!-- 图标渲染原语：统一 codicon 与 svg 路径图标解析和尺寸/色调映射。 -->
+<!-- Base 图标组件：独立实现图标解析、尺寸与色调映射，不依赖 shared primitives。 -->
 <template>
   <i
     v-if="icon.kind === 'codicon'"
@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
-import { resolveIcon, type IconResolvable, type IconTone } from '../icon/iconRegistry'
+import { resolveIcon, type IconResolvable, type IconTone } from '../../shared/ui/icon/iconRegistry'
 
 type OcIconTone =
   | IconTone
@@ -50,11 +50,6 @@ type OcIconTone =
 
 type OcIconSize = 'sm' | 'md' | 'lg'
 
-defineOptions({
-  name: 'OcIcon',
-  inheritAttrs: false,
-})
-
 interface OcIconProps {
   /** 图标注册键或可解析图标描述。 */
   name?: IconResolvable
@@ -64,6 +59,11 @@ interface OcIconProps {
   size?: OcIconSize
 }
 
+defineOptions({
+  name: 'OcIcon',
+  inheritAttrs: false,
+})
+
 const props = withDefaults(defineProps<OcIconProps>(), {
   name: 'file.default',
   tone: 'default',
@@ -72,6 +72,7 @@ const props = withDefaults(defineProps<OcIconProps>(), {
 
 const attrs = useAttrs()
 const icon = computed(() => resolveIcon(props.name))
+
 const forwardedAttrs = computed(() => {
   const { color: _deprecatedColor, ...restAttrs } = attrs
   return restAttrs
@@ -105,9 +106,7 @@ const iconColorMap: Record<OcIconTone, string> = {
   'folder-core': 'var(--icon-folder-core)',
 }
 
-const sizeClass = computed(() => {
-  return `oc-icon--${props.size}`
-})
+const sizeClass = computed(() => `oc-icon--${props.size}`)
 
 const iconStyle = computed(() => ({
   color: iconColorMap[props.tone] ?? iconColorMap.default,

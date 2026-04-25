@@ -1,3 +1,4 @@
+<!-- Base 轨道布局：独立实现多轨网格与拖拽分隔条，不依赖 shared primitives。 -->
 <template>
   <div ref="rootRef" class="oc-track-layout" :class="`oc-track-layout--${props.axis}`" :style="layoutStyle"
     v-bind="attrs">
@@ -6,13 +7,14 @@
         :data-region-index="item.regionIndex" :ref="(el) => setRegionRef(item.regionIndex, el)">
         <slot :name="item.slot" />
       </div>
-      <OcPressable v-else as="div" radius="none" size="sm" class="oc-track-layout__resizer-hit" :class="[
+      <div v-else class="oc-track-layout__resizer-hit" :class="[
         `oc-track-layout__resizer-hit--${props.axis}`,
         { 'is-active': activeHandleIndex === item.handleIndex },
       ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
         :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`"
-        @mousedown="handleResizeStart($event, item.handleIndex)">
-      </OcPressable>
+        tabindex="0" @mousedown="handleResizeStart($event, item.handleIndex)">
+        <span class="oc-track-layout__resizer-visual" aria-hidden="true" />
+      </div>
     </template>
   </div>
 </template>
@@ -37,7 +39,6 @@ import {
   type OcTrackHandleSize,
   type OcTrackRegion,
 } from '../../shared/ui/foundation/tokenRegistry'
-import { OcPressable } from '../../shared/ui/primitives'
 
 type OcTrackLayoutAxis = 'horizontal' | 'vertical'
 
@@ -423,6 +424,10 @@ onBeforeUnmount(() => {
   touch-action: none;
   user-select: none;
   pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
 }
 
 .oc-track-layout__resizer-hit--horizontal {
@@ -431,5 +436,36 @@ onBeforeUnmount(() => {
 
 .oc-track-layout__resizer-hit--vertical {
   cursor: row-resize;
+}
+
+.oc-track-layout__resizer-visual {
+  display: inline-flex;
+  border-radius: var(--oc-radius-pill);
+  background: var(--oc-border-subtle);
+  transition:
+    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
+    opacity var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
+  opacity: 0.45;
+}
+
+.oc-track-layout__resizer-hit--horizontal .oc-track-layout__resizer-visual {
+  width: 2px;
+  height: min(100%, 48px);
+}
+
+.oc-track-layout__resizer-hit--vertical .oc-track-layout__resizer-visual {
+  width: min(100%, 48px);
+  height: 2px;
+}
+
+.oc-track-layout__resizer-hit:hover .oc-track-layout__resizer-visual,
+.oc-track-layout__resizer-hit.is-active .oc-track-layout__resizer-visual {
+  background: var(--oc-accent);
+  opacity: 0.88;
+}
+
+.oc-track-layout__resizer-hit:focus-visible {
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
+  outline-offset: 1px;
 }
 </style>

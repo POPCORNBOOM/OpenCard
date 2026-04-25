@@ -1,3 +1,4 @@
+<!-- Base 复选框：独立实现勾选语义、视觉状态与可访问性，不依赖 shared primitives。 -->
 <template>
   <label
     class="oc-checkbox"
@@ -15,35 +16,43 @@
     <span class="oc-checkbox__control" aria-hidden="true">
       <span class="oc-checkbox__mark" />
     </span>
-    <OcText v-if="hasLabelContent" as="span" class="oc-checkbox__label" tone="primary">
+    <span v-if="hasLabelContent" class="oc-checkbox__label">
       <slot>{{ label }}</slot>
-    </OcText>
+    </span>
   </label>
 </template>
 
 <script setup lang="ts">
 import { computed, useAttrs, useSlots } from 'vue'
-import { OcText } from '../../shared/ui/primitives'
+
+interface OcCheckboxProps {
+  /** 是否选中。 */
+  checked?: boolean
+  /** 是否禁用。 */
+  disabled?: boolean
+  /** 默认标签文案。 */
+  label?: string
+}
+
+interface OcCheckboxEmits {
+  /** 选中态更新时抛出。 */
+  'update:checked': [value: boolean]
+  /** 原生 change 事件封装。 */
+  change: [value: boolean, event: Event]
+}
 
 defineOptions({
   name: 'OcCheckbox',
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<{
-  checked?: boolean
-  disabled?: boolean
-  label?: string
-}>(), {
+const props = withDefaults(defineProps<OcCheckboxProps>(), {
   checked: false,
   disabled: false,
   label: undefined,
 })
 
-const emit = defineEmits<{
-  'update:checked': [value: boolean]
-  change: [value: boolean, event: Event]
-}>()
+const emit = defineEmits<OcCheckboxEmits>()
 
 const attrs = useAttrs()
 const slots = useSlots()
@@ -178,5 +187,6 @@ function handleChange(event: Event): void {
 .oc-checkbox__label {
   min-width: 0;
   line-height: 1.3;
+  color: var(--oc-text-primary);
 }
 </style>

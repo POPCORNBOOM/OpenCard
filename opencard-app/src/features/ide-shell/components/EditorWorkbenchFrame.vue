@@ -14,7 +14,6 @@
         <p class="welcome-subtitle">{{ t('app.welcome.subtitle') }}</p>
         <div class="welcome-actions">
           <OcButton variant="primary" @click="emit('openProject')">{{ t('sidebar.openProject') }}</OcButton>
-          <OcButton variant="ghost" @click="emit('openUiKit')">UI Kit</OcButton>
         </div>
         <div class="welcome-points" aria-hidden="true">
           <OcChip>{{ t('app.welcome.featureExplore') }}</OcChip>
@@ -32,7 +31,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcButton, OcChip, OcTab, OcTabBar } from '../../../components/base'
+import { OcButton, OcChip } from '../../../components/base'
+import { OcTab, OcTabBar } from '../../../components/standard'
 
 defineOptions({ name: 'EditorWorkbenchFrame' })
 
@@ -49,7 +49,6 @@ const emit = defineEmits<{
   selectSession: [id: string]
   closeSession: [id: string]
   openProject: []
-  openUiKit: []
 }>()
 
 const { t } = useI18n()

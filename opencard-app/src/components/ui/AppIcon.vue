@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import type { IconResolvable, IconTone } from '../../shared/ui/icon/iconRegistry'
-import OcIcon from '../../shared/ui/primitives/OcIcon.vue'
+import OcIcon from '../base/OcIcon.vue'
 
 type AppIconTone =
   | IconTone

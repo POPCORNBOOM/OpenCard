@@ -1,4 +1,4 @@
-<!-- 文本呈现原语：只负责排版层级与文本色调，不承载交互语义。 -->
+<!-- Base 文本组件：独立实现排版层级与文本色调，不依赖 shared primitives。 -->
 <template>
   <component
     :is="as"
@@ -15,8 +15,6 @@ import { computed } from 'vue'
 type OcTextTone = 'primary' | 'secondary' | 'muted' | 'label' | 'info'
 type OcTextSize = 'label' | 'body' | 'title'
 
-defineOptions({ name: 'OcText' })
-
 interface OcTextProps {
   /** 根元素标签。 */
   as?: string
@@ -27,6 +25,8 @@ interface OcTextProps {
   /** 是否启用单行省略。 */
   truncate?: boolean
 }
+
+defineOptions({ name: 'OcText' })
 
 const props = withDefaults(defineProps<OcTextProps>(), {
   as: 'span',

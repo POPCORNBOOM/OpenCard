@@ -1,7 +1,7 @@
 <template>
   <div ref="viewportRef" class="card-viewport" :class="{ 'card-viewport-panning': isPanning }"
-    @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
-    @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
+    @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
       <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleBlockClick" />

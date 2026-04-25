@@ -76,7 +76,7 @@
 <script setup lang="ts">
 // Vue 能力与依赖组件。
 import { computed, inject, nextTick, ref, watch } from 'vue'
-import { OcIcon } from '../../shared/ui/primitives'
+import OcIcon from '../base/OcIcon.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import TreeActionButton from './TreeActionButton.vue'
 import type { ActionCaller, ActionDefinition, ITreeNode, NodeTreeContext } from '../../shared/ui/tree/tree.types'

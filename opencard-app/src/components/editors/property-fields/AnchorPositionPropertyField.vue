@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcOptionGroup from '../../base/OcOptionGroup.vue'
+import OcOptionGroup from '../../standard/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 const anchorOptions = [

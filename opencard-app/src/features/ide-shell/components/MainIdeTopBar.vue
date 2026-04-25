@@ -18,7 +18,6 @@
 
     <template #end>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
-        <OcToolButton block kind="menu" label="UI Kit" @click="emit('openUiKit')" />
         <OcToolButton block kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
           @click="emit('exportActiveCard2x')" />
         <OcToolButton block kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard"
@@ -30,7 +29,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcBar, OcChip, OcToolButton, OcToolbar } from '../../../components/base'
+import { OcBar, OcChip, OcToolbar } from '../../../components/base'
+import { OcToolButton } from '../../../components/standard'
 
 defineOptions({ name: 'MainIdeTopBar' })
 
@@ -40,7 +40,6 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  openUiKit: []
   exportActiveCard2x: []
   exportAllCardViews: []
 }>()

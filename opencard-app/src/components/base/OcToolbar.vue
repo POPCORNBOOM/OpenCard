@@ -1,13 +1,13 @@
+<!-- Base 工具栏：独立实现布局方向、对齐与间距语义，不依赖 shared primitives。 -->
 <template>
-  <OcBox as="div" inline class="oc-toolbar" :class="toolbarClass" role="toolbar" :aria-orientation="resolvedOrientation"
+  <div class="oc-toolbar" :class="toolbarClass" role="toolbar" :aria-orientation="resolvedOrientation"
     :aria-label="ariaLabel">
     <slot />
-  </OcBox>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { OcBox } from '../../shared/ui/primitives'
 
 type ToolbarKind = 'menu' | 'sidebar' | 'panel'
 type ToolbarOrientation = 'horizontal' | 'vertical'
@@ -16,20 +16,32 @@ type ToolbarJustify = 'start' | 'center' | 'end' | 'between'
 type ToolbarSpacing = 'none' | 'tight' | 'normal' | 'loose'
 type ToolbarInset = 'none' | 'compact' | 'comfortable'
 
+interface OcToolbarProps {
+  /** 工具栏语义类型。 */
+  kind?: ToolbarKind
+  /** 主轴方向。 */
+  orientation?: ToolbarOrientation
+  /** aria-label 文本。 */
+  ariaLabel?: string
+  /** 交叉轴对齐。 */
+  align?: ToolbarAlign
+  /** 主轴对齐。 */
+  justify?: ToolbarJustify
+  /** 项间距语义。 */
+  spacing?: ToolbarSpacing
+  /** 内边距语义。 */
+  inset?: ToolbarInset
+  /** 是否占用剩余空间。 */
+  grow?: boolean
+  /** 是否允许收缩。 */
+  shrink?: boolean
+  /** 是否填满父宽度。 */
+  fill?: boolean
+}
+
 defineOptions({ name: 'OcToolbar' })
 
-const props = withDefaults(defineProps<{
-  kind?: ToolbarKind
-  orientation?: ToolbarOrientation
-  ariaLabel?: string
-  align?: ToolbarAlign
-  justify?: ToolbarJustify
-  spacing?: ToolbarSpacing
-  inset?: ToolbarInset
-  grow?: boolean
-  shrink?: boolean
-  fill?: boolean
-}>(), {
+const props = withDefaults(defineProps<OcToolbarProps>(), {
   kind: 'panel',
   orientation: undefined,
   ariaLabel: undefined,
@@ -92,6 +104,8 @@ const toolbarClass = computed(() => [
 <style scoped>
 .oc-toolbar {
   min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 0;
   padding: 0;
 }

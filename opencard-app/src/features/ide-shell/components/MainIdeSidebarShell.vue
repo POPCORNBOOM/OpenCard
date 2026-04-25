@@ -80,7 +80,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcEmptyHint, OcPanelSection, OcSidebarFrame, OcToolButton, OcToolbar } from '../../../components/base'
+import { OcEmptyHint, OcPanelSection, OcSidebarFrame, OcToolbar } from '../../../components/base'
+import { OcToolButton } from '../../../components/standard'
 
 defineOptions({ name: 'MainIdeSidebarShell' })
 

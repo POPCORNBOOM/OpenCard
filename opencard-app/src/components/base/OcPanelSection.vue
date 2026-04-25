@@ -1,15 +1,6 @@
-<!-- 面板区块容器：统一渲染头部/主体结构并承载可滚动区域布局。 -->
+<!-- Base 面板区块：独立实现头部/主体结构、tone 与滚动策略，不依赖 shared primitives。 -->
 <template>
-  <OcSurface as="section" class="oc-panel-section" :class="[
-    `oc-panel-section--tone-${props.tone}`,
-    `oc-panel-section--header-density-${props.headerDensity}`,
-    `oc-panel-section--header-inset-${props.headerInset}`,
-    `oc-panel-section--body-inset-${props.bodyInset}`,
-    {
-      'is-collapsed': props.collapsed,
-      'is-fill': props.fill,
-    },
-  ]" :tone="tone">
+  <section class="oc-panel-section" :class="panelClass">
     <header v-if="hasHeader" class="oc-panel-header oc-panel-section__header" :class="headerClass">
       <div class="oc-panel-section__title">
         <slot name="title">{{ title }}</slot>
@@ -18,19 +9,18 @@
         <slot name="actions" />
       </div>
     </header>
-    <OcScrollArea v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body" :class="bodyClass" axis="y">
+    <div v-if="props.scrollBody" class="oc-panel-section__body oc-panel-scroll-body oc-panel-scroll-y" :class="bodyClass">
       <slot />
-    </OcScrollArea>
+    </div>
     <div v-else class="oc-panel-section__body oc-panel-body" :class="bodyClass">
       <slot />
     </div>
-  </OcSurface>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots, type HTMLAttributes } from 'vue'
 import { OC_SURFACE_VARIANTS } from '../../shared/ui/foundation/tokenRegistry'
-import { OcScrollArea, OcSurface } from '../../shared/ui/primitives'
 
 type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
 type PanelHeaderDensity = 'compact' | 'default' | 'comfortable'
@@ -89,6 +79,17 @@ const hasHeader = computed(() => {
 })
 
 const bodyClass = computed(() => props.bodyClass)
+
+const panelClass = computed(() => [
+  `oc-panel-section--tone-${props.tone}`,
+  `oc-panel-section--header-density-${props.headerDensity}`,
+  `oc-panel-section--header-inset-${props.headerInset}`,
+  `oc-panel-section--body-inset-${props.bodyInset}`,
+  {
+    'is-collapsed': props.collapsed,
+    'is-fill': props.fill,
+  },
+])
 </script>
 
 <style scoped>
@@ -100,6 +101,49 @@ const bodyClass = computed(() => props.bodyClass)
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  border: var(--oc-thickness-1) solid transparent;
+  background: var(--oc-bg-panel);
+}
+
+.oc-panel-section--tone-panel {
+  background: var(--oc-bg-panel);
+}
+
+.oc-panel-section--tone-elevated {
+  background: var(--oc-bg-elevated);
+}
+
+.oc-panel-section--tone-input {
+  background: var(--oc-bg-input);
+}
+
+.oc-panel-section--tone-floating {
+  background: var(--oc-bg-panel);
+}
+
+.oc-panel-section--tone-transparent {
+  background: transparent;
+}
+
+.oc-panel-section--tone-glass {
+  background: var(--oc-bg-overlay-soft);
+  backdrop-filter: blur(14px);
+}
+
+.oc-panel-section--tone-accent {
+  background: var(--oc-bg-accent);
+}
+
+.oc-panel-section--tone-accent-hover {
+  background: var(--oc-bg-accent-hover);
+}
+
+.oc-panel-section--tone-hover {
+  background: var(--oc-bg-hover);
+}
+
+.oc-panel-section--tone-active {
+  background: var(--oc-bg-active);
 }
 
 .oc-panel-section--header-density-compact {
@@ -178,6 +222,11 @@ const bodyClass = computed(() => props.bodyClass)
 .oc-panel-scroll-body {
   flex: 1;
   min-height: 0;
+}
+
+.oc-panel-scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .oc-panel-section__title {

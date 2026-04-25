@@ -54,7 +54,7 @@
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { OcIcon } from '../../shared/ui/primitives'
+import OcIcon from '../base/OcIcon.vue'
 import TreeActionButton from './TreeActionButton.vue'
 import TreeNode from './TreeNode.vue'
 import type {

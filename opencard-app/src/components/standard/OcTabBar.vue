@@ -1,3 +1,4 @@
+<!-- Standard 标签栏：承载 OcTab 并提供键盘导航与滚动可见性控制。 -->
 <template>
   <div class="oc-tab-bar" role="tablist" aria-orientation="horizontal" @keydown="handleKeydown">
     <slot />

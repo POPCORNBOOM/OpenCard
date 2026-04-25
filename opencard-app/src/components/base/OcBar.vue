@@ -1,5 +1,6 @@
+<!-- Base 条形容器：独立实现栏位结构与基础背景/边框语义，不依赖 shared primitives。 -->
 <template>
-  <OcSurface :as="as" class="oc-bar" :class="barClass" radius="none">
+  <component :is="as" class="oc-bar" :class="barClass">
     <div v-if="slots.start" class="oc-bar__start">
       <slot name="start" />
     </div>
@@ -9,27 +10,33 @@
     <div v-if="slots.end" class="oc-bar__end">
       <slot name="end" />
     </div>
-  </OcSurface>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
-import { OcSurface } from '../../shared/ui/primitives'
 
 type BarKind = 'top' | 'status' | 'section'
 type BarBorder = 'none' | 'top' | 'bottom'
 type BarSpacing = 'compact' | 'default' | 'spacious'
 type BarInset = 'none' | 'compact' | 'default' | 'spacious'
 
+interface OcBarProps {
+  /** 根元素标签。 */
+  as?: string
+  /** 栏位语义类型。 */
+  kind?: BarKind
+  /** 内部项间距语义。 */
+  spacing?: BarSpacing
+  /** 水平内边距语义。 */
+  inset?: BarInset
+  /** 边框位置语义。 */
+  border?: BarBorder
+}
+
 defineOptions({ name: 'OcBar' })
 
-const props = withDefaults(defineProps<{
-  as?: string
-  kind?: BarKind
-  spacing?: BarSpacing
-  inset?: BarInset
-  border?: BarBorder
-}>(), {
+const props = withDefaults(defineProps<OcBarProps>(), {
   as: 'div',
   kind: 'section',
   spacing: undefined,

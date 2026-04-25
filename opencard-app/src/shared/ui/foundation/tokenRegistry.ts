@@ -14,7 +14,18 @@ export const OC_FIELD_CORE_SIZES = ['sm', 'md', 'lg'] as const
 export const OC_FIELD_CORE_DENSITIES = ['compact', 'comfortable', 'spacious'] as const
 export const OC_FIELD_CORE_RESIZE_VALUES = ['none', 'horizontal', 'vertical', 'both'] as const
 
-export const OC_SURFACE_VARIANTS = ['panel', 'elevated', 'input', 'floating', 'transparent', 'glass'] as const
+export const OC_SURFACE_VARIANTS = [
+  'panel',
+  'elevated',
+  'input',
+  'floating',
+  'transparent',
+  'glass',
+  'accent',
+  'accent-hover',
+  'hover',
+  'active',
+] as const
 export const OC_SURFACE_RADII = ['none', 'sm', 'md', 'lg'] as const
 export const OC_SURFACE_SHADOWS = ['none', 'sm', 'md', 'overlay'] as const
 export const OC_SURFACE_PATTERNS = ['none', 'dot-grid', 'checker-preview'] as const

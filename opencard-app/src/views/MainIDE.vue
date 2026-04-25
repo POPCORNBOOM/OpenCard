@@ -13,8 +13,7 @@
 <template>
   <div class="ide-layout">
     <MainIdeTopBar :project-name="projectName" :can-export-active-card="canExportActiveCard"
-      @open-ui-kit="openUiKitShowcase" @export-active-card2x="exportActiveCard2x"
-      @export-all-card-views="exportAllCardViews" />
+      @export-active-card2x="exportActiveCard2x" @export-all-card-views="exportAllCardViews" />
 
     <div class="main-container">
       <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
@@ -38,7 +37,7 @@
         :has-active-session="Boolean(activeSession)"
         :surface-mode="activeSession?.editorId === 'card-designer' ? 'immersive' : 'padded'"
         @select-session="activateSession" @close-session="closeFile" @open-project="openProject"
-        @open-ui-kit="openUiKitShowcase">
+      >
         <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef"
           v-bind="currentEditorProps" @save="handleEditorSave"
           @update-viewport-transform="handleViewportTransformUpdate" />
@@ -410,10 +409,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
-
-function openUiKitShowcase() {
-  window.location.search = '?view=ui-kit'
-}
 
 function closeFile(sessionId: string) {
   closeSession(sessionId)

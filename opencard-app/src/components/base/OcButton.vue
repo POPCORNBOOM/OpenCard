@@ -1,43 +1,46 @@
-<!-- 组合按钮：由按压语义原语与表面样式原语组合而成，统一承载按钮视觉变体。 -->
+<!-- Base 按钮组件：独立实现按钮语义、状态管理与表面绘制，不依赖 shared primitives。 -->
 <template>
-  <OcPressable class="oc-base-button" :class="buttonClass" :size="size" :radius="radius" :icon-only="isIconOnly"
-    :block="block" :disabled="disabled" :type="type" @click="handleClick">
-    <OcSurface as="span" class="oc-base-button__surface" :tone="resolvedSurface.tone" :border="resolvedSurface.border"
-      :elevation="resolvedSurface.elevation" :radius="radius" fill>
-      <OcIcon v-if="icon && iconPosition === 'left'" class="oc-base-button__icon" :name="icon" />
+  <button
+    class="oc-base-button"
+    :class="[buttonClass, attrs.class]"
+    :style="[buttonStyle, attrs.style]"
+    :type="type"
+    :disabled="disabled"
+    v-bind="forwardedAttrs"
+    @click="emit('click', $event)"
+  >
+    <span class="oc-base-button__surface" :class="surfaceClass">
+      <OcIcon v-if="icon && iconPosition === 'left'" class="oc-base-button__icon" :name="icon" :size="iconSize" />
       <span v-if="!isIconOnly" class="oc-base-button__label">
         <slot />
       </span>
       <slot v-else />
-      <OcIcon v-if="icon && iconPosition === 'right'" class="oc-base-button__icon" :name="icon" />
-    </OcSurface>
-  </OcPressable>
+      <OcIcon v-if="icon && iconPosition === 'right'" class="oc-base-button__icon" :name="icon" :size="iconSize" />
+    </span>
+  </button>
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots } from 'vue'
+import { computed, useAttrs, useSlots } from 'vue'
 import {
+  OC_BUTTON_VARIANTS,
   OC_PRESSABLE_RADII,
   OC_PRESSABLE_SIZES,
-  OC_SURFACE_SHADOWS,
-  OC_SURFACE_VARIANTS,
 } from '../../shared/ui/foundation/tokenRegistry'
-import { OcIcon, OcPressable, OcSurface } from '../../shared/ui/primitives'
+import OcIcon from './OcIcon.vue'
 
-type OcButtonVariant = 'primary' | 'secondary' | 'ghost' | 'choice'
-type OcPressableSize = (typeof OC_PRESSABLE_SIZES)[number]
-type OcPressableRadius = (typeof OC_PRESSABLE_RADII)[number]
-type OcSurfaceTone = (typeof OC_SURFACE_VARIANTS)[number]
-type OcSurfaceElevation = (typeof OC_SURFACE_SHADOWS)[number]
-type OcSurfaceBorder = 'none' | 'subtle' | 'strong' | 'overlay'
+type OcButtonVariant = (typeof OC_BUTTON_VARIANTS)[number]
+type OcButtonSize = (typeof OC_PRESSABLE_SIZES)[number]
+type OcButtonRadius = (typeof OC_PRESSABLE_RADII)[number]
+type OcButtonIconSize = 'sm' | 'md' | 'lg'
 
 interface OcButtonProps {
   /** 按钮视觉变体。 */
   variant?: OcButtonVariant
-  /** 点击区域尺寸 token（OcPressable）。 */
-  size?: OcPressableSize
-  /** 点击区域圆角 token（OcPressable）。 */
-  radius?: OcPressableRadius
+  /** 按钮尺寸 token。 */
+  size?: OcButtonSize
+  /** 按钮圆角 token。 */
+  radius?: OcButtonRadius
   /** 左右图标名。 */
   icon?: string
   /** 图标相对文案位置。 */
@@ -59,7 +62,19 @@ interface OcButtonEmits {
   click: [event: MouseEvent]
 }
 
-defineOptions({ name: 'OcButton' })
+interface SurfaceStateTokens {
+  restBg: string
+  restBorder: string
+  hoverBg: string
+  hoverBorder: string
+  activeBg: string
+  activeBorder: string
+}
+
+defineOptions({
+  name: 'OcButton',
+  inheritAttrs: false,
+})
 
 const props = withDefaults(defineProps<OcButtonProps>(), {
   variant: 'secondary',
@@ -75,87 +90,195 @@ const props = withDefaults(defineProps<OcButtonProps>(), {
 })
 
 const emit = defineEmits<OcButtonEmits>()
+const attrs = useAttrs()
 const slots = useSlots()
+
+const forwardedAttrs = computed(() => {
+  const { class: _class, style: _style, type: _type, disabled: _disabled, ...rest } = attrs
+  return rest
+})
 
 const hasDefaultSlot = computed(() => Boolean(slots.default?.().length))
 const isIconOnly = computed(() => props.iconOnly || (!hasDefaultSlot.value && Boolean(props.icon)))
 
-const resolvedSurface = computed<{
-  tone: OcSurfaceTone
-  border: OcSurfaceBorder
-  elevation: OcSurfaceElevation
-}>(() => {
-  if (props.variant === 'secondary') {
+const iconSize = computed<OcButtonIconSize>(() => {
+  if (props.size === 'sm') {
+    return 'sm'
+  }
+  if (props.size === 'lg') {
+    return 'lg'
+  }
+  return 'md'
+})
+
+const surfaceTokens = computed<SurfaceStateTokens>(() => {
+  if (props.variant === 'primary') {
     return {
-      tone: 'panel',
-      border: 'subtle',
-      elevation: 'none',
+      restBg: 'var(--oc-bg-accent)',
+      restBorder: 'transparent',
+      hoverBg: 'var(--oc-bg-accent-hover)',
+      hoverBorder: 'transparent',
+      activeBg: 'var(--oc-bg-active)',
+      activeBorder: 'var(--oc-bg-accent)',
     }
   }
 
   if (props.variant === 'choice') {
     return {
-      tone: 'input',
-      border: 'subtle',
-      elevation: 'none',
+      restBg: 'var(--oc-bg-input)',
+      restBorder: 'var(--oc-border-surface)',
+      hoverBg: 'var(--oc-bg-hover)',
+      hoverBorder: 'var(--oc-bg-accent)',
+      activeBg: 'var(--oc-bg-active)',
+      activeBorder: 'var(--oc-bg-accent)',
+    }
+  }
+
+  if (props.variant === 'icon') {
+    return {
+      restBg: 'transparent',
+      restBorder: 'transparent',
+      hoverBg: 'var(--oc-bg-hover)',
+      hoverBorder: 'var(--oc-border-surface)',
+      activeBg: 'var(--oc-bg-active)',
+      activeBorder: 'var(--oc-bg-accent)',
+    }
+  }
+
+  if (props.variant === 'ghost') {
+    return {
+      restBg: 'transparent',
+      restBorder: 'transparent',
+      hoverBg: 'var(--oc-bg-hover)',
+      hoverBorder: 'transparent',
+      activeBg: 'var(--oc-bg-active)',
+      activeBorder: 'var(--oc-bg-accent)',
     }
   }
 
   return {
-    tone: 'transparent',
-    border: 'none',
-    elevation: 'none',
+    restBg: 'var(--oc-bg-panel)',
+    restBorder: 'var(--oc-border-surface)',
+    hoverBg: 'var(--oc-bg-hover)',
+    hoverBorder: 'var(--oc-bg-accent)',
+    activeBg: 'var(--oc-bg-active)',
+    activeBorder: 'var(--oc-bg-accent)',
   }
 })
+
+const buttonStyle = computed<Record<string, string>>(() => ({
+  '--oc-button-surface-bg-rest': surfaceTokens.value.restBg,
+  '--oc-button-surface-border-rest': surfaceTokens.value.restBorder,
+  '--oc-button-surface-bg-hover': surfaceTokens.value.hoverBg,
+  '--oc-button-surface-border-hover': surfaceTokens.value.hoverBorder,
+  '--oc-button-surface-bg-active': surfaceTokens.value.activeBg,
+  '--oc-button-surface-border-active': surfaceTokens.value.activeBorder,
+}))
+
+const surfaceClass = computed(() => `oc-base-button__surface--radius-${props.radius}`)
 
 const buttonClass = computed(() => [
   `oc-base-button--variant-${props.variant}`,
   `oc-base-button--size-${props.size}`,
   {
     'oc-base-button--icon-only': isIconOnly.value,
-    'oc-base-button--active': props.active,
+    'is-active': props.active,
+    'is-block': props.block,
   },
 ])
-
-function handleClick(event: MouseEvent): void {
-  emit('click', event)
-}
 </script>
 
 <style scoped>
 .oc-base-button {
-  --oc-button-gap: 6px;
-  --oc-button-min-height: 26px;
-  --oc-button-padding-block: 5px;
-  --oc-button-padding-inline: 10px;
-  --oc-button-font-size: 12px;
+  --oc-button-gap: var(--oc-padding-compact);
+  --oc-button-block-size: var(--oc-block-md);
+  --oc-button-inline-padding: var(--oc-padding-standard);
+  --oc-button-font-size: var(--oc-body-size);
+  --oc-button-fg: var(--oc-text-primary);
+  --oc-button-hover-fg: var(--oc-button-fg);
+  --oc-button-active-fg: var(--oc-button-hover-fg);
+  --oc-button-surface-bg-rest: transparent;
+  --oc-button-surface-border-rest: transparent;
+  --oc-button-surface-bg-hover: var(--oc-button-surface-bg-rest);
+  --oc-button-surface-border-hover: var(--oc-button-surface-border-rest);
+  --oc-button-surface-bg-active: var(--oc-button-surface-bg-hover);
+  --oc-button-surface-border-active: var(--oc-button-surface-border-hover);
   min-width: 0;
-  color: var(--oc-text-primary);
+  min-height: var(--oc-button-block-size);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oc-button-fg);
+  font: inherit;
+  line-height: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.oc-base-button:focus-visible {
+  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
+  outline-offset: 1px;
+}
+
+.oc-base-button:disabled {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.oc-base-button.is-block {
+  align-self: stretch;
+  justify-self: stretch;
+  width: auto;
 }
 
 .oc-base-button__surface {
   min-width: 0;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--oc-button-gap);
-  min-height: var(--oc-button-min-height);
-  padding: var(--oc-button-padding-block) var(--oc-button-padding-inline);
+  min-height: var(--oc-button-block-size);
+  padding: var(--oc-padding-none) var(--oc-button-inline-padding);
   font-size: var(--oc-button-font-size);
   line-height: 1.2;
   color: inherit;
   white-space: nowrap;
+  border: var(--oc-thickness-1) solid var(--oc-button-surface-border-rest);
+  background: var(--oc-button-surface-bg-rest);
   transition:
     border-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
     background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    box-shadow var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
+    color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
+}
+
+.oc-base-button__surface--radius-none {
+  border-radius: 0;
+}
+
+.oc-base-button__surface--radius-sm {
+  border-radius: var(--oc-radius-sm);
+}
+
+.oc-base-button__surface--radius-md {
+  border-radius: var(--oc-radius-md);
+}
+
+.oc-base-button__surface--radius-lg {
+  border-radius: var(--oc-radius-lg);
 }
 
 .oc-base-button--icon-only .oc-base-button__surface {
+  width: var(--oc-button-block-size);
+  height: var(--oc-button-block-size);
   min-height: 0;
-  padding: 0;
-  gap: 0;
+  padding: var(--oc-padding-none);
+  gap: var(--oc-padding-none);
 }
 
 .oc-base-button__label {
@@ -166,76 +289,52 @@ function handleClick(event: MouseEvent): void {
   flex-shrink: 0;
 }
 
-.oc-base-button--size-sm :deep(.oc-icon) {
-  font-size: 12px;
+.oc-base-button:hover:not(:disabled) {
+  color: var(--oc-button-hover-fg);
 }
 
-.oc-base-button--size-md :deep(.oc-icon) {
-  font-size: 14px;
+.oc-base-button:hover:not(:disabled) .oc-base-button__surface {
+  border-color: var(--oc-button-surface-border-hover);
+  background: var(--oc-button-surface-bg-hover);
 }
 
-.oc-base-button--size-lg :deep(.oc-icon) {
-  font-size: 18px;
+.oc-base-button:active:not(:disabled),
+.oc-base-button.is-active:not(:disabled) {
+  color: var(--oc-button-active-fg);
+}
+
+.oc-base-button:active:not(:disabled) .oc-base-button__surface,
+.oc-base-button.is-active:not(:disabled) .oc-base-button__surface {
+  border-color: var(--oc-button-surface-border-active);
+  background: var(--oc-button-surface-bg-active);
 }
 
 .oc-base-button--size-sm {
-  --oc-button-min-height: 22px;
-  --oc-button-padding-block: 3px;
-  --oc-button-padding-inline: 7px;
-  --oc-button-font-size: 11px;
+  --oc-button-block-size: var(--oc-block-sm);
+  --oc-button-inline-padding: var(--oc-padding-compact);
+  --oc-button-font-size: var(--oc-label-size);
 }
 
 .oc-base-button--size-md {
-  --oc-button-min-height: 26px;
-  --oc-button-padding-block: 5px;
-  --oc-button-padding-inline: 10px;
-  --oc-button-font-size: 12px;
+  --oc-button-block-size: var(--oc-block-md);
+  --oc-button-inline-padding: var(--oc-padding-standard);
+  --oc-button-font-size: var(--oc-body-size);
 }
 
 .oc-base-button--size-lg {
-  --oc-button-min-height: 32px;
-  --oc-button-padding-block: 7px;
-  --oc-button-padding-inline: 14px;
-  --oc-button-font-size: 13px;
+  --oc-button-block-size: var(--oc-block-lg);
+  --oc-button-inline-padding: calc(var(--oc-padding-standard) + var(--oc-padding-compact));
+  --oc-button-font-size: var(--oc-title-size);
 }
 
 .oc-base-button--variant-primary {
-  color: var(--oc-accent-contrast);
-}
-
-.oc-base-button--variant-primary .oc-base-button__surface {
-  background: var(--oc-bg-accent);
-}
-
-.oc-base-button--variant-primary:hover:not(.is-disabled) .oc-base-button__surface {
-  background: var(--oc-bg-accent-hover);
-}
-
-.oc-base-button--variant-secondary:hover:not(.is-disabled) .oc-base-button__surface,
-.oc-base-button--variant-choice:hover:not(.is-disabled) .oc-base-button__surface {
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-hover);
-}
-
-.oc-base-button--variant-ghost:hover:not(.is-disabled) .oc-base-button__surface {
-  background: var(--oc-bg-hover);
+  --oc-button-fg: var(--oc-accent-contrast);
+  --oc-button-active-fg: var(--oc-accent-contrast);
 }
 
 .oc-base-button--variant-icon {
-  color: var(--oc-text-soft);
-}
-
-.oc-base-button--variant-icon:hover:not(.is-disabled) {
-  color: var(--oc-text-highlight);
-}
-
-.oc-base-button--variant-icon:hover:not(.is-disabled) .oc-base-button__surface {
-  border-color: var(--oc-border-subtle);
-  background: var(--oc-bg-hover);
-}
-
-.oc-base-button--active .oc-base-button__surface {
-  border-color: var(--oc-bg-accent);
-  background: var(--oc-bg-active);
+  --oc-button-fg: var(--oc-text-soft);
+  --oc-button-hover-fg: var(--oc-text-highlight);
+  --oc-button-active-fg: var(--oc-text-highlight);
 }
 </style>

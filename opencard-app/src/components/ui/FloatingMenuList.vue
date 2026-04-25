@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { FloatingMenuItem } from '../../composables/useFloatingMenu'
-import OcMenuItemButton from '../base/OcMenuItemButton.vue'
+import OcMenuItemButton from '../standard/OcMenuItemButton.vue'
 
 defineOptions({ name: 'FloatingMenuList' })
 

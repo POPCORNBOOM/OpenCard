@@ -1,39 +1,33 @@
+<!-- Base 侧栏框架：独立实现 activity/panel 双栏结构与表面样式，不依赖 shared primitives。 -->
 <template>
   <div class="oc-sidebar-frame" :class="frameClass">
-    <OcSurface
-      as="aside"
-      class="oc-sidebar-frame__activity"
-      tone="elevated"
-      radius="none"
-    >
+    <aside class="oc-sidebar-frame__activity">
       <slot name="activity" />
-    </OcSurface>
-    <OcSurface
-      v-if="panelVisible"
-      as="section"
-      class="oc-sidebar-frame__panel"
-      tone="panel"
-      radius="none"
-    >
+    </aside>
+    <section v-if="panelVisible" class="oc-sidebar-frame__panel">
       <slot name="panel" />
-    </OcSurface>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { OcSurface } from '../../shared/ui/primitives'
 
 type SidebarActivitySize = 'compact' | 'default' | 'spacious'
 type SidebarPanelSize = 'compact' | 'default' | 'spacious'
 
+interface OcSidebarFrameProps {
+  /** activity 区宽度语义。 */
+  activitySize?: SidebarActivitySize
+  /** panel 区宽度语义。 */
+  panelSize?: SidebarPanelSize
+  /** 是否显示 panel 区。 */
+  panelVisible?: boolean
+}
+
 defineOptions({ name: 'OcSidebarFrame' })
 
-const props = withDefaults(defineProps<{
-  activitySize?: SidebarActivitySize
-  panelSize?: SidebarPanelSize
-  panelVisible?: boolean
-}>(), {
+const props = withDefaults(defineProps<OcSidebarFrameProps>(), {
   activitySize: 'default',
   panelSize: 'default',
   panelVisible: true,
@@ -57,6 +51,7 @@ const frameClass = computed(() => [
   min-width: 0;
   min-height: 0;
   flex: 0 0 auto;
+  background: var(--oc-bg-elevated);
   border-right: 1px solid var(--oc-border-strong);
 }
 
@@ -67,6 +62,7 @@ const frameClass = computed(() => [
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
+  background: var(--oc-bg-panel);
   border-right: 1px solid var(--oc-border-strong);
 }
 
@@ -94,4 +90,3 @@ const frameClass = computed(() => [
   width: 320px;
 }
 </style>
-

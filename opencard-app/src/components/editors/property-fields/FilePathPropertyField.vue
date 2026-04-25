@@ -58,7 +58,7 @@
 import { computed, ref, watch } from 'vue'
 import OcButton from '../../base/OcButton.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
-import { OcIcon } from '../../../shared/ui/primitives'
+import OcIcon from '../../base/OcIcon.vue'
 import { useProjectStore } from '../../../features/workspace/store/projectStore'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 

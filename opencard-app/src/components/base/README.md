@@ -1,12 +1,22 @@
 # Base Components
 
-`src/components/base` 是业务层唯一允许直接消费的 UI 组合层。
+`src/components/base` 是业务层基础构件层（叶子组件）。
 
 硬规则：
 
-- 只能组合 `src/shared/ui/primitives`，禁止在 base 里新增独立视觉体系。
+- base 组件必须独立实现，不允许依赖 `src/shared/ui/primitives`。
+- 任何依赖其他 base 组件的组合件必须放在 `src/components/standard`。
 - 禁止在业务组件新增原生 `button/input/select/textarea`，必须先评估是否应进入 base/primitives。
-- 任何 base 组件新增或改动，都必须先在 UI Kit 登记示例，再进入业务页面。
+- 任何 base 组件新增或改动，都必须先跑通 `npm run lint:ui && npm test && npm run build` 再进入业务页面。
+
+当前已提升到 `standard` 的组件：
+
+- `OcColorField`
+- `OcMenuItemButton`
+- `OcOptionGroup`
+- `OcTab`
+- `OcTabBar`
+- `OcToolButton`
 
 ## Component APIs
 
@@ -327,12 +337,3 @@
   - IDE 左侧活动栏 + 面板组合外壳。
 - 禁用用法:
   - 不要在业务层再手写同构 sidebar frame 结构。
-
-## UI Kit Registration Workflow
-
-新增/改动 base 组件时，按以下顺序执行：
-
-1. 在 `src/views/ui-kit/catalog.ts` 登记组件条目（`title/purpose/demoBlocks/stateCoverage`）。
-2. 在 `src/components/ui-kit/ShowcaseExampleRenderer.vue` 增加对应 `exampleId` 的四列示例渲染。
-3. 运行 `npm run lint:ui && npm test && npm run build`。
-4. 仅当 UI Kit 与自动化都通过，才允许继续业务页面联调。

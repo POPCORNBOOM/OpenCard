@@ -1,4 +1,4 @@
-<!-- 菜单项按钮：封装菜单行布局与图标占位，交互和视觉由 OcButton 承载。 -->
+<!-- Standard 菜单项按钮：组合 OcButton 与 OcIcon 构建菜单交互行。 -->
 <template>
   <OcButton
     class="oc-menu-item-button"
@@ -12,15 +12,15 @@
     <span class="oc-menu-item-button__main">
       <OcIcon v-if="icon" :name="icon" size="sm" />
       <span v-else class="oc-menu-item-button__icon-placeholder" />
-      <OcText as="span" class="oc-menu-item-button__label">{{ label }}</OcText>
+      <span class="oc-menu-item-button__label">{{ label }}</span>
     </span>
     <OcIcon v-if="hasChildren" name="icon.chevron-right" class="oc-menu-item-button__chevron" size="sm" />
   </OcButton>
 </template>
 
 <script setup lang="ts">
-import OcButton from './OcButton.vue'
-import { OcIcon, OcText } from '../../shared/ui/primitives'
+import OcButton from '../base/OcButton.vue'
+import OcIcon from '../base/OcIcon.vue'
 
 interface OcMenuItemButtonProps {
   /** 菜单主文案。 */

@@ -1,16 +1,13 @@
+<!-- Standard 颜色字段：组合 OcFieldInput 并统一颜色预览与输入行为。 -->
 <template>
   <div class="oc-color-field">
-    <OcSurface
+    <div
       v-if="preview"
       class="oc-color-field__preview"
-      tone="input"
-      radius="sm"
-      border="subtle"
-      pattern="checker-preview"
       aria-hidden="true"
     >
       <span class="oc-color-field__preview-fill" :style="previewFillStyle" />
-    </OcSurface>
+    </div>
 
     <OcFieldInput
       v-if="cssInput"
@@ -37,22 +34,35 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { OcSurface } from '../../shared/ui/primitives'
-import OcFieldInput from './OcFieldInput.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
+
+interface OcColorFieldProps {
+  /** 当前颜色值。 */
+  modelValue?: string
+  /** 是否显示颜色预览块。 */
+  preview?: boolean
+  /** 是否显示 color picker。 */
+  picker?: boolean
+  /** 是否显示 CSS 文本输入框。 */
+  cssInput?: boolean
+  /** 是否禁用字段。 */
+  disabled?: boolean
+  /** 是否只读。 */
+  readonly?: boolean
+  /** picker 的 aria-label。 */
+  pickerAriaLabel?: string
+}
+
+interface OcColorFieldEmits {
+  /** 颜色值变化时抛出。 */
+  'update:modelValue': [value: string]
+}
 
 defineOptions({
   name: 'OcColorField',
 })
 
-const props = withDefaults(defineProps<{
-  modelValue?: string
-  preview?: boolean
-  picker?: boolean
-  cssInput?: boolean
-  disabled?: boolean
-  readonly?: boolean
-  pickerAriaLabel?: string
-}>(), {
+const props = withDefaults(defineProps<OcColorFieldProps>(), {
   modelValue: '',
   preview: true,
   picker: true,
@@ -62,9 +72,7 @@ const props = withDefaults(defineProps<{
   pickerAriaLabel: 'Select color',
 })
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: string): void
-}>()
+const emit = defineEmits<OcColorFieldEmits>()
 
 const HEX_PREFIX = '#'
 const PICKER_FALLBACK_VALUE = `${HEX_PREFIX}000000`
@@ -132,6 +140,14 @@ function toHexColor(value: string): string | null {
   min-width: var(--oc-space-4);
   flex-shrink: 0;
   overflow: hidden;
+  border-radius: var(--oc-radius-sm);
+  border: 1px solid var(--oc-border-surface);
+  background-color: var(--oc-bg-input);
+  background-image:
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%);
+  background-position: 0 0, 6px 6px;
+  background-size: 12px 12px;
 }
 
 .oc-color-field__preview-fill {
@@ -160,4 +176,3 @@ function toHexColor(value: string): string | null {
   cursor: not-allowed;
 }
 </style>
-

@@ -103,7 +103,7 @@ import {
 import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelState'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
-import { OcIcon } from '../../shared/ui/primitives'
+import OcIcon from '../base/OcIcon.vue'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
