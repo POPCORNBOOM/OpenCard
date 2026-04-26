@@ -137,7 +137,32 @@ export const iconRegistry = {
 export type IconName = keyof typeof iconRegistry
 
 export type IconDefinition = CodiconIconDefinition | MdiIconDefinition
-export type IconTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'danger'
+export type IconTone =
+  | 'default'
+  | 'muted'
+  | 'primary'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'opencard'
+  | 'json'
+  | 'markdown'
+  | 'typescript'
+  | 'javascript'
+  | 'vue'
+  | 'html'
+  | 'css'
+  | 'image'
+  | 'package'
+  | 'config'
+  | 'folder-default'
+  | 'folder-open'
+  | 'folder-src'
+  | 'folder-assets'
+  | 'folder-components'
+  | 'folder-views'
+  | 'folder-locales'
+  | 'folder-core'
 export type IconResolvable = IconName | string | { icon?: IconName | string } | IconDefinition
 
 function isIconDefinition(value: unknown): value is IconDefinition {

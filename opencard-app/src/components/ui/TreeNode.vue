@@ -9,61 +9,24 @@
 -->
 <template>
   <div class="tree-node" :class="treeNodeClass">
-    <div
-      class="node-content"
-      :class="nodeContentClass"
-      :style="{ paddingLeft: `${level * 12}px` }"
-      :data-tree-node-key="props.node.key"
-      role="treeitem"
-      tabindex="0"
-      :aria-selected="isSelected ? 'true' : 'false'"
-      :aria-expanded="isExpandable ? isExpanded : undefined"
-      @click="handleClick"
-      @dblclick="handleDoubleClick"
-      @mousedown="handleMouseDown"
-      @keydown="handleKeydown"
-    >
-      <OcIcon
-        v-if="isExpandable"
-        class="tree-node__chevron"
-        :name="isExpanded ? 'tree.chevronDown' : 'tree.chevronRight'"
-        size="sm"
-        data-tree-interactive="true"
-        @mousedown.stop
-        @click.stop="handleToggleClick"
-      />
-      <OcIcon :name="node.icon || 'file.default'" :tone="node.iconTone" />
-      <span
-        v-if="!isRenaming"
-        class="node-name node-name-label"
-        @click.stop="handleNameClick"
-        @dblclick.stop
-      >
+    <div class="node-content" :class="nodeContentClass" :style="{ paddingLeft: `${level * 12}px` }"
+      :data-tree-node-key="props.node.key" role="treeitem" tabindex="0" :aria-selected="isSelected ? 'true' : 'false'"
+      :aria-expanded="isExpandable ? isExpanded : undefined" @click="handleClick" @dblclick="handleDoubleClick"
+      @mousedown="handleMouseDown" @keydown="handleKeydown">
+      <OcIcon v-if="isExpandable" class="tree-node__chevron"
+        :name="isExpanded ? 'tree.chevronDown' : 'tree.chevronRight'" size="sm" data-tree-interactive="true"
+        @mousedown.stop @click.stop="handleToggleClick" />
+      <OcIcon v-if="!isExpandable" :name="node.icon || 'file.default'" :tone="node.iconTone" />
+      <span v-if="!isRenaming" class="node-name node-name-label" @click.stop="handleNameClick" @dblclick.stop>
         {{ node.name }}
       </span>
-      <OcFieldInput
-        v-else
-        ref="renameInputElement"
-        class="node-name node-rename-input"
-        type="text"
-        :value="nodeTree.renameDraft.value"
-        data-tree-interactive="true"
-        @mousedown.stop
-        @dblclick.stop
-        @click.stop
-        @input="handleRenameInput"
-        @keydown="handleRenameKeydown"
-        @blur="handleRenameBlur"
-      />
+      <OcFieldInput v-else ref="renameInputElement" class="node-name node-rename-input" type="text"
+        :value="nodeTree.renameDraft.value" data-tree-interactive="true" @mousedown.stop @dblclick.stop @click.stop
+        @input="handleRenameInput" @keydown="handleRenameKeydown" @blur="handleRenameBlur" />
       <div v-if="availableActions.length" class="node-actions">
-        <TreeActionButton
-          v-for="action in availableActions"
-          :key="action.key"
-          :action="action"
-          caller="node"
-          :node="props.node"
-          @trigger="handleActionTrigger"
-        />
+        <OcButton v-for="action in availableActions" :key="action.key" class="node-action-button" variant="ghost"
+          icon-only :icon="action.icon" :title="action.title" data-tree-interactive="true" @mousedown.stop
+          @click.stop="handleNodeActionClick(action, $event)" />
       </div>
     </div>
 
@@ -76,10 +39,11 @@
 <script setup lang="ts">
 // Vue 能力与依赖组件。
 import { computed, inject, nextTick, ref, watch } from 'vue'
+import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
+import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
-import TreeActionButton from './TreeActionButton.vue'
-import type { ActionCaller, ActionDefinition, ITreeNode, NodeTreeContext } from '../../shared/ui/tree/tree.types'
+import type { ActionDefinition, ITreeNode, NodeTreeContext } from '../../shared/ui/tree/tree.types'
 
 // 当前节点输入。
 const props = defineProps<{
@@ -93,6 +57,7 @@ if (!injectedNodeTree) {
   throw new Error('TreeNode must be used inside NodeTree.')
 }
 const nodeTree = injectedNodeTree
+const { openMenu } = useFloatingMenu()
 
 // 节点可见操作列表。
 const availableActions = computed(() => {
@@ -237,9 +202,35 @@ function handleDoubleClick(event: MouseEvent) {
   nodeTree.handleNodeDoubleClick(props.node)
 }
 
-// 转发节点 action。
-function handleActionTrigger(payload: { actionKey: string; caller: ActionCaller; node?: ITreeNode }) {
-  nodeTree.callAction(payload.actionKey, payload.caller, payload.node)
+function toFloatingMenuItems(actions: ActionDefinition[]): FloatingMenuItem[] {
+  return actions.map((action) => ({
+    key: action.key,
+    label: action.title ?? action.key,
+    icon: action.icon,
+    children: action.children ? toFloatingMenuItems(action.children) : undefined,
+  }))
+}
+
+// 转发节点 action（支持 children 子菜单）。
+function handleNodeActionClick(action: ActionDefinition, event: MouseEvent) {
+  if (action.children?.length) {
+    const anchor = event.currentTarget
+    if (!(anchor instanceof HTMLElement)) {
+      return
+    }
+
+    openMenu({
+      anchor,
+      items: toFloatingMenuItems(action.children),
+      placement: 'bottom-end',
+      onSelect: (actionKey) => {
+        nodeTree.callAction(actionKey, 'node', props.node)
+      },
+    })
+    return
+  }
+
+  nodeTree.callAction(action.key, 'node', props.node)
 }
 
 // 节点按下事件（拖拽起点）。
@@ -324,9 +315,10 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .node-content {
+  height: var(--oc-block-md);
   display: flex;
   align-items: center;
-  gap: var(--oc-space-1);
+  gap: var(--oc-space-2);
   padding: var(--oc-space-1) var(--oc-space-2);
   cursor: pointer;
   font-size: var(--oc-body-size);
@@ -404,6 +396,12 @@ function handleKeydown(event: KeyboardEvent) {
   visibility: hidden;
   gap: var(--oc-space-1);
   margin-right: var(--oc-space-1);
+}
+
+.node-action-button {
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
 }
 
 .node-content:hover .node-actions,

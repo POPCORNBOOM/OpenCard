@@ -16,61 +16,50 @@
   <div class="property-editor">
     <OcEmptyHint v-if="inputs.length === 0">选择一个对象查看属性</OcEmptyHint>
     <template v-else>
-      <section v-for="source in displaySources" :key="source.key" class="source-section">
-        <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
-          <span class="source-title">{{ source.title }}</span>
-        </OcBar>
-        <section v-for="category in source.categories" :key="`${source.key}:${category.key}`" class="category">
-          <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
-            <template #start>
-              <span class="category-title">{{ category.title }}</span>
+      <OcCard v-for="source in displaySources" :key="source.key" :title="source.title" density="none" border="none"
+        tone="transparent">
+        <template #content>
+          <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
+            <template #title>
+              <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
+                <template #start>
+                  <span class="category-title">{{ category.title }}</span>
+                </template>
+                <template #end>
+                  <div v-if="category.addableFields.length > 0" class="add-field-menu">
+                    <OcChip>{{ category.addableFields.length }}</OcChip>
+                    <OcButton class="add-field-button" icon-only size="sm" variant="secondary"
+                      :title="addFieldActionText" :aria-label="addFieldActionText"
+                      @click="openAddFieldMenu($event, category)">
+                      <OcIcon name="icon.add" size="sm" />
+                    </OcButton>
+                  </div>
+                </template>
+              </OcBar>
             </template>
-            <template #end>
-              <div v-if="category.addableFields.length > 0" class="add-field-menu">
-                <OcChip>{{ category.addableFields.length }}</OcChip>
-                <OcButton
-                  class="add-field-button"
-                  icon-only
-                  size="sm"
-                  variant="secondary"
-                  :title="addFieldActionText"
-                  :aria-label="addFieldActionText"
-                  @click="openAddFieldMenu($event, category)"
-                >
-                  <OcIcon name="icon.add" size="sm" />
-                </OcButton>
-              </div>
+            <template #content>
+              <OcPropertyRow v-for="entry in category.entries" :key="`${source.key}:${category.key}:${entry.key}`"
+                :label="entry.label" :label-icon="getEditorIconClass(entry.definition.datatype)">
+                <div class="entry-control">
+                  <OcButton v-if="entry.definition.resettable" class="reset-field-button" icon-only size="sm"
+                    variant="secondary" :title="resetFieldActionText"
+                    :aria-label="`${resetFieldActionText}: ${entry.label}`"
+                    @click.stop="emitResetProperty(category.sourceKey, entry.key)">
+                    <OcIcon name="icon.discard" size="sm" />
+                  </OcButton>
+                  <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
+                    :value="entry.value"
+                    @update:value="emit('update-property', { sourceKey: category.sourceKey, fieldKey: entry.key, value: $event })" />
+                </div>
+              </OcPropertyRow>
             </template>
-          </OcBar>
-          <OcPropertyRow
-            v-for="entry in category.entries"
-            :key="`${source.key}:${category.key}:${entry.key}`"
-            :label="entry.label"
-            :label-icon="getEditorIconClass(entry.definition.datatype)"
-          >
-            <div class="entry-control">
-              <OcButton
-                v-if="entry.definition.resettable"
-                class="reset-field-button"
-                icon-only
-                size="sm"
-                variant="secondary"
-                :title="resetFieldActionText"
-                :aria-label="`${resetFieldActionText}: ${entry.label}`"
-                @click.stop="emitResetProperty(category.sourceKey, entry.key)"
-              >
-                <OcIcon name="icon.discard" size="sm" />
-              </OcButton>
-              <component
-                :is="getEditorComponent(entry.definition.datatype)"
-                :definition="entry.definition"
-                :value="entry.value"
-                @update:value="emit('update-property', { sourceKey: category.sourceKey, fieldKey: entry.key, value: $event })"
-              />
-            </div>
-          </OcPropertyRow>
-        </section>
-      </section>
+          </OcCard>
+
+        </template>
+
+
+
+      </OcCard>
     </template>
   </div>
 </template>
@@ -104,6 +93,7 @@ import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelS
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
 import OcIcon from '../base/OcIcon.vue'
+import OcCard from '../base/OcCard.vue'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
@@ -247,17 +237,13 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 </script>
 
 <style scoped>
-.property-editor { min-width: 0; padding: var(--oc-space-2); font-family: var(--oc-font-family-ui); font-size: var(--oc-body-size); line-height: 1.4; }
-
-.source-section + .source-section { margin-top: var(--oc-space-3); }
-
-.category {
-  display: flex;
-  flex-direction: column;
-  gap: var(--oc-space-1);
+.property-editor {
+  min-width: 0;
+  padding: 0px;
+  font-family: var(--oc-font-family-ui);
+  font-size: var(--oc-body-size);
+  line-height: 1.4;
 }
-
-.category + .category { margin-top: var(--oc-space-3); }
 
 .add-field-menu {
   display: inline-flex;
@@ -273,7 +259,14 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: var(--oc-space-2);
 }
 
-.add-field-button, .reset-field-button { flex-shrink: 0; }
+.add-field-button,
+.reset-field-button {
+  flex-shrink: 0;
+}
 
-.source-title, .category-title { font-size: var(--oc-label-size); color: var(--oc-text-secondary); }
+.source-title,
+.category-title {
+  font-size: var(--oc-label-size);
+  color: var(--oc-text-secondary);
+}
 </style>

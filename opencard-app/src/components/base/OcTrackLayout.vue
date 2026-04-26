@@ -7,7 +7,7 @@
         :data-region-index="item.regionIndex" :ref="(el) => setRegionRef(item.regionIndex, el)">
         <slot :name="item.slot" />
       </div>
-      <div v-else class="oc-track-layout__resizer-hit" :class="[
+      <div v-else-if="item.type === 'handle'" class="oc-track-layout__resizer-hit" :class="[
         `oc-track-layout__resizer-hit--${props.axis}`,
         { 'is-active': activeHandleIndex === item.handleIndex },
       ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
@@ -15,6 +15,7 @@
         tabindex="0" @mousedown="handleResizeStart($event, item.handleIndex)">
         <span class="oc-track-layout__resizer-visual" aria-hidden="true" />
       </div>
+      <div v-else class="oc-track-layout__gap-spacer" aria-hidden="true" />
     </template>
   </div>
 </template>
@@ -33,10 +34,10 @@ import {
   type ComponentPublicInstance,
 } from 'vue'
 import {
-  resolveOcTrackHandleSize,
+  resolveOcGapToken,
   resolveOcTrackBoundPixels,
   resolveOcTrackSizeTemplate,
-  type OcTrackHandleSize,
+  type OcGapToken,
   type OcTrackRegion,
 } from '../../shared/ui/foundation/tokenRegistry'
 
@@ -57,7 +58,12 @@ type HandleItem = {
   ariaLabel?: string
 }
 
-type LayoutItem = RegionItem | HandleItem
+type GapItem = {
+  type: 'gap'
+  key: string
+}
+
+type LayoutItem = RegionItem | HandleItem | GapItem
 
 type DragState = {
   handleIndex: number
@@ -81,15 +87,15 @@ defineOptions({
 interface OcTrackLayoutProps {
   /** 主轴方向：horizontal=横向分栏，vertical=纵向分栏。 */
   axis?: OcTrackLayoutAxis
-  /** 拖拽条尺寸token：sm|md|lg。 */
-  handleSize?: OcTrackHandleSize
+  /** 区域间距 token：无论是否可拖拽都保持一致。 */
+  gap?: OcGapToken
   /** 轨道区域定义数组。 */
   regions: readonly OcTrackRegion[]
 }
 
 const props = withDefaults(defineProps<OcTrackLayoutProps>(), {
   axis: 'horizontal',
-  handleSize: 'md',
+  gap: 'space-2',
 })
 
 interface OcTrackLayoutEmits {
@@ -179,14 +185,21 @@ const layoutItems = computed<LayoutItem[]>(() => {
       slot: region.slot,
     })
 
-    if (index < props.regions.length - 1 && hasBoundaryHandle(index)) {
-      items.push({
-        type: 'handle',
-        key: `handle-${index}`,
-        handleIndex: index,
-        beforeSlot: region.slot,
-        ariaLabel: resolveBoundaryAriaLabel(index),
-      })
+    if (index < props.regions.length - 1) {
+      if (hasBoundaryHandle(index)) {
+        items.push({
+          type: 'handle',
+          key: `handle-${index}`,
+          handleIndex: index,
+          beforeSlot: region.slot,
+          ariaLabel: resolveBoundaryAriaLabel(index),
+        })
+      } else {
+        items.push({
+          type: 'gap',
+          key: `gap-${index}`,
+        })
+      }
     }
   })
   return items
@@ -196,8 +209,8 @@ const trackTemplate = computed(() => {
   const segments: string[] = []
   props.regions.forEach((_, index) => {
     segments.push(trackSizes.value[index] ?? DEFAULT_TRACK_SIZE)
-    if (index < props.regions.length - 1 && hasBoundaryHandle(index)) {
-      segments.push('var(--oc-track-layout-handle-size)')
+    if (index < props.regions.length - 1) {
+      segments.push('var(--oc-track-layout-gap)')
     }
   })
   return segments.join(' ') || 'none'
@@ -205,7 +218,7 @@ const trackTemplate = computed(() => {
 
 const layoutStyle = computed<CSSProperties>(() => {
   const baseStyle: CSSProperties = {
-    '--oc-track-layout-handle-size': resolveOcTrackHandleSize(props.handleSize),
+    '--oc-track-layout-gap': resolveOcGapToken(props.gap),
   }
 
   if (props.axis === 'vertical') {
@@ -392,7 +405,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .oc-track-layout {
-  --oc-track-layout-handle-size: 6px;
+  --oc-track-layout-gap: var(--oc-space-2);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -428,6 +441,14 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   outline: none;
+}
+
+.oc-track-layout__gap-spacer {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .oc-track-layout__resizer-hit--horizontal {

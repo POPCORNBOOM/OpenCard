@@ -12,7 +12,8 @@
 -->
 <template>
   <div class="ide-layout">
-    <MainIdeTopBar :project-name="projectName" :can-export-active-card="canExportActiveCard"
+    <MainIdeTopBar :project-name="projectName" :current-theme="currentTheme"
+      :can-export-active-card="canExportActiveCard" @toggle-theme="toggleTheme" @open-playground="openPlayground"
       @export-active-card2x="exportActiveCard2x" @export-all-card-views="exportAllCardViews" />
 
     <div class="main-container">
@@ -82,6 +83,7 @@ import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
 import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
 import EditorWorkbenchFrame from '../features/ide-shell/components/EditorWorkbenchFrame.vue'
 import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
+import { getOcTheme, setOcTheme, type OcThemeId } from '../shared/ui/foundation'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType } from '../features/workspace/model/fileTypes'
@@ -112,6 +114,7 @@ const {
 } = useProjectStore()
 
 const activeView = ref<'files' | 'git' | 'publish' | null>('files')
+const currentTheme = ref<OcThemeId>(getOcTheme())
 const openedFilesTreeExpanded = ref(false)
 const projectTreeExpanded = ref(true)
 const timelineTreeExpanded = ref(false)
@@ -409,6 +412,16 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
+
+function openPlayground() {
+  window.location.search = '?view=playground'
+}
+
+function toggleTheme() {
+  const nextTheme: OcThemeId = currentTheme.value === 'dark' ? 'light' : 'dark'
+  currentTheme.value = nextTheme
+  setOcTheme(nextTheme)
+}
 
 function closeFile(sessionId: string) {
   closeSession(sessionId)

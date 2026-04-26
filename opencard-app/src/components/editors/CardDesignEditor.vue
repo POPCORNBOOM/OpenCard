@@ -25,79 +25,76 @@
           @viewport-transform-change="handleViewportTransformChange" />
         <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
       </OcBox>
+
       <template #overlay>
-        <OcTrackLayout class="card-design-editor__overlay-layout" axis="horizontal" :regions="overlayHorizontalRegions">
-          <template #left-cardtree>
-            <OcSurface tone="glass" radius="lg" elevation="overlay" fill class="card-design-editor__floating-shell"
-              :style="{ pointerEvents: panelPointerEvents }">
-              <OcPanelSection fill tone="glass" :collapsed="!isInstancePanelExpanded" body-padding="var(--oc-space-1) 0"
-                :scroll-body="true">
-                <template #title>
-                  <span v-if="isInstancePanelExpanded">创建的卡牌</span>
+        <OcTrackLayout gap="space-2" axis="horizontal" :regions="overlayHorizontalRegions">
+          <template #left-structuretree>
+            <OcSurface tone="transparent" radius="none" border="none" fill padding="none" :clip="false">
+              <OcTrackLayout fill axis="vertical" :regions="leftPanelTrackRegions">
+                <template #card-panel>
+                  <OcCard elevation="overlay" radius="lg" fill title="卡牌树" tone="glass">
+                    <template #content>
+                      <OcScrollArea>
+                        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
+                          :multi-select="false" :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
+                          :action-keys="instanceTreeActionKeys"
+                          :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
+                          :can-drop="canDropInstanceTreeNode" @update:selected-keys="onInstanceTreeSelect"
+                          @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
+                          @node-drop="handleInstanceTreeDrop" />
+                      </OcScrollArea>
+                    </template>
+                  </OcCard>
                 </template>
-                <template #actions>
-                  <OcToolButton kind="panel" icon-only
-                    :icon="isInstancePanelExpanded ? 'icon.chevron-left' : 'icon.chevron-right'"
-                    :title="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'"
-                    :aria-label="isInstancePanelExpanded ? '收起侧栏' : '展开侧栏'" @click="toggleInstancePanel" />
+                <template #preview-panel>
+                  <OcCard :clip="true" elevation="overlay" fill radius="lg" title="预览" tone="glass" density="none">
+                    <OcSurface fill radius="none" tone="transparent" border="none" elevation="overlay"
+                      pattern="checker-preview" padding="none">
+                      <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host">
+                        <div class="card-design-editor__transform-preview-viewport"
+                          :style="transformPreviewViewportStyle">
+                          <CardRenderer :document="viewDoc" :clip-to-document="true"
+                            :style="transformPreviewRendererStyle" />
+                        </div>
+                      </div>
+                    </OcSurface>
+
+                  </OcCard>
                 </template>
-                <template #default>
-                  <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
-                    :multi-select="false" :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
-                    :action-keys="instanceTreeActionKeys" :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-                    :can-drop="canDropInstanceTreeNode" @update:selected-keys="onInstanceTreeSelect"
-                    @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
-                    @node-drop="handleInstanceTreeDrop" />
-                </template>
-              </OcPanelSection>
+              </OcTrackLayout>
             </OcSurface>
           </template>
           <template #left-position>
-            <OcSurface tone="glass" radius="lg" elevation="overlay"
-              class="card-design-editor__floating-shell card-design-editor__floating-shell--padding-sm">
-              <OcText>
-
-                x: {{ Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
-                  viewportTransform.scale.toFixed(2) }}</OcText>
-            </OcSurface>
+            <OcCard radius="lg" tone="glass" elevation="overlay">
+              <template #content>
+                <OcText> x: {{
+                  Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
+                    viewportTransform.scale.toFixed(2) }}</OcText>
+              </template>
+            </OcCard>
           </template>
           <template #center-spacer>
 
           </template>
-          <template #transform-preview>
-            <OcSurface v-if="showTransformPreview && viewDoc" tone="glass" radius="lg" elevation="overlay"
-              class="card-design-editor__floating-shell card-design-editor__floating-shell--padding-sm"
-              :style="{ pointerEvents: 'none' }">
-              <OcBar kind="section">
-                <OcChip tone="info">{{ t('panels.transformPreview') }}</OcChip>
-              </OcBar>
-              <div class="transform-preview-viewport" :style="transformPreviewViewportStyle">
-                <OcSurface fill pattern="checker-preview" />
-                <div class="transform-preview-shell" :style="transformPreviewShellStyle">
-                  <div class="transform-preview-stage" :style="transformPreviewStageStyle">
-                    <CardRenderer :document="viewDoc" />
-                  </div>
-                </div>
-              </div>
-            </OcSurface>
-
-          </template>
           <template #right-structuretree>
-            <OcSurface tone="glass" radius="lg" elevation="overlay" fill class="card-design-editor__floating-shell"
-              :style="{ pointerEvents: panelPointerEvents }">
-              <OcTrackLayout class="card-design-editor__right-split" axis="vertical" :regions="rightPanelTrackRegions"
+            <OcSurface tone="transparent" radius="none" border="none" fill padding="none" :clip="false">
+              <OcTrackLayout fill axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
                 <template #tree-panel>
-                  <OcPanelSection fill title="结构树" tone="glass" body-padding="var(--oc-space-1) 0">
-                    <NodeTree title="模板结构" :nodes="blockTree" :multi-select="false" :selected-keys="selectedBlockKeys"
-                      :actions="treeActions" v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys"
-                      :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect" @action-called="handleTreeAction"
-                      @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
-                  </OcPanelSection>
+                  <OcCard elevation="overlay" radius="lg" fill title="结构树" tone="glass">
+                    <template #content>
+                      <OcScrollArea>
+                        <NodeTree title="模板结构" :nodes="blockTree" :multi-select="false"
+                          :selected-keys="selectedBlockKeys" :actions="treeActions" v-model:expanded="blockTreeExpanded"
+                          :action-keys="treeActionKeys" :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
+                          @action-called="handleTreeAction" @node-rename="handleTreeRename"
+                          @node-drop="handleTreeDrop" />
+                      </OcScrollArea>
+                    </template>
+                  </OcCard>
                 </template>
                 <template #property-panel>
-                  <OcPanelSection fill title="属性" tone="glass" :scroll-body="true"
-                    body-class="card-design-editor__property-scroll-body">
+                  <OcCard elevation="overlay" radius="lg" fill title="属性" tone="glass">
                     <template #actions>
                       <OcToolbar kind="panel" :shrink="false" aria-label="Property sort tools">
                         <OcToolButton kind="panel" icon-only icon="icon.list-tree"
@@ -108,12 +105,14 @@
                           @click="propertySortMode = 'alphabetical'" />
                       </OcToolbar>
                     </template>
-
-                    <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode"
-                      @update-property="updateBlockProp" @add-property="addBlockProp"
-                      @reset-property="resetBlockProp" />
-
-                  </OcPanelSection>
+                    <template #content>
+                      <OcScrollArea>
+                        <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode"
+                          @update-property="updateBlockProp" @add-property="addBlockProp"
+                          @reset-property="resetBlockProp" />
+                      </OcScrollArea>
+                    </template>
+                  </OcCard>
                 </template>
               </OcTrackLayout>
             </OcSurface>
@@ -143,11 +142,8 @@ import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
 import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
-import OcBar from '../base/OcBar.vue'
-import OcChip from '../base/OcChip.vue'
 import OcEmptyHint from '../base/OcEmptyHint.vue'
 import OcOverlay from '../base/OcOverlay.vue'
-import OcPanelSection from '../base/OcPanelSection.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
 import OcToolButton from '../standard/OcToolButton.vue'
 import OcToolbar from '../base/OcToolbar.vue'
@@ -159,9 +155,15 @@ import {
   type CdePropertySortMode,
 } from '../../composables/useCdePropertyPanelState'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
-import type { OcTrackRegion } from '../../shared/ui/foundation/tokenRegistry'
+import {
+  resolveOcTrackBoundPixels,
+  type OcBoundSize,
+  type OcTrackRegion,
+} from '../../shared/ui/foundation/tokenRegistry'
 import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
 import OcText from '../base/OcText.vue'
+import OcCard from '../base/OcCard.vue'
+import OcScrollArea from '../base/OcScrollArea.vue'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -217,23 +219,37 @@ const {
 } = useCdePanelResize()
 
 const overlayHorizontalRegions = ref<OcTrackRegion[]>([
-  { slot: 'left-cardtree', size: 'auto' },
+  { slot: 'left-structuretree', size: 'panel-xl', resizableEnd: true, min: 'panel-lg', max: 'panel-2xl' },
   { slot: 'left-position', size: 'auto' },
   { slot: 'center-spacer', size: 'fill' },
-  { slot: 'transform-preview', size: 'auto' },
-  { slot: 'right-structuretree', size: 'size-3xl', resizableStart: true, min: 'panel-md' },
+  { slot: 'right-structuretree', size: 'panel-xl', resizableStart: true, min: 'panel-lg', max: 'panel-2xl' },
 ])
 
 const rightPanelTrackRegions = ref<OcTrackRegion[]>([
   {
     slot: 'tree-panel',
-    size: 'workspace-tree',
+    size: 'fill',
     min: 'panel-sm',
     resizableEnd: true,
     resizerAriaLabel: '调整信息树高度',
   },
   {
     slot: 'property-panel',
+    size: 'fill',
+    resizableStart: true,
+    min: 'panel-md',
+  }
+])
+const leftPanelTrackRegions = ref<OcTrackRegion[]>([
+  {
+    slot: 'card-panel',
+    size: 'fill',
+    min: 'panel-sm',
+    resizableEnd: true,
+    resizerAriaLabel: '调整卡牌列表高度',
+  },
+  {
+    slot: 'preview-panel',
     size: 'fill',
     resizableStart: true,
     min: 'panel-md',
@@ -426,7 +442,9 @@ const viewDoc = computed<CardDocument | null>(() => {
     cardDoc.value,
     selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null,
   )
-  const resolved = resolveReferences(projected)
+  const resolved = resolveReferences(projected, {
+    currentCard: selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null,
+  })
   if (resolved.issues.length > 0) {
     console.warn('[cde] resolveReferences issues:', resolved.issues)
   }
@@ -434,46 +452,56 @@ const viewDoc = computed<CardDocument | null>(() => {
   return prepareDocumentForRender(resolved.document)
 })
 const showTransformPreview = computed(() => Boolean(selectedBlock.value?.id) && Boolean(viewDoc.value))
+const TRANSFORM_PREVIEW_MAX_SIZE_TOKEN: OcBoundSize = 'panel-lg'
+const TRANSFORM_PREVIEW_MAX_SIDE = resolveOcTrackBoundPixels(TRANSFORM_PREVIEW_MAX_SIZE_TOKEN, 220)
+const transformPreviewHostRef = ref<HTMLElement | null>(null)
+const transformPreviewHostSize = ref({
+  width: TRANSFORM_PREVIEW_MAX_SIDE,
+  height: TRANSFORM_PREVIEW_MAX_SIDE,
+})
+let transformPreviewSizeObserver: ResizeObserver | null = null
+
+function updateTransformPreviewHostSize(width: number, height: number): void {
+  transformPreviewHostSize.value = {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  }
+}
+
+watch(transformPreviewHostRef, (nextHost, prevHost) => {
+  if (!transformPreviewSizeObserver) {
+    return
+  }
+  if (prevHost) {
+    transformPreviewSizeObserver.unobserve(prevHost)
+  }
+  if (nextHost) {
+    transformPreviewSizeObserver.observe(nextHost)
+    updateTransformPreviewHostSize(nextHost.clientWidth, nextHost.clientHeight)
+  }
+})
+
 const transformPreviewScale = computed(() => {
   const document = viewDoc.value
   if (!document) {
     return 1
   }
 
-  const previewWidth = 220
-  const previewHeight = 150
+  const previewWidth = transformPreviewHostSize.value.width
+  const previewHeight = transformPreviewHostSize.value.height
   return Math.min(
     previewWidth / document.width,
     previewHeight / document.height,
     1,
   )
 })
-const transformPreviewStageStyle = computed(() => {
-  const document = viewDoc.value
-  if (!document) {
-    return {}
-  }
-
+const transformPreviewRendererStyle = computed<CSSProperties>(() => {
   return {
     transform: `scale(${transformPreviewScale.value})`,
     transformOrigin: '0 0',
-    lineHeight: '0',
-    width: `${document.width}px`,
-    height: `${document.height}px`,
   }
 })
-const transformPreviewShellStyle = computed(() => {
-  const document = viewDoc.value
-  if (!document) {
-    return {}
-  }
-
-  return {
-    width: `${document.width}px`,
-    height: `${document.height}px`,
-  }
-})
-const transformPreviewViewportStyle = computed(() => {
+const transformPreviewViewportStyle = computed<CSSProperties>(() => {
   const document = viewDoc.value
   if (!document) {
     return {}
@@ -587,9 +615,27 @@ defineExpose({
 
 onMounted(() => {
   mountPanelResizeListeners()
+  transformPreviewSizeObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.target !== transformPreviewHostRef.value) {
+        return
+      }
+
+      updateTransformPreviewHostSize(entry.contentRect.width, entry.contentRect.height)
+    })
+  })
+  if (transformPreviewHostRef.value) {
+    transformPreviewSizeObserver.observe(transformPreviewHostRef.value)
+    updateTransformPreviewHostSize(
+      transformPreviewHostRef.value.clientWidth,
+      transformPreviewHostRef.value.clientHeight,
+    )
+  }
 })
 
 onUnmounted(() => {
+  transformPreviewSizeObserver?.disconnect()
+  transformPreviewSizeObserver = null
   disposeDocumentState()
   unmountPanelResizeListeners()
 })
@@ -607,31 +653,6 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-}
-
-.card-design-editor__overlay-layout {
-  min-width: 0;
-  min-height: 0;
-}
-
-.card-design-editor__right-split {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-}
-
-.card-design-editor__floating-shell {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--oc-border-overlay-soft);
-  background: var(--oc-bg-overlay-soft);
-  backdrop-filter: blur(14px);
-}
-
-.card-design-editor__floating-shell--padding-sm {
-  padding: var(--oc-space-2);
 }
 
 .card-design-editor__center-track {
@@ -658,20 +679,6 @@ onUnmounted(() => {
   right: 0;
 }
 
-.transform-preview-viewport {
-  position: relative;
-  overflow: hidden;
-}
-
-.transform-preview-shell {
-  position: absolute;
-  inset: 0 auto auto 0;
-}
-
-.transform-preview-stage {
-  line-height: 0;
-}
-
 /* CDE: layer + track-width safeguards for overlay side panes */
 .card-design-editor {
   --oc-axis-layout-track-sidebar: var(--card-editor-left-panel-width, 272px);
@@ -696,5 +703,20 @@ onUnmounted(() => {
 
 .card-design-editor__center-hud--preview {
   width: var(--card-editor-overlay-preview-track-width);
+}
+
+.card-design-editor__transform-preview-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.card-design-editor__transform-preview-viewport {
+  flex: 0 0 auto;
 }
 </style>

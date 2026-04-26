@@ -109,6 +109,10 @@ const panelClass = computed(() => [
   background: var(--oc-bg-panel);
 }
 
+.oc-panel-section--tone-base {
+  background: var(--oc-bg-base);
+}
+
 .oc-panel-section--tone-elevated {
   background: var(--oc-bg-elevated);
 }

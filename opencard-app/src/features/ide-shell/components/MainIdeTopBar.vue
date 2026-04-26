@@ -1,3 +1,4 @@
+<!-- IDE 顶栏：承载品牌信息与导出动作入口。 -->
 <template>
   <OcBar kind="top" border="bottom" class="main-ide-top-bar">
     <template #start>
@@ -18,6 +19,8 @@
 
     <template #end>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
+        <OcToolButton block kind="menu" :label="themeButtonLabel" @click="emit('toggleTheme')" />
+        <OcToolButton block kind="menu" label="Playground" @click="emit('openPlayground')" />
         <OcToolButton block kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
           @click="emit('exportActiveCard2x')" />
         <OcToolButton block kind="menu" :label="t('app.menu.exportAll')" :disabled="!canExportActiveCard"
@@ -28,23 +31,39 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { OcBar, OcChip, OcToolbar } from '../../../components/base'
 import { OcToolButton } from '../../../components/standard'
+import type { OcThemeId } from '../../../shared/ui/foundation'
 
 defineOptions({ name: 'MainIdeTopBar' })
 
-defineProps<{
+interface MainIdeTopBarProps {
+  /** 当前项目名称。 */
   projectName?: string
+  /** 当前激活会话是否允许导出。 */
   canExportActiveCard: boolean
-}>()
+  /** 当前应用主题。 */
+  currentTheme: OcThemeId
+}
 
-const emit = defineEmits<{
+interface MainIdeTopBarEmits {
+  /** 请求切换主题（dark/light）。 */
+  toggleTheme: []
+  /** 请求打开组件 Playground 页面。 */
+  openPlayground: []
+  /** 请求导出当前卡片 2x 视图。 */
   exportActiveCard2x: []
+  /** 请求导出当前卡片所有视图。 */
   exportAllCardViews: []
-}>()
+}
+
+const emit = defineEmits<MainIdeTopBarEmits>()
 
 const { t } = useI18n()
+const props = defineProps<MainIdeTopBarProps>()
+const themeButtonLabel = computed(() => `Theme: ${props.currentTheme}`)
 </script>
 
 <style scoped>

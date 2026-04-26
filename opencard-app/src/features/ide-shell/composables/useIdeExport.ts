@@ -158,7 +158,9 @@ function buildRenderableCardDocument(
 ): { document: CardDocument, issues: ReferenceResolveIssue[] } {
   const safeSource = prepareDocumentForRender(document)
   const projected = applyInstance(safeSource, instance)
-  const resolved = resolveReferences(projected)
+  const resolved = resolveReferences(projected, {
+    currentCard: instance,
+  })
 
   return {
     document: prepareDocumentForRender(resolved.document),

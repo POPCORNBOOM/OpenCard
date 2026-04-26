@@ -15,6 +15,7 @@ export const OC_FIELD_CORE_DENSITIES = ['compact', 'comfortable', 'spacious'] as
 export const OC_FIELD_CORE_RESIZE_VALUES = ['none', 'horizontal', 'vertical', 'both'] as const
 
 export const OC_SURFACE_VARIANTS = [
+  'base',
   'panel',
   'elevated',
   'input',
@@ -29,6 +30,17 @@ export const OC_SURFACE_VARIANTS = [
 export const OC_SURFACE_RADII = ['none', 'sm', 'md', 'lg'] as const
 export const OC_SURFACE_SHADOWS = ['none', 'sm', 'md', 'overlay'] as const
 export const OC_SURFACE_PATTERNS = ['none', 'dot-grid', 'checker-preview'] as const
+
+export const OC_GAP_TOKENS = [
+  'none',
+  'space-1',
+  'space-2',
+  'space-3',
+  'space-4',
+  'space-5',
+  'space-6',
+] as const
+export type OcGapToken = (typeof OC_GAP_TOKENS)[number]
 
 export const OC_TRACK_SIZE_TOKENS = [
   'auto',
@@ -74,8 +86,6 @@ export const OC_TRACK_BOUND_SIZE_TOKENS = [
 
 export type OcBoundSize = (typeof OC_TRACK_BOUND_SIZE_TOKENS)[number]
 export type OcTrackBoundSizeMetric = number | { cssVar: string; fallback: number }
-export const OC_TRACK_HANDLE_SIZE_TOKENS = ['sm', 'md', 'lg'] as const
-export type OcTrackHandleSize = (typeof OC_TRACK_HANDLE_SIZE_TOKENS)[number]
 
 export interface OcTrackRegion {
   slot: string
@@ -129,18 +139,27 @@ export const OC_TRACK_BOUND_METRIC_MAP: Record<OcBoundSize, OcTrackBoundSizeMetr
   'workspace-property-min': { cssVar: '--card-editor-min-property-panel-height', fallback: 180 },
 }
 
-export const OC_TRACK_HANDLE_SIZE_MAP: Record<OcTrackHandleSize, string> = {
-  sm: '4px',
-  md: '6px',
-  lg: '8px',
-}
-
 export function resolveOcTrackSizeTemplate(size: OcSize | undefined): string {
   return OC_TRACK_SIZE_TEMPLATE_MAP[size ?? OC_TRACK_DEFAULT_SIZE_TOKEN]
 }
 
-export function resolveOcTrackHandleSize(size: OcTrackHandleSize | undefined): string {
-  return OC_TRACK_HANDLE_SIZE_MAP[size ?? 'md']
+export function resolveOcGapToken(token: OcGapToken | undefined): string {
+  switch (token ?? 'space-2') {
+    case 'none':
+      return '0px'
+    case 'space-1':
+      return 'var(--oc-space-1)'
+    case 'space-2':
+      return 'var(--oc-space-2)'
+    case 'space-3':
+      return 'var(--oc-space-3)'
+    case 'space-4':
+      return 'var(--oc-space-4)'
+    case 'space-5':
+      return 'var(--oc-space-5)'
+    case 'space-6':
+      return 'var(--oc-space-6)'
+  }
 }
 
 type CssVariableReader = (cssVar: string, fallback: number) => number

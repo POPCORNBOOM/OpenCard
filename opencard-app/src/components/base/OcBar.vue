@@ -1,6 +1,6 @@
 <!-- Base 条形容器：独立实现栏位结构与基础背景/边框语义，不依赖 shared primitives。 -->
 <template>
-  <component :is="as" class="oc-bar" :class="barClass">
+  <OcSurface :as="as" class="oc-bar" :class="barClass" :tone="barTone" radius="none" border="none">
     <div v-if="slots.start" class="oc-bar__start">
       <slot name="start" />
     </div>
@@ -10,16 +10,18 @@
     <div v-if="slots.end" class="oc-bar__end">
       <slot name="end" />
     </div>
-  </component>
+  </OcSurface>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
+import OcSurface from './OcSurface.vue'
 
 type BarKind = 'top' | 'status' | 'section'
 type BarBorder = 'none' | 'top' | 'bottom'
 type BarSpacing = 'compact' | 'default' | 'spacious'
 type BarInset = 'none' | 'compact' | 'default' | 'spacious'
+type BarTone = 'base' | 'panel' | 'elevated' | 'transparent'
 
 interface OcBarProps {
   /** 根元素标签。 */
@@ -52,6 +54,14 @@ const barClass = computed(() => [
   props.spacing ? `oc-bar--spacing-${props.spacing}` : null,
   props.inset ? `oc-bar--inset-${props.inset}` : null,
 ])
+
+const barTone = computed<BarTone>(() => {
+  if (props.kind === 'section') {
+    return 'transparent'
+  }
+
+  return 'elevated'
+})
 </script>
 
 <style scoped>
@@ -60,6 +70,7 @@ const barClass = computed(() => [
   --oc-bar-padding: 0;
   min-width: 0;
   min-height: 0;
+  border-width: 0;
   display: flex;
   align-items: center;
   gap: var(--oc-bar-gap);
@@ -70,14 +81,12 @@ const barClass = computed(() => [
   --oc-bar-gap: 18px;
   --oc-bar-padding: 0 18px;
   min-height: 52px;
-  background: var(--oc-bg-app-chrome);
 }
 
 .oc-bar--kind-status {
   --oc-bar-gap: 10px;
   --oc-bar-padding: 0 14px;
   min-height: 24px;
-  background: var(--oc-bg-app-chrome);
   color: var(--oc-text-secondary);
   font-size: 12px;
 }

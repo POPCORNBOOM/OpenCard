@@ -13,35 +13,18 @@
   - `action-called`、`node-toggle`、`node-rename`、`node-drop`
 -->
 <template>
-  <div
-    ref="treeRootElement"
-    class="node-tree"
-    role="tree"
-    :aria-label="props.title"
-    :class="{
-      'drag-over-root': draggedNode && !dropTargetNode && dropPosition,
-      'drop-invalid': draggedNode && !dropTargetNode && dropPosition && !dropAllowed,
-      dragging: draggedNode,
-    }"
-  >
-    <div
-      class="root-content"
-      role="button"
-      tabindex="0"
-      :aria-expanded="isExpanded"
-      @click="handleClick"
-      @keydown="handleRootKeydown"
-    >
+  <div ref="treeRootElement" class="node-tree" role="tree" :aria-label="props.title" :class="{
+    'drag-over-root': draggedNode && !dropTargetNode && dropPosition,
+    'drop-invalid': draggedNode && !dropTargetNode && dropPosition && !dropAllowed,
+    dragging: draggedNode,
+  }">
+    <div class="root-content" role="button" tabindex="0" :aria-expanded="isExpanded" @click="handleClick"
+      @keydown="handleRootKeydown">
       <OcIcon :name="isExpanded ? 'icon.chevron-down' : 'icon.chevron-right'" size="sm" />
       <span class="root-title">{{ props.title }}</span>
       <div v-if="treeActions.length" class="root-actions">
-        <TreeActionButton
-          v-for="action in treeActions"
-          :key="action.key"
-          :action="action"
-          caller="tree"
-          @trigger="handleActionTrigger"
-        />
+        <TreeActionButton v-for="action in treeActions" :key="action.key" :action="action" caller="tree"
+          @trigger="handleActionTrigger" />
       </div>
     </div>
 
@@ -546,7 +529,7 @@ function handleRootKeydown(event: KeyboardEvent) {
 .root-content {
   display: flex;
   align-items: center;
-  gap: var(--oc-space-1);
+  gap: var(--oc-space-2);
   padding: var(--oc-space-1) 0;
   cursor: pointer;
   font-size: var(--oc-body-size);

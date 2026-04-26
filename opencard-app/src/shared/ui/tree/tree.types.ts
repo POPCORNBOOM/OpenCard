@@ -5,8 +5,9 @@
  * - 只维护类型契约 不包含运行时业务实现
  */
 import type { ComputedRef, Ref } from 'vue'
+import type { IconTone } from '../icon/iconRegistry'
 
-export type TreeIconTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'danger'
+export type TreeIconTone = IconTone
 
 export interface ITreeNode {
   name: string

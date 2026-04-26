@@ -1,3 +1,4 @@
+<!-- 编辑工作区壳层：承载标签栏、欢迎态与编辑器内容区。 -->
 <template>
   <div class="editor-workbench-frame">
     <OcTabBar v-if="sessions.length > 0" :aria-label="t('sidebar.openedEditors')">
@@ -36,20 +37,37 @@ import { OcTab, OcTabBar } from '../../../components/standard'
 
 defineOptions({ name: 'EditorWorkbenchFrame' })
 
-const props = withDefaults(defineProps<{
-  sessions: readonly { id: string; name: string; isDirty?: boolean }[]
+type EditorWorkbenchSession = {
+  id: string
+  name: string
+  isDirty?: boolean
+}
+
+interface EditorWorkbenchFrameProps {
+  /** 打开的编辑会话列表。 */
+  sessions: readonly EditorWorkbenchSession[]
+  /** 当前激活会话 id。 */
   activeSessionId: string | null
+  /** 是否存在激活会话。 */
   hasActiveSession: boolean
+  /** 内容区表面模式。 */
   surfaceMode?: 'padded' | 'immersive'
-}>(), {
+}
+
+interface EditorWorkbenchFrameEmits {
+  /** 选择指定会话。 */
+  selectSession: [id: string]
+  /** 关闭指定会话。 */
+  closeSession: [id: string]
+  /** 请求打开项目。 */
+  openProject: []
+}
+
+const props = withDefaults(defineProps<EditorWorkbenchFrameProps>(), {
   surfaceMode: 'padded',
 })
 
-const emit = defineEmits<{
-  selectSession: [id: string]
-  closeSession: [id: string]
-  openProject: []
-}>()
+const emit = defineEmits<EditorWorkbenchFrameEmits>()
 
 const { t } = useI18n()
 </script>

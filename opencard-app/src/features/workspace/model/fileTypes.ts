@@ -20,30 +20,32 @@ export interface FileTypeDefinition {
 
 export interface EntryIconPresentation {
   icon: IconName
-  tone?: IconTone
+  tone?: EntryIconTone
 }
 
+type EntryIconTone = IconTone
+
 const iconTone = {
-  opencard: 'primary',
-  json: 'primary',
-  markdown: 'muted',
-  typescript: 'primary',
-  javascript: 'warning',
-  vue: 'success',
-  html: 'warning',
-  css: 'primary',
-  image: 'success',
-  package: 'primary',
-  config: 'muted',
-  folderDefault: 'muted',
-  folderOpen: 'primary',
-  folderSrc: 'primary',
-  folderAssets: 'warning',
-  folderComponents: 'success',
-  folderViews: 'primary',
-  folderLocales: 'default',
-  folderCore: 'danger',
-} as const satisfies Record<string, IconTone>
+  opencard: 'opencard',
+  json: 'json',
+  markdown: 'markdown',
+  typescript: 'typescript',
+  javascript: 'javascript',
+  vue: 'vue',
+  html: 'html',
+  css: 'css',
+  image: 'image',
+  package: 'package',
+  config: 'config',
+  folderDefault: 'folder-default',
+  folderOpen: 'folder-open',
+  folderSrc: 'folder-src',
+  folderAssets: 'folder-assets',
+  folderComponents: 'folder-components',
+  folderViews: 'folder-views',
+  folderLocales: 'folder-locales',
+  folderCore: 'folder-core',
+} as const satisfies Record<string, EntryIconTone>
 
 const defaultFileType: FileTypeDefinition = {
   id: 'plaintext',

@@ -1,38 +1,20 @@
 <!-- Standard 标签页：组合 OcButton 实现 tab 行为、脏标记与关闭动作。 -->
 <template>
-  <div
-    class="oc-tab"
-    :class="tabClass"
-    role="tab"
-    :tabindex="tabTabindex"
-    :aria-selected="active ? 'true' : 'false'"
-    :aria-disabled="disabled ? 'true' : undefined"
-    :title="resolvedTitle"
-    data-oc-tab
-    @click="handleSelect"
-    @keydown="handleKeydown"
-  >
+  <div class="oc-tab" :class="tabClass" role="tab" :tabindex="tabTabindex" :aria-selected="active ? 'true' : 'false'"
+    :aria-disabled="disabled ? 'true' : undefined" :title="resolvedTitle" data-oc-tab @click="handleSelect"
+    @keydown="handleKeydown">
     <span v-if="dirty" class="oc-tab__dirty-dot" aria-hidden="true" />
-    <span class="oc-tab__label">{{ label }}</span>
-    <OcButton
-      v-if="closable"
-      class="oc-tab__close"
-      variant="icon"
-      icon="icon.close"
-      icon-only
-      size="sm"
-      :disabled="disabled"
-      :tabindex="closeTabindex"
-      :title="resolvedCloseLabel"
-      :aria-label="resolvedCloseLabel"
-      @click.stop="handleClose"
-    />
+    <OcText class="oc-tab__label">{{ label }}</OcText>
+    <OcButton v-if="closable" class="oc-tab__close" variant="icon" icon="icon.close" icon-only size="sm"
+      :disabled="disabled" :tabindex="closeTabindex" :title="resolvedCloseLabel" :aria-label="resolvedCloseLabel"
+      @click.stop="handleClose" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import OcButton from '../base/OcButton.vue'
+import OcText from '../base/OcText.vue'
 
 interface OcTabProps {
   /** 标签文案。 */

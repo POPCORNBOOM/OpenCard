@@ -476,6 +476,7 @@ export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardDoc
 export type ParentLookup = Map<string, BlockContainer>
 const parentFieldReferencePattern = /^(p(?:\.p)*)\s*:\s*([^\s:][^:]*)$/
 const documentFieldReferencePattern = /^d\s*:\s*([^\s:][^:]*)$/
+const currentCardFieldReferencePattern = /^c\s*:\s*([^\s:][^:]*)$/
 const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
 const maxReferenceDepth = 24
@@ -518,9 +519,25 @@ type FieldReferenceDescriptor =
         kind: 'document'
         fieldKey: string
     }
+    | {
+        kind: 'current-card'
+        fieldKey: string
+    }
 
 function parseFieldReference(reference: string): FieldReferenceDescriptor | null {
     const normalized = reference.trim()
+    const currentCardMatch = currentCardFieldReferencePattern.exec(normalized)
+    if (currentCardMatch) {
+        const fieldKey = currentCardMatch[1].trim()
+        if (!fieldKey) {
+            return null
+        }
+        return {
+            kind: 'current-card',
+            fieldKey,
+        }
+    }
+
     const documentMatch = documentFieldReferencePattern.exec(normalized)
     if (documentMatch) {
         const fieldKey = documentMatch[1].trim()
@@ -560,6 +577,10 @@ export function resolveParentFieldReferenceKey(
 ): string | null {
     const descriptor = parseFieldReference(reference)
     if (!descriptor) {
+        return null
+    }
+
+    if (descriptor.kind === 'current-card') {
         return null
     }
 
@@ -611,7 +632,11 @@ export type ResolveReferencesResult = {
     issues: ReferenceResolveIssue[]
 }
 
-type ReferenceOwnerKind = 'document' | 'block' | 'location'
+export type ResolveReferencesOptions = {
+    currentCard?: CardInstanceRecord | null
+}
+
+type ReferenceOwnerKind = 'document' | 'block' | 'location' | 'current-card'
 type ReferenceOwner = {
     kind: ReferenceOwnerKind
     key: string
@@ -630,7 +655,7 @@ type ResolveFieldResult =
 type ResolveMemoState = 'resolving' | 'done' | 'failed'
 
 // Resolve field reference templates before materializing render defaults.
-export function resolveReferences(document: CardDocument): ResolveReferencesResult {
+export function resolveReferences(document: CardDocument, options: ResolveReferencesOptions = {}): ResolveReferencesResult {
     const sourceDocument = document
     const cloneBlockTree = (block: CardBlock): CardBlock => {
         if (block.type === 'simple-container-block') {
@@ -685,6 +710,37 @@ export function resolveReferences(document: CardDocument): ResolveReferencesResu
     }
     owners.push(documentOwner)
     targetOwnersById.set(documentOwner.id, documentOwner)
+
+    const sourceCurrentCard = options.currentCard
+        ? {
+            ...options.currentCard,
+            data: Object.fromEntries(
+                Object.entries(options.currentCard.data ?? {}).map(([blockId, fieldMap]) => [blockId, { ...fieldMap }])
+            ),
+        } satisfies CardInstanceRecord
+        : null
+
+    const targetCurrentCard = sourceCurrentCard
+        ? {
+            ...sourceCurrentCard,
+            data: Object.fromEntries(
+                Object.entries(sourceCurrentCard.data ?? {}).map(([blockId, fieldMap]) => [blockId, { ...fieldMap }])
+            ),
+        } satisfies CardInstanceRecord
+        : null
+
+    const currentCardOwner: ReferenceOwner | null = sourceCurrentCard && targetCurrentCard
+        ? {
+            kind: 'current-card',
+            key: `card:${sourceCurrentCard.id || '__current-card__'}`,
+            id: sourceCurrentCard.id || '__current-card__',
+            typeName: 'card-instance-record',
+            source: sourceCurrentCard as unknown as Record<string, unknown>,
+            target: targetCurrentCard as unknown as Record<string, unknown>,
+            pathPrefix: '$.currentCard',
+            anchorBlockId: null,
+        }
+        : null
 
     const visitChildren = (
         sourceChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
@@ -784,6 +840,44 @@ export function resolveReferences(document: CardDocument): ResolveReferencesResu
         if (!tokenDescriptor) {
             pushIssue(fieldPath, `{{${tokenBody}}}`, 'INVALID_TOKEN', '无效的引用语法')
             return { ok: false, value: null }
+        }
+
+        if (tokenDescriptor.kind === 'current-card') {
+            const targetOwner = currentCardOwner ?? documentOwner
+            const targetFieldKey = tokenDescriptor.fieldKey
+
+            if (!isReferenceFieldReadable(targetOwner.typeName, targetFieldKey)) {
+                pushIssue(
+                    fieldPath,
+                    `{{${tokenBody}}}`,
+                    'FIELD_NOT_ALLOWED',
+                    `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`
+                )
+                return { ok: false, value: null }
+            }
+
+            if (!Object.prototype.hasOwnProperty.call(targetOwner.source, targetFieldKey)) {
+                pushIssue(
+                    fieldPath,
+                    `{{${tokenBody}}}`,
+                    'FIELD_NOT_FOUND',
+                    `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`
+                )
+                return { ok: false, value: null }
+            }
+
+            const targetMemoKey = buildMemoKey(targetOwner, targetFieldKey)
+            if (stateMemo.get(targetMemoKey) === 'resolving') {
+                pushIssue(
+                    fieldPath,
+                    `{{${tokenBody}}}`,
+                    'CYCLE',
+                    `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`
+                )
+                return { ok: false, value: null }
+            }
+
+            return resolveOwnerField(targetOwner, targetFieldKey, recursionDepth + 1)
         }
 
         let targetReference: string | null = null

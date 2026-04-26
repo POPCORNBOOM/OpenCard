@@ -1,3 +1,4 @@
+// 主题 token 键集合：定义 UI foundation 中允许注入的全部 CSS 变量。
 export type OcThemeId = 'dark' | 'light'
 
 export const OC_THEME_TOKEN_KEYS = [
@@ -6,8 +7,6 @@ export const OC_THEME_TOKEN_KEYS = [
   '--scrollbar-thumb',
   '--scrollbar-thumb-hover',
   '--oc-bg-base',
-  '--oc-bg-app-chrome',
-  '--oc-bg-sidebar',
   '--oc-bg-panel',
   '--oc-bg-elevated',
   '--oc-bg-subtle',
@@ -24,6 +23,9 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-bg-accent-tint-subtle',
   '--oc-bg-overlay-strong',
   '--oc-bg-overlay-soft',
+  '--oc-bg-glass',
+  '--oc-blur-glass',
+  '--oc-saturate-glass',
   '--oc-bg-checker-soft',
   '--oc-bg-checker-preview',
   '--oc-bg-grid-dot',
