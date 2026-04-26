@@ -294,10 +294,6 @@ const surfaceClass = computed(() => [
   box-shadow: var(--oc-shadow-overlay);
 }
 
-.oc-surface--pattern-none {
-  /* empty */
-}
-
 .oc-surface--pattern-dot-grid {
   background-color: var(--oc-surface-bg);
   background-image: radial-gradient(circle at 1px 1px, var(--oc-border-subtle) 1px, transparent 0);

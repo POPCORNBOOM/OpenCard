@@ -451,7 +451,6 @@ const viewDoc = computed<CardDocument | null>(() => {
 
   return prepareDocumentForRender(resolved.document)
 })
-const showTransformPreview = computed(() => Boolean(selectedBlock.value?.id) && Boolean(viewDoc.value))
 const TRANSFORM_PREVIEW_MAX_SIZE_TOKEN: OcBoundSize = 'panel-lg'
 const TRANSFORM_PREVIEW_MAX_SIDE = resolveOcTrackBoundPixels(TRANSFORM_PREVIEW_MAX_SIZE_TOKEN, 220)
 const transformPreviewHostRef = ref<HTMLElement | null>(null)
@@ -512,10 +511,6 @@ const transformPreviewViewportStyle = computed<CSSProperties>(() => {
     height: `${Math.round(document.height * transformPreviewScale.value)}px`,
   }
 })
-
-function toggleInstancePanel() {
-  isInstancePanelExpanded.value = !isInstancePanelExpanded.value
-}
 
 function handleViewportTransformChange(payload: { x: number; y: number; scale: number }) {
   viewportTransform.value = payload
