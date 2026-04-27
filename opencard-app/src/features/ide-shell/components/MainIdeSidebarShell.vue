@@ -1,79 +1,39 @@
 <template>
-  <OcSidebarFrame
-    class="main-ide-sidebar-shell"
-    activity-size="default"
-    panel-size="default"
-    :panel-visible="Boolean(activeView)"
-  >
+  <OcSidebarFrame class="main-ide-sidebar-shell" activity-size="default" panel-size="default"
+    :panel-visible="Boolean(activeView)">
     <template #activity>
       <OcToolbar kind="sidebar" align="center" spacing="none" inset="comfortable" aria-label="Activity bar">
-        <OcToolButton
-          kind="sidebar"
-          size="lg"
-          block
-          icon-only
-          icon="app.files"
-          :icon-tone="activeView === 'files' ? 'primary' : 'muted'"
-          :active="activeView === 'files'"
-          :title="t('sidebar.files')"
-          :aria-label="t('sidebar.files')"
-          @click="emit('update:activeView', 'files')"
-        />
-        <OcToolButton
-          kind="sidebar"
-          size="lg"
-          block
-          icon-only
-          icon="app.git"
-          :icon-tone="activeView === 'git' ? 'primary' : 'muted'"
-          :active="activeView === 'git'"
-          :title="t('sidebar.git')"
-          :aria-label="t('sidebar.git')"
-          @click="emit('update:activeView', 'git')"
-        />
-        <OcToolButton
-          kind="sidebar"
-          size="lg"
-          block
-          icon-only
-          icon="app.publish"
-          :icon-tone="activeView === 'publish' ? 'primary' : 'muted'"
-          :active="activeView === 'publish'"
-          :title="t('sidebar.publish')"
-          :aria-label="t('sidebar.publish')"
-          @click="emit('update:activeView', 'publish')"
-        />
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.files"
+          :icon-tone="activeView === 'files' ? 'primary' : 'muted'" :active="activeView === 'files'"
+          :title="t('sidebar.files')" :aria-label="t('sidebar.files')" @click="emit('update:activeView', 'files')" />
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.git"
+          :icon-tone="activeView === 'git' ? 'primary' : 'muted'" :active="activeView === 'git'"
+          :title="t('sidebar.git')" :aria-label="t('sidebar.git')" @click="emit('update:activeView', 'git')" />
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.publish"
+          :icon-tone="activeView === 'publish' ? 'primary' : 'muted'" :active="activeView === 'publish'"
+          :title="t('sidebar.publish')" :aria-label="t('sidebar.publish')"
+          @click="emit('update:activeView', 'publish')" />
       </OcToolbar>
     </template>
 
     <template #panel>
-      <OcPanelSection
-        fill
-        header-density="comfortable"
-        header-inset="comfortable"
-        body-inset="comfortable"
-        :scroll-body="true"
-      >
-        <template #title>
-          <span v-if="activeView === 'files'">{{ t('sidebar.files') }}</span>
-          <span v-else-if="activeView === 'git'">{{ t('sidebar.git') }}</span>
-          <span v-else-if="activeView === 'publish'">{{ t('sidebar.publish') }}</span>
-        </template>
-
-        <template #default>
+      <OcCard fill>
+        <OcScrollArea>
           <div v-if="activeView === 'files'" class="main-ide-sidebar-shell__files">
             <slot name="files" />
           </div>
 
-          <OcEmptyHint v-else-if="activeView === 'git'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
+          <OcEmptyHint v-else-if="activeView === 'git'" align="start" inset="none"
+            class="main-ide-sidebar-shell__empty">
             {{ t('panels.gitPlaceholder') }}
           </OcEmptyHint>
 
-          <OcEmptyHint v-else-if="activeView === 'publish'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
+          <OcEmptyHint v-else-if="activeView === 'publish'" align="start" inset="none"
+            class="main-ide-sidebar-shell__empty">
             {{ t('panels.publishPlaceholder') }}
           </OcEmptyHint>
-        </template>
-      </OcPanelSection>
+        </OcScrollArea>
+      </OcCard>
     </template>
   </OcSidebarFrame>
 </template>
@@ -82,6 +42,8 @@
 import { useI18n } from 'vue-i18n'
 import { OcEmptyHint, OcPanelSection, OcSidebarFrame, OcToolbar } from '../../../components/base'
 import { OcToolButton } from '../../../components/standard'
+import OcScrollArea from '../../../components/base/OcScrollArea.vue';
+import OcCard from '../../../components/base/OcCard.vue';
 
 defineOptions({ name: 'MainIdeSidebarShell' })
 
