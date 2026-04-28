@@ -1,11 +1,22 @@
-export const OC_BOX_DIMENSION_TOKENS = ['auto', 'content', 'full', 'screen'] as const
+export const OC_BOX_DIMENSION_TOKENS = [
+  'auto',
+  'content',
+  'full',
+  'screen',
+  'size-xs',
+  'size-sm',
+  'size-md',
+  'size-lg',
+  'size-xl',
+  'size-2xl',
+] as const
 export const OC_BOX_INSET_TOKENS = ['none', 'cover', 'origin'] as const
 export const OC_BOX_POINTER_VALUES = ['auto', 'none'] as const
 export const OC_BOX_ALIGN_VALUES = ['start', 'center', 'end', 'stretch'] as const
 export const OC_BOX_JUSTIFY_VALUES = ['start', 'center', 'end', 'between'] as const
 export const OC_BOX_OVERFLOW_VALUES = ['visible', 'hidden', 'auto'] as const
 
-export const OC_BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'icon', 'choice'] as const
+export const OC_BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'choice'] as const
 export const OC_PRESSABLE_SIZES = ['sm', 'md', 'lg'] as const
 export const OC_PRESSABLE_RADII = ['none', 'sm', 'md', 'lg'] as const
 
@@ -19,16 +30,13 @@ export const OC_SURFACE_VARIANTS = [
   'panel',
   'elevated',
   'input',
-  'floating',
   'transparent',
   'glass',
   'accent',
-  'accent-hover',
-  'hover',
   'active',
 ] as const
 export const OC_SURFACE_RADII = ['none', 'sm', 'md', 'lg'] as const
-export const OC_SURFACE_SHADOWS = ['none', 'sm', 'md', 'overlay'] as const
+export const OC_SURFACE_SHADOWS = ['none', 'sm', 'md', 'lg'] as const
 export const OC_SURFACE_PATTERNS = ['none', 'dot-grid', 'checker-preview'] as const
 
 export const OC_GAP_TOKENS = [

@@ -1,8 +1,9 @@
+<!-- UI 浮动菜单宿主：承载全局菜单面板定位与打开态关闭策略。 -->
 <template>
   <Teleport to="body">
     <div v-if="state.isOpen && state.anchorRect" class="floating-menu-layer">
       <div ref="panelRef" class="floating-menu-panel floating-menu-surface" :style="panelStyle" role="menu">
-        <FloatingMenuList :items="state.items" @select="handleSelect" />
+        <OcList :items="state.items" mode="menu" @select="handleSelect" />
       </div>
     </div>
   </Teleport>
@@ -10,7 +11,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import FloatingMenuList from './FloatingMenuList.vue'
+import OcList from '../standard/OcList.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
 defineOptions({ name: 'FloatingMenuHost' })

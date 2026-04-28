@@ -1,18 +1,33 @@
 <!-- Base 侧栏框架：独立实现 activity/panel 双栏结构与表面样式，不依赖 shared primitives。 -->
 <template>
   <div class="oc-sidebar-frame" :class="frameClass">
-    <OcSurface as="aside" class="oc-sidebar-frame__activity" tone="elevated" radius="none" border="none">
+    <OcPanel
+      as="aside"
+      class="oc-sidebar-frame__activity"
+      tone="elevated"
+      radius="none"
+      border="none"
+      padding="none"
+    >
       <slot name="activity" />
-    </OcSurface>
-    <OcSurface v-if="panelVisible" as="section" class="oc-sidebar-frame__panel" tone="panel" radius="none" border="none">
+    </OcPanel>
+    <OcPanel
+      v-if="panelVisible"
+      as="section"
+      class="oc-sidebar-frame__panel"
+      tone="panel"
+      radius="none"
+      border="none"
+      padding="none"
+    >
       <slot name="panel" />
-    </OcSurface>
+    </OcPanel>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcSurface from './OcSurface.vue'
+import OcPanel from './OcPanel.vue'
 
 type SidebarActivitySize = 'compact' | 'default' | 'spacious'
 type SidebarPanelSize = 'compact' | 'default' | 'spacious'

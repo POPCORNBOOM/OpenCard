@@ -1,21 +1,40 @@
-<!-- Base 条形容器：独立实现栏位结构与基础背景/边框语义，不依赖 shared primitives。 -->
+<!-- Base 条形容器：统一提供 icon/title 头部语义、可插入主内容和右侧追加区。 -->
 <template>
-  <OcSurface :as="as" class="oc-bar" :class="barClass" :tone="barTone" radius="none" border="none">
-    <div v-if="slots.start" class="oc-bar__start">
-      <slot name="start" />
+  <OcPanel
+    :as="as"
+    class="oc-bar"
+    :class="barClass"
+    :tone="barTone"
+    radius="none"
+    border="none"
+    padding="none"
+    orientation="horizontal"
+    horizontal-alignment="start"
+    vertical-alignment="center"
+  >
+    <div v-if="hasLeading" class="oc-bar__leading">
+      <div v-if="hasIcon" class="oc-bar__icon">
+        <slot name="icon">
+          <OcIcon v-if="icon" :name="icon" size="sm" tone="muted" />
+        </slot>
+      </div>
+      <div v-if="hasTitle" class="oc-bar__title">
+        <slot name="title">{{ title }}</slot>
+      </div>
     </div>
     <div class="oc-bar__main">
       <slot />
     </div>
-    <div v-if="slots.end" class="oc-bar__end">
-      <slot name="end" />
+    <div v-if="slots.append" class="oc-bar__append">
+      <slot name="append" />
     </div>
-  </OcSurface>
+  </OcPanel>
 </template>
 
 <script setup lang="ts">
 import { computed, useSlots } from 'vue'
-import OcSurface from './OcSurface.vue'
+import OcIcon from './OcIcon.vue'
+import OcPanel from './OcPanel.vue'
 
 type BarKind = 'top' | 'status' | 'section'
 type BarBorder = 'none' | 'top' | 'bottom'
@@ -26,6 +45,10 @@ type BarTone = 'base' | 'panel' | 'elevated' | 'transparent'
 interface OcBarProps {
   /** 根元素标签。 */
   as?: string
+  /** 左侧图标（默认渲染，可由 #icon 覆写）。 */
+  icon?: string
+  /** 左侧标题（默认渲染，可由 #title 覆写）。 */
+  title?: string
   /** 栏位语义类型。 */
   kind?: BarKind
   /** 内部项间距语义。 */
@@ -40,6 +63,8 @@ defineOptions({ name: 'OcBar' })
 
 const props = withDefaults(defineProps<OcBarProps>(), {
   as: 'div',
+  icon: undefined,
+  title: undefined,
   kind: 'section',
   spacing: undefined,
   inset: undefined,
@@ -47,6 +72,9 @@ const props = withDefaults(defineProps<OcBarProps>(), {
 })
 
 const slots = useSlots()
+const hasIcon = computed(() => Boolean(props.icon) || Boolean(slots.icon))
+const hasTitle = computed(() => Boolean(props.title) || Boolean(slots.title))
+const hasLeading = computed(() => hasIcon.value || hasTitle.value)
 
 const barClass = computed(() => [
   `oc-bar--kind-${props.kind}`,
@@ -131,13 +159,26 @@ const barTone = computed<BarTone>(() => {
   border-bottom: 1px solid var(--oc-border-strong);
 }
 
-.oc-bar__start,
-.oc-bar__end {
+.oc-bar__leading {
   min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--oc-bar-gap);
   flex: 0 1 auto;
+}
+
+.oc-bar__icon {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.oc-bar__title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-space-1);
+  color: var(--oc-text-primary);
 }
 
 .oc-bar__main {
@@ -146,5 +187,14 @@ const barTone = computed<BarTone>(() => {
   display: flex;
   align-items: center;
   gap: var(--oc-bar-gap);
+}
+
+.oc-bar__append {
+  min-width: 0;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-bar-gap);
+  flex: 0 1 auto;
 }
 </style>

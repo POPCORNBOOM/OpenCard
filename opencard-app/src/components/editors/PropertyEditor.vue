@@ -21,11 +21,8 @@
         <template #content>
           <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
             <template #title>
-              <OcBar kind="section" border="bottom" padding="0 0 var(--oc-space-1)">
-                <template #start>
-                  <span class="category-title">{{ category.title }}</span>
-                </template>
-                <template #end>
+              <OcBar kind="section" border="bottom" :title="category.title" padding="0 0 var(--oc-space-1)">
+                <template #append>
                   <div v-if="category.addableFields.length > 0" class="add-field-menu">
                     <OcChip>{{ category.addableFields.length }}</OcChip>
                     <OcButton class="add-field-button" icon-only size="sm" variant="secondary"

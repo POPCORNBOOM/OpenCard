@@ -1,7 +1,7 @@
 <!-- IDE 顶栏：承载品牌信息与导出动作入口。 -->
 <template>
   <OcBar kind="top" border="bottom" class="main-ide-top-bar">
-    <template #start>
+    <template #title>
       <div class="main-ide-top-bar__brand" aria-label="OpenCard workspace">
         <div class="main-ide-top-bar__name">OpenCard</div>
         <OcChip v-if="projectName" class="main-ide-top-bar__project" truncate max-width="lg">
@@ -17,7 +17,7 @@
       <OcToolButton block kind="menu" :label="t('app.menu.help')" :disabled="true" />
     </OcToolbar>
 
-    <template #end>
+    <template #append>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
         <OcToolButton block kind="menu" :label="themeButtonLabel" @click="emit('toggleTheme')" />
         <OcToolButton block kind="menu" label="Playground" @click="emit('openPlayground')" />

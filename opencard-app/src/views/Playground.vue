@@ -1,140 +1,161 @@
-<!-- 组件实验页：用于独立调试 OcSurface 及基础组件组合效果。 -->
+<!-- 组件实验页：用单一 OcPanel 可视化验证 V2.2+ 语义与交互效果。 -->
 <template>
   <main class="playground-page">
-    <OcBar kind="top" border="bottom">
-      <template #start>
-        <OcText size="title">OpenCard Playground</OcText>
-      </template>
-      <template #end>
+    <OcBar kind="top" border="bottom" title="OpenCard Playground">
+      <template #append>
         <OcButton variant="ghost" @click="goToIde">Back To IDE</OcButton>
       </template>
     </OcBar>
 
     <div class="playground-layout">
-      <OcSurface>
-        <OcScrollArea>
-          <OcText size="title">OcSurface Controls</OcText>
+      <section class="playground-controls">
+        <OcText size="title">OcPanel Controls</OcText>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">tone</OcText>
-            <OcOptionGroup v-model="tone" :options="toneOptions" :columns="5" aria-label="surface tone" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">tone</OcText>
+          <OcOptionGroup v-model="tone" :options="toneOptions" :columns="5" aria-label="panel tone" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">border</OcText>
-            <OcOptionGroup v-model="border" :options="borderOptions" :columns="5" aria-label="surface border" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">border</OcText>
+          <OcOptionGroup v-model="border" :options="borderOptions" :columns="4" aria-label="panel border" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">radius</OcText>
-            <OcOptionGroup v-model="radius" :options="radiusOptions" :columns="4" aria-label="surface radius" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">background</OcText>
+          <OcOptionGroup v-model="background" :options="backgroundOptions" :columns="4" aria-label="panel background" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">elevation</OcText>
-            <OcOptionGroup v-model="elevation" :options="elevationOptions" :columns="4"
-              aria-label="surface elevation" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">radius</OcText>
+          <OcOptionGroup v-model="radius" :options="radiusOptions" :columns="4" aria-label="panel radius" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">pattern</OcText>
-            <OcOptionGroup v-model="pattern" :options="patternOptions" :columns="3" aria-label="surface pattern" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">elevation</OcText>
+          <OcOptionGroup v-model="elevation" :options="elevationOptions" :columns="4" aria-label="panel elevation" />
+        </div>
 
-          <OcCheckbox :checked="fill" label="Fill Parent" @update:checked="fill = $event" />
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">orientation</OcText>
+          <OcOptionGroup v-model="orientation" :options="orientationOptions" :columns="2" aria-label="panel orientation" />
+        </div>
 
-          <OcText size="title">OcBox Controls</OcText>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">horizontalAlignment</OcText>
+          <OcOptionGroup
+            v-model="horizontalAlignment"
+            :options="alignmentOptions"
+            :columns="4"
+            aria-label="panel horizontal alignment"
+          />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">layout</OcText>
-            <OcOptionGroup v-model="boxLayout" :options="boxLayoutOptions" :columns="3" aria-label="box layout" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">verticalAlignment</OcText>
+          <OcOptionGroup
+            v-model="verticalAlignment"
+            :options="alignmentOptions"
+            :columns="4"
+            aria-label="panel vertical alignment"
+          />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">align</OcText>
-            <OcOptionGroup v-model="boxAlign" :options="boxAlignOptions" :columns="4" aria-label="box align" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">position</OcText>
+          <OcOptionGroup v-model="position" :options="positionOptions" :columns="3" aria-label="panel position" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">justify</OcText>
-            <OcOptionGroup v-model="boxJustify" :options="boxJustifyOptions" :columns="4" aria-label="box justify" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">anchor</OcText>
+          <OcOptionGroup v-model="anchor" :options="anchorOptions" :columns="3" aria-label="panel anchor" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">overflow</OcText>
-            <OcOptionGroup v-model="boxOverflow" :options="boxOverflowOptions" :columns="3" aria-label="box overflow" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">width</OcText>
+          <OcOptionGroup v-model="width" :options="dimensionOptions" :columns="4" aria-label="panel width" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">width</OcText>
-            <OcOptionGroup v-model="boxWidth" :options="boxDimensionOptions" :columns="4" aria-label="box width" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">height</OcText>
+          <OcOptionGroup v-model="height" :options="dimensionOptions" :columns="4" aria-label="panel height" />
+        </div>
 
-          <div class="playground-control-group">
-            <OcText tone="secondary" size="label">height</OcText>
-            <OcOptionGroup v-model="boxHeight" :options="boxDimensionOptions" :columns="4" aria-label="box height" />
-          </div>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">interaction</OcText>
+          <OcOptionGroup v-model="interaction" :options="interactionOptions" :columns="2" aria-label="panel interaction" />
+        </div>
 
-          <div class="playground-toggle-grid">
-            <OcCheckbox :checked="boxCenter" label="Center" @update:checked="boxCenter = $event" />
-            <OcCheckbox :checked="boxGrow" label="Grow" @update:checked="boxGrow = $event" />
-            <OcCheckbox :checked="boxFill" label="Fill" @update:checked="boxFill = $event" />
-            <OcCheckbox :checked="boxScrollY" label="ScrollY" @update:checked="boxScrollY = $event" />
-          </div>
-        </OcScrollArea>
-      </OcSurface>
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">overflowX</OcText>
+          <OcOptionGroup v-model="overflowX" :options="overflowOptions" :columns="4" aria-label="panel overflow x" />
+        </div>
+
+        <div class="playground-control-group">
+          <OcText tone="secondary" size="label">overflowY</OcText>
+          <OcOptionGroup v-model="overflowY" :options="overflowOptions" :columns="4" aria-label="panel overflow y" />
+        </div>
+
+        <div class="playground-toggle-grid">
+          <OcCheckbox :checked="fill" label="Fill" @update:checked="fill = $event" />
+          <OcCheckbox :checked="grow" label="Grow" @update:checked="grow = $event" />
+          <OcCheckbox :checked="hoverable" label="Hoverable" @update:checked="hoverable = $event" />
+        </div>
+      </section>
 
       <section class="playground-preview">
-        <OcOverlay>
-
-          <OcSurface fill pattern="checker-preview">
-            <!--Some RGB shit-->
-            <div style="background: linear-gradient(red,blue);min-width: 100%;min-height: 100%;opacity: 0.3;">
-
-              <span style="font-size: 256px;">ass</span>
-            </div>
-
-
-          </OcSurface>
-          <template #overlay>
-            <OcSurface :tone="tone" :border="border" :radius="radius" :elevation="elevation" :pattern="pattern"
-              :fill="fill">
-              <OcBox class="playground-preview-content" :inline="boxLayout === 'inline'" :stack="boxLayout === 'stack'"
-                :center="boxCenter" :grow="boxGrow" :fill="boxFill" :scroll-y="boxScrollY" :align="boxAlign"
-                :justify="boxJustify" :overflow="boxOverflow" :width="boxWidth" :height="boxHeight">
-                <OcText size="title">Preview</OcText>
-                <OcText tone="secondary">
-                  tone={{ tone }} / border={{ border }} / radius={{ radius }} / elevation={{ elevation }} / pattern={{
-                    pattern
-                  }}
-                </OcText>
-                <OcText tone="secondary">
-                  box: layout={{ boxLayout }} / align={{ boxAlign }} / justify={{ boxJustify }} / overflow={{
-                    boxOverflow }}
-                  / width={{ boxWidth }} / height={{ boxHeight }} / center={{ boxCenter }} / grow={{ boxGrow }} /
-                  fill={{
-                    boxFill
-                  }} / scrollY={{ boxScrollY }}
-                </OcText>
-                <OcBox inline class="playground-preview-actions">
-                  <OcButton variant="primary">Primary</OcButton>
-                  <OcButton variant="secondary">Secondary</OcButton>
-                  <OcButton variant="ghost">Ghost</OcButton>
-                </OcBox>
-                <OcCard radius="md" tone="glass" border="overlay" title="OcCard Demo" class="playground-preview-card">
-                  <template #content>
-                    <OcText>Primary</OcText>
-                    <OcText tone="secondary">Secondary</OcText>
-                    <OcText tone="muted">muted</OcText>
-                    <OcText tone="label">label</OcText>
-                    <OcText tone="info">info</OcText>
-                  </template>
-                </OcCard>
-              </OcBox>
-            </OcSurface>
-
-          </template>
-        </OcOverlay>
+        <div class="playground-preview-stage">
+          <OcPanel
+            class="playground-outer-shell"
+            tone="transparent"
+            border="black"
+            radius="md"
+            padding="compact"
+            orientation="vertical"
+            horizontal-alignment="start"
+            vertical-alignment="start"
+          >
+            <OcText tone="muted" size="label">Outer wrapper (irrelevant panel)</OcText>
+            <OcPanel
+              class="playground-target"
+              :tone="tone"
+              :border="border"
+              :background="background"
+              :radius="radius"
+              :elevation="elevation"
+              :orientation="orientation"
+              :horizontal-alignment="horizontalAlignment"
+              :vertical-alignment="verticalAlignment"
+              :position="position"
+              :anchor="anchor"
+              :interaction="interaction"
+              :width="width"
+              :height="height"
+              :overflow-x="overflowX"
+              :overflow-y="overflowY"
+              :fill="fill"
+              :grow="grow"
+              :hoverable="hoverable"
+              padding="standard"
+            >
+              <OcText size="title">Preview Panel</OcText>
+              <OcText tone="secondary">
+                tone={{ tone }} / border={{ border }} / background={{ background }} / radius={{ radius }} / elevation={{ elevation }}
+              </OcText>
+              <OcText tone="secondary">
+                orientation={{ orientation }} / hAlign={{ horizontalAlignment }} / vAlign={{ verticalAlignment }}
+              </OcText>
+              <OcText tone="secondary">
+                position={{ position }} / anchor={{ anchor }} / width={{ width }} / height={{ height }}
+              </OcText>
+              <OcText tone="secondary">
+                interaction={{ interaction }} / overflowX={{ overflowX }} / overflowY={{ overflowY }}
+              </OcText>
+              <OcText tone="info" size="label">Hoverable: {{ hoverable ? 'ON' : 'OFF' }} (move mouse over this panel)</OcText>
+              <div class="playground-target__probe">Overflow Probe: 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ-abcdefghijklmnopqrstuvwxyz</div>
+            </OcPanel>
+          </OcPanel>
+        </div>
       </section>
     </div>
   </main>
@@ -144,73 +165,78 @@
 import { ref } from 'vue'
 import {
   OcBar,
-  OcBox,
   OcButton,
-  OcCard,
   OcCheckbox,
-  OcSurface,
+  OcPanel,
   OcText,
 } from '../components/base'
 import OcOptionGroup, { type OcOptionGroupItem } from '../components/standard/OcOptionGroup.vue'
-import OcOverlay from '../components/base/OcOverlay.vue'
-import OcScrollArea from '../components/base/OcScrollArea.vue'
 
 defineOptions({ name: 'Playground' })
 
-type PlaygroundSurfaceTone =
+type PlaygroundPanelTone =
   | 'base'
   | 'panel'
   | 'elevated'
   | 'input'
-  | 'floating'
   | 'transparent'
   | 'glass'
   | 'accent'
-  | 'accent-hover'
-  | 'hover'
   | 'active'
+type PlaygroundPanelBorder = 'none' | 'black' | 'soft' | 'accent'
+type PlaygroundPanelBackground = 'none' | 'tri-dot' | 'squ-dot' | 'checker'
+type PlaygroundPanelRadius = 'none' | 'sm' | 'md' | 'lg'
+type PlaygroundPanelElevation = 'none' | 'sm' | 'md' | 'lg'
+type PlaygroundPanelOrientation = 'horizontal' | 'vertical'
+type PlaygroundPanelAlignment = 'start' | 'center' | 'end' | 'stretch'
+type PlaygroundPanelPosition = 'static' | 'relative' | 'absolute'
+type PlaygroundPanelAnchor = 'none' | 'cover' | 'origin'
+type PlaygroundPanelInteraction = 'auto' | 'passthrough'
+type PlaygroundPanelDimension = 'auto' | 'content' | 'full' | 'screen' | 'size-xs' | 'size-sm' | 'size-md' | 'size-lg' | 'size-xl' | 'size-2xl'
+type PlaygroundPanelOverflow = 'visible' | 'clip' | 'auto' | 'scroll'
 
-type PlaygroundSurfaceBorder = 'none' | 'strong' | 'overlay' | 'accent'
-type PlaygroundSurfaceRadius = 'none' | 'sm' | 'md' | 'lg'
-type PlaygroundSurfaceElevation = 'none' | 'sm' | 'md' | 'overlay'
-type PlaygroundSurfacePattern = 'none' | 'dot-grid' | 'checker-preview'
-type PlaygroundBoxLayout = 'none' | 'inline' | 'stack'
-type PlaygroundBoxAlign = 'start' | 'center' | 'end' | 'stretch'
-type PlaygroundBoxJustify = 'start' | 'center' | 'end' | 'between'
-type PlaygroundBoxOverflow = 'visible' | 'hidden' | 'auto'
-type PlaygroundBoxDimension = 'auto' | 'content' | 'full' | 'screen'
-
-const tone = ref<PlaygroundSurfaceTone>('panel')
-const border = ref<PlaygroundSurfaceBorder>('overlay')
-const radius = ref<PlaygroundSurfaceRadius>('md')
-const elevation = ref<PlaygroundSurfaceElevation>('none')
-const pattern = ref<PlaygroundSurfacePattern>('none')
+const tone = ref<PlaygroundPanelTone>('panel')
+const border = ref<PlaygroundPanelBorder>('soft')
+const background = ref<PlaygroundPanelBackground>('none')
+const radius = ref<PlaygroundPanelRadius>('md')
+const elevation = ref<PlaygroundPanelElevation>('none')
+const orientation = ref<PlaygroundPanelOrientation>('vertical')
+const horizontalAlignment = ref<PlaygroundPanelAlignment>('start')
+const verticalAlignment = ref<PlaygroundPanelAlignment>('start')
+const position = ref<PlaygroundPanelPosition>('static')
+const anchor = ref<PlaygroundPanelAnchor>('none')
+const interaction = ref<PlaygroundPanelInteraction>('auto')
+const width = ref<PlaygroundPanelDimension>('auto')
+const height = ref<PlaygroundPanelDimension>('auto')
+const overflowX = ref<PlaygroundPanelOverflow>('visible')
+const overflowY = ref<PlaygroundPanelOverflow>('visible')
 const fill = ref(false)
-const boxLayout = ref<PlaygroundBoxLayout>('stack')
-const boxAlign = ref<PlaygroundBoxAlign>('start')
-const boxJustify = ref<PlaygroundBoxJustify>('start')
-const boxOverflow = ref<PlaygroundBoxOverflow>('visible')
-const boxWidth = ref<PlaygroundBoxDimension>('full')
-const boxHeight = ref<PlaygroundBoxDimension>('full')
-const boxCenter = ref(false)
-const boxGrow = ref(false)
-const boxFill = ref(false)
-const boxScrollY = ref(false)
+const grow = ref(false)
+const hoverable = ref(true)
 
 const toneOptions: OcOptionGroupItem[] = [
   { value: 'base', label: 'base' },
   { value: 'panel', label: 'panel' },
   { value: 'elevated', label: 'elevated' },
   { value: 'input', label: 'input' },
-  { value: 'glass', label: 'glass' },
   { value: 'transparent', label: 'transparent' },
+  { value: 'glass', label: 'glass' },
+  { value: 'accent', label: 'accent' },
+  { value: 'active', label: 'active' },
 ]
 
 const borderOptions: OcOptionGroupItem[] = [
   { value: 'none', label: 'none' },
-  { value: 'strong', label: 'strong' },
-  { value: 'overlay', label: 'overlay' },
+  { value: 'black', label: 'black' },
+  { value: 'soft', label: 'soft' },
   { value: 'accent', label: 'accent' },
+]
+
+const backgroundOptions: OcOptionGroupItem[] = [
+  { value: 'none', label: 'none' },
+  { value: 'tri-dot', label: 'tri-dot' },
+  { value: 'squ-dot', label: 'squ-dot' },
+  { value: 'checker', label: 'checker' },
 ]
 
 const radiusOptions: OcOptionGroupItem[] = [
@@ -224,46 +250,56 @@ const elevationOptions: OcOptionGroupItem[] = [
   { value: 'none', label: 'none' },
   { value: 'sm', label: 'sm' },
   { value: 'md', label: 'md' },
-  { value: 'overlay', label: 'overlay' },
+  { value: 'lg', label: 'lg' },
 ]
 
-const patternOptions: OcOptionGroupItem[] = [
-  { value: 'none', label: 'none' },
-  { value: 'dot-grid', label: 'dot-grid' },
-  { value: 'checker-preview', label: 'checker' },
+const orientationOptions: OcOptionGroupItem[] = [
+  { value: 'horizontal', label: 'horizontal' },
+  { value: 'vertical', label: 'vertical' },
 ]
 
-const boxLayoutOptions: OcOptionGroupItem[] = [
-  { value: 'none', label: 'none' },
-  { value: 'inline', label: 'inline' },
-  { value: 'stack', label: 'stack' },
-]
-
-const boxAlignOptions: OcOptionGroupItem[] = [
+const alignmentOptions: OcOptionGroupItem[] = [
   { value: 'start', label: 'start' },
   { value: 'center', label: 'center' },
   { value: 'end', label: 'end' },
   { value: 'stretch', label: 'stretch' },
 ]
 
-const boxJustifyOptions: OcOptionGroupItem[] = [
-  { value: 'start', label: 'start' },
-  { value: 'center', label: 'center' },
-  { value: 'end', label: 'end' },
-  { value: 'between', label: 'between' },
+const positionOptions: OcOptionGroupItem[] = [
+  { value: 'static', label: 'static' },
+  { value: 'relative', label: 'relative' },
+  { value: 'absolute', label: 'absolute' },
 ]
 
-const boxOverflowOptions: OcOptionGroupItem[] = [
-  { value: 'visible', label: 'visible' },
-  { value: 'hidden', label: 'hidden' },
+const anchorOptions: OcOptionGroupItem[] = [
+  { value: 'none', label: 'none' },
+  { value: 'cover', label: 'cover' },
+  { value: 'origin', label: 'origin' },
+]
+
+const interactionOptions: OcOptionGroupItem[] = [
   { value: 'auto', label: 'auto' },
+  { value: 'passthrough', label: 'passthrough' },
 ]
 
-const boxDimensionOptions: OcOptionGroupItem[] = [
+const dimensionOptions: OcOptionGroupItem[] = [
   { value: 'auto', label: 'auto' },
   { value: 'content', label: 'content' },
   { value: 'full', label: 'full' },
   { value: 'screen', label: 'screen' },
+  { value: 'size-xs', label: 'size-xs' },
+  { value: 'size-sm', label: 'size-sm' },
+  { value: 'size-md', label: 'size-md' },
+  { value: 'size-lg', label: 'size-lg' },
+  { value: 'size-xl', label: 'size-xl' },
+  { value: 'size-2xl', label: 'size-2xl' },
+]
+
+const overflowOptions: OcOptionGroupItem[] = [
+  { value: 'visible', label: 'visible' },
+  { value: 'clip', label: 'clip' },
+  { value: 'auto', label: 'auto' },
+  { value: 'scroll', label: 'scroll' },
 ]
 
 function goToIde(): void {
@@ -303,7 +339,7 @@ function goToIde(): void {
 
 .playground-toggle-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -312,22 +348,48 @@ function goToIde(): void {
   min-height: 0;
 }
 
-.playground-preview-content {
-  padding: 14px;
+.playground-preview-stage {
+  position: relative;
+  min-height: 560px;
+  height: 100%;
+  border-radius: var(--oc-radius-md);
+  border: 1px solid var(--oc-border-strong);
+  background:
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
+    linear-gradient(45deg, var(--oc-bg-checker-preview) 25%, transparent 25%, transparent 75%, var(--oc-bg-checker-preview) 75%),
+    var(--oc-bg-base);
+  background-size: 12px 12px;
+  background-position: 0 0, 6px 6px;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.playground-target {
+  min-width: 0;
+  min-height: 0;
   gap: 10px;
 }
 
-.playground-preview-actions {
+.playground-outer-shell {
+  width: 100%;
+  height: 100%;
   gap: 8px;
 }
 
-.playground-preview-card {
-  width: min(420px, 100%);
+.playground-target__probe {
+  width: 680px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--oc-text-muted);
 }
 
 @media (max-width: 1200px) {
   .playground-layout {
     grid-template-columns: 1fr;
+  }
+
+  .playground-preview-stage {
+    min-height: 420px;
   }
 }
 </style>

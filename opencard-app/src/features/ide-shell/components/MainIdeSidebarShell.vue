@@ -18,7 +18,14 @@
 
     <template #panel>
       <OcCard fill>
-        <OcScrollArea>
+        <OcPanel
+          orientation="vertical"
+          tone="transparent"
+          border="none"
+          padding="none"
+          overflow-x="clip"
+          overflow-y="auto"
+        >
           <div v-if="activeView === 'files'" class="main-ide-sidebar-shell__files">
             <slot name="files" />
           </div>
@@ -32,7 +39,7 @@
             class="main-ide-sidebar-shell__empty">
             {{ t('panels.publishPlaceholder') }}
           </OcEmptyHint>
-        </OcScrollArea>
+        </OcPanel>
       </OcCard>
     </template>
   </OcSidebarFrame>
@@ -40,20 +47,24 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcEmptyHint, OcPanelSection, OcSidebarFrame, OcToolbar } from '../../../components/base'
+import { OcEmptyHint, OcPanel, OcSidebarFrame, OcToolbar } from '../../../components/base'
 import { OcToolButton } from '../../../components/standard'
-import OcScrollArea from '../../../components/base/OcScrollArea.vue';
-import OcCard from '../../../components/base/OcCard.vue';
+import OcCard from '../../../components/base/OcCard.vue'
 
 defineOptions({ name: 'MainIdeSidebarShell' })
 
-defineProps<{
+interface MainIdeSidebarShellProps {
+  /** 当前激活的侧栏视图。 */
   activeView: 'files' | 'git' | 'publish' | null
-}>()
+}
 
-const emit = defineEmits<{
+interface MainIdeSidebarShellEmits {
+  /** 请求切换当前激活的侧栏视图。 */
   'update:activeView': [value: 'files' | 'git' | 'publish']
-}>()
+}
+
+defineProps<MainIdeSidebarShellProps>()
+const emit = defineEmits<MainIdeSidebarShellEmits>()
 
 const { t } = useI18n()
 </script>

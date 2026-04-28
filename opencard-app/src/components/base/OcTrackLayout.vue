@@ -1,7 +1,9 @@
 <!-- Base 轨道布局：独立实现多轨网格与拖拽分隔条，不依赖 shared primitives。 -->
 <template>
-  <div ref="rootRef" class="oc-track-layout" :class="`oc-track-layout--${props.axis}`" :style="layoutStyle"
-    v-bind="attrs">
+  <div ref="rootRef" class="oc-track-layout" :class="[
+    `oc-track-layout--${props.axis}`,
+    { 'is-fill': props.fill },
+  ]" :style="layoutStyle" v-bind="attrs">
     <template v-for="item in layoutItems" :key="item.key">
       <div v-if="item.type === 'region'" class="oc-track-layout__region" :data-slot="item.slot"
         :data-region-index="item.regionIndex" :ref="(el) => setRegionRef(item.regionIndex, el)">
@@ -11,8 +13,8 @@
         `oc-track-layout__resizer-hit--${props.axis}`,
         { 'is-active': activeHandleIndex === item.handleIndex },
       ]" role="separator" :aria-orientation="props.axis === 'horizontal' ? 'vertical' : 'horizontal'"
-        :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`"
-        tabindex="0" @mousedown="handleResizeStart($event, item.handleIndex)">
+        :aria-label="item.ariaLabel ?? `Resize ${item.beforeSlot}`" tabindex="0"
+        @mousedown="handleResizeStart($event, item.handleIndex)">
         <span class="oc-track-layout__resizer-visual" aria-hidden="true" />
       </div>
       <div v-else class="oc-track-layout__gap-spacer" aria-hidden="true" />
@@ -89,6 +91,8 @@ interface OcTrackLayoutProps {
   axis?: OcTrackLayoutAxis
   /** 区域间距 token：无论是否可拖拽都保持一致。 */
   gap?: OcGapToken
+  /** 是否占满父容器。 */
+  fill?: boolean
   /** 轨道区域定义数组。 */
   regions: readonly OcTrackRegion[]
 }
@@ -96,6 +100,7 @@ interface OcTrackLayoutProps {
 const props = withDefaults(defineProps<OcTrackLayoutProps>(), {
   axis: 'horizontal',
   gap: 'space-2',
+  fill: true,
 })
 
 interface OcTrackLayoutEmits {
@@ -406,12 +411,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .oc-track-layout {
   --oc-track-layout-gap: var(--oc-space-2);
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
   min-width: 0;
   min-height: 0;
   display: grid;
   pointer-events: none;
+}
+
+.oc-track-layout.is-fill {
+  width: 100%;
+  height: 100%;
 }
 
 .oc-track-layout__region {

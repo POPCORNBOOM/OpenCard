@@ -121,10 +121,6 @@ const panelClass = computed(() => [
   background: var(--oc-bg-input);
 }
 
-.oc-panel-section--tone-floating {
-  background: var(--oc-bg-panel);
-}
-
 .oc-panel-section--tone-transparent {
   background: transparent;
 }
@@ -136,14 +132,6 @@ const panelClass = computed(() => [
 
 .oc-panel-section--tone-accent {
   background: var(--oc-bg-accent);
-}
-
-.oc-panel-section--tone-accent-hover {
-  background: var(--oc-bg-accent-hover);
-}
-
-.oc-panel-section--tone-hover {
-  background: var(--oc-bg-hover);
 }
 
 .oc-panel-section--tone-active {

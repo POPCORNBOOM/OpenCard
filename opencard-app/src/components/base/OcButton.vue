@@ -134,17 +134,6 @@ const surfaceTokens = computed<SurfaceStateTokens>(() => {
     }
   }
 
-  if (props.variant === 'icon') {
-    return {
-      restBg: 'transparent',
-      restBorder: 'transparent',
-      hoverBg: 'var(--oc-bg-hover)',
-      hoverBorder: 'var(--oc-border-surface)',
-      activeBg: 'var(--oc-bg-active)',
-      activeBorder: 'var(--oc-bg-accent)',
-    }
-  }
-
   if (props.variant === 'ghost') {
     return {
       restBg: 'transparent',
@@ -332,9 +321,4 @@ const buttonClass = computed(() => [
   --oc-button-active-fg: var(--oc-accent-contrast);
 }
 
-.oc-base-button--variant-icon {
-  --oc-button-fg: var(--oc-text-soft);
-  --oc-button-hover-fg: var(--oc-text-highlight);
-  --oc-button-active-fg: var(--oc-text-highlight);
-}
 </style>

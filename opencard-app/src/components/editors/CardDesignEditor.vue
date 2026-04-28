@@ -15,7 +15,8 @@
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
     <OcOverlay inset="default">
-      <OcBox class="card-design-editor__viewport-host" stack fill relative :pointer="panelPointerEvents">
+      <OcPanel class="card-design-editor__viewport-host" fill position="relative" :interaction="panelPointerEvents"
+        tone="transparent" border="none" padding="none">
         <CardViewport v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
           :restore-key="props.filePath" :initial-transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
@@ -24,32 +25,35 @@
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @viewport-transform-change="handleViewportTransformChange" />
         <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
-      </OcBox>
+      </OcPanel>
 
       <template #overlay>
         <OcTrackLayout gap="space-2" axis="horizontal" :regions="overlayHorizontalRegions">
           <template #left-structuretree>
-            <OcSurface tone="transparent" radius="none" border="none" fill padding="none" :clip="false">
+            <OcPanel tone="transparent" radius="none" border="none" fill padding="none" horizontal-alignment="stretch">
               <OcTrackLayout fill axis="vertical" :regions="leftPanelTrackRegions">
                 <template #card-panel>
-                  <OcCard elevation="overlay" radius="lg" fill title="卡牌树" tone="glass">
+                  <OcCard elevation="lg" radius="lg" fill title="卡牌树" tone="glass" overflow-x="clip" overflow-y="clip">
                     <template #content>
-                      <OcScrollArea>
-                        <NodeTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
-                          :multi-select="false" :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
+                      <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto"
+                        horizontal-alignment="stretch">
+                        <OcTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
+                          :features="['actions', 'rename', 'drag-drop']" :multi-select="false"
+                          :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
                           :action-keys="instanceTreeActionKeys"
                           :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
                           :can-drop="canDropInstanceTreeNode" @update:selected-keys="onInstanceTreeSelect"
-                          @action-called="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
+                          @node-action="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
                           @node-drop="handleInstanceTreeDrop" />
-                      </OcScrollArea>
+                      </OcPanel>
                     </template>
                   </OcCard>
                 </template>
                 <template #preview-panel>
-                  <OcCard :clip="true" elevation="overlay" fill radius="lg" title="预览" tone="glass" density="none">
-                    <OcSurface fill radius="none" tone="transparent" border="none" elevation="overlay"
-                      pattern="checker-preview" padding="none">
+                  <OcCard elevation="lg" fill radius="lg" title="预览" tone="glass" density="none" overflow-x="clip"
+                    overflow-y="clip">
+                    <OcPanel horizontal-alignment="stretch" fill radius="none" tone="transparent" border="none"
+                      elevation="lg" background="checker" padding="none">
                       <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host">
                         <div class="card-design-editor__transform-preview-viewport"
                           :style="transformPreviewViewportStyle">
@@ -57,15 +61,15 @@
                             :style="transformPreviewRendererStyle" />
                         </div>
                       </div>
-                    </OcSurface>
+                    </OcPanel>
 
                   </OcCard>
                 </template>
               </OcTrackLayout>
-            </OcSurface>
+            </OcPanel>
           </template>
           <template #left-position>
-            <OcCard radius="lg" tone="glass" elevation="overlay">
+            <OcCard radius="lg" tone="glass" elevation="lg" overflow-x="clip" overflow-y="clip">
               <template #content>
                 <OcText> x: {{
                   Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
@@ -77,24 +81,25 @@
 
           </template>
           <template #right-structuretree>
-            <OcSurface tone="transparent" radius="none" border="none" fill padding="none" :clip="false">
+            <OcPanel tone="transparent" radius="none" border="none" fill padding="none" horizontal-alignment="stretch">
               <OcTrackLayout fill axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
                 <template #tree-panel>
-                  <OcCard elevation="overlay" radius="lg" fill title="结构树" tone="glass">
+                  <OcCard elevation="lg" radius="lg" fill title="结构树" tone="glass">
                     <template #content>
-                      <OcScrollArea>
-                        <NodeTree title="模板结构" :nodes="blockTree" :multi-select="false"
-                          :selected-keys="selectedBlockKeys" :actions="treeActions" v-model:expanded="blockTreeExpanded"
-                          :action-keys="treeActionKeys" :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
-                          @action-called="handleTreeAction" @node-rename="handleTreeRename"
-                          @node-drop="handleTreeDrop" />
-                      </OcScrollArea>
+                      <OcPanel horizontal-alignment="stretch" fill tone="transparent" border="none" padding="none"
+                        overflow-x="clip" overflow-y="auto">
+                        <OcTree title="模板结构" :nodes="blockTree" :multi-select="false"
+                          :features="['actions', 'rename', 'drag-drop']" :selected-keys="selectedBlockKeys"
+                          :actions="treeActions" v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys"
+                          :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
+                          @node-action="handleTreeAction" @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
+                      </OcPanel>
                     </template>
                   </OcCard>
                 </template>
                 <template #property-panel>
-                  <OcCard elevation="overlay" radius="lg" fill title="属性" tone="glass">
+                  <OcCard elevation="lg" radius="lg" fill title="属性" tone="glass">
                     <template #actions>
                       <OcToolbar kind="panel" :shrink="false" aria-label="Property sort tools">
                         <OcToolButton kind="panel" icon-only icon="icon.list-tree"
@@ -106,16 +111,16 @@
                       </OcToolbar>
                     </template>
                     <template #content>
-                      <OcScrollArea>
+                      <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto">
                         <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode"
                           @update-property="updateBlockProp" @add-property="addBlockProp"
                           @reset-property="resetBlockProp" />
-                      </OcScrollArea>
+                      </OcPanel>
                     </template>
                   </OcCard>
                 </template>
               </OcTrackLayout>
-            </OcSurface>
+            </OcPanel>
           </template>
         </OcTrackLayout>
       </template>
@@ -136,16 +141,14 @@ import {
   type CardTreeNodeMetadata,
   getBlockTreeIcon,
 } from '../../entities/card/model'
-import OcBox from '../base/OcBox.vue'
-import OcSurface from '../base/OcSurface.vue'
+import OcPanel from '../base/OcPanel.vue'
 import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
-import NodeTree from '../ui/NodeTree.vue'
 import PropertyEditor from './PropertyEditor.vue'
 import OcEmptyHint from '../base/OcEmptyHint.vue'
 import OcOverlay from '../base/OcOverlay.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
-import OcToolButton from '../standard/OcToolButton.vue'
+import { OcToolButton, OcTree } from '../standard'
 import OcToolbar from '../base/OcToolbar.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
@@ -163,7 +166,6 @@ import {
 import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
 import OcText from '../base/OcText.vue'
 import OcCard from '../base/OcCard.vue'
-import OcScrollArea from '../base/OcScrollArea.vue'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -207,7 +209,9 @@ const viewportTransform = ref({
 })
 const loadedFilePath = ref<string | null>(null)
 
-const panelPointerEvents = computed<'auto' | 'none'>(() => (resizeState.value ? 'none' : 'auto'))
+const panelPointerEvents = computed<'auto' | 'passthrough'>(() =>
+  resizeState.value ? 'passthrough' : 'auto',
+)
 
 // 面板尺寸与拖拽状态。
 const {

@@ -23,7 +23,7 @@
 ### `OcButton`
 
 - props:
-  - `variant?: 'primary' | 'secondary' | 'ghost' | 'icon' | 'choice'`
+  - `variant?: 'primary' | 'secondary' | 'ghost' | 'choice'`
   - `size?: 'sm' | 'md' | 'lg'`
   - `radius?: 'none' | 'sm' | 'md' | 'lg'`
   - `minHeight?: string`
@@ -37,7 +37,7 @@
 - emits: 无（原生 click 透传）
 - 推荐用法:
   - 主操作/次操作统一入口。
-  - 图标按钮使用 `variant="icon"` + `iconOnly`。
+  - 图标按钮使用 `variant="ghost"` + `iconOnly`。
 - 禁用用法:
   - 不要在业务组件直接复写按钮视觉状态类。
 
