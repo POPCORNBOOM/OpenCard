@@ -4,14 +4,14 @@
  * 职责边界：
  * - 只返回文件语义结果 不处理编辑器渲染流程
  */
-import type { IconName, IconTone } from '../../../shared/ui/icon/iconRegistry'
+import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
 export interface FileTypeDefinition {
   id: string
   labelKey: string
   extensions?: string[]
   fileNames?: string[]
-  icon: IconName
+  icon: IconToken
   iconTone?: IconTone
   language?: string
   editorId: string
@@ -19,7 +19,7 @@ export interface FileTypeDefinition {
 }
 
 export interface EntryIconPresentation {
-  icon: IconName
+  icon: IconToken
   tone?: EntryIconTone
 }
 
@@ -174,27 +174,27 @@ const specialFileIcons: Record<string, EntryIconPresentation> = {
 const directoryIcons: Record<string, { collapsed: EntryIconPresentation; expanded: EntryIconPresentation }> = {
   src: {
     collapsed: { icon: 'folder.src', tone: iconTone.folderSrc },
-    expanded: { icon: 'folder.srcExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.src-expanded', tone: iconTone.folderOpen },
   },
   assets: {
     collapsed: { icon: 'folder.assets', tone: iconTone.folderAssets },
-    expanded: { icon: 'folder.assetsExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.assets-expanded', tone: iconTone.folderOpen },
   },
   components: {
     collapsed: { icon: 'folder.components', tone: iconTone.folderComponents },
-    expanded: { icon: 'folder.componentsExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.components-expanded', tone: iconTone.folderOpen },
   },
   views: {
     collapsed: { icon: 'folder.views', tone: iconTone.folderViews },
-    expanded: { icon: 'folder.viewsExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.views-expanded', tone: iconTone.folderOpen },
   },
   locales: {
     collapsed: { icon: 'folder.locales', tone: iconTone.folderLocales },
-    expanded: { icon: 'folder.localesExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.locales-expanded', tone: iconTone.folderOpen },
   },
   core: {
     collapsed: { icon: 'folder.core', tone: iconTone.folderCore },
-    expanded: { icon: 'folder.coreExpanded', tone: iconTone.folderOpen },
+    expanded: { icon: 'folder.core-expanded', tone: iconTone.folderOpen },
   },
 }
 
@@ -252,7 +252,7 @@ export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIc
   }
 
   return {
-    icon: isExpanded ? 'folder.defaultExpanded' : 'folder.default',
+    icon: isExpanded ? 'folder.default-expanded' : 'folder.default',
     tone: isExpanded ? iconTone.folderOpen : iconTone.folderDefault,
   }
 }
@@ -268,3 +268,4 @@ export function resolveEntryIcon(path: string, isDirectory: boolean, isExpanded 
     tone: fileType.iconTone,
   }
 }
+

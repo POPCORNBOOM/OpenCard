@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
-    "lint:ui": "node -e \"console.log('[lint:ui] disabled')\"",
+    "lint:ui": "node scripts/lint-icons.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

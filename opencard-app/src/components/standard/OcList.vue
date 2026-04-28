@@ -56,7 +56,7 @@
           <OcIcon
             v-if="hasChildren(item)"
             class="oc-list__chevron"
-            name="icon.chevron-right"
+            name="nav.chevron-right"
             size="sm"
           />
         </slot>
@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from '../base/OcIcon.vue'
 
 export interface OcListItem {
@@ -89,7 +90,7 @@ export interface OcListItem {
   /** 列表项文案。 */
   label: string
   /** 列表项图标。 */
-  icon?: string
+  icon?: IconToken
   /** 是否禁用当前项。 */
   disabled?: boolean
   /** 子项列表。 */
@@ -493,3 +494,4 @@ function handleListKeydown(event: KeyboardEvent): void {
   box-shadow: var(--oc-shadow-overlay);
 }
 </style>
+

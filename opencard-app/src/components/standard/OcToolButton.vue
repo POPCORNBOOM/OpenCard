@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
-import type { IconTone } from '../../shared/ui/icon/iconRegistry'
+import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
 
 type ToolButtonKind = 'menu' | 'sidebar' | 'panel'
 type ToolButtonSize = 'sm' | 'md' | 'lg'
@@ -28,7 +28,7 @@ interface OcToolButtonProps {
   /** 文案标签。 */
   label?: string
   /** 图标名。 */
-  icon?: string
+  icon?: IconToken
   /** 图标色调。 */
   iconTone?: IconTone
   /** 是否 icon-only。 */

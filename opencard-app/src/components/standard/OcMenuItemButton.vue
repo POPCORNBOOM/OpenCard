@@ -14,11 +14,12 @@
       <span v-else class="oc-menu-item-button__icon-placeholder" />
       <span class="oc-menu-item-button__label">{{ label }}</span>
     </span>
-    <OcIcon v-if="hasChildren" name="icon.chevron-right" class="oc-menu-item-button__chevron" size="sm" />
+    <OcIcon v-if="hasChildren" name="nav.chevron-right" class="oc-menu-item-button__chevron" size="sm" />
   </OcButton>
 </template>
 
 <script setup lang="ts">
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 
@@ -26,7 +27,7 @@ interface OcMenuItemButtonProps {
   /** 菜单主文案。 */
   label: string
   /** 左侧图标名。 */
-  icon?: string
+  icon?: IconToken
   /** 是否显示右侧子菜单箭头。 */
   hasChildren?: boolean
   /** 是否禁用菜单项。 */
@@ -81,3 +82,4 @@ const emit = defineEmits<OcMenuItemButtonEmits>()
   font-size: 10px;
 }
 </style>
+

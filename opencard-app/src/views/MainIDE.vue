@@ -86,9 +86,9 @@
       </OcPanel>
     </div>
 
-    <OcBar as="footer" kind="status" divider="top">
+    <OcBar as="footer" class="main-status-bar" tone="elevated" border="none" padding="none">
       <template #title>
-        <OcChip v-if="projectPath" icon="status.folderOpen" icon-tone="muted" truncate max-width="full">
+        <OcChip v-if="projectPath" icon="status.folder-open" icon-tone="muted" truncate max-width="full">
           {{ projectPath }}
         </OcChip>
         <OcChip v-if="isWatching" tone="info" icon="status.watching" icon-tone="primary">
@@ -219,8 +219,8 @@ const currentLanguage = computed(() => {
 })
 
 const currentLanguageIcon = computed(() => {
-  if (!activeSession.value) return 'misc.code'
-  return resolveFileType(activeSession.value.path).icon ?? 'misc.code'
+  if (!activeSession.value) return 'file.code'
+  return resolveFileType(activeSession.value.path).icon ?? 'file.code'
 })
 
 const currentLanguageIconTone = computed(() => {
@@ -585,6 +585,15 @@ function handleTabClose(payload: { key: string }) {
   gap: var(--oc-space-2);
 }
 
+.main-status-bar {
+  --oc-bar-min-height: 24px;
+  --oc-bar-gap: 10px;
+  --oc-bar-padding: 0 14px;
+  border-top: 1px solid var(--oc-border-strong);
+  color: var(--oc-text-secondary);
+  font-size: 12px;
+}
+
 .editor-workbench-frame__workbench {
   flex: 1;
   min-width: 0;
@@ -599,3 +608,4 @@ function handleTabClose(payload: { key: string }) {
   min-height: 0;
 }
 </style>
+

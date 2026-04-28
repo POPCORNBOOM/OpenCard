@@ -23,7 +23,7 @@ const darkThemeTokens: OcThemeTokens = {
   '--oc-bg-accent-tint-subtle': 'rgba(124, 108, 255, 0.06)',
   '--oc-bg-overlay-strong': 'rgba(20, 20, 20, 0.88)',
   '--oc-bg-overlay-soft': 'rgba(24, 24, 24, 0.82)',
-  '--oc-bg-glass': 'rgba(24, 24, 24, 0.76)',
+  '--oc-bg-glass': 'rgba(28, 28, 28, 0.76)',
   '--oc-blur-glass': '18px',
   '--oc-saturate-glass': '120%',
   '--oc-bg-checker-soft': 'rgba(255, 255, 255, 0.04)',

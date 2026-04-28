@@ -27,6 +27,7 @@ import {
   OC_PRESSABLE_RADII,
   OC_PRESSABLE_SIZES,
 } from '../../shared/ui/foundation/tokenRegistry'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from './OcIcon.vue'
 
 type OcButtonVariant = (typeof OC_BUTTON_VARIANTS)[number]
@@ -42,7 +43,7 @@ interface OcButtonProps {
   /** 按钮圆角 token。 */
   radius?: OcButtonRadius
   /** 左右图标名。 */
-  icon?: string
+  icon?: IconToken
   /** 图标相对文案位置。 */
   iconPosition?: 'left' | 'right'
   /** 是否强制 icon-only 模式。 */

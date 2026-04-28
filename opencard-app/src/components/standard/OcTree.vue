@@ -8,7 +8,7 @@
   }">
     <div class="oc-tree__root" role="button" tabindex="0" :aria-expanded="isRootExpanded" @click="handleRootClick"
       @keydown="handleRootKeydown">
-      <OcIcon :name="isRootExpanded ? 'icon.chevron-down' : 'icon.chevron-right'" size="sm" />
+      <OcIcon :name="isRootExpanded ? 'nav.chevron-down' : 'nav.chevron-right'" size="sm" />
       <span class="oc-tree__root-title">{{ props.title }}</span>
       <div v-if="enableActions && treeActions.length" class="oc-tree__root-actions">
         <OcButton v-for="action in treeActions" :key="action.key" class="oc-tree__action-button" variant="ghost"
@@ -20,19 +20,20 @@
     <div v-if="isRootExpanded" class="oc-tree__children" role="group">
       <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node"
         :class="resolveNodeContainerClass(entry.node)">
-        <OcPanel border="none" tone="transparent" horizontal-alignment="stretch" orientation="horizontal"
-          :class="resolveNodeContentClass(entry.node)" :style="{ paddingLeft: `${entry.level * 12}px` }"
-          :data-tree-node-key="entry.node.key" role="treeitem" tabindex="0"
-          :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
+        <OcBar hoverable border="none" tone="transparent" padding="none"
+          :class="['oc-tree__node-content', resolveNodeContentClass(entry.node)]"
+          :style="{ paddingLeft: `${entry.level * 12}px` }" :data-tree-node-key="entry.node.key" role="treeitem"
+          tabindex="0" :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
           :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
           @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
           @mousedown="handleNodeMouseDown($event, entry.node)" @keydown="handleNodeKeydown($event, entry.node)">
-          <OcIcon v-if="isExpandable(entry.node)" class="oc-tree__chevron"
-            :name="isNodeExpanded(entry.node) ? 'tree.chevronDown' : 'tree.chevronRight'" size="sm"
-            data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
-          <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
-
-          <OcText v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
+          <template #icon>
+            <OcIcon v-if="isExpandable(entry.node)" class="oc-tree__chevron"
+              :name="isNodeExpanded(entry.node) ? 'tree.chevron-down' : 'tree.chevron-right'" size="sm"
+              data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
+            <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
+          </template>
+          <OcText truncate v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
             @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
             {{ entry.node.name }}
           </OcText>
@@ -42,12 +43,15 @@
             @click.stop @input="handleRenameInput" @keydown="handleRenameKeydown($event, entry.node)"
             @blur="cancelNodeRename" />
 
-          <div v-if="enableActions && resolveNodeActions(entry.node).length" class="oc-tree__node-actions">
-            <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key" class="oc-tree__action-button"
-              variant="ghost" icon-only :icon="action.icon" :title="action.title" data-tree-interactive="true"
-              @mousedown.stop @click.stop="handleActionClick(action, 'node', entry.node, $event)" />
-          </div>
-        </OcPanel>
+          <template v-if="enableActions && resolveNodeActions(entry.node).length" #append-hover>
+            <div class="oc-tree__node-actions">
+              <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key"
+                class="oc-tree__action-button" variant="ghost" icon-only :icon="action.icon" :title="action.title"
+                data-tree-interactive="true" @mousedown.stop
+                @click.stop="handleActionClick(action, 'node', entry.node, $event)" />
+            </div>
+          </template>
+        </OcBar>
       </div>
     </div>
   </div>
@@ -72,7 +76,7 @@ import type {
   NodeTreeRepositioningPayload,
   NodeTreeTogglePayload,
 } from '../../shared/ui/tree/tree.types'
-import OcPanel from '../base/OcPanel.vue'
+import OcBar from '../base/OcBar.vue'
 import OcText from '../base/OcText.vue'
 
 type OcTreeFeature = 'rename' | 'drag-drop' | 'actions'
@@ -891,3 +895,4 @@ onBeforeUnmount(() => {
   visibility: visible;
 }
 </style>
+

@@ -1,6 +1,6 @@
 <!-- IDE 顶栏：承载品牌信息与导出动作入口。 -->
 <template>
-  <OcBar kind="top" divider="bottom" class="main-ide-top-bar">
+  <OcBar class="main-ide-top-bar" tone="elevated" border="none" padding="none">
     <template #title>
       <div class="main-ide-top-bar__brand" aria-label="OpenCard workspace">
         <div class="main-ide-top-bar__name">OpenCard</div>
@@ -68,7 +68,10 @@ const themeButtonLabel = computed(() => `Theme: ${props.currentTheme}`)
 
 <style scoped>
 .main-ide-top-bar {
+  --oc-bar-min-height: 52px;
   --oc-bar-gap: 18px;
+  --oc-bar-padding: 0 18px;
+  border-bottom: 1px solid var(--oc-border-strong);
 }
 
 .main-ide-top-bar__brand {

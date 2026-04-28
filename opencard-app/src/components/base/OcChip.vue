@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { IconResolvable, IconTone } from '../../shared/ui/icon/iconRegistry'
+import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from './OcIcon.vue'
 
 type ChipTone = 'default' | 'info'
@@ -33,7 +33,7 @@ interface OcChipProps {
   /** 最大宽度语义。 */
   maxWidth?: ChipDimension
   /** 左侧图标。 */
-  icon?: IconResolvable
+  icon?: IconToken
   /** 左侧图标色调。 */
   iconTone?: IconTone
 }

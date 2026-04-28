@@ -1,7 +1,7 @@
 <!-- Base 图标组件：独立实现图标解析、尺寸与色调映射，不依赖 shared primitives。 -->
 <template>
   <i
-    v-if="icon.kind === 'codicon'"
+    v-if="icon.pack === 'codicon'"
     class="oc-icon codicon"
     :class="[icon.value, sizeClass]"
     :style="iconStyle"
@@ -71,7 +71,7 @@ const props = withDefaults(defineProps<OcIconProps>(), {
 })
 
 const attrs = useAttrs()
-const icon = computed(() => resolveIcon(props.name))
+const icon = computed(() => resolveIcon(props.name, 'OcIcon.props.name'))
 
 const forwardedAttrs = computed(() => {
   const { color: _deprecatedColor, ...restAttrs } = attrs

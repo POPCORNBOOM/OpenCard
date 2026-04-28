@@ -61,6 +61,7 @@ import OcFieldInput from '../../base/OcFieldInput.vue'
 import OcIcon from '../../base/OcIcon.vue'
 import { useProjectStore } from '../../../features/workspace/store/projectStore'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
+import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 
 type FilePathDefinition = Extract<EditorPropertyDefinition, { datatype: 'filePath' }>
 
@@ -70,7 +71,7 @@ type SuggestionItem = {
   value: string
   isDirectory: boolean
   detail?: string
-  icon: string
+  icon: IconToken
 }
 
 type FocusableInput = {
@@ -192,7 +193,7 @@ async function loadSuggestions() {
         value: parentDirectory ? `${parentDirectory}/` : '',
         isDirectory: true,
         detail: '返回上一级',
-        icon: 'icon.arrow-up',
+        icon: 'nav.arrow-up',
       })
     }
 
@@ -211,7 +212,7 @@ async function loadSuggestions() {
         value: isDirectory ? `${relativePath}/` : relativePath,
         isDirectory,
         detail: directory ? relativePath : undefined,
-        icon: isDirectory ? 'icon.folder' : 'icon.file',
+        icon: isDirectory ? 'folder.generic' : 'file.generic',
       })
     }
 
@@ -384,3 +385,4 @@ function handleKeydown(event: KeyboardEvent) {
   white-space: nowrap;
 }
 </style>
+

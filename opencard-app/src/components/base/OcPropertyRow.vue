@@ -12,13 +12,14 @@
 </template>
 
 <script setup lang="ts">
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from './OcIcon.vue'
 
 interface OcPropertyRowProps {
   /** 左侧标签文案。 */
   label: string
   /** 左侧标签图标。 */
-  labelIcon?: string
+  labelIcon?: IconToken
 }
 
 defineOptions({ name: 'OcPropertyRow' })

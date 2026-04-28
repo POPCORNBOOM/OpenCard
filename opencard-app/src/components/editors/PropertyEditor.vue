@@ -21,14 +21,14 @@
         <template #content>
           <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
             <template #title>
-              <OcBar class="property-editor__category-bar" kind="section" divider="bottom" :title="category.title">
+              <OcBar class="property-editor__category-bar" tone="transparent" border="none" padding="none" :title="category.title">
                 <template #append>
                   <div v-if="category.addableFields.length > 0" class="add-field-menu">
                     <OcChip>{{ category.addableFields.length }}</OcChip>
                     <OcButton class="add-field-button" icon-only size="sm" variant="secondary"
                       :title="addFieldActionText" :aria-label="addFieldActionText"
                       @click="openAddFieldMenu($event, category)">
-                      <OcIcon name="icon.add" size="sm" />
+                      <OcIcon name="action.add" size="sm" />
                     </OcButton>
                   </div>
                 </template>
@@ -42,7 +42,7 @@
                     variant="secondary" :title="resetFieldActionText"
                     :aria-label="`${resetFieldActionText}: ${entry.label}`"
                     @click.stop="emitResetProperty(category.sourceKey, entry.key)">
-                    <OcIcon name="icon.discard" size="sm" />
+                    <OcIcon name="action.discard" size="sm" />
                   </OcButton>
                   <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
                     :value="entry.value"
@@ -88,6 +88,7 @@ import {
 } from '../../composables/useCdePropertyEditorView'
 import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelState'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
 import OcIcon from '../base/OcIcon.vue'
 import OcCard from '../base/OcCard.vue'
@@ -119,20 +120,20 @@ const props = defineProps<{
 // 运行时依赖与编辑器映射。
 type DatatypeEditorEntry = {
   component: Component
-  icon: string
+  icon: IconToken
 }
 
 const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
-  string: { component: StringPropertyField, icon: 'icon.symbol-string' },
-  background: { component: BackgroundPropertyField, icon: 'icon.symbol-color' },
-  anchorPosition: { component: AnchorPositionPropertyField, icon: 'icon.compass' },
-  alignPosition: { component: AlignPositionPropertyField, icon: 'icon.list-selection' },
-  flowDirection: { component: FlowDirectionPropertyField, icon: 'icon.arrow-right' },
-  number: { component: NumberPropertyField, icon: 'icon.symbol-number' },
-  boolean: { component: BooleanPropertyField, icon: 'icon.symbol-boolean' },
-  color: { component: ColorPropertyField, icon: 'icon.symbol-color' },
-  filePath: { component: FilePathPropertyField, icon: 'icon.file' },
-  object: { component: ObjectPropertyField, icon: 'icon.symbol-class' },
+  string: { component: StringPropertyField, icon: 'data.symbol-string' },
+  background: { component: BackgroundPropertyField, icon: 'data.symbol-color' },
+  anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
+  alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
+  flowDirection: { component: FlowDirectionPropertyField, icon: 'nav.arrow-right' },
+  number: { component: NumberPropertyField, icon: 'data.symbol-number' },
+  boolean: { component: BooleanPropertyField, icon: 'data.symbol-boolean' },
+  color: { component: ColorPropertyField, icon: 'data.symbol-color' },
+  filePath: { component: FilePathPropertyField, icon: 'file.generic' },
+  object: { component: ObjectPropertyField, icon: 'data.symbol-class' },
 }
 
 const { openMenu } = useFloatingMenu()
@@ -164,7 +165,7 @@ function getEditorComponent(datatype: PropertyDatatype): Component {
   return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
 }
 
-function getEditorIconClass(datatype: PropertyDatatype): string {
+function getEditorIconClass(datatype: PropertyDatatype): IconToken {
   return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).icon
 }
 
@@ -268,6 +269,9 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 }
 
 .property-editor__category-bar {
+  --oc-bar-min-height: 24px;
   padding-bottom: var(--oc-space-1);
+  border-bottom: 1px solid var(--oc-border-strong);
 }
 </style>
+

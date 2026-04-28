@@ -53,7 +53,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       parent: null,
       renamable: false,
       isExpandable: false,
-      icon: 'icon.symbol-class',
+      icon: 'data.symbol-class',
       metadata: {
         instanceId: options.blueprintCardId,
         kind: 'blueprint',
@@ -75,7 +75,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
           name: displayName,
           path: [instanceId],
           parent: null,
-          icon: 'icon.account',
+          icon: 'entity.account',
           actionKeys: ['duplicate-instance', 'delete-instance'],
           metadata: {
             instance,
@@ -294,3 +294,4 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     handleInstanceTreeDrop,
   }
 }
+

@@ -5,7 +5,7 @@
  * - 只维护类型契约 不包含运行时业务实现
  */
 import type { ComputedRef, Ref } from 'vue'
-import type { IconTone } from '../icon/iconRegistry'
+import type { IconToken, IconTone } from '../icon/iconRegistry'
 
 export type TreeIconTone = IconTone
 
@@ -16,7 +16,7 @@ export interface ITreeNode {
   renamable?: boolean
   isExpandable?: boolean
   isExpanded?: boolean
-  icon?: string
+  icon?: IconToken
   iconTone?: TreeIconTone
   iconColor?: string
   parent?: ITreeNode | null
@@ -29,7 +29,7 @@ export type ActionCaller = 'tree' | 'node'
 
 export interface ActionDefinition {
   key: string
-  icon: string
+  icon: IconToken
   title?: string
   children?: ActionDefinition[]
 }

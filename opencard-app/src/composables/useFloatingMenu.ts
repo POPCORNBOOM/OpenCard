@@ -1,9 +1,10 @@
 import { readonly, ref } from 'vue'
+import type { IconToken } from '../shared/ui/icon/iconRegistry'
 
 export interface FloatingMenuItem {
   key: string
   label: string
-  icon?: string
+  icon?: IconToken
   disabled?: boolean
   children?: readonly FloatingMenuItem[]
 }

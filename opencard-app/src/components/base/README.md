@@ -60,20 +60,20 @@
 ### `OcBar`
 
 - props:
-  - `as?: string`
-  - `kind?: 'top' | 'status' | 'section'`
-  - `padding?: string`
-  - `gap?: string`
-  - `border?: 'none' | 'top' | 'bottom'`
+  - `...ocPanelProps`（透传；内部固定 `orientation="horizontal"`、`horizontalAlignment="start"`、`verticalAlignment="center"`）
+  - `icon?: string`
+  - `title?: string`
 - slots:
-  - `start`
+  - `icon`
+  - `title`
   - `default`
-  - `end`
+  - `append`
 - emits: 无
 - 推荐用法:
-  - 顶栏、状态栏、分节行等壳层条带统一入口。
+  - 作为结构化条形容器，承载 leading/main/append 三段内容。
+  - 顶栏、状态栏、分节栏差异由调用方 class/token 控制。
 - 禁用用法:
-  - 不要在业务层重复手写顶部/状态条骨架。
+  - 不要依赖 `kind/spacing/inset/divider` 这类已移除专有 props。
 
 ### `OcChip`
 

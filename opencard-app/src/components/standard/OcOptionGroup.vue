@@ -28,7 +28,7 @@
       @click="selectIndex(index)"
     >
       <slot name="option" :option="option" :active="modelValue === option.value">
-        <span v-if="option.icon" class="codicon" :class="option.icon" />
+        <OcIcon v-if="option.icon" :name="option.icon" size="sm" />
         <span v-else>{{ option.shortLabel ?? option.label }}</span>
       </slot>
     </OcButton>
@@ -37,7 +37,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcButton from '../base/OcButton.vue'
+import OcIcon from '../base/OcIcon.vue'
 
 type OptionGroupSize = 'sm' | 'md' | 'lg'
 
@@ -49,7 +51,7 @@ export interface OcOptionGroupItem {
   /** 可选短标签。 */
   shortLabel?: string
   /** 可选图标类名。 */
-  icon?: string
+  icon?: IconToken
   /** 是否禁用当前选项。 */
   disabled?: boolean
 }

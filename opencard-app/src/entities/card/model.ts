@@ -5,6 +5,7 @@
  * - 维护领域结构真相 不包含组件渲染实现
  */
 import type { ITreeNode } from '../../shared/ui/tree/tree.types'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import { fillDefaults, isReferenceFieldReadable } from './schema'
 import type { PropertyEditorSchemaOverride } from './schema'
 
@@ -1223,16 +1224,16 @@ export function isCardBlock(target: any): target is CardBlock {
     return target && typeof target === 'object' && typeof target.type === 'string' && target.type.endsWith('-block')
 }
 
-export function getBlockTreeIcon(type: CardBlock['type']): string {
+export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
     switch (type) {
         case 'text-block':
-            return 'icon.file-text'
+            return 'file.text'
         case 'image-block':
-            return 'icon.file-media'
+            return 'file.media'
         case 'simple-container-block':
-            return 'icon.collection'
+            return 'data.collection'
         case 'flow-container-block':
-            return 'icon.layers'
+            return 'data.layers'
     }
 }
 
@@ -1313,3 +1314,4 @@ export const blockToTreeNode = (
 
     return newNode
 }
+

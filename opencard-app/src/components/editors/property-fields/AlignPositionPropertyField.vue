@@ -15,10 +15,10 @@ import OcOptionGroup from '../../standard/OcOptionGroup.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 const alignOptions = [
-  { value: 'start', label: 'Start', icon: 'icon.list-selection' },
-  { value: 'center', label: 'Center', icon: 'icon.symbol-key' },
-  { value: 'end', label: 'End', icon: 'icon.list-selection' },
-  { value: 'justify', label: 'Justify', icon: 'icon.menu' },
+  { value: 'start', label: 'Start', icon: 'data.list-selection' },
+  { value: 'center', label: 'Center', icon: 'data.symbol-key' },
+  { value: 'end', label: 'End', icon: 'data.list-selection' },
+  { value: 'justify', label: 'Justify', icon: 'nav.menu' },
 ] as const
 
 const props = defineProps<{
@@ -35,3 +35,4 @@ const currentValue = computed(() => {
   return alignOptions.some((option) => option.value === value) ? value : 'start'
 })
 </script>
+

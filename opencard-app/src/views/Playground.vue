@@ -1,7 +1,7 @@
 <!-- 组件实验页：用单一 OcPanel 可视化验证 V2.2+ 语义与交互效果。 -->
 <template>
   <main class="playground-page">
-    <OcBar kind="top" divider="bottom" title="OpenCard Playground">
+    <OcBar class="playground-top-bar" tone="elevated" border="none" padding="none" title="OpenCard Playground">
       <template #append>
         <OcButton variant="ghost" @click="goToIde">Back To IDE</OcButton>
       </template>
@@ -38,27 +38,20 @@
 
         <div class="playground-control-group">
           <OcText tone="secondary" size="label">orientation</OcText>
-          <OcOptionGroup v-model="orientation" :options="orientationOptions" :columns="2" aria-label="panel orientation" />
+          <OcOptionGroup v-model="orientation" :options="orientationOptions" :columns="2"
+            aria-label="panel orientation" />
         </div>
 
         <div class="playground-control-group">
           <OcText tone="secondary" size="label">horizontalAlignment</OcText>
-          <OcOptionGroup
-            v-model="horizontalAlignment"
-            :options="alignmentOptions"
-            :columns="4"
-            aria-label="panel horizontal alignment"
-          />
+          <OcOptionGroup v-model="horizontalAlignment" :options="alignmentOptions" :columns="4"
+            aria-label="panel horizontal alignment" />
         </div>
 
         <div class="playground-control-group">
           <OcText tone="secondary" size="label">verticalAlignment</OcText>
-          <OcOptionGroup
-            v-model="verticalAlignment"
-            :options="alignmentOptions"
-            :columns="4"
-            aria-label="panel vertical alignment"
-          />
+          <OcOptionGroup v-model="verticalAlignment" :options="alignmentOptions" :columns="4"
+            aria-label="panel vertical alignment" />
         </div>
 
         <div class="playground-control-group">
@@ -83,7 +76,8 @@
 
         <div class="playground-control-group">
           <OcText tone="secondary" size="label">interaction</OcText>
-          <OcOptionGroup v-model="interaction" :options="interactionOptions" :columns="2" aria-label="panel interaction" />
+          <OcOptionGroup v-model="interaction" :options="interactionOptions" :columns="2"
+            aria-label="panel interaction" />
         </div>
 
         <div class="playground-control-group">
@@ -105,60 +99,27 @@
 
       <section class="playground-preview">
         <div class="playground-preview-stage">
-          <OcPanel
-            class="playground-outer-shell"
-            tone="transparent"
-            border="black"
-            radius="md"
-            padding="compact"
-            orientation="vertical"
-            horizontal-alignment="start"
-            vertical-alignment="start"
-          >
+          <OcPanel class="playground-outer-shell" tone="transparent" border="black" radius="md" padding="compact"
+            orientation="vertical" horizontal-alignment="start" vertical-alignment="start">
             <OcText tone="muted" size="label">Outer wrapper (irrelevant panel)</OcText>
-            <OcPanel
-              class="playground-target"
-              :tone="tone"
-              :border="border"
-              :background="background"
-              :radius="radius"
-              :elevation="elevation"
-              :orientation="orientation"
-              :horizontal-alignment="horizontalAlignment"
-              :vertical-alignment="verticalAlignment"
-              :position="position"
-              :anchor="anchor"
-              :interaction="interaction"
-              :width="width"
-              :height="height"
-              :overflow-x="overflowX"
-              :overflow-y="overflowY"
-              :fill="fill"
-              :grow="grow"
-              :hoverable="hoverable"
-              padding="standard"
-            >
+            <OcPanel class="playground-target" :tone="tone" :border="border" :background="background" :radius="radius"
+              :elevation="elevation" :orientation="orientation" :horizontal-alignment="horizontalAlignment"
+              :vertical-alignment="verticalAlignment" :position="position" :anchor="anchor" :interaction="interaction"
+              :width="width" :height="height" :overflow-x="overflowX" :overflow-y="overflowY" :fill="fill" :grow="grow"
+              :hoverable="hoverable" padding="standard">
               <OcText size="label" tone="muted">OcBar Showcase</OcText>
               <OcPanel class="playground-bar-showcase" tone="transparent" border="soft" radius="sm" padding="compact">
-                <OcBar
-                  kind="top"
-                  divider="bottom"
-                  icon="icon.list-tree"
-                  title="Top Bar"
-                  spacing="default"
-                  inset="compact"
-                >
+                <OcBar tone="elevated" border="none" icon="data.list-tree" title="Top Bar">
                   <template #append>
-                    <OcButton variant="ghost" icon="icon.refresh">Refresh</OcButton>
+                    <OcButton variant="ghost" icon="action.refresh">Refresh</OcButton>
                   </template>
                 </OcBar>
-                <OcBar kind="section" icon="icon.symbol-string" title="Section Bar" spacing="compact">
-                  <OcText tone="secondary" size="label">Inline content region</OcText>
+                <OcBar tone="transparent" border="none" icon="data.symbol-string" title="Section Bar">
                   <template #append>
-                    <OcButton variant="ghost" icon-only icon="icon.settings-gear" title="Settings" />
+                    <OcButton variant="ghost" icon-only icon="tool.settings-gear" title="Settings" />
                   </template>
                 </OcBar>
-                <OcBar kind="status" divider="top" icon="icon.search" title="Status Bar">
+                <OcBar tone="elevated" border="none" icon="tool.search" title="Status Bar">
                   <OcText tone="secondary" size="label">Ready</OcText>
                   <template #append>
                     <OcText tone="secondary" size="label">Ln 12, Col 8</OcText>
@@ -168,7 +129,8 @@
 
               <OcText size="title">Preview Panel</OcText>
               <OcText tone="secondary">
-                tone={{ tone }} / border={{ border }} / background={{ background }} / radius={{ radius }} / elevation={{ elevation }}
+                tone={{ tone }} / border={{ border }} / background={{ background }} / radius={{ radius }} / elevation={{
+                  elevation }}
               </OcText>
               <OcText tone="secondary">
                 orientation={{ orientation }} / hAlign={{ horizontalAlignment }} / vAlign={{ verticalAlignment }}
@@ -179,8 +141,10 @@
               <OcText tone="secondary">
                 interaction={{ interaction }} / overflowX={{ overflowX }} / overflowY={{ overflowY }}
               </OcText>
-              <OcText tone="info" size="label">Hoverable: {{ hoverable ? 'ON' : 'OFF' }} (move mouse over this panel)</OcText>
-              <div class="playground-target__probe">Overflow Probe: 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ-abcdefghijklmnopqrstuvwxyz</div>
+              <OcText tone="info" size="label">Hoverable: {{ hoverable ? 'ON' : 'OFF' }} (move mouse over this panel)
+              </OcText>
+              <div class="playground-target__probe">Overflow Probe:
+                1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ-abcdefghijklmnopqrstuvwxyz</div>
             </OcPanel>
           </OcPanel>
         </div>
@@ -346,6 +310,13 @@ function goToIde(): void {
   color: var(--oc-text-primary);
 }
 
+.playground-top-bar {
+  --oc-bar-min-height: 52px;
+  --oc-bar-gap: 18px;
+  --oc-bar-padding: 0 18px;
+  border-bottom: 1px solid var(--oc-border-strong);
+}
+
 .playground-layout {
   flex: 1 1 auto;
   min-height: 0;
@@ -448,3 +419,4 @@ function goToIde(): void {
   }
 }
 </style>
+

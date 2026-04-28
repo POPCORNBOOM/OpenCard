@@ -3,23 +3,20 @@
   <section class="oc-tab-layout" :class="{ 'is-fill': props.fill }">
     <div v-if="tabs.length > 0" class="oc-tab-layout__bar" role="tablist" aria-orientation="horizontal"
       :aria-label="ariaLabel" @keydown="handleBarKeydown">
-      <OcPanel v-for="tab in tabs" :key="tab.key" class="oc-tab-layout__tab" :class="{
+      <OcBar v-for="tab in tabs" :key="tab.key" padding="compact" :class="{
         'is-active': isActive(tab),
         'is-disabled': Boolean(tab.disabled),
-      }" radius="none" tone="panel" border="none" padding="none" orientation="horizontal"
-        horizontal-alignment="start" vertical-alignment="center" :data-oc-tab-key="tab.key" role="tab"
-        :tabindex="resolveTabIndex(tab)"
-        :aria-selected="isActive(tab) ? 'true' : 'false'" :aria-disabled="tab.disabled ? 'true' : undefined"
-        :title="tab.title ?? tab.label" @click="handleTabClick(tab)">
-        <span class="oc-tab-layout__tab-main">
-          <OcIcon v-if="tab.icon" class="oc-tab-layout__tab-icon" :name="tab.icon" size="sm" />
-          <span v-if="tab.dirty" class="oc-tab-layout__tab-dirty-dot" aria-hidden="true" />
-          <OcText>{{ tab.label }}</OcText>
-        </span>
-        <OcButton v-if="isClosable(tab) && isEnabled(tab)" class="oc-tab-layout__tab-close" variant="ghost" size="sm"
-          radius="sm" icon="icon.close" icon-only :aria-label="`Close ${tab.label}`" tabindex="-1" data-oc-tab-close
-          @click.stop="handleTabClose(tab)" />
-      </OcPanel>
+      }" radius="none" tone="panel" border="none" :icon="tab.icon" :title="tab.label" :data-oc-tab-key="tab.key"
+        role="tab" :tabindex="resolveTabIndex(tab)" :aria-selected="isActive(tab) ? 'true' : 'false'"
+        :aria-disabled="tab.disabled ? 'true' : undefined" @click="handleTabClick(tab)">
+        <template v-if="tab.dirty" #append>
+          <span class="oc-tab-layout__tab-dirty-dot" aria-hidden="true" />
+        </template>
+        <template v-if="isClosable(tab) && isEnabled(tab)" #append-hover>
+          <OcButton class="oc-tab-layout__tab-close" variant="ghost" size="sm" radius="sm" icon="action.close" icon-only
+            :aria-label="`Close ${tab.label}`" tabindex="-1" data-oc-tab-close @click.stop="handleTabClose(tab)" />
+        </template>
+      </OcBar>
     </div>
 
     <div v-if="$slots.panel" class="oc-tab-layout__panel">
@@ -30,11 +27,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { IconResolvable } from '../../shared/ui/icon/iconRegistry'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
-import OcIcon from '../base/OcIcon.vue'
-import OcPanel from '../base/OcPanel.vue'
-import OcText from '../base/OcText.vue'
 
 export interface OcTabItem {
   /** 标签唯一 key。 */
@@ -42,7 +37,7 @@ export interface OcTabItem {
   /** 标签展示文案。 */
   label: string
   /** 标签图标。 */
-  icon?: IconResolvable
+  icon?: IconToken
   /** 标签 hover title。 */
   title?: string
   /** 是否禁用标签。 */
@@ -246,23 +241,7 @@ function handleBarKeydown(event: KeyboardEvent): void {
   background: transparent;
 }
 
-.oc-tab-layout__tab {
-  min-width: 0;
-  max-width: 240px;
-  min-height: 32px;
-  padding: 0 var(--oc-space-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--oc-space-2);
-  color: var(--oc-text-secondary);
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard),
-    border-color var(--oc-motion-duration-fast) var(--oc-motion-ease-standard);
-}
+.oc-tab-layout__tab {}
 
 .oc-tab-layout__tab:hover {
   background: var(--oc-bg-hover);
@@ -288,12 +267,8 @@ function handleBarKeydown(event: KeyboardEvent): void {
   background: var(--oc-bg-elevated);
 }
 
-.oc-tab-layout__tab-main {
+.oc-tab-layout__tab-title {
   min-width: 0;
-  flex: 1 1 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--oc-space-2);
 }
 
 .oc-tab-layout__tab-icon {
@@ -308,9 +283,9 @@ function handleBarKeydown(event: KeyboardEvent): void {
   background: var(--oc-bg-accent);
 }
 
-.oc-tab-layout__tab:hover .oc-tab-layout__tab-close,
-.oc-tab-layout__tab.is-active .oc-tab-layout__tab-close {
-  opacity: 1;
+.oc-tab-layout__tab :deep(.oc-bar__append) {
+  min-width: 18px;
+  justify-content: flex-end;
 }
 
 .oc-tab-layout__panel {
@@ -327,3 +302,4 @@ function handleBarKeydown(event: KeyboardEvent): void {
   min-height: 0;
 }
 </style>
+

@@ -3,13 +3,13 @@
     :panel-visible="Boolean(activeView)">
     <template #activity>
       <OcToolbar kind="sidebar" align="center" spacing="none" inset="comfortable" aria-label="Activity bar">
-        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.files"
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="nav.files"
           :icon-tone="activeView === 'files' ? 'primary' : 'muted'" :active="activeView === 'files'"
           :title="t('sidebar.files')" :aria-label="t('sidebar.files')" @click="emit('update:activeView', 'files')" />
-        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.git"
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="status.source-control"
           :icon-tone="activeView === 'git' ? 'primary' : 'muted'" :active="activeView === 'git'"
           :title="t('sidebar.git')" :aria-label="t('sidebar.git')" @click="emit('update:activeView', 'git')" />
-        <OcToolButton kind="sidebar" size="lg" block icon-only icon="app.publish"
+        <OcToolButton kind="sidebar" size="lg" block icon-only icon="action.publish"
           :icon-tone="activeView === 'publish' ? 'primary' : 'muted'" :active="activeView === 'publish'"
           :title="t('sidebar.publish')" :aria-label="t('sidebar.publish')"
           @click="emit('update:activeView', 'publish')" />
@@ -85,3 +85,4 @@ const { t } = useI18n()
   line-height: 1.7;
 }
 </style>
+
