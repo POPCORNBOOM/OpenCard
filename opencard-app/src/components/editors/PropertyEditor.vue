@@ -21,7 +21,7 @@
         <template #content>
           <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
             <template #title>
-              <OcBar kind="section" border="bottom" :title="category.title" padding="0 0 var(--oc-space-1)">
+              <OcBar class="property-editor__category-bar" kind="section" divider="bottom" :title="category.title">
                 <template #append>
                   <div v-if="category.addableFields.length > 0" class="add-field-menu">
                     <OcChip>{{ category.addableFields.length }}</OcChip>
@@ -265,5 +265,9 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
 .category-title {
   font-size: var(--oc-label-size);
   color: var(--oc-text-secondary);
+}
+
+.property-editor__category-bar {
+  padding-bottom: var(--oc-space-1);
 }
 </style>

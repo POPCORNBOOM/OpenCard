@@ -1,6 +1,6 @@
 <!-- IDE 顶栏：承载品牌信息与导出动作入口。 -->
 <template>
-  <OcBar kind="top" border="bottom" class="main-ide-top-bar">
+  <OcBar kind="top" divider="bottom" class="main-ide-top-bar">
     <template #title>
       <div class="main-ide-top-bar__brand" aria-label="OpenCard workspace">
         <div class="main-ide-top-bar__name">OpenCard</div>

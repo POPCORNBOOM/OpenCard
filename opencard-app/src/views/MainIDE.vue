@@ -86,7 +86,7 @@
       </OcPanel>
     </div>
 
-    <OcBar as="footer" kind="status" border="top">
+    <OcBar as="footer" kind="status" divider="top">
       <template #title>
         <OcChip v-if="projectPath" icon="status.folderOpen" icon-tone="muted" truncate max-width="full">
           {{ projectPath }}

@@ -1,7 +1,7 @@
 <!-- 组件实验页：用单一 OcPanel 可视化验证 V2.2+ 语义与交互效果。 -->
 <template>
   <main class="playground-page">
-    <OcBar kind="top" border="bottom" title="OpenCard Playground">
+    <OcBar kind="top" divider="bottom" title="OpenCard Playground">
       <template #append>
         <OcButton variant="ghost" @click="goToIde">Back To IDE</OcButton>
       </template>
@@ -138,6 +138,34 @@
               :hoverable="hoverable"
               padding="standard"
             >
+              <OcText size="label" tone="muted">OcBar Showcase</OcText>
+              <OcPanel class="playground-bar-showcase" tone="transparent" border="soft" radius="sm" padding="compact">
+                <OcBar
+                  kind="top"
+                  divider="bottom"
+                  icon="icon.list-tree"
+                  title="Top Bar"
+                  spacing="default"
+                  inset="compact"
+                >
+                  <template #append>
+                    <OcButton variant="ghost" icon="icon.refresh">Refresh</OcButton>
+                  </template>
+                </OcBar>
+                <OcBar kind="section" icon="icon.symbol-string" title="Section Bar" spacing="compact">
+                  <OcText tone="secondary" size="label">Inline content region</OcText>
+                  <template #append>
+                    <OcButton variant="ghost" icon-only icon="icon.settings-gear" title="Settings" />
+                  </template>
+                </OcBar>
+                <OcBar kind="status" divider="top" icon="icon.search" title="Status Bar">
+                  <OcText tone="secondary" size="label">Ready</OcText>
+                  <template #append>
+                    <OcText tone="secondary" size="label">Ln 12, Col 8</OcText>
+                  </template>
+                </OcBar>
+              </OcPanel>
+
               <OcText size="title">Preview Panel</OcText>
               <OcText tone="secondary">
                 tone={{ tone }} / border={{ border }} / background={{ background }} / radius={{ radius }} / elevation={{ elevation }}
@@ -309,26 +337,37 @@ function goToIde(): void {
 
 <style scoped>
 .playground-page {
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--oc-bg-base);
   color: var(--oc-text-primary);
 }
 
 .playground-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   padding: 16px;
   display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: 16px;
+  overflow: hidden;
 }
 
 .playground-controls {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   gap: 14px;
   padding: 16px;
   border: 1px solid var(--oc-border-strong);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-panel);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .playground-control-group {
@@ -346,12 +385,13 @@ function goToIde(): void {
 .playground-preview {
   min-width: 0;
   min-height: 0;
+  display: flex;
 }
 
 .playground-preview-stage {
   position: relative;
-  min-height: 560px;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   border-radius: var(--oc-radius-md);
   border: 1px solid var(--oc-border-strong);
   background:
@@ -370,6 +410,11 @@ function goToIde(): void {
   gap: 10px;
 }
 
+.playground-bar-showcase {
+  width: 100%;
+  gap: 8px;
+}
+
 .playground-outer-shell {
   width: 100%;
   height: 100%;
@@ -384,8 +429,18 @@ function goToIde(): void {
 }
 
 @media (max-width: 1200px) {
+  .playground-page {
+    height: auto;
+    min-height: 100%;
+  }
+
   .playground-layout {
     grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .playground-controls {
+    overflow: visible;
   }
 
   .playground-preview-stage {

@@ -20,9 +20,10 @@
     <div v-if="isRootExpanded" class="oc-tree__children" role="group">
       <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node"
         :class="resolveNodeContainerClass(entry.node)">
-        <div class="oc-tree__node-content" :class="resolveNodeContentClass(entry.node)"
-          :style="{ paddingLeft: `${entry.level * 12}px` }" :data-tree-node-key="entry.node.key" role="treeitem"
-          tabindex="0" :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
+        <OcPanel border="none" tone="transparent" horizontal-alignment="stretch" orientation="horizontal"
+          :class="resolveNodeContentClass(entry.node)" :style="{ paddingLeft: `${entry.level * 12}px` }"
+          :data-tree-node-key="entry.node.key" role="treeitem" tabindex="0"
+          :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
           :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
           @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
           @mousedown="handleNodeMouseDown($event, entry.node)" @keydown="handleNodeKeydown($event, entry.node)">
@@ -31,10 +32,10 @@
             data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
           <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
 
-          <span v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
+          <OcText v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
             @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
             {{ entry.node.name }}
-          </span>
+          </OcText>
 
           <OcFieldInput v-else as="input" class="oc-tree__rename-input" type="text" :value="renameDraft"
             :data-tree-rename-input="entry.node.key" data-tree-interactive="true" @mousedown.stop @dblclick.stop
@@ -46,7 +47,7 @@
               variant="ghost" icon-only :icon="action.icon" :title="action.title" data-tree-interactive="true"
               @mousedown.stop @click.stop="handleActionClick(action, 'node', entry.node, $event)" />
           </div>
-        </div>
+        </OcPanel>
       </div>
     </div>
   </div>
@@ -71,6 +72,8 @@ import type {
   NodeTreeRepositioningPayload,
   NodeTreeTogglePayload,
 } from '../../shared/ui/tree/tree.types'
+import OcPanel from '../base/OcPanel.vue'
+import OcText from '../base/OcText.vue'
 
 type OcTreeFeature = 'rename' | 'drag-drop' | 'actions'
 
