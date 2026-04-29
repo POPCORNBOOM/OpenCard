@@ -51,6 +51,8 @@ export default {
     sources: {
       block: '块',
       layout: '布局',
+      document: '文档',
+      instance: '实例',
     },
     actions: {
       addField: '添加字段',

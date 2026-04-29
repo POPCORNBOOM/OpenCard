@@ -60,6 +60,7 @@ export type ImageBlock = BaseBlock & {
 }
 
 export type SimpleContainerLocationInfo = {
+    id: string
     type: 'simple-container-location'
     anchor: AnchorPosition
     x?: CSSValue
@@ -75,6 +76,7 @@ export type SimpleContainerBlock = BaseBlock & {
 }
 
 export type FlowContainerLocationInfo = {
+    id: string
     type: 'flow-container-location'
     index: number
     align?: AlignmentPosition
@@ -111,6 +113,7 @@ export type CardDocument = {
 }
 
 export type CardInstanceRecord = {
+    type: 'card-instance'
     id: string
     name: string
     amount: number
@@ -170,12 +173,18 @@ function resolveBlockType(typeName: unknown): CardBlock['type'] {
 }
 
 function materializeSimpleContainerLocation(locationInput: unknown): SimpleContainerLocationInfo {
-    return fillDefaults('simple-container-location', toRecord(locationInput)) as SimpleContainerLocationInfo
+    const source = toRecord(locationInput)
+    const materialized = fillDefaults('simple-container-location', source) as SimpleContainerLocationInfo
+    const locationId = toNonEmptyString(source.id) ?? toNonEmptyString(materialized.id) ?? createBlockId('simple-location')
+    materialized.id = locationId
+    return materialized
 }
 
 function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex: number): FlowContainerLocationInfo {
     const source = toRecord(locationInput)
     const materialized = fillDefaults('flow-container-location', source) as FlowContainerLocationInfo
+    const locationId = toNonEmptyString(source.id) ?? toNonEmptyString(materialized.id) ?? createBlockId('flow-location')
+    materialized.id = locationId
     if (!Object.prototype.hasOwnProperty.call(source, 'index') || source.index === null || source.index === undefined) {
         materialized.index = fallbackIndex
     }
@@ -195,7 +204,7 @@ function materializeInstanceData(rawData: unknown): Record<string, Record<string
 
 function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceRecord {
     const source = toRecord(instanceInput)
-    const materialized = fillDefaults('card-instance-record', source) as CardInstanceRecord
+    const materialized = fillDefaults('card-instance', source) as CardInstanceRecord
     const instanceId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId('instance')
@@ -206,6 +215,7 @@ function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceReco
 
     return {
         ...materialized,
+        type: 'card-instance',
         id: instanceId,
         name: instanceName,
         data: materializeInstanceData(source.data),
@@ -281,7 +291,9 @@ export function prepareDocumentForImport(
         ? source.instances as CardInstanceRecord[]
         : []
 
-    return {
+    // Keep unknown top-level fields from imported document, only normalize required document keys.
+    const normalizedDocument: Record<string, unknown> = {
+        ...source,
         type: 'card-document',
         id: documentId,
         width,
@@ -291,6 +303,8 @@ export function prepareDocumentForImport(
         children,
         instances,
     }
+
+    return normalizedDocument as CardDocument
 }
 
 // Render precheck: ensure renderer-facing structure is safe to traverse.
@@ -328,6 +342,7 @@ export type PropertyEditorRecord = Record<string, unknown> & {
 export type PropertyEditorInput = {
     key: string
     record: PropertyEditorRecord
+    title?: string
     override?: PropertyEditorSchemaOverride
 }
 
@@ -485,6 +500,7 @@ const maxReferenceDepth = 24
 // Default child placement for each container type.
 function createDefaultSimpleContainerLocation(): SimpleContainerLocationInfo {
     return {
+        id: createBlockId('simple-location'),
         type: 'simple-container-location',
         anchor: 'lt',
         x: 0,
@@ -494,6 +510,7 @@ function createDefaultSimpleContainerLocation(): SimpleContainerLocationInfo {
 
 function createDefaultFlowContainerLocation(container: FlowContainerBlock): FlowContainerLocationInfo {
     return {
+        id: createBlockId('flow-location'),
         type: 'flow-container-location',
         index: container.children.length,
     }
@@ -735,7 +752,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             kind: 'current-card',
             key: `card:${sourceCurrentCard.id || '__current-card__'}`,
             id: sourceCurrentCard.id || '__current-card__',
-            typeName: 'card-instance-record',
+            typeName: 'card-instance',
             source: sourceCurrentCard as unknown as Record<string, unknown>,
             target: targetCurrentCard as unknown as Record<string, unknown>,
             pathPrefix: '$.currentCard',
@@ -1113,12 +1130,12 @@ function normalizeLocationForContainer(
 ): SimpleContainerLocationInfo | FlowContainerLocationInfo {
     if (container.type === 'flow-container-block') {
         return location?.type === 'flow-container-location'
-            ? location
+            ? materializeFlowContainerLocation(location, location.index)
             : createDefaultFlowContainerLocation(container)
     }
 
     return location?.type === 'simple-container-location'
-        ? location
+        ? materializeSimpleContainerLocation(location)
         : createDefaultSimpleContainerLocation()
 }
 

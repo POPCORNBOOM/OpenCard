@@ -105,7 +105,6 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
         borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance' },
         background: { datatype: 'background', categoryId: 'appearance' },
         customCss: { datatype: 'string', categoryId: 'appearance' },
-        metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, categoryId: 'data' },
     }
 }
 
@@ -150,12 +149,14 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data' },
     },
     'simple-container-location': {
+        id: { datatype: 'string', isReadonly: true, categoryId: 'identity' },
         type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
         anchor: { datatype: 'anchorPosition', categoryId: 'position' },
         x: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
         y: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
     },
     'flow-container-location': {
+        id: { datatype: 'string', isReadonly: true, categoryId: 'identity' },
         type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
         index: { datatype: 'number', min: 0, categoryId: 'flow' },
         align: { datatype: 'alignPosition', categoryId: 'flow' },
@@ -163,18 +164,19 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     'card-document': {
         type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
         name: { datatype: 'string', categoryId: 'identity' },
-        id: { datatype: 'string', categoryId: 'identity' },
+        id: { datatype: 'string', categoryId: 'identity', isReadonly: true },
         version: { datatype: 'string', categoryId: 'identity' },
         width: { datatype: 'number', min: 0, categoryId: 'layout' },
         height: { datatype: 'number', min: 0, categoryId: 'layout' },
         children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data' },
         instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data' },
     },
-    'card-instance-record': {
-        id: { datatype: 'string', categoryId: 'identity' },
+    'card-instance': {
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        amount: { datatype: 'number', min: 0, categoryId: 'data' },
+        id: { datatype: 'string', categoryId: 'identity', isReadonly: true },
         name: { datatype: 'string', categoryId: 'identity' },
-        metadata: { datatype: 'object', objectType: 'metadata', isHidden: true, categoryId: 'data' },
-        data: { datatype: 'object', objectType: 'instanceData', categoryId: 'data' },
+        data: { datatype: 'object', objectType: 'instanceData', isHidden: true, categoryId: 'data' },
     },
 }
 
@@ -197,7 +199,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
-        metadata: {},
         content: '',
         mode: 'plain',
         fontSize: '',
@@ -226,7 +227,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
-        metadata: {},
         image: '',
         imagePath: '',
         fit: 'cover',
@@ -249,7 +249,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
-        metadata: {},
         children: [],
     },
     'flow-container-block': {
@@ -270,18 +269,19 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
-        metadata: {},
         direction: 'lr',
         gap: '10px',
         children: [],
     },
     'simple-container-location': {
+        id: '',
         type: 'simple-container-location',
         anchor: 'lt',
         x: '0px',
         y: '0px',
     },
     'flow-container-location': {
+        id: '',
         type: 'flow-container-location',
         index: 0,
         align: 'start',
@@ -296,11 +296,11 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         children: [],
         instances: [],
     },
-    'card-instance-record': {
+    'card-instance': {
+        type: 'card-instance',
+        amount: 1,
         id: '',
         name: '',
-        metadata: {},
-        data: {},
     },
 }
 

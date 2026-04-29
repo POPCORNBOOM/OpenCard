@@ -413,6 +413,7 @@ const {
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
 } = useCdePropertyPanelState({
+  cardDoc,
   selectedNode,
   selectedBlock,
   selectedCard,

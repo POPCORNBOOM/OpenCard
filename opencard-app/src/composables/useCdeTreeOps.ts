@@ -391,6 +391,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   ): SimpleContainerLocationInfo | FlowContainerLocationInfo {
     if (targetContainer.type === 'flow-container-block') {
       return {
+        id: `flow-location-${crypto.randomUUID()}`,
         type: 'flow-container-location',
         index: insertionIndex,
         align: location.type === 'flow-container-location' ? location.align : undefined,
@@ -398,10 +399,14 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     if (location.type === 'simple-container-location') {
-      return { ...location }
+      return {
+        ...location,
+        id: `simple-location-${crypto.randomUUID()}`,
+      }
     }
 
     return {
+      id: `simple-location-${crypto.randomUUID()}`,
       type: 'simple-container-location',
       anchor: 'lt',
       x: 0,
@@ -505,6 +510,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     if (targetContainer.type === 'flow-container-block') {
       const align = currentLocation?.type === 'flow-container-location' ? currentLocation.align : undefined
       return {
+        id: currentLocation?.id ?? `flow-location-${crypto.randomUUID()}`,
         type: 'flow-container-location',
         index: insertionIndex,
         align,
@@ -516,6 +522,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
 
     return {
+      id: `simple-location-${crypto.randomUUID()}`,
       type: 'simple-container-location',
       anchor: 'lt',
       x: 0,

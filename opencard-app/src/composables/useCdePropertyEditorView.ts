@@ -24,7 +24,7 @@ export type CdeAddableField = {
 }
 
 export type CdePropertyEditorCategory = {
-  sourceKey: string
+  inputKey: string
   key: string
   title: string
   entries: CdePropertyEditorEntry[]
@@ -44,20 +44,22 @@ type UseCdePropertyEditorViewOptions = {
   hasMessage: (messageKey: string) => boolean
 }
 
-const readonlyExtraFieldDefinition: EditorPropertyDefinition = {
+const extraFieldDefinition: EditorPropertyDefinition = {
   datatype: 'string',
-  isReadonly: true,
   categoryId: 'uncategorized',
 }
 
 export function useCdePropertyEditorView(options: UseCdePropertyEditorViewOptions) {
   const displaySources = computed<CdePropertyEditorSourceView[]>(() =>
     options.inputs.value
-      .map((source) => ({
-        key: source.key,
-        title: getSourceTitle(source.key, options),
-        categories: buildCategories(source, options),
-      }))
+      .map((source) => {
+        const sourceTitle = getSourceTitle(source)
+        return {
+          key: source.key,
+          title: sourceTitle,
+          categories: buildCategories(source, sourceTitle, options),
+        }
+      })
       .filter((source) => source.categories.length > 0)
   )
 
@@ -68,6 +70,7 @@ export function useCdePropertyEditorView(options: UseCdePropertyEditorViewOption
 
 function buildCategories(
   source: PropertyEditorInput,
+  sourceTitle: string,
   options: UseCdePropertyEditorViewOptions,
 ): CdePropertyEditorCategory[] {
   const definitions = resolveDefinitions(source.record, source.override)
@@ -81,7 +84,7 @@ function buildCategories(
         return null
       }
 
-      const resolvedDefinition = schemaDefinition ?? readonlyExtraFieldDefinition
+      const resolvedDefinition = schemaDefinition ?? extraFieldDefinition
       return createEntry(source.record, fieldKey, resolvedDefinition, options)
     })
     .filter((entry): entry is CdePropertyEditorEntry => entry !== null)
@@ -99,7 +102,7 @@ function buildCategories(
     const sortedAddableFields = sortAddableFields(addableFields)
     return sortedEntries.length > 0 || sortedAddableFields.length > 0
       ? [{
-        sourceKey: source.key,
+        inputKey: source.key,
         key: 'a-z',
         title: 'A-Z',
         entries: sortedEntries,
@@ -111,12 +114,12 @@ function buildCategories(
   const categoryMap = new Map<string, CdePropertyEditorCategory>()
 
   for (const entry of existingEntries) {
-    const category = ensureCategory(categoryMap, source.key, entry.definition, source.key, options)
+    const category = ensureCategory(categoryMap, source.key, entry.definition, sourceTitle, options)
     category.entries.push(entry)
   }
 
   for (const field of addableFields) {
-    const category = ensureCategory(categoryMap, source.key, field.definition, source.key, options)
+    const category = ensureCategory(categoryMap, source.key, field.definition, sourceTitle, options)
     category.addableFields.push(field)
   }
 
@@ -132,21 +135,21 @@ function buildCategories(
 
 function ensureCategory(
   categoryMap: Map<string, CdePropertyEditorCategory>,
-  sourceKey: string,
+  inputKey: string,
   definition: EditorPropertyDefinition,
-  sourceFallbackKey: string,
+  sourceTitle: string,
   options: UseCdePropertyEditorViewOptions,
 ): CdePropertyEditorCategory {
   const categoryId = definition.categoryId
-  const categoryKey = categoryId ? `category:${categoryId}` : `fallback:${sourceFallbackKey}`
+  const categoryKey = categoryId ? `category:${categoryId}` : `fallback:${sourceTitle}`
   const categoryTitle = categoryId
     ? resolveLocalizedText(`propertyEditor.categories.${categoryId}`, categoryId, options)
-    : getSourceTitle(sourceFallbackKey, options)
+    : sourceTitle
 
   let category = categoryMap.get(categoryKey)
   if (!category) {
     category = {
-      sourceKey,
+      inputKey,
       key: categoryKey,
       title: categoryTitle,
       entries: [],
@@ -172,8 +175,12 @@ function createEntry(
   }
 }
 
-function getSourceTitle(sourceKey: string, options: UseCdePropertyEditorViewOptions): string {
-  return resolveLocalizedText(`propertyEditor.sources.${sourceKey}`, sourceKey, options)
+function getSourceTitle(source: PropertyEditorInput): string {
+  if (source.title && source.title.trim().length > 0) {
+    return source.title
+  }
+
+  return source.key
 }
 
 function getEntryLabel(

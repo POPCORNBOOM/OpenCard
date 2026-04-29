@@ -1,9 +1,12 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import type {
   CardBlock,
+  CardDocument,
   CardInstanceRecord,
   CardTreeNodeMetadata,
+  FlowContainerLocationInfo,
   PropertyEditorInput,
+  SimpleContainerLocationInfo,
 } from '../entities/card/model'
 import {
   getDefault,
@@ -14,27 +17,23 @@ import type { TreeItem } from '../shared/ui/tree/tree.types'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
-export const CDE_PROPERTY_SOURCE_KEYS = {
-  block: 'block',
-  layout: 'layout',
-} as const
-
-export type CdePropertySourceKey = (typeof CDE_PROPERTY_SOURCE_KEYS)[keyof typeof CDE_PROPERTY_SOURCE_KEYS]
+type CardLocationInfo = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 export type CdePropertySortMode = 'category' | 'alphabetical'
 
 export type CdePropertyMutation = {
-  sourceKey: string
+  key: string
   fieldKey: string
   value: unknown
 }
 
 export type CdePropertyResetMutation = {
-  sourceKey: string
+  key: string
   fieldKey: string
 }
 
 type UseCdePropertyPanelStateOptions = {
+  cardDoc: Readonly<Ref<CardDocument | null>>
   selectedNode: Readonly<ComputedRef<TreeItem | null>>
   selectedBlock: Readonly<ComputedRef<CardBlock | null>>
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
@@ -45,18 +44,38 @@ type UseCdePropertyPanelStateOptions = {
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
 
-function isCdePropertySourceKey(sourceKey: string): sourceKey is CdePropertySourceKey {
-  return sourceKey === CDE_PROPERTY_SOURCE_KEYS.block || sourceKey === CDE_PROPERTY_SOURCE_KEYS.layout
-}
-
 export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOptions) {
-  const selectedLayout = computed<Record<string, unknown> | null>(() => {
+  const selectedDocumentEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
     options.documentRevision.value
-    const metadata = options.selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
-    return metadata?.location ? (metadata.location as Record<string, unknown>) : null
+    if (!options.cardDoc.value) {
+      return null
+    }
+
+    return resolveNulls(
+      'card-document',
+      options.cardDoc.value as unknown as Record<string, unknown>,
+    ) as Record<string, unknown> & { type?: string }
   })
 
-  const blockPropsView = computed<Record<string, unknown> & { type?: string } | null>(() => {
+  const selectedInstanceEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
+    options.documentRevision.value
+    if (options.selectedCardId.value === options.blueprintCardId || !options.selectedCard.value) {
+      return null
+    }
+
+    return resolveNulls(
+      'card-instance',
+      options.selectedCard.value as unknown as Record<string, unknown>,
+    ) as Record<string, unknown> & { type?: string }
+  })
+
+  const selectedLayout = computed<CardLocationInfo | null>(() => {
+    options.documentRevision.value
+    const metadata = options.selectedNode.value?.metadata as CardTreeNodeMetadata | undefined
+    return metadata?.location ?? null
+  })
+
+  const selectedBlockEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
     options.documentRevision.value
     const block = options.selectedBlock.value
     if (!block) {
@@ -103,24 +122,69 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
   const propertyInputs = computed<PropertyEditorInput[]>(() => {
     const inputs: PropertyEditorInput[] = []
+    const selectedBlock = options.selectedBlock.value
+    const layout = selectedLayout.value
+    const cardDoc = options.cardDoc.value
+    const selectedCard = options.selectedCard.value
 
-    if (blockPropsView.value) {
+    if (selectedBlockEditorRecord.value && selectedBlock) {
       inputs.push({
-        key: CDE_PROPERTY_SOURCE_KEYS.block,
-        record: blockPropsView.value,
+        key: selectedBlock.id,
+        title: selectedBlock.name?.trim() || selectedBlock.id,
+        record: selectedBlockEditorRecord.value,
         override: blockInputOverride.value,
       })
+      if (layout) {
+        inputs.push({
+          key: layout.id,
+          title: 'Layout',
+          record: layout as Record<string, unknown> & { type?: string },
+        })
+      }
+      return inputs
     }
-
-    if (selectedLayout.value) {
+    if (selectedInstanceEditorRecord.value && selectedCard) {
       inputs.push({
-        key: CDE_PROPERTY_SOURCE_KEYS.layout,
-        record: selectedLayout.value as Record<string, unknown> & { type?: string },
+        key: selectedCard.id,
+        title: '实例',
+        record: selectedInstanceEditorRecord.value,
       })
     }
+    if (selectedDocumentEditorRecord.value && cardDoc) {
+      inputs.push({
+        key: cardDoc.id,
+        title: '蓝图',
+        record: selectedDocumentEditorRecord.value,
+      })
+    }
+
+
 
     return inputs
   })
+
+  function isSelectedLayoutKey(key: string): boolean {
+    const layout = selectedLayout.value
+    return Boolean(layout && layout.id === key)
+  }
+
+  function isSelectedDocumentKey(key: string): boolean {
+    const cardDoc = options.cardDoc.value
+    return Boolean(cardDoc && cardDoc.id === key)
+  }
+
+  function isSelectedInstanceKey(key: string): boolean {
+    const selectedCard = options.selectedCard.value
+    if (!selectedCard || options.selectedCardId.value === options.blueprintCardId) {
+      return false
+    }
+    return selectedCard.id === key
+  }
+
+  function isSelectedBlockKey(key: string): boolean {
+    const block = options.selectedBlock.value
+    return Boolean(block && block.id === key)
+  }
 
   function updateLayoutField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
     const layout = selectedLayout.value
@@ -128,7 +192,31 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return false
     }
 
-    layout[fieldKey] = value
+    ; (layout as Record<string, unknown>)[fieldKey] = value
+    options.refreshDocumentState()
+    options.markDocumentChanged(mode)
+    return true
+  }
+
+  function updateDocumentField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    const cardDoc = options.cardDoc.value
+    if (!cardDoc) {
+      return false
+    }
+
+    ; (cardDoc as Record<string, unknown>)[fieldKey] = value
+    options.refreshDocumentState()
+    options.markDocumentChanged(mode)
+    return true
+  }
+
+  function updateInstanceField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    const selectedCard = options.selectedCard.value
+    if (!selectedCard || options.selectedCardId.value === options.blueprintCardId) {
+      return false
+    }
+
+    ; (selectedCard as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
     options.markDocumentChanged(mode)
     return true
@@ -170,16 +258,26 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function updateProperty({
-    sourceKey,
+    key,
     fieldKey,
     value,
   }: CdePropertyMutation) {
-    if (!isCdePropertySourceKey(sourceKey)) {
+    if (isSelectedLayoutKey(key)) {
+      updateLayoutField(fieldKey, value, 'typing')
       return
     }
 
-    if (sourceKey === CDE_PROPERTY_SOURCE_KEYS.layout) {
-      updateLayoutField(fieldKey, value, 'typing')
+    if (isSelectedDocumentKey(key)) {
+      updateDocumentField(fieldKey, value, 'typing')
+      return
+    }
+
+    if (isSelectedInstanceKey(key)) {
+      updateInstanceField(fieldKey, value, 'typing')
+      return
+    }
+
+    if (!isSelectedBlockKey(key)) {
       return
     }
 
@@ -191,16 +289,26 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function addProperty({
-    sourceKey,
+    key,
     fieldKey,
     value,
   }: CdePropertyMutation) {
-    if (!isCdePropertySourceKey(sourceKey)) {
+    if (isSelectedLayoutKey(key)) {
+      updateLayoutField(fieldKey, value, 'action')
       return
     }
 
-    if (sourceKey === CDE_PROPERTY_SOURCE_KEYS.layout) {
-      updateLayoutField(fieldKey, value, 'action')
+    if (isSelectedDocumentKey(key)) {
+      updateDocumentField(fieldKey, value, 'action')
+      return
+    }
+
+    if (isSelectedInstanceKey(key)) {
+      updateInstanceField(fieldKey, value, 'action')
+      return
+    }
+
+    if (!isSelectedBlockKey(key)) {
       return
     }
 
@@ -220,9 +328,45 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     const layoutType = typeof layout.type === 'string' ? layout.type : undefined
     const defaultValue = getDefault(layoutType, fieldKey)
     if (defaultValue === undefined) {
-      delete layout[fieldKey]
+      delete (layout as Record<string, unknown>)[fieldKey]
     } else {
-      layout[fieldKey] = defaultValue
+      ; (layout as Record<string, unknown>)[fieldKey] = defaultValue
+    }
+
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
+  function resetDocumentField(fieldKey: string): boolean {
+    const cardDoc = options.cardDoc.value
+    if (!cardDoc) {
+      return false
+    }
+
+    const defaultValue = getDefault('card-document', fieldKey)
+    if (defaultValue === undefined) {
+      delete (cardDoc as Record<string, unknown>)[fieldKey]
+    } else {
+      ; (cardDoc as Record<string, unknown>)[fieldKey] = defaultValue
+    }
+
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
+  function resetInstanceField(fieldKey: string): boolean {
+    const selectedCard = options.selectedCard.value
+    if (!selectedCard || options.selectedCardId.value === options.blueprintCardId) {
+      return false
+    }
+
+    const defaultValue = getDefault('card-instance', fieldKey)
+    if (defaultValue === undefined) {
+      delete (selectedCard as Record<string, unknown>)[fieldKey]
+    } else {
+      ; (selectedCard as Record<string, unknown>)[fieldKey] = defaultValue
     }
 
     options.refreshDocumentState()
@@ -264,19 +408,27 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function resetProperty({
-    sourceKey,
+    key,
     fieldKey,
   }: CdePropertyResetMutation) {
-    if (!isCdePropertySourceKey(sourceKey)) {
-      return
-    }
-
-    if (sourceKey === CDE_PROPERTY_SOURCE_KEYS.layout) {
+    if (isSelectedLayoutKey(key)) {
       resetLayoutField(fieldKey)
       return
     }
 
-    resetBlockField(fieldKey)
+    if (isSelectedDocumentKey(key)) {
+      resetDocumentField(fieldKey)
+      return
+    }
+
+    if (isSelectedInstanceKey(key)) {
+      resetInstanceField(fieldKey)
+      return
+    }
+
+    if (isSelectedBlockKey(key)) {
+      resetBlockField(fieldKey)
+    }
   }
 
   return {

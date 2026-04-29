@@ -203,6 +203,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     const nextIndex = (options.cardDoc.value.instances?.length ?? 0) + 1
     const nextInstance: CardInstanceRecord = {
+      type: 'card-instance',
       id: `instance-${crypto.randomUUID()}`,
       amount: 1,
       name: `新实例 ${nextIndex}`,
@@ -228,6 +229,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     const rawInstance = toRaw(sourceInstance)
     const duplicatedInstance: CardInstanceRecord = {
       ...structuredClone(rawInstance),
+      type: 'card-instance',
       id: `instance-${crypto.randomUUID()}`,
       name: `${sourceInstance.name} 副本`
     }

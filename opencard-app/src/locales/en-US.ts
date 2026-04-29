@@ -51,6 +51,8 @@ export default {
     sources: {
       block: 'Block',
       layout: 'Layout',
+      document: 'Document',
+      instance: 'Instance',
     },
     actions: {
       addField: 'Add Field',

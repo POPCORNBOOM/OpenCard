@@ -42,12 +42,12 @@
                   <OcButton v-if="entry.definition.resettable" class="reset-field-button" icon-only size="sm"
                     variant="secondary" :title="resetFieldActionText"
                     :aria-label="`${resetFieldActionText}: ${entry.label}`"
-                    @click.stop="emitResetProperty(category.sourceKey, entry.key)">
+                    @click.stop="emitResetProperty(category.inputKey, entry.key)">
                     <OcIcon name="action.discard" size="sm" />
                   </OcButton>
                   <component :is="getEditorComponent(entry.definition.datatype)" :definition="entry.definition"
                     :value="entry.value"
-                    @update:value="emit('update-property', { sourceKey: category.sourceKey, fieldKey: entry.key, value: $event })" />
+                    @update:value="emit('update-property', { key: category.inputKey, fieldKey: entry.key, value: $event })" />
                 </div>
               </OcPropertyRow>
             </template>
@@ -96,13 +96,13 @@ import OcCard from '../base/OcCard.vue'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
-  sourceKey: string
+  key: string
   fieldKey: string
   value: unknown
 }
 
 type PropertyEditorResetMutation = {
-  sourceKey: string
+  key: string
   fieldKey: string
 }
 
@@ -194,7 +194,7 @@ function openAddFieldMenu(event: MouseEvent, category: CdePropertyEditorCategory
       }
 
       emit('add-property', {
-        sourceKey: category.sourceKey,
+        key: category.inputKey,
         fieldKey: field.key,
         value: createDefaultValue(field.definition),
       })
@@ -202,8 +202,8 @@ function openAddFieldMenu(event: MouseEvent, category: CdePropertyEditorCategory
   })
 }
 
-function emitResetProperty(sourceKey: string, fieldKey: string): void {
-  emit('reset-property', { sourceKey, fieldKey })
+function emitResetProperty(key: string, fieldKey: string): void {
+  emit('reset-property', { key, fieldKey })
 }
 
 // 字段默认值策略。

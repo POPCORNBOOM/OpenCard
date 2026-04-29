@@ -3,6 +3,7 @@
   "version": 1,
   "width": 320,
   "height": 500,
+  "test": "red",
   "children": [
     {
       "location": {
