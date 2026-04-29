@@ -18,11 +18,9 @@
     </div>
 
     <div v-if="isRootExpanded" class="oc-tree__children" role="group">
-      <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node"
-        :class="resolveNodeContainerClass(entry.node)">
-        <OcBar hoverable border="none" tone="transparent" padding="none"
-          :class="['oc-tree__node-content', resolveNodeContentClass(entry.node)]"
-          :style="{ paddingLeft: `${entry.level * 12}px` }" :data-tree-node-key="entry.node.key" role="treeitem"
+      <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node">
+        <OcBar kind="tree" layout="leading-append" hoverable :state="resolveNodeBarState(entry.node)"
+          :indent="entry.level * 12" :data-tree-node-key="entry.node.key" role="treeitem"
           tabindex="0" :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
           :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
           @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
@@ -33,15 +31,17 @@
               data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
             <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
           </template>
-          <OcText truncate v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
-            @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
-            {{ entry.node.name }}
-          </OcText>
+          <template #title>
+            <OcText truncate v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
+              @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
+              {{ entry.node.name }}
+            </OcText>
 
-          <OcFieldInput v-else as="input" class="oc-tree__rename-input" type="text" :value="renameDraft"
-            :data-tree-rename-input="entry.node.key" data-tree-interactive="true" @mousedown.stop @dblclick.stop
-            @click.stop @input="handleRenameInput" @keydown="handleRenameKeydown($event, entry.node)"
-            @blur="cancelNodeRename" />
+            <OcFieldInput v-else as="input" class="oc-tree__rename-input" type="text" :value="renameDraft"
+              :data-tree-rename-input="entry.node.key" data-tree-interactive="true" @mousedown.stop @dblclick.stop
+              @click.stop @input="handleRenameInput" @keydown="handleRenameKeydown($event, entry.node)"
+              @blur="cancelNodeRename" />
+          </template>
 
           <template v-if="enableActions && resolveNodeActions(entry.node).length" #append-hover>
             <div class="oc-tree__node-actions">
@@ -712,24 +712,34 @@ function handleGlobalMouseUp(): void {
   handleNodeDragEnd()
 }
 
-function resolveNodeContentClass(node: TreeItem) {
+function resolveNodeBarState(node: TreeItem): 'default' | 'selected' | 'dragging' | 'drop-before' | 'drop-inside' | 'drop-after' | 'drop-invalid' {
   const isActiveTarget = dropTargetNode.value?.key === node.key
-  return {
-    selected: isSelected(node),
-    dragging: draggedNode.value?.key === node.key,
-    'drop-before': isActiveTarget && dropPosition.value === 'before',
-    'drop-inside': isActiveTarget && dropPosition.value === 'inside',
-    'drop-after': isActiveTarget && dropPosition.value === 'after',
-    'drop-invalid': isActiveTarget && !dropAllowed.value,
-  }
-}
 
-function resolveNodeContainerClass(node: TreeItem) {
-  const isActiveTarget = dropTargetNode.value?.key === node.key
-  return {
-    'drop-inside-target': isActiveTarget && dropPosition.value === 'inside' && dropAllowed.value,
-    'drop-inside-invalid': isActiveTarget && dropPosition.value === 'inside' && !dropAllowed.value,
+  if (isActiveTarget && !dropAllowed.value) {
+    return 'drop-invalid'
   }
+
+  if (isActiveTarget && dropPosition.value === 'before') {
+    return 'drop-before'
+  }
+
+  if (isActiveTarget && dropPosition.value === 'inside') {
+    return 'drop-inside'
+  }
+
+  if (isActiveTarget && dropPosition.value === 'after') {
+    return 'drop-after'
+  }
+
+  if (draggedNode.value?.key === node.key) {
+    return 'dragging'
+  }
+
+  if (isSelected(node)) {
+    return 'selected'
+  }
+
+  return 'default'
 }
 
 onMounted(() => {
@@ -815,59 +825,6 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-.oc-tree__node.drop-inside-target {
-  background: linear-gradient(180deg, var(--oc-bg-accent-tint-strong), var(--oc-bg-accent-tint-soft));
-  border-radius: 4px;
-}
-
-.oc-tree__node.drop-inside-invalid {
-  background: linear-gradient(180deg, var(--oc-bg-danger-tint-strong), var(--oc-bg-danger-tint-soft));
-  border-radius: 4px;
-}
-
-.oc-tree__node-content {
-  height: var(--oc-block-md);
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-  padding: var(--oc-space-1) var(--oc-space-2);
-  cursor: pointer;
-  font-size: var(--oc-body-size);
-}
-
-.oc-tree__node-content:hover {
-  background: var(--oc-bg-hover);
-}
-
-.oc-tree__node-content:focus-visible {
-  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
-  outline-offset: -1px;
-}
-
-.oc-tree__node-content.selected {
-  background: var(--oc-bg-selected);
-}
-
-.oc-tree__node-content.dragging {
-  opacity: 0.45;
-}
-
-.oc-tree__node-content.drop-before {
-  box-shadow: inset 0 2px 0 var(--oc-bg-accent);
-}
-
-.oc-tree__node-content.drop-inside {
-  background: var(--oc-bg-accent-soft);
-}
-
-.oc-tree__node-content.drop-after {
-  box-shadow: inset 0 -2px 0 var(--oc-bg-accent);
-}
-
-.oc-tree__node-content.drop-invalid {
-  box-shadow: inset 0 0 0 1px var(--oc-danger);
-}
-
 .oc-tree__chevron {
   flex-shrink: 0;
 }
@@ -887,14 +844,7 @@ onBeforeUnmount(() => {
 
 .oc-tree__node-actions {
   display: flex;
-  visibility: hidden;
   gap: var(--oc-space-1);
   margin-right: var(--oc-space-1);
-}
-
-.oc-tree__node-content:hover .oc-tree__node-actions,
-.oc-tree__node-content:focus-within .oc-tree__node-actions,
-.oc-tree__node-actions:hover {
-  visibility: visible;
 }
 </style>

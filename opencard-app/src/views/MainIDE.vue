@@ -66,7 +66,7 @@
       </OcPanel>
     </div>
 
-    <OcBar as="footer" class="main-status-bar" tone="elevated" border="none" padding="none">
+    <OcBar kind="status">
       <template #title>
         <OcChip v-if="projectPath" icon="status.folder-open" icon-tone="muted" truncate max-width="full">
           {{ projectPath }}
@@ -522,15 +522,6 @@ function handleTabClose(payload: { key: string }) {
   overflow: hidden;
 }
 
-
-.main-status-bar {
-  --oc-bar-min-height: 24px;
-  --oc-bar-gap: 10px;
-  --oc-bar-padding: 0 14px;
-  border-top: 1px solid var(--oc-border-strong);
-  color: var(--oc-text-secondary);
-  font-size: 12px;
-}
 
 .editor-workbench-frame__workbench> :deep(*) {
   flex: 1 1 auto;

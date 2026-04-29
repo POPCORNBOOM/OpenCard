@@ -16,25 +16,11 @@
   <div class="property-editor">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
-      <OcCard v-for="source in displaySources" :key="source.key" :title="source.title" density="none" border="none"
-        tone="transparent">
+      <OcCard v-for="source in displaySources" :key="source.key" variant="plain" :level="0" :title="source.title">
         <template #content>
-          <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
-            <template #title>
-              <OcBar class="property-editor__category-bar" tone="transparent" border="none" padding="none"
-                :title="category.title">
-                <template #append>
-                  <div v-if="category.addableFields.length > 0" class="add-field-menu">
-                    <OcChip>{{ category.addableFields.length }}</OcChip>
-                    <OcButton class="add-field-button" icon-only size="sm" variant="secondary"
-                      :title="addFieldActionText" :aria-label="addFieldActionText"
-                      @click="openAddFieldMenu($event, category)">
-                      <OcIcon name="action.add" size="sm" />
-                    </OcButton>
-                  </div>
-                </template>
-              </OcBar>
-            </template>
+          <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`" variant="panel" :level="0"
+            :title="category.title" :actions="resolveCategoryCardActions(category)"
+            @action="handleCategoryCardAction($event, category)">
             <template #content>
               <OcPropertyRow v-for="entry in category.entries" :key="`${source.key}:${category.key}:${entry.key}`"
                 :label="entry.label" :label-icon="getEditorIconClass(entry.definition.datatype)">
@@ -88,11 +74,10 @@ import {
   type CdePropertyEditorCategory,
 } from '../../composables/useCdePropertyEditorView'
 import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelState'
-import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import { OcBar, OcButton, OcChip, OcEmpty, OcPropertyRow } from '../base'
+import { OcButton, OcEmpty, OcPropertyRow } from '../base'
 import OcIcon from '../base/OcIcon.vue'
-import OcCard from '../base/OcCard.vue'
+import OcCard, { type OcCardActionDefinition } from '../base/OcCard.vue'
 
 // 输出事件协议。
 type PropertyEditorMutation = {
@@ -137,7 +122,6 @@ const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
   object: { component: ObjectPropertyField, icon: 'data.symbol-class' },
 }
 
-const { openMenu } = useFloatingMenu()
 const { t, te } = useI18n()
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
@@ -171,34 +155,35 @@ function getEditorIconClass(datatype: PropertyDatatype): IconToken {
 }
 
 // 添加字段与重置交互。
-function openAddFieldMenu(event: MouseEvent, category: CdePropertyEditorCategory): void {
-  const anchor = event.currentTarget
-  if (!(anchor instanceof HTMLElement)) {
+function resolveCategoryCardActions(category: CdePropertyEditorCategory): OcCardActionDefinition[] {
+  if (category.addableFields.length === 0) {
+    return []
+  }
+
+  return [
+    {
+      key: 'add-property',
+      icon: 'action.add',
+      title: `${addFieldActionText.value} (${category.addableFields.length})`,
+      children: category.addableFields.map((field) => ({
+        key: field.key,
+        title: field.label,
+        icon: getEditorIconClass(field.definition.datatype),
+      })),
+    },
+  ]
+}
+
+function handleCategoryCardAction(payload: { actionKey: string }, category: CdePropertyEditorCategory): void {
+  const field = category.addableFields.find((candidate) => candidate.key === payload.actionKey)
+  if (!field) {
     return
   }
 
-  const items: FloatingMenuItem[] = category.addableFields.map((field) => ({
-    key: field.key,
-    label: field.label,
-    icon: getEditorIconClass(field.definition.datatype),
-  }))
-
-  openMenu({
-    anchor,
-    items,
-    placement: 'bottom-end',
-    onSelect: (fieldKey) => {
-      const field = category.addableFields.find((candidate) => candidate.key === fieldKey)
-      if (!field) {
-        return
-      }
-
-      emit('add-property', {
-        key: category.inputKey,
-        fieldKey: field.key,
-        value: createDefaultValue(field.definition),
-      })
-    },
+  emit('add-property', {
+    key: category.inputKey,
+    fieldKey: field.key,
+    value: createDefaultValue(field.definition),
   })
 }
 
@@ -244,12 +229,6 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   line-height: 1.4;
 }
 
-.add-field-menu {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-}
-
 .entry-control {
   flex: 1;
   min-width: 0;
@@ -258,7 +237,6 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   gap: var(--oc-space-2);
 }
 
-.add-field-button,
 .reset-field-button {
   flex-shrink: 0;
 }
@@ -269,9 +247,4 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   color: var(--oc-text-secondary);
 }
 
-.property-editor__category-bar {
-  --oc-bar-min-height: 24px;
-  padding-bottom: var(--oc-space-1);
-  border-bottom: 1px solid var(--oc-border-strong);
-}
 </style>

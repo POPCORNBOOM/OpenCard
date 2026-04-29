@@ -15,8 +15,8 @@
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
     <OcOverlay inset="default">
-      <OcPanel class="card-design-editor__viewport-host" fill position="relative" :interaction="panelPointerEvents"
-        tone="transparent" border="none" padding="none">
+      <OcPanel fill position="relative" :interaction="panelPointerEvents" tone="transparent" border="none"
+        padding="none" overflow-x="clip" overflow-y="clip">
         <CardViewport v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
           :restore-key="props.filePath" :initial-transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
@@ -33,17 +33,8 @@
             <OcPanel tone="transparent" radius="none" border="none" fill padding="none" horizontal-alignment="stretch">
               <OcTrackLayout fill axis="vertical" :regions="leftPanelTrackRegions">
                 <template #card-panel>
-                  <OcCard elevation="lg" radius="lg" fill title="卡牌树" tone="glass" overflow-x="clip" overflow-y="clip">
-                    <template #append>
-                      <OcToolbar kind="panel" :shrink="true" aria-label="实例操作">
-                        <OcToolButton kind="panel" icon-only icon="action.add" title="新建实例" aria-label="新建实例"
-                          @click="triggerInstanceAction('add-instance')" />
-                        <OcToolButton kind="panel" icon-only icon="action.copy" title="复制实例" aria-label="复制实例"
-                          :disabled="!canMutateSelectedInstance" @click="triggerInstanceAction('duplicate-instance')" />
-                        <OcToolButton kind="panel" icon-only icon="action.delete" title="删除实例" aria-label="删除实例"
-                          :disabled="!canMutateSelectedInstance" @click="triggerInstanceAction('delete-instance')" />
-                      </OcToolbar>
-                    </template>
+                  <OcCard variant="glass" :level="1" fit-y="region" title="卡牌树" :actions="instanceCardActions"
+                    @action="handleInstanceCardAction">
                     <template #content>
                       <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto"
                         horizontal-alignment="stretch">
@@ -55,26 +46,26 @@
                   </OcCard>
                 </template>
                 <template #preview-panel>
-                  <OcCard elevation="lg" fill radius="lg" title="预览" tone="glass" density="none" overflow-x="clip"
-                    overflow-y="clip">
-                    <OcPanel horizontal-alignment="stretch" fill radius="none" tone="transparent" border="none"
-                      elevation="lg" background="checker" padding="none">
-                      <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host">
-                        <div class="card-design-editor__transform-preview-viewport"
-                          :style="transformPreviewViewportStyle">
-                          <CardRenderer :document="viewDoc" :clip-to-document="true"
-                            :style="transformPreviewRendererStyle" />
+                  <OcCard variant="glass" :level="1" fit-y="region" title="预览">
+                    <template #content>
+                      <OcPanel horizontal-alignment="stretch" fill radius="none" tone="transparent" border="none"
+                        elevation="lg" background="checker" padding="none">
+                        <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host">
+                          <div class="card-design-editor__transform-preview-viewport"
+                            :style="transformPreviewViewportStyle">
+                            <CardRenderer :document="viewDoc" :clip-to-document="true"
+                              :style="transformPreviewRendererStyle" />
+                          </div>
                         </div>
-                      </div>
-                    </OcPanel>
-
+                      </OcPanel>
+                    </template>
                   </OcCard>
                 </template>
               </OcTrackLayout>
             </OcPanel>
           </template>
           <template #left-position>
-            <OcCard radius="lg" tone="glass" elevation="lg" overflow-x="clip" overflow-y="clip">
+            <OcCard fit-y="content" variant="glass" :level="1">
               <template #content>
                 <OcText> x: {{
                   Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
@@ -90,7 +81,7 @@
               <OcTrackLayout fill axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
                 <template #tree-panel>
-                  <OcCard elevation="lg" radius="lg" fill title="结构树" tone="glass">
+                  <OcCard variant="glass" :level="1" fit-y="region" title="结构树">
                     <template #content>
                       <OcPanel horizontal-alignment="stretch" fill tone="transparent" border="none" padding="none"
                         overflow-x="clip" overflow-y="auto">
@@ -104,17 +95,8 @@
                   </OcCard>
                 </template>
                 <template #property-panel>
-                  <OcCard elevation="lg" radius="lg" fill title="属性" tone="glass">
-                    <template #actions>
-                      <OcToolbar kind="panel" :shrink="false" aria-label="Property sort tools">
-                        <OcToolButton kind="panel" icon-only icon="data.list-tree"
-                          :active="propertySortMode === 'category'" title="Category" aria-label="Category"
-                          @click="propertySortMode = 'category'" />
-                        <OcToolButton kind="panel" icon-only icon="data.symbol-string"
-                          :active="propertySortMode === 'alphabetical'" title="A-Z" aria-label="A-Z"
-                          @click="propertySortMode = 'alphabetical'" />
-                      </OcToolbar>
-                    </template>
+                  <OcCard variant="glass" :level="1" fit-y="region" title="属性" :actions="propertyCardActions"
+                    @action="handlePropertyCardAction">
                     <template #content>
                       <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto">
                         <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode"
@@ -153,8 +135,7 @@ import PropertyEditor from './PropertyEditor.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcOverlay from '../base/OcOverlay.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
-import { OcList, OcToolButton, OcTree } from '../standard'
-import OcToolbar from '../base/OcToolbar.vue'
+import { OcList, OcTree } from '../standard'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
@@ -170,7 +151,7 @@ import {
 } from '../../shared/ui/foundation/tokenRegistry'
 import type { ActionDefinition } from '../../shared/ui/tree/tree.types'
 import OcText from '../base/OcText.vue'
-import OcCard from '../base/OcCard.vue'
+import OcCard, { type OcCardActionDefinition } from '../base/OcCard.vue'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -377,12 +358,70 @@ const canMutateSelectedInstance = computed(() =>
   Boolean(selectedInstanceNode.value && selectedInstanceNode.value.key !== BLUEPRINT_CARD_ID),
 )
 
+const instanceCardActions = computed<OcCardActionDefinition[]>(() => [
+  {
+    key: 'add-instance',
+    icon: 'action.add',
+    title: '新建实例',
+  },
+  {
+    key: 'duplicate-instance',
+    icon: 'action.copy',
+    title: '复制实例',
+    disabled: !canMutateSelectedInstance.value,
+  },
+  {
+    key: 'delete-instance',
+    icon: 'action.delete',
+    title: '删除实例',
+    disabled: !canMutateSelectedInstance.value,
+  },
+])
+
+const propertyCardActions = computed<OcCardActionDefinition[]>(() => [
+  {
+    key: 'sort-category',
+    icon: 'data.list-tree',
+    title: 'Category',
+    disabled: propertySortMode.value === 'category',
+  },
+  {
+    key: 'sort-alphabetical',
+    icon: 'data.symbol-string',
+    title: 'A-Z',
+    disabled: propertySortMode.value === 'alphabetical',
+  },
+])
+
 function triggerInstanceAction(actionKey: 'add-instance' | 'duplicate-instance' | 'delete-instance') {
   handleInstanceTreeAction({
     actionKey,
     caller: 'tree',
     node: selectedInstanceNode.value ?? undefined,
   })
+}
+
+function handleInstanceCardAction(payload: { actionKey: string }) {
+  if (
+    payload.actionKey !== 'add-instance' &&
+    payload.actionKey !== 'duplicate-instance' &&
+    payload.actionKey !== 'delete-instance'
+  ) {
+    return
+  }
+
+  triggerInstanceAction(payload.actionKey)
+}
+
+function handlePropertyCardAction(payload: { actionKey: string }) {
+  if (payload.actionKey === 'sort-category') {
+    propertySortMode.value = 'category'
+    return
+  }
+
+  if (payload.actionKey === 'sort-alphabetical') {
+    propertySortMode.value = 'alphabetical'
+  }
 }
 
 // 结构树与块编辑协议。
@@ -667,12 +706,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.card-design-editor__viewport-host {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .card-design-editor__viewport {
   flex: 1 1 auto;
   min-width: 0;

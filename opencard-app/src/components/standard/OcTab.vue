@@ -3,9 +3,8 @@
   <section class="oc-tab" :class="{ 'is-fill': props.fill }">
     <div v-if="tabs.length > 0" class="oc-tab__bar" role="tablist" aria-orientation="horizontal" :aria-label="ariaLabel"
       @keydown="handleBarKeydown">
-      <OcBar class="oc-tab__tab" height="size-xs" max-width="size-2xl" v-for="tab in tabs" :key="tab.key" padding="none"
-        radius="none" border="none" :tone="resolveTabTone(tab)" :hoverable="resolveTabHoverable(tab)"
-        :interaction="resolveTabInteraction(tab)" :style="resolveTabStyle(tab)" :icon="tab.icon" :title="tab.label"
+      <OcBar v-for="tab in tabs" :key="tab.key" kind="tab" layout="leading-append" :active="isActive(tab)"
+        :disabled="!isEnabled(tab)" :hoverable="resolveTabHoverable(tab)" :icon="tab.icon" :title="tab.label"
         :data-oc-tab-key="tab.key" role="tab" :tabindex="resolveTabIndex(tab)"
         :aria-selected="isActive(tab) ? 'true' : 'false'" :aria-disabled="tab.disabled ? 'true' : undefined"
         @click="handleTabClick(tab)">
@@ -30,7 +29,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import type { OcPanelInteraction, OcPanelTone } from '../base/OcPanel.vue'
 import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
 import OcPanel from '../base/OcPanel.vue'
@@ -97,31 +95,8 @@ function isClosable(tab: OcTabItem): boolean {
   return tab.closable !== false
 }
 
-function resolveTabTone(tab: OcTabItem): OcPanelTone {
-  if (isActive(tab)) {
-    return 'base'
-  }
-  if (!isEnabled(tab)) {
-    return 'elevated'
-  }
-  return 'panel'
-}
-
 function resolveTabHoverable(tab: OcTabItem): boolean {
   return isEnabled(tab) && !isActive(tab)
-}
-
-function resolveTabInteraction(tab: OcTabItem): OcPanelInteraction {
-  return isEnabled(tab) ? 'auto' : 'passthrough'
-}
-
-function resolveTabStyle(tab: OcTabItem): Record<string, string> | undefined {
-  if (!isEnabled(tab)) {
-    return {
-      color: 'var(--oc-text-disabled)',
-    }
-  }
-  return undefined
 }
 
 function resolveFirstEnabledTabKey(): string | null {
@@ -270,21 +245,6 @@ function handleBarKeydown(event: KeyboardEvent): void {
 
 .oc-tab__bar::-webkit-scrollbar-track {
   background: transparent;
-}
-
-.oc-tab__tab {
-  min-width: 0;
-}
-
-.oc-tab__tab:focus-visible {
-  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
-  outline-offset: -2px;
-  position: relative;
-  z-index: 1;
-}
-
-.oc-tab__tab[aria-selected='true'] {
-  border-bottom-color: var(--oc-bg-base);
 }
 
 .oc-tab__tab-dirty-mark {

@@ -126,19 +126,35 @@ const iconStyle = computed(() => ({
   overflow: visible;
 }
 
+.oc-icon.codicon[class*='codicon-'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--oc-icon-size);
+  line-height: 1;
+}
+
+.oc-icon.codicon[class*='codicon-']::before {
+  display: block;
+  line-height: 1;
+}
+
 .oc-icon--sm {
+  --oc-icon-size: 12px;
   font-size: 12px;
   width: 12px;
   height: 12px;
 }
 
 .oc-icon--md {
+  --oc-icon-size: 14px;
   font-size: 14px;
   width: 14px;
   height: 14px;
 }
 
 .oc-icon--lg {
+  --oc-icon-size: 18px;
   font-size: 18px;
   width: 18px;
   height: 18px;

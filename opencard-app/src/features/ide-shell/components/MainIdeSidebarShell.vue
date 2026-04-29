@@ -17,22 +17,24 @@
     </template>
 
     <template #panel>
-      <OcCard fill>
-        <OcPanel orientation="vertical" tone="transparent" border="none" padding="none" overflow-x="clip"
-          overflow-y="auto">
-          <div v-if="activeView === 'files'" class="main-ide-sidebar-shell__files">
-            <slot name="files" />
-          </div>
+      <OcCard variant="panel" :level="0">
+        <template #content>
+          <OcPanel orientation="vertical" tone="transparent" border="none" padding="none" overflow-x="clip"
+            overflow-y="auto">
+            <div v-if="activeView === 'files'" class="main-ide-sidebar-shell__files">
+              <slot name="files" />
+            </div>
 
-          <OcEmpty v-else-if="activeView === 'git'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
-            {{ t('panels.gitPlaceholder') }}
-          </OcEmpty>
+            <OcEmpty v-else-if="activeView === 'git'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
+              {{ t('panels.gitPlaceholder') }}
+            </OcEmpty>
 
-          <OcEmpty v-else-if="activeView === 'publish'" align="start" inset="none"
-            class="main-ide-sidebar-shell__empty">
-            {{ t('panels.publishPlaceholder') }}
-          </OcEmpty>
-        </OcPanel>
+            <OcEmpty v-else-if="activeView === 'publish'" align="start" inset="none"
+              class="main-ide-sidebar-shell__empty">
+              {{ t('panels.publishPlaceholder') }}
+            </OcEmpty>
+          </OcPanel>
+        </template>
       </OcCard>
     </template>
   </OcSidebarFrame>

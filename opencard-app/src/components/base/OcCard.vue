@@ -1,182 +1,228 @@
-<!-- Base 卡片容器：只负责 title/content 双区块结构，不承载业务状态。 -->
+<!-- Base 语义卡片：统一图标标题头部、声明式动作协议与内容承载布局。 -->
 <template>
-  <OcPanel class="oc-card" v-bind="rootBindings" orientation="vertical" horizontal-alignment="stretch"
-    vertical-alignment="start">
-    <header v-if="hasHeader" class="oc-card__title" :class="{ 'oc-card__title--with-divider': !props.collapsed }"
-      :style="densityPaddingStyle">
-      <div v-if="hasTitle" class="oc-card__title-main">
-        <slot name="title">{{ props.title }}</slot>
-      </div>
-      <div v-if="$slots.append || $slots['append-hover']" class="oc-card__append" :class="{
-        'has-hover-slot': Boolean($slots['append-hover']),
-      }">
-        <div v-if="$slots.append" class="oc-card__append-default">
-          <slot name="append" />
-        </div>
-        <div v-if="$slots['append-hover']" class="oc-card__append-hover">
-          <slot name="append-hover" />
-        </div>
-      </div>
-    </header>
+  <OcPanel class="oc-card" :width="props.fitX === 'region' ? 'full' : 'auto'"
+    :height="props.fitY === 'region' ? 'full' : 'auto'" :grow="props.fitY === 'region'" orientation="vertical"
+    horizontal-alignment="stretch" vertical-alignment="start" :tone="surfacePreset.tone" :border="surfacePreset.border"
+    :radius="surfacePreset.radius" :elevation="surfacePreset.elevation" padding="none" overflow-x="clip"
+    overflow-y="clip">
+    <div v-if="hasHeader" class="oc-card__header-shell" :class="{ 'is-collapsed': collapsed }" :style="headerStyle">
+      <OcBar kind="card" layout="leading-append" :icon="props.icon" :title="props.title">
+        <template v-if="defaultActionDefinitions.length > 0" #append>
+          <OcButton v-for="action in defaultActionDefinitions" :key="action.key" variant="ghost" size="sm" radius="sm"
+            icon-only :icon="action.icon" :title="action.title" :aria-label="action.title ?? action.key"
+            :disabled="action.disabled === true" @click.stop="handleActionClick(action, $event)" />
+        </template>
 
-    <OcPanel v-if="!props.collapsed" as="section" class="oc-card__content" tone="transparent" border="none"
-      radius="none" elevation="none" :padding="densityPadding" orientation="vertical" horizontal-alignment="stretch"
-      vertical-alignment="start" :grow="props.fill">
-      <slot name="content">
-        <slot />
-      </slot>
+        <template v-if="hoverActionDefinitions.length > 0" #append-hover>
+          <OcButton v-for="action in hoverActionDefinitions" :key="action.key" variant="ghost" size="sm" radius="sm"
+            icon-only :icon="action.icon" :title="action.title" :aria-label="action.title ?? action.key"
+            :disabled="action.disabled === true" @click.stop="handleActionClick(action, $event)" />
+        </template>
+      </OcBar>
+    </div>
+
+    <OcPanel v-if="!collapsed" as="section" class="oc-card__content" :grow="props.fitY === 'region'" tone="transparent"
+      border="none" radius="none" elevation="none" padding="standard" orientation="vertical"
+      horizontal-alignment="stretch" vertical-alignment="start">
+      <slot name="content" />
     </OcPanel>
   </OcPanel>
 </template>
 
 <script setup lang="ts">
-import { computed, type CSSProperties, type PropType, useAttrs, useSlots } from 'vue'
-import OcPanel, { type OcPanelPadding, type OcPanelProps, ocPanelProps } from './OcPanel.vue'
+import { computed, type CSSProperties } from 'vue'
+import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import OcBar from './OcBar.vue'
+import OcButton from './OcButton.vue'
+import OcPanel, {
+  type OcPanelBorder,
+  type OcPanelElevation,
+  type OcPanelRadius,
+  type OcPanelTone,
+} from './OcPanel.vue'
 
-const OC_CARD_DENSITIES = [
-  'none',
-  'compact',
-  'standard',
-] as const
+const OC_CARD_VARIANTS = ['plain', 'panel', 'glass'] as const
+const OC_CARD_LEVELS = [0, 1, 2] as const
+const OC_CARD_AXIS_FITS = ['content', 'region'] as const
+const OC_CARD_ACTION_REVEALS = ['always', 'hover'] as const
 
-export type OcCardDensity = (typeof OC_CARD_DENSITIES)[number]
+type OcCardVariant = (typeof OC_CARD_VARIANTS)[number]
+type OcCardLevel = (typeof OC_CARD_LEVELS)[number]
+type OcCardAxisFit = (typeof OC_CARD_AXIS_FITS)[number]
+type OcCardActionReveal = (typeof OC_CARD_ACTION_REVEALS)[number]
+
+export interface OcCardActionDefinition {
+  key: string
+  icon: IconToken
+  title?: string
+  disabled?: boolean
+  children?: OcCardActionDefinition[]
+}
+
+interface OcCardProps {
+  /** 卡片视觉变体。 */
+  variant?: OcCardVariant
+  /** 卡片层级语义。 */
+  level?: OcCardLevel
+  /** 横轴适配语义。 */
+  fitX?: OcCardAxisFit
+  /** 纵轴适配语义。 */
+  fitY?: OcCardAxisFit
+  /** 头部图标 token。 */
+  icon?: IconToken
+  /** 卡片标题文案。 */
+  title?: string
+  /** 头部动作定义（支持 children 子菜单）。 */
+  actions?: readonly OcCardActionDefinition[]
+  /** 动作显示策略。 */
+  actionReveal?: OcCardActionReveal
+  /** 是否折叠内容区。 */
+  collapsed?: boolean
+}
+
+interface OcCardEmits {
+  /** 卡片动作触发时抛出 action key。 */
+  action: [payload: { actionKey: string }]
+}
+
+interface CardSurfacePreset {
+  tone: OcPanelTone
+  border: OcPanelBorder
+  radius: OcPanelRadius
+  elevation: OcPanelElevation
+}
 
 defineOptions({
   name: 'OcCard',
   inheritAttrs: false,
 })
 
-const props = defineProps({
-  ...ocPanelProps,
-  /** 卡片标题文案。 */
-  title: {
-    type: String,
-    default: undefined,
-  },
-  /** 是否折叠内容区。true 时仅保留标题区。 */
-  collapsed: {
-    type: Boolean,
-    default: false,
-  },
-  padding: {
-    type: String as PropType<OcPanelPadding>,
-    default: 'none',
-  },
-  /** 内容区内边距密度。 */
-  density: {
-    type: String as PropType<OcCardDensity>,
-    default: 'standard',
-  },
+const props = withDefaults(defineProps<OcCardProps>(), {
+  variant: 'plain',
+  level: 0,
+  fitX: 'region',
+  fitY: 'content',
+  icon: undefined,
+  title: undefined,
+  actions: () => [],
+  actionReveal: 'always',
+  collapsed: false,
 })
 
-const attrs = useAttrs()
-const slots = useSlots()
-type MutableOcPanelProps = { -readonly [Key in keyof OcPanelProps]: OcPanelProps[Key] }
-const panelPropKeys = Object.keys(ocPanelProps) as Array<keyof OcPanelProps>
-const lockedPanelPropKeys = new Set<keyof OcPanelProps>([
-  'orientation',
-  'horizontalAlignment',
-  'verticalAlignment',
-])
+const emit = defineEmits<OcCardEmits>()
+const { openMenu } = useFloatingMenu()
 
-const panelPropBindings = computed<Partial<MutableOcPanelProps>>(() => {
-  const bindings: Record<string, unknown> = {}
-  for (const key of panelPropKeys) {
-    if (lockedPanelPropKeys.has(key)) {
-      continue
-    }
-    bindings[key] = props[key]
-  }
-  return bindings as Partial<MutableOcPanelProps>
-})
-const rootBindings = computed<Record<string, unknown>>(() => ({
-  ...panelPropBindings.value,
-  ...attrs,
-}))
+const collapsed = computed(() => props.collapsed)
+const actionDefinitions = computed(() => props.actions)
 
-const hasTitle = computed(() => Boolean(props.title) || Boolean(slots.title))
-const hasHeader = computed(() =>
-  hasTitle.value || Boolean(slots.append) || Boolean(slots['append-hover']),
+const hasIcon = computed(() => Boolean(props.icon))
+const hasTitle = computed(() => Boolean(props.title))
+const hasConfiguredActions = computed(() => actionDefinitions.value.length > 0)
+const defaultActionDefinitions = computed(() =>
+  props.actionReveal === 'always' ? actionDefinitions.value : [],
 )
-const densityPaddingValue = computed(() => {
-  if (props.density === 'none') {
-    return 'var(--oc-padding-none)'
-  }
-  if (props.density === 'compact') {
-    return 'var(--oc-padding-compact)'
+const hoverActionDefinitions = computed(() =>
+  props.actionReveal === 'hover' ? actionDefinitions.value : [],
+)
+
+const hasHeader = computed(() =>
+  hasIcon.value || hasTitle.value || hasConfiguredActions.value,
+)
+
+const surfacePreset = computed<CardSurfacePreset>(() => {
+  const resolvedLevel = Math.max(0, Math.min(2, props.level)) as OcCardLevel
+  const elevationByLevel: Record<OcCardLevel, OcPanelElevation> = {
+    0: 'none',
+    1: 'md',
+    2: 'lg',
   }
 
-  return 'var(--oc-padding-standard)'
-})
-const densityPadding = computed<OcPanelPadding>(() => {
-  if (props.density === 'none') {
-    return 'none'
-  }
-  if (props.density === 'compact') {
-    return 'compact'
+  if (props.variant === 'glass') {
+    return {
+      tone: 'glass',
+      border: resolvedLevel >= 2 ? 'black' : 'soft',
+      radius: 'lg',
+      elevation: elevationByLevel[resolvedLevel],
+    }
   }
 
-  return 'standard'
+  if (props.variant === 'panel') {
+    return {
+      tone: 'panel',
+      border: resolvedLevel >= 2 ? 'black' : 'soft',
+      radius: 'lg',
+      elevation: elevationByLevel[resolvedLevel],
+    }
+  }
+
+  return {
+    tone: 'transparent',
+    border: 'none',
+    radius: 'lg',
+    elevation: elevationByLevel[resolvedLevel],
+  }
 })
-const densityPaddingStyle = computed<CSSProperties>(() => ({
-  '--oc-card-density-padding': densityPaddingValue.value,
+
+const headerStyle = computed<CSSProperties>(() => ({
+  '--oc-card-divider-color':
+    props.variant === 'plain'
+      ? 'var(--oc-border-subtle)'
+      : 'var(--oc-panel-border, var(--oc-border-overlay-soft))',
 }))
+
+function toFloatingMenuItems(actions: readonly OcCardActionDefinition[]): FloatingMenuItem[] {
+  return actions.map((action) => ({
+    key: action.key,
+    label: action.title ?? action.key,
+    icon: action.icon,
+    disabled: action.disabled,
+  }))
+}
+
+function emitAction(actionKey: string): void {
+  emit('action', { actionKey })
+}
+
+function handleActionClick(action: OcCardActionDefinition, event: MouseEvent): void {
+  if (action.disabled) {
+    return
+  }
+
+  if (action.children?.length) {
+    if (import.meta.env.DEV && action.children.some((child) => child.children?.length)) {
+      console.warn('[OcCard] Floating menu supports one action.children level. Flatten nested children. ')
+    }
+
+    const anchor = event.currentTarget
+    if (!(anchor instanceof HTMLElement)) {
+      return
+    }
+
+    openMenu({
+      anchor,
+      items: toFloatingMenuItems(action.children),
+      placement: 'bottom-end',
+      onSelect: (actionKey) => emitAction(actionKey),
+    })
+    return
+  }
+
+  emitAction(action.key)
+}
 </script>
 
 <style scoped>
-.oc-card__title {
-  min-height: var(--oc-block-lg);
-  padding: var(--oc-padding-standard);
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-  color: var(--oc-text-primary);
-  font-size: var(--oc-title-size);
-  font-weight: 600;
-  flex: 0 0 auto;
+.oc-card__header-shell {
+  border-bottom: var(--oc-thickness-1) solid var(--oc-card-divider-color);
 }
 
-.oc-card__title-main {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-}
-
-.oc-card__append {
-  margin-left: auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-
-.oc-card__append-default,
-.oc-card__append-hover {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-}
-
-.oc-card__append.has-hover-slot .oc-card__append-hover {
-  display: none;
-}
-
-.oc-card:hover .oc-card__append.has-hover-slot .oc-card__append-default {
-  display: none;
-}
-
-.oc-card:hover .oc-card__append.has-hover-slot .oc-card__append-hover {
-  display: inline-flex;
-}
-
-.oc-card__title--with-divider {
-  border-bottom: var(--oc-thickness-1) solid var(--oc-panel-border, var(--oc-border-overlay-soft));
+.oc-card__header-shell.is-collapsed {
+  border-bottom-width: 0;
 }
 
 .oc-card__content {
+  min-height: 0;
   gap: var(--oc-space-2);
 }
 </style>

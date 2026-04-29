@@ -1,7 +1,7 @@
 <!-- 组件实验页：用单一 OcPanel 可视化验证 V2.2+ 语义与交互效果。 -->
 <template>
   <main class="playground-page">
-    <OcBar class="playground-top-bar" tone="elevated" border="none" padding="none" title="OpenCard Playground">
+    <OcBar kind="top" title="OpenCard Playground">
       <template #append>
         <OcButton variant="ghost" @click="goToIde">Back To IDE</OcButton>
       </template>
@@ -109,17 +109,17 @@
               :hoverable="hoverable" padding="standard">
               <OcText size="label" tone="muted">OcBar Showcase</OcText>
               <OcPanel class="playground-bar-showcase" tone="transparent" border="soft" radius="sm" padding="compact">
-                <OcBar tone="elevated" border="none" icon="data.list-tree" title="Top Bar">
+                <OcBar kind="top" icon="data.list-tree" title="Top Bar">
                   <template #append>
                     <OcButton variant="ghost" icon="action.refresh">Refresh</OcButton>
                   </template>
                 </OcBar>
-                <OcBar tone="transparent" border="none" icon="data.symbol-string" title="Section Bar">
+                <OcBar kind="section" icon="data.symbol-string" title="Section Bar">
                   <template #append>
                     <OcButton variant="ghost" icon-only icon="tool.settings-gear" title="Settings" />
                   </template>
                 </OcBar>
-                <OcBar tone="elevated" border="none" icon="tool.search" title="Status Bar">
+                <OcBar kind="status" icon="tool.search" title="Status Bar">
                   <OcText tone="secondary" size="label">Ready</OcText>
                   <template #append>
                     <OcText tone="secondary" size="label">Ln 12, Col 8</OcText>
@@ -308,13 +308,6 @@ function goToIde(): void {
   flex-direction: column;
   background: var(--oc-bg-base);
   color: var(--oc-text-primary);
-}
-
-.playground-top-bar {
-  --oc-bar-min-height: 52px;
-  --oc-bar-gap: 18px;
-  --oc-bar-padding: 0 18px;
-  border-bottom: 1px solid var(--oc-border-strong);
 }
 
 .playground-layout {

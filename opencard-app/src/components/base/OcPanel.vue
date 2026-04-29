@@ -1,7 +1,6 @@
 <!-- Base 统一面板容器：合并表面渲染、布局语义与双轴溢出策略。 -->
 <template>
-  <component :is="as" class="oc-panel" :class="[panelClass, attrs.class]" :style="[panelStyle, attrs.style]"
-    v-bind="forwardedAttrs">
+  <component :is="as" class="oc-panel" :class="panelClass" :style="panelStyle" v-bind="forwardedAttrs">
     <slot />
   </component>
 </template>
@@ -60,7 +59,7 @@ export const ocPanelProps = {
   /** 子项间距语义。 */
   gap: {
     type: String as PropType<OcPanelGap>,
-    default: 'space-2',
+    default: 'none',
   },
   /** 主布局方向。 */
   orientation: {
@@ -173,7 +172,7 @@ export type OcPanelProps = Readonly<ExtractPropTypes<typeof ocPanelProps>>
 </script>
 
 <script setup lang="ts">
-import { computed, useAttrs } from 'vue'
+import { computed, useAttrs, watchEffect } from 'vue'
 import type { CSSProperties } from 'vue'
 import { resolveOcGapToken } from '../../shared/ui/foundation/tokenRegistry'
 
@@ -191,6 +190,25 @@ const forwardedAttrs = computed(() => {
   const { class: _class, style: _style, ...restAttrs } = attrs
   return restAttrs
 })
+
+if (import.meta.env.DEV) {
+  const hasExternalClass = computed(() => attrs.class !== undefined)
+  const hasExternalStyle = computed(() => attrs.style !== undefined)
+
+  watchEffect(() => {
+    if (!hasExternalClass.value && !hasExternalStyle.value) {
+      return
+    }
+
+    console.warn(
+      '[OcPanel] External class/style attrs are ignored. Use semantic props instead.',
+      {
+        hasClass: hasExternalClass.value,
+        hasStyle: hasExternalStyle.value,
+      },
+    )
+  })
+}
 
 const effectiveAnchor = computed<OcPanelAnchor>(() =>
   props.position === 'static' ? 'none' : props.anchor,
