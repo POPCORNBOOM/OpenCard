@@ -135,6 +135,7 @@ function toHexColor(value: string): string | null {
 }
 
 .oc-color-field__preview {
+  box-sizing: border-box;
   width: var(--oc-space-4);
   height: var(--oc-space-4);
   min-width: var(--oc-space-4);

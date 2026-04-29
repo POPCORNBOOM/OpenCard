@@ -123,6 +123,7 @@ function handleChange(event: Event): void {
 }
 
 .oc-checkbox__control {
+  box-sizing: border-box;
   width: 14px;
   height: 14px;
   flex-shrink: 0;

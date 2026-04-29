@@ -238,6 +238,7 @@ function wrapUrl(value: string): string {
 }
 
 .preview {
+  box-sizing: border-box;
   height: 28px;
   border: 1px solid var(--oc-border-input);
   background-image:

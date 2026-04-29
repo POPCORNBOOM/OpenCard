@@ -15,7 +15,7 @@ import {
   type CardInstanceRecord,
   type ReferenceResolveIssue,
 } from '../../../entities/card/model'
-import { resolveFileType } from '../../workspace/model/fileTypes'
+import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
 
@@ -173,7 +173,7 @@ export function useIdeExport(options: UseIdeExportOptions) {
   const exportCardDoc = ref<CardDocument | null>(null)
 
   const canExportActiveCard = computed(() =>
-    Boolean(options.activeSession.value) && resolveFileType(options.activeSession.value!.path).id === 'opencard'
+    Boolean(options.activeSession.value) && resolveFileTypeById(options.activeSession.value!.fileTypeId).id === 'opencard'
   )
 
   function getActiveCardExportContext(): CardExportContext | null {
@@ -183,7 +183,7 @@ export function useIdeExport(options: UseIdeExportOptions) {
       return null
     }
 
-    if (resolveFileType(session.path).id !== 'opencard') {
+    if (resolveFileTypeById(session.fileTypeId).id !== 'opencard') {
       console.error('当前活动文件不是 .opencard')
       return null
     }

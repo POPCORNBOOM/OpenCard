@@ -19,6 +19,7 @@
 
     <template #append>
       <OcToolbar kind="menu" :shrink="false" aria-label="Workspace actions">
+        <OcToolButton block kind="menu" :label="t('app.menu.newOpenCard')" @click="emit('newOpenCard')" />
         <OcToolButton block kind="menu" :label="themeButtonLabel" @click="emit('toggleTheme')" />
         <OcToolButton block kind="menu" label="Playground" @click="emit('openPlayground')" />
         <OcToolButton block kind="menu" :label="t('app.menu.export2x')" :disabled="!canExportActiveCard"
@@ -49,6 +50,8 @@ interface MainIdeTopBarProps {
 }
 
 interface MainIdeTopBarEmits {
+  /** 请求创建一个未保存的 OpenCard 会话。 */
+  newOpenCard: []
   /** 请求切换主题（dark/light）。 */
   toggleTheme: []
   /** 请求打开组件 Playground 页面。 */

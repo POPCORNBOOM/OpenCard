@@ -14,7 +14,8 @@
   <div class="ide-layout">
     <MainIdeTopBar :project-name="projectName" :current-theme="currentTheme"
       :can-export-active-card="canExportActiveCard" @toggle-theme="toggleTheme" @open-playground="openPlayground"
-      @export-active-card2x="exportActiveCard2x" @export-all-card-views="exportAllCardViews" />
+      @export-active-card2x="exportActiveCard2x" @export-all-card-views="exportAllCardViews"
+      @new-open-card="createUntitledOpenCard" />
 
     <div class="main-container">
       <MainIdeSidebarShell :active-view="activeView" @update:active-view="activeView = $event">
@@ -105,7 +106,7 @@ import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload 
 import { getOcTheme, setOcTheme, type OcThemeId } from '../shared/ui/foundation'
 import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
-import { resolveFileType } from '../features/workspace/model/fileTypes'
+import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 import { useIdeFileTree } from '../features/ide-shell/composables/useIdeFileTree'
 
@@ -148,7 +149,7 @@ const {
   openFile: openEditorSession,
   openPreviewFile,
   activateSession,
-  activatePath,
+  createUntitledSession,
   updateDraftContent,
   setSessionDirtyState,
   updateSessionUiState,
@@ -156,8 +157,6 @@ const {
   saveActiveSession,
   remapSessionPaths,
 } = useEditorSessionStore()
-
-const activeSessionPath = computed(() => activeSession.value?.path ?? null)
 
 const {
   canExportActiveCard,
@@ -182,9 +181,9 @@ const {
   projectPath,
   indexedEntries,
   openedFileNodes,
-  activeSessionPath,
+  activeSession,
   isDirectoryExpanded,
-  activatePath,
+  activateSession,
   openPreviewFile,
 })
 
@@ -193,19 +192,31 @@ const projectName = computed(() => {
   return projectPath.value.split(/[/\\]/).pop() || ''
 })
 
+function resolveSessionFileType(session: { fileTypeId: string; path: string | null }) {
+  const fileTypeFromId = resolveFileTypeById(session.fileTypeId)
+  if (!session.path) {
+    return fileTypeFromId
+  }
+
+  const fileTypeFromPath = resolveFileType(session.path)
+  return fileTypeFromPath.id === session.fileTypeId
+    ? fileTypeFromPath
+    : fileTypeFromId
+}
+
 const currentLanguage = computed(() => {
   if (!activeSession.value) return ''
-  return resolveFileType(activeSession.value.path).language ?? 'plaintext'
+  return resolveSessionFileType(activeSession.value).language ?? 'plaintext'
 })
 
 const currentLanguageIcon = computed(() => {
   if (!activeSession.value) return 'file.code'
-  return resolveFileType(activeSession.value.path).icon ?? 'file.code'
+  return resolveSessionFileType(activeSession.value).icon ?? 'file.code'
 })
 
 const currentLanguageIconTone = computed(() => {
   if (!activeSession.value) return 'muted'
-  return resolveFileType(activeSession.value.path).iconTone ?? 'muted'
+  return resolveSessionFileType(activeSession.value).iconTone ?? 'muted'
 })
 
 const hasActiveSession = computed(() => Boolean(activeSession.value))
@@ -213,7 +224,7 @@ const hasActiveSession = computed(() => Boolean(activeSession.value))
 
 const ideTabs = computed(() =>
   sessions.value.map((session) => {
-    const fileType = resolveFileType(session.path)
+    const fileType = resolveSessionFileType(session)
     return {
       key: session.id,
       label: session.name,
@@ -235,7 +246,7 @@ const currentEditorKey = computed(() => {
   if (!activeSession.value) return 'none'
   return [
     activeSession.value.id,
-    activeSession.value.path,
+    activeSession.value.path ?? `untitled://${activeSession.value.id}`,
     activeSession.value.editorId,
   ].join('|')
 })
@@ -248,11 +259,12 @@ const currentEditorProps = computed(() => {
     return {}
   }
 
-  const fileType = resolveFileType(activeSession.value.path)
+  const fileType = resolveSessionFileType(activeSession.value)
+  const filePath = activeSession.value.path ?? `untitled://${activeSession.value.id}`
   const editor = editorRegistry.getEditor(fileType.editorId)
   if (editor && editor.id !== 'monaco') {
     const baseProps = {
-      filePath: activeSession.value.path,
+      filePath,
       modelValue: activeSession.value.draftContent,
       'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     }
@@ -318,6 +330,12 @@ async function openProject() {
 
 }
 
+function createUntitledOpenCard() {
+  createUntitledSession({
+    fileTypeId: 'opencard',
+  })
+}
+
 async function handleOpenFile(path: string) {
   try {
     await openEditorSession(path)
@@ -366,8 +384,7 @@ function handleEditorModified(modified: boolean) {
 }
 
 async function triggerCurrentEditorSave() {
-  const currentPath = activeSession.value?.path
-  if (!currentPath) {
+  if (!activeSession.value) {
     return
   }
 
@@ -420,6 +437,12 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   const key = event.key.toLowerCase()
+  if (key === 'n') {
+    event.preventDefault()
+    createUntitledOpenCard()
+    return
+  }
+
   if (key === 's') {
     event.preventDefault()
     await triggerCurrentEditorSave()

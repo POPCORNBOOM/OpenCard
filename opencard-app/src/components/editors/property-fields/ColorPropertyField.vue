@@ -81,6 +81,7 @@ function toHexColor(value: string): string | null {
 }
 
 .color-preview {
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
   border: 1px solid var(--oc-border-input);

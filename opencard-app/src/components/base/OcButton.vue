@@ -1,14 +1,7 @@
 <!-- Base 按钮组件：独立实现按钮语义、状态管理与表面绘制，不依赖 shared primitives。 -->
 <template>
-  <button
-    class="oc-base-button"
-    :class="[buttonClass, attrs.class]"
-    :style="[buttonStyle, attrs.style]"
-    :type="type"
-    :disabled="disabled"
-    v-bind="forwardedAttrs"
-    @click="emit('click', $event)"
-  >
+  <button class="oc-base-button" :class="[buttonClass, attrs.class]" :style="[buttonStyle, attrs.style]" :type="type"
+    :disabled="disabled" v-bind="forwardedAttrs" @click="emit('click', $event)">
     <span class="oc-base-button__surface" :class="surfaceClass">
       <OcIcon v-if="icon && iconPosition === 'left'" class="oc-base-button__icon" :name="icon" :size="iconSize" />
       <span v-if="!isIconOnly" class="oc-base-button__label">
@@ -227,6 +220,7 @@ const buttonClass = computed(() => [
 }
 
 .oc-base-button__surface {
+  box-sizing: border-box;
   min-width: 0;
   width: 100%;
   display: inline-flex;
@@ -321,5 +315,4 @@ const buttonClass = computed(() => [
   --oc-button-fg: var(--oc-accent-contrast);
   --oc-button-active-fg: var(--oc-accent-contrast);
 }
-
 </style>

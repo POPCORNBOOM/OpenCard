@@ -5,6 +5,7 @@ export default {
       edit: 'Edit',
       view: 'View',
       help: 'Help',
+      newOpenCard: 'New OpenCard',
       export2x: 'Test Export 2x',
       exportAll: 'Export All',
     },

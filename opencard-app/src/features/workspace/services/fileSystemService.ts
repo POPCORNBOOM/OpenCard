@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只负责 IO 适配 不处理路径合法性业务规则
  */
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import {
   readTextFile,
   writeTextFile,
@@ -19,6 +19,12 @@ import { invoke } from '@tauri-apps/api/core'
 
 export interface FileSystemService {
   openProject(): Promise<string | null>
+  pickSavePath(options: {
+    defaultPath: string
+    fileTypeName?: string
+    extensions?: string[]
+    title?: string
+  }): Promise<string | null>
   readFile(path: string): Promise<string>
   writeFile(path: string, content: string): Promise<void>
   deleteFile(path: string): Promise<void>
@@ -44,6 +50,23 @@ class FileSystemServiceImpl implements FileSystemService {
 
   async readFile(path: string): Promise<string> {
     return await readTextFile(path)
+  }
+
+  async pickSavePath(options: {
+    defaultPath: string
+    fileTypeName?: string
+    extensions?: string[]
+    title?: string
+  }): Promise<string | null> {
+    const selected = await save({
+      defaultPath: options.defaultPath,
+      title: options.title,
+      filters: options.extensions && options.extensions.length > 0
+        ? [{ name: options.fileTypeName ?? 'File', extensions: options.extensions }]
+        : undefined,
+    })
+
+    return selected as string | null
   }
 
   async writeFile(path: string, content: string): Promise<void> {

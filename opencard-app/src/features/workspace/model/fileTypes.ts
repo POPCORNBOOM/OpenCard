@@ -244,6 +244,15 @@ export function resolveFileType(path: string): FileTypeDefinition {
   return defaultFileType
 }
 
+export function resolveFileTypeById(fileTypeId: string | null | undefined): FileTypeDefinition {
+  if (!fileTypeId) {
+    return defaultFileType
+  }
+
+  const fileType = fileTypes.find((definition) => definition.id === fileTypeId)
+  return fileType ?? defaultFileType
+}
+
 export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIconPresentation {
   const baseName = normalizeSegment(getBaseName(path))
   const iconSet = directoryIcons[baseName]

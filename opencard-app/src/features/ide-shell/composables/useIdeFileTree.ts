@@ -7,6 +7,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { TreeItem } from '../../../shared/ui/tree/tree.types'
+import type { EditorSession } from '../../workspace/store/editorSessionStore'
 
 type IndexedEntry = {
   name: string
@@ -17,9 +18,9 @@ type UseIdeFileTreeOptions = {
   projectPath: Readonly<Ref<string>>
   indexedEntries: Readonly<Ref<readonly IndexedEntry[]>>
   openedFileNodes: Readonly<Ref<TreeItem[]>>
-  activeSessionPath: Readonly<Ref<string | null>>
+  activeSession: Readonly<Ref<EditorSession | null>>
   isDirectoryExpanded: (path: string) => boolean
-  activatePath: (path: string) => void
+  activateSession: (sessionId: string) => void
   openPreviewFile: (path: string) => Promise<unknown>
 }
 
@@ -106,26 +107,31 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
     return null
   }
 
-  function syncSelectionFromActiveSession(path: string | null) {
-    if (!path) {
+  function syncSelectionFromActiveSession(session: EditorSession | null) {
+    if (!session) {
       openedEditorSelectedKeys.value = []
       selectedFileKeys.value = []
       return
     }
 
-    const normalizedPath = normalizeIdePath(path)
-    const openedEditorNode = options.openedFileNodes.value.find((node) => normalizeIdePath(node.key) === normalizedPath)
+    const openedEditorNode = options.openedFileNodes.value.find((node) => node.key === session.id)
     openedEditorSelectedKeys.value = openedEditorNode ? [openedEditorNode.key] : []
 
+    if (session.resourceKind !== 'workspace' || !session.path) {
+      selectedFileKeys.value = []
+      return
+    }
+
+    const normalizedPath = normalizeIdePath(session.path)
     const projectTreeNode = findTreeNodeByKey(fileTree.value, normalizedPath)
     selectedFileKeys.value = projectTreeNode ? [projectTreeNode.key] : []
   }
 
   function handleOpenedEditorsSelect(nextSelectedKeys: string[]) {
     openedEditorSelectedKeys.value = nextSelectedKeys
-    const selectedPath = nextSelectedKeys[0]
-    if (selectedPath) {
-      options.activatePath(selectedPath)
+    const selectedSessionId = nextSelectedKeys[0]
+    if (selectedSessionId) {
+      options.activateSession(selectedSessionId)
     }
   }
 
@@ -148,9 +154,9 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
   }
 
   watch(
-    () => options.activeSessionPath.value,
-    (path) => {
-      syncSelectionFromActiveSession(path)
+    () => options.activeSession.value,
+    (session) => {
+      syncSelectionFromActiveSession(session)
     },
     { immediate: true },
   )

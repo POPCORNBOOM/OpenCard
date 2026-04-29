@@ -735,6 +735,7 @@ watch(
 }
 
 .selection-handle {
+  box-sizing: border-box;
   position: absolute;
   width: 10px;
   height: 10px;

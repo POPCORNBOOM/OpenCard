@@ -59,6 +59,7 @@ const chipClass = computed(() => [
 
 <style scoped>
 .oc-chip {
+  box-sizing: border-box;
   min-width: 0;
   display: inline-flex;
   align-items: center;

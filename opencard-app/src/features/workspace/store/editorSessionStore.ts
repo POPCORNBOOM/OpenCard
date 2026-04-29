@@ -1,17 +1,23 @@
 /**
  * 模块说明：
- * - 维护编辑会话状态 包括活动会话 草稿 脏状态与预览会话语义
+ * - 维护编辑会话状态 包括活动会话 草稿 脏状态 预览语义 与无地址会话保存流程
  * 职责边界：
  * - 只管理会话真相 不处理文件系统目录索引
  */
 import { computed, readonly, ref } from 'vue'
 import type { TreeItem } from '../../../shared/ui/tree/tree.types'
-import { resolveEntryIcon, resolveFileType } from '../model/fileTypes'
+import { resolveEntryIcon, resolveFileType, resolveFileTypeById } from '../model/fileTypes'
+import { fileSystemService } from '../services/fileSystemService'
 import { useProjectStore } from './projectStore'
+
+export type SessionResourceKind = 'workspace' | 'external' | 'untitled'
+export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
 
 export type EditorSession = {
   id: string
-  path: string
+  resourceKind: SessionResourceKind
+  path: string | null
+  fileTypeId: string
   name: string
   editorId: string
   savedContent: string
@@ -33,6 +39,12 @@ export type EditorSessionUiState = {
   }
 }
 
+type CreateUntitledSessionOptions = {
+  fileTypeId?: string
+  name?: string
+  content?: string
+}
+
 const sessions = ref<EditorSession[]>([])
 const activeSessionId = ref<string>('')
 
@@ -52,8 +64,64 @@ function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
   return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
 }
 
+function isPathInsideProject(path: string, projectPath: string) {
+  if (!projectPath) {
+    return false
+  }
+
+  return isSameOrDescendantPath(path, projectPath)
+}
+
+function stripFileExtension(fileName: string) {
+  const dotIndex = fileName.lastIndexOf('.')
+  return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+}
+
+function createDefaultOpenCardContent(displayName: string) {
+  const documentName = stripFileExtension(displayName) || 'UNTITLED'
+  return JSON.stringify({
+    type: 'card-document',
+    id: `card-document-${crypto.randomUUID()}`,
+    name: documentName,
+    version: '1.0.0',
+    width: 540,
+    height: 850,
+    children: [],
+    instances: [],
+  }, null, 2)
+}
+
+function buildUntitledName(fileTypeId: string, existingNames: string[]) {
+  const fileType = resolveFileTypeById(fileTypeId)
+  const extension = fileType.extensions?.[0]
+  const suffix = extension ? `.${extension}` : ''
+  const lowerCaseNames = new Set(existingNames.map((name) => name.toLowerCase()))
+
+  let index = 1
+  while (true) {
+    const candidate = index === 1
+      ? `UNTITLED${suffix}`
+      : `UNTITLED-${index}${suffix}`
+    if (!lowerCaseNames.has(candidate.toLowerCase())) {
+      return candidate
+    }
+    index += 1
+  }
+}
+
+function resolveSessionFileType(session: EditorSession) {
+  if (session.path) {
+    const fileTypeFromPath = resolveFileType(session.path)
+    if (!session.fileTypeId || fileTypeFromPath.id === session.fileTypeId) {
+      return fileTypeFromPath
+    }
+  }
+
+  return resolveFileTypeById(session.fileTypeId)
+}
+
 export function useEditorSessionStore() {
-  const { readFile, saveFile } = useProjectStore()
+  const { projectPath, readFile, saveFile } = useProjectStore()
 
   const activeSession = computed(() =>
     sessions.value.find((session) => session.id === activeSessionId.value) ?? null
@@ -61,9 +129,13 @@ export function useEditorSessionStore() {
 
   const openedFileNodes = computed<TreeItem[]>(() =>
     sessions.value.map((session) => {
-      const entryIcon = resolveEntryIcon(session.path, false)
+      const fileType = resolveSessionFileType(session)
+      const entryIcon = session.resourceKind === 'workspace' && session.path
+        ? resolveEntryIcon(session.path, false)
+        : { icon: fileType.icon, tone: fileType.iconTone }
+
       return {
-        key: session.path,
+        key: session.id,
         name: session.isDirty ? `${session.name} *` : session.name,
         isExpandable: false,
         icon: entryIcon.icon,
@@ -108,7 +180,9 @@ export function useEditorSessionStore() {
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
+      resourceKind: 'workspace',
       path: normalizedPath,
+      fileTypeId: fileType.id,
       name: getPathBasename(normalizedPath),
       editorId: fileType.editorId,
       savedContent: content,
@@ -132,6 +206,30 @@ export function useEditorSessionStore() {
 
   async function openPreviewFile(path: string) {
     return await openSession(path, { preview: true })
+  }
+
+  function createUntitledSession(options: CreateUntitledSessionOptions = {}) {
+    const fileTypeId = options.fileTypeId ?? 'opencard'
+    const fileType = resolveFileTypeById(fileTypeId)
+    const name = options.name ?? buildUntitledName(fileTypeId, sessions.value.map((session) => session.name))
+    const content = options.content ?? (fileType.id === 'opencard' ? createDefaultOpenCardContent(name) : '')
+
+    const session: EditorSession = {
+      id: crypto.randomUUID(),
+      resourceKind: 'untitled',
+      path: null,
+      fileTypeId: fileType.id,
+      name,
+      editorId: fileType.editorId,
+      savedContent: content,
+      draftContent: content,
+      isDirty: false,
+      isPreview: false,
+    }
+
+    sessions.value = [...sessions.value, session]
+    activeSessionId.value = session.id
+    return session
   }
 
   function activateSession(sessionId: string) {
@@ -223,47 +321,96 @@ export function useEditorSessionStore() {
     activeSessionId.value = fallbackSession?.id ?? ''
   }
 
-  async function saveSession(sessionId: string) {
+  async function writeContentByResourceKind(resourceKind: SessionResourceKind, path: string, content: string) {
+    if (resourceKind === 'workspace') {
+      await saveFile(path, content)
+      return
+    }
+
+    await fileSystemService.writeFile(path, content)
+  }
+
+  async function saveSession(sessionId: string): Promise<SessionSaveResult> {
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
-      return
+      return 'skipped'
     }
 
     if (session.editorId === 'image-preview') {
-      return
+      return 'skipped'
     }
 
-    await saveFile(session.path, session.draftContent)
+    let nextPath = session.path
+    let nextResourceKind = session.resourceKind
+
+    if (!nextPath) {
+      const fileType = resolveSessionFileType(session)
+      const selectedPath = await fileSystemService.pickSavePath({
+        defaultPath: session.name,
+        title: '保存文件',
+        fileTypeName: fileType.id,
+        extensions: fileType.extensions,
+      })
+
+      if (!selectedPath) {
+        return 'cancelled'
+      }
+
+      nextPath = normalizePath(selectedPath)
+      nextResourceKind = isPathInsideProject(nextPath, projectPath.value) ? 'workspace' : 'external'
+    }
+
+    if (nextResourceKind === 'untitled') {
+      nextResourceKind = isPathInsideProject(nextPath, projectPath.value) ? 'workspace' : 'external'
+    }
+
+    await writeContentByResourceKind(nextResourceKind, nextPath, session.draftContent)
+
+    const nextFileType = resolveFileType(nextPath)
+    const nextFileTypeId = nextFileType.id === 'plaintext'
+      ? session.fileTypeId
+      : nextFileType.id
+
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
         ? {
           ...candidate,
+          path: nextPath,
+          resourceKind: nextResourceKind,
+          name: getPathBasename(nextPath),
+          fileTypeId: nextFileTypeId,
+          editorId: resolveFileTypeById(nextFileTypeId).editorId,
           savedContent: candidate.draftContent,
           isDirty: false,
         }
         : candidate
     )
+
+    return 'saved'
   }
 
-  async function saveActiveSession() {
+  async function saveActiveSession(): Promise<SessionSaveResult> {
     if (!activeSessionId.value) {
-      return
+      return 'skipped'
     }
 
-    await saveSession(activeSessionId.value)
+    return await saveSession(activeSessionId.value)
   }
 
   async function refreshSessionFromDisk(sessionId: string) {
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
-    if (!session) {
+    if (!session || !session.path) {
       return
     }
 
-    if (session.editorId === 'image-preview') {
+    if (session.editorId === 'image-preview' || session.resourceKind === 'untitled') {
       return
     }
 
-    const content = await readFile(session.path)
+    const content = session.resourceKind === 'workspace'
+      ? await readFile(session.path)
+      : await fileSystemService.readFile(session.path)
+
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
         ? {
@@ -289,15 +436,22 @@ export function useEditorSessionStore() {
     const normalizedNewPath = normalizePath(newPath)
 
     sessions.value = sessions.value.map((session) => {
+      if (session.resourceKind !== 'workspace' || !session.path) {
+        return session
+      }
+
       if (!isSameOrDescendantPath(session.path, normalizedOldPath)) {
         return session
       }
 
       const nextPath = normalizedNewPath + session.path.slice(normalizedOldPath.length)
+      const nextFileType = resolveFileType(nextPath)
       return {
         ...session,
         path: nextPath,
         name: getPathBasename(nextPath),
+        fileTypeId: nextFileType.id,
+        editorId: nextFileType.editorId,
       }
     })
   }
@@ -309,6 +463,7 @@ export function useEditorSessionStore() {
     openedFileNodes,
     openFile,
     openPreviewFile,
+    createUntitledSession,
     activateSession,
     activatePath,
     updateDraftContent,

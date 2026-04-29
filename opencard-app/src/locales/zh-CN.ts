@@ -5,6 +5,7 @@ export default {
       edit: '编辑',
       view: '查看',
       help: '帮助',
+      newOpenCard: '新建 OpenCard',
       export2x: '测试导出 2x',
       exportAll: '导出全部',
     },
