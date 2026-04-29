@@ -1,18 +1,8 @@
 <!-- Base 语义条组件：统一 icon/title/main/append 行结构，屏蔽底层面板样式细节。 -->
 <template>
   <div class="oc-bar" :class="rootClass" :style="rootStyle" v-bind="forwardedAttrs">
-    <OcPanel
-      orientation="horizontal"
-      horizontal-alignment="start"
-      vertical-alignment="center"
-      tone="transparent"
-      border="none"
-      radius="none"
-      elevation="none"
-      padding="none"
-      overflow-x="clip"
-      overflow-y="clip"
-    >
+    <OcPanel orientation="horizontal" horizontal-alignment="start" vertical-alignment="center" tone="transparent"
+      border="none" radius="none" elevation="none" padding="none" overflow-x="clip" overflow-y="clip">
       <div v-if="hasLeading" class="oc-bar__leading">
         <div v-if="hasIcon" class="oc-bar__icon">
           <slot name="icon">
@@ -183,7 +173,7 @@ const rootStyle = computed(() => ({
   color: var(--oc-bar-fg);
 }
 
-.oc-bar > :deep(.oc-panel) {
+.oc-bar> :deep(.oc-panel) {
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--oc-bar-min-height);
@@ -292,7 +282,7 @@ const rootStyle = computed(() => ({
   --oc-bar-bg: var(--oc-bg-hover);
 }
 
-.oc-bar:focus-visible > :deep(.oc-panel) {
+.oc-bar:focus-visible> :deep(.oc-panel) {
   outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
   outline-offset: -1px;
   position: relative;
@@ -355,13 +345,13 @@ const rootStyle = computed(() => ({
 }
 
 .oc-bar--kind-tree {
-  --oc-bar-min-height: var(--oc-block-md);
+  --oc-bar-min-height: var(--oc-block-sm);
   --oc-bar-inline-padding: var(--oc-space-2);
   cursor: pointer;
 }
 
 .oc-bar--kind-card {
-  --oc-bar-min-height: var(--oc-block-lg);
+  --oc-bar-min-height: var(--oc-block-md);
   --oc-bar-inline-padding: var(--oc-padding-standard);
   --oc-bar-gap: var(--oc-space-2);
   font-size: var(--oc-title-size);
@@ -377,7 +367,7 @@ const rootStyle = computed(() => ({
   opacity: 0.45;
 }
 
-.oc-bar--state-drop-before > :deep(.oc-panel) {
+.oc-bar--state-drop-before> :deep(.oc-panel) {
   box-shadow: inset 0 2px 0 var(--oc-bg-accent);
 }
 
@@ -385,11 +375,11 @@ const rootStyle = computed(() => ({
   --oc-bar-bg: var(--oc-bg-accent-soft);
 }
 
-.oc-bar--state-drop-after > :deep(.oc-panel) {
+.oc-bar--state-drop-after> :deep(.oc-panel) {
   box-shadow: inset 0 -2px 0 var(--oc-bg-accent);
 }
 
-.oc-bar--state-drop-invalid > :deep(.oc-panel) {
+.oc-bar--state-drop-invalid> :deep(.oc-panel) {
   box-shadow: inset 0 0 0 1px var(--oc-danger);
 }
 </style>

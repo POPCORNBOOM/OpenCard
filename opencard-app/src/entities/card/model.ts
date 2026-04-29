@@ -108,6 +108,7 @@ export type CardDocument = {
     version: string
     width: number
     height: number
+    background: string
     children: RootChild[]
     instances: CardInstanceRecord[]
 }
@@ -284,6 +285,7 @@ export function prepareDocumentForImport(
     const height = toFiniteNumber(source.height) ?? 850
     const name = toNonEmptyString(source.name) ?? fallbackName
     const version = toNonEmptyString(source.version) ?? '1.0.0'
+    const background = toNonEmptyString(source.background) ?? '#FFFFFF'
     const children = Array.isArray(source.children)
         ? source.children as RootChild[]
         : []
@@ -298,6 +300,7 @@ export function prepareDocumentForImport(
         id: documentId,
         width,
         height,
+        background,
         name,
         version,
         children,
@@ -315,6 +318,7 @@ export function prepareDocumentForRender(documentInput: CardDocument): CardDocum
     const height = toFiniteNumber(source.height) ?? 850
     const name = typeof source.name === 'string' ? source.name : ''
     const version = toNonEmptyString(source.version) ?? '1.0.0'
+    const background = toNonEmptyString(source.background) ?? '#FFFFFF'
     const children = toRecordArray(source.children).map((childInput) => ({
         block: toViewBlock(childInput.block),
         location: materializeSimpleContainerLocation(childInput.location),
@@ -328,6 +332,7 @@ export function prepareDocumentForRender(documentInput: CardDocument): CardDocum
         id: documentId,
         width,
         height,
+        background,
         name,
         version,
         children,

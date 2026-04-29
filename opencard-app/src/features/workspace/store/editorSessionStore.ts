@@ -86,6 +86,7 @@ function createDefaultOpenCardContent(displayName: string) {
     version: '1.0.0',
     width: 540,
     height: 850,
+    background: '#FFFFFF',
     children: [],
     instances: [],
   }, null, 2)

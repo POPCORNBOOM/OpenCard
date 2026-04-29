@@ -20,8 +20,8 @@
     <div v-if="isRootExpanded" class="oc-tree__children" role="group">
       <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node">
         <OcBar kind="tree" layout="leading-append" hoverable :state="resolveNodeBarState(entry.node)"
-          :indent="entry.level * 12" :data-tree-node-key="entry.node.key" role="treeitem"
-          tabindex="0" :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
+          :indent="entry.level * 12" :data-tree-node-key="entry.node.key" role="treeitem" tabindex="0"
+          :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
           :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
           @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
           @mousedown="handleNodeMouseDown($event, entry.node)" @keydown="handleNodeKeydown($event, entry.node)">
@@ -45,7 +45,7 @@
 
           <template v-if="enableActions && resolveNodeActions(entry.node).length" #append-hover>
             <div class="oc-tree__node-actions">
-              <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key"
+              <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key" size="sm"
                 class="oc-tree__action-button" variant="ghost" icon-only :icon="action.icon" :title="action.title"
                 data-tree-interactive="true" @mousedown.stop
                 @click.stop="handleActionClick(action, 'node', entry.node, $event)" />

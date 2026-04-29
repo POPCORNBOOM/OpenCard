@@ -17,7 +17,7 @@
     </template>
 
     <template #panel>
-      <OcCard variant="panel" :level="0">
+      <OcCard variant="plain" :level="0">
         <template #content>
           <OcPanel orientation="vertical" tone="transparent" border="none" padding="none" overflow-x="clip"
             overflow-y="auto">

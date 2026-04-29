@@ -22,7 +22,7 @@
     </div>
 
     <OcPanel v-if="!collapsed" as="section" class="oc-card__content" :grow="props.fitY === 'region'" tone="transparent"
-      border="none" radius="none" elevation="none" padding="standard" orientation="vertical"
+      border="none" radius="none" elevation="none" padding="standard" orientation="vertical" gap="space-2"
       horizontal-alignment="stretch" vertical-alignment="start">
       <slot name="content" />
     </OcPanel>
@@ -63,7 +63,7 @@ export interface OcCardActionDefinition {
 interface OcCardProps {
   /** 卡片视觉变体。 */
   variant?: OcCardVariant
-  /** 卡片层级语义。 */
+  /** 卡片圆角层级语义。 */
   level?: OcCardLevel
   /** 横轴适配语义。 */
   fitX?: OcCardAxisFit
@@ -132,35 +132,35 @@ const hasHeader = computed(() =>
 
 const surfacePreset = computed<CardSurfacePreset>(() => {
   const resolvedLevel = Math.max(0, Math.min(2, props.level)) as OcCardLevel
-  const elevationByLevel: Record<OcCardLevel, OcPanelElevation> = {
-    0: 'none',
+  const radiusByLevel: Record<OcCardLevel, OcPanelRadius> = {
+    0: 'lg',
     1: 'md',
-    2: 'lg',
+    2: 'sm',
   }
 
   if (props.variant === 'glass') {
     return {
       tone: 'glass',
-      border: resolvedLevel >= 2 ? 'black' : 'soft',
-      radius: 'lg',
-      elevation: elevationByLevel[resolvedLevel],
+      border: 'soft',
+      radius: radiusByLevel[resolvedLevel],
+      elevation: 'md',
     }
   }
 
   if (props.variant === 'panel') {
     return {
       tone: 'panel',
-      border: resolvedLevel >= 2 ? 'black' : 'soft',
-      radius: 'lg',
-      elevation: elevationByLevel[resolvedLevel],
+      border: 'soft',
+      radius: radiusByLevel[resolvedLevel],
+      elevation: 'none',
     }
   }
 
   return {
     tone: 'transparent',
     border: 'none',
-    radius: 'lg',
-    elevation: elevationByLevel[resolvedLevel],
+    radius: radiusByLevel[resolvedLevel],
+    elevation: 'none',
   }
 })
 
@@ -223,6 +223,5 @@ function handleActionClick(action: OcCardActionDefinition, event: MouseEvent): v
 
 .oc-card__content {
   min-height: 0;
-  gap: var(--oc-space-2);
 }
 </style>

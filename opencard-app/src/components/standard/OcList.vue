@@ -13,39 +13,47 @@
       v-for="(item, index) in items"
       :key="item.key"
       class="oc-list__item"
-      :class="{
-        'is-selected': isSelected(item),
-        'is-disabled': Boolean(item.disabled),
-      }"
     >
-      <button
-        type="button"
-        class="oc-list__button"
-        :class="{
-          'is-selected': isSelected(item),
-        }"
+      <OcBar
+        kind="tree"
+        layout="leading-append"
+        hoverable
+        :state="isSelected(item) ? 'selected' : 'default'"
+        :disabled="Boolean(item.disabled)"
         :data-oc-list-index="index"
         :data-oc-list-key="item.key"
         :role="resolvedItemRole"
-        :disabled="Boolean(item.disabled)"
         :tabindex="resolveTabIndex(index, item)"
-        :aria-disabled="item.disabled ? true : undefined"
-        :aria-selected="mode === 'listbox' ? isSelected(item) : undefined"
+        :aria-disabled="item.disabled ? 'true' : undefined"
+        :aria-selected="mode === 'listbox' ? (isSelected(item) ? 'true' : 'false') : undefined"
         @click="handleItemClick(item)"
-        @focus="handleItemFocus(item, index)"
+        @focusin="handleItemFocus(item, index)"
       >
-        <slot
-          name="item"
-          :item="item"
-          :active="isSelected(item)"
+        <template
+          v-if="!$slots.item"
+          #icon
         >
-          <div class="oc-list__button-main">
-            <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
-            <span v-else class="oc-list__icon-placeholder" />
-            <span class="oc-list__label">{{ item.label }}</span>
-          </div>
-        </slot>
-      </button>
+          <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
+          <span
+            v-else
+            class="oc-list__icon-placeholder"
+          />
+        </template>
+        <template #title>
+          <slot
+            name="item"
+            :item="item"
+            :active="isSelected(item)"
+          >
+            <OcText
+              truncate
+              class="oc-list__label"
+            >
+              {{ item.label }}
+            </OcText>
+          </slot>
+        </template>
+      </OcBar>
     </div>
   </div>
 </template>
@@ -53,7 +61,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import OcBar from '../base/OcBar.vue'
 import OcIcon from '../base/OcIcon.vue'
+import OcText from '../base/OcText.vue'
 
 export interface OcListItem {
   /** 列表项唯一 key。 */
@@ -249,7 +259,12 @@ function handleListKeydown(event: KeyboardEvent): void {
     return
   }
 
-  const keyIndex = Number(target.dataset.ocListIndex)
+  const listItemElement = target.closest<HTMLElement>('[data-oc-list-index]')
+  if (!listItemElement) {
+    return
+  }
+
+  const keyIndex = Number(listItemElement.dataset.ocListIndex)
   if (Number.isNaN(keyIndex) || !props.items[keyIndex] || !isEnabled(props.items[keyIndex])) {
     return
   }
@@ -308,8 +323,8 @@ function handleListKeydown(event: KeyboardEvent): void {
 .oc-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
   min-width: 0;
+  user-select: none;
 }
 
 .oc-list.is-fill {
@@ -320,52 +335,6 @@ function handleListKeydown(event: KeyboardEvent): void {
 }
 
 .oc-list__item {
-  position: relative;
-}
-
-.oc-list__button {
-  width: 100%;
-  min-height: 24px;
-  padding: 0 var(--oc-space-2);
-  border: 0;
-  border-radius: var(--oc-radius-sm);
-  color: var(--oc-text-primary);
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--oc-space-2);
-  text-align: left;
-  cursor: pointer;
-}
-
-.oc-list__button:hover,
-.oc-list__item:hover > .oc-list__button,
-.oc-list__button:focus-visible {
-  background: var(--oc-bg-active);
-  outline: none;
-}
-
-.oc-list__item.is-selected > .oc-list__button,
-.oc-list__button.is-selected {
-  background: var(--oc-bg-selected);
-}
-
-.oc-list__item.is-disabled > .oc-list__button,
-.oc-list__button:disabled {
-  color: var(--oc-text-disabled);
-  cursor: default;
-}
-
-.oc-list__item.is-disabled > .oc-list__button:hover,
-.oc-list__item.is-disabled > .oc-list__button:focus-visible {
-  background: transparent;
-}
-
-.oc-list__button-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   min-width: 0;
 }
 
@@ -376,10 +345,13 @@ function handleListKeydown(event: KeyboardEvent): void {
 }
 
 .oc-list__label {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.oc-list__item :deep(.oc-bar.oc-bar--state-selected.is-hoverable:hover:not(.is-disabled)),
+.oc-list__item :deep(.oc-bar.oc-bar--state-selected.is-hoverable:focus-within:not(.is-disabled)) {
+  --oc-bar-bg: var(--oc-bg-selected);
 }
 
 </style>

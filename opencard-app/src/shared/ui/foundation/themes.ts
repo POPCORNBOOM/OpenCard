@@ -2,10 +2,10 @@
 import type { OcThemeId, OcThemeTokens } from './themeTokens'
 
 const darkThemeTokens: OcThemeTokens = {
-  '--scrollbar-size': '10px',
+  '--scrollbar-size': '6px',
   '--scrollbar-track': '#1f1f1f',
-  '--scrollbar-thumb': '#4e4e4e',
-  '--scrollbar-thumb-hover': '#666666',
+  '--scrollbar-thumb': 'rgba(156, 156, 156, 0.13)',
+  '--scrollbar-thumb-hover': 'rgba(186, 186, 186, 0.26)',
   '--oc-bg-base': '#1e1e1e',
   '--oc-bg-panel': '#252526',
   '--oc-bg-elevated': '#2d2d2d',
@@ -121,10 +121,10 @@ const darkThemeTokens: OcThemeTokens = {
 }
 
 const lightThemeTokens: OcThemeTokens = {
-  '--scrollbar-size': '10px',
+  '--scrollbar-size': '6px',
   '--scrollbar-track': '#e5e8f1',
-  '--scrollbar-thumb': '#c4c9d8',
-  '--scrollbar-thumb-hover': '#aeb4c7',
+  '--scrollbar-thumb': 'rgba(122, 132, 158, 0.13)',
+  '--scrollbar-thumb-hover': 'rgba(96, 108, 138, 0.26)',
   '--oc-bg-base': '#f5f6fb',
   '--oc-bg-panel': '#ffffff',
   '--oc-bg-elevated': '#f8f9fd',

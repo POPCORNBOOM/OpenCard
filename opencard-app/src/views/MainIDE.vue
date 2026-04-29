@@ -23,15 +23,17 @@
           <OcButton @click="openProject" variant="primary" size="lg" block>
             {{ t('sidebar.openProject') }}
           </OcButton>
-          <OcTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
-            :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
-            @update:selected-keys="handleOpenedEditorsSelect" />
-          <OcTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
-            :features="['rename', 'drag-drop']" :allowed-drop-positions="getFileTreeAllowedDropPositions"
-            :can-drop="canMoveEntryByDrop" @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
-            @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
-            :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
-          <OcTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
+          <OcPanel>
+            <OcTree v-model:expanded="openedFilesTreeExpanded" :nodes="openedFileNodes"
+              :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
+              @update:selected-keys="handleOpenedEditorsSelect" />
+            <OcTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
+              :features="['rename', 'drag-drop']" :allowed-drop-positions="getFileTreeAllowedDropPositions"
+              :can-drop="canMoveEntryByDrop" @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
+              @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
+              :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
+            <OcTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
+          </OcPanel>
         </template>
       </MainIdeSidebarShell>
 

@@ -33,7 +33,7 @@
             <OcPanel tone="transparent" radius="none" border="none" fill padding="none" horizontal-alignment="stretch">
               <OcTrackLayout fill axis="vertical" :regions="leftPanelTrackRegions">
                 <template #card-panel>
-                  <OcCard variant="glass" :level="1" fit-y="region" title="卡牌树" :actions="instanceCardActions"
+                  <OcCard variant="glass" :level="0" fit-y="region" title="卡牌树" :actions="instanceCardActions"
                     @action="handleInstanceCardAction">
                     <template #content>
                       <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto"
@@ -46,7 +46,7 @@
                   </OcCard>
                 </template>
                 <template #preview-panel>
-                  <OcCard variant="glass" :level="1" fit-y="region" title="预览">
+                  <OcCard variant="glass" :level="0" fit-y="region" title="预览">
                     <template #content>
                       <OcPanel horizontal-alignment="stretch" fill radius="none" tone="transparent" border="none"
                         elevation="lg" background="checker" padding="none">
@@ -65,7 +65,7 @@
             </OcPanel>
           </template>
           <template #left-position>
-            <OcCard fit-y="content" variant="glass" :level="1">
+            <OcCard fit-y="content" variant="glass" :level="0">
               <template #content>
                 <OcText> x: {{
                   Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
@@ -81,7 +81,7 @@
               <OcTrackLayout fill axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
                 <template #tree-panel>
-                  <OcCard variant="glass" :level="1" fit-y="region" title="结构树">
+                  <OcCard variant="glass" :level="0" fit-y="region" title="结构树">
                     <template #content>
                       <OcPanel horizontal-alignment="stretch" fill tone="transparent" border="none" padding="none"
                         overflow-x="clip" overflow-y="auto">
@@ -95,7 +95,7 @@
                   </OcCard>
                 </template>
                 <template #property-panel>
-                  <OcCard variant="glass" :level="1" fit-y="region" title="属性" :actions="propertyCardActions"
+                  <OcCard variant="glass" :level="0" fit-y="region" title="属性" :actions="propertyCardActions"
                     @action="handlePropertyCardAction">
                     <template #content>
                       <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto">

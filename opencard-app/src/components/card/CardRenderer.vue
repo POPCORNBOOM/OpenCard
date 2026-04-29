@@ -41,7 +41,7 @@ const canvasStyle = computed((): Record<string, string> => ({
     position: 'relative',
     width: `${props.document?.width ?? 0}px`,
     height: `${props.document?.height ?? 0}px`,
-    background: '#fff',
+    background: props.document?.background ?? '#FFFFFF',
 }))
 
 const visibleChildren = computed(() => {
@@ -66,6 +66,7 @@ const rootContainerBlock = computed<SimpleContainerBlock>(() => {
             width: '0px',
             height: '0px',
             children: [],
+
         }
     }
 
@@ -76,6 +77,8 @@ const rootContainerBlock = computed<SimpleContainerBlock>(() => {
         width: `${props.document.width}px`,
         height: `${props.document.height}px`,
         children: visibleChildren.value,
+        background: props.document?.background ?? '#FFFFFF',
+
     }
 })
 

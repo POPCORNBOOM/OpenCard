@@ -16,10 +16,10 @@
   <div class="property-editor">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
-      <OcCard v-for="source in displaySources" :key="source.key" variant="plain" :level="0" :title="source.title">
+      <OcCard v-for="source in displaySources" :key="source.key" variant="plain" :level="2" :title="source.title">
         <template #content>
-          <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`" variant="panel" :level="0"
-            :title="category.title" :actions="resolveCategoryCardActions(category)"
+          <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`" variant="panel"
+            :level="2" :title="category.title" :actions="resolveCategoryCardActions(category)"
             @action="handleCategoryCardAction($event, category)">
             <template #content>
               <OcPropertyRow v-for="entry in category.entries" :key="`${source.key}:${category.key}:${entry.key}`"
@@ -246,5 +246,4 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   font-size: var(--oc-label-size);
   color: var(--oc-text-secondary);
 }
-
 </style>

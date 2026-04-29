@@ -235,12 +235,19 @@ function handleBarKeydown(event: KeyboardEvent): void {
 }
 
 .oc-tab__bar::-webkit-scrollbar {
-  height: 8px;
+  height: var(--scrollbar-size);
+  background: transparent;
 }
 
 .oc-tab__bar::-webkit-scrollbar-thumb {
-  background: var(--oc-border-strong);
-  border-radius: var(--oc-radius-pill);
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.oc-tab__bar::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 .oc-tab__bar::-webkit-scrollbar-track {
