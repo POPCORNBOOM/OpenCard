@@ -10,7 +10,7 @@ import {
   resolveNulls,
   type PropertyEditorSchemaOverride,
 } from '../entities/card/schema'
-import type { ITreeNode } from '../shared/ui/tree/tree.types'
+import type { TreeItem } from '../shared/ui/tree/tree.types'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
@@ -35,7 +35,7 @@ export type CdePropertyResetMutation = {
 }
 
 type UseCdePropertyPanelStateOptions = {
-  selectedNode: Readonly<ComputedRef<ITreeNode | null>>
+  selectedNode: Readonly<ComputedRef<TreeItem | null>>
   selectedBlock: Readonly<ComputedRef<CardBlock | null>>
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
   selectedCardId: Readonly<Ref<string | null>>

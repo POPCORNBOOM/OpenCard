@@ -9,7 +9,7 @@ import type { IconToken, IconTone } from '../icon/iconRegistry'
 
 export type TreeIconTone = IconTone
 
-export interface ITreeNode {
+export interface TreeItem {
   name: string
   key: string
   path?: string[]
@@ -19,8 +19,8 @@ export interface ITreeNode {
   icon?: IconToken
   iconTone?: TreeIconTone
   iconColor?: string
-  parent?: ITreeNode | null
-  children?: ITreeNode[]
+  parent?: TreeItem | null
+  children?: TreeItem[]
   metadata?: Record<string, unknown>
   actionKeys?: string[]
 }
@@ -37,26 +37,26 @@ export interface ActionDefinition {
 export interface NodeTreeActionCalledPayload {
   actionKey: string
   caller: ActionCaller
-  node?: ITreeNode
+  node?: TreeItem
 }
 
 export interface NodeTreeTogglePayload {
-  node: ITreeNode
+  node: TreeItem
   expanded: boolean
 }
 
 export interface NodeTreeRenamePayload {
-  node: ITreeNode
+  node: TreeItem
   name: string
 }
 
 export type NodeTreeDropPosition = 'before' | 'inside' | 'after'
 
-export type NodeTreeAllowedDropPositions = (target: ITreeNode | null) => NodeTreeDropPosition[]
+export type NodeTreeAllowedDropPositions = (target: TreeItem | null) => NodeTreeDropPosition[]
 
 export interface NodeTreeCanDropPayload {
-  dragged: ITreeNode
-  target: ITreeNode | null
+  dragged: TreeItem
+  target: TreeItem | null
   position: NodeTreeDropPosition
 }
 
@@ -64,27 +64,27 @@ export interface NodeTreeRepositioningPayload extends NodeTreeCanDropPayload {
   canDrop: boolean
 }
 
-export interface NodeTreeDropPayload extends NodeTreeCanDropPayload {}
+export interface NodeTreeDropPayload extends NodeTreeCanDropPayload { }
 
 export interface NodeTreeContext {
   selectedKeys: ComputedRef<string[]>
   selectedKeySet: ComputedRef<Set<string>>
-  handleNodeClick: (key: string, node: ITreeNode, modify: 'ctrl' | 'none') => void
-  handleNodeDoubleClick: (node: ITreeNode) => void
-  handleNodeToggle: (node: ITreeNode, expanded: boolean) => void
-  callAction: (actionKey: string, caller: ActionCaller, node?: ITreeNode) => void
+  handleNodeClick: (key: string, node: TreeItem, modify: 'ctrl' | 'none') => void
+  handleNodeDoubleClick: (node: TreeItem) => void
+  handleNodeToggle: (node: TreeItem, expanded: boolean) => void
+  callAction: (actionKey: string, caller: ActionCaller, node?: TreeItem) => void
   suppressClick: Ref<boolean>
-  handleNodePointerDown: (node: ITreeNode, event: MouseEvent) => void
-  draggedNode: Ref<ITreeNode | null>
-  dropTargetNode: Ref<ITreeNode | null>
+  handleNodePointerDown: (node: TreeItem, event: MouseEvent) => void
+  draggedNode: Ref<TreeItem | null>
+  dropTargetNode: Ref<TreeItem | null>
   dropPosition: Ref<NodeTreeDropPosition | null>
   dropAllowed: Ref<boolean>
   actions: ComputedRef<Map<string, ActionDefinition>>
   renameEnabled: ComputedRef<boolean>
   renamingNodeKey: Ref<string | null>
   renameDraft: Ref<string>
-  startNodeRename: (node: ITreeNode) => void
+  startNodeRename: (node: TreeItem) => void
   updateRenameDraft: (value: string) => void
   cancelNodeRename: () => void
-  submitNodeRename: (node: ITreeNode) => void
+  submitNodeRename: (node: TreeItem) => void
 }

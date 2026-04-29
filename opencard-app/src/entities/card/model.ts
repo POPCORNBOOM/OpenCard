@@ -4,7 +4,7 @@
  * 职责边界：
  * - 维护领域结构真相 不包含组件渲染实现
  */
-import type { ITreeNode } from '../../shared/ui/tree/tree.types'
+import type { TreeItem } from '../../shared/ui/tree/tree.types'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import { fillDefaults, isReferenceFieldReadable } from './schema'
 import type { PropertyEditorSchemaOverride } from './schema'
@@ -1294,10 +1294,10 @@ export function applyInstance(
 // Conversion from card blocks to the generic tree node structure used by the editor UI.
 export const blockToTreeNode = (
     block: CardBlock,
-    parent: ITreeNode | null,
+    parent: TreeItem | null,
     location?: SimpleContainerLocationInfo | FlowContainerLocationInfo
-): ITreeNode => {
-    const newNode: ITreeNode = {
+): TreeItem => {
+    const newNode: TreeItem = {
         name: block.name?.trim() || block.id,
         key: block.id,
         path: parent?.path ? [...parent.path, block.id] : [block.id],

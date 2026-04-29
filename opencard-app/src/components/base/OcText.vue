@@ -1,10 +1,6 @@
 <!-- Base 文本组件：独立实现排版层级与文本色调，不依赖 shared primitives。 -->
 <template>
-  <component
-    :is="as"
-    class="oc-text"
-    :class="textClass"
-  >
+  <component :is="as" class="oc-text" :class="textClass">
     <slot />
   </component>
 </template>
@@ -31,13 +27,12 @@ defineOptions({ name: 'OcText' })
 const props = withDefaults(defineProps<OcTextProps>(), {
   as: 'span',
   tone: 'primary',
-  size: 'body',
   truncate: false,
 })
 
 const textClass = computed(() => [
   `oc-text--tone-${props.tone}`,
-  `oc-text--size-${props.size}`,
+  props.size ? `oc-text--size-${props.size}` : null,
   { 'is-truncate': props.truncate },
 ])
 </script>
@@ -45,6 +40,8 @@ const textClass = computed(() => [
 <style scoped>
 .oc-text {
   min-width: 0;
+  font-family: var(--oc-font-family-ui);
+  font-size: var(--oc-body-size);
 }
 
 .oc-text--tone-primary {

@@ -17,7 +17,7 @@
 - 调用方必须统一改为 `renamable`。
 
 协议来源约束：
-- `TreeNode.vue` 不再承载 `ITreeNode` 类型定义。
+- `TreeNode.vue` 不再承载 `TreeItem` 类型定义。
 - 统一从 `src\shared\ui\tree\tree.types.ts` 取协议，避免 UI 实现文件被业务层当成“类型入口”。
 
 重构原则（本文件）：

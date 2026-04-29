@@ -66,7 +66,7 @@ import OcIcon from '../base/OcIcon.vue'
 import type {
   ActionCaller,
   ActionDefinition,
-  ITreeNode,
+  TreeItem,
   NodeTreeActionCalledPayload,
   NodeTreeAllowedDropPositions,
   NodeTreeCanDropPayload,
@@ -82,13 +82,13 @@ import OcText from '../base/OcText.vue'
 type OcTreeFeature = 'rename' | 'drag-drop' | 'actions'
 
 type OcTreeVisibleNode = {
-  node: ITreeNode
+  node: TreeItem
   level: number
 }
 
 interface OcTreeProps {
   /** 树节点列表。 */
-  nodes: ITreeNode[]
+  nodes: TreeItem[]
   /** 是否启用多选。 */
   multiSelect?: boolean
   /** 当前选中 key 列表。 */
@@ -117,7 +117,7 @@ interface OcTreeEmits {
   /** 根展开态变化时抛出。 */
   'update:expanded': [value: boolean]
   /** 节点双击时抛出。 */
-  'node-dblclick': [node: ITreeNode]
+  'node-dblclick': [node: TreeItem]
   /** 节点展开态变化时抛出。 */
   'node-toggle': [payload: NodeTreeTogglePayload]
   /** 节点重命名时抛出。 */
@@ -125,9 +125,9 @@ interface OcTreeEmits {
   /** 节点动作触发时抛出。 */
   'node-action': [payload: NodeTreeActionCalledPayload]
   /** 拖拽开始时抛出。 */
-  'drag-start': [node: ITreeNode]
+  'drag-start': [node: TreeItem]
   /** 拖拽结束时抛出。 */
-  'drag-end': [node: ITreeNode]
+  'drag-end': [node: TreeItem]
   /** 拖拽悬停重定位时抛出。 */
   repositioning: [payload: NodeTreeRepositioningPayload]
   /** 放置完成时抛出。 */
@@ -160,9 +160,9 @@ const nodeExpandedState = ref(new Map<string, boolean>())
 const renamingNodeKey = ref<string | null>(null)
 const renameDraft = ref('')
 const suppressClick = ref(false)
-const pendingDrag = ref<{ node: ITreeNode; startX: number; startY: number } | null>(null)
-const draggedNode = ref<ITreeNode | null>(null)
-const dropTargetNode = ref<ITreeNode | null>(null)
+const pendingDrag = ref<{ node: TreeItem; startX: number; startY: number } | null>(null)
+const draggedNode = ref<TreeItem | null>(null)
+const dropTargetNode = ref<TreeItem | null>(null)
 const dropPosition = ref<NodeTreeDropPosition | null>(null)
 const dropAllowed = ref(false)
 
@@ -223,8 +223,8 @@ watch(
 )
 
 const nodeMap = computed(() => {
-  const map = new Map<string, ITreeNode>()
-  const visit = (nodes: ITreeNode[]) => {
+  const map = new Map<string, TreeItem>()
+  const visit = (nodes: TreeItem[]) => {
     for (const node of nodes) {
       map.set(node.key, node)
       if (node.children && node.children.length > 0) {
@@ -243,7 +243,7 @@ const visibleNodes = computed<OcTreeVisibleNode[]>(() => {
   }
 
   const flattened: OcTreeVisibleNode[] = []
-  const visit = (nodes: ITreeNode[], level: number) => {
+  const visit = (nodes: TreeItem[], level: number) => {
     for (const node of nodes) {
       flattened.push({ node, level })
       if (isExpandable(node) && isNodeExpanded(node) && node.children?.length) {
@@ -256,21 +256,21 @@ const visibleNodes = computed<OcTreeVisibleNode[]>(() => {
   return flattened
 })
 
-function isSelected(node: ITreeNode): boolean {
+function isSelected(node: TreeItem): boolean {
   return selectedKeySet.value.has(node.key)
 }
 
-function isOnlySelected(node: ITreeNode): boolean {
+function isOnlySelected(node: TreeItem): boolean {
   return props.selectedKeys.length === 1 && isSelected(node)
 }
 
-function isExpandable(node: ITreeNode): boolean {
+function isExpandable(node: TreeItem): boolean {
   if (node.isExpandable === true) return true
   if (node.isExpandable === false) return false
   return Boolean(node.children?.length)
 }
 
-function isNodeExpanded(node: ITreeNode): boolean {
+function isNodeExpanded(node: TreeItem): boolean {
   if (node.isExpanded !== undefined) {
     return Boolean(node.isExpanded)
   }
@@ -279,7 +279,7 @@ function isNodeExpanded(node: ITreeNode): boolean {
   return stored ?? true
 }
 
-function setNodeExpanded(node: ITreeNode, expanded: boolean): void {
+function setNodeExpanded(node: TreeItem, expanded: boolean): void {
   if (node.isExpanded !== undefined) {
     return
   }
@@ -287,7 +287,7 @@ function setNodeExpanded(node: ITreeNode, expanded: boolean): void {
   nodeExpandedState.value.set(node.key, expanded)
 }
 
-function toggleNodeExpanded(node: ITreeNode): void {
+function toggleNodeExpanded(node: TreeItem): void {
   if (!isExpandable(node)) {
     return
   }
@@ -297,7 +297,7 @@ function toggleNodeExpanded(node: ITreeNode): void {
   emit('node-toggle', { node, expanded: nextExpanded })
 }
 
-function resolveNodeActions(node: ITreeNode): ActionDefinition[] {
+function resolveNodeActions(node: TreeItem): ActionDefinition[] {
   if (!node.actionKeys || node.actionKeys.length === 0) {
     return []
   }
@@ -312,11 +312,10 @@ function toFloatingMenuItems(actions: ActionDefinition[]): FloatingMenuItem[] {
     key: action.key,
     label: action.title ?? action.key,
     icon: action.icon,
-    children: action.children ? toFloatingMenuItems(action.children) : undefined,
   }))
 }
 
-function emitNodeAction(actionKey: string, caller: ActionCaller, node?: ITreeNode): void {
+function emitNodeAction(actionKey: string, caller: ActionCaller, node?: TreeItem): void {
   emit('node-action', {
     actionKey,
     caller,
@@ -327,7 +326,7 @@ function emitNodeAction(actionKey: string, caller: ActionCaller, node?: ITreeNod
 function handleActionClick(
   action: ActionDefinition,
   caller: ActionCaller,
-  node: ITreeNode | undefined,
+  node: TreeItem | undefined,
   event: MouseEvent,
 ): void {
   if (!enableActions.value) {
@@ -335,6 +334,10 @@ function handleActionClick(
   }
 
   if (action.children?.length) {
+    if (import.meta.env.DEV && action.children.some((child) => child.children?.length)) {
+      console.warn('[OcTree] Floating menu no longer supports nested children. Flatten action.children to one level.')
+    }
+
     const anchor = event.currentTarget
     if (!(anchor instanceof HTMLElement)) {
       return
@@ -380,7 +383,7 @@ function updateSelectedKeys(nextSelectedKeys: string[]): void {
   emit('update:selectedKeys', nextSelectedKeys)
 }
 
-function selectNode(node: ITreeNode, modify: 'ctrl' | 'none'): void {
+function selectNode(node: TreeItem, modify: 'ctrl' | 'none'): void {
   if (!props.multiSelect || modify === 'none') {
     updateSelectedKeys([node.key])
     return
@@ -397,7 +400,7 @@ function selectNode(node: ITreeNode, modify: 'ctrl' | 'none'): void {
   updateSelectedKeys(nextSelectedKeys)
 }
 
-function handleNodeClick(event: MouseEvent, node: ITreeNode): void {
+function handleNodeClick(event: MouseEvent, node: TreeItem): void {
   event.stopPropagation()
   if (suppressClick.value) {
     return
@@ -411,7 +414,7 @@ function handleNodeClick(event: MouseEvent, node: ITreeNode): void {
   selectNode(node, modify)
 }
 
-function handleNodeNameClick(event: MouseEvent, node: ITreeNode): void {
+function handleNodeNameClick(event: MouseEvent, node: TreeItem): void {
   event.stopPropagation()
   if (suppressClick.value) {
     return
@@ -426,12 +429,12 @@ function handleNodeNameClick(event: MouseEvent, node: ITreeNode): void {
   selectNode(node, modify)
 }
 
-function handleNodeDoubleClick(node: ITreeNode, event: MouseEvent): void {
+function handleNodeDoubleClick(node: TreeItem, event: MouseEvent): void {
   event.stopPropagation()
   emit('node-dblclick', node)
 }
 
-function startNodeRename(node: ITreeNode): void {
+function startNodeRename(node: TreeItem): void {
   if (!renameEnabled.value || node.renamable === false) {
     return
   }
@@ -454,7 +457,7 @@ function handleRenameInput(event: Event): void {
   renameDraft.value = target.value
 }
 
-function submitNodeRename(node: ITreeNode): void {
+function submitNodeRename(node: TreeItem): void {
   if (renamingNodeKey.value !== node.key) {
     return
   }
@@ -471,7 +474,7 @@ function submitNodeRename(node: ITreeNode): void {
   })
 }
 
-function handleRenameKeydown(event: KeyboardEvent, node: ITreeNode): void {
+function handleRenameKeydown(event: KeyboardEvent, node: TreeItem): void {
   if (event.key === 'Enter') {
     event.preventDefault()
     submitNodeRename(node)
@@ -484,7 +487,7 @@ function handleRenameKeydown(event: KeyboardEvent, node: ITreeNode): void {
   }
 }
 
-function handleNodeKeydown(event: KeyboardEvent, node: ITreeNode): void {
+function handleNodeKeydown(event: KeyboardEvent, node: TreeItem): void {
   if (event.target !== event.currentTarget) {
     return
   }
@@ -514,7 +517,7 @@ function handleNodeKeydown(event: KeyboardEvent, node: ITreeNode): void {
   }
 }
 
-function handleNodeMouseDown(event: MouseEvent, node: ITreeNode): void {
+function handleNodeMouseDown(event: MouseEvent, node: TreeItem): void {
   event.stopPropagation()
   if (!enableDragDrop.value || event.button !== 0) {
     return
@@ -558,7 +561,7 @@ function ensureDragging(event: MouseEvent): void {
   emit('drag-start', pendingDrag.value.node)
 }
 
-function getAllowedDropPositions(target: ITreeNode | null): NodeTreeDropPosition[] {
+function getAllowedDropPositions(target: TreeItem | null): NodeTreeDropPosition[] {
   if (props.allowedDropPositions) {
     return props.allowedDropPositions(target)
   }
@@ -570,7 +573,7 @@ function getAllowedDropPositions(target: ITreeNode | null): NodeTreeDropPosition
   return target.isExpandable ? ['before', 'inside', 'after'] : ['before', 'after']
 }
 
-function setDropState(dragged: ITreeNode, target: ITreeNode | null, position: NodeTreeDropPosition, canDrop: boolean): void {
+function setDropState(dragged: TreeItem, target: TreeItem | null, position: NodeTreeDropPosition, canDrop: boolean): void {
   dropTargetNode.value = target
   dropPosition.value = position
   dropAllowed.value = canDrop
@@ -590,7 +593,7 @@ function markSuppressClick(): void {
   }, 0)
 }
 
-function handleNodePointerOver(target: ITreeNode, position: NodeTreeDropPosition): void {
+function handleNodePointerOver(target: TreeItem, position: NodeTreeDropPosition): void {
   const dragged = draggedNode.value
   if (!dragged) {
     return
@@ -709,7 +712,7 @@ function handleGlobalMouseUp(): void {
   handleNodeDragEnd()
 }
 
-function resolveNodeContentClass(node: ITreeNode) {
+function resolveNodeContentClass(node: TreeItem) {
   const isActiveTarget = dropTargetNode.value?.key === node.key
   return {
     selected: isSelected(node),
@@ -721,7 +724,7 @@ function resolveNodeContentClass(node: ITreeNode) {
   }
 }
 
-function resolveNodeContainerClass(node: ITreeNode) {
+function resolveNodeContainerClass(node: TreeItem) {
   const isActiveTarget = dropTargetNode.value?.key === node.key
   return {
     'drop-inside-target': isActiveTarget && dropPosition.value === 'inside' && dropAllowed.value,
@@ -895,4 +898,3 @@ onBeforeUnmount(() => {
   visibility: visible;
 }
 </style>
-

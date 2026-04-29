@@ -10,7 +10,7 @@ import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
 import { taskScheduler } from '../../../utils/taskScheduler'
-import type { ITreeNode, NodeTreeAllowedDropPositions, NodeTreeCanDropPayload, NodeTreeDropPayload } from '../../../shared/ui/tree/tree.types'
+import type { TreeItem, NodeTreeAllowedDropPositions, NodeTreeCanDropPayload, NodeTreeDropPayload } from '../../../shared/ui/tree/tree.types'
 
 const PROJECT_CACHE_FILE_NAME = '.opencard-cache'
 const PROJECT_CACHE_SAVE_DELAY_MS = 1200
@@ -353,7 +353,7 @@ async function deleteFile(relativePath: string) {
   await refreshIndexedEntries()
 }
 
-function getFileTreeAllowedDropPositions(target: ITreeNode | null) {
+function getFileTreeAllowedDropPositions(target: TreeItem | null) {
   if (!target) {
     return ['inside']
   }

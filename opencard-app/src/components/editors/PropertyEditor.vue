@@ -14,14 +14,15 @@
 -->
 <template>
   <div class="property-editor">
-    <OcEmptyHint v-if="inputs.length === 0">选择一个对象查看属性</OcEmptyHint>
+    <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
       <OcCard v-for="source in displaySources" :key="source.key" :title="source.title" density="none" border="none"
         tone="transparent">
         <template #content>
           <OcCard v-for="category in source.categories" :key="`${source.key}:${category.key}`">
             <template #title>
-              <OcBar class="property-editor__category-bar" tone="transparent" border="none" padding="none" :title="category.title">
+              <OcBar class="property-editor__category-bar" tone="transparent" border="none" padding="none"
+                :title="category.title">
                 <template #append>
                   <div v-if="category.addableFields.length > 0" class="add-field-menu">
                     <OcChip>{{ category.addableFields.length }}</OcChip>
@@ -89,7 +90,7 @@ import {
 import type { CdePropertySortMode } from '../../composables/useCdePropertyPanelState'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import { OcBar, OcButton, OcChip, OcEmptyHint, OcPropertyRow } from '../base'
+import { OcBar, OcButton, OcChip, OcEmpty, OcPropertyRow } from '../base'
 import OcIcon from '../base/OcIcon.vue'
 import OcCard from '../base/OcCard.vue'
 
@@ -274,4 +275,3 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   border-bottom: 1px solid var(--oc-border-strong);
 }
 </style>
-

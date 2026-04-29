@@ -13,7 +13,7 @@
 
 `defaultExpanded` / `defaultNodeExpanded` 已移除，不再允许“隐式默认语义”：
 - 需要根展开就显式传 `expanded`。
-- 节点展开的真实来源应是 `ITreeNode.isExpanded`（业务受控）或节点内部交互态（UI 自持）。
+- 节点展开的真实来源应是 `TreeItem.isExpanded`（业务受控）或节点内部交互态（UI 自持）。
 - 不要再新增“看起来方便”的默认展开开关，这会让状态来源再次变模糊。
 
 重命名与拖拽仍只负责“交互和事件”，不落业务规则：
@@ -29,7 +29,7 @@
 
 协议位置约束：
 - `NodeTree` 不再是类型定义源。
-- `ITreeNode` / 拖拽与 action payload / 注入上下文类型统一收敛在 `src\shared\ui\tree\tree.types.ts`。
+- `TreeItem` / 拖拽与 action payload / 注入上下文类型统一收敛在 `src\shared\ui\tree\tree.types.ts`。
 - 后续业务层禁止再从 `.vue` 导入类型。
 
 重构原则（本模块）：

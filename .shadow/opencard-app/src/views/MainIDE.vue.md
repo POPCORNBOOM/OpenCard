@@ -34,3 +34,7 @@ NodeTree 集成约束：
 - `Ctrl/Cmd+S` 继续走“当前编辑器 save 或会话 save”分发。
 - `Ctrl/Cmd+Z`、`Ctrl/Cmd+Shift+Z`、`Ctrl/Cmd+Y` 仅在活动编辑器为 `card-designer` 时拦截并转发到编辑器暴露的 `undo/redo`。
 - 不得在页面层实现文档回放逻辑；页面层只做键盘事件路由与 `preventDefault` 控制。
+
+MainIDE 人工审阅关键记忆（2026-04-29）：
+- 关键记忆1（调用位置：欢迎态与 Tab 分支）：欢迎态触发条件应以 `sessions` 是否为空作为主判断，而不是仅看 `hasActiveSession`。原因是 `activeSession` 可能出现短暂空窗；若此时 `sessions` 仍有项，必须继续展示 tab 栏，否则用户无法通过点击 tab 恢复会话。
+- 关键记忆2（调用位置：`<style scoped>`）：模板未引用的 class 样式要即时删除，不保留“可能以后用”的残留。残留样式会制造假依赖，导致后续重构对真实布局链判断失真。

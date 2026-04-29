@@ -5,7 +5,7 @@
  * - 只管理会话真相 不处理文件系统目录索引
  */
 import { computed, readonly, ref } from 'vue'
-import type { ITreeNode } from '../../../shared/ui/tree/tree.types'
+import type { TreeItem } from '../../../shared/ui/tree/tree.types'
 import { resolveEntryIcon, resolveFileType } from '../model/fileTypes'
 import { useProjectStore } from './projectStore'
 
@@ -59,7 +59,7 @@ export function useEditorSessionStore() {
     sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   )
 
-  const openedFileNodes = computed<ITreeNode[]>(() =>
+  const openedFileNodes = computed<TreeItem[]>(() =>
     sessions.value.map((session) => {
       const entryIcon = resolveEntryIcon(session.path, false)
       return {
@@ -81,9 +81,9 @@ export function useEditorSessionStore() {
     sessions.value = sessions.value.map((session) =>
       session.id === sessionId
         ? {
-            ...session,
-            isPreview,
-          }
+          ...session,
+          isPreview,
+        }
         : session
     )
   }
@@ -149,21 +149,38 @@ export function useEditorSessionStore() {
   }
 
   function updateDraftContent(sessionId: string, content: string) {
-    sessions.value = sessions.value.map((session) =>
-      {
-        if (session.id !== sessionId) {
-          return session
-        }
-
-        const isDirty = content !== session.savedContent
-        return {
-          ...session,
-          draftContent: content,
-          isDirty,
-          isPreview: isDirty ? false : session.isPreview,
-        }
+    sessions.value = sessions.value.map((session) => {
+      if (session.id !== sessionId) {
+        return session
       }
+
+      const isDirty = content !== session.savedContent
+      return {
+        ...session,
+        draftContent: content,
+        isDirty,
+        isPreview: isDirty ? false : session.isPreview,
+      }
+    }
     )
+  }
+
+  function setSessionDirtyState(sessionId: string, isDirty: boolean) {
+    sessions.value = sessions.value.map((session) => {
+      if (session.id !== sessionId) {
+        return session
+      }
+
+      if (session.isDirty === isDirty) {
+        return session
+      }
+
+      return {
+        ...session,
+        isDirty,
+        isPreview: isDirty ? false : session.isPreview,
+      }
+    })
   }
 
   function updateSessionUiState(sessionId: string, patch: EditorSessionUiState) {
@@ -179,9 +196,9 @@ export function useEditorSessionStore() {
           ...patch,
           cardDesigner: patch.cardDesigner
             ? {
-                ...session.uiState?.cardDesigner,
-                ...patch.cardDesigner,
-              }
+              ...session.uiState?.cardDesigner,
+              ...patch.cardDesigner,
+            }
             : session.uiState?.cardDesigner,
         },
       }
@@ -220,10 +237,10 @@ export function useEditorSessionStore() {
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
         ? {
-            ...candidate,
-            savedContent: candidate.draftContent,
-            isDirty: false,
-          }
+          ...candidate,
+          savedContent: candidate.draftContent,
+          isDirty: false,
+        }
         : candidate
     )
   }
@@ -250,11 +267,11 @@ export function useEditorSessionStore() {
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
         ? {
-            ...candidate,
-            savedContent: content,
-            draftContent: content,
-            isDirty: false,
-          }
+          ...candidate,
+          savedContent: content,
+          draftContent: content,
+          isDirty: false,
+        }
         : candidate
     )
   }
@@ -295,6 +312,7 @@ export function useEditorSessionStore() {
     activateSession,
     activatePath,
     updateDraftContent,
+    setSessionDirtyState,
     updateSessionUiState,
     closeSession,
     saveSession,

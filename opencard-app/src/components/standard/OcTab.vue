@@ -1,35 +1,39 @@
 <!-- Standard IDE 标签布局：提供结构化 tabs、内置标签渲染与面板切换容器。 -->
 <template>
-  <section class="oc-tab-layout" :class="{ 'is-fill': props.fill }">
-    <div v-if="tabs.length > 0" class="oc-tab-layout__bar" role="tablist" aria-orientation="horizontal"
-      :aria-label="ariaLabel" @keydown="handleBarKeydown">
-      <OcBar v-for="tab in tabs" :key="tab.key" padding="compact" :class="{
-        'is-active': isActive(tab),
-        'is-disabled': Boolean(tab.disabled),
-      }" radius="none" tone="panel" border="none" :icon="tab.icon" :title="tab.label" :data-oc-tab-key="tab.key"
-        role="tab" :tabindex="resolveTabIndex(tab)" :aria-selected="isActive(tab) ? 'true' : 'false'"
-        :aria-disabled="tab.disabled ? 'true' : undefined" @click="handleTabClick(tab)">
+  <section class="oc-tab" :class="{ 'is-fill': props.fill }">
+    <div v-if="tabs.length > 0" class="oc-tab__bar" role="tablist" aria-orientation="horizontal" :aria-label="ariaLabel"
+      @keydown="handleBarKeydown">
+      <OcBar class="oc-tab__tab" height="size-xs" max-width="size-2xl" v-for="tab in tabs" :key="tab.key" padding="none"
+        radius="none" border="none" :tone="resolveTabTone(tab)" :hoverable="resolveTabHoverable(tab)"
+        :interaction="resolveTabInteraction(tab)" :style="resolveTabStyle(tab)" :icon="tab.icon" :title="tab.label"
+        :data-oc-tab-key="tab.key" role="tab" :tabindex="resolveTabIndex(tab)"
+        :aria-selected="isActive(tab) ? 'true' : 'false'" :aria-disabled="tab.disabled ? 'true' : undefined"
+        @click="handleTabClick(tab)">
         <template v-if="tab.dirty" #append>
-          <span class="oc-tab-layout__tab-dirty-dot" aria-hidden="true" />
+          <span class="oc-tab__tab-dirty-mark" aria-hidden="true">
+            <span class="oc-tab__tab-dirty-dot" />
+          </span>
         </template>
         <template v-if="isClosable(tab) && isEnabled(tab)" #append-hover>
-          <OcButton class="oc-tab-layout__tab-close" variant="ghost" size="sm" radius="sm" icon="action.close" icon-only
+          <OcButton variant="ghost" size="sm" radius="sm" icon="action.close" icon-only
             :aria-label="`Close ${tab.label}`" tabindex="-1" data-oc-tab-close @click.stop="handleTabClose(tab)" />
         </template>
       </OcBar>
     </div>
 
-    <div v-if="$slots.panel" class="oc-tab-layout__panel">
+    <OcPanel v-if="$slots.panel" fill>
       <slot name="panel" :active-key="activeKey" :active-tab="activeTab" />
-    </div>
+    </OcPanel>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import type { OcPanelInteraction, OcPanelTone } from '../base/OcPanel.vue'
 import OcBar from '../base/OcBar.vue'
 import OcButton from '../base/OcButton.vue'
+import OcPanel from '../base/OcPanel.vue'
 
 export interface OcTabItem {
   /** 标签唯一 key。 */
@@ -48,7 +52,7 @@ export interface OcTabItem {
   closable?: boolean
 }
 
-interface OcTabLayoutProps {
+interface OcTabProps {
   /** 标签数据列表。 */
   tabs: readonly OcTabItem[]
   /** 当前激活标签 key。 */
@@ -59,7 +63,7 @@ interface OcTabLayoutProps {
   fill?: boolean
 }
 
-interface OcTabLayoutEmits {
+interface OcTabEmits {
   /** 请求切换激活标签。 */
   'update:activeKey': [value: string]
   /** 标签被选中时抛出。 */
@@ -68,14 +72,14 @@ interface OcTabLayoutEmits {
   close: [payload: { key: string }]
 }
 
-defineOptions({ name: 'OcTabLayout' })
+defineOptions({ name: 'OcTab' })
 
-const props = withDefaults(defineProps<OcTabLayoutProps>(), {
+const props = withDefaults(defineProps<OcTabProps>(), {
   ariaLabel: undefined,
   fill: false,
 })
 
-const emit = defineEmits<OcTabLayoutEmits>()
+const emit = defineEmits<OcTabEmits>()
 
 const activeTab = computed(() =>
   props.tabs.find((tab) => tab.key === props.activeKey) ?? null,
@@ -91,6 +95,33 @@ function isEnabled(tab: OcTabItem): boolean {
 
 function isClosable(tab: OcTabItem): boolean {
   return tab.closable !== false
+}
+
+function resolveTabTone(tab: OcTabItem): OcPanelTone {
+  if (isActive(tab)) {
+    return 'base'
+  }
+  if (!isEnabled(tab)) {
+    return 'elevated'
+  }
+  return 'panel'
+}
+
+function resolveTabHoverable(tab: OcTabItem): boolean {
+  return isEnabled(tab) && !isActive(tab)
+}
+
+function resolveTabInteraction(tab: OcTabItem): OcPanelInteraction {
+  return isEnabled(tab) ? 'auto' : 'passthrough'
+}
+
+function resolveTabStyle(tab: OcTabItem): Record<string, string> | undefined {
+  if (!isEnabled(tab)) {
+    return {
+      color: 'var(--oc-text-disabled)',
+    }
+  }
+  return undefined
 }
 
 function resolveFirstEnabledTabKey(): string | null {
@@ -204,19 +235,19 @@ function handleBarKeydown(event: KeyboardEvent): void {
 </script>
 
 <style scoped>
-.oc-tab-layout {
+.oc-tab {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-.oc-tab-layout.is-fill {
+.oc-tab.is-fill {
   width: 100%;
   height: 100%;
 }
 
-.oc-tab-layout__bar {
+.oc-tab__bar {
   display: flex;
   align-items: stretch;
   min-width: 0;
@@ -228,78 +259,48 @@ function handleBarKeydown(event: KeyboardEvent): void {
   scrollbar-width: thin;
 }
 
-.oc-tab-layout__bar::-webkit-scrollbar {
+.oc-tab__bar::-webkit-scrollbar {
   height: 8px;
 }
 
-.oc-tab-layout__bar::-webkit-scrollbar-thumb {
+.oc-tab__bar::-webkit-scrollbar-thumb {
   background: var(--oc-border-strong);
   border-radius: var(--oc-radius-pill);
 }
 
-.oc-tab-layout__bar::-webkit-scrollbar-track {
+.oc-tab__bar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.oc-tab-layout__tab {}
-
-.oc-tab-layout__tab:hover {
-  background: var(--oc-bg-hover);
-  color: var(--oc-text-primary);
+.oc-tab__tab {
+  min-width: 0;
 }
 
-.oc-tab-layout__tab:focus-visible {
+.oc-tab__tab:focus-visible {
   outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
   outline-offset: -2px;
   position: relative;
   z-index: 1;
 }
 
-.oc-tab-layout__tab.is-active {
-  background: var(--oc-bg-base);
-  color: var(--oc-text-primary);
+.oc-tab__tab[aria-selected='true'] {
   border-bottom-color: var(--oc-bg-base);
 }
 
-.oc-tab-layout__tab.is-disabled {
-  color: var(--oc-text-disabled);
-  cursor: default;
-  background: var(--oc-bg-elevated);
+.oc-tab__tab-dirty-mark {
+  width: var(--oc-block-sm);
+  height: var(--oc-block-sm);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.oc-tab-layout__tab-title {
-  min-width: 0;
-}
-
-.oc-tab-layout__tab-icon {
-  color: inherit;
-}
-
-.oc-tab-layout__tab-dirty-dot {
+.oc-tab__tab-dirty-dot {
   width: 6px;
   height: 6px;
-  flex-shrink: 0;
   border-radius: var(--oc-radius-pill);
-  background: var(--oc-bg-accent);
-}
-
-.oc-tab-layout__tab :deep(.oc-bar__append) {
-  min-width: 18px;
-  justify-content: flex-end;
-}
-
-.oc-tab-layout__panel {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  display: flex;
-}
-
-.oc-tab-layout__panel> :deep(*) {
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
+  background: var(--oc-accent);
+  box-shadow: 0 0 0 1px var(--oc-bg-elevated);
 }
 </style>
-

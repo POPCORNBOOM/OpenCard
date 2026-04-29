@@ -26,63 +26,42 @@
             :title="t('sidebar.openedEditors')" :selected-keys="openedEditorSelectedKeys"
             @update:selected-keys="handleOpenedEditorsSelect" />
           <OcTree v-if="projectPath" :nodes="fileTree" :title="projectName" v-model:expanded="projectTreeExpanded"
-            :features="['rename', 'drag-drop']"
-            :allowed-drop-positions="getFileTreeAllowedDropPositions" :can-drop="canMoveEntryByDrop"
-            @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
+            :features="['rename', 'drag-drop']" :allowed-drop-positions="getFileTreeAllowedDropPositions"
+            :can-drop="canMoveEntryByDrop" @node-drop="handleFileTreeDrop" @node-rename="handleFileTreeRename"
             @node-dblclick="node => handleOpenFile(node.key)" @node-toggle="handleNodeToggle"
             :selected-keys="selectedFileKeys" @update:selected-keys="handleFileTreeSelect" />
           <OcTree v-model:expanded="timelineTreeExpanded" :nodes="fileTree" :title="t('sidebar.timeline')" />
         </template>
       </MainIdeSidebarShell>
 
-      <OcPanel class="editor-workbench-frame" orientation="vertical" grow tone="transparent" border="none" padding="none">
-        <OcTabLayout
-          class="editor-workbench-frame__tab-layout"
-          fill
-          :tabs="ideTabs"
-          :active-key="activeSessionId ?? null"
-          :aria-label="t('sidebar.openedEditors')"
-          @update:active-key="handleTabSelect"
-          @close="handleTabClose"
-        >
-          <template #panel>
-            <OcPanel
-              class="editor-workbench-frame__content"
-              fill
-              tone="transparent"
-              border="none"
-              padding="none"
-              overflow-x="clip"
-              overflow-y="clip"
-              :class="workbenchContentClass"
-            >
-              <OcPanel v-if="!hasActiveSession" class="welcome-screen" orientation="vertical" tone="transparent" border="none" padding="none">
-                <OcText class="welcome-screen__eyebrow" as="p" size="label">{{ t('app.welcome.eyebrow') }}</OcText>
-                <OcText class="welcome-screen__title" as="h1">{{ t('app.welcome.title') }}</OcText>
-                <OcText class="welcome-subtitle" as="p" tone="muted">{{ t('app.welcome.subtitle') }}</OcText>
-                <OcPanel class="welcome-actions" orientation="horizontal" tone="transparent" border="none" padding="none">
-                  <OcButton variant="primary" @click="openProject">{{ t('sidebar.openProject') }}</OcButton>
-                </OcPanel>
-                <OcPanel class="welcome-points" orientation="horizontal" tone="transparent" border="none" padding="none" aria-hidden="true">
-                  <OcChip>{{ t('app.welcome.featureExplore') }}</OcChip>
-                  <OcChip>{{ t('app.welcome.featureDesign') }}</OcChip>
-                  <OcChip>{{ t('app.welcome.featurePreview') }}</OcChip>
-                </OcPanel>
-              </OcPanel>
+      <OcPanel orientation="vertical" grow tone="transparent" border="none" padding="none">
+        <!-- 无tab时显示欢迎页 -->
+        <OcPanel v-if="!hasActiveSession" orientation="vertical" tone="transparent" border="none" padding="none"
+          horizontal-alignment="center" vertical-alignment="center" fill>
+          <OcPanel horizontal-alignment="stretch" border="none" tone="transparent">
+            <OcText tone="info" as="p" size="label">{{ t('app.welcome.eyebrow') }}</OcText>
+            <OcText as="h1">{{ t('app.welcome.title') }}</OcText>
+            <OcText size="label" as="p" tone="muted">{{ t('app.welcome.subtitle') }}</OcText>
+            <OcButton variant="primary" @click="openProject">{{ t('sidebar.openProject') }}</OcButton>
+            <OcPanel orientation="horizontal" tone="transparent" border="none" padding="none" aria-hidden="true">
+              <OcChip>{{ t('app.welcome.featureExplore') }}</OcChip>
+              <OcChip>{{ t('app.welcome.featureDesign') }}</OcChip>
+              <OcChip>{{ t('app.welcome.featurePreview') }}</OcChip>
+            </OcPanel>
+          </OcPanel>
+        </OcPanel>
 
-              <OcPanel v-else class="editor-workbench-frame__workbench" fill tone="transparent" border="none" padding="none">
-                <component
-                  :is="currentEditorComponent"
-                  :key="currentEditorKey"
-                  ref="currentEditorRef"
-                  v-bind="currentEditorProps"
-                  @save="handleEditorSave"
-                  @update-viewport-transform="handleViewportTransformUpdate"
-                />
-              </OcPanel>
+        <!-- 有tab时显示编辑器 -->
+        <OcTab v-else fill :tabs="ideTabs" :active-key="activeSessionId ?? null"
+          :aria-label="t('sidebar.openedEditors')" @update:active-key="handleTabSelect" @close="handleTabClose">
+          <template #panel>
+            <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="clip">
+              <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef"
+                v-bind="currentEditorProps" @modified="handleEditorModified" @save="handleEditorSave"
+                @update-viewport-transform="handleViewportTransformUpdate" />
             </OcPanel>
           </template>
-        </OcTabLayout>
+        </OcTab>
       </OcPanel>
     </div>
 
@@ -119,7 +98,7 @@ import { useEditorSessionStore } from '../features/workspace/store/editorSession
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
 import { OcBar, OcButton, OcChip, OcPanel, OcText } from '../components/base'
-import { OcTabLayout, OcTree } from '../components/standard'
+import { OcTab, OcTree } from '../components/standard'
 import MainIdeTopBar from '../features/ide-shell/components/MainIdeTopBar.vue'
 import MainIdeSidebarShell from '../features/ide-shell/components/MainIdeSidebarShell.vue'
 import type { NodeTreeDropPayload, NodeTreeRenamePayload, NodeTreeTogglePayload } from '../shared/ui/tree/tree.types'
@@ -171,6 +150,7 @@ const {
   activateSession,
   activatePath,
   updateDraftContent,
+  setSessionDirtyState,
   updateSessionUiState,
   closeSession,
   saveActiveSession,
@@ -230,13 +210,6 @@ const currentLanguageIconTone = computed(() => {
 
 const hasActiveSession = computed(() => Boolean(activeSession.value))
 
-const isImmersiveEditor = computed(() => activeSession.value?.editorId === 'card-designer')
-
-const workbenchContentClass = computed(() =>
-  isImmersiveEditor.value
-    ? 'editor-workbench-frame__content--immersive'
-    : 'editor-workbench-frame__content--padded',
-)
 
 const ideTabs = computed(() =>
   sessions.value.map((session) => {
@@ -383,6 +356,15 @@ async function handleEditorSave() {
   }
 }
 
+function handleEditorModified(modified: boolean) {
+  const session = activeSession.value
+  if (!session) {
+    return
+  }
+
+  setSessionDirtyState(session.id, modified)
+}
+
 async function triggerCurrentEditorSave() {
   const currentPath = activeSession.value?.path
   if (!currentPath) {
@@ -517,73 +499,6 @@ function handleTabClose(payload: { key: string }) {
   overflow: hidden;
 }
 
-.editor-workbench-frame {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.editor-workbench-frame__tab-layout {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-}
-
-.editor-workbench-frame__content {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-  background: var(--oc-bg-base);
-}
-
-.editor-workbench-frame__content--padded {
-  padding: 16px;
-}
-
-.editor-workbench-frame__content--immersive {
-  padding: 0;
-}
-
-.welcome-screen {
-  display: flex;
-  flex-direction: column;
-  margin: auto;
-  width: min(520px, 100%);
-  gap: var(--oc-space-3);
-  color: var(--oc-text-muted);
-}
-
-.welcome-screen__eyebrow {
-  margin: 0;
-  font-size: var(--oc-label-size);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--oc-text-info);
-}
-
-.welcome-screen__title {
-  margin: 0;
-  font-size: clamp(36px, 6vw, 62px);
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--oc-text-primary);
-}
-
-.welcome-subtitle {
-  margin: 0;
-  color: var(--oc-text-dim);
-}
-
-.welcome-actions,
-.welcome-points {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--oc-space-2);
-}
 
 .main-status-bar {
   --oc-bar-min-height: 24px;
@@ -594,18 +509,10 @@ function handleTabClose(payload: { key: string }) {
   font-size: 12px;
 }
 
-.editor-workbench-frame__workbench {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-}
-
-.editor-workbench-frame__workbench > :deep(*) {
+.editor-workbench-frame__workbench> :deep(*) {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
   min-height: 0;
 }
 </style>
-

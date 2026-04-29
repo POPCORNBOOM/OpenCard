@@ -10,18 +10,20 @@
       </div>
       <div v-if="hasTitle" class="oc-bar__title">
         <slot name="title">
-          <OcText>{{ props.title }}</OcText>
+          <OcText :truncate="props.truncateTitle">{{ props.title }}</OcText>
         </slot>
       </div>
     </div>
     <div class="oc-bar__main">
       <slot />
     </div>
-    <div v-if="hasAppendArea" class="oc-bar__append" :class="{ 'has-hover-replacement': hasHoverAppend }">
-      <div v-if="hasAppend" class="oc-bar__append-default">
+    <div v-if="$slots.append || $slots['append-hover']" class="oc-bar__append" :class="{
+      'has-hover-slot': Boolean($slots['append-hover']),
+    }">
+      <div v-if="$slots.append" class="oc-bar__append-default">
         <slot name="append" />
       </div>
-      <div v-if="hasHoverAppend" class="oc-bar__append-hover">
+      <div v-if="$slots['append-hover']" class="oc-bar__append-hover">
         <slot name="append-hover" />
       </div>
     </div>
@@ -51,6 +53,11 @@ const props = defineProps({
   title: {
     type: String,
     default: undefined,
+  },
+  /** 默认标题是否单行省略（仅作用于 title prop 渲染路径）。 */
+  truncateTitle: {
+    type: Boolean,
+    default: true,
   },
 })
 
@@ -84,27 +91,22 @@ const rootBindings = computed<Record<string, unknown>>(() => ({
 const hasIcon = computed(() => Boolean(props.icon) || Boolean(slots.icon))
 const hasTitle = computed(() => Boolean(props.title) || Boolean(slots.title))
 const hasLeading = computed(() => hasIcon.value || hasTitle.value)
-const hasAppend = computed(() => Boolean(slots.append))
-const hasHoverAppend = computed(() => Boolean(slots['append-hover']))
-const hasAppendArea = computed(() => hasAppend.value || hasHoverAppend.value)
 </script>
 
 <style scoped>
 .oc-bar {
   --oc-bar-gap: var(--oc-space-2, 8px);
-  --oc-bar-padding: 0;
-  --oc-bar-min-height: 24px;
   min-width: 0;
-  min-height: var(--oc-bar-min-height);
   display: flex;
   align-items: center;
   gap: var(--oc-bar-gap);
-  padding: var(--oc-bar-padding);
 }
 
 .oc-bar__leading {
+  margin-left: var(--oc-bar-gap);
   min-width: 0;
-  display: inline-flex;
+  overflow: hidden;
+  display: flex;
   align-items: center;
   gap: var(--oc-bar-gap);
   flex: 0 1 auto;
@@ -118,10 +120,17 @@ const hasAppendArea = computed(() => hasAppend.value || hasHoverAppend.value)
 
 .oc-bar__title {
   min-width: 0;
-  display: inline-flex;
+  overflow: hidden;
+  display: flex;
   align-items: center;
   gap: var(--oc-space-1);
+  flex: 1 1 auto;
   color: var(--oc-text-primary);
+}
+
+.oc-bar__title :deep(*) {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .oc-bar__main {
@@ -135,9 +144,10 @@ const hasAppendArea = computed(() => hasAppend.value || hasHoverAppend.value)
 .oc-bar__append {
   min-width: 0;
   margin-left: auto;
+  margin-right: var(--oc-bar-gap);
   display: flex;
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
 }
 
 .oc-bar__append-default,
@@ -145,18 +155,19 @@ const hasAppendArea = computed(() => hasAppend.value || hasHoverAppend.value)
   min-width: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--oc-bar-gap);
 }
 
-.oc-bar__append-hover {
+.oc-bar__append.has-hover-slot .oc-bar__append-hover {
   display: none;
 }
 
-.oc-bar:hover .oc-bar__append.has-hover-replacement .oc-bar__append-default {
+.oc-bar:hover .oc-bar__append.has-hover-slot .oc-bar__append-default {
   display: none;
 }
 
-.oc-bar:hover .oc-bar__append.has-hover-replacement .oc-bar__append-hover {
+.oc-bar:hover .oc-bar__append.has-hover-slot .oc-bar__append-hover {
   display: inline-flex;
 }
 </style>

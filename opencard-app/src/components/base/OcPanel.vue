@@ -10,6 +10,7 @@
 import type { ExtractPropTypes, PropType } from 'vue'
 import {
   OC_BOX_DIMENSION_TOKENS,
+  OC_GAP_TOKENS,
   OC_SURFACE_RADII,
   OC_SURFACE_SHADOWS,
   OC_SURFACE_VARIANTS,
@@ -26,6 +27,7 @@ export const OC_PANEL_PADDINGS = ['none', 'compact', 'standard'] as const
 export const OC_PANEL_OVERFLOW_VALUES = ['visible', 'clip', 'auto', 'scroll'] as const
 
 export type OcPanelDimension = (typeof OC_BOX_DIMENSION_TOKENS)[number]
+export type OcPanelGap = (typeof OC_GAP_TOKENS)[number]
 export type OcPanelTone = (typeof OC_SURFACE_VARIANTS)[number]
 export type OcPanelRadius = (typeof OC_SURFACE_RADII)[number]
 export type OcPanelElevation = (typeof OC_SURFACE_SHADOWS)[number]
@@ -54,6 +56,11 @@ export const ocPanelProps = {
   grow: {
     type: Boolean,
     default: false,
+  },
+  /** 子项间距语义。 */
+  gap: {
+    type: String as PropType<OcPanelGap>,
+    default: 'space-2',
   },
   /** 主布局方向。 */
   orientation: {
@@ -94,6 +101,26 @@ export const ocPanelProps = {
   height: {
     type: String as PropType<OcPanelDimension>,
     default: 'auto',
+  },
+  /** 最小宽度语义。 */
+  minWidth: {
+    type: String as PropType<OcPanelDimension | undefined>,
+    default: undefined,
+  },
+  /** 最大宽度语义。 */
+  maxWidth: {
+    type: String as PropType<OcPanelDimension | undefined>,
+    default: undefined,
+  },
+  /** 最小高度语义。 */
+  minHeight: {
+    type: String as PropType<OcPanelDimension | undefined>,
+    default: undefined,
+  },
+  /** 最大高度语义。 */
+  maxHeight: {
+    type: String as PropType<OcPanelDimension | undefined>,
+    default: undefined,
   },
   /** 背景语义。 */
   tone: {
@@ -148,6 +175,7 @@ export type OcPanelProps = Readonly<ExtractPropTypes<typeof ocPanelProps>>
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
 import type { CSSProperties } from 'vue'
+import { resolveOcGapToken } from '../../shared/ui/foundation/tokenRegistry'
 
 type FlexAxisAlignment = 'flex-start' | 'center' | 'flex-end' | 'stretch'
 
@@ -181,6 +209,35 @@ function resolveAlignment(value: OcPanelAlignment): FlexAxisAlignment {
   return 'flex-start'
 }
 
+function resolveDimensionValue(value: OcPanelDimension | undefined, axis: 'width' | 'height'): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  switch (value) {
+    case 'auto':
+      return 'auto'
+    case 'content':
+      return 'fit-content'
+    case 'full':
+      return '100%'
+    case 'screen':
+      return axis === 'width' ? '100vw' : '100vh'
+    case 'size-xs':
+      return '36px'
+    case 'size-sm':
+      return '48px'
+    case 'size-md':
+      return '72px'
+    case 'size-lg':
+      return '96px'
+    case 'size-xl':
+      return '120px'
+    case 'size-2xl':
+      return '160px'
+  }
+}
+
 const panelStyle = computed<CSSProperties>(() => {
   const horizontal = resolveAlignment(props.horizontalAlignment)
   const vertical = resolveAlignment(props.verticalAlignment)
@@ -189,9 +246,19 @@ const panelStyle = computed<CSSProperties>(() => {
   const align = props.orientation === 'vertical' ? horizontal : vertical
   const justify = rawJustify === 'stretch' ? 'flex-start' : rawJustify
 
+  const minWidth = resolveDimensionValue(props.minWidth, 'width')
+  const maxWidth = resolveDimensionValue(props.maxWidth, 'width')
+  const minHeight = resolveDimensionValue(props.minHeight, 'height')
+  const maxHeight = resolveDimensionValue(props.maxHeight, 'height')
+
   return {
     '--oc-panel-content-justify': justify,
     '--oc-panel-content-align': align,
+    gap: resolveOcGapToken(props.gap),
+    minWidth,
+    maxWidth,
+    minHeight,
+    maxHeight,
     overflowX: props.overflowX,
     overflowY: props.overflowY,
   } as CSSProperties

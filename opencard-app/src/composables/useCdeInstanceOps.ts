@@ -11,7 +11,7 @@ import type {
 } from '../entities/card/model'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import type {
-  ITreeNode,
+  TreeItem,
   NodeTreeActionCalledPayload,
   NodeTreeCanDropPayload,
   NodeTreeDropPayload,
@@ -39,14 +39,14 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     return options.cardDoc.value?.instances?.find((instance) => instance.id === options.selectedCardId.value) ?? null
   })
 
-  const instanceTree = computed<ITreeNode[]>(() => {
+  const instanceTree = computed<TreeItem[]>(() => {
     options.documentRevision.value
     if (!options.cardDoc.value) {
       return []
     }
 
     const instances = options.cardDoc.value.instances
-    const blueprintNode: ITreeNode = {
+    const blueprintNode: TreeItem = {
       key: options.blueprintCardId,
       name: '蓝图',
       path: [options.blueprintCardId],
@@ -81,7 +81,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
             instance,
             instanceId,
           },
-        } satisfies ITreeNode
+        } satisfies TreeItem
       }),
     ]
   })
@@ -134,7 +134,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     options.markDocumentChanged('action')
   }
 
-  function getInstanceTreeAllowedDropPositions(target: ITreeNode | null) {
+  function getInstanceTreeAllowedDropPositions(target: TreeItem | null) {
     if (!target) {
       return ['inside'] as NodeTreeDropPosition[]
     }

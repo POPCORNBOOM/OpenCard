@@ -18,27 +18,20 @@
 
     <template #panel>
       <OcCard fill>
-        <OcPanel
-          orientation="vertical"
-          tone="transparent"
-          border="none"
-          padding="none"
-          overflow-x="clip"
-          overflow-y="auto"
-        >
+        <OcPanel orientation="vertical" tone="transparent" border="none" padding="none" overflow-x="clip"
+          overflow-y="auto">
           <div v-if="activeView === 'files'" class="main-ide-sidebar-shell__files">
             <slot name="files" />
           </div>
 
-          <OcEmptyHint v-else-if="activeView === 'git'" align="start" inset="none"
-            class="main-ide-sidebar-shell__empty">
+          <OcEmpty v-else-if="activeView === 'git'" align="start" inset="none" class="main-ide-sidebar-shell__empty">
             {{ t('panels.gitPlaceholder') }}
-          </OcEmptyHint>
+          </OcEmpty>
 
-          <OcEmptyHint v-else-if="activeView === 'publish'" align="start" inset="none"
+          <OcEmpty v-else-if="activeView === 'publish'" align="start" inset="none"
             class="main-ide-sidebar-shell__empty">
             {{ t('panels.publishPlaceholder') }}
-          </OcEmptyHint>
+          </OcEmpty>
         </OcPanel>
       </OcCard>
     </template>
@@ -47,7 +40,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcEmptyHint, OcPanel, OcSidebarFrame, OcToolbar } from '../../../components/base'
+import { OcEmpty, OcPanel, OcSidebarFrame, OcToolbar } from '../../../components/base'
 import { OcToolButton } from '../../../components/standard'
 import OcCard from '../../../components/base/OcCard.vue'
 
@@ -85,4 +78,3 @@ const { t } = useI18n()
   line-height: 1.7;
 }
 </style>
-

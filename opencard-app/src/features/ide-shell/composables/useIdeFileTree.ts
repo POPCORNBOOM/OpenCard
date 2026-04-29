@@ -6,7 +6,7 @@
  */
 import { computed, ref, watch, type Ref } from 'vue'
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
-import type { ITreeNode } from '../../../shared/ui/tree/tree.types'
+import type { TreeItem } from '../../../shared/ui/tree/tree.types'
 
 type IndexedEntry = {
   name: string
@@ -16,7 +16,7 @@ type IndexedEntry = {
 type UseIdeFileTreeOptions = {
   projectPath: Readonly<Ref<string>>
   indexedEntries: Readonly<Ref<readonly IndexedEntry[]>>
-  openedFileNodes: Readonly<Ref<ITreeNode[]>>
+  openedFileNodes: Readonly<Ref<TreeItem[]>>
   activeSessionPath: Readonly<Ref<string | null>>
   isDirectoryExpanded: (path: string) => boolean
   activatePath: (path: string) => void
@@ -31,13 +31,13 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
 
-  const fileTree = computed<ITreeNode[]>(() => {
+  const fileTree = computed<TreeItem[]>(() => {
     if (!options.indexedEntries.value.length) {
       return []
     }
 
-    const root: ITreeNode[] = []
-    const map = new Map<string, ITreeNode>()
+    const root: TreeItem[] = []
+    const map = new Map<string, TreeItem>()
 
     options.indexedEntries.value.forEach((file) => {
       const relativePath = file.name
@@ -52,7 +52,7 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
         isDirectory ? options.isDirectoryExpanded(fullPath) : false,
       )
 
-      const node: ITreeNode = {
+      const node: TreeItem = {
         name: displayName,
         key: fullPath,
         isExpandable: isDirectory,
@@ -91,7 +91,7 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
     return root
   })
 
-  function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
+  function findTreeNodeByKey(nodes: TreeItem[], key: string): TreeItem | null {
     for (const node of nodes) {
       if (normalizeIdePath(node.key) === normalizeIdePath(key)) {
         return node

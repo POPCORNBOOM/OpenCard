@@ -23,7 +23,7 @@ import {
 } from '../entities/card/model'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import type {
-  ITreeNode,
+  TreeItem,
   NodeTreeActionCalledPayload,
   NodeTreeCanDropPayload,
   NodeTreeDropPayload,
@@ -52,7 +52,7 @@ function logTreeDndDebug(message: string, payloadFactory: () => Record<string, u
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
-  const blockTree = computed<ITreeNode[]>(() => {
+  const blockTree = computed<TreeItem[]>(() => {
     options.documentRevision.value
     if (!options.cardDoc.value) {
       return []
@@ -63,7 +63,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     )
   })
 
-  const selectedNode = computed<ITreeNode | null>(() => {
+  const selectedNode = computed<TreeItem | null>(() => {
     const selectedKey = options.selectedBlockKeys.value[0]
     if (!selectedKey) {
       return null
@@ -409,12 +409,12 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     }
   }
 
-  function getNodeBlock(node?: ITreeNode): CardBlock | null {
+  function getNodeBlock(node?: TreeItem): CardBlock | null {
     const metadata = node?.metadata as CardTreeNodeMetadata | undefined
     return metadata?.block ?? null
   }
 
-  function findTreeNodeByKey(nodes: ITreeNode[], key: string): ITreeNode | null {
+  function findTreeNodeByKey(nodes: TreeItem[], key: string): TreeItem | null {
     for (const node of nodes) {
       if (node.key === key) {
         return node
@@ -429,7 +429,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return null
   }
 
-  function findTreeNodeByBlockId(nodes: ITreeNode[], blockId: string): ITreeNode | null {
+  function findTreeNodeByBlockId(nodes: TreeItem[], blockId: string): TreeItem | null {
     for (const node of nodes) {
       const block = getNodeBlock(node)
       if (block?.id === blockId) {
@@ -445,11 +445,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return null
   }
 
-  function isDescendantOrSelfNode(targetNode: ITreeNode, ancestorNode: ITreeNode) {
+  function isDescendantOrSelfNode(targetNode: TreeItem, ancestorNode: TreeItem) {
     return targetNode.path?.includes(ancestorNode.key) ?? false
   }
 
-  function getContainerForDropTarget(targetNode: ITreeNode | null, position: NodeTreeCanDropPayload['position']): BlockContainer | null {
+  function getContainerForDropTarget(targetNode: TreeItem | null, position: NodeTreeCanDropPayload['position']): BlockContainer | null {
     if (!targetNode) {
       return options.cardDoc.value
     }
@@ -466,7 +466,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return options.parentLookup.value.get(targetBlock.id) ?? null
   }
 
-  function getInsertionIndexForDropTarget(targetNode: ITreeNode | null, position: NodeTreeCanDropPayload['position']): number | null {
+  function getInsertionIndexForDropTarget(targetNode: TreeItem | null, position: NodeTreeCanDropPayload['position']): number | null {
     if (!targetNode) {
       return options.cardDoc.value?.children.length ?? null
     }
@@ -495,7 +495,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function createDropLocation(
-    draggedNode: ITreeNode,
+    draggedNode: TreeItem,
     targetContainer: BlockContainer,
     insertionIndex: number,
   ): SimpleContainerLocationInfo | FlowContainerLocationInfo {

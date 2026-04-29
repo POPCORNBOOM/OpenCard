@@ -2,9 +2,21 @@
 <template>
   <OcPanel class="oc-card" v-bind="rootBindings" orientation="vertical" horizontal-alignment="stretch"
     vertical-alignment="start">
-    <header v-if="hasTitle" class="oc-card__title" :class="{ 'oc-card__title--with-divider': !props.collapsed }"
+    <header v-if="hasHeader" class="oc-card__title" :class="{ 'oc-card__title--with-divider': !props.collapsed }"
       :style="densityPaddingStyle">
-      <slot name="title">{{ props.title }}</slot>
+      <div v-if="hasTitle" class="oc-card__title-main">
+        <slot name="title">{{ props.title }}</slot>
+      </div>
+      <div v-if="$slots.append || $slots['append-hover']" class="oc-card__append" :class="{
+        'has-hover-slot': Boolean($slots['append-hover']),
+      }">
+        <div v-if="$slots.append" class="oc-card__append-default">
+          <slot name="append" />
+        </div>
+        <div v-if="$slots['append-hover']" class="oc-card__append-hover">
+          <slot name="append-hover" />
+        </div>
+      </div>
     </header>
 
     <OcPanel v-if="!props.collapsed" as="section" class="oc-card__content" tone="transparent" border="none"
@@ -83,6 +95,9 @@ const rootBindings = computed<Record<string, unknown>>(() => ({
 }))
 
 const hasTitle = computed(() => Boolean(props.title) || Boolean(slots.title))
+const hasHeader = computed(() =>
+  hasTitle.value || Boolean(slots.append) || Boolean(slots['append-hover']),
+)
 const densityPaddingValue = computed(() => {
   if (props.density === 'none') {
     return 'var(--oc-padding-none)'
@@ -119,6 +134,42 @@ const densityPaddingStyle = computed<CSSProperties>(() => ({
   font-size: var(--oc-title-size);
   font-weight: 600;
   flex: 0 0 auto;
+}
+
+.oc-card__title-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--oc-space-2);
+}
+
+.oc-card__append {
+  margin-left: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.oc-card__append-default,
+.oc-card__append-hover {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-space-2);
+}
+
+.oc-card__append.has-hover-slot .oc-card__append-hover {
+  display: none;
+}
+
+.oc-card:hover .oc-card__append.has-hover-slot .oc-card__append-default {
+  display: none;
+}
+
+.oc-card:hover .oc-card__append.has-hover-slot .oc-card__append-hover {
+  display: inline-flex;
 }
 
 .oc-card__title--with-divider {

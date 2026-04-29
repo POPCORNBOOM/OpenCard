@@ -24,7 +24,7 @@
           :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @viewport-transform-change="handleViewportTransformChange" />
-        <OcEmptyHint v-else>无法解析 .opencard 文件</OcEmptyHint>
+        <OcEmpty v-else>无法解析 .opencard 文件</OcEmpty>
       </OcPanel>
 
       <template #overlay>
@@ -34,17 +34,22 @@
               <OcTrackLayout fill axis="vertical" :regions="leftPanelTrackRegions">
                 <template #card-panel>
                   <OcCard elevation="lg" radius="lg" fill title="卡牌树" tone="glass" overflow-x="clip" overflow-y="clip">
+                    <template #append>
+                      <OcToolbar kind="panel" :shrink="true" aria-label="实例操作">
+                        <OcToolButton kind="panel" icon-only icon="action.add" title="新建实例" aria-label="新建实例"
+                          @click="triggerInstanceAction('add-instance')" />
+                        <OcToolButton kind="panel" icon-only icon="action.copy" title="复制实例" aria-label="复制实例"
+                          :disabled="!canMutateSelectedInstance" @click="triggerInstanceAction('duplicate-instance')" />
+                        <OcToolButton kind="panel" icon-only icon="action.delete" title="删除实例" aria-label="删除实例"
+                          :disabled="!canMutateSelectedInstance" @click="triggerInstanceAction('delete-instance')" />
+                      </OcToolbar>
+                    </template>
                     <template #content>
                       <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="auto"
                         horizontal-alignment="stretch">
-                        <OcTree v-if="isInstancePanelExpanded" title="创建的卡牌" :nodes="instanceTree" :expanded="true"
-                          :features="['actions', 'rename', 'drag-drop']" :multi-select="false"
-                          :selected-keys="selectedCardKeys" :actions="instanceTreeActions"
-                          :action-keys="instanceTreeActionKeys"
-                          :allowed-drop-positions="getInstanceTreeAllowedDropPositions"
-                          :can-drop="canDropInstanceTreeNode" @update:selected-keys="onInstanceTreeSelect"
-                          @node-action="handleInstanceTreeAction" @node-rename="handleInstanceTreeRename"
-                          @node-drop="handleInstanceTreeDrop" />
+
+                        <OcList v-if="isInstancePanelExpanded" fill mode="listbox" :items="instanceListItems"
+                          :selected-keys="selectedCardKeys" @update:selected-keys="onInstanceTreeSelect" />
                       </OcPanel>
                     </template>
                   </OcCard>
@@ -145,10 +150,10 @@ import OcPanel from '../base/OcPanel.vue'
 import CardRenderer from '../card/CardRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
 import PropertyEditor from './PropertyEditor.vue'
-import OcEmptyHint from '../base/OcEmptyHint.vue'
+import OcEmpty from '../base/OcEmpty.vue'
 import OcOverlay from '../base/OcOverlay.vue'
 import OcTrackLayout from '../base/OcTrackLayout.vue'
-import { OcToolButton, OcTree } from '../standard'
+import { OcList, OcToolButton, OcTree } from '../standard'
 import OcToolbar from '../base/OcToolbar.vue'
 import { useCdePanelResize } from '../../composables/useCdePanelResize'
 import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
@@ -301,13 +306,6 @@ const treeActions = new Map<string, ActionDefinition>([
   ['delete', { key: 'delete', icon: 'action.delete', title: '删除' }],
 ])
 const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
-const instanceTreeActions = new Map<string, ActionDefinition>([
-  ['add-instance', { key: 'add-instance', icon: 'action.add', title: '新建实例' }],
-  ['duplicate-instance', { key: 'duplicate-instance', icon: 'action.copy', title: '复制' }],
-  ['delete-instance', { key: 'delete-instance', icon: 'action.delete', title: '删除' }],
-])
-const instanceTreeActionKeys = ['add-instance']
-
 // 当前选择状态
 const selectedBlockKeys = ref<string[]>([])
 const selectedCardKeys = ref<string[]>([])
@@ -347,10 +345,6 @@ const {
   instanceTree,
   onInstanceTreeSelect,
   handleInstanceTreeAction,
-  handleInstanceTreeRename,
-  getInstanceTreeAllowedDropPositions,
-  canDropInstanceTreeNode,
-  handleInstanceTreeDrop,
 } = useCdeInstanceOps({
   cardDoc,
   blueprintCardId: BLUEPRINT_CARD_ID,
@@ -360,6 +354,36 @@ const {
   refreshDocumentState,
   markDocumentChanged,
 })
+
+const instanceListItems = computed(() =>
+  instanceTree.value.map((node) => ({
+    key: node.key,
+    label: node.name,
+    icon: node.icon,
+    disabled: false,
+  })),
+)
+
+const selectedInstanceNode = computed(() => {
+  const selectedKey = selectedCardKeys.value[0]
+  if (!selectedKey) {
+    return null
+  }
+
+  return instanceTree.value.find((node) => node.key === selectedKey) ?? null
+})
+
+const canMutateSelectedInstance = computed(() =>
+  Boolean(selectedInstanceNode.value && selectedInstanceNode.value.key !== BLUEPRINT_CARD_ID),
+)
+
+function triggerInstanceAction(actionKey: 'add-instance' | 'duplicate-instance' | 'delete-instance') {
+  handleInstanceTreeAction({
+    actionKey,
+    caller: 'tree',
+    node: selectedInstanceNode.value ?? undefined,
+  })
+}
 
 // 结构树与块编辑协议。
 const {
@@ -719,4 +743,3 @@ onUnmounted(() => {
   flex: 0 0 auto;
 }
 </style>
-

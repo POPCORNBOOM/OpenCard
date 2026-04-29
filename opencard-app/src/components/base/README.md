@@ -90,7 +90,7 @@
 - 禁用用法:
   - 不要在业务层新写“chip/badge/pill”样式分支。
 
-### `OcEmptyHint`
+### `OcEmpty`
 
 - props:
   - `tone?: 'dim' | 'muted'`
@@ -103,7 +103,7 @@
 - 推荐用法:
   - 空态提示、占位提示统一文本容器。
 - 禁用用法:
-  - 不要在业务层重复定义 empty-hint 文本与对齐规则。
+  - 不要在业务层重复定义 empty 文本与对齐规则。
 
 ### `OcOverlay`
 
@@ -204,30 +204,6 @@
   - 对齐、模式切换、离散短选项组。
 - 禁用用法:
   - 不要把多选语义塞到 `OcOptionGroup`。
-
-### `OcPanelSection`
-
-- props:
-  - `title?: string`
-  - `header?: boolean`
-  - `scrollBody?: boolean`
-  - `tone?: 'default' | 'overlay'`
-  - `collapsed?: boolean`
-  - `headerPadding?: string`
-  - `headerMinHeight?: string`
-  - `bodyPadding?: string`
-  - `fill?: boolean`
-  - `headerClass?: string | string[] | Record<string, boolean>`
-  - `bodyClass?: string | string[] | Record<string, boolean>`
-- slots:
-  - `title`
-  - `actions`
-  - `default`
-- emits: 无
-- 推荐用法:
-  - 侧栏、检查器、编辑器内部子面板统一容器。
-- 禁用用法:
-  - 不要在业务层再定义第二套 panel header/body 视觉规则。
 
 ### `OcPropertyRow`
 

@@ -8,6 +8,7 @@ import {
   mdiBroadcast,
   mdiCardTextOutline,
   mdiCardsOutline,
+  mdiClose,
   mdiFileCodeOutline,
   mdiFileImageOutline,
   mdiFileOutline,
@@ -115,6 +116,7 @@ export const codiconPack: IconPackMap = {
 }
 
 export const mdiPack: IconPackMap = {
+  'action.close': { pack: 'mdi', value: mdiClose },
   'action.publish': { pack: 'mdi', value: mdiRocketLaunchOutline },
   'file.default': { pack: 'mdi', value: mdiFileOutline },
   'file.code': { pack: 'mdi', value: mdiFileCodeOutline },

@@ -1,4 +1,4 @@
-<!-- Standard 通用列表：统一交互列表与菜单列表的键盘行为、选择状态与子项展示。 -->
+<!-- Standard 通用列表：统一扁平菜单/列表的键盘行为与选择状态。 -->
 <template>
   <div
     ref="listElement"
@@ -17,16 +17,11 @@
         'is-selected': isSelected(item),
         'is-disabled': Boolean(item.disabled),
       }"
-      @mouseenter="handleItemMouseEnter(item)"
-      @mouseleave="handleItemMouseLeave(item)"
-      @focusin="handleItemFocusIn(item)"
-      @focusout="handleItemFocusOut($event, item)"
     >
       <button
         type="button"
         class="oc-list__button"
         :class="{
-          'is-expanded': isExpanded(item),
           'is-selected': isSelected(item),
         }"
         :data-oc-list-index="index"
@@ -36,8 +31,6 @@
         :tabindex="resolveTabIndex(index, item)"
         :aria-disabled="item.disabled ? true : undefined"
         :aria-selected="mode === 'listbox' ? isSelected(item) : undefined"
-        :aria-haspopup="hasChildren(item) ? 'menu' : undefined"
-        :aria-expanded="hasChildren(item) ? isExpanded(item) : undefined"
         @click="handleItemClick(item)"
         @focus="handleItemFocus(item, index)"
       >
@@ -45,36 +38,14 @@
           name="item"
           :item="item"
           :active="isSelected(item)"
-          :expanded="isExpanded(item)"
-          :has-children="hasChildren(item)"
         >
           <div class="oc-list__button-main">
             <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
             <span v-else class="oc-list__icon-placeholder" />
             <span class="oc-list__label">{{ item.label }}</span>
           </div>
-          <OcIcon
-            v-if="hasChildren(item)"
-            class="oc-list__chevron"
-            name="nav.chevron-right"
-            size="sm"
-          />
         </slot>
       </button>
-
-      <div
-        v-if="hasChildren(item)"
-        class="oc-list__submenu floating-menu-surface"
-        :class="{ 'is-open': isExpanded(item) }"
-        role="menu"
-      >
-        <OcList
-          :items="item.children ?? []"
-          mode="menu"
-          @select="emit('select', $event)"
-          @action="emit('action', $event)"
-        />
-      </div>
     </div>
   </div>
 </template>
@@ -93,8 +64,6 @@ export interface OcListItem {
   icon?: IconToken
   /** 是否禁用当前项。 */
   disabled?: boolean
-  /** 子项列表。 */
-  children?: readonly OcListItem[]
 }
 
 type OcListMode = 'menu' | 'listbox'
@@ -143,8 +112,6 @@ const props = withDefaults(defineProps<OcListProps>(), {
 const emit = defineEmits<OcListEmits>()
 
 const listElement = ref<HTMLElement | null>(null)
-const hoveredItemKey = ref<string | null>(null)
-const focusedItemKey = ref<string | null>(null)
 const rovingIndex = ref(-1)
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
@@ -164,20 +131,8 @@ function isEnabled(item: OcListItem): boolean {
   return !item.disabled
 }
 
-function hasChildren(item: OcListItem): boolean {
-  return Boolean(item.children?.length)
-}
-
 function isSelected(item: OcListItem): boolean {
   return selectedKeySet.value.has(item.key)
-}
-
-function isExpanded(item: OcListItem): boolean {
-  if (!hasChildren(item) || item.disabled) {
-    return false
-  }
-
-  return hoveredItemKey.value === item.key || focusedItemKey.value === item.key
 }
 
 function syncRovingIndex(): void {
@@ -244,50 +199,9 @@ function handleItemClick(item: OcListItem): void {
     return
   }
 
-  if (hasChildren(item) && props.mode === 'menu') {
-    focusedItemKey.value = item.key
-    return
-  }
-
   emitSelection(item)
   emit('action', { key: item.key, item })
   emit('select', item.key)
-}
-
-function handleItemMouseEnter(item: OcListItem): void {
-  if (!hasChildren(item) || item.disabled) {
-    return
-  }
-
-  hoveredItemKey.value = item.key
-}
-
-function handleItemMouseLeave(item: OcListItem): void {
-  if (hoveredItemKey.value === item.key) {
-    hoveredItemKey.value = null
-  }
-}
-
-function handleItemFocusIn(item: OcListItem): void {
-  if (!hasChildren(item) || item.disabled) {
-    return
-  }
-
-  focusedItemKey.value = item.key
-}
-
-function handleItemFocusOut(event: FocusEvent, item: OcListItem): void {
-  if (!hasChildren(item) || focusedItemKey.value !== item.key) {
-    return
-  }
-
-  const currentTarget = event.currentTarget
-  const nextTarget = event.relatedTarget
-  if (currentTarget instanceof HTMLElement && nextTarget instanceof Node && currentTarget.contains(nextTarget)) {
-    return
-  }
-
-  focusedItemKey.value = null
 }
 
 function handleItemFocus(item: OcListItem, index: number): void {
@@ -468,30 +382,5 @@ function handleListKeydown(event: KeyboardEvent): void {
   white-space: nowrap;
 }
 
-.oc-list__chevron {
-  font-size: 10px;
-  flex-shrink: 0;
-}
-
-.oc-list__submenu {
-  position: absolute;
-  top: -3px;
-  left: calc(100% - 3px);
-  display: none;
-  z-index: 1;
-}
-
-.oc-list__submenu.is-open {
-  display: block;
-}
-
-.floating-menu-surface {
-  min-width: 148px;
-  padding: 3px;
-  border: 1px solid var(--oc-border-surface);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-panel);
-  box-shadow: var(--oc-shadow-overlay);
-}
 </style>
 

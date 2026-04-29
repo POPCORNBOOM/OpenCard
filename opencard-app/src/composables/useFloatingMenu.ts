@@ -6,7 +6,6 @@ export interface FloatingMenuItem {
   label: string
   icon?: IconToken
   disabled?: boolean
-  children?: readonly FloatingMenuItem[]
 }
 
 export type FloatingMenuPlacement = 'bottom-start' | 'bottom-end'
