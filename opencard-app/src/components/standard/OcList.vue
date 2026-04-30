@@ -1,59 +1,19 @@
 <!-- Standard 通用列表：统一扁平菜单/列表的键盘行为与选择状态。 -->
 <template>
-  <div
-    ref="listElement"
-    class="oc-list"
-    :class="[`oc-list--${mode}`, { 'is-fill': props.fill }]"
-    :role="resolvedListRole"
-    :aria-label="ariaLabel"
-    :aria-multiselectable="mode === 'listbox' && multiSelect ? 'true' : undefined"
-    @keydown="handleListKeydown"
-  >
-    <div
-      v-for="(item, index) in items"
-      :key="item.key"
-      class="oc-list__item"
-    >
-      <OcBar
-        kind="tree"
-        layout="leading-append"
-        hoverable
-        :state="isSelected(item) ? 'selected' : 'default'"
-        :disabled="Boolean(item.disabled)"
-        :data-oc-list-index="index"
-        :data-oc-list-key="item.key"
-        :role="resolvedItemRole"
-        :tabindex="resolveTabIndex(index, item)"
-        :aria-disabled="item.disabled ? 'true' : undefined"
-        :aria-selected="mode === 'listbox' ? (isSelected(item) ? 'true' : 'false') : undefined"
-        @click="handleItemClick(item)"
-        @focusin="handleItemFocus(item, index)"
-      >
-        <template
-          v-if="!$slots.item"
-          #icon
-        >
-          <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
-          <span
-            v-else
-            class="oc-list__icon-placeholder"
-          />
-        </template>
-        <template #title>
-          <slot
-            name="item"
-            :item="item"
-            :active="isSelected(item)"
-          >
-            <OcText
-              truncate
-              class="oc-list__label"
-            >
-              {{ item.label }}
-            </OcText>
-          </slot>
-        </template>
-      </OcBar>
+  <div ref="listElement" class="oc-list" :class="[`oc-list--${mode}`, { 'is-fill': props.fill }]"
+    :role="resolvedListRole" :aria-label="ariaLabel"
+    :aria-multiselectable="mode === 'listbox' && multiSelect ? 'true' : undefined" @keydown="handleListKeydown">
+    <div v-for="(item, index) in items" :key="item.key" class="oc-list__item">
+      <OcPanel :hoverable="isEnabled(item)" :tone="resolveItemPanelTone(item)"
+        :border="isPanelSelected(item) ? 'accent' : 'transparent'"
+        :data-oc-item-disabled="item.disabled ? 'true' : undefined" radius="none" elevation="none" padding="none"
+        overflow-x="clip" overflow-y="clip">
+        <OcBar :icon="item.icon" :title="item.label" :data-oc-list-index="index" :data-oc-list-key="item.key"
+          :role="resolvedItemRole" :tabindex="resolveTabIndex(index, item)"
+          :aria-disabled="item.disabled ? 'true' : undefined"
+          :aria-selected="mode === 'listbox' ? (isSelected(item) ? 'true' : 'false') : undefined"
+          @click="handleItemClick(item)" @focusin="handleItemFocus(item, index)" />
+      </OcPanel>
     </div>
   </div>
 </template>
@@ -62,8 +22,7 @@
 import { computed, ref, watch } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcBar from '../base/OcBar.vue'
-import OcIcon from '../base/OcIcon.vue'
-import OcText from '../base/OcText.vue'
+import OcPanel from '../base/OcPanel.vue'
 
 export interface OcListItem {
   /** 列表项唯一 key。 */
@@ -143,6 +102,14 @@ function isEnabled(item: OcListItem): boolean {
 
 function isSelected(item: OcListItem): boolean {
   return selectedKeySet.value.has(item.key)
+}
+
+function isPanelSelected(item: OcListItem): boolean {
+  return props.mode === 'listbox' && isSelected(item)
+}
+
+function resolveItemPanelTone(item: OcListItem): 'active' | 'transparent' {
+  return isPanelSelected(item) ? 'active' : 'transparent'
 }
 
 function syncRovingIndex(): void {
@@ -338,21 +305,21 @@ function handleListKeydown(event: KeyboardEvent): void {
   min-width: 0;
 }
 
-.oc-list__icon-placeholder {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
+.oc-list__item .oc-bar {
+  --oc-bar-min-height: var(--oc-block-sm);
+  --oc-bar-inline-padding: var(--oc-space-2);
 }
 
-.oc-list__label {
-  flex: 1 1 auto;
-  min-width: 0;
+.oc-list__item .oc-panel {
+  cursor: pointer;
 }
 
-.oc-list__item :deep(.oc-bar.oc-bar--state-selected.is-hoverable:hover:not(.is-disabled)),
-.oc-list__item :deep(.oc-bar.oc-bar--state-selected.is-hoverable:focus-within:not(.is-disabled)) {
-  --oc-bar-bg: var(--oc-bg-selected);
+.oc-list__item .oc-bar[aria-disabled='true'] {
+  --oc-bar-fg: var(--oc-text-disabled);
+  opacity: 0.75;
 }
 
+.oc-list__item .oc-panel[data-oc-item-disabled='true'] {
+  cursor: default;
+}
 </style>
-

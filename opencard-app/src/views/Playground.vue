@@ -1,7 +1,7 @@
 <!-- 组件实验页：用单一 OcPanel 可视化验证 V2.2+ 语义与交互效果。 -->
 <template>
   <main class="playground-page">
-    <OcBar kind="top" title="OpenCard Playground">
+    <OcBar title="OpenCard Playground">
       <template #append>
         <OcButton variant="ghost" @click="goToIde">Back To IDE</OcButton>
       </template>
@@ -109,18 +109,17 @@
               :hoverable="hoverable" padding="standard">
               <OcText size="label" tone="muted">OcBar Showcase</OcText>
               <OcPanel class="playground-bar-showcase" tone="transparent" border="soft" radius="sm" padding="compact">
-                <OcBar kind="top" icon="data.list-tree" title="Top Bar">
+                <OcBar icon="data.list-tree" title="Top Bar">
                   <template #append>
                     <OcButton variant="ghost" icon="action.refresh">Refresh</OcButton>
                   </template>
                 </OcBar>
-                <OcBar kind="section" icon="data.symbol-string" title="Section Bar">
+                <OcBar icon="data.symbol-string" title="Section Bar">
                   <template #append>
                     <OcButton variant="ghost" icon-only icon="tool.settings-gear" title="Settings" />
                   </template>
                 </OcBar>
-                <OcBar kind="status" icon="tool.search" title="Status Bar">
-                  <OcText tone="secondary" size="label">Ready</OcText>
+                <OcBar icon="tool.search" title="Ready">
                   <template #append>
                     <OcText tone="secondary" size="label">Ln 12, Col 8</OcText>
                   </template>

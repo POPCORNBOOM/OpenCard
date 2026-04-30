@@ -1,26 +1,40 @@
 <!-- Standard IDE 标签布局：提供结构化 tabs、内置标签渲染与面板切换容器。 -->
 <template>
   <section class="oc-tab" :class="{ 'is-fill': props.fill }">
-    <div v-if="tabs.length > 0" class="oc-tab__bar" role="tablist" aria-orientation="horizontal" :aria-label="ariaLabel"
-      @keydown="handleBarKeydown">
-      <OcBar v-for="tab in tabs" :key="tab.key" kind="tab" layout="leading-append" :active="isActive(tab)"
-        :disabled="!isEnabled(tab)" :hoverable="resolveTabHoverable(tab)" :icon="tab.icon" :title="tab.label"
-        :data-oc-tab-key="tab.key" role="tab" :tabindex="resolveTabIndex(tab)"
-        :aria-selected="isActive(tab) ? 'true' : 'false'" :aria-disabled="tab.disabled ? 'true' : undefined"
-        @click="handleTabClick(tab)">
-        <template v-if="tab.dirty" #append>
-          <span class="oc-tab__tab-dirty-mark" aria-hidden="true">
-            <span class="oc-tab__tab-dirty-dot" />
-          </span>
-        </template>
-        <template v-if="isClosable(tab) && isEnabled(tab)" #append-hover>
-          <OcButton variant="ghost" size="sm" radius="sm" icon="action.close" icon-only
-            :aria-label="`Close ${tab.label}`" tabindex="-1" data-oc-tab-close @click.stop="handleTabClose(tab)" />
-        </template>
-      </OcBar>
-    </div>
+    <OcPanel
+      v-if="tabs.length > 0"
+      padding="none"
+      border="none"
+      orientation="horizontal"
+      horizontal-alignment="start"
+      vertical-alignment="stretch"
+      overflow-x="auto"
+      overflow-y="clip"
+      role="tablist"
+      aria-orientation="horizontal"
+      :aria-label="ariaLabel"
+      @keydown="handleBarKeydown"
+    >
+      <OcPanel min-width="size-xl" v-for="tab in tabs" :key="tab.key" :hoverable="isEnabled(tab)"
+        :tone="resolveTabPanelTone(tab)" :border="isActive(tab) ? 'accent' : 'soft'" radius="none" elevation="none"
+        padding="none" overflow-x="clip" overflow-y="clip" :data-oc-tab-disabled="tab.disabled ? 'true' : undefined">
+        <OcBar :icon="tab.icon" :title="tab.label" :data-oc-tab-key="tab.key" role="tab"
+          :tabindex="resolveTabIndex(tab)" :aria-selected="isActive(tab) ? 'true' : 'false'"
+          :aria-disabled="tab.disabled ? 'true' : undefined" @click="handleTabClick(tab)">
+          <template v-if="tab.dirty" #append>
+            <span class="oc-tab__tab-dirty-mark" aria-hidden="true">
+              <span class="oc-tab__tab-dirty-dot" />
+            </span>
+          </template>
+          <template v-if="isClosable(tab) && isEnabled(tab)" #append-hover>
+            <OcButton variant="ghost" size="sm" radius="sm" icon="action.close" icon-only
+              :aria-label="`Close ${tab.label}`" tabindex="-1" data-oc-tab-close @click.stop="handleTabClose(tab)" />
+          </template>
+        </OcBar>
+      </OcPanel>
+    </OcPanel>
 
-    <OcPanel v-if="$slots.panel" fill>
+    <OcPanel v-if="$slots.panel" fill padding="none" border="none">
       <slot name="panel" :active-key="activeKey" :active-tab="activeTab" />
     </OcPanel>
   </section>
@@ -95,8 +109,8 @@ function isClosable(tab: OcTabItem): boolean {
   return tab.closable !== false
 }
 
-function resolveTabHoverable(tab: OcTabItem): boolean {
-  return isEnabled(tab) && !isActive(tab)
+function resolveTabPanelTone(tab: OcTabItem): 'base' | 'transparent' {
+  return isActive(tab) ? 'base' : 'transparent'
 }
 
 function resolveFirstEnabledTabKey(): string | null {
@@ -222,36 +236,29 @@ function handleBarKeydown(event: KeyboardEvent): void {
   height: 100%;
 }
 
-.oc-tab__bar {
-  display: flex;
-  align-items: stretch;
-  min-width: 0;
+.oc-tab > :deep(.oc-panel[role='tablist']) {
   min-height: 33px;
-  overflow-x: auto;
-  overflow-y: hidden;
   background: var(--oc-bg-elevated);
-  border-bottom: 1px solid var(--oc-border-strong);
-  scrollbar-width: thin;
 }
 
-.oc-tab__bar::-webkit-scrollbar {
-  height: var(--scrollbar-size);
-  background: transparent;
+.oc-tab > :deep(.oc-panel[role='tablist'] > .oc-panel) {
+  flex: 0 0 auto;
+  max-width: 320px;
+  cursor: pointer;
 }
 
-.oc-tab__bar::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background-clip: padding-box;
+.oc-tab > :deep(.oc-panel[role='tablist'] .oc-bar) {
+  --oc-bar-min-height: 32px;
+  --oc-bar-inline-padding: var(--oc-padding-standard);
 }
 
-.oc-tab__bar::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+.oc-tab > :deep(.oc-panel[role='tablist'] .oc-bar[aria-disabled='true']) {
+  --oc-bar-fg: var(--oc-text-disabled);
+  opacity: 0.75;
 }
 
-.oc-tab__bar::-webkit-scrollbar-track {
-  background: transparent;
+.oc-tab > :deep(.oc-panel[role='tablist'] .oc-panel[data-oc-tab-disabled='true']) {
+  cursor: default;
 }
 
 .oc-tab__tab-dirty-mark {

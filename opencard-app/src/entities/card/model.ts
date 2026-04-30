@@ -48,6 +48,7 @@ export type TextBlock = BaseBlock & {
     fontWeight?: 'normal' | 'bold' | number
     color?: string
     textAlign?: AlignmentPosition
+    contentAnchor?: AnchorPosition
     lineHeight?: CSSValue
     writingMode?: TextWritingMode
 }
@@ -423,6 +424,7 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
     setIfDefined(block, 'fontWeight', init.fontWeight)
     setIfDefined(block, 'color', init.color)
     setIfDefined(block, 'textAlign', init.textAlign)
+    setIfDefined(block, 'contentAnchor', init.contentAnchor)
     setIfDefined(block, 'lineHeight', init.lineHeight)
     setIfDefined(block, 'writingMode', init.writingMode)
 

@@ -1,65 +1,50 @@
+<!-- Base 颜色选取器：使用原生 color input 输出十六进制颜色值。 -->
 <template>
-  <div class="color-field">
-    <span class="color-preview" :style="previewStyle" />
-    <OcFieldInput
-      v-if="definition.enableCss !== false"
-      as="input"
-      type="text"
-      :value="stringValue"
-      @input="emit('update:value', ($event.target as HTMLInputElement).value)"
-    />
-    <OcFieldInput
-      v-else
-      as="input"
-      type="text"
-      :value="stringValue"
-      readonly
-    />
-    <input
-      v-if="definition.enablePicker"
-      class="color-picker"
-      type="color"
-      :value="pickerValue"
-      @input="emit('update:value', ($event.target as HTMLInputElement).value)"
-    />
-  </div>
+  <input
+    class="color-picker"
+    type="color"
+    :value="pickerValue"
+    @input="handlePickerInput"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcFieldInput from '../../base/OcFieldInput.vue'
-import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
-const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'color' }>
+interface ColorPropertyFieldProps {
+  /** 当前字段值。 */
   value: unknown
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:value', value: string): void
-}>()
-
-const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
-
-const pickerValue = computed(() => toHexColor(stringValue.value) ?? '#000000')
-
-const previewStyle = computed(() => ({
-  background: isSupportedColor(stringValue.value) ? stringValue.value : 'transparent',
-}))
-
-function isSupportedColor(value: string): boolean {
-  if (!value) {
-    return false
-  }
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', value)
-  }
-
-  return Boolean(toHexColor(value))
 }
 
-function toHexColor(value: string): string | null {
+interface ColorPropertyFieldEmits {
+  /** 颜色变化时输出 HEX 字符串（如 #112233）。 */
+  (e: 'update:value', value: string): void
+}
+
+defineOptions({
+  name: 'ColorPropertyField',
+  inheritAttrs: false,
+})
+
+const props = defineProps<ColorPropertyFieldProps>()
+
+const emit = defineEmits<ColorPropertyFieldEmits>()
+
+const pickerValue = computed(() => toHexColor(props.value) ?? '#000000')
+
+function handlePickerInput(event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+  emit('update:value', target.value)
+}
+
+function toHexColor(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
   const trimmed = value.trim()
   if (/^#[\da-fA-F]{6}$/.test(trimmed)) {
     return trimmed
@@ -72,35 +57,13 @@ function toHexColor(value: string): string | null {
 </script>
 
 <style scoped>
-.color-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.color-preview {
-  box-sizing: border-box;
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--oc-border-input);
-  background-image:
-    linear-gradient(45deg, #666 25%, transparent 25%),
-    linear-gradient(-45deg, #666 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #666 75%),
-    linear-gradient(-45deg, transparent 75%, #666 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
-  flex-shrink: 0;
-}
-
 .color-picker {
-  width: 28px;
+  width: 32px;
   height: 24px;
   border: none;
   padding: 0;
   background: transparent;
+  cursor: pointer;
   flex-shrink: 0;
 }
 </style>

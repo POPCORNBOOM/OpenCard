@@ -9,4 +9,6 @@
 - 新字段要同步：schema 定义 + 默认值映射（如需要默认值）。
 - schema 只维护字段语义，不维护 `label/labelKey/category/categoryKey` 等本地化解析细节。
 - 分类只通过 `categoryId` 表达；若字段展示文案需要特殊 key（如 `color -> textColor`），通过 `displayFieldKey` 提供语义映射。
+- `background` 只是普通 CSS 字符串字段，不再保留专用 datatype 或独立编辑器语义。
+- `color` 保持轻量单色选择，和 `background` 的字符串编辑保持分离。
 - schema 外字段保持透传，由上层决定是否展示/写回。

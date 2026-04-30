@@ -68,16 +68,11 @@
       </OcPanel>
     </div>
 
-    <OcBar kind="status">
-      <template #title>
-        <OcChip v-if="projectPath" icon="status.folder-open" icon-tone="muted" truncate max-width="full">
-          {{ projectPath }}
-        </OcChip>
+    <OcBar :icon="projectPath ? 'status.folder-open' : undefined" :title="projectPath ?? undefined">
+      <template #append>
         <OcChip v-if="isWatching" tone="info" icon="status.watching" icon-tone="primary">
           {{ t('status.watching') }}
         </OcChip>
-      </template>
-      <template #append>
         <OcChip v-if="activeSession" :icon="currentLanguageIcon" :icon-tone="currentLanguageIconTone">
           {{ currentLanguage }}
         </OcChip>

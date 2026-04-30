@@ -20,7 +20,7 @@ export const OC_PANEL_POSITIONS = ['static', 'relative', 'absolute'] as const
 export const OC_PANEL_ANCHORS = ['none', 'cover', 'origin'] as const
 export const OC_PANEL_ALIGNMENTS = ['start', 'center', 'end', 'stretch'] as const
 export const OC_PANEL_INTERACTIONS = ['auto', 'passthrough'] as const
-export const OC_PANEL_BORDERS = ['none', 'black', 'soft', 'accent'] as const
+export const OC_PANEL_BORDERS = ['none', 'transparent', 'black', 'soft', 'accent'] as const
 export const OC_PANEL_BACKGROUNDS = ['none', 'tri-dot', 'squ-dot', 'checker'] as const
 export const OC_PANEL_PADDINGS = ['none', 'compact', 'standard'] as const
 export const OC_PANEL_OVERFLOW_VALUES = ['visible', 'clip', 'auto', 'scroll'] as const
@@ -507,6 +507,10 @@ const panelClass = computed(() => [
 
 .oc-panel--border-none {
   border-width: 0;
+  --oc-panel-border: transparent;
+}
+
+.oc-panel--border-transparent {
   --oc-panel-border: transparent;
 }
 

@@ -81,14 +81,14 @@
               <OcTrackLayout fill axis="vertical" :regions="rightPanelTrackRegions"
                 @resize-end="handleRightPanelTrackResizeEnd">
                 <template #tree-panel>
-                  <OcCard variant="glass" :level="0" fit-y="region" title="结构树">
+                  <OcCard variant="glass" :level="0" fit-y="region" title="结构树" :actions="structureTreeCardActions"
+                    @action="handleStructureTreeCardAction">
                     <template #content>
                       <OcPanel horizontal-alignment="stretch" fill tone="transparent" border="none" padding="none"
                         overflow-x="clip" overflow-y="auto">
-                        <OcTree title="模板结构" :nodes="blockTree" :multi-select="false"
+                        <OcTree :nodes="blockTree" :multi-select="false" :show-title-bar="false"
                           :features="['actions', 'rename', 'drag-drop']" :selected-keys="selectedBlockKeys"
-                          :actions="treeActions" v-model:expanded="blockTreeExpanded" :action-keys="treeActionKeys"
-                          :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
+                          :actions="treeActions" :can-drop="canDropTreeNode" @update:selected-keys="onTreeSelect"
                           @node-action="handleTreeAction" @node-rename="handleTreeRename" @node-drop="handleTreeDrop" />
                       </OcPanel>
                     </template>
@@ -162,7 +162,6 @@ const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 
 // 文档与编辑器状态
-const blockTreeExpanded = ref(true)
 const propertySortMode = ref<CdePropertySortMode>('category')
 const isInstancePanelExpanded = ref(true)
 const currentLeftPanelWidth = computed(() => (isInstancePanelExpanded.value ? 272 : 32))
@@ -287,6 +286,17 @@ const treeActions = new Map<string, ActionDefinition>([
   ['delete', { key: 'delete', icon: 'action.delete', title: '删除' }],
 ])
 const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
+
+function toCardActionDefinition(action: ActionDefinition, disabled = false): OcCardActionDefinition {
+  return {
+    key: action.key,
+    icon: action.icon,
+    title: action.title,
+    disabled,
+    children: action.children?.map((child) => toCardActionDefinition(child)),
+  }
+}
+
 // 当前选择状态
 const selectedBlockKeys = ref<string[]>([])
 const selectedCardKeys = ref<string[]>([])
@@ -444,6 +454,23 @@ const {
   refreshDocumentState,
   markDocumentChanged,
 })
+
+const structureTreeCardActions = computed<OcCardActionDefinition[]>(() =>
+  treeActionKeys
+    .map((actionKey) => treeActions.get(actionKey))
+    .filter((action): action is ActionDefinition => action !== undefined)
+    .map((action) => {
+      const selectionDependent = action.key === 'duplicate-selected' || action.key === 'delete-selected'
+      return toCardActionDefinition(action, selectionDependent && !selectedBlock.value)
+    }),
+)
+
+function handleStructureTreeCardAction(payload: { actionKey: string }) {
+  handleTreeAction({
+    actionKey: payload.actionKey,
+    caller: 'tree',
+  })
+}
 
 // 当前选择派生信息
 const {

@@ -6,7 +6,7 @@
     :radius="surfacePreset.radius" :elevation="surfacePreset.elevation" padding="none" overflow-x="clip"
     overflow-y="clip">
     <div v-if="hasHeader" class="oc-card__header-shell" :class="{ 'is-collapsed': collapsed }" :style="headerStyle">
-      <OcBar kind="card" layout="leading-append" :icon="props.icon" :title="props.title">
+      <OcBar :icon="props.icon" :title="props.title">
         <template v-if="defaultActionDefinitions.length > 0" #append>
           <OcButton v-for="action in defaultActionDefinitions" :key="action.key" variant="ghost" size="sm" radius="sm"
             icon-only :icon="action.icon" :title="action.title" :aria-label="action.title ?? action.key"
@@ -215,6 +215,15 @@ function handleActionClick(action: OcCardActionDefinition, event: MouseEvent): v
 <style scoped>
 .oc-card__header-shell {
   border-bottom: var(--oc-thickness-1) solid var(--oc-card-divider-color);
+}
+
+.oc-card__header-shell :deep(.oc-bar) {
+  --oc-bar-min-height: var(--oc-block-md);
+  --oc-bar-inline-padding: var(--oc-padding-standard);
+  --oc-bar-gap: var(--oc-space-2);
+  font-size: var(--oc-title-size);
+  font-weight: 600;
+  color: var(--oc-text-primary);
 }
 
 .oc-card__header-shell.is-collapsed {

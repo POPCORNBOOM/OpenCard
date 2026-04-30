@@ -29,7 +29,6 @@ export type PropertyConstraintMap = {
         maxLength?: number
         extensionsFilter?: readonly string[]
     }
-    background: {}
     anchorPosition: {}
     alignPosition: {}
     flowDirection: {}
@@ -38,10 +37,7 @@ export type PropertyConstraintMap = {
         max?: number
     }
     boolean: {}
-    color: {
-        enablePicker?: boolean
-        enableCss?: boolean
-    }
+    color: {}
     object: {
         objectType: string
     }
@@ -103,7 +99,7 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
         opacity: { datatype: 'number', min: 0, max: 1, categoryId: 'appearance' },
         outline: { datatype: 'string', categoryId: 'appearance' },
         borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance' },
-        background: { datatype: 'background', categoryId: 'appearance' },
+        background: { datatype: 'string', categoryId: 'appearance' },
         customCss: { datatype: 'string', categoryId: 'appearance' },
     }
 }
@@ -116,8 +112,9 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         fontFamily: { datatype: 'string', categoryId: 'typography' },
         fontWeight: { datatype: 'string', categoryId: 'typography' },
-        color: { datatype: 'color', enablePicker: true, enableCss: true, categoryId: 'appearance', displayFieldKey: 'textColor' },
+        color: { datatype: 'color', categoryId: 'appearance', displayFieldKey: 'textColor' },
         textAlign: { datatype: 'alignPosition', categoryId: 'typography' },
+        contentAnchor: { datatype: 'anchorPosition', categoryId: 'layout' },
         lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         writingMode: { datatype: 'string', options: textWritingModeOptions, categoryId: 'typography' },
     },
@@ -168,7 +165,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         version: { datatype: 'string', categoryId: 'identity' },
         width: { datatype: 'number', min: 0, categoryId: 'layout' },
         height: { datatype: 'number', min: 0, categoryId: 'layout' },
-        background: { datatype: 'background', categoryId: 'appearance' },
+        background: { datatype: 'string', categoryId: 'appearance' },
         children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data' },
         instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data' },
     },
@@ -186,8 +183,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         id: '',
         name: '',
         type: 'text-block',
-        width: '',
-        height: '',
+        width: '32%',
+        height: '18%',
         translateX: '0px',
         translateY: '0px',
         scaleX: 1,
@@ -207,6 +204,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         fontWeight: 'normal',
         color: '',
         textAlign: 'start',
+        contentAnchor: 'lt',
         lineHeight: '',
         writingMode: 'horizontal-tb',
     },
@@ -214,8 +212,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         id: '',
         name: '',
         type: 'image-block',
-        width: '',
-        height: '',
+        width: '32%',
+        height: '18%',
         translateX: '0px',
         translateY: '0px',
         scaleX: 1,
@@ -236,8 +234,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         id: '',
         name: '',
         type: 'simple-container-block',
-        width: '',
-        height: '',
+        width: '32%',
+        height: '18%',
         translateX: '0px',
         translateY: '0px',
         scaleX: 1,
@@ -256,8 +254,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         id: '',
         name: '',
         type: 'flow-container-block',
-        width: '',
-        height: '',
+        width: '32%',
+        height: '18%',
         translateX: '0px',
         translateY: '0px',
         scaleX: 1,

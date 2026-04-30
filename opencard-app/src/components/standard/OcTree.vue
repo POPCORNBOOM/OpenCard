@@ -6,52 +6,65 @@
     'drop-invalid': draggedNode && !dropTargetNode && dropPosition && !dropAllowed,
     dragging: draggedNode,
   }">
-    <div class="oc-tree__root" role="button" tabindex="0" :aria-expanded="isRootExpanded" @click="handleRootClick"
-      @keydown="handleRootKeydown">
-      <OcIcon :name="isRootExpanded ? 'nav.chevron-down' : 'nav.chevron-right'" size="sm" />
-      <span class="oc-tree__root-title">{{ props.title }}</span>
-      <div v-if="enableActions && treeActions.length" class="oc-tree__root-actions">
-        <OcButton v-for="action in treeActions" :key="action.key" class="oc-tree__action-button" variant="ghost"
-          icon-only :icon="action.icon" :title="action.title" data-tree-interactive="true" @mousedown.stop
-          @click.stop="handleActionClick(action, 'tree', undefined, $event)" />
-      </div>
-    </div>
+    <OcPanel v-if="isTitleBarVisible" hoverable tone="transparent" border="none" radius="none" elevation="none"
+      padding="none" overflow-x="clip" overflow-y="clip" :data-oc-root-state="resolveRootBarState()">
+      <OcBar :title="props.title ?? ''" role="button" tabindex="0" :aria-expanded="isRootExpanded"
+        @click="handleRootClick" @keydown="handleRootKeydown">
+        <template #icon>
+          <OcIcon class="oc-tree__chevron" :name="isRootExpanded ? 'tree.chevron-down' : 'tree.chevron-right'"
+            size="sm" />
+        </template>
 
-    <div v-if="isRootExpanded" class="oc-tree__children" role="group">
-      <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node">
-        <OcBar kind="tree" layout="leading-append" hoverable :state="resolveNodeBarState(entry.node)"
-          :indent="entry.level * 12" :data-tree-node-key="entry.node.key" role="treeitem" tabindex="0"
-          :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
-          :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
-          @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
-          @mousedown="handleNodeMouseDown($event, entry.node)" @keydown="handleNodeKeydown($event, entry.node)">
-          <template #icon>
-            <OcIcon v-if="isExpandable(entry.node)" class="oc-tree__chevron"
-              :name="isNodeExpanded(entry.node) ? 'tree.chevron-down' : 'tree.chevron-right'" size="sm"
-              data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
-            <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
-          </template>
-          <template #title>
-            <OcText truncate v-if="renamingNodeKey !== entry.node.key" class="oc-tree__node-name"
-              @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
-              {{ entry.node.name }}
-            </OcText>
+        <template v-if="enableActions && treeActions.length" #append-hover>
+          <div class="oc-tree__node-actions">
+            <OcButton v-for="action in treeActions" :key="action.key" size="sm" class="oc-tree__action-button"
+              variant="ghost" icon-only :icon="action.icon" :title="action.title" data-tree-interactive="true"
+              @mousedown.stop @click.stop="handleActionClick(action, 'tree', undefined, $event)" />
+          </div>
+        </template>
+      </OcBar>
+    </OcPanel>
 
-            <OcFieldInput v-else as="input" class="oc-tree__rename-input" type="text" :value="renameDraft"
-              :data-tree-rename-input="entry.node.key" data-tree-interactive="true" @mousedown.stop @dblclick.stop
-              @click.stop @input="handleRenameInput" @keydown="handleRenameKeydown($event, entry.node)"
-              @blur="cancelNodeRename" />
-          </template>
+    <div v-if="isContentExpanded" class="oc-tree__children" role="group">
+      <div v-for="entry in visibleNodes" :key="entry.node.key" class="oc-tree__node"
+        :style="{ '--oc-tree-node-indent': `${entry.level * 12}px` }">
+        <OcPanel hoverable :tone="resolveNodePanelTone(entry.node)"
+          :border="isSelected(entry.node) ? 'accent' : 'transparent'" radius="none" elevation="none" padding="none"
+          overflow-x="clip" overflow-y="clip" :data-oc-row-state="resolveNodeBarState(entry.node)">
+          <OcBar :data-tree-node-key="entry.node.key" role="treeitem" tabindex="0"
+            :aria-selected="isSelected(entry.node) ? 'true' : 'false'"
+            :aria-expanded="isExpandable(entry.node) ? isNodeExpanded(entry.node) : undefined"
+            @click="handleNodeClick($event, entry.node)" @dblclick="handleNodeDoubleClick(entry.node, $event)"
+            @mousedown="handleNodeMouseDown($event, entry.node)" @keydown="handleNodeKeydown($event, entry.node)">
+            <template #icon>
+              <OcIcon v-if="isExpandable(entry.node)" class="oc-tree__chevron"
+                :name="isNodeExpanded(entry.node) ? 'tree.chevron-down' : 'tree.chevron-right'" size="sm"
+                data-tree-interactive="true" @mousedown.stop @click.stop="toggleNodeExpanded(entry.node)" />
+              <OcIcon v-else :name="entry.node.icon || 'file.default'" :tone="entry.node.iconTone" />
+            </template>
 
-          <template v-if="enableActions && resolveNodeActions(entry.node).length" #append-hover>
-            <div class="oc-tree__node-actions">
-              <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key" size="sm"
-                class="oc-tree__action-button" variant="ghost" icon-only :icon="action.icon" :title="action.title"
-                data-tree-interactive="true" @mousedown.stop
-                @click.stop="handleActionClick(action, 'node', entry.node, $event)" />
-            </div>
-          </template>
-        </OcBar>
+            <template #title>
+              <OcText v-if="renamingNodeKey !== entry.node.key" truncate class="oc-tree__node-name"
+                @click.stop="handleNodeNameClick($event, entry.node)" @dblclick.stop>
+                {{ entry.node.name }}
+              </OcText>
+
+              <OcFieldInput v-else as="input" class="oc-tree__rename-input" type="text" :value="renameDraft"
+                :data-tree-rename-input="entry.node.key" data-tree-interactive="true" @mousedown.stop @dblclick.stop
+                @click.stop @input="handleRenameInput" @keydown="handleRenameKeydown($event, entry.node)"
+                @blur="cancelNodeRename" />
+            </template>
+
+            <template v-if="enableActions && resolveNodeActions(entry.node).length" #append-hover>
+              <div class="oc-tree__node-actions">
+                <OcButton v-for="action in resolveNodeActions(entry.node)" :key="action.key" size="sm"
+                  class="oc-tree__action-button" variant="ghost" icon-only :icon="action.icon" :title="action.title"
+                  data-tree-interactive="true" @mousedown.stop
+                  @click.stop="handleActionClick(action, 'node', entry.node, $event)" />
+              </div>
+            </template>
+          </OcBar>
+        </OcPanel>
       </div>
     </div>
   </div>
@@ -63,6 +76,7 @@ import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFlo
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
+import OcPanel from '../base/OcPanel.vue'
 import type {
   ActionCaller,
   ActionDefinition,
@@ -107,6 +121,8 @@ interface OcTreeProps {
   allowedDropPositions?: NodeTreeAllowedDropPositions
   /** 启用的高级能力。 */
   features?: readonly OcTreeFeature[]
+  /** 是否显示根标题栏。 */
+  showTitleBar?: boolean
   /** 是否占满父容器。 */
   fill?: boolean
 }
@@ -148,6 +164,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   canDrop: undefined,
   allowedDropPositions: undefined,
   features: () => [],
+  showTitleBar: true,
   fill: false,
 })
 
@@ -178,6 +195,18 @@ const renameEnabled = computed(() =>
 
 const isRootExpandedControlled = computed(() => props.expanded !== undefined)
 const isRootExpanded = computed(() => treeExpanded.value)
+const isTitleBarVisible = computed(() => props.showTitleBar)
+const isContentExpanded = computed(() => {
+  if (isTitleBarVisible.value) {
+    return isRootExpanded.value
+  }
+
+  if (isRootExpandedControlled.value) {
+    return isRootExpanded.value
+  }
+
+  return true
+})
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 const treeActions = computed(() =>
   props.actionKeys
@@ -238,7 +267,7 @@ const nodeMap = computed(() => {
 })
 
 const visibleNodes = computed<OcTreeVisibleNode[]>(() => {
-  if (!isRootExpanded.value) {
+  if (!isContentExpanded.value) {
     return []
   }
 
@@ -252,7 +281,7 @@ const visibleNodes = computed<OcTreeVisibleNode[]>(() => {
     }
   }
 
-  visit(props.nodes, 1)
+  visit(props.nodes, isTitleBarVisible.value ? 1 : 0)
   return flattened
 })
 
@@ -742,6 +771,18 @@ function resolveNodeBarState(node: TreeItem): 'default' | 'selected' | 'dragging
   return 'default'
 }
 
+function resolveRootBarState(): 'default' | 'drop-inside' | 'drop-invalid' {
+  if (!draggedNode.value || dropTargetNode.value || !dropPosition.value) {
+    return 'default'
+  }
+
+  return dropAllowed.value ? 'drop-inside' : 'drop-invalid'
+}
+
+function resolveNodePanelTone(node: TreeItem): 'active' | 'transparent' {
+  return resolveNodeBarState(node) === 'selected' ? 'active' : 'transparent'
+}
+
 onMounted(() => {
   window.addEventListener('mousemove', handleGlobalMouseMove)
   window.addEventListener('mouseup', handleGlobalMouseUp)
@@ -776,49 +817,12 @@ onBeforeUnmount(() => {
   cursor: grabbing;
 }
 
-.oc-tree.drag-over-root .oc-tree__root,
 .oc-tree.drag-over-root .oc-tree__children {
   box-shadow: inset 0 0 0 1px var(--oc-bg-accent);
 }
 
-.oc-tree.drag-over-root.drop-invalid .oc-tree__root,
 .oc-tree.drag-over-root.drop-invalid .oc-tree__children {
   box-shadow: inset 0 0 0 1px var(--oc-danger);
-}
-
-.oc-tree__root {
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-  padding: var(--oc-space-1) 0;
-  cursor: pointer;
-  font-size: var(--oc-body-size);
-}
-
-.oc-tree__root:focus-visible {
-  outline: var(--oc-focus-ring-width) solid var(--oc-accent-glow);
-  outline-offset: 1px;
-}
-
-.oc-tree__root-title {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
-}
-
-.oc-tree__root-actions {
-  display: flex;
-  visibility: hidden;
-  gap: var(--oc-space-1);
-  margin-right: var(--oc-space-1);
-}
-
-.oc-tree__root:hover .oc-tree__root-actions,
-.oc-tree__root:focus-within .oc-tree__root-actions,
-.oc-tree__root-actions:hover {
-  visibility: visible;
 }
 
 .oc-tree__node {
@@ -829,12 +833,51 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.oc-tree .oc-bar {
+  --oc-bar-min-height: var(--oc-block-sm);
+  --oc-bar-inline-padding: var(--oc-space-2);
+}
+
+.oc-tree .oc-panel[data-oc-row-state],
+.oc-tree .oc-panel[data-oc-root-state] {
+  cursor: pointer;
+}
+
+.oc-tree__node .oc-bar {
+  --oc-bar-inline-padding-start: calc(var(--oc-bar-inline-padding) + var(--oc-tree-node-indent, 0px));
+}
+
+.oc-tree .oc-panel[data-oc-row-state='dragging'] {
+  opacity: 0.45;
+}
+
+.oc-tree .oc-panel[data-oc-row-state='drop-before'] {
+  box-shadow: inset 0 2px 0 var(--oc-bg-accent);
+}
+
+.oc-tree .oc-panel[data-oc-row-state='drop-inside'] {
+  background: var(--oc-bg-accent-soft);
+}
+
+.oc-tree .oc-panel[data-oc-row-state='drop-after'] {
+  box-shadow: inset 0 -2px 0 var(--oc-bg-accent);
+}
+
+.oc-tree .oc-panel[data-oc-row-state='drop-invalid'] {
+  box-shadow: inset 0 0 0 1px var(--oc-danger);
+}
+
+.oc-tree .oc-panel[data-oc-root-state='drop-inside'] {
+  background: var(--oc-bg-accent-soft);
+}
+
+.oc-tree .oc-panel[data-oc-root-state='drop-invalid'] {
+  box-shadow: inset 0 0 0 1px var(--oc-danger);
+}
+
 .oc-tree__node-name {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .oc-tree__rename-input {

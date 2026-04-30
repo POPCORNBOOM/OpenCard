@@ -60,7 +60,6 @@ import {
   type PropertyDatatype,
 } from '../../entities/card/schema'
 import AlignPositionPropertyField from './property-fields/AlignPositionPropertyField.vue'
-import BackgroundPropertyField from './property-fields/BackgroundPropertyField.vue'
 import BooleanPropertyField from './property-fields/BooleanPropertyField.vue'
 import AnchorPositionPropertyField from './property-fields/AnchorPositionPropertyField.vue'
 import ColorPropertyField from './property-fields/ColorPropertyField.vue'
@@ -111,7 +110,6 @@ type DatatypeEditorEntry = {
 
 const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
   string: { component: StringPropertyField, icon: 'data.symbol-string' },
-  background: { component: BackgroundPropertyField, icon: 'data.symbol-color' },
   anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
   alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
   flowDirection: { component: FlowDirectionPropertyField, icon: 'nav.arrow-right' },
@@ -200,7 +198,6 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
   switch (definition.datatype) {
     case 'string':
       return definition.options?.[0] ?? ''
-    case 'background':
     case 'filePath':
     case 'color':
       return ''
