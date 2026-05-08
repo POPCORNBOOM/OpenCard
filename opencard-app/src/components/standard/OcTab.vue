@@ -34,7 +34,7 @@
       </OcPanel>
     </OcPanel>
 
-    <OcPanel v-if="$slots.panel" fill padding="none" border="none">
+    <OcPanel v-if="$slots.panel" fill grow padding="none" border="none">
       <slot name="panel" :active-key="activeKey" :active-tab="activeTab" />
     </OcPanel>
   </section>
@@ -232,6 +232,7 @@ function handleBarKeydown(event: KeyboardEvent): void {
 }
 
 .oc-tab.is-fill {
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
 }

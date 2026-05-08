@@ -37,7 +37,7 @@
         </template>
       </MainIdeSidebarShell>
 
-      <OcPanel orientation="vertical" grow tone="transparent" border="none" padding="none">
+      <OcPanel orientation="vertical" grow vertical-alignment="stretch" tone="transparent" border="none" padding="none">
         <!-- 无tab时显示欢迎页 -->
         <OcPanel v-if="!hasActiveSession" orientation="vertical" tone="transparent" border="none" padding="none"
           horizontal-alignment="center" vertical-alignment="center" fill>
@@ -58,7 +58,7 @@
         <OcTab v-else fill :tabs="ideTabs" :active-key="activeSessionId ?? null"
           :aria-label="t('sidebar.openedEditors')" @update:active-key="handleTabSelect" @close="handleTabClose">
           <template #panel>
-            <OcPanel fill tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="clip">
+            <OcPanel fill grow vertical-alignment="stretch" tone="transparent" border="none" padding="none" overflow-x="clip" overflow-y="clip">
               <component :is="currentEditorComponent" :key="currentEditorKey" ref="currentEditorRef"
                 v-bind="currentEditorProps" @modified="handleEditorModified" @save="handleEditorSave"
                 @update-viewport-transform="handleViewportTransformUpdate" />
