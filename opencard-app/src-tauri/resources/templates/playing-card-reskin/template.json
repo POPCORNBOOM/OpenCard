@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "playing-card-reskin",
+  "name": "换皮扑克牌",
+  "description": "可替换纸张、墨色、强调色、点数与花色的扑克牌蓝图。",
+  "entry": "playing-card.opencard"
+}

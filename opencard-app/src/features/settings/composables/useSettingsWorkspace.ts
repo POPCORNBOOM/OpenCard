@@ -1,0 +1,203 @@
+/** Projects application settings into key-only tree and row view models. */
+import { computed, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
+import type { OcOption } from '../../../components/standard/OcOptionGroup.vue'
+import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+import type { OcTreeData } from '../../../shared/ui/tree/tree.types'
+import type {
+  AppSettingKey,
+  AppSettings,
+  SettingsCategoryKey,
+} from '../model/appSettings'
+
+export type SettingsFieldViewModel =
+  | {
+      type: 'options'
+      key: AppSettingKey
+      label: string
+      value: string
+      options: readonly OcOption[]
+    }
+  | {
+      type: 'checkbox'
+      key: AppSettingKey
+      label: string
+      checked: boolean
+    }
+  | {
+      type: 'range'
+      key: AppSettingKey
+      label: string
+      value: number
+      min: number
+      max: number
+      step: number
+      suffix: string
+    }
+  | {
+      type: 'value'
+      key: 'shell.sidebarWidth'
+      label: string
+      value: string
+    }
+  | {
+      type: 'action'
+      key: 'project-workspace.reset'
+      label: string
+      actionLabel: string
+      icon: IconToken
+      disabled: boolean
+      disabledReason?: string
+    }
+
+export interface SettingsCategoryViewModel {
+  key: SettingsCategoryKey
+  title: string
+  fields: readonly SettingsFieldViewModel[]
+  preview?: {
+    glassIntensity: number
+  }
+}
+
+interface UseSettingsWorkspaceOptions {
+  settings: Readonly<Ref<DeepReadonly<AppSettings>>>
+  categoryKey: Readonly<Ref<SettingsCategoryKey>>
+  projectOpen: Readonly<Ref<boolean>>
+  translate: (key: string, fallback: string) => string
+}
+
+const CATEGORY_KEYS: readonly SettingsCategoryKey[] = ['general', 'appearance', 'workspace']
+
+export function useSettingsWorkspace(
+  options: UseSettingsWorkspaceOptions,
+): {
+  categoryTreeData: ComputedRef<OcTreeData>
+  activeCategory: ComputedRef<SettingsCategoryViewModel>
+} {
+  const categoryLabels = computed<Record<SettingsCategoryKey, string>>(() => ({
+    general: options.translate('settings.categories.general', 'General'),
+    appearance: options.translate('settings.categories.appearance', 'Appearance'),
+    workspace: options.translate('settings.categories.workspace', 'Workspace'),
+  }))
+
+  const categoryTreeData = computed<OcTreeData>(() => ({
+    rootKeys: CATEGORY_KEYS,
+    items: new Map([
+      ['general', { label: categoryLabels.value.general, icon: 'tool.settings' }],
+      ['appearance', { label: categoryLabels.value.appearance, icon: 'data.symbol-color' }],
+      ['workspace', { label: categoryLabels.value.workspace, icon: 'nav.files' }],
+    ]),
+    children: new Map(),
+  }))
+
+  const activeCategory = computed<SettingsCategoryViewModel>(() => {
+    const categoryKey = options.categoryKey.value
+    const settings = options.settings.value
+
+    if (categoryKey === 'general') {
+      return {
+        key: categoryKey,
+        title: categoryLabels.value.general,
+        fields: [{
+          type: 'options',
+          key: 'appearance.locale',
+          label: options.translate('settings.fields.language', 'Language'),
+          value: settings.appearance.locale,
+          options: [
+            { value: 'system', label: options.translate('settings.values.systemLanguage', 'System') },
+            { value: 'zh-CN', label: '简体中文' },
+            { value: 'en-US', label: 'English' },
+          ],
+        }],
+      }
+    }
+
+    if (categoryKey === 'appearance') {
+      return {
+        key: categoryKey,
+        title: categoryLabels.value.appearance,
+        preview: { glassIntensity: settings.appearance.glassIntensity },
+        fields: [
+          {
+            type: 'options',
+            key: 'appearance.theme',
+            label: options.translate('settings.fields.theme', 'Theme'),
+            value: settings.appearance.theme,
+            options: [
+              { value: 'system', label: options.translate('settings.values.systemTheme', 'System') },
+              { value: 'dark', label: options.translate('settings.values.dark', 'Dark') },
+              { value: 'light', label: options.translate('settings.values.light', 'Light') },
+            ],
+          },
+          {
+            type: 'range',
+            key: 'appearance.glassIntensity',
+            label: options.translate('settings.fields.glassIntensity', 'Glass intensity'),
+            value: settings.appearance.glassIntensity,
+            min: 0,
+            max: 100,
+            step: 1,
+            suffix: '%',
+          },
+        ],
+      }
+    }
+
+    return {
+      key: categoryKey,
+      title: categoryLabels.value.workspace,
+      fields: [
+        {
+          type: 'options',
+          key: 'workspace.structureTreeSelectionBehavior',
+          label: options.translate('settings.fields.structureTreeSelectionBehavior', 'Structure tree selection'),
+          value: settings.workspace.structureTreeSelectionBehavior,
+          options: [
+            {
+              value: 'expand-exclusive',
+              label: options.translate('settings.values.expandExclusive', 'Expand and collapse others'),
+            },
+            {
+              value: 'expand',
+              label: options.translate('settings.values.expand', 'Expand ancestors'),
+            },
+            {
+              value: 'none',
+              label: options.translate('settings.values.noAutoExpand', 'Do not expand'),
+            },
+          ],
+        },
+        {
+          type: 'checkbox',
+          key: 'workspace.structureTreeScrollToSelection',
+          label: options.translate('settings.fields.structureTreeScrollToSelection', 'Scroll to selected block'),
+          checked: settings.workspace.structureTreeScrollToSelection,
+        },
+        {
+          type: 'checkbox',
+          key: 'shell.sidebarCollapsed',
+          label: options.translate('settings.fields.sidebarCollapsed', 'Collapse sidebar'),
+          checked: settings.shell.sidebarCollapsed,
+        },
+        {
+          type: 'value',
+          key: 'shell.sidebarWidth',
+          label: options.translate('settings.fields.sidebarWidth', 'Sidebar width'),
+          value: `${settings.shell.sidebarWidth} px`,
+        },
+        {
+          type: 'action',
+          key: 'project-workspace.reset',
+          label: options.translate('settings.fields.projectWorkspaceState', 'Project workspace state'),
+          actionLabel: options.translate('settings.actions.reset', 'Reset'),
+          icon: 'action.restart',
+          disabled: !options.projectOpen.value,
+          disabledReason: options.projectOpen.value
+            ? undefined
+            : options.translate('settings.reasons.openProjectFirst', 'Open a project first'),
+        },
+      ],
+    }
+  })
+
+  return { categoryTreeData, activeCategory }
+}

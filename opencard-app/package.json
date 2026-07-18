@@ -1,0 +1,45 @@
+{
+  "name": "opencard-app",
+  "private": true,
+  "version": "0.2.0",
+  "description": "A visual card design and template workspace.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "test": "vitest run",
+    "lint:ui": "node scripts/lint-icons.mjs",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@floating-ui/vue": "^2.0.1",
+    "@mdi/font": "^7.4.47",
+    "@mdi/js": "^7.4.47",
+    "@monaco-editor/react": "^4.7.0",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2.4.3",
+    "@vueuse/core": "^13.9.0",
+    "dom-to-image-more": "^3.7.2",
+    "fflate": "^0.8.3",
+    "monaco-editor": "^0.55.1",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.13",
+    "vue-i18n": "^11.3.2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/html2canvas": "^0.5.35",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^28.1.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vitest": "^4.1.4",
+    "vue-tsc": "^2.1.10"
+  }
+}

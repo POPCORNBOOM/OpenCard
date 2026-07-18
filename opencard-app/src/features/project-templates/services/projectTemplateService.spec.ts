@@ -1,0 +1,679 @@
+import type { DirEntry } from '@tauri-apps/plugin-fs'
+import { describe, expect, it, vi } from 'vitest'
+import { strToU8, unzipSync, zipSync } from 'fflate'
+import type { FileSystemService } from '../../workspace/services/fileSystemService'
+import type { ProjectTemplate } from '../model/projectTemplate'
+import {
+  ProjectTemplateService,
+  type ProjectTemplatePathService,
+} from './projectTemplateService'
+
+vi.mock('@tauri-apps/api/path', () => ({
+  appLocalDataDir: vi.fn(),
+  basename: vi.fn(),
+  join: vi.fn(),
+  resolveResource: vi.fn(),
+}))
+
+vi.mock('../../workspace/services/fileSystemService', () => ({
+  fileSystemService: {},
+}))
+
+type FileContent = string | Uint8Array
+
+function normalizePath(value: string): string {
+  const normalized = value.replace(/\\/g, '/').replace(/\/+/g, '/')
+  return normalized.length > 1 ? normalized.replace(/\/$/, '') : normalized
+}
+
+function joinPath(...parts: string[]): string {
+  return normalizePath(parts.filter(Boolean).join('/'))
+}
+
+function parentPath(value: string): string {
+  const normalized = normalizePath(value)
+  const separator = normalized.lastIndexOf('/')
+  return separator <= 0 ? '/' : normalized.slice(0, separator)
+}
+
+function baseName(value: string): string {
+  const segments = normalizePath(value).split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? ''
+}
+
+class MemoryFileSystem implements FileSystemService {
+  private readonly directories = new Set<string>(['/'])
+  private readonly files = new Map<string, FileContent>()
+  private readonly symlinks = new Set<string>()
+  failCopyFrom: string | null = null
+  failDeletePath: string | null = null
+
+  putDirectory(path: string): void {
+    const normalized = normalizePath(path)
+    if (normalized !== '/') this.putDirectory(parentPath(normalized))
+    this.directories.add(normalized)
+  }
+
+  putFile(path: string, content: FileContent): void {
+    const normalized = normalizePath(path)
+    this.putDirectory(parentPath(normalized))
+    this.files.set(normalized, content)
+  }
+
+  putSymlink(path: string, isDirectory = false): void {
+    if (isDirectory) this.putDirectory(path)
+    else this.putFile(path, '')
+    this.symlinks.add(normalizePath(path))
+  }
+
+  rawFile(path: string): FileContent | undefined {
+    return this.files.get(normalizePath(path))
+  }
+
+  allPaths(): string[] {
+    return [...this.directories, ...this.files.keys()].sort()
+  }
+
+  async openProject(): Promise<string | null> {
+    return null
+  }
+
+  async pickDirectory(_title: string): Promise<string | null> {
+    return null
+  }
+
+  async pickFile(_options: { title: string; fileTypeName: string; extensions: string[] }): Promise<string | null> {
+    return null
+  }
+
+  async pickSavePath(_options: {
+    defaultPath: string
+    fileTypeName?: string
+    extensions?: string[]
+    title?: string
+  }): Promise<string | null> {
+    return null
+  }
+
+  async readFile(path: string): Promise<string> {
+    const content = this.files.get(normalizePath(path))
+    if (content === undefined) throw new Error(`Missing file: ${path}`)
+    return typeof content === 'string' ? content : new TextDecoder().decode(content)
+  }
+
+  async writeFile(path: string, content: string): Promise<void> {
+    this.putFile(path, content)
+  }
+
+  async readBinaryFile(path: string): Promise<Uint8Array> {
+    const content = this.files.get(normalizePath(path))
+    if (content === undefined) throw new Error(`Missing file: ${path}`)
+    return content instanceof Uint8Array ? content.slice() : new TextEncoder().encode(content)
+  }
+
+  async writeBinaryFile(path: string, content: Uint8Array): Promise<void> {
+    this.putFile(path, content.slice())
+  }
+
+  async copyFile(sourcePath: string, targetPath: string): Promise<void> {
+    const source = normalizePath(sourcePath)
+    if (this.failCopyFrom === source) throw new Error(`Injected copy failure: ${source}`)
+    const content = this.files.get(source)
+    if (content === undefined) throw new Error(`Missing copy source: ${source}`)
+    this.putFile(targetPath, content instanceof Uint8Array ? content.slice() : content)
+  }
+
+  async deleteFile(path: string): Promise<void> {
+    const normalized = normalizePath(path)
+    if (this.failDeletePath === normalized) throw new Error(`Injected delete failure: ${normalized}`)
+    const nestedPrefix = `${normalized}/`
+    for (const filePath of [...this.files.keys()]) {
+      if (filePath === normalized || filePath.startsWith(nestedPrefix)) this.files.delete(filePath)
+    }
+    for (const directoryPath of [...this.directories]) {
+      if (directoryPath === normalized || directoryPath.startsWith(nestedPrefix)) {
+        this.directories.delete(directoryPath)
+      }
+    }
+    for (const symlinkPath of [...this.symlinks]) {
+      if (symlinkPath === normalized || symlinkPath.startsWith(nestedPrefix)) this.symlinks.delete(symlinkPath)
+    }
+  }
+
+  async renameFile(oldPath: string, newPath: string): Promise<void> {
+    const source = normalizePath(oldPath)
+    const target = normalizePath(newPath)
+    if (!this.directories.has(source) && !this.files.has(source)) throw new Error(`Missing rename source: ${source}`)
+    if (this.directories.has(target) || this.files.has(target)) throw new Error(`Rename target exists: ${target}`)
+    this.putDirectory(parentPath(target))
+
+    if (this.files.has(source)) {
+      const content = this.files.get(source)
+      this.files.delete(source)
+      if (content !== undefined) this.files.set(target, content)
+      return
+    }
+
+    const directoryPaths = [...this.directories]
+      .filter((path) => path === source || path.startsWith(`${source}/`))
+      .sort((a, b) => a.length - b.length)
+    const filePaths = [...this.files.keys()]
+      .filter((path) => path.startsWith(`${source}/`))
+
+    for (const path of directoryPaths) this.directories.delete(path)
+    for (const path of filePaths) {
+      const content = this.files.get(path)
+      this.files.delete(path)
+      if (content !== undefined) this.files.set(`${target}${path.slice(source.length)}`, content)
+    }
+    for (const path of directoryPaths) this.directories.add(`${target}${path.slice(source.length)}`)
+  }
+
+  async fileExists(path: string): Promise<boolean> {
+    const normalized = normalizePath(path)
+    return this.directories.has(normalized) || this.files.has(normalized)
+  }
+
+  async getFileInfo(path: string): ReturnType<FileSystemService['getFileInfo']> {
+    const normalized = normalizePath(path)
+    if (!this.directories.has(normalized) && !this.files.has(normalized)) {
+      throw new Error(`Missing path: ${normalized}`)
+    }
+    return {
+      isFile: this.files.has(normalized),
+      isDirectory: this.directories.has(normalized),
+      isSymlink: this.symlinks.has(normalized),
+      size: 0,
+      mtime: null,
+      atime: null,
+      birthtime: null,
+      dev: null,
+      ino: null,
+      mode: null,
+      nlink: null,
+      uid: null,
+      gid: null,
+      rdev: null,
+      blksize: null,
+      blocks: null,
+      readonly: false,
+      fileAttributes: null,
+    }
+  }
+
+  async readDirectory(path: string, recursive = false): Promise<DirEntry[]> {
+    return recursive
+      ? await this.readDirectoryEntries(path, Number.POSITIVE_INFINITY)
+      : this.immediateEntries(path)
+  }
+
+  async readDirectoryEntries(path: string, depth = 1, basePath = ''): Promise<DirEntry[]> {
+    const result: DirEntry[] = []
+    const maxDepth = Number.isFinite(depth) ? Math.max(1, Math.floor(depth)) : Number.POSITIVE_INFINITY
+
+    const visit = (directory: string, relativeBase: string, currentDepth: number): void => {
+      for (const entry of this.immediateEntries(directory)) {
+        const name = relativeBase ? `${relativeBase}/${entry.name}` : entry.name
+        result.push({ ...entry, name })
+        if (entry.isDirectory && currentDepth < maxDepth) {
+          visit(joinPath(directory, entry.name), name, currentDepth + 1)
+        }
+      }
+    }
+
+    visit(normalizePath(path), basePath, 1)
+    return result
+  }
+
+  async createDirectory(path: string): Promise<void> {
+    this.putDirectory(path)
+  }
+
+  async startWatching(_path: string): Promise<void> {}
+
+  async stopWatching(): Promise<void> {}
+
+  private immediateEntries(path: string): DirEntry[] {
+    const directory = normalizePath(path)
+    if (!this.directories.has(directory)) throw new Error(`Missing directory: ${directory}`)
+    const entries = new Map<string, DirEntry>()
+
+    for (const childPath of this.directories) {
+      if (childPath !== directory && parentPath(childPath) === directory) {
+        const name = baseName(childPath)
+        entries.set(name, {
+          name,
+          isDirectory: true,
+          isFile: false,
+          isSymlink: this.symlinks.has(childPath),
+        })
+      }
+    }
+    for (const childPath of this.files.keys()) {
+      if (parentPath(childPath) === directory) {
+        const name = baseName(childPath)
+        entries.set(name, {
+          name,
+          isDirectory: false,
+          isFile: true,
+          isSymlink: this.symlinks.has(childPath),
+        })
+      }
+    }
+    return [...entries.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }
+}
+
+const paths: ProjectTemplatePathService = {
+  async appLocalDataDir() {
+    return '/appdata'
+  },
+  async basename(path) {
+    return baseName(path)
+  },
+  async join(...parts) {
+    return joinPath(...parts)
+  },
+  async resolveResource(path) {
+    return joinPath('/resources', path)
+  },
+}
+
+function createService(fs: MemoryFileSystem, id = 'test-id'): ProjectTemplateService {
+  return new ProjectTemplateService(fs, paths, () => id)
+}
+
+function addTemplatePackage(
+  fs: MemoryFileSystem,
+  root: string,
+  options: { id: string; name: string; entry?: string },
+): void {
+  const entry = options.entry ?? 'main.opencard'
+  fs.putFile(`${root}/template.json`, JSON.stringify({
+    schemaVersion: 1,
+    id: options.id,
+    name: options.name,
+    description: '',
+    entry,
+  }))
+  fs.putFile(`${root}/content/.opencardproject`, projectFile(entry, options.name))
+  fs.putFile(`${root}/content/${entry}`, JSON.stringify({ type: 'card-document' }))
+}
+
+function projectFile(entry = 'main.opencard', name = 'Project'): string {
+  return JSON.stringify({
+    version: 1,
+    project: { name, description: '', entry },
+    workspace: { indexedEntries: [], expandedDirectories: [] },
+  })
+}
+
+function addImportSource(fs: MemoryFileSystem): void {
+  fs.putFile('/source/.opencardproject', projectFile())
+  fs.putFile('/source/main.opencard', JSON.stringify({ type: 'card-document' }))
+  fs.putFile('/source/assets/portrait.png', new Uint8Array([0, 127, 255]))
+}
+
+function templateFixture(contentPath = '/template/content', entry = 'main.opencard'): ProjectTemplate {
+  return {
+    schemaVersion: 1,
+    id: 'blank',
+    key: 'builtin:blank',
+    source: 'builtin',
+    name: 'Blank',
+    description: '',
+    entry,
+    rootPath: '/template',
+    contentPath,
+    coverPaths: [],
+  }
+}
+
+describe('ProjectTemplateService catalog', () => {
+  it('preserves built-in order, sorts user templates, and reports an invalid user manifest', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/resources/templates/index.json', JSON.stringify({
+      schemaVersion: 1,
+      templates: ['tactical', 'blank'],
+    }))
+    addTemplatePackage(fs, '/resources/templates/tactical', { id: 'tactical', name: 'Tactical' })
+    addTemplatePackage(fs, '/resources/templates/blank', { id: 'blank', name: 'Blank' })
+    addTemplatePackage(fs, '/appdata/templates/zulu', { id: 'zulu', name: 'Zulu' })
+    addTemplatePackage(fs, '/appdata/templates/alpha', { id: 'alpha', name: 'Alpha' })
+    fs.putFile('/appdata/templates/broken/template.json', '{not-json')
+
+    const catalog = await createService(fs).loadCatalog()
+
+    expect(catalog.templates.map(({ key }) => key)).toEqual([
+      'builtin:tactical',
+      'builtin:blank',
+      'user:alpha',
+      'user:zulu',
+    ])
+    expect(catalog.warnings).toEqual([
+      expect.objectContaining({ path: '/appdata/templates/broken' }),
+    ])
+  })
+
+  it('treats an invalid built-in manifest as a fatal installation error', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/resources/templates/index.json', JSON.stringify({ schemaVersion: 1, templates: ['broken'] }))
+    fs.putFile('/resources/templates/broken/template.json', '{not-json')
+
+    await expect(createService(fs).loadCatalog()).rejects.toMatchObject({ code: 'invalid-manifest' })
+  })
+
+  it('cleans stale temporary user packages and reports cleanup failures', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/resources/templates/index.json', JSON.stringify({ schemaVersion: 1, templates: [] }))
+    fs.putFile('/appdata/templates/.tmp-stale/content.bin', 'partial')
+    fs.putFile('/appdata/templates/.tmp-locked/content.bin', 'partial')
+    fs.failDeletePath = '/appdata/templates/.tmp-locked'
+
+    const catalog = await createService(fs).loadCatalog()
+
+    expect(await fs.fileExists('/appdata/templates/.tmp-stale')).toBe(false)
+    expect(await fs.fileExists('/appdata/templates/.tmp-locked')).toBe(true)
+    expect(catalog.warnings).toEqual([expect.objectContaining({ path: '/appdata/templates/.tmp-locked' })])
+  })
+})
+
+describe('ProjectTemplateService prepared package import', () => {
+  it('imports manifest metadata and multiple cover images without recreating the package', async () => {
+    const fs = new MemoryFileSystem()
+    const manifest = JSON.stringify({
+      schemaVersion: 1,
+      id: 'prepared',
+      name: 'Prepared Template',
+      description: 'Ready to install',
+      entry: 'main.opencard',
+      covers: ['assets/cover-a.png', 'assets/cover-b.webp'],
+    })
+    fs.putFile('/prepared.octemplete', zipSync({
+      'template.json': strToU8(manifest),
+      'content/.opencardproject': strToU8(projectFile()),
+      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document' })),
+      'content/assets/cover-a.png': new Uint8Array([1, 2]),
+      'content/assets/cover-b.webp': new Uint8Array([3, 4]),
+    }))
+
+    const imported = await createService(fs).importUserTemplate('/prepared.octemplete')
+
+    expect(imported).toMatchObject({
+      key: 'user:prepared',
+      name: 'Prepared Template',
+      covers: ['assets/cover-a.png', 'assets/cover-b.webp'],
+      coverPaths: [
+        '/appdata/templates/prepared/content/assets/cover-a.png',
+        '/appdata/templates/prepared/content/assets/cover-b.webp',
+      ],
+    })
+    expect(fs.rawFile('/appdata/templates/prepared/content/assets/cover-b.webp'))
+      .toEqual(new Uint8Array([3, 4]))
+  })
+
+  it('rejects files outside content and unsupported extensions', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/unsafe.zip', zipSync({
+      'template.json': strToU8(JSON.stringify({
+        schemaVersion: 1,
+        id: 'unsafe',
+        name: 'Unsafe',
+        description: '',
+        entry: 'main.opencard',
+      })),
+      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document' })),
+      'outside.txt': strToU8('no'),
+    }))
+
+    await expect(createService(fs).importUserTemplate('/unsafe.zip')).rejects.toMatchObject({ code: 'invalid-package' })
+    await expect(createService(fs).importUserTemplate('/unsafe.rar')).rejects.toMatchObject({ code: 'invalid-package' })
+  })
+})
+
+describe('ProjectTemplateService package export', () => {
+  it('exports a compliant .octemplete archive and excludes runtime cache', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+
+    const outputPath = await createService(fs, 'portable').exportProjectTemplate({
+      sourcePath: '/source',
+      outputPath: '/exports/My Template',
+      name: 'My Template',
+      description: 'Portable',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })
+
+    expect(outputPath).toBe('/exports/My Template.octemplete')
+    const archive = unzipSync(fs.rawFile(outputPath) as Uint8Array)
+    expect(Object.keys(archive)).toEqual(expect.arrayContaining([
+      'template.json',
+      'content/.opencardproject',
+      'content/main.opencard',
+      'content/assets/portrait.png',
+    ]))
+  })
+})
+
+describe('ProjectTemplateService user template creation', () => {
+  it('copies document and binary assets while excluding runtime cache', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+
+    const imported = await createService(fs, 'user-template').createUserTemplate({
+      sourcePath: '/source',
+      name: ' Imported ',
+      description: ' Personal copy ',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })
+
+    expect(imported).toMatchObject({
+      key: 'user:user-template',
+      name: 'Imported',
+      description: 'Personal copy',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })
+    expect(await fs.fileExists('/appdata/templates/user-template/content/main.opencard')).toBe(true)
+    expect(fs.rawFile('/appdata/templates/user-template/content/assets/portrait.png')).toEqual(
+      new Uint8Array([0, 127, 255]),
+    )
+  })
+
+  it('removes the temporary package when copying fails', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+    fs.failCopyFrom = '/source/assets/portrait.png'
+
+    await expect(createService(fs, 'failed').createUserTemplate({
+      sourcePath: '/source',
+      name: 'Imported',
+      description: '',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })).rejects.toMatchObject({ code: 'copy-failed' })
+
+    expect(fs.allPaths().some((path) => path.includes('.tmp-failed'))).toBe(false)
+    expect(await fs.fileExists('/appdata/templates/failed')).toBe(false)
+  })
+
+  it('does not commit the final package when runtime path resolution fails', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+    const failingPaths: ProjectTemplatePathService = {
+      ...paths,
+      async join(...parts) {
+        if (parts[0] === '/appdata/templates/path-failure' && parts[1] === 'content') {
+          throw new Error('Injected path failure')
+        }
+        return joinPath(...parts)
+      },
+    }
+    const service = new ProjectTemplateService(fs, failingPaths, () => 'path-failure')
+
+    await expect(service.createUserTemplate({
+      sourcePath: '/source',
+      name: 'Imported',
+      description: '',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })).rejects.toMatchObject({ code: 'copy-failed' })
+
+    expect(await fs.fileExists('/appdata/templates/path-failure')).toBe(false)
+    expect(await fs.fileExists('/appdata/templates/.tmp-path-failure')).toBe(false)
+  })
+})
+
+describe('ProjectTemplateService project creation', () => {
+  it('copies the selected template atomically and returns its entry', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.opencardproject', projectFile('cards/main.opencard'))
+    fs.putFile('/template/content/cards/main.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/template/content/assets/portrait.png', new Uint8Array([1, 2, 3]))
+
+    const created = await createService(fs, 'create-id').createProject({
+      template: templateFixture('/template/content', 'cards/main.opencard'),
+      parentPath: '/projects',
+      projectName: '  Demo',
+    })
+
+    expect(created).toEqual({ path: '/projects/Demo', entry: 'cards/main.opencard' })
+    expect(await fs.fileExists('/projects/Demo/.opencardproject')).toBe(true)
+    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)).toMatchObject({
+      project: { name: 'Demo', entry: 'cards/main.opencard' },
+    })
+    expect(fs.rawFile('/projects/Demo/assets/portrait.png')).toEqual(new Uint8Array([1, 2, 3]))
+    expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
+  })
+
+  it('refuses an existing target without touching it', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects/Demo')
+    fs.putFile('/template/content/.opencardproject', projectFile())
+    fs.putFile('/template/content/main.opencard', JSON.stringify({ type: 'card-document' }))
+
+    await expect(createService(fs).createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Demo',
+    })).rejects.toMatchObject({ code: 'target-exists' })
+
+    expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
+  })
+
+  it('rolls back when the template entry is missing', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.opencardproject', projectFile('missing.opencard'))
+
+    await expect(createService(fs, 'missing-entry').createProject({
+      template: templateFixture('/template/content', 'missing.opencard'),
+      parentPath: '/projects',
+      projectName: 'Demo',
+    })).rejects.toMatchObject({ code: 'entry-not-found' })
+
+    expect(await fs.fileExists('/projects/Demo')).toBe(false)
+    expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-missing-entry'))).toBe(false)
+  })
+})
+
+describe('ProjectTemplateService safety boundaries', () => {
+  it('rejects an import source containing a symlink before creating a temporary package', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+    fs.putSymlink('/source/assets/linked.png')
+
+    await expect(createService(fs, 'symlinked').createUserTemplate({
+      sourcePath: '/source',
+      name: 'Unsafe',
+      description: '',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+    })).rejects.toMatchObject({ code: 'source-has-symlink' })
+
+    expect(fs.allPaths().some((path) => path.includes('.tmp-symlinked'))).toBe(false)
+    expect(await fs.fileExists('/appdata/templates/symlinked')).toBe(false)
+  })
+
+  it('rejects a symlink selected as the import root', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+    fs.putSymlink('/source', true)
+
+    await expect(createService(fs).inspectProjectSource('/source')).rejects.toMatchObject({
+      code: 'source-has-symlink',
+    })
+  })
+
+  it('sorts valid document entries and imports a selected entry other than the first', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/source/.opencardproject', projectFile('z-last.opencard'))
+    fs.putFile('/source/z-last.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/cards/a-first.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/b-middle.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/invalid.opencard', '{not-json')
+    const service = createService(fs, 'multi-entry')
+
+    const inspection = await service.inspectProjectSource('/source')
+    expect(inspection.entries).toEqual([
+      'b-middle.opencard',
+      'cards/a-first.opencard',
+      'z-last.opencard',
+    ])
+
+    const imported = await service.createUserTemplate({
+      sourcePath: '/source',
+      name: 'Multiple entries',
+      description: '',
+      entry: 'z-last.opencard',
+      covers: [],
+    })
+    expect(imported.entry).toBe('z-last.opencard')
+    expect(await fs.fileExists('/appdata/templates/multi-entry/content/z-last.opencard')).toBe(true)
+  })
+
+  it('deletes a user template and rejects deletion of a built-in template', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/appdata/templates/personal/content/main.opencard', JSON.stringify({ type: 'card-document' }))
+    const service = createService(fs)
+    const userTemplate: ProjectTemplate = {
+      ...templateFixture('/appdata/templates/personal/content'),
+      id: 'personal',
+      key: 'user:personal',
+      source: 'user',
+      rootPath: '/projects/must-not-delete',
+    }
+
+    fs.putFile('/projects/must-not-delete/keep.txt', 'keep')
+    await service.deleteUserTemplate(userTemplate)
+    expect(await fs.fileExists('/appdata/templates/personal')).toBe(false)
+    expect(await fs.fileExists('/projects/must-not-delete/keep.txt')).toBe(true)
+
+    const builtin = templateFixture()
+    await expect(service.deleteUserTemplate(builtin)).rejects.toMatchObject({
+      code: 'builtin-delete-forbidden',
+    })
+  })
+
+  it('warns for a user package ID mismatch and for symlinked package content', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/resources/templates/index.json', JSON.stringify({ schemaVersion: 1, templates: [] }))
+    addTemplatePackage(fs, '/appdata/templates/package-name', { id: 'different-id', name: 'Mismatch' })
+    addTemplatePackage(fs, '/appdata/templates/symlinked', { id: 'symlinked', name: 'Symlinked' })
+    fs.putSymlink('/appdata/templates/symlinked/content/linked.png')
+
+    const catalog = await createService(fs).loadCatalog()
+
+    expect(catalog.templates).toEqual([])
+    expect(catalog.warnings).toHaveLength(2)
+    expect(catalog.warnings.map(({ path }) => path)).toEqual([
+      '/appdata/templates/package-name',
+      '/appdata/templates/symlinked',
+    ])
+    expect(catalog.warnings.map(({ reason }) => reason).join('\n')).toContain('ID mismatch')
+    expect(catalog.warnings.map(({ reason }) => reason).join('\n')).toContain('symbolic links')
+  })
+})

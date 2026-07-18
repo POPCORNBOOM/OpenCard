@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "project": {
+    "name": "换皮扑克牌",
+    "description": "可换皮的标准扑克牌设计项目。",
+    "entry": "playing-card.opencard"
+  },
+  "workspace": {
+    "indexedEntries": [
+      {
+        "name": ".opencardproject",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "playing-card.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      }
+    ],
+    "expandedDirectories": []
+  }
+}

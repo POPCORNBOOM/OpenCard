@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+}
+
+:root[data-oc-theme='light'] {
+  color-scheme: light;
+}
+
+* {
+  /* Firefox 等走标准属性。 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--oc-scrollbar-thumb, rgba(156, 156, 156, 0.32)) transparent;
+  scrollbar-gutter: auto;
+}
+
+/* Chromium/WebKit 走 webkit 伪元素，确保像素级宽度生效。 */
+@supports selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  *::-webkit-scrollbar {
+    width: var(--oc-scrollbar-size, 8px);
+    height: var(--oc-scrollbar-size, 8px);
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--oc-scrollbar-thumb, rgba(156, 156, 156, 0.32));
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--oc-scrollbar-thumb-hover, rgba(186, 186, 186, 0.48));
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: var(--oc-scrollbar-thumb-hover, rgba(186, 186, 186, 0.48));
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Tab 条在部分 WebKit/Blink 环境会回退默认横向粗细，这里显式锁定。 */
+  .oc-tab .oc-panel[role='tablist']::-webkit-scrollbar:horizontal {
+    height: var(--oc-scrollbar-size, 8px) !important;
+  }
+
+  .oc-tab .oc-panel[role='tablist']::-webkit-scrollbar:vertical {
+    width: var(--oc-scrollbar-size, 8px) !important;
+  }
+}
+
+body {
+  background: var(--oc-bg-base);
+  color: var(--oc-fg-default);
+  font-family: var(--oc-font-sans);
+}

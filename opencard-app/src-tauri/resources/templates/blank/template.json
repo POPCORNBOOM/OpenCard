@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "blank",
+  "name": "Blank Project",
+  "description": "Start with an empty OpenCard document.",
+  "entry": "main.opencard"
+}

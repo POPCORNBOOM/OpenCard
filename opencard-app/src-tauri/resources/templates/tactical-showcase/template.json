@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "tactical-showcase",
+  "name": "Tactical Showcase",
+  "description": "Advanced tactical card showcase.",
+  "entry": "tactical-showcase.opencard",
+  "covers": [
+    "assets/portraits/sentinel.png",
+    "assets/portraits/vanguard.png",
+    "assets/portraits/oracle.png"
+  ]
+}

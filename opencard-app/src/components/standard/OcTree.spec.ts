@@ -1,0 +1,343 @@
+import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type {
+  OcTreeActionDefinition,
+  OcTreeData,
+  OcTreeItem,
+  OcTreeIntent,
+} from '../../shared/ui/tree/tree.types'
+import OcTree from './OcTree.vue'
+
+function createData(options: {
+  roots?: string[]
+  items?: Array<[string, OcTreeItem]>
+  children?: Array<[string, string[]]>
+} = {}): OcTreeData {
+  return {
+    rootKeys: options.roots ?? ['root'],
+    items: new Map(options.items ?? [
+      ['root', { label: 'Root', icon: 'data.collection', renamable: true }],
+    ]),
+    children: new Map(options.children ?? []),
+  }
+}
+
+describe('OcTree', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('renders roots as list rows and emits key-only selection intent', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['first', 'second'],
+          items: [
+            ['first', { label: 'First' }],
+            ['second', { label: 'Second' }],
+          ],
+        }),
+        selectedKeys: ['second'],
+      },
+    })
+
+    expect(wrapper.findAll('[data-oc-tree-key]')).toHaveLength(2)
+    expect(wrapper.get('[data-oc-tree-key="second"]').classes()).toContain('is-selected')
+
+    await wrapper.get('[data-oc-tree-key="first"] .oc-tree__row').trigger('click')
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'selection.change',
+      triggerKey: 'first',
+      selectedKeys: ['first'],
+      mode: 'replace',
+    }])
+  })
+
+  it.each([
+    ['expand', ['open', 'parent', 'root']],
+    ['expand-exclusive', ['parent', 'root']],
+  ] as const)('requests %s selection ancestor expansion from tree topology', async (mode, expectedKeys) => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [
+            ['root', { label: 'Root' }],
+            ['parent', { label: 'Parent' }],
+            ['child', { label: 'Child' }],
+          ],
+          children: [
+            ['root', ['parent']],
+            ['parent', ['child']],
+          ],
+        }),
+        selectedKeys: ['child'],
+        expandedKeys: ['open'],
+        selectionExpansionMode: mode,
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toContainEqual([{
+      type: 'expansion.sync',
+      expandedKeys: expectedKeys,
+      reason: 'selection',
+    }])
+  })
+
+  it('scrolls the tree viewport to a selected row only when enabled', async () => {
+    const data = createData({
+      roots: ['first', 'second'],
+      items: [
+        ['first', { label: 'First' }],
+        ['second', { label: 'Second' }],
+      ],
+    })
+    const wrapper = mount(OcTree, {
+      props: {
+        data,
+        selectedKeys: ['first'],
+        scrollToSelection: false,
+        fill: true,
+      },
+    })
+    const root = wrapper.get('.oc-tree').element as HTMLElement
+    const secondRow = wrapper.get('[data-oc-tree-key="second"] .oc-tree__row').element as HTMLElement
+    root.scrollTop = 0
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue({
+      top: 0, bottom: 100, left: 0, right: 200, width: 200, height: 100, x: 0, y: 0,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(secondRow, 'getBoundingClientRect').mockReturnValue({
+      top: 120, bottom: 150, left: 0, right: 200, width: 200, height: 30, x: 0, y: 120,
+      toJSON: () => ({}),
+    })
+
+    await wrapper.setProps({ selectedKeys: ['second'] })
+    expect(root.scrollTop).toBe(0)
+
+    await wrapper.setProps({ scrollToSelection: true })
+    await wrapper.vm.$nextTick()
+    expect(root.scrollTop).toBe(50)
+  })
+  it('renders expanded children with indentation and rotates the node icon', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [
+            ['root', { label: 'Root', icon: 'data.collection' }],
+            ['child', { label: 'Child' }],
+          ],
+          children: [['root', ['child']]],
+        }),
+        expandedKeys: ['root'],
+      },
+    })
+
+    expect(wrapper.findAll('[data-oc-tree-key]')).toHaveLength(2)
+    expect(wrapper.get('[data-oc-tree-key="child"]').attributes('style')).toContain('12px')
+    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__node-icon').classes()).toContain('is-expanded')
+    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__branch-guide').attributes('data-guide-rows')).toBe('1')
+    expect(wrapper.find('[data-oc-tree-key="root"] .oc-tree__branch-connector').exists()).toBe(false)
+    expect(wrapper.find('[data-oc-tree-key="child"] .oc-tree__branch-connector').exists()).toBe(true)
+    expect(wrapper.find('[data-oc-tree-key="child"] .oc-tree__branch-guide').exists()).toBe(false)
+  })
+
+  it.each([
+    [3, '3'],
+    [100, '99+'],
+  ])('shows %i direct children as the %s icon badge', (childCount, expectedBadge) => {
+    const childKeys = Array.from({ length: childCount }, (_, index) => `child-${index}`)
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [
+            ['root', { label: 'Root', icon: 'data.collection' }],
+            ...childKeys.map((key): [string, OcTreeItem] => [key, { label: key }]),
+          ],
+          children: [['root', childKeys]],
+        }),
+      },
+    })
+
+    expect(wrapper.get('.oc-tree__child-count').text()).toBe(expectedBadge)
+  })
+
+  it('emits expansion changes without mutating controlled state', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [
+            ['root', { label: 'Root' }],
+            ['child', { label: 'Child' }],
+          ],
+          children: [['root', ['child']]],
+        }),
+      },
+    })
+
+    await wrapper.get('.oc-tree__icon-slot').trigger('click')
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'expansion.change',
+      key: 'root',
+      expanded: true,
+    }])
+    expect(wrapper.find('[data-oc-tree-key="child"]').exists()).toBe(false)
+  })
+
+  it('keeps rename draft local and emits a rename commit on Enter', async () => {
+    const data = createData()
+    const wrapper = mount(OcTree, { props: { data } })
+
+    await wrapper.get('button[aria-label="Rename"]').trigger('click')
+    const input = wrapper.get('input')
+    await input.setValue('Renamed')
+    await input.trigger('keydown', { key: 'Enter' })
+
+    expect(data.items.get('root')?.label).toBe('Root')
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'rename.commit',
+      key: 'root',
+      name: 'Renamed',
+    }])
+  })
+
+  it.each([
+    ['tree', 'treeitem'],
+    ['listbox', 'option'],
+    ['menu', 'menuitem'],
+  ] as const)('maps the %s role onto its rows', (role, rowRole) => {
+    const wrapper = mount(OcTree, {
+      props: { data: createData(), role, selectionMode: role === 'menu' ? 'none' : 'single' },
+    })
+
+    expect(wrapper.get('.oc-tree').attributes('role')).toBe(role)
+    expect(wrapper.get('.oc-tree__row').attributes('role')).toBe(rowRole)
+  })
+
+  it('emits controlled multiple selection and keyboard expansion intents', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['root', 'second'],
+          items: [
+            ['root', { label: 'Root' }],
+            ['child', { label: 'Child' }],
+            ['second', { label: 'Second' }],
+          ],
+          children: [['root', ['child']]],
+        }),
+        selectedKeys: ['root'],
+        selectionMode: 'multiple',
+      },
+    })
+
+    await wrapper.get('[data-oc-tree-key="second"] .oc-tree__row').trigger('click', { ctrlKey: true })
+    await wrapper.get('[data-oc-tree-key="root"] .oc-tree__row').trigger('keydown', { key: 'ArrowRight' })
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([
+      [{
+        type: 'selection.change',
+        triggerKey: 'second',
+        selectedKeys: ['root', 'second'],
+        mode: 'toggle',
+      }],
+      [{ type: 'expansion.change', key: 'root', expanded: true }],
+    ])
+  })
+
+  it('shows only declared actions and keeps disabled actions visible with their reason', async () => {
+    const actions = new Map<string, OcTreeActionDefinition>([
+      ['duplicate', { title: 'Duplicate', icon: 'action.copy' }],
+      ['delete', { title: 'Delete', icon: 'action.delete' }],
+    ])
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Root',
+            actions: ['duplicate', 'delete'],
+            disabledActions: new Map([['delete', 'Protected']]),
+          }]],
+        }),
+        actions,
+      },
+    })
+
+    await wrapper.get('button[aria-label="Duplicate"]').trigger('click')
+    expect(wrapper.get('button[aria-label="Delete: Protected"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'action.invoke', key: 'root', actionKey: 'duplicate' },
+    ]])
+  })
+
+  it('starts drag only after 4px and emits the visual drop candidate', async () => {
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: {
+        data: createData({
+          roots: ['dragged', 'target'],
+          items: [
+            ['dragged', { label: 'Dragged', draggable: true }],
+            ['target', { label: 'Target' }],
+          ],
+        }),
+      },
+    })
+    const draggedRow = wrapper.get('[data-oc-tree-key="dragged"] .oc-tree__row')
+    const targetNode = wrapper.get('[data-oc-tree-key="target"]').element as HTMLElement
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => targetNode),
+    })
+    vi.spyOn(targetNode, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 140,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: 40,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    })
+
+    await draggedRow.trigger('mousedown', { button: 0, clientX: 10, clientY: 110 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 12, clientY: 111 }))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    expect(wrapper.emitted('intent')).toBeUndefined()
+
+    await draggedRow.trigger('mousedown', { button: 0, clientX: 10, clientY: 110 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 105 }))
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'move.request', key: 'dragged', targetKey: 'target', position: 'before' },
+    ]])
+    wrapper.unmount()
+    Reflect.deleteProperty(document, 'elementFromPoint')
+  })
+
+  it('warns about malformed collapsed topology and action graphs in development', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['root'],
+          items: [
+            ['root', { label: 'Root', actions: ['loop'] }],
+            ['child', { label: 'Child' }],
+          ],
+          children: [
+            ['root', ['child', 'missing']],
+            ['child', ['root']],
+          ],
+        }),
+        actions: new Map([
+          ['loop', { title: 'Loop', children: ['loop'] }],
+        ]),
+      },
+    })
+
+    const messages = warn.mock.calls.map(([message]) => String(message)).join('\n')
+    expect(messages).toContain('Missing item for key "missing"')
+    expect(messages).toContain('Children cycle detected')
+    expect(messages).toContain('Action children cycle detected')
+  })
+})

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "project": {
+    "name": "Tactical Showcase",
+    "description": "Advanced tactical card showcase.",
+    "entry": "tactical-showcase.opencard"
+  },
+  "workspace": {
+    "indexedEntries": [
+      {
+        "name": ".opencardproject",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "tactical-showcase.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "assets",
+        "isDirectory": true,
+        "isFile": false,
+        "isSymlink": false
+      }
+    ],
+    "expandedDirectories": [
+      "assets",
+      "assets/portraits"
+    ]
+  }
+}

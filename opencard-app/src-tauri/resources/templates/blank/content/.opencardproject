@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "project": {
+    "name": "Blank Project",
+    "description": "",
+    "entry": "main.opencard"
+  },
+  "workspace": {
+    "indexedEntries": [
+      {
+        "name": ".opencardproject",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      },
+      {
+        "name": "main.opencard",
+        "isDirectory": false,
+        "isFile": true,
+        "isSymlink": false
+      }
+    ],
+    "expandedDirectories": []
+  }
+}
