@@ -6,10 +6,10 @@ Built with Vue 3 and Tauri.
 
 ## Highlights
 
-- Visual card editing with live preview
+- Variable-driven content and reusable data binding
+- Flexible typography and visual layout controls
 - Reusable project templates and template export
-- Structured layers and property controls
-- Light, dark, and customizable glass appearance
+- Project version management *(planned)*
 
 ## Screenshots
 
