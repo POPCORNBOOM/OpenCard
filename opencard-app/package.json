@@ -22,6 +22,7 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.3",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@vueuse/core": "^13.9.0",
     "dom-to-image-more": "^3.7.2",
     "fflate": "^0.8.3",

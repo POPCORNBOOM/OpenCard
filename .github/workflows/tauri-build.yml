@@ -7,7 +7,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -54,12 +54,17 @@ jobs:
       - name: Install NPM dependencies
         run: npm ci
 
-      - name: Build Tauri bundle
-        run: npm run tauri -- build
-
-      - name: Upload bundled artifacts
-        uses: actions/upload-artifact@v4
+      - name: Build and publish Tauri release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: opencard-${{ matrix.platform }}
-          path: opencard-app/src-tauri/target/release/bundle/**
-          if-no-files-found: error
+          projectPath: opencard-app
+          tagName: v__VERSION__
+          releaseName: OpenCard v__VERSION__
+          releaseBody: See the assets to download and install this version.
+          releaseDraft: true
+          prerelease: false
+          updaterJsonPreferNsis: true

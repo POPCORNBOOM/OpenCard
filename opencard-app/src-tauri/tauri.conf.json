@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "shortDescription": "Visual card design and template workspace",
     "longDescription": "OpenCard is a visual workspace for designing cards, managing reusable templates, and exporting finished card assets.",
@@ -42,6 +43,17 @@
     ],
     "resources": {
       "resources/templates/": "templates/"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1NzYwNjI3MkVDQkU0QkEKUldTNjVNc3VKd1oycGZncGQveWlSUGUvZ1BDQk5IcndhYy9JMjE0bzF2Sll2aEN0dHFHR0xNOGgK",
+      "endpoints": [
+        "https://github.com/POPCORNBOOM/OpenCard/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }
