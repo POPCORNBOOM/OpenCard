@@ -23,6 +23,10 @@ export default {
       title: 'No editors open',
       subtitle: 'Open a card or image from the file explorer to start editing.',
     },
+    updater: {
+      available: 'Download OpenCard {version}',
+      installing: 'Installing update...',
+    },
   },
   projectConfig: {
     title: 'Project Configuration',

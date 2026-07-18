@@ -192,6 +192,7 @@ import CardRenderer from '../components/card/CardRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
+import { useAppUpdater } from '../features/ide-shell/composables/useAppUpdater'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
   useIdeFileTree,
@@ -291,6 +292,15 @@ const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWi
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
 const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
 const currentEditorRef = ref<CurrentEditorRef | null>(null)
+
+const {
+  availableUpdate,
+  updateVersion,
+  isInstalling: isInstallingUpdate,
+  checkForUpdate,
+  installAvailableUpdate,
+  dispose: disposeAppUpdater,
+} = useAppUpdater()
 
 const {
   activeSession,
@@ -449,6 +459,13 @@ const recentProjectActions = computed<ReadonlyMap<string, OcTreeActionDefinition
 ]))
 
 const windowControls = computed<EzTitleBarWindowControl[]>(() => [
+  ...(availableUpdate.value ? [{
+    key: 'install-update',
+    icon: isInstallingUpdate.value ? 'mdi-loading mdi-spin' : 'mdi-download',
+    hoverTip: isInstallingUpdate.value
+      ? t('app.updater.installing')
+      : t('app.updater.available', { version: updateVersion.value }),
+  }] : []),
   { key: 'minimize', icon: 'mdi-window-minimize', hoverTip: 'Minimize' },
   { key: 'toggle-maximize', icon: 'mdi-window-maximize', hoverTip: 'Maximize / restore' },
   { key: 'close', icon: 'mdi-close', hoverTip: 'Close', danger: true },
@@ -991,6 +1008,11 @@ async function handleWorkspaceFrameAction(actionKey: string) {
 }
 
 async function handleWindowControl(actionKey: string) {
+  if (actionKey === 'install-update') {
+    await installAvailableUpdate()
+    return
+  }
+
   try {
     const appWindow = getCurrentWindow()
 
@@ -1146,11 +1168,13 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('resize', handleViewportResize)
   void ensureProjectTreeLoaded()
+  void checkForUpdate()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('resize', handleViewportResize)
+  disposeAppUpdater()
 })
 </script>
 

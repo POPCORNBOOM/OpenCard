@@ -23,6 +23,10 @@ export default {
       title: '没有打开的编辑器',
       subtitle: '从文件浏览器打开卡牌或图片开始编辑。',
     },
+    updater: {
+      available: '下载 OpenCard {version}',
+      installing: '正在安装更新…',
+    },
   },
   projectConfig: {
     title: '项目配置',
