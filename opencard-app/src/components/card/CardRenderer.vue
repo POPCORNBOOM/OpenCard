@@ -2,14 +2,14 @@
 <template>
     <div ref="cardCanvasRef" class="card-canvas" :class="{ 'card-canvas--clipped': props.clipToDocument }"
         :style="canvasStyle">
-        <CardBlock :block="rootContainerBlock" layout-mode="static" />
+        <CardBlockRenderer :block="rootContainerBlock" layout-mode="static" />
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, provide, ref } from 'vue'
 import type { CardDocument, SimpleContainerBlock } from '../../entities/card/model'
-import CardBlock from './CardBlock.vue'
+import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 
 const emit = defineEmits<{

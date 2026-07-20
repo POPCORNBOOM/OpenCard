@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ImageBlock as ImageBlockModel } from '../../entities/card/model'
-import ImageBlock from './ImageBlock.vue'
+import ImageBlockRenderer from './ImageBlockRenderer.vue'
 
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({ resolveAssetSrc: (path: string) => path }),
@@ -17,9 +17,9 @@ function createBlock(image: string, fit: ImageBlockModel['fit'] = 'contain'): Im
   }
 }
 
-describe('ImageBlock', () => {
+describe('ImageBlockRenderer', () => {
   it.each(['cover', 'contain', 'fill'] as const)('projects the %s fit mode onto the image', (fit) => {
-    const wrapper = mount(ImageBlock, {
+    const wrapper = mount(ImageBlockRenderer, {
       props: { block: createBlock('/image.png', fit), layoutMode: 'static' },
     })
 
@@ -27,7 +27,7 @@ describe('ImageBlock', () => {
   })
 
   it('replaces the native broken-image state and retries when the source changes', async () => {
-    const wrapper = mount(ImageBlock, {
+    const wrapper = mount(ImageBlockRenderer, {
       props: { block: createBlock('/missing.png'), layoutMode: 'static' },
     })
 

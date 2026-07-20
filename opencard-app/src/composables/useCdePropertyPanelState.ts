@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import type {
   CardBlock,
   CardDocument,
@@ -17,8 +17,11 @@ import {
   deleteBlockAdditionalField,
   getAdditionalFieldPropertyDefinition,
   setCardFieldValue,
+  validateAdditionalFieldKey,
+  type AdditionalFieldKeyError,
 } from '../entities/card/model'
 import {
+  additionalFieldDatatypes,
   getDefault,
   getTypePropertyEditorSchema,
   propertyEditorCategoryDefinitions,
@@ -56,6 +59,14 @@ export type CdeAdditionalFieldDeleteMutation = {
   fieldKey: string
 }
 
+export type CdeAdditionalFieldDatatype = (typeof additionalFieldDatatypes)[number]
+
+export type CdeAdditionalFieldCreateDraft = {
+  fieldKey: string
+  datatype: CdeAdditionalFieldDatatype
+  title: string
+}
+
 type UseCdePropertyPanelStateOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
   selectedLocation: Readonly<ComputedRef<CardLocationInfo | null>>
@@ -71,6 +82,24 @@ type UseCdePropertyPanelStateOptions = {
 }
 
 export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOptions) {
+  const additionalFieldCreateDialogOpen = ref(false)
+  const additionalFieldCreateDraft = ref<CdeAdditionalFieldCreateDraft>({
+    fieldKey: '',
+    datatype: additionalFieldDatatypes[0] ?? 'string',
+    title: '',
+  })
+  const canCreateAdditionalField = computed(() => Boolean(
+    options.selectedBlock.value
+    && options.selectedCardId.value === options.blueprintCardId,
+  ))
+  const additionalFieldCreateError = computed<AdditionalFieldKeyError | 'invalid-target' | null>(() => {
+    const block = options.selectedBlock.value
+    if (!block || !canCreateAdditionalField.value) return 'invalid-target'
+    if (!additionalFieldDatatypes.includes(additionalFieldCreateDraft.value.datatype)) {
+      return 'unsupported-datatype'
+    }
+    return validateAdditionalFieldKey(block, additionalFieldCreateDraft.value.fieldKey)
+  })
   const selectedDocumentEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
     options.documentRevision.value
     if (!options.cardDoc.value) {
@@ -555,6 +584,35 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return null
   }
 
+  function openAdditionalFieldCreateDialog(): boolean {
+    if (!canCreateAdditionalField.value) return false
+    additionalFieldCreateDraft.value = {
+      fieldKey: '',
+      datatype: additionalFieldDatatypes[0] ?? 'string',
+      title: '',
+    }
+    additionalFieldCreateDialogOpen.value = true
+    return true
+  }
+
+  function closeAdditionalFieldCreateDialog(): void {
+    additionalFieldCreateDialogOpen.value = false
+  }
+
+  function submitAdditionalFieldCreate(): AdditionalFieldKeyError | 'invalid-target' | null {
+    const block = options.selectedBlock.value
+    const error = additionalFieldCreateError.value
+    if (!block || error) return error ?? 'invalid-target'
+    const result = createAdditionalField({
+      key: block.id,
+      fieldKey: additionalFieldCreateDraft.value.fieldKey,
+      datatype: additionalFieldCreateDraft.value.datatype,
+      title: additionalFieldCreateDraft.value.title,
+    })
+    if (!result) closeAdditionalFieldCreateDialog()
+    return result
+  }
+
   function deleteAdditionalField({ key, fieldKey }: CdeAdditionalFieldDeleteMutation): boolean {
     const block = options.selectedBlock.value
     const document = options.cardDoc.value
@@ -571,10 +629,18 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     selectedLayout,
     propertyInputs,
     propertyCategories,
+    canCreateAdditionalField,
+    additionalFieldCreateDialogOpen,
+    additionalFieldCreateDraft,
+    additionalFieldCreateError,
+    additionalFieldDatatypeOptions: additionalFieldDatatypes,
     updateProperty,
     addProperty,
     resetProperty,
     createAdditionalField,
+    openAdditionalFieldCreateDialog,
+    closeAdditionalFieldCreateDialog,
+    submitAdditionalFieldCreate,
     deleteAdditionalField,
   }
 }

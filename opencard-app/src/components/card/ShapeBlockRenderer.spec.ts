@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { ShapeBlock as ShapeBlockModel } from '../../entities/card/model'
-import ShapeBlock from './ShapeBlock.vue'
+import ShapeBlockRenderer from './ShapeBlockRenderer.vue'
 
 function createBlock(shape: ShapeBlockModel['shape']): ShapeBlockModel {
   return {
@@ -19,14 +19,14 @@ function createBlock(shape: ShapeBlockModel['shape']): ShapeBlockModel {
   }
 }
 
-describe('ShapeBlock', () => {
+describe('ShapeBlockRenderer', () => {
   it.each([
     ['rectangle', 'M0 0H100V100H0Z'],
     ['ellipse', 'M50 0A50 50 0 1 1 50 100A50 50 0 1 1 50 0Z'],
     ['triangle', 'M50 0L100 100H0Z'],
     ['diamond', 'M50 0L100 50L50 100L0 50Z'],
   ] as const)('renders %s as a full-boundary closed path', (shape, pathData) => {
-    const wrapper = mount(ShapeBlock, {
+    const wrapper = mount(ShapeBlockRenderer, {
       props: { block: createBlock(shape), layoutMode: 'static' },
     })
 
@@ -36,7 +36,7 @@ describe('ShapeBlock', () => {
   })
 
   it('renders line across the full viewBox width', () => {
-    const wrapper = mount(ShapeBlock, {
+    const wrapper = mount(ShapeBlockRenderer, {
       props: { block: createBlock('line'), layoutMode: 'static' },
     })
 
@@ -53,7 +53,7 @@ describe('ShapeBlock', () => {
     ['outside', 'mask'],
   ] as const)('simulates %s alignment with a doubled clipped stroke', (alignment, attribute) => {
     const block = { ...createBlock('triangle'), strokeAlignment: alignment }
-    const wrapper = mount(ShapeBlock, {
+    const wrapper = mount(ShapeBlockRenderer, {
       props: { block, layoutMode: 'static' },
     })
     const stroke = wrapper.get('.shape-block__stroke')
@@ -70,7 +70,7 @@ describe('ShapeBlock', () => {
       strokeCap: 'square' as const,
       strokeMiterLimit: 8,
     }
-    const wrapper = mount(ShapeBlock, {
+    const wrapper = mount(ShapeBlockRenderer, {
       props: { block, layoutMode: 'static' },
     })
     const style = wrapper.get('line').attributes('style')

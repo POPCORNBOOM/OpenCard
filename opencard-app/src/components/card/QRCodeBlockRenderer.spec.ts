@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { QRCodeBlock as QRCodeBlockModel } from '../../entities/card/model'
-import QRCodeBlock from './QRCodeBlock.vue'
+import QRCodeBlockRenderer from './QRCodeBlockRenderer.vue'
 
 function createBlock(content: string): QRCodeBlockModel {
   return {
@@ -16,9 +16,9 @@ function createBlock(content: string): QRCodeBlockModel {
   }
 }
 
-describe('QRCodeBlock', () => {
+describe('QRCodeBlockRenderer', () => {
   it('shows an OC placeholder for empty content', () => {
-    const wrapper = mount(QRCodeBlock, {
+    const wrapper = mount(QRCodeBlockRenderer, {
       props: { block: createBlock(''), layoutMode: 'static' },
     })
 
@@ -27,7 +27,7 @@ describe('QRCodeBlock', () => {
   })
 
   it('generates a square SVG using the configured QR semantics', async () => {
-    const wrapper = mount(QRCodeBlock, {
+    const wrapper = mount(QRCodeBlockRenderer, {
       props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
     })
 

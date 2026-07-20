@@ -1,9 +1,9 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { TextBlock as TextBlockModel } from '../../entities/card/model'
-import TextBlock from './TextBlock.vue'
+import TextBlockRenderer from './TextBlockRenderer.vue'
 
-describe('TextBlock', () => {
+describe('TextBlockRenderer', () => {
   it('preserves plain-text line breaks without parsing HTML', () => {
     const block: TextBlockModel = {
       id: 'plain-text-block',
@@ -12,7 +12,7 @@ describe('TextBlock', () => {
       mode: 'plain',
     }
 
-    const wrapper = mount(TextBlock, {
+    const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
     })
     const content = wrapper.get('.text-block-content--plain')
@@ -31,7 +31,7 @@ describe('TextBlock', () => {
       verticalAlign: 'bottom',
     }
 
-    const wrapper = mount(TextBlock, {
+    const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
     })
     const style = wrapper.element.style

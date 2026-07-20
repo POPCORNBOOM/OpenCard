@@ -1,7 +1,7 @@
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
         <div v-for="child in orderedChildren" :key="child.block.id" :style="getChildStyle(child)">
-            <CardBlock :block="getChildRenderBlock(child)" layout-mode="static" />
+            <CardBlockRenderer :block="getChildRenderBlock(child)" layout-mode="static" />
         </div>
     </div>
 </template>
@@ -10,7 +10,7 @@
 import { computed, inject } from 'vue'
 import { CardBlock as CardBlockModel, FlowContainerBlock } from '../../entities/card/model'
 import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
-import CardBlock from './CardBlock.vue'
+import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 
 const props = withDefaults(defineProps<{

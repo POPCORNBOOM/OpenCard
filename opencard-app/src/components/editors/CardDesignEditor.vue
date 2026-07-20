@@ -193,6 +193,74 @@
         />
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="additionalFieldCreateDialogOpen"
+        class="card-design-editor__dialog-backdrop"
+        @mousedown.self="closeAdditionalFieldCreateDialog"
+      >
+        <form
+          class="card-design-editor__dialog"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="t('propertyEditor.customFields.create')"
+          @submit.prevent="submitAdditionalFieldCreate"
+          @keydown.esc.prevent="closeAdditionalFieldCreateDialog"
+        >
+          <header class="card-design-editor__dialog-header">
+            <h2>{{ t('propertyEditor.customFields.create') }}</h2>
+          </header>
+
+          <label class="card-design-editor__dialog-field">
+            <span>{{ t('propertyEditor.customFields.type') }}</span>
+            <OcFieldInput
+              as="select"
+              full-width
+              :value="additionalFieldCreateDraft.datatype"
+              @change="updateAdditionalFieldDatatype"
+            >
+              <option v-for="datatype in additionalFieldDatatypeOptions" :key="datatype" :value="datatype">
+                {{ t(`propertyEditor.datatypes.${datatype}`) }}
+              </option>
+            </OcFieldInput>
+          </label>
+
+          <label class="card-design-editor__dialog-field">
+            <span>{{ t('propertyEditor.customFields.key') }}</span>
+            <OcFieldInput
+              full-width
+              mono
+              autofocus
+              :value="additionalFieldCreateDraft.fieldKey"
+              @input="updateAdditionalFieldKey"
+            />
+          </label>
+
+          <label class="card-design-editor__dialog-field">
+            <span>{{ t('propertyEditor.customFields.title') }}</span>
+            <OcFieldInput
+              full-width
+              :value="additionalFieldCreateDraft.title"
+              @input="updateAdditionalFieldTitle"
+            />
+          </label>
+
+          <p v-if="additionalFieldCreateErrorText" class="card-design-editor__dialog-error" role="alert">
+            {{ additionalFieldCreateErrorText }}
+          </p>
+
+          <footer class="card-design-editor__dialog-actions">
+            <OcButton type="button" @click="closeAdditionalFieldCreateDialog">
+              {{ t('propertyEditor.customFields.cancel') }}
+            </OcButton>
+            <OcButton type="submit" variant="solid" :disabled="Boolean(additionalFieldCreateError)">
+              {{ t('propertyEditor.customFields.confirmCreate') }}
+            </OcButton>
+          </footer>
+        </form>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -222,6 +290,7 @@ import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
 import {
   useCdePropertyPanelState,
+  type CdeAdditionalFieldDatatype,
   type CdePropertySortMode,
 } from '../../composables/useCdePropertyPanelState'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
@@ -243,6 +312,8 @@ import type {
 import { chainPropertyCompletionProviders } from './propertyCompletion'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { createFilePathCompletionProvider } from '../../features/workspace/services/filePathCompletion'
+import OcButton from '../base/OcButton.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -672,6 +743,13 @@ const previewCardActions = computed<OcCardAction[]>(() => [
 ])
 
 const propertyCardActions = computed<OcCardAction[]>(() => [
+  ...(canCreateAdditionalField.value
+    ? [{
+        key: 'additional-field.create',
+        icon: 'action.add' as const,
+        title: t('propertyEditor.customFields.create'),
+      }]
+    : []),
   {
     key: 'sort-category',
     icon: 'data.list-tree',
@@ -722,6 +800,11 @@ function handlePreviewCardAction(payload: { key: string }) {
 }
 
 function handlePropertyCardAction(payload: { key: string }) {
+  if (payload.key === 'additional-field.create') {
+    openAdditionalFieldCreateDialog()
+    return
+  }
+
   if (payload.key === 'toggle-property-panel') {
     isPropertyPanelExpanded.value = !isPropertyPanelExpanded.value
     handleResizeEnd()
@@ -805,9 +888,17 @@ function handleStructureTreeCardAction(payload: { key: string }) {
 const {
   propertyInputs: rawPropertyInputs,
   propertyCategories,
+  canCreateAdditionalField,
+  additionalFieldCreateDialogOpen,
+  additionalFieldCreateDraft,
+  additionalFieldCreateError,
+  additionalFieldDatatypeOptions,
   updateProperty: updateBlockProp,
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
+  openAdditionalFieldCreateDialog,
+  closeAdditionalFieldCreateDialog,
+  submitAdditionalFieldCreate,
   deleteAdditionalField,
 } = useCdePropertyPanelState({
   cardDoc,
@@ -822,6 +913,25 @@ const {
   translate: (messageKey) => t(messageKey),
   hasMessage: (messageKey) => te(messageKey),
 })
+
+const additionalFieldCreateErrorText = computed(() => {
+  const error = additionalFieldCreateError.value
+  if (!error || error === 'invalid-target') return ''
+  const messageKey = `propertyEditor.customFields.errors.${error}`
+  return te(messageKey) ? t(messageKey) : error
+})
+
+function updateAdditionalFieldDatatype(event: Event): void {
+  additionalFieldCreateDraft.value.datatype = (event.target as HTMLSelectElement).value as CdeAdditionalFieldDatatype
+}
+
+function updateAdditionalFieldKey(event: Event): void {
+  additionalFieldCreateDraft.value.fieldKey = (event.target as HTMLInputElement).value
+}
+
+function updateAdditionalFieldTitle(event: Event): void {
+  additionalFieldCreateDraft.value.title = (event.target as HTMLInputElement).value
+}
 
 type PropertyReferenceContexts = Readonly<Record<string, Readonly<Record<string, ReferenceCompletionContext>>>>
 
@@ -1357,6 +1467,54 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+}
+
+.card-design-editor__dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--oc-space-6);
+  background: color-mix(in srgb, var(--oc-bg-base) 62%, transparent);
+}
+
+.card-design-editor__dialog {
+  width: min(360px, 100%);
+  display: grid;
+  gap: var(--oc-space-4);
+  padding: var(--oc-space-5);
+  border: 1px solid var(--oc-border-default);
+  border-radius: var(--oc-radius-md);
+  background: var(--oc-bg-surface);
+  box-shadow: var(--oc-shadow-lg);
+  color: var(--oc-fg-default);
+}
+
+.card-design-editor__dialog-header h2 {
+  margin: 0;
+  font-size: var(--oc-text-lg);
+  font-weight: 600;
+}
+
+.card-design-editor__dialog-field {
+  display: grid;
+  gap: var(--oc-space-2);
+  min-width: 0;
+  font-size: var(--oc-text-sm);
+  color: var(--oc-fg-muted);
+}
+
+.card-design-editor__dialog-error {
+  margin: 0;
+  font-size: var(--oc-text-sm);
+  color: var(--oc-fg-danger);
+}
+
+.card-design-editor__dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--oc-space-2);
 }
 
 .card-design-editor__stage {
