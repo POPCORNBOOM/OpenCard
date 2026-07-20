@@ -19,6 +19,9 @@ import type {
     EditorPropertyDefinition,
 } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
+import {
+    parseFieldReference,
+} from '../../features/editor-runtime/model/bindingExpression'
 
 export type CustomFieldDefinition = {
     title?: string
@@ -749,10 +752,6 @@ export function createBlock(type: CardBlock['type'], init: unknown = {}): CardBl
 
 export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardDocument
 export type ParentLookup = Map<string, BlockContainer>
-const parentFieldReferencePattern = /^(p(?:\.p)*)\s*:\s*([^\s:][^:]*)$/
-const documentFieldReferencePattern = /^d\s*:\s*([^\s:][^:]*)$/
-const currentCardFieldReferencePattern = /^c\s*:\s*([^\s:][^:]*)$/
-const currentBlockFieldReferencePattern = /^s\s*:\s*([^\s:][^:]*)$/
 const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
 const maxReferenceDepth = 24
@@ -785,77 +784,6 @@ export function buildParentLookup(document: CardDocument): ParentLookup {
     }
 
     return lookup
-}
-
-type FieldReferenceDescriptor =
-    | {
-        kind: 'parent'
-        parentDepth: number
-        fieldKey: string
-    }
-    | {
-        kind: 'document'
-        fieldKey: string
-    }
-    | {
-        kind: 'current-card'
-        fieldKey: string
-    }
-    | {
-        kind: 'current-block'
-        fieldKey: string
-    }
-
-function parseFieldReference(reference: string): FieldReferenceDescriptor | null {
-    const normalized = reference.trim()
-    const currentBlockMatch = currentBlockFieldReferencePattern.exec(normalized)
-    if (currentBlockMatch) {
-        const fieldKey = currentBlockMatch[1].trim()
-        if (!fieldKey) return null
-        return { kind: 'current-block', fieldKey }
-    }
-
-    const currentCardMatch = currentCardFieldReferencePattern.exec(normalized)
-    if (currentCardMatch) {
-        const fieldKey = currentCardMatch[1].trim()
-        if (!fieldKey) {
-            return null
-        }
-        return {
-            kind: 'current-card',
-            fieldKey,
-        }
-    }
-
-    const documentMatch = documentFieldReferencePattern.exec(normalized)
-    if (documentMatch) {
-        const fieldKey = documentMatch[1].trim()
-        if (!fieldKey) {
-            return null
-        }
-        return {
-            kind: 'document',
-            fieldKey,
-        }
-    }
-
-    const matched = parentFieldReferencePattern.exec(normalized)
-    if (!matched) {
-        return null
-    }
-
-    const parentChain = matched[1]
-    const fieldKey = matched[2].trim()
-    if (!fieldKey) {
-        return null
-    }
-
-    const parentDepth = parentChain.split('.').length
-    return {
-        kind: 'parent',
-        parentDepth,
-        fieldKey,
-    }
 }
 
 // Resolve `p...:field` and `d:field` references to a concrete `ownerId:field` key.

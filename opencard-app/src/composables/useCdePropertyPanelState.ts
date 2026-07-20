@@ -216,6 +216,16 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
         deletable: categorylessKeys.has(fieldKey)
           && options.selectedCardId.value === options.blueprintCardId,
+        ...(definition.datatype === 'string' && definition.autocomplete?.length
+          ? {
+              completion: {
+                static: {
+                  values: definition.autocomplete,
+                  presentation: 'ghost' as const,
+                },
+              },
+            }
+          : {}),
       },
     ]))
   }

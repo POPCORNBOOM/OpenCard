@@ -5,77 +5,49 @@ import {
   type ReferenceCompletionContext,
 } from './referenceCompletion'
 
+const parentScopes = [
+  { label: '父容器', fields: [{ key: 'width', valueKind: 'string' as const }] },
+  { label: '祖父容器', fields: [{ key: 'width', valueKind: 'string' as const }] },
+  { label: '三级祖先', fields: [{ key: 'name', valueKind: 'string' as const }] },
+]
 const context: ReferenceCompletionContext = {
   targetKind: 'string',
-  scopes: [
-    {
-      token: 's',
-      label: '当前块',
-      fields: [{ key: 'title', valueKind: 'string' }],
-    },
-    {
-      token: 'c',
-      label: '当前卡片',
-      fields: [
-        { key: 'name', valueKind: 'string' },
-        { key: 'amount', valueKind: 'number' },
-      ],
-    },
-    {
-      token: 'd',
-      label: '当前文档',
-      fields: [{ key: 'name', valueKind: 'string' }],
-    },
-    {
-      token: 'p',
-      label: '父容器',
-      fields: [{ key: 'name', valueKind: 'string' }],
-    },
-    {
-      token: 'p.p',
-      label: '祖父容器',
-      fields: [{ key: 'name', valueKind: 'string' }],
-    },
-  ],
+  currentBlock: { label: '当前块', fields: [{ key: 'title', valueKind: 'string' }] },
+  currentCard: {
+    label: '当前卡片',
+    fields: [
+      { key: 'name', valueKind: 'string' },
+      { key: 'amount', valueKind: 'number' },
+    ],
+  },
+  document: { label: '当前文档', fields: [{ key: 'name', valueKind: 'string' }] },
+  getAncestor: (depth) => parentScopes[depth - 1],
 }
 
 describe('referenceCompletion', () => {
-  it('suggests scopes inside a newly opened reference token', () => {
-    const state = resolveReferenceCompletion('{{}}', 2, context)
-
-    expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
-      's:',
-      'c:',
-      'd:',
-      'p:',
-      'p.p:',
-    ])
+  it('suggests root scopes without pre-generating every ancestor token', () => {
+    expect(resolveReferenceCompletion('{{}}', 2, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['s:', 'c:', 'd:', 'p:'])
   })
 
-  it('suggests only readable fields from the selected scope', () => {
-    const state = resolveReferenceCompletion('{{c:na}}', 6, context)
-
-    expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
-      'c:name',
-    ])
+  it('offers field selection and continuation for parent chains', () => {
+    expect(resolveReferenceCompletion('{{p}}', 3, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['p:', 'p.'])
+    expect(resolveReferenceCompletion('{{p.}}', 4, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['p.p:', 'p.p.'])
+    expect(resolveReferenceCompletion('{{p.p:wi}}', 8, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['p.p:width'])
   })
 
-  it('matches scope tokens case-insensitively and filters by target kind', () => {
+  it('matches fixed scopes case-insensitively and filters by target kind', () => {
     const numberContext: ReferenceCompletionContext = { ...context, targetKind: 'number' }
-    const state = resolveReferenceCompletion('{{C:}}', 4, numberContext)
-
-    expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
-      'c:amount',
-    ])
+    expect(resolveReferenceCompletion('{{C:}}', 4, numberContext)?.suggestions.map((item) => item.insertText))
+      .toEqual(['c:amount'])
   })
 
   it('replaces only the token body and preserves closing braces', () => {
-    const state = resolveReferenceCompletion('Name: {{c:n}}', 11, context)
-    const suggestion = state?.suggestions[0]
-
-    expect(state).not.toBeNull()
-    expect(suggestion).toBeDefined()
-    expect(applyReferenceCompletion('Name: {{c:n}}', state!, suggestion!)).toEqual({
+    const state = resolveReferenceCompletion('Name: {{c:n}}', 11, context)!
+    expect(applyReferenceCompletion('Name: {{c:n}}', state, state.suggestions[0]!)).toEqual({
       value: 'Name: {{c:name}}',
       cursor: 14,
     })

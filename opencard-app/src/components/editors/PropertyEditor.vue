@@ -200,7 +200,7 @@ function getEditorComponent(datatype: PropertyDatatype, definition?: PropertyEdi
   if (datatype === 'string'
     && definition
     && !definition.options
-    && definition.completion?.type === 'provider') {
+    && definition.completion?.provider) {
     return ReferenceStringPropertyField
   }
   return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
@@ -209,15 +209,15 @@ function getEditorComponent(datatype: PropertyDatatype, definition?: PropertyEdi
 function usesInlineBindingEditor(definition: PropertyEditorFieldDefinition): boolean {
   return definition.datatype === 'string'
     && !definition.options
-    && definition.completion?.type === 'provider'
+    && Boolean(definition.completion?.provider)
 }
 
 function shouldShowBindingButton(definition: PropertyEditorFieldDefinition): boolean {
-  return definition.completion?.type === 'provider' && !usesInlineBindingEditor(definition)
+  return Boolean(definition.completion?.provider) && !usesInlineBindingEditor(definition)
 }
 
 function getCompletionProvider(definition: PropertyEditorFieldDefinition): PropertyCompletionProvider | undefined {
-  return definition.completion?.type === 'provider' ? definition.completion.provide : undefined
+  return definition.completion?.provider
 }
 
 function emitPropertyValue(sourceKey: string, fieldKey: string, value: unknown): void {

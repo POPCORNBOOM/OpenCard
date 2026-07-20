@@ -1,4 +1,10 @@
 import { isBindingCompatible, type BindingValueKind } from '../model/binding'
+import {
+  findActiveBindingToken,
+  formatBindingScopeToken,
+  parseBindingScopeToken,
+  type BindingScopeDescriptor,
+} from '../model/bindingExpression'
 
 export type ReferenceCompletionField = {
   key: string
@@ -7,14 +13,16 @@ export type ReferenceCompletionField = {
 }
 
 export type ReferenceCompletionScope = {
-  token: string
   label: string
   fields: readonly ReferenceCompletionField[]
 }
 
 export type ReferenceCompletionContext = {
-  scopes: readonly ReferenceCompletionScope[]
   targetKind: BindingValueKind
+  currentBlock?: ReferenceCompletionScope
+  currentCard?: ReferenceCompletionScope
+  document?: ReferenceCompletionScope
+  getAncestor: (depth: number) => ReferenceCompletionScope | undefined
 }
 
 export type ReferenceCompletionSuggestion = {
@@ -42,74 +50,123 @@ export function resolveReferenceCompletion(
   cursor: number,
   context: ReferenceCompletionContext | null | undefined,
 ): ReferenceCompletionState | null {
-  if (!context || cursor < 2) {
-    return null
+  if (!context) return null
+  const active = findActiveBindingToken(value, cursor)
+  if (!active) return null
+
+  const colonIndex = active.body.indexOf(':')
+  if (colonIndex >= 0) {
+    return resolveFieldSuggestions(active, colonIndex, context)
   }
 
-  const tokenStart = value.lastIndexOf('{{', cursor - 1)
-  if (tokenStart < 0) {
-    return null
+  return {
+    replaceStart: active.bodyStart,
+    replaceEnd: cursor,
+    suggestions: resolveScopeSuggestions(active.body.trim(), context),
+  }
+}
+
+function resolveScopeSuggestions(
+  fragmentInput: string,
+  context: ReferenceCompletionContext,
+): ReferenceCompletionSuggestion[] {
+  const fragment = fragmentInput.toLocaleLowerCase()
+  if (fragment.startsWith('p')) {
+    return resolveParentScopeSuggestions(fragment, context)
   }
 
-  const tokenBodyStart = tokenStart + 2
-  const tokenBody = value.slice(tokenBodyStart, cursor)
-  if (tokenBody.includes('{') || tokenBody.includes('}')) {
-    return null
+  const fixedScopes: Array<readonly [string, ReferenceCompletionScope | undefined]> = [
+    ['s', context.currentBlock],
+    ['c', context.currentCard],
+    ['d', context.document],
+  ]
+  const suggestions = fixedScopes
+    .filter(([token, scope]) => scope && token.startsWith(fragment) && hasCompatibleField(scope, context.targetKind))
+    .map(([token, scope]) => scopeSuggestion(`${token}:`, scope!.label))
+
+  const parent = context.getAncestor(1)
+  if (parent && 'p'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
+    suggestions.push(scopeSuggestion('p:', parent.label))
   }
+  return suggestions
+}
 
-  const colonIndex = tokenBody.indexOf(':')
-  if (colonIndex < 0) {
-    const fragment = tokenBody.trim().toLowerCase()
-    const suggestions = context.scopes
-      .filter((scope) => scope.fields.some((field) => isBindingCompatible(context.targetKind, field.valueKind)))
-      .filter((scope) => scope.token.toLowerCase().startsWith(fragment))
-      .map((scope) => ({
-        key: `scope:${scope.token}`,
-        label: `${scope.token}:`,
-        detail: scope.label,
-        insertText: `${scope.token}:`,
-        kind: 'scope' as const,
-      }))
+function resolveParentScopeSuggestions(
+  fragment: string,
+  context: ReferenceCompletionContext,
+): ReferenceCompletionSuggestion[] {
+  if (!/^p(?:\.p)*\.?$/i.test(fragment)) return []
+  const completedDepth = fragment.split('.').filter(Boolean).length
+  const targetDepth = fragment.endsWith('.') ? completedDepth + 1 : completedDepth
+  const scope = context.getAncestor(targetDepth)
+  if (!scope || !hasCompatibleField(scope, context.targetKind)) return []
 
-    return {
-      replaceStart: tokenBodyStart,
-      replaceEnd: cursor,
-      suggestions,
-    }
+  const token = Array.from({ length: targetDepth }, () => 'p').join('.')
+  const suggestions = [scopeSuggestion(`${token}:`, scope.label)]
+  if (context.getAncestor(targetDepth + 1)) {
+    suggestions.push(scopeSuggestion(`${token}.`, scope.label))
   }
+  return suggestions
+}
 
-  const scopeToken = tokenBody.slice(0, colonIndex).trim()
-  const scope = context.scopes.find((item) => item.token.toLowerCase() === scopeToken.toLowerCase())
-  if (!scope) {
-    return null
-  }
+function resolveFieldSuggestions(
+  active: NonNullable<ReturnType<typeof findActiveBindingToken>>,
+  colonIndex: number,
+  context: ReferenceCompletionContext,
+): ReferenceCompletionState | null {
+  const scopeDescriptor = parseBindingScopeToken(active.body.slice(0, colonIndex))
+  const scope = scopeDescriptor ? resolveScope(scopeDescriptor, context) : undefined
+  if (!scope) return null
 
-  const fieldFragment = tokenBody.slice(colonIndex + 1).trim().toLowerCase()
+  const scopeToken = formatBindingScopeToken(scopeDescriptor!)
+  const fragment = active.body.slice(colonIndex + 1).trim().toLocaleLowerCase()
   const suggestions = scope.fields
     .filter((field) => isBindingCompatible(context.targetKind, field.valueKind))
-    .filter((field) => field.key.toLowerCase().includes(fieldFragment)
-      || field.label?.toLowerCase().includes(fieldFragment))
+    .filter((field) => field.key.toLocaleLowerCase().includes(fragment)
+      || field.label?.toLocaleLowerCase().includes(fragment))
     .sort((left, right) => {
-      const leftStartsWith = left.key.toLowerCase().startsWith(fieldFragment)
-      const rightStartsWith = right.key.toLowerCase().startsWith(fieldFragment)
-      if (leftStartsWith !== rightStartsWith) {
-        return leftStartsWith ? -1 : 1
-      }
+      const leftStarts = left.key.toLocaleLowerCase().startsWith(fragment)
+      const rightStarts = right.key.toLocaleLowerCase().startsWith(fragment)
+      if (leftStarts !== rightStarts) return leftStarts ? -1 : 1
       return left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
     })
     .map((field) => ({
-      key: `field:${scope.token}:${field.key}`,
+      key: `field:${scopeToken}:${field.key}`,
       label: field.label ?? field.key,
       detail: scope.label,
-      insertText: `${scope.token}:${field.key}`,
+      insertText: `${scopeToken}:${field.key}`,
       kind: 'field' as const,
       valueKind: field.valueKind,
     }))
 
   return {
-    replaceStart: tokenBodyStart,
-    replaceEnd: cursor,
+    replaceStart: active.bodyStart,
+    replaceEnd: active.cursor,
     suggestions,
+  }
+}
+
+function resolveScope(
+  descriptor: BindingScopeDescriptor,
+  context: ReferenceCompletionContext,
+): ReferenceCompletionScope | undefined {
+  if (descriptor.kind === 'current-block') return context.currentBlock
+  if (descriptor.kind === 'current-card') return context.currentCard
+  if (descriptor.kind === 'document') return context.document
+  return context.getAncestor(descriptor.parentDepth)
+}
+
+function hasCompatibleField(scope: ReferenceCompletionScope, targetKind: BindingValueKind): boolean {
+  return scope.fields.some((field) => isBindingCompatible(targetKind, field.valueKind))
+}
+
+function scopeSuggestion(insertText: string, detail: string): ReferenceCompletionSuggestion {
+  return {
+    key: `scope:${insertText}`,
+    label: insertText,
+    detail,
+    insertText,
+    kind: 'scope',
   }
 }
 

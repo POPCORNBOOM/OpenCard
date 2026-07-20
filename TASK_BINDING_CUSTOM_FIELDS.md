@@ -104,9 +104,10 @@ interface PropertyInputPair {
   close: string
 }
 
-type PropertyCompletion =
-  | { type: 'static'; values: readonly string[]; presentation?: 'ghost' | 'menu' }
-  | { type: 'provider'; provide: PropertyCompletionProvider }
+type PropertyCompletion = {
+  static?: { values: readonly string[]; presentation?: 'ghost' | 'menu' }
+  provider?: PropertyCompletionProvider
+}
 
 interface PropertyCompletionRequest {
   value: string
@@ -134,13 +135,13 @@ type PropertyCompletionProvider = (
 ) => PropertyCompletionResult | null | Promise<PropertyCompletionResult | null>
 ```
 
-- [ ] `{{ -> }}` 由上级通过 `autoPairs` 声明，EditorField 通用执行。
-- [ ] CSS `px/%` 使用 schema 提供的 static ghost completion。
-- [ ] FilePath Provider 位于 Workspace 上级，注入目录读取与索引接口；FilePath EditorField 不再 import Project Store。
-- [ ] Binding Provider 位于 Card 上级，负责 `s/c/d/p`、父链、字段 exposure 和类型过滤；PropertyEditor/EditorField 不知道 scope 语义。
-- [ ] binding completion 与运行时共享 token parser；输入 `{{p` 提供 `p:` 与 `p.`，输入 `{{p.` 按需提供 `p.p:` 与 `p.p.`，不预生成 ancestor tree。
-- [ ] 异步 Provider 只采用最后一次请求结果，旧请求不得覆盖新输入。
-- [ ] 非字符串 binding picker 与自由字符串补全复用同一 Provider；叶子 item 通过 `value` 提交完整 binding expression。
+- [x] `{{ -> }}` 由上级通过 `autoPairs` 声明，EditorField 通用执行。
+- [x] CSS `px/%` 使用 schema 提供的 static ghost completion；static 与 provider 可在同一字段并存。
+- [x] FilePath Provider 位于 Workspace 上级，注入目录读取与索引接口；FilePath EditorField 不再 import Project Store。
+- [x] Binding Provider 位于 Card 上级，负责 `s/c/d/p`、父链、字段 exposure 和类型过滤；PropertyEditor/EditorField 不知道 scope 语义。
+- [x] binding completion 与运行时共享 token parser；输入 `{{p` 提供 `p:` 与 `p.`，输入 `{{p.` 按需提供 `p.p:` 与 `p.p.`，不预生成 ancestor tree。
+- [x] 异步 Provider 只采用最后一次请求结果，旧请求不得覆盖新输入。
+- [x] 非字符串 binding picker 与自由字符串补全复用同一 Provider；叶子 item 通过 `value` 提交完整 binding expression。
 
 ## Upper-Layer Flow
 

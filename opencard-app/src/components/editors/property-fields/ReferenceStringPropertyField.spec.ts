@@ -16,8 +16,7 @@ describe('ReferenceStringPropertyField', () => {
           datatype: 'string',
           autoPairs: [{ open: '{{', close: '}}' }],
           completion: {
-            type: 'provider',
-            provide: ({ value }) => value === '{{}}'
+            provider: ({ value, cursor }) => value === '{{}}' && cursor === 2
               ? {
                   replaceStart: 2,
                   replaceEnd: 2,
@@ -53,6 +52,7 @@ describe('ReferenceStringPropertyField', () => {
     await nextTick()
     await nextTick()
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:}}'])
+    expect(document.body.querySelector('[role="option"]')?.textContent).toContain('Name')
 
     await input.trigger('keydown', { key: 'Tab' })
     await nextTick()
@@ -67,8 +67,7 @@ describe('ReferenceStringPropertyField', () => {
           title: 'Content',
           datatype: 'string',
           completion: {
-            type: 'provider',
-            provide: ({ cursor }) => {
+            provider: ({ cursor }) => {
               requestedCursor = cursor
               return null
             },

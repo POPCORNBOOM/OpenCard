@@ -33,16 +33,13 @@ export type PropertyCompletionProvider = (
   request: PropertyCompletionRequest,
 ) => PropertyCompletionResult | null | Promise<PropertyCompletionResult | null>
 
-export type PropertyCompletion =
-  | {
-      type: 'static'
-      values: readonly string[]
-      presentation?: 'ghost' | 'menu'
-    }
-  | {
-      type: 'provider'
-      provide: PropertyCompletionProvider
-    }
+export type PropertyCompletion = {
+  static?: {
+    values: readonly string[]
+    presentation?: 'ghost' | 'menu'
+  }
+  provider?: PropertyCompletionProvider
+}
 
 export type PropertyEditorFieldDefinition = EditorPropertyDefinition & {
   title: string

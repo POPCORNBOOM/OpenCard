@@ -105,7 +105,7 @@ const activeDescendantId = computed(() => {
 
 const autocompleteMatch = computed(() => {
   const current = draftValue.value
-  const values = props.definition.autocomplete ?? []
+  const values = props.definition.completion?.static?.values ?? []
   if (!current) return ''
 
   const trailingMatch = current.match(/([a-z%]+)$/i)
@@ -147,18 +147,21 @@ watch(() => props.definition.completion, () => {
 
 let completionRequestId = 0
 
-async function refreshCompletion(control: TextControl): Promise<void> {
+async function refreshCompletion(
+  control: TextControl,
+  value = draftValue.value,
+  cursor = control.selectionStart ?? value.length,
+): Promise<void> {
   activeInput.value = control
-  const cursor = control.selectionStart ?? draftValue.value.length
   const completion = props.definition.completion
-  if (completion?.type !== 'provider') {
+  if (!completion?.provider) {
     completionState.value = null
     isMenuOpen.value = false
     return
   }
 
   const requestId = ++completionRequestId
-  const result = await completion.provide({ value: draftValue.value, cursor })
+  const result = await completion.provider({ value, cursor })
   if (requestId !== completionRequestId) return
   completionState.value = result
   isMenuOpen.value = Boolean(result?.items.length)
@@ -197,7 +200,7 @@ function handleInput(event: Event): void {
   }
 
   emitValue(nextValue)
-  void refreshCompletion(control)
+  void refreshCompletion(control, nextValue, cursor)
 }
 
 function handleFocus(event: FocusEvent): void {
@@ -238,10 +241,11 @@ function acceptSuggestion(suggestion: PropertyCompletionItem): void {
   const cursor = state.replaceStart + suggestion.insertText.length
   emitValue(value)
   control.value = value
+  control.setSelectionRange(cursor, cursor)
   setCursor(control, cursor)
 
   if (suggestion.keepOpen) {
-    void refreshCompletion(control)
+    void refreshCompletion(control, value, cursor)
   } else {
     completionState.value = null
     isMenuOpen.value = false

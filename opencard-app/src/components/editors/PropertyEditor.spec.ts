@@ -67,7 +67,7 @@ describe('PropertyEditor records protocol', () => {
               title: 'Opacity',
               datatype: 'number',
               defaultValue: 1,
-              completion: { type: 'provider', provide: () => null },
+              completion: { provider: () => null },
             },
           },
         }],

@@ -240,6 +240,9 @@ import type {
   PropertyCompletionProvider,
   PropertyEditorInput,
 } from './propertyEditor.types'
+import { chainPropertyCompletionProviders } from './propertyCompletion'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
+import { createFilePathCompletionProvider } from '../../features/workspace/services/filePathCompletion'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -248,6 +251,7 @@ const BLUEPRINT_CARD_ID = '__blueprint__'
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t, te } = useI18n()
+const projectStore = useProjectStore()
 
 type ResizeTarget = 'left-width' | 'right-width' | 'left-stack' | 'right-stack'
 type SidebarPairState = {
@@ -822,13 +826,11 @@ const {
 type PropertyReferenceContexts = Readonly<Record<string, Readonly<Record<string, ReferenceCompletionContext>>>>
 
 function createReferenceScope(
-  token: string,
   label: string,
   record: Record<string, unknown>,
 ): ReferenceCompletionScope {
   const customFields = record.customFields as Record<string, { title?: string }> | undefined
   return {
-    token,
     label,
     fields: getCardFieldKeys(record)
       .filter((fieldKey) => exposesCardFieldReference(record, fieldKey))
@@ -853,28 +855,26 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
   const currentCard = selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value
     ? document
     : selectedCard.value
-  const scopes: ReferenceCompletionScope[] = [
-    createReferenceScope(
-      'c',
+  const currentCardScope = createReferenceScope(
       selectedCardId.value === BLUEPRINT_CARD_ID
         ? t('propertyEditor.references.currentCardBlueprint')
         : t('propertyEditor.references.currentCard'),
       currentCard as unknown as Record<string, unknown>,
-    ),
-    createReferenceScope(
-      'd',
+    )
+  const documentScope = createReferenceScope(
       t('propertyEditor.references.document'),
       document as unknown as Record<string, unknown>,
-    ),
-  ]
+    )
 
   const block = selectedBlock.value
+  const currentBlockScope = block
+    ? createReferenceScope(
+        t('propertyEditor.references.self'),
+        block as unknown as Record<string, unknown>,
+      )
+    : undefined
+  const ancestorScopes: ReferenceCompletionScope[] = []
   if (block) {
-    scopes.push(createReferenceScope(
-      's',
-      t('propertyEditor.references.self'),
-      block as unknown as Record<string, unknown>,
-    ))
     let currentBlockId = block.id
     let depth = 1
 
@@ -884,8 +884,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
         break
       }
 
-      scopes.push(createReferenceScope(
-        Array.from({ length: depth }, () => 'p').join('.'),
+      ancestorScopes.push(createReferenceScope(
         depth === 1
           ? t('propertyEditor.references.parent')
           : t('propertyEditor.references.ancestor', { depth }),
@@ -901,7 +900,10 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
     Object.fromEntries(getCardFieldKeys(input.record).map((fieldKey) => [
       fieldKey,
       {
-        scopes,
+        currentBlock: currentBlockScope,
+        currentCard: currentCardScope,
+        document: documentScope,
+        getAncestor: (depth: number) => ancestorScopes[depth - 1],
         targetKind: getCardFieldValueKind(input.record, fieldKey),
       },
     ])),
@@ -936,15 +938,27 @@ const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
     ...input,
     fields: Object.fromEntries(Object.entries(input.fields).map(([fieldKey, definition]) => {
       const context = referenceCompletionContexts.value[input.key]?.[fieldKey]
-      if (!context || definition.acceptsBinding === false || definition.datatype === 'object') {
-        return [fieldKey, definition]
-      }
+      const bindingProvider = context && definition.acceptsBinding !== false && definition.datatype !== 'object'
+        ? createReferenceCompletionProvider(context)
+        : undefined
+      const filePathProvider = definition.datatype === 'filePath'
+        ? createFilePathCompletionProvider({
+            listDirectory: projectStore.listProjectDirectoryEntries,
+            getRootEntries: () => projectStore.indexedEntries.value,
+            extensions: definition.extensionsFilter,
+            isAvailable: () => Boolean(projectStore.projectPath.value),
+          })
+        : undefined
+      const provider = filePathProvider
+        ? chainPropertyCompletionProviders([bindingProvider, filePathProvider])
+        : bindingProvider
+      if (!provider) return [fieldKey, definition]
       return [fieldKey, {
         ...definition,
-        autoPairs: [{ open: '{{', close: '}}' }],
+        ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
         completion: {
-          type: 'provider',
-          provide: createReferenceCompletionProvider(context),
+          ...definition.completion,
+          provider,
         },
       }]
     })),

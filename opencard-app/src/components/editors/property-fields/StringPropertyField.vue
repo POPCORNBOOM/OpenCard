@@ -38,10 +38,10 @@
 import { computed } from 'vue'
 import OcFieldFrame from '../../base/OcFieldFrame.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
-import type { EditorPropertyDefinition } from '../../../entities/card/schema'
+import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'string' }>
+  definition: Extract<PropertyEditorFieldDefinition, { datatype: 'string' }>
   value: unknown
 }>()
 
@@ -53,7 +53,7 @@ const stringValue = computed(() => (props.value == null ? '' : String(props.valu
 
 const autocompleteMatch = computed(() => {
   const current = stringValue.value
-  const suggestions = props.definition.autocomplete ?? []
+  const suggestions = props.definition.completion?.static?.values ?? []
   if (!current) return ''
 
   const trailingMatch = current.match(/([a-z%]+)$/i)
