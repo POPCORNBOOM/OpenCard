@@ -9,29 +9,27 @@
       <OcIcon :name="renderState === 'error' ? 'status.warning' : 'entity.block-qrcode'"
         :tone="renderState === 'error' ? 'warning' : 'muted'" size="lg" />
     </div>
-    <div v-else class="qrcode-block__graphic" role="img" :aria-label="block.name ?? block.id" v-html="svgMarkup" />
+    <div v-else class="qrcode-block__graphic" role="img" :aria-label="block.name" v-html="svgMarkup" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import QRCode from 'qrcode'
-import type { QRCodeBlock } from '../../entities/card/model'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import OcIcon from '../base/OcIcon.vue'
-import { cardEditorContextKey } from './cardEditorContext'
+import { useCardEditorContext } from './cardEditorContext'
+import type { RenderReadyQRCodeBlock } from './render.types'
 
 const props = withDefaults(defineProps<{
-  block: QRCodeBlock
+  block: RenderReadyQRCodeBlock
   layoutMode?: 'absolute' | 'static'
 }>(), {
   layoutMode: 'absolute',
 })
 
-const editorContext = inject(cardEditorContextKey, null)
-const isTransformDisabled = computed(() =>
-  editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
-)
+const editorContext = useCardEditorContext()
+const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const svgMarkup = ref('')
 const renderState = ref<'empty' | 'loading' | 'ready' | 'error'>('empty')
 let renderRevision = 0
@@ -64,7 +62,7 @@ watch(
       const markup = await QRCode.toString(content, {
         type: 'svg',
         errorCorrectionLevel: errorCorrection,
-        margin: Math.max(0, quietZone),
+        margin: quietZone,
         color: { dark: foreground, light: backgroundColor },
       })
       if (revision !== renderRevision) return
@@ -80,7 +78,7 @@ watch(
 )
 
 function handleClick(event: MouseEvent): void {
-  editorContext?.handleBlockClick?.(props.block.id, event)
+  editorContext.handleBlockClick(props.block.id, event)
 }
 </script>
 

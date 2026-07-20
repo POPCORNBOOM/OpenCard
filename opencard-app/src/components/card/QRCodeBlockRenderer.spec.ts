@@ -2,9 +2,11 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { QRCodeBlock as QRCodeBlockModel } from '../../entities/card/model'
 import QRCodeBlockRenderer from './QRCodeBlockRenderer.vue'
+import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
+import type { RenderReadyQRCodeBlock } from './render.types'
 
-function createBlock(content: string): QRCodeBlockModel {
-  return {
+function createBlock(content: string): RenderReadyQRCodeBlock {
+  const block: QRCodeBlockModel = {
     id: 'qr-test',
     name: 'QR test',
     type: 'qrcode-block',
@@ -12,14 +14,16 @@ function createBlock(content: string): QRCodeBlockModel {
     errorCorrection: 'H',
     foreground: '#112233',
     backgroundColor: '#FDFDFD',
-    quietZone: 2,
+    quietZone: '2',
   }
+  return parseRenderReadyBlockForTest(block)
 }
 
 describe('QRCodeBlockRenderer', () => {
   it('shows an OC placeholder for empty content', () => {
     const wrapper = mount(QRCodeBlockRenderer, {
       props: { block: createBlock(''), layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
 
     expect(wrapper.get('[aria-label="未配置二维码内容"]')).toBeDefined()
@@ -29,6 +33,7 @@ describe('QRCodeBlockRenderer', () => {
   it('generates a square SVG using the configured QR semantics', async () => {
     const wrapper = mount(QRCodeBlockRenderer, {
       props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
 
     await vi.waitFor(() => expect(wrapper.find('.qrcode-block__graphic svg').exists()).toBe(true))

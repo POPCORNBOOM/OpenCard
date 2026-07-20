@@ -254,7 +254,7 @@ export default {
         duplicate: 'The key conflicts with an existing field.',
       },
     },
-    datatypes: {
+    fieldTypes: {
       string: 'Text',
       filePath: 'File Path',
       anchorPosition: 'Anchor Grid',

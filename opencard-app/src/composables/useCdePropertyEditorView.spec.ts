@@ -21,9 +21,9 @@ describe('useCdePropertyEditorView', () => {
       key: 'text',
       record: { id: 'text-1', content: 'Hello', score: 12 },
       fields: {
-        id: { title: 'ID', datatype: 'string', category: 'identity' },
-        content: { title: 'Content', datatype: 'string', category: 'content' },
-        score: { title: 'Score', datatype: 'number' },
+        id: { title: 'ID', fieldType: 'string', category: 'identity' },
+        content: { title: 'Content', fieldType: 'string', category: 'content' },
+        score: { title: 'Score', fieldType: 'number' },
       },
     }])
 
@@ -40,8 +40,8 @@ describe('useCdePropertyEditorView', () => {
       key: 'text',
       record: { id: 'text-1' },
       fields: {
-        id: { title: 'ID', datatype: 'string', category: 'identity' },
-        content: { title: 'Content', datatype: 'string', category: 'missing' },
+        id: { title: 'ID', fieldType: 'string', category: 'identity' },
+        content: { title: 'Content', fieldType: 'string', category: 'missing' },
       },
     }])
 

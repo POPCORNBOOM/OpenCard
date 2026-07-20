@@ -78,7 +78,7 @@ import OcAutocompletePopover from '../../standard/OcAutocompletePopover.vue'
 import OcFieldFrame from '../../base/OcFieldFrame.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
 
-type StringDefinition = Extract<PropertyEditorFieldDefinition, { datatype: 'string' }>
+type StringDefinition = Extract<PropertyEditorFieldDefinition, { fieldType: 'string' }>
 type TextControl = HTMLInputElement | HTMLTextAreaElement
 
 const props = defineProps<{

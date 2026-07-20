@@ -3,7 +3,7 @@
     @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
     @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
-      <CardRenderer :document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
+      <CardDocumentRenderer :card-document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
         @block-click="handleBlockClick" />
     </div>
     <div class="card-selection-layer">
@@ -22,8 +22,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AnchorPosition, CardDocument } from '../../entities/card/model'
-import CardRenderer from './CardRenderer.vue'
+import type { AnchorPosition } from '../../entities/card/model'
+import CardDocumentRenderer from './CardDocumentRenderer.vue'
+import type { RenderReadyCardDocument } from './render.types'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'l' | 'r' | 't' | 'b'
 type ResizeMode = 'absolute' | 'flow' | 'none'
@@ -74,7 +75,7 @@ const emit = defineEmits<{
 }>()
 
 const props = withDefaults(defineProps<{
-  document: CardDocument
+  document: RenderReadyCardDocument
   restoreKey?: string
   selectedBlockId?: string | null
   selectedLocationType?: 'simple-container-location' | 'flow-container-location' | null

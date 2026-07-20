@@ -3,8 +3,8 @@
   "id": "card-document-blank-template",
   "name": "Untitled Card",
   "version": "1.0.0",
-  "width": 540,
-  "height": 850,
+  "width": "540",
+  "height": "850",
   "background": "#FFFFFF",
   "children": [],
   "instances": []

@@ -7,32 +7,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue'
-import { CardBlock as CardBlockModel, FlowContainerBlock } from '../../entities/card/model'
-import { getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
+import { computed } from 'vue'
+import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import CardBlockRenderer from './CardBlockRenderer.vue'
-import { cardEditorContextKey } from './cardEditorContext'
+import { useCardEditorContext } from './cardEditorContext'
+import type { RenderReadyCardBlock, RenderReadyFlowContainerBlock } from './render.types'
 
 const props = withDefaults(defineProps<{
-    block: FlowContainerBlock
+    block: RenderReadyFlowContainerBlock
     layoutMode?: 'absolute' | 'static'
 }>(), {
     layoutMode: 'absolute',
 })
 
-const editorContext = inject(cardEditorContextKey, null)
-const isTransformDisabled = computed(() =>
-    editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
-)
+const editorContext = useCardEditorContext()
+const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
-const directionMap: Record<FlowContainerBlock['direction'], string> = {
+const directionMap: Record<RenderReadyFlowContainerBlock['direction'], string> = {
     lr: 'row',
     rl: 'row-reverse',
     tb: 'column',
     bt: 'column-reverse',
 }
 
-const alignMap: Record<NonNullable<FlowContainerBlock['children'][number]['location']['align']>, string> = {
+const alignMap: Record<RenderReadyFlowContainerBlock['children'][number]['location']['align'], string> = {
     start: 'flex-start',
     center: 'center',
     end: 'flex-end',
@@ -44,48 +42,32 @@ const blockStyle = computed(() => {
         ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
         : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
     const flexDir = directionMap[props.block.direction]
-    const gap = toCSSValue(props.block.gap)
-    return `${pos}; display: flex; flex-direction: ${flexDir}; gap: ${gap}`
+    return `${pos}; display: flex; flex-direction: ${flexDir}; gap: ${props.block.gap}`
 })
 
 const orderedChildren = computed(() =>
     [...props.block.children].sort((a, b) => a.location.index - b.location.index)
 )
 
-function getChildStyle(child: FlowContainerBlock['children'][number]) {
-    const styles = [`order: ${child.location.index}`]
-    if (child.block.width !== undefined) {
-        styles.push(`width: ${toCSSValue(child.block.width)}`)
-    }
-    if (child.block.height !== undefined) {
-        styles.push(`height: ${toCSSValue(child.block.height)}`)
-    }
-    if (child.location.align) {
-        styles.push(`align-self: ${alignMap[child.location.align]}`)
-    }
-    if (child.block.zIndex !== undefined) {
-        styles.push(`z-index: ${child.block.zIndex}`)
-    }
-    return styles.join('; ')
+function getChildStyle(child: RenderReadyFlowContainerBlock['children'][number]) {
+    return [
+        `order: ${child.location.index}`,
+        `width: ${child.block.width}`,
+        `height: ${child.block.height}`,
+        `align-self: ${alignMap[child.location.align]}`,
+        `z-index: ${child.block.zIndex}`,
+    ].join('; ')
 }
 
-function getChildRenderBlock(child: FlowContainerBlock['children'][number]): CardBlockModel {
-    const { block } = child
-    const hasWidth = block.width !== undefined
-    const hasHeight = block.height !== undefined
-
-    if (!hasWidth && !hasHeight) {
-        return block
-    }
-
+function getChildRenderBlock(child: RenderReadyFlowContainerBlock['children'][number]): RenderReadyCardBlock {
     return {
-        ...block,
-        width: hasWidth ? '100%' : block.width,
-        height: hasHeight ? '100%' : block.height,
-    } as CardBlockModel
+        ...child.block,
+        width: '100%',
+        height: '100%',
+    }
 }
 
 function handleClick(event: MouseEvent) {
-    editorContext?.handleBlockClick?.(props.block.id, event)
+    editorContext.handleBlockClick(props.block.id, event)
 }
 </script>

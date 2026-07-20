@@ -2,21 +2,23 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { ShapeBlock as ShapeBlockModel } from '../../entities/card/model'
 import ShapeBlockRenderer from './ShapeBlockRenderer.vue'
+import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
+import type { RenderReadyShapeBlock } from './render.types'
 
-function createBlock(shape: ShapeBlockModel['shape']): ShapeBlockModel {
-  return {
+function createBlock(shape: ShapeBlockModel['shape']): RenderReadyShapeBlock {
+  return parseRenderReadyBlockForTest({
     id: `shape-${shape}`,
     type: 'shape-block',
     shape,
     fill: '#123456',
     stroke: '#ABCDEF',
-    strokeWidth: 3,
+    strokeWidth: '3',
     strokeStyle: 'dashed',
     strokeAlignment: 'center',
     strokeJoin: 'miter',
     strokeCap: 'butt',
-    strokeMiterLimit: 4,
-  }
+    strokeMiterLimit: '4',
+  })
 }
 
 describe('ShapeBlockRenderer', () => {
@@ -28,6 +30,7 @@ describe('ShapeBlockRenderer', () => {
   ] as const)('renders %s as a full-boundary closed path', (shape, pathData) => {
     const wrapper = mount(ShapeBlockRenderer, {
       props: { block: createBlock(shape), layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
 
     expect(wrapper.get('.shape-block__fill').attributes('d')).toBe(pathData)
@@ -38,6 +41,7 @@ describe('ShapeBlockRenderer', () => {
   it('renders line across the full viewBox width', () => {
     const wrapper = mount(ShapeBlockRenderer, {
       props: { block: createBlock('line'), layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
 
     expect(wrapper.get('line').attributes()).toMatchObject({
@@ -55,6 +59,7 @@ describe('ShapeBlockRenderer', () => {
     const block = { ...createBlock('triangle'), strokeAlignment: alignment }
     const wrapper = mount(ShapeBlockRenderer, {
       props: { block, layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
     const stroke = wrapper.get('.shape-block__stroke')
 
@@ -72,6 +77,7 @@ describe('ShapeBlockRenderer', () => {
     }
     const wrapper = mount(ShapeBlockRenderer, {
       props: { block, layoutMode: 'static' },
+      global: rendererTestGlobal,
     })
     const style = wrapper.get('line').attributes('style')
 

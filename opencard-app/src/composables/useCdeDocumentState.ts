@@ -2,10 +2,10 @@ import { computed, ref } from 'vue'
 import { useManualRefHistory } from '@vueuse/core'
 import {
   buildParentLookup,
-  prepareDocumentForImport,
   type CardDocument,
   type ParentLookup,
 } from '../entities/card/model'
+import { parseCardDocument, serializeCardDocument } from '../entities/card/storage'
 
 const TYPING_DEBOUNCE_MS = 300
 export type CdeDocumentChangeMode = 'typing' | 'action'
@@ -15,7 +15,6 @@ type UseCdeDocumentStateOptions = {
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
-  getDefaultDocumentName: () => string
 }
 
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
@@ -38,8 +37,11 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     commit: commitHistory,
   } = useManualRefHistory<CardDocument | null, string>(cardDoc, {
     capacity: 100,
-    dump: (value) => JSON.stringify(value, null, 2),
-    parse: (value) => JSON.parse(value) as CardDocument | null,
+    dump: (value) => value ? serializeCardDocument(value) : 'null',
+    parse: (value) => {
+      const parsed = JSON.parse(value) as unknown
+      return parsed === null ? null : parseCardDocument(parsed)
+    },
   })
   const canUndo = computed(() => historyCanUndo.value && historyDepth.value > 0)
   const canRedo = computed(() => historyCanRedo.value)
@@ -85,7 +87,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       return
     }
 
-    const content = JSON.stringify(cardDoc.value, null, 2)
+    const content = serializeCardDocument(cardDoc.value)
     applyDocumentContent(content)
   }
 
@@ -103,7 +105,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       return false
     }
 
-    const content = JSON.stringify(cardDoc.value, null, 2)
+    const content = serializeCardDocument(cardDoc.value)
     if (content === rawContent.value) {
       updateModifiedState(content)
       return false
@@ -191,9 +193,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
     try {
       const parsed = JSON.parse(content) as unknown
-      const nextDocument = prepareDocumentForImport(parsed, {
-        defaultName: options.getDefaultDocumentName(),
-      })
+      const nextDocument = parseCardDocument(parsed)
       cardDoc.value = nextDocument
       rebuildParentLookup()
       setSavedContent(content)
@@ -236,7 +236,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     if (!cardDoc.value) return
     try {
       await flushPendingChanges()
-      const content = JSON.stringify(cardDoc.value, null, 2)
+      const content = serializeCardDocument(cardDoc.value)
       rawContent.value = content
       setSavedContent(content)
       options.emitModelValueUpdate(content)

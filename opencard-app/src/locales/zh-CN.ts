@@ -254,7 +254,7 @@ export default {
         duplicate: '该 Key 与现有字段重复。',
       },
     },
-    datatypes: {
+    fieldTypes: {
       string: '文本',
       filePath: '文件路径',
       anchorPosition: '九宫格锚点',

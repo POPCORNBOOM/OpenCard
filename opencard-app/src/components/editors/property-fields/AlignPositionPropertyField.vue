@@ -25,7 +25,7 @@ const alignOptions: OcOption[] = [
 ]
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'alignPosition' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'alignPosition' }>
   value: unknown
 }>()
 

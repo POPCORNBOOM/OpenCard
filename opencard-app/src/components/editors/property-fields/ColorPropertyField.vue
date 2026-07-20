@@ -12,7 +12,7 @@ import OcColorField from '../../standard/OcColorField.vue'
 interface ColorPropertyFieldProps {
   /** 当前字段值。 */
   value: unknown
-  definition: Extract<EditorPropertyDefinition, { datatype: 'color' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'color' }>
 }
 
 interface ColorPropertyFieldEmits {

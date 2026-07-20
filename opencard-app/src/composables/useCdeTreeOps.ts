@@ -245,7 +245,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       return {
         id: current.id ?? `flow-location-${crypto.randomUUID()}`,
         type: 'flow-container-location',
-        index: insertionIndex,
+        index: String(insertionIndex),
         align: current.type === 'flow-container-location' ? current.align : undefined,
       }
     }
@@ -254,8 +254,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       id: `simple-location-${crypto.randomUUID()}`,
       type: 'simple-container-location',
       anchor: 'lt',
-      x: 0,
-      y: 0,
+      x: '0',
+      y: '0',
     }
   }
 
@@ -339,7 +339,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       return {
         id: `flow-location-${crypto.randomUUID()}`,
         type: 'flow-container-location',
-        index: insertionIndex,
+        index: String(insertionIndex),
         align: location.type === 'flow-container-location' ? location.align : undefined,
       }
     }
@@ -350,8 +350,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       id: `simple-location-${crypto.randomUUID()}`,
       type: 'simple-container-location',
       anchor: 'lt',
-      x: 0,
-      y: 0,
+      x: '0',
+      y: '0',
     }
   }
 

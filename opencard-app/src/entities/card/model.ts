@@ -7,7 +7,7 @@
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import {
     acceptsPropertyBinding,
-    additionalFieldDatatypes,
+    additionalFieldTypes,
     createPropertyDefaultValue,
     exposesPropertyReference,
     fillDefaults,
@@ -15,7 +15,7 @@ import {
     getTypePropertyEditorSchema,
 } from './schema'
 import { isBindingCompatible } from '../../features/editor-runtime/model/binding'
-import type { EditorPropertyDefinition, PropertyDatatype } from './schema'
+import type { EditorPropertyDefinition, PropertyFieldType } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 import {
     parseFieldReference,
@@ -23,7 +23,7 @@ import {
 
 export type AdditionalFieldDefinition = {
     title?: string
-    datatype: PropertyDatatype
+    fieldType: PropertyFieldType
 }
 
 export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
@@ -35,23 +35,23 @@ export type BaseBlock = {
     width?: CSSValue
     height?: CSSValue
     borderColor?: string
-    borderWidth?: number
+    borderWidth?: string
     borderStyle?: 'solid' | 'dashed' | 'dotted'
     borderRadius?: CSSValue
     background?: string
     translateX?: CSSValue
     translateY?: CSSValue
-    scaleX?: number
-    scaleY?: number
+    scaleX?: string
+    scaleY?: string
     transformAnchor?: AnchorPosition
-    zIndex?: number
-    rotation?: number
-    opacity?: number
+    zIndex?: string
+    rotation?: string
+    opacity?: string
     customCss?: string
     additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
 
-export type CSSValue = number | string
+export type CSSValue = string
 
 export type AnchorPosition =
     | 'lt' | 'ct' | 'rt'
@@ -68,7 +68,7 @@ export type TextBlock = BaseBlock & {
     mode: 'plain' | 'markdown' | 'richtext'
     fontSize?: CSSValue
     fontFamily?: string
-    fontWeight?: 'normal' | 'bold' | number
+    fontWeight?: string
     color?: string
     textAlign?: AlignmentPosition
     verticalAlign?: VerticalAlignmentPosition
@@ -89,7 +89,7 @@ export type QRCodeBlock = BaseBlock & {
     errorCorrection: "L" | "M" | "Q" | "H"
     foreground: string
     backgroundColor: string
-    quietZone: number
+    quietZone: string
 }
 
 export type ShapeBlock = BaseBlock & {
@@ -97,12 +97,12 @@ export type ShapeBlock = BaseBlock & {
     shape: "rectangle" | "ellipse" | "line" | "triangle" | "diamond"
     fill: string
     stroke: string
-    strokeWidth: number
+    strokeWidth: string
     strokeStyle: "solid" | "dashed" | "dotted"
     strokeAlignment: "inside" | "center" | "outside"
     strokeJoin: "miter" | "round" | "bevel"
     strokeCap: "butt" | "round" | "square"
-    strokeMiterLimit: number
+    strokeMiterLimit: string
 }
 export type SimpleContainerLocationInfo = {
     id: string
@@ -123,7 +123,7 @@ export type SimpleContainerBlock = BaseBlock & {
 export type FlowContainerLocationInfo = {
     id: string
     type: 'flow-container-location'
-    index: number
+    index: string
     align?: AlignmentPosition
 }
 
@@ -151,8 +151,8 @@ export type CardDocument = {
     name: string
     id: string
     version: string
-    width: number
-    height: number
+    width: string
+    height: string
     background: string
     children: RootChild[]
     instances: CardInstanceRecord[]
@@ -162,8 +162,17 @@ export type CardInstanceRecord = {
     type: 'card-instance'
     id: string
     name: string
-    amount: number
-    data: Record<string, Record<string, unknown>>
+    amount: string
+    data: Record<string, Record<string, CardStoredValue>>
+}
+
+export type CardStoredValue = string | CardStoredValue[] | { [key: string]: CardStoredValue }
+
+export function isCardStoredValue(value: unknown): value is CardStoredValue {
+    if (typeof value === 'string') return true
+    if (Array.isArray(value)) return value.every(item => isCardStoredValue(item))
+    if (!value || typeof value !== 'object') return false
+    return Object.values(value).every(item => isCardStoredValue(item))
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -180,15 +189,6 @@ function setIfDefined(target: Record<string, unknown>, key: string, value: unkno
     }
 }
 
-function toRecordArray(value: unknown): Record<string, unknown>[] {
-    if (!Array.isArray(value)) {
-        return []
-    }
-
-    return value
-        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
-}
-
 function toNonEmptyString(value: unknown): string | null {
     if (typeof value !== 'string') {
         return null
@@ -202,11 +202,7 @@ function toNonEmptyString(value: unknown): string | null {
     return trimmed
 }
 
-function toFiniteNumber(value: unknown): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-const additionalFieldDatatypeSet = new Set<PropertyDatatype>(additionalFieldDatatypes)
+const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
 
 function materializeAdditionalFieldDefinitions(value: unknown): AdditionalFieldDefinitionMap {
     const source = toRecord(value)
@@ -214,14 +210,14 @@ function materializeAdditionalFieldDefinitions(value: unknown): AdditionalFieldD
 
     for (const [fieldKey, fieldValue] of Object.entries(source)) {
         const definition = toRecord(fieldValue)
-        const datatype = definition.datatype
-        if (typeof datatype !== 'string' || !additionalFieldDatatypeSet.has(datatype as PropertyDatatype)) {
+        const fieldType = definition.fieldType
+        if (typeof fieldType !== 'string' || !additionalFieldTypeSet.has(fieldType as PropertyFieldType)) {
             continue
         }
 
         const title = typeof definition.title === 'string' ? definition.title.trim() : ''
         fields[fieldKey] = {
-            datatype: datatype as PropertyDatatype,
+            fieldType: fieldType as PropertyFieldType,
             ...(title ? { title } : {}),
         }
     }
@@ -242,7 +238,7 @@ export function getAdditionalFieldPropertyDefinition(
     definition: AdditionalFieldDefinition,
 ): EditorPropertyDefinition {
     return {
-        datatype: definition.datatype,
+        fieldType: definition.fieldType,
     } as EditorPropertyDefinition
 }
 
@@ -299,7 +295,7 @@ export function exposesCardFieldReference(record: Record<string, unknown>, field
     return exposesPropertyReference(getCardFieldDefinition(record, fieldKey))
 }
 
-export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-datatype'
+export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
 export const additionalFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export function validateAdditionalFieldKey(block: CardBlock, candidate: string): AdditionalFieldKeyError | null {
@@ -319,10 +315,10 @@ export function validateAdditionalFieldKey(block: CardBlock, candidate: string):
 export function createBlockAdditionalField(
     block: CardBlock,
     fieldKeyInput: string,
-    datatype: PropertyDatatype,
+    fieldType: PropertyFieldType,
     titleInput?: string,
 ): AdditionalFieldKeyError | null {
-    if (!additionalFieldDatatypeSet.has(datatype)) return 'unsupported-datatype'
+    if (!additionalFieldTypeSet.has(fieldType)) return 'unsupported-field-type'
     const error = validateAdditionalFieldKey(block, fieldKeyInput)
     if (error) return error
 
@@ -330,10 +326,10 @@ export function createBlockAdditionalField(
     const title = titleInput?.trim() ?? ''
     const definitions = block.additionalFieldDefinition ?? (block.additionalFieldDefinition = {})
     definitions[fieldKey] = {
-        datatype,
+        fieldType,
         ...(title ? { title } : {}),
     }
-    ;(block as unknown as Record<string, unknown>)[fieldKey] = createPropertyDefaultValue({ datatype } as EditorPropertyDefinition)
+    ;(block as unknown as Record<string, unknown>)[fieldKey] = createPropertyDefaultValue({ fieldType } as EditorPropertyDefinition)
     return null
 }
 
@@ -358,20 +354,6 @@ export function deleteBlockAdditionalField(
     return removedOverrides
 }
 
-function resolveBlockType(typeName: unknown): CardBlock['type'] {
-    switch (typeName) {
-        case 'text-block':
-        case 'image-block':
-        case 'qrcode-block':
-        case 'shape-block':
-        case 'simple-container-block':
-        case 'flow-container-block':
-            return typeName
-        default:
-            return 'text-block'
-    }
-}
-
 function materializeSimpleContainerLocation(locationInput: unknown): SimpleContainerLocationInfo {
     const source = toRecord(locationInput)
     const materialized = fillDefaults('simple-container-location', source) as SimpleContainerLocationInfo
@@ -380,7 +362,7 @@ function materializeSimpleContainerLocation(locationInput: unknown): SimpleConta
     return materialized
 }
 
-function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex: number): FlowContainerLocationInfo {
+function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex: string): FlowContainerLocationInfo {
     const source = toRecord(locationInput)
     const materialized = fillDefaults('flow-container-location', source) as FlowContainerLocationInfo
     const locationId = toNonEmptyString(source.id) ?? toNonEmptyString(materialized.id) ?? createBlockId('flow-location')
@@ -389,164 +371,6 @@ function materializeFlowContainerLocation(locationInput: unknown, fallbackIndex:
         materialized.index = fallbackIndex
     }
     return materialized
-}
-
-function materializeInstanceData(rawData: unknown): Record<string, Record<string, unknown>> {
-    const source = toRecord(rawData)
-    const normalized: Record<string, Record<string, unknown>> = {}
-
-    for (const [blockId, overrideValue] of Object.entries(source)) {
-        normalized[blockId] = toRecord(overrideValue)
-    }
-
-    return normalized
-}
-
-function materializeCardInstanceRecord(instanceInput: unknown): CardInstanceRecord {
-    const source = toRecord(instanceInput)
-    const materialized = fillDefaults('card-instance', source) as CardInstanceRecord
-    const instanceId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
-        ? materialized.id
-        : createBlockId('instance')
-
-    const instanceName = typeof materialized.name === 'string' && materialized.name.trim().length > 0
-        ? materialized.name
-        : instanceId
-
-    return {
-        ...materialized,
-        type: 'card-instance',
-        id: instanceId,
-        name: instanceName,
-        data: materializeInstanceData(source.data),
-    }
-}
-
-// Materialize one block into a render-safe view block with schema defaults.
-export function toViewBlock(blockInput: unknown): CardBlock {
-    const source = toRecord(blockInput)
-    const type = resolveBlockType(source.type)
-    const materialized = fillDefaults(type, source) as CardBlock
-    delete (materialized as unknown as Record<string, unknown>).additionalFieldDefinition
-    const normalizedId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
-        ? materialized.id
-        : createBlockId(type)
-    const additionalFieldDefinition = materializeAdditionalFieldDefinitions(source.additionalFieldDefinition)
-    const definitionPatch = Object.keys(additionalFieldDefinition).length > 0
-        ? { additionalFieldDefinition }
-        : {}
-
-    switch (type) {
-        case 'text-block':
-        case 'image-block':
-        case 'qrcode-block':
-        case 'shape-block':
-            return {
-                ...materialized,
-                id: normalizedId,
-                type,
-                ...definitionPatch,
-            } as CardBlock
-        case 'simple-container-block': {
-            const children = toRecordArray(source.children).map((childInput) => ({
-                block: toViewBlock(childInput.block),
-                location: materializeSimpleContainerLocation(childInput.location),
-            }))
-
-            return {
-                ...materialized,
-                id: normalizedId,
-                type,
-                ...definitionPatch,
-                children,
-            } as CardBlock
-        }
-        case 'flow-container-block': {
-            const children = toRecordArray(source.children).map((childInput, index) => ({
-                block: toViewBlock(childInput.block),
-                location: materializeFlowContainerLocation(childInput.location, index),
-            }))
-
-            return {
-                ...materialized,
-                id: normalizedId,
-                type,
-                ...definitionPatch,
-                children,
-            } as CardBlock
-        }
-    }
-}
-
-export type ImportDocumentOptions = {
-    defaultName?: string
-}
-
-// Import checks: normalize only document-level identity/version/size defaults.
-export function prepareDocumentForImport(
-    documentInput: unknown,
-    options: ImportDocumentOptions = {}
-): CardDocument {
-    const source = toRecord(documentInput)
-    const fallbackName = toNonEmptyString(options.defaultName) ?? 'OpenCard Document'
-    const documentId = toNonEmptyString(source.id) ?? createBlockId('card-document')
-    const width = toFiniteNumber(source.width) ?? 540
-    const height = toFiniteNumber(source.height) ?? 850
-    const name = toNonEmptyString(source.name) ?? fallbackName
-    const version = toNonEmptyString(source.version) ?? '1.0.0'
-    const background = toNonEmptyString(source.background) ?? '#FFFFFF'
-    const children = Array.isArray(source.children)
-        ? source.children as RootChild[]
-        : []
-    const instances = Array.isArray(source.instances)
-        ? source.instances as CardInstanceRecord[]
-        : []
-
-    // Keep unknown top-level fields from imported document, only normalize required document keys.
-    const normalizedDocument: Record<string, unknown> = {
-        ...source,
-        type: 'card-document',
-        id: documentId,
-        width,
-        height,
-        background,
-        name,
-        version,
-        children,
-        instances,
-    }
-
-    return normalizedDocument as CardDocument
-}
-
-// Render precheck: ensure renderer-facing structure is safe to traverse.
-export function prepareDocumentForRender(documentInput: CardDocument): CardDocument {
-    const source = toRecord(documentInput)
-    const documentId = toNonEmptyString(source.id) ?? createBlockId('card-document')
-    const width = toFiniteNumber(source.width) ?? 540
-    const height = toFiniteNumber(source.height) ?? 850
-    const name = typeof source.name === 'string' ? source.name : ''
-    const version = toNonEmptyString(source.version) ?? '1.0.0'
-    const background = toNonEmptyString(source.background) ?? '#FFFFFF'
-    const children = toRecordArray(source.children).map((childInput) => ({
-        block: toViewBlock(childInput.block),
-        location: materializeSimpleContainerLocation(childInput.location),
-    }))
-    const instances = toRecordArray(source.instances).map((instanceInput) =>
-        materializeCardInstanceRecord(instanceInput)
-    )
-
-    return {
-        type: 'card-document',
-        id: documentId,
-        width,
-        height,
-        background,
-        name,
-        version,
-        children,
-        instances,
-    }
 }
 
 // Internal helper types for block factory functions.
@@ -660,7 +484,7 @@ export function createQRCodeBlock(init: QRCodeBlockInit = {}): QRCodeBlock {
         errorCorrection: init.errorCorrection ?? 'M',
         foreground: init.foreground ?? '#000000',
         backgroundColor: init.backgroundColor ?? '#FFFFFF',
-        quietZone: init.quietZone ?? 4,
+        quietZone: init.quietZone ?? '4',
     }
 }
 
@@ -675,12 +499,12 @@ export function createShapeBlock(init: ShapeBlockInit = {}): ShapeBlock {
         shape: init.shape ?? 'rectangle',
         fill: init.fill ?? '#7C6CFF',
         stroke: init.stroke ?? '#000000',
-        strokeWidth: init.strokeWidth ?? 0,
+        strokeWidth: init.strokeWidth ?? '0',
         strokeStyle: init.strokeStyle ?? 'solid',
         strokeAlignment: init.strokeAlignment ?? 'center',
         strokeJoin: init.strokeJoin ?? 'miter',
         strokeCap: init.strokeCap ?? 'butt',
-        strokeMiterLimit: init.strokeMiterLimit ?? 4,
+        strokeMiterLimit: init.strokeMiterLimit ?? '4',
     }
 }
 export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}): SimpleContainerBlock {
@@ -748,8 +572,8 @@ function createDefaultSimpleContainerLocation(): SimpleContainerLocationInfo {
         id: createBlockId('simple-location'),
         type: 'simple-container-location',
         anchor: 'lt',
-        x: 0,
-        y: 0,
+        x: '0',
+        y: '0',
     }
 }
 
@@ -757,7 +581,7 @@ function createDefaultFlowContainerLocation(container: FlowContainerBlock): Flow
     return {
         id: createBlockId('flow-location'),
         type: 'flow-container-location',
-        index: container.children.length,
+        index: String(container.children.length),
     }
 }
 
@@ -865,14 +689,17 @@ type ResolveTokenResult =
 
 function valueMatchesBindingKind(value: unknown, kind: BindingValueKind): boolean {
     if (kind === 'string') return typeof value === 'string'
-    if (kind === 'number') return typeof value === 'number' && Number.isFinite(value)
-    if (kind === 'boolean') return typeof value === 'boolean'
+    if (kind === 'number') {
+        if (typeof value !== 'string' || value.trim() === '') return false
+        return Number.isFinite(Number(value))
+    }
+    if (kind === 'boolean') return value === 'true' || value === 'false'
     return !!value && typeof value === 'object'
 }
 
 type ResolveMemoState = 'resolving' | 'done' | 'failed'
 
-// Resolve field reference templates before materializing render defaults.
+// Expand field references while keeping every scalar value as persisted strings.
 export function resolveReferences(document: CardDocument, options: ResolveReferencesOptions = {}): ResolveReferencesResult {
     const sourceDocument = document
     const cloneBlockTree = (block: CardBlock): CardBlock => {
@@ -1129,10 +956,6 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         const fieldPath = buildFieldPath(owner, fieldKey)
         const targetKind = getCardFieldValueKind(owner.source, fieldKey)
         if (!sourceValue.includes('{{')) {
-            if (targetKind !== 'string') {
-                pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `字段需要 ${targetKind}，不能保存普通字符串`)
-                return { ok: false, value: sourceValue }
-            }
             return { ok: true, value: sourceValue }
         }
         if (!acceptsCardFieldBinding(owner.source, fieldKey)) {
@@ -1154,7 +977,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             }
             return {
                 ok: true,
-                value: targetKind === 'string' ? String(tokenResult.value) : tokenResult.value,
+                value: String(tokenResult.value),
             }
         }
 
@@ -1233,6 +1056,16 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         const sourceValue = getCardFieldValue(owner.source, fieldKey)
         if (typeof sourceValue !== 'string') {
             const stableValue = getCardFieldValue(owner.target, fieldKey)
+            if (getCardFieldValueKind(owner.source, fieldKey) !== 'object') {
+                pushIssue(
+                    buildFieldPath(owner, fieldKey),
+                    String(sourceValue),
+                    'TYPE_MISMATCH',
+                    '持久化标量必须是 string',
+                )
+                stateMemo.set(memoKey, 'failed')
+                return { ok: false, value: stableValue }
+            }
             valueMemo.set(memoKey, stableValue)
             stateMemo.set(memoKey, 'done')
             return { ok: true, value: stableValue }
@@ -1325,7 +1158,7 @@ function clampInsertionIndex(index: number | undefined, length: number): number 
 
 function reindexFlowContainerChildren(container: FlowContainerBlock): void {
     container.children.forEach((child, index) => {
-        child.location.index = index
+        child.location.index = String(index)
     })
 }
 

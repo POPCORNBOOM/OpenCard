@@ -41,7 +41,7 @@ import OcFieldInput from '../../base/OcFieldInput.vue'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
-  definition: Extract<PropertyEditorFieldDefinition, { datatype: 'string' }>
+  definition: Extract<PropertyEditorFieldDefinition, { fieldType: 'string' }>
   value: unknown
 }>()
 

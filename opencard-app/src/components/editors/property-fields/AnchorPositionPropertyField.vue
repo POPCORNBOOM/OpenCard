@@ -34,7 +34,7 @@ const anchorOptions: OcOption[] = [
 ]
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'anchorPosition' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'anchorPosition' }>
   value: unknown
 }>()
 

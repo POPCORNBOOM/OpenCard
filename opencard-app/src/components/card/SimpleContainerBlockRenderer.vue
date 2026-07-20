@@ -7,23 +7,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue'
-import { CardBlock as CardBlockModel, SimpleContainerBlock } from '../../entities/card/model'
-import { getAbsolutePositionStyles, getBlockBoxStyles, getPositionStyles, toCSSValue } from '../../utils/blockStyle'
+import { computed } from 'vue'
+import { getAbsolutePositionStyles, getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import CardBlockRenderer from './CardBlockRenderer.vue'
-import { cardEditorContextKey } from './cardEditorContext'
+import { useCardEditorContext } from './cardEditorContext'
+import type { RenderReadyCardBlock, RenderReadySimpleContainerBlock } from './render.types'
 
 const props = withDefaults(defineProps<{
-    block: SimpleContainerBlock
+    block: RenderReadySimpleContainerBlock
     layoutMode?: 'absolute' | 'static'
 }>(), {
     layoutMode: 'absolute',
 })
 
-const editorContext = inject(cardEditorContextKey, null)
-const isTransformDisabled = computed(() =>
-    editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
-)
+const editorContext = useCardEditorContext()
+const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
 const blockStyle = computed(() => {
     const style = props.layoutMode === 'absolute'
@@ -32,30 +30,19 @@ const blockStyle = computed(() => {
     return `${style}; position: relative`
 })
 
-function getChildStyle(child: SimpleContainerBlock['children'][number]) {
-    const zIndex = child.block.zIndex !== undefined ? `; z-index: ${child.block.zIndex}` : ''
-    const width = child.block.width !== undefined ? `; width: ${toCSSValue(child.block.width)}` : ''
-    const height = child.block.height !== undefined ? `; height: ${toCSSValue(child.block.height)}` : ''
-    return `position: absolute; ${getAbsolutePositionStyles(child.location)}${zIndex}${width}${height}`
+function getChildStyle(child: RenderReadySimpleContainerBlock['children'][number]) {
+    return `position: absolute; ${getAbsolutePositionStyles(child.location)}; z-index: ${child.block.zIndex}; width: ${child.block.width}; height: ${child.block.height}`
 }
 
-function getChildRenderBlock(child: SimpleContainerBlock['children'][number]): CardBlockModel {
-    const { block } = child
-    const hasWidth = block.width !== undefined
-    const hasHeight = block.height !== undefined
-
-    if (!hasWidth && !hasHeight) {
-        return block
-    }
-
+function getChildRenderBlock(child: RenderReadySimpleContainerBlock['children'][number]): RenderReadyCardBlock {
     return {
-        ...block,
-        width: hasWidth ? '100%' : block.width,
-        height: hasHeight ? '100%' : block.height,
-    } as CardBlockModel
+        ...child.block,
+        width: '100%',
+        height: '100%',
+    }
 }
 
 function handleClick(event: MouseEvent) {
-    editorContext?.handleBlockClick?.(props.block.id, event)
+    editorContext.handleBlockClick(props.block.id, event)
 }
 </script>

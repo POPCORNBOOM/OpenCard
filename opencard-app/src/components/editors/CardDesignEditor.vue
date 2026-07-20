@@ -72,7 +72,7 @@
                   <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host">
                     <div class="card-design-editor__transform-preview-viewport"
                       :style="transformPreviewViewportStyle">
-                      <CardRenderer :document="viewDoc" :clip-to-document="true"
+                      <CardDocumentRenderer v-if="viewDoc" :card-document="viewDoc" :clip-to-document="true"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -217,11 +217,11 @@
             <OcFieldInput
               as="select"
               full-width
-              :value="additionalFieldCreateDraft.datatype"
-              @change="updateAdditionalFieldDatatype"
+              :value="additionalFieldCreateDraft.fieldType"
+              @change="updateAdditionalFieldType"
             >
-              <option v-for="datatype in additionalFieldDatatypeOptions" :key="datatype" :value="datatype">
-                {{ t(`propertyEditor.datatypes.${datatype}`) }}
+              <option v-for="fieldType in additionalFieldTypeOptions" :key="fieldType" :value="fieldType">
+                {{ t(`propertyEditor.fieldTypes.${fieldType}`) }}
               </option>
             </OcFieldInput>
           </label>
@@ -269,7 +269,6 @@ import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties } from
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import {
-  prepareDocumentForRender,
   applyInstance,
   resolveReferences,
   exposesCardFieldReference,
@@ -277,12 +276,13 @@ import {
   getCardFieldKeys,
   getCardFieldValueKind,
   type CardBlock,
-  type CardDocument,
   getBlockTreeIcon,
 } from '../../entities/card/model'
 import OcPanel from '../base/OcPanel.vue'
-import CardRenderer from '../card/CardRenderer.vue'
+import CardDocumentRenderer from '../card/CardDocumentRenderer.vue'
 import CardViewport from '../card/CardViewport.vue'
+import { parseRenderDocument } from '../card/renderParser'
+import type { RenderReadyCardDocument } from '../card/render.types'
 import PropertyEditor from './PropertyEditor.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import { OcTree, OcViewportControls } from '../standard'
@@ -290,7 +290,7 @@ import { useCdeDocumentState } from '../../composables/useCdeDocumentState'
 import { useCdeInstanceOps } from '../../composables/useCdeInstanceOps'
 import {
   useCdePropertyPanelState,
-  type CdeAdditionalFieldDatatype,
+  type CdeAdditionalFieldType,
   type CdePropertySortMode,
 } from '../../composables/useCdePropertyPanelState'
 import { useCdeTreeOps } from '../../composables/useCdeTreeOps'
@@ -687,7 +687,6 @@ const {
   emitModelValueUpdate: (content) => emit('update:modelValue', content),
   emitModified: (modified) => emit('modified', modified),
   emitSave: () => emit('save'),
-  getDefaultDocumentName: () => t('fileTypes.opencard'),
   resetSelection: () => {
     selectedBlockKeys.value = []
     selectedCardKeys.value = []
@@ -892,7 +891,7 @@ const {
   additionalFieldCreateDialogOpen,
   additionalFieldCreateDraft,
   additionalFieldCreateError,
-  additionalFieldDatatypeOptions,
+  additionalFieldTypeOptions,
   updateProperty: updateBlockProp,
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
@@ -921,8 +920,8 @@ const additionalFieldCreateErrorText = computed(() => {
   return te(messageKey) ? t(messageKey) : error
 })
 
-function updateAdditionalFieldDatatype(event: Event): void {
-  additionalFieldCreateDraft.value.datatype = (event.target as HTMLSelectElement).value as CdeAdditionalFieldDatatype
+function updateAdditionalFieldType(event: Event): void {
+  additionalFieldCreateDraft.value.fieldType = (event.target as HTMLSelectElement).value as CdeAdditionalFieldType
 }
 
 function updateAdditionalFieldKey(event: Event): void {
@@ -1048,10 +1047,10 @@ const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
     ...input,
     fields: Object.fromEntries(Object.entries(input.fields).map(([fieldKey, definition]) => {
       const context = referenceCompletionContexts.value[input.key]?.[fieldKey]
-      const bindingProvider = context && definition.acceptsBinding !== false && definition.datatype !== 'object'
+      const bindingProvider = context && definition.acceptsBinding !== false && definition.fieldType !== 'object'
         ? createReferenceCompletionProvider(context)
         : undefined
-      const filePathProvider = definition.datatype === 'filePath'
+      const filePathProvider = definition.fieldType === 'filePath'
         ? createFilePathCompletionProvider({
             listDirectory: projectStore.listProjectDirectoryEntries,
             getRootEntries: () => projectStore.indexedEntries.value,
@@ -1110,7 +1109,7 @@ const transformDisabledBlockIds = computed(() => {
 })
 
 // Build the render/view document by projecting the selected instance onto the blueprint document.
-const viewDoc = computed<CardDocument | null>(() => {
+const viewDoc = computed<RenderReadyCardDocument | null>(() => {
   documentRevision.value
   if (!cardDoc.value) {
     return null
@@ -1127,7 +1126,11 @@ const viewDoc = computed<CardDocument | null>(() => {
     console.warn('[cde] resolveReferences issues:', resolved.issues)
   }
 
-  return prepareDocumentForRender(resolved.document)
+  const parsed = parseRenderDocument(resolved.document)
+  if (parsed.issues.length > 0) {
+    console.warn('[cde] renderParser issues:', parsed.issues)
+  }
+  return parsed.document
 })
 const TRANSFORM_PREVIEW_MAX_SIDE = 220
 const TRANSFORM_PREVIEW_VISIBILITY_COVERAGE = 0.7

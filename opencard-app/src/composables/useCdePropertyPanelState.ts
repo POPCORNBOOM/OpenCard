@@ -16,18 +16,19 @@ import {
   createBlockAdditionalField,
   deleteBlockAdditionalField,
   getAdditionalFieldPropertyDefinition,
+  isCardStoredValue,
   setCardFieldValue,
   validateAdditionalFieldKey,
   type AdditionalFieldKeyError,
 } from '../entities/card/model'
 import {
-  additionalFieldDatatypes,
+  additionalFieldTypes,
   getDefault,
   getTypePropertyEditorSchema,
   propertyEditorCategoryDefinitions,
   resolveNulls,
   type EditorPropertyDefinition,
-  type PropertyDatatype,
+  type PropertyFieldType,
 } from '../entities/card/schema'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
@@ -51,7 +52,7 @@ export type CdeAdditionalFieldCreateMutation = {
   key: string
   fieldKey: string
   title?: string
-  datatype: PropertyDatatype
+  fieldType: PropertyFieldType
 }
 
 export type CdeAdditionalFieldDeleteMutation = {
@@ -59,11 +60,11 @@ export type CdeAdditionalFieldDeleteMutation = {
   fieldKey: string
 }
 
-export type CdeAdditionalFieldDatatype = (typeof additionalFieldDatatypes)[number]
+export type CdeAdditionalFieldType = (typeof additionalFieldTypes)[number]
 
 export type CdeAdditionalFieldCreateDraft = {
   fieldKey: string
-  datatype: CdeAdditionalFieldDatatype
+  fieldType: CdeAdditionalFieldType
   title: string
 }
 
@@ -85,7 +86,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   const additionalFieldCreateDialogOpen = ref(false)
   const additionalFieldCreateDraft = ref<CdeAdditionalFieldCreateDraft>({
     fieldKey: '',
-    datatype: additionalFieldDatatypes[0] ?? 'string',
+    fieldType: additionalFieldTypes[0] ?? 'string',
     title: '',
   })
   const canCreateAdditionalField = computed(() => Boolean(
@@ -95,8 +96,8 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   const additionalFieldCreateError = computed<AdditionalFieldKeyError | 'invalid-target' | null>(() => {
     const block = options.selectedBlock.value
     if (!block || !canCreateAdditionalField.value) return 'invalid-target'
-    if (!additionalFieldDatatypes.includes(additionalFieldCreateDraft.value.datatype)) {
-      return 'unsupported-datatype'
+    if (!additionalFieldTypes.includes(additionalFieldCreateDraft.value.fieldType)) {
+      return 'unsupported-field-type'
     }
     return validateAdditionalFieldKey(block, additionalFieldCreateDraft.value.fieldKey)
   })
@@ -213,14 +214,14 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       const base = definitions[fieldKey]
       if (base) {
         definitions[fieldKey] = { ...base, ...fieldOverride } as EditorPropertyDefinition
-      } else if (fieldOverride.datatype) {
+      } else if (fieldOverride.fieldType) {
         definitions[fieldKey] = fieldOverride as EditorPropertyDefinition
       }
     }
     for (const fieldKey of Object.keys(record)) {
       if (!definitions[fieldKey]) {
         definitions[fieldKey] = {
-          datatype: 'string',
+          fieldType: 'string',
           isReadonly: true,
         }
       }
@@ -234,7 +235,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
         deletable: categorylessKeys.has(fieldKey)
           && options.selectedCardId.value === options.blueprintCardId,
-        ...(definition.datatype === 'string' && definition.autocomplete?.length
+        ...(definition.fieldType === 'string' && definition.autocomplete?.length
           ? {
               completion: {
                 static: {
@@ -328,7 +329,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
   function updateLayoutField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
     const layout = selectedLayout.value
-    if (!layout) {
+    if (!layout || !isCardStoredValue(value)) {
       return false
     }
 
@@ -340,7 +341,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
   function updateDocumentField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
     const cardDoc = options.cardDoc.value
-    if (!cardDoc) {
+    if (!cardDoc || !isCardStoredValue(value)) {
       return false
     }
 
@@ -352,7 +353,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
   function updateInstanceField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
     const selectedCard = options.selectedCard.value
-    if (!selectedCard || options.selectedCardId.value === options.blueprintCardId) {
+    if (!selectedCard || options.selectedCardId.value === options.blueprintCardId || !isCardStoredValue(value)) {
       return false
     }
 
@@ -365,7 +366,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   function updateInstanceOverrideField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
     const block = options.selectedBlock.value
     const selectedCard = options.selectedCard.value
-    if (!block || options.selectedCardId.value === options.blueprintCardId || !selectedCard) {
+    if (!block || options.selectedCardId.value === options.blueprintCardId || !selectedCard || !isCardStoredValue(value)) {
       return false
     }
 
@@ -383,7 +384,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     clearLegacyImagePath: boolean,
   ): boolean {
     const block = options.selectedBlock.value
-    if (!block) {
+    if (!block || !isCardStoredValue(value)) {
       return false
     }
 
@@ -572,12 +573,12 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
   }
 
-  function createAdditionalField({ key, fieldKey, title, datatype }: CdeAdditionalFieldCreateMutation) {
+  function createAdditionalField({ key, fieldKey, title, fieldType }: CdeAdditionalFieldCreateMutation) {
     const block = options.selectedBlock.value
     if (!block || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
       return 'invalid-target' as const
     }
-    const error = createBlockAdditionalField(block, fieldKey, datatype, title)
+    const error = createBlockAdditionalField(block, fieldKey, fieldType, title)
     if (error) return error
     options.refreshDocumentState()
     options.markDocumentChanged('action')
@@ -588,7 +589,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (!canCreateAdditionalField.value) return false
     additionalFieldCreateDraft.value = {
       fieldKey: '',
-      datatype: additionalFieldDatatypes[0] ?? 'string',
+      fieldType: additionalFieldTypes[0] ?? 'string',
       title: '',
     }
     additionalFieldCreateDialogOpen.value = true
@@ -606,7 +607,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     const result = createAdditionalField({
       key: block.id,
       fieldKey: additionalFieldCreateDraft.value.fieldKey,
-      datatype: additionalFieldCreateDraft.value.datatype,
+      fieldType: additionalFieldCreateDraft.value.fieldType,
       title: additionalFieldCreateDraft.value.title,
     })
     if (!result) closeAdditionalFieldCreateDialog()
@@ -633,7 +634,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     additionalFieldCreateDialogOpen,
     additionalFieldCreateDraft,
     additionalFieldCreateError,
-    additionalFieldDatatypeOptions: additionalFieldDatatypes,
+    additionalFieldTypeOptions: additionalFieldTypes,
     updateProperty,
     addProperty,
     resetProperty,

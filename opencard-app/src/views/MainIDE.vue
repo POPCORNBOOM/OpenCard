@@ -186,7 +186,7 @@
 
     <!-- 隐藏的导出渲染器 -->
     <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
-      <CardRenderer v-if="exportCardDoc" ref="exportRendererRef" :document="exportCardDoc" />
+      <CardDocumentRenderer v-if="exportCardDoc" ref="exportRendererRef" :card-document="exportCardDoc" />
     </div>
 
     <FloatingMenuHost />
@@ -218,7 +218,7 @@ import { useProjectTemplateStore } from '../features/project-templates/store/pro
 import { useSettingsWorkspace } from '../features/settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../features/settings/store/appSettingsStore'
 import type { SettingsCategoryKey, SettingsIntent } from '../features/settings/model/appSettings'
-import CardRenderer from '../components/card/CardRenderer.vue'
+import CardDocumentRenderer from '../components/card/CardDocumentRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
@@ -337,7 +337,7 @@ const effectiveSidebarCollapsed = computed(() => (
 ))
 const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWidth)
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
-const exportRendererRef = ref<InstanceType<typeof CardRenderer>>()
+const exportRendererRef = ref<InstanceType<typeof CardDocumentRenderer>>()
 const currentEditorRef = ref<CurrentEditorRef | null>(null)
 
 const {

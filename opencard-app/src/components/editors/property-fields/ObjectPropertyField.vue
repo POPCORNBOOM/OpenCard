@@ -14,7 +14,7 @@ import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 import { OcJsonEditor } from '../../standard'
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'object' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'object' }>
   value: unknown
 }>()
 

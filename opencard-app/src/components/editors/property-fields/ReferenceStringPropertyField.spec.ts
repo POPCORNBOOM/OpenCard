@@ -13,7 +13,7 @@ describe('ReferenceStringPropertyField', () => {
       props: {
         definition: {
           title: 'Content',
-          datatype: 'string',
+          fieldType: 'string',
           autoPairs: [{ open: '{{', close: '}}' }],
           completion: {
             provider: ({ value, cursor }) => value === '{{}}' && cursor === 2
@@ -65,7 +65,7 @@ describe('ReferenceStringPropertyField', () => {
       props: {
         definition: {
           title: 'Content',
-          datatype: 'string',
+          fieldType: 'string',
           completion: {
             provider: ({ cursor }) => {
               requestedCursor = cursor

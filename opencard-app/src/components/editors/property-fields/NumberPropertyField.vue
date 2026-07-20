@@ -4,10 +4,9 @@
       as="input"
       class="number-field__input"
       variant="plain"
-      type="number"
-      :value="numberValue"
-      :min="definition.min"
-      :max="definition.max"
+      type="text"
+      inputmode="decimal"
+      :value="textValue"
       :readonly="definition.isReadonly"
       full-width
       @input="onInput"
@@ -33,36 +32,33 @@ import OcFieldInput from '../../base/OcFieldInput.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'number' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'number' }>
   value: unknown
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:value', value: unknown): void
+  (e: 'update:value', value: string): void
 }>()
 
-const numberValue = computed(() => (typeof props.value === 'number' ? props.value : undefined))
+const textValue = computed(() => typeof props.value === 'string' ? props.value : '')
+const numberValue = computed(() => {
+  const parsed = textValue.value.trim() === '' ? Number.NaN : Number(textValue.value)
+  return Number.isFinite(parsed) ? parsed : undefined
+})
 const isAtMinimum = computed(() => props.definition.min != null && numberValue.value != null
   && numberValue.value <= props.definition.min)
 const isAtMaximum = computed(() => props.definition.max != null && numberValue.value != null
   && numberValue.value >= props.definition.max)
 
 function onInput(event: Event) {
-  const rawValue = (event.target as HTMLInputElement).value
-  if (rawValue === '') {
-    emit('update:value', props.value)
-    return
-  }
-
-  const nextValue = Number(rawValue)
-  emit('update:value', Number.isFinite(nextValue) ? nextValue : props.value)
+  emit('update:value', (event.target as HTMLInputElement).value)
 }
 
 function stepValue(delta: number) {
   const current = numberValue.value ?? 0
   const minimum = props.definition.min ?? -Infinity
   const maximum = props.definition.max ?? Infinity
-  emit('update:value', Math.min(maximum, Math.max(minimum, current + delta)))
+  emit('update:value', String(Math.min(maximum, Math.max(minimum, current + delta))))
 }
 </script>
 
@@ -76,16 +72,6 @@ function stepValue(delta: number) {
 .number-field :deep(.number-field__input:focus),
 .number-field :deep(.number-field__input:focus-visible) {
   border-color: transparent;
-}
-
-.number-field :deep(.number-field__input::-webkit-inner-spin-button),
-.number-field :deep(.number-field__input::-webkit-outer-spin-button) {
-  margin: 0;
-  appearance: none;
-}
-
-.number-field :deep(.number-field__input[type='number']) {
-  appearance: textfield;
 }
 
 .number-field__steppers {

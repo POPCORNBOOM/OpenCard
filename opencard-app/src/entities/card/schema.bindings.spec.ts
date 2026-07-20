@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   acceptsPropertyBinding,
-  additionalFieldDatatypes,
+  additionalFieldTypes,
   createPropertyDefaultValue,
   exposesPropertyReference,
   getPropertyValueKind,
@@ -31,8 +31,8 @@ describe('property binding schema policy', () => {
     expect(getPropertyValueKind(textSchema.content)).toBe('string')
   })
 
-  it('uses the standard datatype system for every creatable additional field', () => {
-    expect(additionalFieldDatatypes).toEqual([
+  it('uses the standard fieldType system for every creatable additional field', () => {
+    expect(additionalFieldTypes).toEqual([
       'string',
       'filePath',
       'anchorPosition',
@@ -43,7 +43,7 @@ describe('property binding schema policy', () => {
       'boolean',
       'color',
     ])
-    expect(createPropertyDefaultValue({ datatype: 'number' })).toBe(0)
-    expect(createPropertyDefaultValue({ datatype: 'boolean' })).toBe(false)
+    expect(createPropertyDefaultValue({ fieldType: 'number' })).toBe('0')
+    expect(createPropertyDefaultValue({ fieldType: 'boolean' })).toBe('false')
   })
 })

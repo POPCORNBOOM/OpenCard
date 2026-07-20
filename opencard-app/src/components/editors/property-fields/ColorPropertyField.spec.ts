@@ -6,7 +6,7 @@ describe('ColorPropertyField', () => {
   it('keeps the swatch and editable value in one field', async () => {
     const wrapper = mount(ColorPropertyField, {
       props: {
-        definition: { datatype: 'color' },
+        definition: { fieldType: 'color' },
         value: '#112233',
       },
     })

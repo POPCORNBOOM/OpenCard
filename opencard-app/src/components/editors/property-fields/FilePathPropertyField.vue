@@ -52,7 +52,7 @@ import type {
 import OcAutocompletePopover from '../../standard/OcAutocompletePopover.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
 
-type FilePathDefinition = Extract<PropertyEditorFieldDefinition, { datatype: 'filePath' }>
+type FilePathDefinition = Extract<PropertyEditorFieldDefinition, { fieldType: 'filePath' }>
 type FocusableInput = { focus: () => void }
 
 const props = defineProps<{

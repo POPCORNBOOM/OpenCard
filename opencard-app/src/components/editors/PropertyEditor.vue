@@ -44,7 +44,7 @@
             <div v-for="entry in category.entries" :key="`${source.key}:${category.key}:${entry.key}`"
               class="property-editor__row">
               <div class="property-editor__row-label">
-                <OcIcon :name="getEditorIconClass(entry.definition.datatype)" />
+                <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" />
                 <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
                 <OcButton class="modified-field-button" icon-only size="sm" radius="full"
                   v-if="entry.definition.resettable"
@@ -66,7 +66,7 @@
                   @update:value="emitPropertyValue(category.inputKey, entry.key, $event)"
                   @clear="clearPropertyBinding(category.inputKey, entry.key, entry.definition)" />
                 <template v-else>
-                  <component :is="getEditorComponent(entry.definition.datatype, entry.definition)" :definition="entry.definition"
+                  <component :is="getEditorComponent(entry.definition.fieldType, entry.definition)" :definition="entry.definition"
                     :value="entry.value"
                     @update:value="emitPropertyValue(category.inputKey, entry.key, $event)" />
                   <BindingPropertyField v-if="shouldShowBindingButton(entry.definition)" :value="entry.value"
@@ -92,7 +92,7 @@ import { useI18n } from 'vue-i18n'
 import {
   createPropertyDefaultValue,
   type EditorPropertyDefinition,
-  type PropertyDatatype,
+  type PropertyFieldType,
 } from '../../entities/card/schema'
 import type {
   PropertyCompletionProvider,
@@ -143,12 +143,12 @@ const props = defineProps<{
 }>()
 
 // 运行时依赖与编辑器映射。
-type DatatypeEditorEntry = {
+type FieldTypeEditorEntry = {
   component: Component
   icon: IconToken
 }
 
-const datatypeEditorMap: Record<PropertyDatatype, DatatypeEditorEntry> = {
+const fieldTypeEditorMap: Record<PropertyFieldType, FieldTypeEditorEntry> = {
   string: { component: StringPropertyField, icon: 'data.symbol-string' },
   anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
   alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
@@ -196,18 +196,18 @@ const { displaySources } = useCdePropertyEditorView({
   })),
 })
 
-function getEditorComponent(datatype: PropertyDatatype, definition?: PropertyEditorFieldDefinition): Component {
-  if (datatype === 'string'
+function getEditorComponent(fieldType: PropertyFieldType, definition?: PropertyEditorFieldDefinition): Component {
+  if (fieldType === 'string'
     && definition
     && !definition.options
     && definition.completion?.provider) {
     return ReferenceStringPropertyField
   }
-  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).component
+  return (fieldTypeEditorMap[fieldType] ?? fieldTypeEditorMap.string).component
 }
 
 function usesInlineBindingEditor(definition: PropertyEditorFieldDefinition): boolean {
-  return definition.datatype === 'string'
+  return definition.fieldType === 'string'
     && !definition.options
     && Boolean(definition.completion?.provider)
 }
@@ -232,8 +232,8 @@ function clearPropertyBinding(
   emitPropertyValue(sourceKey, fieldKey, createPropertyDefaultValue(definition))
 }
 
-function getEditorIconClass(datatype: PropertyDatatype): IconToken {
-  return (datatypeEditorMap[datatype] ?? datatypeEditorMap.string).icon
+function getEditorIconClass(fieldType: PropertyFieldType): IconToken {
+  return (fieldTypeEditorMap[fieldType] ?? fieldTypeEditorMap.string).icon
 }
 
 // 添加字段与重置交互。
@@ -246,7 +246,7 @@ function resolveCategoryActions(category: CdePropertyEditorCategory): OcActionBu
       title: `${addFieldActionText.value} (${category.addableFields.length})`,
       children: category.addableFields.map((field) => ({
         key: `${ADD_PROPERTY_FIELD_ACTION_PREFIX}${field.key}`,
-        icon: getEditorIconClass(field.definition.datatype),
+        icon: getEditorIconClass(field.definition.fieldType),
         title: field.label,
       })),
     })
@@ -308,7 +308,7 @@ function createDefaultValue(definition: EditorPropertyDefinition): unknown {
     return structuredClone(definition.defaultValue)
   }
 
-  switch (definition.datatype) {
+  switch (definition.fieldType) {
     case 'string':
       return definition.options?.[0] ?? ''
     case 'filePath':

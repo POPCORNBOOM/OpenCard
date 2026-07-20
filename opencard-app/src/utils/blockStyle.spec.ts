@@ -1,16 +1,38 @@
 import { describe, expect, it } from 'vitest'
+import type { RenderReadyBaseBlock } from '../components/card/render.types'
 import { getBlockBoxStyles } from './blockStyle'
+
+function createBlock(overrides: Partial<RenderReadyBaseBlock> = {}): RenderReadyBaseBlock {
+    return {
+        id: 'block-1',
+        name: 'Block',
+        width: '120px',
+        height: '80px',
+        borderColor: '#000000',
+        borderWidth: 0,
+        borderStyle: 'solid',
+        borderRadius: '',
+        background: '',
+        translateX: '0px',
+        translateY: '0px',
+        scaleX: 1,
+        scaleY: 1,
+        transformAnchor: 'cc',
+        zIndex: 0,
+        rotation: 0,
+        opacity: 1,
+        customCss: '',
+        ...overrides,
+    }
+}
 
 describe('getBlockBoxStyles', () => {
     it('renders structured block borders without changing the box model', () => {
-        const styles = getBlockBoxStyles({
-            id: 'block-1',
-            width: 120,
-            height: 80,
+        const styles = getBlockBoxStyles(createBlock({
             borderColor: '#ff0000',
             borderWidth: 3,
             borderStyle: 'dashed',
-        })
+        }), { disableTransform: false })
 
         expect(styles).toContain('width: 120px')
         expect(styles).toContain('height: 80px')
@@ -19,12 +41,11 @@ describe('getBlockBoxStyles', () => {
     })
 
     it('does not render an outline when the border width is zero', () => {
-        const styles = getBlockBoxStyles({
-            id: 'block-1',
+        const styles = getBlockBoxStyles(createBlock({
             borderColor: '#ff0000',
             borderWidth: 0,
             borderStyle: 'solid',
-        })
+        }), { disableTransform: false })
 
         expect(styles).not.toContain('outline:')
     })

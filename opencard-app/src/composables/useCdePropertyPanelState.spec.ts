@@ -5,15 +5,15 @@ import { useCdePropertyPanelState } from './useCdePropertyPanelState'
 
 function createHarness() {
   const block = createTextBlock({ id: 'text', content: 'Blueprint' })
-  block.additionalFieldDefinition = { score: { datatype: 'number', title: 'Score' } }
-  ;(block as unknown as Record<string, unknown>).score = 10
+  block.additionalFieldDefinition = { score: { fieldType: 'number', title: 'Score' } }
+  ;(block as unknown as Record<string, unknown>).score = '10'
   const document: CardDocument = {
     type: 'card-document',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
-    width: 540,
-    height: 850,
+    width: '540',
+    height: '850',
     background: '#fff',
     children: [{
       block,
@@ -23,7 +23,7 @@ function createHarness() {
       type: 'card-instance',
       id: 'instance',
       name: 'Instance',
-      amount: 1,
+      amount: '1',
       data: {},
     }],
   }
@@ -55,7 +55,7 @@ describe('useCdePropertyPanelState additional fields', () => {
     const { block, state } = createHarness()
     const input = state.propertyInputs.value[0]!
 
-    expect(input.record.score).toBe(10)
+    expect(input.record.score).toBe('10')
     expect(input.fields.score?.title).toBe('Score')
     expect(input.fields.score?.deletable).toBe(true)
 
@@ -63,30 +63,30 @@ describe('useCdePropertyPanelState additional fields', () => {
       key: block.id,
       fieldKey: 'enabled',
       title: 'Enabled',
-      datatype: 'boolean',
+      fieldType: 'boolean',
     })).toBeNull()
-    expect(block.additionalFieldDefinition?.enabled).toEqual({ datatype: 'boolean', title: 'Enabled' })
-    expect((block as unknown as Record<string, unknown>).enabled).toBe(false)
+    expect(block.additionalFieldDefinition?.enabled).toEqual({ fieldType: 'boolean', title: 'Enabled' })
+    expect((block as unknown as Record<string, unknown>).enabled).toBe('false')
   })
 
   it('writes instance overrides and resets them without changing the blueprint', () => {
     const { block, document, selectedCardId, state } = createHarness()
     selectedCardId.value = 'instance'
 
-    expect(state.propertyInputs.value[0]?.record.score).toBe(10)
-    state.updateProperty({ key: block.id, fieldKey: 'score', value: 24 })
-    expect(document.instances[0]!.data.text?.score).toBe(24)
-    expect((block as unknown as Record<string, unknown>).score).toBe(10)
+    expect(state.propertyInputs.value[0]?.record.score).toBe('10')
+    state.updateProperty({ key: block.id, fieldKey: 'score', value: '24' })
+    expect(document.instances[0]!.data.text?.score).toBe('24')
+    expect((block as unknown as Record<string, unknown>).score).toBe('10')
     expect(state.propertyInputs.value[0]?.fields.score?.resettable).toBe(true)
 
     state.resetProperty({ key: block.id, fieldKey: 'score' })
     expect(document.instances[0]!.data.text).toBeUndefined()
-    expect(state.propertyInputs.value[0]?.record.score).toBe(10)
+    expect(state.propertyInputs.value[0]?.record.score).toBe('10')
   })
 
   it('deletes the blueprint field and every instance override', () => {
     const { block, document, state } = createHarness()
-    document.instances[0]!.data.text = { score: 18 }
+    document.instances[0]!.data.text = { score: '18' }
 
     expect(state.deleteAdditionalField({ key: block.id, fieldKey: 'score' })).toBe(true)
     expect(block.additionalFieldDefinition).toBeUndefined()

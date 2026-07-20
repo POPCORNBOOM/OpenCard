@@ -31,7 +31,7 @@
             class="image-block__image"
             :class="{ 'is-loaded': imageLoadState === 'loaded' }"
             :src="imageSrc"
-            :alt="block.name ?? block.id"
+            :alt="block.name"
             :style="imgStyle"
             @load="handleImageLoad"
             @error="handleImageError"
@@ -39,24 +39,22 @@
     </div>
 </template>
 <script setup lang="ts">
-import { computed, inject, ref, watch } from 'vue'
-import type { ImageBlock } from '../../entities/card/model'
+import { computed, ref, watch } from 'vue'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
 import OcIcon from '../base/OcIcon.vue'
-import { cardEditorContextKey } from './cardEditorContext'
+import { useCardEditorContext } from './cardEditorContext'
+import type { RenderReadyImageBlock } from './render.types'
 
 const props = withDefaults(defineProps<{
-    block: ImageBlock
+    block: RenderReadyImageBlock
     layoutMode?: 'absolute' | 'static'
 }>(), {
     layoutMode: 'absolute',
 })
 
-const editorContext = inject(cardEditorContextKey, null)
-const isTransformDisabled = computed(() =>
-    editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
-)
+const editorContext = useCardEditorContext()
+const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
 const { resolveAssetSrc } = useProjectStore()
 const imageLoadState = ref<'empty' | 'loading' | 'loaded' | 'error'>('empty')
@@ -91,7 +89,7 @@ function handleImageError(): void {
 }
 
 function handleClick(event: MouseEvent) {
-    editorContext?.handleBlockClick?.(props.block.id, event)
+    editorContext.handleBlockClick(props.block.id, event)
 }
 </script>
 

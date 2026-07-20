@@ -25,7 +25,7 @@ const directionOptions: OcOption[] = [
 ]
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'flowDirection' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'flowDirection' }>
   value: unknown
 }>()
 

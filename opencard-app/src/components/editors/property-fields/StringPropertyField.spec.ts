@@ -9,7 +9,7 @@ describe('StringPropertyField static completion', () => {
         value: '12p',
         definition: {
           title: 'Width',
-          datatype: 'string',
+          fieldType: 'string',
           completion: {
             static: { values: ['px', '%'], presentation: 'ghost' },
           },

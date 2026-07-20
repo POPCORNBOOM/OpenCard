@@ -1,7 +1,7 @@
 <template>
   <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
     <svg class="shape-block__svg" viewBox="0 0 100 100" preserveAspectRatio="none"
-      role="img" :aria-label="block.name ?? block.id">
+      role="img" :aria-label="block.name">
       <defs v-if="closedShapePath && block.strokeAlignment !== 'center'">
         <clipPath :id="clipPathId">
           <path :d="closedShapePath" />
@@ -23,23 +23,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, useId } from 'vue'
+import { computed, useId } from 'vue'
 import type { CSSProperties } from 'vue'
-import type { ShapeBlock } from '../../entities/card/model'
 import { getBlockBoxStyles, getPositionStyles } from '../../utils/blockStyle'
-import { cardEditorContextKey } from './cardEditorContext'
+import { useCardEditorContext } from './cardEditorContext'
+import type { RenderReadyShapeBlock } from './render.types'
 
 const props = withDefaults(defineProps<{
-  block: ShapeBlock
+  block: RenderReadyShapeBlock
   layoutMode?: 'absolute' | 'static'
 }>(), {
   layoutMode: 'absolute',
 })
 
-const editorContext = inject(cardEditorContextKey, null)
-const isTransformDisabled = computed(() =>
-  editorContext?.transformDisabledBlockIds.value.has(props.block.id) ?? false
-)
+const editorContext = useCardEditorContext()
+const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
 const blockStyle = computed(() => props.layoutMode === 'absolute'
   ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
@@ -95,7 +93,7 @@ const lineStyle = computed<CSSProperties>(() =>
 )
 
 function handleClick(event: MouseEvent): void {
-  editorContext?.handleBlockClick?.(props.block.id, event)
+  editorContext.handleBlockClick(props.block.id, event)
 }
 </script>
 

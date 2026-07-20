@@ -18,7 +18,7 @@ describe('PropertyEditor records protocol', () => {
           key: 'block',
           record: { score: 10 },
           fields: {
-            score: { title: 'Score', datatype: 'number', deletable: true },
+            score: { title: 'Score', fieldType: 'number', deletable: true },
           },
         }],
       },
@@ -43,7 +43,7 @@ describe('PropertyEditor records protocol', () => {
           key: 'block',
           record: { score: 10 },
           fields: {
-            score: { title: 'Score', datatype: 'number', deletable: true },
+            score: { title: 'Score', fieldType: 'number', deletable: true },
           },
         }],
       },
@@ -55,7 +55,7 @@ describe('PropertyEditor records protocol', () => {
     expect(button.classes()).not.toContain('is-armed')
   })
 
-  it('replaces a bound number editor and clears to the datatype default', async () => {
+  it('replaces a bound number editor and clears to the fieldType default', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {
         sortMode: 'category',
@@ -65,7 +65,7 @@ describe('PropertyEditor records protocol', () => {
           fields: {
             opacity: {
               title: 'Opacity',
-              datatype: 'number',
+              fieldType: 'number',
               defaultValue: 1,
               completion: { provider: () => null },
             },

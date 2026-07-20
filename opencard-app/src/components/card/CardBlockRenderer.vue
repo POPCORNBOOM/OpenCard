@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { CardBlock } from '../../entities/card/model'
+import type { RenderReadyCardBlock } from './render.types'
 import FlowContainerBlockRenderer from './FlowContainerBlockRenderer.vue'
 import ImageBlockRenderer from './ImageBlockRenderer.vue'
 import QRCodeBlockRenderer from './QRCodeBlockRenderer.vue'
@@ -25,7 +25,7 @@ import SimpleContainerBlockRenderer from './SimpleContainerBlockRenderer.vue'
 import TextBlockRenderer from './TextBlockRenderer.vue'
 
 withDefaults(defineProps<{
-  block: CardBlock
+  block: RenderReadyCardBlock
   layoutMode?: 'absolute' | 'static'
 }>(), {
   layoutMode: 'absolute',

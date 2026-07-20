@@ -1,9 +1,9 @@
 <template>
   <div class="boolean-field">
     <OcCheckbox
-      :checked="Boolean(value)"
+      :checked="value === 'true'"
       :disabled="definition.isReadonly"
-      @update:checked="emit('update:value', $event)"
+      @update:checked="emit('update:value', String($event))"
     />
   </div>
 </template>
@@ -13,12 +13,12 @@ import OcCheckbox from '../../base/OcCheckbox.vue'
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
 defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'boolean' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'boolean' }>
   value: unknown
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:value', value: boolean): void
+  (e: 'update:value', value: string): void
 }>()
 </script>
 

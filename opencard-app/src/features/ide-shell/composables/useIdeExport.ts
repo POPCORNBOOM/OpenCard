@@ -9,12 +9,14 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import {
   applyInstance,
-  prepareDocumentForRender,
   resolveReferences,
   type CardDocument,
   type CardInstanceRecord,
   type ReferenceResolveIssue,
 } from '../../../entities/card/model'
+import { parseCardDocument } from '../../../entities/card/storage'
+import { parseRenderDocument } from '../../../components/card/renderParser'
+import type { RenderIssue, RenderReadyCardDocument } from '../../../components/card/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
@@ -36,8 +38,8 @@ type CardExportContext = {
 
 type ExportQueueEntry = {
   fileName: string
-  document: CardDocument
-  issues: ReferenceResolveIssue[]
+  document: RenderReadyCardDocument
+  issues: Array<ReferenceResolveIssue | RenderIssue>
 }
 
 function stripFileExtension(fileName: string) {
@@ -155,22 +157,22 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
 function buildRenderableCardDocument(
   document: CardDocument,
   instance: CardInstanceRecord | null,
-): { document: CardDocument, issues: ReferenceResolveIssue[] } {
-  const safeSource = prepareDocumentForRender(document)
-  const projected = applyInstance(safeSource, instance)
+): { document: RenderReadyCardDocument, issues: Array<ReferenceResolveIssue | RenderIssue> } {
+  const projected = applyInstance(document, instance)
   const resolved = resolveReferences(projected, {
     currentCard: instance,
   })
+  const parsed = parseRenderDocument(resolved.document)
 
   return {
-    document: prepareDocumentForRender(resolved.document),
-    issues: resolved.issues,
+    document: parsed.document,
+    issues: [...resolved.issues, ...parsed.issues],
   }
 }
 
 export function useIdeExport(options: UseIdeExportOptions) {
   const showExportRenderer = ref(false)
-  const exportCardDoc = ref<CardDocument | null>(null)
+  const exportCardDoc = ref<RenderReadyCardDocument | null>(null)
 
   const canExportActiveCard = computed(() =>
     Boolean(options.activeSession.value) && resolveFileTypeById(options.activeSession.value!.fileTypeId).id === 'opencard'
@@ -198,7 +200,7 @@ export function useIdeExport(options: UseIdeExportOptions) {
       const parsed = JSON.parse(currentContent) as unknown
       return {
         fileNameStem: sanitizeFileNameSegment(stripFileExtension(session.name), 'card'),
-        document: parsed as CardDocument,
+        document: parseCardDocument(parsed),
       }
     } catch (error) {
       console.error('解析 .opencard 失败:', error)
@@ -206,7 +208,7 @@ export function useIdeExport(options: UseIdeExportOptions) {
     }
   }
 
-  async function renderCardDocumentToImage(document: CardDocument) {
+  async function renderCardDocumentToImage(document: RenderReadyCardDocument) {
     showExportRenderer.value = true
     exportCardDoc.value = document
 

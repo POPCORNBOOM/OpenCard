@@ -23,7 +23,7 @@ const verticalAlignOptions: OcOption[] = [
 ]
 
 const props = defineProps<{
-  definition: Extract<EditorPropertyDefinition, { datatype: 'verticalAlignPosition' }>
+  definition: Extract<EditorPropertyDefinition, { fieldType: 'verticalAlignPosition' }>
   value: unknown
 }>()
 

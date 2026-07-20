@@ -3,8 +3,8 @@
   "id": "doc-playing-card-reskin",
   "name": "换皮扑克牌",
   "version": "1.0.0",
-  "width": 540,
-  "height": 756,
+  "width": "540",
+  "height": "756",
   "background": "#15171b",
   "children": [
     {
@@ -22,7 +22,7 @@
         "height": "716px",
         "background": "{{c:paper}}",
         "borderColor": "{{c:ink}}",
-        "borderWidth": 2,
+        "borderWidth": "2",
         "borderStyle": "solid",
         "borderRadius": "28px",
         "customCss": "overflow: hidden; box-sizing: border-box; box-shadow: inset 0 0 0 8px rgba(255,255,255,0.22), 0 18px 42px rgba(0,0,0,0.28); font-family: Georgia, 'Times New Roman', serif;",
@@ -36,7 +36,7 @@
               "height": "664px",
               "background": "transparent",
               "borderColor": "{{p:accent}}",
-              "borderWidth": 2,
+              "borderWidth": "2",
               "borderStyle": "solid",
               "borderRadius": "18px",
               "customCss": "box-sizing: border-box; opacity: 0.78; box-shadow: inset 0 0 0 5px rgba(255,255,255,0.12);",
@@ -60,7 +60,7 @@
               "width": "72px",
               "height": "66px",
               "fontSize": "56px",
-              "fontWeight": 700,
+              "fontWeight": "700",
               "color": "{{p:ink}}",
               "textAlign": "center",
               "lineHeight": "66px"
@@ -83,7 +83,7 @@
               "width": "72px",
               "height": "54px",
               "fontSize": "44px",
-              "fontWeight": 700,
+              "fontWeight": "700",
               "color": "{{p:accent}}",
               "textAlign": "center",
               "lineHeight": "54px"
@@ -106,7 +106,7 @@
               "width": "270px",
               "height": "300px",
               "fontSize": "240px",
-              "fontWeight": 700,
+              "fontWeight": "700",
               "color": "{{p:accent}}",
               "textAlign": "center",
               "verticalAlign": "center",
@@ -134,7 +134,7 @@
               "gap": "0px",
               "width": "72px",
               "height": "120px",
-              "rotation": 180,
+              "rotation": "180",
               "children": [
                 {
                   "block": {
@@ -146,7 +146,7 @@
                     "width": "72px",
                     "height": "66px",
                     "fontSize": "56px",
-                    "fontWeight": 700,
+                    "fontWeight": "700",
                     "color": "{{p:ink}}",
                     "textAlign": "center",
                     "lineHeight": "66px"
@@ -154,7 +154,7 @@
                   "location": {
                     "id": "loc-playing-card-bottom-rank",
                     "type": "flow-container-location",
-                    "index": 0,
+                    "index": "0",
                     "align": "center"
                   }
                 },
@@ -168,7 +168,7 @@
                     "width": "72px",
                     "height": "54px",
                     "fontSize": "44px",
-                    "fontWeight": 700,
+                    "fontWeight": "700",
                     "color": "{{p:accent}}",
                     "textAlign": "center",
                     "lineHeight": "54px"
@@ -176,7 +176,7 @@
                   "location": {
                     "id": "loc-playing-card-bottom-suit",
                     "type": "flow-container-location",
-                    "index": 1,
+                    "index": "1",
                     "align": "center"
                   }
                 }
@@ -201,7 +201,7 @@
               "height": "24px",
               "fontSize": "11px",
               "fontFamily": "Consolas, monospace",
-              "fontWeight": 700,
+              "fontWeight": "700",
               "color": "{{p:ink}}",
               "textAlign": "center",
               "lineHeight": "24px",
@@ -231,7 +231,7 @@
       "type": "card-instance",
       "id": "playing-card-spade-ace",
       "name": "黑桃 A / 午夜紫",
-      "amount": 1,
+      "amount": "1",
       "data": {
         "playing-card-root": {
           "paper": "#f3efe6",
@@ -247,7 +247,7 @@
       "type": "card-instance",
       "id": "playing-card-heart-king",
       "name": "红心 K / 绯红",
-      "amount": 1,
+      "amount": "1",
       "data": {
         "playing-card-root": {
           "paper": "#fff4ed",
@@ -263,7 +263,7 @@
       "type": "card-instance",
       "id": "playing-card-club-queen",
       "name": "梅花 Q / 翡翠",
-      "amount": 1,
+      "amount": "1",
       "data": {
         "playing-card-root": {
           "paper": "#edf4e8",
@@ -279,7 +279,7 @@
       "type": "card-instance",
       "id": "playing-card-diamond-jack",
       "name": "方块 J / 琥珀",
-      "amount": 1,
+      "amount": "1",
       "data": {
         "playing-card-root": {
           "paper": "#fff4d6",

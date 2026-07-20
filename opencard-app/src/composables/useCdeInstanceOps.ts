@@ -126,7 +126,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     const nextInstance: CardInstanceRecord = {
       type: 'card-instance',
       id: `instance-${crypto.randomUUID()}`,
-      amount: 1,
+      amount: '1',
       name: `新实例 ${nextIndex}`,
       data: {},
     }
