@@ -51,7 +51,7 @@ export type PropertyConstraintMap = {
 
 export type PropertyDatatype = keyof PropertyConstraintMap
 export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
-export const customFieldDatatypes = [
+export const additionalFieldDatatypes = [
     'string',
     'filePath',
     'anchorPosition',
@@ -62,7 +62,6 @@ export const customFieldDatatypes = [
     'boolean',
     'color',
 ] as const satisfies readonly PropertyDatatype[]
-export type CustomFieldDatatype = typeof customFieldDatatypes[number]
 
 type AllConstraintKeys = {
     [K in keyof PropertyConstraintMap]: keyof PropertyConstraintMap[K]
@@ -131,7 +130,7 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
         id: { datatype: 'string', isReadonly: true, minLength: 1, categoryId: 'identity', acceptsBinding: false },
         name: { datatype: 'string', categoryId: 'identity' },
         type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
-        customFields: { datatype: 'object', objectType: 'CustomFieldDefinition', isHidden: true, categoryId: 'custom', acceptsBinding: false, exposesReference: false },
+        additionalFieldDefinition: { datatype: 'object', objectType: 'AdditionalFieldDefinition', isHidden: true, acceptsBinding: false, exposesReference: false },
         width: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         height: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
@@ -513,10 +512,6 @@ export function createPropertyDefaultValue(definition: EditorPropertyDefinition)
         case 'object':
             return definition.isArray ? [] : {}
     }
-}
-
-export function createCustomFieldDefaultValue(datatype: CustomFieldDatatype): unknown {
-    return createPropertyDefaultValue({ datatype, categoryId: 'custom' } as EditorPropertyDefinition)
 }
 
 export function acceptsPropertyBinding(definition: EditorPropertyDefinition | undefined): boolean {

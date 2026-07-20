@@ -13,9 +13,9 @@ import type {
   PropertyEditorSortMode,
 } from '../components/editors/propertyEditor.types'
 import {
-  createBlockCustomField,
-  deleteBlockCustomField,
-  getCustomFieldPropertyDefinition,
+  createBlockAdditionalField,
+  deleteBlockAdditionalField,
+  getAdditionalFieldPropertyDefinition,
   setCardFieldValue,
 } from '../entities/card/model'
 import {
@@ -23,8 +23,8 @@ import {
   getTypePropertyEditorSchema,
   propertyEditorCategoryDefinitions,
   resolveNulls,
-  type CustomFieldDatatype,
   type EditorPropertyDefinition,
+  type PropertyDatatype,
 } from '../entities/card/schema'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
@@ -44,14 +44,14 @@ export type CdePropertyResetMutation = {
   fieldKey: string
 }
 
-export type CdeCustomFieldCreateMutation = {
+export type CdeAdditionalFieldCreateMutation = {
   key: string
   fieldKey: string
   title?: string
-  datatype: CustomFieldDatatype
+  datatype: PropertyDatatype
 }
 
-export type CdeCustomFieldDeleteMutation = {
+export type CdeAdditionalFieldDeleteMutation = {
   key: string
   fieldKey: string
 }
@@ -107,18 +107,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return null
     }
 
-    const customValues = Object.fromEntries(
-      Object.entries(block.customFields ?? {}).map(([fieldKey, definition]) => [fieldKey, definition.value]),
-    )
-
     if (options.selectedCardId.value === options.blueprintCardId || !options.selectedCard.value) {
-      return {
-        ...resolveNulls(
+      return resolveNulls(
         block.type,
         block as Record<string, unknown>,
-        ),
-        ...customValues,
-      } as Record<string, unknown> & { type?: string }
+      ) as Record<string, unknown> & { type?: string }
     }
 
     const blockOverrides = options.selectedCard.value.data[block.id] ?? {}
@@ -127,10 +120,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         ...block,
         ...blockOverrides,
       }),
-      ...customValues,
-      ...Object.fromEntries(Object.keys(block.customFields ?? {})
-        .filter((fieldKey) => Object.prototype.hasOwnProperty.call(blockOverrides, fieldKey))
-        .map((fieldKey) => [fieldKey, blockOverrides[fieldKey]])),
     } as Record<string, unknown> & { type?: string }
   })
 
@@ -146,14 +135,14 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       : undefined
 
     const overrideEntries: Array<readonly [string, Partial<EditorPropertyDefinition>]> = []
-    for (const [fieldKey, definition] of Object.entries(block.customFields ?? {})) {
+    for (const [fieldKey, definition] of Object.entries(block.additionalFieldDefinition ?? {})) {
       overrideEntries.push([fieldKey, {
-        ...getCustomFieldPropertyDefinition(definition),
+        ...getAdditionalFieldPropertyDefinition(definition),
         resettable: Object.prototype.hasOwnProperty.call(instanceBlockData ?? {}, fieldKey),
       }])
     }
     for (const fieldKey of Object.keys(instanceBlockData ?? {})) {
-      if (block.customFields?.[fieldKey]) continue
+      if (block.additionalFieldDefinition?.[fieldKey]) continue
       overrideEntries.push([fieldKey, { resettable: true }])
     }
 
@@ -245,12 +234,12 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         fields: resolveFields(
           selectedBlockEditorRecord.value,
           blockInputOverride.value,
-          Object.entries(selectedBlock.customFields ?? {})
+          Object.entries(selectedBlock.additionalFieldDefinition ?? {})
             .reduce<Record<string, string>>((labels, [fieldKey, definition]) => {
               labels[fieldKey] = definition.title ?? fieldKey
               return labels
             }, {}),
-          new Set(Object.keys(selectedBlock.customFields ?? {})),
+          new Set(Object.keys(selectedBlock.additionalFieldDefinition ?? {})),
         ),
       })
       if (layout) {
@@ -369,11 +358,8 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return false
     }
 
-    if (block.customFields?.[fieldKey]) {
-      setCardFieldValue(block as unknown as Record<string, unknown>, fieldKey, value)
-    } else {
-      ; (block as unknown as Record<string, unknown>)[fieldKey] = value
-    }
+    const record = block as unknown as Record<string, unknown>
+    if (!setCardFieldValue(record, fieldKey, value)) record[fieldKey] = value
     if (clearLegacyImagePath && block.type === 'image-block' && fieldKey === 'image') {
       delete (block as Record<string, unknown>).imagePath
     }
@@ -557,25 +543,25 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
   }
 
-  function createCustomField({ key, fieldKey, title, datatype }: CdeCustomFieldCreateMutation) {
+  function createAdditionalField({ key, fieldKey, title, datatype }: CdeAdditionalFieldCreateMutation) {
     const block = options.selectedBlock.value
     if (!block || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
       return 'invalid-target' as const
     }
-    const error = createBlockCustomField(block, fieldKey, datatype, title)
+    const error = createBlockAdditionalField(block, fieldKey, datatype, title)
     if (error) return error
     options.refreshDocumentState()
     options.markDocumentChanged('action')
     return null
   }
 
-  function deleteCustomField({ key, fieldKey }: CdeCustomFieldDeleteMutation): boolean {
+  function deleteAdditionalField({ key, fieldKey }: CdeAdditionalFieldDeleteMutation): boolean {
     const block = options.selectedBlock.value
     const document = options.cardDoc.value
     if (!block || !document || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
       return false
     }
-    deleteBlockCustomField(document, block, fieldKey)
+    deleteBlockAdditionalField(document, block, fieldKey)
     options.refreshDocumentState()
     options.markDocumentChanged('action')
     return true
@@ -588,7 +574,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     updateProperty,
     addProperty,
     resetProperty,
-    createCustomField,
-    deleteCustomField,
+    createAdditionalField,
+    deleteAdditionalField,
   }
 }

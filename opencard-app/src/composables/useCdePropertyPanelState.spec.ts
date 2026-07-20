@@ -5,7 +5,8 @@ import { useCdePropertyPanelState } from './useCdePropertyPanelState'
 
 function createHarness() {
   const block = createTextBlock({ id: 'text', content: 'Blueprint' })
-  block.customFields = { score: { datatype: 'number', title: 'Score', value: 10 } }
+  block.additionalFieldDefinition = { score: { datatype: 'number', title: 'Score' } }
+  ;(block as unknown as Record<string, unknown>).score = 10
   const document: CardDocument = {
     type: 'card-document',
     id: 'document',
@@ -49,7 +50,7 @@ function createHarness() {
   return { block, document, selectedCardId, state }
 }
 
-describe('useCdePropertyPanelState custom fields', () => {
+describe('useCdePropertyPanelState additional fields', () => {
   it('projects blueprint fields and creates structured definitions', () => {
     const { block, state } = createHarness()
     const input = state.propertyInputs.value[0]!
@@ -58,13 +59,14 @@ describe('useCdePropertyPanelState custom fields', () => {
     expect(input.fields.score?.title).toBe('Score')
     expect(input.fields.score?.deletable).toBe(true)
 
-    expect(state.createCustomField({
+    expect(state.createAdditionalField({
       key: block.id,
       fieldKey: 'enabled',
       title: 'Enabled',
       datatype: 'boolean',
     })).toBeNull()
-    expect(block.customFields?.enabled).toEqual({ datatype: 'boolean', title: 'Enabled', value: false })
+    expect(block.additionalFieldDefinition?.enabled).toEqual({ datatype: 'boolean', title: 'Enabled' })
+    expect((block as unknown as Record<string, unknown>).enabled).toBe(false)
   })
 
   it('writes instance overrides and resets them without changing the blueprint', () => {
@@ -74,7 +76,7 @@ describe('useCdePropertyPanelState custom fields', () => {
     expect(state.propertyInputs.value[0]?.record.score).toBe(10)
     state.updateProperty({ key: block.id, fieldKey: 'score', value: 24 })
     expect(document.instances[0]!.data.text?.score).toBe(24)
-    expect(block.customFields?.score?.value).toBe(10)
+    expect((block as unknown as Record<string, unknown>).score).toBe(10)
     expect(state.propertyInputs.value[0]?.fields.score?.resettable).toBe(true)
 
     state.resetProperty({ key: block.id, fieldKey: 'score' })
@@ -86,8 +88,9 @@ describe('useCdePropertyPanelState custom fields', () => {
     const { block, document, state } = createHarness()
     document.instances[0]!.data.text = { score: 18 }
 
-    expect(state.deleteCustomField({ key: block.id, fieldKey: 'score' })).toBe(true)
-    expect(block.customFields).toBeUndefined()
+    expect(state.deleteAdditionalField({ key: block.id, fieldKey: 'score' })).toBe(true)
+    expect(block.additionalFieldDefinition).toBeUndefined()
+    expect((block as unknown as Record<string, unknown>).score).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()
   })
 })

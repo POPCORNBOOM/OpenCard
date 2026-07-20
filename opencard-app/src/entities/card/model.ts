@@ -7,29 +7,26 @@
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import {
     acceptsPropertyBinding,
-    createCustomFieldDefaultValue,
+    additionalFieldDatatypes,
+    createPropertyDefaultValue,
     exposesPropertyReference,
     fillDefaults,
     getPropertyValueKind,
     getTypePropertyEditorSchema,
 } from './schema'
 import { isBindingCompatible } from '../../features/editor-runtime/model/binding'
-import type {
-    CustomFieldDatatype,
-    EditorPropertyDefinition,
-} from './schema'
+import type { EditorPropertyDefinition, PropertyDatatype } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 import {
     parseFieldReference,
 } from '../../features/editor-runtime/model/bindingExpression'
 
-export type CustomFieldDefinition = {
+export type AdditionalFieldDefinition = {
     title?: string
-    datatype: CustomFieldDatatype
-    value: unknown
+    datatype: PropertyDatatype
 }
 
-export type CustomFieldMap = Record<string, CustomFieldDefinition>
+export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
 
 // Block and document data models.
 export type BaseBlock = {
@@ -51,7 +48,7 @@ export type BaseBlock = {
     rotation?: number
     opacity?: number
     customCss?: string
-    customFields?: CustomFieldMap
+    additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
 
 export type CSSValue = number | string
@@ -209,33 +206,22 @@ function toFiniteNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-const customFieldDatatypeSet = new Set<CustomFieldDatatype>([
-    'string',
-    'filePath',
-    'anchorPosition',
-    'alignPosition',
-    'verticalAlignPosition',
-    'flowDirection',
-    'number',
-    'boolean',
-    'color',
-])
+const additionalFieldDatatypeSet = new Set<PropertyDatatype>(additionalFieldDatatypes)
 
-function materializeCustomFields(value: unknown): CustomFieldMap {
+function materializeAdditionalFieldDefinitions(value: unknown): AdditionalFieldDefinitionMap {
     const source = toRecord(value)
-    const fields: CustomFieldMap = {}
+    const fields: AdditionalFieldDefinitionMap = {}
 
     for (const [fieldKey, fieldValue] of Object.entries(source)) {
         const definition = toRecord(fieldValue)
         const datatype = definition.datatype
-        if (typeof datatype !== 'string' || !customFieldDatatypeSet.has(datatype as CustomFieldDatatype)) {
+        if (typeof datatype !== 'string' || !additionalFieldDatatypeSet.has(datatype as PropertyDatatype)) {
             continue
         }
 
         const title = typeof definition.title === 'string' ? definition.title.trim() : ''
         fields[fieldKey] = {
-            datatype: datatype as CustomFieldDatatype,
-            value: definition.value,
+            datatype: datatype as PropertyDatatype,
             ...(title ? { title } : {}),
         }
     }
@@ -243,19 +229,20 @@ function materializeCustomFields(value: unknown): CustomFieldMap {
     return fields
 }
 
-function cloneCustomFields(fields: CustomFieldMap | undefined): CustomFieldMap | undefined {
+function cloneAdditionalFieldDefinitions(
+    fields: AdditionalFieldDefinitionMap | undefined,
+): AdditionalFieldDefinitionMap | undefined {
     if (!fields) return undefined
     return Object.fromEntries(
         Object.entries(fields).map(([fieldKey, definition]) => [fieldKey, { ...definition }]),
     )
 }
 
-export function getCustomFieldPropertyDefinition(
-    definition: CustomFieldDefinition,
+export function getAdditionalFieldPropertyDefinition(
+    definition: AdditionalFieldDefinition,
 ): EditorPropertyDefinition {
     return {
         datatype: definition.datatype,
-        categoryId: 'custom',
     } as EditorPropertyDefinition
 }
 
@@ -266,25 +253,22 @@ export function getCardFieldDefinition(
     const typeName = typeof record.type === 'string' ? record.type : undefined
     const nativeDefinition = getTypePropertyEditorSchema(typeName)[fieldKey]
     if (nativeDefinition) return nativeDefinition
-    const customField = materializeCustomFields(record.customFields)[fieldKey]
-    return customField ? getCustomFieldPropertyDefinition(customField) : undefined
+    const additionalField = materializeAdditionalFieldDefinitions(record.additionalFieldDefinition)[fieldKey]
+    return additionalField ? getAdditionalFieldPropertyDefinition(additionalField) : undefined
 }
 
 export function getCardFieldKeys(record: Record<string, unknown>): string[] {
     return [...new Set([
-        ...Object.keys(record).filter((fieldKey) => fieldKey !== 'customFields'),
-        ...Object.keys(materializeCustomFields(record.customFields)),
+        ...Object.keys(record).filter((fieldKey) => fieldKey !== 'additionalFieldDefinition'),
     ])]
 }
 
 export function hasCardField(record: Record<string, unknown>, fieldKey: string): boolean {
     return Object.prototype.hasOwnProperty.call(record, fieldKey)
-        || Object.prototype.hasOwnProperty.call(materializeCustomFields(record.customFields), fieldKey)
 }
 
 export function getCardFieldValue(record: Record<string, unknown>, fieldKey: string): unknown {
-    if (Object.prototype.hasOwnProperty.call(record, fieldKey)) return record[fieldKey]
-    return materializeCustomFields(record.customFields)[fieldKey]?.value
+    return record[fieldKey]
 }
 
 export function setCardFieldValue(
@@ -292,15 +276,12 @@ export function setCardFieldValue(
     fieldKey: string,
     value: unknown,
 ): boolean {
-    if (Object.prototype.hasOwnProperty.call(record, fieldKey)) {
+    if (Object.prototype.hasOwnProperty.call(record, fieldKey)
+        || materializeAdditionalFieldDefinitions(record.additionalFieldDefinition)[fieldKey]) {
         record[fieldKey] = value
         return true
     }
-
-    const customFields = record.customFields as CustomFieldMap | undefined
-    if (!customFields?.[fieldKey]) return false
-    customFields[fieldKey] = { ...customFields[fieldKey], value }
-    return true
+    return false
 }
 
 export function getCardFieldValueKind(
@@ -318,51 +299,53 @@ export function exposesCardFieldReference(record: Record<string, unknown>, field
     return exposesPropertyReference(getCardFieldDefinition(record, fieldKey))
 }
 
-export type CustomFieldKeyError = 'required' | 'invalid' | 'duplicate'
-export const customFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-datatype'
+export const additionalFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-export function validateCustomFieldKey(block: CardBlock, candidate: string): CustomFieldKeyError | null {
+export function validateAdditionalFieldKey(block: CardBlock, candidate: string): AdditionalFieldKeyError | null {
     const fieldKey = candidate.trim()
     if (!fieldKey) return 'required'
-    if (!customFieldKeyPattern.test(fieldKey)) return 'invalid'
+    if (!additionalFieldKeyPattern.test(fieldKey)) return 'invalid'
 
     const identity = fieldKey.toLocaleLowerCase()
     const occupiedKeys = new Set([
         ...Object.keys(getTypePropertyEditorSchema(block.type)),
-        ...Object.keys(block).filter((key) => key !== 'customFields'),
-        ...Object.keys(block.customFields ?? {}),
+        ...Object.keys(block).filter((key) => key !== 'additionalFieldDefinition'),
+        ...Object.keys(block.additionalFieldDefinition ?? {}),
     ].map((key) => key.toLocaleLowerCase()))
     return occupiedKeys.has(identity) ? 'duplicate' : null
 }
 
-export function createBlockCustomField(
+export function createBlockAdditionalField(
     block: CardBlock,
     fieldKeyInput: string,
-    datatype: CustomFieldDatatype,
+    datatype: PropertyDatatype,
     titleInput?: string,
-): CustomFieldKeyError | null {
-    const error = validateCustomFieldKey(block, fieldKeyInput)
+): AdditionalFieldKeyError | null {
+    if (!additionalFieldDatatypeSet.has(datatype)) return 'unsupported-datatype'
+    const error = validateAdditionalFieldKey(block, fieldKeyInput)
     if (error) return error
 
     const fieldKey = fieldKeyInput.trim()
     const title = titleInput?.trim() ?? ''
-    const customFields = block.customFields ?? (block.customFields = {})
-    customFields[fieldKey] = {
+    const definitions = block.additionalFieldDefinition ?? (block.additionalFieldDefinition = {})
+    definitions[fieldKey] = {
         datatype,
-        value: createCustomFieldDefaultValue(datatype),
         ...(title ? { title } : {}),
     }
+    ;(block as unknown as Record<string, unknown>)[fieldKey] = createPropertyDefaultValue({ datatype } as EditorPropertyDefinition)
     return null
 }
 
-export function deleteBlockCustomField(
+export function deleteBlockAdditionalField(
     document: CardDocument,
     block: CardBlock,
     fieldKey: string,
 ): number {
-    if (!block.customFields?.[fieldKey]) return 0
-    delete block.customFields[fieldKey]
-    if (Object.keys(block.customFields).length === 0) delete block.customFields
+    if (!block.additionalFieldDefinition?.[fieldKey]) return 0
+    delete (block as unknown as Record<string, unknown>)[fieldKey]
+    delete block.additionalFieldDefinition[fieldKey]
+    if (Object.keys(block.additionalFieldDefinition).length === 0) delete block.additionalFieldDefinition
 
     let removedOverrides = 0
     for (const instance of document.instances ?? []) {
@@ -444,11 +427,14 @@ export function toViewBlock(blockInput: unknown): CardBlock {
     const source = toRecord(blockInput)
     const type = resolveBlockType(source.type)
     const materialized = fillDefaults(type, source) as CardBlock
+    delete (materialized as unknown as Record<string, unknown>).additionalFieldDefinition
     const normalizedId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId(type)
-    const customFields = materializeCustomFields(source.customFields)
-    const customFieldPatch = Object.keys(customFields).length > 0 ? { customFields } : {}
+    const additionalFieldDefinition = materializeAdditionalFieldDefinitions(source.additionalFieldDefinition)
+    const definitionPatch = Object.keys(additionalFieldDefinition).length > 0
+        ? { additionalFieldDefinition }
+        : {}
 
     switch (type) {
         case 'text-block':
@@ -459,7 +445,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
-                ...customFieldPatch,
+                ...definitionPatch,
             } as CardBlock
         case 'simple-container-block': {
             const children = toRecordArray(source.children).map((childInput) => ({
@@ -471,7 +457,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
-                ...customFieldPatch,
+                ...definitionPatch,
                 children,
             } as CardBlock
         }
@@ -485,7 +471,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
-                ...customFieldPatch,
+                ...definitionPatch,
                 children,
             } as CardBlock
         }
@@ -599,7 +585,7 @@ function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
     setIfDefined(block, 'rotation', init.rotation)
     setIfDefined(block, 'opacity', init.opacity)
     setIfDefined(block, 'customCss', init.customCss)
-    setIfDefined(block, 'customFields', cloneCustomFields(init.customFields))
+    setIfDefined(block, 'additionalFieldDefinition', cloneAdditionalFieldDefinitions(init.additionalFieldDefinition))
 
     return block as BaseBlock
 }
@@ -893,7 +879,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         if (block.type === 'simple-container-block') {
             return {
                 ...block,
-                customFields: cloneCustomFields(block.customFields),
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
                 children: block.children.map((child) => ({
                     block: cloneBlockTree(child.block),
                     location: { ...child.location },
@@ -904,7 +890,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         if (block.type === 'flow-container-block') {
             return {
                 ...block,
-                customFields: cloneCustomFields(block.customFields),
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
                 children: block.children.map((child) => ({
                     block: cloneBlockTree(child.block),
                     location: { ...child.location },
@@ -912,7 +898,10 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             }
         }
 
-        return { ...block, customFields: cloneCustomFields(block.customFields) }
+        return {
+            ...block,
+            additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
+        }
     }
 
     const targetDocument: CardDocument = {
@@ -1038,9 +1027,6 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
     )
 
     function buildFieldPath(owner: ReferenceOwner, fieldKey: string): string {
-        if (materializeCustomFields(owner.source.customFields)[fieldKey]) {
-            return `${owner.pathPrefix}.customFields.${fieldKey}.value`
-        }
         return `${owner.pathPrefix}.${fieldKey}`
     }
 
@@ -1449,48 +1435,32 @@ export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
 }
 
 // Apply a single instance's overrides onto one block subtree recursively.
-function projectBlockOverrides(
-    block: CardBlock,
-    overrides: Record<string, unknown>,
-): { nativeOverrides: Record<string, unknown>, customFields?: CustomFieldMap } {
-    const nativeOverrides: Record<string, unknown> = {}
-    const customFields = cloneCustomFields(block.customFields)
-
-    for (const [fieldKey, value] of Object.entries(overrides)) {
-        if (customFields?.[fieldKey]) {
-            customFields[fieldKey] = { ...customFields[fieldKey], value }
-            continue
-        }
-        if (fieldKey !== 'customFields') nativeOverrides[fieldKey] = value
-    }
-
-    return { nativeOverrides, customFields }
-}
-
 function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): CardBlock {
     const overrides = instance.data[block.id] ?? {}
-    const projected = projectBlockOverrides(block, overrides)
+    const projected = Object.fromEntries(
+        Object.entries(overrides).filter(([fieldKey]) => fieldKey !== 'additionalFieldDefinition'),
+    )
 
     switch (block.type) {
         case 'text-block':
             return {
                 ...block,
-                ...projected.nativeOverrides,
-                customFields: projected.customFields,
+                ...projected,
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
             }
         case 'image-block':
         case 'qrcode-block':
         case 'shape-block':
             return {
                 ...block,
-                ...projected.nativeOverrides,
-                customFields: projected.customFields,
+                ...projected,
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
             }
         case 'simple-container-block':
             return {
                 ...block,
-                ...projected.nativeOverrides,
-                customFields: projected.customFields,
+                ...projected,
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: mergeBlockOverride(child.block, instance),
@@ -1499,8 +1469,8 @@ function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): Car
         case 'flow-container-block':
             return {
                 ...block,
-                ...projected.nativeOverrides,
-                customFields: projected.customFields,
+                ...projected,
+                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: mergeBlockOverride(child.block, instance),

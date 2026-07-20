@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   acceptsPropertyBinding,
-  createCustomFieldDefaultValue,
+  additionalFieldDatatypes,
+  createPropertyDefaultValue,
   exposesPropertyReference,
   getPropertyValueKind,
   getTypePropertyEditorSchema,
@@ -30,27 +31,19 @@ describe('property binding schema policy', () => {
     expect(getPropertyValueKind(textSchema.content)).toBe('string')
   })
 
-  it('creates defaults for every supported custom scalar editor', () => {
-    expect({
-      string: createCustomFieldDefaultValue('string'),
-      filePath: createCustomFieldDefaultValue('filePath'),
-      anchorPosition: createCustomFieldDefaultValue('anchorPosition'),
-      alignPosition: createCustomFieldDefaultValue('alignPosition'),
-      verticalAlignPosition: createCustomFieldDefaultValue('verticalAlignPosition'),
-      flowDirection: createCustomFieldDefaultValue('flowDirection'),
-      number: createCustomFieldDefaultValue('number'),
-      boolean: createCustomFieldDefaultValue('boolean'),
-      color: createCustomFieldDefaultValue('color'),
-    }).toEqual({
-      string: '',
-      filePath: '',
-      anchorPosition: 'cc',
-      alignPosition: 'start',
-      verticalAlignPosition: 'top',
-      flowDirection: 'lr',
-      number: 0,
-      boolean: false,
-      color: '',
-    })
+  it('uses the standard datatype system for every creatable additional field', () => {
+    expect(additionalFieldDatatypes).toEqual([
+      'string',
+      'filePath',
+      'anchorPosition',
+      'alignPosition',
+      'verticalAlignPosition',
+      'flowDirection',
+      'number',
+      'boolean',
+      'color',
+    ])
+    expect(createPropertyDefaultValue({ datatype: 'number' })).toBe(0)
+    expect(createPropertyDefaultValue({ datatype: 'boolean' })).toBe(false)
   })
 })

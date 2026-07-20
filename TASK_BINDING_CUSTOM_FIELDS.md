@@ -46,13 +46,13 @@ interface BaseBlock {
 }
 ```
 
-- [ ] 删除 `CustomFieldDefinition/CustomFieldMap/CustomFieldDatatype/customFieldDatatypes/customFields`。
-- [ ] `additionalFieldDatatypes` 只是 `readonly PropertyDatatype[]` 创建允许列表，不创建第二套 datatype 类型。
-- [ ] `additionalFieldDefinition` 在 Card schema 中隐藏，并禁止 binding 与 reference exposure。
-- [ ] key 使用 `^[A-Za-z_][A-Za-z0-9_]*$`，不区分大小写检查原生 schema、Block 根字段、额外定义和保留结构名冲突。
-- [ ] 创建时使用通用 `createPropertyDefaultValue()`，写入根值与 definition。
-- [ ] 删除时删除根值、definition 和所有实例同名 override；遗留表达式继续产生 `FIELD_NOT_FOUND`。
-- [ ] `applyInstance` 将 override 直接写到投影 Block 根字段；实例仍使用 `instance.data[blockId][fieldKey]`。
+- [x] 删除 `CustomFieldDefinition/CustomFieldMap/CustomFieldDatatype/customFieldDatatypes/customFields`。
+- [x] `additionalFieldDatatypes` 只是 `readonly PropertyDatatype[]` 创建允许列表，不创建第二套 datatype 类型。
+- [x] `additionalFieldDefinition` 在 Card schema 中隐藏，并禁止 binding 与 reference exposure。
+- [x] key 使用 `^[A-Za-z_][A-Za-z0-9_]*$`，不区分大小写检查原生 schema、Block 根字段、额外定义和保留结构名冲突。
+- [x] 创建时使用通用 `createPropertyDefaultValue()`，写入根值与 definition。
+- [x] 删除时删除根值、definition 和所有实例同名 override；遗留表达式继续产生 `FIELD_NOT_FOUND`。
+- [x] `applyInstance` 将 override 直接写到投影 Block 根字段；实例仍使用 `instance.data[blockId][fieldKey]`。
 
 ## PropertyEditor Public Contract
 

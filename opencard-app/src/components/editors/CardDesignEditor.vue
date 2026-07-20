@@ -175,7 +175,7 @@
                   <PropertyEditor :inputs="propertyEditorInputs" :categories="propertyCategories" :sort-mode="propertySortMode"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
-                    @delete-property="deleteCustomField" />
+                    @delete-property="deleteAdditionalField" />
                 </OcPanel>
               </OcCard>
             </div>
@@ -808,7 +808,7 @@ const {
   updateProperty: updateBlockProp,
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
-  deleteCustomField,
+  deleteAdditionalField,
 } = useCdePropertyPanelState({
   cardDoc,
   selectedLocation,
@@ -829,14 +829,14 @@ function createReferenceScope(
   label: string,
   record: Record<string, unknown>,
 ): ReferenceCompletionScope {
-  const customFields = record.customFields as Record<string, { title?: string }> | undefined
+  const additionalDefinitions = record.additionalFieldDefinition as Record<string, { title?: string }> | undefined
   return {
     label,
     fields: getCardFieldKeys(record)
       .filter((fieldKey) => exposesCardFieldReference(record, fieldKey))
       .map((fieldKey) => ({
         key: fieldKey,
-        label: customFields?.[fieldKey]?.title ?? (() => {
+        label: additionalDefinitions?.[fieldKey]?.title ?? (() => {
           const displayKey = getCardFieldDefinition(record, fieldKey)?.displayFieldKey ?? fieldKey
           const messageKey = `propertyEditor.fields.${displayKey}`
           return te(messageKey) ? t(messageKey) : fieldKey

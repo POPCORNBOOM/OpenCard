@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyInstance,
-  createBlockCustomField,
+  createBlockAdditionalField,
   createTextBlock,
-  deleteBlockCustomField,
+  deleteBlockAdditionalField,
   resolveReferences,
   type CardDocument,
   type CardInstanceRecord,
@@ -26,13 +26,15 @@ function createDocument(block = createTextBlock({ id: 'text', content: '' })): C
   }
 }
 
-describe('card custom fields and bindings', () => {
-  it('resolves current-block custom fields into string and number targets', () => {
+describe('card additional fields and bindings', () => {
+  it('resolves current-block additional fields into string and number targets', () => {
     const block = createTextBlock({ id: 'text', content: '{{s:label}}' })
-    block.customFields = {
-      label: { datatype: 'string', title: 'Label', value: 'Power' },
-      strength: { datatype: 'number', value: 0.5 },
+    block.additionalFieldDefinition = {
+      label: { datatype: 'string', title: 'Label' },
+      strength: { datatype: 'number' },
     }
+    ;(block as unknown as Record<string, unknown>).label = 'Power'
+    ;(block as unknown as Record<string, unknown>).strength = 0.5
     ;(block as unknown as Record<string, unknown>).opacity = '{{s:strength}}'
 
     const result = resolveReferences(createDocument(block))
@@ -40,13 +42,14 @@ describe('card custom fields and bindings', () => {
 
     expect(result.issues).toEqual([])
     expect(resolved).toMatchObject({ content: 'Power', opacity: 0.5 })
-    expect(resolved.customFields).toEqual(block.customFields)
-    expect(resolved.customFields).not.toBe(block.customFields)
+    expect(resolved.additionalFieldDefinition).toEqual(block.additionalFieldDefinition)
+    expect(resolved.additionalFieldDefinition).not.toBe(block.additionalFieldDefinition)
   })
 
   it('rejects incompatible and explicitly hidden references', () => {
     const block = createTextBlock({ id: 'text', content: '{{s:type}}' })
-    block.customFields = { label: { datatype: 'string', value: 'not-a-number' } }
+    block.additionalFieldDefinition = { label: { datatype: 'string' } }
+    ;(block as unknown as Record<string, unknown>).label = 'not-a-number'
     ;(block as unknown as Record<string, unknown>).opacity = '{{s:label}}'
 
     const result = resolveReferences(createDocument(block))
@@ -57,13 +60,16 @@ describe('card custom fields and bindings', () => {
     ]))
   })
 
-  it('rejects mixed interpolation for non-string targets and detects custom-field cycles', () => {
+  it('rejects mixed interpolation for non-string targets and detects additional-field cycles', () => {
     const block = createTextBlock({ id: 'text', content: '{{s:first}}' })
-    block.customFields = {
-      first: { datatype: 'string', value: '{{s:second}}' },
-      second: { datatype: 'string', value: '{{s:first}}' },
-      strength: { datatype: 'number', value: 0.5 },
+    block.additionalFieldDefinition = {
+      first: { datatype: 'string' },
+      second: { datatype: 'string' },
+      strength: { datatype: 'number' },
     }
+    ;(block as unknown as Record<string, unknown>).first = '{{s:second}}'
+    ;(block as unknown as Record<string, unknown>).second = '{{s:first}}'
+    ;(block as unknown as Record<string, unknown>).strength = 0.5
     ;(block as unknown as Record<string, unknown>).opacity = '0.{{s:strength}}'
 
     const result = resolveReferences(createDocument(block))
@@ -84,9 +90,10 @@ describe('card custom fields and bindings', () => {
     expect(result.document.children[0]!.block).toMatchObject({ content: 'External' })
   })
 
-  it('projects custom field overrides without flattening the block model', () => {
+  it('projects additional field overrides directly onto the block root', () => {
     const block = createTextBlock({ id: 'text', content: '{{s:score}}' })
-    block.customFields = { score: { datatype: 'number', value: 10 } }
+    block.additionalFieldDefinition = { score: { datatype: 'number' } }
+    ;(block as unknown as Record<string, unknown>).score = 10
     const document = createDocument(block)
     const instance: CardInstanceRecord = {
       type: 'card-instance',
@@ -99,8 +106,8 @@ describe('card custom fields and bindings', () => {
     const projected = applyInstance(document, instance)
     const projectedBlock = projected.children[0]!.block
 
-    expect(projectedBlock.customFields?.score?.value).toBe(24)
-    expect((projectedBlock as unknown as Record<string, unknown>).score).toBeUndefined()
+    expect((projectedBlock as unknown as Record<string, unknown>).score).toBe(24)
+    expect(projectedBlock.additionalFieldDefinition?.score).toEqual({ datatype: 'number' })
     expect(resolveReferences(projected).document.children[0]!.block).toMatchObject({ content: '24' })
   })
 
@@ -115,21 +122,24 @@ describe('card custom fields and bindings', () => {
       data: { text: { score: 8 } },
     }]
 
-    expect(createBlockCustomField(block, '1bad', 'number')).toBe('invalid')
-    expect(createBlockCustomField(block, 'content', 'number')).toBe('duplicate')
-    expect(createBlockCustomField(block, 'score', 'number', 'Score')).toBeNull()
-    expect(block.customFields?.score).toEqual({ datatype: 'number', title: 'Score', value: 0 })
-    expect(deleteBlockCustomField(document, block, 'score')).toBe(1)
-    expect(block.customFields).toBeUndefined()
+    expect(createBlockAdditionalField(block, '1bad', 'number')).toBe('invalid')
+    expect(createBlockAdditionalField(block, 'content', 'number')).toBe('duplicate')
+    expect(createBlockAdditionalField(block, 'score', 'number', 'Score')).toBeNull()
+    expect(block.additionalFieldDefinition?.score).toEqual({ datatype: 'number', title: 'Score' })
+    expect((block as unknown as Record<string, unknown>).score).toBe(0)
+    expect(deleteBlockAdditionalField(document, block, 'score')).toBe(1)
+    expect(block.additionalFieldDefinition).toBeUndefined()
+    expect((block as unknown as Record<string, unknown>).score).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()
   })
 
   it('keeps existing expressions diagnostic after deleting their custom field', () => {
     const block = createTextBlock({ id: 'text', content: '{{s:score}}' })
-    block.customFields = { score: { datatype: 'number', value: 10 } }
+    block.additionalFieldDefinition = { score: { datatype: 'number' } }
+    ;(block as unknown as Record<string, unknown>).score = 10
     const document = createDocument(block)
 
-    deleteBlockCustomField(document, block, 'score')
+    deleteBlockAdditionalField(document, block, 'score')
     const result = resolveReferences(document)
 
     expect(result.issues).toEqual(expect.arrayContaining([
