@@ -19,6 +19,7 @@ export interface EzShellList {
   placeholder: string;
   key: string;
   actions: EzShellAction[];
+  maxHeight?: string;
 }
 
 export interface EzShellSidebarModel {

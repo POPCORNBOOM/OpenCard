@@ -93,15 +93,38 @@
             @intent="handleOpenedEditorTreeIntent"
           />
           <OcTree
+            v-else-if="list.key === TEMPLATE_ENTRIES_LIST_KEY && exportTemplateEntryTreeData.rootKeys.length > 0"
+            class="ide-shell__sidebar-tree"
+            :data="exportTemplateEntryTreeData"
+            :actions="exportTemplateTreeActions"
+            :selected-keys="[]"
+            role="listbox"
+            selection-mode="none"
+            activation-mode="none"
+            @intent="handleExportSelectionTreeIntent"
+          />
+          <OcTree
+            v-else-if="list.key === TEMPLATE_COVERS_LIST_KEY && exportTemplateCoverTreeData.rootKeys.length > 0"
+            class="ide-shell__sidebar-tree"
+            :data="exportTemplateCoverTreeData"
+            :actions="exportTemplateTreeActions"
+            :selected-keys="[]"
+            role="listbox"
+            selection-mode="none"
+            activation-mode="none"
+            @intent="handleExportSelectionTreeIntent"
+          />
+          <OcTree
             v-else-if="list.key === PROJECT_FILES_LIST_KEY && projectTreeData.rootKeys.length > 0"
             class="ide-shell__sidebar-tree"
-            :data="projectTreeData"
+            :data="isExportTemplateMode ? exportTemplateTreeData : projectTreeData"
+            :actions="isExportTemplateMode ? exportTemplateTreeActions : undefined"
             :selected-keys="selectedFileKeys"
-            :expanded-keys="projectExpandedKeys"
+            :expanded-keys="isExportTemplateMode ? exportTemplateExpandedKeys : projectExpandedKeys"
             role="tree"
             selection-mode="single"
-            activation-mode="double-click"
-            @intent="handleProjectTreeIntent"
+            :activation-mode="isExportTemplateMode ? 'none' : 'double-click'"
+            @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
           <div v-else class="shell-sidebar-empty">
             <span>{{ list.placeholder }}</span>
@@ -129,7 +152,9 @@
           />
           <ExportTemplateWorkspace
             v-else-if="isExportTemplateMode && projectPath"
+            ref="exportTemplateWorkspaceRef"
             :project-path="projectPath"
+            @selection-change="exportTemplateSelection = $event"
             @update:busy="isExportTemplateBusy = $event"
           />
           <SettingsWorkspace
@@ -183,7 +208,12 @@ import CreateProjectWorkspace from '../features/project-templates/components/Cre
 import ExportTemplateWorkspace from '../features/project-templates/components/ExportTemplateWorkspace.vue'
 import ProjectEditorWorkspace from '../features/ide-shell/components/ProjectEditorWorkspace.vue'
 import WelcomeWorkspace from '../features/ide-shell/components/WelcomeWorkspace.vue'
-import type { CreatedProject, ProjectTemplate, ProjectTemplateKey } from '../features/project-templates/model/projectTemplate'
+import type {
+  CreatedProject,
+  ProjectTemplate,
+  ProjectTemplateKey,
+  TemplateExportSelection,
+} from '../features/project-templates/model/projectTemplate'
 import { useProjectTemplateStore } from '../features/project-templates/store/projectTemplateStore'
 import { useSettingsWorkspace } from '../features/settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../features/settings/store/appSettingsStore'
@@ -218,11 +248,21 @@ const CHANGES_LIST_KEY = 'changes'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const BUILTIN_TEMPLATES_LIST_KEY = 'builtin-templates'
 const USER_TEMPLATES_LIST_KEY = 'user-templates'
+const TEMPLATE_ENTRIES_LIST_KEY = 'template-entries'
+const TEMPLATE_COVERS_LIST_KEY = 'template-covers'
 const CREATE_TEMPLATE_ACTION_KEY = 'create-template'
 const IMPORT_TEMPLATE_ACTION_KEY = 'import-template'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
 const RECENT_PROJECT_RELOCATE_ACTION_KEY = 'recent-project.relocate'
 const RECENT_PROJECT_REMOVE_ACTION_KEY = 'recent-project.remove'
+const TEMPLATE_EXCLUDE_ACTION_KEY = 'template.exclude'
+const TEMPLATE_INCLUDE_ACTION_KEY = 'template.include'
+const TEMPLATE_COVER_ADD_ACTION_KEY = 'template.cover.add'
+const TEMPLATE_COVER_REMOVE_ACTION_KEY = 'template.cover.remove'
+const TEMPLATE_ENTRY_ADD_ACTION_KEY = 'template.entry.add'
+const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
+const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
+const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const themeClass = 'shell-theme-graphite'
 
 type CurrentEditorRef = {
@@ -265,6 +305,13 @@ const isProjectMode = computed(() => workspaceMode.value.type === 'project')
 const isAuxiliaryMode = computed(() => isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value)
 const selectedTemplateKey = ref<ProjectTemplateKey | null>(null)
 const createProjectWorkspaceRef = ref<InstanceType<typeof CreateProjectWorkspace> | null>(null)
+const exportTemplateWorkspaceRef = ref<InstanceType<typeof ExportTemplateWorkspace> | null>(null)
+const exportTemplateSelection = ref<TemplateExportSelection>({
+  excludedPaths: [],
+  entries: [],
+  entryNames: {},
+  covers: [],
+})
 const projectActivationError = ref('')
 const isActivatingProject = ref(false)
 const isCreateProjectOperationBusy = ref(false)
@@ -458,6 +505,129 @@ const recentProjectActions = computed<ReadonlyMap<string, OcTreeActionDefinition
   }],
 ]))
 
+const exportTemplateTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [TEMPLATE_EXCLUDE_ACTION_KEY, {
+    title: t('templateExport.tree.exclude'),
+    icon: 'status.eye-off',
+  }],
+  [TEMPLATE_INCLUDE_ACTION_KEY, {
+    title: t('templateExport.tree.include'),
+    icon: 'status.eye',
+  }],
+  [TEMPLATE_COVER_ADD_ACTION_KEY, {
+    title: t('templateExport.tree.addCover'),
+    icon: 'action.image-plus',
+  }],
+  [TEMPLATE_COVER_REMOVE_ACTION_KEY, {
+    title: t('templateExport.tree.removeCover'),
+    icon: 'action.image-minus',
+  }],
+  [TEMPLATE_ENTRY_ADD_ACTION_KEY, {
+    title: t('templateExport.tree.addEntry'),
+    icon: 'action.file-plus',
+  }],
+  [TEMPLATE_ENTRY_REMOVE_ACTION_KEY, {
+    title: t('templateExport.tree.removeEntry'),
+    icon: 'action.file-minus',
+  }],
+]))
+
+function normalizeTreePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function exportRelativePath(key: string): string {
+  const root = normalizeTreePath(projectPath.value)
+  const normalized = normalizeTreePath(key)
+  return normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : normalized
+}
+
+function pathContains(parent: string, child: string): boolean {
+  return child === parent || child.startsWith(`${parent}/`)
+}
+
+function isExportPathExcluded(relativePath: string): boolean {
+  return relativePath === '.opencard-cache'
+    || relativePath.startsWith('.opencard-cache/')
+    || exportTemplateSelection.value.excludedPaths.some((excluded) => pathContains(excluded, relativePath))
+}
+
+const exportTemplateTreeData = computed<OcTreeData>(() => {
+  const items = new Map<string, OcTreeItem>()
+  for (const [key, item] of projectTreeData.value.items) {
+    const relativePath = exportRelativePath(key)
+    const isProjectFile = relativePath === '.opencardproject'
+    const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
+    const isExcluded = isExportPathExcluded(relativePath)
+    const isImage = resolveFileType(key).id === 'image'
+    const isOpenCard = relativePath.toLowerCase().endsWith('.opencard')
+    const actions: string[] = []
+
+    if (!isProjectFile && !isRuntimeCache) {
+      actions.push(isExcluded ? TEMPLATE_INCLUDE_ACTION_KEY : TEMPLATE_EXCLUDE_ACTION_KEY)
+    }
+    if (!isExcluded && isImage) {
+      actions.push(exportTemplateSelection.value.covers.includes(relativePath)
+        ? TEMPLATE_COVER_REMOVE_ACTION_KEY
+        : TEMPLATE_COVER_ADD_ACTION_KEY)
+    }
+    if (!isExcluded && isOpenCard) {
+      actions.push(exportTemplateSelection.value.entries.includes(relativePath)
+        ? TEMPLATE_ENTRY_REMOVE_ACTION_KEY
+        : TEMPLATE_ENTRY_ADD_ACTION_KEY)
+    }
+
+    items.set(key, {
+      ...item,
+      iconTone: isExcluded ? 'muted' : item.iconTone,
+      disabled: isRuntimeCache,
+      disabledReason: isRuntimeCache ? t('templateExport.tree.runtimeCache') : undefined,
+      actions,
+    })
+  }
+  return {
+    rootKeys: projectTreeData.value.rootKeys,
+    items,
+    children: projectTreeData.value.children,
+  }
+})
+
+const exportTemplateExpandedKeys = computed(() => [...projectTreeData.value.children.keys()])
+
+function createExportSelectionTreeData(
+  paths: readonly string[],
+  prefix: string,
+  icon: OcTreeItem['icon'],
+  removeAction: string,
+  labels: Readonly<Record<string, string>> = {},
+): OcTreeData {
+  const rootKeys = paths.map((path) => `${prefix}${path}`)
+  return {
+    rootKeys,
+    items: new Map(paths.map((path) => [`${prefix}${path}`, {
+      label: labels[path] ?? path,
+      icon,
+      actions: [removeAction],
+    }])),
+    children: new Map(),
+  }
+}
+
+const exportTemplateEntryTreeData = computed(() => createExportSelectionTreeData(
+  exportTemplateSelection.value.entries,
+  TEMPLATE_ENTRY_TREE_PREFIX,
+  'file.opencard',
+  TEMPLATE_ENTRY_REMOVE_ACTION_KEY,
+  exportTemplateSelection.value.entryNames,
+))
+
+const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData(
+  exportTemplateSelection.value.covers,
+  TEMPLATE_COVER_TREE_PREFIX,
+  'file.image',
+  TEMPLATE_COVER_REMOVE_ACTION_KEY,
+))
+
 const windowControls = computed<EzTitleBarWindowControl[]>(() => [
   ...(availableUpdate.value ? [{
     key: 'install-update',
@@ -552,7 +722,31 @@ const sidebarBodyLists = computed<EzShellList[]>(() => {
     ]
   }
 
-  if (isExportTemplateMode.value) return []
+  if (isExportTemplateMode.value) {
+    return [
+      {
+        key: PROJECT_FILES_LIST_KEY,
+        title: projectName.value || t('sidebar.files'),
+        placeholder: t('sidebar.emptyProject', 'Folder is empty'),
+        actions: [],
+        maxHeight: 'var(--oc-list-max-height-lg)',
+      },
+      {
+        key: TEMPLATE_ENTRIES_LIST_KEY,
+        title: t('projectTemplates.fields.entry'),
+        placeholder: t('templateExport.noSelectedEntries'),
+        actions: [],
+        maxHeight: 'var(--oc-list-max-height-md)',
+      },
+      {
+        key: TEMPLATE_COVERS_LIST_KEY,
+        title: t('projectTemplates.fields.covers'),
+        placeholder: t('templateExport.noSelectedCovers'),
+        actions: [],
+        maxHeight: 'var(--oc-list-max-height-md)',
+      },
+    ]
+  }
 
   if (isWelcomeMode.value) {
     return [{
@@ -845,6 +1039,33 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
   await handleOpenFile(entry.key)
 }
 
+function handleExportTemplateTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type !== 'action.invoke') return
+  const relativePath = exportRelativePath(intent.key)
+  if (intent.actionKey === TEMPLATE_EXCLUDE_ACTION_KEY || intent.actionKey === TEMPLATE_INCLUDE_ACTION_KEY) {
+    exportTemplateWorkspaceRef.value?.togglePathIncluded(relativePath)
+    return
+  }
+  if (intent.actionKey === TEMPLATE_COVER_ADD_ACTION_KEY || intent.actionKey === TEMPLATE_COVER_REMOVE_ACTION_KEY) {
+    exportTemplateWorkspaceRef.value?.toggleCover(relativePath)
+    return
+  }
+  if (intent.actionKey === TEMPLATE_ENTRY_ADD_ACTION_KEY || intent.actionKey === TEMPLATE_ENTRY_REMOVE_ACTION_KEY) {
+    exportTemplateWorkspaceRef.value?.toggleEntry(relativePath)
+  }
+}
+
+function handleExportSelectionTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type !== 'action.invoke') return
+  if (intent.key.startsWith(TEMPLATE_ENTRY_TREE_PREFIX)) {
+    exportTemplateWorkspaceRef.value?.toggleEntry(intent.key.slice(TEMPLATE_ENTRY_TREE_PREFIX.length))
+    return
+  }
+  if (intent.key.startsWith(TEMPLATE_COVER_TREE_PREFIX)) {
+    exportTemplateWorkspaceRef.value?.toggleCover(intent.key.slice(TEMPLATE_COVER_TREE_PREFIX.length))
+  }
+}
+
 async function openProject() {
   const previousProjectPath = projectPath.value
   const openedPath = await openProjectFn()
@@ -983,7 +1204,11 @@ async function runShellCommand(actionKey: string) {
 
 
   if (actionKey === 'export-project-template') {
-    if (projectPath.value) workspaceMode.value = { type: 'export-template' }
+    if (projectPath.value) {
+      exportTemplateSelection.value = { excludedPaths: [], entries: [], entryNames: {}, covers: [] }
+      await ensureProjectTreeLoaded()
+      workspaceMode.value = { type: 'export-template' }
+    }
     return
   }
 

@@ -96,6 +96,14 @@ function isListCollapsed(listKey: string): boolean {
   return collapsedLists.value[listKey] === true;
 }
 
+function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'auto' } | undefined {
+  if (list.maxHeight === undefined) return undefined;
+  return {
+    maxHeight: list.maxHeight,
+    overflowY: 'auto',
+  };
+}
+
 </script>
 
 <template>
@@ -145,7 +153,7 @@ function isListCollapsed(listKey: string): boolean {
         </div>
 
         <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }">
-          <div class="shell-sidebar-list-content">
+          <div class="shell-sidebar-list-content" :style="listContentStyle(list)">
             <slot name="list-content" :list="list">
               <div class="shell-sidebar-empty">
                 <span v-if="!collapsed">{{ list.placeholder }}</span>

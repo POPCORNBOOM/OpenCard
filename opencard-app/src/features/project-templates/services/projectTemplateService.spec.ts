@@ -1,6 +1,6 @@
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { describe, expect, it, vi } from 'vitest'
-import { strToU8, unzipSync, zipSync } from 'fflate'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import type { FileSystemService } from '../../workspace/services/fileSystemService'
 import type { ProjectTemplate } from '../model/projectTemplate'
 import {
@@ -47,6 +47,7 @@ class MemoryFileSystem implements FileSystemService {
   private readonly symlinks = new Set<string>()
   failCopyFrom: string | null = null
   failDeletePath: string | null = null
+  failBinaryReadFrom: string | null = null
 
   putDirectory(path: string): void {
     const normalized = normalizePath(path)
@@ -106,7 +107,9 @@ class MemoryFileSystem implements FileSystemService {
   }
 
   async readBinaryFile(path: string): Promise<Uint8Array> {
-    const content = this.files.get(normalizePath(path))
+    const normalized = normalizePath(path)
+    if (this.failBinaryReadFrom === normalized) throw new Error(`Injected binary read failure: ${normalized}`)
+    const content = this.files.get(normalized)
     if (content === undefined) throw new Error(`Missing file: ${path}`)
     return content instanceof Uint8Array ? content.slice() : new TextEncoder().encode(content)
   }
@@ -392,7 +395,7 @@ describe('ProjectTemplateService prepared package import', () => {
     fs.putFile('/prepared.octemplete', zipSync({
       'template.json': strToU8(manifest),
       'content/.opencardproject': strToU8(projectFile()),
-      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document' })),
+      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document', name: 'Prepared Blueprint' })),
       'content/assets/cover-a.png': new Uint8Array([1, 2]),
       'content/assets/cover-b.webp': new Uint8Array([3, 4]),
     }))
@@ -407,6 +410,7 @@ describe('ProjectTemplateService prepared package import', () => {
         '/appdata/templates/prepared/content/assets/cover-a.png',
         '/appdata/templates/prepared/content/assets/cover-b.webp',
       ],
+      entryNames: { 'main.opencard': 'Prepared Blueprint' },
     })
     expect(fs.rawFile('/appdata/templates/prepared/content/assets/cover-b.webp'))
       .toEqual(new Uint8Array([3, 4]))
@@ -435,6 +439,8 @@ describe('ProjectTemplateService package export', () => {
   it('exports a compliant .octemplete archive and excludes runtime cache', async () => {
     const fs = new MemoryFileSystem()
     addImportSource(fs)
+    fs.putFile('/source/alternate.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/notes/private.txt', 'private')
 
     const outputPath = await createService(fs, 'portable').exportProjectTemplate({
       sourcePath: '/source',
@@ -442,7 +448,9 @@ describe('ProjectTemplateService package export', () => {
       name: 'My Template',
       description: 'Portable',
       entry: 'main.opencard',
+      entries: ['main.opencard', 'alternate.opencard'],
       covers: ['assets/portrait.png'],
+      excludedPaths: ['notes'],
     })
 
     expect(outputPath).toBe('/exports/My Template.octemplete')
@@ -451,8 +459,31 @@ describe('ProjectTemplateService package export', () => {
       'template.json',
       'content/.opencardproject',
       'content/main.opencard',
+      'content/alternate.opencard',
       'content/assets/portrait.png',
     ]))
+    expect(Object.keys(archive)).not.toContain('content/notes/private.txt')
+    expect(Object.keys(archive).some((path) => path.startsWith('content/.opencard-cache/'))).toBe(false)
+    expect(JSON.parse(strFromU8(archive['template.json']))).toMatchObject({
+      entry: 'main.opencard',
+      entries: ['main.opencard', 'alternate.opencard'],
+    })
+  })
+
+  it('reports binary resource failures as archive errors', async () => {
+    const fs = new MemoryFileSystem()
+    addImportSource(fs)
+    fs.failBinaryReadFrom = '/source/assets/portrait.png'
+
+    await expect(createService(fs).exportProjectTemplate({
+      sourcePath: '/source',
+      outputPath: '/exports/Portable.octemplete',
+      name: 'Portable',
+      description: '',
+      entry: 'main.opencard',
+      covers: ['assets/portrait.png'],
+      excludedPaths: [],
+    })).rejects.toMatchObject({ code: 'archive-failed' })
   })
 })
 
@@ -540,7 +571,7 @@ describe('ProjectTemplateService project creation', () => {
       projectName: '  Demo',
     })
 
-    expect(created).toEqual({ path: '/projects/Demo', entry: 'cards/main.opencard' })
+    expect(created).toEqual({ path: '/projects/Demo', entry: '/projects/Demo/cards/main.opencard' })
     expect(await fs.fileExists('/projects/Demo/.opencardproject')).toBe(true)
     expect(JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)).toMatchObject({
       project: { name: 'Demo', entry: 'cards/main.opencard' },
@@ -562,6 +593,30 @@ describe('ProjectTemplateService project creation', () => {
     })).rejects.toMatchObject({ code: 'target-exists' })
 
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
+  })
+
+  it('writes a selected candidate entry into the created project', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.opencardproject', projectFile())
+    fs.putFile('/template/content/main.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/template/content/alternate.opencard', JSON.stringify({ type: 'card-document' }))
+    const template = {
+      ...templateFixture(),
+      entries: ['main.opencard', 'alternate.opencard'],
+    }
+
+    const created = await createService(fs).createProject({
+      template,
+      parentPath: '/projects',
+      projectName: 'Demo',
+      entry: 'alternate.opencard',
+    })
+
+    expect(created.entry).toBe('/projects/Demo/alternate.opencard')
+    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)).toMatchObject({
+      project: { entry: 'alternate.opencard' },
+    })
   })
 
   it('rolls back when the template entry is missing', async () => {
@@ -611,8 +666,8 @@ describe('ProjectTemplateService safety boundaries', () => {
   it('sorts valid document entries and imports a selected entry other than the first', async () => {
     const fs = new MemoryFileSystem()
     fs.putFile('/source/.opencardproject', projectFile('z-last.opencard'))
-    fs.putFile('/source/z-last.opencard', JSON.stringify({ type: 'card-document' }))
-    fs.putFile('/source/cards/a-first.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/z-last.opencard', JSON.stringify({ type: 'card-document', name: 'Last Blueprint' }))
+    fs.putFile('/source/cards/a-first.opencard', JSON.stringify({ type: 'card-document', name: 'First Blueprint' }))
     fs.putFile('/source/b-middle.opencard', JSON.stringify({ type: 'card-document' }))
     fs.putFile('/source/invalid.opencard', '{not-json')
     const service = createService(fs, 'multi-entry')
@@ -623,6 +678,11 @@ describe('ProjectTemplateService safety boundaries', () => {
       'cards/a-first.opencard',
       'z-last.opencard',
     ])
+    expect(inspection.entryNames).toEqual({
+      'b-middle.opencard': 'b-middle.opencard',
+      'cards/a-first.opencard': 'First Blueprint',
+      'z-last.opencard': 'Last Blueprint',
+    })
 
     const imported = await service.createUserTemplate({
       sourcePath: '/source',

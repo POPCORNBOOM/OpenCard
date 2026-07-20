@@ -322,6 +322,19 @@ function resolveSelectionAncestorKeys(key: OcTreeKey): OcTreeKey[] {
   }
 }
 
+function isSameOrDescendantKey(key: OcTreeKey, ancestorKey: OcTreeKey): boolean {
+  const visited = new Set<OcTreeKey>()
+  let currentKey: OcTreeKey | undefined = key
+
+  while (currentKey && !visited.has(currentKey)) {
+    if (currentKey === ancestorKey) return true
+    visited.add(currentKey)
+    currentKey = parentKeyLookup.value.get(currentKey)
+  }
+
+  return false
+}
+
 watch(
   [
     () => props.selectedKeys[0],
@@ -333,7 +346,10 @@ watch(
 
     const ancestorKeys = resolveSelectionAncestorKeys(selectedKey)
     const nextKeys = mode === 'expand-exclusive'
-      ? ancestorKeys
+      ? [...new Set([
+          ...ancestorKeys,
+          ...props.expandedKeys.filter((key) => isSameOrDescendantKey(key, selectedKey)),
+        ])]
       : [...new Set([...props.expandedKeys, ...ancestorKeys])]
 
     if (

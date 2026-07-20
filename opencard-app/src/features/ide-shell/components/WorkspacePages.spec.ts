@@ -17,7 +17,11 @@ describe('workspace pages', () => {
   it('shows the OpenCard welcome page and exposes its project actions', async () => {
     const wrapper = mount(WelcomeWorkspace, mountOptions())
 
-    expect(wrapper.text()).toContain('Welcome to OpenCard')
+    expect(wrapper.text()).toContain('Welcome to')
+    expect(wrapper.get('.workspace-empty-state__wordmark').attributes()).toMatchObject({
+      src: '/OpenCard_Icon.png',
+      alt: 'OpenCard',
+    })
     expect(wrapper.text()).toContain('New Project')
     expect(wrapper.text()).toContain('Open Project Folder')
     expect(wrapper.text()).not.toContain('No editors open')

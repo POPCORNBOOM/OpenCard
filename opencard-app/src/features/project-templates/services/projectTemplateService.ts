@@ -7,6 +7,7 @@ import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
   TemplateServiceError,
   parseProjectTemplateManifest,
+  resolveTemplateEntries,
   isSafeProjectTemplateId,
   isProjectTemplateCoverPath,
   validateProjectName,
@@ -115,6 +116,29 @@ function assertValidCreateTemplateRequest(request: CreateUserTemplateRequest): v
   }
 }
 
+function normalizeRequestedEntries(request: CreateUserTemplateRequest): string[] {
+  return [...new Set([request.entry, ...(request.entries ?? [])].map(normalizeRelativePath).filter(Boolean))]
+}
+
+function resolveEntryName(document: Record<string, unknown>, fallback: string): string {
+  return typeof document.name === 'string' && document.name.trim()
+    ? document.name.trim()
+    : fallback
+}
+
+function normalizeExcludedPaths(paths: readonly string[] = []): string[] {
+  return [...new Set(paths.map(normalizeRelativePath).filter((path) => (
+    path
+    && !path.startsWith('/')
+    && !/^[a-z]:/i.test(path)
+    && !path.split('/').some((segment) => segment === '.' || segment === '..')
+  )))]
+}
+
+function isExcludedPath(path: string, excludedPaths: readonly string[]): boolean {
+  return excludedPaths.some((excluded) => path === excluded || path.startsWith(`${excluded}/`))
+}
+
 function normalizeArchivePath(value: string): string | null {
   const normalized = value.replace(/\\/g, '/').replace(/\/+$/g, '')
   if (!normalized || normalized.startsWith('/') || /^[a-z]:/i.test(normalized)) return null
@@ -182,6 +206,7 @@ export class ProjectTemplateService {
     const entries = await this.fs.readDirectoryEntries(sourcePath, Number.POSITIVE_INFINITY)
     assertNoSymlinks(entries)
     const documentEntries: string[] = []
+    const entryNames: Record<string, string> = {}
     const coverCandidates: string[] = []
 
     for (const entry of entries) {
@@ -193,7 +218,10 @@ export class ProjectTemplateService {
       const absolutePath = await this.paths.join(sourcePath, ...pathSegments(relativePath))
       try {
         const document = JSON.parse(await this.fs.readFile(absolutePath)) as Record<string, unknown>
-        if (document.type === 'card-document') documentEntries.push(relativePath)
+        if (document.type === 'card-document') {
+          documentEntries.push(relativePath)
+          entryNames[relativePath] = resolveEntryName(document, relativePath)
+        }
       } catch {
         // Invalid documents are omitted; at least one valid entry is required below.
       }
@@ -209,6 +237,7 @@ export class ProjectTemplateService {
       sourcePath,
       suggestedName: await this.paths.basename(sourcePath),
       entries: documentEntries,
+      entryNames,
       coverCandidates,
     }
   }
@@ -217,7 +246,7 @@ export class ProjectTemplateService {
     assertSupportedPackagePath(sourcePath)
     try {
       const archive = await this.readTemplateArchive(sourcePath)
-      return await this.commitUserTemplateArchive(archive.manifest, archive.content)
+      return await this.commitUserTemplateArchive(archive.manifest, archive.content, archive.entryNames)
     } catch (cause) {
       if (cause instanceof TemplateServiceError) throw cause
       throw new TemplateServiceError('invalid-package', 'Selected file is not a valid template package', { cause })
@@ -227,11 +256,24 @@ export class ProjectTemplateService {
   async exportProjectTemplate(request: ExportProjectTemplateRequest): Promise<string> {
     assertValidCreateTemplateRequest(request)
     const inspection = await this.inspectProjectSource(request.sourcePath)
-    const entry = normalizeRelativePath(request.entry)
-    if (!inspection.entries.includes(entry)) throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
+    const entries = normalizeRequestedEntries(request)
+    if (entries.length === 0 || entries.some((entry) => !inspection.entries.includes(entry))) {
+      throw new TemplateServiceError('entry-not-found', 'A template entry is missing')
+    }
+    const entry = entries[0]
     const covers = [...new Set(request.covers.map(normalizeRelativePath))]
     if (covers.some((cover) => !inspection.coverCandidates.includes(cover))) {
       throw new TemplateServiceError('cover-not-found', 'Template cover is missing')
+    }
+    const excludedPaths = normalizeExcludedPaths(request.excludedPaths)
+    if (isExcludedPath(PROJECT_FILE_NAME, excludedPaths)) {
+      throw new TemplateServiceError('source-not-project', 'The project file cannot be excluded')
+    }
+    if (entries.some((candidate) => isExcludedPath(candidate, excludedPaths))) {
+      throw new TemplateServiceError('entry-not-found', 'A selected entry is excluded')
+    }
+    if (covers.some((cover) => isExcludedPath(cover, excludedPaths))) {
+      throw new TemplateServiceError('cover-not-found', 'A selected cover is excluded')
     }
 
     const manifest: ProjectTemplateManifest = {
@@ -240,27 +282,31 @@ export class ProjectTemplateService {
       name: request.name.trim(),
       description: request.description.trim(),
       entry,
+      ...(entries.length > 1 ? { entries } : {}),
       ...(covers.length ? { covers } : {}),
     }
-    const entries = await this.fs.readDirectoryEntries(request.sourcePath, Number.POSITIVE_INFINITY)
-    assertNoSymlinks(entries)
-    const archiveFiles: Record<string, Uint8Array> = {
-      [TEMPLATE_MANIFEST_FILE_NAME]: strToU8(JSON.stringify(manifest, null, 2)),
-    }
-    for (const file of entries) {
-      if (!file.isFile) continue
-      const relativePath = normalizeRelativePath(file.name)
-      const absolutePath = await this.paths.join(request.sourcePath, ...pathSegments(relativePath))
-      archiveFiles[`${TEMPLATE_CONTENT_DIRECTORY_NAME}/${relativePath}`] = await this.fs.readBinaryFile(absolutePath)
-    }
-
     const outputPath = request.outputPath.toLowerCase().endsWith('.octemplete')
       ? request.outputPath
       : `${request.outputPath}.octemplete`
     try {
+      const entries = await this.fs.readDirectoryEntries(request.sourcePath, Number.POSITIVE_INFINITY)
+      assertNoSymlinks(entries)
+      const archiveFiles: Record<string, Uint8Array> = {
+        [TEMPLATE_MANIFEST_FILE_NAME]: strToU8(JSON.stringify(manifest, null, 2)),
+      }
+      for (const file of entries) {
+        if (!file.isFile) continue
+        const relativePath = normalizeRelativePath(file.name)
+        if (relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')) continue
+        if (isExcludedPath(relativePath, excludedPaths)) continue
+        const absolutePath = await this.paths.join(request.sourcePath, ...pathSegments(relativePath))
+        archiveFiles[`${TEMPLATE_CONTENT_DIRECTORY_NAME}/${relativePath}`] = await this.fs.readBinaryFile(absolutePath)
+      }
+
       await this.fs.writeBinaryFile(outputPath, zipSync(archiveFiles, { level: 6 }))
       return outputPath
     } catch (cause) {
+      if (cause instanceof TemplateServiceError) throw cause
       throw new TemplateServiceError('archive-failed', 'Failed to export template package', { cause })
     }
   }
@@ -268,10 +314,11 @@ export class ProjectTemplateService {
   async createUserTemplate(request: CreateUserTemplateRequest): Promise<ProjectTemplate> {
     assertValidCreateTemplateRequest(request)
     const inspection = await this.inspectProjectSource(request.sourcePath)
-    const entry = normalizeRelativePath(request.entry)
-    if (!inspection.entries.includes(entry)) {
-      throw new TemplateServiceError('entry-not-found', 'Selected entry does not exist in the source project')
+    const entries = normalizeRequestedEntries(request)
+    if (entries.length === 0 || entries.some((entry) => !inspection.entries.includes(entry))) {
+      throw new TemplateServiceError('entry-not-found', 'A selected entry does not exist in the source project')
     }
+    const entry = entries[0]
 
     const covers = [...new Set(request.covers.map(normalizeRelativePath))]
     if (covers.some((cover) => !inspection.coverCandidates.includes(cover))) {
@@ -284,9 +331,10 @@ export class ProjectTemplateService {
       name: request.name.trim(),
       description: request.description.trim(),
       entry,
+      ...(entries.length > 1 ? { entries } : {}),
       ...(covers.length > 0 ? { covers } : {}),
     }
-    return await this.commitUserTemplate(manifest, request.sourcePath)
+    return await this.commitUserTemplate(manifest, request.sourcePath, inspection.entryNames)
   }
   async deleteUserTemplate(template: ProjectTemplate): Promise<void> {
     if (template.source !== 'user') {
@@ -315,11 +363,15 @@ export class ProjectTemplateService {
       request.parentPath,
       `.${projectName}.opencard-create-${this.createId()}`,
     )
+    const selectedEntry = normalizeRelativePath(request.entry ?? request.template.entry)
+    if (!resolveTemplateEntries(request.template).includes(selectedEntry)) {
+      throw new TemplateServiceError('entry-not-found', 'Selected template entry is not available')
+    }
 
     try {
       await this.fs.createDirectory(temporaryPath)
       await this.copyDirectory(request.template.contentPath, temporaryPath)
-      const entryPath = await this.paths.join(temporaryPath, ...pathSegments(request.template.entry))
+      const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
       if (!await this.fs.fileExists(entryPath)) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
       }
@@ -333,11 +385,12 @@ export class ProjectTemplateService {
         project: {
           ...projectMetadata.project,
           name: projectName,
-          entry: request.template.entry,
+          entry: selectedEntry,
         },
       }))
+      const createdEntryPath = await this.paths.join(targetPath, ...pathSegments(selectedEntry))
       await this.fs.renameFile(temporaryPath, targetPath)
-      return { path: targetPath, entry: request.template.entry }
+      return { path: targetPath, entry: createdEntryPath }
     } catch (cause) {
       const cleanupCause = await this.removeIfExists(temporaryPath)
       if (cause instanceof TemplateServiceError && !cleanupCause) throw cause
@@ -354,6 +407,7 @@ export class ProjectTemplateService {
   private async readTemplateArchive(sourcePath: string): Promise<{
     manifest: ProjectTemplateManifest
     content: Map<string, Uint8Array>
+    entryNames: Record<string, string>
   }> {
     const bytes = await this.fs.readBinaryFile(sourcePath)
     if (bytes.byteLength > MAX_TEMPLATE_PACKAGE_BYTES) {
@@ -393,22 +447,30 @@ export class ProjectTemplateService {
     if (!parseProjectMetadataText(strFromU8(content.get(PROJECT_FILE_NAME)!))) {
       throw new TemplateServiceError('invalid-package', 'OpenCard project file is invalid')
     }
-    if (!content.has(manifest.entry)) throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
+    const entries = resolveTemplateEntries(manifest)
+    if (entries.some((entry) => !content.has(entry))) {
+      throw new TemplateServiceError('entry-not-found', 'A template entry is missing')
+    }
     for (const cover of manifest.covers ?? []) {
       if (!content.has(cover)) throw new TemplateServiceError('cover-not-found', 'Template cover is missing')
     }
-    try {
-      const document = JSON.parse(strFromU8(content.get(manifest.entry)!)) as Record<string, unknown>
-      if (document.type !== 'card-document') throw new Error('Invalid card document')
-    } catch (cause) {
-      throw new TemplateServiceError('entry-not-found', 'Template entry is invalid', { cause })
+    const entryNames: Record<string, string> = {}
+    for (const entry of entries) {
+      try {
+        const document = JSON.parse(strFromU8(content.get(entry)!)) as Record<string, unknown>
+        if (document.type !== 'card-document') throw new Error('Invalid card document')
+        entryNames[entry] = resolveEntryName(document, entry)
+      } catch (cause) {
+        throw new TemplateServiceError('entry-not-found', 'Template entry is invalid', { cause })
+      }
     }
-    return { manifest, content }
+    return { manifest, content, entryNames }
   }
 
   private async commitUserTemplateArchive(
     manifest: ProjectTemplateManifest,
     content: Map<string, Uint8Array>,
+    entryNames: Readonly<Record<string, string>>,
   ): Promise<ProjectTemplate> {
     const userRoot = await this.resolveUserTemplateRoot()
     await this.fs.createDirectory(userRoot)
@@ -430,7 +492,7 @@ export class ProjectTemplateService {
         await this.paths.join(temporaryRoot, TEMPLATE_MANIFEST_FILE_NAME),
         JSON.stringify(manifest, null, 2),
       )
-      const runtimeTemplate = await this.createRuntimeTemplate(manifest, 'user', finalRoot)
+      const runtimeTemplate = await this.createRuntimeTemplate(manifest, 'user', finalRoot, entryNames)
       await this.fs.renameFile(temporaryRoot, finalRoot)
       return runtimeTemplate
     } catch (cause) {
@@ -443,6 +505,7 @@ export class ProjectTemplateService {
   private async commitUserTemplate(
     manifest: ProjectTemplateManifest,
     sourceContentPath: string,
+    entryNames: Readonly<Record<string, string>>,
   ): Promise<ProjectTemplate> {
     const userRoot = await this.resolveUserTemplateRoot()
     await this.fs.createDirectory(userRoot)
@@ -461,7 +524,7 @@ export class ProjectTemplateService {
         await this.paths.join(temporaryRoot, TEMPLATE_MANIFEST_FILE_NAME),
         JSON.stringify(manifest, null, 2),
       )
-      const runtimeTemplate = await this.createRuntimeTemplate(manifest, 'user', finalRoot)
+      const runtimeTemplate = await this.createRuntimeTemplate(manifest, 'user', finalRoot, entryNames)
       await this.fs.renameFile(temporaryRoot, finalRoot)
       return runtimeTemplate
     } catch (cause) {
@@ -543,8 +606,10 @@ export class ProjectTemplateService {
 
     const contentPath = await this.paths.join(rootPath, TEMPLATE_CONTENT_DIRECTORY_NAME)
     const workspacePath = await this.paths.join(contentPath, PROJECT_FILE_NAME)
-    const entryPath = await this.paths.join(contentPath, ...pathSegments(manifest.entry))
-    if (!await this.fs.fileExists(workspacePath) || !await this.fs.fileExists(entryPath)) {
+    const entryPaths = await Promise.all(resolveTemplateEntries(manifest).map(async (entry) => (
+      await this.paths.join(contentPath, ...pathSegments(entry))
+    )))
+    if (!await this.fs.fileExists(workspacePath) || (await Promise.all(entryPaths.map((path) => this.fs.fileExists(path)))).some((exists) => !exists)) {
       throw new TemplateServiceError('invalid-manifest', `Template content is incomplete: ${rootPath}`)
     }
     if (!parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
@@ -557,19 +622,26 @@ export class ProjectTemplateService {
       }
     }
 
-    try {
-      const document = JSON.parse(await this.fs.readFile(entryPath)) as Record<string, unknown>
-      if (document.type !== 'card-document') throw new Error('Entry is not an OpenCard document')
-    } catch (cause) {
-      throw new TemplateServiceError('invalid-manifest', `Template entry is invalid: ${entryPath}`, { cause })
+    const entryNames: Record<string, string> = {}
+    const templateEntries = resolveTemplateEntries(manifest)
+    for (const [index, entryPath] of entryPaths.entries()) {
+      try {
+        const document = JSON.parse(await this.fs.readFile(entryPath)) as Record<string, unknown>
+        if (document.type !== 'card-document') throw new Error('Entry is not an OpenCard document')
+        const relativePath = templateEntries[index]
+        if (relativePath) entryNames[relativePath] = resolveEntryName(document, relativePath)
+      } catch (cause) {
+        throw new TemplateServiceError('invalid-manifest', `Template entry is invalid: ${entryPath}`, { cause })
+      }
     }
-    return this.createRuntimeTemplate(manifest, source, rootPath)
+    return this.createRuntimeTemplate(manifest, source, rootPath, entryNames)
   }
 
   private async createRuntimeTemplate(
     manifest: ProjectTemplateManifest,
     source: ProjectTemplateSource,
     rootPath: string,
+    entryNames: Readonly<Record<string, string>> = {},
   ): Promise<ProjectTemplate> {
     const contentPath = await this.paths.join(rootPath, TEMPLATE_CONTENT_DIRECTORY_NAME)
     const coverPaths = await Promise.all((manifest.covers ?? []).map(async (cover) => (
@@ -582,6 +654,7 @@ export class ProjectTemplateService {
       rootPath,
       contentPath,
       coverPaths,
+      entryNames: { ...entryNames },
     }
   }
 

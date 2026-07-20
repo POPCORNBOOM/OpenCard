@@ -237,6 +237,7 @@ describe('CreateProjectWorkspace', () => {
       sourcePath: '/source/project',
       suggestedName: 'Imported project',
       entries: ['cards.opencard', 'tokens.opencard'],
+      entryNames: { 'cards.opencard': 'Cards', 'tokens.opencard': 'Tokens' },
       coverCandidates: ['assets/cover-a.png', 'assets/cover-b.webp'],
     }
     vi.mocked(store.inspectProjectSource).mockResolvedValue(inspection)
@@ -250,7 +251,7 @@ describe('CreateProjectWorkspace', () => {
 
     const editor = wrapper.get('.create-project__template-editor')
     expect(store.inspectProjectSource).toHaveBeenCalledWith(inspection.sourcePath)
-    expect(editor.findAll('option').map((option) => option.text())).toEqual(inspection.entries)
+    expect(editor.findAll('option').map((option) => option.text())).toEqual(['Cards', 'Tokens'])
 
     await editor.findAll<HTMLInputElement>('input[type="checkbox"]')[1].setValue(true)
     await editor.findAll('button').find((button) => button.text() === 'Save template')!.trigger('click')
@@ -261,6 +262,7 @@ describe('CreateProjectWorkspace', () => {
       name: inspection.suggestedName,
       description: '',
       entry: inspection.entries[0],
+      entries: [inspection.entries[0]],
       covers: ['assets/cover-b.webp'],
     })
     expect(wrapper.emitted('update:selectedKey')).toEqual([[user.key]])
@@ -309,5 +311,28 @@ describe('CreateProjectWorkspace', () => {
     await flushPromises()
 
     expect(wrapper.emitted('created')).toEqual([[created]])
+  })
+
+  it('creates a project with the selected candidate entry', async () => {
+    const multiEntry = {
+      ...builtin,
+      entries: ['main.opencard', 'alternate.opencard'],
+      entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
+    }
+    store = createStore([multiEntry])
+    const wrapper = mountWorkspace(multiEntry.key)
+    await flushPromises()
+
+    expect(wrapper.get('.create-project__form select').findAll('option').map((option) => option.text()))
+      .toEqual(['Main Blueprint', 'Alternate Blueprint'])
+
+    await wrapper.get('.create-project__form select').setValue('alternate.opencard')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(store.createProject).toHaveBeenCalledWith(expect.objectContaining({
+      template: multiEntry,
+      entry: 'alternate.opencard',
+    }))
   })
 })

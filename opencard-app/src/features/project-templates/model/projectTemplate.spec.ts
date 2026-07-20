@@ -14,6 +14,7 @@ describe('project template model', () => {
       name: '  Tactical Showcase  ',
       description: '  Advanced demo  ',
       entry: 'cards\\main.opencard',
+      entries: ['cards\\main.opencard', 'cards/alternate.opencard', 'cards/alternate.opencard'],
       covers: ['assets\\cover.png', 'assets/cover.png', 'assets/second.webp'],
     })).toEqual({
       schemaVersion: 1,
@@ -21,6 +22,7 @@ describe('project template model', () => {
       name: 'Tactical Showcase',
       description: 'Advanced demo',
       entry: 'cards/main.opencard',
+      entries: ['cards/main.opencard', 'cards/alternate.opencard'],
       covers: ['assets/cover.png', 'assets/second.webp'],
     })
   })
@@ -75,6 +77,17 @@ describe('project template model', () => {
       name: 'Template',
       description: '',
       entry,
+    })).toBeNull()
+  })
+
+  it('rejects candidate entries that omit the default entry', () => {
+    expect(parseProjectTemplateManifest({
+      schemaVersion: 1,
+      id: 'valid-id',
+      name: 'Template',
+      description: '',
+      entry: 'main.opencard',
+      entries: ['alternate.opencard'],
     })).toBeNull()
   })
 })

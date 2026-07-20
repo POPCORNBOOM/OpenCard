@@ -82,6 +82,38 @@ describe('OcTree', () => {
     }])
   })
 
+  it('keeps expanded descendants of the selected branch in expand-exclusive mode', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['root', 'other'],
+          items: [
+            ['root', { label: 'Root' }],
+            ['parent', { label: 'Parent' }],
+            ['selected', { label: 'Selected' }],
+            ['child', { label: 'Child' }],
+            ['other', { label: 'Other' }],
+          ],
+          children: [
+            ['root', ['parent']],
+            ['parent', ['selected']],
+            ['selected', ['child']],
+          ],
+        }),
+        selectedKeys: ['selected'],
+        expandedKeys: ['other', 'selected', 'child'],
+        selectionExpansionMode: 'expand-exclusive',
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toContainEqual([{
+      type: 'expansion.sync',
+      expandedKeys: ['parent', 'root', 'selected', 'child'],
+      reason: 'selection',
+    }])
+  })
+
   it('scrolls the tree viewport to a selected row only when enabled', async () => {
     const data = createData({
       roots: ['first', 'second'],

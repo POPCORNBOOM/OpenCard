@@ -88,6 +88,9 @@ const darkTheme: OcThemeTokens = {
   '--oc-size-sm': '22px',
   '--oc-size-md': '28px',
   '--oc-size-lg': '36px',
+  '--oc-list-max-height-sm': '144px',
+  '--oc-list-max-height-md': '240px',
+  '--oc-list-max-height-lg': '320px',
   '--oc-property-row-height': '28px',
   '--oc-property-row-expanded-height': '112px',
 
@@ -193,6 +196,9 @@ const lightTheme: OcThemeTokens = {
   '--oc-size-sm': '22px',
   '--oc-size-md': '26px',
   '--oc-size-lg': '34px',
+  '--oc-list-max-height-sm': '144px',
+  '--oc-list-max-height-md': '240px',
+  '--oc-list-max-height-lg': '320px',
   '--oc-property-row-height': '26px',
   '--oc-property-row-expanded-height': '104px',
 

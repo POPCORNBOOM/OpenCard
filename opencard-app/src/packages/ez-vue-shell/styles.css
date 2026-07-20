@@ -575,7 +575,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px 4px;
+  padding: 0px;
   color: var(--color-text-tertiary);
   font-size: 11px;
   letter-spacing: 0;

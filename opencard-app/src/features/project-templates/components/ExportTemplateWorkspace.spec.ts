@@ -13,6 +13,8 @@ const messages = {
   templateExport: {
     title: 'Export Project Template', projectTitle: 'Current project', formTitle: 'Template information',
     unnamed: 'Untitled', format: 'Format', formatHint: 'Hint', actions: { export: 'Export Template' },
+    previewTitle: 'Preview', previewDescription: 'Description', excluded: 'Excluded',
+    selectEntry: 'Select entry', selectionHint: 'Use tree',
     dialogs: { chooseOutput: 'Choose output' },
     status: { inspecting: 'Inspecting', exporting: 'Exporting', exported: 'Exported' },
   },
@@ -31,7 +33,8 @@ describe('ExportTemplateWorkspace', () => {
   beforeEach(() => {
     store = {
       inspectProjectSource: vi.fn(async () => ({
-        sourcePath: '/project', suggestedName: 'Portable', entries: ['main.opencard'],
+        sourcePath: '/project', suggestedName: 'Portable', entries: ['main.opencard', 'alternate.opencard'],
+        entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
         coverCandidates: ['cover.png'],
       })),
       pickTemplateExportPath: vi.fn(async () => '/exports/Portable.octemplete'),
@@ -47,7 +50,14 @@ describe('ExportTemplateWorkspace', () => {
     })
     await flushPromises()
 
-    await wrapper.get('input[type="checkbox"]').setValue(true)
+    const workspace = wrapper.vm as unknown as {
+      toggleCover(path: string): void
+      toggleEntry(path: string): void
+      togglePathIncluded(path: string): void
+    }
+    workspace.toggleCover('cover.png')
+    workspace.toggleEntry('alternate.opencard')
+    workspace.togglePathIncluded('notes')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
@@ -58,8 +68,17 @@ describe('ExportTemplateWorkspace', () => {
       name: 'Portable',
       description: '',
       entry: 'main.opencard',
+      entries: ['main.opencard', 'alternate.opencard'],
       covers: ['cover.png'],
+      excludedPaths: ['notes'],
     })
+    const selectionEvents = wrapper.emitted('selection-change') ?? []
+    expect(selectionEvents[selectionEvents.length - 1]).toEqual([{
+      entries: ['main.opencard', 'alternate.opencard'],
+      entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
+      covers: ['cover.png'],
+      excludedPaths: ['notes'],
+    }])
     expect(wrapper.text()).toContain('/exports/Portable.octemplete')
   })
 })

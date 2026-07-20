@@ -11,6 +11,7 @@ export interface ProjectTemplateManifest {
   name: string
   description: string
   entry: string
+  entries?: readonly string[]
   covers?: readonly string[]
 }
 
@@ -20,6 +21,7 @@ export interface ProjectTemplate extends ProjectTemplateManifest {
   rootPath: string
   contentPath: string
   coverPaths: readonly string[]
+  entryNames?: Readonly<Record<string, string>>
 }
 
 export interface TemplateCatalogWarning {
@@ -36,6 +38,7 @@ export interface TemplateProjectInspection {
   sourcePath: string
   suggestedName: string
   entries: string[]
+  entryNames: Record<string, string>
   coverCandidates: string[]
 }
 
@@ -44,17 +47,27 @@ export interface CreateUserTemplateRequest {
   name: string
   description: string
   entry: string
+  entries?: string[]
   covers: string[]
 }
 
 export interface ExportProjectTemplateRequest extends CreateUserTemplateRequest {
   outputPath: string
+  excludedPaths: string[]
 }
 
 export interface CreateProjectFromTemplateRequest {
   template: ProjectTemplate
   parentPath: string
   projectName: string
+  entry?: string
+}
+
+export interface TemplateExportSelection {
+  excludedPaths: string[]
+  entries: string[]
+  entryNames: Record<string, string>
+  covers: string[]
 }
 
 export interface CreatedProject {
@@ -124,6 +137,11 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
     return null
   }
   if (typeof value.entry !== 'string' || !isSafeRelativePath(value.entry)) return null
+  if (value.entries !== undefined && (
+    !Array.isArray(value.entries)
+    || value.entries.length === 0
+    || !value.entries.every((entry) => typeof entry === 'string' && isSafeRelativePath(entry))
+  )) return null
   if (value.covers !== undefined && (
     !Array.isArray(value.covers)
     || !value.covers.every((cover) => (
@@ -135,15 +153,25 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
   const covers = Array.isArray(value.covers)
     ? [...new Set(value.covers.map((cover) => cover.replace(/\\/g, '/').trim()))]
     : []
+  const entry = value.entry.replace(/\\/g, '/').trim()
+  const entries = Array.isArray(value.entries)
+    ? [...new Set(value.entries.map((candidate) => candidate.replace(/\\/g, '/').trim()))]
+    : []
+  if (entries.length > 0 && !entries.includes(entry)) return null
 
   return {
     schemaVersion: PROJECT_TEMPLATE_SCHEMA_VERSION,
     id: value.id,
     name: value.name.trim(),
     description: value.description.trim(),
-    entry: value.entry.replace(/\\/g, '/').trim(),
+    entry,
+    ...(entries.length > 0 ? { entries } : {}),
     ...(covers.length > 0 ? { covers } : {}),
   }
+}
+
+export function resolveTemplateEntries(template: Pick<ProjectTemplateManifest, 'entry' | 'entries'>): string[] {
+  return [...new Set([template.entry, ...(template.entries ?? [])])]
 }
 
 export function isSafeProjectTemplateId(value: string): boolean {

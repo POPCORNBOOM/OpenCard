@@ -13,6 +13,10 @@ export const iconTokens = {
   'action.discard': true,
   'action.edit': true,
   'action.export': true,
+  'action.file-minus': true,
+  'action.file-plus': true,
+  'action.image-minus': true,
+  'action.image-plus': true,
   'action.play': true,
   'action.publish': true,
   'action.refresh': true,
@@ -83,6 +87,7 @@ export const iconTokens = {
 
   'status.error': true,
   'status.eye': true,
+  'status.eye-off': true,
   'status.folder-open': true,
   'status.folder-alert': true,
   'status.source-control': true,

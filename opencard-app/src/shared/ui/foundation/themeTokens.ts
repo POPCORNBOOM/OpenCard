@@ -107,6 +107,11 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-size-md',
   '--oc-size-lg',
 
+  // 列表高度上限
+  '--oc-list-max-height-sm',
+  '--oc-list-max-height-md',
+  '--oc-list-max-height-lg',
+
   // 属性编辑器行高
   '--oc-property-row-height',
   '--oc-property-row-expanded-height',

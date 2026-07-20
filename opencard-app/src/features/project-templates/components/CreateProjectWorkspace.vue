@@ -27,7 +27,7 @@
           <dl>
             <div>
               <dt>{{ t('projectTemplates.fields.entry') }}</dt>
-              <dd><code>{{ selectedTemplate.entry }}</code></dd>
+              <dd><code>{{ selectedTemplateEntryName(selectedEntry) }}</code></dd>
             </div>
           </dl>
           <div v-if="selectedTemplate.source === 'user'" class="create-project__details-actions">
@@ -94,7 +94,7 @@
               @change="templateEntry = ($event.target as HTMLSelectElement).value"
             >
               <option v-for="entry in templateInspection.entries" :key="entry" :value="entry">
-                {{ entry }}
+                {{ templateInspection.entryNames[entry] ?? entry }}
               </option>
             </OcFieldInput>
           </label>
@@ -146,6 +146,21 @@
           <small v-if="projectNameError" class="is-error">{{ t('projectTemplates.errors.invalidProjectName') }}</small>
         </label>
 
+        <label v-if="selectedTemplate">
+          <span>{{ t('projectTemplates.fields.entry') }}</span>
+          <OcFieldInput
+            as="select"
+            :value="selectedEntry"
+            full-width
+            :disabled="isBusy"
+            @change="selectedEntry = ($event.target as HTMLSelectElement).value"
+          >
+            <option v-for="entry in selectedTemplateEntries" :key="entry" :value="entry">
+              {{ selectedTemplateEntryName(entry) }}
+            </option>
+          </OcFieldInput>
+        </label>
+
         <label>
           <span>{{ t('projectTemplates.fields.location') }}</span>
           <div class="create-project__path-field">
@@ -182,6 +197,7 @@ import { useI18n } from 'vue-i18n'
 import { OcButton, OcFieldInput, OcIcon } from '../../../components/base'
 import {
   TemplateServiceError,
+  resolveTemplateEntries,
   validateProjectName,
   validateTemplateDescription,
   validateTemplateName,
@@ -212,6 +228,7 @@ const store = useProjectTemplateStore()
 const appSettingsStore = useAppSettingsStore()
 
 const projectName = ref(t('projectTemplates.defaults.projectName'))
+const selectedEntry = ref('')
 const parentPath = ref(appSettingsStore.settings.value.projectCreation.lastParentPath)
 const isCreating = ref(false)
 const isImporting = ref(false)
@@ -230,6 +247,13 @@ const coverSlideIndex = ref(0)
 let coverSlideTimer: ReturnType<typeof setInterval> | null = null
 
 const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(props.selectedKey) : null)
+const selectedTemplateEntries = computed(() => (
+  selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
+))
+
+function selectedTemplateEntryName(entry: string): string {
+  return selectedTemplate.value?.entryNames?.[entry] ?? entry
+}
 const selectedCoverSources = computed(() => (
   selectedTemplate.value?.coverPaths.map((path) => convertFileSrc(path)) ?? []
 ))
@@ -255,6 +279,7 @@ const targetPreview = computed(() => {
 })
 const canCreate = computed(() => Boolean(
   selectedTemplate.value
+  && selectedEntry.value
   && parentPath.value
   && projectName.value.trim()
   && !projectNameError.value
@@ -270,7 +295,8 @@ const canSaveTemplate = computed(() => Boolean(
 
 watch(() => props.selectedKey, () => {
   pendingDeleteKey.value = null
-})
+  selectedEntry.value = selectedTemplateEntries.value[0] ?? ''
+}, { immediate: true })
 
 watch(selectedCoverSources, (sources) => {
   stopCoverSlideshow()
@@ -377,6 +403,7 @@ async function confirmCreateTemplate(): Promise<void> {
       name: templateName.value,
       description: templateDescription.value,
       entry: templateEntry.value,
+      entries: [templateEntry.value],
       covers: templateCovers.value,
     })
     emit('update:selectedKey', created.key)
@@ -415,6 +442,7 @@ async function createProject(): Promise<void> {
       template: selectedTemplate.value,
       parentPath: parentPath.value,
       projectName: projectName.value,
+      entry: selectedEntry.value,
     })
     emit('created', project)
   } catch (cause) {

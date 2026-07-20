@@ -15,7 +15,10 @@ const { t } = useI18n()
 <template>
   <section class="workspace-empty-state" :aria-label="t('app.welcome.title')">
     <img class="workspace-empty-state__icon" :src="'/icon_v2.png'" alt="" />
-    <h1>{{ t('app.welcome.title') }}</h1>
+    <h1>
+      <span>{{ t('app.welcome.prefix') }}</span>
+      <img class="workspace-empty-state__wordmark" src="/OpenCard_Icon.png" alt="OpenCard" />
+    </h1>
     <p>{{ t('app.welcome.subtitle') }}</p>
     <div class="workspace-empty-state__actions">
       <OcButton icon="action.add" variant="solid" size="lg" @click="emit('new-project')">
@@ -57,8 +60,19 @@ const { t } = useI18n()
 }
 
 .workspace-empty-state h1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-1);
   font-size: var(--oc-text-lg);
   font-weight: var(--font-weight-ui-title);
+}
+
+.workspace-empty-state__wordmark {
+  width: auto;
+  height: 22px;
+  max-width: 132px;
+  object-fit: contain;
 }
 
 .workspace-empty-state p {
