@@ -58,6 +58,7 @@ export const iconTokens = {
   'data.symbol-key': true,
   'data.symbol-number': true,
   'data.symbol-string': true,
+  'data.variable': true,
 
   'format.align-start': true,
   'format.align-center': true,

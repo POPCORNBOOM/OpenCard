@@ -6,28 +6,35 @@ import {
 } from './referenceCompletion'
 
 const context: ReferenceCompletionContext = {
+  targetKind: 'string',
   scopes: [
+    {
+      token: 's',
+      label: '当前块',
+      fields: [{ key: 'title', valueKind: 'string' }],
+    },
     {
       token: 'c',
       label: '当前卡片',
-      typeName: 'card-instance',
-      record: {
-        type: 'card-instance',
-        id: 'instance-1',
-        name: 'Card A',
-        amount: 2,
-        data: {},
-      },
+      fields: [
+        { key: 'name', valueKind: 'string' },
+        { key: 'amount', valueKind: 'number' },
+      ],
     },
     {
       token: 'd',
       label: '当前文档',
-      typeName: 'card-document',
-      record: {
-        type: 'card-document',
-        id: 'document-1',
-        name: 'Document A',
-      },
+      fields: [{ key: 'name', valueKind: 'string' }],
+    },
+    {
+      token: 'p',
+      label: '父容器',
+      fields: [{ key: 'name', valueKind: 'string' }],
+    },
+    {
+      token: 'p.p',
+      label: '祖父容器',
+      fields: [{ key: 'name', valueKind: 'string' }],
     },
   ],
 }
@@ -37,8 +44,11 @@ describe('referenceCompletion', () => {
     const state = resolveReferenceCompletion('{{}}', 2, context)
 
     expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
+      's:',
       'c:',
       'd:',
+      'p:',
+      'p.p:',
     ])
   })
 
@@ -47,6 +57,15 @@ describe('referenceCompletion', () => {
 
     expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
       'c:name',
+    ])
+  })
+
+  it('matches scope tokens case-insensitively and filters by target kind', () => {
+    const numberContext: ReferenceCompletionContext = { ...context, targetKind: 'number' }
+    const state = resolveReferenceCompletion('{{C:}}', 4, numberContext)
+
+    expect(state?.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
+      'c:amount',
     ])
   })
 

@@ -174,7 +174,9 @@
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
                   <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode" :reference-contexts="referenceCompletionContexts"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
-                    @reset-property="resetBlockProp" />
+                    @reset-property="resetBlockProp"
+                    @create-custom-field="createCustomField"
+                    @delete-custom-field="deleteCustomField" />
                 </OcPanel>
               </OcCard>
             </div>
@@ -203,6 +205,10 @@ import {
   prepareDocumentForRender,
   applyInstance,
   resolveReferences,
+  exposesCardFieldReference,
+  getCardFieldDefinition,
+  getCardFieldKeys,
+  getCardFieldValueKind,
   type CardBlock,
   type CardDocument,
   getBlockTreeIcon,
@@ -224,7 +230,10 @@ import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/
 import OcText from '../base/OcText.vue'
 import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
 import type { CardDesignerLayoutState } from '../../features/editor-runtime/model/editorUiState'
-import type { ReferenceCompletionContext } from '../../features/editor-runtime/services/referenceCompletion'
+import type {
+  ReferenceCompletionContext,
+  ReferenceCompletionScope,
+} from '../../features/editor-runtime/services/referenceCompletion'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -232,7 +241,7 @@ const BLUEPRINT_CARD_ID = '__blueprint__'
 // 组件输入输出
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 type ResizeTarget = 'left-width' | 'right-width' | 'left-stack' | 'right-stack'
 type SidebarPairState = {
@@ -788,6 +797,8 @@ const {
   updateProperty: updateBlockProp,
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
+  createCustomField,
+  deleteCustomField,
 } = useCdePropertyPanelState({
   cardDoc,
   selectedLocation,
@@ -800,7 +811,32 @@ const {
   markDocumentChanged,
 })
 
-const referenceCompletionContexts = computed<Readonly<Record<string, ReferenceCompletionContext>>>(() => {
+type PropertyReferenceContexts = Readonly<Record<string, Readonly<Record<string, ReferenceCompletionContext>>>>
+
+function createReferenceScope(
+  token: string,
+  label: string,
+  record: Record<string, unknown>,
+): ReferenceCompletionScope {
+  const customFields = record.customFields as Record<string, { title?: string }> | undefined
+  return {
+    token,
+    label,
+    fields: getCardFieldKeys(record)
+      .filter((fieldKey) => exposesCardFieldReference(record, fieldKey))
+      .map((fieldKey) => ({
+        key: fieldKey,
+        label: customFields?.[fieldKey]?.title ?? (() => {
+          const displayKey = getCardFieldDefinition(record, fieldKey)?.displayFieldKey ?? fieldKey
+          const messageKey = `propertyEditor.fields.${displayKey}`
+          return te(messageKey) ? t(messageKey) : fieldKey
+        })(),
+        valueKind: getCardFieldValueKind(record, fieldKey),
+      })),
+  }
+}
+
+const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
   const document = cardDoc.value
   if (!document) {
     return {}
@@ -809,25 +845,28 @@ const referenceCompletionContexts = computed<Readonly<Record<string, ReferenceCo
   const currentCard = selectedCardId.value === BLUEPRINT_CARD_ID || !selectedCard.value
     ? document
     : selectedCard.value
-  const scopes: ReferenceCompletionContext['scopes'] = [
-    {
-      token: 'c',
-      label: selectedCardId.value === BLUEPRINT_CARD_ID
+  const scopes: ReferenceCompletionScope[] = [
+    createReferenceScope(
+      'c',
+      selectedCardId.value === BLUEPRINT_CARD_ID
         ? t('propertyEditor.references.currentCardBlueprint')
         : t('propertyEditor.references.currentCard'),
-      typeName: currentCard.type,
-      record: currentCard as unknown as Record<string, unknown>,
-    },
-    {
-      token: 'd',
-      label: t('propertyEditor.references.document'),
-      typeName: document.type,
-      record: document as unknown as Record<string, unknown>,
-    },
+      currentCard as unknown as Record<string, unknown>,
+    ),
+    createReferenceScope(
+      'd',
+      t('propertyEditor.references.document'),
+      document as unknown as Record<string, unknown>,
+    ),
   ]
 
   const block = selectedBlock.value
   if (block) {
+    scopes.push(createReferenceScope(
+      's',
+      t('propertyEditor.references.self'),
+      block as unknown as Record<string, unknown>,
+    ))
     let currentBlockId = block.id
     let depth = 1
 
@@ -837,22 +876,28 @@ const referenceCompletionContexts = computed<Readonly<Record<string, ReferenceCo
         break
       }
 
-      scopes.push({
-        token: Array.from({ length: depth }, () => 'p').join('.'),
-        label: depth === 1
+      scopes.push(createReferenceScope(
+        Array.from({ length: depth }, () => 'p').join('.'),
+        depth === 1
           ? t('propertyEditor.references.parent')
           : t('propertyEditor.references.ancestor', { depth }),
-        typeName: parent.type,
-        record: parent as unknown as Record<string, unknown>,
-      })
+        parent as unknown as Record<string, unknown>,
+      ))
       currentBlockId = parent.id
       depth += 1
     }
   }
 
-  return Object.fromEntries(
-    propertyInputs.value.map((input) => [input.key, { scopes }]),
-  )
+  return Object.fromEntries(propertyInputs.value.map((input) => [
+    input.key,
+    Object.fromEntries(getCardFieldKeys(input.record).map((fieldKey) => [
+      fieldKey,
+      {
+        scopes,
+        targetKind: getCardFieldValueKind(input.record, fieldKey),
+      },
+    ])),
+  ]))
 })
 
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {

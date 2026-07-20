@@ -1,102 +1,164 @@
-# Property Binding and Custom Fields Task
+# PropertyEditor Generalization, Additional Fields, and Completion Providers
 
 ## Goal
 
-将属性绑定改为默认允许、显式禁止的黑名单协议，并让蓝图 Block 可以定义带类型的自定义字段。实例继承全部蓝图自定义字段，编辑时沿用现有 override/reset 语义。非字符串字段通过独立绑定按钮选择变量，绑定后使用统一绑定控件展示。
+将 PropertyEditor 收紧为通用 records 展示器：上级提供 record、完整字段 UI definitions 和 Category definitions；PropertyEditor 不查询 Card schema、不读取领域对象、不管理新增字段弹窗，也不知道 binding、parent 或文件系统语义。
+
+Block 的额外字段值与原生字段值平铺在根部，仅额外字段的 `datatype/title` 持久化在 `additionalFieldDefinition`。补全统一为静态候选或上级 Provider，EditorField 只执行通用输入规则、显示候选并返回新值。
 
 ## Locked Decisions
 
-- [ ] 删除 `referenceInput/referenceReadable` 白名单语义，改为 `acceptsBinding?: false` 与 `exposesReference?: false`。
-- [ ] 普通值保持真实 `string/number/boolean` 类型；只有绑定值保存为完整 `{{...}}` 字符串。
-- [ ] 第一版绑定兼容性按 `string/number/boolean/object` 基础值类型判断，不做数字字符串等隐式转换。
-- [ ] 自定义字段结构化存储在 `BaseBlock.customFields`，不把任意 key 平铺到 Block 根对象。
-- [ ] 自定义字段只允许蓝图创建；实例自动显示全部字段，首次编辑写入 `instance.data[blockId][fieldKey]`，reset 删除该 override。
-- [ ] 实例的自定义 Category 不显示新增按钮。
-- [ ] 自定义字段创建使用弹窗：选择 datatype、输入稳定 key、输入可选显示标题。
-- [ ] 删除字段需要二次确认，并同步删除所有实例中的同名 override；已有引用不自动改写，继续由 diagnostics 报错。
-- [ ] 不提供旧文件兼容层或迁移适配器。
+- [ ] 不保留兼容层，不迁移旧 `customFields` 文件。
+- [ ] 原生字段 definition 由上级根据 `record.type + schema` 取得，额外字段 definition 来自 `additionalFieldDefinition`，合并后送入 PropertyEditor。
+- [ ] PropertyEditor 永远只消费 records 和已解析 UI definitions，不调用 Card schema 或 Store。
+- [ ] `datatype -> Vue EditorField` 映射继续内化在 PropertyEditor。
+- [ ] Category 标题、图标和顺序由上级传入；缺失或无效 Category 统一进入 PropertyEditor 自动生成的“其他”，并排在最后。
+- [ ] 缺失但 schema 已定义的原生字段继续由 Category 内添加菜单处理。
+- [ ] 属性卡片标题栏加号只负责创建全新额外字段；弹窗、校验和写回全部由上级控制。
+- [ ] `deletable` 是字段 UI definition 的通用能力；第一次点击进入待确认态，第二次点击同一按钮才 emit 删除，无弹窗、无影响数量提示。
+- [ ] 普通值保持真实 `string/number/boolean`；只有 binding 保存完整 `{{...}}` 字符串。
+- [ ] binding 采用默认允许、显式禁止的 `acceptsBinding?: false / exposesReference?: false` 黑名单。
 
-## Domain Contract
+## Persisted Domain Contract
 
 ```ts
-type BindingValueKind = 'string' | 'number' | 'boolean' | 'object'
-
-type CustomFieldDatatype =
-  | 'string'
-  | 'filePath'
-  | 'anchorPosition'
-  | 'alignPosition'
-  | 'verticalAlignPosition'
-  | 'flowDirection'
-  | 'number'
-  | 'boolean'
-  | 'color'
-
-interface CustomFieldDefinition {
+interface AdditionalFieldDefinition {
+  datatype: PropertyDatatype
   title?: string
-  datatype: CustomFieldDatatype
-  value: unknown
 }
 
 interface BaseBlock {
-  customFields?: Record<string, CustomFieldDefinition>
+  additionalFieldDefinition?: Record<string, AdditionalFieldDefinition>
 }
 ```
 
-- [ ] 字段 key 满足 `^[A-Za-z_][A-Za-z0-9_]*$`。
-- [ ] key 不区分大小写检查重复，不得与内置字段、schema 字段、已有自定义字段或结构保留名冲突。
-- [ ] title trim 后为空即省略，Property Editor 回退显示 key。
-- [ ] 建立统一字段访问器，供实例投影、补全和引用解析读取内置字段及 `customFields[key].value`。
-- [ ] `applyInstance` 将自定义字段 override 写入投影后的 `customFields[key].value`，实例文件仍保持现有扁平 override 结构。
+额外字段值直接写在 Block 根部：
 
-## Binding Runtime
+```ts
+{
+  type: 'text-block',
+  id: 'text-1',
+  content: 'Damage',
+  score: 12,
+  additionalFieldDefinition: {
+    score: { datatype: 'number', title: '分数' },
+  },
+}
+```
 
-- [ ] 新增 `{{s:field}}` 当前 Block scope，并保留 `c/d/p/p.p`。
-- [ ] 自由字符串允许混合插值；number、boolean 等非字符串目标只接受完整单 token 表达式。
-- [ ] string 目标接受 string、number、boolean 来源并显式字符串化。
-- [ ] number 目标只接受 number，boolean 目标只接受 boolean，object/array 不允许绑定。
-- [ ] 补全按目标类型过滤来源；运行时再次检查声明类型和解析后的实际值。
-- [ ] 保留循环引用、最大深度、来源缺失和字段缺失 diagnostics，并补充目标不允许绑定与类型不兼容错误。
-- [ ] schema 外标量字段默认可绑定且可被绑定；系统、结构和敏感字段必须显式标记禁止。
+- [ ] 删除 `CustomFieldDefinition/CustomFieldMap/CustomFieldDatatype/customFieldDatatypes/customFields`。
+- [ ] `additionalFieldDatatypes` 只是 `readonly PropertyDatatype[]` 创建允许列表，不创建第二套 datatype 类型。
+- [ ] `additionalFieldDefinition` 在 Card schema 中隐藏，并禁止 binding 与 reference exposure。
+- [ ] key 使用 `^[A-Za-z_][A-Za-z0-9_]*$`，不区分大小写检查原生 schema、Block 根字段、额外定义和保留结构名冲突。
+- [ ] 创建时使用通用 `createPropertyDefaultValue()`，写入根值与 definition。
+- [ ] 删除时删除根值、definition 和所有实例同名 override；遗留表达式继续产生 `FIELD_NOT_FOUND`。
+- [ ] `applyInstance` 将 override 直接写到投影 Block 根字段；实例仍使用 `instance.data[blockId][fieldKey]`。
 
-## Property Editor UI
+## PropertyEditor Public Contract
 
-- [ ] 新增专用 `custom` Category 和语义图标。
-- [ ] 蓝图自定义 Category 显示加号；点击后打开创建弹窗，不扩展公共 Action 为通用表单引擎。
-- [ ] 创建弹窗使用受控 draft，包含 datatype 菜单、key、可选 title、取消和确认；校验失败保持弹窗并显示具体原因。
-- [ ] Property Editor 只 emit key-only 创建/删除意图，不直接修改 Block。
-- [ ] 蓝图自定义字段行提供删除 Action；确认弹窗说明将清理的实例 override 数量，以及引用不会自动重写。
-- [ ] 实例行与内置字段一致：继承值正常显示，编辑后出现 Modified/reset，reset 恢复蓝图值。
-- [ ] 所有允许绑定但不使用自由文本引用编辑器的字段，在值区域右侧显示小型变量绑定按钮。
-- [ ] 点击绑定按钮打开按 scope 分组并经过类型过滤的字段选择器。
-- [ ] 字段处于绑定状态时，用统一绑定控件替代 number/color/boolean 等 literal editor，并支持更换与解除绑定。
-- [ ] 解除绑定恢复该 datatype 默认值，不保存最后一次解析结果。
+```ts
+type PropertyEditorRecord = Readonly<Record<string, unknown>>
 
-## Store and Intent Flow
+interface PropertyEditorInput {
+  key: string
+  title?: string
+  record: PropertyEditorRecord
+  fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
+}
 
-- [ ] Property Editor 输入 ViewModel 显式携带自定义字段 key、显示标题、动态 definition、创建/删除能力和绑定候选；UI 不接收 Card 领域对象。
-- [ ] 新增 `custom-field.create`、`custom-field.delete` 与 binding update 意图，均包含稳定 source key 和 field key。
-- [ ] Card Designer Store 负责创建默认值、写回 `customFields`、建立实例 override、reset 和跨实例删除清理。
-- [ ] 删除确认影响信息由上级准备，Property Editor 不扫描文档或实例。
-- [ ] 引用补全上下文改为准备好的 scope/field/valueKind 列表，不让补全 UI 自行查询 Card schema 或模型。
+interface PropertyEditorCategoryDefinition {
+  title: string
+  icon?: IconToken
+}
 
-## Verification
+interface PropertyEditorProps {
+  inputs: readonly PropertyEditorInput[]
+  categories?: ReadonlyMap<string, PropertyEditorCategoryDefinition>
+  sortMode?: 'category' | 'alphabetical'
+}
+```
 
-- [ ] Schema 默认权限、显式黑名单和 schema 外字段行为测试。
-- [ ] `s/c/d/p/p.p` 补全、大小写、光标移动和上下文更新测试。
-- [ ] 基础类型兼容矩阵、完整 token、字符串插值、循环及错误 diagnostics 测试。
-- [ ] 蓝图自定义字段创建、key/title 校验、各标量默认值和持久化测试。
-- [ ] 实例继承、首次编辑 override、reset、自定义字段实例投影测试。
-- [ ] 删除二次确认、跨实例 override 清理和遗留引用错误测试。
-- [ ] Property Editor 创建弹窗、绑定按钮、绑定态控件和键盘/焦点交互测试。
-- [ ] 更新 model、schema、Property Editor 与 reference completion 的 `.shadow` 约束。
-- [ ] 运行完整 Vitest、`vue-tsc`、生产构建、UI lint 与 `git diff --check`。
+`PropertyEditorFieldDefinition` 是上级解析完成的 UI definition，在现有 datatype constraints 同级增加：
 
-## Implementation Order
+```ts
+{
+  title: string
+  category?: string
+  resettable?: boolean
+  deletable?: boolean
+  autoPairs?: readonly PropertyInputPair[]
+  completion?: PropertyCompletion
+}
+```
 
-1. Schema 权限、值类型映射与统一字段访问器。
-2. `s:` scope、运行时类型检查和补全上下文。
-3. `customFields` 领域模型、实例投影与 Store 写回。
-4. Property Editor 自定义 Category、创建/删除弹窗。
-5. 非字符串绑定按钮、选择器和绑定态控件。
-6. 全量测试、视觉检查、shadow 更新与旧协议删除。
+- [ ] 上级保证每个可展示 record key 都有 field definition；开发环境发现缺失 definition 时警告并跳过，不做 datatype 推断。
+- [ ] definitions 可以包含 record 尚未拥有的原生字段，PropertyEditor 将其列为可添加字段。
+- [ ] 删除 `PropertyEditorInput.override/fieldLabels/customFields`、`PropertyEditorSchemaOverride` 和独立 `referenceContexts` prop。
+- [ ] PropertyEditor 保留 `update-property/add-property/reset-property`，新增通用 `delete-property {key, fieldKey}`，删除 custom-field 专用 emits。
+
+## Completion Contract
+
+```ts
+interface PropertyInputPair {
+  open: string
+  close: string
+}
+
+type PropertyCompletion =
+  | { type: 'static'; values: readonly string[]; presentation?: 'ghost' | 'menu' }
+  | { type: 'provider'; provide: PropertyCompletionProvider }
+
+interface PropertyCompletionRequest {
+  value: string
+  cursor: number
+}
+
+interface PropertyCompletionItem {
+  key: string
+  label: string
+  detail?: string
+  icon?: IconToken
+  insertText: string
+  value?: unknown
+  keepOpen?: boolean
+}
+
+interface PropertyCompletionResult {
+  replaceStart: number
+  replaceEnd: number
+  items: readonly PropertyCompletionItem[]
+}
+
+type PropertyCompletionProvider = (
+  request: PropertyCompletionRequest,
+) => PropertyCompletionResult | null | Promise<PropertyCompletionResult | null>
+```
+
+- [ ] `{{ -> }}` 由上级通过 `autoPairs` 声明，EditorField 通用执行。
+- [ ] CSS `px/%` 使用 schema 提供的 static ghost completion。
+- [ ] FilePath Provider 位于 Workspace 上级，注入目录读取与索引接口；FilePath EditorField 不再 import Project Store。
+- [ ] Binding Provider 位于 Card 上级，负责 `s/c/d/p`、父链、字段 exposure 和类型过滤；PropertyEditor/EditorField 不知道 scope 语义。
+- [ ] binding completion 与运行时共享 token parser；输入 `{{p` 提供 `p:` 与 `p.`，输入 `{{p.` 按需提供 `p.p:` 与 `p.p.`，不预生成 ancestor tree。
+- [ ] 异步 Provider 只采用最后一次请求结果，旧请求不得覆盖新输入。
+- [ ] 非字符串 binding picker 与自由字符串补全复用同一 Provider；叶子 item 通过 `value` 提交完整 binding expression。
+
+## Upper-Layer Flow
+
+- [ ] `useCdePropertyPanelState` 生成合并后的 fields、Category Map 和 completion providers。
+- [ ] 属性 OcCard 在蓝图 Block 可创建额外字段时显示 `additional-field.create` action。
+- [ ] 上级管理创建弹窗 draft：`fieldKey/datatype/title`，提交时实时校验并更新 Block。
+- [ ] PropertyEditor 的第一次 delete click 仅 arm，第二次才 emit；上级收到后直接删除，不再显示确认弹窗。
+- [ ] blueprint 额外字段 definition 注入 `deletable:true`；实例注入 `deletable:false` 和基于 override 的 `resettable`。
+
+## Incremental Implementation Order
+
+1. 提交当前已验证 binding/custom 实验基线和本任务文档。
+2. 建立通用 PropertyEditor fields/categories/autoPairs/completion 类型及针对性测试。
+3. 迁移 static CSS completion，确保现有 ghost/Tab 行为可用。
+4. 迁移 Workspace FilePath Provider，移除 EditorField 对 Project Store 的依赖。
+5. 迁移 Card Binding Provider、共享 parser、`p:`/`p.` 分段补全和非字符串 picker。
+6. 将领域存储迁移到根值 + `additionalFieldDefinition`，同步实例投影和 diagnostics。
+7. 将创建弹窗移到上级属性卡片 action，落实双击删除并删除 PropertyEditor 业务弹窗。
+8. 全仓清除旧协议、更新 shadow，运行 Vitest、vue-tsc、UI lint、build、Playwright 和 `git diff --check`。
+
+每完成一个可独立使用的阶段，立即向用户报告当前可用能力和验证结果，再继续下一阶段。

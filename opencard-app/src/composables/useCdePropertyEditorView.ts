@@ -17,6 +17,10 @@ export type CdePropertyEditorEntry = {
   label: string
   value: unknown
   definition: EditorPropertyDefinition
+  customField?: {
+    deleteImpact: number
+    deletable: boolean
+  }
 }
 
 export type CdeAddableField = {
@@ -32,6 +36,7 @@ export type CdePropertyEditorCategory = {
   icon: IconToken
   entries: CdePropertyEditorEntry[]
   addableFields: CdeAddableField[]
+  canCreateCustomField: boolean
 }
 
 export type CdePropertyEditorSourceView = {
@@ -88,7 +93,7 @@ function buildCategories(
       }
 
       const resolvedDefinition = schemaDefinition ?? extraFieldDefinition
-      return createEntry(source.record, fieldKey, resolvedDefinition, options)
+      return createEntry(source, fieldKey, resolvedDefinition, options)
     })
     .filter((entry): entry is CdePropertyEditorEntry => entry !== null)
 
@@ -101,30 +106,55 @@ function buildCategories(
     }))
 
   if (options.sortMode.value === 'alphabetical') {
-    const sortedEntries = sortEntriesByLabel(existingEntries)
+    const customEntries = existingEntries.filter((entry) => entry.customField)
+    const sortedEntries = sortEntriesByLabel(existingEntries.filter((entry) => !entry.customField))
     const sortedAddableFields = sortAddableFields(addableFields)
-    return sortedEntries.length > 0 || sortedAddableFields.length > 0
-      ? [{
+    const categories: CdePropertyEditorCategory[] = []
+    if (sortedEntries.length > 0 || sortedAddableFields.length > 0) {
+      categories.push({
         inputKey: source.key,
         key: 'a-z',
         title: 'A-Z',
         icon: 'data.list-selection',
         entries: sortedEntries,
         addableFields: sortedAddableFields,
-      }]
-      : []
+        canCreateCustomField: false,
+      })
+    }
+    if (customEntries.length > 0 || source.customFields?.canCreate) {
+      categories.push({
+        inputKey: source.key,
+        key: 'category:custom',
+        title: resolveLocalizedText('propertyEditor.categories.custom', 'Custom', options),
+        icon: propertyEditorCategoryDefinitions.custom.icon,
+        entries: sortEntriesByLabel(customEntries),
+        addableFields: [],
+        canCreateCustomField: source.customFields?.canCreate === true,
+      })
+    }
+    return categories
   }
 
   const categoryMap = new Map<string, CdePropertyEditorCategory>()
 
   for (const entry of existingEntries) {
-    const category = ensureCategory(categoryMap, source.key, entry.definition, sourceTitle, options)
+    const category = ensureCategory(categoryMap, source, entry.definition, sourceTitle, options)
     category.entries.push(entry)
   }
 
   for (const field of addableFields) {
-    const category = ensureCategory(categoryMap, source.key, field.definition, sourceTitle, options)
+    const category = ensureCategory(categoryMap, source, field.definition, sourceTitle, options)
     category.addableFields.push(field)
+  }
+
+  if (source.customFields?.canCreate) {
+    ensureCategory(
+      categoryMap,
+      source,
+      { datatype: 'string', categoryId: 'custom' },
+      sourceTitle,
+      options,
+    )
   }
 
   return Array.from(categoryMap.values())
@@ -133,13 +163,15 @@ function buildCategories(
       entries: sortEntriesByLabel(category.entries),
       addableFields: sortAddableFields(category.addableFields),
     }))
-    .filter((category) => category.entries.length > 0 || category.addableFields.length > 0)
+    .filter((category) => category.entries.length > 0
+      || category.addableFields.length > 0
+      || category.canCreateCustomField)
     .sort((left, right) => compareText(left.title, right.title))
 }
 
 function ensureCategory(
   categoryMap: Map<string, CdePropertyEditorCategory>,
-  inputKey: string,
+  source: PropertyEditorInput,
   definition: EditorPropertyDefinition,
   sourceTitle: string,
   options: UseCdePropertyEditorViewOptions,
@@ -153,7 +185,7 @@ function ensureCategory(
   let category = categoryMap.get(categoryKey)
   if (!category) {
     category = {
-      inputKey,
+      inputKey: source.key,
       key: categoryKey,
       title: categoryTitle,
       icon: categoryId
@@ -161,6 +193,7 @@ function ensureCategory(
         : 'data.list-tree',
       entries: [],
       addableFields: [],
+      canCreateCustomField: categoryId === 'custom' && source.customFields?.canCreate === true,
     }
     categoryMap.set(categoryKey, category)
   }
@@ -169,16 +202,22 @@ function ensureCategory(
 }
 
 function createEntry(
-  record: PropertyEditorRecord,
+  source: PropertyEditorInput,
   fieldKey: string,
   definition: EditorPropertyDefinition,
   options: UseCdePropertyEditorViewOptions,
 ): CdePropertyEditorEntry {
   return {
     key: fieldKey,
-    label: getEntryLabel(fieldKey, definition, options),
-    value: record[fieldKey],
+    label: source.fieldLabels?.[fieldKey] ?? getEntryLabel(fieldKey, definition, options),
+    value: source.record[fieldKey],
     definition,
+    ...(source.customFields?.keys.includes(fieldKey)
+      ? { customField: {
+        deleteImpact: source.customFields.deleteImpactByKey[fieldKey] ?? 0,
+        deletable: source.customFields.canCreate,
+      } }
+      : {}),
   }
 }
 

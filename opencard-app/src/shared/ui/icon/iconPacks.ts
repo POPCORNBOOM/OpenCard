@@ -106,6 +106,7 @@ import {
   mdiViewDashboard,
   mdiViewDashboardEditOutline,
   mdiViewDashboardOutline,
+  mdiVariable,
   mdiVuejs,
 } from '@mdi/js'
 import type { IconToken } from './iconTokens'
@@ -169,6 +170,7 @@ export const iconGlyphs = {
   'data.symbol-key': glyph(mdiKeyOutline),
   'data.symbol-number': glyph(mdiNumeric),
   'data.symbol-string': glyph(mdiFormatText),
+  'data.variable': glyph(mdiVariable),
 
   'format.align-start': glyph(mdiFormatAlignLeft),
   'format.align-center': glyph(mdiFormatAlignCenter),

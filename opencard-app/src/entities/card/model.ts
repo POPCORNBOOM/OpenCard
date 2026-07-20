@@ -5,8 +5,29 @@
  * - 维护领域结构真相 不包含组件渲染实现
  */
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import { fillDefaults, isReferenceFieldReadable } from './schema'
-import type { PropertyEditorSchemaOverride } from './schema'
+import {
+    acceptsPropertyBinding,
+    createCustomFieldDefaultValue,
+    exposesPropertyReference,
+    fillDefaults,
+    getPropertyValueKind,
+    getTypePropertyEditorSchema,
+} from './schema'
+import { isBindingCompatible } from '../../features/editor-runtime/model/binding'
+import type {
+    CustomFieldDatatype,
+    EditorPropertyDefinition,
+    PropertyEditorSchemaOverride,
+} from './schema'
+import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
+
+export type CustomFieldDefinition = {
+    title?: string
+    datatype: CustomFieldDatatype
+    value: unknown
+}
+
+export type CustomFieldMap = Record<string, CustomFieldDefinition>
 
 // Block and document data models.
 export type BaseBlock = {
@@ -28,6 +49,7 @@ export type BaseBlock = {
     rotation?: number
     opacity?: number
     customCss?: string
+    customFields?: CustomFieldMap
 }
 
 export type CSSValue = number | string
@@ -185,6 +207,172 @@ function toFiniteNumber(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+const customFieldDatatypeSet = new Set<CustomFieldDatatype>([
+    'string',
+    'filePath',
+    'anchorPosition',
+    'alignPosition',
+    'verticalAlignPosition',
+    'flowDirection',
+    'number',
+    'boolean',
+    'color',
+])
+
+function materializeCustomFields(value: unknown): CustomFieldMap {
+    const source = toRecord(value)
+    const fields: CustomFieldMap = {}
+
+    for (const [fieldKey, fieldValue] of Object.entries(source)) {
+        const definition = toRecord(fieldValue)
+        const datatype = definition.datatype
+        if (typeof datatype !== 'string' || !customFieldDatatypeSet.has(datatype as CustomFieldDatatype)) {
+            continue
+        }
+
+        const title = typeof definition.title === 'string' ? definition.title.trim() : ''
+        fields[fieldKey] = {
+            datatype: datatype as CustomFieldDatatype,
+            value: definition.value,
+            ...(title ? { title } : {}),
+        }
+    }
+
+    return fields
+}
+
+function cloneCustomFields(fields: CustomFieldMap | undefined): CustomFieldMap | undefined {
+    if (!fields) return undefined
+    return Object.fromEntries(
+        Object.entries(fields).map(([fieldKey, definition]) => [fieldKey, { ...definition }]),
+    )
+}
+
+export function getCustomFieldPropertyDefinition(
+    definition: CustomFieldDefinition,
+): EditorPropertyDefinition {
+    return {
+        datatype: definition.datatype,
+        categoryId: 'custom',
+    } as EditorPropertyDefinition
+}
+
+export function getCardFieldDefinition(
+    record: Record<string, unknown>,
+    fieldKey: string,
+): EditorPropertyDefinition | undefined {
+    const typeName = typeof record.type === 'string' ? record.type : undefined
+    const nativeDefinition = getTypePropertyEditorSchema(typeName)[fieldKey]
+    if (nativeDefinition) return nativeDefinition
+    const customField = materializeCustomFields(record.customFields)[fieldKey]
+    return customField ? getCustomFieldPropertyDefinition(customField) : undefined
+}
+
+export function getCardFieldKeys(record: Record<string, unknown>): string[] {
+    return [...new Set([
+        ...Object.keys(record).filter((fieldKey) => fieldKey !== 'customFields'),
+        ...Object.keys(materializeCustomFields(record.customFields)),
+    ])]
+}
+
+export function hasCardField(record: Record<string, unknown>, fieldKey: string): boolean {
+    return Object.prototype.hasOwnProperty.call(record, fieldKey)
+        || Object.prototype.hasOwnProperty.call(materializeCustomFields(record.customFields), fieldKey)
+}
+
+export function getCardFieldValue(record: Record<string, unknown>, fieldKey: string): unknown {
+    if (Object.prototype.hasOwnProperty.call(record, fieldKey)) return record[fieldKey]
+    return materializeCustomFields(record.customFields)[fieldKey]?.value
+}
+
+export function setCardFieldValue(
+    record: Record<string, unknown>,
+    fieldKey: string,
+    value: unknown,
+): boolean {
+    if (Object.prototype.hasOwnProperty.call(record, fieldKey)) {
+        record[fieldKey] = value
+        return true
+    }
+
+    const customFields = record.customFields as CustomFieldMap | undefined
+    if (!customFields?.[fieldKey]) return false
+    customFields[fieldKey] = { ...customFields[fieldKey], value }
+    return true
+}
+
+export function getCardFieldValueKind(
+    record: Record<string, unknown>,
+    fieldKey: string,
+): BindingValueKind {
+    return getPropertyValueKind(getCardFieldDefinition(record, fieldKey))
+}
+
+export function acceptsCardFieldBinding(record: Record<string, unknown>, fieldKey: string): boolean {
+    return acceptsPropertyBinding(getCardFieldDefinition(record, fieldKey))
+}
+
+export function exposesCardFieldReference(record: Record<string, unknown>, fieldKey: string): boolean {
+    return exposesPropertyReference(getCardFieldDefinition(record, fieldKey))
+}
+
+export type CustomFieldKeyError = 'required' | 'invalid' | 'duplicate'
+export const customFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+export function validateCustomFieldKey(block: CardBlock, candidate: string): CustomFieldKeyError | null {
+    const fieldKey = candidate.trim()
+    if (!fieldKey) return 'required'
+    if (!customFieldKeyPattern.test(fieldKey)) return 'invalid'
+
+    const identity = fieldKey.toLocaleLowerCase()
+    const occupiedKeys = new Set([
+        ...Object.keys(getTypePropertyEditorSchema(block.type)),
+        ...Object.keys(block).filter((key) => key !== 'customFields'),
+        ...Object.keys(block.customFields ?? {}),
+    ].map((key) => key.toLocaleLowerCase()))
+    return occupiedKeys.has(identity) ? 'duplicate' : null
+}
+
+export function createBlockCustomField(
+    block: CardBlock,
+    fieldKeyInput: string,
+    datatype: CustomFieldDatatype,
+    titleInput?: string,
+): CustomFieldKeyError | null {
+    const error = validateCustomFieldKey(block, fieldKeyInput)
+    if (error) return error
+
+    const fieldKey = fieldKeyInput.trim()
+    const title = titleInput?.trim() ?? ''
+    const customFields = block.customFields ?? (block.customFields = {})
+    customFields[fieldKey] = {
+        datatype,
+        value: createCustomFieldDefaultValue(datatype),
+        ...(title ? { title } : {}),
+    }
+    return null
+}
+
+export function deleteBlockCustomField(
+    document: CardDocument,
+    block: CardBlock,
+    fieldKey: string,
+): number {
+    if (!block.customFields?.[fieldKey]) return 0
+    delete block.customFields[fieldKey]
+    if (Object.keys(block.customFields).length === 0) delete block.customFields
+
+    let removedOverrides = 0
+    for (const instance of document.instances ?? []) {
+        const instanceBlockData = instance.data[block.id]
+        if (!instanceBlockData || !Object.prototype.hasOwnProperty.call(instanceBlockData, fieldKey)) continue
+        delete instanceBlockData[fieldKey]
+        removedOverrides += 1
+        if (Object.keys(instanceBlockData).length === 0) delete instance.data[block.id]
+    }
+    return removedOverrides
+}
+
 function resolveBlockType(typeName: unknown): CardBlock['type'] {
     switch (typeName) {
         case 'text-block':
@@ -257,6 +445,8 @@ export function toViewBlock(blockInput: unknown): CardBlock {
     const normalizedId = typeof materialized.id === 'string' && materialized.id.trim().length > 0
         ? materialized.id
         : createBlockId(type)
+    const customFields = materializeCustomFields(source.customFields)
+    const customFieldPatch = Object.keys(customFields).length > 0 ? { customFields } : {}
 
     switch (type) {
         case 'text-block':
@@ -267,6 +457,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
+                ...customFieldPatch,
             } as CardBlock
         case 'simple-container-block': {
             const children = toRecordArray(source.children).map((childInput) => ({
@@ -278,6 +469,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
+                ...customFieldPatch,
                 children,
             } as CardBlock
         }
@@ -291,6 +483,7 @@ export function toViewBlock(blockInput: unknown): CardBlock {
                 ...materialized,
                 id: normalizedId,
                 type,
+                ...customFieldPatch,
                 children,
             } as CardBlock
         }
@@ -377,6 +570,14 @@ export type PropertyEditorInput = {
     record: PropertyEditorRecord
     title?: string
     override?: PropertyEditorSchemaOverride
+    fieldLabels?: Readonly<Record<string, string>>
+    customFields?: {
+        keys: readonly string[]
+        canCreate: boolean
+        occupiedKeys: readonly string[]
+        allowedDatatypes: readonly CustomFieldDatatype[]
+        deleteImpactByKey: Readonly<Record<string, number>>
+    }
 }
 
 // Internal helper types for block factory functions.
@@ -415,6 +616,7 @@ function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
     setIfDefined(block, 'rotation', init.rotation)
     setIfDefined(block, 'opacity', init.opacity)
     setIfDefined(block, 'customCss', init.customCss)
+    setIfDefined(block, 'customFields', cloneCustomFields(init.customFields))
 
     return block as BaseBlock
 }
@@ -570,6 +772,7 @@ export type ParentLookup = Map<string, BlockContainer>
 const parentFieldReferencePattern = /^(p(?:\.p)*)\s*:\s*([^\s:][^:]*)$/
 const documentFieldReferencePattern = /^d\s*:\s*([^\s:][^:]*)$/
 const currentCardFieldReferencePattern = /^c\s*:\s*([^\s:][^:]*)$/
+const currentBlockFieldReferencePattern = /^s\s*:\s*([^\s:][^:]*)$/
 const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
 const maxReferenceDepth = 24
@@ -618,9 +821,20 @@ type FieldReferenceDescriptor =
         kind: 'current-card'
         fieldKey: string
     }
+    | {
+        kind: 'current-block'
+        fieldKey: string
+    }
 
 function parseFieldReference(reference: string): FieldReferenceDescriptor | null {
     const normalized = reference.trim()
+    const currentBlockMatch = currentBlockFieldReferencePattern.exec(normalized)
+    if (currentBlockMatch) {
+        const fieldKey = currentBlockMatch[1].trim()
+        if (!fieldKey) return null
+        return { kind: 'current-block', fieldKey }
+    }
+
     const currentCardMatch = currentCardFieldReferencePattern.exec(normalized)
     if (currentCardMatch) {
         const fieldKey = currentCardMatch[1].trim()
@@ -677,6 +891,10 @@ export function resolveParentFieldReferenceKey(
 
     if (descriptor.kind === 'current-card') {
         return null
+    }
+
+    if (descriptor.kind === 'current-block') {
+        return `${blockId}:${descriptor.fieldKey}`
     }
 
     if (descriptor.kind === 'document') {
@@ -747,6 +965,17 @@ type ResolveFieldResult =
     | { ok: true, value: unknown }
     | { ok: false, value: unknown }
 
+type ResolveTokenResult =
+    | { ok: true, value: unknown, valueKind: BindingValueKind }
+    | { ok: false, value: unknown }
+
+function valueMatchesBindingKind(value: unknown, kind: BindingValueKind): boolean {
+    if (kind === 'string') return typeof value === 'string'
+    if (kind === 'number') return typeof value === 'number' && Number.isFinite(value)
+    if (kind === 'boolean') return typeof value === 'boolean'
+    return !!value && typeof value === 'object'
+}
+
 type ResolveMemoState = 'resolving' | 'done' | 'failed'
 
 // Resolve field reference templates before materializing render defaults.
@@ -756,6 +985,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         if (block.type === 'simple-container-block') {
             return {
                 ...block,
+                customFields: cloneCustomFields(block.customFields),
                 children: block.children.map((child) => ({
                     block: cloneBlockTree(child.block),
                     location: { ...child.location },
@@ -766,6 +996,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         if (block.type === 'flow-container-block') {
             return {
                 ...block,
+                customFields: cloneCustomFields(block.customFields),
                 children: block.children.map((child) => ({
                     block: cloneBlockTree(child.block),
                     location: { ...child.location },
@@ -773,7 +1004,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             }
         }
 
-        return { ...block }
+        return { ...block, customFields: cloneCustomFields(block.customFields) }
     }
 
     const targetDocument: CardDocument = {
@@ -899,6 +1130,9 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
     )
 
     function buildFieldPath(owner: ReferenceOwner, fieldKey: string): string {
+        if (materializeCustomFields(owner.source.customFields)[fieldKey]) {
+            return `${owner.pathPrefix}.customFields.${fieldKey}.value`
+        }
         return `${owner.pathPrefix}.${fieldKey}`
     }
 
@@ -925,7 +1159,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         tokenBody: string,
         fieldPath: string,
         recursionDepth: number
-    ): ResolveFieldResult {
+    ): ResolveTokenResult {
         if (recursionDepth > maxReferenceDepth) {
             pushIssue(fieldPath, `{{${tokenBody}}}`, 'MAX_DEPTH', `引用深度超过限制 ${maxReferenceDepth}`)
             return { ok: false, value: null }
@@ -937,42 +1171,28 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             return { ok: false, value: null }
         }
 
+        function resolveTargetField(targetOwner: ReferenceOwner, targetFieldKey: string): ResolveTokenResult {
+            if (!exposesCardFieldReference(targetOwner.source, targetFieldKey)) {
+                pushIssue(fieldPath, `{{${tokenBody}}}`, 'FIELD_NOT_ALLOWED', `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`)
+                return { ok: false, value: null }
+            }
+            if (!hasCardField(targetOwner.source, targetFieldKey)) {
+                pushIssue(fieldPath, `{{${tokenBody}}}`, 'FIELD_NOT_FOUND', `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`)
+                return { ok: false, value: null }
+            }
+            if (stateMemo.get(buildMemoKey(targetOwner, targetFieldKey)) === 'resolving') {
+                pushIssue(fieldPath, `{{${tokenBody}}}`, 'CYCLE', `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`)
+                return { ok: false, value: null }
+            }
+
+            const resolved = resolveOwnerField(targetOwner, targetFieldKey, recursionDepth + 1)
+            return resolved.ok
+                ? { ...resolved, valueKind: getCardFieldValueKind(targetOwner.source, targetFieldKey) }
+                : resolved
+        }
+
         if (tokenDescriptor.kind === 'current-card') {
-            const targetOwner = currentCardOwner ?? documentOwner
-            const targetFieldKey = tokenDescriptor.fieldKey
-
-            if (!isReferenceFieldReadable(targetOwner.typeName, targetFieldKey)) {
-                pushIssue(
-                    fieldPath,
-                    `{{${tokenBody}}}`,
-                    'FIELD_NOT_ALLOWED',
-                    `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`
-                )
-                return { ok: false, value: null }
-            }
-
-            if (!Object.prototype.hasOwnProperty.call(targetOwner.source, targetFieldKey)) {
-                pushIssue(
-                    fieldPath,
-                    `{{${tokenBody}}}`,
-                    'FIELD_NOT_FOUND',
-                    `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`
-                )
-                return { ok: false, value: null }
-            }
-
-            const targetMemoKey = buildMemoKey(targetOwner, targetFieldKey)
-            if (stateMemo.get(targetMemoKey) === 'resolving') {
-                pushIssue(
-                    fieldPath,
-                    `{{${tokenBody}}}`,
-                    'CYCLE',
-                    `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`
-                )
-                return { ok: false, value: null }
-            }
-
-            return resolveOwnerField(targetOwner, targetFieldKey, recursionDepth + 1)
+            return resolveTargetField(currentCardOwner ?? documentOwner, tokenDescriptor.fieldKey)
         }
 
         let targetReference: string | null = null
@@ -1003,38 +1223,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             return { ok: false, value: null }
         }
 
-        if (!isReferenceFieldReadable(targetOwner.typeName, targetFieldKey)) {
-            pushIssue(
-                fieldPath,
-                `{{${tokenBody}}}`,
-                'FIELD_NOT_ALLOWED',
-                `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`
-            )
-            return { ok: false, value: null }
-        }
-
-        if (!Object.prototype.hasOwnProperty.call(targetOwner.source, targetFieldKey)) {
-            pushIssue(
-                fieldPath,
-                `{{${tokenBody}}}`,
-                'FIELD_NOT_FOUND',
-                `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`
-            )
-            return { ok: false, value: null }
-        }
-
-        const targetMemoKey = buildMemoKey(targetOwner, targetFieldKey)
-        if (stateMemo.get(targetMemoKey) === 'resolving') {
-            pushIssue(
-                fieldPath,
-                `{{${tokenBody}}}`,
-                'CYCLE',
-                `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`
-            )
-            return { ok: false, value: null }
-        }
-
-        return resolveOwnerField(targetOwner, targetFieldKey, recursionDepth + 1)
+        return resolveTargetField(targetOwner, targetFieldKey)
     }
 
     function resolveStringField(
@@ -1044,8 +1233,17 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         recursionDepth: number
     ): ResolveFieldResult {
         const fieldPath = buildFieldPath(owner, fieldKey)
+        const targetKind = getCardFieldValueKind(owner.source, fieldKey)
         if (!sourceValue.includes('{{')) {
+            if (targetKind !== 'string') {
+                pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `字段需要 ${targetKind}，不能保存普通字符串`)
+                return { ok: false, value: sourceValue }
+            }
             return { ok: true, value: sourceValue }
+        }
+        if (!acceptsCardFieldBinding(owner.source, fieldKey)) {
+            pushIssue(fieldPath, sourceValue, 'FIELD_NOT_ALLOWED', `字段 ${owner.typeName}.${fieldKey} 不允许绑定`)
+            return { ok: false, value: sourceValue }
         }
 
         const singleTokenMatch = singleTemplateTokenPattern.exec(sourceValue)
@@ -1055,7 +1253,20 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
             if (!tokenResult.ok) {
                 return { ok: false, value: sourceValue }
             }
-            return tokenResult
+            if (!isBindingCompatible(targetKind, tokenResult.valueKind)
+                || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
+                pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `${tokenResult.valueKind} 不能绑定到 ${targetKind}`)
+                return { ok: false, value: sourceValue }
+            }
+            return {
+                ok: true,
+                value: targetKind === 'string' ? String(tokenResult.value) : tokenResult.value,
+            }
+        }
+
+        if (targetKind !== 'string') {
+            pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `${targetKind} 字段只允许完整的单个绑定表达式`)
+            return { ok: false, value: sourceValue }
         }
 
         let hasToken = false
@@ -1077,24 +1288,18 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
                 return { ok: false, value: sourceValue }
             }
 
-            if (
-                tokenResult.value !== null
-                && tokenResult.value !== undefined
-                && typeof tokenResult.value !== 'string'
-                && typeof tokenResult.value !== 'number'
-                && typeof tokenResult.value !== 'boolean'
-                && typeof tokenResult.value !== 'bigint'
-            ) {
+            if (!isBindingCompatible('string', tokenResult.valueKind)
+                || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
                 pushIssue(
                     fieldPath,
                     matched[0],
                     'TYPE_MISMATCH',
-                    '内插值仅支持 string/number/boolean/bigint/null/undefined'
+                    `${tokenResult.valueKind} 不能内插到 string`
                 )
                 return { ok: false, value: sourceValue }
             }
 
-            resolvedValue += tokenResult.value == null ? '' : String(tokenResult.value)
+            resolvedValue += String(tokenResult.value)
             cursor = matched.index + matched[0].length
         }
 
@@ -1117,7 +1322,7 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
         }
 
         if (stateMemo.get(memoKey) === 'failed') {
-            return { ok: false, value: owner.source[fieldKey] }
+            return { ok: false, value: getCardFieldValue(owner.source, fieldKey) }
         }
 
         if (recursionDepth > maxReferenceDepth) {
@@ -1128,12 +1333,12 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
                 `引用深度超过限制 ${maxReferenceDepth}`
             )
             stateMemo.set(memoKey, 'failed')
-            return { ok: false, value: owner.source[fieldKey] }
+            return { ok: false, value: getCardFieldValue(owner.source, fieldKey) }
         }
 
-        const sourceValue = owner.source[fieldKey]
+        const sourceValue = getCardFieldValue(owner.source, fieldKey)
         if (typeof sourceValue !== 'string') {
-            const stableValue = owner.target[fieldKey]
+            const stableValue = getCardFieldValue(owner.target, fieldKey)
             valueMemo.set(memoKey, stableValue)
             stateMemo.set(memoKey, 'done')
             return { ok: true, value: stableValue }
@@ -1152,10 +1357,10 @@ export function resolveReferences(document: CardDocument, options: ResolveRefere
     }
 
     for (const owner of owners) {
-        const fieldKeys = Object.keys(owner.source)
+        const fieldKeys = getCardFieldKeys(owner.source)
         for (const fieldKey of fieldKeys) {
             const resolved = resolveOwnerField(owner, fieldKey, 0)
-            owner.target[fieldKey] = resolved.value
+            setCardFieldValue(owner.target, fieldKey, resolved.value)
         }
     }
 
@@ -1336,26 +1541,48 @@ export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
 }
 
 // Apply a single instance's overrides onto one block subtree recursively.
+function projectBlockOverrides(
+    block: CardBlock,
+    overrides: Record<string, unknown>,
+): { nativeOverrides: Record<string, unknown>, customFields?: CustomFieldMap } {
+    const nativeOverrides: Record<string, unknown> = {}
+    const customFields = cloneCustomFields(block.customFields)
+
+    for (const [fieldKey, value] of Object.entries(overrides)) {
+        if (customFields?.[fieldKey]) {
+            customFields[fieldKey] = { ...customFields[fieldKey], value }
+            continue
+        }
+        if (fieldKey !== 'customFields') nativeOverrides[fieldKey] = value
+    }
+
+    return { nativeOverrides, customFields }
+}
+
 function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): CardBlock {
     const overrides = instance.data[block.id] ?? {}
+    const projected = projectBlockOverrides(block, overrides)
 
     switch (block.type) {
         case 'text-block':
             return {
                 ...block,
-                ...overrides,
+                ...projected.nativeOverrides,
+                customFields: projected.customFields,
             }
         case 'image-block':
         case 'qrcode-block':
         case 'shape-block':
             return {
                 ...block,
-                ...overrides,
+                ...projected.nativeOverrides,
+                customFields: projected.customFields,
             }
         case 'simple-container-block':
             return {
                 ...block,
-                ...overrides,
+                ...projected.nativeOverrides,
+                customFields: projected.customFields,
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: mergeBlockOverride(child.block, instance),
@@ -1364,7 +1591,8 @@ function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): Car
         case 'flow-container-block':
             return {
                 ...block,
-                ...overrides,
+                ...projected.nativeOverrides,
+                customFields: projected.customFields,
                 children: block.children.map((child) => ({
                     location: { ...child.location },
                     block: mergeBlockOverride(child.block, instance),

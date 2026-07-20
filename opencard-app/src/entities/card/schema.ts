@@ -6,19 +6,21 @@
  */
 import type { CardBlock } from './model'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 
 type EditorPropertyBase = {
     isHidden?: boolean
     isArray?: boolean
     isReadonly?: boolean
     resettable?: boolean
-    referenceReadable?: boolean
-    referenceInput?: boolean
+    acceptsBinding?: false
+    exposesReference?: false
     categoryId?: PropertyEditorCategoryId
     displayFieldKey?: string
     defaultValue?: unknown
 }
 
+// 这里可以定义对于某一特定datatype的数据编辑器需求的辅助约束条件
 export type PropertyConstraintMap = {
     string: {
         minLength?: number
@@ -48,6 +50,19 @@ export type PropertyConstraintMap = {
 }
 
 export type PropertyDatatype = keyof PropertyConstraintMap
+export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
+export const customFieldDatatypes = [
+    'string',
+    'filePath',
+    'anchorPosition',
+    'alignPosition',
+    'verticalAlignPosition',
+    'flowDirection',
+    'number',
+    'boolean',
+    'color',
+] as const satisfies readonly PropertyDatatype[]
+export type CustomFieldDatatype = typeof customFieldDatatypes[number]
 
 type AllConstraintKeys = {
     [K in keyof PropertyConstraintMap]: keyof PropertyConstraintMap[K]
@@ -79,6 +94,7 @@ export type PropertyEditorCategoryId =
     | 'typography'
     | 'position'
     | 'flow'
+    | 'custom'
     | 'uncategorized'
 
 export type PropertyEditorCategoryDefinition = {
@@ -95,6 +111,7 @@ export const propertyEditorCategoryDefinitions: Record<PropertyEditorCategoryId,
     typography: { icon: 'format.align-start' },
     position: { icon: 'nav.compass' },
     flow: { icon: 'nav.arrow-right' },
+    custom: { icon: 'data.variable' },
     uncategorized: { icon: 'data.list-tree' },
 }
 
@@ -112,13 +129,14 @@ const cssLengthAutocomplete = ['px', '%'] as const
 
 function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
     return {
-        id: { datatype: 'string', isReadonly: true, minLength: 1, categoryId: 'identity' },
+        id: { datatype: 'string', isReadonly: true, minLength: 1, categoryId: 'identity', acceptsBinding: false },
         name: { datatype: 'string', categoryId: 'identity' },
-        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
-        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout', referenceInput: true },
-        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout', referenceInput: true },
-        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform', referenceInput: true },
-        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform', referenceInput: true },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
+        customFields: { datatype: 'object', objectType: 'CustomFieldDefinition', isHidden: true, categoryId: 'custom', acceptsBinding: false, exposesReference: false },
+        width: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        height: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        translateX: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
+        translateY: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
         scaleX: { datatype: 'number', categoryId: 'transform' },
         scaleY: { datatype: 'number', categoryId: 'transform' },
         transformAnchor: { datatype: 'anchorPosition', categoryId: 'transform' },
@@ -128,24 +146,24 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
         borderColor: { datatype: 'color', categoryId: 'appearance' },
         borderWidth: { datatype: 'number', min: 0, categoryId: 'appearance' },
         borderStyle: { datatype: 'string', options: blockBorderStyleOptions, categoryId: 'appearance' },
-        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance', referenceInput: true },
-        background: { datatype: 'string', categoryId: 'appearance', referenceInput: true },
-        customCss: { datatype: 'string', multiline: true, categoryId: 'appearance', referenceInput: true },
+        borderRadius: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance' },
+        background: { datatype: 'string', categoryId: 'appearance' },
+        customCss: { datatype: 'string', multiline: true, categoryId: 'appearance' },
     }
 }
 
 const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     'text-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        content: { datatype: 'string', multiline: true, categoryId: 'content', referenceInput: true },
+        content: { datatype: 'string', multiline: true, categoryId: 'content' },
         mode: { datatype: 'string', options: textModeOptions, categoryId: 'content' },
-        fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography', referenceInput: true },
-        fontFamily: { datatype: 'string', categoryId: 'typography', referenceInput: true },
-        fontWeight: { datatype: 'string', categoryId: 'typography', referenceInput: true },
+        fontSize: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
+        fontFamily: { datatype: 'string', categoryId: 'typography' },
+        fontWeight: { datatype: 'string', categoryId: 'typography' },
         color: { datatype: 'color', categoryId: 'appearance', displayFieldKey: 'textColor' },
         textAlign: { datatype: 'alignPosition', categoryId: 'typography' },
         verticalAlign: { datatype: 'verticalAlignPosition', categoryId: 'typography' },
-        lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography', referenceInput: true },
+        lineHeight: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         writingMode: { datatype: 'string', options: textWritingModeOptions, categoryId: 'typography' },
     },
     'image-block': {
@@ -160,6 +178,8 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
             datatype: 'filePath',
             minLength: 0,
             isHidden: true,
+            acceptsBinding: false,
+            exposesReference: false,
             categoryId: 'data',
             extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
         },
@@ -167,7 +187,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
     'qrcode-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        content: { datatype: 'string', multiline: true, categoryId: 'content', referenceInput: true },
+        content: { datatype: 'string', multiline: true, categoryId: 'content' },
         errorCorrection: { datatype: 'string', options: qrErrorCorrectionOptions, categoryId: 'data' },
         foreground: { datatype: 'color', categoryId: 'appearance' },
         backgroundColor: { datatype: 'color', categoryId: 'appearance' },
@@ -187,44 +207,44 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
     'simple-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data' },
+        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'flow-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
         direction: { datatype: 'flowDirection', categoryId: 'layout' },
-        gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout', referenceInput: true },
-        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data' },
+        gap: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        children: { datatype: 'object', objectType: 'CardBlock', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'simple-container-location': {
-        id: { datatype: 'string', isReadonly: true, categoryId: 'identity' },
-        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        id: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         anchor: { datatype: 'anchorPosition', categoryId: 'position' },
-        x: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position', referenceInput: true },
-        y: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position', referenceInput: true },
+        x: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
+        y: { datatype: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'position' },
     },
     'flow-container-location': {
-        id: { datatype: 'string', isReadonly: true, categoryId: 'identity' },
-        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        id: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         index: { datatype: 'number', min: 0, categoryId: 'flow' },
         align: { datatype: 'alignPosition', categoryId: 'flow' },
     },
     'card-document': {
-        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         name: { datatype: 'string', categoryId: 'identity' },
-        id: { datatype: 'string', categoryId: 'identity', isReadonly: true },
+        id: { datatype: 'string', categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         version: { datatype: 'string', categoryId: 'identity' },
         width: { datatype: 'number', min: 0, categoryId: 'layout' },
         height: { datatype: 'number', min: 0, categoryId: 'layout' },
-        background: { datatype: 'string', categoryId: 'appearance', referenceInput: true },
-        children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data' },
-        instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data' },
+        background: { datatype: 'string', categoryId: 'appearance' },
+        children: { datatype: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+        instances: { datatype: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'card-instance': {
-        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', referenceReadable: false },
+        type: { datatype: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         amount: { datatype: 'number', min: 0, categoryId: 'data' },
-        id: { datatype: 'string', categoryId: 'identity', isReadonly: true },
+        id: { datatype: 'string', categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         name: { datatype: 'string', categoryId: 'identity' },
-        data: { datatype: 'object', objectType: 'instanceData', isHidden: true, categoryId: 'data' },
+        data: { datatype: 'object', objectType: 'instanceData', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
 }
 
@@ -462,22 +482,55 @@ export function getTypePropertyEditorSchema(typeName: string | undefined): Recor
     return propertyEditorSchemaByType[typeName] ?? {}
 }
 
-export function isReferenceFieldReadable(typeName: string | undefined, fieldName: string): boolean {
+export function getPropertyValueKind(definition: EditorPropertyDefinition | undefined): BindingValueKind {
+    if (!definition) return 'string'
+    if (definition.datatype === 'number') return 'number'
+    if (definition.datatype === 'boolean') return 'boolean'
+    if (definition.datatype === 'object') return 'object'
+    return 'string'
+}
+
+export function createPropertyDefaultValue(definition: EditorPropertyDefinition): unknown {
+    if (definition.defaultValue !== undefined) return cloneDefaultValue(definition.defaultValue)
+
+    switch (definition.datatype) {
+        case 'string':
+            return definition.options?.[0] ?? ''
+        case 'filePath':
+        case 'color':
+            return ''
+        case 'anchorPosition':
+            return 'cc'
+        case 'alignPosition':
+            return 'start'
+        case 'verticalAlignPosition':
+            return 'top'
+        case 'flowDirection':
+            return 'lr'
+        case 'number':
+            return definition.min ?? 0
+        case 'boolean':
+            return false
+        case 'object':
+            return definition.isArray ? [] : {}
+    }
+}
+
+export function createCustomFieldDefaultValue(datatype: CustomFieldDatatype): unknown {
+    return createPropertyDefaultValue({ datatype, categoryId: 'custom' } as EditorPropertyDefinition)
+}
+
+export function acceptsPropertyBinding(definition: EditorPropertyDefinition | undefined): boolean {
+    return definition?.acceptsBinding !== false && getPropertyValueKind(definition) !== 'object'
+}
+
+export function exposesPropertyReference(definition: EditorPropertyDefinition | undefined): boolean {
+    return definition?.exposesReference !== false && getPropertyValueKind(definition) !== 'object'
+}
+
+export function isReferenceFieldExposed(typeName: string | undefined, fieldName: string): boolean {
     const schema = getTypePropertyEditorSchema(typeName)
-    const definition = schema[fieldName]
-    if (!definition) {
-        return true
-    }
-
-    if (definition.referenceReadable !== undefined) {
-        return definition.referenceReadable
-    }
-
-    if (definition.isHidden || definition.isArray || definition.datatype === 'object') {
-        return false
-    }
-
-    return true
+    return exposesPropertyReference(schema[fieldName])
 }
 
 // Return a cloned default value for one schema field, or undefined if absent.

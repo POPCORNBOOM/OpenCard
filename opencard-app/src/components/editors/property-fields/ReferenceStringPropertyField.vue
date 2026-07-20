@@ -22,6 +22,7 @@
         @click="handleCursorChange"
         @input="handleInput"
         @keydown="handleKeydown"
+        @keyup="handleCursorKeyup"
       />
     </OcFieldFrame>
 
@@ -47,6 +48,7 @@
         @click="handleCursorChange"
         @input="handleInput"
         @keydown="handleKeydown"
+        @keyup="handleCursorKeyup"
       />
       <div v-if="ghostSuffix && !isMenuOpen" class="reference-string-field__ghost" aria-hidden="true">
         <span class="reference-string-field__ghost-current">{{ draftValue }}</span>
@@ -142,6 +144,11 @@ watch(suggestions, (items) => {
   activeKey.value = items[0]?.key ?? null
 })
 
+watch(() => props.referenceContext, () => {
+  const control = activeInput.value
+  if (control && document.activeElement === control) refreshCompletion(control)
+}, { deep: true })
+
 function refreshCompletion(control: TextControl): void {
   activeInput.value = control
   const cursor = control.selectionStart ?? draftValue.value.length
@@ -196,6 +203,12 @@ function handleFocus(event: FocusEvent): void {
 
 function handleCursorChange(event: MouseEvent): void {
   refreshCompletion(event.target as TextControl)
+}
+
+function handleCursorKeyup(event: KeyboardEvent): void {
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+    refreshCompletion(event.target as TextControl)
+  }
 }
 
 function handleBlur(): void {

@@ -13,15 +13,14 @@ describe('ReferenceStringPropertyField', () => {
       props: {
         definition: {
           datatype: 'string',
-          referenceInput: true,
         },
         value: '',
         referenceContext: {
+          targetKind: 'string',
           scopes: [{
             token: 'c',
             label: '当前卡片',
-            typeName: 'card-instance',
-            record: { name: 'Card A' },
+            fields: [{ key: 'name', valueKind: 'string' }],
           }],
         },
       },
@@ -50,5 +49,30 @@ describe('ReferenceStringPropertyField', () => {
     await input.trigger('keydown', { key: 'Tab' })
     await nextTick()
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:name}}'])
+  })
+
+  it('refreshes completion after keyboard cursor movement', async () => {
+    const wrapper = mount(ReferenceStringPropertyField, {
+      props: {
+        definition: { datatype: 'string' },
+        value: 'Value {{c:na}}',
+        referenceContext: {
+          targetKind: 'string',
+          scopes: [{
+            token: 'c',
+            label: 'Current card',
+            fields: [{ key: 'name', valueKind: 'string' }],
+          }],
+        },
+      },
+    })
+    const input = wrapper.get('input')
+    const element = input.element as HTMLInputElement
+    await input.trigger('focus')
+    element.setSelectionRange(12, 12)
+    await input.trigger('keyup', { key: 'ArrowLeft' })
+
+    expect(Array.from(document.body.querySelectorAll('[role="option"]')).map((item) => item.textContent))
+      .toEqual(['nameCurrent card'])
   })
 })

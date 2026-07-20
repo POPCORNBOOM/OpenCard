@@ -1,17 +1,20 @@
-import {
-  getTypePropertyEditorSchema,
-  isReferenceFieldReadable,
-} from '../../../entities/card/schema'
+import { isBindingCompatible, type BindingValueKind } from '../model/binding'
+
+export type ReferenceCompletionField = {
+  key: string
+  label?: string
+  valueKind: BindingValueKind
+}
 
 export type ReferenceCompletionScope = {
   token: string
   label: string
-  typeName: string
-  record: Record<string, unknown>
+  fields: readonly ReferenceCompletionField[]
 }
 
 export type ReferenceCompletionContext = {
-  scopes: ReferenceCompletionScope[]
+  scopes: readonly ReferenceCompletionScope[]
+  targetKind: BindingValueKind
 }
 
 export type ReferenceCompletionSuggestion = {
@@ -20,6 +23,7 @@ export type ReferenceCompletionSuggestion = {
   detail: string
   insertText: string
   kind: 'scope' | 'field'
+  valueKind?: BindingValueKind
 }
 
 export type ReferenceCompletionState = {
@@ -57,6 +61,7 @@ export function resolveReferenceCompletion(
   if (colonIndex < 0) {
     const fragment = tokenBody.trim().toLowerCase()
     const suggestions = context.scopes
+      .filter((scope) => scope.fields.some((field) => isBindingCompatible(context.targetKind, field.valueKind)))
       .filter((scope) => scope.token.toLowerCase().startsWith(fragment))
       .map((scope) => ({
         key: `scope:${scope.token}`,
@@ -74,35 +79,31 @@ export function resolveReferenceCompletion(
   }
 
   const scopeToken = tokenBody.slice(0, colonIndex).trim()
-  const scope = context.scopes.find((item) => item.token === scopeToken)
+  const scope = context.scopes.find((item) => item.token.toLowerCase() === scopeToken.toLowerCase())
   if (!scope) {
     return null
   }
 
   const fieldFragment = tokenBody.slice(colonIndex + 1).trim().toLowerCase()
-  const schema = getTypePropertyEditorSchema(scope.typeName)
-  const fieldKeys = Array.from(new Set([
-    ...Object.keys(scope.record),
-    ...Object.keys(schema).filter((fieldKey) => Object.prototype.hasOwnProperty.call(scope.record, fieldKey)),
-  ]))
-
-  const suggestions = fieldKeys
-    .filter((fieldKey) => isReferenceFieldReadable(scope.typeName, fieldKey))
-    .filter((fieldKey) => fieldKey.toLowerCase().includes(fieldFragment))
+  const suggestions = scope.fields
+    .filter((field) => isBindingCompatible(context.targetKind, field.valueKind))
+    .filter((field) => field.key.toLowerCase().includes(fieldFragment)
+      || field.label?.toLowerCase().includes(fieldFragment))
     .sort((left, right) => {
-      const leftStartsWith = left.toLowerCase().startsWith(fieldFragment)
-      const rightStartsWith = right.toLowerCase().startsWith(fieldFragment)
+      const leftStartsWith = left.key.toLowerCase().startsWith(fieldFragment)
+      const rightStartsWith = right.key.toLowerCase().startsWith(fieldFragment)
       if (leftStartsWith !== rightStartsWith) {
         return leftStartsWith ? -1 : 1
       }
-      return left.localeCompare(right, undefined, { sensitivity: 'base' })
+      return left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
     })
-    .map((fieldKey) => ({
-      key: `field:${scope.token}:${fieldKey}`,
-      label: fieldKey,
+    .map((field) => ({
+      key: `field:${scope.token}:${field.key}`,
+      label: field.label ?? field.key,
       detail: scope.label,
-      insertText: `${scope.token}:${fieldKey}`,
+      insertText: `${scope.token}:${field.key}`,
       kind: 'field' as const,
+      valueKind: field.valueKind,
     }))
 
   return {
