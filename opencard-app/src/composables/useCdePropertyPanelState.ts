@@ -4,9 +4,14 @@ import type {
   CardDocument,
   CardInstanceRecord,
   FlowContainerLocationInfo,
-  PropertyEditorInput,
   SimpleContainerLocationInfo,
 } from '../entities/card/model'
+import type {
+  PropertyEditorCategoryDefinition,
+  PropertyEditorFieldDefinition,
+  PropertyEditorInput,
+  PropertyEditorSortMode,
+} from '../components/editors/propertyEditor.types'
 import {
   createBlockCustomField,
   deleteBlockCustomField,
@@ -14,18 +19,19 @@ import {
   setCardFieldValue,
 } from '../entities/card/model'
 import {
-  customFieldDatatypes,
   getDefault,
+  getTypePropertyEditorSchema,
+  propertyEditorCategoryDefinitions,
   resolveNulls,
-  type PropertyEditorSchemaOverride,
   type CustomFieldDatatype,
+  type EditorPropertyDefinition,
 } from '../entities/card/schema'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
 type CardLocationInfo = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
-export type CdePropertySortMode = 'category' | 'alphabetical'
+export type CdePropertySortMode = PropertyEditorSortMode
 
 export type CdePropertyMutation = {
   key: string
@@ -60,6 +66,8 @@ type UseCdePropertyPanelStateOptions = {
   blueprintCardId: string
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  translate: (messageKey: string) => string
+  hasMessage: (messageKey: string) => boolean
 }
 
 export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOptions) {
@@ -126,7 +134,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     } as Record<string, unknown> & { type?: string }
   })
 
-  const blockInputOverride = computed<PropertyEditorSchemaOverride | undefined>(() => {
+  const blockInputOverride = computed<Record<string, Partial<EditorPropertyDefinition>> | undefined>(() => {
     options.documentRevision.value
     const block = options.selectedBlock.value
     if (!block) {
@@ -137,7 +145,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       ? options.selectedCard.value?.data[block.id]
       : undefined
 
-    const overrideEntries: Array<readonly [string, PropertyEditorSchemaOverride[string]]> = []
+    const overrideEntries: Array<readonly [string, Partial<EditorPropertyDefinition>]> = []
     for (const [fieldKey, definition] of Object.entries(block.customFields ?? {})) {
       overrideEntries.push([fieldKey, {
         ...getCustomFieldPropertyDefinition(definition),
@@ -156,6 +164,62 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return Object.fromEntries(overrideEntries)
   })
 
+  const propertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() =>
+    new Map(Object.entries(propertyEditorCategoryDefinitions).map(([key, definition]) => [
+      key,
+      {
+        title: resolveLocalizedText(`propertyEditor.categories.${key}`, key),
+        icon: definition.icon,
+      },
+    ])),
+  )
+
+  function resolveLocalizedText(messageKey: string, fallback: string): string {
+    return options.hasMessage(messageKey) ? options.translate(messageKey) : fallback
+  }
+
+  function resolveFieldTitle(fieldKey: string, definition: EditorPropertyDefinition): string {
+    const displayKey = definition.displayFieldKey ?? fieldKey
+    return resolveLocalizedText(`propertyEditor.fields.${displayKey}`, fieldKey)
+  }
+
+  function resolveFields(
+    record: Readonly<Record<string, unknown>>,
+    override?: Readonly<Record<string, Partial<EditorPropertyDefinition>>>,
+    labels?: Readonly<Record<string, string>>,
+    categorylessKeys: ReadonlySet<string> = new Set(),
+  ): Record<string, PropertyEditorFieldDefinition> {
+    const typeName = typeof record.type === 'string' ? record.type : undefined
+    const definitions: Record<string, EditorPropertyDefinition> = { ...getTypePropertyEditorSchema(typeName) }
+    for (const [fieldKey, fieldOverride] of Object.entries(override ?? {})) {
+      const base = definitions[fieldKey]
+      if (base) {
+        definitions[fieldKey] = { ...base, ...fieldOverride } as EditorPropertyDefinition
+      } else if (fieldOverride.datatype) {
+        definitions[fieldKey] = fieldOverride as EditorPropertyDefinition
+      }
+    }
+    for (const fieldKey of Object.keys(record)) {
+      if (!definitions[fieldKey]) {
+        definitions[fieldKey] = {
+          datatype: 'string',
+          isReadonly: true,
+        }
+      }
+    }
+
+    return Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => [
+      fieldKey,
+      {
+        ...definition,
+        title: labels?.[fieldKey] ?? resolveFieldTitle(fieldKey, definition),
+        category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
+        deletable: categorylessKeys.has(fieldKey)
+          && options.selectedCardId.value === options.blueprintCardId,
+      },
+    ]))
+  }
+
   const propertyInputs = computed<PropertyEditorInput[]>(() => {
     const inputs: PropertyEditorInput[] = []
     const selectedBlock = options.selectedBlock.value
@@ -168,34 +232,23 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         key: selectedBlock.id,
         title: selectedBlock.name?.trim() || selectedBlock.id,
         record: selectedBlockEditorRecord.value,
-        override: blockInputOverride.value,
-        fieldLabels: Object.fromEntries(
+        fields: resolveFields(
+          selectedBlockEditorRecord.value,
+          blockInputOverride.value,
           Object.entries(selectedBlock.customFields ?? {})
-            .map(([fieldKey, definition]) => [fieldKey, definition.title ?? fieldKey]),
+            .reduce<Record<string, string>>((labels, [fieldKey, definition]) => {
+              labels[fieldKey] = definition.title ?? fieldKey
+              return labels
+            }, {}),
+          new Set(Object.keys(selectedBlock.customFields ?? {})),
         ),
-        customFields: {
-          keys: Object.keys(selectedBlock.customFields ?? {}),
-          canCreate: options.selectedCardId.value === options.blueprintCardId,
-          occupiedKeys: [
-            ...Object.keys(selectedBlockEditorRecord.value),
-            ...Object.keys(selectedBlock.customFields ?? {}),
-          ],
-          allowedDatatypes: customFieldDatatypes,
-          deleteImpactByKey: Object.fromEntries(
-            Object.keys(selectedBlock.customFields ?? {}).map((fieldKey) => [
-              fieldKey,
-              cardDoc?.instances.filter((instance) => (
-                Object.prototype.hasOwnProperty.call(instance.data[selectedBlock.id] ?? {}, fieldKey)
-              )).length ?? 0,
-            ]),
-          ),
-        },
       })
       if (layout) {
         inputs.push({
           key: layout.id,
           title: 'Layout',
           record: layout as Record<string, unknown> & { type?: string },
+          fields: resolveFields(layout as Record<string, unknown>),
         })
       }
       return inputs
@@ -205,6 +258,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         key: selectedCard.id,
         title: '实例',
         record: selectedInstanceEditorRecord.value,
+        fields: resolveFields(selectedInstanceEditorRecord.value),
       })
     }
     if (selectedDocumentEditorRecord.value && cardDoc) {
@@ -212,6 +266,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         key: cardDoc.id,
         title: '蓝图',
         record: selectedDocumentEditorRecord.value,
+        fields: resolveFields(selectedDocumentEditorRecord.value),
       })
     }
 
@@ -519,6 +574,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   return {
     selectedLayout,
     propertyInputs,
+    propertyCategories,
     updateProperty,
     addProperty,
     resetProperty,

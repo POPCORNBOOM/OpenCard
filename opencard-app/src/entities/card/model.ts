@@ -17,7 +17,6 @@ import { isBindingCompatible } from '../../features/editor-runtime/model/binding
 import type {
     CustomFieldDatatype,
     EditorPropertyDefinition,
-    PropertyEditorSchemaOverride,
 } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 
@@ -558,25 +557,6 @@ export function prepareDocumentForRender(documentInput: CardDocument): CardDocum
         version,
         children,
         instances,
-    }
-}
-
-export type PropertyEditorRecord = Record<string, unknown> & {
-    type?: string
-}
-
-export type PropertyEditorInput = {
-    key: string
-    record: PropertyEditorRecord
-    title?: string
-    override?: PropertyEditorSchemaOverride
-    fieldLabels?: Readonly<Record<string, string>>
-    customFields?: {
-        keys: readonly string[]
-        canCreate: boolean
-        occupiedKeys: readonly string[]
-        allowedDatatypes: readonly CustomFieldDatatype[]
-        deleteImpactByKey: Readonly<Record<string, number>>
     }
 }
 

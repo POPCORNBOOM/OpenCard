@@ -1,32 +1,23 @@
 import { computed, type Ref } from 'vue'
 import type {
+  PropertyEditorCategoryDefinition,
+  PropertyEditorFieldDefinition,
   PropertyEditorInput,
-  PropertyEditorRecord,
-} from '../entities/card/model'
-import {
-  getTypePropertyEditorSchema,
-  propertyEditorCategoryDefinitions,
-  type EditorPropertyDefinition,
-  type PropertyEditorSchemaOverride,
-} from '../entities/card/schema'
+  PropertyEditorSortMode,
+} from '../components/editors/propertyEditor.types'
 import type { IconToken } from '../shared/ui/icon/iconRegistry'
-import type { CdePropertySortMode } from './useCdePropertyPanelState'
 
 export type CdePropertyEditorEntry = {
   key: string
   label: string
   value: unknown
-  definition: EditorPropertyDefinition
-  customField?: {
-    deleteImpact: number
-    deletable: boolean
-  }
+  definition: PropertyEditorFieldDefinition
 }
 
 export type CdeAddableField = {
   key: string
   label: string
-  definition: EditorPropertyDefinition
+  definition: PropertyEditorFieldDefinition
 }
 
 export type CdePropertyEditorCategory = {
@@ -36,7 +27,6 @@ export type CdePropertyEditorCategory = {
   icon: IconToken
   entries: CdePropertyEditorEntry[]
   addableFields: CdeAddableField[]
-  canCreateCustomField: boolean
 }
 
 export type CdePropertyEditorSourceView = {
@@ -46,259 +36,130 @@ export type CdePropertyEditorSourceView = {
 }
 
 type UseCdePropertyEditorViewOptions = {
-  inputs: Readonly<Ref<PropertyEditorInput[]>>
-  sortMode: Readonly<Ref<CdePropertySortMode>>
-  translate: (messageKey: string) => string
-  hasMessage: (messageKey: string) => boolean
+  inputs: Readonly<Ref<readonly PropertyEditorInput[]>>
+  categories: Readonly<Ref<ReadonlyMap<string, PropertyEditorCategoryDefinition>>>
+  sortMode: Readonly<Ref<PropertyEditorSortMode>>
+  otherCategory: Readonly<Ref<PropertyEditorCategoryDefinition>>
 }
 
-const extraFieldDefinition: EditorPropertyDefinition = {
-  datatype: 'string',
-  categoryId: 'uncategorized',
-}
+const OTHER_CATEGORY_KEY = 'category:__other__'
 
 export function useCdePropertyEditorView(options: UseCdePropertyEditorViewOptions) {
   const displaySources = computed<CdePropertyEditorSourceView[]>(() =>
     options.inputs.value
-      .map((source) => {
-        const sourceTitle = getSourceTitle(source)
-        return {
-          key: source.key,
-          title: sourceTitle,
-          categories: buildCategories(source, sourceTitle, options),
-        }
-      })
-      .filter((source) => source.categories.length > 0)
+      .map((source) => ({
+        key: source.key,
+        title: source.title?.trim() || source.key,
+        categories: buildCategories(source, options),
+      }))
+      .filter((source) => source.categories.length > 0),
   )
 
-  return {
-    displaySources,
-  }
+  return { displaySources }
 }
 
 function buildCategories(
   source: PropertyEditorInput,
-  sourceTitle: string,
   options: UseCdePropertyEditorViewOptions,
 ): CdePropertyEditorCategory[] {
-  const definitions = resolveDefinitions(source.record, source.override)
-  const visibleDefinitionEntries = Object.entries(definitions)
-    .filter(([, definition]) => !definition.isHidden)
-
   const existingEntries = Object.keys(source.record)
-    .map((fieldKey) => {
-      const schemaDefinition = definitions[fieldKey]
-      if (schemaDefinition?.isHidden) {
-        return null
-      }
-
-      const resolvedDefinition = schemaDefinition ?? extraFieldDefinition
-      return createEntry(source, fieldKey, resolvedDefinition, options)
-    })
+    .map((fieldKey) => createEntry(source, fieldKey))
     .filter((entry): entry is CdePropertyEditorEntry => entry !== null)
-
-  const addableFields = visibleDefinitionEntries
+  const addableFields = Object.entries(source.fields)
+    .filter(([, definition]) => !definition.isHidden)
     .filter(([fieldKey]) => !Object.prototype.hasOwnProperty.call(source.record, fieldKey))
-    .map(([fieldKey, definition]) => ({
-      key: fieldKey,
-      label: getEntryLabel(fieldKey, definition, options),
-      definition,
-    }))
+    .map(([key, definition]) => ({ key, label: definition.title, definition }))
 
   if (options.sortMode.value === 'alphabetical') {
-    const customEntries = existingEntries.filter((entry) => entry.customField)
-    const sortedEntries = sortEntriesByLabel(existingEntries.filter((entry) => !entry.customField))
-    const sortedAddableFields = sortAddableFields(addableFields)
-    const categories: CdePropertyEditorCategory[] = []
-    if (sortedEntries.length > 0 || sortedAddableFields.length > 0) {
-      categories.push({
-        inputKey: source.key,
-        key: 'a-z',
-        title: 'A-Z',
-        icon: 'data.list-selection',
-        entries: sortedEntries,
-        addableFields: sortedAddableFields,
-        canCreateCustomField: false,
-      })
-    }
-    if (customEntries.length > 0 || source.customFields?.canCreate) {
-      categories.push({
-        inputKey: source.key,
-        key: 'category:custom',
-        title: resolveLocalizedText('propertyEditor.categories.custom', 'Custom', options),
-        icon: propertyEditorCategoryDefinitions.custom.icon,
-        entries: sortEntriesByLabel(customEntries),
-        addableFields: [],
-        canCreateCustomField: source.customFields?.canCreate === true,
-      })
-    }
-    return categories
+    const entries = sortByLabel(existingEntries)
+    const missing = sortByLabel(addableFields)
+    if (entries.length === 0 && missing.length === 0) return []
+    return [{
+      inputKey: source.key,
+      key: 'a-z',
+      title: 'A-Z',
+      icon: 'data.list-selection',
+      entries,
+      addableFields: missing,
+    }]
   }
 
   const categoryMap = new Map<string, CdePropertyEditorCategory>()
-
   for (const entry of existingEntries) {
-    const category = ensureCategory(categoryMap, source, entry.definition, sourceTitle, options)
-    category.entries.push(entry)
+    ensureCategory(categoryMap, source.key, entry.definition, options).entries.push(entry)
   }
-
   for (const field of addableFields) {
-    const category = ensureCategory(categoryMap, source, field.definition, sourceTitle, options)
-    category.addableFields.push(field)
+    ensureCategory(categoryMap, source.key, field.definition, options).addableFields.push(field)
   }
 
-  if (source.customFields?.canCreate) {
-    ensureCategory(
-      categoryMap,
-      source,
-      { datatype: 'string', categoryId: 'custom' },
-      sourceTitle,
-      options,
-    )
-  }
-
+  const orderedKeys = new Map(
+    Array.from(options.categories.value.keys()).map((key, index) => [key, index]),
+  )
   return Array.from(categoryMap.values())
     .map((category) => ({
       ...category,
-      entries: sortEntriesByLabel(category.entries),
-      addableFields: sortAddableFields(category.addableFields),
+      entries: sortByLabel(category.entries),
+      addableFields: sortByLabel(category.addableFields),
     }))
-    .filter((category) => category.entries.length > 0
-      || category.addableFields.length > 0
-      || category.canCreateCustomField)
-    .sort((left, right) => compareText(left.title, right.title))
-}
-
-function ensureCategory(
-  categoryMap: Map<string, CdePropertyEditorCategory>,
-  source: PropertyEditorInput,
-  definition: EditorPropertyDefinition,
-  sourceTitle: string,
-  options: UseCdePropertyEditorViewOptions,
-): CdePropertyEditorCategory {
-  const categoryId = definition.categoryId
-  const categoryKey = categoryId ? `category:${categoryId}` : `fallback:${sourceTitle}`
-  const categoryTitle = categoryId
-    ? resolveLocalizedText(`propertyEditor.categories.${categoryId}`, categoryId, options)
-    : sourceTitle
-
-  let category = categoryMap.get(categoryKey)
-  if (!category) {
-    category = {
-      inputKey: source.key,
-      key: categoryKey,
-      title: categoryTitle,
-      icon: categoryId
-        ? propertyEditorCategoryDefinitions[categoryId].icon
-        : 'data.list-tree',
-      entries: [],
-      addableFields: [],
-      canCreateCustomField: categoryId === 'custom' && source.customFields?.canCreate === true,
-    }
-    categoryMap.set(categoryKey, category)
-  }
-
-  return category
+    .sort((left, right) => {
+      if (left.key === OTHER_CATEGORY_KEY) return 1
+      if (right.key === OTHER_CATEGORY_KEY) return -1
+      return (orderedKeys.get(left.key) ?? Number.MAX_SAFE_INTEGER)
+        - (orderedKeys.get(right.key) ?? Number.MAX_SAFE_INTEGER)
+    })
 }
 
 function createEntry(
   source: PropertyEditorInput,
   fieldKey: string,
-  definition: EditorPropertyDefinition,
-  options: UseCdePropertyEditorViewOptions,
-): CdePropertyEditorEntry {
+): CdePropertyEditorEntry | null {
+  const definition = source.fields[fieldKey]
+  if (!definition) {
+    if (import.meta.env.DEV) {
+      console.warn(`[PropertyEditor] Missing field definition for ${source.key}.${fieldKey}`)
+    }
+    return null
+  }
+  if (definition.isHidden) return null
   return {
     key: fieldKey,
-    label: source.fieldLabels?.[fieldKey] ?? getEntryLabel(fieldKey, definition, options),
+    label: definition.title,
     value: source.record[fieldKey],
     definition,
-    ...(source.customFields?.keys.includes(fieldKey)
-      ? { customField: {
-        deleteImpact: source.customFields.deleteImpactByKey[fieldKey] ?? 0,
-        deletable: source.customFields.canCreate,
-      } }
-      : {}),
   }
 }
 
-function getSourceTitle(source: PropertyEditorInput): string {
-  if (source.title && source.title.trim().length > 0) {
-    return source.title
-  }
-
-  return source.key
-}
-
-function getEntryLabel(
-  fieldKey: string,
-  definition: EditorPropertyDefinition,
+function ensureCategory(
+  target: Map<string, CdePropertyEditorCategory>,
+  inputKey: string,
+  field: PropertyEditorFieldDefinition,
   options: UseCdePropertyEditorViewOptions,
-): string {
-  const localizedFieldKey = definition.displayFieldKey ?? fieldKey
-  return resolveLocalizedText(`propertyEditor.fields.${localizedFieldKey}`, fieldKey, options)
+): CdePropertyEditorCategory {
+  const requestedKey = field.category
+  const categoryDefinition = requestedKey
+    ? options.categories.value.get(requestedKey)
+    : undefined
+  const key = categoryDefinition && requestedKey ? requestedKey : OTHER_CATEGORY_KEY
+  const definition = categoryDefinition ?? options.otherCategory.value
+
+  let category = target.get(key)
+  if (!category) {
+    category = {
+      inputKey,
+      key,
+      title: definition.title,
+      icon: definition.icon ?? 'data.list-tree',
+      entries: [],
+      addableFields: [],
+    }
+    target.set(key, category)
+  }
+  return category
 }
 
-function resolveLocalizedText(
-  messageKey: string | undefined,
-  fallback: string,
-  options: UseCdePropertyEditorViewOptions,
-): string {
-  if (messageKey && options.hasMessage(messageKey)) {
-    return options.translate(messageKey)
-  }
-
-  return fallback
-}
-
-function resolveDefinitions(
-  record: PropertyEditorRecord,
-  override?: PropertyEditorSchemaOverride,
-): Record<string, EditorPropertyDefinition> {
-  const recordType = typeof record.type === 'string' ? record.type : undefined
-  const baseDefinitions = getTypePropertyEditorSchema(recordType)
-  if (!override) {
-    return baseDefinitions
-  }
-
-  const mergedDefinitions: Record<string, EditorPropertyDefinition> = { ...baseDefinitions }
-  for (const [fieldKey, fieldOverride] of Object.entries(override)) {
-    const baseDefinition = mergedDefinitions[fieldKey]
-    if (baseDefinition) {
-      mergedDefinitions[fieldKey] = {
-        ...baseDefinition,
-        ...fieldOverride,
-      } as EditorPropertyDefinition
-      continue
-    }
-
-    if (fieldOverride.datatype) {
-      mergedDefinitions[fieldKey] = fieldOverride as EditorPropertyDefinition
-    }
-  }
-
-  return mergedDefinitions
-}
-
-function sortEntriesByLabel(entries: CdePropertyEditorEntry[]): CdePropertyEditorEntry[] {
-  return [...entries].sort((left, right) => {
-    const labelCompare = compareText(left.label, right.label)
-    if (labelCompare !== 0) {
-      return labelCompare
-    }
-    return compareText(left.key, right.key)
+function sortByLabel<T extends { key: string, label: string }>(items: readonly T[]): T[] {
+  return [...items].sort((left, right) => {
+    const labelCompare = left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })
+    return labelCompare || left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
   })
-}
-
-function sortAddableFields(fields: CdeAddableField[]): CdeAddableField[] {
-  return [...fields].sort((left, right) => {
-    const labelCompare = compareText(left.label, right.label)
-    if (labelCompare !== 0) {
-      return labelCompare
-    }
-    return compareText(left.key, right.key)
-  })
-}
-
-function compareText(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }

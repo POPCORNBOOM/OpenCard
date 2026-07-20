@@ -172,11 +172,10 @@
                 :collapsed="!isPropertyPanelExpanded"
                 @action="handlePropertyCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
-                  <PropertyEditor :inputs="propertyInputs" :sort-mode="propertySortMode" :reference-contexts="referenceCompletionContexts"
+                  <PropertyEditor :inputs="propertyEditorInputs" :categories="propertyCategories" :sort-mode="propertySortMode"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
-                    @create-custom-field="createCustomField"
-                    @delete-custom-field="deleteCustomField" />
+                    @delete-property="deleteCustomField" />
                 </OcPanel>
               </OcCard>
             </div>
@@ -234,6 +233,13 @@ import type {
   ReferenceCompletionContext,
   ReferenceCompletionScope,
 } from '../../features/editor-runtime/services/referenceCompletion'
+import {
+  resolveReferenceCompletion,
+} from '../../features/editor-runtime/services/referenceCompletion'
+import type {
+  PropertyCompletionProvider,
+  PropertyEditorInput,
+} from './propertyEditor.types'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -793,11 +799,11 @@ function handleStructureTreeCardAction(payload: { key: string }) {
 
 // 当前选择派生信息
 const {
-  propertyInputs,
+  propertyInputs: rawPropertyInputs,
+  propertyCategories,
   updateProperty: updateBlockProp,
   addProperty: addBlockProp,
   resetProperty: resetBlockProp,
-  createCustomField,
   deleteCustomField,
 } = useCdePropertyPanelState({
   cardDoc,
@@ -809,6 +815,8 @@ const {
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
   markDocumentChanged,
+  translate: (messageKey) => t(messageKey),
+  hasMessage: (messageKey) => te(messageKey),
 })
 
 type PropertyReferenceContexts = Readonly<Record<string, Readonly<Record<string, ReferenceCompletionContext>>>>
@@ -888,7 +896,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
     }
   }
 
-  return Object.fromEntries(propertyInputs.value.map((input) => [
+  return Object.fromEntries(rawPropertyInputs.value.map((input) => [
     input.key,
     Object.fromEntries(getCardFieldKeys(input.record).map((fieldKey) => [
       fieldKey,
@@ -899,6 +907,49 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
     ])),
   ]))
 })
+
+function createReferenceCompletionProvider(
+  context: ReferenceCompletionContext,
+): PropertyCompletionProvider {
+  return ({ value, cursor }) => {
+    const state = resolveReferenceCompletion(value, cursor, context)
+    if (!state) return null
+    return {
+      replaceStart: state.replaceStart,
+      replaceEnd: state.replaceEnd,
+      items: state.suggestions.map((suggestion) => ({
+        key: suggestion.key,
+        label: suggestion.label,
+        detail: suggestion.detail,
+        insertText: suggestion.insertText,
+        keepOpen: suggestion.kind === 'scope',
+        ...(suggestion.kind === 'field'
+          ? { value: `{{${suggestion.insertText}}}` }
+          : {}),
+      })),
+    }
+  }
+}
+
+const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
+  rawPropertyInputs.value.map((input) => ({
+    ...input,
+    fields: Object.fromEntries(Object.entries(input.fields).map(([fieldKey, definition]) => {
+      const context = referenceCompletionContexts.value[input.key]?.[fieldKey]
+      if (!context || definition.acceptsBinding === false || definition.datatype === 'object') {
+        return [fieldKey, definition]
+      }
+      return [fieldKey, {
+        ...definition,
+        autoPairs: [{ open: '{{', close: '}}' }],
+        completion: {
+          type: 'provider',
+          provide: createReferenceCompletionProvider(context),
+        },
+      }]
+    })),
+  })),
+)
 
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
   return selectedLocation.value?.type ?? null

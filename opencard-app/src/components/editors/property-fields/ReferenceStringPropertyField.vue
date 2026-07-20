@@ -69,25 +69,21 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue'
-import type { EditorPropertyDefinition } from '../../../entities/card/schema'
-import {
-  applyReferenceCompletion,
-  resolveReferenceCompletion,
-  type ReferenceCompletionContext,
-  type ReferenceCompletionState,
-  type ReferenceCompletionSuggestion,
-} from '../../../features/editor-runtime/services/referenceCompletion'
+import type {
+  PropertyCompletionItem,
+  PropertyCompletionResult,
+  PropertyEditorFieldDefinition,
+} from '../propertyEditor.types'
 import OcAutocompletePopover from '../../standard/OcAutocompletePopover.vue'
 import OcFieldFrame from '../../base/OcFieldFrame.vue'
 import OcFieldInput from '../../base/OcFieldInput.vue'
 
-type StringDefinition = Extract<EditorPropertyDefinition, { datatype: 'string' }>
+type StringDefinition = Extract<PropertyEditorFieldDefinition, { datatype: 'string' }>
 type TextControl = HTMLInputElement | HTMLTextAreaElement
 
 const props = defineProps<{
   definition: StringDefinition
   value: unknown
-  referenceContext?: ReferenceCompletionContext
 }>()
 
 const emit = defineEmits<{
@@ -96,12 +92,12 @@ const emit = defineEmits<{
 
 const draftValue = ref(props.value == null ? '' : String(props.value))
 const activeInput = ref<TextControl | null>(null)
-const completionState = ref<ReferenceCompletionState | null>(null)
+const completionState = ref<PropertyCompletionResult | null>(null)
 const isMenuOpen = ref(false)
 const activeKey = ref<string | null>(null)
 const autocompleteId = useId()
 
-const suggestions = computed(() => completionState.value?.suggestions ?? [])
+const suggestions = computed(() => completionState.value?.items ?? [])
 const activeDescendantId = computed(() => {
   if (!activeKey.value) return undefined
   return autocompleteId + '-option-' + activeKey.value.replace(/[^a-zA-Z0-9_-]/g, '-')
@@ -144,20 +140,28 @@ watch(suggestions, (items) => {
   activeKey.value = items[0]?.key ?? null
 })
 
-watch(() => props.referenceContext, () => {
+watch(() => props.definition.completion, () => {
   const control = activeInput.value
-  if (control && document.activeElement === control) refreshCompletion(control)
-}, { deep: true })
+  if (control && document.activeElement === control) void refreshCompletion(control)
+})
 
-function refreshCompletion(control: TextControl): void {
+let completionRequestId = 0
+
+async function refreshCompletion(control: TextControl): Promise<void> {
   activeInput.value = control
   const cursor = control.selectionStart ?? draftValue.value.length
-  completionState.value = resolveReferenceCompletion(
-    draftValue.value,
-    cursor,
-    props.referenceContext,
-  )
-  isMenuOpen.value = Boolean(completionState.value?.suggestions.length)
+  const completion = props.definition.completion
+  if (completion?.type !== 'provider') {
+    completionState.value = null
+    isMenuOpen.value = false
+    return
+  }
+
+  const requestId = ++completionRequestId
+  const result = await completion.provide({ value: draftValue.value, cursor })
+  if (requestId !== completionRequestId) return
+  completionState.value = result
+  isMenuOpen.value = Boolean(result?.items.length)
   activeKey.value = suggestions.value[0]?.key ?? null
 }
 
@@ -178,36 +182,35 @@ function handleInput(event: Event): void {
   activeInput.value = control
   const inputEvent = event as InputEvent
   let nextValue = control.value
-  let cursor = control.selectionStart ?? nextValue.length
+  const cursor = control.selectionStart ?? nextValue.length
 
-  if (
-    inputEvent.inputType === 'insertText'
-    && inputEvent.data === '{'
-    && nextValue.slice(Math.max(0, cursor - 2), cursor) === '{{'
-    && nextValue.slice(cursor, cursor + 2) !== '}}'
-  ) {
-    nextValue = `${nextValue.slice(0, cursor)}}}${nextValue.slice(cursor)}`
-    control.value = nextValue
-    setCursor(control, cursor)
+  if (inputEvent.inputType === 'insertText') {
+    const pair = props.definition.autoPairs?.find(({ open, close }) => (
+      nextValue.slice(Math.max(0, cursor - open.length), cursor) === open
+      && nextValue.slice(cursor, cursor + close.length) !== close
+    ))
+    if (pair) {
+      nextValue = `${nextValue.slice(0, cursor)}${pair.close}${nextValue.slice(cursor)}`
+      control.value = nextValue
+      setCursor(control, cursor)
+    }
   }
 
   emitValue(nextValue)
-  completionState.value = resolveReferenceCompletion(nextValue, cursor, props.referenceContext)
-  isMenuOpen.value = Boolean(completionState.value?.suggestions.length)
-  activeKey.value = suggestions.value[0]?.key ?? null
+  void refreshCompletion(control)
 }
 
 function handleFocus(event: FocusEvent): void {
-  refreshCompletion(event.target as TextControl)
+  void refreshCompletion(event.target as TextControl)
 }
 
 function handleCursorChange(event: MouseEvent): void {
-  refreshCompletion(event.target as TextControl)
+  void refreshCompletion(event.target as TextControl)
 }
 
 function handleCursorKeyup(event: KeyboardEvent): void {
   if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
-    refreshCompletion(event.target as TextControl)
+    void refreshCompletion(event.target as TextControl)
   }
 }
 
@@ -226,20 +229,19 @@ function acceptSuggestionByKey(key: string): void {
   }
 }
 
-function acceptSuggestion(suggestion: ReferenceCompletionSuggestion): void {
+function acceptSuggestion(suggestion: PropertyCompletionItem): void {
   const state = completionState.value
   const control = activeInput.value
   if (!state || !control) return
 
-  const edit = applyReferenceCompletion(draftValue.value, state, suggestion)
-  emitValue(edit.value)
-  control.value = edit.value
-  setCursor(control, edit.cursor)
+  const value = `${draftValue.value.slice(0, state.replaceStart)}${suggestion.insertText}${draftValue.value.slice(state.replaceEnd)}`
+  const cursor = state.replaceStart + suggestion.insertText.length
+  emitValue(value)
+  control.value = value
+  setCursor(control, cursor)
 
-  if (suggestion.kind === 'scope') {
-    completionState.value = resolveReferenceCompletion(edit.value, edit.cursor, props.referenceContext)
-    isMenuOpen.value = Boolean(completionState.value?.suggestions.length)
-    activeKey.value = suggestions.value[0]?.key ?? null
+  if (suggestion.keepOpen) {
+    void refreshCompletion(control)
   } else {
     completionState.value = null
     isMenuOpen.value = false

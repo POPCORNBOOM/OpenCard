@@ -43,6 +43,8 @@ function createHarness() {
     blueprintCardId: '__blueprint__',
     refreshDocumentState: () => { documentRevision.value += 1 },
     markDocumentChanged,
+    translate: (key) => key,
+    hasMessage: () => false,
   })
   return { block, document, selectedCardId, state }
 }
@@ -53,8 +55,8 @@ describe('useCdePropertyPanelState custom fields', () => {
     const input = state.propertyInputs.value[0]!
 
     expect(input.record.score).toBe(10)
-    expect(input.fieldLabels?.score).toBe('Score')
-    expect(input.customFields?.canCreate).toBe(true)
+    expect(input.fields.score?.title).toBe('Score')
+    expect(input.fields.score?.deletable).toBe(true)
 
     expect(state.createCustomField({
       key: block.id,
@@ -73,7 +75,7 @@ describe('useCdePropertyPanelState custom fields', () => {
     state.updateProperty({ key: block.id, fieldKey: 'score', value: 24 })
     expect(document.instances[0]!.data.text?.score).toBe(24)
     expect(block.customFields?.score?.value).toBe(10)
-    expect(state.propertyInputs.value[0]?.override?.score?.resettable).toBe(true)
+    expect(state.propertyInputs.value[0]?.fields.score?.resettable).toBe(true)
 
     state.resetProperty({ key: block.id, fieldKey: 'score' })
     expect(document.instances[0]!.data.text).toBeUndefined()
@@ -84,7 +86,6 @@ describe('useCdePropertyPanelState custom fields', () => {
     const { block, document, state } = createHarness()
     document.instances[0]!.data.text = { score: 18 }
 
-    expect(state.propertyInputs.value[0]?.customFields?.deleteImpactByKey.score).toBe(1)
     expect(state.deleteCustomField({ key: block.id, fieldKey: 'score' })).toBe(true)
     expect(block.customFields).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()

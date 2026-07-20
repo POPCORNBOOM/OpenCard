@@ -80,7 +80,6 @@ export type EditorPropertyDefinition = {
     [K in keyof PropertyConstraintMap]: StrictVariant<K>
 }[keyof PropertyConstraintMap]
 
-export type PropertyEditorSchemaOverride = Record<string, Partial<EditorPropertyDefinition>>
 export type TypePropertyDefinitions = Record<string, Record<string, EditorPropertyDefinition>>
 export type PropertyEditorSchemaByType = Record<CardBlock['type'], Record<string, EditorPropertyDefinition>>
 

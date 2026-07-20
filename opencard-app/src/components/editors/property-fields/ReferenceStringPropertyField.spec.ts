@@ -8,21 +8,29 @@ describe('ReferenceStringPropertyField', () => {
     document.body.innerHTML = ''
   })
 
-  it('pairs braces and accepts scope and field suggestions with Tab', async () => {
+  it('executes prepared auto-pairs and completion providers', async () => {
     const wrapper = mount(ReferenceStringPropertyField, {
       props: {
         definition: {
+          title: 'Content',
           datatype: 'string',
+          autoPairs: [{ open: '{{', close: '}}' }],
+          completion: {
+            type: 'provider',
+            provide: ({ value }) => value === '{{}}'
+              ? {
+                  replaceStart: 2,
+                  replaceEnd: 2,
+                  items: [{ key: 'scope:c', label: 'c:', insertText: 'c:', keepOpen: true }],
+                }
+              : {
+                  replaceStart: 2,
+                  replaceEnd: 4,
+                  items: [{ key: 'field:c:name', label: 'Name', insertText: 'c:name' }],
+                },
+          },
         },
         value: '',
-        referenceContext: {
-          targetKind: 'string',
-          scopes: [{
-            token: 'c',
-            label: '当前卡片',
-            fields: [{ key: 'name', valueKind: 'string' }],
-          }],
-        },
       },
     })
     const input = wrapper.get('input')
@@ -36,13 +44,13 @@ describe('ReferenceStringPropertyField', () => {
       inputType: 'insertText',
     }))
     await nextTick()
+    await nextTick()
 
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{}}'])
-    expect(Array.from(document.body.querySelectorAll('[role="option"]')).map((item) => item.textContent)).toEqual([
-      'c:当前卡片',
-    ])
+    expect(document.body.querySelector('[role="option"]')?.textContent).toContain('c:')
 
     await input.trigger('keydown', { key: 'Tab' })
+    await nextTick()
     await nextTick()
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:}}'])
 
@@ -51,19 +59,22 @@ describe('ReferenceStringPropertyField', () => {
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:name}}'])
   })
 
-  it('refreshes completion after keyboard cursor movement', async () => {
+  it('refreshes the provider after keyboard cursor movement', async () => {
+    let requestedCursor = -1
     const wrapper = mount(ReferenceStringPropertyField, {
       props: {
-        definition: { datatype: 'string' },
-        value: 'Value {{c:na}}',
-        referenceContext: {
-          targetKind: 'string',
-          scopes: [{
-            token: 'c',
-            label: 'Current card',
-            fields: [{ key: 'name', valueKind: 'string' }],
-          }],
+        definition: {
+          title: 'Content',
+          datatype: 'string',
+          completion: {
+            type: 'provider',
+            provide: ({ cursor }) => {
+              requestedCursor = cursor
+              return null
+            },
+          },
         },
+        value: 'Value {{c:na}}',
       },
     })
     const input = wrapper.get('input')
@@ -71,8 +82,8 @@ describe('ReferenceStringPropertyField', () => {
     await input.trigger('focus')
     element.setSelectionRange(12, 12)
     await input.trigger('keyup', { key: 'ArrowLeft' })
+    await nextTick()
 
-    expect(Array.from(document.body.querySelectorAll('[role="option"]')).map((item) => item.textContent))
-      .toEqual(['nameCurrent card'])
+    expect(requestedCursor).toBe(12)
   })
 })
