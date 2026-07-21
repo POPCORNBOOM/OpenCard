@@ -404,7 +404,7 @@ const {
   setSessionDirtyState,
   updateSessionUiState,
   closeSession,
-  detachWorkspaceSessions,
+  closeWorkspaceSessions,
   saveActiveSession,
 } = useEditorSessionStore()
 
@@ -1149,7 +1149,7 @@ async function openProject() {
   if (!openedPath) return
 
   if (previousProjectPath && projectPath.value !== previousProjectPath) {
-    detachWorkspaceSessions(previousProjectPath)
+    closeWorkspaceSessions()
   }
 
   settingsStore.rememberRecentProject(projectPath.value)
@@ -1161,7 +1161,7 @@ async function closeProjectFolder(): Promise<void> {
   const currentProjectPath = projectPath.value
   if (!currentProjectPath) return
 
-  detachWorkspaceSessions(currentProjectPath)
+  closeWorkspaceSessions()
   await setProjectPath('')
   selectedRecentProjectKeys.value = []
   workspaceMode.value = { type: 'welcome' }
@@ -1170,7 +1170,7 @@ async function closeProjectFolder(): Promise<void> {
 async function openRecentProject(path: string): Promise<void> {
   const previousProjectPath = projectPath.value
   if (previousProjectPath && previousProjectPath !== path) {
-    detachWorkspaceSessions(previousProjectPath)
+    closeWorkspaceSessions()
   }
   await setProjectPath(path)
   settingsStore.rememberRecentProject(projectPath.value)
@@ -1202,7 +1202,7 @@ async function handleProjectCreated(project: CreatedProject): Promise<void> {
 
   try {
     if (projectPath.value) {
-      detachWorkspaceSessions(projectPath.value)
+      closeWorkspaceSessions()
     }
 
     await setProjectPath(project.path)

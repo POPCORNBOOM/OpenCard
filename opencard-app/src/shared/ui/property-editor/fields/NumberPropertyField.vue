@@ -15,17 +15,17 @@
       <span class="number-field__steppers">
         <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.arrow-up"
           :disabled="definition.isReadonly || isAtMaximum" title="Increase" aria-label="Increase"
-          @click="stepValue(1)" />
+          @click="handleStepperClick(1, $event)" @pointerdown="startStepHold(1, $event)" />
         <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.arrow-down"
           :disabled="definition.isReadonly || isAtMinimum" title="Decrease" aria-label="Decrease"
-          @click="stepValue(-1)" />
+          @click="handleStepperClick(-1, $event)" @pointerdown="startStepHold(-1, $event)" />
       </span>
     </template>
   </OcFieldFrame>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import OcButton from '../../../../components/base/OcButton.vue'
 import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
@@ -39,6 +39,20 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
 }>()
+
+const HOLD_DELAY_MS = 420
+const REPEAT_START_INTERVAL_MS = 160
+const REPEAT_MIN_INTERVAL_MS = 35
+const REPEAT_ACCELERATION_MS = 1800
+const SHIFT_STEP_MULTIPLIER = 5
+
+let holdTimer: number | null = null
+let holdDirection: -1 | 1 | null = null
+let holdStartedAt = 0
+let holdValue = 0
+let holdShiftKey = false
+let didRepeatDuringHold = false
+let suppressNextClick = false
 
 const textValue = computed(() => typeof props.value === 'string' ? props.value : '')
 const numberValue = computed(() => {
@@ -54,12 +68,92 @@ function onInput(event: Event) {
   emit('update:value', (event.target as HTMLInputElement).value)
 }
 
-function stepValue(delta: number) {
-  const current = numberValue.value ?? 0
+function calculateNextValue(current: number, direction: -1 | 1, shiftKey: boolean): number {
   const minimum = props.definition.min ?? -Infinity
   const maximum = props.definition.max ?? Infinity
-  emit('update:value', String(Math.min(maximum, Math.max(minimum, current + delta))))
+  const step = shiftKey ? SHIFT_STEP_MULTIPLIER : 1
+  return Math.min(maximum, Math.max(minimum, current + direction * step))
 }
+
+function stepValue(direction: -1 | 1, shiftKey: boolean, current = numberValue.value ?? 0): number {
+  const next = calculateNextValue(current, direction, shiftKey)
+  if (next !== current) {
+    emit('update:value', String(next))
+  }
+  return next
+}
+
+function getRepeatInterval(elapsedMs: number): number {
+  const accelerationProgress = Math.min(1, Math.max(0, elapsedMs / REPEAT_ACCELERATION_MS))
+  return REPEAT_START_INTERVAL_MS
+    - (REPEAT_START_INTERVAL_MS - REPEAT_MIN_INTERVAL_MS) * accelerationProgress
+}
+
+function scheduleHoldStep(delay: number): void {
+  holdTimer = window.setTimeout(runHoldStep, delay)
+}
+
+function runHoldStep(): void {
+  if (holdDirection == null) return
+
+  didRepeatDuringHold = true
+  const next = stepValue(holdDirection, holdShiftKey, holdValue)
+  if (next === holdValue) {
+    stopStepHold()
+    return
+  }
+
+  holdValue = next
+  scheduleHoldStep(getRepeatInterval(performance.now() - holdStartedAt - HOLD_DELAY_MS))
+}
+
+function startStepHold(direction: -1 | 1, event: PointerEvent): void {
+  if (event.button !== 0) return
+
+  stopStepHold()
+  holdDirection = direction
+  holdStartedAt = performance.now()
+  holdValue = numberValue.value ?? 0
+  holdShiftKey = event.shiftKey
+  didRepeatDuringHold = false
+  window.addEventListener('pointerup', stopStepHold)
+  window.addEventListener('pointercancel', stopStepHold)
+  window.addEventListener('keydown', updateHoldModifier)
+  window.addEventListener('keyup', updateHoldModifier)
+  window.addEventListener('blur', stopStepHold)
+  scheduleHoldStep(HOLD_DELAY_MS)
+}
+
+function stopStepHold(): void {
+  if (holdTimer != null) {
+    window.clearTimeout(holdTimer)
+    holdTimer = null
+  }
+  if (didRepeatDuringHold) {
+    suppressNextClick = true
+  }
+  holdDirection = null
+  didRepeatDuringHold = false
+  window.removeEventListener('pointerup', stopStepHold)
+  window.removeEventListener('pointercancel', stopStepHold)
+  window.removeEventListener('keydown', updateHoldModifier)
+  window.removeEventListener('keyup', updateHoldModifier)
+  window.removeEventListener('blur', stopStepHold)
+}
+
+function updateHoldModifier(event: KeyboardEvent): void {
+  holdShiftKey = event.shiftKey
+}
+
+function handleStepperClick(direction: -1 | 1, event: MouseEvent): void {
+  if (suppressNextClick) {
+    suppressNextClick = false
+    return
+  }
+  stepValue(direction, event.shiftKey)
+}
+
+onBeforeUnmount(stopStepHold)
 </script>
 
 <style scoped>

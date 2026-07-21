@@ -30,6 +30,10 @@ const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
 const maxReferenceDepth = 24
 
+function toCharacterOffset(value: string, codeUnitOffset: number): number {
+  return Array.from(value.slice(0, Math.max(0, codeUnitOffset))).length
+}
+
 export function resolveParentFieldReferenceKey(
   blockId: string,
   reference: string,
@@ -292,6 +296,7 @@ export function resolveReferences(
     token: string,
     type: CardBindingIssueType,
     parameters?: Readonly<Record<string, string | number>>,
+    characterOffset?: number,
   ): void {
     const ownerKind = owner.kind === 'current-card' ? 'instance' : owner.kind
     issues.push(createCardPipelineIssue({
@@ -303,6 +308,7 @@ export function resolveReferences(
         ...(owner.anchorBlockId ? { blockId: owner.anchorBlockId } : {}),
         ...(owner.blockPath ? { blockPath: owner.blockPath } : {}),
         fieldKey,
+        ...(characterOffset !== undefined ? { characterOffset } : {}),
       },
       ...(parameters ? { parameters } : {}),
       token,
@@ -314,40 +320,42 @@ export function resolveReferences(
     tokenBody: string,
     fieldKey: string,
     recursionDepth: number,
+    rawToken: string,
+    characterOffset: number,
   ): ResolveTokenResult {
     if (recursionDepth > maxReferenceDepth) {
-      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.max-depth', {
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.max-depth', {
         maxDepth: maxReferenceDepth,
-      })
+      }, characterOffset)
       return { ok: false, value: null }
     }
 
     const tokenDescriptor = parseFieldReference(tokenBody)
     if (!tokenDescriptor) {
-      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.invalid-token')
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.invalid-token', undefined, characterOffset)
       return { ok: false, value: null }
     }
 
     function resolveTargetField(targetOwner: ReferenceOwner, targetFieldKey: string): ResolveTokenResult {
       if (!exposesCardFieldReference(targetOwner.source, targetFieldKey)) {
-        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.field-not-allowed', {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-allowed', {
           ownerType: targetOwner.typeName,
           referencedFieldKey: targetFieldKey,
-        })
+        }, characterOffset)
         return { ok: false, value: null }
       }
       if (!hasCardField(targetOwner.source, targetFieldKey)) {
-        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.field-not-found', {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-found', {
           ownerType: targetOwner.typeName,
           referencedFieldKey: targetFieldKey,
-        })
+        }, characterOffset)
         return { ok: false, value: null }
       }
       if (stateMemo.get(buildMemoKey(targetOwner, targetFieldKey)) === 'resolving') {
-        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.cycle', {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.cycle', {
           referencedOwnerId: targetOwner.id,
           referencedFieldKey: targetFieldKey,
-        })
+        }, characterOffset)
         return { ok: false, value: null }
       }
 
@@ -365,19 +373,19 @@ export function resolveReferences(
     if (owner.anchorBlockId) {
       targetReference = resolveParentFieldReferenceKey(owner.anchorBlockId, tokenBody, parentLookup)
       if (!targetReference) {
-        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found')
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
         return { ok: false, value: null }
       }
     } else if (tokenDescriptor.kind === 'document') {
       targetReference = `${documentOwner.id}:${tokenDescriptor.fieldKey}`
     } else {
-      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found')
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
       return { ok: false, value: null }
     }
 
     const separatorIndex = targetReference.indexOf(':')
     if (separatorIndex < 1) {
-      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.invalid-token')
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.invalid-token', undefined, characterOffset)
       return { ok: false, value: null }
     }
 
@@ -385,9 +393,9 @@ export function resolveReferences(
     const targetFieldKey = targetReference.slice(separatorIndex + 1)
     const targetOwner = targetOwnersById.get(targetOwnerId)
     if (!targetOwner) {
-      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found', {
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', {
         referencedOwnerId: targetOwnerId,
-      })
+      }, characterOffset)
       return { ok: false, value: null }
     }
 
@@ -405,36 +413,50 @@ export function resolveReferences(
       return { ok: true, value: sourceValue }
     }
     if (!acceptsCardFieldBinding(owner.source, fieldKey)) {
+      const characterOffset = sourceValue.indexOf('{{')
       pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.field-not-allowed', {
         ownerType: owner.typeName,
         referencedFieldKey: fieldKey,
-      })
+      }, characterOffset >= 0 ? toCharacterOffset(sourceValue, characterOffset) : undefined)
       return { ok: false, value: sourceValue }
     }
 
     const singleTokenMatch = singleTemplateTokenPattern.exec(sourceValue)
     if (singleTokenMatch) {
       const tokenBody = singleTokenMatch[1].trim()
-      const tokenResult = resolveTokenValue(owner, tokenBody, fieldKey, recursionDepth + 1)
+      const characterOffset = sourceValue.indexOf('{{')
+      const tokenEnd = sourceValue.indexOf('}}', characterOffset + 2)
+      const rawToken = characterOffset >= 0 && tokenEnd >= characterOffset
+        ? sourceValue.slice(characterOffset, tokenEnd + 2)
+        : sourceValue
+      const tokenResult = resolveTokenValue(
+        owner,
+        tokenBody,
+        fieldKey,
+        recursionDepth + 1,
+        rawToken,
+        toCharacterOffset(sourceValue, characterOffset),
+      )
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
       }
       if (!isBindingCompatible(targetKind, tokenResult.valueKind)
         || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-        pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.type-mismatch', {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.type-mismatch', {
           sourceType: tokenResult.valueKind,
           targetType: targetKind,
-        })
+        }, toCharacterOffset(sourceValue, characterOffset))
         return { ok: false, value: sourceValue }
       }
       return { ok: true, value: String(tokenResult.value) }
     }
 
     if (targetKind !== 'string') {
+      const characterOffset = sourceValue.indexOf('{{')
       pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.type-mismatch', {
         sourceType: 'interpolated-string',
         targetType: targetKind,
-      })
+      }, characterOffset >= 0 ? toCharacterOffset(sourceValue, characterOffset) : undefined)
       return { ok: false, value: sourceValue }
     }
 
@@ -452,7 +474,14 @@ export function resolveReferences(
       resolvedValue += sourceValue.slice(cursor, matched.index)
 
       const tokenBody = matched[1].trim()
-      const tokenResult = resolveTokenValue(owner, tokenBody, fieldKey, recursionDepth + 1)
+      const tokenResult = resolveTokenValue(
+        owner,
+        tokenBody,
+        fieldKey,
+        recursionDepth + 1,
+        matched[0],
+        toCharacterOffset(sourceValue, matched.index),
+      )
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
       }
@@ -462,7 +491,7 @@ export function resolveReferences(
         pushIssue(owner, fieldKey, matched[0], 'card-designer.binding.type-mismatch', {
           sourceType: tokenResult.valueKind,
           targetType: 'string',
-        })
+        }, toCharacterOffset(sourceValue, matched.index))
         return { ok: false, value: sourceValue }
       }
 

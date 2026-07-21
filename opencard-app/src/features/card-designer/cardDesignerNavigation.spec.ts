@@ -12,6 +12,7 @@ describe('card designer navigation token', () => {
         blockId: 'block-1',
         owner: 'location',
         fieldKey: 'x',
+        characterOffset: 3,
       },
     })).toBe(true)
   })
@@ -25,6 +26,28 @@ describe('card designer navigation token', () => {
         instanceId: null,
         owner: 'instance',
         fieldKey: 'name',
+      },
+    })).toBe(false)
+    expect(isCardDesignerNavigationToken({
+      protocol: 'card-designer',
+      version: 1,
+      target: {
+        kind: 'property',
+        instanceId: null,
+        owner: 'document',
+        fieldKey: 'name',
+        characterOffset: -1,
+      },
+    })).toBe(false)
+    expect(isCardDesignerNavigationToken({
+      protocol: 'card-designer',
+      version: 1,
+      target: {
+        kind: 'property',
+        instanceId: null,
+        owner: 'document',
+        fieldKey: 'name',
+        characterOffset: 1.5,
       },
     })).toBe(false)
     expect(isCardDesignerNavigationToken({

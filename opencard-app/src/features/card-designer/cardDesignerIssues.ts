@@ -21,6 +21,16 @@ const issueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.render-parse.out-of-range': 'app.problems.renderCodes.OUT_OF_RANGE',
 }
 
+const valueKindMessageKeys: Readonly<Record<string, string>> = {
+  string: 'app.problems.valueKinds.string',
+  number: 'app.problems.valueKinds.number',
+  boolean: 'app.problems.valueKinds.boolean',
+  object: 'app.problems.valueKinds.object',
+  array: 'app.problems.valueKinds.array',
+  undefined: 'app.problems.valueKinds.undefined',
+  'interpolated-string': 'app.problems.valueKinds.interpolatedString',
+}
+
 export const CARD_DESIGNER_BLUEPRINT_SCOPE_KEY = 'card:blueprint'
 
 export function createCardInstanceScopeKey(instanceId: string): string {
@@ -53,6 +63,9 @@ function createNavigationToken(issue: CardPipelineIssue): CardDesignerNavigation
       ...(issue.location.blockId ? { blockId: issue.location.blockId } : {}),
       owner: issue.location.owner.kind,
       fieldKey: issue.location.fieldKey,
+      ...(issue.location.characterOffset !== undefined
+        ? { characterOffset: issue.location.characterOffset }
+        : {}),
     },
   }
 }
@@ -61,22 +74,75 @@ function resolveCardLabel(
   instance: CardInstanceRecord | null,
   translate: Translate,
 ): string {
-  return instance?.name?.trim() || instance?.id || translate('app.problems.blueprint')
+  if (!instance) return translate('app.problems.locations.blueprint')
+  return translate('app.problems.locations.instance', {
+    instanceName: instance.name?.trim() || instance.id,
+  })
+}
+
+function abbreviateId(value: string): string {
+  if (value.length <= 12) return value
+  return `${value.slice(0, 4)}…${value.slice(-4)}`
+}
+
+function resolveValueKind(value: unknown, translate: Translate): string {
+  if (typeof value !== 'string') return ''
+  const messageKey = valueKindMessageKeys[value]
+  return messageKey ? translate(messageKey) : value
+}
+
+function createDescriptionParameters(
+  issue: CardPipelineIssue,
+  translate: Translate,
+  resolveFieldLabel: ResolveFieldLabel,
+): Readonly<Record<string, string | number>> {
+  const parameters: Record<string, string | number> = { ...issue.parameters }
+  const referencedFieldKey = typeof issue.parameters?.referencedFieldKey === 'string'
+    ? issue.parameters.referencedFieldKey
+    : issue.location.fieldKey
+  const displayFieldKey = typeof issue.parameters?.fieldName === 'string'
+    ? issue.parameters.fieldName
+    : referencedFieldKey
+
+  parameters.fieldName = resolveFieldLabel(displayFieldKey)
+  parameters.fieldKey = referencedFieldKey
+  parameters.token = issue.token ?? ''
+  parameters.sourceTypeName = resolveValueKind(issue.parameters?.sourceType, translate)
+  parameters.targetTypeName = resolveValueKind(issue.parameters?.targetType, translate)
+  return parameters
 }
 
 function createLocationText(
   issue: CardPipelineIssue,
   cardLabel: string,
+  translate: Translate,
   resolveFieldLabel: ResolveFieldLabel,
 ): string {
   const displayFieldKey = typeof issue.parameters?.fieldName === 'string'
     ? issue.parameters.fieldName
     : issue.location.fieldKey
-  return [
-    cardLabel,
-    issue.location.blockPath,
-    resolveFieldLabel(displayFieldKey),
-  ].filter((part): part is string => Boolean(part)).join(' · ')
+  const parameters = {
+    card: cardLabel,
+    blockPath: issue.location.blockPath || translate('app.problems.locations.unnamedBlock'),
+    blockId: abbreviateId(issue.location.blockId || issue.location.owner.id),
+    fieldName: resolveFieldLabel(displayFieldKey),
+    fieldKey: issue.location.fieldKey,
+    ...(issue.location.characterOffset !== undefined
+      ? { character: issue.location.characterOffset + 1 }
+      : {}),
+  }
+  const isBlockField = issue.location.owner.kind === 'block'
+    || issue.location.owner.kind === 'location'
+  const hasCharacter = issue.location.characterOffset !== undefined
+  const messageKey = isBlockField
+    ? hasCharacter
+      ? 'app.problems.locations.blockFieldAtCharacter'
+      : 'app.problems.locations.blockField'
+    : hasCharacter
+      ? 'app.problems.locations.fieldAtCharacter'
+      : 'app.problems.locations.field'
+
+  return translate(messageKey, parameters)
 }
 
 export function createCardDesignerIssues(
@@ -93,8 +159,11 @@ export function createCardDesignerIssues(
       id: issue.id,
       type: issue.type,
       severity: issue.severity,
-      locationText: createLocationText(issue, cardLabel, resolveFieldLabel),
-      description: translate(issueMessageKeys[issue.type], issue.parameters),
+      locationText: createLocationText(issue, cardLabel, translate, resolveFieldLabel),
+      description: translate(
+        issueMessageKeys[issue.type],
+        createDescriptionParameters(issue, translate, resolveFieldLabel),
+      ),
       ...(navigationToken ? { navigationToken } : {}),
     }
   })

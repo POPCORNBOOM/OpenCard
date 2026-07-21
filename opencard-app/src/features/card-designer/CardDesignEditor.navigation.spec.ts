@@ -122,6 +122,7 @@ describe('CardDesignEditor issue navigation', () => {
         blockId: 'text-1',
         owner: 'block',
         fieldKey: 'opacity',
+        characterOffset: 4,
       },
     }
     const navigation = (wrapper.vm as unknown as {
@@ -135,7 +136,7 @@ describe('CardDesignEditor issue navigation', () => {
       scrollToSelection: true,
     }))
     await expect(navigation).resolves.toBe('success')
-    expect(revealField).toHaveBeenCalledWith('text-1', 'opacity')
+    expect(revealField).toHaveBeenCalledWith('text-1', 'opacity', 4)
 
     const instanceTree = wrapper.findAllComponents(OcTreeStub)
       .find((tree) => tree.props('role') === 'listbox')

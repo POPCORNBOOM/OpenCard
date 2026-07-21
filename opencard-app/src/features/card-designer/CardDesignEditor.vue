@@ -449,7 +449,7 @@ type CardViewportHandle = {
 }
 
 type PropertyEditorHandle = {
-  revealField: (inputKey: string, fieldKey: string) => Promise<boolean>
+  revealField: (inputKey: string, fieldKey: string, characterOffset?: number) => Promise<boolean>
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
@@ -1503,7 +1503,11 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
   forceStructureTreeReveal.value = false
   if (!inputKey || !propertyEditorRef.value) return 'not-found'
 
-  return await propertyEditorRef.value.revealField(inputKey, target.fieldKey)
+  return await propertyEditorRef.value.revealField(
+    inputKey,
+    target.fieldKey,
+    target.characterOffset,
+  )
     ? 'success'
     : 'not-found'
 }

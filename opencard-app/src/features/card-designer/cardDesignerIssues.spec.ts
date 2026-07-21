@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest'
+import { createI18n } from 'vue-i18n'
 import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
+import enUS from '../../locales/en-US'
+import zhCN from '../../locales/zh-CN'
 import type { RenderPipelineResult } from '../card-rendering/renderPipeline'
 import { createCardDesignerIssueSnapshot, createCardDesignerIssues } from './cardDesignerIssues'
 
-const translate = (key: string) => `translated:${key}`
-const resolveFieldLabel = (key: string) => `field:${key}`
+function createTranslate(locale: 'en-US' | 'zh-CN') {
+  const i18n = createI18n({
+    legacy: false,
+    locale,
+    messages: { 'en-US': enUS, 'zh-CN': zhCN },
+  })
+  return (key: string, parameters: Readonly<Record<string, string | number>> = {}) => (
+    i18n.global.t(key, parameters)
+  )
+}
+
+const translate = createTranslate('zh-CN')
+const resolveFieldLabel = (key: string) => ({
+  opacity: '不透明度',
+  score: '分数',
+  width: '宽度',
+  content: '内容',
+}[key] ?? key)
 
 function createDocument(): CardDocument {
   return {
@@ -53,8 +72,8 @@ describe('cardDesignerIssues', () => {
         id: 'issue-1',
         type: 'card-designer.render-parse.out-of-range',
         severity: 'warning',
-        locationText: 'Instance 1 · Container.Title · field:opacity',
-        description: 'translated:app.problems.renderCodes.OUT_OF_RANGE',
+        locationText: '在实例“Instance 1”中，块“Container.Title”（title）的 不透明度（opacity）字段',
+        description: '字段“不透明度”的值超出允许范围，已使用默认值',
         navigationToken: {
           protocol: 'card-designer',
           version: 1,
@@ -129,5 +148,45 @@ describe('cardDesignerIssues', () => {
 
     expect(createCardDesignerIssues(result, null, translate, resolveFieldLabel)[0])
       .not.toHaveProperty('navigationToken')
+  })
+
+  it('localizes character position, referenced field name, and abbreviated block id', () => {
+    const result = createResult()
+    result.issues[0] = {
+      id: 'binding-issue',
+      type: 'card-designer.binding.field-not-found',
+      severity: 'warning',
+      token: '{{s:score}}',
+      parameters: { referencedFieldKey: 'score' },
+      location: {
+        documentId: 'card-doc',
+        instanceId: null,
+        owner: { kind: 'block', id: 'text-block-1234567890' },
+        blockId: 'text-block-1234567890',
+        blockPath: 'Container.Title',
+        fieldKey: 'content',
+        characterOffset: 6,
+      },
+    }
+
+    const issue = createCardDesignerIssues(result, null, translate, resolveFieldLabel)[0]!
+    expect(issue.locationText).toBe(
+      '在蓝图中，块“Container.Title”（text…7890）的 内容（content）字段，第 7 个字符',
+    )
+    expect(issue.description).toBe('引用字段“分数”不存在')
+    expect(issue.navigationToken).toEqual(expect.objectContaining({
+      target: expect.objectContaining({ characterOffset: 6 }),
+    }))
+
+    const englishIssue = createCardDesignerIssues(
+      result,
+      null,
+      createTranslate('en-US'),
+      (key) => key,
+    )[0]!
+    expect(englishIssue.locationText).toBe(
+      'In the blueprint, block "Container.Title" (text…7890), field content (content), character 7',
+    )
+    expect(englishIssue.description).toBe('Referenced field "score" does not exist')
   })
 })

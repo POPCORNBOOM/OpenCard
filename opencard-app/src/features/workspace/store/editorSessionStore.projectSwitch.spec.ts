@@ -30,33 +30,18 @@ describe('editorSessionStore project switching', () => {
     mocks.writeFile.mockResolvedValue(undefined)
   })
 
-  it('detaches old workspace sessions before opening the same relative path in a new project', async () => {
+  it('closes old workspace sessions before opening the same relative path in a new project', async () => {
     const store = useEditorSessionStore()
     const oldSession = await store.openFile('main.opencard')
-    store.updateDraftContent(oldSession.id, '{"project":"old-draft"}')
 
-    store.detachWorkspaceSessions('D:\\old-project\\')
+    store.closeWorkspaceSessions()
 
-    const detached = store.sessions.value.find((session) => session.id === oldSession.id)
-    expect(detached).toMatchObject({
-      resourceKind: 'external',
-      path: 'D:/old-project/main.opencard',
-      draftContent: '{"project":"old-draft"}',
-      isDirty: true,
-    })
+    expect(store.sessions.value).not.toContainEqual(expect.objectContaining({ id: oldSession.id }))
+    expect(store.activeSessionId.value).toBe('')
 
     const newSession = await store.openFile('main.opencard')
     expect(newSession.id).not.toBe(oldSession.id)
     expect(newSession.resourceKind).toBe('workspace')
-
-    await store.saveSession(oldSession.id)
-    expect(mocks.writeFile).toHaveBeenCalledWith(
-      'D:/old-project/main.opencard',
-      '{"project":"old-draft"}',
-    )
-    expect(mocks.saveFile).not.toHaveBeenCalled()
-
-    store.closeSession(oldSession.id)
     store.closeSession(newSession.id)
   })
 })

@@ -17,7 +17,7 @@ describe('PropertyEditor records protocol', () => {
         sortMode: 'category',
         inputs: [{
           key: 'block:1',
-          record: { content: 'Hello' },
+          record: { content: '😀 Hello {{s:missing}}!' },
           fields: {
             content: { title: 'Content', fieldType: 'string' },
           },
@@ -30,12 +30,18 @@ describe('PropertyEditor records protocol', () => {
     Object.defineProperty(row.element, 'scrollIntoView', { value: scrollIntoView })
 
     const editor = wrapper.vm as unknown as {
-      revealField: (inputKey: string, fieldKey: string) => Promise<boolean>
+      revealField: (
+        inputKey: string,
+        fieldKey: string,
+        characterOffset?: number,
+      ) => Promise<boolean>
     }
-    expect(await editor.revealField('block:1', 'content')).toBe(true)
+    expect(await editor.revealField('block:1', 'content', 8)).toBe(true)
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
     expect(row.classes()).toContain('is-revealed')
     expect(document.activeElement).toBe(row.get('input').element)
+    expect((row.get('input').element as HTMLInputElement).selectionStart).toBe(9)
+    expect((row.get('input').element as HTMLInputElement).selectionEnd).toBe(9)
     expect(await editor.revealField('block:1', 'missing')).toBe(false)
 
     wrapper.unmount()

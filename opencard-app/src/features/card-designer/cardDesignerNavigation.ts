@@ -11,6 +11,7 @@ export type CardDesignerNavigationToken = {
     blockId?: string
     owner: CardDesignerNavigationOwner
     fieldKey: string
+    characterOffset?: number
   }
 }
 
@@ -48,6 +49,14 @@ export function isCardDesignerNavigationToken(
   }
   if (target.instanceId !== null && typeof target.instanceId !== 'string') return false
   if (target.blockId !== undefined && typeof target.blockId !== 'string') return false
+  if (
+    target.characterOffset !== undefined
+    && (
+      typeof target.characterOffset !== 'number'
+      || !Number.isInteger(target.characterOffset)
+      || target.characterOffset < 0
+    )
+  ) return false
   if (
     target.owner !== 'document'
     && target.owner !== 'instance'

@@ -157,4 +157,18 @@ describe('card additional fields and bindings', () => {
       }),
     ]))
   })
+
+  it('records the zero-based character offset of the failing binding token', () => {
+    const block = createTextBlock({ id: 'text', content: '😀 Hello {{s:missing}}!' })
+    const result = resolveReferences(createDocument(block))
+
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      type: 'card-designer.binding.field-not-found',
+      token: '{{s:missing}}',
+      location: expect.objectContaining({
+        fieldKey: 'content',
+        characterOffset: 8,
+      }),
+    }))
+  })
 })

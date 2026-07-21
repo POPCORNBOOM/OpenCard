@@ -13,6 +13,7 @@ export type CardIssueLocation = {
   blockId?: string
   blockPath?: string
   fieldKey: string
+  characterOffset?: number
 }
 
 export type CardBindingIssueType =
@@ -56,6 +57,7 @@ export function createCardPipelineIssue(
       input.location.owner.id,
       input.location.blockId ?? null,
       input.location.fieldKey,
+      input.location.characterOffset ?? null,
       input.token ?? null,
     ]),
     severity: 'warning',

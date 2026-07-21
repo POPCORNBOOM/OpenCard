@@ -366,21 +366,40 @@ function findFieldRow(inputKey: string, fieldKey: string): HTMLElement | null {
   ) ?? null
 }
 
-function focusFieldControl(row: HTMLElement): void {
+function toCodeUnitOffset(value: string, characterOffset: number): number {
+  return Array.from(value).slice(0, characterOffset).join('').length
+}
+
+function focusFieldControl(row: HTMLElement, characterOffset?: number): void {
   const control = row.querySelector<HTMLElement>(
     '.entry-control input:not([type="hidden"]), .entry-control textarea, .entry-control select, '
       + '.entry-control button:not([disabled]), .entry-control [tabindex]:not([tabindex="-1"])',
   )
   control?.focus()
+  if (
+    characterOffset !== undefined
+    && (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)
+  ) {
+    const selectionOffset = toCodeUnitOffset(control.value, characterOffset)
+    try {
+      control.setSelectionRange(selectionOffset, selectionOffset)
+    } catch {
+      // Some non-text input types expose setSelectionRange but reject calls.
+    }
+  }
 }
 
-async function revealField(inputKey: string, fieldKey: string): Promise<boolean> {
+async function revealField(
+  inputKey: string,
+  fieldKey: string,
+  characterOffset?: number,
+): Promise<boolean> {
   await nextTick()
   const row = findFieldRow(inputKey, fieldKey)
   if (!row) return false
 
   row.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-  focusFieldControl(row)
+  focusFieldControl(row, characterOffset)
   revealedFieldIdentity.value = fieldIdentity(inputKey, fieldKey)
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
   revealHighlightTimer = setTimeout(() => {

@@ -331,28 +331,15 @@ export function useEditorSessionStore() {
     activeSessionId.value = fallbackSession?.id ?? ''
   }
 
-  function detachWorkspaceSessions(projectRoot: string) {
-    const normalizedRoot = normalizePath(projectRoot)
-    if (!normalizedRoot) {
-      return
+  function closeWorkspaceSessions() {
+    const activeSessionWasClosed = sessions.value.some(
+      (session) => session.id === activeSessionId.value && session.resourceKind === 'workspace',
+    )
+    sessions.value = sessions.value.filter((session) => session.resourceKind !== 'workspace')
+
+    if (activeSessionWasClosed) {
+      activeSessionId.value = sessions.value[sessions.value.length - 1]?.id ?? ''
     }
-
-    sessions.value = sessions.value.map((session) => {
-      if (session.resourceKind !== 'workspace' || !session.path) {
-        return session
-      }
-
-      const normalizedSessionPath = normalizePath(session.path)
-      const externalPath = /^(?:[A-Za-z]:\/|\/)/.test(normalizedSessionPath)
-        ? normalizedSessionPath
-        : normalizedRoot + '/' + normalizedSessionPath.replace(/^\/+/, '')
-
-      return {
-        ...session,
-        resourceKind: 'external',
-        path: externalPath,
-      }
-    })
   }
 
   async function writeContentByResourceKind(resourceKind: SessionResourceKind, path: string, content: string) {
@@ -512,7 +499,7 @@ export function useEditorSessionStore() {
     setSessionDirtyState,
     updateSessionUiState,
     closeSession,
-    detachWorkspaceSessions,
+    closeWorkspaceSessions,
     saveSession,
     saveActiveSession,
     refreshSessionFromDisk,
