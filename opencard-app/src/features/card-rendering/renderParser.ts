@@ -280,7 +280,6 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
       && source[fieldKey] !== undefined
 
     if (!hasValue) {
-      pushIssue(context, fieldKey, definition, 'MISSING_VALUE', issues)
       return parseSchemaDefault(context.typeName, fieldKey, definition)
     }
 
@@ -314,7 +313,6 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
         && source[fieldKey] !== null
         && source[fieldKey] !== undefined
       if (!hasValue) {
-        pushIssue(context, fieldKey, definition, 'MISSING_VALUE', issues)
         return
       }
       if (source[fieldKey] !== expected) {
@@ -425,13 +423,9 @@ function resolveBlockType(
   }
   const definition = getTypePropertyEditorSchema(fallbackType).type
   if (!definition) throw new Error(`Missing schema definition for ${fallbackType}.type`)
-  pushIssue(
-    context,
-    'type',
-    definition,
-    rawType === null || rawType === undefined ? 'MISSING_VALUE' : 'INVALID_OPTION',
-    issues,
-  )
+  if (rawType !== null && rawType !== undefined) {
+    pushIssue(context, 'type', definition, 'INVALID_OPTION', issues)
+  }
   return fallbackType
 }
 

@@ -47,13 +47,7 @@ describe('renderParser', () => {
       opacity: 0.5,
       verticalAlign: 'top',
     })
-    expect(result.issues).toContainEqual(expect.objectContaining({
-      documentId: 'document',
-      blockPath: 'Title',
-      blockId: 'text',
-      fieldKey: 'verticalAlign',
-      reasonCode: 'MISSING_VALUE',
-    }))
+    expect(result.issues).toEqual([])
   })
 
   it('uses schema defaults for invalid values without changing the source document', () => {

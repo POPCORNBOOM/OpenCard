@@ -135,53 +135,72 @@
       <EzWorkspaceFrame
         :title="workspaceTitle"
         :actions="workspaceActions"
-        :expand-bottom-panel-label="t('app.shell.expandBottomPanel')"
-        :collapse-bottom-panel-label="t('app.shell.collapseBottomPanel')"
         lock-body-scroll
         flush-body
         @action="handleWorkspaceFrameAction"
       >
-        <div class="ide-shell__workbench">
-          <CreateProjectWorkspace
-            v-if="isCreateProjectMode"
-            ref="createProjectWorkspaceRef"
-            :activation-error="projectActivationError"
-            :external-busy="isActivatingProject"
-            :selected-key="selectedTemplateKey"
-            @created="handleProjectCreated"
-            @update:busy="isCreateProjectOperationBusy = $event"
-            @update:selected-key="selectedTemplateKey = $event"
-          />
-          <ExportTemplateWorkspace
-            v-else-if="isExportTemplateMode && projectPath"
-            ref="exportTemplateWorkspaceRef"
-            :project-path="projectPath"
-            @selection-change="exportTemplateSelection = $event"
-            @update:busy="isExportTemplateBusy = $event"
-          />
-          <SettingsWorkspace
-            v-else-if="isSettingsMode"
-            :view-model="activeSettingsCategory"
-            @intent="handleSettingsIntent"
-          />
-          <WelcomeWorkspace
-            v-else-if="isWelcomeMode"
-            @new-project="openCreateProject"
-            @open-project="openProject"
-          />
-          <ProjectEditorWorkspace v-else-if="isProjectMode" :has-active-editor="Boolean(activeSession)">
-            <component
-              v-if="activeSession"
-              :is="currentEditorComponent"
-              :key="currentEditorKey"
-              ref="currentEditorRef"
-              v-bind="currentEditorProps"
-              @modified="handleEditorModified"
-              @save="handleEditorSave"
-              @update-viewport-transform="handleViewportTransformUpdate"
-              @update-card-designer-layout="handleCardDesignerLayoutUpdate"
+        <div class="ide-shell__workspace-stack">
+          <div class="ide-shell__workbench">
+            <CreateProjectWorkspace
+              v-if="isCreateProjectMode"
+              ref="createProjectWorkspaceRef"
+              :activation-error="projectActivationError"
+              :external-busy="isActivatingProject"
+              :selected-key="selectedTemplateKey"
+              @created="handleProjectCreated"
+              @update:busy="isCreateProjectOperationBusy = $event"
+              @update:selected-key="selectedTemplateKey = $event"
             />
-          </ProjectEditorWorkspace>
+            <ExportTemplateWorkspace
+              v-else-if="isExportTemplateMode && projectPath"
+              ref="exportTemplateWorkspaceRef"
+              :project-path="projectPath"
+              @selection-change="exportTemplateSelection = $event"
+              @update:busy="isExportTemplateBusy = $event"
+            />
+            <SettingsWorkspace
+              v-else-if="isSettingsMode"
+              :view-model="activeSettingsCategory"
+              @intent="handleSettingsIntent"
+            />
+            <WelcomeWorkspace
+              v-else-if="isWelcomeMode"
+              @new-project="openCreateProject"
+              @open-project="openProject"
+            />
+            <ProjectEditorWorkspace v-else-if="isProjectMode" :has-active-editor="Boolean(activeSession)">
+              <component
+                v-if="activeSession"
+                :is="currentEditorComponent"
+                :key="currentEditorKey"
+                ref="currentEditorRef"
+                v-bind="currentEditorProps"
+                @modified="handleEditorModified"
+                @save="handleEditorSave"
+                @update-viewport-transform="handleViewportTransformUpdate"
+                @update-card-designer-layout="handleCardDesignerLayoutUpdate"
+                @problems-change="handleEditorProblemsChange(activeSession.id, $event)"
+              />
+            </ProjectEditorWorkspace>
+          </div>
+
+          <WorkspaceBottomPanel
+            :expanded="isBottomPanelExpanded"
+            :active-tab="activeBottomTab"
+            :problem-count="visibleProblemCount"
+            :problem-tree-data="visibleProblemTreeData"
+            :expanded-problem-keys="expandedProblemKeys"
+            :output-lines="workspaceOutputLines"
+            :problems-label="t('app.problems.tab')"
+            :output-label="t('app.problems.outputTab')"
+            :problem-empty-label="t('app.problems.empty')"
+            :output-empty-label="t('app.problems.outputEmpty')"
+            :expand-label="t('app.shell.expandBottomPanel')"
+            :collapse-label="t('app.shell.collapseBottomPanel')"
+            @toggle="isBottomPanelExpanded = !isBottomPanelExpanded"
+            @tab-change="activeBottomTab = $event"
+            @problem-tree-intent="handleWorkspaceProblemTreeIntent"
+          />
         </div>
       </EzWorkspaceFrame>
     </div>
@@ -210,6 +229,9 @@ import CreateProjectWorkspace from '../features/project-templates/components/Cre
 import ExportTemplateWorkspace from '../features/project-templates/components/ExportTemplateWorkspace.vue'
 import ProjectEditorWorkspace from '../features/ide-shell/components/ProjectEditorWorkspace.vue'
 import WelcomeWorkspace from '../features/ide-shell/components/WelcomeWorkspace.vue'
+import WorkspaceBottomPanel, {
+  type WorkspaceBottomTab,
+} from '../features/ide-shell/components/WorkspaceBottomPanel.vue'
 import type {
   CreatedProject,
   ProjectTemplate,
@@ -222,9 +244,11 @@ import { useAppSettingsStore } from '../features/settings/store/appSettingsStore
 import type { SettingsCategoryKey, SettingsIntent } from '../features/settings/model/appSettings'
 import CardDocumentRenderer from '../features/card-rendering/components/CardDocumentRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
+import type { EditorProblem } from '../features/editor-runtime/model/editorProblem'
 import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
 import { useAppUpdater } from '../features/ide-shell/composables/useAppUpdater'
+import { useWorkspaceProblems } from '../features/ide-shell/composables/useWorkspaceProblems'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
   useIdeFileTree,
@@ -265,6 +289,12 @@ const TEMPLATE_ENTRY_ADD_ACTION_KEY = 'template.entry.add'
 const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
 const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
+const EMPTY_TREE_DATA: OcTreeData = {
+  rootKeys: [],
+  items: new Map(),
+  children: new Map(),
+}
+const workspaceOutputLines: readonly string[] = []
 const themeClass = 'shell-theme-graphite'
 
 type CurrentEditorRef = {
@@ -318,6 +348,8 @@ const projectActivationError = ref('')
 const isActivatingProject = ref(false)
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
+const isBottomPanelExpanded = ref(false)
+const activeBottomTab = ref<WorkspaceBottomTab>('problems')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value || isCreateProjectOperationBusy.value
 ))
@@ -352,6 +384,7 @@ const {
 } = useAppUpdater()
 
 const {
+  sessions,
   activeSession,
   openedEditorItems,
   openFile: openEditorSession,
@@ -365,6 +398,17 @@ const {
   detachWorkspaceSessions,
   saveActiveSession,
 } = useEditorSessionStore()
+
+const {
+  problemTreeData,
+  problemNodeSessionIds,
+  problemCount,
+  expandedProblemKeys,
+  reportSessionProblems,
+  setProblemNodeExpanded,
+} = useWorkspaceProblems({ sessions })
+const visibleProblemTreeData = computed(() => isProjectMode.value ? problemTreeData.value : EMPTY_TREE_DATA)
+const visibleProblemCount = computed(() => isProjectMode.value ? problemCount.value : 0)
 
 const {
   canExportActiveCard,
@@ -915,6 +959,21 @@ function handleCardDesignerLayoutUpdate(value: CardDesignerLayoutState): void {
   })
 }
 
+function handleEditorProblemsChange(sessionId: string, problems: readonly EditorProblem[]): void {
+  reportSessionProblems(sessionId, problems)
+}
+
+function handleWorkspaceProblemTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'expansion.change') {
+    setProblemNodeExpanded(intent.key, intent.expanded)
+    return
+  }
+
+  if (intent.type !== 'node.activate') return
+  const sessionId = problemNodeSessionIds.value.get(intent.key)
+  if (sessionId) activateSession(sessionId)
+}
+
 async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   const entry = findProjectEntryByKey(itemKey)
   if (!entry?.isDirectory) {
@@ -1408,6 +1467,16 @@ onUnmounted(() => {
 <style scoped>
 .ide-shell {
   color: var(--color-text-primary);
+}
+
+.ide-shell__workspace-stack {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .ide-shell__workbench {

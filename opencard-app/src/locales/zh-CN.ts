@@ -19,7 +19,6 @@ export default {
         TYPE_MISMATCH: '引用值类型不匹配',
       },
       renderCodes: {
-        MISSING_VALUE: '缺少必要值',
         INVALID_TYPE: '值类型无效',
         CONVERSION_FAILED: '值转换失败',
         INVALID_OPTION: '选项值无效',

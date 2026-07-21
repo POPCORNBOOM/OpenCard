@@ -19,7 +19,6 @@ export default {
         TYPE_MISMATCH: 'Referenced value has an incompatible type',
       },
       renderCodes: {
-        MISSING_VALUE: 'Required value is missing',
         INVALID_TYPE: 'Value type is invalid',
         CONVERSION_FAILED: 'Value conversion failed',
         INVALID_OPTION: 'Option value is invalid',

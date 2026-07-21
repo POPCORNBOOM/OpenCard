@@ -125,7 +125,6 @@ export type RenderReadyCardDocument = {
 }
 
 export type RenderIssueReasonCode =
-  | 'MISSING_VALUE'
   | 'INVALID_TYPE'
   | 'CONVERSION_FAILED'
   | 'INVALID_OPTION'

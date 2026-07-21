@@ -8,6 +8,10 @@ defineProps<{
   flushBody?: boolean;
 }>();
 
+defineSlots<{
+  default: () => unknown;
+}>();
+
 const emit = defineEmits<{
   action: [actionKey: string];
 }>();

@@ -282,8 +282,7 @@ import OcPanel from '../../components/base/OcPanel.vue'
 import CardDocumentRenderer from '../card-rendering/components/CardDocumentRenderer.vue'
 import CardViewport from '../card-rendering/components/CardViewport.vue'
 import { runRenderPipeline } from '../card-rendering/renderPipeline'
-import type { RenderIssue, RenderReadyCardDocument } from '../card-rendering/render.types'
-import type { ReferenceResolveIssue } from '../card-rendering/resolveCardBindings'
+import type { RenderReadyCardDocument } from '../card-rendering/render.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
@@ -301,6 +300,7 @@ import OcText from '../../components/base/OcText.vue'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerLayoutState } from '../editor-runtime/model/editorUiState'
 import type { EditorProblem } from '../editor-runtime/model/editorProblem'
+import { createCardDesignerProblems } from './cardDesignerProblems'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type {
   ReferenceCompletionContext,
@@ -1120,33 +1120,6 @@ const transformDisabledBlockIds = computed(() => {
   return ids
 })
 
-function createBindingProblem(issue: ReferenceResolveIssue): EditorProblem {
-  return {
-    id: ['binding', issue.path, issue.code, issue.token].join(':'),
-    source: 'binding',
-    severity: 'warning',
-    message: `${issue.path}: ${t(`app.problems.bindingCodes.${issue.code}`)}`,
-    code: issue.code,
-    detail: issue.reason,
-    path: issue.path,
-    token: issue.token,
-  }
-}
-
-function createRenderParserProblem(issue: RenderIssue): EditorProblem {
-  const fieldLabel = issue.fieldName || issue.fieldKey
-  return {
-    id: ['render-parser', issue.documentId, issue.blockPath, issue.fieldKey, issue.reasonCode].join(':'),
-    source: 'render-parser',
-    severity: 'warning',
-    message: `${issue.blockPath} · ${fieldLabel}: ${t(`app.problems.renderCodes.${issue.reasonCode}`)}`,
-    code: issue.reasonCode,
-    path: issue.blockPath,
-    blockId: issue.blockId,
-    fieldKey: issue.fieldKey,
-  }
-}
-
 // Keep diagnostics beside the projected document so the editor can report both pipeline stages.
 const renderPipelineResult = computed(() => {
   documentRevision.value
@@ -1168,15 +1141,9 @@ const renderPipelineResult = computed(() => {
 })
 
 const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineResult.value?.document ?? null)
-const editorProblems = computed<readonly EditorProblem[]>(() => {
-  const result = renderPipelineResult.value
-  if (!result) return []
-
-  return [
-    ...result.bindingIssues.map(createBindingProblem),
-    ...result.renderIssues.map(createRenderParserProblem),
-  ]
-})
+const editorProblems = computed<readonly EditorProblem[]>(() => (
+  createCardDesignerProblems(renderPipelineResult.value, t)
+))
 
 watch(editorProblems, (problems) => {
   emit('problems-change', problems)
