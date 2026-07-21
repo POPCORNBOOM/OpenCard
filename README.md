@@ -1,4 +1,4 @@
-# OpenCard
+# OpenCard Early Access
 
 A visual workspace for designing cards and creating reusable templates.
 
