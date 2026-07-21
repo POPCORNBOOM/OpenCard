@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyInstance,
   createBlock,
   type CardDocument,
   type CardInstanceRecord,
 } from './model'
+import { applyInstance } from './instance'
 
 describe('QR code and shape blocks', () => {
   it('creates sparse blocks with their semantic defaults', () => {

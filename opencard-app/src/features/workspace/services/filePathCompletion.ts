@@ -1,4 +1,4 @@
-import type { PropertyCompletionProvider } from '../../../components/editors/propertyEditor.types'
+import type { PropertyCompletionProvider } from '../../../shared/ui/property-editor/propertyEditor.types'
 import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 
 export type FilePathCompletionEntry = {

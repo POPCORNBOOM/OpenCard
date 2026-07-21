@@ -14,7 +14,6 @@
 
 - `OcButton`：按钮 primitive。
 - `OcCheckbox`：原生 checkbox 语义与统一视觉。
-- `OcChip`：紧凑状态或路径标签。
 - `OcEmpty`：空状态文本。
 - `OcFieldFrame`：复合字段的边框、圆角、focus 与前后缀槽。
 - `OcFieldInput`：原生 input/select/textarea 包装。
@@ -27,4 +26,4 @@
 - 普通输入直接使用 `OcFieldInput variant="filled"`。
 - 颜色、数字步进、自动补全等复合输入使用 `OcFieldFrame`，内部输入使用 `variant="plain"`。
 - title/actions/collapse 属于 `standard/OcCard`，不能加入 `OcPanel`。
-- 菜单、树、选项组、分轨布局等交互协议属于 standard。
+- 菜单、树、选项组等交互协议属于 standard。

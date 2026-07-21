@@ -7,7 +7,6 @@ import OcFieldInput from './OcFieldInput.vue'
 import OcIcon from './OcIcon.vue'
 import OcPanel from './OcPanel.vue'
 import OcActionButton from '../standard/OcActionButton.vue'
-import OcActionGroup from '../standard/OcActionGroup.vue'
 import OcBar from '../standard/OcBar.vue'
 import OcCard from '../standard/OcCard.vue'
 
@@ -18,7 +17,6 @@ describe('OC attribute forwarding', () => {
     { component: OcIcon },
     { component: OcPanel },
     { component: OcActionButton, props: { action: { key: 'edit', title: 'Edit' } } },
-    { component: OcActionGroup, props: { actions: [{ key: 'edit', label: 'Edit' }] } },
     { component: OcBar, props: { title: 'Title' } },
     { component: OcCard, props: { title: 'Title' } },
   ]

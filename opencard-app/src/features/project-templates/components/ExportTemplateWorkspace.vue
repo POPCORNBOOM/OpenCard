@@ -96,7 +96,9 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { OcButton, OcFieldInput, OcIcon } from '../../../components/base'
+import OcButton from '../../../components/base/OcButton.vue'
+import OcFieldInput from '../../../components/base/OcFieldInput.vue'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import {
   TemplateServiceError,
   validateTemplateDescription,

@@ -88,8 +88,10 @@
 </template>
 
 <script setup lang="ts">
-import { OcButton, OcCheckbox, OcText } from '../../../components/base'
-import { OcOptionGroup } from '../../../components/standard'
+import OcButton from '../../../components/base/OcButton.vue'
+import OcCheckbox from '../../../components/base/OcCheckbox.vue'
+import OcText from '../../../components/base/OcText.vue'
+import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
 import AppearanceShaderPreview from './AppearanceShaderPreview.vue'
 import type { SettingsIntent } from '../model/appSettings'
 import type { SettingsCategoryViewModel } from '../composables/useSettingsWorkspace'

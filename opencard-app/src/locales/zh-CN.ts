@@ -1,5 +1,31 @@
 export default {
   app: {
+    shell: {
+      expandBottomPanel: '展开下方面板',
+      collapseBottomPanel: '收起下方面板',
+    },
+    problems: {
+      tab: '问题',
+      outputTab: '输出',
+      empty: '没有问题',
+      outputEmpty: '暂无输出',
+      bindingCodes: {
+        INVALID_TOKEN: '引用语法无效',
+        SOURCE_NOT_FOUND: '引用来源不存在',
+        FIELD_NOT_ALLOWED: '该字段不可被引用',
+        FIELD_NOT_FOUND: '引用字段不存在',
+        CYCLE: '检测到循环引用',
+        MAX_DEPTH: '引用层级超过限制',
+        TYPE_MISMATCH: '引用值类型不匹配',
+      },
+      renderCodes: {
+        MISSING_VALUE: '缺少必要值',
+        INVALID_TYPE: '值类型无效',
+        CONVERSION_FAILED: '值转换失败',
+        INVALID_OPTION: '选项值无效',
+        OUT_OF_RANGE: '数值超出范围',
+      },
+    },
     menu: {
       file: '文件',
       edit: '编辑',
@@ -233,9 +259,8 @@ export default {
       reset: '重置',
     },
     bindings: {
-      bind: '绑定变量',
-      change: '更换绑定',
-      clear: '解除绑定',
+      useRawEditor: '使用原始字符串编辑器',
+      useFieldEditor: '使用字段编辑器',
     },
     customFields: {
       create: '添加自定义字段',

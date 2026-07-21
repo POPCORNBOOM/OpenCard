@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcIcon, OcPanel } from '../../../components/base'
+import OcIcon from '../../../components/base/OcIcon.vue'
+import OcPanel from '../../../components/base/OcPanel.vue'
 
 defineOptions({ name: 'ProjectEditorWorkspace' })
 

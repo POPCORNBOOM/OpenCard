@@ -135,6 +135,8 @@
       <EzWorkspaceFrame
         :title="workspaceTitle"
         :actions="workspaceActions"
+        :expand-bottom-panel-label="t('app.shell.expandBottomPanel')"
+        :collapse-bottom-panel-label="t('app.shell.collapseBottomPanel')"
         lock-body-scroll
         flush-body
         @action="handleWorkspaceFrameAction"
@@ -200,7 +202,7 @@ import { useProjectStore } from '../features/workspace/store/projectStore'
 import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
 import MonacoEditor from '../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
-import { OcTree } from '../components/standard'
+import OcTree from '../components/standard/OcTree.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../shared/ui/tree/tree.types'
 import type { CardDesignerLayoutState } from '../features/editor-runtime/model/editorUiState'
 import SettingsWorkspace from '../features/settings/components/SettingsWorkspace.vue'
@@ -218,7 +220,7 @@ import { useProjectTemplateStore } from '../features/project-templates/store/pro
 import { useSettingsWorkspace } from '../features/settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../features/settings/store/appSettingsStore'
 import type { SettingsCategoryKey, SettingsIntent } from '../features/settings/model/appSettings'
-import CardDocumentRenderer from '../components/card/CardDocumentRenderer.vue'
+import CardDocumentRenderer from '../features/card-rendering/components/CardDocumentRenderer.vue'
 import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
 import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
 import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'

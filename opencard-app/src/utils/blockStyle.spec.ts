@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { RenderReadyBaseBlock } from '../components/card/render.types'
+import type { RenderReadyBaseBlock } from '../features/card-rendering/render.types'
 import { getBlockBoxStyles } from './blockStyle'
 
 function createBlock(overrides: Partial<RenderReadyBaseBlock> = {}): RenderReadyBaseBlock {

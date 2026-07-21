@@ -10,6 +10,7 @@ import type {
   CardDesignerLayoutState,
   EditorViewportTransform,
 } from '../model/editorUiState'
+import type { EditorProblem } from '../model/editorProblem'
 
 export interface EditorProps {
   filePath: string
@@ -26,6 +27,7 @@ export interface EditorEmits {
   (e: 'update:modelValue', value: string): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
+  (e: 'problems-change', problems: readonly EditorProblem[]): void
 }
 
 // 编辑器接口定义
@@ -62,7 +64,7 @@ class EditorRegistry {
 }
 
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
-import CardDesignEditor from '../../../components/editors/CardDesignEditor.vue'
+import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 

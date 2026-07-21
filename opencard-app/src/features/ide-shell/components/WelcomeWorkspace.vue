@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { OcButton } from '../../../components/base'
+import OcButton from '../../../components/base/OcButton.vue'
 
 defineOptions({ name: 'WelcomeWorkspace' })
 

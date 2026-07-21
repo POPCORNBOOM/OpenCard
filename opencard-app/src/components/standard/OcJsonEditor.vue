@@ -45,7 +45,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { OcButton, OcFieldInput, OcPanel, OcText } from '../base'
+import OcButton from '../base/OcButton.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
+import OcPanel from '../base/OcPanel.vue'
+import OcText from '../base/OcText.vue'
 
 defineOptions({ name: 'OcJsonEditor' })
 

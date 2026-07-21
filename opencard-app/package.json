@@ -16,7 +16,6 @@
     "@floating-ui/vue": "^2.0.1",
     "@mdi/font": "^7.4.47",
     "@mdi/js": "^7.4.47",
-    "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
@@ -34,7 +33,6 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "@types/html2canvas": "^0.5.35",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",

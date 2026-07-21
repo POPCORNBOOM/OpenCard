@@ -1,7 +1,7 @@
 import type {
     RenderReadyBaseBlock,
     RenderReadySimpleContainerLocation,
-} from '../components/card/render.types'
+} from '../features/card-rendering/render.types'
 
 type BlockStyleOptions = {
     disableTransform: boolean

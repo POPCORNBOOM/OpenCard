@@ -1,5 +1,31 @@
 export default {
   app: {
+    shell: {
+      expandBottomPanel: 'Expand bottom panel',
+      collapseBottomPanel: 'Collapse bottom panel',
+    },
+    problems: {
+      tab: 'Problems',
+      outputTab: 'Output',
+      empty: 'No problems',
+      outputEmpty: 'No output',
+      bindingCodes: {
+        INVALID_TOKEN: 'Invalid reference syntax',
+        SOURCE_NOT_FOUND: 'Reference source not found',
+        FIELD_NOT_ALLOWED: 'Field cannot be referenced',
+        FIELD_NOT_FOUND: 'Referenced field not found',
+        CYCLE: 'Circular reference detected',
+        MAX_DEPTH: 'Reference depth limit exceeded',
+        TYPE_MISMATCH: 'Referenced value has an incompatible type',
+      },
+      renderCodes: {
+        MISSING_VALUE: 'Required value is missing',
+        INVALID_TYPE: 'Value type is invalid',
+        CONVERSION_FAILED: 'Value conversion failed',
+        INVALID_OPTION: 'Option value is invalid',
+        OUT_OF_RANGE: 'Value is out of range',
+      },
+    },
     menu: {
       file: 'File',
       edit: 'Edit',
@@ -233,9 +259,8 @@ export default {
       reset: 'Reset',
     },
     bindings: {
-      bind: 'Bind variable',
-      change: 'Change binding',
-      clear: 'Clear binding',
+      useRawEditor: 'Use raw string editor',
+      useFieldEditor: 'Use field editor',
     },
     customFields: {
       create: 'Add Custom Field',

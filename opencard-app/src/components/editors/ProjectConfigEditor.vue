@@ -58,7 +58,9 @@ import {
   type ProjectInformation,
   type ProjectMetadata,
 } from '../../features/workspace/model/projectMetadata'
-import { OcFieldInput, OcIcon, OcText } from '../base'
+import OcFieldInput from '../base/OcFieldInput.vue'
+import OcIcon from '../base/OcIcon.vue'
+import OcText from '../base/OcText.vue'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()

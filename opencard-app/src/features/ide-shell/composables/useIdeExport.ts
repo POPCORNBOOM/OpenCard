@@ -8,15 +8,12 @@ import { computed, nextTick, ref, type Ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import {
-  applyInstance,
-  resolveReferences,
   type CardDocument,
   type CardInstanceRecord,
-  type ReferenceResolveIssue,
 } from '../../../entities/card/model'
 import { parseCardDocument } from '../../../entities/card/storage'
-import { parseRenderDocument } from '../../../components/card/renderParser'
-import type { RenderIssue, RenderReadyCardDocument } from '../../../components/card/render.types'
+import { runRenderPipeline, type RenderPipelineIssue, type RenderPipelineResult } from '../../card-rendering/renderPipeline'
+import type { RenderReadyCardDocument } from '../../card-rendering/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
@@ -39,7 +36,7 @@ type CardExportContext = {
 type ExportQueueEntry = {
   fileName: string
   document: RenderReadyCardDocument
-  issues: Array<ReferenceResolveIssue | RenderIssue>
+  issues: RenderPipelineIssue[]
 }
 
 function stripFileExtension(fileName: string) {
@@ -157,17 +154,8 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
 function buildRenderableCardDocument(
   document: CardDocument,
   instance: CardInstanceRecord | null,
-): { document: RenderReadyCardDocument, issues: Array<ReferenceResolveIssue | RenderIssue> } {
-  const projected = applyInstance(document, instance)
-  const resolved = resolveReferences(projected, {
-    currentCard: instance,
-  })
-  const parsed = parseRenderDocument(resolved.document)
-
-  return {
-    document: parsed.document,
-    issues: [...resolved.issues, ...parsed.issues],
-  }
+): RenderPipelineResult {
+  return runRenderPipeline(document, instance)
 }
 
 export function useIdeExport(options: UseIdeExportOptions) {

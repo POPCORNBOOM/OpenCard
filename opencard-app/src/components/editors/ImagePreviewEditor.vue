@@ -49,7 +49,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } 
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcText from '../base/OcText.vue'
-import { OcViewportControls } from '../standard'
+import OcViewportControls from '../standard/OcViewportControls.vue'
 
 type ViewportTransform = { x: number; y: number; scale: number }
 
