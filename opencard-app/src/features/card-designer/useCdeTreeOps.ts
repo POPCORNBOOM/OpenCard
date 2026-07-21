@@ -63,7 +63,9 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         icon: getBlockTreeIcon(block.type),
         renamable: true,
         draggable: true,
-        actions: isBlockContainer(block) ? ['add', 'duplicate', 'delete'] : ['duplicate', 'delete'],
+        actions: isBlockContainer(block)
+          ? ['rename', 'add', 'duplicate', 'delete']
+          : ['rename', 'duplicate', 'delete'],
       })
       if (childKeys.length > 0) children.set(block.id, childKeys)
       if (isBlockContainer(block)) {

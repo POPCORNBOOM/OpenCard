@@ -218,7 +218,8 @@ describe('OcTree', () => {
     const data = createData()
     const wrapper = mount(OcTree, { props: { data } })
 
-    await wrapper.get('button[aria-label="Rename"]').trigger('click')
+    await (wrapper.vm as unknown as { beginRename: (key: string) => Promise<void> })
+      .beginRename('root')
     const input = wrapper.get('input')
     await input.setValue('Renamed')
     await input.trigger('keydown', { key: 'Enter' })
@@ -229,6 +230,47 @@ describe('OcTree', () => {
       key: 'root',
       name: 'Renamed',
     }])
+  })
+
+  it('keeps rename actions generic until the parent calls beginRename', async () => {
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Root',
+            renamable: true,
+            actions: ['rename'],
+          }]],
+        }),
+        actions: new Map<string, OcTreeActionDefinition>([
+          ['rename', { title: 'Rename', icon: 'action.edit' }],
+        ]),
+      },
+    })
+
+    expect(wrapper.find('button[aria-label="Rename"]').exists()).toBe(true)
+    await wrapper.get('button[aria-label="Rename"]').trigger('click')
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'action.invoke', key: 'root', actionKey: 'rename' },
+    ]])
+
+    await (wrapper.vm as unknown as { beginRename: (key: string) => Promise<void> })
+      .beginRename('root')
+    expect(wrapper.get('input').element).toBe(document.activeElement)
+    wrapper.unmount()
+  })
+
+  it('requests parent-owned rename orchestration on F2', async () => {
+    const wrapper = mount(OcTree, { props: { data: createData() } })
+
+    await wrapper.get('.oc-tree__row').trigger('keydown', { key: 'F2' })
+
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'rename.request', key: 'root' },
+    ]])
   })
 
   it.each([

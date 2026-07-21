@@ -57,6 +57,10 @@ export type OcTreeIntent =
       actionKey: OcTreeActionKey
     }
   | {
+      type: 'rename.request'
+      key: OcTreeKey
+    }
+  | {
       type: 'rename.commit'
       key: OcTreeKey
       name: string

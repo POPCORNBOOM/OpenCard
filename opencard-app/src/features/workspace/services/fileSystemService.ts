@@ -21,6 +21,7 @@ import {
   type FileInfo,
 } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 
 export interface FileSystemService {
   openProject(): Promise<string | null>
@@ -39,6 +40,7 @@ export interface FileSystemService {
   copyFile(sourcePath: string, targetPath: string): Promise<void>
   deleteFile(path: string): Promise<void>
   renameFile(oldPath: string, newPath: string): Promise<void>
+  revealInFileManager(path: string): Promise<void>
   fileExists(path: string): Promise<boolean>
   getFileInfo(path: string): Promise<FileInfo>
   readDirectory(path: string, recursive?: boolean): Promise<DirEntry[]>
@@ -116,6 +118,10 @@ class FileSystemServiceImpl implements FileSystemService {
 
   async renameFile(oldPath: string, newPath: string): Promise<void> {
     await rename(oldPath, newPath)
+  }
+
+  async revealInFileManager(path: string): Promise<void> {
+    await revealItemInDir(path)
   }
 
   async fileExists(path: string): Promise<boolean> {

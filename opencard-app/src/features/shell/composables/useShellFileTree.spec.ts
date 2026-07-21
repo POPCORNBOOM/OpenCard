@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  projectEntryMoreActionKey,
   useShellFileTree,
 } from './useShellFileTree'
 
@@ -24,5 +25,23 @@ describe('useShellFileTree opened editors', () => {
 
     expect(openedEditorTreeData.value.items.get('session-1')?.actions)
       .toEqual([OPENED_EDITOR_CLOSE_ACTION_KEY])
+  })
+
+  it('projects project entries as draggable, renamable action hosts', () => {
+    const { projectTreeData } = useShellFileTree({
+      projectPath: ref('D:/project'),
+      indexedEntries: ref([{ name: 'cards/main.opencard', isDirectory: false }]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+
+    expect(projectTreeData.value.items.get('D:/project/cards/main.opencard')).toMatchObject({
+      renamable: true,
+      draggable: true,
+      actions: [projectEntryMoreActionKey('D:/project/cards/main.opencard')],
+    })
   })
 })

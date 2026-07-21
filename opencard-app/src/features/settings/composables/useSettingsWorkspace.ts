@@ -34,12 +34,6 @@ export type SettingsFieldViewModel =
       suffix: string
     }
   | {
-      type: 'value'
-      key: 'shell.sidebarWidth'
-      label: string
-      value: string
-    }
-  | {
       type: 'action'
       key: 'project-workspace.reset'
       label: string
@@ -171,18 +165,6 @@ export function useSettingsWorkspace(
           key: 'workspace.structureTreeScrollToSelection',
           label: options.translate('settings.fields.structureTreeScrollToSelection', 'Scroll to selected block'),
           checked: settings.workspace.structureTreeScrollToSelection,
-        },
-        {
-          type: 'checkbox',
-          key: 'shell.sidebarCollapsed',
-          label: options.translate('settings.fields.sidebarCollapsed', 'Collapse sidebar'),
-          checked: settings.shell.sidebarCollapsed,
-        },
-        {
-          type: 'value',
-          key: 'shell.sidebarWidth',
-          label: options.translate('settings.fields.sidebarWidth', 'Sidebar width'),
-          value: `${settings.shell.sidebarWidth} px`,
         },
         {
           type: 'action',

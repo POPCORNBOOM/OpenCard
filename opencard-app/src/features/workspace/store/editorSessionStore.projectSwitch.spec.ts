@@ -44,4 +44,17 @@ describe('editorSessionStore project switching', () => {
     expect(newSession.resourceKind).toBe('workspace')
     store.closeSession(newSession.id)
   })
+
+  it('closes sessions at and below a deleted workspace path', async () => {
+    const store = useEditorSessionStore()
+    const retained = await store.openFile('other.opencard')
+    const removed = await store.openFile('cards/main.opencard')
+
+    store.closeSessionsByPath('cards')
+
+    expect(store.sessions.value.map((session) => session.id)).toEqual([retained.id])
+    expect(store.activeSessionId.value).toBe(retained.id)
+    expect(store.sessions.value.some((session) => session.id === removed.id)).toBe(false)
+    store.closeSession(retained.id)
+  })
 })

@@ -30,6 +30,7 @@
       :open="isMenuOpen && hasActionChildren(action)"
       :anchor="rootRef"
       placement="bottom-end"
+      :gap="0"
       :max-height="480"
       class="oc-action-button__floating"
       @pointerenter="cancelCloseMenu"
@@ -40,6 +41,7 @@
         class="oc-action-button__menu--root"
         :actions="action.children"
         @select="handleMenuSelect"
+        @keep-open="cancelCloseMenu"
       />
     </OcFloatingLayer>
   </div>
@@ -103,6 +105,7 @@ const OcActionButtonMenu: ReturnType<typeof defineComponent> = defineComponent({
   },
   emits: {
     select: (_payload: OcActionButtonSelectPayload) => true,
+    keepOpen: () => true,
   },
   setup(menuProps, { emit: menuEmit }) {
     const openChildKey = ref<string | null>(null)
@@ -140,6 +143,11 @@ const OcActionButtonMenu: ReturnType<typeof defineComponent> = defineComponent({
       if (childCloseTimer === null) return
       window.clearTimeout(childCloseTimer)
       childCloseTimer = null
+    }
+
+    function keepMenusOpen(): void {
+      cancelChildClose()
+      menuEmit('keepOpen')
     }
 
     function renderAction(action: OcActionButtonAction): VNode {
@@ -213,9 +221,10 @@ const OcActionButtonMenu: ReturnType<typeof defineComponent> = defineComponent({
                 open: isChildOpen,
                 anchor: childAnchors.get(action.key) ?? null,
                 placement: 'right-start',
+                gap: 0,
                 maxHeight: 480,
                 class: 'oc-action-button__floating',
-                onPointerenter: cancelChildClose,
+                onPointerenter: keepMenusOpen,
                 onPointerleave: scheduleChildClose,
               },
               {
@@ -223,6 +232,7 @@ const OcActionButtonMenu: ReturnType<typeof defineComponent> = defineComponent({
                   class: 'oc-action-button__menu--root',
                   actions: action.children,
                   onSelect: (payload: OcActionButtonSelectPayload) => menuEmit('select', payload),
+                  onKeepOpen: keepMenusOpen,
                 }),
               },
             )
@@ -305,7 +315,7 @@ function hasActionChildren(
 }
 </script>
 
-<style scoped>
+<style>
 .oc-action-button {
   position: relative;
   display: inline-flex;
@@ -331,11 +341,11 @@ function hasActionChildren(
 .oc-action-button__menu--root {
   display: block;
 }
-:deep(.oc-action-button__menu-item) {
+.oc-action-button__menu-item {
   position: relative;
 }
 
-:deep(.oc-action-button__menu-button) {
+.oc-action-button__menu-button {
   width: 100%;
   height: var(--oc-size-md);
   padding: 0 var(--oc-space-3);
@@ -351,29 +361,29 @@ function hasActionChildren(
   text-align: left;
 }
 
-:deep(.oc-action-button__menu-button:hover:not(:disabled)),
-:deep(.oc-action-button__menu-button:focus-visible) {
+.oc-action-button__menu-button:hover:not(:disabled),
+.oc-action-button__menu-button:focus-visible {
   background: var(--oc-bg-hover);
   outline: none;
 }
 
-:deep(.oc-action-button__menu-button:disabled) {
+.oc-action-button__menu-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-:deep(.oc-action-button__menu-icon),
-:deep(.oc-action-button__menu-icon-spacer),
-:deep(.oc-action-button__menu-caret) {
+.oc-action-button__menu-icon,
+.oc-action-button__menu-icon-spacer,
+.oc-action-button__menu-caret {
   flex: 0 0 auto;
 }
 
-:deep(.oc-action-button__menu-icon-spacer) {
+.oc-action-button__menu-icon-spacer {
   width: var(--oc-size-sm);
   height: var(--oc-size-sm);
 }
 
-:deep(.oc-action-button__menu-label) {
+.oc-action-button__menu-label {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;

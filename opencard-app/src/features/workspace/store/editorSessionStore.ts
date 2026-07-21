@@ -342,6 +342,22 @@ export function useEditorSessionStore() {
     }
   }
 
+  function closeSessionsByPath(path: string) {
+    const normalizedPath = normalizePath(path)
+    const closedSessionIds = new Set(
+      sessions.value
+        .filter((session) => session.path && isSameOrDescendantPath(session.path, normalizedPath))
+        .map((session) => session.id),
+    )
+    if (closedSessionIds.size === 0) return
+
+    const activeSessionWasClosed = closedSessionIds.has(activeSessionId.value)
+    sessions.value = sessions.value.filter((session) => !closedSessionIds.has(session.id))
+    if (activeSessionWasClosed) {
+      activeSessionId.value = sessions.value[sessions.value.length - 1]?.id ?? ''
+    }
+  }
+
   async function writeContentByResourceKind(resourceKind: SessionResourceKind, path: string, content: string) {
     if (resourceKind === 'workspace') {
       await saveFile(path, content)
@@ -500,6 +516,7 @@ export function useEditorSessionStore() {
     updateSessionUiState,
     closeSession,
     closeWorkspaceSessions,
+    closeSessionsByPath,
     saveSession,
     saveActiveSession,
     refreshSessionFromDisk,

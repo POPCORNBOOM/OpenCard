@@ -70,4 +70,51 @@ describe('OcActionButton', () => {
 
     wrapper.unmount()
   })
+
+  it('keeps every ancestor open while crossing four nested menu levels', async () => {
+    const wrapper = mount(OcActionButton, {
+      attachTo: document.body,
+      props: {
+        action: {
+          key: 'more',
+          title: 'More',
+          children: [{
+            key: 'delete',
+            title: 'Delete',
+            children: [{
+              key: 'danger',
+              title: 'Danger',
+              children: [{
+                key: 'really-delete',
+                title: 'Really Delete',
+                children: [{ key: 'confirm-delete', title: 'Confirm Delete' }],
+              }],
+            }],
+          }],
+        },
+      },
+    })
+
+    await wrapper.trigger('pointerenter')
+    await flushPromises()
+
+    for (let depth = 1; depth < 4; depth += 1) {
+      const layersBeforeOpen = document.body.querySelectorAll<HTMLElement>('.oc-action-button__floating')
+      const parentLayer = layersBeforeOpen[layersBeforeOpen.length - 1]
+      parentLayer?.querySelector<HTMLElement>('.oc-action-button__menu-item')
+        ?.dispatchEvent(new Event('pointerenter'))
+      await flushPromises()
+
+      const layersAfterOpen = document.body.querySelectorAll<HTMLElement>('.oc-action-button__floating')
+      expect(layersAfterOpen).toHaveLength(depth + 1)
+      parentLayer?.dispatchEvent(new Event('pointerleave'))
+      layersAfterOpen[layersAfterOpen.length - 1]?.dispatchEvent(new Event('pointerenter'))
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
+    expect(document.body.querySelectorAll('.oc-action-button__floating')).toHaveLength(4)
+    expect(document.body.querySelectorAll('.oc-action-button__menu')).toHaveLength(4)
+
+    wrapper.unmount()
+  })
 })

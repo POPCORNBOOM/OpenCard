@@ -39,7 +39,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         icon: 'entity.card-instance',
         renamable: true,
         draggable: true,
-        actions: ['duplicate-instance', 'delete-instance'],
+        actions: ['rename', 'duplicate-instance', 'delete-instance'],
       })
     }
 

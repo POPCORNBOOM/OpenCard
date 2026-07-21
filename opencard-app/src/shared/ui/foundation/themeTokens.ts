@@ -112,6 +112,9 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-list-max-height-md',
   '--oc-list-max-height-lg',
 
+  // 页面内容宽度
+  '--oc-content-width-md',
+
   // 属性编辑器行高
   '--oc-property-row-height',
   '--oc-property-row-expanded-height',

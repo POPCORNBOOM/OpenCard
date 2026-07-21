@@ -389,9 +389,43 @@ async function createFolder(relativePath: string) {
   await refreshIndexedEntries()
 }
 
+async function createFile(relativePath: string, content: string = '') {
+  await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
+  await refreshIndexedEntries()
+}
+
+async function createEntryWithAvailableName(
+  parentPath: string,
+  baseName: string,
+  kind: 'file' | 'folder',
+): Promise<string> {
+  const resolvedParentPath = resolveProjectPath(parentPath)
+  let suffix = 1
+
+  while (true) {
+    const name = suffix === 1 ? baseName : `${baseName} ${suffix}`
+    const candidatePath = `${resolvedParentPath}/${name}`
+    if (!await fileSystemService.fileExists(candidatePath)) {
+      if (kind === 'folder') await fileSystemService.createDirectory(candidatePath)
+      else await fileSystemService.writeFile(candidatePath, '')
+      await refreshIndexedEntries()
+      return candidatePath
+    }
+    suffix += 1
+  }
+}
+
 async function deleteFile(relativePath: string) {
   await fileSystemService.deleteFile(resolveProjectPath(relativePath))
   await refreshIndexedEntries()
+}
+
+async function revealEntryInFileManager(path: string) {
+  await fileSystemService.revealInFileManager(resolveProjectPath(path))
+}
+
+function getRelativeProjectPath(path: string) {
+  return toRelativeProjectPath(path)
 }
 
 function getPathDirname(path: string) {
@@ -644,7 +678,11 @@ export function useProjectStore() {
     isProjectAvailable,
     saveFile,
     createFolder,
+    createFile,
+    createEntryWithAvailableName,
     deleteFile,
+    revealEntryInFileManager,
+    getRelativeProjectPath,
     canMoveEntryByDrop,
     moveEntry,
     moveEntryByDrop,

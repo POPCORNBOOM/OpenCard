@@ -40,6 +40,7 @@ export const iconTokens = {
   'nav.compass': true,
   'nav.files': true,
   'nav.menu': true,
+  'nav.more': true,
   'nav.sidebar-collapse': true,
   'nav.sidebar-expand': true,
 

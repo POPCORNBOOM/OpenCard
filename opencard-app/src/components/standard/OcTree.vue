@@ -91,18 +91,6 @@
         </OcText>
 
         <span class="oc-tree__controls" data-tree-interactive="true">
-          <OcButton
-            v-if="entry.item.renamable"
-            class="oc-tree__rename-button"
-            variant="ghost"
-            size="sm"
-            icon-only
-            icon="action.edit"
-            title="Rename"
-            aria-label="Rename"
-            @mousedown.stop
-            @click.stop="startRename(entry.key)"
-          />
           <OcActionButton
             v-for="action in resolveItemActions(entry.key)"
             :key="action.key"
@@ -122,7 +110,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect, type ComponentPublicInstance } from 'vue'
 import type { OcActionButtonAction } from './OcActionButton.vue'
 import OcActionButton from './OcActionButton.vue'
-import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
@@ -516,6 +503,8 @@ async function startRename(key: OcTreeKey): Promise<void> {
   if (element instanceof HTMLInputElement) element.select()
 }
 
+defineExpose({ beginRename: startRename })
+
 function cancelRename(): void {
   renamingKey.value = null
   renameDraft.value = ''
@@ -583,7 +572,7 @@ function handleRowKeydown(event: KeyboardEvent, key: OcTreeKey, index: number): 
     toggleExpanded(key)
   } else if (event.key === 'F2') {
     event.preventDefault()
-    void startRename(key)
+    if (props.data.items.get(key)?.renamable) emit('intent', { type: 'rename.request', key })
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     emitSelectionIntent(key, event.ctrlKey || event.metaKey)

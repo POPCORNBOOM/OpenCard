@@ -1,87 +1,80 @@
 <!-- Settings rows consume prepared UI data and return semantic user intent. -->
 <template>
   <section class="settings-workspace" :aria-label="viewModel.title">
-    <div v-if="viewModel.preview" class="settings-workspace__preview" aria-hidden="true">
-      <div class="settings-workspace__preview-titlebar">
-        <span class="settings-workspace__preview-brand">OPENCARD</span>
-        <span class="settings-workspace__preview-menu" />
-        <span class="settings-workspace__preview-window-actions">— □ ×</span>
-      </div>
-      <div class="settings-workspace__preview-body">
-        <aside class="settings-workspace__preview-sidebar">
-          <span class="is-active" />
-          <span />
-          <span />
-        </aside>
-        <div class="settings-workspace__preview-canvas">
-          <AppearanceShaderPreview />
-          <div class="settings-workspace__preview-document">
+    <div class="settings-workspace__content">
+      <div v-if="viewModel.preview" class="settings-workspace__preview" aria-hidden="true">
+        <div class="settings-workspace__preview-titlebar">
+          <span class="settings-workspace__preview-menu" />
+          <span class="settings-workspace__preview-window-actions">- □ ×</span>
+        </div>
+        <div class="settings-workspace__preview-body">
+          <aside class="settings-workspace__preview-sidebar">
+            <span class="is-active" />
             <span />
             <span />
-            <span />
-          </div>
-          <div class="settings-workspace__preview-glass">
-            <strong>{{ viewModel.preview.glassIntensity }}%</strong>
-            <span />
-            <span />
+          </aside>
+          <div class="settings-workspace__preview-canvas">
+            <AppearanceShaderPreview />
+            <div class="settings-workspace__preview-document">
+              <span />
+              <span />
+              <span />
+            </div>
+            <div class="settings-workspace__preview-glass">
+              <strong>{{ viewModel.preview.glassIntensity }}%</strong>
+              <span />
+              <span />
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="settings-workspace__fields">
-      <div v-for="field in viewModel.fields" :key="field.key" class="settings-workspace__row">
-        <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
 
-        <OcOptionGroup
-          v-if="field.type === 'options'"
-          class="settings-workspace__control"
-          :model-value="field.value"
-          :options="field.options"
-          @update:model-value="emitSettingChange(field.key, $event)"
-        />
-        <OcCheckbox
-          v-else-if="field.type === 'checkbox'"
-          class="settings-workspace__control"
-          :checked="field.checked"
-          :aria-label="field.label"
-          @update:checked="emitSettingChange(field.key, $event)"
-        />
-        <div v-else-if="field.type === 'range'" class="settings-workspace__range-control">
-          <input
-            class="settings-workspace__range"
-            type="range"
-            :value="field.value"
-            :min="field.min"
-            :max="field.max"
-            :step="field.step"
-            :aria-label="field.label"
-            @input="emitSettingChange(field.key, Number(($event.target as HTMLInputElement).value))"
+      <div class="settings-workspace__fields">
+        <div v-for="field in viewModel.fields" :key="field.key" class="settings-workspace__row">
+          <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
+
+          <OcOptionGroup
+            v-if="field.type === 'options'"
+            class="settings-workspace__control"
+            :model-value="field.value"
+            :options="field.options"
+            @update:model-value="emitSettingChange(field.key, $event)"
           />
-          <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
-            {{ field.value }}{{ field.suffix }}
-          </OcText>
+          <OcCheckbox
+            v-else-if="field.type === 'checkbox'"
+            class="settings-workspace__control"
+            :checked="field.checked"
+            :aria-label="field.label"
+            @update:checked="emitSettingChange(field.key, $event)"
+          />
+          <div v-else-if="field.type === 'range'" class="settings-workspace__range-control">
+            <input
+              class="settings-workspace__range"
+              type="range"
+              :value="field.value"
+              :min="field.min"
+              :max="field.max"
+              :step="field.step"
+              :aria-label="field.label"
+              @input="emitSettingChange(field.key, Number(($event.target as HTMLInputElement).value))"
+            />
+            <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
+              {{ field.value }}{{ field.suffix }}
+            </OcText>
+          </div>
+          <OcButton
+            v-else
+            class="settings-workspace__control"
+            size="sm"
+            variant="outline"
+            :icon="field.icon"
+            :disabled="field.disabled"
+            :title="field.disabledReason"
+            @click="emit('intent', { type: 'project-workspace.reset' })"
+          >
+            {{ field.actionLabel }}
+          </OcButton>
         </div>
-        <OcText
-          v-else-if="field.type === 'value'"
-          class="settings-workspace__control"
-          tone="muted"
-          size="sm"
-          mono
-        >
-          {{ field.value }}
-        </OcText>
-        <OcButton
-          v-else
-          class="settings-workspace__control"
-          size="sm"
-          variant="outline"
-          :icon="field.icon"
-          :disabled="field.disabled"
-          :title="field.disabledReason"
-          @click="emit('intent', { type: 'project-workspace.reset' })"
-        >
-          {{ field.actionLabel }}
-        </OcButton>
       </div>
     </div>
   </section>
@@ -111,8 +104,18 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 
 <style scoped>
 .settings-workspace {
-  width: min(100%, 720px);
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.settings-workspace__content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--oc-content-width-md);
+  margin-inline: auto;
   padding: var(--oc-space-6) var(--oc-space-5);
 }
 
@@ -123,7 +126,7 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 .settings-workspace__preview {
   overflow: hidden;
   margin-bottom: var(--oc-space-5);
-  aspect-ratio: 16 / 7;
+  aspect-ratio: 16 / 9;
   min-height: 210px;
   border: 1px solid var(--oc-border-muted);
   border-radius: var(--oc-radius-lg);
@@ -133,7 +136,7 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 
 .settings-workspace__preview-titlebar {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   height: 34px;
   padding: 0 var(--oc-space-3);
@@ -142,11 +145,6 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
   color: var(--oc-fg-muted);
   font-size: 10px;
   letter-spacing: 0.08em;
-}
-
-.settings-workspace__preview-brand {
-  color: var(--oc-fg-default);
-  font-weight: 700;
 }
 
 .settings-workspace__preview-menu {
@@ -280,7 +278,7 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 }
 
 @media (max-width: 680px) {
-  .settings-workspace {
+  .settings-workspace__content {
     padding: var(--oc-space-4);
   }
 

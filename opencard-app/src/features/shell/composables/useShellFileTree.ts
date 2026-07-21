@@ -5,6 +5,29 @@ import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
+export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
+export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
+export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
+export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-absolute-path'
+const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
+const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
+const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
+
+export function projectEntryMoreActionKey(entryKey: string): string {
+  return `${PROJECT_ENTRY_MORE_ACTION_PREFIX}${entryKey}`
+}
+
+export function projectEntryDeleteActionKey(entryKey: string): string {
+  return `${PROJECT_ENTRY_DELETE_ACTION_PREFIX}${entryKey}`
+}
+
+export function projectEntryConfirmDeleteActionKey(entryKey: string): string {
+  return `${PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX}${entryKey}`
+}
+
+export function isProjectEntryConfirmDeleteActionKey(actionKey: string): boolean {
+  return actionKey.startsWith(PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX)
+}
 
 type IndexedEntry = {
   name: string
@@ -13,6 +36,7 @@ type IndexedEntry = {
 
 type ProjectEntryView = {
   key: string
+  relativePath: string
   label: string
   isDirectory: boolean
   isExpanded: boolean
@@ -49,6 +73,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const isDirectory = Boolean(file.isDirectory)
       const entry: ProjectEntryView = {
         key,
+        relativePath,
         label: parts[parts.length - 1] ?? relativePath,
         isDirectory,
         isExpanded: isDirectory && options.isDirectoryExpanded(key),
@@ -77,6 +102,9 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         label: entry.label,
         icon: presentation.icon,
         iconTone: presentation.tone,
+        renamable: true,
+        draggable: true,
+        actions: [projectEntryMoreActionKey(entry.key)],
       })
       if (entry.children.length > 0) {
         children.set(entry.key, entry.children.map((child) => child.key))

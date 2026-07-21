@@ -14,7 +14,6 @@ export type AppSettingKey =
   | 'appearance.theme'
   | 'appearance.locale'
   | 'appearance.glassIntensity'
-  | 'shell.sidebarCollapsed'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
 

@@ -172,6 +172,8 @@ class MemoryFileSystem implements FileSystemService {
     for (const path of directoryPaths) this.directories.add(`${target}${path.slice(source.length)}`)
   }
 
+  async revealInFileManager(_path: string): Promise<void> {}
+
   async fileExists(path: string): Promise<boolean> {
     const normalized = normalizePath(path)
     return this.directories.has(normalized) || this.files.has(normalized)

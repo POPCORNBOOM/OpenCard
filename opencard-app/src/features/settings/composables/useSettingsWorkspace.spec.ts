@@ -41,6 +41,11 @@ describe('useSettingsWorkspace', () => {
     ]))
 
     categoryKey.value = 'workspace'
+    expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
+      'workspace.structureTreeSelectionBehavior',
+      'workspace.structureTreeScrollToSelection',
+      'project-workspace.reset',
+    ])
     expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'options',

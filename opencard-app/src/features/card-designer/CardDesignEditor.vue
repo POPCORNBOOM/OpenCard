@@ -43,7 +43,7 @@
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto"
                   align="stretch">
 
-                  <OcTree v-if="isInstancePanelExpanded" fill role="listbox"
+                  <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                     :data="instanceTreeData" :actions="treeActions"
                     :selected-keys="selectedCardKeys" selection-mode="single"
                     @intent="handleInstanceTreeIntent" />
@@ -146,7 +146,7 @@
                 @action="handleStructureTreeCardAction">
                 <OcPanel align="stretch" fill tone="transparent" border="none" padding="none"
                   overflow="auto">
-                  <OcTree fill :data="blockTreeData" :actions="treeActions"
+                  <OcTree ref="structureTreeRef" fill :data="blockTreeData" :actions="treeActions"
                     :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                     :selection-expansion-mode="forceStructureTreeReveal
                       ? 'expand'
@@ -454,6 +454,8 @@ type PropertyEditorHandle = {
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
+const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
+const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const viewportTransform = ref({
   x: 0,
   y: 0,
@@ -659,6 +661,7 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['add-flow-container-block', { icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' }],
   ['duplicate', { icon: 'action.copy', title: '复制' }],
   ['delete', { icon: 'action.delete', title: '删除' }],
+  ['rename', { icon: 'action.edit', title: '重命名' }],
   ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
   ['delete-instance', { icon: 'action.delete', title: '删除实例' }],
 ])
@@ -723,7 +726,7 @@ const {
 const {
   selectedCard,
   instanceTreeData,
-  handleInstanceTreeIntent,
+  handleInstanceTreeIntent: handleInstanceModelTreeIntent,
   createInstance,
   duplicateInstance,
   deleteInstance,
@@ -740,6 +743,14 @@ const {
 const canMutateSelectedInstance = computed(() =>
   Boolean(selectedCardKeys.value[0] && selectedCardKeys.value[0] !== BLUEPRINT_CARD_ID),
 )
+
+function handleInstanceTreeIntent(intent: OcTreeIntent): void {
+  handleInstanceModelTreeIntent(intent)
+  if (intent.type === 'rename.request'
+    || (intent.type === 'action.invoke' && intent.actionKey === 'rename')) {
+    void instanceTreeRef.value?.beginRename(intent.key)
+  }
+}
 
 const instanceCardActions = computed<OcCardAction[]>(() => [
   {
@@ -875,6 +886,15 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     if (intent.expanded) nextKeys.add(intent.key)
     else nextKeys.delete(intent.key)
     expandedBlockKeys.value = [...nextKeys]
+    return
+  }
+  if (intent.type === 'rename.request') {
+    void structureTreeRef.value?.beginRename(intent.key)
+    return
+  }
+  if (intent.type === 'action.invoke' && intent.actionKey === 'rename') {
+    handleTreeIntent(intent)
+    void structureTreeRef.value?.beginRename(intent.key)
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {

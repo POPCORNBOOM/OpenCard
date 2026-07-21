@@ -116,9 +116,10 @@
           />
           <OcTree
             v-else-if="list.key === PROJECT_FILES_LIST_KEY && projectTreeData.rootKeys.length > 0"
+            ref="projectTreeRef"
             class="open-card-shell__sidebar-tree"
             :data="isExportTemplateMode ? exportTemplateTreeData : projectTreeData"
-            :actions="isExportTemplateMode ? exportTemplateTreeActions : undefined"
+            :actions="isExportTemplateMode ? exportTemplateTreeActions : projectEntryActions"
             :selected-keys="selectedFileKeys"
             :expanded-keys="isExportTemplateMode ? exportTemplateExpandedKeys : projectExpandedKeys"
             role="tree"
@@ -259,6 +260,14 @@ import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+  PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
+  PROJECT_ENTRY_RENAME_ACTION_KEY,
+  PROJECT_ENTRY_REVEAL_ACTION_KEY,
+  isProjectEntryConfirmDeleteActionKey,
+  projectEntryConfirmDeleteActionKey,
+  projectEntryDeleteActionKey,
+  projectEntryMoreActionKey,
   useShellFileTree,
 } from './composables/useShellFileTree'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -297,6 +306,8 @@ const TEMPLATE_ENTRY_ADD_ACTION_KEY = 'template.entry.add'
 const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
 const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
+const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
+const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const EMPTY_TREE_DATA: OcTreeData = {
   rootKeys: [],
   items: new Map(),
@@ -333,6 +344,12 @@ const {
   readDirectoryEntries,
   setDirectoryExpanded,
   resetProjectWorkspaceState,
+  createEntryWithAvailableName,
+  deleteFile,
+  revealEntryInFileManager,
+  getRelativeProjectPath,
+  moveEntryByDrop,
+  renameEntry,
 } = useProjectStore()
 
 const settingsStore = useAppSettingsStore()
@@ -382,6 +399,7 @@ const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWi
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
 const exportRendererRef = ref<InstanceType<typeof CardDocumentRenderer>>()
 const currentEditorRef = ref<CurrentEditorRef | null>(null)
+const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 
 const {
   availableUpdate,
@@ -405,7 +423,9 @@ const {
   updateSessionUiState,
   closeSession,
   closeWorkspaceSessions,
+  closeSessionsByPath,
   saveActiveSession,
+  remapSessionPaths,
 } = useEditorSessionStore()
 
 const {
@@ -549,6 +569,55 @@ const openedEditorActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     icon: 'action.close',
   }],
 ]))
+
+const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
+  const actions = new Map<string, OcTreeActionDefinition>([[PROJECT_ENTRY_RENAME_ACTION_KEY, {
+    title: t('sidebar.fileActions.rename'),
+    icon: 'action.edit',
+  }],
+  [PROJECT_ENTRY_REVEAL_ACTION_KEY, {
+    title: t('sidebar.fileActions.reveal'),
+    icon: 'status.folder-open',
+  }],
+  [PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY, {
+    title: t('sidebar.fileActions.copyRelativePath'),
+    icon: 'action.copy',
+  }],
+  [PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY, {
+    title: t('sidebar.fileActions.copyAbsolutePath'),
+    icon: 'action.copy',
+  }],
+  ])
+
+  for (const [entryKey, item] of projectTreeData.value.items) {
+    const moreActionKey = projectEntryMoreActionKey(entryKey)
+    const deleteActionKey = projectEntryDeleteActionKey(entryKey)
+    const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
+    actions.set(moreActionKey, {
+      title: t('sidebar.fileActions.more'),
+      icon: 'nav.more',
+      children: [
+        PROJECT_ENTRY_RENAME_ACTION_KEY,
+        deleteActionKey,
+        PROJECT_ENTRY_REVEAL_ACTION_KEY,
+        PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
+        PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+      ],
+    })
+    actions.set(deleteActionKey, {
+      title: t('sidebar.fileActions.delete'),
+      icon: 'action.delete',
+      children: [confirmDeleteActionKey],
+    })
+    actions.set(confirmDeleteActionKey, {
+      title: t('sidebar.fileActions.confirmDeleteFile', { fileName: item.label }),
+      icon: 'action.delete',
+      iconTone: 'danger',
+    })
+  }
+
+  return actions
+})
 
 const recentProjectActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   [RECENT_PROJECT_OPEN_ACTION_KEY, {
@@ -830,7 +899,18 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       key: PROJECT_FILES_LIST_KEY,
       title: projectName.value || t('sidebar.files'),
       placeholder: t('sidebar.emptyProject', 'Folder is empty'),
-      actions: [],
+      actions: [
+        {
+          key: PROJECT_NEW_FILE_ACTION_KEY,
+          icon: 'action.file-plus',
+          hoverTip: t('sidebar.fileActions.newFile'),
+        },
+        {
+          key: PROJECT_NEW_FOLDER_ACTION_KEY,
+          icon: 'action.folder-plus',
+          hoverTip: t('sidebar.fileActions.newFolder'),
+        },
+      ],
     },
     {
       key: CHANGES_LIST_KEY,
@@ -1045,6 +1125,17 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
+  if (workspaceMode.value.type === 'project' && listKey === PROJECT_FILES_LIST_KEY) {
+    if (actionKey === PROJECT_NEW_FILE_ACTION_KEY) {
+      await createProjectEntry('file')
+      return
+    }
+    if (actionKey === PROJECT_NEW_FOLDER_ACTION_KEY) {
+      await createProjectEntry('folder')
+      return
+    }
+  }
+
   if (workspaceMode.value.type !== 'create-project' || listKey !== USER_TEMPLATES_LIST_KEY) return
   if (isProjectTemplateBusy.value || templateStore.isLoading.value) return
 
@@ -1057,6 +1148,31 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
   if (actionKey === IMPORT_TEMPLATE_ACTION_KEY) {
     await createProjectWorkspaceRef.value?.beginImport()
   }
+}
+
+function getProjectEntryParentPath(): string {
+  const selectedKey = selectedFileKeys.value[0]
+  const selectedEntry = selectedKey ? findProjectEntryByKey(selectedKey) : null
+  if (!selectedEntry) return projectPath.value
+  if (selectedEntry.isDirectory) return selectedEntry.key
+  const separatorIndex = selectedEntry.key.lastIndexOf('/')
+  return separatorIndex < 0 ? projectPath.value : selectedEntry.key.slice(0, separatorIndex)
+}
+
+async function createProjectEntry(kind: 'file' | 'folder'): Promise<void> {
+  if (!projectPath.value) return
+  const parentPath = getProjectEntryParentPath()
+  const parentEntry = findProjectEntryByKey(parentPath)
+  if (parentEntry?.isDirectory) setDirectoryExpanded(parentPath, true)
+
+  const baseName = kind === 'folder'
+    ? t('sidebar.fileActions.newFolderName')
+    : t('sidebar.fileActions.newFileName')
+  const path = await createEntryWithAvailableName(parentPath, baseName, kind)
+
+  selectedFileKeys.value = [path]
+  await nextTick()
+  await projectTreeRef.value?.beginRename(path)
 }
 
 function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
@@ -1096,6 +1212,54 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
 
   if (intent.type === 'expansion.change') {
     await handleProjectTreeItemToggle(intent.key, intent.expanded)
+    return
+  }
+
+  if (intent.type === 'rename.request') {
+    await projectTreeRef.value?.beginRename(intent.key)
+    return
+  }
+
+  if (intent.type === 'rename.commit') {
+    const result = await renameEntry(intent.key, intent.name)
+    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+    else console.warn('[workspace] Rename rejected:', result.reason)
+    return
+  }
+
+  if (intent.type === 'move.request') {
+    const result = await moveEntryByDrop(intent)
+    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+    else console.warn('[workspace] Move rejected:', result.reason)
+    return
+  }
+
+  if (intent.type === 'action.invoke') {
+    const entry = findProjectEntryByKey(intent.key)
+    if (!entry) return
+
+    if (intent.actionKey === PROJECT_ENTRY_RENAME_ACTION_KEY) {
+      await projectTreeRef.value?.beginRename(entry.key)
+      return
+    }
+
+    if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
+      await deleteFile(entry.key)
+      closeSessionsByPath(entry.key)
+      selectedFileKeys.value = selectedFileKeys.value.filter((key) => key !== entry.key)
+      return
+    }
+    if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
+      await revealEntryInFileManager(entry.key)
+      return
+    }
+    if (intent.actionKey === PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY) {
+      await navigator.clipboard.writeText(getRelativeProjectPath(entry.key))
+      return
+    }
+    if (intent.actionKey === PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY) {
+      await navigator.clipboard.writeText(entry.key)
+    }
     return
   }
 
