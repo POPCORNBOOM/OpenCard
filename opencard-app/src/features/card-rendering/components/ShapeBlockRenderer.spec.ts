@@ -36,6 +36,9 @@ describe('ShapeBlockRenderer', () => {
     expect(wrapper.get('.shape-block__fill').attributes('d')).toBe(pathData)
     expect(wrapper.get('.shape-block__stroke').attributes('d')).toBe(pathData)
     expect(wrapper.get('.shape-block__stroke').attributes('style')).toContain('stroke-dasharray: 8 5')
+    expect(wrapper.get('.shape-block__svg').attributes('viewBox')).toBe('-50 -50 200 200')
+    expect(wrapper.get('.shape-block__svg').attributes('overflow')).toBe('visible')
+    expect(wrapper.get('.shape-block__svg').attributes('style')).toContain('overflow: visible')
   })
 
   it('renders line across the full viewBox width', () => {
@@ -51,6 +54,15 @@ describe('ShapeBlockRenderer', () => {
       y2: '50',
     })
     expect(wrapper.get('line').attributes('style')).toContain('stroke-dasharray: 8 5')
+  })
+
+  it('keeps static shape geometry positioned relative to its own block box', () => {
+    const wrapper = mount(ShapeBlockRenderer, {
+      props: { block: createBlock('ellipse'), layoutMode: 'static' },
+      global: rendererTestGlobal,
+    })
+
+    expect(wrapper.get('[data-block-id]').attributes('style')).toContain('position: relative')
   })
   it.each([
     ['inside', 'clip-path'],

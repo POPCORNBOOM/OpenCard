@@ -25,25 +25,11 @@ export async function exportCardAsImage(
     if (format === 'jpeg') {
       return await domtoimage.toJpeg(element, {
         quality: quality,
-        width: element.offsetWidth * scale,
-        height: element.offsetHeight * scale,
-        style: {
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          width: `${element.offsetWidth}px`,
-          height: `${element.offsetHeight}px`
-        }
+        scale,
       })
     } else {
       return await domtoimage.toPng(element, {
-        width: element.offsetWidth * scale,
-        height: element.offsetHeight * scale,
-        style: {
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          width: `${element.offsetWidth}px`,
-          height: `${element.offsetHeight}px`
-        }
+        scale,
       })
     }
   } catch (error) {

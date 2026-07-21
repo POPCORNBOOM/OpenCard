@@ -210,7 +210,12 @@
 
     <!-- 隐藏的导出渲染器 -->
     <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
-      <CardDocumentRenderer v-if="exportCardDoc" ref="exportRendererRef" :card-document="exportCardDoc" />
+      <CardDocumentRenderer
+        v-if="exportCardDoc"
+        ref="exportRendererRef"
+        :card-document="exportCardDoc"
+        :clip-to-document="true"
+      />
     </div>
 
     <FloatingMenuHost />
@@ -925,20 +930,30 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   {
     key: 'file',
     label: t('app.menu.file'),
-    items: [
-      { key: 'new-project', label: t('app.menu.newProject') },
-      { key: 'new-open-card', label: t('app.menu.newOpenCard') },
-      { key: 'open-project', label: t('sidebar.openProject') },
-      { key: 'close-project-folder', label: t('app.menu.closeProjectFolder'), disabled: !projectPath.value },
-      { key: 'export-project-template', label: t('templateExport.menu'), disabled: !projectPath.value },
+    actions: [
+      { key: 'new-project', title: t('app.menu.newProject'), icon: 'action.folder-plus' },
+      { key: 'new-open-card', title: t('app.menu.newOpenCard'), icon: 'action.file-plus' },
+      { key: 'open-project', title: t('sidebar.openProject'), icon: 'status.folder-open' },
+      {
+        key: 'close-project-folder',
+        title: t('app.menu.closeProjectFolder'),
+        icon: 'action.close',
+        disabled: !projectPath.value,
+      },
+      {
+        key: 'export-project-template',
+        title: t('templateExport.menu'),
+        icon: 'action.export',
+        disabled: !projectPath.value,
+      },
     ],
   },
   {
     key: 'export',
     label: 'Export',
-    items: [
-      { key: 'export-active-card-2x', label: t('app.menu.export2x') },
-      { key: 'export-all-card-views', label: t('app.menu.exportAll') },
+    actions: [
+      { key: 'export-active-card-2x', title: t('app.menu.export2x'), icon: 'action.export' },
+      { key: 'export-all-card-views', title: t('app.menu.exportAll'), icon: 'action.export' },
     ],
   },
 ])

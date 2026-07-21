@@ -1,32 +1,38 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import ShellTitleBar from './ShellTitleBar.vue'
 
 describe('ShellTitleBar', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   it('does not emit disabled menu actions', async () => {
     const wrapper = mount(ShellTitleBar, {
+      attachTo: document.body,
       props: {
         collapsed: false,
         brandLabel: 'OpenCard',
         menuGroups: [{
           key: 'file',
           label: 'File',
-          items: [
-            { key: 'open-project', label: 'Open Project' },
-            { key: 'close-project-folder', label: 'Close Project Folder', disabled: true },
+          actions: [
+            { key: 'open-project', title: 'Open Project' },
+            { key: 'close-project-folder', title: 'Close Project Folder', disabled: true },
           ],
         }],
       },
     })
 
     await wrapper.get('.titlebar-menu-button').trigger('click')
-    const items = wrapper.findAll('.titlebar-menu-item')
-    expect(items[1]?.attributes('disabled')).toBeDefined()
+    const items = document.body.querySelectorAll<HTMLButtonElement>('.oc-action-menu__button')
+    expect(items[1]?.disabled).toBe(true)
 
-    await items[1]!.trigger('click')
+    items[1]!.click()
     expect(wrapper.emitted('menu-action')).toBeUndefined()
 
-    await items[0]!.trigger('click')
+    items[0]!.click()
     expect(wrapper.emitted('menu-action')).toEqual([['file', 'open-project']])
+    wrapper.unmount()
   })
 })

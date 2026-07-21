@@ -323,7 +323,6 @@
 
 .titlebar-icon,
 .titlebar-menu-button,
-.titlebar-menu-item,
 .shell-sidebar-button {
   border-radius: var(--radius-pill);
   background: transparent;
@@ -387,10 +386,6 @@
   opacity: 1;
 }
 
-.titlebar-menu {
-  position: relative;
-}
-
 .titlebar-menu-button {
   height: var(--control-size);
   padding: 0 12px;
@@ -398,37 +393,8 @@
   color: var(--color-text-muted);
 }
 
-.titlebar-menu-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 30;
-}
-
-.floating-overlay {
-  min-width: 180px;
-  padding: 3px;
-  border: 1px solid var(--oc-border-default, #3a3d41);
-  border-radius: var(--radius-panel);
-  background: var(--color-overlay-bg, rgba(24, 25, 29, 0.98));
-  box-shadow: var(--color-overlay-shadow, 0 10px 28px rgba(0, 0, 0, 0.32));
-}
-
-.titlebar-menu-item {
-  width: 100%;
-  height: var(--oc-size-md, 28px);
-  padding: 0 var(--oc-space-3, 8px);
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--oc-text-base, 12px);
-}
-
 .titlebar-icon:hover,
 .titlebar-menu-button:hover,
-.titlebar-menu-item:hover,
 .shell-sidebar-button:hover {
   background: var(--color-pill-hover);
   color: var(--color-text-primary);
@@ -442,8 +408,7 @@
 
 .shell-sidebar-button:disabled,
 .shell-sidebar-action:disabled,
-.workspace-action:disabled,
-.titlebar-menu-item:disabled {
+.workspace-action:disabled {
   cursor: default;
   opacity: 0.45;
   pointer-events: none;

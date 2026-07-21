@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
+import OcActionMenu from '../../../components/standard/OcActionMenu.vue';
+import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import type { ShellTitleBarMenuGroup, ShellTitleBarWindowControl } from '../shell.types';
 
 const props = defineProps<{
@@ -22,6 +24,12 @@ const emit = defineEmits<{
 
 const openMenu = ref<string | null>(null);
 const titlebarRef = ref<HTMLElement | null>(null);
+const menuAnchors = new Map<string, HTMLElement>();
+
+function setMenuAnchor(menuKey: string, element: Element | ComponentPublicInstance | null): void {
+  if (element instanceof HTMLElement) menuAnchors.set(menuKey, element);
+  else menuAnchors.delete(menuKey);
+}
 
 function toggleMenu(menuKey: string): void {
   openMenu.value = openMenu.value === menuKey ? null : menuKey;
@@ -42,7 +50,9 @@ function onDocumentPointerDown(event: PointerEvent): void {
   }
 
   const target = event.target;
-  if (!(target instanceof Node) || !titlebarRef.value?.contains(target)) {
+  const isInsideTitlebar = target instanceof Node && titlebarRef.value?.contains(target);
+  const isInsideActionMenu = target instanceof Element && target.closest('.oc-action-menu');
+  if (!isInsideTitlebar && !isInsideActionMenu) {
     closeMenu();
   }
 }
@@ -78,21 +88,29 @@ onBeforeUnmount(() => {
       </button>
 
       <div v-for="menu in props.menuGroups" :key="menu.key" class="titlebar-menu">
-        <button class="titlebar-menu-button" type="button" @click="toggleMenu(menu.key)">
+        <button
+          :ref="(element) => setMenuAnchor(menu.key, element)"
+          class="titlebar-menu-button"
+          type="button"
+          :aria-haspopup="'menu'"
+          :aria-expanded="openMenu === menu.key"
+          @click="toggleMenu(menu.key)"
+        >
           {{ menu.label }}
         </button>
-        <div v-if="openMenu === menu.key" class="titlebar-menu-panel floating-overlay">
-          <button
-            v-for="item in menu.items"
-            :key="item.key"
-            class="titlebar-menu-item"
-            type="button"
-            :disabled="item.disabled"
-            @click="runMenuCommand(menu.key, item.key)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
+        <OcFloatingLayer
+          :open="openMenu === menu.key"
+          :anchor="menuAnchors.get(menu.key) ?? null"
+          placement="bottom-start"
+          :gap="8"
+          :max-height="480"
+          class="titlebar-menu-floating"
+        >
+          <OcActionMenu
+            :actions="menu.actions"
+            @select="runMenuCommand(menu.key, $event.key)"
+          />
+        </OcFloatingLayer>
       </div>
     </div>
 

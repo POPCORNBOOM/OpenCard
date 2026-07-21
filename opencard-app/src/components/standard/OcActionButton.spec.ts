@@ -62,7 +62,7 @@ describe('OcActionButton', () => {
     await flushPromises()
 
     const layer = document.body.querySelector<HTMLElement>('.oc-action-button__floating')
-    const menu = document.body.querySelector<HTMLElement>('.oc-action-button__menu--root')
+    const menu = document.body.querySelector<HTMLElement>('.oc-action-menu')
     expect(layer?.style.position).toBe('fixed')
     expect(layer?.style.visibility).toBe('visible')
     expect(layer?.dataset.placement).toMatch(/^top-/)
@@ -99,21 +99,21 @@ describe('OcActionButton', () => {
     await flushPromises()
 
     for (let depth = 1; depth < 4; depth += 1) {
-      const layersBeforeOpen = document.body.querySelectorAll<HTMLElement>('.oc-action-button__floating')
+      const layersBeforeOpen = document.body.querySelectorAll<HTMLElement>('.oc-floating-layer')
       const parentLayer = layersBeforeOpen[layersBeforeOpen.length - 1]
-      parentLayer?.querySelector<HTMLElement>('.oc-action-button__menu-item')
+      parentLayer?.querySelector<HTMLElement>('.oc-action-menu__item')
         ?.dispatchEvent(new Event('pointerenter'))
       await flushPromises()
 
-      const layersAfterOpen = document.body.querySelectorAll<HTMLElement>('.oc-action-button__floating')
+      const layersAfterOpen = document.body.querySelectorAll<HTMLElement>('.oc-floating-layer')
       expect(layersAfterOpen).toHaveLength(depth + 1)
       parentLayer?.dispatchEvent(new Event('pointerleave'))
       layersAfterOpen[layersAfterOpen.length - 1]?.dispatchEvent(new Event('pointerenter'))
     }
 
     await new Promise((resolve) => window.setTimeout(resolve, 120))
-    expect(document.body.querySelectorAll('.oc-action-button__floating')).toHaveLength(4)
-    expect(document.body.querySelectorAll('.oc-action-button__menu')).toHaveLength(4)
+    expect(document.body.querySelectorAll('.oc-floating-layer')).toHaveLength(4)
+    expect(document.body.querySelectorAll('.oc-action-menu')).toHaveLength(4)
 
     wrapper.unmount()
   })

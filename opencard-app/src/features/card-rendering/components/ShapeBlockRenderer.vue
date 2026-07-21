@@ -1,7 +1,7 @@
 <template>
   <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
-    <svg class="shape-block__svg" viewBox="0 0 100 100" preserveAspectRatio="none"
-      role="img" :aria-label="block.name">
+    <svg class="shape-block__svg" viewBox="-50 -50 200 200" preserveAspectRatio="none"
+      overflow="visible" style="overflow: visible" role="img" :aria-label="block.name">
       <defs v-if="closedShapePath && block.strokeAlignment !== 'center'">
         <clipPath :id="clipPathId">
           <path :d="closedShapePath" />
@@ -39,9 +39,12 @@ const props = withDefaults(defineProps<{
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
-const blockStyle = computed(() => props.layoutMode === 'absolute'
-  ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
-  : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value }))
+const blockStyle = computed(() => {
+  const style = props.layoutMode === 'absolute'
+    ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
+    : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
+  return props.layoutMode === 'absolute' ? style : `${style}; position: relative`
+})
 
 const definitionId = useId().replace(/:/g, '')
 const clipPathId = 'shape-clip-' + definitionId
@@ -99,9 +102,13 @@ function handleClick(event: MouseEvent): void {
 
 <style scoped>
 .shape-block__svg {
+  position: absolute;
+  top: -50%;
+  left: -50%;
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 200%;
+  height: 200%;
   overflow: visible;
+  pointer-events: none;
 }
 </style>

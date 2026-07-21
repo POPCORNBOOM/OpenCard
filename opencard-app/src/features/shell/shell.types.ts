@@ -1,4 +1,5 @@
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import type { OcActionDefinition } from '../../components/standard/OcActionMenu.vue'
 
 export interface ShellAction {
   key?: string;
@@ -23,16 +24,10 @@ export interface ShellList {
   maxHeight?: string;
 }
 
-export interface ShellTitleBarMenuAction {
-  key: string;
-  label: string;
-  disabled?: boolean;
-}
-
 export interface ShellTitleBarMenuGroup {
   key: string;
   label: string;
-  items: ShellTitleBarMenuAction[];
+  actions: OcActionDefinition[];
 }
 
 export interface ShellTitleBarWindowControl {
