@@ -10,7 +10,7 @@ import type {
   CardDesignerLayoutState,
   EditorViewportTransform,
 } from '../model/editorUiState'
-import type { EditorProblem } from '../model/editorProblem'
+import type { EditorIssueSnapshot } from '../model/editorIssue'
 
 export interface EditorProps {
   filePath: string
@@ -27,7 +27,7 @@ export interface EditorEmits {
   (e: 'update:modelValue', value: string): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
-  (e: 'problems-change', problems: readonly EditorProblem[]): void
+  (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
 }
 
 // 编辑器接口定义

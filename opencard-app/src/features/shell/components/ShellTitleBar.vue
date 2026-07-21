@@ -87,6 +87,7 @@ onBeforeUnmount(() => {
             :key="item.key"
             class="titlebar-menu-item"
             type="button"
+            :disabled="item.disabled"
             @click="runMenuCommand(menu.key, item.key)"
           >
             {{ item.label }}

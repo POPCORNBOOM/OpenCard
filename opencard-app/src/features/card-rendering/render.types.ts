@@ -5,6 +5,7 @@ import type {
   TextWritingMode,
   VerticalAlignmentPosition,
 } from '../../entities/card/model'
+import type { CardPipelineIssue } from './cardPipelineIssue'
 
 export type RenderReadyBaseBlock = {
   id: string
@@ -124,22 +125,7 @@ export type RenderReadyCardDocument = {
   children: RenderReadySimpleContainerChild[]
 }
 
-export type RenderIssueReasonCode =
-  | 'INVALID_TYPE'
-  | 'CONVERSION_FAILED'
-  | 'INVALID_OPTION'
-  | 'OUT_OF_RANGE'
-
-export type RenderIssue = {
-  documentId: string
-  blockPath: string
-  blockId?: string
-  fieldKey: string
-  fieldName?: string
-  reasonCode: RenderIssueReasonCode
-}
-
 export type RenderParseResult = {
   document: RenderReadyCardDocument
-  issues: RenderIssue[]
+  issues: CardPipelineIssue[]
 }

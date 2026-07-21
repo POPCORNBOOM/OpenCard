@@ -11,6 +11,7 @@ export default {
       outputTab: 'Output',
       empty: 'No problems',
       outputEmpty: 'No output',
+      blueprint: 'Blueprint',
       bindingCodes: {
         INVALID_TOKEN: 'Invalid reference syntax',
         SOURCE_NOT_FOUND: 'Reference source not found',
@@ -34,6 +35,7 @@ export default {
       help: 'Help',
       newProject: 'New Project',
       newOpenCard: 'New OpenCard',
+      closeProjectFolder: 'Close Project Folder',
       publishVersion: 'Publish Version',
       export2x: 'Test Export 2x',
       exportAll: 'Export All',

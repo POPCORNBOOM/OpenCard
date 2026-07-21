@@ -1,16 +1,13 @@
 import { applyInstance } from '../../entities/card/instance'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
+import type { CardPipelineIssue } from './cardPipelineIssue'
 import { parseRenderDocument } from './renderParser'
-import type { RenderIssue, RenderReadyCardDocument } from './render.types'
-import { resolveReferences, type ReferenceResolveIssue } from './resolveCardBindings'
-
-export type RenderPipelineIssue = ReferenceResolveIssue | RenderIssue
+import type { RenderReadyCardDocument } from './render.types'
+import { resolveReferences } from './resolveCardBindings'
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
-  bindingIssues: ReferenceResolveIssue[]
-  renderIssues: RenderIssue[]
-  issues: RenderPipelineIssue[]
+  issues: CardPipelineIssue[]
 }
 
 export function runRenderPipeline(
@@ -19,12 +16,12 @@ export function runRenderPipeline(
 ): RenderPipelineResult {
   const projected = applyInstance(document, instance)
   const resolved = resolveReferences(projected, { currentCard: instance })
-  const parsed = parseRenderDocument(resolved.document)
+  const parsed = parseRenderDocument(resolved.document, {
+    instanceId: instance?.id ?? null,
+  })
 
   return {
     document: parsed.document,
-    bindingIssues: resolved.issues,
-    renderIssues: parsed.issues,
     issues: [...resolved.issues, ...parsed.issues],
   }
 }

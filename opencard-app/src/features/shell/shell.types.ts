@@ -26,6 +26,7 @@ export interface ShellList {
 export interface ShellTitleBarMenuAction {
   key: string;
   label: string;
+  disabled?: boolean;
 }
 
 export interface ShellTitleBarMenuGroup {

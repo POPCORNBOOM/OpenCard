@@ -10,6 +10,37 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('reveals a field by its input and field keys', async () => {
+    const wrapper = mount(PropertyEditor, {
+      attachTo: document.body,
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'block:1',
+          record: { content: 'Hello' },
+          fields: {
+            content: { title: 'Content', fieldType: 'string' },
+          },
+        }],
+      },
+    })
+
+    const row = wrapper.get('.property-editor__row')
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(row.element, 'scrollIntoView', { value: scrollIntoView })
+
+    const editor = wrapper.vm as unknown as {
+      revealField: (inputKey: string, fieldKey: string) => Promise<boolean>
+    }
+    expect(await editor.revealField('block:1', 'content')).toBe(true)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
+    expect(row.classes()).toContain('is-revealed')
+    expect(document.activeElement).toBe(row.get('input').element)
+    expect(await editor.revealField('block:1', 'missing')).toBe(false)
+
+    wrapper.unmount()
+  })
+
   it('requires two clicks before emitting a generic delete intent', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {

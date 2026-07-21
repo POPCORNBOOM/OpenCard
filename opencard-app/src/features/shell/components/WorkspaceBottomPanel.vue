@@ -32,29 +32,29 @@
           @keydown="handleTabKeydown($event, tab.key)"
         >
           <span>{{ tab.label }}</span>
-          <span v-if="tab.key === 'problems' && problemCount > 0" class="workspace-bottom-panel__count">
-            {{ problemCount }}
+          <span v-if="tab.key === 'issues' && issueCount > 0" class="workspace-bottom-panel__count">
+            {{ issueCount }}
           </span>
         </button>
       </div>
 
       <div
-        v-show="activeTab === 'problems'"
-        id="workspace-bottom-tabpanel-problems"
+        v-show="activeTab === 'issues'"
+        id="workspace-bottom-tabpanel-issues"
         class="workspace-bottom-panel__tabpanel"
         role="tabpanel"
-        aria-labelledby="workspace-bottom-tab-problems"
+        aria-labelledby="workspace-bottom-tab-issues"
       >
         <OcTree
-          v-if="problemTreeData.rootKeys.length > 0"
-          :data="problemTreeData"
-          :expanded-keys="expandedProblemKeys"
+          v-if="issueTreeData.rootKeys.length > 0"
+          :data="issueTreeData"
+          :expanded-keys="expandedIssueKeys"
           activation-mode="double-click"
           selection-mode="none"
           fill
-          @intent="emit('problem-tree-intent', $event)"
+          @intent="handleIssueTreeIntent"
         />
-        <div v-else class="workspace-bottom-panel__empty">{{ problemEmptyLabel }}</div>
+        <div v-else class="workspace-bottom-panel__empty">{{ issueEmptyLabel }}</div>
       </div>
 
       <div
@@ -82,19 +82,23 @@ import { computed } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
+import type {
+  SessionIssueNavigationRequest,
+} from '../../editor-runtime/model/editorIssue'
 
-export type WorkspaceBottomTab = 'problems' | 'output'
+export type WorkspaceBottomTab = 'issues' | 'output'
 
 const props = defineProps<{
   expanded: boolean
   activeTab: WorkspaceBottomTab
-  problemCount: number
-  problemTreeData: OcTreeData
-  expandedProblemKeys: readonly string[]
+  issueCount: number
+  issueTreeData: OcTreeData
+  issueNavigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
+  expandedIssueKeys: readonly string[]
   outputLines: readonly string[]
-  problemsLabel: string
+  issuesLabel: string
   outputLabel: string
-  problemEmptyLabel: string
+  issueEmptyLabel: string
   outputEmptyLabel: string
   expandLabel: string
   collapseLabel: string
@@ -103,20 +107,21 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggle: []
   'tab-change': [tab: WorkspaceBottomTab]
-  'problem-tree-intent': [intent: OcTreeIntent]
+  'issue-expansion-change': [key: string, expanded: boolean]
+  'issue-navigate': [request: SessionIssueNavigationRequest]
 }>()
 
 const tabs = computed<readonly { key: WorkspaceBottomTab; label: string }[]>(() => [
-  { key: 'problems', label: props.problemsLabel },
+  { key: 'issues', label: props.issuesLabel },
   { key: 'output', label: props.outputLabel },
 ])
 
 function handleTabKeydown(event: KeyboardEvent, currentTab: WorkspaceBottomTab): void {
   let nextTab: WorkspaceBottomTab | null = null
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-    nextTab = currentTab === 'problems' ? 'output' : 'problems'
+    nextTab = currentTab === 'issues' ? 'output' : 'issues'
   } else if (event.key === 'Home') {
-    nextTab = 'problems'
+    nextTab = 'issues'
   } else if (event.key === 'End') {
     nextTab = 'output'
   }
@@ -124,6 +129,17 @@ function handleTabKeydown(event: KeyboardEvent, currentTab: WorkspaceBottomTab):
   if (!nextTab) return
   event.preventDefault()
   emit('tab-change', nextTab)
+}
+
+function handleIssueTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'expansion.change') {
+    emit('issue-expansion-change', intent.key, intent.expanded)
+    return
+  }
+  if (intent.type !== 'node.activate') return
+
+  const target = props.issueNavigationTargets.get(intent.key)
+  if (target) emit('issue-navigate', target)
 }
 </script>
 

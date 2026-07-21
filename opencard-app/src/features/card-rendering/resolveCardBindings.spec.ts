@@ -54,9 +54,9 @@ describe('card additional fields and bindings', () => {
 
     const result = resolveReferences(createDocument(block))
 
-    expect(result.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
-      'FIELD_NOT_ALLOWED',
-      'TYPE_MISMATCH',
+    expect(result.issues.map((issue) => issue.type)).toEqual(expect.arrayContaining([
+      'card-designer.binding.field-not-allowed',
+      'card-designer.binding.type-mismatch',
     ]))
   })
 
@@ -74,9 +74,9 @@ describe('card additional fields and bindings', () => {
 
     const result = resolveReferences(createDocument(block))
 
-    expect(result.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
-      'TYPE_MISMATCH',
-      'CYCLE',
+    expect(result.issues.map((issue) => issue.type)).toEqual(expect.arrayContaining([
+      'card-designer.binding.type-mismatch',
+      'card-designer.binding.cycle',
     ]))
   })
 
@@ -143,7 +143,18 @@ describe('card additional fields and bindings', () => {
     const result = resolveReferences(document)
 
     expect(result.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'FIELD_NOT_FOUND', token: '{{s:score}}' }),
+      expect.objectContaining({
+        type: 'card-designer.binding.field-not-found',
+        severity: 'warning',
+        token: '{{s:score}}',
+        location: expect.objectContaining({
+          documentId: 'document',
+          instanceId: null,
+          owner: { kind: 'block', id: 'text' },
+          blockId: 'text',
+          fieldKey: 'content',
+        }),
+      }),
     ]))
   })
 })

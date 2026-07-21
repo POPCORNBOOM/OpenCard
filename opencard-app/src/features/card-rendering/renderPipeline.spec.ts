@@ -33,23 +33,42 @@ describe('renderPipeline', () => {
     const result = runRenderPipeline(document, instance)
 
     expect(result.document.children[0]!.block).toMatchObject({ content: 'Document' })
-    expect(result.bindingIssues).toEqual([])
-    expect(result.renderIssues).not.toContainEqual(expect.objectContaining({ fieldKey: 'content' }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({
+      location: expect.objectContaining({ fieldKey: 'content' }),
+    }))
     expect(document.children[0]!.block).toMatchObject({ content: 'Blueprint' })
   })
 
-  it('preserves binding and render diagnostics separately and in pipeline order', () => {
-    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{invalid}}' })
+  it('returns binding and render diagnostics through one ordered issue stream', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })
     block.opacity = 'not-a-number'
+    const instance: CardInstanceRecord = {
+      type: 'card-instance',
+      id: 'instance',
+      name: 'Instance',
+      amount: '1',
+      data: { text: { content: '{{invalid}}' } },
+    }
 
-    const result = runRenderPipeline(createDocument(block), null)
+    const result = runRenderPipeline(createDocument(block), instance)
 
-    expect(result.bindingIssues).toContainEqual(expect.objectContaining({ code: 'INVALID_TOKEN' }))
-    expect(result.renderIssues).toContainEqual(expect.objectContaining({
-      blockId: 'text',
-      fieldKey: 'opacity',
-      reasonCode: 'CONVERSION_FAILED',
-    }))
-    expect(result.issues).toEqual([...result.bindingIssues, ...result.renderIssues])
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.binding.invalid-token',
+        location: expect.objectContaining({
+          instanceId: 'instance',
+          owner: { kind: 'block', id: 'text' },
+          fieldKey: 'content',
+        }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.conversion-failed',
+        location: expect.objectContaining({
+          instanceId: 'instance',
+          owner: { kind: 'block', id: 'text' },
+          fieldKey: 'opacity',
+        }),
+      }),
+    ])
   })
 })

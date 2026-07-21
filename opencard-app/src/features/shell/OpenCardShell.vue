@@ -179,7 +179,7 @@
                 @save="handleEditorSave"
                 @update-viewport-transform="handleViewportTransformUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
-                @problems-change="handleEditorProblemsChange(activeSession.id, $event)"
+                @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
               />
             </ProjectEditorWorkspace>
           </div>
@@ -187,19 +187,21 @@
           <WorkspaceBottomPanel
             :expanded="isBottomPanelExpanded"
             :active-tab="activeBottomTab"
-            :problem-count="visibleProblemCount"
-            :problem-tree-data="visibleProblemTreeData"
-            :expanded-problem-keys="expandedProblemKeys"
+            :issue-count="visibleIssueCount"
+            :issue-tree-data="visibleIssueTreeData"
+            :issue-navigation-targets="issueNavigationTargets"
+            :expanded-issue-keys="expandedIssueKeys"
             :output-lines="workspaceOutputLines"
-            :problems-label="t('app.problems.tab')"
+            :issues-label="t('app.problems.tab')"
             :output-label="t('app.problems.outputTab')"
-            :problem-empty-label="t('app.problems.empty')"
+            :issue-empty-label="t('app.problems.empty')"
             :output-empty-label="t('app.problems.outputEmpty')"
             :expand-label="t('app.shell.expandBottomPanel')"
             :collapse-label="t('app.shell.collapseBottomPanel')"
             @toggle="isBottomPanelExpanded = !isBottomPanelExpanded"
             @tab-change="activeBottomTab = $event"
-            @problem-tree-intent="handleWorkspaceProblemTreeIntent"
+            @issue-expansion-change="setIssueNodeExpanded"
+            @issue-navigate="handleWorkspaceIssueNavigate"
           />
         </div>
       </ShellWorkspaceFrame>
@@ -215,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { useEditorSessionStore } from '../workspace/store/editorSessionStore'
@@ -244,11 +246,17 @@ import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import type { SettingsCategoryKey, SettingsIntent } from '../settings/model/appSettings'
 import CardDocumentRenderer from '../card-rendering/components/CardDocumentRenderer.vue'
 import { editorRegistry } from '../editor-runtime/registry/editorRegistry'
-import type { EditorProblem } from '../editor-runtime/model/editorProblem'
+import type {
+  EditorIssueSnapshot,
+  EditorNavigationResult,
+  SessionIssueNavigationRequest,
+  SessionNavigationToken,
+} from '../editor-runtime/model/editorIssue'
 import { resolveFileType, resolveFileTypeById } from '../workspace/model/fileTypes'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
-import { useWorkspaceProblems } from './composables/useWorkspaceProblems'
+import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
+import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
   useShellFileTree,
@@ -264,7 +272,7 @@ import type {
   ShellTitleBarWindowControl,
 } from './shell.types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
 const SIDEBAR_AUTO_COLLAPSE_WIDTH = 168
 const PROJECT_FILES_LIST_KEY = 'project-files'
@@ -303,6 +311,7 @@ type CurrentEditorRef = {
   redo?: () => Promise<void> | void
   canUndo?: boolean
   canRedo?: boolean
+  navigate?: (token: SessionNavigationToken) => Promise<EditorNavigationResult> | EditorNavigationResult
 }
 
 type WorkspaceMode =
@@ -349,7 +358,7 @@ const isActivatingProject = ref(false)
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
-const activeBottomTab = ref<WorkspaceBottomTab>('problems')
+const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value || isCreateProjectOperationBusy.value
 ))
@@ -400,15 +409,21 @@ const {
 } = useEditorSessionStore()
 
 const {
-  problemTreeData,
-  problemNodeSessionIds,
-  problemCount,
-  expandedProblemKeys,
-  reportSessionProblems,
-  setProblemNodeExpanded,
-} = useWorkspaceProblems({ sessions })
-const visibleProblemTreeData = computed(() => isProjectMode.value ? problemTreeData.value : EMPTY_TREE_DATA)
-const visibleProblemCount = computed(() => isProjectMode.value ? problemCount.value : 0)
+  issueTreeData,
+  issueNavigationTargets,
+  issueCount,
+  expandedIssueKeys,
+  reportSessionIssueSnapshot,
+  clearAllSessionIssues,
+  setIssueNodeExpanded,
+} = useWorkspaceIssues({ sessions })
+const visibleIssueTreeData = computed(() => isProjectMode.value ? issueTreeData.value : EMPTY_TREE_DATA)
+const visibleIssueCount = computed(() => isProjectMode.value ? issueCount.value : 0)
+
+watch(locale, clearAllSessionIssues, { flush: 'sync' })
+watch(projectPath, (nextPath, previousPath) => {
+  if (nextPath !== previousPath) clearAllSessionIssues()
+})
 
 const {
   canExportActiveCard,
@@ -834,6 +849,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
       { key: 'new-project', label: t('app.menu.newProject') },
       { key: 'new-open-card', label: t('app.menu.newOpenCard') },
       { key: 'open-project', label: t('sidebar.openProject') },
+      { key: 'close-project-folder', label: t('app.menu.closeProjectFolder'), disabled: !projectPath.value },
       { key: 'export-project-template', label: t('templateExport.menu'), disabled: !projectPath.value },
     ],
   },
@@ -960,19 +976,18 @@ function handleCardDesignerLayoutUpdate(value: CardDesignerLayoutState): void {
   })
 }
 
-function handleEditorProblemsChange(sessionId: string, problems: readonly EditorProblem[]): void {
-  reportSessionProblems(sessionId, problems)
+function handleEditorIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {
+  reportSessionIssueSnapshot(sessionId, snapshot)
 }
 
-function handleWorkspaceProblemTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'expansion.change') {
-    setProblemNodeExpanded(intent.key, intent.expanded)
-    return
-  }
-
-  if (intent.type !== 'node.activate') return
-  const sessionId = problemNodeSessionIds.value.get(intent.key)
-  if (sessionId) activateSession(sessionId)
+async function handleWorkspaceIssueNavigate(request: SessionIssueNavigationRequest): Promise<void> {
+  await navigateWorkspaceIssue(request, {
+    hasSession: (sessionId) => sessions.value.some((session) => session.id === sessionId),
+    activateSession,
+    waitForEditorMount: nextTick,
+    getActiveSessionId: () => activeSession.value?.id ?? null,
+    getEditorNavigator: () => currentEditorRef.value,
+  })
 }
 
 async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
@@ -1142,6 +1157,16 @@ async function openProject() {
   await ensureProjectTreeLoaded()
 }
 
+async function closeProjectFolder(): Promise<void> {
+  const currentProjectPath = projectPath.value
+  if (!currentProjectPath) return
+
+  detachWorkspaceSessions(currentProjectPath)
+  await setProjectPath('')
+  selectedRecentProjectKeys.value = []
+  workspaceMode.value = { type: 'welcome' }
+}
+
 async function openRecentProject(path: string): Promise<void> {
   const previousProjectPath = projectPath.value
   if (previousProjectPath && previousProjectPath !== path) {
@@ -1261,6 +1286,11 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'open-project') {
     await openProject()
+    return
+  }
+
+  if (actionKey === 'close-project-folder') {
+    await closeProjectFolder()
     return
   }
 

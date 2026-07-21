@@ -13,7 +13,8 @@
   - `reset-property`（字段重置意图）
 -->
 <template>
-  <div class="property-editor" @pointerdown.capture="handleEditorPointerDown" @keydown.esc="armedDeleteKey = null">
+  <div ref="propertyEditorRoot" class="property-editor" @pointerdown.capture="handleEditorPointerDown"
+    @keydown.esc="armedDeleteKey = null">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
@@ -42,7 +43,9 @@
 
             <div class="property-editor__fields">
             <div v-for="entry in category.entries" :key="`${source.key}:${category.key}:${entry.key}`"
-              class="property-editor__row">
+              class="property-editor__row"
+              :class="{ 'is-revealed': revealedFieldIdentity === fieldIdentity(category.inputKey, entry.key) }"
+              :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
                 <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" />
                 <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
@@ -94,7 +97,7 @@
 
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
-import { computed, ref, toRef, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {
   PropertyEditorBindingInterpreter,
@@ -188,6 +191,9 @@ const ADD_PROPERTY_ACTION_KEY = 'add-property'
 const ADD_PROPERTY_FIELD_ACTION_PREFIX = 'add-property:'
 const armedDeleteKey = ref<string | null>(null)
 const rawStringEditorKeys = ref<ReadonlySet<string>>(new Set())
+const propertyEditorRoot = ref<HTMLElement | null>(null)
+const revealedFieldIdentity = ref<string | null>(null)
+let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
 
 const { displaySources } = usePropertyEditorView({
   inputs: toRef(props, 'inputs'),
@@ -248,7 +254,11 @@ function emitRawStringValue(sourceKey: string, fieldKey: string, value: string):
 }
 
 function rawStringEditorIdentity(sourceKey: string, fieldKey: string): string {
-  return `${sourceKey}\u0000${fieldKey}`
+  return fieldIdentity(sourceKey, fieldKey)
+}
+
+function fieldIdentity(inputKey: string, fieldKey: string): string {
+  return `${inputKey}\u0000${fieldKey}`
 }
 
 function usesRawStringEditor(
@@ -314,7 +324,7 @@ function handleCategoryAction(payload: { key: string }, category: PropertyEditor
 }
 
 function deleteIdentity(sourceKey: string, fieldKey: string): string {
-  return `${sourceKey}\u0000${fieldKey}`
+  return fieldIdentity(sourceKey, fieldKey)
 }
 
 function isDeleteArmed(sourceKey: string, fieldKey: string): boolean {
@@ -346,6 +356,45 @@ function emitResetProperty(key: string, fieldKey: string): void {
 function createDefaultValue(definition: PropertyEditorFieldDefinition): unknown {
   return structuredClone(definition.defaultValue)
 }
+
+function findFieldRow(inputKey: string, fieldKey: string): HTMLElement | null {
+  const rows = propertyEditorRoot.value?.querySelectorAll<HTMLElement>(
+    '.property-editor__row[data-input-key][data-field-key]',
+  ) ?? []
+  return Array.from(rows).find((row) =>
+    row.dataset.inputKey === inputKey && row.dataset.fieldKey === fieldKey
+  ) ?? null
+}
+
+function focusFieldControl(row: HTMLElement): void {
+  const control = row.querySelector<HTMLElement>(
+    '.entry-control input:not([type="hidden"]), .entry-control textarea, .entry-control select, '
+      + '.entry-control button:not([disabled]), .entry-control [tabindex]:not([tabindex="-1"])',
+  )
+  control?.focus()
+}
+
+async function revealField(inputKey: string, fieldKey: string): Promise<boolean> {
+  await nextTick()
+  const row = findFieldRow(inputKey, fieldKey)
+  if (!row) return false
+
+  row.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  focusFieldControl(row)
+  revealedFieldIdentity.value = fieldIdentity(inputKey, fieldKey)
+  if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
+  revealHighlightTimer = setTimeout(() => {
+    revealedFieldIdentity.value = null
+    revealHighlightTimer = null
+  }, 1600)
+  return true
+}
+
+defineExpose({ revealField })
+
+onBeforeUnmount(() => {
+  if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
+})
 </script>
 
 <style scoped>
@@ -448,6 +497,11 @@ function createDefaultValue(definition: PropertyEditorFieldDefinition): unknown 
 .property-editor__row:hover,
 .property-editor__row:focus-within {
   background: var(--oc-bg-hover);
+}
+
+.property-editor__row.is-revealed {
+  background: var(--oc-bg-selected);
+  box-shadow: inset 2px 0 0 var(--oc-fg-accent);
 }
 
 .property-editor__row-label {

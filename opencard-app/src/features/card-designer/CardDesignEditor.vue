@@ -148,8 +148,10 @@
                   overflow="auto">
                   <OcTree fill :data="blockTreeData" :actions="treeActions"
                     :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
-                    :selection-expansion-mode="props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
-                    :scroll-to-selection="props.structureTreeScrollToSelection ?? true"
+                    :selection-expansion-mode="forceStructureTreeReveal
+                      ? 'expand'
+                      : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
+                    :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
                     selection-mode="single" @intent="handleStructureTreeIntent" />
                 </OcPanel>
               </OcCard>
@@ -173,7 +175,8 @@
                 :collapsed="!isPropertyPanelExpanded"
                 @action="handlePropertyCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
-                  <PropertyEditor :inputs="propertyEditorInputs" :categories="propertyCategories" :sort-mode="propertySortMode"
+                  <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
+                    :categories="propertyCategories" :sort-mode="propertySortMode"
                     :binding-interpreter="propertyBindingInterpreter"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
@@ -267,9 +270,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
+import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
   exposesCardFieldReference,
   getCardFieldDefinition,
@@ -299,8 +303,7 @@ import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/
 import OcText from '../../components/base/OcText.vue'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerLayoutState } from '../editor-runtime/model/editorUiState'
-import type { EditorProblem } from '../editor-runtime/model/editorProblem'
-import { createCardDesignerProblems } from './cardDesignerProblems'
+import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type {
   ReferenceCompletionContext,
@@ -318,6 +321,11 @@ import { useProjectStore } from '../workspace/store/projectStore'
 import { createFilePathCompletionProvider } from '../workspace/services/filePathCompletion'
 import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
+import {
+  isCardDesignerNavigationToken,
+  type CardDesignerNavigationResult,
+  type CardDesignerNavigationToken,
+} from './cardDesignerNavigation'
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
@@ -440,7 +448,12 @@ type CardViewportHandle = {
   resetView: () => void
 }
 
+type PropertyEditorHandle = {
+  revealField: (inputKey: string, fieldKey: string) => Promise<boolean>
+}
+
 const cardViewportRef = ref<CardViewportHandle | null>(null)
+const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const viewportTransform = ref({
   x: 0,
   y: 0,
@@ -677,6 +690,7 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
 const selectedBlockKeys = ref<string[]>([])
 const selectedCardKeys = ref<string[]>([])
 const selectedCardId = ref<string | null>(BLUEPRINT_CARD_ID)
+const forceStructureTreeReveal = ref(false)
 
 // 文档状态与读写协议。
 const {
@@ -1120,7 +1134,11 @@ const transformDisabledBlockIds = computed(() => {
   return ids
 })
 
-// Keep diagnostics beside the projected document so the editor can report both pipeline stages.
+const renderTargetInstance = computed(() => (
+  selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null
+))
+
+// Keep diagnostics beside the projected document so the editor reports the exact rendered card snapshot.
 const renderPipelineResult = computed(() => {
   documentRevision.value
   if (!cardDoc.value) {
@@ -1129,25 +1147,27 @@ const renderPipelineResult = computed(() => {
 
   const result = runRenderPipeline(
     cardDoc.value,
-    selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null,
+    renderTargetInstance.value,
   )
-  if (result.bindingIssues.length > 0) {
-    console.warn('[cde] resolveReferences issues:', result.bindingIssues)
-  }
-  if (result.renderIssues.length > 0) {
-    console.warn('[cde] renderParser issues:', result.renderIssues)
-  }
+  if (result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
   return result
 })
 
 const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineResult.value?.document ?? null)
-const editorProblems = computed<readonly EditorProblem[]>(() => (
-  createCardDesignerProblems(renderPipelineResult.value, t)
-))
+const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
+  document: cardDoc.value,
+  instance: renderTargetInstance.value,
+  result: renderPipelineResult.value,
+  translate: (key, parameters) => t(key, parameters ?? {}),
+  resolveFieldLabel: (fieldKey) => {
+    const messageKey = `propertyEditor.fields.${fieldKey}`
+    return te(messageKey) ? t(messageKey) : fieldKey
+  },
+}))
 
-watch(editorProblems, (problems) => {
-  emit('problems-change', problems)
-}, { immediate: true })
+watch(editorIssueSnapshot, (snapshot) => {
+  emit('issue-snapshot', snapshot)
+})
 const TRANSFORM_PREVIEW_MAX_SIDE = 220
 const TRANSFORM_PREVIEW_VISIBILITY_COVERAGE = 0.7
 const transformPreviewHostRef = ref<HTMLElement | null>(null)
@@ -1437,6 +1457,57 @@ async function redoFile() {
   ensureSelectionValidity()
 }
 
+function resolveNavigationInputKey(
+  target: CardDesignerNavigationToken['target'],
+): string | null {
+  if (target.owner === 'document') return cardDoc.value?.id ?? null
+  if (target.owner === 'instance') return selectedCard.value?.id ?? null
+  if (target.owner === 'block') return selectedBlock.value?.id ?? null
+  return selectedLocation.value?.id ?? null
+}
+
+async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavigationResult> {
+  if (!isCardDesignerNavigationToken(token)) return 'invalid-token'
+
+  const document = cardDoc.value
+  if (!document) return 'not-found'
+
+  const target = token.target
+  const cardKey = target.instanceId ?? BLUEPRINT_CARD_ID
+  if (
+    target.instanceId !== null
+    && !document.instances.some((instance) => instance.id === target.instanceId)
+  ) {
+    return 'not-found'
+  }
+  if (target.blockId && !blockTreeData.value.items.has(target.blockId)) return 'not-found'
+
+  selectedCardId.value = cardKey
+  selectedCardKeys.value = [cardKey]
+  if (target.owner === 'block' || target.owner === 'location') {
+    forceStructureTreeReveal.value = true
+    selectedBlockKeys.value = target.blockId ? [target.blockId] : []
+  } else {
+    clearSelection()
+  }
+
+  const layoutChanged = !isPropertyPanelExpanded.value
+    || Boolean(target.blockId && !isStructureTreePanelExpanded.value)
+  isPropertyPanelExpanded.value = true
+  if (target.blockId) isStructureTreePanelExpanded.value = true
+  if (layoutChanged) commitLayoutState()
+
+  await nextTick()
+  await nextTick()
+  const inputKey = resolveNavigationInputKey(target)
+  forceStructureTreeReveal.value = false
+  if (!inputKey || !propertyEditorRef.value) return 'not-found'
+
+  return await propertyEditorRef.value.revealField(inputKey, target.fieldKey)
+    ? 'success'
+    : 'not-found'
+}
+
 watch(
   () => props.cardDesignerLayout,
   (layout) => {
@@ -1455,7 +1526,11 @@ watch(
   () => [props.filePath, props.modelValue] as const,
   ([nextFilePath, nextValue]) => {
     const content = nextValue ?? ''
+    const hasLoadedDocument = loadedFilePath.value !== null
     if (!content) {
+      if (hasLoadedDocument) {
+        emit('issue-snapshot', { scopeKey: BLUEPRINT_CARD_ID, scopeOrder: [], issues: [] })
+      }
       return
     }
 
@@ -1464,6 +1539,9 @@ watch(
       return
     }
 
+    if (hasLoadedDocument) {
+      emit('issue-snapshot', { scopeKey: BLUEPRINT_CARD_ID, scopeOrder: [], issues: [] })
+    }
     loadedFilePath.value = nextFilePath
     viewportTransform.value = props.viewportTransform ?? DEFAULT_VIEWPORT_TRANSFORM
     loadRawDoc(content)
@@ -1477,6 +1555,7 @@ defineExpose({
   redo: redoFile,
   canUndo,
   canRedo,
+  navigate,
 })
 
 onMounted(() => {

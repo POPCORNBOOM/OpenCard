@@ -20,6 +20,11 @@ import {
 } from '../../entities/card/tree'
 import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/model/binding'
 import { parseFieldReference } from '../editor-runtime/model/bindingExpression'
+import {
+  createCardPipelineIssue,
+  type CardBindingIssueType,
+  type CardPipelineIssue,
+} from './cardPipelineIssue'
 
 const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
@@ -70,25 +75,9 @@ export function resolveParentFieldReferenceKey(
   return `${currentBlockId}:${descriptor.fieldKey}`
 }
 
-export type ReferenceResolveIssueCode =
-  | 'INVALID_TOKEN'
-  | 'SOURCE_NOT_FOUND'
-  | 'FIELD_NOT_ALLOWED'
-  | 'FIELD_NOT_FOUND'
-  | 'CYCLE'
-  | 'MAX_DEPTH'
-  | 'TYPE_MISMATCH'
-
-export type ReferenceResolveIssue = {
-  path: string
-  token: string
-  code: ReferenceResolveIssueCode
-  reason: string
-}
-
 export type ResolveReferencesResult = {
   document: CardDocument
-  issues: ReferenceResolveIssue[]
+  issues: CardPipelineIssue[]
 }
 
 export type ResolveReferencesOptions = {
@@ -103,8 +92,8 @@ type ReferenceOwner = {
   typeName: string
   source: Record<string, unknown>
   target: Record<string, unknown>
-  pathPrefix: string
   anchorBlockId: string | null
+  blockPath?: string
 }
 
 type ResolveFieldResult =
@@ -185,7 +174,7 @@ export function resolveReferences(
     })),
   }
   const parentLookup = buildParentLookup(sourceDocument)
-  const issues: ReferenceResolveIssue[] = []
+  const issues: CardPipelineIssue[] = []
   const valueMemo = new Map<string, unknown>()
   const stateMemo = new Map<string, ResolveMemoState>()
   const owners: ReferenceOwner[] = []
@@ -197,7 +186,6 @@ export function resolveReferences(
     typeName: sourceDocument.type,
     source: sourceDocument as unknown as Record<string, unknown>,
     target: targetDocument as unknown as Record<string, unknown>,
-    pathPrefix: '$',
     anchorBlockId: null,
   }
   owners.push(documentOwner)
@@ -229,7 +217,6 @@ export function resolveReferences(
         typeName: 'card-instance',
         source: sourceCurrentCard as unknown as Record<string, unknown>,
         target: targetCurrentCard as unknown as Record<string, unknown>,
-        pathPrefix: '$.currentCard',
         anchorBlockId: null,
       }
     : null
@@ -237,7 +224,7 @@ export function resolveReferences(
   const visitChildren = (
     sourceChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
     targetChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
-    parentPath: string,
+    parentBlockPath: string,
   ): void => {
     for (let index = 0; index < sourceChildren.length; index += 1) {
       const sourceChild = sourceChildren[index]
@@ -246,9 +233,9 @@ export function resolveReferences(
         continue
       }
 
-      const childPath = `${parentPath}.children[${index}]`
       const sourceBlock = sourceChild.block
       const targetBlock = targetChild.block
+      const blockPath = joinBlockPath(parentBlockPath, sourceBlock.name ?? '')
 
       const blockOwner: ReferenceOwner = {
         kind: 'block',
@@ -257,8 +244,8 @@ export function resolveReferences(
         typeName: sourceBlock.type,
         source: sourceBlock as unknown as Record<string, unknown>,
         target: targetBlock as unknown as Record<string, unknown>,
-        pathPrefix: `${childPath}.block`,
         anchorBlockId: sourceBlock.id,
+        blockPath,
       }
       owners.push(blockOwner)
       targetOwnersById.set(blockOwner.id, blockOwner)
@@ -271,19 +258,19 @@ export function resolveReferences(
       owners.push({
         kind: 'location',
         key: `layout:${sourceBlock.id}`,
-        id: sourceBlock.id,
+        id: sourceChild.location.id,
         typeName: locationType,
         source: sourceLocation,
         target: targetLocation,
-        pathPrefix: `${childPath}.location`,
         anchorBlockId: sourceBlock.id,
+        blockPath,
       })
 
       if (isBlockContainer(sourceBlock) && isBlockContainer(targetBlock)) {
         visitChildren(
           sourceBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
           targetBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
-          `${childPath}.block`,
+          blockPath,
         )
       }
     }
@@ -292,54 +279,75 @@ export function resolveReferences(
   visitChildren(
     sourceDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
     targetDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
-    '$',
+    '',
   )
-
-  function buildFieldPath(owner: ReferenceOwner, fieldKey: string): string {
-    return `${owner.pathPrefix}.${fieldKey}`
-  }
 
   function buildMemoKey(owner: ReferenceOwner, fieldKey: string): string {
     return `${owner.key}:${fieldKey}`
   }
 
   function pushIssue(
-    path: string,
+    owner: ReferenceOwner,
+    fieldKey: string,
     token: string,
-    code: ReferenceResolveIssueCode,
-    reason: string,
+    type: CardBindingIssueType,
+    parameters?: Readonly<Record<string, string | number>>,
   ): void {
-    issues.push({ path, token, code, reason })
+    const ownerKind = owner.kind === 'current-card' ? 'instance' : owner.kind
+    issues.push(createCardPipelineIssue({
+      type,
+      location: {
+        documentId: sourceDocument.id,
+        instanceId: options.currentCard?.id ?? null,
+        owner: { kind: ownerKind, id: owner.id },
+        ...(owner.anchorBlockId ? { blockId: owner.anchorBlockId } : {}),
+        ...(owner.blockPath ? { blockPath: owner.blockPath } : {}),
+        fieldKey,
+      },
+      ...(parameters ? { parameters } : {}),
+      token,
+    }))
   }
 
   function resolveTokenValue(
     owner: ReferenceOwner,
     tokenBody: string,
-    fieldPath: string,
+    fieldKey: string,
     recursionDepth: number,
   ): ResolveTokenResult {
     if (recursionDepth > maxReferenceDepth) {
-      pushIssue(fieldPath, `{{${tokenBody}}}`, 'MAX_DEPTH', `引用深度超过限制 ${maxReferenceDepth}`)
+      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.max-depth', {
+        maxDepth: maxReferenceDepth,
+      })
       return { ok: false, value: null }
     }
 
     const tokenDescriptor = parseFieldReference(tokenBody)
     if (!tokenDescriptor) {
-      pushIssue(fieldPath, `{{${tokenBody}}}`, 'INVALID_TOKEN', '无效的引用语法')
+      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.invalid-token')
       return { ok: false, value: null }
     }
 
     function resolveTargetField(targetOwner: ReferenceOwner, targetFieldKey: string): ResolveTokenResult {
       if (!exposesCardFieldReference(targetOwner.source, targetFieldKey)) {
-        pushIssue(fieldPath, `{{${tokenBody}}}`, 'FIELD_NOT_ALLOWED', `字段 ${targetOwner.typeName}.${targetFieldKey} 不允许被引用`)
+        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.field-not-allowed', {
+          ownerType: targetOwner.typeName,
+          referencedFieldKey: targetFieldKey,
+        })
         return { ok: false, value: null }
       }
       if (!hasCardField(targetOwner.source, targetFieldKey)) {
-        pushIssue(fieldPath, `{{${tokenBody}}}`, 'FIELD_NOT_FOUND', `字段 ${targetOwner.typeName}.${targetFieldKey} 不存在`)
+        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.field-not-found', {
+          ownerType: targetOwner.typeName,
+          referencedFieldKey: targetFieldKey,
+        })
         return { ok: false, value: null }
       }
       if (stateMemo.get(buildMemoKey(targetOwner, targetFieldKey)) === 'resolving') {
-        pushIssue(fieldPath, `{{${tokenBody}}}`, 'CYCLE', `检测到循环引用 ${targetOwner.id}:${targetFieldKey}`)
+        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.cycle', {
+          referencedOwnerId: targetOwner.id,
+          referencedFieldKey: targetFieldKey,
+        })
         return { ok: false, value: null }
       }
 
@@ -357,19 +365,19 @@ export function resolveReferences(
     if (owner.anchorBlockId) {
       targetReference = resolveParentFieldReferenceKey(owner.anchorBlockId, tokenBody, parentLookup)
       if (!targetReference) {
-        pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', '无法解析引用来源')
+        pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found')
         return { ok: false, value: null }
       }
     } else if (tokenDescriptor.kind === 'document') {
       targetReference = `${documentOwner.id}:${tokenDescriptor.fieldKey}`
     } else {
-      pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', '文档级字段不支持父链引用')
+      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found')
       return { ok: false, value: null }
     }
 
     const separatorIndex = targetReference.indexOf(':')
     if (separatorIndex < 1) {
-      pushIssue(fieldPath, `{{${tokenBody}}}`, 'INVALID_TOKEN', '解析后的引用目标无效')
+      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.invalid-token')
       return { ok: false, value: null }
     }
 
@@ -377,7 +385,9 @@ export function resolveReferences(
     const targetFieldKey = targetReference.slice(separatorIndex + 1)
     const targetOwner = targetOwnersById.get(targetOwnerId)
     if (!targetOwner) {
-      pushIssue(fieldPath, `{{${tokenBody}}}`, 'SOURCE_NOT_FOUND', `未找到引用对象 ${targetOwnerId}`)
+      pushIssue(owner, fieldKey, `{{${tokenBody}}}`, 'card-designer.binding.source-not-found', {
+        referencedOwnerId: targetOwnerId,
+      })
       return { ok: false, value: null }
     }
 
@@ -390,33 +400,41 @@ export function resolveReferences(
     sourceValue: string,
     recursionDepth: number,
   ): ResolveFieldResult {
-    const fieldPath = buildFieldPath(owner, fieldKey)
     const targetKind = getCardFieldValueKind(owner.source, fieldKey)
     if (!sourceValue.includes('{{')) {
       return { ok: true, value: sourceValue }
     }
     if (!acceptsCardFieldBinding(owner.source, fieldKey)) {
-      pushIssue(fieldPath, sourceValue, 'FIELD_NOT_ALLOWED', `字段 ${owner.typeName}.${fieldKey} 不允许绑定`)
+      pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.field-not-allowed', {
+        ownerType: owner.typeName,
+        referencedFieldKey: fieldKey,
+      })
       return { ok: false, value: sourceValue }
     }
 
     const singleTokenMatch = singleTemplateTokenPattern.exec(sourceValue)
     if (singleTokenMatch) {
       const tokenBody = singleTokenMatch[1].trim()
-      const tokenResult = resolveTokenValue(owner, tokenBody, fieldPath, recursionDepth + 1)
+      const tokenResult = resolveTokenValue(owner, tokenBody, fieldKey, recursionDepth + 1)
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
       }
       if (!isBindingCompatible(targetKind, tokenResult.valueKind)
         || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-        pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `${tokenResult.valueKind} 不能绑定到 ${targetKind}`)
+        pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.type-mismatch', {
+          sourceType: tokenResult.valueKind,
+          targetType: targetKind,
+        })
         return { ok: false, value: sourceValue }
       }
       return { ok: true, value: String(tokenResult.value) }
     }
 
     if (targetKind !== 'string') {
-      pushIssue(fieldPath, sourceValue, 'TYPE_MISMATCH', `${targetKind} 字段只允许完整的单个绑定表达式`)
+      pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.type-mismatch', {
+        sourceType: 'interpolated-string',
+        targetType: targetKind,
+      })
       return { ok: false, value: sourceValue }
     }
 
@@ -434,14 +452,17 @@ export function resolveReferences(
       resolvedValue += sourceValue.slice(cursor, matched.index)
 
       const tokenBody = matched[1].trim()
-      const tokenResult = resolveTokenValue(owner, tokenBody, fieldPath, recursionDepth + 1)
+      const tokenResult = resolveTokenValue(owner, tokenBody, fieldKey, recursionDepth + 1)
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
       }
 
       if (!isBindingCompatible('string', tokenResult.valueKind)
         || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-        pushIssue(fieldPath, matched[0], 'TYPE_MISMATCH', `${tokenResult.valueKind} 不能内插到 string`)
+        pushIssue(owner, fieldKey, matched[0], 'card-designer.binding.type-mismatch', {
+          sourceType: tokenResult.valueKind,
+          targetType: 'string',
+        })
         return { ok: false, value: sourceValue }
       }
 
@@ -473,10 +494,11 @@ export function resolveReferences(
 
     if (recursionDepth > maxReferenceDepth) {
       pushIssue(
-        buildFieldPath(owner, fieldKey),
+        owner,
+        fieldKey,
         `${owner.id}:${fieldKey}`,
-        'MAX_DEPTH',
-        `引用深度超过限制 ${maxReferenceDepth}`,
+        'card-designer.binding.max-depth',
+        { maxDepth: maxReferenceDepth },
       )
       stateMemo.set(memoKey, 'failed')
       return { ok: false, value: getCardFieldValue(owner.source, fieldKey) }
@@ -487,10 +509,14 @@ export function resolveReferences(
       const stableValue = getCardFieldValue(owner.target, fieldKey)
       if (getCardFieldValueKind(owner.source, fieldKey) !== 'object') {
         pushIssue(
-          buildFieldPath(owner, fieldKey),
+          owner,
+          fieldKey,
           String(sourceValue),
-          'TYPE_MISMATCH',
-          '持久化标量必须是 string',
+          'card-designer.binding.type-mismatch',
+          {
+            sourceType: Array.isArray(sourceValue) ? 'array' : typeof sourceValue,
+            targetType: getCardFieldValueKind(owner.source, fieldKey),
+          },
         )
         stateMemo.set(memoKey, 'failed')
         return { ok: false, value: stableValue }
@@ -521,4 +547,9 @@ export function resolveReferences(
   }
 
   return { document: targetDocument, issues }
+}
+
+function joinBlockPath(parentPath: string, blockName: string): string {
+  if (!blockName) return parentPath
+  return parentPath ? `${parentPath}.${blockName}` : blockName
 }

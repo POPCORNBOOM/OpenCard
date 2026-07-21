@@ -4,9 +4,13 @@ import {
   getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
+import {
+  createCardPipelineIssue,
+  type CardIssueOwner,
+  type CardPipelineIssue,
+  type CardRenderParseIssueType,
+} from './cardPipelineIssue'
 import type {
-  RenderIssue,
-  RenderIssueReasonCode,
   RenderParseResult,
   RenderReadyBaseBlock,
   RenderReadyCardBlock,
@@ -20,10 +24,22 @@ type BlockType = CardBlock['type']
 
 type IssueContext = {
   documentId: string
+  instanceId: string | null
+  owner: CardIssueOwner
   blockPath: string
   blockId?: string
   typeName: string
 }
+
+export type ParseRenderDocumentOptions = {
+  instanceId?: string | null
+}
+
+type RenderParseFailure =
+  | 'invalid-type'
+  | 'conversion-failed'
+  | 'invalid-option'
+  | 'out-of-range'
 
 const blockTypes: readonly BlockType[] = [
   'text-block',
@@ -34,11 +50,17 @@ const blockTypes: readonly BlockType[] = [
   'flow-container-block',
 ]
 
-export function parseRenderDocument(bindingExpandedCardDocument: CardDocument): RenderParseResult {
-  const issues: RenderIssue[] = []
+export function parseRenderDocument(
+  bindingExpandedCardDocument: CardDocument,
+  options: ParseRenderDocumentOptions = {},
+): RenderParseResult {
+  const issues: CardPipelineIssue[] = []
   const source = toRecord(bindingExpandedCardDocument)
+  const sourceDocumentId = primitiveString(source.id)
   const context: IssueContext = {
-    documentId: primitiveString(source.id),
+    documentId: sourceDocumentId,
+    instanceId: options.instanceId ?? null,
+    owner: { kind: 'document', id: sourceDocumentId },
     blockPath: '',
     typeName: 'card-document',
   }
@@ -47,6 +69,7 @@ export function parseRenderDocument(bindingExpandedCardDocument: CardDocument): 
   fields.expectedLiteral('type', 'card-document')
   const id = fields.string('id')
   context.documentId = id
+  context.owner = { kind: 'document', id }
 
   const document: RenderReadyCardDocument = {
     type: 'card-document',
@@ -57,10 +80,10 @@ export function parseRenderDocument(bindingExpandedCardDocument: CardDocument): 
     background: fields.string('background'),
     children: fields.array('children').map((childValue) => {
       const child = toRecord(childValue)
-      const block = parseBlock(child.block, '', id, issues)
+      const block = parseBlock(child.block, '', id, context.instanceId, issues)
       return {
         block,
-        location: parseSimpleLocation(child.location, block, block.name, id, issues),
+        location: parseSimpleLocation(child.location, block, block.name, id, context.instanceId, issues),
       }
     }),
   }
@@ -72,20 +95,25 @@ function parseBlock(
   blockValue: unknown,
   parentPath: string,
   documentId: string,
-  issues: RenderIssue[],
+  instanceId: string | null,
+  issues: CardPipelineIssue[],
 ): RenderReadyCardBlock {
   const source = toRecord(blockValue)
-  const type = resolveBlockType(source, parentPath, documentId, issues)
+  const type = resolveBlockType(source, parentPath, documentId, instanceId, issues)
+  const sourceBlockId = primitiveString(source.id)
   const context: IssueContext = {
     documentId,
+    instanceId,
+    owner: { kind: 'block', id: sourceBlockId },
     blockPath: joinBlockPath(parentPath, primitiveString(source.name)),
-    blockId: primitiveString(source.id) || undefined,
+    blockId: sourceBlockId || undefined,
     typeName: type,
   }
   const fields = createFieldReader(source, context, issues)
   const base = parseBaseBlock(fields)
 
   context.blockId = base.id || undefined
+  context.owner = { kind: 'block', id: base.id }
   context.blockPath = joinBlockPath(parentPath, base.name)
 
   switch (type) {
@@ -141,7 +169,7 @@ function parseBlock(
         type,
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, issues)
           return {
             block,
             location: parseSimpleLocation(
@@ -149,6 +177,7 @@ function parseBlock(
               block,
               joinBlockPath(context.blockPath, block.name),
               documentId,
+              instanceId,
               issues,
             ),
           }
@@ -162,7 +191,7 @@ function parseBlock(
         gap: fields.cssLength('gap'),
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, issues)
           return {
             block,
             location: parseFlowLocation(
@@ -170,6 +199,7 @@ function parseBlock(
               block,
               joinBlockPath(context.blockPath, block.name),
               documentId,
+              instanceId,
               issues,
             ),
           }
@@ -206,12 +236,13 @@ function parseSimpleLocation(
   block: RenderReadyCardBlock,
   blockPath: string,
   documentId: string,
-  issues: RenderIssue[],
+  instanceId: string | null,
+  issues: CardPipelineIssue[],
 ): RenderReadySimpleContainerLocation {
   const source = toRecord(locationValue)
   const fields = createFieldReader(
     source,
-    createBlockContext(block, blockPath, documentId, 'simple-container-location'),
+    createLocationContext(source, block, blockPath, documentId, instanceId, 'simple-container-location'),
     issues,
   )
   fields.expectedLiteral('type', 'simple-container-location')
@@ -229,12 +260,13 @@ function parseFlowLocation(
   block: RenderReadyCardBlock,
   blockPath: string,
   documentId: string,
-  issues: RenderIssue[],
+  instanceId: string | null,
+  issues: CardPipelineIssue[],
 ): RenderReadyFlowContainerLocation {
   const source = toRecord(locationValue)
   const fields = createFieldReader(
     source,
-    createBlockContext(block, blockPath, documentId, 'flow-container-location'),
+    createLocationContext(source, block, blockPath, documentId, instanceId, 'flow-container-location'),
     issues,
   )
   fields.expectedLiteral('type', 'flow-container-location')
@@ -246,14 +278,18 @@ function parseFlowLocation(
   }
 }
 
-function createBlockContext(
+function createLocationContext(
+  source: SourceRecord,
   block: RenderReadyCardBlock,
   blockPath: string,
   documentId: string,
+  instanceId: string | null,
   typeName: string,
 ): IssueContext {
   return {
     documentId,
+    instanceId,
+    owner: { kind: 'location', id: primitiveString(source.id) },
     blockPath,
     blockId: block.id || undefined,
     typeName,
@@ -262,7 +298,7 @@ function createBlockContext(
 
 type FieldReader = ReturnType<typeof createFieldReader>
 
-function createFieldReader(source: SourceRecord, context: IssueContext, issues: RenderIssue[]) {
+function createFieldReader(source: SourceRecord, context: IssueContext, issues: CardPipelineIssue[]) {
   const schema = getTypePropertyEditorSchema(context.typeName)
 
   function definitionFor(fieldKey: string): EditorPropertyDefinition {
@@ -316,7 +352,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
         return
       }
       if (source[fieldKey] !== expected) {
-        pushIssue(context, fieldKey, definition, 'INVALID_OPTION', issues)
+        pushIssue(context, fieldKey, definition, 'invalid-option', issues)
       }
     },
   }
@@ -324,7 +360,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
 
 type ConversionResult =
   | { ok: true, value: unknown }
-  | { ok: false, reasonCode: RenderIssueReasonCode }
+  | { ok: false, reasonCode: RenderParseFailure }
 
 function convertValue(value: unknown, definition: EditorPropertyDefinition): ConversionResult {
   let converted: unknown
@@ -334,15 +370,15 @@ function convertValue(value: unknown, definition: EditorPropertyDefinition): Con
       let numericValue: number
       if (typeof value === 'string') {
         const parsed = value.trim() === '' ? Number.NaN : Number(value)
-        if (!Number.isFinite(parsed)) return { ok: false, reasonCode: 'CONVERSION_FAILED' }
+        if (!Number.isFinite(parsed)) return { ok: false, reasonCode: 'conversion-failed' }
         numericValue = parsed
       } else {
-        return { ok: false, reasonCode: 'INVALID_TYPE' }
+        return { ok: false, reasonCode: 'invalid-type' }
       }
 
       if ((definition.min !== undefined && numericValue < definition.min)
         || (definition.max !== undefined && numericValue > definition.max)) {
-        return { ok: false, reasonCode: 'OUT_OF_RANGE' }
+        return { ok: false, reasonCode: 'out-of-range' }
       }
       converted = numericValue
       break
@@ -353,7 +389,7 @@ function convertValue(value: unknown, definition: EditorPropertyDefinition): Con
       } else {
         return {
           ok: false,
-          reasonCode: typeof value === 'string' ? 'CONVERSION_FAILED' : 'INVALID_TYPE',
+          reasonCode: typeof value === 'string' ? 'conversion-failed' : 'invalid-type',
         }
       }
       break
@@ -361,7 +397,7 @@ function convertValue(value: unknown, definition: EditorPropertyDefinition): Con
       if (definition.isArray ? Array.isArray(value) : isRecord(value)) {
         converted = value
       } else {
-        return { ok: false, reasonCode: 'INVALID_TYPE' }
+        return { ok: false, reasonCode: 'invalid-type' }
       }
       break
     default:
@@ -369,23 +405,23 @@ function convertValue(value: unknown, definition: EditorPropertyDefinition): Con
       if (typeof value === 'string') {
         stringValue = value
       } else {
-        return { ok: false, reasonCode: 'INVALID_TYPE' }
+        return { ok: false, reasonCode: 'invalid-type' }
       }
 
       if ('minLength' in definition && definition.minLength !== undefined
         && stringValue.length < definition.minLength) {
-        return { ok: false, reasonCode: 'OUT_OF_RANGE' }
+        return { ok: false, reasonCode: 'out-of-range' }
       }
       if ('maxLength' in definition && definition.maxLength !== undefined
         && stringValue.length > definition.maxLength) {
-        return { ok: false, reasonCode: 'OUT_OF_RANGE' }
+        return { ok: false, reasonCode: 'out-of-range' }
       }
       converted = stringValue
   }
 
   const allowedValues = getPropertyAllowedValues(definition)
   if (allowedValues && (typeof converted !== 'string' || !allowedValues.includes(converted))) {
-    return { ok: false, reasonCode: 'INVALID_OPTION' }
+    return { ok: false, reasonCode: 'invalid-option' }
   }
 
   return { ok: true, value: converted }
@@ -407,7 +443,8 @@ function resolveBlockType(
   source: SourceRecord,
   parentPath: string,
   documentId: string,
-  issues: RenderIssue[],
+  instanceId: string | null,
+  issues: CardPipelineIssue[],
 ): BlockType {
   const rawType = source.type
   if (typeof rawType === 'string' && blockTypes.includes(rawType as BlockType)) {
@@ -417,6 +454,8 @@ function resolveBlockType(
   const fallbackType: BlockType = 'text-block'
   const context: IssueContext = {
     documentId,
+    instanceId,
+    owner: { kind: 'block', id: primitiveString(source.id) },
     blockPath: joinBlockPath(parentPath, primitiveString(source.name)),
     blockId: primitiveString(source.id) || undefined,
     typeName: fallbackType,
@@ -424,7 +463,7 @@ function resolveBlockType(
   const definition = getTypePropertyEditorSchema(fallbackType).type
   if (!definition) throw new Error(`Missing schema definition for ${fallbackType}.type`)
   if (rawType !== null && rawType !== undefined) {
-    pushIssue(context, 'type', definition, 'INVALID_OPTION', issues)
+    pushIssue(context, 'type', definition, 'invalid-option', issues)
   }
   return fallbackType
 }
@@ -433,17 +472,23 @@ function pushIssue(
   context: IssueContext,
   fieldKey: string,
   definition: EditorPropertyDefinition,
-  reasonCode: RenderIssueReasonCode,
-  issues: RenderIssue[],
+  reasonCode: RenderParseFailure,
+  issues: CardPipelineIssue[],
 ): void {
-  issues.push({
-    documentId: context.documentId,
-    blockPath: context.blockPath,
-    ...(context.blockId ? { blockId: context.blockId } : {}),
-    fieldKey,
-    ...(definition.displayFieldKey ? { fieldName: definition.displayFieldKey } : {}),
-    reasonCode,
-  })
+  issues.push(createCardPipelineIssue({
+    type: `card-designer.render-parse.${reasonCode}` as CardRenderParseIssueType,
+    location: {
+      documentId: context.documentId,
+      instanceId: context.instanceId,
+      owner: context.owner,
+      ...(context.blockId ? { blockId: context.blockId } : {}),
+      ...(context.blockPath ? { blockPath: context.blockPath } : {}),
+      fieldKey,
+    },
+    ...(definition.displayFieldKey
+      ? { parameters: { fieldName: definition.displayFieldKey } }
+      : {}),
+  }))
 }
 
 function normalizeCssLength(value: string): string {

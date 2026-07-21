@@ -12,7 +12,8 @@ import {
   type CardInstanceRecord,
 } from '../../../entities/card/model'
 import { parseCardDocument } from '../../../entities/card/storage'
-import { runRenderPipeline, type RenderPipelineIssue, type RenderPipelineResult } from '../../card-rendering/renderPipeline'
+import type { CardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
+import { runRenderPipeline, type RenderPipelineResult } from '../../card-rendering/renderPipeline'
 import type { RenderReadyCardDocument } from '../../card-rendering/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
@@ -36,7 +37,7 @@ type CardExportContext = {
 type ExportQueueEntry = {
   fileName: string
   document: RenderReadyCardDocument
-  issues: RenderPipelineIssue[]
+  issues: CardPipelineIssue[]
 }
 
 function stripFileExtension(fileName: string) {

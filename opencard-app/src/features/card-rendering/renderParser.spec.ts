@@ -56,6 +56,7 @@ describe('renderParser', () => {
     ;(block as unknown as Record<string, unknown>).opacity = 'not-a-number'
     ;(block as unknown as Record<string, unknown>).verticalAlign = 'sideways'
     ;(block as unknown as Record<string, unknown>).color = { invalid: true }
+    ;(document.children[0]!.location as unknown as Record<string, unknown>).x = { invalid: true }
     const sourceSnapshot = structuredClone(document)
 
     const result = parseRenderDocument(document)
@@ -63,13 +64,31 @@ describe('renderParser', () => {
 
     expect(parsed).toMatchObject({ opacity: 1, verticalAlign: 'top' })
     expect(result.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ blockId: 'text', fieldKey: 'opacity', reasonCode: 'CONVERSION_FAILED' }),
-      expect.objectContaining({ blockId: 'text', fieldKey: 'verticalAlign', reasonCode: 'INVALID_OPTION' }),
       expect.objectContaining({
-        blockId: 'text',
-        fieldKey: 'color',
-        fieldName: 'textColor',
-        reasonCode: 'INVALID_TYPE',
+        type: 'card-designer.render-parse.conversion-failed',
+        severity: 'warning',
+        location: expect.objectContaining({
+          owner: { kind: 'block', id: 'text' },
+          blockId: 'text',
+          fieldKey: 'opacity',
+        }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-option',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'verticalAlign' }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-type',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'color' }),
+        parameters: { fieldName: 'textColor' },
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-type',
+        location: expect.objectContaining({
+          owner: { kind: 'location', id: 'location' },
+          blockId: 'text',
+          fieldKey: 'x',
+        }),
       }),
     ]))
     expect(document).toEqual(sourceSnapshot)
@@ -101,11 +120,14 @@ describe('renderParser', () => {
     const result = parseRenderDocument(document)
 
     expect(result.issues).toContainEqual(expect.objectContaining({
-      documentId: 'document',
-      blockPath: 'Group.Caption',
-      blockId: 'nested-text',
-      fieldKey: 'opacity',
-      reasonCode: 'OUT_OF_RANGE',
+      type: 'card-designer.render-parse.out-of-range',
+      location: expect.objectContaining({
+        documentId: 'document',
+        instanceId: null,
+        blockPath: 'Group.Caption',
+        blockId: 'nested-text',
+        fieldKey: 'opacity',
+      }),
     }))
   })
 })

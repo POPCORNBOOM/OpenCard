@@ -11,6 +11,7 @@ export default {
       outputTab: '输出',
       empty: '没有问题',
       outputEmpty: '暂无输出',
+      blueprint: '蓝图',
       bindingCodes: {
         INVALID_TOKEN: '引用语法无效',
         SOURCE_NOT_FOUND: '引用来源不存在',
@@ -34,6 +35,7 @@ export default {
       help: '帮助',
       newProject: '新建项目',
       newOpenCard: '新建 OpenCard',
+      closeProjectFolder: '关闭项目文件夹',
       publishVersion: '发布版本',
       export2x: '测试导出 2x',
       exportAll: '导出全部',
