@@ -8,7 +8,7 @@
       :data-tooltip="expanded ? collapseLabel : expandLabel"
       @click="emit('toggle')"
     >
-      <i class="mdi" :class="expanded ? 'mdi-chevron-down' : 'mdi-chevron-up'" />
+      <OcIcon :name="expanded ? 'nav.chevron-down' : 'nav.chevron-up'" size="sm" />
     </button>
 
     <div
@@ -79,6 +79,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { EzShellAction } from './types';
+import OcIcon from '../../../components/base/OcIcon.vue';
+import type { ShellAction } from '../shell.types';
 
 defineProps<{
   title: string;
-  actions: EzShellAction[];
+  actions: ShellAction[];
   lockBodyScroll?: boolean;
   flushBody?: boolean;
 }>();
@@ -16,14 +17,6 @@ const emit = defineEmits<{
   action: [actionKey: string];
 }>();
 
-function iconClasses(icon: string): string[] {
-  const tokens = icon.split(/\s+/).filter(Boolean);
-  return tokens.includes('mdi') ? tokens : ['mdi', ...tokens];
-}
-
-function iconStyle(color?: string): { color?: string } | undefined {
-  return color ? { color } : undefined;
-}
 </script>
 
 <template>
@@ -38,10 +31,11 @@ function iconStyle(color?: string): { color?: string } | undefined {
           :key="action.key ?? action.icon"
           class="workspace-action"
           type="button"
+          :disabled="action.disabled"
           :data-tooltip="action.hoverTip || null"
           @click="action.key && emit('action', action.key)"
         >
-          <i :class="iconClasses(action.icon)" :style="iconStyle(action.color)" />
+          <OcIcon :name="action.icon" size="sm" />
         </button>
       </div>
     </header>

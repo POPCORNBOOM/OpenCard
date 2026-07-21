@@ -1,6 +1,8 @@
 export default {
   app: {
     shell: {
+      expandSidebar: 'Expand sidebar',
+      collapseSidebar: 'Collapse sidebar',
       expandBottomPanel: 'Expand bottom panel',
       collapseBottomPanel: 'Collapse bottom panel',
     },

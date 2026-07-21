@@ -1,8 +1,8 @@
 const TOOLTIP_SELECTOR = '[data-tooltip]';
-const TOOLTIP_LAYER_ID = 'ez-shell-tooltip-layer';
+const TOOLTIP_LAYER_ID = 'oc-tooltip-layer';
 const TOOLTIP_GAP = 10;
 const TOOLTIP_EDGE_PADDING = 8;
-const TOOLTIP_INIT_FLAG = '__ez_shell_tooltip_initialized__';
+const TOOLTIP_INIT_FLAG = '__oc_tooltip_initialized__';
 
 function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) {
@@ -16,7 +16,7 @@ function getTooltipText(target: HTMLElement): string {
   return target.getAttribute('data-tooltip')?.trim() ?? '';
 }
 
-export function setupEzGlobalTooltip(): void {
+export function setupGlobalTooltip(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return;
   }

@@ -1,6 +1,6 @@
 /**
  * 模块说明：
- * - 管理 IDE 导出流程 包括导出上下文 队列与隐藏渲染器状态
+ * - 管理 Shell 导出流程 包括导出上下文 队列与隐藏渲染器状态
  * 职责边界：
  * - 只编排导出动作与资源等待 不维护项目或会话真相
  */
@@ -22,7 +22,7 @@ type ExportRendererInstance = {
   getCanvasElement?: () => HTMLElement | undefined
 }
 
-type UseIdeExportOptions = {
+type UseShellExportOptions = {
   activeSession: Readonly<Ref<EditorSession | null>>
   exportRendererRef: Ref<ExportRendererInstance | undefined>
   translate: (key: string) => string
@@ -158,7 +158,7 @@ function buildRenderableCardDocument(
   return runRenderPipeline(document, instance)
 }
 
-export function useIdeExport(options: UseIdeExportOptions) {
+export function useShellExport(options: UseShellExportOptions) {
   const showExportRenderer = ref(false)
   const exportCardDoc = ref<RenderReadyCardDocument | null>(null)
 

@@ -441,7 +441,8 @@
 }
 
 .shell-sidebar-button:disabled,
-.shell-sidebar-action:disabled {
+.shell-sidebar-action:disabled,
+.workspace-action:disabled {
   cursor: default;
   opacity: 0.45;
   pointer-events: none;
@@ -450,6 +451,16 @@
 .titlebar-icon-danger:hover {
   background: var(--color-danger-hover);
   color: var(--color-danger-text);
+}
+
+.titlebar-icon.is-spinning .oc-icon {
+  animation: shell-icon-spin 800ms linear infinite;
+}
+
+@keyframes shell-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .shell-main {
@@ -617,11 +628,11 @@
   color: var(--color-text-primary);
 }
 
-.shell-sidebar-list-toggle .mdi {
+.shell-sidebar-list-chevron {
   transition: transform 180ms ease;
 }
 
-.shell-sidebar-list-toggle .mdi.collapsed {
+.shell-sidebar-list-chevron.collapsed {
   transform: rotate(-90deg);
 }
 

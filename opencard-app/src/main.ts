@@ -1,11 +1,10 @@
 import { createApp, watch } from "vue";
 import App from "./App.vue";
 import { i18n, setAppLocale } from "./i18n";
-import "@mdi/font/css/materialdesignicons.css";
-import { setupEzGlobalTooltip } from "./packages/ez-vue-shell";
+import { setupGlobalTooltip } from "./shared/ui/tooltip/globalTooltip";
 import { setOcGlassIntensity, setOcTheme } from "./shared/ui/foundation";
 import { useAppSettingsStore } from "./features/settings/store/appSettingsStore";
-import "./packages/ez-vue-shell/styles.css";
+import "./features/shell/shell.css";
 import "./styles.css";
 
 async function bootstrap(): Promise<void> {
@@ -37,7 +36,7 @@ async function bootstrap(): Promise<void> {
     { immediate: true },
   );
 
-  setupEzGlobalTooltip();
+  setupGlobalTooltip();
   window.addEventListener("contextmenu", (event) => {
     if (!event.defaultPrevented) event.preventDefault();
   });

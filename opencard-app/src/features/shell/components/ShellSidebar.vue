@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import OcIcon from '../../../components/base/OcIcon.vue';
 import type {
-  EzShellButton,
-  EzShellList,
-} from './types';
+  ShellButton,
+  ShellList,
+} from '../shell.types';
 
 const props = defineProps<{
   collapsed: boolean;
   width: number;
-  headButtons: EzShellButton[];
-  bodyLists: EzShellList[];
-  tailButtons: EzShellButton[];
+  headButtons: ShellButton[];
+  bodyLists: ShellList[];
+  tailButtons: ShellButton[];
   collapseListTooltip?: string;
   expandListTooltip?: string;
   minResizeWidth?: number;
@@ -24,14 +25,14 @@ const emit = defineEmits<{
 }>();
 
 defineSlots<{
-  'list-content': (props: { list: EzShellList }) => unknown;
+  'list-content': (props: { list: ShellList }) => unknown;
 }>();
 
 const sidebarElement = ref<HTMLElement | null>(null);
 const resizing = ref(false);
 const collapsedLists = ref<Record<string, boolean>>({});
 
-function ensureListState(lists: EzShellList[]): void {
+function ensureListState(lists: ShellList[]): void {
   const next: Record<string, boolean> = {};
   for (const list of lists) {
     next[list.key] = collapsedLists.value[list.key] ?? false;
@@ -79,15 +80,6 @@ function onResizePointerDown(event: PointerEvent): void {
   window.addEventListener('pointerup', onPointerUp);
 }
 
-function iconClasses(icon: string): string[] {
-  const tokens = icon.split(/\s+/).filter(Boolean);
-  return tokens.includes('mdi') ? tokens : ['mdi', ...tokens];
-}
-
-function iconStyle(color?: string): { color?: string } | undefined {
-  return color ? { color } : undefined;
-}
-
 function toggleListCollapsed(listKey: string): void {
   collapsedLists.value[listKey] = !collapsedLists.value[listKey];
 }
@@ -96,7 +88,7 @@ function isListCollapsed(listKey: string): boolean {
   return collapsedLists.value[listKey] === true;
 }
 
-function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'auto' } | undefined {
+function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'auto' } | undefined {
   if (list.maxHeight === undefined) return undefined;
   return {
     maxHeight: list.maxHeight,
@@ -118,7 +110,7 @@ function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'a
         :data-tooltip="button.hoverTip || null"
         @click="emit('head-button-clicked', button.key)"
       >
-        <i v-if="button.icon" :class="iconClasses(button.icon)" />
+        <OcIcon v-if="button.icon" :name="button.icon" size="sm" />
         <span v-if="!collapsed">{{ button.title }}</span>
       </button>
     </div>
@@ -134,7 +126,8 @@ function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'a
             @click.stop="toggleListCollapsed(list.key)"
           >
             <span class="shell-sidebar-list-title">{{ list.title }}</span>
-            <i class="mdi mdi-chevron-down" :class="{ collapsed: isListCollapsed(list.key) }" />
+            <OcIcon class="shell-sidebar-list-chevron" name="nav.chevron-down" size="sm"
+              :class="{ collapsed: isListCollapsed(list.key) }" />
           </button>
 
           <div class="shell-sidebar-actions">
@@ -147,7 +140,7 @@ function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'a
               :data-tooltip="action.hoverTip || null"
               @click="action.key && emit('list-button-clicked', list.key, action.key)"
             >
-              <i :class="iconClasses(action.icon)" :style="iconStyle(action.color)" />
+              <OcIcon :name="action.icon" size="sm" />
             </button>
           </div>
         </div>
@@ -174,7 +167,7 @@ function listContentStyle(list: EzShellList): { maxHeight: string; overflowY: 'a
         :data-tooltip="button.hoverTip || null"
         @click="emit('tail-button-clicked', button.key)"
       >
-        <i v-if="button.icon" :class="iconClasses(button.icon)" />
+        <OcIcon v-if="button.icon" :name="button.icon" size="sm" />
         <span v-if="!collapsed">{{ button.title }}</span>
       </button>
     </div>

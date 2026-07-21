@@ -19,7 +19,7 @@ type ProjectEntryView = {
   children: ProjectEntryView[]
 }
 
-type UseIdeFileTreeOptions = {
+type UseShellFileTreeOptions = {
   projectPath: Readonly<Ref<string>>
   indexedEntries: Readonly<Ref<readonly IndexedEntry[]>>
   openedEditorItems: Readonly<Ref<OpenedEditorItem[]>>
@@ -29,11 +29,11 @@ type UseIdeFileTreeOptions = {
   openPreviewFile: (path: string) => Promise<unknown>
 }
 
-function normalizeIdePath(path: string): string {
+function normalizeShellPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-export function useIdeFileTree(options: UseIdeFileTreeOptions) {
+export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
 
@@ -43,8 +43,8 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
     const byKey = new Map<string, ProjectEntryView>()
 
     for (const file of options.indexedEntries.value) {
-      const relativePath = normalizeIdePath(file.name)
-      const key = normalizeIdePath(`${options.projectPath.value}/${relativePath}`)
+      const relativePath = normalizeShellPath(file.name)
+      const key = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
       const parts = relativePath.split('/')
       const isDirectory = Boolean(file.isDirectory)
       const entry: ProjectEntryView = {
@@ -108,7 +108,7 @@ export function useIdeFileTree(options: UseIdeFileTreeOptions) {
   }))
 
   function findProjectEntryByKey(key: string): ProjectEntryView | null {
-    return projectProjection.value.byKey.get(normalizeIdePath(key)) ?? null
+    return projectProjection.value.byKey.get(normalizeShellPath(key)) ?? null
   }
 
   function syncSelectionFromActiveSession(session: EditorSession | null): void {

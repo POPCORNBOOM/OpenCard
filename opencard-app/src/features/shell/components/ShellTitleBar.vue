@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import type { EzTitleBarMenuGroup, EzTitleBarWindowControl } from './types';
+import OcIcon from '../../../components/base/OcIcon.vue';
+import type { ShellTitleBarMenuGroup, ShellTitleBarWindowControl } from '../shell.types';
 
 const props = defineProps<{
   collapsed: boolean;
   brandLabel: string;
   brandLogoSrc?: string;
-  menuGroups: EzTitleBarMenuGroup[];
-  windowControls?: EzTitleBarWindowControl[];
+  menuGroups: ShellTitleBarMenuGroup[];
+  windowControls?: ShellTitleBarWindowControl[];
   collapseTooltip?: string;
   expandTooltip?: string;
   dragRegion?: boolean;
@@ -73,7 +74,7 @@ onBeforeUnmount(() => {
         :data-tooltip="props.collapsed ? props.expandTooltip || null : props.collapseTooltip || null"
         @click="emit('toggle-sidebar')"
       >
-        <i :class="props.collapsed ? 'mdi mdi-dock-right' : 'mdi mdi-dock-left'" />
+        <OcIcon :name="props.collapsed ? 'nav.sidebar-expand' : 'nav.sidebar-collapse'" size="sm" />
       </button>
 
       <div v-for="menu in props.menuGroups" :key="menu.key" class="titlebar-menu">
@@ -106,12 +107,12 @@ onBeforeUnmount(() => {
         v-for="control in props.windowControls ?? []"
         :key="control.key"
         class="titlebar-icon"
-        :class="{ 'titlebar-icon-danger': control.danger }"
+        :class="{ 'titlebar-icon-danger': control.danger, 'is-spinning': control.spinning }"
         type="button"
         :data-tooltip="control.hoverTip || null"
         @click="emit('window-control', control.key)"
       >
-        <i class="mdi" :class="control.icon" />
+        <OcIcon :name="control.icon" size="sm" />
       </button>
     </div>
   </header>

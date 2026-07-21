@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import MainIDE from './views/MainIDE.vue'
+import OpenCardShell from './features/shell/OpenCardShell.vue'
 </script>
 
 <template>
-  <MainIDE />
+  <OpenCardShell />
 </template>
 
 <style>

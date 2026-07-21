@@ -1,6 +1,8 @@
 export default {
   app: {
     shell: {
+      expandSidebar: '展开侧边栏',
+      collapseSidebar: '收起侧边栏',
       expandBottomPanel: '展开下方面板',
       collapseBottomPanel: '收起下方面板',
     },

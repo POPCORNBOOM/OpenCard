@@ -11,8 +11,6 @@ const projectRoot = process.cwd()
 const srcRoot = join(projectRoot, 'src')
 
 const allowedMdiImportDirs = [join('src', 'shared', 'ui', 'icon')]
-const ignoredDirs = new Set([join('src', 'packages', 'ez-vue-shell').split(sep).join('/')])
-
 const fileExtensions = new Set(['.ts', '.vue'])
 const violations = []
 
@@ -41,10 +39,6 @@ function addViolation(path, message) {
 
 function inspectFile(fullPath) {
   const relativePath = relative(projectRoot, fullPath).split(sep).join('/')
-  if ([...ignoredDirs].some((ignoredDir) => relativePath.startsWith(`${ignoredDir}/`))) {
-    return
-  }
-
   const content = readFileSync(fullPath, 'utf8')
 
   if (/(?:^|\W)icon\??\s*:\s*string(?:\W|$)/m.test(content)) {

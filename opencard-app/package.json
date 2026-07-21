@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@floating-ui/vue": "^2.0.1",
-    "@mdi/font": "^7.4.47",
     "@mdi/js": "^7.4.47",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",

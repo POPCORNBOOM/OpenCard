@@ -1,10 +1,10 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import EzWorkspaceFrame from './EzWorkspaceFrame.vue'
+import ShellWorkspaceFrame from './ShellWorkspaceFrame.vue'
 
-describe('EzWorkspaceFrame', () => {
+describe('ShellWorkspaceFrame', () => {
   it('renders only the controlled workspace content', () => {
-    const wrapper = mount(EzWorkspaceFrame, {
+    const wrapper = mount(ShellWorkspaceFrame, {
       props: {
         title: 'Workspace',
         actions: [],

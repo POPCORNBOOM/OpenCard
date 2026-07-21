@@ -2,17 +2,17 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  useIdeFileTree,
-} from './useIdeFileTree'
+  useShellFileTree,
+} from './useShellFileTree'
 
-describe('useIdeFileTree opened editors', () => {
+describe('useShellFileTree opened editors', () => {
   it('projects a close action onto every opened editor item', () => {
     const openedEditorItems = ref([{
       key: 'session-1',
       label: 'card.opencard',
       icon: 'file.opencard' as const,
     }])
-    const { openedEditorTreeData } = useIdeFileTree({
+    const { openedEditorTreeData } = useShellFileTree({
       projectPath: ref(''),
       indexedEntries: ref([]),
       openedEditorItems,

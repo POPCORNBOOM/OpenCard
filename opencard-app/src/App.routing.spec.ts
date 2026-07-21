@@ -2,11 +2,11 @@ import { defineComponent, h } from 'vue'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('./views/MainIDE.vue', () => ({
+vi.mock('./features/shell/OpenCardShell.vue', () => ({
   default: defineComponent({
-    name: 'MockMainIDE',
+    name: 'MockOpenCardShell',
     setup() {
-      return () => h('div', 'IDE VIEW')
+      return () => h('div', 'SHELL VIEW')
     },
   }),
 }))
@@ -18,11 +18,11 @@ function setView(view: string) {
 }
 
 describe('App entry view', () => {
-  it('ignores removed view routing and always renders the IDE', () => {
+  it('ignores removed view routing and always renders the OpenCard shell', () => {
     setView('ui-gallery')
 
     const wrapper = mount(App)
 
-    expect(wrapper.text()).toContain('IDE VIEW')
+    expect(wrapper.text()).toContain('SHELL VIEW')
   })
 })

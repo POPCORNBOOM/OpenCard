@@ -1,6 +1,6 @@
 <!--
   使用说明：
-  - 作为 IDE 壳层页面挂载项目树 编辑器区 状态栏与导出入口
+  - 作为 OpenCard 壳层页面挂载项目树 编辑器区 问题面板与导出入口
   - 依赖 workspace store 与 editor session store 提供真相状态
 
   职责边界：
@@ -11,15 +11,15 @@
   - 无 页面组件通过内部编排调用 store/composable
 -->
 <template>
-  <main class="shell-root ide-shell" :class="themeClass">
-    <EzTitleBar
+  <main class="shell-root open-card-shell" :class="themeClass">
+    <ShellTitleBar
       :collapsed="effectiveSidebarCollapsed"
       brand-label="OPENCARD"
       brand-logo-src="/icon_v2.png"
       :menu-groups="titleBarMenus"
       :window-controls="windowControls"
-      :collapse-tooltip="t('app.shell.collapseSidebar', 'Collapse sidebar')"
-      :expand-tooltip="t('app.shell.expandSidebar', 'Expand sidebar')"
+      :collapse-tooltip="t('app.shell.collapseSidebar')"
+      :expand-tooltip="t('app.shell.expandSidebar')"
       drag-region
       @toggle-sidebar="toggleSidebarCollapsed"
       @menu-action="handleTitleBarMenuAction"
@@ -27,7 +27,7 @@
     />
 
     <div class="shell-main" :class="{ 'shell-main-collapsed': effectiveSidebarCollapsed }" :style="shellMainStyle">
-      <EzSidebar
+      <ShellSidebar
         :collapsed="effectiveSidebarCollapsed"
         :width="sidebarWidth"
         :head-buttons="sidebarHeadButtons"
@@ -42,7 +42,7 @@
         <template #list-content="{ list }">
           <OcTree
             v-if="list.key === BUILTIN_TEMPLATES_LIST_KEY && builtinTemplateTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="builtinTemplateTreeData"
             :selected-keys="builtinSelectedTemplateKeys"
             role="listbox"
@@ -52,7 +52,7 @@
           />
           <OcTree
             v-else-if="list.key === USER_TEMPLATES_LIST_KEY && userTemplateTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="userTemplateTreeData"
             :selected-keys="userSelectedTemplateKeys"
             role="listbox"
@@ -62,7 +62,7 @@
           />
           <OcTree
             v-else-if="list.key === SETTINGS_CATEGORIES_LIST_KEY"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="settingsCategoryTreeData"
             :selected-keys="[settingsCategoryKey]"
             role="listbox"
@@ -72,7 +72,7 @@
           />
           <OcTree
             v-else-if="list.key === RECENT_PROJECTS_LIST_KEY && recentProjectTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="recentProjectTreeData"
             :actions="recentProjectActions"
             :selected-keys="selectedRecentProjectKeys"
@@ -83,7 +83,7 @@
           />
           <OcTree
             v-else-if="list.key === OPENED_EDITORS_LIST_KEY && openedEditorTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="openedEditorTreeData"
             :actions="openedEditorActions"
             :selected-keys="openedEditorSelectedKeys"
@@ -94,7 +94,7 @@
           />
           <OcTree
             v-else-if="list.key === TEMPLATE_ENTRIES_LIST_KEY && exportTemplateEntryTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="exportTemplateEntryTreeData"
             :actions="exportTemplateTreeActions"
             :selected-keys="[]"
@@ -105,7 +105,7 @@
           />
           <OcTree
             v-else-if="list.key === TEMPLATE_COVERS_LIST_KEY && exportTemplateCoverTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="exportTemplateCoverTreeData"
             :actions="exportTemplateTreeActions"
             :selected-keys="[]"
@@ -116,7 +116,7 @@
           />
           <OcTree
             v-else-if="list.key === PROJECT_FILES_LIST_KEY && projectTreeData.rootKeys.length > 0"
-            class="ide-shell__sidebar-tree"
+            class="open-card-shell__sidebar-tree"
             :data="isExportTemplateMode ? exportTemplateTreeData : projectTreeData"
             :actions="isExportTemplateMode ? exportTemplateTreeActions : undefined"
             :selected-keys="selectedFileKeys"
@@ -130,17 +130,17 @@
             <span>{{ list.placeholder }}</span>
           </div>
         </template>
-      </EzSidebar>
+      </ShellSidebar>
 
-      <EzWorkspaceFrame
+      <ShellWorkspaceFrame
         :title="workspaceTitle"
         :actions="workspaceActions"
         lock-body-scroll
         flush-body
         @action="handleWorkspaceFrameAction"
       >
-        <div class="ide-shell__workspace-stack">
-          <div class="ide-shell__workbench">
+        <div class="open-card-shell__workspace-stack">
+          <div class="open-card-shell__workbench">
             <CreateProjectWorkspace
               v-if="isCreateProjectMode"
               ref="createProjectWorkspaceRef"
@@ -202,7 +202,7 @@
             @problem-tree-intent="handleWorkspaceProblemTreeIntent"
           />
         </div>
-      </EzWorkspaceFrame>
+      </ShellWorkspaceFrame>
     </div>
 
     <!-- 隐藏的导出渲染器 -->
@@ -217,52 +217,52 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useProjectStore } from '../features/workspace/store/projectStore'
-import { useEditorSessionStore } from '../features/workspace/store/editorSessionStore'
-import MonacoEditor from '../components/editors/MonacoEditor.vue'
-import FloatingMenuHost from '../components/ui/FloatingMenuHost.vue'
-import OcTree from '../components/standard/OcTree.vue'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../shared/ui/tree/tree.types'
-import type { CardDesignerLayoutState } from '../features/editor-runtime/model/editorUiState'
-import SettingsWorkspace from '../features/settings/components/SettingsWorkspace.vue'
-import CreateProjectWorkspace from '../features/project-templates/components/CreateProjectWorkspace.vue'
-import ExportTemplateWorkspace from '../features/project-templates/components/ExportTemplateWorkspace.vue'
-import ProjectEditorWorkspace from '../features/ide-shell/components/ProjectEditorWorkspace.vue'
-import WelcomeWorkspace from '../features/ide-shell/components/WelcomeWorkspace.vue'
+import { useProjectStore } from '../workspace/store/projectStore'
+import { useEditorSessionStore } from '../workspace/store/editorSessionStore'
+import MonacoEditor from '../../components/editors/MonacoEditor.vue'
+import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
+import OcTree from '../../components/standard/OcTree.vue'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type { CardDesignerLayoutState } from '../editor-runtime/model/editorUiState'
+import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
+import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
+import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
+import ProjectEditorWorkspace from './components/ProjectEditorWorkspace.vue'
+import WelcomeWorkspace from './components/WelcomeWorkspace.vue'
 import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
-} from '../features/ide-shell/components/WorkspaceBottomPanel.vue'
+} from './components/WorkspaceBottomPanel.vue'
 import type {
   CreatedProject,
   ProjectTemplate,
   ProjectTemplateKey,
   TemplateExportSelection,
-} from '../features/project-templates/model/projectTemplate'
-import { useProjectTemplateStore } from '../features/project-templates/store/projectTemplateStore'
-import { useSettingsWorkspace } from '../features/settings/composables/useSettingsWorkspace'
-import { useAppSettingsStore } from '../features/settings/store/appSettingsStore'
-import type { SettingsCategoryKey, SettingsIntent } from '../features/settings/model/appSettings'
-import CardDocumentRenderer from '../features/card-rendering/components/CardDocumentRenderer.vue'
-import { editorRegistry } from '../features/editor-runtime/registry/editorRegistry'
-import type { EditorProblem } from '../features/editor-runtime/model/editorProblem'
-import { resolveFileType, resolveFileTypeById } from '../features/workspace/model/fileTypes'
-import { useIdeExport } from '../features/ide-shell/composables/useIdeExport'
-import { useAppUpdater } from '../features/ide-shell/composables/useAppUpdater'
-import { useWorkspaceProblems } from '../features/ide-shell/composables/useWorkspaceProblems'
+} from '../project-templates/model/projectTemplate'
+import { useProjectTemplateStore } from '../project-templates/store/projectTemplateStore'
+import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
+import { useAppSettingsStore } from '../settings/store/appSettingsStore'
+import type { SettingsCategoryKey, SettingsIntent } from '../settings/model/appSettings'
+import CardDocumentRenderer from '../card-rendering/components/CardDocumentRenderer.vue'
+import { editorRegistry } from '../editor-runtime/registry/editorRegistry'
+import type { EditorProblem } from '../editor-runtime/model/editorProblem'
+import { resolveFileType, resolveFileTypeById } from '../workspace/model/fileTypes'
+import { useShellExport } from './composables/useShellExport'
+import { useAppUpdater } from './composables/useAppUpdater'
+import { useWorkspaceProblems } from './composables/useWorkspaceProblems'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  useIdeFileTree,
-} from '../features/ide-shell/composables/useIdeFileTree'
+  useShellFileTree,
+} from './composables/useShellFileTree'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import {
-  EzSidebar,
-  EzTitleBar,
-  EzWorkspaceFrame,
-  type EzShellButton,
-  type EzShellList,
-  type EzTitleBarMenuGroup,
-  type EzTitleBarWindowControl,
-} from '../packages/ez-vue-shell'
+import ShellSidebar from './components/ShellSidebar.vue'
+import ShellTitleBar from './components/ShellTitleBar.vue'
+import ShellWorkspaceFrame from './components/ShellWorkspaceFrame.vue'
+import type {
+  ShellButton,
+  ShellList,
+  ShellTitleBarMenuGroup,
+  ShellTitleBarWindowControl,
+} from './shell.types'
 
 const { t } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
@@ -416,7 +416,7 @@ const {
   exportCardDoc,
   exportActiveCard2x,
   exportAllCardViews,
-} = useIdeExport({
+} = useShellExport({
   activeSession,
   exportRendererRef,
   translate: t,
@@ -431,7 +431,7 @@ const {
   handleOpenedEditorsSelect,
   handleFileTreeSelect,
   findProjectEntryByKey,
-} = useIdeFileTree({
+} = useShellFileTree({
   projectPath,
   indexedEntries,
   openedEditorItems,
@@ -674,54 +674,55 @@ const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData
   TEMPLATE_COVER_REMOVE_ACTION_KEY,
 ))
 
-const windowControls = computed<EzTitleBarWindowControl[]>(() => [
+const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
   ...(availableUpdate.value ? [{
     key: 'install-update',
-    icon: isInstallingUpdate.value ? 'mdi-loading mdi-spin' : 'mdi-download',
+    icon: 'action.download',
+    spinning: isInstallingUpdate.value,
     hoverTip: isInstallingUpdate.value
       ? t('app.updater.installing')
       : t('app.updater.available', { version: updateVersion.value }),
-  }] : []),
-  { key: 'minimize', icon: 'mdi-window-minimize', hoverTip: 'Minimize' },
-  { key: 'toggle-maximize', icon: 'mdi-window-maximize', hoverTip: 'Maximize / restore' },
-  { key: 'close', icon: 'mdi-close', hoverTip: 'Close', danger: true },
+  } satisfies ShellTitleBarWindowControl] : []),
+  { key: 'minimize', icon: 'window.minimize', hoverTip: 'Minimize' },
+  { key: 'toggle-maximize', icon: 'window.maximize', hoverTip: 'Maximize / restore' },
+  { key: 'close', icon: 'action.close', hoverTip: 'Close', danger: true },
 ])
 
-const sidebarHeadButtons = computed<EzShellButton[]>(() => {
+const sidebarHeadButtons = computed<ShellButton[]>(() => {
   if (isCreateProjectMode.value || isExportTemplateMode.value) {
     return [{
       key: 'return-workspace',
-      icon: 'mdi-arrow-left',
+      icon: 'nav.arrow-left',
       title: t('projectTemplates.actions.back'),
       disabled: isProjectTemplateBusy.value || isExportTemplateBusy.value,
     }]
   }
   if (isSettingsMode.value) {
-    return [{ key: 'return-workspace', icon: 'mdi-arrow-left', title: t('settings.actions.back', 'Back') }]
+    return [{ key: 'return-workspace', icon: 'nav.arrow-left', title: t('settings.actions.back', 'Back') }]
   }
   if (isWelcomeMode.value) {
     return [
-      { key: 'new-project', icon: 'mdi-folder-plus-outline', title: t('app.menu.newProject') },
-      { key: 'open-project', icon: 'mdi-folder-open-outline', title: t('sidebar.openProject') },
+      { key: 'new-project', icon: 'action.folder-plus', title: t('app.menu.newProject') },
+      { key: 'open-project', icon: 'status.folder-open', title: t('sidebar.openProject') },
     ]
   }
   return [
-    { key: 'new-open-card', icon: 'mdi-plus-box-outline', title: t('app.menu.newOpenCard') },
+    { key: 'new-open-card', icon: 'action.file-plus', title: t('app.menu.newOpenCard') },
     {
       key: 'publish-version',
-      icon: 'mdi-publish',
+      icon: 'action.publish',
       title: t('app.menu.publishVersion'),
       disabled: true,
     },
   ]
 })
 
-const sidebarTailButtons = computed<EzShellButton[]>(() => {
+const sidebarTailButtons = computed<ShellButton[]>(() => {
   if (isAuxiliaryMode.value) return []
-  return [{ key: 'open-settings', icon: 'mdi-cog-outline', title: t('settings.title', 'Settings') }]
+  return [{ key: 'open-settings', icon: 'tool.settings', title: t('settings.title', 'Settings') }]
 })
 
-const sidebarBodyLists = computed<EzShellList[]>(() => {
+const sidebarBodyLists = computed<ShellList[]>(() => {
   if (isSettingsMode.value) {
     return [{
       key: SETTINGS_CATEGORIES_LIST_KEY,
@@ -753,13 +754,13 @@ const sidebarBodyLists = computed<EzShellList[]>(() => {
         actions: [
           {
             key: CREATE_TEMPLATE_ACTION_KEY,
-            icon: 'mdi-folder-plus-outline',
+            icon: 'action.folder-plus',
             hoverTip: t('projectTemplates.actions.createTemplate'),
             disabled: !projectPath.value || isProjectTemplateBusy.value || templateStore.isLoading.value,
           },
           {
             key: IMPORT_TEMPLATE_ACTION_KEY,
-            icon: 'mdi-import',
+            icon: 'action.import',
             hoverTip: t('projectTemplates.actions.import'),
             disabled: isProjectTemplateBusy.value || templateStore.isLoading.value,
           },
@@ -825,7 +826,7 @@ const sidebarBodyLists = computed<EzShellList[]>(() => {
   ]
 })
 
-const titleBarMenus = computed<EzTitleBarMenuGroup[]>(() => [
+const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   {
     key: 'file',
     label: t('app.menu.file'),
@@ -1465,11 +1466,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.ide-shell {
+.open-card-shell {
   color: var(--color-text-primary);
 }
 
-.ide-shell__workspace-stack {
+.open-card-shell__workspace-stack {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -1479,7 +1480,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.ide-shell__workbench {
+.open-card-shell__workbench {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -1488,13 +1489,13 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.ide-shell__workbench > :deep(*) {
+.open-card-shell__workbench > :deep(*) {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
 }
 
-.ide-shell__sidebar-tree {
+.open-card-shell__sidebar-tree {
   width: 100%;
   min-width: 0;
 }
