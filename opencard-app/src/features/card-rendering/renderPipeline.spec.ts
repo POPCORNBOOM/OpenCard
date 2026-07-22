@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
 import { runRenderPipeline } from './renderPipeline'
-import { createDefaultProjectInformation } from '../workspace/model/projectMetadata'
+import {
+  createDefaultProjectInformation,
+  createProjectAdditionalField,
+} from '../workspace/model/projectMetadata'
 
 function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
   return {
@@ -91,6 +94,34 @@ describe('renderPipeline', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.binding.source-not-found',
       location: expect.objectContaining({ fieldKey: 'content' }),
+    }))
+  })
+
+  it('preserves custom project field kinds through binding and render parsing', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: 'Demo' })
+    block.opacity = '{{g:cardOpacity}}'
+    const project = createDefaultProjectInformation('Demo')
+    createProjectAdditionalField(project, 'cardOpacity', 'number')
+    project.cardOpacity = '0.5'
+
+    const result = runRenderPipeline(createDocument(block), null, { project })
+
+    expect(result.document.children[0]!.block).toMatchObject({ opacity: 0.5 })
+    expect(result.issues).toEqual([])
+  })
+
+  it('rejects project fields that the schema does not expose', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:entry}}' })
+    const project = createDefaultProjectInformation('Demo')
+
+    const result = runRenderPipeline(createDocument(block), null, { project })
+
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      type: 'card-designer.binding.field-not-allowed',
+      parameters: expect.objectContaining({
+        ownerType: 'project',
+        referencedFieldKey: 'entry',
+      }),
     }))
   })
 })
