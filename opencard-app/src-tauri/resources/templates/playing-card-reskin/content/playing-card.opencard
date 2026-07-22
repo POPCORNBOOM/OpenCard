@@ -1,12 +1,17 @@
 {
   "type": "card-document",
+  "schemaVersion": "2",
   "id": "doc-playing-card-reskin",
   "name": "换皮扑克牌",
   "version": "1.0.0",
   "width": "540",
   "height": "756",
-  "background": "#15171b",
-  "children": [
+  "faces": {
+    "front": {
+      "type": "card-face",
+      "id": "card-face-playing-card-front",
+      "background": "#15171b",
+      "children": [
     {
       "block": {
         "id": "playing-card-root",
@@ -225,7 +230,15 @@
         "y": "0px"
       }
     }
-  ],
+      ]
+    },
+    "back": {
+      "type": "card-face",
+      "id": "card-face-playing-card-back",
+      "background": "#15171b",
+      "children": []
+    }
+  },
   "instances": [
     {
       "type": "card-instance",

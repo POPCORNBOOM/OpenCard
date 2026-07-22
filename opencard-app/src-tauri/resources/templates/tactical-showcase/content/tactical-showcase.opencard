@@ -1,11 +1,11 @@
 {
   "type": "card-document",
+  "schemaVersion": "2",
   "id": "doc-tactical-showcase",
   "name": "OpenCard Tactical Showcase",
   "version": "1.0.0",
   "width": "630",
   "height": "880",
-  "background": "#11161b",
   "series": "FIELD ARCHIVE",
   "release": "OC-01",
   "contentWidth": "566px",
@@ -25,7 +25,12 @@
   "skillName": "INTERCEPT",
   "skillText": "When an adjacent ally is targeted, shift 1 sector and become the target. Reduce the first damage taken by 2.",
   "amount": "2",
-  "children": [
+  "faces": {
+    "front": {
+      "type": "card-face",
+      "id": "card-face-tactical-showcase-front",
+      "background": "#11161b",
+      "children": [
     {
       "block": {
         "id": "card-root",
@@ -692,7 +697,15 @@
         "y": "0px"
       }
     }
-  ],
+      ]
+    },
+    "back": {
+      "type": "card-face",
+      "id": "card-face-tactical-showcase-back",
+      "background": "#11161b",
+      "children": []
+    }
+  },
   "instances": [
     {
       "type": "card-instance",

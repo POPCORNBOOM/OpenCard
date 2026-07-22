@@ -8,16 +8,18 @@ import { computed, nextTick, ref, type Ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import {
+  type CardFaceKey,
   type CardDocument,
   type CardInstanceRecord,
 } from '../../../entities/card/model'
 import { parseCardDocument } from '../../../entities/card/storage'
 import type { CardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
 import { runRenderPipeline, type RenderPipelineResult } from '../../card-rendering/renderPipeline'
-import type { RenderReadyCardDocument } from '../../card-rendering/render.types'
+import type { RenderReadyCardFace } from '../../card-rendering/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { ProjectInformation } from '../../workspace/model/projectMetadata'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
+import type { CardDesignerViewState } from '../../editor-runtime/model/editorUiState'
 import { exportCardAsImage } from '../../../utils/exportCard'
 
 type ExportRendererInstance = {
@@ -38,8 +40,28 @@ type CardExportContext = {
 
 type ExportQueueEntry = {
   fileName: string
-  document: RenderReadyCardDocument
+  face: RenderReadyCardFace
   issues: CardPipelineIssue[]
+}
+
+type CardExportProjection = {
+  suffix: string
+  instance: CardInstanceRecord | null
+}
+
+export function resolveActiveCardExportTarget(
+  document: CardDocument,
+  viewState: CardDesignerViewState | undefined,
+): { faceKey: CardFaceKey; instance: CardInstanceRecord | null; projectionSuffix: string } {
+  const faceKey = viewState?.activeFace ?? 'front'
+  const instance = document.instances.find((candidate) => (
+    candidate.id === viewState?.selectedInstanceId
+  )) ?? null
+  const projectionSuffix = instance
+    ? `instance_${sanitizeFileNameSegment(instance.name || instance.id, 'instance')}`
+    : 'blueprint'
+
+  return { faceKey, instance, projectionSuffix }
 }
 
 function stripFileExtension(fileName: string) {
@@ -134,25 +156,29 @@ function createExportFileName(baseFileName: string, suffix: string, usedFileName
   return nextFileName
 }
 
-function buildCardExportQueue(
+export function buildCardExportQueue(
   baseFileName: string,
   document: CardDocument,
   project: Readonly<ProjectInformation>,
 ): ExportQueueEntry[] {
   const usedFileNames = new Set<string>()
-  const exportQueue: ExportQueueEntry[] = [
-    {
-      fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      ...buildRenderableCardDocument(document, null, project),
-    },
-  ]
+  const exportQueue: ExportQueueEntry[] = []
+  const projections: CardExportProjection[] = [{ suffix: 'blueprint', instance: null }]
 
   for (const instance of document.instances ?? []) {
     const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
-    exportQueue.push({
-      fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      ...buildRenderableCardDocument(document, instance, project),
-    })
+    projections.push({ suffix: `instance_${instanceName}`, instance })
+  }
+
+  for (const projection of projections) {
+    const renderResult = buildRenderableCardDocument(document, projection.instance, project)
+    for (const faceKey of ['front', 'back'] as const) {
+      exportQueue.push({
+        fileName: createExportFileName(baseFileName, `${projection.suffix}_${faceKey}`, usedFileNames),
+        face: renderResult.document.faces[faceKey],
+        issues: renderResult.issues,
+      })
+    }
   }
 
   return exportQueue
@@ -168,7 +194,7 @@ function buildRenderableCardDocument(
 
 export function useShellExport(options: UseShellExportOptions) {
   const showExportRenderer = ref(false)
-  const exportCardDoc = ref<RenderReadyCardDocument | null>(null)
+  const exportCardFace = ref<RenderReadyCardFace | null>(null)
 
   const canExportActiveCard = computed(() =>
     Boolean(options.activeSession.value) && resolveFileTypeById(options.activeSession.value!.fileTypeId).id === 'opencard'
@@ -204,9 +230,9 @@ export function useShellExport(options: UseShellExportOptions) {
     }
   }
 
-  async function renderCardDocumentToImage(document: RenderReadyCardDocument) {
+  async function renderCardFaceToImage(face: RenderReadyCardFace) {
     showExportRenderer.value = true
-    exportCardDoc.value = document
+    exportCardFace.value = face
 
     await nextTick()
     await waitForNextPaint()
@@ -226,7 +252,7 @@ export function useShellExport(options: UseShellExportOptions) {
 
   function resetExportRenderer() {
     showExportRenderer.value = false
-    exportCardDoc.value = null
+    exportCardFace.value = null
   }
 
   async function exportActiveCard2x() {
@@ -235,8 +261,12 @@ export function useShellExport(options: UseShellExportOptions) {
       return
     }
 
+    const { faceKey, instance: selectedInstance, projectionSuffix } = resolveActiveCardExportTarget(
+      context.document,
+      options.activeSession.value?.uiState?.cardDesigner?.view,
+    )
     const savePath = await save({
-      defaultPath: `${context.fileNameStem}_blueprint_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
+      defaultPath: `${context.fileNameStem}_${projectionSuffix}_${faceKey}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`,
       filters: [{
         name: 'PNG Image',
         extensions: ['png'],
@@ -250,14 +280,14 @@ export function useShellExport(options: UseShellExportOptions) {
     try {
       const renderResult = buildRenderableCardDocument(
         context.document,
-        null,
+        selectedInstance,
         options.projectInformation.value,
       )
       if (renderResult.issues.length > 0) {
         console.warn('[export] resolveReferences issues:', renderResult.issues)
       }
 
-      const dataUrl = await renderCardDocumentToImage(renderResult.document)
+      const dataUrl = await renderCardFaceToImage(renderResult.document.faces[faceKey])
       await writeFile(savePath, dataUrlToBytes(dataUrl))
       console.log('图片已保存到:', savePath)
     } catch (error) {
@@ -295,7 +325,7 @@ export function useShellExport(options: UseShellExportOptions) {
           console.warn(`[export] resolveReferences issues in ${entry.fileName}:`, entry.issues)
         }
 
-        const dataUrl = await renderCardDocumentToImage(entry.document)
+        const dataUrl = await renderCardFaceToImage(entry.face)
         const targetPath = buildFilePath(exportDirectory, entry.fileName)
         await writeFile(targetPath, dataUrlToBytes(dataUrl))
         console.log('图片已保存到:', targetPath)
@@ -310,7 +340,7 @@ export function useShellExport(options: UseShellExportOptions) {
   return {
     canExportActiveCard,
     showExportRenderer,
-    exportCardDoc,
+    exportCardFace,
     exportActiveCard2x,
     exportAllCardViews,
   }

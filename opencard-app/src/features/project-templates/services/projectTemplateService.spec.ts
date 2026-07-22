@@ -302,7 +302,7 @@ function addTemplatePackage(
     entry,
   }))
   fs.putFile(`${root}/content/.opencardproject`, projectFile(options.name))
-  fs.putFile(`${root}/content/${entry}`, JSON.stringify({ type: 'card-document' }))
+  fs.putFile(`${root}/content/${entry}`, cardDocument())
 }
 
 function projectFile(name = 'Project'): string {
@@ -313,9 +313,36 @@ function projectFile(name = 'Project'): string {
   })
 }
 
+function cardDocument(name = ''): string {
+  return JSON.stringify({
+    type: 'card-document',
+    schemaVersion: '2',
+    id: 'card-document-fixture',
+    name,
+    version: '1.0.0',
+    width: '540',
+    height: '850',
+    faces: {
+      front: {
+        type: 'card-face',
+        id: 'card-face-fixture-front',
+        background: '#FFFFFF',
+        children: [],
+      },
+      back: {
+        type: 'card-face',
+        id: 'card-face-fixture-back',
+        background: '#FFFFFF',
+        children: [],
+      },
+    },
+    instances: [],
+  })
+}
+
 function addImportSource(fs: MemoryFileSystem): void {
   fs.putFile('/source/.opencardproject', projectFile())
-  fs.putFile('/source/main.opencard', JSON.stringify({ type: 'card-document' }))
+  fs.putFile('/source/main.opencard', cardDocument())
   fs.putFile('/source/assets/portrait.png', new Uint8Array([0, 127, 255]))
 }
 
@@ -397,7 +424,7 @@ describe('ProjectTemplateService prepared package import', () => {
     fs.putFile('/prepared.octemplete', zipSync({
       'template.json': strToU8(manifest),
       'content/.opencardproject': strToU8(projectFile()),
-      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document', name: 'Prepared Blueprint' })),
+      'content/main.opencard': strToU8(cardDocument('Prepared Blueprint')),
       'content/assets/cover-a.png': new Uint8Array([1, 2]),
       'content/assets/cover-b.webp': new Uint8Array([3, 4]),
     }))
@@ -428,7 +455,7 @@ describe('ProjectTemplateService prepared package import', () => {
         description: '',
         entry: 'main.opencard',
       })),
-      'content/main.opencard': strToU8(JSON.stringify({ type: 'card-document' })),
+      'content/main.opencard': strToU8(cardDocument()),
       'outside.txt': strToU8('no'),
     }))
 
@@ -441,7 +468,7 @@ describe('ProjectTemplateService package export', () => {
   it('exports a compliant .octemplete archive and excludes runtime cache', async () => {
     const fs = new MemoryFileSystem()
     addImportSource(fs)
-    fs.putFile('/source/alternate.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/alternate.opencard', cardDocument())
     fs.putFile('/source/notes/private.txt', 'private')
 
     const outputPath = await createService(fs, 'portable').exportProjectTemplate({
@@ -564,7 +591,7 @@ describe('ProjectTemplateService project creation', () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencardproject', projectFile())
-    fs.putFile('/template/content/cards/main.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/template/content/cards/main.opencard', cardDocument())
     fs.putFile('/template/content/assets/portrait.png', new Uint8Array([1, 2, 3]))
 
     const created = await createService(fs, 'create-id').createProject({
@@ -586,7 +613,7 @@ describe('ProjectTemplateService project creation', () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects/Demo')
     fs.putFile('/template/content/.opencardproject', projectFile())
-    fs.putFile('/template/content/main.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/template/content/main.opencard', cardDocument())
 
     await expect(createService(fs).createProject({
       template: templateFixture(),
@@ -601,8 +628,8 @@ describe('ProjectTemplateService project creation', () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencardproject', projectFile())
-    fs.putFile('/template/content/main.opencard', JSON.stringify({ type: 'card-document' }))
-    fs.putFile('/template/content/alternate.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/template/content/main.opencard', cardDocument())
+    fs.putFile('/template/content/alternate.opencard', cardDocument())
     const template = {
       ...templateFixture(),
       entries: ['main.opencard', 'alternate.opencard'],
@@ -637,6 +664,26 @@ describe('ProjectTemplateService project creation', () => {
 })
 
 describe('ProjectTemplateService safety boundaries', () => {
+  it('does not accept legacy single-face documents as project entries', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/source/.opencardproject', projectFile())
+    fs.putFile('/source/main.opencard', JSON.stringify({
+      type: 'card-document',
+      id: 'legacy',
+      name: 'Legacy',
+      version: '1.0.0',
+      width: '540',
+      height: '850',
+      background: '#FFFFFF',
+      children: [],
+      instances: [],
+    }))
+
+    await expect(createService(fs).inspectProjectSource('/source')).rejects.toMatchObject({
+      code: 'source-not-project',
+    })
+  })
+
   it('rejects an import source containing a symlink before creating a temporary package', async () => {
     const fs = new MemoryFileSystem()
     addImportSource(fs)
@@ -667,9 +714,9 @@ describe('ProjectTemplateService safety boundaries', () => {
   it('sorts valid document entries and imports a selected entry other than the first', async () => {
     const fs = new MemoryFileSystem()
     fs.putFile('/source/.opencardproject', projectFile())
-    fs.putFile('/source/z-last.opencard', JSON.stringify({ type: 'card-document', name: 'Last Blueprint' }))
-    fs.putFile('/source/cards/a-first.opencard', JSON.stringify({ type: 'card-document', name: 'First Blueprint' }))
-    fs.putFile('/source/b-middle.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/source/z-last.opencard', cardDocument('Last Blueprint'))
+    fs.putFile('/source/cards/a-first.opencard', cardDocument('First Blueprint'))
+    fs.putFile('/source/b-middle.opencard', cardDocument())
     fs.putFile('/source/invalid.opencard', '{not-json')
     const service = createService(fs, 'multi-entry')
 
@@ -698,7 +745,7 @@ describe('ProjectTemplateService safety boundaries', () => {
 
   it('deletes a user template and rejects deletion of a built-in template', async () => {
     const fs = new MemoryFileSystem()
-    fs.putFile('/appdata/templates/personal/content/main.opencard', JSON.stringify({ type: 'card-document' }))
+    fs.putFile('/appdata/templates/personal/content/main.opencard', cardDocument())
     const service = createService(fs)
     const userTemplate: ProjectTemplate = {
       ...templateFixture('/appdata/templates/personal/content'),

@@ -1,6 +1,7 @@
 import { appLocalDataDir, basename, join, resolveResource } from '@tauri-apps/api/path'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { parseCardDocument } from '../../../entities/card/storage'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
 import {
@@ -120,7 +121,7 @@ function normalizeRequestedEntries(request: CreateUserTemplateRequest): string[]
   return [...new Set([request.entry, ...(request.entries ?? [])].map(normalizeRelativePath).filter(Boolean))]
 }
 
-function resolveEntryName(document: Record<string, unknown>, fallback: string): string {
+function resolveEntryName(document: { name?: unknown }, fallback: string): string {
   return typeof document.name === 'string' && document.name.trim()
     ? document.name.trim()
     : fallback
@@ -217,11 +218,9 @@ export class ProjectTemplateService {
 
       const absolutePath = await this.paths.join(sourcePath, ...pathSegments(relativePath))
       try {
-        const document = JSON.parse(await this.fs.readFile(absolutePath)) as Record<string, unknown>
-        if (document.type === 'card-document') {
-          documentEntries.push(relativePath)
-          entryNames[relativePath] = resolveEntryName(document, relativePath)
-        }
+        const document = parseCardDocument(JSON.parse(await this.fs.readFile(absolutePath)))
+        documentEntries.push(relativePath)
+        entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch {
         // Invalid documents are omitted; at least one valid entry is required below.
       }
@@ -456,8 +455,7 @@ export class ProjectTemplateService {
     const entryNames: Record<string, string> = {}
     for (const entry of entries) {
       try {
-        const document = JSON.parse(strFromU8(content.get(entry)!)) as Record<string, unknown>
-        if (document.type !== 'card-document') throw new Error('Invalid card document')
+        const document = parseCardDocument(JSON.parse(strFromU8(content.get(entry)!)))
         entryNames[entry] = resolveEntryName(document, entry)
       } catch (cause) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is invalid', { cause })
@@ -625,8 +623,7 @@ export class ProjectTemplateService {
     const templateEntries = resolveTemplateEntries(manifest)
     for (const [index, entryPath] of entryPaths.entries()) {
       try {
-        const document = JSON.parse(await this.fs.readFile(entryPath)) as Record<string, unknown>
-        if (document.type !== 'card-document') throw new Error('Entry is not an OpenCard document')
+        const document = parseCardDocument(JSON.parse(await this.fs.readFile(entryPath)))
         const relativePath = templateEntries[index]
         if (relativePath) entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch (cause) {

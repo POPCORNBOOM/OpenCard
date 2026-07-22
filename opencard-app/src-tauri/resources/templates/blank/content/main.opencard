@@ -1,11 +1,24 @@
 {
   "type": "card-document",
+  "schemaVersion": "2",
   "id": "card-document-blank-template",
   "name": "Untitled Card",
   "version": "1.0.0",
   "width": "540",
   "height": "850",
-  "background": "#FFFFFF",
-  "children": [],
+  "faces": {
+    "front": {
+      "type": "card-face",
+      "id": "card-face-blank-template-front",
+      "background": "#FFFFFF",
+      "children": []
+    },
+    "back": {
+      "type": "card-face",
+      "id": "card-face-blank-template-back",
+      "background": "#FFFFFF",
+      "children": []
+    }
+  },
   "instances": []
 }

@@ -180,6 +180,7 @@
                 @save="handleEditorSave"
                 @update-viewport-transform="handleViewportTransformUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
+                @update-card-designer-view="handleCardDesignerViewUpdate"
                 @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
               />
             </ProjectEditorWorkspace>
@@ -210,11 +211,11 @@
 
     <!-- 隐藏的导出渲染器 -->
     <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
-      <CardDocumentRenderer
-        v-if="exportCardDoc"
+      <CardFaceRenderer
+        v-if="exportCardFace"
         ref="exportRendererRef"
-        :card-document="exportCardDoc"
-        :clip-to-document="true"
+        :face="exportCardFace"
+        :clip-to-face="true"
       />
     </div>
 
@@ -231,7 +232,7 @@ import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
-import type { CardDesignerLayoutState } from '../editor-runtime/model/editorUiState'
+import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -250,7 +251,7 @@ import { useProjectTemplateStore } from '../project-templates/store/projectTempl
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import type { SettingsCategoryKey, SettingsIntent } from '../settings/model/appSettings'
-import CardDocumentRenderer from '../card-rendering/components/CardDocumentRenderer.vue'
+import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import { editorRegistry } from '../editor-runtime/registry/editorRegistry'
 import type {
   EditorIssueSnapshot,
@@ -402,7 +403,7 @@ const effectiveSidebarCollapsed = computed(() => (
 ))
 const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWidth)
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
-const exportRendererRef = ref<InstanceType<typeof CardDocumentRenderer>>()
+const exportRendererRef = ref<InstanceType<typeof CardFaceRenderer>>()
 const currentEditorRef = ref<CurrentEditorRef | null>(null)
 const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 
@@ -453,7 +454,7 @@ watch(projectPath, (nextPath, previousPath) => {
 const {
   canExportActiveCard,
   showExportRenderer,
-  exportCardDoc,
+  exportCardFace,
   exportActiveCard2x,
   exportAllCardViews,
 } = useShellExport({
@@ -1024,6 +1025,7 @@ const currentEditorProps = computed(() => {
         ...baseProps,
         viewportTransform: activeSession.value.uiState?.cardDesigner?.viewportTransform,
         cardDesignerLayout: activeSession.value.uiState?.cardDesigner?.layout,
+        cardDesignerView: activeSession.value.uiState?.cardDesigner?.view,
         structureTreeSelectionBehavior:
           settingsStore.settings.value.workspace.structureTreeSelectionBehavior,
         structureTreeScrollToSelection:
@@ -1069,6 +1071,15 @@ function handleCardDesignerLayoutUpdate(value: CardDesignerLayoutState): void {
 
   updateSessionUiState(session.id, {
     cardDesigner: { layout: value },
+  })
+}
+
+function handleCardDesignerViewUpdate(value: CardDesignerViewState): void {
+  const session = activeSession.value
+  if (!session || session.editorId !== 'card-designer') return
+
+  updateSessionUiState(session.id, {
+    cardDesigner: { view: value },
   })
 }
 
