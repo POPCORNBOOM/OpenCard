@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "opencard",
+  "productName": "OpenCard",
   "version": "0.2.4",
   "identifier": "per.yiguwang.opencard",
   "build": {
