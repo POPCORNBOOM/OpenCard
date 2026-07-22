@@ -459,6 +459,7 @@ const {
 } = useShellExport({
   activeSession,
   exportRendererRef,
+  projectInformation,
   translate: t,
 })
 

@@ -16,6 +16,7 @@ import type { CardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
 import { runRenderPipeline, type RenderPipelineResult } from '../../card-rendering/renderPipeline'
 import type { RenderReadyCardDocument } from '../../card-rendering/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
+import type { ProjectInformation } from '../../workspace/model/projectMetadata'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
 
@@ -26,6 +27,7 @@ type ExportRendererInstance = {
 type UseShellExportOptions = {
   activeSession: Readonly<Ref<EditorSession | null>>
   exportRendererRef: Ref<ExportRendererInstance | undefined>
+  projectInformation: Readonly<Ref<ProjectInformation>>
   translate: (key: string) => string
 }
 
@@ -132,12 +134,16 @@ function createExportFileName(baseFileName: string, suffix: string, usedFileName
   return nextFileName
 }
 
-function buildCardExportQueue(baseFileName: string, document: CardDocument): ExportQueueEntry[] {
+function buildCardExportQueue(
+  baseFileName: string,
+  document: CardDocument,
+  project: Readonly<ProjectInformation>,
+): ExportQueueEntry[] {
   const usedFileNames = new Set<string>()
   const exportQueue: ExportQueueEntry[] = [
     {
       fileName: createExportFileName(baseFileName, 'blueprint', usedFileNames),
-      ...buildRenderableCardDocument(document, null),
+      ...buildRenderableCardDocument(document, null, project),
     },
   ]
 
@@ -145,7 +151,7 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
     const instanceName = sanitizeFileNameSegment(instance.name || instance.id, 'instance')
     exportQueue.push({
       fileName: createExportFileName(baseFileName, `instance_${instanceName}`, usedFileNames),
-      ...buildRenderableCardDocument(document, instance),
+      ...buildRenderableCardDocument(document, instance, project),
     })
   }
 
@@ -155,8 +161,9 @@ function buildCardExportQueue(baseFileName: string, document: CardDocument): Exp
 function buildRenderableCardDocument(
   document: CardDocument,
   instance: CardInstanceRecord | null,
+  project: Readonly<ProjectInformation>,
 ): RenderPipelineResult {
-  return runRenderPipeline(document, instance)
+  return runRenderPipeline(document, instance, { project })
 }
 
 export function useShellExport(options: UseShellExportOptions) {
@@ -241,7 +248,11 @@ export function useShellExport(options: UseShellExportOptions) {
     }
 
     try {
-      const renderResult = buildRenderableCardDocument(context.document, null)
+      const renderResult = buildRenderableCardDocument(
+        context.document,
+        null,
+        options.projectInformation.value,
+      )
       if (renderResult.issues.length > 0) {
         console.warn('[export] resolveReferences issues:', renderResult.issues)
       }
@@ -273,7 +284,11 @@ export function useShellExport(options: UseShellExportOptions) {
     }
 
     try {
-      const exportQueue = buildCardExportQueue(context.fileNameStem, context.document)
+      const exportQueue = buildCardExportQueue(
+        context.fileNameStem,
+        context.document,
+        options.projectInformation.value,
+      )
 
       for (const entry of exportQueue) {
         if (entry.issues.length > 0) {

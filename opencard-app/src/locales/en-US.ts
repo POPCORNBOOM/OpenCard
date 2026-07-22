@@ -285,6 +285,7 @@ export default {
       currentCard: 'Current card',
       currentCardBlueprint: 'Current card (blueprint)',
       document: 'Current document',
+      project: 'Current project',
       self: 'Current block',
       parent: 'Parent container',
       ancestor: 'Ancestor container {depth}',

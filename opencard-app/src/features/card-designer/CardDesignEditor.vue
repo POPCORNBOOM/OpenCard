@@ -268,6 +268,12 @@ import { chainPropertyCompletionProviders } from '../../shared/ui/property-edito
 import { useProjectStore } from '../workspace/store/projectStore'
 import { createFilePathCompletionProvider } from '../workspace/services/filePathCompletion'
 import {
+  exposesProjectFieldReference,
+  getProjectFieldKeys,
+  getProjectFieldValueKind,
+  type ProjectInformation,
+} from '../workspace/model/projectMetadata'
+import {
   isCardDesignerNavigationToken,
   type CardDesignerNavigationResult,
   type CardDesignerNavigationToken,
@@ -946,6 +952,21 @@ function createReferenceScope(
   }
 }
 
+function createProjectReferenceScope(project: Readonly<ProjectInformation>): ReferenceCompletionScope {
+  const additionalDefinitions = project.additionalFieldDefinition
+  return {
+    label: t('propertyEditor.references.project'),
+    fields: getProjectFieldKeys(project)
+      .filter(fieldKey => exposesProjectFieldReference(project, fieldKey))
+      .map(fieldKey => ({
+        key: fieldKey,
+        label: additionalDefinitions?.[fieldKey]?.title
+          ?? (te(`projectConfig.fields.${fieldKey}`) ? t(`projectConfig.fields.${fieldKey}`) : fieldKey),
+        valueKind: getProjectFieldValueKind(project, fieldKey),
+      })),
+  }
+}
+
 const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
   const document = cardDoc.value
   if (!document) {
@@ -965,6 +986,9 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
       t('propertyEditor.references.document'),
       document as unknown as Record<string, unknown>,
     )
+  const projectScope = projectStore.projectPath.value
+    ? createProjectReferenceScope(projectStore.projectInformation.value)
+    : undefined
 
   const block = selectedBlock.value
   const currentBlockScope = block
@@ -1003,6 +1027,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
         currentBlock: currentBlockScope,
         currentCard: currentCardScope,
         document: documentScope,
+        project: projectScope,
         getAncestor: (depth: number) => ancestorScopes[depth - 1],
         targetKind: getCardFieldValueKind(input.record, fieldKey),
       },
@@ -1114,6 +1139,11 @@ const renderPipelineResult = computed(() => {
   const result = runRenderPipeline(
     cardDoc.value,
     renderTargetInstance.value,
+    {
+      project: projectStore.projectPath.value
+        ? projectStore.projectInformation.value
+        : null,
+    },
   )
   if (result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
   return result

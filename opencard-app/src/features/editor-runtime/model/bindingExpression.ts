@@ -2,6 +2,7 @@ export type BindingScopeDescriptor =
   | { kind: 'current-block' }
   | { kind: 'current-card' }
   | { kind: 'document' }
+  | { kind: 'project' }
   | { kind: 'parent'; parentDepth: number }
 
 export type FieldReferenceDescriptor = BindingScopeDescriptor & {
@@ -21,6 +22,7 @@ export function parseBindingScopeToken(token: string): BindingScopeDescriptor | 
   if (normalized === 's') return { kind: 'current-block' }
   if (normalized === 'c') return { kind: 'current-card' }
   if (normalized === 'd') return { kind: 'document' }
+  if (normalized === 'g') return { kind: 'project' }
   if (!parentScopePattern.test(normalized)) return null
   return { kind: 'parent', parentDepth: normalized.split('.').length }
 }
@@ -48,5 +50,6 @@ export function formatBindingScopeToken(scope: BindingScopeDescriptor): string {
   if (scope.kind === 'current-block') return 's'
   if (scope.kind === 'current-card') return 'c'
   if (scope.kind === 'document') return 'd'
+  if (scope.kind === 'project') return 'g'
   return Array.from({ length: scope.parentDepth }, () => 'p').join('.')
 }

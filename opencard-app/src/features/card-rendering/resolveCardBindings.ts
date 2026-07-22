@@ -21,6 +21,11 @@ import {
 import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/model/binding'
 import { parseFieldReference } from '../editor-runtime/model/bindingExpression'
 import {
+  exposesProjectFieldReference,
+  getProjectFieldValueKind,
+  type ProjectInformation,
+} from '../workspace/model/projectMetadata'
+import {
   createCardPipelineIssue,
   type CardBindingIssueType,
   type CardPipelineIssue,
@@ -44,7 +49,7 @@ export function resolveParentFieldReferenceKey(
     return null
   }
 
-  if (descriptor.kind === 'current-card') {
+  if (descriptor.kind === 'current-card' || descriptor.kind === 'project') {
     return null
   }
 
@@ -86,6 +91,7 @@ export type ResolveReferencesResult = {
 
 export type ResolveReferencesOptions = {
   currentCard?: CardInstanceRecord | null
+  project?: Readonly<ProjectInformation> | null
 }
 
 type ReferenceOwnerKind = 'document' | 'block' | 'location' | 'current-card'
@@ -367,6 +373,33 @@ export function resolveReferences(
 
     if (tokenDescriptor.kind === 'current-card') {
       return resolveTargetField(currentCardOwner ?? documentOwner, tokenDescriptor.fieldKey)
+    }
+
+    if (tokenDescriptor.kind === 'project') {
+      const project = options.project
+      if (!project) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
+        return { ok: false, value: null }
+      }
+      if (!Object.prototype.hasOwnProperty.call(project, tokenDescriptor.fieldKey)) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-found', {
+          ownerType: 'project',
+          referencedFieldKey: tokenDescriptor.fieldKey,
+        }, characterOffset)
+        return { ok: false, value: null }
+      }
+      if (!exposesProjectFieldReference(project, tokenDescriptor.fieldKey)) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-allowed', {
+          ownerType: 'project',
+          referencedFieldKey: tokenDescriptor.fieldKey,
+        }, characterOffset)
+        return { ok: false, value: null }
+      }
+      return {
+        ok: true,
+        value: project[tokenDescriptor.fieldKey],
+        valueKind: getProjectFieldValueKind(project, tokenDescriptor.fieldKey),
+      }
     }
 
     let targetReference: string | null = null

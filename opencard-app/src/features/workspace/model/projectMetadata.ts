@@ -7,6 +7,8 @@ import type {
 import {
   additionalFieldTypes,
   createPropertyDefaultValue,
+  exposesPropertyReference,
+  getPropertyValueKind,
   parseAdditionalFieldDefinitions,
   validateAdditionalFieldKey,
 } from '../../../entities/card/schema'
@@ -106,6 +108,44 @@ export function deleteProjectAdditionalField(project: ProjectInformation, fieldK
     delete project.additionalFieldDefinition
   }
   return true
+}
+
+export function getProjectFieldDefinition(
+  project: Readonly<ProjectInformation>,
+  fieldKey: string,
+): EditorPropertyDefinition | undefined {
+  const nativeDefinition = projectPropertySchema[fieldKey as keyof typeof projectPropertySchema]
+  if (nativeDefinition) return nativeDefinition
+  const additionalDefinition = parseAdditionalFieldDefinitions(
+    project.additionalFieldDefinition,
+    Object.keys(projectPropertySchema),
+  )[fieldKey]
+  return additionalDefinition
+    ? {
+        fieldType: additionalDefinition.fieldType,
+        acceptsBinding: false,
+        categoryId: 'custom',
+      } as EditorPropertyDefinition
+    : undefined
+}
+
+export function getProjectFieldKeys(project: Readonly<ProjectInformation>): string[] {
+  return Object.keys(project).filter(fieldKey => fieldKey !== 'additionalFieldDefinition')
+}
+
+export function getProjectFieldValueKind(
+  project: Readonly<ProjectInformation>,
+  fieldKey: string,
+) {
+  return getPropertyValueKind(getProjectFieldDefinition(project, fieldKey))
+}
+
+export function exposesProjectFieldReference(
+  project: Readonly<ProjectInformation>,
+  fieldKey: string,
+): boolean {
+  const definition = getProjectFieldDefinition(project, fieldKey)
+  return Boolean(definition) && exposesPropertyReference(definition)
 }
 
 export function parseProjectMetadata(value: unknown): ProjectMetadata | null {

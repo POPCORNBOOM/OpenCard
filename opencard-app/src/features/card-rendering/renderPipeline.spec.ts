@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
 import { runRenderPipeline } from './renderPipeline'
+import { createDefaultProjectInformation } from '../workspace/model/projectMetadata'
 
 function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
   return {
@@ -70,5 +71,26 @@ describe('renderPipeline', () => {
         }),
       }),
     ])
+  })
+
+  it('resolves project fields from an explicit render context', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:name}}' })
+    const project = createDefaultProjectInformation('OpenCard Demo')
+
+    const result = runRenderPipeline(createDocument(block), null, { project })
+
+    expect(result.document.children[0]!.block).toMatchObject({ content: 'OpenCard Demo' })
+    expect(result.issues).toEqual([])
+  })
+
+  it('reports a missing project context without reading global state', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:name}}' })
+
+    const result = runRenderPipeline(createDocument(block), null)
+
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      type: 'card-designer.binding.source-not-found',
+      location: expect.objectContaining({ fieldKey: 'content' }),
+    }))
   })
 })

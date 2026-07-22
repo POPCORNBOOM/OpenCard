@@ -21,13 +21,14 @@ const context: ReferenceCompletionContext = {
     ],
   },
   document: { label: '当前文档', fields: [{ key: 'name', valueKind: 'string' }] },
+  project: { label: '当前项目', fields: [{ key: 'author', valueKind: 'string' }] },
   getAncestor: (depth) => parentScopes[depth - 1],
 }
 
 describe('referenceCompletion', () => {
   it('suggests root scopes without pre-generating every ancestor token', () => {
     expect(resolveReferenceCompletion('{{}}', 2, context)?.suggestions.map((item) => item.insertText))
-      .toEqual(['s:', 'c:', 'd:', 'p:'])
+      .toEqual(['s:', 'c:', 'd:', 'g:', 'p:'])
   })
 
   it('offers field selection and continuation for parent chains', () => {
@@ -43,6 +44,11 @@ describe('referenceCompletion', () => {
     const numberContext: ReferenceCompletionContext = { ...context, targetKind: 'number' }
     expect(resolveReferenceCompletion('{{C:}}', 4, numberContext)?.suggestions.map((item) => item.insertText))
       .toEqual(['c:amount'])
+  })
+
+  it('offers fields from the project scope', () => {
+    expect(resolveReferenceCompletion('{{G:au}}', 6, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['g:author'])
   })
 
   it('replaces only the token body and preserves closing braces', () => {

@@ -285,6 +285,7 @@ export default {
       currentCard: '当前卡片',
       currentCardBlueprint: '当前卡片（蓝图）',
       document: '当前文档',
+      project: '当前项目',
       self: '当前块',
       parent: '父容器',
       ancestor: '上级容器 {depth}',

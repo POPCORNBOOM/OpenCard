@@ -22,6 +22,7 @@ export type ReferenceCompletionContext = {
   currentBlock?: ReferenceCompletionScope
   currentCard?: ReferenceCompletionScope
   document?: ReferenceCompletionScope
+  project?: ReferenceCompletionScope
   getAncestor: (depth: number) => ReferenceCompletionScope | undefined
 }
 
@@ -79,6 +80,7 @@ function resolveScopeSuggestions(
     ['s', context.currentBlock],
     ['c', context.currentCard],
     ['d', context.document],
+    ['g', context.project],
   ]
   const suggestions = fixedScopes
     .filter(([token, scope]) => scope && token.startsWith(fragment) && hasCompatibleField(scope, context.targetKind))
@@ -153,6 +155,7 @@ function resolveScope(
   if (descriptor.kind === 'current-block') return context.currentBlock
   if (descriptor.kind === 'current-card') return context.currentCard
   if (descriptor.kind === 'document') return context.document
+  if (descriptor.kind === 'project') return context.project
   return context.getAncestor(descriptor.parentDepth)
 }
 

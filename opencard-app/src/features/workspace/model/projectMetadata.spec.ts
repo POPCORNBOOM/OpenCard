@@ -4,6 +4,9 @@ import {
   createDefaultProjectInformation,
   createProjectAdditionalField,
   deleteProjectAdditionalField,
+  exposesProjectFieldReference,
+  getProjectFieldKeys,
+  getProjectFieldValueKind,
   parseProjectMetadataText,
   projectPropertySchema,
   serializeProjectMetadata,
@@ -98,5 +101,16 @@ describe('project metadata', () => {
     expect(deleteProjectAdditionalField(project, 'author')).toBe(true)
     expect(project).not.toHaveProperty('author')
     expect(project).not.toHaveProperty('additionalFieldDefinition')
+  })
+
+  it('exposes only declared project reference fields with their schema kinds', () => {
+    const project = createDefaultProjectInformation('Demo')
+    createProjectAdditionalField(project, 'edition', 'number', 'Edition')
+
+    expect(getProjectFieldKeys(project)).toEqual(['name', 'description', 'entry', 'edition'])
+    expect(exposesProjectFieldReference(project, 'name')).toBe(true)
+    expect(exposesProjectFieldReference(project, 'entry')).toBe(false)
+    expect(exposesProjectFieldReference(project, 'missing')).toBe(false)
+    expect(getProjectFieldValueKind(project, 'edition')).toBe('number')
   })
 })
