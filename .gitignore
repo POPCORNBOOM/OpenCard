@@ -4,7 +4,7 @@
 /.vscode/
 /.codex/
 /.playwright-cli/
-/output/playwright/
+/output/
 
 # Ignore OpenCard cache files at any directory level
 .opencard-cache
