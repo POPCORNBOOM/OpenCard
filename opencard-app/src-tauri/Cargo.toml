@@ -1,5 +1,5 @@
 [package]
-name = "opencard"
+name = "OpenCard"
 version = "0.2.4"
 description = "A visual card design and template workspace."
 authors = ["Yigu Wang"]

@@ -153,7 +153,7 @@ Set-FirstRegexMatch `
 
 Set-FirstRegexMatch `
   -Path $cargoLockPath `
-  -Pattern '(?ms)(^\[\[package\]\]\s*\r?\nname\s*=\s*"opencard"\s*\r?\nversion\s*=\s*")[^"]+(")' `
+  -Pattern '(?ms)(^\[\[package\]\]\s*\r?\nname\s*=\s*"OpenCard"\s*\r?\nversion\s*=\s*")[^"]+(")' `
   -Replacement "`${1}$Version`${2}"
 
 if (-not $SkipChecks) {
