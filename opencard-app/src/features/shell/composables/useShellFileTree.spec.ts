@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  projectEntryDeleteActionKey,
   projectEntryMoreActionKey,
   useShellFileTree,
 } from './useShellFileTree'
@@ -43,5 +44,28 @@ describe('useShellFileTree opened editors', () => {
       draggable: true,
       actions: [projectEntryMoreActionKey('D:/project/cards/main.opencard')],
     })
+  })
+
+  it('disables deletion for the root project configuration file', () => {
+    const projectPath = 'D:/project'
+    const entryKey = `${projectPath}/.opencardproject`
+    const { projectTreeData } = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([
+        { name: '.opencardproject', isDirectory: false },
+        { name: 'cards/main.opencard', isDirectory: false },
+      ]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+
+    expect(projectTreeData.value.items.get(entryKey)?.disabledActions?.has(
+      projectEntryDeleteActionKey(entryKey),
+    )).toBe(true)
+    expect(projectTreeData.value.items.get(`${projectPath}/cards/main.opencard`)?.disabledActions)
+      .toBeUndefined()
   })
 })

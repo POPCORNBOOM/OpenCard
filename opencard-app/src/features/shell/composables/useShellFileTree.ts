@@ -2,6 +2,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
+import { PROJECT_CONFIG_FILE_NAME } from '../../workspace/model/projectMetadata'
 import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
@@ -98,6 +99,9 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
 
     for (const entry of projectProjection.value.byKey.values()) {
       const presentation = resolveEntryIcon(entry.key, entry.isDirectory, entry.isExpanded)
+      const disabledActions = entry.relativePath === PROJECT_CONFIG_FILE_NAME
+        ? new Map([[projectEntryDeleteActionKey(entry.key), '']])
+        : undefined
       items.set(entry.key, {
         label: entry.label,
         icon: presentation.icon,
@@ -105,6 +109,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         renamable: true,
         draggable: true,
         actions: [projectEntryMoreActionKey(entry.key)],
+        disabledActions,
       })
       if (entry.children.length > 0) {
         children.set(entry.key, entry.children.map((child) => child.key))
