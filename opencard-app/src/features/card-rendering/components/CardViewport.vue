@@ -172,7 +172,7 @@ const viewportLeftInfoStyle = computed(() => {
   return {
     left: `${-12 / safeScale}px`,
     top: `${props.face.height / 2}px`,
-    transform: `translate(-100%, -50%) scale(${1 / safeScale})`,
+    transform: `translate(-100%, -50%) rotate(-90deg) scale(${1 / safeScale})`,
   }
 })
 const viewportBottomInfoStyle = computed(() => {

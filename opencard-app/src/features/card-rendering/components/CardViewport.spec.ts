@@ -112,6 +112,8 @@ describe('CardViewport wheel zoom API', () => {
     expect(info.find('[data-test="face-info"]').text()).toBe('Details')
     expect(wrapper.find('.card-viewport-left-info').attributes('style'))
       .toContain(`top: ${face.height / 2}px`)
+    expect(wrapper.find('.card-viewport-left-info').attributes('style'))
+      .toContain('rotate(-90deg)')
     expect(wrapper.find('[data-test="height-info"]').text()).toBe('Height')
     expect(wrapper.find('.card-viewport-bottom-info').attributes('style'))
       .toContain(`left: ${face.width / 2}px`)
