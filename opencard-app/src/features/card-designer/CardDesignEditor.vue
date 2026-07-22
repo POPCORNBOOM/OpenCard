@@ -24,6 +24,7 @@
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
+          @face-dimension-change="handleFaceDimensionChange"
           @viewport-transform-change="handleViewportTransformChange"
           @viewport-size-change="handleViewportSizeChange">
           <template #info>
@@ -1595,6 +1596,21 @@ function handleSelectionMove(payload: { x: number; y: number }) {
   location.y = formatViewportCssValue(payload.y)
   refreshDocumentState()
   markDocumentChanged('action')
+}
+
+function handleFaceDimensionChange(payload: {
+  dimension: 'width' | 'height'
+  value: number
+  final: boolean
+}): void {
+  const document = cardDoc.value
+  if (!document) return
+  const nextValue = String(payload.value)
+  if (document[payload.dimension] !== nextValue) {
+    document[payload.dimension] = nextValue
+    refreshDocumentState()
+  }
+  markDocumentChanged(payload.final ? 'action' : 'typing')
 }
 
 async function saveFile() {

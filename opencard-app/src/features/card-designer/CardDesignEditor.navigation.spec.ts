@@ -193,5 +193,13 @@ describe('CardDesignEditor issue navigation', () => {
     })
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(wrapper.emitted('modified')).toBeUndefined()
+
+    viewport.vm.$emit('face-dimension-change', { dimension: 'width', value: 600, final: false })
+    viewport.vm.$emit('face-dimension-change', { dimension: 'width', value: 600, final: true })
+    await nextTick()
+    const contentUpdates = wrapper.emitted('update:modelValue') ?? []
+    const latestContent = contentUpdates[contentUpdates.length - 1]?.[0]
+    expect(JSON.parse(String(latestContent)).width).toBe('600')
+    expect(wrapper.emitted('modified')?.[0]?.[0]).toBe(true)
   })
 })

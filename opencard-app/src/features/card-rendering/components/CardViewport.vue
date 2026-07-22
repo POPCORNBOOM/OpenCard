@@ -9,10 +9,12 @@
       <aside v-if="$slots.info" class="card-viewport-info" :style="viewportInfoStyle">
         <slot name="info" />
       </aside>
-      <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle">
+      <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle"
+        @pointerdown.stop.prevent="startFaceDimensionDrag('height', $event)">
         <slot name="left-info" />
       </aside>
-      <aside v-if="$slots['bottom-info']" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle">
+      <aside v-if="$slots['bottom-info']" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle"
+        @pointerdown.stop.prevent="startFaceDimensionDrag('width', $event)">
         <slot name="bottom-info" />
       </aside>
     </div>
@@ -61,6 +63,7 @@ type MovePayload = {
   x: number
   y: number
 }
+type FaceDimension = 'width' | 'height'
 type ViewportTransform = {
   x: number
   y: number
@@ -82,6 +85,7 @@ const emit = defineEmits<{
   (e: 'move-selection', payload: MovePayload): void
   (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
+  (e: 'face-dimension-change', payload: { dimension: FaceDimension; value: number; final: boolean }): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -123,11 +127,18 @@ const activeHandle = ref<ResizeHandle | null>(null)
 const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
+const faceDimensionDrag = ref<{
+  dimension: FaceDimension
+  startClientPosition: number
+  startValue: number
+  lastValue: number
+} | null>(null)
 
 let resizeObserver: ResizeObserver | null = null
 let zoomAnimationFrame: number | null = null
 let lastEmittedTransform: ViewportTransform | null = null
 let pendingTransformEchoes: ViewportTransform[] = []
+let previousDimensionCursor = ''
 
 function applyViewportTransform(transform: ViewportTransform | undefined) {
   const nextTransform = transform ?? { x: 0, y: 0, scale: 1 }
@@ -393,6 +404,47 @@ function handleViewportPointerDown(event: PointerEvent) {
   }
 
   emit('blank-click', event as unknown as MouseEvent)
+}
+
+function startFaceDimensionDrag(dimension: FaceDimension, event: PointerEvent): void {
+  if (event.button !== 0) return
+  const startValue = dimension === 'width' ? props.face.width : props.face.height
+  faceDimensionDrag.value = {
+    dimension,
+    startClientPosition: dimension === 'width' ? event.clientX : event.clientY,
+    startValue,
+    lastValue: startValue,
+  }
+  previousDimensionCursor = document.body.style.cursor
+  document.body.style.cursor = dimension === 'width' ? 'ew-resize' : 'ns-resize'
+  window.addEventListener('pointermove', handleFaceDimensionDrag)
+  window.addEventListener('pointerup', stopFaceDimensionDrag)
+  window.addEventListener('pointercancel', stopFaceDimensionDrag)
+}
+
+function handleFaceDimensionDrag(event: PointerEvent): void {
+  const drag = faceDimensionDrag.value
+  if (!drag) return
+  const clientPosition = drag.dimension === 'width' ? event.clientX : event.clientY
+  const nextValue = Math.max(16, Math.round(
+    drag.startValue + (clientPosition - drag.startClientPosition) / (scale.value || 1),
+  ))
+  if (nextValue === drag.lastValue) return
+  drag.lastValue = nextValue
+  emit('face-dimension-change', { dimension: drag.dimension, value: nextValue, final: false })
+}
+
+function stopFaceDimensionDrag(): void {
+  const drag = faceDimensionDrag.value
+  faceDimensionDrag.value = null
+  window.removeEventListener('pointermove', handleFaceDimensionDrag)
+  window.removeEventListener('pointerup', stopFaceDimensionDrag)
+  window.removeEventListener('pointercancel', stopFaceDimensionDrag)
+  if (!drag) return
+  document.body.style.cursor = previousDimensionCursor
+  previousDimensionCursor = ''
+  if (drag.lastValue === drag.startValue) return
+  emit('face-dimension-change', { dimension: drag.dimension, value: drag.lastValue, final: true })
 }
 
 function getElementFrame(element: Element, viewportRect: DOMRect): SelectionFrame {
@@ -779,6 +831,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopTransform()
+  stopFaceDimensionDrag()
   stopZoomAnimation()
   resizeObserver?.disconnect()
   resizeObserver = null
@@ -866,6 +919,16 @@ watch(
   position: absolute;
   transform-origin: center;
   pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.card-viewport-left-info {
+  cursor: ns-resize;
+}
+
+.card-viewport-bottom-info {
+  cursor: ew-resize;
 }
 
 .card-selection-layer {

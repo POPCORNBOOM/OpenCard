@@ -119,4 +119,41 @@ describe('CardViewport wheel zoom API', () => {
       .toContain(`left: ${face.width / 2}px`)
     expect(wrapper.find('[data-test="width-info"]').text()).toBe('Width')
   })
+
+  it('drags width horizontally and height vertically with resize cursors', async () => {
+    const wrapper = mount(CardViewport, {
+      props: { face },
+      slots: {
+        'left-info': 'Height',
+        'bottom-info': 'Width',
+      },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+
+    wrapper.find('.card-viewport-bottom-info').element.dispatchEvent(new MouseEvent('pointerdown', {
+      button: 0,
+      clientX: 100,
+      bubbles: true,
+    }))
+    expect(document.body.style.cursor).toBe('ew-resize')
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140 }))
+    window.dispatchEvent(new MouseEvent('pointerup'))
+
+    wrapper.find('.card-viewport-left-info').element.dispatchEvent(new MouseEvent('pointerdown', {
+      button: 0,
+      clientY: 100,
+      bubbles: true,
+    }))
+    expect(document.body.style.cursor).toBe('ns-resize')
+    window.dispatchEvent(new MouseEvent('pointermove', { clientY: 70 }))
+    window.dispatchEvent(new MouseEvent('pointerup'))
+
+    expect(document.body.style.cursor).toBe('')
+    expect(wrapper.emitted('face-dimension-change')).toEqual([
+      [{ dimension: 'width', value: face.width + 40, final: false }],
+      [{ dimension: 'width', value: face.width + 40, final: true }],
+      [{ dimension: 'height', value: face.height - 30, final: false }],
+      [{ dimension: 'height', value: face.height - 30, final: true }],
+    ])
+  })
 })
