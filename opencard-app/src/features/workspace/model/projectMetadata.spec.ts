@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { resolveFileType } from './fileTypes'
 import {
+  createDefaultProjectInformation,
+  createProjectAdditionalField,
+  deleteProjectAdditionalField,
   parseProjectMetadataText,
   projectPropertySchema,
   serializeProjectMetadata,
@@ -79,5 +82,21 @@ describe('project metadata', () => {
         edition: { fieldType: 'number' },
       },
     })
+  })
+
+  it('creates and deletes project fields with the shared additional-field rules', () => {
+    const project = createDefaultProjectInformation('Demo')
+
+    expect(createProjectAdditionalField(project, 'author', 'string', ' Author ')).toBeNull()
+    expect(project).toMatchObject({
+      author: '',
+      additionalFieldDefinition: {
+        author: { fieldType: 'string', title: 'Author' },
+      },
+    })
+    expect(createProjectAdditionalField(project, 'Name', 'string')).toBe('duplicate')
+    expect(deleteProjectAdditionalField(project, 'author')).toBe(true)
+    expect(project).not.toHaveProperty('author')
+    expect(project).not.toHaveProperty('additionalFieldDefinition')
   })
 })

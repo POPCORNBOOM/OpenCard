@@ -7,22 +7,27 @@
 import {
     acceptsPropertyBinding,
     additionalFieldTypes,
-    additionalFieldKeyPattern,
     createPropertyDefaultValue,
     exposesPropertyReference,
     getPropertyValueKind,
     getTypePropertyEditorSchema,
     parseAdditionalFieldDefinitions,
+    validateAdditionalFieldKey as validateRecordAdditionalFieldKey,
 } from './schema'
 import type {
     AdditionalFieldDefinition,
     AdditionalFieldDefinitionMap,
     EditorPropertyDefinition,
     PropertyFieldType,
+    AdditionalFieldKeyError,
 } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 
-export type { AdditionalFieldDefinition, AdditionalFieldDefinitionMap } from './schema'
+export type {
+    AdditionalFieldDefinition,
+    AdditionalFieldDefinitionMap,
+    AdditionalFieldKeyError,
+} from './schema'
 
 // Block and document data models.
 export type BaseBlock = {
@@ -251,21 +256,14 @@ export function exposesCardFieldReference(record: Record<string, unknown>, field
     return exposesPropertyReference(getCardFieldDefinition(record, fieldKey))
 }
 
-export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
 const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
 
 export function validateAdditionalFieldKey(block: CardBlock, candidate: string): AdditionalFieldKeyError | null {
-    const fieldKey = candidate.trim()
-    if (!fieldKey) return 'required'
-    if (!additionalFieldKeyPattern.test(fieldKey)) return 'invalid'
-
-    const identity = fieldKey.toLocaleLowerCase()
-    const occupiedKeys = new Set([
-        ...Object.keys(getTypePropertyEditorSchema(block.type)),
-        ...Object.keys(block).filter((key) => key !== 'additionalFieldDefinition'),
-        ...Object.keys(block.additionalFieldDefinition ?? {}),
-    ].map((key) => key.toLocaleLowerCase()))
-    return occupiedKeys.has(identity) ? 'duplicate' : null
+    return validateRecordAdditionalFieldKey(
+        block as Record<string, unknown>,
+        Object.keys(getTypePropertyEditorSchema(block.type)),
+        candidate,
+    )
 }
 
 export function createBlockAdditionalField(

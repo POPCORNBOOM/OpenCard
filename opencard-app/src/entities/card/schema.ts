@@ -55,6 +55,7 @@ export type AdditionalFieldDefinition = {
     fieldType: PropertyFieldType
 }
 export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
+export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
 export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 export const additionalFieldTypes = [
     'string',
@@ -103,6 +104,23 @@ export function parseAdditionalFieldDefinitions(
     }
 
     return definitions
+}
+
+export function validateAdditionalFieldKey(
+    record: Readonly<Record<string, unknown>>,
+    reservedKeys: readonly string[],
+    candidate: string,
+): AdditionalFieldKeyError | null {
+    const fieldKey = candidate.trim()
+    if (!fieldKey) return 'required'
+    if (!additionalFieldKeyPattern.test(fieldKey)) return 'invalid'
+
+    const occupiedIdentities = new Set([
+        ...reservedKeys,
+        ...Object.keys(record).filter(key => key !== 'additionalFieldDefinition'),
+        ...Object.keys(parseAdditionalFieldDefinitions(record.additionalFieldDefinition)),
+    ].map(key => key.toLocaleLowerCase()))
+    return occupiedIdentities.has(fieldKey.toLocaleLowerCase()) ? 'duplicate' : null
 }
 
 type AllConstraintKeys = {

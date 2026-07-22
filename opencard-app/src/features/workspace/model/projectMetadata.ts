@@ -1,8 +1,15 @@
 import type {
   AdditionalFieldDefinitionMap,
+  AdditionalFieldKeyError,
   EditorPropertyDefinition,
+  PropertyFieldType,
 } from '../../../entities/card/schema'
-import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import {
+  additionalFieldTypes,
+  createPropertyDefaultValue,
+  parseAdditionalFieldDefinitions,
+  validateAdditionalFieldKey,
+} from '../../../entities/card/schema'
 
 export const PROJECT_CONFIG_FILE_NAME = '.opencardproject'
 export const PROJECT_METADATA_VERSION = 1 as const
@@ -66,6 +73,39 @@ export function createDefaultProjectInformation(name = ''): ProjectInformation {
     description: '',
     entry: 'main.opencard',
   }
+}
+
+export function createProjectAdditionalField(
+  project: ProjectInformation,
+  fieldKeyInput: string,
+  fieldType: PropertyFieldType,
+  titleInput?: string,
+): AdditionalFieldKeyError | null {
+  if (!additionalFieldTypes.includes(fieldType as (typeof additionalFieldTypes)[number])) {
+    return 'unsupported-field-type'
+  }
+  const error = validateAdditionalFieldKey(project, Object.keys(projectPropertySchema), fieldKeyInput)
+  if (error) return error
+
+  const fieldKey = fieldKeyInput.trim()
+  const title = titleInput?.trim() ?? ''
+  const definitions = project.additionalFieldDefinition ?? (project.additionalFieldDefinition = {})
+  definitions[fieldKey] = {
+    fieldType,
+    ...(title ? { title } : {}),
+  }
+  project[fieldKey] = createPropertyDefaultValue({ fieldType } as EditorPropertyDefinition)
+  return null
+}
+
+export function deleteProjectAdditionalField(project: ProjectInformation, fieldKey: string): boolean {
+  if (!project.additionalFieldDefinition?.[fieldKey]) return false
+  delete project[fieldKey]
+  delete project.additionalFieldDefinition[fieldKey]
+  if (Object.keys(project.additionalFieldDefinition).length === 0) {
+    delete project.additionalFieldDefinition
+  }
+  return true
 }
 
 export function parseProjectMetadata(value: unknown): ProjectMetadata | null {
