@@ -270,6 +270,17 @@ export default {
       switchToFront: 'Switch to front face',
       switchToBack: 'Switch to back face',
     },
+    info: {
+      title: 'Card information',
+      front: 'Front',
+      back: 'Back',
+      cardName: 'Card name',
+      projection: 'Projection',
+      documentProjection: 'Document',
+      instanceCount: 'Instances',
+      blockCount: 'Blocks',
+      dimensions: 'Width × height',
+    },
   },
   propertyEditor: {
     categories: {

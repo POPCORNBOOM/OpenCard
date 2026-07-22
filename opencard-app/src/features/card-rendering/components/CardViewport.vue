@@ -6,6 +6,9 @@
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace"
         @block-click="handleBlockClick" />
+      <aside v-if="$slots.info" class="card-viewport-info" :style="viewportInfoStyle">
+        <slot name="info" />
+      </aside>
     </div>
     <div class="card-selection-layer">
       <div v-if="selectionFrame" :key="selectedBlockId ?? 'selection'" class="selection-frame" :class="{
@@ -151,6 +154,13 @@ const translateY = computed(() => baseOffsetY.value + panY.value)
 const stageStyle = computed(() => ({
   transform: `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value})`,
 }))
+const viewportInfoStyle = computed(() => {
+  const safeScale = scale.value || 1
+  return {
+    left: `${props.face.width + 16 / safeScale}px`,
+    transform: `scale(${1 / safeScale})`,
+  }
+})
 const resizeMode = computed<ResizeMode>(() => {
   if (!props.selectedBlockId) {
     return 'none'
@@ -819,6 +829,14 @@ watch(
 
 .card-viewport-stage :deep([data-block-id]) {
   pointer-events: auto;
+}
+
+.card-viewport-info {
+  position: absolute;
+  top: 0;
+  width: 228px;
+  transform-origin: top left;
+  pointer-events: none;
 }
 
 .card-selection-layer {

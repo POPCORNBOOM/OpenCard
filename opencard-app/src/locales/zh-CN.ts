@@ -270,6 +270,17 @@ export default {
       switchToFront: '切换到正面',
       switchToBack: '切换到背面',
     },
+    info: {
+      title: '卡牌信息',
+      front: '正面',
+      back: '背面',
+      cardName: '卡牌名称',
+      projection: '当前投影',
+      documentProjection: '文档',
+      instanceCount: '实例数',
+      blockCount: '块数',
+      dimensions: '宽 × 高',
+    },
   },
   propertyEditor: {
     categories: {

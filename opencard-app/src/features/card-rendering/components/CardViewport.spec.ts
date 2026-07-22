@@ -94,4 +94,17 @@ describe('CardViewport wheel zoom API', () => {
 
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
   })
+
+  it('anchors supplemental information to the top-right of the face', () => {
+    const wrapper = mount(CardViewport, {
+      props: { face },
+      slots: { info: '<div data-test="face-info">Details</div>' },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+
+    const info = wrapper.find('.card-viewport-info')
+    expect(info.exists()).toBe(true)
+    expect(info.attributes('style')).toContain(`left: ${face.width + 16}px`)
+    expect(info.find('[data-test="face-info"]').text()).toBe('Details')
+  })
 })

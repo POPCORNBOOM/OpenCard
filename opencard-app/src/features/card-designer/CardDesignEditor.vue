@@ -25,7 +25,22 @@
           :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @viewport-transform-change="handleViewportTransformChange"
-          @viewport-size-change="handleViewportSizeChange" />
+          @viewport-size-change="handleViewportSizeChange">
+          <template #info>
+            <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
+              <header class="card-design-editor__card-info-header">
+                <span class="card-design-editor__card-info-file">{{ viewportCardInfo.fileName }}</span>
+                <span class="card-design-editor__card-info-face">{{ viewportCardInfo.face }}</span>
+              </header>
+              <dl class="card-design-editor__card-info-list">
+                <div v-for="item in viewportCardInfo.items" :key="item.label">
+                  <dt>{{ item.label }}</dt>
+                  <dd :title="item.value">{{ item.value }}</dd>
+                </div>
+              </dl>
+            </section>
+          </template>
+        </CardViewport>
         <OcEmpty v-else>无法解析 .opencard 文件</OcEmpty>
         </OcPanel>
       </div>
@@ -256,6 +271,7 @@ import {
 } from './useCdePropertyPanelState'
 import { useCdeTreeOps } from './useCdeTreeOps'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import { isBlockContainer } from '../../entities/card/tree'
 import OcText from '../../components/base/OcText.vue'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
@@ -1227,6 +1243,42 @@ const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineRes
 const viewFace = computed<RenderReadyCardFace | null>(() => (
   viewDoc.value?.faces[activeFaceKey.value] ?? null
 ))
+const viewportCardInfo = computed(() => {
+  function countBlocks(blocks: readonly CardBlock[]): number {
+    return blocks.reduce((count, block) => (
+      count + 1 + (isBlockContainer(block)
+        ? countBlocks(block.children.map((child) => child.block))
+        : 0)
+    ), 0)
+  }
+
+  const document = cardDoc.value
+  const face = activeFace.value
+  const renderedFace = viewFace.value
+  const fileName = props.filePath.split(/[\\/]/).filter(Boolean).pop() ?? props.filePath
+  const projection = selectedCard.value?.name?.trim()
+    || (selectedCardId.value === BLUEPRINT_CARD_ID
+      ? t('cardDesigner.info.documentProjection')
+      : selectedCardId.value ?? '')
+  const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
+
+  return {
+    fileName,
+    face: activeFaceKey.value === 'front'
+      ? t('cardDesigner.info.front')
+      : t('cardDesigner.info.back'),
+    items: [
+      { label: t('cardDesigner.info.cardName'), value: document?.name || '—' },
+      { label: t('cardDesigner.info.projection'), value: projection || '—' },
+      { label: t('cardDesigner.info.instanceCount'), value: String(document?.instances.length ?? 0) },
+      { label: t('cardDesigner.info.blockCount'), value: String(blockCount) },
+      {
+        label: t('cardDesigner.info.dimensions'),
+        value: renderedFace ? `${renderedFace.width} × ${renderedFace.height}` : '—',
+      },
+    ],
+  }
+})
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
@@ -1709,6 +1761,68 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+}
+
+.card-design-editor__card-info {
+  overflow: hidden;
+  border: 1px solid var(--oc-border-default);
+  border-radius: var(--oc-radius-lg);
+  background: color-mix(in srgb, var(--oc-bg-surface) 88%, transparent);
+  box-shadow: var(--oc-shadow-md);
+  color: var(--oc-fg-default);
+  backdrop-filter: blur(12px);
+}
+
+.card-design-editor__card-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--oc-border-default) 70%, transparent);
+}
+
+.card-design-editor__card-info-file {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-design-editor__card-info-face {
+  flex: 0 0 auto;
+  padding: 2px var(--oc-space-2);
+  border-radius: 999px;
+  background: var(--oc-bg-accent-subtle);
+  color: var(--oc-fg-accent);
+  font-size: 11px;
+}
+
+.card-design-editor__card-info-list {
+  margin: 0;
+  padding: var(--oc-space-2) var(--oc-space-3);
+}
+
+.card-design-editor__card-info-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: var(--oc-space-3);
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.card-design-editor__card-info-list dt {
+  color: var(--oc-fg-muted);
+}
+
+.card-design-editor__card-info-list dd {
+  overflow: hidden;
+  margin: 0;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-design-editor__stage {
