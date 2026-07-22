@@ -39,26 +39,32 @@ export function parseRenderReadyBlockForTest(block: FlowContainerBlock): RenderR
 export function parseRenderReadyBlockForTest(block: CardBlock): RenderReadyCardBlock {
   const document: CardDocument = {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'render-test-document',
     name: 'Render test',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#ffffff',
     instances: [],
-    children: [{
-      block,
-      location: {
-        id: `location-${block.id}`,
-        type: 'simple-container-location',
-        anchor: 'lt',
-        x: '0px',
-        y: '0px',
+    faces: {
+      front: {
+        type: 'card-face', id: 'render-test-front', background: '#ffffff',
+        children: [{
+          block,
+          location: {
+            id: `location-${block.id}`,
+            type: 'simple-container-location',
+            anchor: 'lt',
+            x: '0px',
+            y: '0px',
+          },
+        }],
       },
-    }],
+      back: { type: 'card-face', id: 'render-test-back', background: '#ffffff', children: [] },
+    },
   }
 
-  const parsed = parseRenderDocument(document).document.children[0]!.block
+  const parsed = parseRenderDocument(document).document.faces.front.children[0]!.block
   if (parsed.type !== block.type) throw new Error(`Unexpected parsed block type: ${parsed.type}`)
   return parsed
 }

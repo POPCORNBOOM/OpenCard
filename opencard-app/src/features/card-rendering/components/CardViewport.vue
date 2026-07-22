@@ -3,7 +3,8 @@
     @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
     @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
-      <CardDocumentRenderer :card-document="document" :transform-disabled-block-ids="transformDisabledBlockIds"
+      <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
+        :clip-to-face="clipToFace"
         @block-click="handleBlockClick" />
     </div>
     <div class="card-selection-layer">
@@ -23,8 +24,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AnchorPosition } from '../../../entities/card/model'
-import CardDocumentRenderer from './CardDocumentRenderer.vue'
-import type { RenderReadyCardDocument } from '../render.types'
+import CardFaceRenderer from './CardFaceRenderer.vue'
+import type { RenderReadyCardFace } from '../render.types'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'l' | 'r' | 't' | 'b'
 type ResizeMode = 'absolute' | 'flow' | 'none'
@@ -75,7 +76,8 @@ const emit = defineEmits<{
 }>()
 
 const props = withDefaults(defineProps<{
-  document: RenderReadyCardDocument
+  face: RenderReadyCardFace
+  clipToFace?: boolean
   restoreKey?: string
   selectedBlockId?: string | null
   selectedLocationType?: 'simple-container-location' | 'flow-container-location' | null
@@ -91,6 +93,7 @@ const props = withDefaults(defineProps<{
   selectedParentBlockId: null,
   transform: undefined,
   transformDisabledBlockIds: () => [],
+  clipToFace: false,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -284,14 +287,14 @@ function getBaseOffsetXForScale(value: number): number {
   if (viewportWidth.value <= 0) {
     return 0
   }
-  return (viewportWidth.value - props.document.width * value) / 2
+  return (viewportWidth.value - props.face.width * value) / 2
 }
 
 function getBaseOffsetYForScale(value: number): number {
   if (viewportHeight.value <= 0) {
     return 0
   }
-  return (viewportHeight.value - props.document.height * value) / 2
+  return (viewportHeight.value - props.face.height * value) / 2
 }
 
 function startZoomAnimation() {
@@ -771,7 +774,7 @@ watch(
 )
 
 watch(
-  () => props.document,
+  () => props.face,
   () => {
     if (activeHandle.value || isMovingSelection.value) {
       return

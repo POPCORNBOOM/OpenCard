@@ -9,17 +9,20 @@ import {
 function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#ffffff',
     instances: [],
-    children: [{
-      block,
-      location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
-    }],
+    faces: {
+      front: {
+        type: 'card-face', id: 'front', background: '#ffffff',
+        children: [{ block, location: { id: 'location', type: 'simple-container-location', anchor: 'lt' } }],
+      },
+      back: { type: 'card-face', id: 'back', background: '#000000', children: [] },
+    },
   }
 }
 
@@ -36,11 +39,12 @@ describe('renderPipeline', () => {
 
     const result = runRenderPipeline(document, instance)
 
-    expect(result.document.children[0]!.block).toMatchObject({ content: 'Document' })
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'Document' })
+    expect(result.document.faces.back).toMatchObject({ faceKey: 'back', children: [] })
     expect(result.issues).not.toContainEqual(expect.objectContaining({
       location: expect.objectContaining({ fieldKey: 'content' }),
     }))
-    expect(document.children[0]!.block).toMatchObject({ content: 'Blueprint' })
+    expect(document.faces.front.children[0]!.block).toMatchObject({ content: 'Blueprint' })
   })
 
   it('returns binding and render diagnostics through one ordered issue stream', () => {
@@ -82,7 +86,7 @@ describe('renderPipeline', () => {
 
     const result = runRenderPipeline(createDocument(block), null, { project })
 
-    expect(result.document.children[0]!.block).toMatchObject({ content: 'OpenCard Demo' })
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'OpenCard Demo' })
     expect(result.issues).toEqual([])
   })
 
@@ -106,18 +110,18 @@ describe('renderPipeline', () => {
 
     const result = runRenderPipeline(createDocument(block), null, { project })
 
-    expect(result.document.children[0]!.block).toMatchObject({ opacity: 0.5 })
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ opacity: 0.5 })
     expect(result.issues).toEqual([])
   })
 
-  it('rejects project fields that the schema does not expose', () => {
+  it('rejects project fields that do not exist', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:entry}}' })
     const project = createDefaultProjectInformation('Demo')
 
     const result = runRenderPipeline(createDocument(block), null, { project })
 
     expect(result.issues).toContainEqual(expect.objectContaining({
-      type: 'card-designer.binding.field-not-allowed',
+      type: 'card-designer.binding.field-not-found',
       parameters: expect.objectContaining({
         ownerType: 'project',
         referencedFieldKey: 'entry',

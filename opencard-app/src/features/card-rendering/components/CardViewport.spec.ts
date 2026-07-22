@@ -1,13 +1,13 @@
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RenderReadyCardDocument } from '../render.types'
+import type { RenderReadyCardFace } from '../render.types'
 import CardViewport from './CardViewport.vue'
 
-const document: RenderReadyCardDocument = {
-  type: 'card-document',
-  id: 'test-card',
-  name: 'Test card',
+const face: RenderReadyCardFace = {
+  type: 'card-face',
+  id: 'test-face',
+  faceKey: 'front',
   width: 630,
   height: 880,
   background: '#ffffff',
@@ -57,16 +57,16 @@ describe('CardViewport wheel zoom API', () => {
 
   it('zooms in around the supplied viewport anchor', async () => {
     const wrapper = mount(CardViewport, {
-      props: { document },
-      global: { stubs: { CardDocumentRenderer: true } },
+      props: { face },
+      global: { stubs: { CardFaceRenderer: true } },
     })
     const viewport = wrapper.vm as unknown as {
       zoomByWheelAt(deltaY: number, deltaMode: number, viewportX: number, viewportY: number): void
     }
     const anchorX = 250
     const anchorY = 200
-    const initialWorldX = anchorX - (1000 - document.width) / 2
-    const initialWorldY = anchorY - (800 - document.height) / 2
+    const initialWorldX = anchorX - (1000 - face.width) / 2
+    const initialWorldY = anchorY - (800 - face.height) / 2
 
     viewport.zoomByWheelAt(-120, WheelEvent.DOM_DELTA_PIXEL, anchorX, anchorY)
     await flushAnimation()
@@ -78,12 +78,20 @@ describe('CardViewport wheel zoom API', () => {
     }
     expect(zoomedIn.scale).toBeGreaterThan(1)
     const zoomedWorldX = (
-      anchorX - (1000 - document.width * zoomedIn.scale) / 2 - zoomedIn.x
+      anchorX - (1000 - face.width * zoomedIn.scale) / 2 - zoomedIn.x
     ) / zoomedIn.scale
     const zoomedWorldY = (
-      anchorY - (800 - document.height * zoomedIn.scale) / 2 - zoomedIn.y
+      anchorY - (800 - face.height * zoomedIn.scale) / 2 - zoomedIn.y
     ) / zoomedIn.scale
     expect(zoomedWorldX).toBeCloseTo(initialWorldX, 4)
     expect(zoomedWorldY).toBeCloseTo(initialWorldY, 4)
+  })
+
+  it('forwards face clipping to the face renderer', () => {
+    const wrapper = mount(CardViewport, {
+      props: { face, clipToFace: true },
+    })
+
+    expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
   })
 })

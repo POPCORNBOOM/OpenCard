@@ -4,6 +4,7 @@ import type {
   FlowDirection,
   TextWritingMode,
   VerticalAlignmentPosition,
+  CardFaceKey,
 } from '../../entities/card/model'
 import type { CardPipelineIssue } from './cardPipelineIssue'
 
@@ -115,14 +116,21 @@ export type RenderReadyCardBlock =
   | RenderReadySimpleContainerBlock
   | RenderReadyFlowContainerBlock
 
-export type RenderReadyCardDocument = {
-  type: 'card-document'
+export type RenderReadyCardFace = {
+  type: 'card-face'
   id: string
-  name: string
+  faceKey: CardFaceKey
   width: number
   height: number
   background: string
   children: RenderReadySimpleContainerChild[]
+}
+
+export type RenderReadyCardDocument = {
+  type: 'card-document'
+  id: string
+  name: string
+  faces: Record<CardFaceKey, RenderReadyCardFace>
 }
 
 export type RenderParseResult = {

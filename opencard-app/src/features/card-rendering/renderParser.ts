@@ -1,4 +1,4 @@
-import type { CardBlock, CardDocument } from '../../entities/card/model'
+import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import {
   getPropertyAllowedValues,
   getTypePropertyEditorSchema,
@@ -15,6 +15,7 @@ import type {
   RenderReadyBaseBlock,
   RenderReadyCardBlock,
   RenderReadyCardDocument,
+  RenderReadyCardFace,
   RenderReadyFlowContainerLocation,
   RenderReadySimpleContainerLocation,
 } from './render.types'
@@ -25,6 +26,7 @@ type BlockType = CardBlock['type']
 type IssueContext = {
   documentId: string
   instanceId: string | null
+  faceKey: CardFaceKey | null
   owner: CardIssueOwner
   blockPath: string
   blockId?: string
@@ -60,6 +62,7 @@ export function parseRenderDocument(
   const context: IssueContext = {
     documentId: sourceDocumentId,
     instanceId: options.instanceId ?? null,
+    faceKey: null,
     owner: { kind: 'document', id: sourceDocumentId },
     blockPath: '',
     typeName: 'card-document',
@@ -71,24 +74,61 @@ export function parseRenderDocument(
   context.documentId = id
   context.owner = { kind: 'document', id }
 
+  const width = fields.number('width')
+  const height = fields.number('height')
+  const faces = toRecord(source.faces)
   const document: RenderReadyCardDocument = {
     type: 'card-document',
     id,
     name: fields.string('name'),
-    width: fields.number('width'),
-    height: fields.number('height'),
-    background: fields.string('background'),
-    children: fields.array('children').map((childValue) => {
-      const child = toRecord(childValue)
-      const block = parseBlock(child.block, '', id, context.instanceId, issues)
-      return {
-        block,
-        location: parseSimpleLocation(child.location, block, block.name, id, context.instanceId, issues),
-      }
-    }),
+    faces: {
+      front: parseFace(faces.front, 'front', width, height, id, context.instanceId, issues),
+      back: parseFace(faces.back, 'back', width, height, id, context.instanceId, issues),
+    },
   }
 
   return { document, issues }
+}
+
+function parseFace(
+  faceValue: unknown,
+  faceKey: CardFaceKey,
+  width: number,
+  height: number,
+  documentId: string,
+  instanceId: string | null,
+  issues: CardPipelineIssue[],
+): RenderReadyCardFace {
+  const source = toRecord(faceValue)
+  const context: IssueContext = {
+    documentId,
+    instanceId,
+    faceKey,
+    owner: { kind: 'face', id: primitiveString(source.id) },
+    blockPath: '',
+    typeName: 'card-face',
+  }
+  const fields = createFieldReader(source, context, issues)
+  fields.expectedLiteral('type', 'card-face')
+  const id = fields.string('id')
+  context.owner = { kind: 'face', id }
+
+  return {
+    type: 'card-face',
+    id,
+    faceKey,
+    width,
+    height,
+    background: fields.string('background'),
+    children: fields.array('children').map((childValue) => {
+      const child = toRecord(childValue)
+      const block = parseBlock(child.block, '', documentId, instanceId, faceKey, issues)
+      return {
+        block,
+        location: parseSimpleLocation(child.location, block, block.name, documentId, instanceId, faceKey, issues),
+      }
+    }),
+  }
 }
 
 function parseBlock(
@@ -96,14 +136,16 @@ function parseBlock(
   parentPath: string,
   documentId: string,
   instanceId: string | null,
+  faceKey: CardFaceKey,
   issues: CardPipelineIssue[],
 ): RenderReadyCardBlock {
   const source = toRecord(blockValue)
-  const type = resolveBlockType(source, parentPath, documentId, instanceId, issues)
+  const type = resolveBlockType(source, parentPath, documentId, instanceId, faceKey, issues)
   const sourceBlockId = primitiveString(source.id)
   const context: IssueContext = {
     documentId,
     instanceId,
+    faceKey,
     owner: { kind: 'block', id: sourceBlockId },
     blockPath: joinBlockPath(parentPath, primitiveString(source.name)),
     blockId: sourceBlockId || undefined,
@@ -169,7 +211,7 @@ function parseBlock(
         type,
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues)
           return {
             block,
             location: parseSimpleLocation(
@@ -178,6 +220,7 @@ function parseBlock(
               joinBlockPath(context.blockPath, block.name),
               documentId,
               instanceId,
+              faceKey,
               issues,
             ),
           }
@@ -191,7 +234,7 @@ function parseBlock(
         gap: fields.cssLength('gap'),
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues)
           return {
             block,
             location: parseFlowLocation(
@@ -200,6 +243,7 @@ function parseBlock(
               joinBlockPath(context.blockPath, block.name),
               documentId,
               instanceId,
+              faceKey,
               issues,
             ),
           }
@@ -237,12 +281,13 @@ function parseSimpleLocation(
   blockPath: string,
   documentId: string,
   instanceId: string | null,
+  faceKey: CardFaceKey,
   issues: CardPipelineIssue[],
 ): RenderReadySimpleContainerLocation {
   const source = toRecord(locationValue)
   const fields = createFieldReader(
     source,
-    createLocationContext(source, block, blockPath, documentId, instanceId, 'simple-container-location'),
+    createLocationContext(source, block, blockPath, documentId, instanceId, faceKey, 'simple-container-location'),
     issues,
   )
   fields.expectedLiteral('type', 'simple-container-location')
@@ -261,12 +306,13 @@ function parseFlowLocation(
   blockPath: string,
   documentId: string,
   instanceId: string | null,
+  faceKey: CardFaceKey,
   issues: CardPipelineIssue[],
 ): RenderReadyFlowContainerLocation {
   const source = toRecord(locationValue)
   const fields = createFieldReader(
     source,
-    createLocationContext(source, block, blockPath, documentId, instanceId, 'flow-container-location'),
+    createLocationContext(source, block, blockPath, documentId, instanceId, faceKey, 'flow-container-location'),
     issues,
   )
   fields.expectedLiteral('type', 'flow-container-location')
@@ -284,11 +330,13 @@ function createLocationContext(
   blockPath: string,
   documentId: string,
   instanceId: string | null,
+  faceKey: CardFaceKey,
   typeName: string,
 ): IssueContext {
   return {
     documentId,
     instanceId,
+    faceKey,
     owner: { kind: 'location', id: primitiveString(source.id) },
     blockPath,
     blockId: block.id || undefined,
@@ -444,6 +492,7 @@ function resolveBlockType(
   parentPath: string,
   documentId: string,
   instanceId: string | null,
+  faceKey: CardFaceKey,
   issues: CardPipelineIssue[],
 ): BlockType {
   const rawType = source.type
@@ -455,6 +504,7 @@ function resolveBlockType(
   const context: IssueContext = {
     documentId,
     instanceId,
+    faceKey,
     owner: { kind: 'block', id: primitiveString(source.id) },
     blockPath: joinBlockPath(parentPath, primitiveString(source.name)),
     blockId: primitiveString(source.id) || undefined,
@@ -481,6 +531,7 @@ function pushIssue(
     location: {
       documentId: context.documentId,
       instanceId: context.instanceId,
+      faceKey: context.faceKey,
       owner: context.owner,
       ...(context.blockId ? { blockId: context.blockId } : {}),
       ...(context.blockPath ? { blockPath: context.blockPath } : {}),

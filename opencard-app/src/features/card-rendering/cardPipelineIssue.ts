@@ -1,7 +1,10 @@
+import type { CardFaceKey } from '../../entities/card/model'
+
 export type CardIssueSeverity = 'error' | 'warning' | 'info'
 
 export type CardIssueOwner =
   | { kind: 'document', id: string }
+  | { kind: 'face', id: string }
   | { kind: 'instance', id: string }
   | { kind: 'block', id: string }
   | { kind: 'location', id: string }
@@ -9,6 +12,7 @@ export type CardIssueOwner =
 export type CardIssueLocation = {
   documentId: string
   instanceId: string | null
+  faceKey: CardFaceKey | null
   owner: CardIssueOwner
   blockId?: string
   blockPath?: string
@@ -52,6 +56,7 @@ export function createCardPipelineIssue(
     id: JSON.stringify([
       input.location.documentId,
       input.location.instanceId,
+      input.location.faceKey,
       input.type,
       input.location.owner.kind,
       input.location.owner.id,

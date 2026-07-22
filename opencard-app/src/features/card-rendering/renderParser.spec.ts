@@ -5,41 +5,41 @@ import { parseRenderDocument } from './renderParser'
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#ffffff',
     instances: [],
-    children: [{
-      block: createTextBlock({
-        id: 'text',
-        name: 'Title',
-        content: 'Hello',
-        opacity: '0.5',
-      }),
-      location: {
-        id: 'location',
-        type: 'simple-container-location',
-        anchor: 'lt',
-        x: '10',
-        y: '20px',
+    faces: {
+      front: {
+        type: 'card-face', id: 'front', background: '#ffffff',
+        children: [{
+          block: createTextBlock({
+            id: 'text', name: 'Title', content: 'Hello', opacity: '0.5',
+          }),
+          location: {
+            id: 'location', type: 'simple-container-location', anchor: 'lt', x: '10', y: '20px',
+          },
+        }],
       },
-    }],
+      back: { type: 'card-face', id: 'back', background: '#000000', children: [] },
+    },
   }
 }
 
 describe('renderParser', () => {
   it('creates a complete render-ready tree from sparse binding-expanded data', () => {
     const document = createDocument()
-    delete (document.children[0]!.block as unknown as Record<string, unknown>).verticalAlign
+    delete (document.faces.front.children[0]!.block as unknown as Record<string, unknown>).verticalAlign
 
     const result = parseRenderDocument(document)
-    const block = result.document.children[0]!.block
+    const block = result.document.faces.front.children[0]!.block
 
-    expect(result.document).toMatchObject({ width: 540, height: 850 })
-    expect(result.document.children[0]!.location).toMatchObject({ x: '10px', y: '20px' })
+    expect(result.document.faces.front).toMatchObject({ faceKey: 'front', width: 540, height: 850 })
+    expect(result.document.faces.back).toMatchObject({ faceKey: 'back', width: 540, height: 850 })
+    expect(result.document.faces.front.children[0]!.location).toMatchObject({ x: '10px', y: '20px' })
     expect(block).toMatchObject({
       type: 'text-block',
       id: 'text',
@@ -52,15 +52,15 @@ describe('renderParser', () => {
 
   it('uses schema defaults for invalid values without changing the source document', () => {
     const document = createDocument()
-    const block = document.children[0]!.block
+    const block = document.faces.front.children[0]!.block
     ;(block as unknown as Record<string, unknown>).opacity = 'not-a-number'
     ;(block as unknown as Record<string, unknown>).verticalAlign = 'sideways'
     ;(block as unknown as Record<string, unknown>).color = { invalid: true }
-    ;(document.children[0]!.location as unknown as Record<string, unknown>).x = { invalid: true }
+    ;(document.faces.front.children[0]!.location as unknown as Record<string, unknown>).x = { invalid: true }
     const sourceSnapshot = structuredClone(document)
 
     const result = parseRenderDocument(document)
-    const parsed = result.document.children[0]!.block
+    const parsed = result.document.faces.front.children[0]!.block
 
     expect(parsed).toMatchObject({ opacity: 1, verticalAlign: 'top' })
     expect(result.issues).toEqual(expect.arrayContaining([
@@ -69,6 +69,7 @@ describe('renderParser', () => {
         severity: 'warning',
         location: expect.objectContaining({
           owner: { kind: 'block', id: 'text' },
+          faceKey: 'front',
           blockId: 'text',
           fieldKey: 'opacity',
         }),
@@ -102,7 +103,7 @@ describe('renderParser', () => {
       content: 'Nested',
     })
     ;(nestedText as unknown as Record<string, unknown>).opacity = '2'
-    document.children[0]!.block = createSimpleContainerBlock({
+    document.faces.front.children[0]!.block = createSimpleContainerBlock({
       id: 'group',
       name: 'Group',
       children: [{
@@ -124,6 +125,7 @@ describe('renderParser', () => {
       location: expect.objectContaining({
         documentId: 'document',
         instanceId: null,
+        faceKey: 'front',
         blockPath: 'Group.Caption',
         blockId: 'nested-text',
         fieldKey: 'opacity',
