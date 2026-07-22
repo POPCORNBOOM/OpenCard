@@ -7,45 +7,23 @@
     class="floating-menu-surface"
     @pointerdown.stop
   >
-    <OcTree
-      :data="menuTreeData"
-      role="menu"
-      selection-mode="none"
-      activation-mode="single-click"
-      @intent="handleIntent"
+    <OcActionMenu
+      :actions="state.items"
+      @select="selectMenuItem($event.key)"
     />
   </OcFloatingLayer>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
-import OcTree from '../standard/OcTree.vue'
+import OcActionMenu from '../standard/OcActionMenu.vue'
 import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
-import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 
 defineOptions({ name: 'FloatingMenuHost' })
 
 const { state, closeMenu, selectMenuItem } = useFloatingMenu()
 const menuAnchor = computed(() => state.value.anchor)
-const menuTreeData = computed<OcTreeData>(() => {
-  const rootKeys: string[] = []
-  const items = new Map<string, OcTreeItem>()
-  for (const item of state.value.items) {
-    rootKeys.push(item.key)
-    items.set(item.key, {
-      label: item.label,
-      icon: item.icon,
-      disabled: item.disabled,
-    })
-  }
-  return { rootKeys, items, children: new Map() }
-})
-
-function handleIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'node.activate') selectMenuItem(intent.key)
-}
-
 function handlePointerDown(): void {
   closeMenu()
 }
@@ -69,15 +47,3 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleWindowKeydown)
 })
 </script>
-
-<style scoped>
-.floating-menu-surface {
-  min-width: 148px;
-  padding: 3px;
-  overflow-y: auto;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-}
-</style>

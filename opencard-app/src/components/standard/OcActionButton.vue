@@ -58,6 +58,7 @@ import { onBeforeUnmount, ref } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcActionMenu, {
   type OcActionDefinition,
+  type OcActionMenuEntry,
   type OcActionSelectPayload,
 } from './OcActionMenu.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
@@ -145,7 +146,7 @@ function closeMenu(): void {
 
 function hasActionChildren(
   action: OcActionDefinition,
-): action is OcActionDefinition & { children: OcActionDefinition[] } {
+): action is OcActionDefinition & { children: readonly OcActionMenuEntry[] } {
   return Array.isArray(action.children) && action.children.length > 0
 }
 </script>

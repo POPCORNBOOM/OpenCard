@@ -1,65 +1,71 @@
 <!-- Recursive action menu shared by action buttons and text menu triggers. -->
 <template>
   <div class="oc-action-menu" role="menu" @pointerenter="emit('keep-open')">
-    <div
-      v-for="action in actions"
-      :key="action.key"
-      class="oc-action-menu__item"
-      :class="{
-        'is-disabled': action.disabled === true,
-        'has-children': hasActionChildren(action),
-      }"
-      @pointerenter="handleItemPointerEnter(action)"
-      @pointerleave="handleItemPointerLeave(action)"
-      @focusin="handleItemFocusIn(action)"
-      @focusout="handleItemFocusOut(action)"
-    >
-      <button
-        :ref="(element) => setChildAnchor(action.key, element)"
-        type="button"
-        class="oc-action-menu__button"
-        :disabled="action.disabled === true"
-        :title="action.title"
-        role="menuitem"
-        :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
-        :aria-expanded="hasActionChildren(action) ? openChildKey === action.key : undefined"
-        @click.stop="handleActionClick(action)"
+    <template v-for="entry in actions" :key="entry.key">
+      <div
+        v-if="isActionDivider(entry)"
+        class="oc-action-menu__divider"
+        role="separator"
+      />
+      <div
+        v-else
+        class="oc-action-menu__item"
+        :class="{
+          'is-disabled': entry.disabled === true,
+          'has-children': hasActionChildren(entry),
+        }"
+        @pointerenter="handleItemPointerEnter(entry)"
+        @pointerleave="handleItemPointerLeave(entry)"
+        @focusin="handleItemFocusIn(entry)"
+        @focusout="handleItemFocusOut(entry)"
       >
-        <OcIcon
-          v-if="action.icon"
-          :name="action.icon"
-          :tone="action.iconTone"
-          size="sm"
-          class="oc-action-menu__icon"
-        />
-        <span v-else class="oc-action-menu__icon-spacer" />
-        <span class="oc-action-menu__label">{{ action.title ?? action.key }}</span>
-        <OcIcon
-          v-if="hasActionChildren(action)"
-          name="nav.arrow-right"
-          size="sm"
-          class="oc-action-menu__caret"
-        />
-      </button>
+        <button
+          :ref="(element) => setChildAnchor(entry.key, element)"
+          type="button"
+          class="oc-action-menu__button"
+          :disabled="entry.disabled === true"
+          :title="entry.title"
+          role="menuitem"
+          :aria-haspopup="hasActionChildren(entry) ? 'menu' : undefined"
+          :aria-expanded="hasActionChildren(entry) ? openChildKey === entry.key : undefined"
+          @click.stop="handleActionClick(entry)"
+        >
+          <OcIcon
+            v-if="entry.icon"
+            :name="entry.icon"
+            :tone="entry.iconTone"
+            size="sm"
+            class="oc-action-menu__icon"
+          />
+          <span v-else class="oc-action-menu__icon-spacer" />
+          <span class="oc-action-menu__label">{{ entry.title ?? entry.key }}</span>
+          <OcIcon
+            v-if="hasActionChildren(entry)"
+            name="nav.arrow-right"
+            size="sm"
+            class="oc-action-menu__caret"
+          />
+        </button>
 
-      <OcFloatingLayer
-        v-if="hasActionChildren(action)"
-        :open="openChildKey === action.key"
-        :anchor="childAnchors.get(action.key) ?? null"
-        placement="right-start"
-        :gap="0"
-        :max-height="480"
-        class="oc-action-menu__floating"
-        @pointerenter="keepMenusOpen"
-        @pointerleave="scheduleChildClose"
-      >
-        <OcActionMenu
-          :actions="action.children"
-          @select="emit('select', $event)"
-          @keep-open="keepMenusOpen"
-        />
-      </OcFloatingLayer>
-    </div>
+        <OcFloatingLayer
+          v-if="hasActionChildren(entry)"
+          :open="openChildKey === entry.key"
+          :anchor="childAnchors.get(entry.key) ?? null"
+          placement="right-start"
+          :gap="0"
+          :max-height="480"
+          class="oc-action-menu__floating"
+          @pointerenter="keepMenusOpen"
+          @pointerleave="scheduleChildClose"
+        >
+          <OcActionMenu
+            :actions="entry.children"
+            @select="emit('select', $event)"
+            @keep-open="keepMenusOpen"
+          />
+        </OcFloatingLayer>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -67,13 +73,21 @@
 import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
 
 export interface OcActionDefinition {
+  type?: 'action'
   key: string
   icon?: IconToken
   iconTone?: IconTone
   title?: string
   disabled?: boolean
-  children?: OcActionDefinition[]
+  children?: readonly OcActionMenuEntry[]
 }
+
+export interface OcActionDivider {
+  type: 'divider'
+  key: string
+}
+
+export type OcActionMenuEntry = OcActionDefinition | OcActionDivider
 
 export interface OcActionSelectPayload {
   key: string
@@ -88,7 +102,7 @@ import OcFloatingLayer from './OcFloatingLayer.vue'
 defineOptions({ name: 'OcActionMenu' })
 
 defineProps<{
-  actions: OcActionDefinition[]
+  actions: readonly OcActionMenuEntry[]
 }>()
 
 const emit = defineEmits<{
@@ -104,8 +118,12 @@ onBeforeUnmount(cancelChildClose)
 
 function hasActionChildren(
   action: OcActionDefinition,
-): action is OcActionDefinition & { children: OcActionDefinition[] } {
+): action is OcActionDefinition & { children: readonly OcActionMenuEntry[] } {
   return Array.isArray(action.children) && action.children.length > 0
+}
+
+function isActionDivider(entry: OcActionMenuEntry): entry is OcActionDivider {
+  return entry.type === 'divider'
 }
 
 function setChildAnchor(key: string, element: Element | ComponentPublicInstance | null): void {
@@ -179,6 +197,12 @@ function handleActionClick(action: OcActionDefinition): void {
 
 .oc-action-menu__item {
   position: relative;
+}
+
+.oc-action-menu__divider {
+  height: 1px;
+  margin: 3px var(--oc-space-2);
+  background: var(--oc-border-muted);
 }
 
 .oc-action-menu__button {

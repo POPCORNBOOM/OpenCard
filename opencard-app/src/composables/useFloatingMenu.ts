@@ -1,12 +1,7 @@
 import { shallowReadonly, shallowRef } from 'vue'
-import type { IconToken } from '../shared/ui/icon/iconRegistry'
+import type { OcActionMenuEntry } from '../components/standard/OcActionMenu.vue'
 
-export interface FloatingMenuItem {
-  key: string
-  label: string
-  icon?: IconToken
-  disabled?: boolean
-}
+export type FloatingMenuItem = OcActionMenuEntry
 
 export type FloatingMenuPlacement = 'bottom-start' | 'bottom-end'
 

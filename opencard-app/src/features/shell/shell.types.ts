@@ -1,5 +1,5 @@
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import type { OcActionDefinition } from '../../components/standard/OcActionMenu.vue'
+import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 
 export interface ShellAction {
   key?: string;
@@ -27,7 +27,7 @@ export interface ShellList {
 export interface ShellTitleBarMenuGroup {
   key: string;
   label: string;
-  actions: OcActionDefinition[];
+  actions: readonly OcActionMenuEntry[];
 }
 
 export interface ShellTitleBarWindowControl {
