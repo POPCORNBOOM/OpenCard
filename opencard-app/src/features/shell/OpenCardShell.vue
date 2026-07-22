@@ -946,6 +946,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
     actions: [
       { key: 'new-project', title: t('app.menu.newProject'), icon: 'action.folder-plus' },
       { key: 'new-open-card', title: t('app.menu.newOpenCard'), icon: 'action.file-plus' },
+      { type: 'divider', key: 'file-open-divider' },
       { key: 'open-project', title: t('sidebar.openProject'), icon: 'status.folder-open' },
       {
         key: 'close-project-folder',
@@ -953,20 +954,90 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         icon: 'action.close',
         disabled: !projectPath.value,
       },
+      { type: 'divider', key: 'file-save-divider' },
+      {
+        key: 'save-active-editor',
+        title: t('app.menu.save'),
+        icon: 'action.save',
+        disabled: !activeSession.value,
+      },
+      { type: 'divider', key: 'file-export-divider' },
       {
         key: 'export-project-template',
         title: t('templateExport.menu'),
         icon: 'action.export',
         disabled: !projectPath.value,
       },
+      {
+        key: 'export-active-card-2x',
+        title: t('app.menu.export2x'),
+        icon: 'action.export',
+        disabled: !canExportActiveCard.value,
+      },
+      {
+        key: 'export-all-card-views',
+        title: t('app.menu.exportAll'),
+        icon: 'action.export',
+        disabled: !canExportActiveCard.value,
+      },
     ],
   },
   {
-    key: 'export',
-    label: 'Export',
+    key: 'edit',
+    label: t('app.menu.edit'),
     actions: [
-      { key: 'export-active-card-2x', title: t('app.menu.export2x'), icon: 'action.export' },
-      { key: 'export-all-card-views', title: t('app.menu.exportAll'), icon: 'action.export' },
+      {
+        key: 'undo-active-editor',
+        title: t('app.menu.undo'),
+        icon: 'action.undo',
+        disabled: !isActiveCardDesignerEditor(),
+      },
+      {
+        key: 'redo-active-editor',
+        title: t('app.menu.redo'),
+        icon: 'action.redo',
+        disabled: !isActiveCardDesignerEditor(),
+      },
+      { type: 'divider', key: 'edit-settings-divider' },
+      { key: 'open-settings', title: t('settings.title'), icon: 'tool.settings' },
+    ],
+  },
+  {
+    key: 'view',
+    label: t('app.menu.view'),
+    actions: [
+      {
+        key: 'toggle-sidebar',
+        title: sidebarCollapsed.value ? t('app.shell.expandSidebar') : t('app.shell.collapseSidebar'),
+        icon: sidebarCollapsed.value ? 'nav.sidebar-expand' : 'nav.sidebar-collapse',
+      },
+      {
+        key: 'toggle-bottom-panel',
+        title: isBottomPanelExpanded.value
+          ? t('app.shell.collapseBottomPanel')
+          : t('app.shell.expandBottomPanel'),
+        icon: isBottomPanelExpanded.value ? 'nav.chevron-down' : 'nav.chevron-up',
+      },
+      { type: 'divider', key: 'view-window-divider' },
+      {
+        key: 'toggle-fullscreen',
+        title: isWindowFullscreen.value
+          ? t('app.shell.exitFullscreen')
+          : t('app.shell.enterFullscreen'),
+        icon: isWindowFullscreen.value ? 'window.fullscreen-exit' : 'window.fullscreen',
+      },
+    ],
+  },
+  {
+    key: 'help',
+    label: t('app.menu.help'),
+    actions: [
+      {
+        key: 'about-opencard',
+        title: t('app.menu.aboutOpenCard'),
+        icon: 'status.unknown',
+        disabled: true,
+      },
     ],
   },
 ])
@@ -1469,6 +1540,40 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'open-settings') {
     workspaceMode.value = { type: 'settings', categoryKey: 'general' }
+    return
+  }
+
+  if (actionKey === 'save-active-editor') {
+    await triggerCurrentEditorSave()
+    return
+  }
+
+  if (actionKey === 'undo-active-editor') {
+    await triggerCurrentEditorUndo()
+    return
+  }
+
+  if (actionKey === 'redo-active-editor') {
+    await triggerCurrentEditorRedo()
+    return
+  }
+
+  if (actionKey === 'toggle-sidebar') {
+    toggleSidebarCollapsed()
+    return
+  }
+
+  if (actionKey === 'toggle-bottom-panel') {
+    isBottomPanelExpanded.value = !isBottomPanelExpanded.value
+    return
+  }
+
+  if (actionKey === 'toggle-fullscreen') {
+    try {
+      await toggleWindowFullscreen()
+    } catch (error) {
+      console.warn('切换全屏失败:', error)
+    }
     return
   }
 

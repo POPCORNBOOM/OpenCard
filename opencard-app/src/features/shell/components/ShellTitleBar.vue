@@ -35,6 +35,10 @@ function toggleMenu(menuKey: string): void {
   openMenu.value = openMenu.value === menuKey ? null : menuKey;
 }
 
+function switchOpenMenu(menuKey: string): void {
+  if (openMenu.value) openMenu.value = menuKey;
+}
+
 function runMenuCommand(menuKey: string, actionKey: string): void {
   openMenu.value = null;
   emit('menu-action', menuKey, actionKey);
@@ -87,7 +91,12 @@ onBeforeUnmount(() => {
         <OcIcon :name="props.collapsed ? 'nav.sidebar-expand' : 'nav.sidebar-collapse'" size="sm" />
       </button>
 
-      <div v-for="menu in props.menuGroups" :key="menu.key" class="titlebar-menu">
+      <div
+        v-for="menu in props.menuGroups"
+        :key="menu.key"
+        class="titlebar-menu"
+        @pointerenter="switchOpenMenu(menu.key)"
+      >
         <button
           :ref="(element) => setMenuAnchor(menu.key, element)"
           class="titlebar-menu-button"

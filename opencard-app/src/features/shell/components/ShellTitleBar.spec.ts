@@ -35,4 +35,28 @@ describe('ShellTitleBar', () => {
     expect(wrapper.emitted('menu-action')).toEqual([['file', 'open-project']])
     wrapper.unmount()
   })
+
+  it('switches menus on hover after a menu has been activated', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [
+          { key: 'file', label: 'File', actions: [] },
+          { key: 'edit', label: 'Edit', actions: [] },
+        ],
+      },
+    })
+    const menus = wrapper.findAll('.titlebar-menu')
+    const buttons = wrapper.findAll('.titlebar-menu-button')
+
+    await menus[1]!.trigger('pointerenter')
+    expect(buttons[1]!.attributes('aria-expanded')).toBe('false')
+
+    await buttons[0]!.trigger('click')
+    await menus[1]!.trigger('pointerenter')
+
+    expect(buttons[0]!.attributes('aria-expanded')).toBe('false')
+    expect(buttons[1]!.attributes('aria-expanded')).toBe('true')
+  })
 })

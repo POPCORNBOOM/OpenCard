@@ -24,8 +24,10 @@ export const iconTokens = {
   'action.publish': true,
   'action.refresh': true,
   'action.restart': true,
+  'action.redo': true,
   'action.save': true,
   'action.sort-alphabetical-ascending': true,
+  'action.undo': true,
 
   'nav.arrow-left-right': true,
   'nav.arrow-left': true,

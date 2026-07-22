@@ -104,6 +104,7 @@ import {
   mdiPlayOutline,
   mdiPlus,
   mdiRefresh,
+  mdiRedoVariant,
   mdiRestart,
   mdiRocketLaunchOutline,
   mdiSortAlphabeticalAscending,
@@ -149,8 +150,10 @@ export const iconGlyphs = {
   'action.publish': glyph(mdiRocketLaunchOutline),
   'action.refresh': glyph(mdiRefresh),
   'action.restart': glyph(mdiRestart),
+  'action.redo': glyph(mdiRedoVariant),
   'action.save': glyph(mdiContentSaveOutline),
   'action.sort-alphabetical-ascending': glyph(mdiSortAlphabeticalAscending),
+  'action.undo': glyph(mdiUndoVariant),
 
   'nav.arrow-left-right': glyph(mdiArrowLeftRight),
   'nav.arrow-left': glyph(mdiArrowLeft),
