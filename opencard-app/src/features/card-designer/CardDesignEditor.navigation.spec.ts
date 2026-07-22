@@ -149,4 +149,48 @@ describe('CardDesignEditor issue navigation', () => {
       .find((tree) => tree.props('role') === 'listbox')
     expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
   })
+
+  it('switches face and clipping through session state without modifying the document', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          activeFace: 'back',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    expect(viewport.props('face')).toEqual(expect.objectContaining({ faceKey: 'back' }))
+    expect(viewport.props('clipToFace')).toBe(false)
+
+    const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
+    const faceAction = actions.find((action) => action.props('action').key === 'switch-face')
+    const clipAction = actions.find((action) => action.props('action').key === 'toggle-face-clip')
+    faceAction?.vm.$emit('select', { key: 'switch-face' })
+    clipAction?.vm.$emit('select', { key: 'toggle-face-clip' })
+    await nextTick()
+
+    expect(wrapper.emitted('update-card-designer-view')?.at(-1)?.[0]).toEqual({
+      activeFace: 'front',
+      clipToFace: true,
+      selectedInstanceId: null,
+    })
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('modified')).toBeUndefined()
+  })
 })
