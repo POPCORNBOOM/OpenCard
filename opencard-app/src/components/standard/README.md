@@ -8,5 +8,6 @@
 - `OcOptionGroup`：互斥选择、radiogroup 语义与 roving tabindex。
 - `OcTree`：key-only tree view model 与统一 intent。
 - `OcJsonEditor`：结构化 JSON 编辑协议。
+- `OcPhaseImage`：将透明灰度相位图映射为可配置的循环色彩动画，并以静态图片覆盖加载和降级状态。
 
 Standard 组件不读取领域 model，也不直接执行领域写回。

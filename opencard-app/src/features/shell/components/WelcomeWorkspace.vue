@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import staticLogo from '../../../assets/icon_v2.png'
+import phaseLogo from '../../../assets/opencard-logo-phase.png'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
 
 defineOptions({ name: 'WelcomeWorkspace' })
 
@@ -14,7 +17,12 @@ const { t } = useI18n()
 
 <template>
   <section class="workspace-empty-state" :aria-label="t('app.welcome.title')">
-    <img class="workspace-empty-state__icon" :src="'/icon_v2.png'" alt="" />
+    <OcPhaseImage
+      class="workspace-empty-state__icon"
+      :src="phaseLogo"
+      :placeholder-src="staticLogo"
+      alt="OpenCard"
+    />
     <h1>
       <span>{{ t('app.welcome.prefix') }}</span>
       <img class="workspace-empty-state__wordmark" src="/OpenCard_Icon.png" alt="OpenCard" />
