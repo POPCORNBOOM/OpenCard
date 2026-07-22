@@ -56,6 +56,8 @@ export const iconTokens = {
   'tool.clip-off': true,
   'tool.clip-on': true,
   'tool.fit-screen': true,
+  'tool.pin': true,
+  'tool.pin-off': true,
   'tool.settings': true,
   'tool.settings-gear': true,
   'tool.zoom-in': true,

@@ -200,6 +200,8 @@
             :output-empty-label="t('app.problems.outputEmpty')"
             :expand-label="t('app.shell.expandBottomPanel')"
             :collapse-label="t('app.shell.collapseBottomPanel')"
+            :pin-label="t('app.shell.pinBottomPanel')"
+            :unpin-label="t('app.shell.unpinBottomPanel')"
             @expanded-change="isBottomPanelExpanded = $event"
             @tab-change="activeBottomTab = $event"
             @issue-expansion-change="setIssueNodeExpanded"

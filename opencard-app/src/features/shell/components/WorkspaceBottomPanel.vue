@@ -8,7 +8,7 @@
       :aria-expanded="expanded"
       :aria-label="expanded ? collapseLabel : expandLabel"
       :data-tooltip="expanded ? collapseLabel : expandLabel"
-      @click="requestExpansion"
+      @click="toggleExpansion"
     >
       <OcIcon :name="expanded ? 'nav.chevron-down' : 'nav.chevron-up'" size="sm" />
     </button>
@@ -18,25 +18,38 @@
       :aria-hidden="!expanded"
       :inert="!expanded || undefined"
     >
-      <div class="workspace-bottom-panel__tabs" role="tablist">
+      <div class="workspace-bottom-panel__tabs">
+        <div class="workspace-bottom-panel__tab-list" role="tablist">
+          <button
+            v-for="tab in tabs"
+            :id="`workspace-bottom-tab-${tab.key}`"
+            :key="tab.key"
+            class="workspace-bottom-panel__tab"
+            :class="{ 'is-active': activeTab === tab.key }"
+            type="button"
+            role="tab"
+            :aria-controls="`workspace-bottom-tabpanel-${tab.key}`"
+            :aria-selected="activeTab === tab.key"
+            :tabindex="activeTab === tab.key ? 0 : -1"
+            @click="emit('tab-change', tab.key)"
+            @keydown="handleTabKeydown($event, tab.key)"
+          >
+            <span>{{ tab.label }}</span>
+            <span v-if="tab.key === 'issues' && issueCount > 0" class="workspace-bottom-panel__count">
+              {{ issueCount }}
+            </span>
+          </button>
+        </div>
         <button
-          v-for="tab in tabs"
-          :id="`workspace-bottom-tab-${tab.key}`"
-          :key="tab.key"
-          class="workspace-bottom-panel__tab"
-          :class="{ 'is-active': activeTab === tab.key }"
+          class="workspace-bottom-panel__pin"
+          :class="{ 'is-pinned': pinned }"
           type="button"
-          role="tab"
-          :aria-controls="`workspace-bottom-tabpanel-${tab.key}`"
-          :aria-selected="activeTab === tab.key"
-          :tabindex="activeTab === tab.key ? 0 : -1"
-          @click="emit('tab-change', tab.key)"
-          @keydown="handleTabKeydown($event, tab.key)"
+          :aria-label="pinned ? unpinLabel : pinLabel"
+          :aria-pressed="pinned"
+          :data-tooltip="pinned ? unpinLabel : pinLabel"
+          @click="pinned = !pinned"
         >
-          <span>{{ tab.label }}</span>
-          <span v-if="tab.key === 'issues' && issueCount > 0" class="workspace-bottom-panel__count">
-            {{ issueCount }}
-          </span>
+          <OcIcon :name="pinned ? 'tool.pin-off' : 'tool.pin'" size="sm" />
         </button>
       </div>
 
@@ -80,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
@@ -104,6 +117,8 @@ const props = defineProps<{
   outputEmptyLabel: string
   expandLabel: string
   collapseLabel: string
+  pinLabel: string
+  unpinLabel: string
 }>()
 
 const emit = defineEmits<{
@@ -114,6 +129,7 @@ const emit = defineEmits<{
 }>()
 
 const HOVER_COLLAPSE_DELAY_MS = 180
+const pinned = ref(false)
 let collapseTimer: ReturnType<typeof setTimeout> | null = null
 
 function clearCollapseTimer(): void {
@@ -127,8 +143,14 @@ function requestExpansion(): void {
   emit('expanded-change', true)
 }
 
+function toggleExpansion(): void {
+  clearCollapseTimer()
+  emit('expanded-change', !props.expanded)
+}
+
 function scheduleCollapse(): void {
   clearCollapseTimer()
+  if (pinned.value) return
   collapseTimer = setTimeout(() => {
     collapseTimer = null
     emit('expanded-change', false)
@@ -140,6 +162,7 @@ function handlePanelFocusOut(event: FocusEvent): void {
   const panel = event.currentTarget
   if (panel instanceof HTMLElement && nextTarget instanceof Node && panel.contains(nextTarget)) return
   clearCollapseTimer()
+  if (pinned.value) return
   emit('expanded-change', false)
 }
 
@@ -237,6 +260,31 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   gap: var(--oc-space-1, 4px);
   padding: 0 var(--oc-space-3, 8px);
   border-bottom: 1px solid var(--oc-border-muted, #333333);
+}
+
+.workspace-bottom-panel__tab-list {
+  display: flex;
+  align-items: stretch;
+  gap: var(--oc-space-1, 4px);
+}
+
+.workspace-bottom-panel__pin {
+  width: 28px;
+  margin-left: auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--oc-fg-subtle, #777777);
+}
+
+.workspace-bottom-panel__pin:hover,
+.workspace-bottom-panel__pin:focus-visible,
+.workspace-bottom-panel__pin.is-pinned {
+  color: var(--oc-fg-default, #f0f0f0);
+  outline: none;
 }
 
 .workspace-bottom-panel__tab {

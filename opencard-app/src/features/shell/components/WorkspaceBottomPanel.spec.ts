@@ -34,6 +34,8 @@ function mountPanel(expanded = true) {
       outputEmptyLabel: 'No output',
       expandLabel: 'Expand panel',
       collapseLabel: 'Collapse panel',
+      pinLabel: 'Pin panel',
+      unpinLabel: 'Unpin panel',
     },
   })
 }
@@ -97,6 +99,34 @@ describe('WorkspaceBottomPanel', () => {
       expect(wrapper.emitted('tab-change')).toEqual([['output']])
       expect(wrapper.get('.workspace-bottom-panel').classes()).toContain('is-expanded')
       expect(wrapper.get('#workspace-bottom-tab-issues').attributes('aria-selected')).toBe('true')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('toggles expansion from the center control', async () => {
+    const wrapper = mountPanel(true)
+
+    await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
+    await wrapper.setProps({ expanded: false })
+    await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
+
+    expect(wrapper.emitted('expanded-change')).toEqual([[false], [true]])
+  })
+
+  it('keeps the panel open after leaving while pinned', async () => {
+    vi.useFakeTimers()
+    const wrapper = mountPanel(true)
+
+    try {
+      const pin = wrapper.get('.workspace-bottom-panel__pin')
+      await pin.trigger('click')
+      expect(pin.attributes('aria-pressed')).toBe('true')
+
+      await wrapper.get('.workspace-bottom-panel').trigger('mouseleave')
+      vi.advanceTimersByTime(180)
+
+      expect(wrapper.emitted('expanded-change')).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }
