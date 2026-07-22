@@ -1023,6 +1023,7 @@ const currentEditorProps = computed(() => {
     if (editor.id === 'card-designer') {
       return {
         ...baseProps,
+        fileName: activeSession.value.name,
         viewportTransform: activeSession.value.uiState?.cardDesigner?.viewportTransform,
         cardDesignerLayout: activeSession.value.uiState?.cardDesigner?.layout,
         cardDesignerView: activeSession.value.uiState?.cardDesigner?.view,

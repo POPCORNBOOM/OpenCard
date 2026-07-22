@@ -152,9 +152,21 @@ describe('CardDesignEditor issue navigation', () => {
 
   it('switches face and clipping through session state without modifying the document', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: {
+        face: Object,
+        clipToFace: Boolean,
+      },
+      emits: ['face-dimension-change'],
+      setup(_, { slots }) {
+        return () => h('div', { class: 'card-viewport-stub' }, slots.info?.())
+      },
+    })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'untitled://53e4786d-a867-4a8c-b235-cbedb03ea801',
+        fileName: 'UNTITLED.opencard',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerView: {
           activeFace: 'back',
@@ -165,6 +177,7 @@ describe('CardDesignEditor issue navigation', () => {
       global: {
         plugins: [i18n],
         stubs: {
+          CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
           Teleport: true,
@@ -177,6 +190,8 @@ describe('CardDesignEditor issue navigation', () => {
     const viewport = wrapper.findComponent({ name: 'CardViewport' })
     expect(viewport.props('face')).toEqual(expect.objectContaining({ faceKey: 'back' }))
     expect(viewport.props('clipToFace')).toBe(false)
+    expect(wrapper.find('.card-viewport-stub').text()).toContain('UNTITLED.opencard')
+    expect(wrapper.find('.card-viewport-stub').text()).not.toContain('53e4786d-a867')
 
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
     const faceAction = actions.find((action) => action.props('action').key === 'switch-face')

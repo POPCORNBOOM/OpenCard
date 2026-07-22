@@ -1261,7 +1261,9 @@ const viewportCardInfo = computed(() => {
 
   const document = cardDoc.value
   const face = activeFace.value
-  const fileName = props.filePath.split(/[\\/]/).filter(Boolean).pop() ?? props.filePath
+  const fileName = props.fileName?.trim()
+    || props.filePath.split(/[\\/]/).filter(Boolean).pop()
+    || props.filePath
   const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
 
   return [
