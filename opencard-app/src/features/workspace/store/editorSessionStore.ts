@@ -13,6 +13,10 @@ import type {
   CardDesignerLayoutState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
+import { taskScheduler } from '../../../utils/taskScheduler'
+
+const PROJECT_CONFIGURATION_AUTOSAVE_DELAY_MS = 1200
+const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
 
 export type SessionResourceKind = 'workspace' | 'external' | 'untitled'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
@@ -84,6 +88,10 @@ function isPathInsideProject(path: string, projectPath: string) {
 function stripFileExtension(fileName: string) {
   const dotIndex = fileName.lastIndexOf('.')
   return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+}
+
+function projectConfigurationAutosaveKey(sessionId: string): string {
+  return `${PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX}${sessionId}`
 }
 
 function createDefaultOpenCardContent(displayName: string) {
@@ -265,6 +273,21 @@ export function useEditorSessionStore() {
       }
     }
     )
+
+    const session = sessions.value.find(candidate => candidate.id === sessionId)
+    if (session?.editorId !== 'project-config') return
+    const autosaveKey = projectConfigurationAutosaveKey(sessionId)
+    if (!session.isDirty) {
+      taskScheduler.cancel(autosaveKey)
+      return
+    }
+    taskScheduler.schedule(autosaveKey, PROJECT_CONFIGURATION_AUTOSAVE_DELAY_MS, async () => {
+      try {
+        await saveSession(sessionId)
+      } catch (error) {
+        console.error('自动保存项目配置失败:', error)
+      }
+    })
   }
 
   function setSessionDirtyState(sessionId: string, isDirty: boolean) {
@@ -319,6 +342,8 @@ export function useEditorSessionStore() {
       return
     }
 
+    taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
+
     const nextSessions = [...sessions.value]
     nextSessions.splice(index, 1)
     sessions.value = nextSessions
@@ -332,6 +357,11 @@ export function useEditorSessionStore() {
   }
 
   function closeWorkspaceSessions() {
+    for (const session of sessions.value) {
+      if (session.resourceKind === 'workspace') {
+        taskScheduler.cancel(projectConfigurationAutosaveKey(session.id))
+      }
+    }
     const activeSessionWasClosed = sessions.value.some(
       (session) => session.id === activeSessionId.value && session.resourceKind === 'workspace',
     )
@@ -351,6 +381,10 @@ export function useEditorSessionStore() {
     )
     if (closedSessionIds.size === 0) return
 
+    for (const sessionId of closedSessionIds) {
+      taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
+    }
+
     const activeSessionWasClosed = closedSessionIds.has(activeSessionId.value)
     sessions.value = sessions.value.filter((session) => !closedSessionIds.has(session.id))
     if (activeSessionWasClosed) {
@@ -368,6 +402,7 @@ export function useEditorSessionStore() {
   }
 
   async function saveSession(sessionId: string): Promise<SessionSaveResult> {
+    taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
       return 'skipped'
@@ -417,17 +452,21 @@ export function useEditorSessionStore() {
 
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
-        ? {
-          ...candidate,
-          path: nextPath,
-          resourceKind: nextResourceKind,
-          name: getPathBasename(nextPath),
-          fileTypeId: nextFileTypeId,
-          editorId: resolveFileTypeById(nextFileTypeId).editorId,
-          savedContent,
-          draftContent: savedContent,
-          isDirty: false,
-        }
+        ? (() => {
+          const hasNewerDraft = candidate.draftContent !== session.draftContent
+          const draftContent = hasNewerDraft ? candidate.draftContent : savedContent
+          return {
+            ...candidate,
+            path: nextPath,
+            resourceKind: nextResourceKind,
+            name: getPathBasename(nextPath),
+            fileTypeId: nextFileTypeId,
+            editorId: resolveFileTypeById(nextFileTypeId).editorId,
+            savedContent,
+            draftContent,
+            isDirty: draftContent !== savedContent,
+          }
+        })()
         : candidate
     )
 
