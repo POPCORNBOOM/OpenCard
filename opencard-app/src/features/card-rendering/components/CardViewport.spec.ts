@@ -152,8 +152,8 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.emitted('face-dimension-change')).toEqual([
       [{ dimension: 'width', value: face.width + 40, final: false }],
       [{ dimension: 'width', value: face.width + 40, final: true }],
-      [{ dimension: 'height', value: face.height - 30, final: false }],
-      [{ dimension: 'height', value: face.height - 30, final: true }],
+      [{ dimension: 'height', value: face.height + 30, final: false }],
+      [{ dimension: 'height', value: face.height + 30, final: true }],
     ])
   })
 })
