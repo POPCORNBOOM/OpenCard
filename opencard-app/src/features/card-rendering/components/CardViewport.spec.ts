@@ -120,7 +120,7 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('[data-test="width-info"]').text()).toBe('Width')
   })
 
-  it('drags width horizontally and height vertically with resize cursors', async () => {
+  it('drags dimensions by axis, changes cursors, and snaps to tens with Shift', async () => {
     const wrapper = mount(CardViewport, {
       props: { face },
       slots: {
@@ -136,7 +136,7 @@ describe('CardViewport wheel zoom API', () => {
       bubbles: true,
     }))
     expect(document.body.style.cursor).toBe('ew-resize')
-    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140 }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 135, shiftKey: true }))
     window.dispatchEvent(new MouseEvent('pointerup'))
 
     wrapper.find('.card-viewport-left-info').element.dispatchEvent(new MouseEvent('pointerdown', {

@@ -429,9 +429,10 @@ function handleFaceDimensionDrag(event: PointerEvent): void {
   const directionalDelta = drag.dimension === 'width'
     ? clientPosition - drag.startClientPosition
     : drag.startClientPosition - clientPosition
-  const nextValue = Math.max(16, Math.round(
-    drag.startValue + directionalDelta / (scale.value || 1),
-  ))
+  const rawValue = drag.startValue + directionalDelta / (scale.value || 1)
+  const nextValue = Math.max(16, event.shiftKey
+    ? Math.round(rawValue / 10) * 10
+    : Math.round(rawValue))
   if (nextValue === drag.lastValue) return
   drag.lastValue = nextValue
   emit('face-dimension-change', { dimension: drag.dimension, value: nextValue, final: false })
