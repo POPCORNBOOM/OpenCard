@@ -9,7 +9,7 @@ export default {
     problems: {
       tab: 'Problems',
       outputTab: 'Output',
-      empty: 'No problems',
+      empty: 'No problems╮(╯-╰)╭',
       outputEmpty: 'No output',
       bindingCodes: {
         INVALID_TOKEN: 'Reference expression "{token}" has invalid syntax',
