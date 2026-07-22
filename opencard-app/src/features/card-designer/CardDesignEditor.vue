@@ -28,15 +28,23 @@
           @viewport-size-change="handleViewportSizeChange">
           <template #info>
             <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
-              <dl class="card-design-editor__card-info-list">
-                <div v-for="item in viewportCardInfo" :key="item.key">
-                  <dt>{{ item.label }}</dt>
-                  <dd :class="{ 'is-highlighted': highlightedInfoKeys.has(item.key) }" :title="item.value">
-                    {{ item.value }}
-                  </dd>
-                </div>
-              </dl>
+              <span v-for="item in viewportCardInfo" :key="item.key"
+                :class="{ 'is-highlighted': highlightedInfoKeys.has(item.key) }" :title="item.value">
+                {{ item.value }}
+              </span>
             </section>
+          </template>
+          <template #left-info>
+            <span class="card-design-editor__dimension-info"
+              :class="{ 'is-highlighted': highlightedInfoKeys.has('height') }">
+              {{ viewportCardDimensions.height }}
+            </span>
+          </template>
+          <template #bottom-info>
+            <span class="card-design-editor__dimension-info"
+              :class="{ 'is-highlighted': highlightedInfoKeys.has('width') }">
+              {{ viewportCardDimensions.width }}
+            </span>
           </template>
         </CardViewport>
         <OcEmpty v-else>无法解析 .opencard 文件</OcEmpty>
@@ -1252,56 +1260,63 @@ const viewportCardInfo = computed(() => {
 
   const document = cardDoc.value
   const face = activeFace.value
-  const renderedFace = viewFace.value
   const fileName = props.filePath.split(/[\\/]/).filter(Boolean).pop() ?? props.filePath
-  const projection = selectedCard.value?.name?.trim()
-    || (selectedCardId.value === BLUEPRINT_CARD_ID
-      ? t('cardDesigner.info.documentProjection')
-      : selectedCardId.value ?? '')
   const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
 
   return [
-      { key: 'fileName', label: t('cardDesigner.info.fileName'), value: fileName },
-      { key: 'cardName', label: t('cardDesigner.info.cardName'), value: document?.name || '—' },
+      { key: 'fileName', value: fileName },
+      { key: 'cardName', value: document?.name || '—' },
       {
         key: 'face',
-        label: t('cardDesigner.info.face'),
         value: activeFaceKey.value === 'front'
           ? t('cardDesigner.info.front')
           : t('cardDesigner.info.back'),
       },
-      { key: 'projection', label: t('cardDesigner.info.projection'), value: projection || '—' },
-      { key: 'instanceCount', label: t('cardDesigner.info.instanceCount'), value: String(document?.instances.length ?? 0) },
-      { key: 'blockCount', label: t('cardDesigner.info.blockCount'), value: String(blockCount) },
       {
-        key: 'dimensions',
-        label: t('cardDesigner.info.dimensions'),
-        value: renderedFace ? `${renderedFace.width} × ${renderedFace.height}` : '—',
+        key: 'instanceCount',
+        value: t('cardDesigner.info.instanceTotal', { count: document?.instances.length ?? 0 }),
       },
+      { key: 'blockCount', value: t('cardDesigner.info.blockTotal', { count: blockCount }) },
   ]
 })
+const viewportCardDimensions = computed(() => ({
+  width: t('cardDesigner.info.widthValue', { value: viewFace.value?.width ?? '—' }),
+  height: t('cardDesigner.info.heightValue', { value: viewFace.value?.height ?? '—' }),
+}))
 const highlightedInfoKeys = ref<ReadonlySet<string>>(new Set())
 const previousInfoValues = new Map<string, string>()
 const infoHighlightTimers = new Map<string, number>()
+
+function highlightInfoValue(key: string): void {
+  const nextKeys = new Set(highlightedInfoKeys.value)
+  nextKeys.add(key)
+  highlightedInfoKeys.value = nextKeys
+
+  const previousTimer = infoHighlightTimers.get(key)
+  if (previousTimer !== undefined) window.clearTimeout(previousTimer)
+  infoHighlightTimers.set(key, window.setTimeout(() => {
+    const remainingKeys = new Set(highlightedInfoKeys.value)
+    remainingKeys.delete(key)
+    highlightedInfoKeys.value = remainingKeys
+    infoHighlightTimers.delete(key)
+  }, 900))
+}
 
 watch(viewportCardInfo, (items) => {
   for (const item of items) {
     const previousValue = previousInfoValues.get(item.key)
     previousInfoValues.set(item.key, item.value)
     if (previousValue === undefined || previousValue === item.value) continue
-
-    const nextKeys = new Set(highlightedInfoKeys.value)
-    nextKeys.add(item.key)
-    highlightedInfoKeys.value = nextKeys
-
-    const previousTimer = infoHighlightTimers.get(item.key)
-    if (previousTimer !== undefined) window.clearTimeout(previousTimer)
-    infoHighlightTimers.set(item.key, window.setTimeout(() => {
-      const remainingKeys = new Set(highlightedInfoKeys.value)
-      remainingKeys.delete(item.key)
-      highlightedInfoKeys.value = remainingKeys
-      infoHighlightTimers.delete(item.key)
-    }, 900))
+    highlightInfoValue(item.key)
+  }
+}, { immediate: true })
+watch(viewportCardDimensions, (dimensions) => {
+  for (const key of ['width', 'height'] as const) {
+    const value = dimensions[key]
+    const previousValue = previousInfoValues.get(key)
+    previousInfoValues.set(key, value)
+    if (previousValue === undefined || previousValue === value) continue
+    highlightInfoValue(key)
   }
 }, { immediate: true })
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
@@ -1791,48 +1806,55 @@ onUnmounted(() => {
 }
 
 .card-design-editor__card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   overflow: hidden;
+  color: var(--oc-fg-default);
+  font-size: 11px;
+  line-height: 1.55;
   font-variant-numeric: tabular-nums;
 }
 
-.card-design-editor__card-info-list {
-  margin: 0;
-  padding: 0;
+.card-design-editor__card-info:hover > span,
+.card-design-editor__dimension-info:hover {
+  opacity: 1;
 }
 
-.card-design-editor__card-info-list > div {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: var(--oc-space-2);
-  padding: 2px 0;
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.card-design-editor__card-info-list dt {
-  color: color-mix(in srgb, var(--oc-fg-muted) 62%, transparent);
-}
-
-.card-design-editor__card-info-list dd {
+.card-design-editor__card-info > span {
   overflow: hidden;
-  margin: 0;
-  color: color-mix(in srgb, var(--oc-fg-default) 54%, transparent);
+  opacity: 0.34;
   text-overflow: ellipsis;
+  transition: opacity 140ms ease-out;
   white-space: nowrap;
 }
 
-.card-design-editor__card-info-list dd.is-highlighted {
+.card-design-editor__dimension-info {
+  display: block;
+  color: var(--oc-fg-default);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  opacity: 0.34;
+  transition: opacity 140ms ease-out;
+  white-space: nowrap;
+}
+
+.card-design-editor__card-info > span.is-highlighted,
+.card-design-editor__dimension-info.is-highlighted {
   animation: card-info-value-highlight 900ms ease-out;
 }
 
 @keyframes card-info-value-highlight {
   0% {
     color: var(--oc-fg-accent);
+    opacity: 1;
     text-shadow: 0 0 8px color-mix(in srgb, var(--oc-fg-accent) 70%, transparent);
   }
 
   100% {
-    color: color-mix(in srgb, var(--oc-fg-default) 54%, transparent);
+    color: var(--oc-fg-default);
+    opacity: 0.34;
     text-shadow: none;
   }
 }

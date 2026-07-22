@@ -98,7 +98,11 @@ describe('CardViewport wheel zoom API', () => {
   it('anchors supplemental information to the top-right of the face', () => {
     const wrapper = mount(CardViewport, {
       props: { face },
-      slots: { info: '<div data-test="face-info">Details</div>' },
+      slots: {
+        info: '<div data-test="face-info">Details</div>',
+        'left-info': '<div data-test="height-info">Height</div>',
+        'bottom-info': '<div data-test="width-info">Width</div>',
+      },
       global: { stubs: { CardFaceRenderer: true } },
     })
 
@@ -106,5 +110,11 @@ describe('CardViewport wheel zoom API', () => {
     expect(info.exists()).toBe(true)
     expect(info.attributes('style')).toContain(`left: ${face.width + 16}px`)
     expect(info.find('[data-test="face-info"]').text()).toBe('Details')
+    expect(wrapper.find('.card-viewport-left-info').attributes('style'))
+      .toContain(`top: ${face.height / 2}px`)
+    expect(wrapper.find('[data-test="height-info"]').text()).toBe('Height')
+    expect(wrapper.find('.card-viewport-bottom-info').attributes('style'))
+      .toContain(`left: ${face.width / 2}px`)
+    expect(wrapper.find('[data-test="width-info"]').text()).toBe('Width')
   })
 })

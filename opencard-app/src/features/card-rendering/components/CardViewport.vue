@@ -9,6 +9,12 @@
       <aside v-if="$slots.info" class="card-viewport-info" :style="viewportInfoStyle">
         <slot name="info" />
       </aside>
+      <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle">
+        <slot name="left-info" />
+      </aside>
+      <aside v-if="$slots['bottom-info']" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle">
+        <slot name="bottom-info" />
+      </aside>
     </div>
     <div class="card-selection-layer">
       <div v-if="selectionFrame" :key="selectedBlockId ?? 'selection'" class="selection-frame" :class="{
@@ -159,6 +165,22 @@ const viewportInfoStyle = computed(() => {
   return {
     left: `${props.face.width + 16 / safeScale}px`,
     transform: `scale(${1 / safeScale})`,
+  }
+})
+const viewportLeftInfoStyle = computed(() => {
+  const safeScale = scale.value || 1
+  return {
+    left: `${-12 / safeScale}px`,
+    top: `${props.face.height / 2}px`,
+    transform: `translate(-100%, -50%) scale(${1 / safeScale})`,
+  }
+})
+const viewportBottomInfoStyle = computed(() => {
+  const safeScale = scale.value || 1
+  return {
+    left: `${props.face.width / 2}px`,
+    top: `${props.face.height + 12 / safeScale}px`,
+    transform: `translateX(-50%) scale(${1 / safeScale})`,
   }
 })
 const resizeMode = computed<ResizeMode>(() => {
@@ -836,7 +858,14 @@ watch(
   top: 0;
   width: 228px;
   transform-origin: top left;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.card-viewport-left-info,
+.card-viewport-bottom-info {
+  position: absolute;
+  transform-origin: center;
+  pointer-events: auto;
 }
 
 .card-selection-layer {
