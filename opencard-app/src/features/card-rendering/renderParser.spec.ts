@@ -80,7 +80,7 @@ describe('renderParser', () => {
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-type',
         location: expect.objectContaining({ blockId: 'text', fieldKey: 'color' }),
-        parameters: { fieldName: 'textColor' },
+        parameters: { fieldName: 'textColor', defaultValue: '""' },
       }),
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-type',

@@ -475,6 +475,7 @@ function pushIssue(
   reasonCode: RenderParseFailure,
   issues: CardPipelineIssue[],
 ): void {
+  const defaultValue = formatIssueValue(parseSchemaDefault(context.typeName, fieldKey, definition))
   issues.push(createCardPipelineIssue({
     type: `card-designer.render-parse.${reasonCode}` as CardRenderParseIssueType,
     location: {
@@ -485,10 +486,17 @@ function pushIssue(
       ...(context.blockPath ? { blockPath: context.blockPath } : {}),
       fieldKey,
     },
-    ...(definition.displayFieldKey
-      ? { parameters: { fieldName: definition.displayFieldKey } }
-      : {}),
+    parameters: {
+      ...(definition.displayFieldKey ? { fieldName: definition.displayFieldKey } : {}),
+      defaultValue,
+    },
   }))
+}
+
+function formatIssueValue(value: unknown): string {
+  if (typeof value === 'string') return value || '""'
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value) ?? String(value)
 }
 
 function normalizeCssLength(value: string): string {

@@ -21,10 +21,10 @@ export default {
         TYPE_MISMATCH: '不能将“{sourceTypeName}”绑定到“{targetTypeName}”',
       },
       renderCodes: {
-        INVALID_TYPE: '字段“{fieldName}”的值类型无效，已使用默认值',
-        CONVERSION_FAILED: '字段“{fieldName}”的值无法转换，已使用默认值',
-        INVALID_OPTION: '字段“{fieldName}”的选项值无效，已使用默认值',
-        OUT_OF_RANGE: '字段“{fieldName}”的值超出允许范围，已使用默认值',
+        INVALID_TYPE: '字段“{fieldName}”的值类型无效，已使用默认值：{defaultValue}',
+        CONVERSION_FAILED: '字段“{fieldName}”的值无法转换，已使用默认值：{defaultValue}',
+        INVALID_OPTION: '字段“{fieldName}”的选项值无效，已使用默认值：{defaultValue}',
+        OUT_OF_RANGE: '字段“{fieldName}”的值超出允许范围，已使用默认值：{defaultValue}',
       },
       locations: {
         blueprint: '蓝图',

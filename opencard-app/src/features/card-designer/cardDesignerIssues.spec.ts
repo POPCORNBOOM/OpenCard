@@ -50,6 +50,7 @@ function createResult(): RenderPipelineResult {
       id: 'issue-1',
       type: 'card-designer.render-parse.out-of-range',
       severity: 'warning',
+      parameters: { defaultValue: '1' },
       location: {
         documentId: document.id,
         instanceId: 'instance-1',
@@ -73,7 +74,7 @@ describe('cardDesignerIssues', () => {
         type: 'card-designer.render-parse.out-of-range',
         severity: 'warning',
         locationText: '在实例“Instance 1”中，块“Container.Title”（title）的 不透明度（opacity）字段',
-        description: '字段“不透明度”的值超出允许范围，已使用默认值',
+        description: '字段“不透明度”的值超出允许范围，已使用默认值：1',
         navigationToken: {
           protocol: 'card-designer',
           version: 1,

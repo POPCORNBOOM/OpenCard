@@ -21,10 +21,10 @@ export default {
         TYPE_MISMATCH: 'Cannot bind "{sourceTypeName}" to "{targetTypeName}"',
       },
       renderCodes: {
-        INVALID_TYPE: 'Field "{fieldName}" has an invalid value type; the default was used',
-        CONVERSION_FAILED: 'Field "{fieldName}" could not be converted; the default was used',
-        INVALID_OPTION: 'Field "{fieldName}" has an invalid option; the default was used',
-        OUT_OF_RANGE: 'Field "{fieldName}" is outside the allowed range; the default was used',
+        INVALID_TYPE: 'Field "{fieldName}" has an invalid value type; the default was used: {defaultValue}',
+        CONVERSION_FAILED: 'Field "{fieldName}" could not be converted; the default was used: {defaultValue}',
+        INVALID_OPTION: 'Field "{fieldName}" has an invalid option; the default was used: {defaultValue}',
+        OUT_OF_RANGE: 'Field "{fieldName}" is outside the allowed range; the default was used: {defaultValue}',
       },
       locations: {
         blueprint: 'the blueprint',
