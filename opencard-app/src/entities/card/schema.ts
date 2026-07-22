@@ -303,14 +303,20 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
     'card-document': {
         type: { fieldType: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
+        schemaVersion: { fieldType: 'string', isReadonly: true, isHidden: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         name: { fieldType: 'string', categoryId: 'identity' },
         id: { fieldType: 'string', categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         version: { fieldType: 'string', categoryId: 'identity' },
         width: { fieldType: 'number', min: 0, categoryId: 'layout' },
         height: { fieldType: 'number', min: 0, categoryId: 'layout' },
+        faces: { fieldType: 'object', objectType: 'CardFace', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+        instances: { fieldType: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+    },
+    'card-face': {
+        type: { fieldType: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
+        id: { fieldType: 'string', categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         background: { fieldType: 'string', categoryId: 'appearance' },
         children: { fieldType: 'object', objectType: 'RootChild', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
-        instances: { fieldType: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'card-instance': {
         type: { fieldType: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
@@ -494,14 +500,23 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     },
     'card-document': {
         type: 'card-document',
+        schemaVersion: '2',
         name: '',
         id: '',
         version: '1.0.0',
         width: '540',
         height: '850',
+        faces: {
+            front: { type: 'card-face', id: '', background: '#FFFFFF', children: [] },
+            back: { type: 'card-face', id: '', background: '#FFFFFF', children: [] },
+        },
+        instances: [],
+    },
+    'card-face': {
+        type: 'card-face',
+        id: '',
         background: '#FFFFFF',
         children: [],
-        instances: [],
     },
     'card-instance': {
         type: 'card-instance',

@@ -3,13 +3,14 @@ import { fillDefaults } from './schema'
 import type {
     CardBlock,
     CardDocument,
+    CardFace,
     FlowContainerBlock,
     FlowContainerLocationInfo,
     SimpleContainerBlock,
     SimpleContainerLocationInfo,
 } from './model'
 
-export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardDocument
+export type BlockContainer = SimpleContainerBlock | FlowContainerBlock | CardFace
 export type ParentLookup = Map<string, BlockContainer>
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -77,10 +78,10 @@ function createDefaultFlowContainerLocation(container: FlowContainerBlock): Flow
     }
 }
 
-export function isBlockContainer(target: CardBlock | CardDocument): target is BlockContainer {
+export function isBlockContainer(target: CardBlock | CardFace): target is BlockContainer {
     return target.type === 'simple-container-block'
         || target.type === 'flow-container-block'
-        || target.type === 'card-document'
+        || target.type === 'card-face'
 }
 
 function registerBlockSubtree(
@@ -114,8 +115,10 @@ function unregisterBlockSubtree(block: CardBlock, lookup: ParentLookup): void {
 export function buildParentLookup(document: CardDocument): ParentLookup {
     const lookup: ParentLookup = new Map()
 
-    for (const child of document.children) {
-        registerBlockSubtree(child.block, document, lookup)
+    for (const face of Object.values(document.faces)) {
+        for (const child of face.children) {
+            registerBlockSubtree(child.block, face, lookup)
+        }
     }
 
     return lookup
@@ -172,7 +175,7 @@ function attachBlockToContainer(
     }
 
     switch (container.type) {
-        case 'card-document':
+        case 'card-face':
         case 'simple-container-block':
             container.children.splice(clampInsertionIndex(insertionIndex, container.children.length), 0, {
                 block: childBlock,

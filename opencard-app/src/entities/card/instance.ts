@@ -69,9 +69,21 @@ export function applyInstance(
 
     return {
         ...document,
-        children: document.children.map((child) => ({
-            location: { ...child.location },
-            block: mergeBlockOverride(child.block, instance),
-        })),
+        faces: {
+            front: {
+                ...document.faces.front,
+                children: document.faces.front.children.map((child) => ({
+                    location: { ...child.location },
+                    block: mergeBlockOverride(child.block, instance),
+                })),
+            },
+            back: {
+                ...document.faces.back,
+                children: document.faces.back.children.map((child) => ({
+                    location: { ...child.location },
+                    block: mergeBlockOverride(child.block, instance),
+                })),
+            },
+        },
     }
 }

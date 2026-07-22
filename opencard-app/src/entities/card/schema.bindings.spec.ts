@@ -31,6 +31,16 @@ describe('property binding schema policy', () => {
     expect(getPropertyValueKind(textSchema.content)).toBe('string')
   })
 
+  it('exposes face background but hides face structure and document faces', () => {
+    const faceSchema = getTypePropertyEditorSchema('card-face')
+    const documentSchema = getTypePropertyEditorSchema('card-document')
+
+    expect(exposesPropertyReference(faceSchema.background)).toBe(true)
+    expect(acceptsPropertyBinding(faceSchema.children)).toBe(false)
+    expect(exposesPropertyReference(documentSchema.faces)).toBe(false)
+    expect(documentSchema.schemaVersion?.isHidden).toBe(true)
+  })
+
   it('uses the standard fieldType system for every creatable additional field', () => {
     expect(additionalFieldTypes).toEqual([
       'string',

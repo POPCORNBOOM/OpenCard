@@ -5,32 +5,45 @@ import { parseCardDocument, serializeCardDocument } from './storage'
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#FFFFFF',
-    children: [{
-      block: {
-        type: 'text-block',
-        id: 'text',
-        name: 'Title',
-        content: 'Hello',
-        mode: 'plain',
-        opacity: '0.5',
-        additionalFieldDefinition: {
-          score: { fieldType: 'number', title: 'Score' },
-        },
+    faces: {
+      front: {
+        type: 'card-face',
+        id: 'front',
+        background: '#FFFFFF',
+        children: [{
+          block: {
+            type: 'text-block',
+            id: 'text',
+            name: 'Title',
+            content: 'Hello',
+            mode: 'plain',
+            opacity: '0.5',
+            additionalFieldDefinition: {
+              score: { fieldType: 'number', title: 'Score' },
+            },
+          },
+          location: {
+            type: 'simple-container-location',
+            id: 'location',
+            anchor: 'lt',
+            x: '0',
+            y: '0',
+          },
+        }],
       },
-      location: {
-        type: 'simple-container-location',
-        id: 'location',
-        anchor: 'lt',
-        x: '0',
-        y: '0',
+      back: {
+        type: 'card-face',
+        id: 'back',
+        background: '#000000',
+        children: [],
       },
-    }],
+    },
     instances: [{
       type: 'card-instance',
       id: 'instance',
@@ -65,10 +78,29 @@ describe('card document storage contract', () => {
 
   it('rejects the removed datatype key', () => {
     const document = createDocument() as unknown as Record<string, unknown>
-    const children = document.children as Array<Record<string, unknown>>
+    const faces = document.faces as Record<string, Record<string, unknown>>
+    const children = faces.front?.children as Array<Record<string, unknown>>
     const block = children[0]?.block as Record<string, unknown>
     block.additionalFieldDefinition = { score: { datatype: 'number' } }
 
     expect(() => parseCardDocument(document)).toThrow('datatype is no longer supported')
+  })
+
+  it('rejects v1 documents instead of migrating them', () => {
+    const document = createDocument() as unknown as Record<string, unknown>
+    delete document.schemaVersion
+    delete document.faces
+    document.background = '#FFFFFF'
+    document.children = []
+
+    expect(() => parseCardDocument(document)).toThrow('$.schemaVersion must be a string')
+  })
+
+  it('requires both faces', () => {
+    const document = createDocument() as unknown as Record<string, unknown>
+    const faces = document.faces as Record<string, unknown>
+    delete faces.back
+
+    expect(() => parseCardDocument(document)).toThrow('$.faces.back must be an object')
   })
 })

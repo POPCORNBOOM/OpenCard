@@ -1,6 +1,7 @@
 import {
   type CardBlock,
   type CardDocument,
+  type CardFace,
   type CardInstanceRecord,
   type FlowContainerLocationInfo,
   type RootChild,
@@ -22,20 +23,29 @@ const blockTypes = new Set<CardBlock['type']>([
 export function parseCardDocument(value: unknown): CardDocument {
   assertStoredObject(value, '$')
   assertStringField(value, 'type', '$', 'card-document')
+  assertStringField(value, 'schemaVersion', '$', '2')
   assertStringField(value, 'id', '$')
   assertStringField(value, 'name', '$')
   assertStringField(value, 'version', '$')
   assertStringField(value, 'width', '$')
   assertStringField(value, 'height', '$')
-  assertStringField(value, 'background', '$')
-
-  const children = assertArrayField(value, 'children', '$')
-  children.forEach((child, index) => assertRootChild(child, `$.children[${index}]`))
+  assertStoredObject(value.faces, '$.faces')
+  assertFace(value.faces.front, '$.faces.front')
+  assertFace(value.faces.back, '$.faces.back')
 
   const instances = assertArrayField(value, 'instances', '$')
   instances.forEach((instance, index) => assertInstance(instance, `$.instances[${index}]`))
 
   return value as CardDocument
+}
+
+function assertFace(value: unknown, path: string): asserts value is CardFace {
+  assertStoredObject(value, path)
+  assertStringField(value, 'type', path, 'card-face')
+  assertStringField(value, 'id', path)
+  assertStringField(value, 'background', path)
+  const children = assertArrayField(value, 'children', path)
+  children.forEach((child, index) => assertRootChild(child, `${path}.children[${index}]`))
 }
 
 export function serializeCardDocument(document: CardDocument): string {

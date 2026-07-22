@@ -147,15 +147,25 @@ export type RootChild = {
     location: SimpleContainerLocationInfo
 }
 
+export const cardFaceKeys = ['front', 'back'] as const
+export type CardFaceKey = typeof cardFaceKeys[number]
+
+export type CardFace = {
+    type: 'card-face'
+    id: string
+    background: string
+    children: RootChild[]
+}
+
 export type CardDocument = {
     type: "card-document"
+    schemaVersion: '2'
     name: string
     id: string
     version: string
     width: string
     height: string
-    background: string
-    children: RootChild[]
+    faces: Record<CardFaceKey, CardFace>
     instances: CardInstanceRecord[]
 }
 
@@ -316,10 +326,20 @@ type QRCodeBlockInit = Partial<Omit<QRCodeBlock, keyof BaseBlock | 'type'>> & Pa
 type ShapeBlockInit = Partial<Omit<ShapeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type SimpleContainerBlockInit = Partial<Omit<SimpleContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type FlowContainerBlockInit = Partial<Omit<FlowContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
+type CardFaceInit = Partial<Omit<CardFace, 'type'>>
 
 // Shared block creation helpers.
 function createBlockId(prefix = 'block'): string {
     return `${prefix}-${crypto.randomUUID()}`
+}
+
+export function createCardFace(init: CardFaceInit = {}): CardFace {
+    return {
+        type: 'card-face',
+        id: init.id ?? `card-face-${crypto.randomUUID()}`,
+        background: init.background ?? '#FFFFFF',
+        children: init.children ? [...init.children] : [],
+    }
 }
 
 function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
