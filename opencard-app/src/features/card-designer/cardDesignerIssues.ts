@@ -56,10 +56,11 @@ function createNavigationToken(issue: CardPipelineIssue): CardDesignerNavigation
     : issue.location.instanceId
   return {
     protocol: 'card-designer',
-    version: 1,
+    version: 2,
     target: {
       kind: 'property',
       instanceId,
+      faceKey: issue.location.faceKey,
       ...(issue.location.blockId ? { blockId: issue.location.blockId } : {}),
       owner: issue.location.owner.kind,
       fieldKey: issue.location.fieldKey,
@@ -72,11 +73,18 @@ function createNavigationToken(issue: CardPipelineIssue): CardDesignerNavigation
 
 function resolveCardLabel(
   instance: CardInstanceRecord | null,
+  faceKey: CardPipelineIssue['location']['faceKey'],
   translate: Translate,
 ): string {
-  if (!instance) return translate('app.problems.locations.blueprint')
-  return translate('app.problems.locations.instance', {
-    instanceName: instance.name?.trim() || instance.id,
+  const card = !instance
+    ? translate('app.problems.locations.blueprint')
+    : translate('app.problems.locations.instance', {
+        instanceName: instance.name?.trim() || instance.id,
+      })
+  if (!faceKey) return card
+  return translate('app.problems.locations.cardFace', {
+    card,
+    face: translate(`app.problems.locations.${faceKey}Face`),
   })
 }
 
@@ -152,8 +160,8 @@ export function createCardDesignerIssues(
   resolveFieldLabel: ResolveFieldLabel,
 ): readonly EditorIssue[] {
   if (!result) return []
-  const cardLabel = resolveCardLabel(instance, translate)
   return result.issues.map((issue) => {
+    const cardLabel = resolveCardLabel(instance, issue.location.faceKey, translate)
     const navigationToken = createNavigationToken(issue)
     return {
       id: issue.id,

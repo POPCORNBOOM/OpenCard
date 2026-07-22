@@ -1,8 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import type { CardDesignerLayoutState } from '../../editor-runtime/model/editorUiState'
+import type {
+  CardDesignerLayoutState,
+  CardDesignerViewState,
+} from '../../editor-runtime/model/editorUiState'
 import { useEditorSessionStore } from './editorSessionStore'
 
 describe('editorSessionStore card designer layout', () => {
+  it('creates untitled cards with the dual-face v2 protocol', () => {
+    const store = useEditorSessionStore()
+    const session = store.createUntitledSession({ fileTypeId: 'opencard' })
+    const document = JSON.parse(session.draftContent)
+
+    expect(document).toMatchObject({
+      type: 'card-document',
+      schemaVersion: '2',
+      faces: {
+        front: { type: 'card-face', background: '#FFFFFF', children: [] },
+        back: { type: 'card-face', background: '#FFFFFF', children: [] },
+      },
+    })
+    expect(document.faces.front.id).not.toBe(document.faces.back.id)
+
+    store.closeSession(session.id)
+  })
+
   it('keeps layout state isolated by session', () => {
     const store = useEditorSessionStore()
     const first = store.createUntitledSession({ fileTypeId: 'opencard' })
@@ -29,5 +50,33 @@ describe('editorSessionStore card designer layout', () => {
 
     store.closeSession(first.id)
     store.closeSession(second.id)
+  })
+
+  it('merges card designer view state without replacing layout state', () => {
+    const store = useEditorSessionStore()
+    const session = store.createUntitledSession({ fileTypeId: 'opencard' })
+    const layout: CardDesignerLayoutState = {
+      panels: {
+        instanceExpanded: true,
+        previewExpanded: true,
+        structureExpanded: true,
+        propertyExpanded: true,
+      },
+      leftTopHeight: null,
+      rightTopHeight: null,
+    }
+    const view: CardDesignerViewState = {
+      activeFace: 'back',
+      clipToFace: true,
+      selectedInstanceId: 'instance-1',
+    }
+
+    store.updateSessionUiState(session.id, { cardDesigner: { layout } })
+    store.updateSessionUiState(session.id, { cardDesigner: { view } })
+
+    expect(store.sessions.value.find((candidate) => candidate.id === session.id)?.uiState?.cardDesigner)
+      .toEqual({ layout, view })
+
+    store.closeSession(session.id)
   })
 })

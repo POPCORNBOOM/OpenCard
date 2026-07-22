@@ -8,6 +8,7 @@
 import type { Component } from 'vue'
 import type {
   CardDesignerLayoutState,
+  CardDesignerViewState,
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
@@ -17,6 +18,7 @@ export interface EditorProps {
   modelValue?: string
   viewportTransform?: EditorViewportTransform
   cardDesignerLayout?: CardDesignerLayoutState
+  cardDesignerView?: CardDesignerViewState
   structureTreeSelectionBehavior?: 'none' | 'expand' | 'expand-exclusive'
   structureTreeScrollToSelection?: boolean
 }
@@ -27,6 +29,7 @@ export interface EditorEmits {
   (e: 'update:modelValue', value: string): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
+  (e: 'update-card-designer-view', value: CardDesignerViewState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
 }
 

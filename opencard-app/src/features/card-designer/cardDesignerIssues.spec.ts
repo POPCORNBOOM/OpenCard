@@ -28,17 +28,23 @@ const resolveFieldLabel = (key: string) => ({
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'card-doc',
     name: 'Card',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#fff',
     instances: [{ type: 'card-instance', id: 'instance-1', name: 'Instance 1', amount: '1', data: {} }],
-    children: [{
-      block: createTextBlock({ id: 'title', name: 'Title' }),
-      location: { id: 'location-1', type: 'simple-container-location', anchor: 'lt' },
-    }],
+    faces: {
+      front: {
+        type: 'card-face', id: 'front', background: '#fff',
+        children: [{
+          block: createTextBlock({ id: 'title', name: 'Title' }),
+          location: { id: 'location-1', type: 'simple-container-location', anchor: 'lt' },
+        }],
+      },
+      back: { type: 'card-face', id: 'back', background: '#fff', children: [] },
+    },
   }
 }
 
@@ -54,6 +60,7 @@ function createResult(): RenderPipelineResult {
       location: {
         documentId: document.id,
         instanceId: 'instance-1',
+        faceKey: 'front',
         owner: { kind: 'block', id: 'title' },
         blockId: 'title',
         blockPath: 'Container.Title',
@@ -73,14 +80,15 @@ describe('cardDesignerIssues', () => {
         id: 'issue-1',
         type: 'card-designer.render-parse.out-of-range',
         severity: 'warning',
-        locationText: '在实例“Instance 1”中，块“Container.Title”（title）的 不透明度（opacity）字段',
+        locationText: '在实例“Instance 1” · 正面中，块“Container.Title”（title）的 不透明度（opacity）字段',
         description: '字段“不透明度”的值超出允许范围，已使用默认值：1',
         navigationToken: {
           protocol: 'card-designer',
-          version: 1,
+          version: 2,
           target: {
             kind: 'property',
             instanceId: 'instance-1',
+            faceKey: 'front',
             blockId: 'title',
             owner: 'block',
             fieldKey: 'opacity',
@@ -119,6 +127,7 @@ describe('cardDesignerIssues', () => {
       location: {
         documentId: 'card-doc',
         instanceId: 'instance-1',
+        faceKey: null,
         owner: { kind: 'document', id: 'card-doc' },
         fieldKey: 'width',
       },
@@ -142,6 +151,7 @@ describe('cardDesignerIssues', () => {
       location: {
         documentId: 'card-doc',
         instanceId: null,
+        faceKey: 'front',
         owner: { kind: 'block', id: '' },
         fieldKey: 'id',
       },
@@ -162,6 +172,7 @@ describe('cardDesignerIssues', () => {
       location: {
         documentId: 'card-doc',
         instanceId: null,
+        faceKey: 'front',
         owner: { kind: 'block', id: 'text-block-1234567890' },
         blockId: 'text-block-1234567890',
         blockPath: 'Container.Title',
@@ -172,7 +183,7 @@ describe('cardDesignerIssues', () => {
 
     const issue = createCardDesignerIssues(result, null, translate, resolveFieldLabel)[0]!
     expect(issue.locationText).toBe(
-      '在蓝图中，块“Container.Title”（text…7890）的 内容（content）字段，第 7 个字符',
+      '在蓝图 · 正面中，块“Container.Title”（text…7890）的 内容（content）字段，第 7 个字符',
     )
     expect(issue.description).toBe('引用字段“分数”不存在')
     expect(issue.navigationToken).toEqual(expect.objectContaining({
@@ -186,7 +197,7 @@ describe('cardDesignerIssues', () => {
       (key) => key,
     )[0]!
     expect(englishIssue.locationText).toBe(
-      'In the blueprint, block "Container.Title" (text…7890), field content (content), character 7',
+      'In the blueprint · front, block "Container.Title" (text…7890), field content (content), character 7',
     )
     expect(englishIssue.description).toBe('Referenced field "score" does not exist')
   })

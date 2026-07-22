@@ -29,6 +29,9 @@ export default {
       locations: {
         blueprint: '蓝图',
         instance: '实例“{instanceName}”',
+        frontFace: '正面',
+        backFace: '背面',
+        cardFace: '{card} · {face}',
         unnamedBlock: '未命名块',
         field: '在{card}中，{fieldName}（{fieldKey}）字段',
         fieldAtCharacter: '在{card}中，{fieldName}（{fieldKey}）字段，第 {character} 个字符',
@@ -260,6 +263,14 @@ export default {
   status: {
     watching: '监听中',
   },
+  cardDesigner: {
+    view: {
+      enableClip: '开启卡面边缘裁切',
+      disableClip: '关闭卡面边缘裁切',
+      switchToFront: '切换到正面',
+      switchToBack: '切换到背面',
+    },
+  },
   propertyEditor: {
     categories: {
       identity: '标识',
@@ -278,12 +289,15 @@ export default {
       block: '块',
       layout: '布局',
       document: '文档',
+      face: '卡面',
       instance: '实例',
     },
     references: {
       currentCard: '当前卡片',
       currentCardBlueprint: '当前卡片（蓝图）',
       document: '当前文档',
+      currentFace: '同面',
+      oppositeFace: '异面',
       project: '当前项目',
       self: '当前块',
       parent: '父容器',

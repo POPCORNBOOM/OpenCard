@@ -1,13 +1,15 @@
 import type { EditorNavigationResult } from '../editor-runtime/model/editorIssue'
+import type { CardFaceKey } from '../../entities/card/model'
 
-export type CardDesignerNavigationOwner = 'document' | 'instance' | 'block' | 'location'
+export type CardDesignerNavigationOwner = 'document' | 'face' | 'instance' | 'block' | 'location'
 
 export type CardDesignerNavigationToken = {
   protocol: 'card-designer'
-  version: 1
+  version: 2
   target: {
     kind: 'property'
     instanceId: string | null
+    faceKey: CardFaceKey | null
     blockId?: string
     owner: CardDesignerNavigationOwner
     fieldKey: string
@@ -39,7 +41,7 @@ export function isCardDesignerNavigationToken(
   token: unknown,
 ): token is CardDesignerNavigationToken {
   if (!isJsonSerializable(token) || !isRecord(token)) return false
-  if (token.protocol !== 'card-designer' || token.version !== 1 || !isRecord(token.target)) {
+  if (token.protocol !== 'card-designer' || token.version !== 2 || !isRecord(token.target)) {
     return false
   }
 
@@ -48,6 +50,7 @@ export function isCardDesignerNavigationToken(
     return false
   }
   if (target.instanceId !== null && typeof target.instanceId !== 'string') return false
+  if (target.faceKey !== null && target.faceKey !== 'front' && target.faceKey !== 'back') return false
   if (target.blockId !== undefined && typeof target.blockId !== 'string') return false
   if (
     target.characterOffset !== undefined
@@ -59,6 +62,7 @@ export function isCardDesignerNavigationToken(
   ) return false
   if (
     target.owner !== 'document'
+    && target.owner !== 'face'
     && target.owner !== 'instance'
     && target.owner !== 'block'
     && target.owner !== 'location'
@@ -66,7 +70,9 @@ export function isCardDesignerNavigationToken(
     return false
   }
   if (target.owner === 'instance' && target.instanceId === null) return false
+  if (target.owner === 'face' && target.faceKey === null) return false
   if ((target.owner === 'block' || target.owner === 'location') && !target.blockId) return false
+  if ((target.owner === 'block' || target.owner === 'location') && target.faceKey === null) return false
 
   return true
 }

@@ -17,7 +17,8 @@
     <div class="card-design-editor__stage">
       <div class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
-        <CardViewport ref="cardViewportRef" v-if="viewDoc" class="card-design-editor__viewport" :document="viewDoc"
+        <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
+          :clip-to-face="clipToFace"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -73,7 +74,7 @@
                     @wheel.prevent.stop="handlePreviewViewportWheel">
                     <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
                       :style="transformPreviewViewportStyle">
-                      <CardDocumentRenderer v-if="viewDoc" :card-document="viewDoc" :clip-to-document="true"
+                      <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -188,7 +189,7 @@
         </div>
 
         <OcViewportControls
-          v-if="viewDoc"
+          v-if="viewFace"
           class="card-design-editor__viewport-controls"
           aria-label="卡牌画布缩放控制"
           :scale-label="viewportScaleLabel"
@@ -196,6 +197,11 @@
           @reset="resetViewport"
           @zoom-in="zoomViewportBy(VIEWPORT_ZOOM_STEP)"
         />
+
+        <div v-if="viewFace && !isRightSidebarCollapsed" class="card-design-editor__face-tools">
+          <OcActionButton :action="clipAction" size="sm" variant="soft" @select="toggleFaceClip" />
+          <OcActionButton :action="faceSwitchAction" size="sm" variant="soft" @select="toggleActiveFace" />
+        </div>
       </div>
     </div>
 
@@ -227,18 +233,20 @@ import {
   getCardFieldKeys,
   getCardFieldValueKind,
   type CardBlock,
+  type CardFaceKey,
 } from '../../entities/card/model'
 import { getBlockTreeIcon } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
-import CardDocumentRenderer from '../card-rendering/components/CardDocumentRenderer.vue'
+import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport from '../card-rendering/components/CardViewport.vue'
 import { runRenderPipeline } from '../card-rendering/renderPipeline'
-import type { RenderReadyCardDocument } from '../card-rendering/render.types'
+import type { RenderReadyCardDocument, RenderReadyCardFace } from '../card-rendering/render.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import OcViewportControls from '../../components/standard/OcViewportControls.vue'
+import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
 import { useCdeDocumentState } from './useCdeDocumentState'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 import {
@@ -250,7 +258,7 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import OcText from '../../components/base/OcText.vue'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
-import type { CardDesignerLayoutState } from '../editor-runtime/model/editorUiState'
+import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type {
@@ -316,6 +324,8 @@ const RESIZEBAR_SIZE = 8
 
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
+const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
+const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
 const isInstancePanelExpanded = ref(true)
 const isPreviewPanelExpanded = ref(true)
 const isStructureTreePanelExpanded = ref(true)
@@ -348,6 +358,48 @@ function createLayoutState(): CardDesignerLayoutState {
 
 function commitLayoutState(): void {
   emit('update-card-designer-layout', createLayoutState())
+}
+
+function createViewState(): CardDesignerViewState {
+  return {
+    activeFace: activeFaceKey.value,
+    clipToFace: clipToFace.value,
+    selectedInstanceId: selectedCardId.value === BLUEPRINT_CARD_ID
+      ? null
+      : selectedCardId.value,
+  }
+}
+
+function commitViewState(): void {
+  emit('update-card-designer-view', createViewState())
+}
+
+const clipAction = computed<OcActionButtonAction>(() => ({
+  key: 'toggle-face-clip',
+  icon: clipToFace.value ? 'tool.clip-on' : 'tool.clip-off',
+  title: clipToFace.value
+    ? t('cardDesigner.view.disableClip')
+    : t('cardDesigner.view.enableClip'),
+}))
+
+const faceSwitchAction = computed<OcActionButtonAction>(() => ({
+  key: 'switch-face',
+  icon: 'nav.arrow-swap',
+  title: activeFaceKey.value === 'front'
+    ? t('cardDesigner.view.switchToBack')
+    : t('cardDesigner.view.switchToFront'),
+}))
+
+function toggleFaceClip(): void {
+  clipToFace.value = !clipToFace.value
+  commitViewState()
+}
+
+function toggleActiveFace(): void {
+  activeFaceKey.value = activeFaceKey.value === 'front' ? 'back' : 'front'
+  selectedBlockKeys.value = []
+  forceStructureTreeReveal.value = false
+  commitViewState()
 }
 
 const currentLeftPanelWidth = computed(() => leftPanelWidth.value)
@@ -644,7 +696,9 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
 // 当前选择状态
 const selectedBlockKeys = ref<string[]>([])
 const selectedCardKeys = ref<string[]>([])
-const selectedCardId = ref<string | null>(BLUEPRINT_CARD_ID)
+const selectedCardId = ref<string | null>(
+  props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
+)
 const forceStructureTreeReveal = ref(false)
 
 // 文档状态与读写协议。
@@ -670,9 +724,11 @@ const {
   resetSelection: () => {
     selectedBlockKeys.value = []
     selectedCardKeys.value = []
-    selectedCardId.value = BLUEPRINT_CARD_ID
+    selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
 })
+
+const activeFace = computed(() => cardDoc.value?.faces[activeFaceKey.value] ?? null)
 
 // 实例树与实例编辑协议。
 const {
@@ -819,7 +875,7 @@ const {
   handleViewportBlockClick,
   clearSelection,
 } = useCdeTreeOps({
-  cardDoc,
+  activeFace,
   documentRevision,
   parentLookup,
   selectedBlockKeys,
@@ -898,6 +954,7 @@ const {
   deleteAdditionalField,
 } = useCdePropertyPanelState({
   cardDoc,
+  activeFace,
   selectedLocation,
   selectedBlock,
   selectedCard,
@@ -989,6 +1046,18 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
   const projectScope = projectStore.projectPath.value
     ? createProjectReferenceScope(projectStore.projectInformation.value)
     : undefined
+  const currentFace = activeFace.value
+  const oppositeFace = document.faces[activeFaceKey.value === 'front' ? 'back' : 'front']
+  const currentFaceScope = currentFace
+    ? createReferenceScope(
+        t('propertyEditor.references.currentFace'),
+        currentFace as unknown as Record<string, unknown>,
+      )
+    : undefined
+  const oppositeFaceScope = createReferenceScope(
+    t('propertyEditor.references.oppositeFace'),
+    oppositeFace as unknown as Record<string, unknown>,
+  )
 
   const block = selectedBlock.value
   const currentBlockScope = block
@@ -1004,7 +1073,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
 
     while (true) {
       const parent = parentLookup.value.get(currentBlockId)
-      if (!parent || parent.type === 'card-document') {
+      if (!parent || parent.type === 'card-face') {
         break
       }
 
@@ -1019,20 +1088,25 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
     }
   }
 
-  return Object.fromEntries(rawPropertyInputs.value.map((input) => [
-    input.key,
-    Object.fromEntries(getCardFieldKeys(input.record).map((fieldKey) => [
-      fieldKey,
-      {
-        currentBlock: currentBlockScope,
-        currentCard: currentCardScope,
-        document: documentScope,
-        project: projectScope,
-        getAncestor: (depth: number) => ancestorScopes[depth - 1],
-        targetKind: getCardFieldValueKind(input.record, fieldKey),
-      },
-    ])),
-  ]))
+  return Object.fromEntries(rawPropertyInputs.value.map((input) => {
+    const hasFaceContext = Boolean(block) || input.key === currentFace?.id
+    return [
+      input.key,
+      Object.fromEntries(getCardFieldKeys(input.record).map((fieldKey) => [
+        fieldKey,
+        {
+          currentBlock: currentBlockScope,
+          currentCard: currentCardScope,
+          currentFace: hasFaceContext ? currentFaceScope : undefined,
+          oppositeFace: hasFaceContext ? oppositeFaceScope : undefined,
+          document: documentScope,
+          project: projectScope,
+          getAncestor: (depth: number) => ancestorScopes[depth - 1],
+          targetKind: getCardFieldValueKind(input.record, fieldKey),
+        },
+      ])),
+    ]
+  }))
 })
 
 function createReferenceCompletionProvider(
@@ -1104,7 +1178,7 @@ const selectedParentBlockId = computed(() => {
   }
 
   const parent = parentLookup.value.get(block.id)
-  return parent?.id ?? null
+  return parent?.type === 'card-face' ? null : parent?.id ?? null
 })
 const transformDisabledBlockIds = computed(() => {
   const block = selectedBlock.value
@@ -1117,7 +1191,7 @@ const transformDisabledBlockIds = computed(() => {
   while (current) {
     ids.push(current.id)
     const parent = parentLookup.value.get(current.id)
-    if (!parent || parent.type === 'card-document') {
+    if (!parent || parent.type === 'card-face') {
       break
     }
     current = parent
@@ -1150,6 +1224,9 @@ const renderPipelineResult = computed(() => {
 })
 
 const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineResult.value?.document ?? null)
+const viewFace = computed<RenderReadyCardFace | null>(() => (
+  viewDoc.value?.faces[activeFaceKey.value] ?? null
+))
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
@@ -1195,16 +1272,16 @@ watch(transformPreviewHostRef, (nextHost, prevHost) => {
 })
 
 const transformPreviewScale = computed(() => {
-  const document = viewDoc.value
-  if (!document) {
+  const face = viewFace.value
+  if (!face) {
     return 1
   }
 
   const previewWidth = transformPreviewHostSize.value.width
   const previewHeight = transformPreviewHostSize.value.height
   return Math.min(
-    previewWidth / document.width,
-    previewHeight / document.height,
+    previewWidth / face.width,
+    previewHeight / face.height,
     1,
   )
 })
@@ -1215,31 +1292,31 @@ const transformPreviewRendererStyle = computed<CSSProperties>(() => {
   }
 })
 const transformPreviewViewportStyle = computed<CSSProperties>(() => {
-  const document = viewDoc.value
-  if (!document) {
+  const face = viewFace.value
+  if (!face) {
     return {}
   }
 
   return {
-    width: `${Math.round(document.width * transformPreviewScale.value)}px`,
-    height: `${Math.round(document.height * transformPreviewScale.value)}px`,
+    width: `${Math.round(face.width * transformPreviewScale.value)}px`,
+    height: `${Math.round(face.height * transformPreviewScale.value)}px`,
   }
 })
 
 const transformPreviewWorldRect = computed(() => {
-  const document = viewDoc.value
+  const face = viewFace.value
   const viewportScale = viewportTransform.value.scale
   const width = viewportSize.value.width
   const height = viewportSize.value.height
-  if (!document || viewportScale <= 0 || width <= 0 || height <= 0) {
+  if (!face || viewportScale <= 0 || width <= 0 || height <= 0) {
     return null
   }
 
   const worldWidth = width / viewportScale
   const worldHeight = height / viewportScale
   return {
-    left: document.width / 2 - worldWidth / 2 - viewportTransform.value.x / viewportScale,
-    top: document.height / 2 - worldHeight / 2 - viewportTransform.value.y / viewportScale,
+    left: face.width / 2 - worldWidth / 2 - viewportTransform.value.x / viewportScale,
+    top: face.height / 2 - worldHeight / 2 - viewportTransform.value.y / viewportScale,
     width: worldWidth,
     height: worldHeight,
   }
@@ -1259,21 +1336,21 @@ const transformPreviewFrameStyle = computed<CSSProperties | null>(() => {
 })
 
 const transformPreviewVisibleCoverage = computed(() => {
-  const document = viewDoc.value
+  const face = viewFace.value
   const rect = transformPreviewWorldRect.value
-  if (!document || !rect || document.width <= 0 || document.height <= 0) {
+  if (!face || !rect || face.width <= 0 || face.height <= 0) {
     return 1
   }
 
   const intersectionWidth = Math.max(
     0,
-    Math.min(document.width, rect.left + rect.width) - Math.max(0, rect.left),
+    Math.min(face.width, rect.left + rect.width) - Math.max(0, rect.left),
   )
   const intersectionHeight = Math.max(
     0,
-    Math.min(document.height, rect.top + rect.height) - Math.max(0, rect.top),
+    Math.min(face.height, rect.top + rect.height) - Math.max(0, rect.top),
   )
-  return intersectionWidth * intersectionHeight / (document.width * document.height)
+  return intersectionWidth * intersectionHeight / (face.width * face.height)
 })
 
 const isTransformPreviewFrameVisible = computed(() =>
@@ -1457,9 +1534,24 @@ function resolveNavigationInputKey(
   target: CardDesignerNavigationToken['target'],
 ): string | null {
   if (target.owner === 'document') return cardDoc.value?.id ?? null
+  if (target.owner === 'face') return activeFace.value?.id ?? null
   if (target.owner === 'instance') return selectedCard.value?.id ?? null
   if (target.owner === 'block') return selectedBlock.value?.id ?? null
   return selectedLocation.value?.id ?? null
+}
+
+function resolveBlockFaceKey(blockId: string): CardFaceKey | null {
+  let currentId = blockId
+  while (true) {
+    const parent = parentLookup.value.get(currentId)
+    if (!parent) return null
+    if (parent.type === 'card-face') {
+      if (parent.id === cardDoc.value?.faces.front.id) return 'front'
+      if (parent.id === cardDoc.value?.faces.back.id) return 'back'
+      return null
+    }
+    currentId = parent.id
+  }
 }
 
 async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavigationResult> {
@@ -1476,16 +1568,20 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
   ) {
     return 'not-found'
   }
-  if (target.blockId && !blockTreeData.value.items.has(target.blockId)) return 'not-found'
+  if (target.blockId && resolveBlockFaceKey(target.blockId) !== target.faceKey) return 'not-found'
 
   selectedCardId.value = cardKey
   selectedCardKeys.value = [cardKey]
+  if (target.faceKey) {
+    activeFaceKey.value = target.faceKey
+  }
   if (target.owner === 'block' || target.owner === 'location') {
     forceStructureTreeReveal.value = true
     selectedBlockKeys.value = target.blockId ? [target.blockId] : []
   } else {
     clearSelection()
   }
+  commitViewState()
 
   const layoutChanged = !isPropertyPanelExpanded.value
     || Boolean(target.blockId && !isStructureTreePanelExpanded.value)
@@ -1521,6 +1617,28 @@ watch(
   },
   { immediate: true, deep: true },
 )
+
+watch(
+  () => props.cardDesignerView,
+  (view) => {
+    const nextFace = view?.activeFace ?? 'front'
+    if (activeFaceKey.value !== nextFace) {
+      activeFaceKey.value = nextFace
+      selectedBlockKeys.value = []
+      forceStructureTreeReveal.value = false
+    }
+    clipToFace.value = view?.clipToFace ?? false
+    const nextCardId = view?.selectedInstanceId ?? BLUEPRINT_CARD_ID
+    selectedCardId.value = nextCardId
+  },
+  { immediate: true, deep: true },
+)
+
+watch(selectedCardId, (cardId) => {
+  const storedId = props.cardDesignerView?.selectedInstanceId ?? null
+  const nextId = cardId === BLUEPRINT_CARD_ID ? null : cardId
+  if (storedId !== nextId) commitViewState()
+})
 
 watch(
   () => [props.filePath, props.modelValue] as const,
@@ -1622,6 +1740,17 @@ onUnmounted(() => {
   z-index: 3;
   pointer-events: auto;
   transform: translateX(-50%);
+}
+
+.card-design-editor__face-tools {
+  position: absolute;
+  right: calc(var(--card-editor-right-panel-width, 320px) + 16px);
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-space-2);
+  pointer-events: auto;
 }
 
 .card-design-editor__overlay-layout {
@@ -1749,7 +1878,8 @@ onUnmounted(() => {
 
   .card-design-editor__sidebar,
   .card-design-editor__resizebar,
-  .card-design-editor__position-readout {
+  .card-design-editor__position-readout,
+  .card-design-editor__face-tools {
     display: none;
   }
 

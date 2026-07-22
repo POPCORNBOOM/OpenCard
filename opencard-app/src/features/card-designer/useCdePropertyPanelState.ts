@@ -2,6 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import type {
   CardBlock,
   CardDocument,
+  CardFace,
   CardInstanceRecord,
   FlowContainerLocationInfo,
   SimpleContainerLocationInfo,
@@ -80,6 +81,7 @@ export type CdeAdditionalFieldCreateDraft = {
 
 type UseCdePropertyPanelStateOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
+  activeFace: Readonly<Ref<CardFace | null>>
   selectedLocation: Readonly<ComputedRef<CardLocationInfo | null>>
   selectedBlock: Readonly<ComputedRef<CardBlock | null>>
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
@@ -132,6 +134,15 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return resolveNulls(
       'card-instance',
       options.selectedCard.value as unknown as Record<string, unknown>,
+    ) as Record<string, unknown> & { type?: string }
+  })
+
+  const selectedFaceEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
+    options.documentRevision.value
+    if (!options.activeFace.value) return null
+    return resolveNulls(
+      'card-face',
+      options.activeFace.value as unknown as Record<string, unknown>,
     ) as Record<string, unknown> & { type?: string }
   })
 
@@ -293,14 +304,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       }
       return inputs
     }
-    if (selectedInstanceEditorRecord.value && selectedCard) {
-      inputs.push({
-        key: selectedCard.id,
-        title: '实例',
-        record: selectedInstanceEditorRecord.value,
-        fields: resolveFields(selectedInstanceEditorRecord.value),
-      })
-    }
     if (selectedDocumentEditorRecord.value && cardDoc) {
       inputs.push({
         key: cardDoc.id,
@@ -309,8 +312,23 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         fields: resolveFields(selectedDocumentEditorRecord.value),
       })
     }
-
-
+    const activeFace = options.activeFace.value
+    if (selectedFaceEditorRecord.value && activeFace) {
+      inputs.push({
+        key: activeFace.id,
+        title: '卡面',
+        record: selectedFaceEditorRecord.value,
+        fields: resolveFields(selectedFaceEditorRecord.value),
+      })
+    }
+    if (selectedInstanceEditorRecord.value && selectedCard) {
+      inputs.push({
+        key: selectedCard.id,
+        title: '实例',
+        record: selectedInstanceEditorRecord.value,
+        fields: resolveFields(selectedInstanceEditorRecord.value),
+      })
+    }
 
     return inputs
   })
@@ -331,6 +349,10 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return false
     }
     return selectedCard.id === key
+  }
+
+  function isSelectedFaceKey(key: string): boolean {
+    return options.activeFace.value?.id === key
   }
 
   function isSelectedBlockKey(key: string): boolean {
@@ -369,6 +391,15 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
 
     ; (selectedCard as Record<string, unknown>)[fieldKey] = value
+    options.refreshDocumentState()
+    options.markDocumentChanged(mode)
+    return true
+  }
+
+  function updateFaceField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    const face = options.activeFace.value
+    if (!face || !isCardStoredValue(value)) return false
+    ;(face as unknown as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
     options.markDocumentChanged(mode)
     return true
@@ -425,6 +456,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return
     }
 
+    if (isSelectedFaceKey(key)) {
+      updateFaceField(fieldKey, value, 'typing')
+      return
+    }
+
     if (isSelectedInstanceKey(key)) {
       updateInstanceField(fieldKey, value, 'typing')
       return
@@ -453,6 +489,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     if (isSelectedDocumentKey(key)) {
       updateDocumentField(fieldKey, value, 'action')
+      return
+    }
+
+    if (isSelectedFaceKey(key)) {
+      updateFaceField(fieldKey, value, 'action')
       return
     }
 
@@ -527,6 +568,20 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return true
   }
 
+  function resetFaceField(fieldKey: string): boolean {
+    const face = options.activeFace.value
+    if (!face) return false
+    const defaultValue = getDefault('card-face', fieldKey)
+    if (defaultValue === undefined) {
+      delete (face as unknown as Record<string, unknown>)[fieldKey]
+    } else {
+      ;(face as unknown as Record<string, unknown>)[fieldKey] = defaultValue
+    }
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
   function resetBlockField(fieldKey: string): boolean {
     const block = options.selectedBlock.value
     if (!block) {
@@ -571,6 +626,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     if (isSelectedDocumentKey(key)) {
       resetDocumentField(fieldKey)
+      return
+    }
+
+    if (isSelectedFaceKey(key)) {
+      resetFaceField(fieldKey)
       return
     }
 

@@ -3,7 +3,7 @@ import { computed, toRaw, watch, type Ref } from 'vue'
 import {
   createBlock,
   type CardBlock,
-  type CardDocument,
+  type CardFace,
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
 } from '../../entities/card/model'
@@ -27,7 +27,7 @@ type IndexedBlock = {
 }
 
 type UseCdeTreeOpsOptions = {
-  cardDoc: Ref<CardDocument | null>
+  activeFace: Readonly<Ref<CardFace | null>>
   documentRevision: Readonly<Ref<number>>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
@@ -46,7 +46,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       for (const child of block.children) visit(child.block, child.location)
     }
 
-    for (const child of options.cardDoc.value?.children ?? []) visit(child.block, child.location)
+    for (const child of options.activeFace.value?.children ?? []) visit(child.block, child.location)
     return index
   })
 
@@ -73,7 +73,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       }
     }
 
-    for (const child of options.cardDoc.value?.children ?? []) {
+    for (const child of options.activeFace.value?.children ?? []) {
       rootKeys.push(child.block.id)
       visit(child.block)
     }
@@ -137,7 +137,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function executeBlockAction(actionKey: string, target: CardBlock | null): void {
-    const targetContainer: BlockContainer | null = target && isBlockContainer(target) ? target : options.cardDoc.value
+    const targetContainer: BlockContainer | null = target && isBlockContainer(target) ? target : options.activeFace.value
     switch (actionKey) {
       case 'add-text-block':
         if (targetContainer) createBlockAt(targetContainer, 'text-block')
@@ -217,13 +217,13 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     while (current) {
       if (current.id === ancestorKey) return true
       const parent = options.parentLookup.value.get(current.id)
-      current = parent && parent.type !== 'card-document' ? parent : null
+      current = parent && parent.type !== 'card-face' ? parent : null
     }
     return false
   }
 
   function resolveTargetContainer(target: CardBlock | null, position: 'before' | 'inside' | 'after'): BlockContainer | null {
-    if (!target) return position === 'inside' ? options.cardDoc.value : null
+    if (!target) return position === 'inside' ? options.activeFace.value : null
     if (position === 'inside') return isBlockContainer(target) ? target : null
     return options.parentLookup.value.get(target.id) ?? null
   }

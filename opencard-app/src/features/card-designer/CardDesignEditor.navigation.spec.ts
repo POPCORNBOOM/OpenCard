@@ -2,7 +2,7 @@ import { defineComponent, h, nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createSimpleContainerBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
+import { createCardFace, createSimpleContainerBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
 import enUS from '../../locales/en-US'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import CardDesignEditor from './CardDesignEditor.vue'
@@ -16,12 +16,12 @@ class ResizeObserverMock {
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document-1',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#ffffff',
     instances: [{
       type: 'card-instance',
       id: 'instance-1',
@@ -29,25 +29,31 @@ function createDocument(): CardDocument {
       amount: '1',
       data: {},
     }],
-    children: [{
-      block: createSimpleContainerBlock({
-        id: 'container-1',
-        name: 'Container',
+    faces: {
+      front: createCardFace({
+        id: 'face-front',
         children: [{
-          block: createTextBlock({ id: 'text-1', name: 'Title', content: 'Hello' }),
+          block: createSimpleContainerBlock({
+            id: 'container-1',
+            name: 'Container',
+            children: [{
+              block: createTextBlock({ id: 'text-1', name: 'Title', content: 'Hello' }),
+              location: {
+                id: 'location-2',
+                type: 'simple-container-location',
+                anchor: 'lt',
+              },
+            }],
+          }),
           location: {
-            id: 'location-2',
+            id: 'location-1',
             type: 'simple-container-location',
             anchor: 'lt',
           },
         }],
       }),
-      location: {
-        id: 'location-1',
-        type: 'simple-container-location',
-        anchor: 'lt',
-      },
-    }],
+      back: createCardFace({ id: 'face-back' }),
+    },
   }
 }
 
@@ -115,10 +121,11 @@ describe('CardDesignEditor issue navigation', () => {
 
     const token: SessionNavigationToken = {
       protocol: 'card-designer',
-      version: 1,
+      version: 2,
       target: {
         kind: 'property',
         instanceId: 'instance-1',
+        faceKey: 'front',
         blockId: 'text-1',
         owner: 'block',
         fieldKey: 'opacity',

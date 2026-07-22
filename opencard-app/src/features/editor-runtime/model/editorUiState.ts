@@ -1,4 +1,6 @@
 /** Session-owned UI state contracts shared by editor hosts and editor components. */
+import type { CardFaceKey } from '../../../entities/card/model'
+
 export interface EditorViewportTransform {
   x: number
   y: number
@@ -16,4 +18,10 @@ export interface CardDesignerLayoutState {
   panels: CardDesignerPanelState
   leftTopHeight: number | null
   rightTopHeight: number | null
+}
+
+export interface CardDesignerViewState {
+  activeFace: CardFaceKey
+  clipToFace: boolean
+  selectedInstanceId: string | null
 }

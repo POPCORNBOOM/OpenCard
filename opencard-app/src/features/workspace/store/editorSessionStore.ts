@@ -11,6 +11,7 @@ import { fileSystemService } from '../services/fileSystemService'
 import { useProjectStore } from './projectStore'
 import type {
   CardDesignerLayoutState,
+  CardDesignerViewState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
 import { taskScheduler } from '../../../utils/taskScheduler'
@@ -46,6 +47,7 @@ export type EditorSessionUiState = {
   cardDesigner?: {
     viewportTransform?: EditorViewportTransform
     layout?: CardDesignerLayoutState
+    view?: CardDesignerViewState
   }
   imagePreview?: {
     viewportTransform?: EditorViewportTransform
@@ -98,13 +100,26 @@ function createDefaultOpenCardContent(displayName: string) {
   const documentName = stripFileExtension(displayName) || 'UNTITLED'
   return JSON.stringify({
     type: 'card-document',
+    schemaVersion: '2',
     id: `card-document-${crypto.randomUUID()}`,
     name: documentName,
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#FFFFFF',
-    children: [],
+    faces: {
+      front: {
+        type: 'card-face',
+        id: `card-face-${crypto.randomUUID()}`,
+        background: '#FFFFFF',
+        children: [],
+      },
+      back: {
+        type: 'card-face',
+        id: `card-face-${crypto.randomUUID()}`,
+        background: '#FFFFFF',
+        children: [],
+      },
+    },
     instances: [],
   }, null, 2)
 }

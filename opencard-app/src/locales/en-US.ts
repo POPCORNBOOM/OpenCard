@@ -29,6 +29,9 @@ export default {
       locations: {
         blueprint: 'the blueprint',
         instance: 'instance "{instanceName}"',
+        frontFace: 'front',
+        backFace: 'back',
+        cardFace: '{card} · {face}',
         unnamedBlock: 'unnamed block',
         field: 'In {card}, field {fieldName} ({fieldKey})',
         fieldAtCharacter: 'In {card}, field {fieldName} ({fieldKey}), character {character}',
@@ -260,6 +263,14 @@ export default {
   status: {
     watching: 'Watching',
   },
+  cardDesigner: {
+    view: {
+      enableClip: 'Clip content to face',
+      disableClip: 'Show content beyond face',
+      switchToFront: 'Switch to front face',
+      switchToBack: 'Switch to back face',
+    },
+  },
   propertyEditor: {
     categories: {
       identity: 'Identity',
@@ -278,12 +289,15 @@ export default {
       block: 'Block',
       layout: 'Layout',
       document: 'Document',
+      face: 'Face',
       instance: 'Instance',
     },
     references: {
       currentCard: 'Current card',
       currentCardBlueprint: 'Current card (blueprint)',
       document: 'Current document',
+      currentFace: 'Same face',
+      oppositeFace: 'Opposite face',
       project: 'Current project',
       self: 'Current block',
       parent: 'Parent container',

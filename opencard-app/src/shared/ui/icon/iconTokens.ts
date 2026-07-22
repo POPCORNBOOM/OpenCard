@@ -51,6 +51,8 @@ export const iconTokens = {
   'tree.chevron-right': true,
 
   'tool.search': true,
+  'tool.clip-off': true,
+  'tool.clip-on': true,
   'tool.fit-screen': true,
   'tool.settings': true,
   'tool.settings-gear': true,

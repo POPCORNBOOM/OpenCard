@@ -37,6 +37,8 @@ import {
   mdiCompassOutline,
   mdiContentCopy,
   mdiContentSaveOutline,
+  mdiCropFree,
+  mdiCropSquare,
   mdiDatabaseOutline,
   mdiDockLeft,
   mdiDownload,
@@ -170,6 +172,8 @@ export const iconGlyphs = {
   'tree.chevron-right': glyph(mdiChevronRight),
 
   'tool.search': glyph(mdiMagnify),
+  'tool.clip-off': glyph(mdiCropFree),
+  'tool.clip-on': glyph(mdiCropSquare),
   'tool.fit-screen': glyph(mdiFitToScreenOutline),
   'tool.settings': glyph(mdiCogOutline),
   'tool.settings-gear': glyph(mdiCog),

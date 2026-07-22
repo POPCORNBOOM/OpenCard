@@ -9,16 +9,24 @@ function createHarness() {
   ;(block as unknown as Record<string, unknown>).score = '10'
   const document: CardDocument = {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#fff',
-    children: [{
-      block,
-      location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
-    }],
+    faces: {
+      front: {
+        type: 'card-face',
+        id: 'front',
+        background: '#fff',
+        children: [{
+          block,
+          location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+        }],
+      },
+      back: { type: 'card-face', id: 'back', background: '#000', children: [] },
+    },
     instances: [{
       type: 'card-instance',
       id: 'instance',
@@ -29,13 +37,16 @@ function createHarness() {
   }
   const cardDoc = ref<CardDocument | null>(document)
   const selectedCardId = ref('__blueprint__')
-  const selectedBlock = computed(() => cardDoc.value?.children[0]?.block ?? null)
-  const selectedLocation = computed(() => cardDoc.value?.children[0]?.location ?? null)
+  const selectedBlockKey = ref<string | null>('text')
+  const activeFace = computed(() => cardDoc.value?.faces.front ?? null)
+  const selectedBlock = computed(() => selectedBlockKey.value ? activeFace.value?.children[0]?.block ?? null : null)
+  const selectedLocation = computed(() => selectedBlockKey.value ? activeFace.value?.children[0]?.location ?? null : null)
   const selectedCard = computed(() => cardDoc.value?.instances.find((item) => item.id === selectedCardId.value) ?? null)
   const documentRevision = ref(0)
   const markDocumentChanged = vi.fn()
   const state = useCdePropertyPanelState({
     cardDoc,
+    activeFace,
     selectedLocation,
     selectedBlock,
     selectedCard,
@@ -47,7 +58,7 @@ function createHarness() {
     translate: (key) => key,
     hasMessage: () => false,
   })
-  return { block, document, selectedCardId, state }
+  return { block, document, selectedCardId, selectedBlockKey, state }
 }
 
 describe('useCdePropertyPanelState additional fields', () => {
@@ -92,5 +103,20 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(block.additionalFieldDefinition).toBeUndefined()
     expect((block as unknown as Record<string, unknown>).score).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()
+  })
+
+  it('shows document, face and optional instance in order when no block is selected', () => {
+    const { document, selectedBlockKey, selectedCardId, state } = createHarness()
+    selectedBlockKey.value = null
+
+    expect(state.propertyInputs.value.map((input) => input.key)).toEqual(['document', 'front'])
+    selectedCardId.value = 'instance'
+    expect(state.propertyInputs.value.map((input) => input.key)).toEqual(['document', 'front', 'instance'])
+
+    state.updateProperty({ key: 'front', fieldKey: 'background', value: '#123456' })
+    expect(document.faces.front.background).toBe('#123456')
+    expect(document.instances[0]!.data).toEqual({})
+    state.resetProperty({ key: 'front', fieldKey: 'background' })
+    expect(document.faces.front.background).toBe('#FFFFFF')
   })
 })
