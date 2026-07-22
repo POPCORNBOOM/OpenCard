@@ -185,7 +185,8 @@ describe('CardDesignEditor issue navigation', () => {
     clipAction?.vm.$emit('select', { key: 'toggle-face-clip' })
     await nextTick()
 
-    expect(wrapper.emitted('update-card-designer-view')?.at(-1)?.[0]).toEqual({
+    const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(viewUpdates[viewUpdates.length - 1]?.[0]).toEqual({
       activeFace: 'front',
       clipToFace: true,
       selectedInstanceId: null,

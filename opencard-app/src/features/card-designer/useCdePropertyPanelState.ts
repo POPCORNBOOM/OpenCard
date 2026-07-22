@@ -307,7 +307,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (selectedDocumentEditorRecord.value && cardDoc) {
       inputs.push({
         key: cardDoc.id,
-        title: '蓝图',
+        title: options.translate('propertyEditor.sources.document'),
         record: selectedDocumentEditorRecord.value,
         fields: resolveFields(selectedDocumentEditorRecord.value),
       })

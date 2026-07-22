@@ -294,7 +294,7 @@ export default {
     },
     references: {
       currentCard: 'Current card',
-      currentCardBlueprint: 'Current card (blueprint)',
+      currentCardBlueprint: 'Current document',
       document: 'Current document',
       currentFace: 'Same face',
       oppositeFace: 'Opposite face',

@@ -110,6 +110,7 @@ describe('useCdePropertyPanelState additional fields', () => {
     selectedBlockKey.value = null
 
     expect(state.propertyInputs.value.map((input) => input.key)).toEqual(['document', 'front'])
+    expect(state.propertyInputs.value[0]?.title).toBe('propertyEditor.sources.document')
     selectedCardId.value = 'instance'
     expect(state.propertyInputs.value.map((input) => input.key)).toEqual(['document', 'front', 'instance'])
 

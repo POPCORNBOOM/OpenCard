@@ -294,7 +294,7 @@ export default {
     },
     references: {
       currentCard: '当前卡片',
-      currentCardBlueprint: '当前卡片（蓝图）',
+      currentCardBlueprint: '当前文档',
       document: '当前文档',
       currentFace: '同面',
       oppositeFace: '异面',
