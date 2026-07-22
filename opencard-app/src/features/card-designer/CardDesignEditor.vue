@@ -28,14 +28,12 @@
           @viewport-size-change="handleViewportSizeChange">
           <template #info>
             <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
-              <header class="card-design-editor__card-info-header">
-                <span class="card-design-editor__card-info-file">{{ viewportCardInfo.fileName }}</span>
-                <span class="card-design-editor__card-info-face">{{ viewportCardInfo.face }}</span>
-              </header>
               <dl class="card-design-editor__card-info-list">
-                <div v-for="item in viewportCardInfo.items" :key="item.label">
+                <div v-for="item in viewportCardInfo" :key="item.key">
                   <dt>{{ item.label }}</dt>
-                  <dd :title="item.value">{{ item.value }}</dd>
+                  <dd :class="{ 'is-highlighted': highlightedInfoKeys.has(item.key) }" :title="item.value">
+                    {{ item.value }}
+                  </dd>
                 </div>
               </dl>
             </section>
@@ -1262,23 +1260,50 @@ const viewportCardInfo = computed(() => {
       : selectedCardId.value ?? '')
   const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
 
-  return {
-    fileName,
-    face: activeFaceKey.value === 'front'
-      ? t('cardDesigner.info.front')
-      : t('cardDesigner.info.back'),
-    items: [
-      { label: t('cardDesigner.info.cardName'), value: document?.name || '—' },
-      { label: t('cardDesigner.info.projection'), value: projection || '—' },
-      { label: t('cardDesigner.info.instanceCount'), value: String(document?.instances.length ?? 0) },
-      { label: t('cardDesigner.info.blockCount'), value: String(blockCount) },
+  return [
+      { key: 'fileName', label: t('cardDesigner.info.fileName'), value: fileName },
+      { key: 'cardName', label: t('cardDesigner.info.cardName'), value: document?.name || '—' },
       {
+        key: 'face',
+        label: t('cardDesigner.info.face'),
+        value: activeFaceKey.value === 'front'
+          ? t('cardDesigner.info.front')
+          : t('cardDesigner.info.back'),
+      },
+      { key: 'projection', label: t('cardDesigner.info.projection'), value: projection || '—' },
+      { key: 'instanceCount', label: t('cardDesigner.info.instanceCount'), value: String(document?.instances.length ?? 0) },
+      { key: 'blockCount', label: t('cardDesigner.info.blockCount'), value: String(blockCount) },
+      {
+        key: 'dimensions',
         label: t('cardDesigner.info.dimensions'),
         value: renderedFace ? `${renderedFace.width} × ${renderedFace.height}` : '—',
       },
-    ],
-  }
+  ]
 })
+const highlightedInfoKeys = ref<ReadonlySet<string>>(new Set())
+const previousInfoValues = new Map<string, string>()
+const infoHighlightTimers = new Map<string, number>()
+
+watch(viewportCardInfo, (items) => {
+  for (const item of items) {
+    const previousValue = previousInfoValues.get(item.key)
+    previousInfoValues.set(item.key, item.value)
+    if (previousValue === undefined || previousValue === item.value) continue
+
+    const nextKeys = new Set(highlightedInfoKeys.value)
+    nextKeys.add(item.key)
+    highlightedInfoKeys.value = nextKeys
+
+    const previousTimer = infoHighlightTimers.get(item.key)
+    if (previousTimer !== undefined) window.clearTimeout(previousTimer)
+    infoHighlightTimers.set(item.key, window.setTimeout(() => {
+      const remainingKeys = new Set(highlightedInfoKeys.value)
+      remainingKeys.delete(item.key)
+      highlightedInfoKeys.value = remainingKeys
+      infoHighlightTimers.delete(item.key)
+    }, 900))
+  }
+}, { immediate: true })
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
@@ -1751,6 +1776,8 @@ onUnmounted(() => {
   handleResizeEnd()
   transformPreviewSizeObserver?.disconnect()
   transformPreviewSizeObserver = null
+  for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
+  infoHighlightTimers.clear()
   disposeDocumentState()
 })
 
@@ -1765,64 +1792,49 @@ onUnmounted(() => {
 
 .card-design-editor__card-info {
   overflow: hidden;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-lg);
-  background: color-mix(in srgb, var(--oc-bg-surface) 88%, transparent);
-  box-shadow: var(--oc-shadow-md);
-  color: var(--oc-fg-default);
-  backdrop-filter: blur(12px);
-}
-
-.card-design-editor__card-info-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--oc-space-2);
-  padding: var(--oc-space-3);
-  border-bottom: 1px solid color-mix(in srgb, var(--oc-border-default) 70%, transparent);
-}
-
-.card-design-editor__card-info-file {
-  overflow: hidden;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-design-editor__card-info-face {
-  flex: 0 0 auto;
-  padding: 2px var(--oc-space-2);
-  border-radius: 999px;
-  background: var(--oc-bg-accent-subtle);
-  color: var(--oc-fg-accent);
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .card-design-editor__card-info-list {
   margin: 0;
-  padding: var(--oc-space-2) var(--oc-space-3);
+  padding: 0;
 }
 
 .card-design-editor__card-info-list > div {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: var(--oc-space-3);
-  padding: 5px 0;
-  font-size: 12px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--oc-space-2);
+  padding: 2px 0;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .card-design-editor__card-info-list dt {
-  color: var(--oc-fg-muted);
+  color: color-mix(in srgb, var(--oc-fg-muted) 62%, transparent);
 }
 
 .card-design-editor__card-info-list dd {
   overflow: hidden;
   margin: 0;
-  text-align: right;
+  color: color-mix(in srgb, var(--oc-fg-default) 54%, transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.card-design-editor__card-info-list dd.is-highlighted {
+  animation: card-info-value-highlight 900ms ease-out;
+}
+
+@keyframes card-info-value-highlight {
+  0% {
+    color: var(--oc-fg-accent);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--oc-fg-accent) 70%, transparent);
+  }
+
+  100% {
+    color: color-mix(in srgb, var(--oc-fg-default) 54%, transparent);
+    text-shadow: none;
+  }
 }
 
 .card-design-editor__stage {

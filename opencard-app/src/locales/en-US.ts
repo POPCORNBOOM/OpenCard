@@ -272,6 +272,8 @@ export default {
     },
     info: {
       title: 'Card information',
+      fileName: 'File',
+      face: 'Face',
       front: 'Front',
       back: 'Back',
       cardName: 'Card name',

@@ -272,6 +272,8 @@ export default {
     },
     info: {
       title: '卡牌信息',
+      fileName: '文件',
+      face: '卡面',
       front: '正面',
       back: '背面',
       cardName: '卡牌名称',
