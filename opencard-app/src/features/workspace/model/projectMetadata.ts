@@ -1,11 +1,45 @@
+import type {
+  AdditionalFieldDefinitionMap,
+  EditorPropertyDefinition,
+} from '../../../entities/card/schema'
+
 export const PROJECT_CONFIG_FILE_NAME = '.opencardproject'
 export const PROJECT_METADATA_VERSION = 1 as const
 
-export type ProjectInformation = {
+export type ProjectInformation = Record<string, unknown> & {
   name: string
   description: string
   entry: string
+  additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
+
+export const projectPropertySchema = {
+  name: {
+    fieldType: 'string',
+    categoryId: 'identity',
+    acceptsBinding: false,
+  },
+  description: {
+    fieldType: 'string',
+    multiline: true,
+    categoryId: 'content',
+    acceptsBinding: false,
+  },
+  entry: {
+    fieldType: 'filePath',
+    categoryId: 'data',
+    acceptsBinding: false,
+    exposesReference: false,
+    extensionsFilter: ['.opencard'],
+  },
+  additionalFieldDefinition: {
+    fieldType: 'object',
+    objectType: 'AdditionalFieldDefinition',
+    isHidden: true,
+    acceptsBinding: false,
+    exposesReference: false,
+  },
+} as const satisfies Record<string, EditorPropertyDefinition>
 
 export type PersistedProjectEntry = {
   name: string

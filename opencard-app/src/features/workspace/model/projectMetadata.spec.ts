@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { resolveFileType } from './fileTypes'
-import { parseProjectMetadataText, serializeProjectMetadata } from './projectMetadata'
+import {
+  parseProjectMetadataText,
+  projectPropertySchema,
+  serializeProjectMetadata,
+} from './projectMetadata'
 
 describe('project metadata', () => {
   it('parses the project and workspace sections as one project file', () => {
@@ -24,5 +28,23 @@ describe('project metadata', () => {
       icon: 'file.opencard-project',
     })
     expect(resolveFileType('D:/project/main.opencard').id).toBe('opencard')
+  })
+
+  it('defines project fields as reference-only binding sources', () => {
+    expect(projectPropertySchema.name).toMatchObject({
+      fieldType: 'string',
+      acceptsBinding: false,
+    })
+    expect(projectPropertySchema.entry).toMatchObject({
+      fieldType: 'filePath',
+      acceptsBinding: false,
+      exposesReference: false,
+    })
+    expect(projectPropertySchema.additionalFieldDefinition).toMatchObject({
+      fieldType: 'object',
+      isHidden: true,
+      acceptsBinding: false,
+      exposesReference: false,
+    })
   })
 })

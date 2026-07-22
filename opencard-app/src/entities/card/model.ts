@@ -12,14 +12,15 @@ import {
     getPropertyValueKind,
     getTypePropertyEditorSchema,
 } from './schema'
-import type { EditorPropertyDefinition, PropertyFieldType } from './schema'
+import type {
+    AdditionalFieldDefinition,
+    AdditionalFieldDefinitionMap,
+    EditorPropertyDefinition,
+    PropertyFieldType,
+} from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 
-export type AdditionalFieldDefinition = {
-    title?: string
-    fieldType: PropertyFieldType
-}
-export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
+export type { AdditionalFieldDefinition, AdditionalFieldDefinitionMap } from './schema'
 
 // Block and document data models.
 export type BaseBlock = {

@@ -50,6 +50,11 @@ export type PropertyConstraintMap = {
 }
 
 export type PropertyFieldType = keyof PropertyConstraintMap
+export type AdditionalFieldDefinition = {
+    title?: string
+    fieldType: PropertyFieldType
+}
+export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
 export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 export const additionalFieldTypes = [
     'string',
