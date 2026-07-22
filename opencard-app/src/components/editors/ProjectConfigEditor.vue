@@ -9,36 +9,13 @@
     </header>
 
     <div v-if="metadata" class="project-config-editor__form">
-      <label class="project-config-editor__field">
-        <span>{{ t('projectConfig.fields.name') }}</span>
-        <OcFieldInput
-          full-width
-          :value="metadata.project.name"
-          @input="updateField('name', $event)"
-        />
-      </label>
-
-      <label class="project-config-editor__field">
-        <span>{{ t('projectConfig.fields.description') }}</span>
-        <OcFieldInput
-          class="project-config-editor__description"
-          as="textarea"
-          full-width
-          resize="none"
-          :value="metadata.project.description"
-          @input="updateField('description', $event)"
-        />
-      </label>
-
-      <label class="project-config-editor__field">
-        <span>{{ t('projectConfig.fields.entry') }}</span>
-        <OcFieldInput
-          full-width
-          mono
-          :value="metadata.project.entry"
-          @input="updateField('entry', $event)"
-        />
-      </label>
+      <PropertyEditor
+        :inputs="propertyInputs"
+        :categories="propertyCategories"
+        sort-mode="category"
+        @update-property="updateProperty"
+        @add-property="updateProperty"
+      />
     </div>
 
     <div v-else class="project-config-editor__invalid" role="alert">
@@ -49,16 +26,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import {
   parseProjectMetadataText,
+  projectPropertySchema,
   serializeProjectMetadata,
-  type ProjectInformation,
   type ProjectMetadata,
 } from '../../features/workspace/model/projectMetadata'
-import OcFieldInput from '../base/OcFieldInput.vue'
+import {
+  createPropertyDefaultValue,
+  parseAdditionalFieldDefinitions,
+  propertyEditorCategoryDefinitions,
+  type EditorPropertyDefinition,
+} from '../../entities/card/schema'
+import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
+import type {
+  PropertyEditorCategoryDefinition,
+  PropertyEditorFieldDefinition,
+  PropertyEditorInput,
+  PropertyEditorMutation,
+} from '../../shared/ui/property-editor/propertyEditor.types'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 
@@ -66,6 +55,52 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const metadata = ref<ProjectMetadata | null>(null)
+const projectCategoryIds = ['identity', 'content', 'data', 'custom'] as const
+
+const propertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() =>
+  new Map(projectCategoryIds.map((categoryId) => [
+    categoryId,
+    {
+      title: t(`propertyEditor.categories.${categoryId}`),
+      icon: propertyEditorCategoryDefinitions[categoryId].icon,
+    },
+  ])),
+)
+
+const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
+  if (!metadata.value) return []
+
+  const project = metadata.value.project
+  const additionalDefinitions = parseAdditionalFieldDefinitions(
+    project.additionalFieldDefinition,
+    Object.keys(projectPropertySchema),
+  )
+  const fields: Record<string, PropertyEditorFieldDefinition> = {}
+
+  for (const [fieldKey, definition] of Object.entries(projectPropertySchema)) {
+    fields[fieldKey] = toPropertyEditorDefinition(
+      definition,
+      t(`projectConfig.fields.${fieldKey}`),
+    )
+  }
+  for (const [fieldKey, definition] of Object.entries(additionalDefinitions)) {
+    fields[fieldKey] = toPropertyEditorDefinition(
+      {
+        fieldType: definition.fieldType,
+        acceptsBinding: false,
+        categoryId: 'custom',
+      } as EditorPropertyDefinition,
+      definition.title ?? fieldKey,
+    )
+  }
+
+  return [{
+    key: 'project',
+    title: project.name || t('projectConfig.title'),
+    record: project,
+    fields,
+  }]
+})
 
 watch(
   () => props.modelValue,
@@ -75,14 +110,40 @@ watch(
   { immediate: true },
 )
 
-function updateField(key: keyof ProjectInformation, event: Event): void {
-  if (!metadata.value) return
-  const target = event.target as HTMLInputElement | HTMLTextAreaElement
+function toPropertyEditorDefinition(
+  source: EditorPropertyDefinition,
+  title: string,
+): PropertyEditorFieldDefinition {
+  const {
+    categoryId,
+    displayFieldKey: _displayFieldKey,
+    autocomplete,
+    extensionsFilter: _extensionsFilter,
+    objectType: _objectType,
+    ...definition
+  } = source as EditorPropertyDefinition & {
+    autocomplete?: readonly string[]
+    extensionsFilter?: readonly string[]
+    objectType?: string
+  }
+  return {
+    ...definition,
+    title,
+    category: categoryId,
+    defaultValue: createPropertyDefaultValue(source),
+    ...(autocomplete?.length
+      ? { completion: { static: { values: autocomplete, presentation: 'ghost' as const } } }
+      : {}),
+  } as PropertyEditorFieldDefinition
+}
+
+function updateProperty(payload: PropertyEditorMutation): void {
+  if (!metadata.value || payload.key !== 'project') return
   const nextMetadata: ProjectMetadata = {
     ...metadata.value,
     project: {
       ...metadata.value.project,
-      [key]: target.value,
+      [payload.fieldKey]: payload.value,
     },
   }
   metadata.value = nextMetadata
@@ -140,25 +201,6 @@ defineExpose({ save })
   padding-block: var(--oc-space-5);
 }
 
-.project-config-editor__field {
-  display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
-  align-items: start;
-  gap: var(--oc-space-4);
-  color: var(--oc-fg-subtle);
-  font-size: var(--oc-text-sm);
-}
-
-.project-config-editor__field > span {
-  min-height: var(--oc-size-md);
-  display: flex;
-  align-items: center;
-}
-
-.project-config-editor__description {
-  min-height: 96px;
-}
-
 .project-config-editor__invalid {
   display: flex;
   align-items: center;
@@ -166,10 +208,4 @@ defineExpose({ save })
   padding-block: var(--oc-space-5);
 }
 
-@container (max-width: 560px) {
-  .project-config-editor__field {
-    grid-template-columns: 1fr;
-    gap: var(--oc-space-1);
-  }
-}
 </style>
