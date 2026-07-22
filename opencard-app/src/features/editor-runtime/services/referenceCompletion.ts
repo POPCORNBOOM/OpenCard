@@ -21,6 +21,8 @@ export type ReferenceCompletionContext = {
   targetKind: BindingValueKind
   currentBlock?: ReferenceCompletionScope
   currentCard?: ReferenceCompletionScope
+  currentFace?: ReferenceCompletionScope
+  oppositeFace?: ReferenceCompletionScope
   document?: ReferenceCompletionScope
   project?: ReferenceCompletionScope
   getAncestor: (depth: number) => ReferenceCompletionScope | undefined
@@ -79,6 +81,8 @@ function resolveScopeSuggestions(
   const fixedScopes: Array<readonly [string, ReferenceCompletionScope | undefined]> = [
     ['s', context.currentBlock],
     ['c', context.currentCard],
+    ['f', context.currentFace],
+    ['o', context.oppositeFace],
     ['d', context.document],
     ['g', context.project],
   ]
@@ -154,6 +158,8 @@ function resolveScope(
 ): ReferenceCompletionScope | undefined {
   if (descriptor.kind === 'current-block') return context.currentBlock
   if (descriptor.kind === 'current-card') return context.currentCard
+  if (descriptor.kind === 'current-face') return context.currentFace
+  if (descriptor.kind === 'opposite-face') return context.oppositeFace
   if (descriptor.kind === 'document') return context.document
   if (descriptor.kind === 'project') return context.project
   return context.getAncestor(descriptor.parentDepth)

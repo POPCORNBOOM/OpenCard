@@ -12,17 +12,25 @@ import { resolveReferences } from './resolveCardBindings'
 function createDocument(block = createTextBlock({ id: 'text', content: '' })): CardDocument {
   return {
     type: 'card-document',
+    schemaVersion: '2',
     id: 'document',
     name: 'Document',
     version: '1.0.0',
     width: '540',
     height: '850',
-    background: '#FFFFFF',
     instances: [],
-    children: [{
-      block,
-      location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
-    }],
+    faces: {
+      front: {
+        type: 'card-face',
+        id: 'front',
+        background: '#FFFFFF',
+        children: [{
+          block,
+          location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+        }],
+      },
+      back: { type: 'card-face', id: 'back', background: '#000000', children: [] },
+    },
   }
 }
 
@@ -38,7 +46,7 @@ describe('card additional fields and bindings', () => {
     ;(block as unknown as Record<string, unknown>).opacity = '{{s:strength}}'
 
     const result = resolveReferences(createDocument(block))
-    const resolved = result.document.children[0]!.block
+    const resolved = result.document.faces.front.children[0]!.block
 
     expect(result.issues).toEqual([])
     expect(resolved).toMatchObject({ content: 'Power', opacity: '0.5' })
@@ -87,7 +95,7 @@ describe('card additional fields and bindings', () => {
     const result = resolveReferences(createDocument(block))
 
     expect(result.issues).toEqual([])
-    expect(result.document.children[0]!.block).toMatchObject({ content: 'External' })
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'External' })
   })
 
   it('projects additional field overrides directly onto the block root', () => {
@@ -104,11 +112,11 @@ describe('card additional fields and bindings', () => {
     }
 
     const projected = applyInstance(document, instance)
-    const projectedBlock = projected.children[0]!.block
+    const projectedBlock = projected.faces.front.children[0]!.block
 
     expect((projectedBlock as unknown as Record<string, unknown>).score).toBe('24')
     expect(projectedBlock.additionalFieldDefinition?.score).toEqual({ fieldType: 'number' })
-    expect(resolveReferences(projected).document.children[0]!.block).toMatchObject({ content: '24' })
+    expect(resolveReferences(projected).document.faces.front.children[0]!.block).toMatchObject({ content: '24' })
   })
 
   it('validates creation and clears instance overrides when deleting', () => {
@@ -170,5 +178,39 @@ describe('card additional fields and bindings', () => {
         characterOffset: 8,
       }),
     }))
+  })
+
+  it('resolves same-face and opposite-face properties within each face subtree', () => {
+    const document = createDocument(createTextBlock({ id: 'front-text', content: '{{f:background}} / {{o:background}}' }))
+    document.faces.back.children = [{
+      block: createTextBlock({ id: 'back-text', content: '{{f:background}} / {{o:background}}' }),
+      location: { id: 'back-location', type: 'simple-container-location', anchor: 'lt' },
+    }]
+
+    const result = resolveReferences(document)
+
+    expect(result.issues).toEqual([])
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: '#FFFFFF / #000000' })
+    expect(result.document.faces.back.children[0]!.block).toMatchObject({ content: '#000000 / #FFFFFF' })
+  })
+
+  it('rejects face references without a face context and detects cross-face cycles', () => {
+    const document = createDocument()
+    document.name = '{{f:background}}'
+    document.faces.front.background = '{{o:background}}'
+    document.faces.back.background = '{{o:background}}'
+
+    const result = resolveReferences(document)
+
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'card-designer.binding.source-not-found',
+        location: expect.objectContaining({ owner: { kind: 'document', id: 'document' }, faceKey: null }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.binding.cycle',
+        location: expect.objectContaining({ faceKey: expect.stringMatching(/front|back/) }),
+      }),
+    ]))
   })
 })

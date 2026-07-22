@@ -9,6 +9,8 @@ describe('binding expression grammar', () => {
   it('parses fixed and arbitrary parent scopes', () => {
     expect(parseBindingScopeToken('S')).toEqual({ kind: 'current-block' })
     expect(parseBindingScopeToken('g')).toEqual({ kind: 'project' })
+    expect(parseBindingScopeToken('f')).toEqual({ kind: 'current-face' })
+    expect(parseBindingScopeToken('O')).toEqual({ kind: 'opposite-face' })
     expect(parseBindingScopeToken('p.p.p')).toEqual({ kind: 'parent', parentDepth: 3 })
     expect(parseFieldReference('p.p:width')).toEqual({
       kind: 'parent',

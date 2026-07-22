@@ -1,6 +1,8 @@
 export type BindingScopeDescriptor =
   | { kind: 'current-block' }
   | { kind: 'current-card' }
+  | { kind: 'current-face' }
+  | { kind: 'opposite-face' }
   | { kind: 'document' }
   | { kind: 'project' }
   | { kind: 'parent'; parentDepth: number }
@@ -21,6 +23,8 @@ export function parseBindingScopeToken(token: string): BindingScopeDescriptor | 
   const normalized = token.trim().toLocaleLowerCase()
   if (normalized === 's') return { kind: 'current-block' }
   if (normalized === 'c') return { kind: 'current-card' }
+  if (normalized === 'f') return { kind: 'current-face' }
+  if (normalized === 'o') return { kind: 'opposite-face' }
   if (normalized === 'd') return { kind: 'document' }
   if (normalized === 'g') return { kind: 'project' }
   if (!parentScopePattern.test(normalized)) return null
@@ -49,6 +53,8 @@ export function findActiveBindingToken(value: string, cursor: number): ActiveBin
 export function formatBindingScopeToken(scope: BindingScopeDescriptor): string {
   if (scope.kind === 'current-block') return 's'
   if (scope.kind === 'current-card') return 'c'
+  if (scope.kind === 'current-face') return 'f'
+  if (scope.kind === 'opposite-face') return 'o'
   if (scope.kind === 'document') return 'd'
   if (scope.kind === 'project') return 'g'
   return Array.from({ length: scope.parentDepth }, () => 'p').join('.')

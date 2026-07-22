@@ -9,6 +9,8 @@ import {
   type AdditionalFieldDefinitionMap,
   type CardBlock,
   type CardDocument,
+  type CardFace,
+  type CardFaceKey,
   type CardInstanceRecord,
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
@@ -49,7 +51,11 @@ export function resolveParentFieldReferenceKey(
     return null
   }
 
-  if (descriptor.kind === 'current-card' || descriptor.kind === 'project') {
+  if (descriptor.kind === 'current-card'
+    || descriptor.kind === 'current-face'
+    || descriptor.kind === 'opposite-face'
+    || descriptor.kind === 'document'
+    || descriptor.kind === 'project') {
     return null
   }
 
@@ -57,24 +63,10 @@ export function resolveParentFieldReferenceKey(
     return `${blockId}:${descriptor.fieldKey}`
   }
 
-  if (descriptor.kind === 'document') {
-    let currentBlockId = blockId
-    while (true) {
-      const parent = parentLookup.get(currentBlockId)
-      if (!parent) {
-        return null
-      }
-      if (parent.type === 'card-document') {
-        return `${parent.id}:${descriptor.fieldKey}`
-      }
-      currentBlockId = parent.id
-    }
-  }
-
   let currentBlockId = blockId
   for (let depth = 0; depth < descriptor.parentDepth; depth += 1) {
     const parent = parentLookup.get(currentBlockId)
-    if (!parent || parent.type === 'card-document') {
+    if (!parent || parent.type === 'card-face') {
       return null
     }
 
@@ -94,7 +86,7 @@ export type ResolveReferencesOptions = {
   project?: Readonly<ProjectInformation> | null
 }
 
-type ReferenceOwnerKind = 'document' | 'block' | 'location' | 'current-card'
+type ReferenceOwnerKind = 'document' | 'face' | 'block' | 'location' | 'current-card'
 type ReferenceOwner = {
   kind: ReferenceOwnerKind
   key: string
@@ -103,6 +95,7 @@ type ReferenceOwner = {
   source: Record<string, unknown>
   target: Record<string, unknown>
   anchorBlockId: string | null
+  faceKey: CardFaceKey | null
   blockPath?: string
 }
 
@@ -174,10 +167,13 @@ export function resolveReferences(
 
   const targetDocument: CardDocument = {
     ...document,
-    children: document.children.map((child) => ({
-      block: cloneBlockTree(child.block),
-      location: { ...child.location },
-    })),
+    faces: Object.fromEntries(Object.entries(document.faces).map(([faceKey, face]) => [faceKey, {
+      ...face,
+      children: face.children.map((child) => ({
+        block: cloneBlockTree(child.block),
+        location: { ...child.location },
+      })),
+    }])) as Record<CardFaceKey, CardFace>,
     instances: document.instances?.map((instance) => ({
       ...instance,
       data: { ...instance.data },
@@ -197,6 +193,7 @@ export function resolveReferences(
     source: sourceDocument as unknown as Record<string, unknown>,
     target: targetDocument as unknown as Record<string, unknown>,
     anchorBlockId: null,
+    faceKey: null,
   }
   owners.push(documentOwner)
   targetOwnersById.set(documentOwner.id, documentOwner)
@@ -228,6 +225,7 @@ export function resolveReferences(
         source: sourceCurrentCard as unknown as Record<string, unknown>,
         target: targetCurrentCard as unknown as Record<string, unknown>,
         anchorBlockId: null,
+        faceKey: null,
       }
     : null
 
@@ -235,6 +233,7 @@ export function resolveReferences(
     sourceChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
     targetChildren: Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
     parentBlockPath: string,
+    faceKey: CardFaceKey,
   ): void => {
     for (let index = 0; index < sourceChildren.length; index += 1) {
       const sourceChild = sourceChildren[index]
@@ -255,6 +254,7 @@ export function resolveReferences(
         source: sourceBlock as unknown as Record<string, unknown>,
         target: targetBlock as unknown as Record<string, unknown>,
         anchorBlockId: sourceBlock.id,
+        faceKey,
         blockPath,
       }
       owners.push(blockOwner)
@@ -273,6 +273,7 @@ export function resolveReferences(
         source: sourceLocation,
         target: targetLocation,
         anchorBlockId: sourceBlock.id,
+        faceKey,
         blockPath,
       })
 
@@ -281,16 +282,36 @@ export function resolveReferences(
           sourceBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
           targetBlock.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
           blockPath,
+          faceKey,
         )
       }
     }
   }
 
-  visitChildren(
-    sourceDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
-    targetDocument.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
-    '',
-  )
+  const faceOwners = {} as Record<CardFaceKey, ReferenceOwner>
+  for (const faceKey of Object.keys(sourceDocument.faces) as CardFaceKey[]) {
+    const sourceFace = sourceDocument.faces[faceKey]
+    const targetFace = targetDocument.faces[faceKey]
+    const faceOwner: ReferenceOwner = {
+      kind: 'face',
+      key: `face:${faceKey}:${sourceFace.id}`,
+      id: sourceFace.id,
+      typeName: sourceFace.type,
+      source: sourceFace as unknown as Record<string, unknown>,
+      target: targetFace as unknown as Record<string, unknown>,
+      anchorBlockId: null,
+      faceKey,
+    }
+    faceOwners[faceKey] = faceOwner
+    owners.push(faceOwner)
+    targetOwnersById.set(faceOwner.id, faceOwner)
+    visitChildren(
+      sourceFace.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+      targetFace.children as Array<{ block: CardBlock, location: SimpleContainerLocationInfo | FlowContainerLocationInfo }>,
+      '',
+      faceKey,
+    )
+  }
 
   function buildMemoKey(owner: ReferenceOwner, fieldKey: string): string {
     return `${owner.key}:${fieldKey}`
@@ -310,6 +331,7 @@ export function resolveReferences(
       location: {
         documentId: sourceDocument.id,
         instanceId: options.currentCard?.id ?? null,
+        faceKey: owner.faceKey,
         owner: { kind: ownerKind, id: owner.id },
         ...(owner.anchorBlockId ? { blockId: owner.anchorBlockId } : {}),
         ...(owner.blockPath ? { blockPath: owner.blockPath } : {}),
@@ -402,6 +424,21 @@ export function resolveReferences(
       }
     }
 
+    if (tokenDescriptor.kind === 'current-face' || tokenDescriptor.kind === 'opposite-face') {
+      if (!owner.faceKey) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
+        return { ok: false, value: null }
+      }
+      const targetFaceKey = tokenDescriptor.kind === 'current-face'
+        ? owner.faceKey
+        : owner.faceKey === 'front' ? 'back' : 'front'
+      return resolveTargetField(faceOwners[targetFaceKey], tokenDescriptor.fieldKey)
+    }
+
+    if (tokenDescriptor.kind === 'document') {
+      return resolveTargetField(documentOwner, tokenDescriptor.fieldKey)
+    }
+
     let targetReference: string | null = null
     if (owner.anchorBlockId) {
       targetReference = resolveParentFieldReferenceKey(owner.anchorBlockId, tokenBody, parentLookup)
@@ -409,8 +446,6 @@ export function resolveReferences(
         pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
         return { ok: false, value: null }
       }
-    } else if (tokenDescriptor.kind === 'document') {
-      targetReference = `${documentOwner.id}:${tokenDescriptor.fieldKey}`
     } else {
       pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
       return { ok: false, value: null }
