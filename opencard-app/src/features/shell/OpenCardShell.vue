@@ -381,6 +381,8 @@ const isActivatingProject = ref(false)
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
+const isWindowFullscreen = ref(false)
+let unlistenWindowResize: (() => void) | null = null
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value || isCreateProjectOperationBusy.value
@@ -774,6 +776,13 @@ const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
       ? t('app.updater.installing')
       : t('app.updater.available', { version: updateVersion.value }),
   } satisfies ShellTitleBarWindowControl] : []),
+  {
+    key: 'toggle-fullscreen',
+    icon: isWindowFullscreen.value ? 'window.fullscreen-exit' : 'window.fullscreen',
+    hoverTip: isWindowFullscreen.value
+      ? t('app.shell.exitFullscreen')
+      : t('app.shell.enterFullscreen'),
+  },
   { key: 'minimize', icon: 'window.minimize', hoverTip: 'Minimize' },
   { key: 'toggle-maximize', icon: 'window.maximize', hoverTip: 'Maximize / restore' },
   { key: 'close', icon: 'action.close', hoverTip: 'Close', danger: true },
@@ -1516,6 +1525,21 @@ async function handleWorkspaceFrameAction(actionKey: string) {
   await runShellCommand(actionKey)
 }
 
+async function syncWindowFullscreenState(): Promise<void> {
+  try {
+    isWindowFullscreen.value = await getCurrentWindow().isFullscreen()
+  } catch {
+    isWindowFullscreen.value = false
+  }
+}
+
+async function toggleWindowFullscreen(): Promise<void> {
+  const appWindow = getCurrentWindow()
+  const nextFullscreen = !(await appWindow.isFullscreen())
+  await appWindow.setFullscreen(nextFullscreen)
+  isWindowFullscreen.value = nextFullscreen
+}
+
 async function handleWindowControl(actionKey: string) {
   if (actionKey === 'install-update') {
     await installAvailableUpdate()
@@ -1527,6 +1551,11 @@ async function handleWindowControl(actionKey: string) {
 
     if (actionKey === 'minimize') {
       await appWindow.minimize()
+      return
+    }
+
+    if (actionKey === 'toggle-fullscreen') {
+      await toggleWindowFullscreen()
       return
     }
 
@@ -1627,6 +1656,18 @@ async function triggerCurrentEditorRedo() {
 }
 
 async function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'F11') {
+    event.preventDefault()
+    if (!event.repeat) {
+      try {
+        await toggleWindowFullscreen()
+      } catch (error) {
+        console.warn('切换全屏失败:', error)
+      }
+    }
+    return
+  }
+
   if (!(event.ctrlKey || event.metaKey)) {
     return
   }
@@ -1676,6 +1717,16 @@ function handleViewportResize(): void {
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('resize', handleViewportResize)
+  void (async () => {
+    await syncWindowFullscreenState()
+    try {
+      unlistenWindowResize = await getCurrentWindow().onResized(() => {
+        void syncWindowFullscreenState()
+      })
+    } catch {
+      unlistenWindowResize = null
+    }
+  })()
   void ensureProjectTreeLoaded()
   void checkForUpdate()
 })
@@ -1683,6 +1734,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('resize', handleViewportResize)
+  unlistenWindowResize?.()
+  unlistenWindowResize = null
   disposeAppUpdater()
 })
 </script>

@@ -5,6 +5,8 @@ export default {
       collapseSidebar: '收起侧边栏',
       expandBottomPanel: '展开下方面板',
       collapseBottomPanel: '收起下方面板',
+      enterFullscreen: '进入全屏（F11）',
+      exitFullscreen: '退出全屏（F11）',
     },
     problems: {
       tab: '问题',

@@ -5,6 +5,8 @@ export default {
       collapseSidebar: 'Collapse sidebar',
       expandBottomPanel: 'Expand bottom panel',
       collapseBottomPanel: 'Collapse bottom panel',
+      enterFullscreen: 'Enter fullscreen (F11)',
+      exitFullscreen: 'Exit fullscreen (F11)',
     },
     problems: {
       tab: 'Problems',

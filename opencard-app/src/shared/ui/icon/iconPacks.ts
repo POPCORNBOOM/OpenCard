@@ -72,6 +72,8 @@ import {
   mdiFormatVerticalAlignBottom,
   mdiFormatVerticalAlignCenter,
   mdiFormatVerticalAlignTop,
+  mdiFullscreen,
+  mdiFullscreenExit,
   mdiFormatText,
   mdiHelpCircleOutline,
   mdiImageOutline,
@@ -165,6 +167,8 @@ export const iconGlyphs = {
   'nav.sidebar-collapse': glyph(mdiDockLeft),
   'nav.sidebar-expand': glyph(mdiDockLeft),
 
+  'window.fullscreen': glyph(mdiFullscreen),
+  'window.fullscreen-exit': glyph(mdiFullscreenExit),
   'window.maximize': glyph(mdiWindowMaximize),
   'window.minimize': glyph(mdiWindowMinimize),
 
