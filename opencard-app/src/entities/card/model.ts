@@ -7,10 +7,12 @@
 import {
     acceptsPropertyBinding,
     additionalFieldTypes,
+    additionalFieldKeyPattern,
     createPropertyDefaultValue,
     exposesPropertyReference,
     getPropertyValueKind,
     getTypePropertyEditorSchema,
+    parseAdditionalFieldDefinitions,
 } from './schema'
 import type {
     AdditionalFieldDefinition,
@@ -169,41 +171,14 @@ export function isCardStoredValue(value: unknown): value is CardStoredValue {
     return Object.values(value).every(item => isCardStoredValue(item))
 }
 
-function toRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return {}
-    }
-
-    return value as Record<string, unknown>
-}
-
 function setIfDefined(target: Record<string, unknown>, key: string, value: unknown): void {
     if (value !== undefined) {
         target[key] = value
     }
 }
 
-const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
-
 function materializeAdditionalFieldDefinitions(value: unknown): AdditionalFieldDefinitionMap {
-    const source = toRecord(value)
-    const fields: AdditionalFieldDefinitionMap = {}
-
-    for (const [fieldKey, fieldValue] of Object.entries(source)) {
-        const definition = toRecord(fieldValue)
-        const fieldType = definition.fieldType
-        if (typeof fieldType !== 'string' || !additionalFieldTypeSet.has(fieldType as PropertyFieldType)) {
-            continue
-        }
-
-        const title = typeof definition.title === 'string' ? definition.title.trim() : ''
-        fields[fieldKey] = {
-            fieldType: fieldType as PropertyFieldType,
-            ...(title ? { title } : {}),
-        }
-    }
-
-    return fields
+    return parseAdditionalFieldDefinitions(value)
 }
 
 function cloneAdditionalFieldDefinitions(
@@ -277,7 +252,7 @@ export function exposesCardFieldReference(record: Record<string, unknown>, field
 }
 
 export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
-export const additionalFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
 
 export function validateAdditionalFieldKey(block: CardBlock, candidate: string): AdditionalFieldKeyError | null {
     const fieldKey = candidate.trim()

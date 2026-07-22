@@ -2,6 +2,7 @@ import type {
   AdditionalFieldDefinitionMap,
   EditorPropertyDefinition,
 } from '../../../entities/card/schema'
+import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
 
 export const PROJECT_CONFIG_FILE_NAME = '.opencardproject'
 export const PROJECT_METADATA_VERSION = 1 as const
@@ -87,6 +88,26 @@ export function parseProjectMetadata(value: unknown): ProjectMetadata | null {
     || !Array.isArray(workspaceSource.expandedDirectories)
   ) return null
 
+  const nativeProjectKeys = Object.keys(projectPropertySchema)
+  const additionalFieldDefinition = parseAdditionalFieldDefinitions(
+    projectSource.additionalFieldDefinition,
+    nativeProjectKeys,
+  )
+  const parsedProject: ProjectInformation = {
+    name: projectSource.name,
+    description: projectSource.description,
+    entry: projectSource.entry,
+  }
+
+  for (const fieldKey of Object.keys(additionalFieldDefinition)) {
+    const fieldValue = projectSource[fieldKey]
+    if (typeof fieldValue === 'string') parsedProject[fieldKey] = fieldValue
+  }
+
+  if (Object.keys(additionalFieldDefinition).length > 0) {
+    parsedProject.additionalFieldDefinition = additionalFieldDefinition
+  }
+
   const indexedEntries = workspaceSource.indexedEntries
     .filter((entry): entry is PersistedProjectEntry => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false
@@ -103,11 +124,7 @@ export function parseProjectMetadata(value: unknown): ProjectMetadata | null {
 
   return {
     version: PROJECT_METADATA_VERSION,
-    project: {
-      name: projectSource.name,
-      description: projectSource.description,
-      entry: projectSource.entry,
-    },
+    project: parsedProject,
     workspace: { indexedEntries, expandedDirectories },
   }
 }

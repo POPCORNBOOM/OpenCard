@@ -68,12 +68,28 @@ describe('projectStore settings actions', () => {
 
     const saved = await store.saveProjectConfiguration(JSON.stringify({
       version: 1,
-      project: { name: 'Renamed', description: 'Demo cards', entry: 'cards/main.opencard' },
+      project: {
+        name: 'Renamed',
+        description: 'Demo cards',
+        entry: 'cards/main.opencard',
+        author: 'Alice',
+        additionalFieldDefinition: {
+          author: { fieldType: 'string', title: 'Author' },
+        },
+      },
       workspace: { indexedEntries: [], expandedDirectories: [] },
     }))
 
     expect(JSON.parse(saved)).toMatchObject({
-      project: { name: 'Renamed', description: 'Demo cards', entry: 'cards/main.opencard' },
+      project: {
+        name: 'Renamed',
+        description: 'Demo cards',
+        entry: 'cards/main.opencard',
+        author: 'Alice',
+        additionalFieldDefinition: {
+          author: { fieldType: 'string', title: 'Author' },
+        },
+      },
       workspace: { expandedDirectories: ['assets'] },
     })
     expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.opencardproject', saved)

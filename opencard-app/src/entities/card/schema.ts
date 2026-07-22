@@ -67,6 +67,43 @@ export const additionalFieldTypes = [
     'boolean',
     'color',
 ] as const satisfies readonly PropertyFieldType[]
+export const additionalFieldKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
+
+export function parseAdditionalFieldDefinitions(
+    value: unknown,
+    reservedKeys: readonly string[] = [],
+): AdditionalFieldDefinitionMap {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+    const reservedIdentities = new Set(reservedKeys.map(key => key.toLocaleLowerCase()))
+    const definitions: AdditionalFieldDefinitionMap = {}
+
+    for (const [fieldKey, fieldValue] of Object.entries(value)) {
+        if (!additionalFieldKeyPattern.test(fieldKey)
+            || reservedIdentities.has(fieldKey.toLocaleLowerCase())
+            || !fieldValue
+            || typeof fieldValue !== 'object'
+            || Array.isArray(fieldValue)) {
+            continue
+        }
+
+        const source = fieldValue as Record<string, unknown>
+        if (typeof source.fieldType !== 'string'
+            || !additionalFieldTypeSet.has(source.fieldType as PropertyFieldType)) {
+            continue
+        }
+
+        const title = typeof source.title === 'string' ? source.title.trim() : ''
+        definitions[fieldKey] = {
+            fieldType: source.fieldType as PropertyFieldType,
+            ...(title ? { title } : {}),
+        }
+    }
+
+    return definitions
+}
 
 type AllConstraintKeys = {
     [K in keyof PropertyConstraintMap]: keyof PropertyConstraintMap[K]

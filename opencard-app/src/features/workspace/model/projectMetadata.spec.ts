@@ -47,4 +47,37 @@ describe('project metadata', () => {
       exposesReference: false,
     })
   })
+
+  it('round-trips declared project fields beside native fields', () => {
+    const metadata = parseProjectMetadataText(JSON.stringify({
+      version: 1,
+      project: {
+        name: 'Demo',
+        description: 'Cards',
+        entry: 'main.opencard',
+        author: 'Alice',
+        edition: '2',
+        undeclared: 'discarded',
+        additionalFieldDefinition: {
+          author: { fieldType: 'string', title: ' Author ' },
+          edition: { fieldType: 'number' },
+          entry: { fieldType: 'string' },
+          invalid: { fieldType: 'object' },
+        },
+      },
+      workspace: { indexedEntries: [], expandedDirectories: [] },
+    }))
+
+    expect(metadata?.project).toEqual({
+      name: 'Demo',
+      description: 'Cards',
+      entry: 'main.opencard',
+      author: 'Alice',
+      edition: '2',
+      additionalFieldDefinition: {
+        author: { fieldType: 'string', title: 'Author' },
+        edition: { fieldType: 'number' },
+      },
+    })
+  })
 })
