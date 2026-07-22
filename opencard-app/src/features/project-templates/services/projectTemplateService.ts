@@ -385,7 +385,6 @@ export class ProjectTemplateService {
         project: {
           ...projectMetadata.project,
           name: projectName,
-          entry: selectedEntry,
         },
       }))
       const createdEntryPath = await this.paths.join(targetPath, ...pathSegments(selectedEntry))

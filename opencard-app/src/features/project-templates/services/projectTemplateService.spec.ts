@@ -301,14 +301,14 @@ function addTemplatePackage(
     description: '',
     entry,
   }))
-  fs.putFile(`${root}/content/.opencardproject`, projectFile(entry, options.name))
+  fs.putFile(`${root}/content/.opencardproject`, projectFile(options.name))
   fs.putFile(`${root}/content/${entry}`, JSON.stringify({ type: 'card-document' }))
 }
 
-function projectFile(entry = 'main.opencard', name = 'Project'): string {
+function projectFile(name = 'Project'): string {
   return JSON.stringify({
     version: 1,
-    project: { name, description: '', entry },
+    project: { name, description: '' },
     workspace: { indexedEntries: [], expandedDirectories: [] },
   })
 }
@@ -563,7 +563,7 @@ describe('ProjectTemplateService project creation', () => {
   it('copies the selected template atomically and returns its entry', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencardproject', projectFile('cards/main.opencard'))
+    fs.putFile('/template/content/.opencardproject', projectFile())
     fs.putFile('/template/content/cards/main.opencard', JSON.stringify({ type: 'card-document' }))
     fs.putFile('/template/content/assets/portrait.png', new Uint8Array([1, 2, 3]))
 
@@ -575,9 +575,9 @@ describe('ProjectTemplateService project creation', () => {
 
     expect(created).toEqual({ path: '/projects/Demo', entry: '/projects/Demo/cards/main.opencard' })
     expect(await fs.fileExists('/projects/Demo/.opencardproject')).toBe(true)
-    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)).toMatchObject({
-      project: { name: 'Demo', entry: 'cards/main.opencard' },
-    })
+    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)
+    expect(projectFileContent).toMatchObject({ project: { name: 'Demo' } })
+    expect(projectFileContent.project).not.toHaveProperty('entry')
     expect(fs.rawFile('/projects/Demo/assets/portrait.png')).toEqual(new Uint8Array([1, 2, 3]))
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
   })
@@ -597,7 +597,7 @@ describe('ProjectTemplateService project creation', () => {
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
   })
 
-  it('writes a selected candidate entry into the created project', async () => {
+  it('returns a selected candidate entry without persisting it as project metadata', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencardproject', projectFile())
@@ -616,15 +616,14 @@ describe('ProjectTemplateService project creation', () => {
     })
 
     expect(created.entry).toBe('/projects/Demo/alternate.opencard')
-    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)).toMatchObject({
-      project: { entry: 'alternate.opencard' },
-    })
+    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencardproject') as string)
+    expect(projectFileContent.project).not.toHaveProperty('entry')
   })
 
   it('rolls back when the template entry is missing', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencardproject', projectFile('missing.opencard'))
+    fs.putFile('/template/content/.opencardproject', projectFile())
 
     await expect(createService(fs, 'missing-entry').createProject({
       template: templateFixture('/template/content', 'missing.opencard'),
@@ -667,7 +666,7 @@ describe('ProjectTemplateService safety boundaries', () => {
 
   it('sorts valid document entries and imports a selected entry other than the first', async () => {
     const fs = new MemoryFileSystem()
-    fs.putFile('/source/.opencardproject', projectFile('z-last.opencard'))
+    fs.putFile('/source/.opencardproject', projectFile())
     fs.putFile('/source/z-last.opencard', JSON.stringify({ type: 'card-document', name: 'Last Blueprint' }))
     fs.putFile('/source/cards/a-first.opencard', JSON.stringify({ type: 'card-document', name: 'First Blueprint' }))
     fs.putFile('/source/b-middle.opencard', JSON.stringify({ type: 'card-document' }))

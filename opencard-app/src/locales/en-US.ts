@@ -84,7 +84,6 @@ export default {
     fields: {
       name: 'Project Name',
       description: 'Description',
-      entry: 'Entry Document',
     },
   },
   projectTemplates: {

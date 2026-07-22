@@ -8,7 +8,7 @@ vi.mock('vue-i18n', () => ({
 
 const content = JSON.stringify({
   version: 1,
-  project: { name: 'Demo', description: '', entry: 'main.opencard' },
+  project: { name: 'Demo', description: '' },
   workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
 })
 
@@ -43,7 +43,6 @@ describe('ProjectConfigEditor', () => {
       project: {
         name: 'Demo',
         description: '',
-        entry: 'main.opencard',
         author: 'Alice',
         additionalFieldDefinition: {
           author: { fieldType: 'string', title: 'Author' },
@@ -94,7 +93,6 @@ describe('ProjectConfigEditor', () => {
       project: {
         name: 'Demo',
         description: '',
-        entry: 'main.opencard',
         author: 'Alice',
         additionalFieldDefinition: {
           author: { fieldType: 'string', title: 'Author' },

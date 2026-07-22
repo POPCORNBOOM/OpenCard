@@ -84,7 +84,6 @@ export default {
     fields: {
       name: '项目名称',
       description: '项目描述',
-      entry: '入口文档',
     },
   },
   projectTemplates: {

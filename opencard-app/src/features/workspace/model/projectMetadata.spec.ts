@@ -16,13 +16,13 @@ describe('project metadata', () => {
   it('parses the project and workspace sections as one project file', () => {
     const content = serializeProjectMetadata({
       version: 1,
-      project: { name: 'Demo', description: 'Cards', entry: 'main.opencard' },
+      project: { name: 'Demo', description: 'Cards' },
       workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
     })
 
     expect(parseProjectMetadataText(content)).toEqual({
       version: 1,
-      project: { name: 'Demo', description: 'Cards', entry: 'main.opencard' },
+      project: { name: 'Demo', description: 'Cards' },
       workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
     })
   })
@@ -41,11 +41,7 @@ describe('project metadata', () => {
       fieldType: 'string',
       acceptsBinding: false,
     })
-    expect(projectPropertySchema.entry).toMatchObject({
-      fieldType: 'filePath',
-      acceptsBinding: false,
-      exposesReference: false,
-    })
+    expect(projectPropertySchema).not.toHaveProperty('entry')
     expect(projectPropertySchema.additionalFieldDefinition).toMatchObject({
       fieldType: 'object',
       isHidden: true,
@@ -67,7 +63,7 @@ describe('project metadata', () => {
         additionalFieldDefinition: {
           author: { fieldType: 'string', title: ' Author ' },
           edition: { fieldType: 'number' },
-          entry: { fieldType: 'string' },
+          name: { fieldType: 'string' },
           invalid: { fieldType: 'object' },
         },
       },
@@ -77,7 +73,6 @@ describe('project metadata', () => {
     expect(metadata?.project).toEqual({
       name: 'Demo',
       description: 'Cards',
-      entry: 'main.opencard',
       author: 'Alice',
       edition: '2',
       additionalFieldDefinition: {
@@ -107,7 +102,7 @@ describe('project metadata', () => {
     const project = createDefaultProjectInformation('Demo')
     createProjectAdditionalField(project, 'edition', 'number', 'Edition')
 
-    expect(getProjectFieldKeys(project)).toEqual(['name', 'description', 'entry', 'edition'])
+    expect(getProjectFieldKeys(project)).toEqual(['name', 'description', 'edition'])
     expect(exposesProjectFieldReference(project, 'name')).toBe(true)
     expect(exposesProjectFieldReference(project, 'entry')).toBe(false)
     expect(exposesProjectFieldReference(project, 'missing')).toBe(false)

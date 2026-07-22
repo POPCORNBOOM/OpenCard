@@ -2,8 +2,7 @@
   "version": 1,
   "project": {
     "name": "Tactical Showcase",
-    "description": "Advanced tactical card showcase.",
-    "entry": "tactical-showcase.opencard"
+    "description": "Advanced tactical card showcase."
   },
   "workspace": {
     "indexedEntries": [

@@ -71,7 +71,6 @@ describe('projectStore settings actions', () => {
       project: {
         name: 'Renamed',
         description: 'Demo cards',
-        entry: 'cards/main.opencard',
         author: 'Alice',
         additionalFieldDefinition: {
           author: { fieldType: 'string', title: 'Author' },
@@ -84,7 +83,6 @@ describe('projectStore settings actions', () => {
       project: {
         name: 'Renamed',
         description: 'Demo cards',
-        entry: 'cards/main.opencard',
         author: 'Alice',
         additionalFieldDefinition: {
           author: { fieldType: 'string', title: 'Author' },

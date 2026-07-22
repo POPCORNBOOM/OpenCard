@@ -19,7 +19,6 @@ export const PROJECT_METADATA_VERSION = 1 as const
 export type ProjectInformation = Record<string, unknown> & {
   name: string
   description: string
-  entry: string
   additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
 
@@ -34,13 +33,6 @@ export const projectPropertySchema = {
     multiline: true,
     categoryId: 'content',
     acceptsBinding: false,
-  },
-  entry: {
-    fieldType: 'filePath',
-    categoryId: 'data',
-    acceptsBinding: false,
-    exposesReference: false,
-    extensionsFilter: ['.opencard'],
   },
   additionalFieldDefinition: {
     fieldType: 'object',
@@ -73,7 +65,6 @@ export function createDefaultProjectInformation(name = ''): ProjectInformation {
   return {
     name,
     description: '',
-    entry: 'main.opencard',
   }
 }
 
@@ -163,7 +154,6 @@ export function parseProjectMetadata(value: unknown): ProjectMetadata | null {
   if (
     typeof projectSource.name !== 'string'
     || typeof projectSource.description !== 'string'
-    || typeof projectSource.entry !== 'string'
     || !Array.isArray(workspaceSource.indexedEntries)
     || !Array.isArray(workspaceSource.expandedDirectories)
   ) return null
@@ -176,7 +166,6 @@ export function parseProjectMetadata(value: unknown): ProjectMetadata | null {
   const parsedProject: ProjectInformation = {
     name: projectSource.name,
     description: projectSource.description,
-    entry: projectSource.entry,
   }
 
   for (const fieldKey of Object.keys(additionalFieldDefinition)) {
