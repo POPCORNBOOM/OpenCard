@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
 import WorkspaceBottomPanel from './WorkspaceBottomPanel.vue'
@@ -18,10 +18,10 @@ const issueNavigationTargets = new Map([
   ['issue:a', { sessionId: 'a', token: navigationToken }],
 ])
 
-function mountPanel() {
+function mountPanel(expanded = true) {
   return mount(WorkspaceBottomPanel, {
     props: {
-      expanded: true,
+      expanded,
       activeTab: 'issues',
       issueCount: 1,
       issueTreeData,
@@ -81,15 +81,36 @@ describe('WorkspaceBottomPanel', () => {
     expect(wrapper.emitted('issue-navigate')).toBeUndefined()
   })
 
-  it('emits controlled toggle and tab changes without changing its own state', async () => {
-    const wrapper = mountPanel()
+  it('requests expansion on hover and collapse after leaving the whole panel', async () => {
+    vi.useFakeTimers()
+    const wrapper = mountPanel(false)
 
-    await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
-    await wrapper.get('#workspace-bottom-tab-output').trigger('click')
+    try {
+      await wrapper.get('.workspace-bottom-panel').trigger('mouseenter')
+      await wrapper.setProps({ expanded: true })
+      await wrapper.get('#workspace-bottom-tab-output').trigger('click')
+      await wrapper.get('.workspace-bottom-panel').trigger('mouseleave')
+      expect(wrapper.emitted('expanded-change')).toEqual([[true]])
+      vi.advanceTimersByTime(180)
 
-    expect(wrapper.emitted('toggle')).toHaveLength(1)
-    expect(wrapper.emitted('tab-change')).toEqual([['output']])
-    expect(wrapper.get('.workspace-bottom-panel').classes()).toContain('is-expanded')
-    expect(wrapper.get('#workspace-bottom-tab-issues').attributes('aria-selected')).toBe('true')
+      expect(wrapper.emitted('expanded-change')).toEqual([[true], [false]])
+      expect(wrapper.emitted('tab-change')).toEqual([['output']])
+      expect(wrapper.get('.workspace-bottom-panel').classes()).toContain('is-expanded')
+      expect(wrapper.get('#workspace-bottom-tab-issues').attributes('aria-selected')).toBe('true')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens on keyboard focus and closes when focus leaves the panel', () => {
+    const wrapper = mountPanel(false)
+    const panel = wrapper.get('.workspace-bottom-panel')
+    panel.element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    panel.element.dispatchEvent(new FocusEvent('focusout', {
+      bubbles: true,
+      relatedTarget: document.body,
+    }))
+
+    expect(wrapper.emitted('expanded-change')).toEqual([[true], [false]])
   })
 })

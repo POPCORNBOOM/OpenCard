@@ -200,7 +200,7 @@
             :output-empty-label="t('app.problems.outputEmpty')"
             :expand-label="t('app.shell.expandBottomPanel')"
             :collapse-label="t('app.shell.collapseBottomPanel')"
-            @toggle="isBottomPanelExpanded = !isBottomPanelExpanded"
+            @expanded-change="isBottomPanelExpanded = $event"
             @tab-change="activeBottomTab = $event"
             @issue-expansion-change="setIssueNodeExpanded"
             @issue-navigate="handleWorkspaceIssueNavigate"

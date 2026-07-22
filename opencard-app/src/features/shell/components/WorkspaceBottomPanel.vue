@@ -1,12 +1,14 @@
 <template>
-  <section class="workspace-bottom-panel" :class="{ 'is-expanded': expanded }">
+  <section class="workspace-bottom-panel" :class="{ 'is-expanded': expanded }"
+    @mouseenter="requestExpansion" @mouseleave="scheduleCollapse"
+    @focusin="requestExpansion" @focusout="handlePanelFocusOut">
     <button
       class="workspace-bottom-panel__toggle"
       type="button"
       :aria-expanded="expanded"
       :aria-label="expanded ? collapseLabel : expandLabel"
       :data-tooltip="expanded ? collapseLabel : expandLabel"
-      @click="emit('toggle')"
+      @click="requestExpansion"
     >
       <OcIcon :name="expanded ? 'nav.chevron-down' : 'nav.chevron-up'" size="sm" />
     </button>
@@ -78,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
@@ -105,11 +107,43 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  toggle: []
+  'expanded-change': [expanded: boolean]
   'tab-change': [tab: WorkspaceBottomTab]
   'issue-expansion-change': [key: string, expanded: boolean]
   'issue-navigate': [request: SessionIssueNavigationRequest]
 }>()
+
+const HOVER_COLLAPSE_DELAY_MS = 180
+let collapseTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearCollapseTimer(): void {
+  if (collapseTimer === null) return
+  clearTimeout(collapseTimer)
+  collapseTimer = null
+}
+
+function requestExpansion(): void {
+  clearCollapseTimer()
+  emit('expanded-change', true)
+}
+
+function scheduleCollapse(): void {
+  clearCollapseTimer()
+  collapseTimer = setTimeout(() => {
+    collapseTimer = null
+    emit('expanded-change', false)
+  }, HOVER_COLLAPSE_DELAY_MS)
+}
+
+function handlePanelFocusOut(event: FocusEvent): void {
+  const nextTarget = event.relatedTarget
+  const panel = event.currentTarget
+  if (panel instanceof HTMLElement && nextTarget instanceof Node && panel.contains(nextTarget)) return
+  clearCollapseTimer()
+  emit('expanded-change', false)
+}
+
+onBeforeUnmount(clearCollapseTimer)
 
 const tabs = computed<readonly { key: WorkspaceBottomTab; label: string }[]>(() => [
   { key: 'issues', label: props.issuesLabel },
