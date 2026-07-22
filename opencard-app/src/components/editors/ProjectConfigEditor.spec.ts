@@ -65,4 +65,54 @@ describe('ProjectConfigEditor', () => {
       },
     })
   })
+
+  it('creates a project field from the editor header action', async () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardproject', modelValue: content },
+      global: { stubs: { Teleport: true } },
+    })
+
+    await wrapper.get('.project-config-editor__add-property').trigger('click')
+    const dialogInputs = wrapper.findAll('[role="dialog"] input')
+    await dialogInputs[0].setValue('author')
+    await dialogInputs[1].setValue('Author')
+    await wrapper.get('[role="dialog"] form, form[role="dialog"]').trigger('submit')
+
+    const emissions = wrapper.emitted('update:modelValue') ?? []
+    const emittedContent = emissions[emissions.length - 1]?.[0] as string
+    expect(JSON.parse(emittedContent).project).toMatchObject({
+      author: '',
+      additionalFieldDefinition: {
+        author: { fieldType: 'string', title: 'Author' },
+      },
+    })
+  })
+
+  it('deletes a project field after the shared two-click confirmation', async () => {
+    const customContent = JSON.stringify({
+      version: 1,
+      project: {
+        name: 'Demo',
+        description: '',
+        entry: 'main.opencard',
+        author: 'Alice',
+        additionalFieldDefinition: {
+          author: { fieldType: 'string', title: 'Author' },
+        },
+      },
+      workspace: { indexedEntries: [], expandedDirectories: [] },
+    })
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardproject', modelValue: customContent },
+    })
+
+    const deleteButton = wrapper.get('[data-field-key="author"] .delete-field-button')
+    await deleteButton.trigger('click')
+    await deleteButton.trigger('click')
+
+    const emissions = wrapper.emitted('update:modelValue') ?? []
+    const project = JSON.parse(emissions[emissions.length - 1]?.[0] as string).project
+    expect(project).not.toHaveProperty('author')
+    expect(project).not.toHaveProperty('additionalFieldDefinition')
+  })
 })

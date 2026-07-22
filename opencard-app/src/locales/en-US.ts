@@ -78,6 +78,9 @@ export default {
   projectConfig: {
     title: 'Project Configuration',
     invalid: 'The project configuration file is invalid',
+    actions: {
+      addProperty: 'Add project property',
+    },
     fields: {
       name: 'Project Name',
       description: 'Description',

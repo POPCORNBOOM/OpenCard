@@ -78,6 +78,9 @@ export default {
   projectConfig: {
     title: '项目配置',
     invalid: '项目配置文件格式无效',
+    actions: {
+      addProperty: '添加项目属性',
+    },
     fields: {
       name: '项目名称',
       description: '项目描述',
