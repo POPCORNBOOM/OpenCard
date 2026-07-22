@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
 import WorkspaceBottomPanel from './WorkspaceBottomPanel.vue'
@@ -114,19 +115,26 @@ describe('WorkspaceBottomPanel', () => {
     expect(wrapper.emitted('expanded-change')).toEqual([[false], [true]])
   })
 
-  it('keeps the panel open after leaving while pinned', async () => {
+  it('disables automatic expansion and collapse while pinned', async () => {
     vi.useFakeTimers()
     const wrapper = mountPanel(true)
 
     try {
       const pin = wrapper.get('.workspace-bottom-panel__pin')
+      expect(pin.getComponent(OcIcon).props('name')).toBe('tool.pin-off')
       await pin.trigger('click')
       expect(pin.attributes('aria-pressed')).toBe('true')
+      expect(pin.getComponent(OcIcon).props('name')).toBe('tool.pin')
 
       await wrapper.get('.workspace-bottom-panel').trigger('mouseleave')
       vi.advanceTimersByTime(180)
-
       expect(wrapper.emitted('expanded-change')).toBeUndefined()
+
+      await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
+      await wrapper.setProps({ expanded: false })
+      await wrapper.get('.workspace-bottom-panel').trigger('mouseenter')
+
+      expect(wrapper.emitted('expanded-change')).toEqual([[false]])
     } finally {
       vi.useRealTimers()
     }

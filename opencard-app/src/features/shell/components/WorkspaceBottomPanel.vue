@@ -49,7 +49,7 @@
           :data-tooltip="pinned ? unpinLabel : pinLabel"
           @click="pinned = !pinned"
         >
-          <OcIcon :name="pinned ? 'tool.pin-off' : 'tool.pin'" size="sm" />
+          <OcIcon :name="pinned ? 'tool.pin' : 'tool.pin-off'" size="sm" />
         </button>
       </div>
 
@@ -140,6 +140,7 @@ function clearCollapseTimer(): void {
 
 function requestExpansion(): void {
   clearCollapseTimer()
+  if (pinned.value) return
   emit('expanded-change', true)
 }
 
