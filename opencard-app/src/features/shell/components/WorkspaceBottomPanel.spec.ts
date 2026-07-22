@@ -89,7 +89,7 @@ describe('WorkspaceBottomPanel', () => {
     const wrapper = mountPanel(false)
 
     try {
-      await wrapper.get('.workspace-bottom-panel').trigger('mouseenter')
+      await wrapper.get('.workspace-bottom-panel__toggle').trigger('mouseenter')
       await wrapper.setProps({ expanded: true })
       await wrapper.get('#workspace-bottom-tab-output').trigger('click')
       await wrapper.get('.workspace-bottom-panel').trigger('mouseleave')
@@ -132,12 +132,20 @@ describe('WorkspaceBottomPanel', () => {
 
       await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
       await wrapper.setProps({ expanded: false })
-      await wrapper.get('.workspace-bottom-panel').trigger('mouseenter')
+      await wrapper.get('.workspace-bottom-panel__toggle').trigger('mouseenter')
 
       expect(wrapper.emitted('expanded-change')).toEqual([[false]])
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not expand when the pointer only crosses the panel edge', async () => {
+    const wrapper = mountPanel(false)
+
+    await wrapper.get('.workspace-bottom-panel').trigger('mouseenter')
+
+    expect(wrapper.emitted('expanded-change')).toBeUndefined()
   })
 
   it('opens on keyboard focus and closes when focus leaves the panel', () => {

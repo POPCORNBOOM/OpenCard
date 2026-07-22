@@ -1,6 +1,6 @@
 <template>
   <section class="workspace-bottom-panel" :class="{ 'is-expanded': expanded }"
-    @mouseenter="requestExpansion" @mouseleave="scheduleCollapse"
+    @mouseleave="scheduleCollapse"
     @focusin="requestExpansion" @focusout="handlePanelFocusOut">
     <button
       class="workspace-bottom-panel__toggle"
@@ -8,6 +8,7 @@
       :aria-expanded="expanded"
       :aria-label="expanded ? collapseLabel : expandLabel"
       :data-tooltip="expanded ? collapseLabel : expandLabel"
+      @mouseenter="requestExpansion"
       @click="toggleExpansion"
     >
       <OcIcon :name="expanded ? 'nav.chevron-down' : 'nav.chevron-up'" size="sm" />
