@@ -18,6 +18,7 @@
       brand-logo-src="/icon_v2.png"
       :menu-groups="titleBarMenus"
       :window-controls="windowControls"
+      :native-macos-controls="usesNativeMacosWindowControls"
       :collapse-tooltip="t('app.shell.collapseSidebar')"
       :expand-tooltip="t('app.shell.expandSidebar')"
       drag-region
@@ -162,6 +163,7 @@
             <SettingsWorkspace
               v-else-if="isSettingsMode"
               :view-model="activeSettingsCategory"
+              :native-macos-controls="usesNativeMacosWindowControls"
               @intent="handleSettingsIntent"
             />
             <WelcomeWorkspace
@@ -384,6 +386,9 @@ const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isWindowFullscreen = ref(false)
+const isWindowMaximized = ref(false)
+const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
+  && /Macintosh|Mac OS X/.test(navigator.userAgent)
 let unlistenWindowResize: (() => void) | null = null
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
@@ -777,17 +782,26 @@ const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
     hoverTip: isInstallingUpdate.value
       ? t('app.updater.installing')
       : t('app.updater.available', { version: updateVersion.value }),
+    group: 'app',
   } satisfies ShellTitleBarWindowControl] : []),
   {
     key: 'toggle-fullscreen',
     icon: isWindowFullscreen.value ? 'window.fullscreen-exit' : 'window.fullscreen',
+    group: 'app',
     hoverTip: isWindowFullscreen.value
       ? t('app.shell.exitFullscreen')
       : t('app.shell.enterFullscreen'),
   },
-  { key: 'minimize', icon: 'window.minimize', hoverTip: 'Minimize' },
-  { key: 'toggle-maximize', icon: 'window.maximize', hoverTip: 'Maximize / restore' },
-  { key: 'close', icon: 'action.close', hoverTip: 'Close', danger: true },
+  ...(!usesNativeMacosWindowControls ? [
+    { key: 'minimize', icon: 'window.minimize', group: 'window', hoverTip: t('app.shell.minimize') },
+    {
+      key: 'toggle-maximize',
+      icon: isWindowMaximized.value ? 'window.restore' : 'window.maximize',
+      group: 'window',
+      hoverTip: isWindowMaximized.value ? t('app.shell.restore') : t('app.shell.maximize'),
+    },
+    { key: 'close', icon: 'action.close', group: 'window', hoverTip: t('app.shell.close'), danger: true },
+  ] satisfies ShellTitleBarWindowControl[] : []),
 ])
 
 const sidebarHeadButtons = computed<ShellButton[]>(() => {
@@ -1632,11 +1646,18 @@ async function handleWorkspaceFrameAction(actionKey: string) {
   await runShellCommand(actionKey)
 }
 
-async function syncWindowFullscreenState(): Promise<void> {
+async function syncWindowState(): Promise<void> {
   try {
-    isWindowFullscreen.value = await getCurrentWindow().isFullscreen()
+    const appWindow = getCurrentWindow()
+    const [fullscreen, maximized] = await Promise.all([
+      appWindow.isFullscreen(),
+      appWindow.isMaximized(),
+    ])
+    isWindowFullscreen.value = fullscreen
+    isWindowMaximized.value = maximized
   } catch {
     isWindowFullscreen.value = false
+    isWindowMaximized.value = false
   }
 }
 
@@ -1668,6 +1689,7 @@ async function handleWindowControl(actionKey: string) {
 
     if (actionKey === 'toggle-maximize') {
       await appWindow.toggleMaximize()
+      isWindowMaximized.value = await appWindow.isMaximized()
       return
     }
 
@@ -1825,10 +1847,10 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('resize', handleViewportResize)
   void (async () => {
-    await syncWindowFullscreenState()
+    await syncWindowState()
     try {
       unlistenWindowResize = await getCurrentWindow().onResized(() => {
-        void syncWindowFullscreenState()
+        void syncWindowState()
       })
     } catch {
       unlistenWindowResize = null

@@ -33,6 +33,7 @@ export interface ShellTitleBarMenuGroup {
 export interface ShellTitleBarWindowControl {
   key: string;
   icon: IconToken;
+  group?: 'app' | 'window';
   hoverTip?: string;
   danger?: boolean;
   spinning?: boolean;

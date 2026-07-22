@@ -122,6 +122,7 @@ import {
   mdiVuejs,
   mdiWindowMaximize,
   mdiWindowMinimize,
+  mdiWindowRestore,
 } from '@mdi/js'
 import type { IconToken } from './iconTokens'
 import type { IconGlyph } from './iconTypes'
@@ -176,6 +177,7 @@ export const iconGlyphs = {
   'window.fullscreen-exit': glyph(mdiFullscreenExit),
   'window.maximize': glyph(mdiWindowMaximize),
   'window.minimize': glyph(mdiWindowMinimize),
+  'window.restore': glyph(mdiWindowRestore),
 
   'tree.chevron-down': glyph(mdiChevronDown),
   'tree.chevron-right': glyph(mdiChevronRight),

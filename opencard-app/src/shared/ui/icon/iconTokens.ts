@@ -50,6 +50,7 @@ export const iconTokens = {
   'window.fullscreen-exit': true,
   'window.maximize': true,
   'window.minimize': true,
+  'window.restore': true,
 
   'tree.chevron-down': true,
   'tree.chevron-right': true,

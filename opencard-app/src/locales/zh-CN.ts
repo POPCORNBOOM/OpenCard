@@ -9,6 +9,10 @@ export default {
       unpinBottomPanel: '取消固定下方面板',
       enterFullscreen: '进入全屏（F11）',
       exitFullscreen: '退出全屏（F11）',
+      minimize: '最小化',
+      maximize: '最大化',
+      restore: '还原',
+      close: '关闭',
     },
     problems: {
       tab: '问题',

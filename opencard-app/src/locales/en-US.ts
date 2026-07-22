@@ -9,6 +9,10 @@ export default {
       unpinBottomPanel: 'Unpin bottom panel',
       enterFullscreen: 'Enter fullscreen (F11)',
       exitFullscreen: 'Exit fullscreen (F11)',
+      minimize: 'Minimize',
+      maximize: 'Maximize',
+      restore: 'Restore',
+      close: 'Close',
     },
     problems: {
       tab: 'Problems',

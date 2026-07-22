@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "OpenCard",
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 13
+        },
+        "minWidth": 1280,
+        "minHeight": 720,
+        "width": 1280,
+        "height": 720
+      }
+    ]
+  }
+}

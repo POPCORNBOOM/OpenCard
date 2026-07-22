@@ -59,4 +59,25 @@ describe('ShellTitleBar', () => {
     expect(buttons[0]!.attributes('aria-expanded')).toBe('false')
     expect(buttons[1]!.attributes('aria-expanded')).toBe('true')
   })
+
+  it('reserves native macOS chrome and separates application actions from window controls', () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [],
+        nativeMacosControls: true,
+        windowControls: [
+          { key: 'fullscreen', icon: 'window.fullscreen', group: 'app' },
+          { key: 'minimize', icon: 'window.minimize', group: 'window' },
+          { key: 'restore', icon: 'window.restore', group: 'window' },
+        ],
+      },
+    })
+
+    expect(wrapper.get('.titlebar').classes()).toContain('titlebar-native-macos')
+    const controls = wrapper.findAll('.titlebar-right .titlebar-icon')
+    expect(controls[1]!.classes()).toContain('titlebar-icon-window-start')
+    expect(controls[2]!.classes()).not.toContain('titlebar-icon-window-start')
+  })
 })

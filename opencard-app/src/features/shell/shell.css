@@ -275,6 +275,10 @@
   padding: 0 var(--space-3);
 }
 
+.titlebar.titlebar-native-macos {
+  padding-left: 78px;
+}
+
 .titlebar-left,
 .titlebar-right {
   display: flex;
@@ -417,6 +421,10 @@
 .titlebar-icon-danger:hover {
   background: var(--color-danger-hover);
   color: var(--color-danger-text);
+}
+
+.titlebar-icon-window-start {
+  margin-left: var(--space-2);
 }
 
 .titlebar-icon.is-spinning .oc-icon {

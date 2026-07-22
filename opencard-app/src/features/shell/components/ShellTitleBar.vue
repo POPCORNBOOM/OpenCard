@@ -14,6 +14,7 @@ const props = defineProps<{
   collapseTooltip?: string;
   expandTooltip?: string;
   dragRegion?: boolean;
+  nativeMacosControls?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -80,7 +81,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <header ref="titlebarRef" class="titlebar">
+  <header
+    ref="titlebarRef"
+    class="titlebar"
+    :class="{ 'titlebar-native-macos': props.nativeMacosControls }"
+  >
     <div class="titlebar-left">
       <button
         class="titlebar-icon"
@@ -132,10 +137,16 @@ onBeforeUnmount(() => {
 
     <div class="titlebar-right">
       <button
-        v-for="control in props.windowControls ?? []"
+        v-for="(control, controlIndex) in props.windowControls ?? []"
         :key="control.key"
         class="titlebar-icon"
-        :class="{ 'titlebar-icon-danger': control.danger, 'is-spinning': control.spinning }"
+        :class="{
+          'titlebar-icon-danger': control.danger,
+          'titlebar-icon-window': control.group === 'window',
+          'titlebar-icon-window-start': control.group === 'window'
+            && props.windowControls?.[controlIndex - 1]?.group !== 'window',
+          'is-spinning': control.spinning,
+        }"
         type="button"
         :data-tooltip="control.hoverTip || null"
         @click="emit('window-control', control.key)"
