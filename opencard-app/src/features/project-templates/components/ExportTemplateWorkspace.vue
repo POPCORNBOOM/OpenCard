@@ -249,7 +249,7 @@ async function exportTemplate(): Promise<void> {
   exportedPath.value = ''
   try {
     const outputPath = await store.pickTemplateExportPath(
-      `${safeFileName(name.value)}.octemplete`,
+      `${safeFileName(name.value)}.opencardtemplate`,
       t('templateExport.dialogs.chooseOutput'),
     )
     if (!outputPath) return

@@ -19,6 +19,7 @@
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
+          :resource-root-path="props.resourceRootPath"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -30,7 +31,11 @@
           <template #info>
             <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
               <span v-for="item in viewportCardInfo" :key="item.key"
-                :class="{ 'is-highlighted': highlightedInfoKeys.has(item.key) }" :title="item.value">
+                :class="{
+                  'is-highlighted': highlightedInfoKeys.has(item.key),
+                  'is-group-separated': item.separated,
+                  'is-multiline': item.multiline,
+                }" :title="item.value">
                 {{ item.value }}
               </span>
             </section>
@@ -97,6 +102,7 @@
                     <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
                       :style="transformPreviewViewportStyle">
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
+                        :resource-root-path="props.resourceRootPath"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -141,7 +147,7 @@
             </OcCard>
           </div>
 
-          <div class="card-design-editor__center-spacer" aria-hidden="true" />
+          <div ref="centerSpacerRef" class="card-design-editor__center-spacer" aria-hidden="true" />
 
           <div
             class="card-design-editor__resizebar card-design-editor__resizebar--vertical"
@@ -203,26 +209,27 @@
                     :binding-interpreter="propertyBindingInterpreter"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
-                    @delete-property="deleteAdditionalField" />
+                    @delete-property="deleteProperty" />
                 </OcPanel>
               </OcCard>
             </div>
           </aside>
         </div>
 
-        <OcViewportControls
-          v-if="viewFace"
-          class="card-design-editor__viewport-controls"
-          aria-label="卡牌画布缩放控制"
-          :scale-label="viewportScaleLabel"
-          @zoom-out="zoomViewportBy(1 / VIEWPORT_ZOOM_STEP)"
-          @reset="resetViewport"
-          @zoom-in="zoomViewportBy(VIEWPORT_ZOOM_STEP)"
-        />
-
         <div v-if="viewFace && !isRightSidebarCollapsed" class="card-design-editor__face-tools">
-          <OcActionButton :action="clipAction" size="sm" variant="soft" @select="toggleFaceClip" />
-          <OcActionButton :action="faceSwitchAction" size="sm" variant="soft" @select="toggleActiveFace" />
+          <OcViewportControls
+            class="card-design-editor__viewport-controls"
+            orientation="vertical"
+            embedded
+            aria-label="卡牌画布缩放控制"
+            :scale-label="viewportScaleLabel"
+            @zoom-out="zoomViewportBy(1 / VIEWPORT_ZOOM_STEP)"
+            @reset="fitViewport"
+            @zoom-in="zoomViewportBy(VIEWPORT_ZOOM_STEP)"
+          />
+          <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
+          <OcActionButton :action="clipAction" size="sm" variant="ghost" @select="toggleFaceClip" />
+          <OcActionButton :action="faceSwitchAction" size="sm" variant="ghost" @select="toggleActiveFace" />
         </div>
       </div>
     </div>
@@ -298,6 +305,11 @@ import type {
 import { chainPropertyCompletionProviders } from '../../shared/ui/property-editor/propertyCompletion'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { createFilePathCompletionProvider } from '../workspace/services/filePathCompletion'
+import { fileSystemService } from '../workspace/services/fileSystemService'
+import {
+  getEditorResourceRelativePath,
+  resolveEditorResourcePath,
+} from '../editor-runtime/services/editorResource'
 import {
   exposesProjectFieldReference,
   getProjectFieldKeys,
@@ -407,7 +419,9 @@ const clipAction = computed<OcActionButtonAction>(() => ({
 
 const faceSwitchAction = computed<OcActionButtonAction>(() => ({
   key: 'switch-face',
-  icon: 'nav.arrow-swap',
+  icon: activeFaceKey.value === 'front'
+    ? 'tool.flip-to-front'
+    : 'tool.flip-to-back',
   title: activeFaceKey.value === 'front'
     ? t('cardDesigner.view.switchToBack')
     : t('cardDesigner.view.switchToFront'),
@@ -473,6 +487,7 @@ type CardViewportHandle = {
   zoomBy: (factor: number) => void
   zoomByWheelAt: (deltaY: number, deltaMode: number, viewportX: number, viewportY: number) => void
   resetView: () => void
+  fitView: (targetRect?: { left: number; top: number; width: number; height: number }) => void
 }
 
 type PropertyEditorHandle = {
@@ -480,6 +495,7 @@ type PropertyEditorHandle = {
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
+const centerSpacerRef = ref<HTMLElement | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
@@ -974,7 +990,7 @@ const {
   openAdditionalFieldCreateDialog,
   closeAdditionalFieldCreateDialog,
   submitAdditionalFieldCreate,
-  deleteAdditionalField,
+  deleteProperty,
 } = useCdePropertyPanelState({
   cardDoc,
   activeFace,
@@ -1124,6 +1140,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
           oppositeFace: hasFaceContext ? oppositeFaceScope : undefined,
           document: documentScope,
           project: projectScope,
+          allowedScopes: getCardFieldDefinition(input.record, fieldKey)?.bindingScopes,
           getAncestor: (depth: number) => ancestorScopes[depth - 1],
           targetKind: getCardFieldValueKind(input.record, fieldKey),
         },
@@ -1165,10 +1182,16 @@ const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
         : undefined
       const filePathProvider = definition.fieldType === 'filePath'
         ? createFilePathCompletionProvider({
-            listDirectory: projectStore.listProjectDirectoryEntries,
-            getRootEntries: () => projectStore.indexedEntries.value,
+            listDirectory: async (relativeDirectory) => {
+              const directoryPath = relativeDirectory
+                ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
+                : props.resourceRootPath
+              if (!directoryPath) return []
+              return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
+            },
+            getRootEntries: () => [],
             extensions: definition.extensionsFilter,
-            isAvailable: () => Boolean(projectStore.projectPath.value),
+            isAvailable: () => Boolean(props.resourceRootPath),
           })
         : undefined
       const provider = filePathProvider
@@ -1250,6 +1273,12 @@ const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineRes
 const viewFace = computed<RenderReadyCardFace | null>(() => (
   viewDoc.value?.faces[activeFaceKey.value] ?? null
 ))
+type ViewportCardInfoItem = {
+  key: string
+  value: string
+  separated?: boolean
+  multiline?: boolean
+}
 const viewportCardInfo = computed(() => {
   function countBlocks(blocks: readonly CardBlock[]): number {
     return blocks.reduce((count, block) => (
@@ -1261,26 +1290,61 @@ const viewportCardInfo = computed(() => {
 
   const document = cardDoc.value
   const face = activeFace.value
-  const fileName = props.fileName?.trim()
+  const filePath = getEditorResourceRelativePath(props.resourceRootPath ?? null, props.filePath)
+    || props.fileName?.trim()
     || props.filePath.split(/[\\/]/).filter(Boolean).pop()
     || props.filePath
   const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
-
-  return [
-      { key: 'fileName', value: fileName },
-      { key: 'cardName', value: document?.name || '—' },
-      {
-        key: 'face',
-        value: activeFaceKey.value === 'front'
-          ? t('cardDesigner.info.front')
-          : t('cardDesigner.info.back'),
-      },
-      {
-        key: 'instanceCount',
-        value: t('cardDesigner.info.instanceTotal', { count: document?.instances.length ?? 0 }),
-      },
-      { key: 'blockCount', value: t('cardDesigner.info.blockTotal', { count: blockCount }) },
+  const isBlueprint = selectedCardId.value === BLUEPRINT_CARD_ID
+  const documentName = viewDoc.value?.name || '—'
+  const documentVersion = viewDoc.value?.version || '—'
+  const description = viewDoc.value?.description.trim()
+  const notes = viewDoc.value?.notes.trim()
+  const items: ViewportCardInfoItem[] = [
+    { key: 'fileName', value: filePath },
+    { key: 'document', value: `${documentName} @ ${documentVersion}` },
   ]
+
+  if (description) {
+    items.push({
+      key: 'description',
+      value: t('cardDesigner.info.descriptionValue', { description }),
+      multiline: true,
+    })
+  }
+
+  items.push({
+    key: 'instanceCount',
+    value: t('cardDesigner.info.instanceTotal', { count: document?.instances.length ?? 0 }),
+  })
+
+  if (!isBlueprint && selectedCard.value) {
+    const instanceIndex = Math.max(0, document?.instances.findIndex(
+      (instance) => instance.id === selectedCard.value?.id,
+    ) ?? -1) + 1
+    items.push({
+      key: 'instance',
+      value: t('cardDesigner.info.instancePosition', {
+        name: selectedCard.value.name || selectedCard.value.id,
+        index: instanceIndex,
+        total: document?.instances.length ?? 0,
+      }),
+      separated: true,
+    })
+  }
+
+  items.push({
+    key: 'face',
+    value: activeFaceKey.value === 'front'
+      ? t('cardDesigner.info.front')
+      : t('cardDesigner.info.back'),
+    separated: true,
+  })
+  items.push({ key: 'blockCount', value: t('cardDesigner.info.blockTotal', { count: blockCount }) })
+  if (notes) {
+    items.push({ key: 'notes', value: notes, separated: true, multiline: true })
+  }
+  return items
 })
 const viewportCardDimensions = computed(() => ({
   width: t('cardDesigner.info.widthValue', { value: viewFace.value?.width ?? '—' }),
@@ -1484,8 +1548,22 @@ function handlePreviewViewportWheel(event: WheelEvent): void {
   )
 }
 
-function resetViewport(): void {
-  cardViewportRef.value?.resetView()
+function fitViewport(): void {
+  const centerRect = centerSpacerRef.value?.getBoundingClientRect()
+  const leftRect = leftSidebarRef.value?.getBoundingClientRect()
+  const rightRect = rightSidebarRef.value?.getBoundingClientRect()
+  const left = leftRect?.right ?? centerRect?.left
+  const right = rightRect?.left ?? centerRect?.right
+  const hasVisibleRegion = centerRect && left !== undefined && right !== undefined && right > left
+
+  cardViewportRef.value?.fitView(hasVisibleRegion
+    ? {
+        left,
+        top: centerRect.top,
+        width: right - left,
+        height: centerRect.height,
+      }
+    : undefined)
 }
 
 function commitViewportTransform(payload: { x: number; y: number; scale: number }): void {
@@ -1847,13 +1925,22 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.card-design-editor__card-info > span.is-multiline {
+  text-overflow: clip;
+  white-space: pre-wrap;
+}
+
+.card-design-editor__card-info > span.is-group-separated {
+  margin-top: var(--oc-space-4);
+}
+
 .card-design-editor__dimension-info {
   display: block;
   color: var(--oc-fg-default);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  opacity: 0.34;
+  opacity: 1;
   transition: opacity 140ms ease-out;
   white-space: nowrap;
 }
@@ -1900,12 +1987,7 @@ onUnmounted(() => {
 }
 
 .card-design-editor__viewport-controls {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  z-index: 3;
   pointer-events: auto;
-  transform: translateX(-50%);
 }
 
 .card-design-editor__face-tools {
@@ -1915,8 +1997,21 @@ onUnmounted(() => {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: var(--oc-space-2);
+  align-items: center;
+  gap: var(--oc-space-1);
+  padding: 3px;
+  border: 1px solid var(--oc-border-muted);
+  border-radius: var(--oc-radius-md);
+  background: var(--oc-bg-glass);
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+  box-shadow: var(--oc-shadow-md);
   pointer-events: auto;
+}
+
+.card-design-editor__face-tools-divider {
+  width: 16px;
+  height: 1px;
+  background: var(--oc-border-muted);
 }
 
 .card-design-editor__overlay-layout {

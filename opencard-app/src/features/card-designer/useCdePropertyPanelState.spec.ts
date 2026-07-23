@@ -99,7 +99,7 @@ describe('useCdePropertyPanelState additional fields', () => {
     const { block, document, state } = createHarness()
     document.instances[0]!.data.text = { score: '18' }
 
-    expect(state.deleteAdditionalField({ key: block.id, fieldKey: 'score' })).toBe(true)
+    expect(state.deleteProperty({ key: block.id, fieldKey: 'score' })).toBe(true)
     expect(block.additionalFieldDefinition).toBeUndefined()
     expect((block as unknown as Record<string, unknown>).score).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()
@@ -119,5 +119,24 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(document.instances[0]!.data).toEqual({})
     state.resetProperty({ key: 'front', fieldKey: 'background' })
     expect(document.faces.front.background).toBe('#FFFFFF')
+  })
+
+  it('projects missing optional document metadata as addable schema fields', () => {
+    const { document, selectedBlockKey, state } = createHarness()
+    selectedBlockKey.value = null
+    delete document.name
+
+    const documentInput = state.propertyInputs.value[0]!
+    expect(documentInput.record).not.toHaveProperty('name')
+    expect(documentInput.record).not.toHaveProperty('description')
+    expect(documentInput.record).not.toHaveProperty('notes')
+    expect(documentInput.fields.name?.defaultValue).toBe('')
+    expect(documentInput.fields.description?.defaultValue).toBe('')
+    expect(documentInput.fields.notes?.defaultValue).toBe('')
+
+    state.addProperty({ key: document.id, fieldKey: 'description', value: '' })
+    expect(document.description).toBe('')
+    expect(state.propertyInputs.value[0]?.fields.description?.deletable).toBe(false)
+    expect(state.propertyInputs.value[0]?.fields.description?.resettable).toBeUndefined()
   })
 })

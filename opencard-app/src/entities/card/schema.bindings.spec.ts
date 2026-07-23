@@ -41,6 +41,31 @@ describe('property binding schema policy', () => {
     expect(documentSchema.schemaVersion?.isHidden).toBe(true)
   })
 
+  it('keeps optional document metadata addable in one category', () => {
+    const schema = getTypePropertyEditorSchema('card-document')
+
+    expect(schema.name).toMatchObject({ fieldType: 'string', categoryId: 'identity' })
+    expect(schema.description).toMatchObject({
+      fieldType: 'string',
+      categoryId: 'identity',
+      multiline: true,
+    })
+    expect(schema.notes).toMatchObject({
+      fieldType: 'string',
+      categoryId: 'identity',
+      multiline: true,
+    })
+    expect(schema.name?.deletable).toBeUndefined()
+    expect(schema.description?.deletable).toBeUndefined()
+    expect(schema.notes?.deletable).toBeUndefined()
+    for (const fieldKey of ['name', 'description', 'notes', 'version', 'width', 'height']) {
+      expect(schema[fieldKey]?.bindingScopes).toEqual(['project'])
+    }
+    expect(schema.name?.defaultValue).toBeUndefined()
+    expect(schema.description?.defaultValue).toBeUndefined()
+    expect(schema.notes?.defaultValue).toBeUndefined()
+  })
+
   it('uses the standard fieldType system for every creatable additional field', () => {
     expect(additionalFieldTypes).toEqual([
       'string',

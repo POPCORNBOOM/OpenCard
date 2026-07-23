@@ -19,6 +19,8 @@ function createDocument(): CardDocument {
     schemaVersion: '2',
     id: 'document-1',
     name: 'Document',
+    description: 'Reusable hero\ncard.',
+    notes: 'Review print\nmargins.',
     version: '1.0.0',
     width: '540',
     height: '850',
@@ -150,6 +152,70 @@ describe('CardDesignEditor issue navigation', () => {
     expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
   })
 
+  it('projects relative file, blueprint, and instance information for the viewport', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      setup(_, { slots }) {
+        return () => h('div', { class: 'card-viewport-stub' }, slots.info?.())
+      },
+    })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        resourceRootPath: 'D:/Project',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const infoValues = () => wrapper.findAll('.card-design-editor__card-info > span')
+      .map((item) => item.text())
+    expect(infoValues()).toEqual([
+      'cards/hero.opencard',
+      'Document @ 1.0.0',
+      '"Reusable hero\ncard."',
+      '1 instances',
+      'Front Face',
+      '2 blocks',
+      'Review print\nmargins.',
+    ])
+    expect(wrapper.findAll('.card-design-editor__card-info > .is-group-separated').map((item) => item.text()))
+      .toEqual(['Front Face', 'Review print\nmargins.'])
+
+    await wrapper.setProps({
+      cardDesignerView: {
+        activeFace: 'front',
+        clipToFace: false,
+        selectedInstanceId: 'instance-1',
+      },
+    })
+    await nextTick()
+
+    expect(infoValues()).toEqual([
+      'cards/hero.opencard',
+      'Document @ 1.0.0',
+      '"Reusable hero\ncard."',
+      '1 instances',
+      '"Instance 1" (1 of 1)',
+      'Front Face',
+      '2 blocks',
+      'Review print\nmargins.',
+    ])
+    expect(wrapper.findAll('.card-design-editor__card-info > .is-group-separated').map((item) => item.text()))
+      .toEqual(['"Instance 1" (1 of 1)', 'Front Face', 'Review print\nmargins.'])
+  })
+
   it('switches face and clipping through session state without modifying the document', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const CardViewportStub = defineComponent({
@@ -165,7 +231,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'untitled://53e4786d-a867-4a8c-b235-cbedb03ea801',
+        filePath: 'draft://53e4786d-a867-4a8c-b235-cbedb03ea801',
         fileName: 'UNTITLED.opencard',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerView: {
@@ -194,11 +260,20 @@ describe('CardDesignEditor issue navigation', () => {
     expect(wrapper.find('.card-viewport-stub').text()).not.toContain('53e4786d-a867')
 
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
+    const viewportControls = wrapper.findComponent({ name: 'OcViewportControls' })
+    expect(viewportControls.props('orientation')).toBe('vertical')
+    expect(viewportControls.props('embedded')).toBe(true)
+    expect(viewportControls.element.parentElement).toBe(wrapper.get('.card-design-editor__face-tools').element)
     const faceAction = actions.find((action) => action.props('action').key === 'switch-face')
     const clipAction = actions.find((action) => action.props('action').key === 'toggle-face-clip')
+    expect(faceAction?.props('variant')).toBe('ghost')
+    expect(faceAction?.props('action').icon).toBe('tool.flip-to-back')
+    expect(clipAction?.props('variant')).toBe('ghost')
     faceAction?.vm.$emit('select', { key: 'switch-face' })
     clipAction?.vm.$emit('select', { key: 'toggle-face-clip' })
     await nextTick()
+
+    expect(faceAction?.props('action').icon).toBe('tool.flip-to-front')
 
     const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
     expect(viewUpdates[viewUpdates.length - 1]?.[0]).toEqual({

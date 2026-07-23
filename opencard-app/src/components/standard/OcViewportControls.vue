@@ -1,6 +1,13 @@
 <!-- Shared viewport zoom controls; interaction semantics remain owned by the parent viewport. -->
 <template>
-  <div class="oc-viewport-controls" :aria-label="props.ariaLabel">
+  <div
+    class="oc-viewport-controls"
+    :class="[
+      `oc-viewport-controls--${props.orientation}`,
+      { 'oc-viewport-controls--embedded': props.embedded },
+    ]"
+    :aria-label="props.ariaLabel"
+  >
     <OcButton
       icon-only
       size="sm"
@@ -38,8 +45,12 @@ import OcText from '../base/OcText.vue'
 const props = withDefaults(defineProps<{
   scaleLabel: string
   ariaLabel?: string
+  orientation?: 'horizontal' | 'vertical'
+  embedded?: boolean
 }>(), {
   ariaLabel: '画布缩放控制',
+  orientation: 'horizontal',
+  embedded: false,
 })
 
 const emit = defineEmits<{
@@ -67,5 +78,28 @@ const emit = defineEmits<{
   width: 50px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.oc-viewport-controls--vertical {
+  flex-direction: column;
+  min-height: 0;
+}
+
+.oc-viewport-controls--vertical .oc-viewport-controls__scale {
+  width: var(--oc-size-md);
+  min-height: var(--oc-size-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--oc-text-xs);
+}
+
+.oc-viewport-controls--embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 </style>

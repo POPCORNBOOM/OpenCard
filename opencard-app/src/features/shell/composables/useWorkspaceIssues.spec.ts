@@ -44,6 +44,7 @@ describe('workspace issue projection', () => {
     )
 
     expect(projection.issueCount).toBe(1)
+    expect(projection.highestSeverity).toBe('error')
     expect(projection.treeData.rootKeys).toEqual(['workspace-issue-session:a'])
     const issueKey = projection.treeData.children.get('workspace-issue-session:a')?.[0]
     expect(projection.treeData.items.get(issueKey!)).toMatchObject({
@@ -88,6 +89,7 @@ describe('workspace issue projection', () => {
       'Card A / title: a-new issue',
     ])
     expect(issues.issueCount.value).toBe(2)
+    expect(issues.highestIssueSeverity.value).toBe('error')
   })
 
   it('clears cached scopes and expansion when a session closes', async () => {
@@ -132,6 +134,7 @@ describe('workspace issue projection', () => {
     })
 
     expect(issues.issueCount.value).toBe(0)
+    expect(issues.highestIssueSeverity.value).toBeNull()
     expect(issues.issueTreeData.value.rootKeys).toEqual([])
   })
 })

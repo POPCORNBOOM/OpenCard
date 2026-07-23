@@ -21,7 +21,7 @@
       :native-macos-controls="usesNativeMacosWindowControls"
       :collapse-tooltip="t('app.shell.collapseSidebar')"
       :expand-tooltip="t('app.shell.expandSidebar')"
-      drag-region
+      :drag-region="!isWindowFullscreen"
       @toggle-sidebar="toggleSidebarCollapsed"
       @menu-action="handleTitleBarMenuAction"
       @window-control="handleWindowControl"
@@ -171,7 +171,7 @@
               @new-project="openCreateProject"
               @open-project="openProject"
             />
-            <ProjectEditorWorkspace v-else-if="isProjectMode" :has-active-editor="Boolean(activeSession)">
+            <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession)">
               <component
                 v-if="activeSession"
                 :is="currentEditorComponent"
@@ -185,13 +185,14 @@
                 @update-card-designer-view="handleCardDesignerViewUpdate"
                 @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
               />
-            </ProjectEditorWorkspace>
+            </WorkbenchWorkspace>
           </div>
 
           <WorkspaceBottomPanel
             :expanded="isBottomPanelExpanded"
             :active-tab="activeBottomTab"
             :issue-count="visibleIssueCount"
+            :issue-severity="visibleIssueSeverity"
             :issue-tree-data="visibleIssueTreeData"
             :issue-navigation-targets="issueNavigationTargets"
             :expanded-issue-keys="expandedIssueKeys"
@@ -220,7 +221,13 @@
         ref="exportRendererRef"
         :face="exportCardFace"
         :clip-to-face="true"
+        :resource-root-path="activeSessionResourceRootPath"
       />
+    </div>
+
+    <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
+      <OcIcon name="file.generic" size="lg" tone="opencard" />
+      <span>{{ t('app.shell.dropFilesToOpen') }}</span>
     </div>
 
     <FloatingMenuHost />
@@ -235,12 +242,13 @@ import { useEditorSessionStore } from '../workspace/store/editorSessionStore'
 import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
+import OcIcon from '../../components/base/OcIcon.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
-import ProjectEditorWorkspace from './components/ProjectEditorWorkspace.vue'
+import WorkbenchWorkspace from './components/WorkbenchWorkspace.vue'
 import WelcomeWorkspace from './components/WelcomeWorkspace.vue'
 import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
@@ -280,16 +288,28 @@ import {
   projectEntryMoreActionKey,
   useShellFileTree,
 } from './composables/useShellFileTree'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window'
+import type { Event as TauriEvent } from '@tauri-apps/api/event'
 import ShellSidebar from './components/ShellSidebar.vue'
 import ShellTitleBar from './components/ShellTitleBar.vue'
 import ShellWorkspaceFrame from './components/ShellWorkspaceFrame.vue'
+import {
+  classifyExternalOpenPath,
+  filterSupportedExternalOpenPaths,
+  listenForExternalOpenRequests,
+} from './services/externalOpenService'
 import type {
   ShellButton,
   ShellList,
   ShellTitleBarMenuGroup,
   ShellTitleBarWindowControl,
 } from './shell.types'
+import {
+  getPrimaryShellPage,
+  resolveShellPageAfterProjectClose,
+  type PrimaryShellPage,
+  type ShellPage,
+} from './shellPage'
 
 const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
@@ -335,13 +355,6 @@ type CurrentEditorRef = {
   navigate?: (token: SessionNavigationToken) => Promise<EditorNavigationResult> | EditorNavigationResult
 }
 
-type WorkspaceMode =
-  | { type: 'welcome' }
-  | { type: 'project' }
-  | { type: 'create-project' }
-  | { type: 'export-template' }
-  | { type: 'settings'; categoryKey: SettingsCategoryKey }
-
 const {
   projectPath,
   projectInformation,
@@ -364,13 +377,21 @@ const {
 
 const settingsStore = useAppSettingsStore()
 const templateStore = useProjectTemplateStore()
-const workspaceMode = ref<WorkspaceMode>({ type: 'welcome' })
-const isSettingsMode = computed(() => workspaceMode.value.type === 'settings')
-const isCreateProjectMode = computed(() => workspaceMode.value.type === 'create-project')
-const isExportTemplateMode = computed(() => workspaceMode.value.type === 'export-template')
-const isWelcomeMode = computed(() => workspaceMode.value.type === 'welcome')
-const isProjectMode = computed(() => workspaceMode.value.type === 'project')
+const shellPage = ref<ShellPage>({ type: 'welcome' })
+const isSettingsMode = computed(() => shellPage.value.type === 'settings')
+const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
+const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
+const isWelcomeMode = computed(() => shellPage.value.type === 'welcome')
+const isWorkbenchMode = computed(() => shellPage.value.type === 'workbench')
 const isAuxiliaryMode = computed(() => isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value)
+
+function getCurrentPrimaryShellPage(): PrimaryShellPage {
+  return getPrimaryShellPage(shellPage.value)
+}
+
+function showPrimaryShellPage(page: PrimaryShellPage): void {
+  shellPage.value = { type: page }
+}
 const selectedTemplateKey = ref<ProjectTemplateKey | null>(null)
 const createProjectWorkspaceRef = ref<InstanceType<typeof CreateProjectWorkspace> | null>(null)
 const exportTemplateWorkspaceRef = ref<InstanceType<typeof ExportTemplateWorkspace> | null>(null)
@@ -387,15 +408,20 @@ const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isWindowFullscreen = ref(false)
 const isWindowMaximized = ref(false)
+let restoreMaximizedAfterFullscreen = false
+let isFullscreenTransitioning = false
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 let unlistenWindowResize: (() => void) | null = null
+let unlistenExternalOpen: (() => void) | null = null
+let unlistenShellFileDrop: (() => void) | null = null
+const isShellFileDropActive = ref(false)
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value || isCreateProjectOperationBusy.value
 ))
 const settingsCategoryKey = computed<SettingsCategoryKey>(() =>
-  workspaceMode.value.type === 'settings' ? workspaceMode.value.categoryKey : 'general'
+  shellPage.value.type === 'settings' ? shellPage.value.categoryKey : 'general'
 )
 const projectOpen = computed(() => Boolean(projectPath.value))
 const { categoryTreeData: settingsCategoryTreeData, activeCategory: activeSettingsCategory } = useSettingsWorkspace({
@@ -432,7 +458,7 @@ const {
   openFile: openEditorSession,
   openPreviewFile,
   activateSession,
-  createUntitledSession,
+  createDraftSession,
   updateDraftContent,
   setSessionDirtyState,
   updateSessionUiState,
@@ -443,17 +469,48 @@ const {
   remapSessionPaths,
 } = useEditorSessionStore()
 
+function formatSessionTitle(session: { name: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
+  if (session.resourceKind === 'external') {
+    return t('sidebar.editorTitles.external', { name: session.name })
+  }
+  if (session.resourceKind === 'draft') {
+    return t('sidebar.editorTitles.draft', { name: session.name })
+  }
+  return session.name
+}
+
+const localizedOpenedEditorItems = computed(() => openedEditorItems.value.map((item) => ({
+  ...item,
+  label: formatSessionTitle({ name: item.label, resourceKind: item.resourceKind }),
+})))
+
+function getPathDirectory(path: string): string {
+  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '')
+  const separatorIndex = normalizedPath.lastIndexOf('/')
+  return separatorIndex > 0 ? normalizedPath.slice(0, separatorIndex) : ''
+}
+
+const activeSessionResourceRootPath = computed<string | null>(() => {
+  const session = activeSession.value
+  if (!session) return null
+  if (session.resourceKind === 'workspace') return projectPath.value || null
+  if (session.resourceKind === 'external' && session.path) return getPathDirectory(session.path) || null
+  return null
+})
+
 const {
   issueTreeData,
   issueNavigationTargets,
   issueCount,
+  highestIssueSeverity,
   expandedIssueKeys,
   reportSessionIssueSnapshot,
   clearAllSessionIssues,
   setIssueNodeExpanded,
 } = useWorkspaceIssues({ sessions })
-const visibleIssueTreeData = computed(() => isProjectMode.value ? issueTreeData.value : EMPTY_TREE_DATA)
-const visibleIssueCount = computed(() => isProjectMode.value ? issueCount.value : 0)
+const visibleIssueTreeData = computed(() => isWorkbenchMode.value ? issueTreeData.value : EMPTY_TREE_DATA)
+const visibleIssueCount = computed(() => isWorkbenchMode.value ? issueCount.value : 0)
+const visibleIssueSeverity = computed(() => isWorkbenchMode.value ? highestIssueSeverity.value : null)
 
 watch(locale, clearAllSessionIssues, { flush: 'sync' })
 watch(projectPath, (nextPath, previousPath) => {
@@ -485,7 +542,7 @@ const {
 } = useShellFileTree({
   projectPath,
   indexedEntries,
-  openedEditorItems,
+  openedEditorItems: localizedOpenedEditorItems,
   activeSession,
   isDirectoryExpanded,
   activateSession,
@@ -807,14 +864,14 @@ const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
 const sidebarHeadButtons = computed<ShellButton[]>(() => {
   if (isCreateProjectMode.value || isExportTemplateMode.value) {
     return [{
-      key: 'return-workspace',
+      key: 'return-primary-page',
       icon: 'nav.arrow-left',
       title: t('projectTemplates.actions.back'),
       disabled: isProjectTemplateBusy.value || isExportTemplateBusy.value,
     }]
   }
   if (isSettingsMode.value) {
-    return [{ key: 'return-workspace', icon: 'nav.arrow-left', title: t('settings.actions.back', 'Back') }]
+    return [{ key: 'return-primary-page', icon: 'nav.arrow-left', title: t('settings.actions.back', 'Back') }]
   }
   if (isWelcomeMode.value) {
     return [
@@ -930,17 +987,21 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
     {
       key: PROJECT_FILES_LIST_KEY,
       title: projectName.value || t('sidebar.files'),
-      placeholder: t('sidebar.emptyProject', 'Folder is empty'),
+      placeholder: projectPath.value
+        ? t('sidebar.emptyProject', 'Folder is empty')
+        : t('sidebar.noProjectOpen', 'No project folder open'),
       actions: [
         {
           key: PROJECT_NEW_FILE_ACTION_KEY,
           icon: 'action.file-plus',
           hoverTip: t('sidebar.fileActions.newFile'),
+          disabled: !projectPath.value,
         },
         {
           key: PROJECT_NEW_FOLDER_ACTION_KEY,
           icon: 'action.folder-plus',
           hoverTip: t('sidebar.fileActions.newFolder'),
+          disabled: !projectPath.value,
         },
       ],
     },
@@ -1021,6 +1082,19 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
     label: t('app.menu.view'),
     actions: [
       {
+        key: 'show-welcome',
+        title: t('app.menu.showWelcome'),
+        icon: 'nav.compass',
+        disabled: isWelcomeMode.value,
+      },
+      {
+        key: 'show-workbench',
+        title: t('app.menu.showWorkbench'),
+        icon: 'nav.files',
+        disabled: isWorkbenchMode.value,
+      },
+      { type: 'divider', key: 'view-page-divider' },
+      {
         key: 'toggle-sidebar',
         title: sidebarCollapsed.value ? t('app.shell.expandSidebar') : t('app.shell.collapseSidebar'),
         icon: sidebarCollapsed.value ? 'nav.sidebar-expand' : 'nav.sidebar-collapse',
@@ -1061,7 +1135,9 @@ const workspaceTitle = computed(() => {
   if (isExportTemplateMode.value) return t('templateExport.title')
   if (isSettingsMode.value) return activeSettingsCategory.value.title
   if (isWelcomeMode.value) return 'OpenCard'
-  return activeSession.value?.name || projectName.value || 'OpenCard'
+  return activeSession.value
+    ? formatSessionTitle(activeSession.value)
+    : projectName.value || t('app.menu.workbench')
 })
 
 const workspaceActions = computed(() => [])
@@ -1093,7 +1169,7 @@ const currentEditorKey = computed(() => {
   if (!activeSession.value) return 'none'
   return [
     activeSession.value.id,
-    activeSession.value.path ?? `untitled://${activeSession.value.id}`,
+    activeSession.value.path ?? `draft://${activeSession.value.id}`,
     activeSession.value.editorId,
   ].join('|')
 })
@@ -1107,7 +1183,7 @@ const currentEditorProps = computed(() => {
   }
 
   const fileType = resolveSessionFileType(activeSession.value)
-  const filePath = activeSession.value.path ?? `untitled://${activeSession.value.id}`
+  const filePath = activeSession.value.path ?? `draft://${activeSession.value.id}`
   const editor = editorRegistry.getEditor(fileType.editorId)
   if (editor && editor.id !== 'monaco') {
     const baseProps = {
@@ -1120,6 +1196,7 @@ const currentEditorProps = computed(() => {
       return {
         ...baseProps,
         fileName: activeSession.value.name,
+        resourceRootPath: activeSessionResourceRootPath.value,
         viewportTransform: activeSession.value.uiState?.cardDesigner?.viewportTransform,
         cardDesignerLayout: activeSession.value.uiState?.cardDesigner?.layout,
         cardDesignerView: activeSession.value.uiState?.cardDesigner?.view,
@@ -1249,7 +1326,7 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
-  if (workspaceMode.value.type === 'project' && listKey === PROJECT_FILES_LIST_KEY) {
+  if (shellPage.value.type === 'workbench' && listKey === PROJECT_FILES_LIST_KEY) {
     if (actionKey === PROJECT_NEW_FILE_ACTION_KEY) {
       await createProjectEntry('file')
       return
@@ -1260,7 +1337,7 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
     }
   }
 
-  if (workspaceMode.value.type !== 'create-project' || listKey !== USER_TEMPLATES_LIST_KEY) return
+  if (shellPage.value.type !== 'create-project' || listKey !== USER_TEMPLATES_LIST_KEY) return
   if (isProjectTemplateBusy.value || templateStore.isLoading.value) return
 
   if (actionKey === CREATE_TEMPLATE_ACTION_KEY) {
@@ -1304,7 +1381,8 @@ function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
 
   const categoryKey = intent.selectedKeys[0]
   if (categoryKey === 'general' || categoryKey === 'appearance' || categoryKey === 'workspace') {
-    workspaceMode.value = { type: 'settings', categoryKey }
+    const returnPage = getCurrentPrimaryShellPage()
+    shellPage.value = { type: 'settings', categoryKey, returnPage }
   }
 }
 
@@ -1441,7 +1519,7 @@ async function openProject() {
   }
 
   settingsStore.rememberRecentProject(projectPath.value)
-  workspaceMode.value = { type: 'project' }
+  showPrimaryShellPage('workbench')
   await ensureProjectTreeLoaded()
 }
 
@@ -1452,7 +1530,56 @@ async function closeProjectFolder(): Promise<void> {
   closeWorkspaceSessions()
   await setProjectPath('')
   selectedRecentProjectKeys.value = []
-  workspaceMode.value = { type: 'welcome' }
+  shellPage.value = resolveShellPageAfterProjectClose(shellPage.value)
+}
+
+async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> {
+  for (const path of paths) {
+    const normalizedPath = path.replace(/\\/g, '/')
+    const kind = classifyExternalOpenPath(normalizedPath)
+    if (!kind) continue
+
+    try {
+      if (kind === 'project') {
+        const projectDirectory = getPathDirectory(normalizedPath)
+        if (!projectDirectory) continue
+        await openRecentProject(projectDirectory)
+        await openEditorSession(normalizedPath)
+        continue
+      }
+
+      if (kind === 'card') {
+        await openEditorSession(normalizedPath)
+        showPrimaryShellPage('workbench')
+        continue
+      }
+
+      if (kind === 'template') {
+        const imported = await templateStore.importUserTemplate(normalizedPath)
+        selectedTemplateKey.value = imported.key
+        shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
+      }
+    } catch (error) {
+      console.error('处理外部打开请求失败:', normalizedPath, error)
+    }
+  }
+}
+
+function handleShellFileDropEvent(event: TauriEvent<DragDropEvent>): void {
+  const payload = event.payload
+  if (payload.type === 'enter') {
+    isShellFileDropActive.value = filterSupportedExternalOpenPaths(payload.paths).length > 0
+    return
+  }
+  if (payload.type === 'drop') {
+    isShellFileDropActive.value = false
+    const paths = filterSupportedExternalOpenPaths(payload.paths)
+    if (paths.length > 0) void handleExternalOpenPaths(paths)
+    return
+  }
+  if (payload.type === 'leave') {
+    isShellFileDropActive.value = false
+  }
 }
 
 async function openRecentProject(path: string): Promise<void> {
@@ -1463,7 +1590,7 @@ async function openRecentProject(path: string): Promise<void> {
   await setProjectPath(path)
   settingsStore.rememberRecentProject(projectPath.value)
   selectedRecentProjectKeys.value = []
-  workspaceMode.value = { type: 'project' }
+  showPrimaryShellPage('workbench')
   await ensureProjectTreeLoaded()
 }
 
@@ -1479,7 +1606,7 @@ async function relocateRecentProject(missingPath: string): Promise<void> {
 function openCreateProject(): void {
   if (isProjectTemplateBusy.value) return
   projectActivationError.value = ''
-  workspaceMode.value = { type: 'create-project' }
+  shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
   void templateStore.load().catch(() => undefined)
 }
 
@@ -1497,7 +1624,7 @@ async function handleProjectCreated(project: CreatedProject): Promise<void> {
     settingsStore.rememberRecentProject(project.path)
     await ensureProjectTreeLoaded()
     await openEditorSession(project.entry)
-    workspaceMode.value = { type: 'project' }
+    showPrimaryShellPage('workbench')
   } catch (error) {
     projectActivationError.value = t('projectTemplates.errors.activationFailed')
     console.error('激活新建项目失败:', error)
@@ -1543,8 +1670,8 @@ function handleSidebarResize(width: number) {
 
 function createUntitledOpenCard() {
   if (!projectPath.value) return
-  workspaceMode.value = { type: 'project' }
-  createUntitledSession({
+  showPrimaryShellPage('workbench')
+  createDraftSession({
     fileTypeId: 'opencard',
   })
 }
@@ -1553,7 +1680,11 @@ async function runShellCommand(actionKey: string) {
   if ((isCreateProjectMode.value && isProjectTemplateBusy.value) || isExportTemplateBusy.value) return
 
   if (actionKey === 'open-settings') {
-    workspaceMode.value = { type: 'settings', categoryKey: 'general' }
+    shellPage.value = {
+      type: 'settings',
+      categoryKey: 'general',
+      returnPage: getCurrentPrimaryShellPage(),
+    }
     return
   }
 
@@ -1591,8 +1722,18 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
-  if (actionKey === 'return-workspace') {
-    workspaceMode.value = projectPath.value ? { type: 'project' } : { type: 'welcome' }
+  if (actionKey === 'show-welcome') {
+    showPrimaryShellPage('welcome')
+    return
+  }
+
+  if (actionKey === 'show-workbench') {
+    showPrimaryShellPage('workbench')
+    return
+  }
+
+  if (actionKey === 'return-primary-page') {
+    showPrimaryShellPage(getCurrentPrimaryShellPage())
     return
   }
 
@@ -1619,9 +1760,10 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'export-project-template') {
     if (projectPath.value) {
+      const returnPage = getCurrentPrimaryShellPage()
       exportTemplateSelection.value = { excludedPaths: [], entries: [], entryNames: {}, covers: [] }
       await ensureProjectTreeLoaded()
-      workspaceMode.value = { type: 'export-template' }
+      shellPage.value = { type: 'export-template', returnPage }
     }
     return
   }
@@ -1662,10 +1804,39 @@ async function syncWindowState(): Promise<void> {
 }
 
 async function toggleWindowFullscreen(): Promise<void> {
+  if (isFullscreenTransitioning) return
+
   const appWindow = getCurrentWindow()
-  const nextFullscreen = !(await appWindow.isFullscreen())
-  await appWindow.setFullscreen(nextFullscreen)
-  isWindowFullscreen.value = nextFullscreen
+  isFullscreenTransitioning = true
+
+  try {
+    const fullscreen = await appWindow.isFullscreen()
+
+    if (!fullscreen) {
+      restoreMaximizedAfterFullscreen = await appWindow.isMaximized()
+      if (restoreMaximizedAfterFullscreen) {
+        await appWindow.toggleMaximize()
+      }
+      await appWindow.setFullscreen(true)
+    } else {
+      await appWindow.setFullscreen(false)
+      if (restoreMaximizedAfterFullscreen && !(await appWindow.isMaximized())) {
+        await appWindow.toggleMaximize()
+      }
+      restoreMaximizedAfterFullscreen = false
+    }
+
+    await syncWindowState()
+  } catch (error) {
+    if (restoreMaximizedAfterFullscreen && !(await appWindow.isMaximized().catch(() => false))) {
+      await appWindow.toggleMaximize().catch(() => undefined)
+    }
+    restoreMaximizedAfterFullscreen = false
+    await syncWindowState()
+    throw error
+  } finally {
+    isFullscreenTransitioning = false
+  }
 }
 
 async function handleWindowControl(actionKey: string) {
@@ -1688,6 +1859,7 @@ async function handleWindowControl(actionKey: string) {
     }
 
     if (actionKey === 'toggle-maximize') {
+      if (await appWindow.isFullscreen()) return
       await appWindow.toggleMaximize()
       isWindowMaximized.value = await appWindow.isMaximized()
       return
@@ -1858,6 +2030,12 @@ onMounted(() => {
   })()
   void ensureProjectTreeLoaded()
   void checkForUpdate()
+  void listenForExternalOpenRequests(handleExternalOpenPaths)
+    .then((unlisten) => { unlistenExternalOpen = unlisten })
+    .catch(() => { unlistenExternalOpen = null })
+  void getCurrentWindow().onDragDropEvent(handleShellFileDropEvent)
+    .then((unlisten) => { unlistenShellFileDrop = unlisten })
+    .catch(() => { unlistenShellFileDrop = null })
 })
 
 onUnmounted(() => {
@@ -1865,6 +2043,11 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleViewportResize)
   unlistenWindowResize?.()
   unlistenWindowResize = null
+  unlistenExternalOpen?.()
+  unlistenExternalOpen = null
+  unlistenShellFileDrop?.()
+  unlistenShellFileDrop = null
+  isShellFileDropActive.value = false
   disposeAppUpdater()
 })
 </script>
@@ -1902,5 +2085,23 @@ onUnmounted(() => {
 .open-card-shell__sidebar-tree {
   width: 100%;
   min-width: 0;
+}
+
+.shell-file-drop-overlay {
+  position: fixed;
+  inset: 8px;
+  z-index: 2147483646;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-3, 8px);
+  pointer-events: none;
+  border: 2px solid var(--oc-border-accent, #7c6cff);
+  border-radius: var(--oc-radius-lg, 8px);
+  background: color-mix(in srgb, var(--oc-bg-base, #1e1e1e) 88%, transparent);
+  color: var(--oc-fg-primary, #f3f3f3);
+  font-size: var(--oc-text-lg, 15px);
+  font-weight: 600;
 }
 </style>

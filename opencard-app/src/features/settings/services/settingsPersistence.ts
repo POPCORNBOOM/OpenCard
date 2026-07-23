@@ -1,6 +1,7 @@
 /** Persistence adapters for the single versioned application settings document. */
 import { isTauri } from '@tauri-apps/api/core'
 import { LazyStore } from '@tauri-apps/plugin-store'
+import { resolveAppStoragePath } from '../../../shared/storage/appStoragePaths'
 import { createDefaultAppSettings, type AppSettings } from '../model/appSettings'
 
 const SETTINGS_FILE_NAME = 'settings.json'
@@ -32,23 +33,30 @@ export class MemorySettingsPersistence implements SettingsPersistence {
 }
 
 class TauriSettingsPersistence implements SettingsPersistence {
-  private readonly store = new LazyStore(SETTINGS_FILE_NAME, {
-    defaults: {
-      [SETTINGS_DOCUMENT_KEY]: createDefaultAppSettings(),
-    },
-    autoSave: SETTINGS_AUTO_SAVE_DELAY_MS,
-  })
+  private storePromise: Promise<LazyStore> | null = null
+
+  private getStore(): Promise<LazyStore> {
+    this.storePromise ??= resolveAppStoragePath(SETTINGS_FILE_NAME).then((path) => (
+      new LazyStore(path, {
+        defaults: {
+          [SETTINGS_DOCUMENT_KEY]: createDefaultAppSettings(),
+        },
+        autoSave: SETTINGS_AUTO_SAVE_DELAY_MS,
+      })
+    ))
+    return this.storePromise
+  }
 
   async load(): Promise<unknown> {
-    return await this.store.get(SETTINGS_DOCUMENT_KEY)
+    return await (await this.getStore()).get(SETTINGS_DOCUMENT_KEY)
   }
 
   async save(settings: AppSettings): Promise<void> {
-    await this.store.set(SETTINGS_DOCUMENT_KEY, settings)
+    await (await this.getStore()).set(SETTINGS_DOCUMENT_KEY, settings)
   }
 
   async flush(): Promise<void> {
-    await this.store.save()
+    await (await this.getStore()).save()
   }
 }
 

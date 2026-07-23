@@ -26,6 +26,7 @@ export const rendererTestGlobal = {
     [cardEditorContextKey as symbol]: {
       transformDisabledBlockIds: computed(() => new Set<string>()),
       handleBlockClick: () => undefined,
+      resolveAssetSrc: (path: string) => `asset://${path}`,
     },
   },
 }

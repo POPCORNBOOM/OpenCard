@@ -37,8 +37,8 @@ describe('ExportTemplateWorkspace', () => {
         entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
         coverCandidates: ['cover.png'],
       })),
-      pickTemplateExportPath: vi.fn(async () => '/exports/Portable.octemplete'),
-      exportProjectTemplate: vi.fn(async () => '/exports/Portable.octemplete'),
+      pickTemplateExportPath: vi.fn(async () => '/exports/Portable.opencardtemplate'),
+      exportProjectTemplate: vi.fn(async () => '/exports/Portable.opencardtemplate'),
     } as unknown as ProjectTemplateStore
   })
 
@@ -61,10 +61,10 @@ describe('ExportTemplateWorkspace', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(store.pickTemplateExportPath).toHaveBeenCalledWith('Portable.octemplete', 'Choose output')
+    expect(store.pickTemplateExportPath).toHaveBeenCalledWith('Portable.opencardtemplate', 'Choose output')
     expect(store.exportProjectTemplate).toHaveBeenCalledWith({
       sourcePath: '/project',
-      outputPath: '/exports/Portable.octemplete',
+      outputPath: '/exports/Portable.opencardtemplate',
       name: 'Portable',
       description: '',
       entry: 'main.opencard',
@@ -79,6 +79,6 @@ describe('ExportTemplateWorkspace', () => {
       covers: ['cover.png'],
       excludedPaths: ['notes'],
     }])
-    expect(wrapper.text()).toContain('/exports/Portable.octemplete')
+    expect(wrapper.text()).toContain('/exports/Portable.opencardtemplate')
   })
 })

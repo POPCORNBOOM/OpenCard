@@ -1,6 +1,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type {
   EditorIssue,
+  EditorIssueSeverity,
   EditorIssueSnapshot,
   SessionIssue,
   SessionIssueNavigationRequest,
@@ -18,6 +19,13 @@ export type WorkspaceIssueProjection = {
   treeData: OcTreeData
   navigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
   issueCount: number
+  highestSeverity: EditorIssueSeverity | null
+}
+
+const ISSUE_SEVERITY_RANK: Readonly<Record<EditorIssueSeverity, number>> = {
+  info: 1,
+  warning: 2,
+  error: 3,
 }
 
 function encodeKeyPart(value: string): string {
@@ -70,6 +78,7 @@ export function buildWorkspaceIssueProjection(
   const children = new Map<string, readonly string[]>()
   const navigationTargets = new Map<string, SessionIssueNavigationRequest>()
   let issueCount = 0
+  let highestSeverity: EditorIssueSeverity | null = null
 
   for (const session of sessions) {
     const scopes = issuesBySession.get(session.id)
@@ -79,6 +88,9 @@ export function buildWorkspaceIssueProjection(
     for (const [scopeKey, issues] of scopes) {
       for (const issue of issues) {
         sessionIssues.push({ scopeKey, issue: { ...issue, sessionId: session.id } })
+        if (highestSeverity === null || ISSUE_SEVERITY_RANK[issue.severity] > ISSUE_SEVERITY_RANK[highestSeverity]) {
+          highestSeverity = issue.severity
+        }
       }
     }
     if (sessionIssues.length === 0) continue
@@ -111,6 +123,7 @@ export function buildWorkspaceIssueProjection(
     treeData: { rootKeys, items, children },
     navigationTargets,
     issueCount,
+    highestSeverity,
   }
 }
 
@@ -182,6 +195,7 @@ export function useWorkspaceIssues(options: {
     issueTreeData: computed(() => projection.value.treeData),
     issueNavigationTargets: computed(() => projection.value.navigationTargets),
     issueCount: computed(() => projection.value.issueCount),
+    highestIssueSeverity: computed(() => projection.value.highestSeverity),
     expandedIssueKeys,
     reportSessionIssueSnapshot,
     clearSessionIssues,

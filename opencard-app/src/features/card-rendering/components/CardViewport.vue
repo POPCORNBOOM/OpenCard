@@ -5,17 +5,28 @@
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace"
+        :resource-root-path="resourceRootPath"
         @block-click="handleBlockClick" />
       <aside v-if="$slots.info" class="card-viewport-info" :style="viewportInfoStyle">
         <slot name="info" />
       </aside>
       <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle"
         @pointerdown.stop.prevent="startFaceDimensionDrag('height', $event)">
-        <slot name="left-info" />
+        <span
+          class="card-viewport-dimension-line card-viewport-dimension-line--vertical"
+          :style="viewportLeftInfoLineStyle"
+        >
+          <span class="card-viewport-dimension-label"><slot name="left-info" /></span>
+        </span>
       </aside>
       <aside v-if="$slots['bottom-info']" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle"
         @pointerdown.stop.prevent="startFaceDimensionDrag('width', $event)">
-        <slot name="bottom-info" />
+        <span
+          class="card-viewport-dimension-line card-viewport-dimension-line--horizontal"
+          :style="viewportBottomInfoLineStyle"
+        >
+          <span class="card-viewport-dimension-label"><slot name="bottom-info" /></span>
+        </span>
       </aside>
     </div>
     <div class="card-selection-layer">
@@ -77,6 +88,7 @@ const WHEEL_LINE_HEIGHT = 16
 const MAX_WHEEL_DELTA_PX = 240
 const ZOOM_ANIMATION_SMOOTHING = 0.25
 const ZOOM_ANIMATION_EPSILON = 0.001
+const FIT_PADDING = 32
 
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
@@ -98,6 +110,7 @@ const props = withDefaults(defineProps<{
   selectedParentBlockId?: string | null
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
+  resourceRootPath?: string | null
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -107,6 +120,7 @@ const props = withDefaults(defineProps<{
   transform: undefined,
   transformDisabledBlockIds: () => [],
   clipToFace: false,
+  resourceRootPath: null,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -183,7 +197,7 @@ const viewportLeftInfoStyle = computed(() => {
   return {
     left: `${-12 / safeScale}px`,
     top: `${props.face.height / 2}px`,
-    transform: `translate(-100%, -50%) rotate(-90deg) scale(${1 / safeScale})`,
+    transform: `translate(-50%, -50%) scale(${1 / safeScale})`,
   }
 })
 const viewportBottomInfoStyle = computed(() => {
@@ -194,6 +208,12 @@ const viewportBottomInfoStyle = computed(() => {
     transform: `translateX(-50%) scale(${1 / safeScale})`,
   }
 })
+const viewportLeftInfoLineStyle = computed(() => ({
+  height: `${props.face.height * scale.value}px`,
+}))
+const viewportBottomInfoLineStyle = computed(() => ({
+  width: `${props.face.width * scale.value}px`,
+}))
 const resizeMode = computed<ResizeMode>(() => {
   if (!props.selectedBlockId) {
     return 'none'
@@ -314,6 +334,33 @@ function resetView(): void {
   targetPanX.value = 0
   targetPanY.value = 0
   targetScale.value = 1
+}
+
+function fitView(targetRect?: { left: number; top: number; width: number; height: number }): void {
+  const viewport = viewportRef.value
+  if (!viewport || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
+
+  const viewportRect = viewport.getBoundingClientRect()
+  const hasTargetRegion = Boolean(targetRect && targetRect.width > 0 && targetRect.height > 0)
+  const regionLeft = hasTargetRegion ? targetRect!.left - viewportRect.left : 0
+  const regionTop = hasTargetRegion ? targetRect!.top - viewportRect.top : 0
+  const regionWidth = hasTargetRegion ? targetRect!.width : viewportWidth.value
+  const regionHeight = hasTargetRegion ? targetRect!.height : viewportHeight.value
+  const availableWidth = Math.max(1, regionWidth - FIT_PADDING * 2)
+  const availableHeight = Math.max(1, regionHeight - FIT_PADDING * 2)
+  const nextScale = clamp(
+    Math.min(availableWidth / props.face.width, availableHeight / props.face.height),
+    MIN_SCALE,
+    MAX_SCALE,
+  )
+
+  stopZoomAnimation()
+  panX.value = regionLeft + regionWidth / 2 - viewportWidth.value / 2
+  panY.value = regionTop + regionHeight / 2 - viewportHeight.value / 2
+  scale.value = nextScale
+  targetPanX.value = panX.value
+  targetPanY.value = panY.value
+  targetScale.value = nextScale
 }
 
 function normalizeWheelDelta(deltaY: number, deltaMode: number): number {
@@ -841,7 +888,7 @@ onBeforeUnmount(() => {
   resizeObserver = null
 })
 
-defineExpose({ zoomBy, zoomByWheelAt, resetView })
+defineExpose({ zoomBy, zoomByWheelAt, resetView, fitView })
 
 watch(
   () => [
@@ -933,6 +980,83 @@ watch(
 
 .card-viewport-bottom-info {
   cursor: ew-resize;
+}
+
+.card-viewport-dimension-line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--oc-fg-default);
+}
+
+.card-viewport-dimension-line--horizontal {
+  height: 16px;
+}
+
+.card-viewport-dimension-line--vertical {
+  width: 16px;
+}
+
+.card-viewport-dimension-line::before,
+.card-viewport-dimension-line::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.34;
+  transform: translateY(-50%);
+  transition: opacity 140ms ease-out;
+}
+
+.card-viewport-dimension-line::after {
+  inset: 3px 0;
+  width: 100%;
+  height: auto;
+  border-inline: 1px solid currentColor;
+  background: transparent;
+  transform: none;
+}
+
+.card-viewport-dimension-line--vertical::before {
+  inset: 0 auto;
+  left: 50%;
+  width: 1px;
+  height: auto;
+  transform: translateX(-50%);
+}
+
+.card-viewport-dimension-line--vertical::after {
+  inset: 0 3px;
+  width: auto;
+  height: 100%;
+  border-block: 1px solid currentColor;
+  border-inline: 0;
+}
+
+.card-viewport-left-info:hover .card-viewport-dimension-line::before,
+.card-viewport-left-info:hover .card-viewport-dimension-line::after,
+.card-viewport-bottom-info:hover .card-viewport-dimension-line::before,
+.card-viewport-bottom-info:hover .card-viewport-dimension-line::after,
+.card-viewport-left-info:hover .card-viewport-dimension-label,
+.card-viewport-bottom-info:hover .card-viewport-dimension-label {
+  opacity: 1;
+}
+
+.card-viewport-dimension-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  padding: 0 5px;
+  background: var(--oc-bg-raised);
+  opacity: 0.34;
+  transition: opacity 140ms ease-out;
+}
+
+.card-viewport-dimension-line--vertical .card-viewport-dimension-label {
+  transform: rotate(-90deg);
 }
 
 .card-selection-layer {

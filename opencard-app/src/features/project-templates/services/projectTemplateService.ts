@@ -1,7 +1,8 @@
-import { appLocalDataDir, basename, join, resolveResource } from '@tauri-apps/api/path'
+import { basename, join, resolveResource } from '@tauri-apps/api/path'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { parseCardDocument } from '../../../entities/card/storage'
+import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
 import {
@@ -30,7 +31,7 @@ const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
 const TEMPLATE_MANIFEST_FILE_NAME = 'template.json'
 const TEMPLATE_CONTENT_DIRECTORY_NAME = 'content'
 const PROJECT_FILE_NAME = '.opencardproject'
-const TEMPLATE_PACKAGE_EXTENSIONS = ['octemplete', 'zip']
+const TEMPLATE_PACKAGE_EXTENSIONS = ['opencardtemplate', 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024
 const MAX_TEMPLATE_UNPACKED_BYTES = 256 * 1024 * 1024
 
@@ -40,14 +41,14 @@ type TemplateIndex = {
 }
 
 export interface ProjectTemplatePathService {
-  appLocalDataDir(): Promise<string>
+  appStorageDir(): Promise<string>
   basename(path: string): Promise<string>
   join(...paths: string[]): Promise<string>
   resolveResource(path: string): Promise<string>
 }
 
 const defaultPathService: ProjectTemplatePathService = {
-  appLocalDataDir,
+  appStorageDir: resolveAppStorageRoot,
   basename,
   join,
   resolveResource,
@@ -150,7 +151,7 @@ function normalizeArchivePath(value: string): string | null {
 function assertSupportedPackagePath(path: string): void {
   const extension = path.split('.').pop()?.toLowerCase()
   if (!extension || !TEMPLATE_PACKAGE_EXTENSIONS.includes(extension)) {
-    throw new TemplateServiceError('invalid-package', 'Template package must be .octemplete or .zip')
+    throw new TemplateServiceError('invalid-package', 'Template package must be .opencardtemplate or .zip')
   }
 }
 export class ProjectTemplateService {
@@ -177,7 +178,7 @@ export class ProjectTemplateService {
       defaultPath,
       title,
       fileTypeName: 'OpenCard Template',
-      extensions: ['octemplete'],
+      extensions: ['opencardtemplate'],
     })
   }
 
@@ -284,9 +285,9 @@ export class ProjectTemplateService {
       ...(entries.length > 1 ? { entries } : {}),
       ...(covers.length ? { covers } : {}),
     }
-    const outputPath = request.outputPath.toLowerCase().endsWith('.octemplete')
+    const outputPath = request.outputPath.toLowerCase().endsWith('.opencardtemplate')
       ? request.outputPath
-      : `${request.outputPath}.octemplete`
+      : `${request.outputPath}.opencardtemplate`
     try {
       const entries = await this.fs.readDirectoryEntries(request.sourcePath, Number.POSITIVE_INFINITY)
       assertNoSymlinks(entries)
@@ -655,7 +656,7 @@ export class ProjectTemplateService {
   }
 
   private async resolveUserTemplateRoot(): Promise<string> {
-    return await this.paths.join(await this.paths.appLocalDataDir(), USER_TEMPLATE_DIRECTORY_NAME)
+    return await this.paths.join(await this.paths.appStorageDir(), USER_TEMPLATE_DIRECTORY_NAME)
   }
 
   private async copyDirectory(sourcePath: string, targetPath: string): Promise<void> {

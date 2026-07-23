@@ -40,7 +40,6 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useProjectStore } from '../../workspace/store/projectStore'
 import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
@@ -56,7 +55,6 @@ const props = withDefaults(defineProps<{
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
-const { resolveAssetSrc } = useProjectStore()
 const imageLoadState = ref<'empty' | 'loading' | 'loaded' | 'error'>('empty')
 
 const wrapStyle = computed(() => {
@@ -73,7 +71,7 @@ const imgStyle = computed(() => {
 
 const imageSrc = computed(() => {
     const imagePath = props.block.image
-    return resolveAssetSrc(imagePath)
+    return editorContext.resolveAssetSrc(imagePath)
 })
 
 watch(imageSrc, (src) => {

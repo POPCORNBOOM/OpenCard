@@ -8,6 +8,8 @@ function createDocument(): CardDocument {
     schemaVersion: '2',
     id: 'document',
     name: 'Document',
+    description: 'Reusable card.',
+    notes: 'Review margins.',
     version: '1.0.0',
     width: '540',
     height: '850',
@@ -39,6 +41,12 @@ describe('renderParser', () => {
 
     expect(result.document.faces.front).toMatchObject({ faceKey: 'front', width: 540, height: 850 })
     expect(result.document.faces.back).toMatchObject({ faceKey: 'back', width: 540, height: 850 })
+    expect(result.document).toMatchObject({
+      name: 'Document',
+      version: '1.0.0',
+      description: 'Reusable card.',
+      notes: 'Review margins.',
+    })
     expect(result.document.faces.front.children[0]!.location).toMatchObject({ x: '10px', y: '20px' })
     expect(block).toMatchObject({
       type: 'text-block',

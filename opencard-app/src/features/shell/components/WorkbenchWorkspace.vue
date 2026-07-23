@@ -3,7 +3,7 @@ import { useI18n } from 'vue-i18n'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcPanel from '../../../components/base/OcPanel.vue'
 
-defineOptions({ name: 'ProjectEditorWorkspace' })
+defineOptions({ name: 'WorkbenchWorkspace' })
 
 defineProps<{
   hasActiveEditor: boolean

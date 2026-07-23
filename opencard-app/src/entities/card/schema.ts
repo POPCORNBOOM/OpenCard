@@ -7,13 +7,16 @@
 import type { CardBlock } from './model'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
+import type { BindingScopeKind } from '../../features/editor-runtime/model/bindingExpression'
 
 type EditorPropertyBase = {
     isHidden?: boolean
     isArray?: boolean
     isReadonly?: boolean
     resettable?: boolean
+    deletable?: boolean
     acceptsBinding?: false
+    bindingScopes?: readonly BindingScopeKind[]
     exposesReference?: false
     categoryId?: PropertyEditorCategoryId
     displayFieldKey?: string
@@ -304,11 +307,13 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     'card-document': {
         type: { fieldType: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         schemaVersion: { fieldType: 'string', isReadonly: true, isHidden: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
-        name: { fieldType: 'string', categoryId: 'identity' },
+        name: { fieldType: 'string', categoryId: 'identity', bindingScopes: ['project'] },
+        description: { fieldType: 'string', multiline: true, categoryId: 'identity', bindingScopes: ['project'] },
+        notes: { fieldType: 'string', multiline: true, categoryId: 'identity', bindingScopes: ['project'] },
         id: { fieldType: 'string', categoryId: 'identity', isReadonly: true, acceptsBinding: false },
-        version: { fieldType: 'string', categoryId: 'identity' },
-        width: { fieldType: 'number', min: 0, categoryId: 'layout' },
-        height: { fieldType: 'number', min: 0, categoryId: 'layout' },
+        version: { fieldType: 'string', categoryId: 'identity', bindingScopes: ['project'] },
+        width: { fieldType: 'number', min: 0, categoryId: 'layout', bindingScopes: ['project'] },
+        height: { fieldType: 'number', min: 0, categoryId: 'layout', bindingScopes: ['project'] },
         faces: { fieldType: 'object', objectType: 'CardFace', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         instances: { fieldType: 'object', objectType: 'CardInstanceRecord', isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
@@ -501,7 +506,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'card-document': {
         type: 'card-document',
         schemaVersion: '2',
-        name: '',
         id: '',
         version: '1.0.0',
         width: '540',
@@ -606,6 +610,14 @@ export function createPropertyDefaultValue(definition: EditorPropertyDefinition)
 
 export function acceptsPropertyBinding(definition: EditorPropertyDefinition | undefined): boolean {
     return definition?.acceptsBinding !== false && getPropertyValueKind(definition) !== 'object'
+}
+
+export function acceptsPropertyBindingScope(
+    definition: EditorPropertyDefinition | undefined,
+    scope: BindingScopeKind,
+): boolean {
+    return acceptsPropertyBinding(definition)
+        && (!definition?.bindingScopes || definition.bindingScopes.includes(scope))
 }
 
 export function exposesPropertyReference(definition: EditorPropertyDefinition | undefined): boolean {

@@ -87,6 +87,30 @@ describe('CardViewport wheel zoom API', () => {
     expect(zoomedWorldY).toBeCloseTo(initialWorldY, 4)
   })
 
+  it('fits the face into a supplied visible region instead of resetting to 100%', async () => {
+    const wrapper = mount(CardViewport, {
+      props: { face },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    const viewport = wrapper.vm as unknown as {
+      fitView(targetRect?: { left: number; top: number; width: number; height: number }): void
+    }
+
+    viewport.fitView({ left: 200, top: 100, width: 500, height: 600 })
+    await nextTick()
+
+    const transformEvents = wrapper.emitted('viewport-transform-change') ?? []
+    const fitted = transformEvents[transformEvents.length - 1]?.[0] as {
+      x: number
+      y: number
+      scale: number
+    }
+    expect(fitted.scale).toBeCloseTo(536 / face.height, 4)
+    expect(fitted.scale).not.toBe(1)
+    expect(fitted.x).toBe(-50)
+    expect(fitted.y).toBe(0)
+  })
+
   it('forwards face clipping to the face renderer', () => {
     const wrapper = mount(CardViewport, {
       props: { face, clipToFace: true },
@@ -112,12 +136,16 @@ describe('CardViewport wheel zoom API', () => {
     expect(info.find('[data-test="face-info"]').text()).toBe('Details')
     expect(wrapper.find('.card-viewport-left-info').attributes('style'))
       .toContain(`top: ${face.height / 2}px`)
-    expect(wrapper.find('.card-viewport-left-info').attributes('style'))
-      .toContain('rotate(-90deg)')
+    expect(wrapper.find('.card-viewport-left-info .card-viewport-dimension-line').classes())
+      .toContain('card-viewport-dimension-line--vertical')
     expect(wrapper.find('[data-test="height-info"]').text()).toBe('Height')
     expect(wrapper.find('.card-viewport-bottom-info').attributes('style'))
       .toContain(`left: ${face.width / 2}px`)
     expect(wrapper.find('[data-test="width-info"]').text()).toBe('Width')
+    expect(wrapper.find('.card-viewport-left-info .card-viewport-dimension-line').attributes('style'))
+      .toContain(`height: ${face.height}px`)
+    expect(wrapper.find('.card-viewport-bottom-info .card-viewport-dimension-line').attributes('style'))
+      .toContain(`width: ${face.width}px`)
   })
 
   it('drags dimensions by axis, changes cursors, and snaps to tens with Shift', async () => {

@@ -2,6 +2,8 @@ use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::sync::Mutex;
 use tauri::{Emitter, State};
 
+mod external_open;
+
 // 存储 watcher 的全局状态
 struct WatcherState {
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
@@ -81,7 +83,13 @@ fn stop_watching(state: State<WatcherState>) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder =
+        tauri::Builder::default().manage(external_open::ExternalOpenState::from_current_process());
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        external_open::enqueue_arguments(app, args, cwd);
+    }));
 
     #[cfg(desktop)]
     let builder = builder
@@ -99,8 +107,20 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             watch_directory,
-            stop_watching
+            stop_watching,
+            external_open::take_external_open_requests,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                let paths = urls
+                    .into_iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().replace('\\', "/"))
+                    .collect();
+                external_open::enqueue_paths(_app, paths);
+            }
+        });
 }

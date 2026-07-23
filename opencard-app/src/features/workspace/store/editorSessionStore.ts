@@ -19,7 +19,7 @@ import { taskScheduler } from '../../../utils/taskScheduler'
 const PROJECT_CONFIGURATION_AUTOSAVE_DELAY_MS = 1200
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
 
-export type SessionResourceKind = 'workspace' | 'external' | 'untitled'
+export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
 
 export type EditorSession = {
@@ -39,6 +39,7 @@ export type EditorSession = {
 export type OpenedEditorItem = {
   key: string
   label: string
+  resourceKind: SessionResourceKind
   icon: IconToken
   iconTone?: IconTone
 }
@@ -54,7 +55,7 @@ export type EditorSessionUiState = {
   }
 }
 
-type CreateUntitledSessionOptions = {
+type CreateDraftSessionOptions = {
   fileTypeId?: string
   name?: string
   content?: string
@@ -92,6 +93,11 @@ function stripFileExtension(fileName: string) {
   return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
 }
 
+function isAbsolutePath(path: string): boolean {
+  const normalizedPath = normalizePath(path)
+  return /^[a-z]:\//i.test(normalizedPath) || normalizedPath.startsWith('/')
+}
+
 function projectConfigurationAutosaveKey(sessionId: string): string {
   return `${PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX}${sessionId}`
 }
@@ -124,7 +130,7 @@ function createDefaultOpenCardContent(displayName: string) {
   }, null, 2)
 }
 
-function buildUntitledName(fileTypeId: string, existingNames: string[]) {
+function buildDraftName(fileTypeId: string, existingNames: string[]) {
   const fileType = resolveFileTypeById(fileTypeId)
   const extension = fileType.extensions?.[0]
   const suffix = extension ? `.${extension}` : ''
@@ -170,6 +176,7 @@ export function useEditorSessionStore() {
       return {
         key: session.id,
         label: session.isDirty ? `${session.name} *` : session.name,
+        resourceKind: session.resourceKind,
         icon: entryIcon.icon,
         iconTone: entryIcon.tone,
       }
@@ -201,13 +208,20 @@ export function useEditorSessionStore() {
     }
 
     const fileType = resolveFileType(normalizedPath)
+    const resourceKind: SessionResourceKind = projectPath.value && (
+      !isAbsolutePath(normalizedPath) || isPathInsideProject(normalizedPath, projectPath.value)
+    )
+      ? 'workspace'
+      : 'external'
     const content = fileType.editorId === 'image-preview'
       ? ''
-      : await readFile(normalizedPath)
+      : resourceKind === 'workspace'
+        ? await readFile(normalizedPath)
+        : await fileSystemService.readFile(normalizedPath)
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
-      resourceKind: 'workspace',
+      resourceKind,
       path: normalizedPath,
       fileTypeId: fileType.id,
       name: getPathBasename(normalizedPath),
@@ -235,15 +249,15 @@ export function useEditorSessionStore() {
     return await openSession(path, { preview: true })
   }
 
-  function createUntitledSession(options: CreateUntitledSessionOptions = {}) {
+  function createDraftSession(options: CreateDraftSessionOptions = {}) {
     const fileTypeId = options.fileTypeId ?? 'opencard'
     const fileType = resolveFileTypeById(fileTypeId)
-    const name = options.name ?? buildUntitledName(fileTypeId, sessions.value.map((session) => session.name))
+    const name = options.name ?? buildDraftName(fileTypeId, sessions.value.map((session) => session.name))
     const content = options.content ?? (fileType.id === 'opencard' ? createDefaultOpenCardContent(name) : '')
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
-      resourceKind: 'untitled',
+      resourceKind: 'draft',
       path: null,
       fileTypeId: fileType.id,
       name,
@@ -447,7 +461,7 @@ export function useEditorSessionStore() {
       nextResourceKind = isPathInsideProject(nextPath, projectPath.value) ? 'workspace' : 'external'
     }
 
-    if (nextResourceKind === 'untitled') {
+    if (nextResourceKind === 'draft') {
       nextResourceKind = isPathInsideProject(nextPath, projectPath.value) ? 'workspace' : 'external'
     }
 
@@ -502,7 +516,7 @@ export function useEditorSessionStore() {
       return
     }
 
-    if (session.editorId === 'image-preview' || session.resourceKind === 'untitled') {
+    if (session.editorId === 'image-preview' || session.resourceKind === 'draft') {
       return
     }
 
@@ -562,7 +576,7 @@ export function useEditorSessionStore() {
     openedEditorItems,
     openFile,
     openPreviewFile,
-    createUntitledSession,
+    createDraftSession,
     activateSession,
     activatePath,
     updateDraftContent,

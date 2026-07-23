@@ -80,7 +80,10 @@ export function parseRenderDocument(
   const document: RenderReadyCardDocument = {
     type: 'card-document',
     id,
-    name: fields.string('name'),
+    name: fields.optionalString('name'),
+    version: fields.string('version'),
+    description: fields.optionalString('description'),
+    notes: fields.optionalString('notes'),
     faces: {
       front: parseFace(faces.front, 'front', width, height, id, context.instanceId, issues),
       back: parseFace(faces.back, 'back', width, height, id, context.instanceId, issues),
@@ -378,6 +381,20 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
   return {
     string(fieldKey: string): string {
       return value(fieldKey) as string
+    },
+    optionalString(fieldKey: string, fallback = ''): string {
+      const definition = definitionFor(fieldKey)
+      const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
+        && source[fieldKey] !== null
+        && source[fieldKey] !== undefined
+      if (!hasValue) return fallback
+
+      const parsed = convertValue(source[fieldKey], definition)
+      if (!parsed.ok) {
+        pushIssue(context, fieldKey, definition, parsed.reasonCode, issues)
+        return fallback
+      }
+      return parsed.value as string
     },
     number(fieldKey: string): number {
       return value(fieldKey) as number

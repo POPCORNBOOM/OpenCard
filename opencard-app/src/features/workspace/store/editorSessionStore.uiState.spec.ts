@@ -6,9 +6,9 @@ import type {
 import { useEditorSessionStore } from './editorSessionStore'
 
 describe('editorSessionStore card designer layout', () => {
-  it('creates untitled cards with the dual-face v2 protocol', () => {
+  it('creates draft cards with the dual-face v2 protocol', () => {
     const store = useEditorSessionStore()
-    const session = store.createUntitledSession({ fileTypeId: 'opencard' })
+    const session = store.createDraftSession({ fileTypeId: 'opencard' })
     const document = JSON.parse(session.draftContent)
 
     expect(document).toMatchObject({
@@ -26,8 +26,8 @@ describe('editorSessionStore card designer layout', () => {
 
   it('keeps layout state isolated by session', () => {
     const store = useEditorSessionStore()
-    const first = store.createUntitledSession({ fileTypeId: 'opencard' })
-    const second = store.createUntitledSession({ fileTypeId: 'opencard' })
+    const first = store.createDraftSession({ fileTypeId: 'opencard' })
+    const second = store.createDraftSession({ fileTypeId: 'opencard' })
     const layout: CardDesignerLayoutState = {
       panels: {
         instanceExpanded: false,
@@ -54,7 +54,7 @@ describe('editorSessionStore card designer layout', () => {
 
   it('merges card designer view state without replacing layout state', () => {
     const store = useEditorSessionStore()
-    const session = store.createUntitledSession({ fileTypeId: 'opencard' })
+    const session = store.createDraftSession({ fileTypeId: 'opencard' })
     const layout: CardDesignerLayoutState = {
       panels: {
         instanceExpanded: true,

@@ -9,7 +9,6 @@ import {
 } from './projectTemplateService'
 
 vi.mock('@tauri-apps/api/path', () => ({
-  appLocalDataDir: vi.fn(),
   basename: vi.fn(),
   join: vi.fn(),
   resolveResource: vi.fn(),
@@ -270,7 +269,7 @@ class MemoryFileSystem implements FileSystemService {
 }
 
 const paths: ProjectTemplatePathService = {
-  async appLocalDataDir() {
+  async appStorageDir() {
     return '/appdata'
   },
   async basename(path) {
@@ -421,7 +420,7 @@ describe('ProjectTemplateService prepared package import', () => {
       entry: 'main.opencard',
       covers: ['assets/cover-a.png', 'assets/cover-b.webp'],
     })
-    fs.putFile('/prepared.octemplete', zipSync({
+    fs.putFile('/prepared.opencardtemplate', zipSync({
       'template.json': strToU8(manifest),
       'content/.opencardproject': strToU8(projectFile()),
       'content/main.opencard': strToU8(cardDocument('Prepared Blueprint')),
@@ -429,7 +428,7 @@ describe('ProjectTemplateService prepared package import', () => {
       'content/assets/cover-b.webp': new Uint8Array([3, 4]),
     }))
 
-    const imported = await createService(fs).importUserTemplate('/prepared.octemplete')
+    const imported = await createService(fs).importUserTemplate('/prepared.opencardtemplate')
 
     expect(imported).toMatchObject({
       key: 'user:prepared',
@@ -465,7 +464,7 @@ describe('ProjectTemplateService prepared package import', () => {
 })
 
 describe('ProjectTemplateService package export', () => {
-  it('exports a compliant .octemplete archive and excludes runtime cache', async () => {
+  it('exports a compliant .opencardtemplate archive and excludes runtime cache', async () => {
     const fs = new MemoryFileSystem()
     addImportSource(fs)
     fs.putFile('/source/alternate.opencard', cardDocument())
@@ -482,7 +481,7 @@ describe('ProjectTemplateService package export', () => {
       excludedPaths: ['notes'],
     })
 
-    expect(outputPath).toBe('/exports/My Template.octemplete')
+    expect(outputPath).toBe('/exports/My Template.opencardtemplate')
     const archive = unzipSync(fs.rawFile(outputPath) as Uint8Array)
     expect(Object.keys(archive)).toEqual(expect.arrayContaining([
       'template.json',
@@ -506,7 +505,7 @@ describe('ProjectTemplateService package export', () => {
 
     await expect(createService(fs).exportProjectTemplate({
       sourcePath: '/source',
-      outputPath: '/exports/Portable.octemplete',
+      outputPath: '/exports/Portable.opencardtemplate',
       name: 'Portable',
       description: '',
       entry: 'main.opencard',

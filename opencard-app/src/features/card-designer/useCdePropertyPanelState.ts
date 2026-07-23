@@ -13,6 +13,7 @@ import type {
   PropertyEditorInput,
   PropertyEditorSortMode,
 } from '../../shared/ui/property-editor/propertyEditor.types'
+import type { BindingScopeKind } from '../editor-runtime/model/bindingExpression'
 import {
   createBlockAdditionalField,
   deleteBlockAdditionalField,
@@ -41,6 +42,7 @@ export type CdePropertySortMode = PropertyEditorSortMode
 
 export type CdePropertyFieldDefinition = PropertyEditorFieldDefinition & {
   acceptsBinding?: false
+  bindingScopes?: readonly BindingScopeKind[]
   extensionsFilter?: readonly string[]
 }
 
@@ -66,7 +68,7 @@ export type CdeAdditionalFieldCreateMutation = {
   fieldType: PropertyFieldType
 }
 
-export type CdeAdditionalFieldDeleteMutation = {
+export type CdePropertyDeleteMutation = {
   key: string
   fieldKey: string
 }
@@ -255,8 +257,10 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         defaultValue: createPropertyDefaultValue(definition),
         title: labels?.[fieldKey] ?? resolveFieldTitle(fieldKey, definition),
         category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
-        deletable: categorylessKeys.has(fieldKey)
-          && options.selectedCardId.value === options.blueprintCardId,
+        deletable: definition.deletable === true || (
+          categorylessKeys.has(fieldKey)
+          && options.selectedCardId.value === options.blueprintCardId
+        ),
         ...(definition.fieldType === 'string' && definition.autocomplete?.length
           ? {
               completion: {
@@ -685,9 +689,9 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return result
   }
 
-  function deleteAdditionalField({ key, fieldKey }: CdeAdditionalFieldDeleteMutation): boolean {
-    const block = options.selectedBlock.value
+  function deleteProperty({ key, fieldKey }: CdePropertyDeleteMutation): boolean {
     const document = options.cardDoc.value
+    const block = options.selectedBlock.value
     if (!block || !document || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
       return false
     }
@@ -713,6 +717,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     openAdditionalFieldCreateDialog,
     closeAdditionalFieldCreateDialog,
     submitAdditionalFieldCreate,
-    deleteAdditionalField,
+    deleteProperty,
   }
 }

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   saveFile: vi.fn(),
   writeFile: vi.fn(),
+  readExternalFile: vi.fn(),
 }))
 
 vi.mock('./projectStore', () => ({
@@ -17,6 +18,7 @@ vi.mock('./projectStore', () => ({
 vi.mock('../services/fileSystemService', () => ({
   fileSystemService: {
     writeFile: mocks.writeFile,
+    readFile: mocks.readExternalFile,
   },
 }))
 
@@ -28,6 +30,7 @@ describe('editorSessionStore project switching', () => {
     mocks.readFile.mockResolvedValue('{"project":"old"}')
     mocks.saveFile.mockResolvedValue(undefined)
     mocks.writeFile.mockResolvedValue(undefined)
+    mocks.readExternalFile.mockResolvedValue('{"external":true}')
   })
 
   it('closes old workspace sessions before opening the same relative path in a new project', async () => {
@@ -56,5 +59,19 @@ describe('editorSessionStore project switching', () => {
     expect(store.activeSessionId.value).toBe(retained.id)
     expect(store.sessions.value.some((session) => session.id === removed.id)).toBe(false)
     store.closeSession(retained.id)
+  })
+
+  it('opens absolute paths outside the project as external sessions', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/outside/card.opencard')
+
+    expect(session).toMatchObject({
+      resourceKind: 'external',
+      path: 'D:/outside/card.opencard',
+      draftContent: '{"external":true}',
+    })
+    expect(mocks.readExternalFile).toHaveBeenCalledWith('D:/outside/card.opencard')
+    expect(mocks.readFile).not.toHaveBeenCalled()
+    store.closeSession(session.id)
   })
 })

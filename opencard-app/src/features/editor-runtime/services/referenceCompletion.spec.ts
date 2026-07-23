@@ -53,6 +53,18 @@ describe('referenceCompletion', () => {
       .toEqual(['g:author'])
   })
 
+  it('restricts completion to explicitly allowed scopes', () => {
+    const projectOnlyContext: ReferenceCompletionContext = {
+      ...context,
+      allowedScopes: ['project'],
+    }
+    expect(resolveReferenceCompletion('{{}}', 2, projectOnlyContext)?.suggestions.map((item) => item.insertText))
+      .toEqual(['g:'])
+    expect(resolveReferenceCompletion('{{d:}}', 4, projectOnlyContext)).toBeNull()
+    expect(resolveReferenceCompletion('{{g:}}', 4, projectOnlyContext)?.suggestions.map((item) => item.insertText))
+      .toEqual(['g:author'])
+  })
+
   it('offers same-face and opposite-face fields', () => {
     expect(resolveReferenceCompletion('{{f:ba}}', 6, context)?.suggestions.map((item) => item.insertText))
       .toEqual(['f:background'])

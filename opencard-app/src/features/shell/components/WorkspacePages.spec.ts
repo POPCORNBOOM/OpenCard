@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { describe, expect, it } from 'vitest'
 import enUS from '../../../locales/en-US'
-import ProjectEditorWorkspace from './ProjectEditorWorkspace.vue'
+import WorkbenchWorkspace from './WorkbenchWorkspace.vue'
 import WelcomeWorkspace from './WelcomeWorkspace.vue'
 
 function mountOptions() {
@@ -34,8 +34,8 @@ describe('workspace pages', () => {
     expect(wrapper.emitted('open-project')).toHaveLength(1)
   })
 
-  it('shows the editor placeholder when a project has no active document', () => {
-    const wrapper = mount(ProjectEditorWorkspace, {
+  it('shows the editor placeholder when the workbench has no active document', () => {
+    const wrapper = mount(WorkbenchWorkspace, {
       props: { hasActiveEditor: false },
       ...mountOptions(),
     })
@@ -44,7 +44,7 @@ describe('workspace pages', () => {
   })
 
   it('renders editor content only for an active document', () => {
-    const wrapper = mount(ProjectEditorWorkspace, {
+    const wrapper = mount(WorkbenchWorkspace, {
       props: { hasActiveEditor: true },
       slots: { default: '<div data-testid="editor">Editor</div>' },
       ...mountOptions(),

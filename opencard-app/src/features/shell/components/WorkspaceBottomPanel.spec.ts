@@ -25,6 +25,7 @@ function mountPanel(expanded = true) {
       expanded,
       activeTab: 'issues',
       issueCount: 1,
+      issueSeverity: 'warning',
       issueTreeData,
       issueNavigationTargets,
       expandedIssueKeys: ['session:a'],
@@ -113,6 +114,19 @@ describe('WorkspaceBottomPanel', () => {
     await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
 
     expect(wrapper.emitted('expanded-change')).toEqual([[false], [true]])
+  })
+
+  it('exposes the highest issue severity on the center control only when issues exist', async () => {
+    const wrapper = mountPanel(false)
+    const toggle = wrapper.get('.workspace-bottom-panel__toggle')
+
+    expect(toggle.attributes('data-issue-severity')).toBe('warning')
+
+    await wrapper.setProps({ issueSeverity: 'error' })
+    expect(toggle.attributes('data-issue-severity')).toBe('error')
+
+    await wrapper.setProps({ issueCount: 0 })
+    expect(toggle.attributes()).not.toHaveProperty('data-issue-severity')
   })
 
   it('disables automatic expansion and collapse while pinned', async () => {

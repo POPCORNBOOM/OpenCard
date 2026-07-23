@@ -1,3 +1,12 @@
+export type BindingScopeKind =
+  | 'current-block'
+  | 'current-card'
+  | 'current-face'
+  | 'opposite-face'
+  | 'document'
+  | 'project'
+  | 'parent'
+
 export type BindingScopeDescriptor =
   | { kind: 'current-block' }
   | { kind: 'current-card' }

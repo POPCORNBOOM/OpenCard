@@ -13,7 +13,6 @@ import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyTextBlock } from '../render.types'
 import { renderMarkdown } from '../markdown/renderMarkdown'
-import { useProjectStore } from '../../workspace/store/projectStore'
 
 const verticalJustifyMap: Record<RenderReadyTextBlock['verticalAlign'], string> = {
     top: 'flex-start',
@@ -31,10 +30,9 @@ const props = withDefaults(defineProps<{
 })
 
 const editorContext = useCardEditorContext()
-const { resolveAssetSrc } = useProjectStore()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
-    resolveImageSrc: resolveAssetSrc,
+    resolveImageSrc: editorContext.resolveAssetSrc,
 }))
 
 const blockStyle = computed(() => {

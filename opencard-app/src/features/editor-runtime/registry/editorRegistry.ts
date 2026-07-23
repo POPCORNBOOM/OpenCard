@@ -16,6 +16,7 @@ import type { EditorIssueSnapshot } from '../model/editorIssue'
 export interface EditorProps {
   filePath: string
   fileName?: string
+  resourceRootPath?: string | null
   modelValue?: string
   viewportTransform?: EditorViewportTransform
   cardDesignerLayout?: CardDesignerLayoutState

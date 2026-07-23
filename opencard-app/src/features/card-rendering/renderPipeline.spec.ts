@@ -90,6 +90,32 @@ describe('renderPipeline', () => {
     expect(result.issues).toEqual([])
   })
 
+  it('allows document fields to bind only to project fields', () => {
+    const document = createDocument()
+    document.name = '{{g:name}}'
+    document.description = '{{g:description}}\nCard document'
+    document.notes = 'Project: {{g:name}}'
+    const project = createDefaultProjectInformation('OpenCard Demo')
+    project.description = 'Reusable cards'
+
+    const result = runRenderPipeline(document, null, { project })
+
+    expect(result.document).toMatchObject({
+      name: 'OpenCard Demo',
+      description: 'Reusable cards\nCard document',
+      notes: 'Project: OpenCard Demo',
+    })
+    expect(result.issues).toEqual([])
+
+    document.name = '{{d:version}}'
+    const rejected = runRenderPipeline(document, null, { project })
+    expect(rejected.issues).toContainEqual(expect.objectContaining({
+      type: 'card-designer.binding.field-not-allowed',
+      location: expect.objectContaining({ fieldKey: 'name' }),
+      parameters: { referencedScope: 'document' },
+    }))
+  })
+
   it('reports a missing project context without reading global state', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:name}}' })
 

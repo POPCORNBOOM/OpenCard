@@ -43,6 +43,56 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "opencard"
+        ],
+        "name": "OpenCard Card Document",
+        "description": "OpenCard card document",
+        "mimeType": "application/vnd.opencard.card+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.card",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "opencardproject"
+        ],
+        "name": "OpenCard Project File",
+        "description": "OpenCard project file",
+        "mimeType": "application/vnd.opencard.project+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.project",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "opencardtemplate"
+        ],
+        "name": "OpenCard Project Template",
+        "description": "OpenCard project template package",
+        "mimeType": "application/vnd.opencard.project-template+zip",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.project-template",
+          "conformsTo": [
+            "public.zip-archive"
+          ]
+        }
+      }
+    ],
     "resources": {
       "resources/templates/": "templates/"
     }

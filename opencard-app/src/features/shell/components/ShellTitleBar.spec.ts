@@ -80,4 +80,21 @@ describe('ShellTitleBar', () => {
     expect(controls[1]!.classes()).toContain('titlebar-icon-window-start')
     expect(controls[2]!.classes()).not.toContain('titlebar-icon-window-start')
   })
+
+  it('only exposes the native drag region when dragging is enabled', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [],
+        dragRegion: true,
+      },
+    })
+
+    expect(wrapper.get('.titlebar-drag').attributes()).toHaveProperty('data-tauri-drag-region')
+
+    await wrapper.setProps({ dragRegion: false })
+
+    expect(wrapper.get('.titlebar-drag').attributes()).not.toHaveProperty('data-tauri-drag-region')
+  })
 })

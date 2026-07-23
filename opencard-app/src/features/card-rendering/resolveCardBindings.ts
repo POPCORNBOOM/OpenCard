@@ -1,5 +1,6 @@
 import {
   acceptsCardFieldBinding,
+  acceptsCardFieldBindingScope,
   exposesCardFieldReference,
   getCardFieldKeys,
   getCardFieldValue,
@@ -361,6 +362,12 @@ export function resolveReferences(
     const tokenDescriptor = parseFieldReference(tokenBody)
     if (!tokenDescriptor) {
       pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.invalid-token', undefined, characterOffset)
+      return { ok: false, value: null }
+    }
+    if (!acceptsCardFieldBindingScope(owner.source, fieldKey, tokenDescriptor.kind)) {
+      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-allowed', {
+        referencedScope: tokenDescriptor.kind,
+      }, characterOffset)
       return { ok: false, value: null }
     }
 

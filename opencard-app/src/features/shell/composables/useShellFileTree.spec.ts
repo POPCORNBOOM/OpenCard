@@ -12,6 +12,7 @@ describe('useShellFileTree opened editors', () => {
     const openedEditorItems = ref([{
       key: 'session-1',
       label: 'card.opencard',
+      resourceKind: 'workspace' as const,
       icon: 'file.opencard' as const,
     }])
     const { openedEditorTreeData } = useShellFileTree({

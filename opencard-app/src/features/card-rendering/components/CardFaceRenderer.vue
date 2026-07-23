@@ -11,6 +11,7 @@ import { computed, provide, ref } from 'vue'
 import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
+import { resolveEditorAssetSrc } from '../../editor-runtime/services/editorResource'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
@@ -26,10 +27,13 @@ const props = withDefaults(defineProps<{
     visibleRootBlockIds?: string[]
     /** 是否裁切超出卡面尺寸的内容。 */
     clipToFace?: boolean
+    /** 当前编辑资源的相对路径解析根。 */
+    resourceRootPath?: string | null
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
     clipToFace: false,
+    resourceRootPath: null,
 })
 
 const cardCanvasRef = ref<HTMLElement>()
@@ -83,6 +87,7 @@ provide(cardEditorContextKey, {
     handleBlockClick: (blockId, event) => {
         emit('block-click', blockId, event)
     },
+    resolveAssetSrc: (path) => resolveEditorAssetSrc(props.resourceRootPath, path),
 })
 
 defineExpose({

@@ -25,6 +25,7 @@ export type ReferenceCompletionContext = {
   oppositeFace?: ReferenceCompletionScope
   document?: ReferenceCompletionScope
   project?: ReferenceCompletionScope
+  allowedScopes?: readonly BindingScopeDescriptor['kind'][]
   getAncestor: (depth: number) => ReferenceCompletionScope | undefined
 }
 
@@ -87,11 +88,13 @@ function resolveScopeSuggestions(
     ['g', context.project],
   ]
   const suggestions = fixedScopes
+    .filter(([token]) => isScopeAllowed(parseBindingScopeToken(token)?.kind, context))
     .filter(([token, scope]) => scope && token.startsWith(fragment) && hasCompatibleField(scope, context.targetKind))
     .map(([token, scope]) => scopeSuggestion(`${token}:`, scope!.label))
 
   const parent = context.getAncestor(1)
-  if (parent && 'p'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
+  if (isScopeAllowed('parent', context)
+    && parent && 'p'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
     suggestions.push(scopeSuggestion('p:', parent.label))
   }
   return suggestions
@@ -101,6 +104,7 @@ function resolveParentScopeSuggestions(
   fragment: string,
   context: ReferenceCompletionContext,
 ): ReferenceCompletionSuggestion[] {
+  if (!isScopeAllowed('parent', context)) return []
   if (!/^p(?:\.p)*\.?$/i.test(fragment)) return []
   const completedDepth = fragment.split('.').filter(Boolean).length
   const targetDepth = fragment.endsWith('.') ? completedDepth + 1 : completedDepth
@@ -121,6 +125,7 @@ function resolveFieldSuggestions(
   context: ReferenceCompletionContext,
 ): ReferenceCompletionState | null {
   const scopeDescriptor = parseBindingScopeToken(active.body.slice(0, colonIndex))
+  if (!isScopeAllowed(scopeDescriptor?.kind, context)) return null
   const scope = scopeDescriptor ? resolveScope(scopeDescriptor, context) : undefined
   if (!scope) return null
 
@@ -150,6 +155,13 @@ function resolveFieldSuggestions(
     replaceEnd: active.cursor,
     suggestions,
   }
+}
+
+function isScopeAllowed(
+  scope: BindingScopeDescriptor['kind'] | null | undefined,
+  context: ReferenceCompletionContext,
+): boolean {
+  return Boolean(scope && (!context.allowedScopes || context.allowedScopes.includes(scope)))
 }
 
 function resolveScope(

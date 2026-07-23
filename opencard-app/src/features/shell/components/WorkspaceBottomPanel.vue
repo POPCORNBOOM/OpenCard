@@ -8,6 +8,7 @@
       :aria-expanded="expanded"
       :aria-label="expanded ? collapseLabel : expandLabel"
       :data-tooltip="expanded ? collapseLabel : expandLabel"
+      :data-issue-severity="issueCount > 0 ? issueSeverity : null"
       @mouseenter="requestExpansion"
       @click="toggleExpansion"
     >
@@ -99,6 +100,7 @@ import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
 import type {
+  EditorIssueSeverity,
   SessionIssueNavigationRequest,
 } from '../../editor-runtime/model/editorIssue'
 
@@ -108,6 +110,7 @@ const props = defineProps<{
   expanded: boolean
   activeTab: WorkspaceBottomTab
   issueCount: number
+  issueSeverity: EditorIssueSeverity | null
   issueTreeData: OcTreeData
   issueNavigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
   expandedIssueKeys: readonly string[]
@@ -239,6 +242,18 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   background: var(--oc-bg-raised, #2d2d2d);
   color: var(--oc-fg-accent, #b8b0ff);
   outline: none;
+}
+
+.workspace-bottom-panel__toggle[data-issue-severity='error'] {
+  color: var(--oc-icon-danger, #f85149);
+}
+
+.workspace-bottom-panel__toggle[data-issue-severity='warning'] {
+  color: var(--oc-icon-warning, #d29922);
+}
+
+.workspace-bottom-panel__toggle[data-issue-severity='info'] {
+  color: var(--oc-icon-accent, #9b90ff);
 }
 
 .workspace-bottom-panel__content {

@@ -218,7 +218,7 @@ describe('CreateProjectWorkspace', () => {
   })
 
   it('imports a prepared template package without opening a metadata form', async () => {
-    vi.mocked(store.pickTemplateSourceFile).mockResolvedValue('/packages/prepared.octemplete')
+    vi.mocked(store.pickTemplateSourceFile).mockResolvedValue('/packages/prepared.opencardtemplate')
     vi.mocked(store.importUserTemplate).mockResolvedValue(user)
     const wrapper = mountWorkspace(builtin.key)
     await flushPromises()
@@ -227,7 +227,7 @@ describe('CreateProjectWorkspace', () => {
     await flushPromises()
 
     expect(store.pickTemplateSourceFile).toHaveBeenCalledWith('Choose package')
-    expect(store.importUserTemplate).toHaveBeenCalledWith('/packages/prepared.octemplete')
+    expect(store.importUserTemplate).toHaveBeenCalledWith('/packages/prepared.opencardtemplate')
     expect(wrapper.emitted('update:selectedKey')).toEqual([[user.key]])
     expect(wrapper.find('.create-project__template-editor').exists()).toBe(false)
   })

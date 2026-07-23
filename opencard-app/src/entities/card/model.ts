@@ -6,6 +6,7 @@
  */
 import {
     acceptsPropertyBinding,
+    acceptsPropertyBindingScope,
     additionalFieldTypes,
     createPropertyDefaultValue,
     exposesPropertyReference,
@@ -22,6 +23,7 @@ import type {
     AdditionalFieldKeyError,
 } from './schema'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
+import type { BindingScopeKind } from '../../features/editor-runtime/model/bindingExpression'
 
 export type {
     AdditionalFieldDefinition,
@@ -160,7 +162,9 @@ export type CardFace = {
 export type CardDocument = {
     type: "card-document"
     schemaVersion: '2'
-    name: string
+    name?: string
+    description?: string
+    notes?: string
     id: string
     version: string
     width: string
@@ -260,6 +264,14 @@ export function getCardFieldValueKind(
 
 export function acceptsCardFieldBinding(record: Record<string, unknown>, fieldKey: string): boolean {
     return acceptsPropertyBinding(getCardFieldDefinition(record, fieldKey))
+}
+
+export function acceptsCardFieldBindingScope(
+    record: Record<string, unknown>,
+    fieldKey: string,
+    scope: BindingScopeKind,
+): boolean {
+    return acceptsPropertyBindingScope(getCardFieldDefinition(record, fieldKey), scope)
 }
 
 export function exposesCardFieldReference(record: Record<string, unknown>, fieldKey: string): boolean {

@@ -130,6 +130,9 @@ export type RenderReadyCardDocument = {
   type: 'card-document'
   id: string
   name: string
+  version: string
+  description: string
+  notes: string
   faces: Record<CardFaceKey, RenderReadyCardFace>
 }
 

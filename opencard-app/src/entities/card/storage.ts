@@ -25,7 +25,9 @@ export function parseCardDocument(value: unknown): CardDocument {
   assertStringField(value, 'type', '$', 'card-document')
   assertStringField(value, 'schemaVersion', '$', '2')
   assertStringField(value, 'id', '$')
-  assertStringField(value, 'name', '$')
+  assertOptionalStringField(value, 'name', '$')
+  assertOptionalStringField(value, 'description', '$')
+  assertOptionalStringField(value, 'notes', '$')
   assertStringField(value, 'version', '$')
   assertStringField(value, 'width', '$')
   assertStringField(value, 'height', '$')
@@ -138,6 +140,11 @@ function assertStringField(
     throw new Error(`${path}.${fieldKey} must be ${expectedValue}`)
   }
   return value
+}
+
+function assertOptionalStringField(source: SourceRecord, fieldKey: string, path: string): void {
+  if (!Object.prototype.hasOwnProperty.call(source, fieldKey)) return
+  assertStringField(source, fieldKey, path)
 }
 
 function isRecord(value: unknown): value is SourceRecord {

@@ -65,6 +65,15 @@ describe('card document storage contract', () => {
     expect(parsed.instances[0]?.amount).toBe('1')
   })
 
+  it('accepts sparse optional document metadata', () => {
+    const document = createDocument()
+    delete document.name
+    document.description = 'A reusable card document.'
+    document.notes = 'Review print margins.'
+
+    expect(parseCardDocument(document)).toEqual(document)
+  })
+
   it.each([
     ['number', 540],
     ['boolean', true],
