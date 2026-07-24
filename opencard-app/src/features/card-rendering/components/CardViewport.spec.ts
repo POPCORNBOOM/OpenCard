@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardFace } from '../render.types'
 import CardViewport from './CardViewport.vue'
@@ -146,6 +146,84 @@ describe('CardViewport wheel zoom API', () => {
       .toContain(`height: ${face.height}px`)
     expect(wrapper.find('.card-viewport-bottom-info .card-viewport-dimension-line').attributes('style'))
       .toContain(`width: ${face.width}px`)
+  })
+
+  it('emits anchor-preserving geometry actions from the selection toolbar', async () => {
+    const SelectionRendererStub = defineComponent({
+      name: 'CardFaceRenderer',
+      setup() {
+        return () => h('div', { 'data-block-id': 'parent' }, [
+          h('div', { 'data-block-id': 'selected' }),
+        ])
+      },
+    })
+    const wrapper = mount(CardViewport, {
+      props: {
+        face,
+        selectedBlockId: null,
+        selectedLocationType: 'simple-container-location',
+        selectedAnchor: 'rb',
+        selectedParentBlockId: 'parent',
+      },
+      global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
+    })
+    const viewport = wrapper.get('.card-viewport').element
+    const parent = wrapper.get('[data-block-id="parent"]').element
+    const selected = wrapper.get('[data-block-id="selected"]').element
+    Object.defineProperty(viewport, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800 }),
+    })
+    Object.defineProperty(parent, 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 100, width: 400, height: 300, right: 500, bottom: 400 }),
+    })
+    Object.defineProperty(selected, 'getBoundingClientRect', {
+      value: () => ({ left: 150, top: 150, width: 100, height: 80, right: 250, bottom: 230 }),
+    })
+
+    await wrapper.setProps({ selectedBlockId: 'selected' })
+    await nextTick()
+    const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
+    expect(actions.map((action) => action.props('action').key))
+      .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+
+    actions.find((action) => action.props('action').key === 'fill-parent')
+      ?.vm.$emit('select', { key: 'fill-parent' })
+    actions.find((action) => action.props('action').key === 'center')
+      ?.vm.$emit('select', { key: 'center' })
+
+    expect(wrapper.emitted('selection-action')).toEqual([
+      [{ type: 'fill-parent', key: 'selected' }],
+      [{
+        type: 'geometry.apply',
+        operation: 'center',
+        key: 'selected',
+        width: 100,
+        height: 80,
+        x: 150,
+        y: 110,
+      }],
+    ])
+
+    await wrapper.get('.selection-handle-t').trigger('pointerdown')
+    expect(wrapper.find('.selection-size-label--width').exists()).toBe(false)
+    expect(wrapper.get('.selection-size-label--height').text()).toBe('80px')
+    window.dispatchEvent(new Event('pointercancel'))
+    await nextTick()
+
+    await wrapper.get('.selection-frame').trigger('pointerdown')
+    expect(wrapper.get('.selection-frame').classes()).toContain('is-moving')
+    expect(wrapper.get('.selection-anchor-guide-label--x').text()).toBe('x 250px')
+    expect(wrapper.get('.selection-anchor-guide-label--y').text()).toBe('y 170px')
+    expect(wrapper.get('.selection-anchor-badge').text()).toBe('RB')
+    window.dispatchEvent(new Event('pointercancel'))
+    await wrapper.setProps({ showPositionOnMove: false, showSizeOnResize: false })
+    await wrapper.get('.selection-handle-t').trigger('pointerdown')
+    expect(wrapper.find('.selection-size-label').exists()).toBe(false)
+    window.dispatchEvent(new Event('pointercancel'))
+    await nextTick()
+    await wrapper.get('.selection-frame').trigger('pointerdown')
+    expect(wrapper.find('.selection-anchor-guide').exists()).toBe(false)
+    window.dispatchEvent(new Event('pointercancel'))
   })
 
   it('drags dimensions by axis, changes cursors, and snaps to tens with Shift', async () => {

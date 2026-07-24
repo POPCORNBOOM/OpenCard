@@ -167,7 +167,7 @@ describe('cardDesignerIssues', () => {
       id: 'binding-issue',
       type: 'card-designer.binding.field-not-found',
       severity: 'warning',
-      token: '{{s:score}}',
+      token: '{{self:score}}',
       parameters: { referencedFieldKey: 'score' },
       location: {
         documentId: 'card-doc',

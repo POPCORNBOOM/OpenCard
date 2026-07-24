@@ -30,11 +30,59 @@
       </aside>
     </div>
     <div class="card-selection-layer">
+      <Transition name="selection-overlay-fade">
+      <svg v-if="moveGuide" class="selection-anchor-guide" aria-hidden="true">
+        <defs>
+          <marker id="selection-anchor-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L7,3.5 L0,7 Z" />
+          </marker>
+        </defs>
+        <polyline :points="moveGuide.points" />
+        <line class="selection-anchor-guide-diagonal"
+          :x1="moveGuide.parentX" :y1="moveGuide.parentY"
+          :x2="moveGuide.selectionX" :y2="moveGuide.selectionY"
+          marker-end="url(#selection-anchor-arrow)" />
+        <circle :cx="moveGuide.parentX" :cy="moveGuide.parentY" r="3" />
+        <text class="selection-anchor-guide-label selection-anchor-guide-label--x"
+          :x="moveGuide.horizontalLabelX" :y="moveGuide.horizontalLabelY">
+          x {{ moveGuide.x }}
+        </text>
+        <text class="selection-anchor-guide-label selection-anchor-guide-label--y"
+          :x="moveGuide.verticalLabelX" :y="moveGuide.verticalLabelY"
+          :transform="`rotate(-90 ${moveGuide.verticalLabelX} ${moveGuide.verticalLabelY})`">
+          y {{ moveGuide.y }}
+        </text>
+      </svg>
+      </Transition>
+      <Transition name="selection-overlay-fade">
+      <span v-if="moveGuide" class="selection-anchor-badge" :style="moveGuide.anchorBadgeStyle">
+        {{ moveGuide.anchor }}
+      </span>
+      </Transition>
       <div v-if="selectionFrame" :key="selectedBlockId ?? 'selection'" class="selection-frame" :class="{
         'selection-frame-movable': showMoveHandle,
         'is-resizing': activeHandle,
+        'is-moving': isMovingSelection,
       }"
         :style="selectionFrameStyle" @pointerdown="handleSelectionFramePointerDown">
+        <Transition name="selection-overlay-fade">
+        <nav v-if="selectionQuickActions.length > 0 && !isTransformingSelection" class="selection-quick-actions"
+          :aria-label="selectionActionLabels.label" @pointerdown.stop>
+          <OcActionButton v-for="action in selectionQuickActions" :key="action.key" :action="action"
+            size="sm" variant="ghost" @select="handleSelectionQuickAction(action.key)" />
+        </nav>
+        </Transition>
+        <Transition name="selection-overlay-fade">
+        <output v-if="resizeMetrics?.width" class="selection-size-label selection-size-label--width">
+          {{ resizeMetrics.width }}
+        </output>
+        </Transition>
+        <Transition name="selection-overlay-fade">
+        <output v-if="resizeMetrics?.height" class="selection-size-label selection-size-label--height">
+          <span>{{ resizeMetrics.height }}</span>
+        </output>
+        </Transition>
         <button v-for="handle in activeHandles" :key="handle" type="button" class="selection-handle"
           :class="[`selection-handle-${handle}`, { 'is-active': activeHandle === handle }]" :title="`Resize ${handle}`"
           @pointerdown.stop.prevent="startResize(handle)" />
@@ -43,9 +91,36 @@
   </div>
 </template>
 
+<script lang="ts">
+export type CardViewportSelectionAction =
+  | { type: 'fill-parent', key: string }
+  | { type: 'fill-cross-axis', key: string }
+  | { type: 'center-cross-axis', key: string }
+  | {
+      type: 'geometry.apply'
+      operation: 'center' | 'inset' | 'outset'
+      key: string
+      width: number
+      height: number
+      x: number
+      y: number
+    }
+
+export type CardViewportSelectionActionLabels = {
+  label: string
+  fillParent: string
+  centerInParent: string
+  inset: string
+  outset: string
+  fillCrossAxis: string
+  centerCrossAxis: string
+}
+</script>
+
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AnchorPosition } from '../../../entities/card/model'
+import type { AnchorPosition, FlowDirection } from '../../../entities/card/model'
+import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import type { RenderReadyCardFace } from '../render.types'
 
@@ -89,12 +164,15 @@ const MAX_WHEEL_DELTA_PX = 240
 const ZOOM_ANIMATION_SMOOTHING = 0.25
 const ZOOM_ANIMATION_EPSILON = 0.001
 const FIT_PADDING = 32
+const SELECTION_INSET_STEP = 10
+const MIN_SELECTION_SIZE = 24
 
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
   (e: 'blank-click', event: MouseEvent): void
   (e: 'resize-selection', payload: ResizePayload): void
   (e: 'move-selection', payload: MovePayload): void
+  (e: 'selection-action', payload: CardViewportSelectionAction): void
   (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
   (e: 'face-dimension-change', payload: { dimension: FaceDimension; value: number; final: boolean }): void
@@ -108,6 +186,10 @@ const props = withDefaults(defineProps<{
   selectedLocationType?: 'simple-container-location' | 'flow-container-location' | null
   selectedAnchor?: AnchorPosition | null
   selectedParentBlockId?: string | null
+  selectedParentFlowDirection?: FlowDirection | null
+  selectionActionLabels?: CardViewportSelectionActionLabels
+  showPositionOnMove?: boolean
+  showSizeOnResize?: boolean
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
@@ -117,6 +199,18 @@ const props = withDefaults(defineProps<{
   selectedLocationType: null,
   selectedAnchor: null,
   selectedParentBlockId: null,
+  selectedParentFlowDirection: null,
+  selectionActionLabels: () => ({
+    label: 'Selection layout actions',
+    fillParent: 'Fill parent',
+    centerInParent: 'Center in parent',
+    inset: 'Inset 10 px',
+    outset: 'Outset 10 px',
+    fillCrossAxis: 'Fill cross axis',
+    centerCrossAxis: 'Center on cross axis',
+  }),
+  showPositionOnMove: true,
+  showSizeOnResize: true,
   transform: undefined,
   transformDisabledBlockIds: () => [],
   clipToFace: false,
@@ -230,6 +324,50 @@ const activeHandles = computed<ResizeHandle[]>(() => {
   return []
 })
 const showMoveHandle = computed(() => props.selectedLocationType === 'simple-container-location')
+const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
+  if (!props.selectedBlockId) return []
+  if (resizeMode.value === 'absolute') {
+    return [
+      {
+        key: 'fill-parent',
+        title: props.selectionActionLabels.fillParent,
+        icon: 'layout.fill',
+      },
+      {
+        key: 'center',
+        title: props.selectionActionLabels.centerInParent,
+        icon: 'format.anchor-center',
+      },
+      {
+        key: 'inset',
+        title: props.selectionActionLabels.inset,
+        icon: 'layout.inset',
+      },
+      {
+        key: 'outset',
+        title: props.selectionActionLabels.outset,
+        icon: 'layout.outset',
+      },
+    ]
+  }
+  if (resizeMode.value === 'flow') {
+    const horizontalFlow = props.selectedParentFlowDirection === 'lr'
+      || props.selectedParentFlowDirection === 'rl'
+    return [
+      {
+        key: 'fill-cross-axis',
+        title: props.selectionActionLabels.fillCrossAxis,
+        icon: horizontalFlow ? 'layout.fill-vertical' : 'layout.fill-horizontal',
+      },
+      {
+        key: 'center-cross-axis',
+        title: props.selectionActionLabels.centerCrossAxis,
+        icon: 'format.align-center',
+      },
+    ]
+  }
+  return []
+})
 const selectionFrameStyle = computed(() => {
   const frame = selectionFrame.value
   if (!frame) {
@@ -242,6 +380,127 @@ const selectionFrameStyle = computed(() => {
     height: `${frame.height}px`,
   }
 })
+const isTransformingSelection = computed(() => Boolean(activeHandle.value) || isMovingSelection.value)
+const resizeMetrics = computed(() => {
+  const preview = previewWorldRect.value
+  const handle = activeHandle.value
+  if (!props.showSizeOnResize || !handle || !preview) return null
+  const changesWidth = handle === 'l' || handle === 'r' || handle.length === 2
+  const changesHeight = handle === 't' || handle === 'b' || handle.length === 2
+  return {
+    width: changesWidth ? formatGeometryValue(preview.width) : null,
+    height: changesHeight ? formatGeometryValue(preview.height) : null,
+  }
+})
+const moveGuide = computed(() => {
+  const frame = selectionFrame.value
+  const measurement = dragMeasurement.value
+  if (!props.showPositionOnMove || !isMovingSelection.value || !frame || !measurement) return null
+
+  const anchor = props.selectedAnchor ?? 'lt'
+  const parentPoint = getAnchorPoint(measurement.parentFrame, anchor)
+  const selectionPoint = getAnchorPoint(frame, anchor)
+  const position = buildMovePayload(previewWorldRect.value!, measurement)
+  return {
+    anchor: anchor.toUpperCase(),
+    parentX: parentPoint.x,
+    parentY: parentPoint.y,
+    selectionX: selectionPoint.x,
+    selectionY: selectionPoint.y,
+    horizontalLabelX: (parentPoint.x + selectionPoint.x) / 2,
+    horizontalLabelY: parentPoint.y,
+    verticalLabelX: selectionPoint.x,
+    verticalLabelY: (parentPoint.y + selectionPoint.y) / 2,
+    x: formatGeometryValue(position.x),
+    y: formatGeometryValue(position.y),
+    anchorBadgeStyle: {
+      left: `${selectionPoint.x + 8}px`,
+      top: `${selectionPoint.y + 8}px`,
+    },
+    points: [
+      `${parentPoint.x},${parentPoint.y}`,
+      `${selectionPoint.x},${parentPoint.y}`,
+      `${selectionPoint.x},${selectionPoint.y}`,
+    ].join(' '),
+  }
+})
+
+function formatGeometryValue(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return `${Object.is(rounded, -0) ? 0 : rounded}px`
+}
+
+function getAnchorPoint(frame: SelectionFrame, anchor: AnchorPosition): { x: number; y: number } {
+  const horizontal = anchor[0]
+  const vertical = anchor[1]
+  const x = horizontal === 'l'
+    ? frame.left
+    : horizontal === 'r' ? frame.left + frame.width : frame.left + frame.width / 2
+  const y = vertical === 't'
+    ? frame.top
+    : vertical === 'b' ? frame.top + frame.height : frame.top + frame.height / 2
+  return { x, y }
+}
+
+function handleSelectionQuickAction(actionKey: string): void {
+  const key = props.selectedBlockId
+  if (!key) return
+
+  if (actionKey === 'fill-parent') {
+    emit('selection-action', { type: 'fill-parent', key })
+    return
+  }
+  if (actionKey === 'fill-cross-axis') {
+    emit('selection-action', { type: 'fill-cross-axis', key })
+    return
+  }
+  if (actionKey === 'center-cross-axis') {
+    emit('selection-action', { type: 'center-cross-axis', key })
+    return
+  }
+  if (actionKey !== 'center' && actionKey !== 'inset' && actionKey !== 'outset') return
+
+  const measurement = measureSelection()
+  if (!measurement) return
+  const nextRect = buildQuickActionRect(actionKey, measurement)
+  if (!nextRect) return
+  const geometry = buildAbsoluteResizePayload(nextRect, measurement)
+  emit('selection-action', {
+    type: 'geometry.apply',
+    operation: actionKey,
+    key,
+    width: geometry.width,
+    height: geometry.height,
+    x: geometry.x ?? 0,
+    y: geometry.y ?? 0,
+  })
+}
+
+function buildQuickActionRect(
+  actionKey: string,
+  measurement: SelectionMeasurement,
+): SelectionFrame | null {
+  const current = measurement.worldRect
+  if (actionKey === 'center') {
+    return {
+      left: (measurement.parentWorldWidth - current.width) / 2,
+      top: (measurement.parentWorldHeight - current.height) / 2,
+      width: current.width,
+      height: current.height,
+    }
+  }
+  if (actionKey !== 'inset' && actionKey !== 'outset') return null
+
+  const delta = actionKey === 'inset' ? -SELECTION_INSET_STEP * 2 : SELECTION_INSET_STEP * 2
+  const width = Math.max(MIN_SELECTION_SIZE, current.width + delta)
+  const height = Math.max(MIN_SELECTION_SIZE, current.height + delta)
+  return {
+    left: current.left - (width - current.width) / 2,
+    top: current.top - (height - current.height) / 2,
+    width,
+    height,
+  }
+}
 
 function handleMouseDown(event: MouseEvent) {
   if (event.button !== 1) return
@@ -1065,6 +1324,61 @@ watch(
   pointer-events: none;
 }
 
+.selection-anchor-guide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: var(--oc-accent);
+  pointer-events: none;
+}
+
+.selection-anchor-guide polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.selection-anchor-guide-diagonal {
+  stroke: currentColor;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.selection-anchor-guide circle,
+.selection-anchor-guide marker path {
+  fill: currentColor;
+}
+
+.selection-anchor-guide-label {
+  fill: var(--oc-fg-default);
+  stroke: var(--oc-bg-raised);
+  stroke-width: 5px;
+  paint-order: stroke fill;
+  font-size: var(--oc-text-xs);
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.selection-anchor-badge {
+  position: absolute;
+  z-index: 2;
+  padding: 2px 4px;
+  border: 1px solid var(--oc-accent);
+  border-radius: 3px;
+  background: var(--oc-bg-raised);
+  color: var(--oc-fg-accent);
+  font-size: var(--oc-text-xs);
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
 .selection-frame {
   position: absolute;
   border-radius: 2px;
@@ -1083,9 +1397,76 @@ watch(
   box-shadow: 0 0 0 1px var(--oc-accent), 0 0 0 3px var(--oc-accent-glow);
 }
 
+.selection-frame.is-moving {
+  box-shadow: 0 0 0 1px var(--oc-accent), 0 0 0 3px var(--oc-accent-glow);
+}
+
+.selection-quick-actions {
+  position: absolute;
+  left: -1px;
+  bottom: calc(100% + 8px);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--oc-border-default);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--oc-bg-raised) 94%, transparent);
+  box-shadow: var(--oc-shadow-sm);
+  pointer-events: auto;
+}
+
+.selection-quick-actions :deep(.oc-button) {
+  width: var(--oc-size-sm);
+  height: var(--oc-size-sm);
+}
+
+.selection-size-label {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  min-height: 20px;
+  padding: 2px 6px;
+  border: 1px solid var(--oc-accent);
+  background: color-mix(in srgb, var(--oc-bg-raised) 94%, transparent);
+  box-shadow: 0 0 0 2px var(--oc-accent-glow);
+  color: var(--oc-fg-accent);
+  font-size: var(--oc-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.selection-size-label--width {
+  top: 100%;
+  left: 50%;
+  border-top: 0;
+  border-radius: 0 0 5px 5px;
+  transform: translateX(-50%);
+}
+
+.selection-size-label--height {
+  top: 50%;
+  right: 100%;
+  border-right: 0;
+  border-radius: 5px 0 0 5px;
+  transform: translateY(-50%);
+}
+
+.selection-size-label--height > span {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
 .selection-handle {
   box-sizing: border-box;
   position: absolute;
+  z-index: 3;
   width: 14px;
   height: 14px;
   border: 0;
@@ -1133,6 +1514,10 @@ watch(
 }
 
 .selection-frame.is-resizing .selection-handle:not(.is-active) {
+  opacity: .35;
+}
+
+.selection-frame.is-moving .selection-handle {
   opacity: .35;
 }
 
@@ -1224,6 +1609,20 @@ watch(
   height: 5px;
 }
 
+.selection-overlay-fade-enter-active {
+  transition: opacity 140ms ease-out;
+}
+
+.selection-overlay-fade-leave-active {
+  transition: opacity 100ms ease-in;
+  pointer-events: none;
+}
+
+.selection-overlay-fade-enter-from,
+.selection-overlay-fade-leave-to {
+  opacity: 0;
+}
+
 @keyframes selection-frame-enter {
   from {
     opacity: 0;
@@ -1241,6 +1640,11 @@ watch(
   .selection-frame,
   .selection-handle {
     animation: none;
+  }
+
+  .selection-overlay-fade-enter-active,
+  .selection-overlay-fade-leave-active {
+    transition: none;
   }
 
   .selection-frame,

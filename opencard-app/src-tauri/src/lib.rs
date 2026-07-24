@@ -1,4 +1,6 @@
 use notify::{Event, EventKind, RecursiveMode, Watcher};
+use std::path::Path;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Emitter, State};
 
@@ -81,6 +83,76 @@ fn stop_watching(state: State<WatcherState>) -> Result<String, String> {
     Ok("停止监听".to_string())
 }
 
+#[tauri::command]
+fn trash_path(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    std::fs::symlink_metadata(target)
+        .map_err(|error| format!("Cannot trash '{}': {}", path, error))?;
+    trash::delete(target).map_err(|error| format!("Failed to move '{}' to trash: {}", path, error))
+}
+
+#[cfg(target_os = "windows")]
+fn create_windows_reveal_command(target: &Path, is_directory: bool) -> Command {
+    let mut command = Command::new("explorer.exe");
+    let windows_path = target.to_string_lossy().replace('/', "\\");
+    if is_directory {
+        command.arg(windows_path);
+    } else {
+        command.arg(format!("/select,{}", windows_path));
+    }
+    command
+}
+
+#[tauri::command]
+fn reveal_path(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    let metadata = std::fs::symlink_metadata(target)
+        .map_err(|error| format!("Cannot reveal '{}': {}", path, error))?;
+
+    #[cfg(target_os = "windows")]
+    let mut command = create_windows_reveal_command(target, metadata.is_dir());
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg("-R").arg(target);
+        command
+    };
+
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let directory = if metadata.is_dir() {
+            target
+        } else {
+            target
+                .parent()
+                .ok_or_else(|| format!("Cannot resolve parent directory for '{}'", path))?
+        };
+        let mut command = Command::new("xdg-open");
+        command.arg(directory);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to reveal '{}': {}", path, error))
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explorer_select_switch_and_path_are_one_argument() {
+        let target = Path::new("D:/My Cards/main.opencard");
+        let command = create_windows_reveal_command(target, false);
+
+        let arguments: Vec<_> = command.get_args().collect();
+        assert_eq!(arguments, [r"/select,D:\My Cards\main.opencard"]);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder =
@@ -98,7 +170,6 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(WatcherState {
@@ -108,6 +179,8 @@ pub fn run() {
             greet,
             watch_directory,
             stop_watching,
+            trash_path,
+            reveal_path,
             external_open::take_external_open_requests,
         ])
         .build(tauri::generate_context!())

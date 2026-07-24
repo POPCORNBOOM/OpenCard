@@ -44,6 +44,8 @@ describe('useSettingsWorkspace', () => {
     expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
       'workspace.structureTreeSelectionBehavior',
       'workspace.structureTreeScrollToSelection',
+      'workspace.showSelectionPositionOnMove',
+      'workspace.showSelectionSizeOnResize',
       'project-workspace.reset',
     ])
     expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
@@ -55,6 +57,16 @@ describe('useSettingsWorkspace', () => {
       expect.objectContaining({
         type: 'checkbox',
         key: 'workspace.structureTreeScrollToSelection',
+        checked: true,
+      }),
+      expect.objectContaining({
+        type: 'checkbox',
+        key: 'workspace.showSelectionPositionOnMove',
+        checked: true,
+      }),
+      expect.objectContaining({
+        type: 'checkbox',
+        key: 'workspace.showSelectionSizeOnResize',
         checked: true,
       }),
       expect.objectContaining({ type: 'action', key: 'project-workspace.reset', disabled: true }),

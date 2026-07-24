@@ -22,7 +22,10 @@ import {
   type ParentLookup,
 } from '../../entities/card/tree'
 import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/model/binding'
-import { parseFieldReference } from '../editor-runtime/model/bindingExpression'
+import {
+  isBindingStartEscaped,
+  parseFieldReference,
+} from '../editor-runtime/model/bindingExpression'
 import {
   exposesProjectFieldReference,
   getProjectFieldValueKind,
@@ -34,7 +37,7 @@ import {
   type CardPipelineIssue,
 } from './cardPipelineIssue'
 
-const templateTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
+const templateTokenPatternSource = String.raw`\{\{\s*([^{}]+?)\s*\}\}`
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
 const maxReferenceDepth = 24
 
@@ -64,6 +67,7 @@ export function resolveParentFieldReferenceKey(
     return `${blockId}:${descriptor.fieldKey}`
   }
 
+  if (descriptor.kind !== 'parent') return null
   let currentBlockId = blockId
   for (let depth = 0; depth < descriptor.parentDepth; depth += 1) {
     const parent = parentLookup.get(currentBlockId)
@@ -85,6 +89,7 @@ export type ResolveReferencesResult = {
 export type ResolveReferencesOptions = {
   currentCard?: CardInstanceRecord | null
   project?: Readonly<ProjectInformation> | null
+  dictionary?: Readonly<Record<string, string>> | null
 }
 
 type ReferenceOwnerKind = 'document' | 'face' | 'block' | 'location' | 'current-card'
@@ -184,6 +189,7 @@ export function resolveReferences(
   const issues: CardPipelineIssue[] = []
   const valueMemo = new Map<string, unknown>()
   const stateMemo = new Map<string, ResolveMemoState>()
+  const dictionaryResolutionStack = new Set<string>()
   const owners: ReferenceOwner[] = []
   const targetOwnersById = new Map<string, ReferenceOwner>()
   const documentOwner: ReferenceOwner = {
@@ -407,7 +413,9 @@ export function resolveReferences(
     if (tokenDescriptor.kind === 'project') {
       const project = options.project
       if (!project) {
-        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', undefined, characterOffset)
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', {
+          ownerType: 'project',
+        }, characterOffset)
         return { ok: false, value: null }
       }
       if (!Object.prototype.hasOwnProperty.call(project, tokenDescriptor.fieldKey)) {
@@ -426,8 +434,48 @@ export function resolveReferences(
       }
       return {
         ok: true,
-        value: project[tokenDescriptor.fieldKey],
+        value: project[tokenDescriptor.fieldKey as keyof ProjectInformation],
         valueKind: getProjectFieldValueKind(project, tokenDescriptor.fieldKey),
+      }
+    }
+
+    if (tokenDescriptor.kind === 'dictionary') {
+      const dictionary = options.dictionary
+      if (!dictionary) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', {
+          ownerType: 'dictionary',
+        }, characterOffset)
+        return { ok: false, value: null }
+      }
+      if (!Object.prototype.hasOwnProperty.call(dictionary, tokenDescriptor.fieldKey)) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-found', {
+          ownerType: 'dictionary',
+          referencedFieldKey: tokenDescriptor.fieldKey,
+        }, characterOffset)
+        return { ok: false, value: null }
+      }
+      const dictionaryKey = tokenDescriptor.fieldKey
+      if (dictionaryResolutionStack.has(dictionaryKey)) {
+        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.cycle', {
+          ownerType: 'dictionary',
+          referencedFieldKey: dictionaryKey,
+        }, characterOffset)
+        return { ok: false, value: null }
+      }
+
+      dictionaryResolutionStack.add(dictionaryKey)
+      try {
+        const resolved = resolveStringField(
+          owner,
+          fieldKey,
+          dictionary[dictionaryKey],
+          recursionDepth + 1,
+        )
+        return resolved.ok
+          ? { ok: true, value: resolved.value, valueKind: 'string' }
+          : { ok: false, value: null }
+      } finally {
+        dictionaryResolutionStack.delete(dictionaryKey)
       }
     }
 
@@ -538,7 +586,7 @@ export function resolveReferences(
     let hasToken = false
     let resolvedValue = ''
     let cursor = 0
-    templateTokenPattern.lastIndex = 0
+    const templateTokenPattern = new RegExp(templateTokenPatternSource, 'g')
 
     while (true) {
       const matched = templateTokenPattern.exec(sourceValue)
@@ -547,6 +595,12 @@ export function resolveReferences(
       }
       hasToken = true
       resolvedValue += sourceValue.slice(cursor, matched.index)
+
+      if (isBindingStartEscaped(sourceValue, matched.index)) {
+        resolvedValue = `${resolvedValue.slice(0, -1)}${matched[0]}`
+        cursor = matched.index + matched[0].length
+        continue
+      }
 
       const tokenBody = matched[1].trim()
       const tokenResult = resolveTokenValue(

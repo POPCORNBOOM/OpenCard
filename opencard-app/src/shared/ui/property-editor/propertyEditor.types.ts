@@ -66,7 +66,13 @@ export type PropertyFieldConstraintMap = {
   }
 }
 
-export type PropertyFieldType = keyof PropertyFieldConstraintMap
+export type BasePropertyFieldType = keyof PropertyFieldConstraintMap
+export type PropertyArrayElementType = Extract<
+  BasePropertyFieldType,
+  'string' | 'filePath' | 'number' | 'boolean' | 'color'
+>
+export type PropertyArrayFieldType = `${PropertyArrayElementType}[]`
+export type PropertyFieldType = BasePropertyFieldType | PropertyArrayFieldType
 
 type PropertyEditorFieldBase = {
   title: string
@@ -83,11 +89,29 @@ type PropertyEditorFieldBase = {
   }
 }
 
-export type PropertyEditorFieldDefinition = {
-  [K in PropertyFieldType]: PropertyEditorFieldBase & {
+type ScalarPropertyEditorFieldDefinition = {
+  [K in BasePropertyFieldType]: PropertyEditorFieldBase & {
     fieldType: K
   } & PropertyFieldConstraintMap[K]
-}[PropertyFieldType]
+}[BasePropertyFieldType]
+
+type ArrayPropertyEditorFieldDefinition = {
+  [K in PropertyArrayElementType]: PropertyEditorFieldBase & {
+    fieldType: `${K}[]`
+  } & PropertyFieldConstraintMap[K]
+}[PropertyArrayElementType]
+
+export type PropertyEditorFieldDefinition =
+  | ScalarPropertyEditorFieldDefinition
+  | ArrayPropertyEditorFieldDefinition
+
+export function isArrayPropertyFieldType(fieldType: PropertyFieldType): fieldType is PropertyArrayFieldType {
+  return fieldType.endsWith('[]') && !fieldType.slice(0, -2).endsWith('[]')
+}
+
+export function getArrayElementFieldType(fieldType: PropertyArrayFieldType): PropertyArrayElementType {
+  return fieldType.slice(0, -2) as PropertyArrayElementType
+}
 
 export type PropertyEditorBindingInterpreter = {
   isExpression(value: unknown): boolean

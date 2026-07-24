@@ -25,6 +25,7 @@ export type ReferenceCompletionContext = {
   oppositeFace?: ReferenceCompletionScope
   document?: ReferenceCompletionScope
   project?: ReferenceCompletionScope
+  dictionary?: ReferenceCompletionScope
   allowedScopes?: readonly BindingScopeDescriptor['kind'][]
   getAncestor: (depth: number) => ReferenceCompletionScope | undefined
 }
@@ -63,11 +64,41 @@ export function resolveReferenceCompletion(
     return resolveFieldSuggestions(active, colonIndex, context)
   }
 
+  const fragment = active.body.trim()
   return {
     replaceStart: active.bodyStart,
     replaceEnd: cursor,
-    suggestions: resolveScopeSuggestions(active.body.trim(), context),
+    suggestions: [
+      ...resolveScopeSuggestions(fragment, context),
+      ...resolveImplicitSelfSuggestions(fragment, context),
+    ],
   }
+}
+
+function resolveImplicitSelfSuggestions(
+  fragmentInput: string,
+  context: ReferenceCompletionContext,
+): ReferenceCompletionSuggestion[] {
+  if (!fragmentInput || !context.currentBlock || !isScopeAllowed('current-block', context)) return []
+  const fragment = fragmentInput.toLocaleLowerCase()
+  return context.currentBlock.fields
+    .filter(field => isBindingCompatible(context.targetKind, field.valueKind))
+    .filter(field => field.key.toLocaleLowerCase().includes(fragment)
+      || field.label?.toLocaleLowerCase().includes(fragment))
+    .sort((left, right) => {
+      const leftStarts = left.key.toLocaleLowerCase().startsWith(fragment)
+      const rightStarts = right.key.toLocaleLowerCase().startsWith(fragment)
+      if (leftStarts !== rightStarts) return leftStarts ? -1 : 1
+      return left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
+    })
+    .map(field => ({
+      key: `field:self-short:${field.key}`,
+      label: field.label ?? field.key,
+      detail: `self:${field.key}`,
+      insertText: field.key,
+      kind: 'field' as const,
+      valueKind: field.valueKind,
+    }))
 }
 
 function resolveScopeSuggestions(
@@ -80,12 +111,13 @@ function resolveScopeSuggestions(
   }
 
   const fixedScopes: Array<readonly [string, ReferenceCompletionScope | undefined]> = [
-    ['s', context.currentBlock],
-    ['c', context.currentCard],
-    ['f', context.currentFace],
-    ['o', context.oppositeFace],
-    ['d', context.document],
-    ['g', context.project],
+    ['self', context.currentBlock],
+    ['card', context.currentCard],
+    ['face', context.currentFace],
+    ['opposite', context.oppositeFace],
+    ['document', context.document],
+    ['project', context.project],
+    ['dictionary', context.dictionary],
   ]
   const suggestions = fixedScopes
     .filter(([token]) => isScopeAllowed(parseBindingScopeToken(token)?.kind, context))
@@ -94,8 +126,8 @@ function resolveScopeSuggestions(
 
   const parent = context.getAncestor(1)
   if (isScopeAllowed('parent', context)
-    && parent && 'p'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
-    suggestions.push(scopeSuggestion('p:', parent.label))
+    && parent && 'parent'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
+    suggestions.push(scopeSuggestion('parent:', parent.label))
   }
   return suggestions
 }
@@ -105,13 +137,13 @@ function resolveParentScopeSuggestions(
   context: ReferenceCompletionContext,
 ): ReferenceCompletionSuggestion[] {
   if (!isScopeAllowed('parent', context)) return []
-  if (!/^p(?:\.p)*\.?$/i.test(fragment)) return []
+  if (!/^parent(?:\.parent)*\.?$/i.test(fragment)) return []
   const completedDepth = fragment.split('.').filter(Boolean).length
   const targetDepth = fragment.endsWith('.') ? completedDepth + 1 : completedDepth
   const scope = context.getAncestor(targetDepth)
   if (!scope || !hasCompatibleField(scope, context.targetKind)) return []
 
-  const token = Array.from({ length: targetDepth }, () => 'p').join('.')
+  const token = Array.from({ length: targetDepth }, () => 'parent').join('.')
   const suggestions = [scopeSuggestion(`${token}:`, scope.label)]
   if (context.getAncestor(targetDepth + 1)) {
     suggestions.push(scopeSuggestion(`${token}.`, scope.label))
@@ -144,7 +176,7 @@ function resolveFieldSuggestions(
     .map((field) => ({
       key: `field:${scopeToken}:${field.key}`,
       label: field.label ?? field.key,
-      detail: scope.label,
+      detail: field.key,
       insertText: `${scopeToken}:${field.key}`,
       kind: 'field' as const,
       valueKind: field.valueKind,
@@ -174,7 +206,8 @@ function resolveScope(
   if (descriptor.kind === 'opposite-face') return context.oppositeFace
   if (descriptor.kind === 'document') return context.document
   if (descriptor.kind === 'project') return context.project
-  return context.getAncestor(descriptor.parentDepth)
+  if (descriptor.kind === 'dictionary') return context.dictionary
+  return descriptor.kind === 'parent' ? context.getAncestor(descriptor.parentDepth) : undefined
 }
 
 function hasCompatibleField(scope: ReferenceCompletionScope, targetKind: BindingValueKind): boolean {

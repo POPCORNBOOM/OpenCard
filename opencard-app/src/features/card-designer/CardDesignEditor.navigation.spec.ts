@@ -2,7 +2,13 @@ import { defineComponent, h, nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCardFace, createSimpleContainerBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
+import {
+  createCardFace,
+  createFlowContainerBlock,
+  createSimpleContainerBlock,
+  createTextBlock,
+  type CardDocument,
+} from '../../entities/card/model'
 import enUS from '../../locales/en-US'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import CardDesignEditor from './CardDesignEditor.vue'
@@ -291,5 +297,229 @@ describe('CardDesignEditor issue navigation', () => {
     const latestContent = contentUpdates[contentUpdates.length - 1]?.[0]
     expect(JSON.parse(String(latestContent)).width).toBe('600')
     expect(wrapper.emitted('modified')?.[0]?.[0]).toBe(true)
+  })
+
+  it('fills a simple-container child without changing its anchor', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: { selectedBlockId: String },
+      emits: ['block-click', 'selection-action'],
+      template: '<div class="card-viewport-stub" />',
+    })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
+    await nextTick()
+    expect(viewport.props('selectedBlockId')).toBe('text-1')
+
+    viewport.vm.$emit('selection-action', { type: 'fill-parent', key: 'text-1' })
+    await nextTick()
+
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    const document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    const container = document.faces.front.children[0]!.block
+    expect(container.type).toBe('simple-container-block')
+    if (container.type !== 'simple-container-block') return
+    const child = container.children[0]!
+    expect(child.block).toMatchObject({ width: '100%', height: '100%' })
+    expect(child.location).toMatchObject({ anchor: 'lt', x: '0px', y: '0px' })
+  })
+
+  it('fills and centers a flow child only on the cross axis', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const source = createDocument()
+    source.faces.front.children[0]!.block = createFlowContainerBlock({
+      id: 'flow-1',
+      direction: 'lr',
+      children: [{
+        block: createTextBlock({ id: 'flow-text', width: '120px', height: '40px' }),
+        location: { id: 'flow-location', type: 'flow-container-location', index: '0', align: 'start' },
+      }],
+    })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      emits: ['block-click', 'selection-action'],
+      template: '<div class="card-viewport-stub" />',
+    })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/flow.opencard',
+        fileName: 'flow.opencard',
+        modelValue: JSON.stringify(source),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    viewport.vm.$emit('block-click', 'flow-text', new MouseEvent('click'))
+    await nextTick()
+    viewport.vm.$emit('selection-action', { type: 'fill-cross-axis', key: 'flow-text' })
+    await nextTick()
+
+    let updates = wrapper.emitted('update:modelValue') ?? []
+    let document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    let flow = document.faces.front.children[0]!.block
+    expect(flow.type).toBe('flow-container-block')
+    if (flow.type !== 'flow-container-block') return
+    expect(flow.children[0]!.block).toMatchObject({ width: '120px', height: '100%' })
+    expect(flow.children[0]!.location.align).toBe('justify')
+
+    viewport.vm.$emit('selection-action', { type: 'center-cross-axis', key: 'flow-text' })
+    await nextTick()
+    updates = wrapper.emitted('update:modelValue') ?? []
+    document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    flow = document.faces.front.children[0]!.block
+    if (flow.type !== 'flow-container-block') return
+    expect(flow.children[0]!.location.align).toBe('center')
+  })
+
+  it('keeps face tools visible and right-aligned when both right panels are collapsed', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerLayout: {
+          panels: {
+            instanceExpanded: true,
+            previewExpanded: true,
+            structureExpanded: false,
+            propertyExpanded: false,
+          },
+          leftTopHeight: null,
+          rightTopHeight: null,
+        },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: true,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const tools = wrapper.get('.card-design-editor__face-tools')
+    expect(tools.classes()).toContain('is-right-sidebar-collapsed')
+    const viewportControls = tools.findComponent({ name: 'OcViewportControls' })
+    expect(viewportControls.exists()).toBe(true)
+    expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(2)
+  })
+
+  it('clips sidebars below their minimum width and snaps symmetrically', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: true,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const root = wrapper.get('.card-design-editor').element as HTMLElement
+    const flushSidebarSnap = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const leftResizebar = wrapper.get('[aria-label="调整左侧栏宽度"]')
+    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 320,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 100 }))
+    expect(root.style.getPropertyValue('--card-editor-left-panel-width')).toBe('280px')
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('100px')
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 100 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('0px')
+
+    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 300 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 300 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('280px')
+
+    const rightResizebar = wrapper.get('[aria-label="调整右侧栏宽度"]')
+    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 700,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 920 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 920 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('280px')
+    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
+
+    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 900,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 700 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
+
+    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 700,
+    }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
+
+    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 700,
+    }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
   })
 })

@@ -96,6 +96,10 @@ export function createAppSettingsStore(
       candidate.workspace.structureTreeSelectionBehavior = value as AppSettings['workspace']['structureTreeSelectionBehavior']
     } else if (key === 'workspace.structureTreeScrollToSelection') {
       candidate.workspace.structureTreeScrollToSelection = value as boolean
+    } else if (key === 'workspace.showSelectionPositionOnMove') {
+      candidate.workspace.showSelectionPositionOnMove = value as boolean
+    } else if (key === 'workspace.showSelectionSizeOnResize') {
+      candidate.workspace.showSelectionSizeOnResize = value as boolean
     }
     commit(candidate)
   }
@@ -141,8 +145,11 @@ export function createAppSettingsStore(
     const recentProjects = settings.value.projectCreation.recentProjects.filter((item) => (
       item.toLocaleLowerCase() !== identity
     ))
-    if (recentProjects.length === settings.value.projectCreation.recentProjects.length) return
-    updateProjectCreation({ recentProjects })
+    const workspaceStates = { ...settings.value.projectCreation.workspaceStates }
+    const workspaceKey = Object.keys(workspaceStates).find((item) => item.toLocaleLowerCase() === identity)
+    if (workspaceKey) delete workspaceStates[workspaceKey]
+    if (recentProjects.length === settings.value.projectCreation.recentProjects.length && !workspaceKey) return
+    updateProjectCreation({ recentProjects, workspaceStates })
   }
 
   function resetSection(section: SettingsSection): void {

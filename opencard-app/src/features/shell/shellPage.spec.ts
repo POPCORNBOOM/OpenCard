@@ -7,6 +7,8 @@ describe('shellPage', () => {
       .toBe('welcome')
     expect(getPrimaryShellPage({ type: 'create-project', returnPage: 'workbench' }))
       .toBe('workbench')
+    expect(getPrimaryShellPage({ type: 'about', returnPage: 'welcome' }))
+      .toBe('welcome')
   })
 
   it('keeps the current page when a project closes', () => {

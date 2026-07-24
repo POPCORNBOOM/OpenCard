@@ -16,7 +16,6 @@ import type {
 } from '../../editor-runtime/model/editorUiState'
 import { taskScheduler } from '../../../utils/taskScheduler'
 
-const PROJECT_CONFIGURATION_AUTOSAVE_DELAY_MS = 1200
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
@@ -102,7 +101,7 @@ function projectConfigurationAutosaveKey(sessionId: string): string {
   return `${PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX}${sessionId}`
 }
 
-function createDefaultOpenCardContent(displayName: string) {
+export function createDefaultOpenCardContent(displayName: string) {
   const documentName = stripFileExtension(displayName) || 'UNTITLED'
   return JSON.stringify({
     type: 'card-document',
@@ -150,7 +149,10 @@ function buildDraftName(fileTypeId: string, existingNames: string[]) {
 
 function resolveSessionFileType(session: EditorSession) {
   if (session.path) {
-    const fileTypeFromPath = resolveFileType(session.path)
+    const fileTypeFromPath = resolveFileType(
+      session.path,
+      session.resourceKind === 'workspace' ? useProjectStore().projectPath.value : undefined,
+    )
     if (!session.fileTypeId || fileTypeFromPath.id === session.fileTypeId) {
       return fileTypeFromPath
     }
@@ -160,7 +162,7 @@ function resolveSessionFileType(session: EditorSession) {
 }
 
 export function useEditorSessionStore() {
-  const { projectPath, readFile, saveFile, saveProjectConfiguration } = useProjectStore()
+  const { projectPath, readFile, saveFile, saveProjectConfiguration, saveProjectDictionary } = useProjectStore()
 
   const activeSession = computed(() =>
     sessions.value.find((session) => session.id === activeSessionId.value) ?? null
@@ -170,7 +172,7 @@ export function useEditorSessionStore() {
     sessions.value.map((session) => {
       const fileType = resolveSessionFileType(session)
       const entryIcon = session.resourceKind === 'workspace' && session.path
-        ? resolveEntryIcon(session.path, false)
+        ? resolveEntryIcon(session.path, false, false, projectPath.value)
         : { icon: fileType.icon, tone: fileType.iconTone }
 
       return {
@@ -207,12 +209,15 @@ export function useEditorSessionStore() {
       return existingSession
     }
 
-    const fileType = resolveFileType(normalizedPath)
     const resourceKind: SessionResourceKind = projectPath.value && (
       !isAbsolutePath(normalizedPath) || isPathInsideProject(normalizedPath, projectPath.value)
     )
       ? 'workspace'
       : 'external'
+    const fileType = resolveFileType(
+      normalizedPath,
+      resourceKind === 'workspace' ? projectPath.value : undefined,
+    )
     const content = fileType.editorId === 'image-preview'
       ? ''
       : resourceKind === 'workspace'
@@ -303,20 +308,6 @@ export function useEditorSessionStore() {
     }
     )
 
-    const session = sessions.value.find(candidate => candidate.id === sessionId)
-    if (session?.editorId !== 'project-config') return
-    const autosaveKey = projectConfigurationAutosaveKey(sessionId)
-    if (!session.isDirty) {
-      taskScheduler.cancel(autosaveKey)
-      return
-    }
-    taskScheduler.schedule(autosaveKey, PROJECT_CONFIGURATION_AUTOSAVE_DELAY_MS, async () => {
-      try {
-        await saveSession(sessionId)
-      } catch (error) {
-        console.error('自动保存项目配置失败:', error)
-      }
-    })
   }
 
   function setSessionDirtyState(sessionId: string, isDirty: boolean) {
@@ -465,13 +456,20 @@ export function useEditorSessionStore() {
       nextResourceKind = isPathInsideProject(nextPath, projectPath.value) ? 'workspace' : 'external'
     }
 
-    const nextFileType = resolveFileType(nextPath)
-    const isProjectConfiguration = nextResourceKind === 'workspace' && nextFileType.id === 'opencard-project'
-    const savedContent = isProjectConfiguration
-      ? await saveProjectConfiguration(session.draftContent)
-      : session.draftContent
+    const nextFileType = resolveFileType(
+      nextPath,
+      nextResourceKind === 'workspace' ? projectPath.value : undefined,
+    )
+    const isProjectProfile = nextResourceKind === 'workspace' && nextFileType.id === 'opencard-project-profile'
+    const isProjectDictionary = nextResourceKind === 'workspace' && nextFileType.id === 'opencard-dictionary'
+    const isStructuredProjectFile = isProjectProfile || isProjectDictionary
+    const savedContent = isProjectProfile
+      ? await saveProjectConfiguration(nextPath, session.draftContent)
+      : isProjectDictionary
+        ? await saveProjectDictionary(nextPath, session.draftContent)
+        : session.draftContent
 
-    if (!isProjectConfiguration) {
+    if (!isStructuredProjectFile) {
       await writeContentByResourceKind(nextResourceKind, nextPath, savedContent)
     }
 
@@ -558,7 +556,7 @@ export function useEditorSessionStore() {
       }
 
       const nextPath = normalizedNewPath + session.path.slice(normalizedOldPath.length)
-      const nextFileType = resolveFileType(nextPath)
+      const nextFileType = resolveFileType(nextPath, projectPath.value)
       return {
         ...session,
         path: nextPath,

@@ -59,6 +59,7 @@ const iconColorMap: Record<IconTone, string> = {
   muted: 'var(--oc-icon-muted)',
   primary: 'var(--oc-icon-accent)',
   success: 'var(--oc-icon-success)',
+  active: 'var(--oc-icon-active)',
   warning: 'var(--oc-icon-warning)',
   danger: 'var(--oc-icon-danger)',
   opencard: 'var(--oc-icon-file-opencard)',

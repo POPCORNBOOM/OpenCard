@@ -166,6 +166,10 @@
               :native-macos-controls="usesNativeMacosWindowControls"
               @intent="handleSettingsIntent"
             />
+            <AboutWorkspace
+              v-else-if="isAboutMode"
+              @back="showPrimaryShellPage(getCurrentPrimaryShellPage())"
+            />
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
               @new-project="openCreateProject"
@@ -180,6 +184,7 @@
                 v-bind="currentEditorProps"
                 @modified="handleEditorModified"
                 @save="handleEditorSave"
+                @open-file="handleOpenFile"
                 @update-viewport-transform="handleViewportTransformUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
                 @update-card-designer-view="handleCardDesignerViewUpdate"
@@ -238,11 +243,15 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../workspace/store/projectStore'
-import { useEditorSessionStore } from '../workspace/store/editorSessionStore'
+import {
+  createDefaultOpenCardContent,
+  useEditorSessionStore,
+} from '../workspace/store/editorSessionStore'
 import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
+import { getOcTheme } from '../../shared/ui/foundation'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
@@ -250,6 +259,7 @@ import CreateProjectWorkspace from '../project-templates/components/CreateProjec
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
 import WorkbenchWorkspace from './components/WorkbenchWorkspace.vue'
 import WelcomeWorkspace from './components/WelcomeWorkspace.vue'
+import AboutWorkspace from './components/AboutWorkspace.vue'
 import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
 } from './components/WorkspaceBottomPanel.vue'
@@ -337,6 +347,9 @@ const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
 const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
+const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.opencard'
+const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.opencardprojectprofile'
+const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.dictionary'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const EMPTY_TREE_DATA: OcTreeData = {
   rootKeys: [],
@@ -358,6 +371,7 @@ type CurrentEditorRef = {
 const {
   projectPath,
   projectInformation,
+  resolvedDictionary,
   indexedEntries,
   chooseProjectDirectory,
   openProject: openProjectFn,
@@ -368,7 +382,8 @@ const {
   setDirectoryExpanded,
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
-  deleteFile,
+  createFile,
+  trashFile,
   revealEntryInFileManager,
   getRelativeProjectPath,
   moveEntryByDrop,
@@ -381,9 +396,12 @@ const shellPage = ref<ShellPage>({ type: 'welcome' })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
 const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
+const isAboutMode = computed(() => shellPage.value.type === 'about')
 const isWelcomeMode = computed(() => shellPage.value.type === 'welcome')
 const isWorkbenchMode = computed(() => shellPage.value.type === 'workbench')
-const isAuxiliaryMode = computed(() => isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value)
+const isAuxiliaryMode = computed(() => (
+  isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isAboutMode.value
+))
 
 function getCurrentPrimaryShellPage(): PrimaryShellPage {
   return getPrimaryShellPage(shellPage.value)
@@ -445,6 +463,7 @@ const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | nul
 const {
   availableUpdate,
   updateVersion,
+  isChecking: isCheckingForUpdate,
   isInstalling: isInstallingUpdate,
   checkForUpdate,
   installAvailableUpdate,
@@ -527,6 +546,7 @@ const {
   activeSession,
   exportRendererRef,
   projectInformation,
+  resolvedDictionary,
   translate: t,
 })
 
@@ -629,8 +649,26 @@ watch(
 
 const projectName = computed(() => {
   if (!projectPath.value) return ''
-  return projectInformation.value.name || projectPath.value.split(/[/\\]/).pop() || ''
+  return projectInformation.value?.name || projectPath.value.split(/[/\\]/).pop() || ''
 })
+
+const projectFolderName = computed(() => {
+  if (!projectPath.value) return ''
+  return projectPath.value.split(/[/\\]/).filter(Boolean).pop() || ''
+})
+
+const editorThemeId = computed(() => (
+  settingsStore.settings.value.appearance.theme === 'system'
+    ? getOcTheme()
+    : settingsStore.settings.value.appearance.theme
+))
+
+function hasRootProjectFile(fileName: string): boolean {
+  const expectedType = fileName === '.dictionary' ? 'opencard-dictionary' : 'opencard-project-profile'
+  return indexedEntries.value.some(entry => !entry.isDirectory && (
+    resolveFileType(`${projectPath.value}/${entry.name}`, projectPath.value).id === expectedType
+  ))
+}
 
 const shellMainStyle = computed(() => ({
   '--shell-sidebar-width': effectiveSidebarCollapsed.value ? '0px' : `${sidebarWidth.value}px`,
@@ -666,16 +704,17 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     const moreActionKey = projectEntryMoreActionKey(entryKey)
     const deleteActionKey = projectEntryDeleteActionKey(entryKey)
     const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
+    const children = [
+      PROJECT_ENTRY_RENAME_ACTION_KEY,
+      deleteActionKey,
+      PROJECT_ENTRY_REVEAL_ACTION_KEY,
+      PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
+      PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+    ]
     actions.set(moreActionKey, {
       title: t('sidebar.fileActions.more'),
       icon: 'nav.more',
-      children: [
-        PROJECT_ENTRY_RENAME_ACTION_KEY,
-        deleteActionKey,
-        PROJECT_ENTRY_REVEAL_ACTION_KEY,
-        PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
-        PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
-      ],
+      children,
     })
     actions.set(deleteActionKey, {
       title: t('sidebar.fileActions.delete'),
@@ -688,7 +727,6 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
       iconTone: 'danger',
     })
   }
-
   return actions
 })
 
@@ -759,7 +797,7 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeItem>()
   for (const [key, item] of projectTreeData.value.items) {
     const relativePath = exportRelativePath(key)
-    const isProjectFile = relativePath === '.opencardproject'
+    const isProjectFile = relativePath === '.opencardprojectprofile' || relativePath === '.dictionary'
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
     const isExcluded = isExportPathExcluded(relativePath)
     const isImage = resolveFileType(key).id === 'image'
@@ -873,6 +911,9 @@ const sidebarHeadButtons = computed<ShellButton[]>(() => {
   if (isSettingsMode.value) {
     return [{ key: 'return-primary-page', icon: 'nav.arrow-left', title: t('settings.actions.back', 'Back') }]
   }
+  if (isAboutMode.value) {
+    return [{ key: 'return-primary-page', icon: 'nav.arrow-left', title: t('app.about.back') }]
+  }
   if (isWelcomeMode.value) {
     return [
       { key: 'new-project', icon: 'action.folder-plus', title: t('app.menu.newProject') },
@@ -896,6 +937,8 @@ const sidebarTailButtons = computed<ShellButton[]>(() => {
 })
 
 const sidebarBodyLists = computed<ShellList[]>(() => {
+  if (isAboutMode.value) return []
+
   if (isSettingsMode.value) {
     return [{
       key: SETTINGS_CATEGORIES_LIST_KEY,
@@ -946,7 +989,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
     return [
       {
         key: PROJECT_FILES_LIST_KEY,
-        title: projectName.value || t('sidebar.files'),
+        title: projectFolderName.value || t('sidebar.files'),
         placeholder: t('sidebar.emptyProject', 'Folder is empty'),
         actions: [],
         maxHeight: 'var(--oc-list-max-height-lg)',
@@ -986,7 +1029,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
     },
     {
       key: PROJECT_FILES_LIST_KEY,
-      title: projectName.value || t('sidebar.files'),
+      title: projectFolderName.value || t('sidebar.files'),
       placeholder: projectPath.value
         ? t('sidebar.emptyProject', 'Folder is empty')
         : t('sidebar.noProjectOpen', 'No project folder open'),
@@ -996,6 +1039,23 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           icon: 'action.file-plus',
           hoverTip: t('sidebar.fileActions.newFile'),
           disabled: !projectPath.value,
+          children: [
+            {
+              key: PROJECT_NEW_OPENCARD_ACTION_KEY,
+              title: t('sidebar.fileActions.newOpenCard'),
+              icon: 'file.opencard',
+            },
+            ...(!hasRootProjectFile('.opencardprojectprofile') ? [{
+              key: PROJECT_NEW_PROFILE_ACTION_KEY,
+              title: t('sidebar.fileActions.newProjectProfile'),
+              icon: 'file.opencard-project' as const,
+            }] : []),
+            ...(!hasRootProjectFile('.dictionary') ? [{
+              key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
+              title: t('sidebar.fileActions.newDictionary'),
+              icon: 'data.collection' as const,
+            }] : []),
+          ],
         },
         {
           key: PROJECT_NEW_FOLDER_ACTION_KEY,
@@ -1121,10 +1181,18 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
     label: t('app.menu.help'),
     actions: [
       {
+        key: 'check-for-updates',
+        title: isCheckingForUpdate.value
+          ? t('app.updater.checking')
+          : t('app.updater.check'),
+        icon: 'action.refresh',
+        disabled: isCheckingForUpdate.value || isInstallingUpdate.value,
+      },
+      { type: 'divider', key: 'help-about-divider' },
+      {
         key: 'about-opencard',
         title: t('app.menu.aboutOpenCard'),
         icon: 'status.unknown',
-        disabled: true,
       },
     ],
   },
@@ -1134,6 +1202,7 @@ const workspaceTitle = computed(() => {
   if (isCreateProjectMode.value) return t('projectTemplates.title')
   if (isExportTemplateMode.value) return t('templateExport.title')
   if (isSettingsMode.value) return activeSettingsCategory.value.title
+  if (isAboutMode.value) return t('app.about.title')
   if (isWelcomeMode.value) return 'OpenCard'
   return activeSession.value
     ? formatSessionTitle(activeSession.value)
@@ -1189,6 +1258,7 @@ const currentEditorProps = computed(() => {
     const baseProps = {
       filePath,
       modelValue: activeSession.value.draftContent,
+      themeId: editorThemeId.value,
       'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     }
 
@@ -1204,6 +1274,10 @@ const currentEditorProps = computed(() => {
           settingsStore.settings.value.workspace.structureTreeSelectionBehavior,
         structureTreeScrollToSelection:
           settingsStore.settings.value.workspace.structureTreeScrollToSelection,
+        showSelectionPositionOnMove:
+          settingsStore.settings.value.workspace.showSelectionPositionOnMove,
+        showSelectionSizeOnResize:
+          settingsStore.settings.value.workspace.showSelectionSizeOnResize,
       }
     }
 
@@ -1220,7 +1294,7 @@ const currentEditorProps = computed(() => {
     modelValue: activeSession.value.draftContent,
     'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
     language: currentLanguage.value,
-    themeId: settingsStore.settings.value.appearance.theme,
+    themeId: editorThemeId.value,
   }
 })
 
@@ -1327,8 +1401,16 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
   if (shellPage.value.type === 'workbench' && listKey === PROJECT_FILES_LIST_KEY) {
-    if (actionKey === PROJECT_NEW_FILE_ACTION_KEY) {
-      await createProjectEntry('file')
+    if (actionKey === PROJECT_NEW_OPENCARD_ACTION_KEY) {
+      await createProjectEntry('opencard')
+      return
+    }
+    if (actionKey === PROJECT_NEW_PROFILE_ACTION_KEY) {
+      await createProjectSpecialFile('.opencardprojectprofile')
+      return
+    }
+    if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
+      await createProjectSpecialFile('.dictionary')
       return
     }
     if (actionKey === PROJECT_NEW_FOLDER_ACTION_KEY) {
@@ -1360,7 +1442,15 @@ function getProjectEntryParentPath(): string {
   return separatorIndex < 0 ? projectPath.value : selectedEntry.key.slice(0, separatorIndex)
 }
 
-async function createProjectEntry(kind: 'file' | 'folder'): Promise<void> {
+async function createProjectSpecialFile(fileName: '.opencardprojectprofile' | '.dictionary'): Promise<void> {
+  if (!projectPath.value || hasRootProjectFile(fileName)) return
+  await createFile(fileName, '{}')
+  const path = `${projectPath.value}/${fileName}`
+  selectedFileKeys.value = [path]
+  await openEditorSession(path)
+}
+
+async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
   if (!projectPath.value) return
   const parentPath = getProjectEntryParentPath()
   const parentEntry = findProjectEntryByKey(parentPath)
@@ -1368,8 +1458,18 @@ async function createProjectEntry(kind: 'file' | 'folder'): Promise<void> {
 
   const baseName = kind === 'folder'
     ? t('sidebar.fileActions.newFolderName')
-    : t('sidebar.fileActions.newFileName')
-  const path = await createEntryWithAvailableName(parentPath, baseName, kind)
+    : kind === 'opencard'
+      ? t('sidebar.fileActions.newOpenCardName')
+      : ''
+  const content = kind === 'opencard'
+    ? createDefaultOpenCardContent(baseName)
+    : ''
+  const path = await createEntryWithAvailableName(
+    parentPath,
+    baseName,
+    kind === 'folder' ? 'folder' : 'file',
+    content,
+  )
 
   selectedFileKeys.value = [path]
   await nextTick()
@@ -1446,13 +1546,23 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
     }
 
     if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
-      await deleteFile(entry.key)
+      await trashFile(entry.key)
       closeSessionsByPath(entry.key)
       selectedFileKeys.value = selectedFileKeys.value.filter((key) => key !== entry.key)
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
-      await revealEntryInFileManager(entry.key)
+      console.debug('[workspace-action] reveal:start', { actionKey: intent.actionKey, path: entry.key })
+      try {
+        await revealEntryInFileManager(entry.key)
+        console.debug('[workspace-action] reveal:success', { actionKey: intent.actionKey, path: entry.key })
+      } catch (error) {
+        console.error('[workspace-action] reveal:failed', {
+          actionKey: intent.actionKey,
+          path: entry.key,
+          error,
+        })
+      }
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY) {
@@ -1540,7 +1650,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
     if (!kind) continue
 
     try {
-      if (kind === 'project') {
+      if (kind === 'project-resource') {
         const projectDirectory = getPathDirectory(normalizedPath)
         if (!projectDirectory) continue
         await openRecentProject(projectDirectory)
@@ -1683,6 +1793,19 @@ async function runShellCommand(actionKey: string) {
     shellPage.value = {
       type: 'settings',
       categoryKey: 'general',
+      returnPage: getCurrentPrimaryShellPage(),
+    }
+    return
+  }
+
+  if (actionKey === 'check-for-updates') {
+    await checkForUpdate()
+    return
+  }
+
+  if (actionKey === 'about-opencard') {
+    shellPage.value = {
+      type: 'about',
       returnPage: getCurrentPrimaryShellPage(),
     }
     return

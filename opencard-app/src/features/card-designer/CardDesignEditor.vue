@@ -23,8 +23,13 @@
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
+          :selected-parent-flow-direction="selectedParentFlowDirection"
+          :selection-action-labels="selectionActionLabels"
+          :show-position-on-move="props.showSelectionPositionOnMove ?? true"
+          :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
           :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
+          @selection-action="handleSelectionAction"
           @face-dimension-change="handleFaceDimensionChange"
           @viewport-transform-change="handleViewportTransformChange"
           @viewport-size-change="handleViewportSizeChange">
@@ -57,7 +62,8 @@
         </OcPanel>
       </div>
 
-      <div class="card-design-editor__stage-layer">
+      <div class="card-design-editor__stage-layer"
+        :class="{ 'is-sidebar-width-resizing': isSidebarWidthResizing }">
         <div class="card-design-editor__overlay-layout">
           <aside
             ref="leftSidebarRef"
@@ -65,7 +71,7 @@
             :class="{ 'is-collapsed': isLeftSidebarCollapsed }"
           >
             <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
+              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="卡牌树" :actions="instanceCardActions"
                 :collapsed="!isInstancePanelExpanded"
                 @action="handleInstanceCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto"
@@ -93,7 +99,7 @@
             </div>
 
             <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
+              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="预览" :actions="previewCardActions"
                 :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
                 <OcPanel align="stretch" fill radius="none" tone="transparent" border="none"
                   shadow="lg" padding="none">
@@ -135,16 +141,10 @@
             aria-label="调整左侧栏宽度"
             tabindex="0"
             @mousedown="startOverlayResize('left', $event)"
+            @keydown.enter.prevent="toggleSidebarMinimumWidth('left')"
+            @keydown.space.prevent="toggleSidebarMinimumWidth('left')"
           >
             <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
-          </div>
-
-          <div class="card-design-editor__position-readout">
-            <OcCard variant="glass">
-              <OcText> x: {{
-                Math.round(viewportTransform.x) }}, y: {{ Math.round(viewportTransform.y) }}, scale: {{
-                  viewportTransform.scale.toFixed(2) }}</OcText>
-            </OcCard>
           </div>
 
           <div ref="centerSpacerRef" class="card-design-editor__center-spacer" aria-hidden="true" />
@@ -160,6 +160,8 @@
             aria-label="调整右侧栏宽度"
             tabindex="0"
             @mousedown="startOverlayResize('right', $event)"
+            @keydown.enter.prevent="toggleSidebarMinimumWidth('right')"
+            @keydown.space.prevent="toggleSidebarMinimumWidth('right')"
           >
             <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
           </div>
@@ -170,7 +172,7 @@
             :class="{ 'is-collapsed': isRightSidebarCollapsed }"
           >
             <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
+              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="结构树" :actions="structureTreeCardActions"
                 :collapsed="!isStructureTreePanelExpanded"
                 @action="handleStructureTreeCardAction">
                 <OcPanel align="stretch" fill tone="transparent" border="none" padding="none"
@@ -200,7 +202,7 @@
             </div>
 
             <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
+              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="属性" :actions="propertyCardActions"
                 :collapsed="!isPropertyPanelExpanded"
                 @action="handlePropertyCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
@@ -216,7 +218,8 @@
           </aside>
         </div>
 
-        <div v-if="viewFace && !isRightSidebarCollapsed" class="card-design-editor__face-tools">
+        <div v-if="viewFace" class="card-design-editor__face-tools"
+          :class="{ 'is-right-sidebar-collapsed': isRightSidebarCollapsed }">
           <OcViewportControls
             class="card-design-editor__viewport-controls"
             orientation="vertical"
@@ -267,7 +270,10 @@ import {
 import { getBlockTreeIcon } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
-import CardViewport from '../card-rendering/components/CardViewport.vue'
+import CardViewport, {
+  type CardViewportSelectionAction,
+  type CardViewportSelectionActionLabels,
+} from '../card-rendering/components/CardViewport.vue'
 import { runRenderPipeline } from '../card-rendering/renderPipeline'
 import type { RenderReadyCardDocument, RenderReadyCardFace } from '../card-rendering/render.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
@@ -286,7 +292,6 @@ import {
 import { useCdeTreeOps } from './useCdeTreeOps'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer } from '../../entities/card/tree'
-import OcText from '../../components/base/OcText.vue'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
@@ -343,6 +348,7 @@ type ResizeState =
     target: 'left-width' | 'right-width'
     startX: number
     startWidth: number
+    moved: boolean
   }
   | {
     target: 'left-stack' | 'right-stack'
@@ -353,6 +359,8 @@ type ResizeState =
 
 const SIDE_PANEL_MIN_WIDTH = 280
 const SIDE_PANEL_MAX_WIDTH = 420
+const SIDE_PANEL_COLLAPSE_THRESHOLD = SIDE_PANEL_MIN_WIDTH * 0.5
+const SIDE_PANEL_COLLAPSED_WIDTH = 0
 const SIDEBAR_TOP_MIN_HEIGHT = 160
 const SIDEBAR_BOTTOM_MIN_HEIGHT = 220
 const RESIZEBAR_SIZE = 8
@@ -371,6 +379,7 @@ const leftSidebarTopHeight = ref<number | null>(null)
 const rightSidebarTopHeight = ref<number | null>(null)
 const activeResizeTarget = ref<ResizeTarget | null>(null)
 const resizeState = ref<ResizeState | null>(null)
+let sidebarWidthSnapFrame: number | null = null
 
 function normalizeStoredTopHeight(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value)
@@ -426,7 +435,6 @@ const faceSwitchAction = computed<OcActionButtonAction>(() => ({
     ? t('cardDesigner.view.switchToBack')
     : t('cardDesigner.view.switchToFront'),
 }))
-
 function toggleFaceClip(): void {
   clipToFace.value = !clipToFace.value
   commitViewState()
@@ -439,7 +447,11 @@ function toggleActiveFace(): void {
   commitViewState()
 }
 
-const currentLeftPanelWidth = computed(() => leftPanelWidth.value)
+const currentLeftPanelWidth = computed(() => Math.max(SIDE_PANEL_MIN_WIDTH, leftPanelWidth.value))
+const currentRightPanelWidth = computed(() => Math.max(SIDE_PANEL_MIN_WIDTH, rightPanelWidth.value))
+const isSidebarWidthResizing = computed(() => (
+  activeResizeTarget.value === 'left-width' || activeResizeTarget.value === 'right-width'
+))
 const canResizeLeftSidebar = computed(() => isInstancePanelExpanded.value && isPreviewPanelExpanded.value)
 const canResizeRightSidebar = computed(() => isStructureTreePanelExpanded.value && isPropertyPanelExpanded.value)
 const isLeftSidebarCollapsed = computed(() => !isInstancePanelExpanded.value && !isPreviewPanelExpanded.value)
@@ -472,7 +484,9 @@ const editorShellStyle = computed<CSSProperties>(() => ({
   '--card-editor-left-panel-width-expanded': '272px',
   '--card-editor-left-panel-width-collapsed': '32px',
   '--card-editor-left-panel-width': `${currentLeftPanelWidth.value}px`,
-  '--card-editor-right-panel-width': `${rightPanelWidth.value}px`,
+  '--card-editor-right-panel-width': `${currentRightPanelWidth.value}px`,
+  '--card-editor-left-sidebar-visible-width': `${leftPanelWidth.value}px`,
+  '--card-editor-right-sidebar-visible-width': `${rightPanelWidth.value}px`,
   '--card-editor-left-sidebar-rows': leftSidebarRows.value,
   '--card-editor-right-sidebar-rows': rightSidebarRows.value,
   '--card-editor-left-sidebar-align-content': leftSidebarAlignContent.value,
@@ -555,7 +569,9 @@ function writeResizeStyles(): void {
   if (!root) return
 
   root.style.setProperty('--card-editor-left-panel-width', `${currentLeftPanelWidth.value}px`)
-  root.style.setProperty('--card-editor-right-panel-width', `${rightPanelWidth.value}px`)
+  root.style.setProperty('--card-editor-right-panel-width', `${currentRightPanelWidth.value}px`)
+  root.style.setProperty('--card-editor-left-sidebar-visible-width', `${leftPanelWidth.value}px`)
+  root.style.setProperty('--card-editor-right-sidebar-visible-width', `${rightPanelWidth.value}px`)
   root.style.setProperty('--card-editor-left-sidebar-rows', leftSidebarRows.value)
   root.style.setProperty('--card-editor-right-sidebar-rows', rightSidebarRows.value)
   root.style.setProperty('--card-editor-left-sidebar-align-content', leftSidebarAlignContent.value)
@@ -588,12 +604,17 @@ function clearResizeBodyState(): void {
 function startOverlayResize(side: 'left' | 'right', event: MouseEvent): void {
   if (event.button !== 0) return
 
+  if (sidebarWidthSnapFrame !== null) {
+    cancelAnimationFrame(sidebarWidthSnapFrame)
+    sidebarWidthSnapFrame = null
+  }
   handleResizeEnd()
   const target: ResizeTarget = side === 'left' ? 'left-width' : 'right-width'
   resizeState.value = {
     target,
     startX: event.clientX,
     startWidth: side === 'left' ? leftPanelWidth.value : rightPanelWidth.value,
+    moved: false,
   }
   activeResizeTarget.value = target
   applyResizeBodyState('col-resize')
@@ -633,9 +654,10 @@ function handleResizeMove(event: MouseEvent): void {
   if (!state) return
 
   if (state.target === 'left-width') {
+    if (Math.abs(event.clientX - state.startX) > 2) state.moved = true
     leftPanelWidth.value = clamp(
       state.startWidth + event.clientX - state.startX,
-      SIDE_PANEL_MIN_WIDTH,
+      SIDE_PANEL_COLLAPSED_WIDTH,
       SIDE_PANEL_MAX_WIDTH,
     )
     writeResizeStyles()
@@ -644,9 +666,10 @@ function handleResizeMove(event: MouseEvent): void {
   }
 
   if (state.target === 'right-width') {
+    if (Math.abs(event.clientX - state.startX) > 2) state.moved = true
     rightPanelWidth.value = clamp(
       state.startWidth - (event.clientX - state.startX),
-      SIDE_PANEL_MIN_WIDTH,
+      SIDE_PANEL_COLLAPSED_WIDTH,
       SIDE_PANEL_MAX_WIDTH,
     )
     writeResizeStyles()
@@ -673,13 +696,57 @@ function handleResizeMove(event: MouseEvent): void {
 }
 
 function handleResizeEnd(): void {
-  const shouldCommit = resizeState.value !== null
+  const state = resizeState.value
+  const shouldCommit = state !== null
+  const widthSnap = state?.target === 'left-width'
+    ? {
+        side: 'left' as const,
+        value: state.moved
+          ? snapSidebarVisibleWidth(leftPanelWidth.value)
+          : resolveSidebarMinimumToggle(state.startWidth),
+      }
+    : state?.target === 'right-width'
+      ? {
+          side: 'right' as const,
+          value: state.moved
+            ? snapSidebarVisibleWidth(rightPanelWidth.value)
+            : resolveSidebarMinimumToggle(state.startWidth),
+        }
+      : null
   resizeState.value = null
   activeResizeTarget.value = null
   document.removeEventListener('mousemove', handleResizeMove, true)
   document.removeEventListener('mouseup', handleResizeEnd, true)
   clearResizeBodyState()
   if (shouldCommit) commitLayoutState()
+  if (widthSnap) scheduleSidebarWidthSnap(widthSnap.side, widthSnap.value)
+}
+
+function snapSidebarVisibleWidth(value: number): number {
+  if (value < SIDE_PANEL_COLLAPSE_THRESHOLD) return SIDE_PANEL_COLLAPSED_WIDTH
+  return clamp(value, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH)
+}
+
+function resolveSidebarMinimumToggle(value: number): number {
+  if (Math.abs(value - SIDE_PANEL_COLLAPSED_WIDTH) < 0.01) return SIDE_PANEL_MIN_WIDTH
+  if (Math.abs(value - SIDE_PANEL_MIN_WIDTH) < 0.01) return SIDE_PANEL_COLLAPSED_WIDTH
+  return value
+}
+
+function toggleSidebarMinimumWidth(side: 'left' | 'right'): void {
+  const current = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
+  scheduleSidebarWidthSnap(side, resolveSidebarMinimumToggle(current))
+}
+
+function scheduleSidebarWidthSnap(side: 'left' | 'right', value: number): void {
+  const current = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
+  if (Math.abs(current - value) < 0.01) return
+  sidebarWidthSnapFrame = requestAnimationFrame(() => {
+    sidebarWidthSnapFrame = null
+    if (side === 'left') leftPanelWidth.value = value
+    else rightPanelWidth.value = value
+    writeResizeStyles()
+  })
 }
 
 // 结构树操作定义
@@ -1049,17 +1116,22 @@ function createReferenceScope(
 }
 
 function createProjectReferenceScope(project: Readonly<ProjectInformation>): ReferenceCompletionScope {
-  const additionalDefinitions = project.additionalFieldDefinition
   return {
     label: t('propertyEditor.references.project'),
     fields: getProjectFieldKeys(project)
       .filter(fieldKey => exposesProjectFieldReference(project, fieldKey))
       .map(fieldKey => ({
         key: fieldKey,
-        label: additionalDefinitions?.[fieldKey]?.title
-          ?? (te(`projectConfig.fields.${fieldKey}`) ? t(`projectConfig.fields.${fieldKey}`) : fieldKey),
+        label: te(`projectConfig.fields.${fieldKey}`) ? t(`projectConfig.fields.${fieldKey}`) : fieldKey,
         valueKind: getProjectFieldValueKind(project, fieldKey),
       })),
+  }
+}
+
+function createDictionaryReferenceScope(dictionary: Readonly<Record<string, string>>): ReferenceCompletionScope {
+  return {
+    label: t('propertyEditor.references.dictionary'),
+    fields: Object.keys(dictionary).map(key => ({ key, valueKind: 'string' as const })),
   }
 }
 
@@ -1082,8 +1154,11 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
       t('propertyEditor.references.document'),
       document as unknown as Record<string, unknown>,
     )
-  const projectScope = projectStore.projectPath.value
-    ? createProjectReferenceScope(projectStore.projectInformation.value)
+  const projectScope = projectStore.resolvedProject.value
+    ? createProjectReferenceScope(projectStore.resolvedProject.value)
+    : undefined
+  const dictionaryScope = projectStore.resolvedDictionary.value
+    ? createDictionaryReferenceScope(projectStore.resolvedDictionary.value)
     : undefined
   const currentFace = activeFace.value
   const oppositeFace = document.faces[activeFaceKey.value === 'front' ? 'back' : 'front']
@@ -1140,6 +1215,7 @@ const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
           oppositeFace: hasFaceContext ? oppositeFaceScope : undefined,
           document: documentScope,
           project: projectScope,
+          dictionary: dictionaryScope,
           allowedScopes: getCardFieldDefinition(input.record, fieldKey)?.bindingScopes,
           getAncestor: (depth: number) => ancestorScopes[depth - 1],
           targetKind: getCardFieldValueKind(input.record, fieldKey),
@@ -1226,6 +1302,21 @@ const selectedParentBlockId = computed(() => {
   const parent = parentLookup.value.get(block.id)
   return parent?.type === 'card-face' ? null : parent?.id ?? null
 })
+const selectedParentFlowDirection = computed(() => {
+  const block = selectedBlock.value
+  if (!block) return null
+  const parent = parentLookup.value.get(block.id)
+  return parent?.type === 'flow-container-block' ? parent.direction : null
+})
+const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => ({
+  label: t('cardDesigner.selectionActions.label'),
+  fillParent: t('cardDesigner.selectionActions.fillParent'),
+  centerInParent: t('cardDesigner.selectionActions.centerInParent'),
+  inset: t('cardDesigner.selectionActions.inset'),
+  outset: t('cardDesigner.selectionActions.outset'),
+  fillCrossAxis: t('cardDesigner.selectionActions.fillCrossAxis'),
+  centerCrossAxis: t('cardDesigner.selectionActions.centerCrossAxis'),
+}))
 const transformDisabledBlockIds = computed(() => {
   const block = selectedBlock.value
   if (!block) {
@@ -1260,9 +1351,8 @@ const renderPipelineResult = computed(() => {
     cardDoc.value,
     renderTargetInstance.value,
     {
-      project: projectStore.projectPath.value
-        ? projectStore.projectInformation.value
-        : null,
+      project: projectStore.resolvedProject.value,
+      dictionary: projectStore.resolvedDictionary.value,
     },
   )
   if (result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
@@ -1678,6 +1768,44 @@ function handleSelectionMove(payload: { x: number; y: number }) {
   markDocumentChanged('action')
 }
 
+function handleSelectionAction(payload: CardViewportSelectionAction): void {
+  const block = selectedBlock.value
+  const location = selectedLocation.value
+  if (!block || block.id !== payload.key || !location) return
+
+  if (payload.type === 'geometry.apply') {
+    if (location.type !== 'simple-container-location') return
+    handleSelectionResize(payload)
+    return
+  }
+
+  if (payload.type === 'fill-parent') {
+    if (location.type !== 'simple-container-location') return
+    block.width = '100%'
+    block.height = '100%'
+    location.x = '0px'
+    location.y = '0px'
+  } else {
+    if (location.type !== 'flow-container-location') return
+    const parent = parentLookup.value.get(block.id)
+    if (parent?.type !== 'flow-container-block') return
+
+    if (payload.type === 'fill-cross-axis') {
+      if (parent.direction === 'lr' || parent.direction === 'rl') {
+        block.height = '100%'
+      } else {
+        block.width = '100%'
+      }
+      location.align = 'justify'
+    } else if (payload.type === 'center-cross-axis') {
+      location.align = 'center'
+    }
+  }
+
+  refreshDocumentState()
+  markDocumentChanged('action')
+}
+
 function handleFaceDimensionChange(payload: {
   dimension: 'width' | 'height'
   value: number
@@ -1885,6 +2013,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   handleResizeEnd()
+  if (sidebarWidthSnapFrame !== null) cancelAnimationFrame(sidebarWidthSnapFrame)
+  sidebarWidthSnapFrame = null
   transformPreviewSizeObserver?.disconnect()
   transformPreviewSizeObserver = null
   for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
@@ -1992,7 +2122,7 @@ onUnmounted(() => {
 
 .card-design-editor__face-tools {
   position: absolute;
-  right: calc(var(--card-editor-right-panel-width, 320px) + 16px);
+  right: calc(var(--card-editor-right-sidebar-visible-width, 320px) + 16px);
   bottom: 0;
   z-index: 3;
   display: flex;
@@ -2006,6 +2136,11 @@ onUnmounted(() => {
   backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
   box-shadow: var(--oc-shadow-md);
   pointer-events: auto;
+  transition: right var(--oc-duration-slow) var(--oc-ease);
+}
+
+.card-design-editor__face-tools.is-right-sidebar-collapsed {
+  right: 0;
 }
 
 .card-design-editor__face-tools-divider {
@@ -2021,15 +2156,15 @@ onUnmounted(() => {
   min-height: 0;
   display: grid;
   grid-template-columns:
-    minmax(0, var(--card-editor-left-panel-width, 320px))
+    minmax(0, var(--card-editor-left-sidebar-visible-width, 320px))
     8px
-    max-content
     minmax(0, 1fr)
     8px
-    minmax(0, var(--card-editor-right-panel-width, 320px));
+    minmax(0, var(--card-editor-right-sidebar-visible-width, 320px));
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   pointer-events: none !important;
+  transition: grid-template-columns var(--oc-duration-slow) var(--oc-ease);
 }
 
 .card-design-editor__sidebar {
@@ -2039,7 +2174,16 @@ onUnmounted(() => {
   height: 100%;
   display: grid;
   pointer-events: auto;
-  transition: height var(--oc-duration-slow) var(--oc-ease);
+  transition:
+    height var(--oc-duration-slow) var(--oc-ease),
+    clip-path var(--oc-duration-slow) var(--oc-ease),
+    transform var(--oc-duration-slow) var(--oc-ease);
+}
+
+.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__overlay-layout,
+.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__sidebar,
+.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__face-tools {
+  transition-duration: 0s;
 }
 
 .card-design-editor__sidebar.is-collapsed {
@@ -2047,15 +2191,27 @@ onUnmounted(() => {
 }
 
 .card-design-editor__sidebar--left {
+  width: var(--card-editor-left-panel-width, 320px);
   grid-template-rows: var(--card-editor-left-sidebar-rows);
   align-content: var(--card-editor-left-sidebar-align-content);
   align-self: var(--card-editor-left-sidebar-align-self);
+  clip-path: inset(
+    0 0 0
+    calc(var(--card-editor-left-panel-width, 320px) - var(--card-editor-left-sidebar-visible-width, 320px))
+  );
+  transform: translateX(
+    calc(var(--card-editor-left-sidebar-visible-width, 320px) - var(--card-editor-left-panel-width, 320px))
+  );
 }
 
 .card-design-editor__sidebar--right {
+  width: var(--card-editor-right-panel-width, 320px);
   grid-template-rows: var(--card-editor-right-sidebar-rows);
   align-content: var(--card-editor-right-sidebar-align-content);
   align-self: var(--card-editor-right-sidebar-align-self);
+  clip-path: inset(
+    0 calc(var(--card-editor-right-panel-width, 320px) - var(--card-editor-right-sidebar-visible-width, 320px)) 0 0
+  );
 }
 
 .card-design-editor__sidebar-panel {
@@ -2064,10 +2220,8 @@ onUnmounted(() => {
   display: flex;
 }
 
-.card-design-editor__position-readout {
-  align-self: start;
-  min-width: 0;
-  pointer-events: auto;
+.card-design-editor__sidebar-card {
+  box-shadow: none;
 }
 
 .card-design-editor__center-spacer {
@@ -2094,6 +2248,7 @@ onUnmounted(() => {
 }
 
 .card-design-editor__resizebar:hover .card-design-editor__resizebar-visual,
+.card-design-editor__resizebar:focus-visible .card-design-editor__resizebar-visual,
 .card-design-editor__resizebar.is-active .card-design-editor__resizebar-visual {
   background: var(--oc-border-accent);
 }
@@ -2110,9 +2265,25 @@ onUnmounted(() => {
   height: var(--card-design-editor-collapsed-sidebar-height);
 }
 
+.card-design-editor__resizebar--vertical.is-sidebar-collapsed .card-design-editor__resizebar-visual {
+  background: var(--oc-border-accent);
+  opacity: 0.65;
+}
+
 .card-design-editor__resizebar--vertical .card-design-editor__resizebar-visual {
-  width: 1px;
-  height: 100%;
+  width: 4px;
+  height: 28px;
+  border-radius: 999px;
+  transition:
+    background-color var(--oc-duration-fast) var(--oc-ease),
+    opacity var(--oc-duration-fast) var(--oc-ease);
+}
+
+.card-design-editor__resizebar--vertical:hover .card-design-editor__resizebar-visual,
+.card-design-editor__resizebar--vertical:focus-visible .card-design-editor__resizebar-visual,
+.card-design-editor__resizebar--vertical.is-active .card-design-editor__resizebar-visual {
+  background: var(--oc-border-accent);
+  opacity: 0.9;
 }
 
 .card-design-editor__resizebar--horizontal {
@@ -2121,13 +2292,17 @@ onUnmounted(() => {
 }
 
 .card-design-editor__resizebar--horizontal .card-design-editor__resizebar-visual {
-  width: 100%;
-  height: 1px;
+  width: 28px;
+  height: 3px;
+  border-radius: 999px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card-design-editor__sidebar,
-  .card-design-editor__resizebar--vertical {
+  .card-design-editor__resizebar--vertical,
+  .card-design-editor__resizebar--vertical .card-design-editor__resizebar-visual,
+  .card-design-editor__face-tools,
+  .card-design-editor__overlay-layout {
     transition: none;
   }
 }
@@ -2139,7 +2314,6 @@ onUnmounted(() => {
 
   .card-design-editor__sidebar,
   .card-design-editor__resizebar,
-  .card-design-editor__position-readout,
   .card-design-editor__face-tools {
     display: none;
   }

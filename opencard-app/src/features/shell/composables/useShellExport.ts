@@ -29,7 +29,8 @@ type ExportRendererInstance = {
 type UseShellExportOptions = {
   activeSession: Readonly<Ref<EditorSession | null>>
   exportRendererRef: Ref<ExportRendererInstance | undefined>
-  projectInformation: Readonly<Ref<ProjectInformation>>
+  projectInformation: Readonly<Ref<ProjectInformation | null>>
+  resolvedDictionary: Readonly<Ref<Readonly<Record<string, string>> | null>>
   translate: (key: string) => string
 }
 
@@ -159,7 +160,8 @@ function createExportFileName(baseFileName: string, suffix: string, usedFileName
 export function buildCardExportQueue(
   baseFileName: string,
   document: CardDocument,
-  project: Readonly<ProjectInformation>,
+  project: Readonly<ProjectInformation> | null,
+  dictionary: Readonly<Record<string, string>> | null = null,
 ): ExportQueueEntry[] {
   const usedFileNames = new Set<string>()
   const exportQueue: ExportQueueEntry[] = []
@@ -171,7 +173,7 @@ export function buildCardExportQueue(
   }
 
   for (const projection of projections) {
-    const renderResult = buildRenderableCardDocument(document, projection.instance, project)
+    const renderResult = buildRenderableCardDocument(document, projection.instance, project, dictionary)
     for (const faceKey of ['front', 'back'] as const) {
       exportQueue.push({
         fileName: createExportFileName(baseFileName, `${projection.suffix}_${faceKey}`, usedFileNames),
@@ -187,9 +189,10 @@ export function buildCardExportQueue(
 function buildRenderableCardDocument(
   document: CardDocument,
   instance: CardInstanceRecord | null,
-  project: Readonly<ProjectInformation>,
+  project: Readonly<ProjectInformation> | null,
+  dictionary: Readonly<Record<string, string>> | null,
 ): RenderPipelineResult {
-  return runRenderPipeline(document, instance, { project })
+  return runRenderPipeline(document, instance, { project, dictionary })
 }
 
 export function useShellExport(options: UseShellExportOptions) {
@@ -282,6 +285,7 @@ export function useShellExport(options: UseShellExportOptions) {
         context.document,
         selectedInstance,
         options.projectInformation.value,
+        options.resolvedDictionary.value,
       )
       if (renderResult.issues.length > 0) {
         console.warn('[export] resolveReferences issues:', renderResult.issues)
@@ -318,6 +322,7 @@ export function useShellExport(options: UseShellExportOptions) {
         context.fileNameStem,
         context.document,
         options.projectInformation.value,
+        options.resolvedDictionary.value,
       )
 
       for (const entry of exportQueue) {

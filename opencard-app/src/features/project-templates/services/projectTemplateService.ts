@@ -5,6 +5,7 @@ import { parseCardDocument } from '../../../entities/card/storage'
 import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
+import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
   TemplateServiceError,
@@ -30,7 +31,8 @@ const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
 const TEMPLATE_MANIFEST_FILE_NAME = 'template.json'
 const TEMPLATE_CONTENT_DIRECTORY_NAME = 'content'
-const PROJECT_FILE_NAME = '.opencardproject'
+const PROJECT_FILE_NAME = '.opencardprojectprofile'
+const DICTIONARY_FILE_NAME = '.dictionary'
 const TEMPLATE_PACKAGE_EXTENSIONS = ['opencardtemplate', 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024
 const MAX_TEMPLATE_UNPACKED_BYTES = 256 * 1024 * 1024
@@ -197,12 +199,14 @@ export class ProjectTemplateService {
   async inspectProjectSource(sourcePath: string): Promise<TemplateProjectInspection> {
     await this.assertSourceRoot(sourcePath)
     const workspacePath = await this.paths.join(sourcePath, PROJECT_FILE_NAME)
-    if (!await this.fs.fileExists(workspacePath)) {
-      throw new TemplateServiceError('source-not-project', 'Selected folder is not an OpenCard project')
-    }
-    const projectMetadata = parseProjectMetadataText(await this.fs.readFile(workspacePath))
-    if (!projectMetadata) {
+    if (await this.fs.fileExists(workspacePath)
+      && !parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
       throw new TemplateServiceError('source-not-project', 'OpenCard project file is invalid')
+    }
+    const dictionaryPath = await this.paths.join(sourcePath, DICTIONARY_FILE_NAME)
+    if (await this.fs.fileExists(dictionaryPath)
+      && !parseProjectDictionaryText(await this.fs.readFile(dictionaryPath))) {
+      throw new TemplateServiceError('source-not-project', 'OpenCard dictionary file is invalid')
     }
 
     const entries = await this.fs.readDirectoryEntries(sourcePath, Number.POSITIVE_INFINITY)
@@ -266,8 +270,13 @@ export class ProjectTemplateService {
       throw new TemplateServiceError('cover-not-found', 'Template cover is missing')
     }
     const excludedPaths = normalizeExcludedPaths(request.excludedPaths)
-    if (isExcludedPath(PROJECT_FILE_NAME, excludedPaths)) {
+    if (await this.fs.fileExists(await this.paths.join(request.sourcePath, PROJECT_FILE_NAME))
+      && isExcludedPath(PROJECT_FILE_NAME, excludedPaths)) {
       throw new TemplateServiceError('source-not-project', 'The project file cannot be excluded')
+    }
+    if (await this.fs.fileExists(await this.paths.join(request.sourcePath, DICTIONARY_FILE_NAME))
+      && isExcludedPath(DICTIONARY_FILE_NAME, excludedPaths)) {
+      throw new TemplateServiceError('source-not-project', 'The dictionary file cannot be excluded')
     }
     if (entries.some((candidate) => isExcludedPath(candidate, excludedPaths))) {
       throw new TemplateServiceError('entry-not-found', 'A selected entry is excluded')
@@ -376,17 +385,16 @@ export class ProjectTemplateService {
         throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
       }
       const projectFilePath = await this.paths.join(temporaryPath, PROJECT_FILE_NAME)
-      const projectMetadata = parseProjectMetadataText(await this.fs.readFile(projectFilePath))
-      if (!projectMetadata) {
-        throw new TemplateServiceError('invalid-manifest', 'Template project file is invalid')
-      }
-      await this.fs.writeFile(projectFilePath, serializeProjectMetadata({
-        ...projectMetadata,
-        project: {
-          ...projectMetadata.project,
+      if (await this.fs.fileExists(projectFilePath)) {
+        const projectMetadata = parseProjectMetadataText(await this.fs.readFile(projectFilePath))
+        if (!projectMetadata) {
+          throw new TemplateServiceError('invalid-manifest', 'Template project file is invalid')
+        }
+        await this.fs.writeFile(projectFilePath, serializeProjectMetadata({
+          ...projectMetadata,
           name: projectName,
-        },
-      }))
+        }))
+      }
       const createdEntryPath = await this.paths.join(targetPath, ...pathSegments(selectedEntry))
       await this.fs.renameFile(temporaryPath, targetPath)
       return { path: targetPath, entry: createdEntryPath }
@@ -440,11 +448,13 @@ export class ProjectTemplateService {
       }
       content.set(path.slice(TEMPLATE_CONTENT_DIRECTORY_NAME.length + 1), bytesValue)
     }
-    if (!content.has(PROJECT_FILE_NAME)) {
-      throw new TemplateServiceError('invalid-package', 'OpenCard project file is missing')
-    }
-    if (!parseProjectMetadataText(strFromU8(content.get(PROJECT_FILE_NAME)!))) {
+    if (content.has(PROJECT_FILE_NAME)
+      && !parseProjectMetadataText(strFromU8(content.get(PROJECT_FILE_NAME)!))) {
       throw new TemplateServiceError('invalid-package', 'OpenCard project file is invalid')
+    }
+    if (content.has(DICTIONARY_FILE_NAME)
+      && !parseProjectDictionaryText(strFromU8(content.get(DICTIONARY_FILE_NAME)!))) {
+      throw new TemplateServiceError('invalid-package', 'OpenCard dictionary file is invalid')
     }
     const entries = resolveTemplateEntries(manifest)
     if (entries.some((entry) => !content.has(entry))) {
@@ -607,11 +617,17 @@ export class ProjectTemplateService {
     const entryPaths = await Promise.all(resolveTemplateEntries(manifest).map(async (entry) => (
       await this.paths.join(contentPath, ...pathSegments(entry))
     )))
-    if (!await this.fs.fileExists(workspacePath) || (await Promise.all(entryPaths.map((path) => this.fs.fileExists(path)))).some((exists) => !exists)) {
+    if ((await Promise.all(entryPaths.map((path) => this.fs.fileExists(path)))).some((exists) => !exists)) {
       throw new TemplateServiceError('invalid-manifest', `Template content is incomplete: ${rootPath}`)
     }
-    if (!parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
+    if (await this.fs.fileExists(workspacePath)
+      && !parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
       throw new TemplateServiceError('invalid-manifest', `Template project file is invalid: ${workspacePath}`)
+    }
+    const dictionaryPath = await this.paths.join(contentPath, DICTIONARY_FILE_NAME)
+    if (await this.fs.fileExists(dictionaryPath)
+      && !parseProjectDictionaryText(await this.fs.readFile(dictionaryPath))) {
+      throw new TemplateServiceError('invalid-manifest', `Template dictionary file is invalid: ${dictionaryPath}`)
     }
     for (const cover of manifest.covers ?? []) {
       const coverPath = await this.paths.join(contentPath, ...pathSegments(cover))

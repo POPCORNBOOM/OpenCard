@@ -1,111 +1,40 @@
 import { describe, expect, it } from 'vitest'
-import { resolveFileType } from './fileTypes'
 import {
-  createDefaultProjectInformation,
-  createProjectAdditionalField,
-  deleteProjectAdditionalField,
-  exposesProjectFieldReference,
-  getProjectFieldKeys,
-  getProjectFieldValueKind,
+  parseProjectMetadata,
   parseProjectMetadataText,
-  projectPropertySchema,
   serializeProjectMetadata,
+  toProjectInformation,
 } from './projectMetadata'
 
-describe('project metadata', () => {
-  it('parses the project and workspace sections as one project file', () => {
-    const content = serializeProjectMetadata({
-      version: 1,
-      project: { name: 'Demo', description: 'Cards' },
-      workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
-    })
-
-    expect(parseProjectMetadataText(content)).toEqual({
-      version: 1,
-      project: { name: 'Demo', description: 'Cards' },
-      workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
-    })
+describe('project profile metadata', () => {
+  it('accepts an empty profile', () => {
+    expect(parseProjectMetadata({})).toEqual({})
+    expect(parseProjectMetadataText('{}')).toEqual({})
   })
 
-  it('registers the fixed project file name with the project editor', () => {
-    expect(resolveFileType('D:/project/.opencardproject')).toMatchObject({
-      id: 'opencard-project',
-      editorId: 'project-config',
-      icon: 'file.opencard-project',
-    })
-    expect(resolveFileType('D:/project/main.opencard').id).toBe('opencard')
-  })
-
-  it('defines project fields as reference-only binding sources', () => {
-    expect(projectPropertySchema.name).toMatchObject({
-      fieldType: 'string',
-      acceptsBinding: false,
-    })
-    expect(projectPropertySchema).not.toHaveProperty('entry')
-    expect(projectPropertySchema.additionalFieldDefinition).toMatchObject({
-      fieldType: 'object',
-      isHidden: true,
-      acceptsBinding: false,
-      exposesReference: false,
-    })
-  })
-
-  it('round-trips declared project fields beside native fields', () => {
-    const metadata = parseProjectMetadataText(JSON.stringify({
-      version: 1,
-      project: {
-        name: 'Demo',
-        description: 'Cards',
-        entry: 'main.opencard',
-        author: 'Alice',
-        edition: '2',
-        undeclared: 'discarded',
-        additionalFieldDefinition: {
-          author: { fieldType: 'string', title: ' Author ' },
-          edition: { fieldType: 'number' },
-          name: { fieldType: 'string' },
-          invalid: { fieldType: 'object' },
-        },
-      },
-      workspace: { indexedEntries: [], expandedDirectories: [] },
-    }))
-
-    expect(metadata?.project).toEqual({
+  it('parses only the three project introduction fields', () => {
+    expect(parseProjectMetadata({
       name: 'Demo',
-      description: 'Cards',
-      author: 'Alice',
-      edition: '2',
-      additionalFieldDefinition: {
-        author: { fieldType: 'string', title: 'Author' },
-        edition: { fieldType: 'number' },
-      },
-    })
+      description: 'Description',
+      version: '1.0.0',
+    })).toEqual({ name: 'Demo', description: 'Description', version: '1.0.0' })
   })
 
-  it('creates and deletes project fields with the shared additional-field rules', () => {
-    const project = createDefaultProjectInformation('Demo')
-
-    expect(createProjectAdditionalField(project, 'author', 'string', ' Author ')).toBeNull()
-    expect(project).toMatchObject({
-      author: '',
-      additionalFieldDefinition: {
-        author: { fieldType: 'string', title: 'Author' },
-      },
-    })
-    expect(createProjectAdditionalField(project, 'Name', 'string')).toBe('duplicate')
-    expect(deleteProjectAdditionalField(project, 'author')).toBe(true)
-    expect(project).not.toHaveProperty('author')
-    expect(project).not.toHaveProperty('additionalFieldDefinition')
+  it('rejects unknown fields and wrong value types', () => {
+    expect(parseProjectMetadata({ name: 'Demo', globalvariables: {} })).toBeNull()
+    expect(parseProjectMetadata({ version: 2 })).toBeNull()
+    expect(parseProjectMetadataText('{broken')).toBeNull()
   })
 
-  it('exposes only declared project reference fields with their schema kinds', () => {
-    const project = createDefaultProjectInformation('Demo')
-    createProjectAdditionalField(project, 'edition', 'number', 'Edition')
+  it('omits empty fields when serializing', () => {
+    expect(JSON.parse(serializeProjectMetadata({ name: '', description: '', version: '' }))).toEqual({})
+  })
 
-    expect(getProjectFieldKeys(project)).toEqual(['name', 'description', 'edition'])
-    expect(exposesProjectFieldReference(project, 'name')).toBe(true)
-    expect(exposesProjectFieldReference(project, 'entry')).toBe(false)
-    expect(exposesProjectFieldReference(project, 'missing')).toBe(false)
-    expect(getProjectFieldValueKind(project, 'edition')).toBe('number')
+  it('creates a complete runtime snapshot', () => {
+    expect(toProjectInformation({ name: 'Demo' })).toEqual({
+      name: 'Demo',
+      description: '',
+      version: '',
+    })
   })
 })

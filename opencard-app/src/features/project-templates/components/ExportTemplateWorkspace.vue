@@ -198,7 +198,7 @@ watch(covers, restartCoverTimer, { deep: true })
 
 function togglePathIncluded(path: string): void {
   const normalized = normalizeRelativePath(path)
-  if (!normalized || normalized === '.opencardproject') return
+  if (!normalized || normalized === '.opencardprojectprofile' || normalized === '.dictionary') return
   const coveringExclusion = excludedPaths.value.find((excluded) => pathContains(excluded, normalized))
   if (coveringExclusion) {
     excludedPaths.value = excludedPaths.value.filter((excluded) => excluded !== coveringExclusion)

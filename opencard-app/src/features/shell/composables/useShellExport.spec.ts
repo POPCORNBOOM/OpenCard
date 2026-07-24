@@ -43,6 +43,7 @@ describe('useShellExport queue', () => {
     const queue = buildCardExportQueue('card', createDocument(), {
       name: 'Project',
       description: '',
+      version: '',
     })
 
     expect(queue.map((entry) => entry.fileName)).toEqual([

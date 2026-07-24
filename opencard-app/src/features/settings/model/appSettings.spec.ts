@@ -27,8 +27,10 @@ describe('appSettings', () => {
       workspace: {
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
+        showSelectionPositionOnMove: true,
+        showSelectionSizeOnResize: true,
       },
-      projectCreation: { lastParentPath: '', recentProjects: [] },
+      projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
     })
   })
 

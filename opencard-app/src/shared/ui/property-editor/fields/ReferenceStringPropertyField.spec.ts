@@ -20,12 +20,12 @@ describe('ReferenceStringPropertyField', () => {
               ? {
                   replaceStart: 2,
                   replaceEnd: 2,
-                  items: [{ key: 'scope:c', label: 'c:', insertText: 'c:', keepOpen: true }],
+                  items: [{ key: 'scope:card', label: 'card:', insertText: 'card:', keepOpen: true }],
                 }
               : {
                   replaceStart: 2,
-                  replaceEnd: 4,
-                  items: [{ key: 'field:c:name', label: 'Name', insertText: 'c:name' }],
+                  replaceEnd: 7,
+                  items: [{ key: 'field:card:name', label: 'Name', insertText: 'card:name' }],
                 },
           },
         },
@@ -46,17 +46,17 @@ describe('ReferenceStringPropertyField', () => {
     await nextTick()
 
     expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{}}'])
-    expect(document.body.querySelector('[role="option"]')?.textContent).toContain('c:')
+    expect(document.body.querySelector('[role="option"]')?.textContent).toContain('card:')
 
     await input.trigger('keydown', { key: 'Tab' })
     await nextTick()
     await nextTick()
-    expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:}}'])
+    expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{card:}}'])
     expect(document.body.querySelector('[role="option"]')?.textContent).toContain('Name')
 
     await input.trigger('keydown', { key: 'Tab' })
     await nextTick()
-    expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{c:name}}'])
+    expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['{{card:name}}'])
   })
 
   it('refreshes the provider after keyboard cursor movement', async () => {
@@ -73,7 +73,7 @@ describe('ReferenceStringPropertyField', () => {
             },
           },
         },
-        value: 'Value {{c:na}}',
+        value: 'Value {{card:na}}',
       },
     })
     const input = wrapper.get('input')

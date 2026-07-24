@@ -59,13 +59,23 @@ const defaultFileType: FileTypeDefinition = {
 
 const fileTypes: FileTypeDefinition[] = [
   {
-    id: 'opencard-project',
-    labelKey: 'fileTypes.opencardProject',
-    fileNames: ['.opencardproject'],
+    id: 'opencard-project-profile',
+    labelKey: 'fileTypes.opencardProjectProfile',
+    fileNames: ['.opencardprojectprofile'],
     icon: 'file.opencard-project',
     iconTone: iconTone.config,
     language: 'json',
     editorId: 'project-config',
+    previewable: true,
+  },
+  {
+    id: 'opencard-dictionary',
+    labelKey: 'fileTypes.opencardDictionary',
+    fileNames: ['.dictionary'],
+    icon: 'data.collection',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'dictionary',
     previewable: true,
   },
   {
@@ -174,7 +184,8 @@ const fileTypes: FileTypeDefinition[] = [
 ]
 
 const specialFileIcons: Record<string, EntryIconPresentation> = {
-  '.opencardproject': { icon: 'file.opencard-project', tone: iconTone.config },
+  '.opencardprojectprofile': { icon: 'file.opencard-project', tone: iconTone.config },
+  '.dictionary': { icon: 'data.collection', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.package },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
   'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
@@ -213,6 +224,11 @@ function normalizeSegment(value: string): string {
   return value.trim().toLowerCase()
 }
 
+function isWindowsLikePath(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/')
+  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')
+}
+
 function getBaseName(path: string): string {
   const normalized = path.replace(/\\/g, '/')
   const segments = normalized.split('/')
@@ -229,12 +245,32 @@ function getExtension(path: string): string {
   return normalizeSegment(baseName.slice(dotIndex + 1))
 }
 
-export function resolveFileType(path: string): FileTypeDefinition {
+function isProjectRootFile(path: string, projectRoot: string): boolean {
+  const normalizedPath = path.replace(/\\/g, '/')
+  const separatorIndex = normalizedPath.lastIndexOf('/')
+  if (separatorIndex < 0) return true
+  const parentPath = normalizedPath.slice(0, separatorIndex).replace(/\/+$/, '')
+  const normalizedRoot = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+  return isWindowsLikePath(projectRoot)
+    ? parentPath.toLocaleLowerCase() === normalizedRoot.toLocaleLowerCase()
+    : parentPath === normalizedRoot
+}
+
+export function resolveFileType(path: string, projectRoot?: string): FileTypeDefinition {
   const baseName = normalizeSegment(getBaseName(path))
 
-  const fileNameMatch = fileTypes.find((definition) =>
-    definition.fileNames?.some((fileName) => normalizeSegment(fileName) === baseName)
-  )
+  const fileNameMatch = fileTypes.find((definition) => {
+    const isProjectMetadata = definition.id === 'opencard-project-profile'
+      || definition.id === 'opencard-dictionary'
+    const compareCaseInsensitive = !isProjectMetadata
+      || isWindowsLikePath(projectRoot ?? path)
+    const fileNameMatches = definition.fileNames?.some((fileName) => (
+      compareCaseInsensitive
+        ? normalizeSegment(fileName) === baseName
+        : fileName === getBaseName(path)
+    ))
+    return fileNameMatches && (!projectRoot || !isProjectMetadata || isProjectRootFile(path, projectRoot))
+  })
   if (fileNameMatch) {
     const specialPresentation = specialFileIcons[baseName]
     return {
@@ -277,12 +313,17 @@ export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIc
   }
 }
 
-export function resolveEntryIcon(path: string, isDirectory: boolean, isExpanded = false): EntryIconPresentation {
+export function resolveEntryIcon(
+  path: string,
+  isDirectory: boolean,
+  isExpanded = false,
+  projectRoot?: string,
+): EntryIconPresentation {
   if (isDirectory) {
     return resolveDirectoryIcon(path, isExpanded)
   }
 
-  const fileType = resolveFileType(path)
+  const fileType = resolveFileType(path, projectRoot)
   return {
     icon: fileType.icon,
     tone: fileType.iconTone,

@@ -16,6 +16,8 @@ export type AppSettingKey =
   | 'appearance.glassIntensity'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
+  | 'workspace.showSelectionPositionOnMove'
+  | 'workspace.showSelectionSizeOnResize'
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
@@ -31,10 +33,13 @@ export interface AppSettings {
   workspace: {
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
     structureTreeScrollToSelection: boolean
+    showSelectionPositionOnMove: boolean
+    showSelectionSizeOnResize: boolean
   }
   projectCreation: {
     lastParentPath: string
     recentProjects: string[]
+    workspaceStates: Record<string, { expandedDirectories: string[] }>
   }
 }
 
@@ -62,10 +67,13 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   workspace: Object.freeze({
     structureTreeSelectionBehavior: 'expand-exclusive',
     structureTreeScrollToSelection: true,
+    showSelectionPositionOnMove: true,
+    showSelectionSizeOnResize: true,
   }),
   projectCreation: Object.freeze({
     lastParentPath: '',
     recentProjects: [],
+    workspaceStates: {},
   }),
 })
 
@@ -101,6 +109,23 @@ function normalizeRecentProjects(value: unknown): string[] {
   return result
 }
 
+function normalizeWorkspaceStates(value: unknown): Record<string, { expandedDirectories: string[] }> {
+  if (!isRecord(value)) return {}
+  const result: Record<string, { expandedDirectories: string[] }> = {}
+  for (const [pathInput, state] of Object.entries(value)) {
+    if (!isRecord(state) || !Array.isArray(state.expandedDirectories)) continue
+    const path = pathInput.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+    if (!path) continue
+    result[path] = {
+      expandedDirectories: state.expandedDirectories
+        .filter((item): item is string => typeof item === 'string')
+        .map(item => item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
+        .filter(Boolean),
+    }
+  }
+  return result
+}
+
 export function createDefaultAppSettings(): AppSettings {
   return {
     version: APP_SETTINGS_VERSION,
@@ -110,6 +135,7 @@ export function createDefaultAppSettings(): AppSettings {
     projectCreation: {
       ...DEFAULT_APP_SETTINGS.projectCreation,
       recentProjects: [...DEFAULT_APP_SETTINGS.projectCreation.recentProjects],
+      workspaceStates: { ...DEFAULT_APP_SETTINGS.projectCreation.workspaceStates },
     },
   }
 }
@@ -155,12 +181,19 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       structureTreeScrollToSelection: typeof workspace.structureTreeScrollToSelection === 'boolean'
         ? workspace.structureTreeScrollToSelection
         : DEFAULT_APP_SETTINGS.workspace.structureTreeScrollToSelection,
+      showSelectionPositionOnMove: typeof workspace.showSelectionPositionOnMove === 'boolean'
+        ? workspace.showSelectionPositionOnMove
+        : DEFAULT_APP_SETTINGS.workspace.showSelectionPositionOnMove,
+      showSelectionSizeOnResize: typeof workspace.showSelectionSizeOnResize === 'boolean'
+        ? workspace.showSelectionSizeOnResize
+        : DEFAULT_APP_SETTINGS.workspace.showSelectionSizeOnResize,
     },
     projectCreation: {
       lastParentPath: typeof projectCreation.lastParentPath === 'string'
         ? projectCreation.lastParentPath
         : DEFAULT_APP_SETTINGS.projectCreation.lastParentPath,
       recentProjects: normalizeRecentProjects(projectCreation.recentProjects),
+      workspaceStates: normalizeWorkspaceStates(projectCreation.workspaceStates),
     },
   }
 }

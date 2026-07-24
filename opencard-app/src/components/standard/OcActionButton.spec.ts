@@ -71,6 +71,39 @@ describe('OcActionButton', () => {
     wrapper.unmount()
   })
 
+  it('keeps a hover-opened menu open when the action button is clicked', async () => {
+    const wrapper = mount(OcActionButton, {
+      attachTo: document.body,
+      props: {
+        action: {
+          key: 'more',
+          title: 'More',
+          children: [{ key: 'reveal', title: 'Reveal in File Manager' }],
+        },
+      },
+    })
+
+    await wrapper.trigger('pointerenter')
+    await flushPromises()
+    expect(document.body.querySelector('.oc-action-menu')).not.toBeNull()
+
+    await wrapper.get('button[aria-label="More"]').trigger('click')
+    await wrapper.trigger('pointerleave')
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
+    await flushPromises()
+    const revealButton = document.body.querySelector<HTMLButtonElement>(
+      '.oc-action-menu__button[title="Reveal in File Manager"]',
+    )
+    expect(revealButton).not.toBeNull()
+
+    revealButton?.click()
+    await flushPromises()
+    expect(wrapper.emitted('select')).toEqual([[{ key: 'reveal' }]])
+    expect(document.body.querySelector('.oc-action-menu')).toBeNull()
+
+    wrapper.unmount()
+  })
+
   it('keeps every ancestor open while crossing four nested menu levels', async () => {
     const wrapper = mount(OcActionButton, {
       attachTo: document.body,

@@ -27,7 +27,7 @@ describe('createFilePathCompletionProvider', () => {
     const listDirectory = vi.fn(async () => [])
     const provider = createFilePathCompletionProvider({ listDirectory, getRootEntries: () => [] })
 
-    expect(await provider({ value: '{{s:im}}', cursor: 6 })).toBeNull()
+    expect(await provider({ value: '{{self:im}}', cursor: 6 })).toBeNull()
     expect(listDirectory).not.toHaveBeenCalled()
   })
 })

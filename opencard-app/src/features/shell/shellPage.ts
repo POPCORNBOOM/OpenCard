@@ -7,6 +7,7 @@ export type ShellPage =
   | { type: 'workbench' }
   | { type: 'create-project'; returnPage: PrimaryShellPage }
   | { type: 'export-template'; returnPage: PrimaryShellPage }
+  | { type: 'about'; returnPage: PrimaryShellPage }
   | { type: 'settings'; categoryKey: SettingsCategoryKey; returnPage: PrimaryShellPage }
 
 export function getPrimaryShellPage(page: ShellPage): PrimaryShellPage {

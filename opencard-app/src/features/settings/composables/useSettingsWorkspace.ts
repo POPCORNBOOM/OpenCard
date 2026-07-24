@@ -167,6 +167,24 @@ export function useSettingsWorkspace(
           checked: settings.workspace.structureTreeScrollToSelection,
         },
         {
+          type: 'checkbox',
+          key: 'workspace.showSelectionPositionOnMove',
+          label: options.translate(
+            'settings.fields.showSelectionPositionOnMove',
+            'Show anchor and X/Y guides while moving blocks',
+          ),
+          checked: settings.workspace.showSelectionPositionOnMove,
+        },
+        {
+          type: 'checkbox',
+          key: 'workspace.showSelectionSizeOnResize',
+          label: options.translate(
+            'settings.fields.showSelectionSizeOnResize',
+            'Show width and height labels while resizing blocks',
+          ),
+          checked: settings.workspace.showSelectionSizeOnResize,
+        },
+        {
           type: 'action',
           key: 'project-workspace.reset',
           label: options.translate('settings.fields.projectWorkspaceState', 'Project workspace state'),

@@ -54,7 +54,7 @@ export type {
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcActionMenu, {
   type OcActionDefinition,
@@ -86,10 +86,16 @@ const emit = defineEmits<{
 
 const rootRef = ref<HTMLElement | null>(null)
 const isMenuOpen = ref(false)
+const isMenuPinned = ref(false)
 let closeTimer: number | null = null
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+})
 
 onBeforeUnmount(() => {
   cancelCloseMenu()
+  document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
 })
 
 function handleButtonClick(): void {
@@ -98,10 +104,11 @@ function handleButtonClick(): void {
   }
 
   if (hasActionChildren(props.action)) {
-    if (isMenuOpen.value) {
+    if (isMenuPinned.value) {
       closeMenu()
       return
     }
+    isMenuPinned.value = true
     openMenu()
     return
   }
@@ -124,6 +131,7 @@ function openMenu(): void {
 }
 
 function scheduleCloseMenu(): void {
+  if (isMenuPinned.value) return
   cancelCloseMenu()
   closeTimer = window.setTimeout(() => {
     closeMenu()
@@ -141,7 +149,18 @@ function cancelCloseMenu(): void {
 
 function closeMenu(): void {
   cancelCloseMenu()
+  isMenuPinned.value = false
   isMenuOpen.value = false
+}
+
+function handleDocumentPointerDown(event: PointerEvent): void {
+  if (!isMenuPinned.value) return
+  const path = event.composedPath()
+  const isInsideTrigger = rootRef.value ? path.includes(rootRef.value) : false
+  const isInsideActionMenu = path.some((target) => (
+    target instanceof HTMLElement && target.classList.contains('oc-action-button__floating')
+  ))
+  if (!isInsideTrigger && !isInsideActionMenu) closeMenu()
 }
 
 function hasActionChildren(

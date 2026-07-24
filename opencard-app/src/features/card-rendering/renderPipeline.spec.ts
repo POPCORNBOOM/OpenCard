@@ -3,7 +3,6 @@ import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../
 import { runRenderPipeline } from './renderPipeline'
 import {
   createDefaultProjectInformation,
-  createProjectAdditionalField,
 } from '../workspace/model/projectMetadata'
 
 function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
@@ -34,7 +33,7 @@ describe('renderPipeline', () => {
       id: 'instance',
       name: 'Instance',
       amount: '1',
-      data: { text: { content: '{{d:name}}' } },
+      data: { text: { content: '{{document:name}}' } },
     }
 
     const result = runRenderPipeline(document, instance)
@@ -62,7 +61,7 @@ describe('renderPipeline', () => {
 
     expect(result.issues).toEqual([
       expect.objectContaining({
-        type: 'card-designer.binding.invalid-token',
+        type: 'card-designer.binding.field-not-found',
         location: expect.objectContaining({
           instanceId: 'instance',
           owner: { kind: 'block', id: 'text' },
@@ -81,7 +80,7 @@ describe('renderPipeline', () => {
   })
 
   it('resolves project fields from an explicit render context', () => {
-    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:name}}' })
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:name}}' })
     const project = createDefaultProjectInformation('OpenCard Demo')
 
     const result = runRenderPipeline(createDocument(block), null, { project })
@@ -92,9 +91,9 @@ describe('renderPipeline', () => {
 
   it('allows document fields to bind only to project fields', () => {
     const document = createDocument()
-    document.name = '{{g:name}}'
-    document.description = '{{g:description}}\nCard document'
-    document.notes = 'Project: {{g:name}}'
+    document.name = '{{project:name}}'
+    document.description = '{{project:description}}\nCard document'
+    document.notes = 'Project: {{project:name}}'
     const project = createDefaultProjectInformation('OpenCard Demo')
     project.description = 'Reusable cards'
 
@@ -107,7 +106,7 @@ describe('renderPipeline', () => {
     })
     expect(result.issues).toEqual([])
 
-    document.name = '{{d:version}}'
+    document.name = '{{document:version}}'
     const rejected = runRenderPipeline(document, null, { project })
     expect(rejected.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.binding.field-not-allowed',
@@ -117,7 +116,7 @@ describe('renderPipeline', () => {
   })
 
   it('reports a missing project context without reading global state', () => {
-    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:name}}' })
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:name}}' })
 
     const result = runRenderPipeline(createDocument(block), null)
 
@@ -127,21 +126,18 @@ describe('renderPipeline', () => {
     }))
   })
 
-  it('preserves custom project field kinds through binding and render parsing', () => {
-    const block = createTextBlock({ id: 'text', name: 'Title', content: 'Demo' })
-    block.opacity = '{{g:cardOpacity}}'
-    const project = createDefaultProjectInformation('Demo')
-    createProjectAdditionalField(project, 'cardOpacity', 'number')
-    project.cardOpacity = '0.5'
+  it('resolves saved dictionary values', () => {
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{dictionary:title}}' })
+    const result = runRenderPipeline(createDocument(block), null, {
+      dictionary: { title: 'English title' },
+    })
 
-    const result = runRenderPipeline(createDocument(block), null, { project })
-
-    expect(result.document.faces.front.children[0]!.block).toMatchObject({ opacity: 0.5 })
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'English title' })
     expect(result.issues).toEqual([])
   })
 
   it('rejects project fields that do not exist', () => {
-    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{g:entry}}' })
+    const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:entry}}' })
     const project = createDefaultProjectInformation('Demo')
 
     const result = runRenderPipeline(createDocument(block), null, { project })

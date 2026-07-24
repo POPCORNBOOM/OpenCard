@@ -13,6 +13,7 @@ export type RenderPipelineResult = {
 
 export type RenderPipelineContext = {
   project?: Readonly<ProjectInformation> | null
+  dictionary?: Readonly<Record<string, string>> | null
 }
 
 export function runRenderPipeline(
@@ -24,6 +25,7 @@ export function runRenderPipeline(
   const resolved = resolveReferences(projected, {
     currentCard: instance,
     project: context.project,
+    dictionary: context.dictionary,
   })
   const parsed = parseRenderDocument(resolved.document, {
     instanceId: instance?.id ?? null,

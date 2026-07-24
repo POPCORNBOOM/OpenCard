@@ -30,6 +30,8 @@ describe('appSettingsStore', () => {
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
     store.updateSetting('workspace.structureTreeScrollToSelection', false)
+    store.updateSetting('workspace.showSelectionPositionOnMove', false)
+    store.updateSetting('workspace.showSelectionSizeOnResize', false)
     store.updateProjectCreation({ lastParentPath: 'D:\\Cards' })
     await store.flush()
 
@@ -40,6 +42,8 @@ describe('appSettingsStore', () => {
       workspace: {
         structureTreeSelectionBehavior: 'expand',
         structureTreeScrollToSelection: false,
+        showSelectionPositionOnMove: false,
+        showSelectionSizeOnResize: false,
       },
       projectCreation: { lastParentPath: 'D:\\Cards' },
     })
@@ -72,11 +76,13 @@ describe('appSettingsStore', () => {
     await store.initialize()
     store.rememberRecentProject('D:/Projects/One')
     store.rememberRecentProject('D:/Projects/Two')
+    store.updateProjectCreation({ workspaceStates: { 'D:/Projects/One': { expandedDirectories: ['assets'] } } })
 
     store.forgetRecentProject('d:\\projects\\one\\')
     await store.flush()
 
     expect(store.settings.value.projectCreation.recentProjects).toEqual(['D:/Projects/Two'])
+    expect(store.settings.value.projectCreation.workspaceStates).not.toHaveProperty('D:/Projects/One')
   })
 
   it('resets individual sections without replacing other settings', async () => {

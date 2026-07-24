@@ -2,115 +2,49 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key, te: () => false }),
-}))
-
-const content = JSON.stringify({
-  version: 1,
-  project: { name: 'Demo', description: '' },
-  workspace: { indexedEntries: [], expandedDirectories: ['assets'] },
-})
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
 
 describe('ProjectConfigEditor', () => {
-  it('edits project information without exposing or dropping workspace state', async () => {
+  it('edits only project name, description, and version', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardproject', modelValue: content },
+      props: {
+        filePath: 'D:/Demo/.opencardprojectprofile',
+        modelValue: JSON.stringify({ name: 'Demo', description: 'Info', version: '1.0.0' }),
+      },
     })
 
-    await wrapper.findAll('input')[0].setValue('Renamed')
+    expect(wrapper.find('[data-field-key="extends"]').exists()).toBe(false)
+    expect(wrapper.find('[data-field-key="globalvariables"]').exists()).toBe(false)
+    await wrapper.get('[data-field-key="version"] input').setValue('2.0.0')
 
-    const emittedContent = wrapper.emitted('update:modelValue')?.[0]?.[0] as string
-    expect(JSON.parse(emittedContent)).toMatchObject({
-      project: { name: 'Renamed' },
-      workspace: { expandedDirectories: ['assets'] },
-    })
-    expect(wrapper.text()).not.toContain('expandedDirectories')
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    const updated = updates[updates.length - 1]?.[0] as string
+    expect(JSON.parse(updated)).toEqual({ name: 'Demo', description: 'Info', version: '2.0.0' })
   })
 
-  it('emits the standard save command from Ctrl+S', async () => {
+  it('omits empty profile fields', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardproject', modelValue: content },
+      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{"name":"Demo"}' },
     })
+    await wrapper.get('[data-field-key="name"] input').setValue('')
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({})
+  })
 
-    await wrapper.get('.project-config-editor').trigger('keydown', { ctrlKey: true, key: 's' })
+  it('shows the embedded JSON repair editor for invalid content', () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{broken' },
+    })
+    expect(wrapper.find('.project-profile-editor__repair').exists()).toBe(true)
+    expect(wrapper.find('.monaco-stub').exists()).toBe(true)
+  })
+
+  it('emits the standard save command from Ctrl+S for valid content', async () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{}' },
+    })
+    await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)
-  })
-
-  it('edits a declared project field through the shared property protocol', async () => {
-    const customContent = JSON.stringify({
-      version: 1,
-      project: {
-        name: 'Demo',
-        description: '',
-        author: 'Alice',
-        additionalFieldDefinition: {
-          author: { fieldType: 'string', title: 'Author' },
-        },
-      },
-      workspace: { indexedEntries: [], expandedDirectories: [] },
-    })
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardproject', modelValue: customContent },
-    })
-
-    await wrapper.get('[data-field-key="author"] input').setValue('Bob')
-
-    const emittedContent = wrapper.emitted('update:modelValue')?.[0]?.[0] as string
-    expect(JSON.parse(emittedContent).project).toMatchObject({
-      author: 'Bob',
-      additionalFieldDefinition: {
-        author: { fieldType: 'string', title: 'Author' },
-      },
-    })
-  })
-
-  it('creates a project field from the editor header action', async () => {
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardproject', modelValue: content },
-      global: { stubs: { Teleport: true } },
-    })
-
-    await wrapper.get('.project-config-editor__add-property').trigger('click')
-    const dialogInputs = wrapper.findAll('[role="dialog"] input')
-    await dialogInputs[0].setValue('author')
-    await dialogInputs[1].setValue('Author')
-    await wrapper.get('[role="dialog"] form, form[role="dialog"]').trigger('submit')
-
-    const emissions = wrapper.emitted('update:modelValue') ?? []
-    const emittedContent = emissions[emissions.length - 1]?.[0] as string
-    expect(JSON.parse(emittedContent).project).toMatchObject({
-      author: '',
-      additionalFieldDefinition: {
-        author: { fieldType: 'string', title: 'Author' },
-      },
-    })
-  })
-
-  it('deletes a project field after the shared two-click confirmation', async () => {
-    const customContent = JSON.stringify({
-      version: 1,
-      project: {
-        name: 'Demo',
-        description: '',
-        author: 'Alice',
-        additionalFieldDefinition: {
-          author: { fieldType: 'string', title: 'Author' },
-        },
-      },
-      workspace: { indexedEntries: [], expandedDirectories: [] },
-    })
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardproject', modelValue: customContent },
-    })
-
-    const deleteButton = wrapper.get('[data-field-key="author"] .delete-field-button')
-    await deleteButton.trigger('click')
-    await deleteButton.trigger('click')
-
-    const emissions = wrapper.emitted('update:modelValue') ?? []
-    const project = JSON.parse(emissions[emissions.length - 1]?.[0] as string).project
-    expect(project).not.toHaveProperty('author')
-    expect(project).not.toHaveProperty('additionalFieldDefinition')
   })
 })

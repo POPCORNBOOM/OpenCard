@@ -13,7 +13,7 @@
           <h2>{{ t('propertyEditor.customFields.create') }}</h2>
         </header>
 
-        <label class="additional-field-dialog__field">
+        <label v-if="showTitle !== false" class="additional-field-dialog__field">
           <span>{{ t('propertyEditor.customFields.type') }}</span>
           <OcFieldInput
             as="select"
@@ -73,6 +73,7 @@ defineProps<{
   fieldType: string
   fieldKey: string
   title: string
+  showTitle?: boolean
   errorText?: string
   invalid?: boolean
 }>()

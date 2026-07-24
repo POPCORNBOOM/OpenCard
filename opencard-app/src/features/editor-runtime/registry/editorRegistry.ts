@@ -12,6 +12,7 @@ import type {
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
+import type { OcThemeId } from '../../../shared/ui/foundation'
 
 export interface EditorProps {
   filePath: string
@@ -23,6 +24,9 @@ export interface EditorProps {
   cardDesignerView?: CardDesignerViewState
   structureTreeSelectionBehavior?: 'none' | 'expand' | 'expand-exclusive'
   structureTreeScrollToSelection?: boolean
+  showSelectionPositionOnMove?: boolean
+  showSelectionSizeOnResize?: boolean
+  themeId?: OcThemeId
 }
 
 export interface EditorEmits {
@@ -33,6 +37,7 @@ export interface EditorEmits {
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
   (e: 'update-card-designer-view', value: CardDesignerViewState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
+  (e: 'open-file', path: string): void
 }
 
 // 编辑器接口定义
@@ -72,6 +77,7 @@ import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
+import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -102,5 +108,12 @@ editorRegistry.register({
   id: 'project-config',
   name: 'Project Configuration',
   component: ProjectConfigEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'dictionary',
+  name: 'Dictionary',
+  component: DictionaryEditor,
   hasPreview: false,
 })

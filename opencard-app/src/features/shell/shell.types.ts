@@ -6,6 +6,7 @@ export interface ShellAction {
   hoverTip?: string;
   icon: IconToken;
   disabled?: boolean;
+  children?: readonly OcActionMenuEntry[];
 }
 
 export interface ShellButton {

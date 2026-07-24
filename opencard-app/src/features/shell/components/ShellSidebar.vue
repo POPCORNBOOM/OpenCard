@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
+import OcActionButton from '../../../components/standard/OcActionButton.vue';
 import type {
   ShellButton,
   ShellList,
@@ -131,17 +132,21 @@ function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'aut
           </button>
 
           <div class="shell-sidebar-actions">
-            <button
+            <OcActionButton
               v-for="action in list.actions"
               :key="`${list.key}-${action.key ?? action.icon}`"
               class="shell-sidebar-action"
-              type="button"
-              :disabled="action.disabled"
-              :data-tooltip="action.hoverTip || null"
-              @click="action.key && emit('list-button-clicked', list.key, action.key)"
-            >
-              <OcIcon :name="action.icon" size="sm" />
-            </button>
+              :action="{
+                key: action.key ?? action.icon,
+                title: action.hoverTip,
+                icon: action.icon,
+                disabled: action.disabled,
+                children: action.children,
+              }"
+              size="sm"
+              variant="ghost"
+              @select="emit('list-button-clicked', list.key, $event.key)"
+            />
           </div>
         </div>
 

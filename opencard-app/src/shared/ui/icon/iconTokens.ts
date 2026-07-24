@@ -68,6 +68,12 @@ export const iconTokens = {
   'tool.zoom-in': true,
   'tool.zoom-out': true,
 
+  'layout.fill': true,
+  'layout.fill-horizontal': true,
+  'layout.fill-vertical': true,
+  'layout.inset': true,
+  'layout.outset': true,
+
   'data.collection': true,
   'data.layers': true,
   'data.list-selection': true,

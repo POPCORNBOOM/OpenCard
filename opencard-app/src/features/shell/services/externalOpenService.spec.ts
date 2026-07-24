@@ -21,7 +21,10 @@ import {
 describe('externalOpenService', () => {
   it('classifies only OpenCard file types', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.opencard')).toBe('card')
-    expect(classifyExternalOpenPath('D:/Cards/.opencardproject')).toBe('project')
+    expect(classifyExternalOpenPath('D:/Cards/.opencardprojectprofile')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.DICTIONARY')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/en_US.opencardproject')).toBeNull()
+    expect(classifyExternalOpenPath('/cards/.DICTIONARY')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/demo.opencardtemplate')).toBe('template')
     expect(classifyExternalOpenPath('D:/Cards/demo.zip')).toBeNull()
     expect(filterSupportedExternalOpenPaths([

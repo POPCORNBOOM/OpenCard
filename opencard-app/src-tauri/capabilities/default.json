@@ -13,7 +13,6 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    "opener:allow-reveal-item-in-dir",
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-minimize",

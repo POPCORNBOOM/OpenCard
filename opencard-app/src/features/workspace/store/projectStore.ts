@@ -10,14 +10,22 @@ import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
 import {
-  PROJECT_CONFIG_FILE_NAME,
-  PROJECT_METADATA_VERSION,
-  createDefaultProjectInformation,
+  PROJECT_PROFILE_FILE_NAME,
   parseProjectMetadataText,
   serializeProjectMetadata,
+  toProjectInformation,
   type ProjectInformation,
-  type ProjectMetadata,
+  type ProjectProfile,
 } from '../model/projectMetadata'
+import {
+  PROJECT_DICTIONARY_FILE_NAME,
+  parseProjectDictionaryText,
+  resolveProjectDictionary,
+  serializeProjectDictionary,
+  type ProjectDictionary,
+  type ResolvedProjectDictionary,
+} from '../model/projectDictionary'
+import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
 
@@ -48,12 +56,25 @@ const indexedEntries = ref<DirEntry[]>([])
 const isWatching = ref(false)
 const registeredDirectories = ref(new Map<string, number>())
 const expandedDirectories = ref(new Set<string>())
-const projectInformation = ref<ProjectInformation>(createDefaultProjectInformation())
+const projectProfile = ref<ProjectProfile | null>(null)
+const resolvedProject = ref<ProjectInformation | null>(null)
+const profileError = ref<string | null>(null)
+const projectDictionary = ref<ProjectDictionary | null>(null)
+const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
+const dictionaryError = ref<string | null>(null)
+const settingsStore = useAppSettingsStore()
 
 let unlistenFn: UnlistenFn | null = null
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function pathIdentity(path: string): string {
+  const normalized = normalizePath(path)
+  return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')
+    ? normalized.toLocaleLowerCase()
+    : normalized
 }
 
 function ensureProjectOpen(): string {
@@ -72,7 +93,8 @@ function resolveProjectPath(path: string): string {
   const normalizedProjectPath = ensureProjectOpen()
   const normalizedPath = normalizePath(path)
 
-  if (normalizedPath === normalizedProjectPath || normalizedPath.startsWith(`${normalizedProjectPath}/`)) {
+  if (pathIdentity(normalizedPath) === pathIdentity(normalizedProjectPath)
+    || pathIdentity(normalizedPath).startsWith(`${pathIdentity(normalizedProjectPath)}/`)) {
     return normalizedPath
   }
 
@@ -90,120 +112,127 @@ function toRelativeProjectPath(path: string): string {
   return resolvedPath.slice(normalizedProjectPath.length + 1)
 }
 
-function getMetadataPath(): string {
-  return resolveProjectPath(PROJECT_CONFIG_FILE_NAME)
-}
-
-function getProjectDirectoryName(): string {
-  const normalizedPath = normalizePath(projectPath.value)
-  return normalizedPath.split('/').pop() ?? ''
-}
-
-function createProjectMetadata(): ProjectMetadata {
-  return {
-    version: PROJECT_METADATA_VERSION,
-    project: { ...projectInformation.value },
-    workspace: {
-      indexedEntries: indexedEntries.value.map((entry) => ({
-        name: entry.name,
-        isDirectory: entry.isDirectory,
-        isFile: entry.isFile,
-        isSymlink: entry.isSymlink,
-      })),
-      expandedDirectories: Array.from(expandedDirectories.value).sort(),
-    },
-  }
-}
-
-function applyProjectMetadata(metadata: ProjectMetadata) {
-  projectInformation.value = { ...metadata.project }
-  const nextExpandedDirectories = new Set(
-    metadata.workspace.expandedDirectories
-      .map((path) => normalizePath(path))
-      .filter((path) => path.length > 0)
-  )
-
-  expandedDirectories.value = nextExpandedDirectories
-
-  const nextRegisteredDirectories = new Map<string, number>()
-  nextRegisteredDirectories.set('', 1)
-
-  for (const relativePath of nextExpandedDirectories) {
-    nextRegisteredDirectories.set(relativePath, Math.max(nextRegisteredDirectories.get(relativePath) ?? 0, 1))
-  }
-
-  registeredDirectories.value = nextRegisteredDirectories
-  indexedEntries.value = metadata.workspace.indexedEntries.map((entry) => ({
-    name: entry.name,
-    isDirectory: entry.isDirectory,
-    isFile: entry.isFile,
-    isSymlink: entry.isSymlink,
-  }))
-}
-
-async function saveProjectMetadata() {
+async function saveProjectWorkspaceState() {
   if (!projectPath.value) return
+  const workspaceStates = Object.fromEntries(Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
+    .map(([path, state]) => [path, { expandedDirectories: [...state.expandedDirectories] }]))
+  workspaceStates[normalizePath(projectPath.value)] = {
+    expandedDirectories: Array.from(expandedDirectories.value).sort(),
+  }
+  settingsStore.updateProjectCreation({ workspaceStates })
+}
 
+async function saveProjectConfiguration(path: string, content: string): Promise<string> {
+  const profile = parseProjectMetadataText(content)
+  if (!profile) {
+    throw new Error('Invalid .opencardprojectprofile content')
+  }
+  const resolvedPath = resolveProjectPath(path)
+  if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME))) {
+    throw new Error('Project profile must be stored at the project root')
+  }
+  const canonicalContent = serializeProjectMetadata(profile)
+  await fileSystemService.writeFile(resolvedPath, canonicalContent)
+  await reloadProjectProfile()
+  return canonicalContent
+}
+
+async function saveProjectDictionary(path: string, content: string): Promise<string> {
+  const dictionary = parseProjectDictionaryText(content)
+  if (!dictionary) throw new Error('Invalid .dictionary content')
+  const resolvedPath = resolveProjectPath(path)
+  if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME))) {
+    throw new Error('Project dictionary must be stored at the project root')
+  }
+  const canonicalContent = serializeProjectDictionary(dictionary)
+  await fileSystemService.writeFile(resolvedPath, canonicalContent)
+  await reloadProjectDictionary()
+  return canonicalContent
+}
+
+function clearProjectProfile() {
+  projectProfile.value = null
+  resolvedProject.value = null
+  profileError.value = null
+}
+
+function clearProjectDictionary() {
+  projectDictionary.value = null
+  resolvedDictionary.value = null
+  dictionaryError.value = null
+}
+
+async function reloadProjectProfile(): Promise<boolean> {
+  if (!projectPath.value) return false
+  const path = resolveProjectPath(PROJECT_PROFILE_FILE_NAME)
+  if (!await fileSystemService.fileExists(path)) {
+    clearProjectProfile()
+    return false
+  }
   try {
-    await fileSystemService.writeFile(
-      getMetadataPath(),
-      serializeProjectMetadata(createProjectMetadata())
-    )
+    const profile = parseProjectMetadataText(await fileSystemService.readFile(path))
+    if (!profile) throw new Error('Invalid project profile')
+    projectProfile.value = profile
+    resolvedProject.value = toProjectInformation(profile)
+    profileError.value = null
+    return true
   } catch (error) {
-    console.error('保存 .opencardproject 失败:', error)
+    profileError.value = error instanceof Error ? error.message : String(error)
+    projectProfile.value = null
+    resolvedProject.value = null
+    console.error('[project-profile] Failed to reload profile:', { path, error })
+    return false
   }
 }
 
-async function saveProjectConfiguration(content: string): Promise<string> {
-  const metadata = parseProjectMetadataText(content)
-  if (!metadata) {
-    throw new Error('Invalid .opencardproject content')
+async function reloadProjectDictionary(): Promise<boolean> {
+  if (!projectPath.value) return false
+  const path = resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)
+  if (!await fileSystemService.fileExists(path)) {
+    clearProjectDictionary()
+    return false
   }
+  try {
+    const dictionary = parseProjectDictionaryText(await fileSystemService.readFile(path))
+    if (!dictionary) throw new Error('Invalid project dictionary')
+    const resolution = resolveProjectDictionary(dictionary)
+    projectDictionary.value = dictionary
+    resolvedDictionary.value = resolution.values
+    dictionaryError.value = resolution.warning
+    if (resolution.warning) {
+      console.warn('[project-dictionary] Active language is missing:', { path, active: dictionary.active })
+    }
+    return true
+  } catch (error) {
+    dictionaryError.value = error instanceof Error ? error.message : String(error)
+    projectDictionary.value = null
+    resolvedDictionary.value = null
+    console.error('[project-dictionary] Failed to reload dictionary:', { path, error })
+    return false
+  }
+}
 
-  projectInformation.value = { ...metadata.project }
-  const canonicalContent = serializeProjectMetadata(createProjectMetadata())
-  await fileSystemService.writeFile(getMetadataPath(), canonicalContent)
-  return canonicalContent
+function loadProjectWorkspaceState() {
+  const identity = pathIdentity(projectPath.value)
+  const entry = Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
+    .find(([path]) => pathIdentity(path) === identity)
+  expandedDirectories.value = new Set(entry?.[1].expandedDirectories ?? [])
+  registeredDirectories.value = new Map([['', 1]])
+  for (const relativePath of expandedDirectories.value) registeredDirectories.value.set(relativePath, 1)
 }
 
 function scheduleProjectMetadataSave() {
   if (!projectPath.value) return
 
   taskScheduler.schedule(PROJECT_METADATA_SAVE_KEY, PROJECT_METADATA_SAVE_DELAY_MS, async () => {
-    await saveProjectMetadata()
+    await saveProjectWorkspaceState()
   })
 }
 
-async function loadProjectMetadata() {
-  try {
-    const metadataPath = getMetadataPath()
-    const exists = await fileSystemService.fileExists(metadataPath)
-
-    if (!exists) {
-      projectInformation.value = createDefaultProjectInformation(getProjectDirectoryName())
-      registeredDirectories.value = new Map([['', 1]])
-      expandedDirectories.value = new Set()
-      indexedEntries.value = []
-      await saveProjectMetadata()
-      return
-    }
-
-    const raw = await fileSystemService.readFile(metadataPath)
-    const parsed = parseProjectMetadataText(raw)
-    if (!parsed) throw new Error('Unsupported .opencardproject format')
-
-    applyProjectMetadata(parsed)
-  } catch (error) {
-    console.error('读取 .opencardproject 失败:', error)
-    projectInformation.value = createDefaultProjectInformation(getProjectDirectoryName())
-    registeredDirectories.value = new Map([['', 1]])
-    expandedDirectories.value = new Set()
-    indexedEntries.value = []
-  }
-}
-
 function isMetadataPath(path: string): boolean {
-  return normalizePath(path) === getMetadataPath()
+  if (!projectPath.value) return false
+  return [PROJECT_PROFILE_FILE_NAME, PROJECT_DICTIONARY_FILE_NAME]
+    .some(fileName => pathIdentity(resolveProjectPath(fileName)) === pathIdentity(path))
 }
 
 async function refreshIndexedEntries(options?: { persist?: boolean }) {
@@ -293,11 +322,12 @@ async function startWatching() {
   try {
     unlistenFn = await listen<FileChangedPayload>('file-changed', (event: Event<FileChangedPayload>) => {
       const changedPaths = event.payload.paths.map((path) => normalizePath(path))
-
-      if (changedPaths.length > 0 && changedPaths.every((path) => isMetadataPath(path))) {
-        return
+      if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME)))) {
+        void reloadProjectProfile()
       }
-
+      if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
+        void reloadProjectDictionary()
+      }
       void refreshIndexedEntries()
     })
 
@@ -335,13 +365,16 @@ async function setProjectPath(path: string) {
   indexedEntries.value = []
   registeredDirectories.value = new Map()
   expandedDirectories.value = new Set()
+  clearProjectProfile()
+  clearProjectDictionary()
 
   if (!projectPath.value) {
     return
   }
 
-  await loadProjectMetadata()
+  loadProjectWorkspaceState()
   await refreshIndexedEntries({ persist: false })
+  await Promise.all([reloadProjectProfile(), reloadProjectDictionary()])
   await startWatching()
   scheduleProjectMetadataSave()
 }
@@ -367,7 +400,7 @@ async function resetProjectWorkspaceState(): Promise<void> {
   registeredDirectories.value = new Map([['', 1]])
   expandedDirectories.value = new Set()
   await refreshIndexedEntries({ persist: false })
-  await saveProjectMetadata()
+  await saveProjectWorkspaceState()
 }
 
 async function readFile(path: string) {
@@ -377,7 +410,7 @@ async function readFile(path: string) {
 async function isProjectAvailable(path: string): Promise<boolean> {
   const normalizedPath = normalizePath(path)
   if (!normalizedPath) return false
-  return await fileSystemService.fileExists(`${normalizedPath}/${PROJECT_CONFIG_FILE_NAME}`)
+  return await fileSystemService.fileExists(normalizedPath)
 }
 
 async function saveFile(relativePath: string, content: string) {
@@ -398,16 +431,22 @@ async function createEntryWithAvailableName(
   parentPath: string,
   baseName: string,
   kind: 'file' | 'folder',
+  content: string = '',
 ): Promise<string> {
   const resolvedParentPath = resolveProjectPath(parentPath)
   let suffix = 1
 
   while (true) {
-    const name = suffix === 1 ? baseName : `${baseName} ${suffix}`
+    const dotIndex = kind === 'file' ? baseName.lastIndexOf('.') : -1
+    const name = suffix === 1
+      ? baseName
+      : dotIndex > 0
+        ? `${baseName.slice(0, dotIndex)} ${suffix}${baseName.slice(dotIndex)}`
+        : `${baseName} ${suffix}`
     const candidatePath = `${resolvedParentPath}/${name}`
     if (!await fileSystemService.fileExists(candidatePath)) {
       if (kind === 'folder') await fileSystemService.createDirectory(candidatePath)
-      else await fileSystemService.writeFile(candidatePath, '')
+      else await fileSystemService.writeFile(candidatePath, content)
       await refreshIndexedEntries()
       return candidatePath
     }
@@ -415,8 +454,11 @@ async function createEntryWithAvailableName(
   }
 }
 
-async function deleteFile(relativePath: string) {
-  await fileSystemService.deleteFile(resolveProjectPath(relativePath))
+async function trashFile(relativePath: string) {
+  const resolvedPath = resolveProjectPath(relativePath)
+  await fileSystemService.trashFile(resolvedPath)
+  if (pathIdentity(resolvedPath) === pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME))) clearProjectProfile()
+  if (pathIdentity(resolvedPath) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME))) clearProjectDictionary()
   await refreshIndexedEntries()
 }
 
@@ -445,8 +487,8 @@ function getPathBasename(path: string) {
 }
 
 function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
-  const normalizedTargetPath = normalizePath(targetPath)
-  const normalizedAncestorPath = normalizePath(ancestorPath)
+  const normalizedTargetPath = pathIdentity(targetPath)
+  const normalizedAncestorPath = pathIdentity(ancestorPath)
   return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
 }
 
@@ -550,6 +592,8 @@ async function moveEntry(sourcePath: string, targetPath: string) {
     resolveProjectPath(targetRelativePath),
   )
 
+  const normalizedSource = normalizePath(sourcePath)
+  const normalizedTarget = normalizePath(targetPath)
   if (sourceEntry?.isDirectory) {
     const nextExpandedDirectories = new Set<string>()
     for (const relativePath of expandedDirectories.value) {
@@ -568,6 +612,9 @@ async function moveEntry(sourcePath: string, targetPath: string) {
   }
 
   await refreshIndexedEntries()
+  if (isMetadataPath(normalizedSource) || isMetadataPath(normalizedTarget)) {
+    await Promise.all([reloadProjectProfile(), reloadProjectDictionary()])
+  }
 }
 
 async function renameEntry(path: string, nextName: string): Promise<RenameEntryResult> {
@@ -654,10 +701,16 @@ async function moveEntryByDrop(payload: WorkspaceEntryMoveRequest): Promise<Move
 export function useProjectStore() {
   return {
     projectPath: readonly(projectPath),
-    projectInformation: readonly(projectInformation),
+    projectProfile: readonly(projectProfile),
+    resolvedProject: readonly(resolvedProject),
+    projectInformation: readonly(resolvedProject),
+    profileError: readonly(profileError),
+    projectDictionary: readonly(projectDictionary),
+    resolvedDictionary: readonly(resolvedDictionary),
+    dictionaryError: readonly(dictionaryError),
     projectName: computed(() => {
       if (!projectPath.value) return ''
-      return projectInformation.value.name || projectPath.value.split('/').pop() || ''
+      return projectPath.value.split('/').pop() || ''
     }),
     indexedEntries: readonly(indexedEntries),
     registeredDirectories: readonly(registeredDirectories),
@@ -667,6 +720,11 @@ export function useProjectStore() {
     openProject,
     resetProjectWorkspaceState,
     saveProjectConfiguration,
+    saveProjectDictionary,
+    reloadProjectProfile,
+    reloadProjectDictionary,
+    clearProjectProfile,
+    clearProjectDictionary,
     setProjectPath,
     loadFiles,
     readDirectoryEntries,
@@ -680,7 +738,7 @@ export function useProjectStore() {
     createFolder,
     createFile,
     createEntryWithAvailableName,
-    deleteFile,
+    trashFile,
     revealEntryInFileManager,
     getRelativeProjectPath,
     canMoveEntryByDrop,

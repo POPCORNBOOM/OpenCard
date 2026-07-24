@@ -68,6 +68,14 @@
                   :definition="toRawStringDefinition(entry.definition)"
                   :value="entry.value"
                   @update:value="emitRawStringValue(category.inputKey, entry.key, $event)" />
+                <ArrayPropertyField
+                  v-else-if="isArrayPropertyFieldType(entry.definition.fieldType)"
+                  :definition="entry.definition"
+                  :element-component="getArrayElementComponent(entry.definition.fieldType)"
+                  :element-definition="toArrayElementDefinition(entry.definition)"
+                  :value="entry.value"
+                  @update:value="emitPropertyValue(category.inputKey, entry.key, $event)"
+                />
                 <component v-else :is="getEditorComponent(entry.definition.fieldType, entry.definition)"
                   :definition="entry.definition" :value="entry.value"
                   @update:value="emitPropertyValue(category.inputKey, entry.key, $event)" />
@@ -107,7 +115,12 @@ import type {
   PropertyEditorInput,
   PropertyEditorMutation,
   PropertyEditorSortMode,
+  BasePropertyFieldType,
   PropertyFieldType,
+} from './propertyEditor.types'
+import {
+  getArrayElementFieldType,
+  isArrayPropertyFieldType,
 } from './propertyEditor.types'
 import AlignPositionPropertyField from './fields/AlignPositionPropertyField.vue'
 import BooleanPropertyField from './fields/BooleanPropertyField.vue'
@@ -120,6 +133,7 @@ import ObjectPropertyField from './fields/ObjectPropertyField.vue'
 import StringPropertyField from './fields/StringPropertyField.vue'
 import ReferenceStringPropertyField from './fields/ReferenceStringPropertyField.vue'
 import VerticalAlignPositionPropertyField from './fields/VerticalAlignPositionPropertyField.vue'
+import ArrayPropertyField from './fields/ArrayPropertyField.vue'
 import {
   usePropertyEditorView,
   type PropertyEditorCategoryView,
@@ -154,7 +168,7 @@ type FieldTypeEditorEntry = {
   icon: IconToken
 }
 
-const fieldTypeEditorMap: Record<PropertyFieldType, FieldTypeEditorEntry> = {
+const fieldTypeEditorMap: Record<BasePropertyFieldType, FieldTypeEditorEntry> = {
   string: { component: StringPropertyField, icon: 'data.symbol-string' },
   anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
   alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
@@ -212,7 +226,34 @@ function getEditorComponent(fieldType: PropertyFieldType, definition?: PropertyE
     && definition.completion?.provider) {
     return ReferenceStringPropertyField
   }
+  if (isArrayPropertyFieldType(fieldType)) return ArrayPropertyField
   return (fieldTypeEditorMap[fieldType] ?? fieldTypeEditorMap.string).component
+}
+
+function getArrayElementComponent(fieldType: PropertyFieldType): Component {
+  if (!isArrayPropertyFieldType(fieldType)) return fieldTypeEditorMap.string.component
+  return fieldTypeEditorMap[getArrayElementFieldType(fieldType)].component
+}
+
+function getScalarDefaultValue(fieldType: BasePropertyFieldType): unknown {
+  if (fieldType === 'boolean') return 'false'
+  if (fieldType === 'number') return '0'
+  if (fieldType === 'object') return {}
+  return ''
+}
+
+function toArrayElementDefinition(
+  definition: PropertyEditorFieldDefinition,
+): Extract<PropertyEditorFieldDefinition, { fieldType: BasePropertyFieldType }> {
+  if (!isArrayPropertyFieldType(definition.fieldType)) {
+    throw new Error(`Expected an array field type, received "${definition.fieldType}"`)
+  }
+  const fieldType = getArrayElementFieldType(definition.fieldType)
+  return {
+    ...definition,
+    fieldType,
+    defaultValue: getScalarDefaultValue(fieldType),
+  } as Extract<PropertyEditorFieldDefinition, { fieldType: BasePropertyFieldType }>
 }
 
 function usesInlineBindingEditor(definition: PropertyEditorFieldDefinition): boolean {
@@ -222,7 +263,9 @@ function usesInlineBindingEditor(definition: PropertyEditorFieldDefinition): boo
 }
 
 function canToggleRawStringEditor(definition: PropertyEditorFieldDefinition): boolean {
-  return Boolean(definition.binding?.provider) && !usesInlineBindingEditor(definition)
+  return !isArrayPropertyFieldType(definition.fieldType)
+    && Boolean(definition.binding?.provider)
+    && !usesInlineBindingEditor(definition)
 }
 
 function toRawStringDefinition(
@@ -283,7 +326,10 @@ function toggleRawStringEditor(sourceKey: string, fieldKey: string): void {
 }
 
 function getEditorIconClass(fieldType: PropertyFieldType): IconToken {
-  return (fieldTypeEditorMap[fieldType] ?? fieldTypeEditorMap.string).icon
+  const resolvedType = isArrayPropertyFieldType(fieldType)
+    ? getArrayElementFieldType(fieldType)
+    : fieldType
+  return (fieldTypeEditorMap[resolvedType] ?? fieldTypeEditorMap.string).icon
 }
 
 // 添加字段与重置交互。
@@ -354,6 +400,7 @@ function emitResetProperty(key: string, fieldKey: string): void {
 
 // 字段默认值策略。
 function createDefaultValue(definition: PropertyEditorFieldDefinition): unknown {
+  if (isArrayPropertyFieldType(definition.fieldType)) return []
   return structuredClone(definition.defaultValue)
 }
 

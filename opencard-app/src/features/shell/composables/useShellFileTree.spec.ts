@@ -47,13 +47,13 @@ describe('useShellFileTree opened editors', () => {
     })
   })
 
-  it('disables deletion for the root project configuration file', () => {
+  it('allows deletion for the root project interpretation file', () => {
     const projectPath = 'D:/project'
-    const entryKey = `${projectPath}/.opencardproject`
+    const entryKey = `${projectPath}/.opencardprojectprofile`
     const { projectTreeData } = useShellFileTree({
       projectPath: ref(projectPath),
       indexedEntries: ref([
-        { name: '.opencardproject', isDirectory: false },
+        { name: '.opencardprojectprofile', isDirectory: false },
         { name: 'cards/main.opencard', isDirectory: false },
       ]),
       openedEditorItems: ref([]),
@@ -65,8 +65,22 @@ describe('useShellFileTree opened editors', () => {
 
     expect(projectTreeData.value.items.get(entryKey)?.disabledActions?.has(
       projectEntryDeleteActionKey(entryKey),
-    )).toBe(true)
+    )).toBeUndefined()
     expect(projectTreeData.value.items.get(`${projectPath}/cards/main.opencard`)?.disabledActions)
       .toBeUndefined()
+  })
+
+  it('treats project metadata files as ordinary actionable tree entries', () => {
+    const path = 'D:/project/.dictionary'
+    const { projectTreeData } = useShellFileTree({
+      projectPath: ref('D:/project'),
+      indexedEntries: ref([{ name: '.dictionary', isDirectory: false }]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+    expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
   })
 })

@@ -23,6 +23,7 @@ export type IconTone =
   | 'muted'
   | 'primary'
   | 'success'
+  | 'active'
   | 'warning'
   | 'danger'
   | 'opencard'

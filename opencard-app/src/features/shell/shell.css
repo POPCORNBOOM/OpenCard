@@ -633,7 +633,8 @@
 }
 
 .shell-sidebar-empty {
-  min-height: 36px;
+  height: var(--oc-size-md);
+  min-height: var(--oc-size-md);
   padding: 0 12px;
   display: flex;
   align-items: center;

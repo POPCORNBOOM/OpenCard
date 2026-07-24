@@ -65,6 +65,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-muted',
   '--oc-icon-accent',
   '--oc-icon-success',
+  '--oc-icon-active',
   '--oc-icon-warning',
   '--oc-icon-danger',
 
