@@ -129,7 +129,16 @@
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
           <div v-else class="shell-sidebar-empty">
-            <span>{{ list.placeholder }}</span>
+            <OcButton
+              v-if="list.key === PROJECT_FILES_LIST_KEY && !projectPath && !effectiveSidebarCollapsed"
+              icon="status.folder-open"
+              size="sm"
+              variant="ghost"
+              @click="openProject"
+            >
+              {{ list.placeholder }}
+            </OcButton>
+            <span v-else>{{ list.placeholder }}</span>
           </div>
         </template>
       </ShellSidebar>
@@ -250,6 +259,7 @@ import {
 import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
+import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import { getOcTheme } from '../../shared/ui/foundation'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
@@ -1032,7 +1042,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: projectFolderName.value || t('sidebar.files'),
       placeholder: projectPath.value
         ? t('sidebar.emptyProject', 'Folder is empty')
-        : t('sidebar.noProjectOpen', 'No project folder open'),
+        : t('sidebar.openProject', 'Open Project Folder'),
       actions: [
         {
           key: PROJECT_NEW_FILE_ACTION_KEY,
