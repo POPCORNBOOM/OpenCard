@@ -237,6 +237,7 @@ export const iconGlyphs = {
 
   'entity.account': glyph(mdiAccountOutline),
   'entity.block-image': glyph(mdiImageOutline),
+  'entity.block-markdown': glyph(mdiLanguageMarkdownOutline),
   'entity.block-qrcode': glyph(mdiQrcode),
   'entity.block-shape': glyph(mdiShapeOutline),
   'entity.block-simple-container': glyph(mdiLandPlots),

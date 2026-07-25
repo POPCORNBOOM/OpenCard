@@ -1,4 +1,5 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import PropertyEditor from './PropertyEditor.vue'
 
@@ -10,6 +11,32 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('dispatches explicitly marked strings to the rich-text editor', async () => {
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'text',
+          record: { content: '<p>Hello</p>' },
+          fields: {
+            content: { title: 'Content', fieldType: 'string', richText: true },
+          },
+        }],
+      },
+    })
+
+    await vi.dynamicImportSettled()
+    await flushPromises()
+    await nextTick()
+    expect(wrapper.find('.rich-text-string-field__preview').exists()).toBe(true)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('.rich-text-string-popover')).not.toBeNull()
+    wrapper.unmount()
+  })
+
   it('edits array fields by emitting complete arrays and reuses element completion', async () => {
     const completion = vi.fn(() => ({
       replaceStart: 0,

@@ -22,7 +22,6 @@ function createDocument(): CardDocument {
             id: 'text',
             name: 'Title',
             content: 'Hello',
-            mode: 'plain',
             opacity: '0.5',
             additionalFieldDefinition: {
               score: { fieldType: 'number', title: 'Score' },

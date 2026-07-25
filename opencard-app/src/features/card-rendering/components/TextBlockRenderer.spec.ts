@@ -1,20 +1,31 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { TextBlock as TextBlockModel } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 
-vi.mock('../../workspace/store/projectStore', () => ({
-  useProjectStore: () => ({ resolveAssetSrc: (path: string) => `asset://${path}` }),
-}))
-
 describe('TextBlockRenderer', () => {
-  it('preserves plain-text line breaks without parsing HTML', () => {
-    const source: TextBlockModel = {
-      id: 'plain-text-block',
+  it('promotes plain-text line breaks to rich-text paragraphs', () => {
+    const block = parseRenderReadyBlockForTest({
+      id: 'multiline-text-block',
       type: 'text-block',
-      content: 'first line\n<strong>second line</strong>',
-      mode: 'plain',
+      content: 'first line\nsecond line',
+    })
+
+    const wrapper = mount(TextBlockRenderer, {
+      props: { block, layoutMode: 'static' },
+      global: rendererTestGlobal,
+    })
+
+    expect(wrapper.findAll('.text-block-content--richtext p').map(paragraph => paragraph.text()))
+      .toEqual(['first line', 'second line'])
+  })
+
+  it('renders content through the rich-text contract', () => {
+    const source: TextBlockModel = {
+      id: 'rich-text-block',
+      type: 'text-block',
+      content: '<p style="text-align: center">first <strong>second</strong></p>',
     }
     const block = parseRenderReadyBlockForTest(source)
 
@@ -22,10 +33,10 @@ describe('TextBlockRenderer', () => {
       props: { block, layoutMode: 'static' },
       global: rendererTestGlobal,
     })
-    const content = wrapper.get('.text-block-content--plain')
+    const content = wrapper.get('.text-block-content--richtext')
 
-    expect(content.text()).toBe(block.content)
-    expect(content.find('strong').exists()).toBe(false)
+    expect(content.get('p').attributes('style')).toContain('text-align: center')
+    expect(content.get('strong').text()).toBe('second')
   })
 
   it('keeps horizontal text alignment independent from vertical content alignment', () => {
@@ -33,7 +44,6 @@ describe('TextBlockRenderer', () => {
       id: 'text-block-test',
       type: 'text-block',
       content: 'A paragraph long enough to exercise text layout.',
-      mode: 'plain',
       textAlign: 'justify',
       verticalAlign: 'bottom',
     }
@@ -51,68 +61,40 @@ describe('TextBlockRenderer', () => {
     expect(style.textAlign).toBe('justify')
   })
 
-  it('renders Markdown structure after bindings have produced the final content', () => {
+  it('removes executable markup and unsupported rich-text styles', () => {
     const block = parseRenderReadyBlockForTest({
-      id: 'markdown-text-block',
+      id: 'safe-rich-text-block',
       type: 'text-block',
-      mode: 'markdown',
-      content: '# Sentinel\n\n**Power:** 5\n\n- Guard\n- Counter',
+      content: '<script>alert(1)</script><p onclick="alert(1)" style="color: red; position: fixed">Safe <span style="font-family: Impact; background-image: url(x)">text</span></p>',
     })
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
       global: rendererTestGlobal,
     })
-    const content = wrapper.get('.text-block-content--markdown')
-
-    expect(content.get('h1').text()).toBe('Sentinel')
-    expect(content.get('strong').text()).toBe('Power:')
-    expect(content.findAll('li').map((item) => item.text())).toEqual(['Guard', 'Counter'])
-  })
-
-  it('rejects raw HTML and resolves Markdown images through the project asset protocol', () => {
-    const block = parseRenderReadyBlockForTest({
-      id: 'safe-markdown-text-block',
-      type: 'text-block',
-      mode: 'markdown',
-      content: '<script>alert(1)</script>\n\n![Portrait](assets/portrait.png){width=40% height=160px fit=cover align=center onclick=alert(1)}',
-    })
-
-    const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
-      global: rendererTestGlobal,
-    })
-    const content = wrapper.get('.text-block-content--markdown')
+    const content = wrapper.get('.text-block-content--richtext')
 
     expect(content.find('script').exists()).toBe(false)
-    expect(content.text()).toContain('<script>alert(1)</script>')
-    const image = content.get('img')
-    expect(image.attributes('src')).toBe('asset://assets/portrait.png')
-    expect(image.attributes('alt')).toBe('Portrait')
-    const imageStyle = (image.element as HTMLImageElement).style
-    expect(imageStyle.width).toBe('40%')
-    expect(imageStyle.height).toBe('160px')
-    expect(imageStyle.objectFit).toBe('cover')
-    expect(imageStyle.display).toBe('block')
-    expect(imageStyle.marginInline).toBe('auto')
-    expect(image.attributes('onclick')).toBeUndefined()
+    expect(content.get('p').attributes('onclick')).toBeUndefined()
+    expect(content.get('p').attributes('style')).toBe('color: red;')
+    expect(content.get('span').attributes('style')).toBe('font-family: Impact;')
   })
 
-  it('drops image attributes from other Markdown elements and rejects unsafe values', () => {
+  it('preserves only the controlled binding attribute on rich-text spans', () => {
     const block = parseRenderReadyBlockForTest({
-      id: 'restricted-markdown-attributes',
+      id: 'binding-rich-text-block',
       type: 'text-block',
-      mode: 'markdown',
-      content: '# Heading {width=20px}\n\n![Portrait](assets/portrait.png){width="100%;color:red" fit=unknown align=outside}',
+      content: '<p><span data-oc-binding=" self:name " data-other="unsafe" onclick="alert(1)">OpenCard</span></p>',
     })
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
       global: rendererTestGlobal,
     })
-    const content = wrapper.get('.text-block-content--markdown')
+    const binding = wrapper.get('[data-oc-binding]')
 
-    expect(content.get('h1').attributes('width')).toBeUndefined()
-    expect(content.get('img').attributes('style')).toBeUndefined()
+    expect(binding.attributes('data-oc-binding')).toBe('self:name')
+    expect(binding.attributes('data-other')).toBeUndefined()
+    expect(binding.attributes('onclick')).toBeUndefined()
   })
 })

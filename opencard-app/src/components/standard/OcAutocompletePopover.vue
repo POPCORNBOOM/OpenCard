@@ -4,6 +4,7 @@
     :anchor="anchor"
     :placement="placement"
     :max-height="maxHeight"
+    :z-index="zIndex"
     match-anchor-width
     class="oc-autocomplete-popover"
     role="listbox"
@@ -53,9 +54,11 @@ const props = withDefaults(defineProps<{
   activeKey: string | null
   placement?: Placement
   maxHeight?: number
+  zIndex?: number
 }>(), {
   placement: 'bottom-start',
   maxHeight: 220,
+  zIndex: 2000,
 })
 
 const emit = defineEmits<{

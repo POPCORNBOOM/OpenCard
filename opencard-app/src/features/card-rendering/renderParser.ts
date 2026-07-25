@@ -45,6 +45,7 @@ type RenderParseFailure =
 
 const blockTypes: readonly BlockType[] = [
   'text-block',
+  'markdown-text-block',
   'image-block',
   'qrcode-block',
   'shape-block',
@@ -163,11 +164,11 @@ function parseBlock(
 
   switch (type) {
     case 'text-block':
+    case 'markdown-text-block':
       return {
         ...base,
         type,
         content: fields.string('content'),
-        mode: fields.option('mode'),
         fontSize: fields.cssLength('fontSize'),
         fontFamily: fields.string('fontFamily'),
         fontWeight: fields.string('fontWeight'),

@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
-import { computed, nextTick, onBeforeUnmount, ref, toRef, type Component } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, toRef, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {
   PropertyEditorBindingInterpreter,
@@ -145,6 +145,10 @@ import OcActionButton, { type OcActionButtonAction } from '../../../components/s
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcPanel from '../../../components/base/OcPanel.vue'
+
+const RichTextStringPropertyField = defineAsyncComponent(
+  () => import('./fields/RichTextStringPropertyField.vue'),
+)
 
 // 输出事件协议。
 const emit = defineEmits<{
@@ -220,6 +224,9 @@ const { displaySources } = usePropertyEditorView({
 })
 
 function getEditorComponent(fieldType: PropertyFieldType, definition?: PropertyEditorFieldDefinition): Component {
+  if (definition?.fieldType === 'string' && definition.richText) {
+    return RichTextStringPropertyField
+  }
   if (definition?.fieldType === 'string'
     && definition
     && !definition.options

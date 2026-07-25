@@ -3,6 +3,7 @@ import type {
   CardDocument,
   FlowContainerBlock,
   ImageBlock,
+  MarkdownTextBlock,
   QRCodeBlock,
   ShapeBlock,
   SimpleContainerBlock,
@@ -15,6 +16,7 @@ import type {
   RenderReadyCardBlock,
   RenderReadyFlowContainerBlock,
   RenderReadyImageBlock,
+  RenderReadyMarkdownTextBlock,
   RenderReadyQRCodeBlock,
   RenderReadyShapeBlock,
   RenderReadySimpleContainerBlock,
@@ -32,6 +34,7 @@ export const rendererTestGlobal = {
 }
 
 export function parseRenderReadyBlockForTest(block: TextBlock): RenderReadyTextBlock
+export function parseRenderReadyBlockForTest(block: MarkdownTextBlock): RenderReadyMarkdownTextBlock
 export function parseRenderReadyBlockForTest(block: ImageBlock): RenderReadyImageBlock
 export function parseRenderReadyBlockForTest(block: QRCodeBlock): RenderReadyQRCodeBlock
 export function parseRenderReadyBlockForTest(block: ShapeBlock): RenderReadyShapeBlock

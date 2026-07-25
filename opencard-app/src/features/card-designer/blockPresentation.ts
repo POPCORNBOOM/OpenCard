@@ -5,6 +5,8 @@ export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
   switch (type) {
     case 'text-block':
       return 'entity.block-text'
+    case 'markdown-text-block':
+      return 'entity.block-markdown'
     case 'image-block':
       return 'entity.block-image'
     case 'qrcode-block':

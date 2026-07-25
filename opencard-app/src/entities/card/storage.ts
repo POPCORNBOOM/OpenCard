@@ -13,6 +13,7 @@ type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 const blockTypes = new Set<CardBlock['type']>([
   'text-block',
+  'markdown-text-block',
   'image-block',
   'qrcode-block',
   'shape-block',

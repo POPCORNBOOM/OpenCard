@@ -46,6 +46,7 @@ export type PropertyFieldConstraintMap = {
     maxLength?: number
     options?: readonly string[]
     multiline?: boolean
+    richText?: boolean
   }
   filePath: {
     minLength?: number

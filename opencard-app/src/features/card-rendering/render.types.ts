@@ -31,10 +31,8 @@ export type RenderReadyBaseBlock = {
   customCss: string
 }
 
-export type RenderReadyTextBlock = RenderReadyBaseBlock & {
-  type: 'text-block'
+type RenderReadyTextContentBlock = RenderReadyBaseBlock & {
   content: string
-  mode: 'plain' | 'markdown' | 'richtext'
   fontSize: string
   fontFamily: string
   fontWeight: string
@@ -43,6 +41,14 @@ export type RenderReadyTextBlock = RenderReadyBaseBlock & {
   verticalAlign: VerticalAlignmentPosition
   lineHeight: string
   writingMode: TextWritingMode
+}
+
+export type RenderReadyTextBlock = RenderReadyTextContentBlock & {
+  type: 'text-block'
+}
+
+export type RenderReadyMarkdownTextBlock = RenderReadyTextContentBlock & {
+  type: 'markdown-text-block'
 }
 
 export type RenderReadyImageBlock = RenderReadyBaseBlock & {
@@ -112,6 +118,7 @@ export type RenderReadyFlowContainerBlock = RenderReadyBaseBlock & {
 
 export type RenderReadyCardBlock =
   | RenderReadyTextBlock
+  | RenderReadyMarkdownTextBlock
   | RenderReadyImageBlock
   | RenderReadyQRCodeBlock
   | RenderReadyShapeBlock

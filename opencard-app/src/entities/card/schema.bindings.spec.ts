@@ -85,6 +85,7 @@ describe('property binding schema policy', () => {
   it('defines notes and visibility for every block type', () => {
     const blockTypes = [
       'text-block',
+      'markdown-text-block',
       'image-block',
       'qrcode-block',
       'shape-block',
@@ -97,5 +98,18 @@ describe('property binding schema policy', () => {
       expect(schema.notes).toMatchObject({ fieldType: 'string', multiline: true, defaultValue: '' })
       expect(schema.visible).toMatchObject({ fieldType: 'boolean', defaultValue: 'true' })
     }
+  })
+
+  it('marks text content with explicit rich-text editing capability', () => {
+    expect(getTypePropertyEditorSchema('text-block').content).toMatchObject({
+      fieldType: 'string',
+      multiline: true,
+      richText: true,
+    })
+    expect(getTypePropertyEditorSchema('markdown-text-block').content).toMatchObject({
+      fieldType: 'string',
+      multiline: true,
+    })
+    expect(getTypePropertyEditorSchema('markdown-text-block').content?.richText).toBeUndefined()
   })
 })

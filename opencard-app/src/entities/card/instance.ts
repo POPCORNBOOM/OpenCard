@@ -23,6 +23,7 @@ function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): Car
 
     switch (block.type) {
         case 'text-block':
+        case 'markdown-text-block':
             return {
                 ...block,
                 ...projected,

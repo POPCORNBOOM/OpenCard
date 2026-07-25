@@ -105,6 +105,7 @@ export const iconTokens = {
 
   'entity.account': true,
   'entity.block-image': true,
+  'entity.block-markdown': true,
   'entity.block-qrcode': true,
   'entity.block-shape': true,
   'entity.block-simple-container': true,

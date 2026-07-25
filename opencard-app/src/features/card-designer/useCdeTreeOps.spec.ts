@@ -83,5 +83,9 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(document.faces.back.children).toHaveLength(2)
     expect(document.faces.front.children).toHaveLength(1)
     expect(markDocumentChanged).toHaveBeenCalledWith('action')
+
+    state.handleRootAction('add-markdown-text-block')
+    expect(document.faces.back.children).toHaveLength(3)
+    expect(document.faces.back.children[2]?.block.type).toBe('markdown-text-block')
   })
 })

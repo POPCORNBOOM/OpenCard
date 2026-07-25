@@ -145,6 +145,9 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       case 'add-text-block':
         if (targetContainer) createBlockAt(targetContainer, 'text-block')
         return
+      case 'add-markdown-text-block':
+        if (targetContainer) createBlockAt(targetContainer, 'markdown-text-block')
+        return
       case 'add-image-block':
         if (targetContainer) createBlockAt(targetContainer, 'image-block')
         return
@@ -285,6 +288,9 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     switch (type) {
       case 'text-block':
         block = createBlock('text-block')
+        break
+      case 'markdown-text-block':
+        block = createBlock('markdown-text-block')
         break
       case 'image-block':
         block = createBlock('image-block')

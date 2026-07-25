@@ -31,6 +31,7 @@ export type PropertyConstraintMap = {
         options?: readonly string[]
         autocomplete?: readonly string[]
         multiline?: boolean
+        richText?: boolean
     }
     filePath: {
         minLength?: number
@@ -191,7 +192,6 @@ export const propertyEditorCategoryDefinitions: Record<PropertyEditorCategoryId,
     uncategorized: { icon: 'data.list-tree' },
 }
 
-const textModeOptions = ['plain', 'markdown', 'richtext'] as const
 const textWritingModeOptions = ['horizontal-tb', 'vertical-rl', 'vertical-lr'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
 const qrErrorCorrectionOptions = ['L', 'M', 'Q', 'H'] as const
@@ -230,11 +230,15 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
     }
 }
 
-const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
-    'text-block': {
+function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<string, EditorPropertyDefinition> {
+    return {
         ...createBaseBlockPropertyEditorSchema(),
-        content: { fieldType: 'string', multiline: true, categoryId: 'content' },
-        mode: { fieldType: 'string', options: textModeOptions, categoryId: 'content' },
+        content: {
+            fieldType: 'string',
+            multiline: true,
+            ...(richText ? { richText: true } : {}),
+            categoryId: 'content',
+        },
         fontSize: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         fontFamily: { fieldType: 'string', categoryId: 'typography' },
         fontWeight: { fieldType: 'string', categoryId: 'typography' },
@@ -243,7 +247,12 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         verticalAlign: { fieldType: 'verticalAlignPosition', categoryId: 'typography' },
         lineHeight: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         writingMode: { fieldType: 'string', options: textWritingModeOptions, categoryId: 'typography' },
-    },
+    }
+}
+
+const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
+    'text-block': createTextContentBlockPropertyEditorSchema(true),
+    'markdown-text-block': createTextContentBlockPropertyEditorSchema(false),
     'image-block': {
         ...createBaseBlockPropertyEditorSchema(),
         image: {
@@ -334,13 +343,13 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
 }
 
-const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
-    'text-block': {
+function createTextContentBlockDefaultValues(type: 'text-block' | 'markdown-text-block'): Record<string, unknown> {
+    return {
         id: '',
         name: '',
         notes: '',
         visible: 'true',
-        type: 'text-block',
+        type,
         width: '32%',
         height: '18%',
         translateX: '0px',
@@ -358,7 +367,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         background: '',
         customCss: '',
         content: '',
-        mode: 'plain',
         fontSize: '',
         fontFamily: '',
         fontWeight: 'normal',
@@ -367,7 +375,12 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         verticalAlign: 'top',
         lineHeight: '',
         writingMode: 'horizontal-tb',
-    },
+    }
+}
+
+const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
+    'text-block': createTextContentBlockDefaultValues('text-block'),
+    'markdown-text-block': createTextContentBlockDefaultValues('markdown-text-block'),
     'image-block': {
         id: '',
         name: '',

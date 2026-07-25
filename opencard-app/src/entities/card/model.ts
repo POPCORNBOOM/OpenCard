@@ -67,10 +67,8 @@ export type AlignmentPosition = 'start' | 'center' | 'end' | 'justify'
 export type VerticalAlignmentPosition = 'top' | 'center' | 'bottom'
 export type TextWritingMode = 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
 
-export type TextBlock = BaseBlock & {
-    type: "text-block"
+type TextContentBlock = BaseBlock & {
     content: string
-    mode: 'plain' | 'markdown' | 'richtext'
     fontSize?: CSSValue
     fontFamily?: string
     fontWeight?: string
@@ -79,6 +77,14 @@ export type TextBlock = BaseBlock & {
     verticalAlign?: VerticalAlignmentPosition
     lineHeight?: CSSValue
     writingMode?: TextWritingMode
+}
+
+export type TextBlock = TextContentBlock & {
+    type: "text-block"
+}
+
+export type MarkdownTextBlock = TextContentBlock & {
+    type: "markdown-text-block"
 }
 
 export type ImageBlock = BaseBlock & {
@@ -144,7 +150,7 @@ export type FlowContainerBlock = BaseBlock & {
     }[]
 }
 
-export type CardBlock = TextBlock | ImageBlock | QRCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock
+export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QRCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock
 
 export type RootChild = {
     block: CardBlock
@@ -335,6 +341,7 @@ export function deleteBlockAdditionalField(
 // Internal helper types for block factory functions.
 type BlockInit = Pick<BaseBlock, 'id'> & Partial<Omit<BaseBlock, 'id'>>
 type TextBlockInit = Partial<Omit<TextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
+type MarkdownTextBlockInit = Partial<Omit<MarkdownTextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type ImageBlockInit = Partial<Omit<ImageBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type QRCodeBlockInit = Partial<Omit<QRCodeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type ShapeBlockInit = Partial<Omit<ShapeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
@@ -389,6 +396,8 @@ function getDefaultBlockName(type: CardBlock['type']): string {
     switch (type) {
         case 'text-block':
             return 'Text Block'
+        case 'markdown-text-block':
+            return 'Markdown Text Block'
         case 'image-block':
             return 'Image Block'
         case 'qrcode-block':
@@ -411,7 +420,6 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
         }),
         type: 'text-block',
         content: init.content ?? '',
-        mode: init.mode ?? 'plain',
     }
 
     setIfDefined(block, 'fontSize', init.fontSize)
@@ -424,6 +432,29 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
     setIfDefined(block, 'writingMode', init.writingMode)
 
     return block as TextBlock
+}
+
+export function createMarkdownTextBlock(init: MarkdownTextBlockInit = {}): MarkdownTextBlock {
+    const block: Record<string, unknown> = {
+        ...createBaseBlock({
+            id: init.id ?? createBlockId('markdown-text-block'),
+            name: init.name ?? getDefaultBlockName('markdown-text-block'),
+            ...init,
+        }),
+        type: 'markdown-text-block',
+        content: init.content ?? '',
+    }
+
+    setIfDefined(block, 'fontSize', init.fontSize)
+    setIfDefined(block, 'fontFamily', init.fontFamily)
+    setIfDefined(block, 'fontWeight', init.fontWeight)
+    setIfDefined(block, 'color', init.color)
+    setIfDefined(block, 'textAlign', init.textAlign)
+    setIfDefined(block, 'verticalAlign', init.verticalAlign)
+    setIfDefined(block, 'lineHeight', init.lineHeight)
+    setIfDefined(block, 'writingMode', init.writingMode)
+
+    return block as MarkdownTextBlock
 }
 
 export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
@@ -509,6 +540,7 @@ export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): Flo
 }
 
 export function createBlock(type: 'text-block', init?: TextBlockInit): TextBlock
+export function createBlock(type: 'markdown-text-block', init?: MarkdownTextBlockInit): MarkdownTextBlock
 export function createBlock(type: 'image-block', init?: ImageBlockInit): ImageBlock
 export function createBlock(type: 'qrcode-block', init?: QRCodeBlockInit): QRCodeBlock
 export function createBlock(type: 'shape-block', init?: ShapeBlockInit): ShapeBlock
@@ -518,6 +550,8 @@ export function createBlock(type: CardBlock['type'], init: unknown = {}): CardBl
     switch (type) {
         case 'text-block':
             return createTextBlock(init as TextBlockInit)
+        case 'markdown-text-block':
+            return createMarkdownTextBlock(init as MarkdownTextBlockInit)
         case 'image-block':
             return createImageBlock(init as ImageBlockInit)
         case 'qrcode-block':

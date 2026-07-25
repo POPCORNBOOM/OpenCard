@@ -21,6 +21,16 @@ describe('QR code and shape blocks', () => {
   })
 
   it('creates sparse blocks with their semantic defaults', () => {
+    expect(createBlock('text-block', { id: 'rich-text' })).toMatchObject({
+      id: 'rich-text',
+      type: 'text-block',
+      content: '',
+    })
+    expect(createBlock('markdown-text-block', { id: 'markdown' })).toMatchObject({
+      id: 'markdown',
+      type: 'markdown-text-block',
+      content: '',
+    })
     expect(createBlock('qrcode-block', { id: 'qr' })).toMatchObject({
       id: 'qr',
       type: 'qrcode-block',
