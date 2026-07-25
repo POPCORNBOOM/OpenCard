@@ -72,7 +72,7 @@
         <nav v-if="selectionQuickActions.length > 0 && !isTransformingSelection" class="selection-quick-actions"
           :aria-label="selectionActionLabels.label" @pointerdown.stop>
           <OcActionButton v-for="action in selectionQuickActions" :key="action.key" :action="action"
-            size="sm" variant="ghost" @select="handleSelectionQuickAction(action.key)" />
+            size="md" variant="ghost" @select="handleSelectionQuickAction(action.key)" />
         </nav>
         </Transition>
         <Transition name="selection-info-fade">
@@ -1456,8 +1456,8 @@ watch(
 }
 
 .selection-quick-actions :deep(.oc-button) {
-  width: var(--oc-size-sm);
-  height: var(--oc-size-sm);
+  width: var(--oc-size-md);
+  height: var(--oc-size-md);
 }
 
 .selection-block-info {

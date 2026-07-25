@@ -71,6 +71,23 @@ describe('card additional fields and bindings', () => {
     })
   })
 
+  it('resolves rich-text binding nodes as text without scanning HTML attributes', () => {
+    const block = createTextBlock({
+      id: 'text',
+      content: '<p title="{{self:label}}">Legacy {{self:label}} <strong><span data-oc-binding="self:label">{{self:other}}</span></strong></p>',
+    })
+    block.additionalFieldDefinition = { label: { fieldType: 'string' } }
+    ;(block as unknown as Record<string, unknown>).label = '<em>Power & value</em>'
+
+    const result = resolveReferences(createDocument(block))
+    const resolved = result.document.faces.front.children[0]!.block
+
+    expect(result.issues).toEqual([])
+    expect(resolved).toMatchObject({
+      content: '<p title="{{self:label}}">Legacy &lt;em&gt;Power &amp; value&lt;/em&gt; <strong><span data-oc-binding="self:label">&lt;em&gt;Power &amp; value&lt;/em&gt;</span></strong></p>',
+    })
+  })
+
   it('treats a reference without a colon as a current-block field', () => {
     const block = createTextBlock({ id: 'text', content: '{{label}}' })
     block.additionalFieldDefinition = { label: { fieldType: 'string' } }

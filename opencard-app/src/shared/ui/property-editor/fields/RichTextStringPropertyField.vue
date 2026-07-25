@@ -15,18 +15,28 @@
         <div class="rich-text-string-popover" role="dialog" aria-modal="true" aria-label="富文本编辑器"
           @keydown.esc.stop="cancelEditor">
           <header class="rich-text-string-popover__header">
-            <span>富文本</span>
+            <span>{{ definition.title }}</span>
           </header>
           <div class="rich-text-string-popover__editor">
-            <OcRichTextEditor ref="richTextEditor" :model-value="draftValue"
+            <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
               @update:model-value="draftValue = $event" />
+            <OcFieldInput v-else ref="sourceEditor" as="textarea" variant="plain" full-width mono
+              class="rich-text-string-popover__source" :value="sourceValue"
+              resize="none" autocomplete="off" spellcheck="false"
+              aria-label="HTML 源码"
+              @input="handleSourceInput" />
           </div>
           <footer class="rich-text-string-popover__footer">
-            <OcButton size="sm" icon-only icon="action.close" icon-tone="danger"
-              title="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
-            <OcButton size="sm" icon-only icon="action.check" icon-tone="success"
-              title="保存" aria-label="保存富文本编辑" @click="saveEditor" />
+            <OcOptionGroup :model-value="editorMode" :options="editorModeOptions"
+              size="md" icon-only appearance="sliding-outline" aria-label="编辑视图"
+              @update:model-value="setEditorMode" />
+            <span class="rich-text-string-popover__actions">
+              <OcButton size="md" icon-only icon="action.close" icon-tone="danger"
+                title="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
+              <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
+                title="保存" aria-label="保存富文本编辑" @click="saveEditor" />
+            </span>
           </footer>
         </div>
       </div>
@@ -37,8 +47,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
 import OcButton from '../../../../components/base/OcButton.vue'
+import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
+import OcOptionGroup, { type OcOption } from '../../../../components/standard/OcOptionGroup.vue'
+import { formatRichTextHtmlSource, normalizeRichTextHtml } from '../../../rich-text/richTextHtml'
 import OcRichTextEditor from '../../rich-text/OcRichTextEditor.vue'
-import { normalizeRichTextHtml } from '../../rich-text/sanitizeRichTextHtml'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
@@ -52,16 +64,41 @@ const emit = defineEmits<{
 
 const anchor = ref<HTMLElement | null>(null)
 const richTextEditor = ref<{ focus: () => void } | null>(null)
+const sourceEditor = ref<{ focus: () => void } | null>(null)
 const open = ref(false)
+const editorMode = ref<'rich' | 'source'>('rich')
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
 const draftValue = ref('')
+const sourceValue = ref('')
 const safeStringValue = computed(() => normalizeRichTextHtml(stringValue.value))
+const editorModeOptions: readonly OcOption[] = [
+  { value: 'rich', label: '富文本', icon: 'format.text-variant-outline' },
+  { value: 'source', label: 'HTML 源码', icon: 'format.xml' },
+]
 
 async function openEditor(): Promise<void> {
   draftValue.value = stringValue.value
+  sourceValue.value = ''
+  editorMode.value = 'rich'
   open.value = true
   await nextTick()
   richTextEditor.value?.focus()
+}
+
+async function setEditorMode(mode: string): Promise<void> {
+  if (mode !== 'rich' && mode !== 'source') return
+  if (mode === editorMode.value) return
+  if (mode === 'rich') draftValue.value = normalizeRichTextHtml(sourceValue.value)
+  else sourceValue.value = formatRichTextHtmlSource(draftValue.value)
+  editorMode.value = mode
+  await nextTick()
+  if (mode === 'rich') richTextEditor.value?.focus()
+  else sourceEditor.value?.focus()
+}
+
+function handleSourceInput(event: Event): void {
+  const target = event.target
+  if (target instanceof HTMLTextAreaElement) sourceValue.value = target.value
 }
 
 function finishEditing(): void {
@@ -74,8 +111,11 @@ function cancelEditor(): void {
 }
 
 function saveEditor(): void {
-  if (draftValue.value !== stringValue.value) {
-    emit('update:value', draftValue.value)
+  const normalizedValue = normalizeRichTextHtml(
+    editorMode.value === 'source' ? sourceValue.value : draftValue.value,
+  )
+  if (normalizedValue !== stringValue.value) {
+    emit('update:value', normalizedValue)
   }
   finishEditing()
 }
@@ -152,13 +192,12 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
 }
 
 .rich-text-string-popover {
-  width: min(520px, calc(100vw - 16px));
-  height: min(320px, calc(100vh - 16px));
+  width: min(720px, calc(100vw - 16px));
+  height: min(400px, calc(100vh - 16px));
   display: flex;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--oc-border-strong);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-surface);
   color: var(--oc-fg-default);
@@ -167,11 +206,11 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
 
 .rich-text-string-popover__header {
   display: flex;
-  min-height: var(--oc-size-md);
+  min-height: var(--oc-size-lg);
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  padding-inline-start: var(--oc-space-2);
+  padding-inline: var(--oc-space-4);
   border-bottom: 1px solid var(--oc-border-default);
   font-size: var(--oc-text-sm);
   font-weight: 600;
@@ -182,14 +221,33 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
   flex: 1 1 auto;
 }
 
+.rich-text-string-popover__source {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: var(--oc-space-4);
+  overflow: auto;
+  background: var(--oc-bg-input);
+  color: var(--oc-fg-default);
+  line-height: 1.55;
+}
+
 .rich-text-string-popover__footer {
   display: flex;
   min-height: var(--oc-size-md);
   flex: 0 0 auto;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--oc-space-1);
   padding: var(--oc-space-1) var(--oc-space-2);
   border-top: 1px solid var(--oc-border-default);
+  background: var(--oc-bg-raised);
+}
+
+.rich-text-string-popover__actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--oc-space-1);
 }
 </style>

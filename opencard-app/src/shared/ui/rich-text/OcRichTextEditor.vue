@@ -1,51 +1,74 @@
 <template>
   <div class="oc-rich-text-editor">
     <div v-if="editor" class="oc-rich-text-editor__toolbar" role="toolbar" aria-label="Text formatting">
-      <OcButton size="sm" icon-only icon="action.undo" title="撤销"
-        :disabled="!editor.can().chain().focus().undo().run()" @mousedown.prevent @click="editor.chain().focus().undo().run()" />
-      <OcButton size="sm" icon-only icon="action.redo" title="重做"
-        :disabled="!editor.can().chain().focus().redo().run()" @mousedown.prevent @click="editor.chain().focus().redo().run()" />
+      <div class="oc-rich-text-editor__tool-group" role="group" aria-label="历史">
+        <OcButton size="md" icon-only icon="action.undo" title="撤销"
+          :disabled="!editor.can().chain().focus().undo().run()" @mousedown.prevent @click="editor.chain().focus().undo().run()" />
+        <OcButton size="md" icon-only icon="action.redo" title="重做"
+          :disabled="!editor.can().chain().focus().redo().run()" @mousedown.prevent @click="editor.chain().focus().redo().run()" />
+      </div>
 
-      <select class="oc-rich-text-editor__font" title="字体" :value="activeFontFamily" @change="setFontFamily">
-        <option value="">默认字体</option>
-        <option v-for="font in fontFamilies" :key="font.value" :value="font.value">
-          {{ font.label }}
-        </option>
-      </select>
+      <div class="oc-rich-text-editor__tool-group" role="group" aria-label="字体">
+        <OcSelect class="oc-rich-text-editor__font" title="字体" aria-label="字体"
+          :model-value="activeFontFamily" :options="fontOptions" :z-index="2500"
+          @update:model-value="setFontFamily" />
+        <OcButton size="md" icon-only icon="format.font-size-decrease" title="减小字号"
+          @mousedown.prevent @click="adjustFontSize(-1)" />
+        <OcButton size="md" icon-only icon="format.font-size-increase" title="增大字号"
+          @mousedown.prevent @click="adjustFontSize(1)" />
+        <OcButton size="md" icon-only icon="format.bold"
+          :active="editor.isActive('bold')" title="粗体" @mousedown.prevent
+          @click="editor.chain().focus().toggleBold().run()" />
+        <OcButton size="md" icon-only icon="format.italic"
+          :active="editor.isActive('italic')" title="斜体" @mousedown.prevent
+          @click="editor.chain().focus().toggleItalic().run()" />
+        <OcButton v-if="bindingCompletion" size="md" icon-only icon="format.code-braces"
+          title="插入 binding" @mousedown.prevent @click="insertBinding" />
+      </div>
 
-      <OcButton size="sm" :active="editor.isActive('bold')" title="粗体" @mousedown.prevent
-        @click="editor.chain().focus().toggleBold().run()"><strong>B</strong></OcButton>
-      <OcButton size="sm" :active="editor.isActive('italic')" title="斜体" @mousedown.prevent
-        @click="editor.chain().focus().toggleItalic().run()"><em>I</em></OcButton>
-      <OcButton v-if="bindingCompletion" size="sm" title="插入 binding" @mousedown.prevent
-        @click="insertBinding">&#123;&#123; &#125;&#125;</OcButton>
+      <div class="oc-rich-text-editor__tool-group" role="group" aria-label="颜色与描边">
+        <OcColorPicker label="前景色" :model-value="foregroundColor" :z-index="2500"
+          @open-change="captureColorSnapshot('foreground', $event)"
+          @preview="setForegroundColor" @cancel="restoreColorSnapshot('foreground')">
+          <template #trigger="{ color }">
+            <span class="oc-rich-text-editor__color-command">
+              <OcIcon name="format.color-fill" size="md" />
+              <span :style="{ backgroundColor: color }" />
+            </span>
+          </template>
+        </OcColorPicker>
+        <OcColorPicker label="文字背景色" :model-value="backgroundColor" :z-index="2500"
+          @open-change="captureColorSnapshot('background', $event)"
+          @preview="setBackgroundColor" @cancel="restoreColorSnapshot('background')">
+          <template #trigger="{ color }">
+            <span class="oc-rich-text-editor__color-command">
+              <OcIcon name="format.color-highlight" size="md" />
+              <span :style="{ backgroundColor: color }" />
+            </span>
+          </template>
+        </OcColorPicker>
+        <OcColorPicker label="描边颜色" :model-value="strokeColor" :z-index="2500"
+          @open-change="captureColorSnapshot('stroke', $event)"
+          @preview="setStrokeColor" @cancel="restoreColorSnapshot('stroke')">
+          <template #trigger="{ color }">
+            <span class="oc-rich-text-editor__color-command oc-rich-text-editor__color-command--stroke"
+              :style="{ WebkitTextStrokeColor: color }">A</span>
+          </template>
+        </OcColorPicker>
+        <OcSelect class="oc-rich-text-editor__stroke-width" title="描边宽度" aria-label="描边宽度"
+          :model-value="strokeWidth" :options="strokeWidthOptions" :z-index="2500"
+          @update:model-value="setStrokeWidth" />
+      </div>
 
-      <label class="oc-rich-text-editor__swatch" title="前景色">
-        <span class="oc-rich-text-editor__swatch-label">A</span>
-        <input type="color" :value="foregroundColor" @input="setForegroundColor">
-      </label>
-      <label class="oc-rich-text-editor__swatch" title="文字背景色">
-        <span class="oc-rich-text-editor__swatch-label oc-rich-text-editor__swatch-label--background">A</span>
-        <input type="color" :value="backgroundColor" @input="setBackgroundColor">
-      </label>
-      <label class="oc-rich-text-editor__swatch" title="描边颜色">
-        <span class="oc-rich-text-editor__swatch-label oc-rich-text-editor__swatch-label--stroke">A</span>
-        <input type="color" :value="strokeColor" @input="setStrokeColor">
-      </label>
-      <select class="oc-rich-text-editor__stroke-width" title="描边宽度" :value="strokeWidth" @change="setStrokeWidth">
-        <option value="0px">无描边</option>
-        <option value="0.5px">0.5 px</option>
-        <option value="1px">1 px</option>
-        <option value="1.5px">1.5 px</option>
-        <option value="2px">2 px</option>
-        <option value="3px">3 px</option>
-      </select>
-
-      <OcButton v-for="alignment in alignments" :key="alignment.value" size="sm" icon-only
-        :icon="alignment.icon" :title="alignment.title" :active="editor.isActive({ textAlign: alignment.value })"
-        @mousedown.prevent @click="editor.chain().focus().setTextAlign(alignment.value).run()" />
-      <OcButton size="sm" icon-only icon="action.discard" title="清除字符格式" @mousedown.prevent
-        @click="editor.chain().focus().unsetAllMarks().run()" />
+      <div class="oc-rich-text-editor__tool-group" role="group" aria-label="段落对齐">
+        <OcButton v-for="alignment in alignments" :key="alignment.value" size="md" icon-only
+          :icon="alignment.icon" :title="alignment.title" :active="editor.isActive({ textAlign: alignment.value })"
+          @mousedown.prevent @click="editor.chain().focus().setTextAlign(alignment.value).run()" />
+      </div>
+      <div class="oc-rich-text-editor__tool-group oc-rich-text-editor__tool-group--tail" role="group" aria-label="清除格式">
+        <OcButton size="md" icon-only icon="format.clear" title="清除字符格式" @mousedown.prevent
+          @click="editor.chain().focus().unsetAllMarks().run()" />
+      </div>
     </div>
 
     <EditorContent :editor="editor" class="oc-rich-text-editor__surface" />
@@ -54,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Extension } from '@tiptap/core'
+import { Extension, type JSONContent } from '@tiptap/core'
 import Color from '@tiptap/extension-color'
 import FontFamily from '@tiptap/extension-font-family'
 import Highlight from '@tiptap/extension-highlight'
@@ -63,10 +86,13 @@ import TextStyle from '@tiptap/extension-text-style'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcIcon from '../../../components/base/OcIcon.vue'
+import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
+import { normalizeRichTextHtml } from '../../rich-text/richTextHtml'
 import type { IconToken } from '../icon/iconRegistry'
 import { BindingNode } from './BindingNode'
 import type { RichTextBindingCompletionProvider } from './bindingNode.types'
-import { normalizeRichTextHtml } from './sanitizeRichTextHtml'
 
 const props = defineProps<{
   modelValue: string
@@ -78,13 +104,26 @@ const emit = defineEmits<{
 }>()
 
 const lastEmittedValue = ref<string | null>(null)
+type ColorCommand = 'foreground' | 'background' | 'stroke'
+type ColorSnapshot = {
+  content: JSONContent
+  selection: { from: number, to: number }
+}
+const colorSnapshots = new Map<ColorCommand, ColorSnapshot>()
 
-const TextStroke = Extension.create({
-  name: 'textStroke',
+const TextStyleAttributes = Extension.create({
+  name: 'textStyleAttributes',
   addGlobalAttributes() {
     return [{
       types: ['textStyle'],
       attributes: {
+        fontSize: {
+          default: null,
+          parseHTML: element => element.style.fontSize || null,
+          renderHTML: attributes => attributes.fontSize
+            ? { style: `font-size: ${attributes.fontSize}` }
+            : {},
+        },
         textStrokeColor: {
           default: null,
           parseHTML: element => element.style.webkitTextStrokeColor || null,
@@ -112,6 +151,20 @@ const fontFamilies = [
   { label: '微软雅黑', value: 'Microsoft YaHei' },
   { label: '宋体', value: 'SimSun' },
 ] as const
+const fontOptions = [
+  { label: '默认字体', value: '' },
+  ...fontFamilies,
+]
+const strokeWidthOptions = [
+  { label: '无描边', value: '0px' },
+  { label: '0.5 px', value: '0.5px' },
+  { label: '1 px', value: '1px' },
+  { label: '1.5 px', value: '1.5px' },
+  { label: '2 px', value: '2px' },
+  { label: '3 px', value: '3px' },
+] as const
+const fontSizeSteps = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96] as const
+const defaultFontSize = 16
 
 const alignments: ReadonlyArray<{
   value: 'left' | 'center' | 'right' | 'justify'
@@ -146,7 +199,7 @@ const editor = useEditor({
     FontFamily,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['paragraph'] }),
-    TextStroke,
+    TextStyleAttributes,
     BindingNode.configure({
       completion: request => props.bindingCompletion?.(request) ?? null,
     }),
@@ -177,39 +230,68 @@ watch(() => props.modelValue, (value) => {
   currentEditor.commands.setContent(normalizedValue, false)
 })
 
-function eventValue(event: Event): string {
-  return (event.target as HTMLInputElement | HTMLSelectElement).value
-}
-
-function setFontFamily(event: Event): void {
-  const value = eventValue(event)
+function setFontFamily(value: string): void {
   const chain = editor.value?.chain().focus()
   if (!chain) return
   if (value) chain.setFontFamily(value).run()
   else chain.unsetFontFamily().run()
 }
 
-function setForegroundColor(event: Event): void {
-  editor.value?.chain().focus().setColor(eventValue(event)).run()
+function adjustFontSize(direction: -1 | 1): void {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+  const currentValue = Number.parseFloat(currentEditor.getAttributes('textStyle').fontSize)
+  const currentSize = Number.isFinite(currentValue) ? currentValue : defaultFontSize
+  const nextSize = direction > 0
+    ? fontSizeSteps.find(size => size > currentSize) ?? fontSizeSteps[fontSizeSteps.length - 1]
+    : [...fontSizeSteps].reverse().find(size => size < currentSize) ?? fontSizeSteps[0]
+  currentEditor.chain().focus().setMark('textStyle', { fontSize: `${nextSize}px` }).run()
 }
 
-function setBackgroundColor(event: Event): void {
-  editor.value?.chain().focus().setHighlight({ color: eventValue(event) }).run()
+function setForegroundColor(value: string): void {
+  editor.value?.chain().focus().setColor(value).run()
 }
 
-function setStrokeColor(event: Event): void {
+function setBackgroundColor(value: string): void {
+  editor.value?.chain().focus().setHighlight({ color: value }).run()
+}
+
+function setStrokeColor(value: string): void {
   editor.value?.chain().focus().setMark('textStyle', {
-    textStrokeColor: eventValue(event),
+    textStrokeColor: value,
     textStrokeWidth: strokeWidth.value,
   }).run()
 }
 
-function setStrokeWidth(event: Event): void {
-  const value = eventValue(event)
+function setStrokeWidth(value: string): void {
   editor.value?.chain().focus().setMark('textStyle', {
     textStrokeColor: value === '0px' ? null : strokeColor.value,
     textStrokeWidth: value === '0px' ? null : value,
   }).run()
+}
+
+function captureColorSnapshot(command: ColorCommand, open: boolean): void {
+  const currentEditor = editor.value
+  if (!currentEditor) return
+  if (!open) {
+    colorSnapshots.delete(command)
+    return
+  }
+  colorSnapshots.set(command, {
+    content: currentEditor.getJSON(),
+    selection: {
+      from: currentEditor.state.selection.from,
+      to: currentEditor.state.selection.to,
+    },
+  })
+}
+
+function restoreColorSnapshot(command: ColorCommand): void {
+  const currentEditor = editor.value
+  const snapshot = colorSnapshots.get(command)
+  if (!currentEditor || !snapshot) return
+  currentEditor.commands.setContent(snapshot.content)
+  currentEditor.commands.setTextSelection(snapshot.selection)
 }
 
 function insertBinding(): void {
@@ -241,69 +323,61 @@ defineExpose({ editor, focus })
   min-height: var(--oc-size-md);
   flex: 0 0 auto;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
+  gap: 0;
+  padding: var(--oc-space-1);
   overflow-x: auto;
   border-bottom: 1px solid var(--oc-border-default);
+  background: var(--oc-bg-raised);
 }
 
-.oc-rich-text-editor__font,
-.oc-rich-text-editor__stroke-width {
-  height: var(--oc-size-sm);
+.oc-rich-text-editor__tool-group {
+  display: inline-flex;
   flex: 0 0 auto;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-input);
-  color: var(--oc-fg-default);
-  font-size: var(--oc-text-sm);
+  align-items: center;
+  gap: 2px;
+  padding-inline: var(--oc-space-2);
+  border-inline-start: 1px solid var(--oc-border-muted);
+}
+
+.oc-rich-text-editor__tool-group:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.oc-rich-text-editor__tool-group--tail {
+  margin-inline-start: auto;
 }
 
 .oc-rich-text-editor__font {
-  width: 108px;
+  width: 124px;
 }
 
 .oc-rich-text-editor__stroke-width {
-  width: 70px;
+  width: 84px;
 }
 
-.oc-rich-text-editor__swatch {
+.oc-rich-text-editor__color-command {
   position: relative;
   display: grid;
-  width: var(--oc-size-sm);
-  height: var(--oc-size-sm);
-  flex: 0 0 auto;
+  width: 16px;
+  height: 18px;
   place-items: center;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-sm);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.oc-rich-text-editor__swatch input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.oc-rich-text-editor__swatch-label {
   font-weight: 700;
   line-height: 1;
-  text-decoration: underline;
-  text-decoration-color: v-bind(foregroundColor);
-  text-decoration-thickness: 3px;
 }
 
-.oc-rich-text-editor__swatch-label--background {
-  padding: 1px 2px;
-  background: v-bind(backgroundColor);
-  text-decoration: none;
+.oc-rich-text-editor__color-command > span {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  left: 1px;
+  height: 3px;
+  border-radius: 1px;
 }
 
-.oc-rich-text-editor__swatch-label--stroke {
+.oc-rich-text-editor__color-command--stroke {
   color: var(--oc-bg-input);
-  text-decoration: none;
-  -webkit-text-stroke: 1px v-bind(strokeColor);
+  -webkit-text-stroke-width: 1px;
 }
 
 .oc-rich-text-editor__surface {
@@ -314,7 +388,7 @@ defineExpose({ editor, focus })
 
 .oc-rich-text-editor__surface :deep(.oc-rich-text-editor__content) {
   min-height: 100%;
-  padding: var(--oc-space-2);
+  padding: var(--oc-space-4);
   outline: none;
   color: var(--oc-fg-default);
   overflow-wrap: anywhere;

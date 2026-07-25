@@ -8,7 +8,7 @@
 import { computed } from 'vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyTextBlock } from '../render.types'
-import { normalizeRichTextHtml } from '../../../shared/ui/rich-text/sanitizeRichTextHtml'
+import { normalizeRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
 
 const props = withDefaults(defineProps<{

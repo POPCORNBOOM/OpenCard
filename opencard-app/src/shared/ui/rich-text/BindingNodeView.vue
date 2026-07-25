@@ -6,11 +6,14 @@
     data-drag-handle
     contenteditable="false"
   >
-    <span v-if="editing" class="binding-node__editor" @mousedown.stop>
+    <span v-if="editing" class="binding-node__editor binding-node__expression"
+      :style="expressionStyle" @mousedown.stop>
       <span class="binding-node__brace">{{ openBrace }}</span>
-      <input
+      <OcFieldInput
         ref="input"
-        v-model="draftExpression"
+        as="input"
+        variant="plain"
+        :value="draftExpression"
         class="binding-node__input"
         type="text"
         autocomplete="off"
@@ -20,15 +23,16 @@
         aria-autocomplete="list"
         :aria-expanded="menuOpen"
         :aria-controls="autocompleteId"
-        @input="refreshCompletion"
+        @input="handleInput"
         @keydown="handleKeydown"
         @blur="handleBlur"
-      >
+      />
       <span class="binding-node__brace">{{ closeBrace }}</span>
     </span>
     <span
       v-else
-      class="binding-node__label"
+      class="binding-node__label binding-node__expression"
+      :style="expressionStyle"
       role="button"
       tabindex="-1"
       title="点击选中 binding"
@@ -62,7 +66,7 @@
     <OcAutocompletePopover
       :id="autocompleteId"
       :open="menuOpen"
-      :anchor="input"
+      :anchor="inputElement"
       :items="suggestions"
       :active-key="activeKey"
       :z-index="2500"
@@ -75,7 +79,8 @@
 import type { NodeViewProps } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewWrapper } from '@tiptap/vue-3'
-import { computed, nextTick, onMounted, ref, useId } from 'vue'
+import { computed, nextTick, onMounted, ref, useId, type ComponentPublicInstance } from 'vue'
+import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
 import type { BindingNodeOptions } from './BindingNode'
@@ -88,9 +93,8 @@ const props = defineProps<NodeViewProps>()
 
 const openBrace = '{{'
 const closeBrace = '}}'
-const input = ref<HTMLInputElement | null>(null)
-const editing = ref(false)
-const draftExpression = ref('')
+const input = ref<ComponentPublicInstance | null>(null)
+const editSession = ref<{ original: string, draft: string } | null>(null)
 const completionState = ref<RichTextBindingCompletionResult | null>(null)
 const activeKey = ref<string | null>(null)
 const menuOpen = ref(false)
@@ -98,22 +102,37 @@ const autocompleteId = useId()
 let completionRequestId = 0
 
 const expression = computed(() => String(props.node.attrs.expression ?? '').trim())
+const editing = computed(() => editSession.value !== null)
+const draftExpression = computed({
+  get: () => editSession.value?.draft ?? '',
+  set: (draft: string) => {
+    const session = editSession.value
+    if (session) editSession.value = { ...session, draft }
+  },
+})
 const bindingLabel = computed(() => `{{${expression.value}}}`)
+const expressionStyle = computed(() => {
+  const highlight = props.node.marks.find(mark => mark.type.name === 'highlight')
+  const backgroundColor = typeof highlight?.attrs.color === 'string' ? highlight.attrs.color : null
+  return backgroundColor ? { backgroundColor } : undefined
+})
 const suggestions = computed(() => completionState.value?.items ?? [])
 const completionProvider = computed(() => (
   (props.extension.options as BindingNodeOptions).completion
 ))
+const inputElement = computed(() => input.value?.$el instanceof HTMLInputElement
+  ? input.value.$el
+  : null)
 
 onMounted(() => {
   if (!expression.value) void startEditing()
 })
 
 async function startEditing(): Promise<void> {
-  draftExpression.value = expression.value
-  editing.value = true
+  editSession.value = { original: expression.value, draft: expression.value }
   await nextTick()
-  input.value?.focus()
-  input.value?.setSelectionRange(draftExpression.value.length, draftExpression.value.length)
+  inputElement.value?.focus()
+  inputElement.value?.setSelectionRange(draftExpression.value.length, draftExpression.value.length)
   await refreshCompletion()
 }
 
@@ -134,7 +153,7 @@ async function refreshCompletion(): Promise<void> {
   }
 
   const wrappedValue = `{{${draftExpression.value}}}`
-  const cursor = (input.value?.selectionStart ?? draftExpression.value.length) + 2
+  const cursor = (inputElement.value?.selectionStart ?? draftExpression.value.length) + 2
   const requestId = ++completionRequestId
   const result = await provider({ value: wrappedValue, cursor })
   if (requestId !== completionRequestId) return
@@ -142,6 +161,13 @@ async function refreshCompletion(): Promise<void> {
   completionState.value = result
   menuOpen.value = Boolean(result?.items.length)
   activeKey.value = result?.items[0]?.key ?? null
+}
+
+function handleInput(event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement)) return
+  draftExpression.value = target.value
+  void refreshCompletion()
 }
 
 function acceptSuggestionByKey(key: string): void {
@@ -159,8 +185,8 @@ function acceptSuggestion(suggestion: RichTextBindingCompletionItem): void {
   const cursor = replaceStart + suggestion.insertText.length
 
   nextTick(() => {
-    input.value?.focus()
-    input.value?.setSelectionRange(cursor, cursor)
+    inputElement.value?.focus()
+    inputElement.value?.setSelectionRange(cursor, cursor)
   })
 
   if (suggestion.keepOpen) {
@@ -172,9 +198,11 @@ function acceptSuggestion(suggestion: RichTextBindingCompletionItem): void {
 }
 
 function commitExpression(): void {
-  const value = draftExpression.value.trim()
+  const session = editSession.value
+  if (!session) return
+  const value = session.draft.trim()
   closeMenu()
-  editing.value = false
+  editSession.value = null
   if (!value) {
     props.deleteNode()
     return
@@ -184,9 +212,11 @@ function commitExpression(): void {
 }
 
 function cancelEditing(): void {
+  const session = editSession.value
+  if (!session) return
   closeMenu()
-  editing.value = false
-  if (!expression.value) props.deleteNode()
+  editSession.value = null
+  if (!session.original) props.deleteNode()
   else props.editor.commands.focus()
 }
 
@@ -199,7 +229,7 @@ function closeMenu(): void {
 
 function handleBlur(): void {
   window.setTimeout(() => {
-    if (document.activeElement !== input.value) commitExpression()
+    if (editSession.value && document.activeElement !== inputElement.value) commitExpression()
   }, 0)
 }
 
@@ -225,6 +255,7 @@ function handleKeydown(event: KeyboardEvent): void {
     commitExpression()
   } else if (event.key === 'Escape') {
     event.preventDefault()
+    event.stopPropagation()
     cancelEditing()
   }
 }
@@ -256,6 +287,10 @@ function handleKeydown(event: KeyboardEvent): void {
   overflow: hidden;
   cursor: pointer;
   text-overflow: ellipsis;
+}
+
+.binding-node__expression {
+  border-radius: 2px;
 }
 
 .binding-node__editor {
