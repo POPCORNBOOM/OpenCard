@@ -58,14 +58,17 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
     function visit(block: CardBlock): void {
       const childKeys = isBlockContainer(block) ? block.children.map((child) => child.block.id) : []
+      const visibility = block.visible === 'false' ? 'hidden' : 'visible'
       items.set(block.id, {
         label: block.name?.trim() || block.id,
         icon: getBlockTreeIcon(block.type),
+        iconTone: visibility === 'hidden' ? 'muted' : undefined,
         renamable: true,
         draggable: true,
-        actions: isBlockContainer(block)
-          ? ['rename', 'add', 'duplicate', 'delete']
-          : ['rename', 'duplicate', 'delete'],
+        actions: [
+          visibility === 'hidden' ? 'show-block' : 'hide-block',
+          isBlockContainer(block) ? 'container-more' : 'block-more',
+        ],
       })
       if (childKeys.length > 0) children.set(block.id, childKeys)
       if (isBlockContainer(block)) {
@@ -165,7 +168,21 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       case 'delete-selected':
         if (target) deleteBlock(target)
         return
+      case 'hide-block':
+        if (target) setBlockVisibility(target, false)
+        return
+      case 'show-block':
+        if (target) setBlockVisibility(target, true)
+        return
     }
+  }
+
+  function setBlockVisibility(block: CardBlock, visible: boolean): void {
+    const nextValue = visible ? 'true' : 'false'
+    if (block.visible === nextValue) return
+    block.visible = nextValue
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
   }
 
   function renameBlock(key: string, name: string): void {

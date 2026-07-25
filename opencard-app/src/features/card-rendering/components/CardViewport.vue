@@ -7,9 +7,11 @@
         :clip-to-face="clipToFace"
         :resource-root-path="resourceRootPath"
         @block-click="handleBlockClick" />
-      <aside v-if="$slots.info" class="card-viewport-info" :style="viewportInfoStyle">
-        <slot name="info" />
-      </aside>
+      <Transition name="card-info-fade">
+        <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
+          <slot name="info" />
+        </aside>
+      </Transition>
       <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle"
         @pointerdown.stop.prevent="startFaceDimensionDrag('height', $event)">
         <span
@@ -209,6 +211,7 @@ const props = withDefaults(defineProps<{
   selectionActionLabels?: CardViewportSelectionActionLabels
   showPositionOnMove?: boolean
   showSizeOnResize?: boolean
+  showInfo?: boolean
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
@@ -231,6 +234,7 @@ const props = withDefaults(defineProps<{
   }),
   showPositionOnMove: true,
   showSizeOnResize: true,
+  showInfo: true,
   transform: undefined,
   transformDisabledBlockIds: () => [],
   clipToFace: false,
@@ -1242,6 +1246,20 @@ watch(
   width: 228px;
   transform-origin: top left;
   pointer-events: auto;
+}
+
+.card-info-fade-enter-active {
+  transition: opacity 140ms ease-out;
+}
+
+.card-info-fade-leave-active {
+  transition: opacity 100ms ease-in;
+  pointer-events: none;
+}
+
+.card-info-fade-enter-from,
+.card-info-fade-leave-to {
+  opacity: 0;
 }
 
 .card-viewport-left-info,

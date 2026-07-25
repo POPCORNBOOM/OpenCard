@@ -119,7 +119,7 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
   })
 
-  it('anchors supplemental information to the top-right of the face', () => {
+  it('anchors supplemental information to the top-right of the face', async () => {
     const wrapper = mount(CardViewport, {
       props: { face },
       slots: {
@@ -146,6 +146,11 @@ describe('CardViewport wheel zoom API', () => {
       .toContain(`height: ${face.height}px`)
     expect(wrapper.find('.card-viewport-bottom-info .card-viewport-dimension-line').attributes('style'))
       .toContain(`width: ${face.width}px`)
+
+    await wrapper.setProps({ showInfo: false })
+    expect(wrapper.find('.card-viewport-info').exists()).toBe(false)
+    expect(wrapper.find('.card-viewport-left-info').exists()).toBe(true)
+    expect(wrapper.find('.card-viewport-bottom-info').exists()).toBe(true)
   })
 
   it('emits anchor-preserving geometry actions from the selection toolbar', async () => {

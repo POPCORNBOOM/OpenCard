@@ -26,6 +26,7 @@
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
+          :show-info="!selectedBlock"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
           :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
@@ -763,6 +764,21 @@ function scheduleSidebarWidthSnap(side: 'left' | 'right', value: number): void {
 
 // 结构树操作定义
 const treeActions = new Map<string, OcTreeActionDefinition>([
+  ['instance-more', {
+    icon: 'nav.more',
+    title: '更多操作',
+    children: ['rename', 'duplicate-instance', 'delete-instance'],
+  }],
+  ['block-more', {
+    icon: 'nav.more',
+    title: '更多操作',
+    children: ['rename', 'duplicate', 'delete'],
+  }],
+  ['container-more', {
+    icon: 'nav.more',
+    title: '更多操作',
+    children: ['rename', 'add', 'duplicate', 'delete'],
+  }],
   ['add-root', {
     icon: 'action.add',
     title: '添加',
@@ -784,6 +800,8 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['duplicate', { icon: 'action.copy', title: '复制' }],
   ['delete', { icon: 'action.delete', title: '删除' }],
   ['rename', { icon: 'action.edit', title: '重命名' }],
+  ['hide-block', { icon: 'status.eye', title: '隐藏' }],
+  ['show-block', { icon: 'status.eye-off', title: '显示' }],
   ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
   ['delete-instance', { icon: 'action.delete', title: '删除实例' }],
 ])
@@ -1375,6 +1393,7 @@ const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineRes
 const viewFace = computed<RenderReadyCardFace | null>(() => (
   viewDoc.value?.faces[activeFaceKey.value] ?? null
 ))
+
 function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: string): RenderReadyCardBlock | null {
   for (const block of blocks) {
     if (block.id === blockId) return block
@@ -1398,6 +1417,7 @@ const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
     notes: renderedBlock?.notes.trim() || '',
   }
 })
+
 type ViewportCardInfoItem = {
   key: string
   value: string
