@@ -56,6 +56,10 @@ const darkTheme: OcThemeTokens = {
   '--oc-icon-warning': '#d29922',
   '--oc-icon-danger': '#f85149',
 
+  '--oc-icon-size-sm': '12px',
+  '--oc-icon-size-md': '16px',
+  '--oc-icon-size-lg': '20px',
+
   '--oc-icon-file-opencard': '#f59e0b',
   '--oc-icon-file-json': '#f5c542',
   '--oc-icon-file-markdown': '#8b949e',
@@ -166,6 +170,10 @@ const lightTheme: OcThemeTokens = {
   '--oc-icon-warning': '#b77e18',
   '--oc-icon-danger': '#cf4444',
 
+  '--oc-icon-size-sm': '12px',
+  '--oc-icon-size-md': '16px',
+  '--oc-icon-size-lg': '20px',
+
   '--oc-icon-file-opencard': '#f08c00',
   '--oc-icon-file-json': '#d89f00',
   '--oc-icon-file-markdown': '#7f879a',
@@ -197,14 +205,14 @@ const lightTheme: OcThemeTokens = {
   '--oc-space-8': '32px',
 
   '--oc-size-sm': '22px',
-  '--oc-size-md': '26px',
-  '--oc-size-lg': '34px',
+  '--oc-size-md': '28px',
+  '--oc-size-lg': '36px',
   '--oc-list-max-height-sm': '144px',
   '--oc-list-max-height-md': '240px',
   '--oc-list-max-height-lg': '320px',
   '--oc-content-width-md': '720px',
-  '--oc-property-row-height': '26px',
-  '--oc-property-row-expanded-height': '104px',
+  '--oc-property-row-height': '28px',
+  '--oc-property-row-expanded-height': '112px',
 
   '--oc-radius-sm': '3px',
   '--oc-radius-md': '6px',

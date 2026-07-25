@@ -34,7 +34,7 @@
             v-if="entry.icon"
             :name="entry.icon"
             :tone="entry.iconTone"
-            size="sm"
+            size="md"
             class="oc-action-menu__icon"
           />
           <span v-else class="oc-action-menu__icon-spacer" />
@@ -42,7 +42,7 @@
           <OcIcon
             v-if="hasActionChildren(entry)"
             name="nav.arrow-right"
-            size="sm"
+            size="md"
             class="oc-action-menu__caret"
           />
         </button>

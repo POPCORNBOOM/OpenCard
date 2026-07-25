@@ -58,8 +58,8 @@
           <OcIcon
             :name="entry.item.icon ?? 'tree.chevron-right'"
             :tone="entry.item.iconTone"
+            size="md"
             class="oc-tree__node-icon"
-            :class="{ 'is-expanded': isExpandable(entry.key) && isExpanded(entry.key) }"
           />
           <span
             v-if="isExpandable(entry.key)"
@@ -757,8 +757,8 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: var(--oc-icon-size-md);
+  height: var(--oc-icon-size-md);
 }
 
 .oc-tree__icon-slot.is-expandable {
@@ -766,12 +766,7 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__node-icon {
-  transition: transform var(--oc-duration-fast) var(--oc-ease);
-  transform-origin: center;
-}
-
-.oc-tree__node-icon.is-expanded {
-  transform: rotate(45deg);
+  flex: 0 0 auto;
 }
 
 .oc-tree__child-count {

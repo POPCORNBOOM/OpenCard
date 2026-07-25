@@ -104,20 +104,20 @@ const iconStyle = computed(() => ({
 }
 
 .oc-icon--sm {
-  font-size: 12px;
-  width: 12px;
-  height: 12px;
+  font-size: var(--oc-icon-size-sm);
+  width: var(--oc-icon-size-sm);
+  height: var(--oc-icon-size-sm);
 }
 
 .oc-icon--md {
-  font-size: 14px;
-  width: 14px;
-  height: 14px;
+  font-size: var(--oc-icon-size-md);
+  width: var(--oc-icon-size-md);
+  height: var(--oc-icon-size-md);
 }
 
 .oc-icon--lg {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+  font-size: var(--oc-icon-size-lg);
+  width: var(--oc-icon-size-lg);
+  height: var(--oc-icon-size-lg);
 }
 </style>

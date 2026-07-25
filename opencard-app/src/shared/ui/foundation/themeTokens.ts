@@ -69,6 +69,11 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-warning',
   '--oc-icon-danger',
 
+  // 图标尺寸
+  '--oc-icon-size-sm',
+  '--oc-icon-size-md',
+  '--oc-icon-size-lg',
+
   // 文件类型图标色
   '--oc-icon-file-opencard',
   '--oc-icon-file-json',

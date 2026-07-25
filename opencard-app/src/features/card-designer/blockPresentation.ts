@@ -16,6 +16,6 @@ export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
     case 'simple-container-block':
       return 'entity.block-simple-container'
     case 'flow-container-block':
-      return 'data.layers'
+      return 'entity.block-flow-container'
   }
 }
