@@ -459,6 +459,10 @@ describe('CardDesignEditor issue navigation', () => {
 
     const root = wrapper.get('.card-design-editor').element as HTMLElement
     const flushSidebarSnap = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const leftSidebar = wrapper.get('.card-design-editor__sidebar--left')
+    const rightSidebar = wrapper.get('.card-design-editor__sidebar--right')
+    expect(leftSidebar.classes()).not.toContain('is-width-clipped')
+    expect(rightSidebar.classes()).not.toContain('is-width-clipped')
     const leftResizebar = wrapper.get('[aria-label="调整左侧栏宽度"]')
     leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
       bubbles: true,
@@ -468,6 +472,8 @@ describe('CardDesignEditor issue navigation', () => {
     document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 100 }))
     expect(root.style.getPropertyValue('--card-editor-left-panel-width')).toBe('280px')
     expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('100px')
+    await nextTick()
+    expect(leftSidebar.classes()).toContain('is-width-clipped')
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 100 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('0px')
@@ -481,6 +487,8 @@ describe('CardDesignEditor issue navigation', () => {
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 300 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('280px')
+    await nextTick()
+    expect(leftSidebar.classes()).not.toContain('is-width-clipped')
 
     const rightResizebar = wrapper.get('[aria-label="调整右侧栏宽度"]')
     rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
@@ -493,6 +501,8 @@ describe('CardDesignEditor issue navigation', () => {
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('280px')
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
+    await nextTick()
+    expect(rightSidebar.classes()).toContain('is-width-clipped')
 
     rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
       bubbles: true,
@@ -503,6 +513,8 @@ describe('CardDesignEditor issue navigation', () => {
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
+    await nextTick()
+    expect(rightSidebar.classes()).not.toContain('is-width-clipped')
 
     rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
       bubbles: true,

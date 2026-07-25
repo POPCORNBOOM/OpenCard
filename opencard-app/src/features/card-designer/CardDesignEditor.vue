@@ -68,10 +68,13 @@
           <aside
             ref="leftSidebarRef"
             class="card-design-editor__sidebar card-design-editor__sidebar--left"
-            :class="{ 'is-collapsed': isLeftSidebarCollapsed }"
+            :class="{
+              'is-collapsed': isLeftSidebarCollapsed,
+              'is-width-clipped': leftPanelWidth < SIDE_PANEL_MIN_WIDTH,
+            }"
           >
             <div class="card-design-editor__sidebar-panel">
-              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="卡牌树" :actions="instanceCardActions"
+              <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
                 :collapsed="!isInstancePanelExpanded"
                 @action="handleInstanceCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto"
@@ -99,7 +102,7 @@
             </div>
 
             <div class="card-design-editor__sidebar-panel">
-              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="预览" :actions="previewCardActions"
+              <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
                 :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
                 <OcPanel align="stretch" fill radius="none" tone="transparent" border="none"
                   shadow="lg" padding="none">
@@ -169,10 +172,13 @@
           <aside
             ref="rightSidebarRef"
             class="card-design-editor__sidebar card-design-editor__sidebar--right"
-            :class="{ 'is-collapsed': isRightSidebarCollapsed }"
+            :class="{
+              'is-collapsed': isRightSidebarCollapsed,
+              'is-width-clipped': rightPanelWidth < SIDE_PANEL_MIN_WIDTH,
+            }"
           >
             <div class="card-design-editor__sidebar-panel">
-              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="结构树" :actions="structureTreeCardActions"
+              <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
                 :collapsed="!isStructureTreePanelExpanded"
                 @action="handleStructureTreeCardAction">
                 <OcPanel align="stretch" fill tone="transparent" border="none" padding="none"
@@ -202,7 +208,7 @@
             </div>
 
             <div class="card-design-editor__sidebar-panel">
-              <OcCard class="card-design-editor__sidebar-card" fill variant="glass" title="属性" :actions="propertyCardActions"
+              <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
                 :collapsed="!isPropertyPanelExpanded"
                 @action="handlePropertyCardAction">
                 <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
@@ -2195,12 +2201,15 @@ onUnmounted(() => {
   grid-template-rows: var(--card-editor-left-sidebar-rows);
   align-content: var(--card-editor-left-sidebar-align-content);
   align-self: var(--card-editor-left-sidebar-align-self);
+  transform: translateX(
+    calc(var(--card-editor-left-sidebar-visible-width, 320px) - var(--card-editor-left-panel-width, 320px))
+  );
+}
+
+.card-design-editor__sidebar--left.is-width-clipped {
   clip-path: inset(
     0 0 0
     calc(var(--card-editor-left-panel-width, 320px) - var(--card-editor-left-sidebar-visible-width, 320px))
-  );
-  transform: translateX(
-    calc(var(--card-editor-left-sidebar-visible-width, 320px) - var(--card-editor-left-panel-width, 320px))
   );
 }
 
@@ -2209,6 +2218,9 @@ onUnmounted(() => {
   grid-template-rows: var(--card-editor-right-sidebar-rows);
   align-content: var(--card-editor-right-sidebar-align-content);
   align-self: var(--card-editor-right-sidebar-align-self);
+}
+
+.card-design-editor__sidebar--right.is-width-clipped {
   clip-path: inset(
     0 calc(var(--card-editor-right-panel-width, 320px) - var(--card-editor-right-sidebar-visible-width, 320px)) 0 0
   );
@@ -2218,10 +2230,6 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   display: flex;
-}
-
-.card-design-editor__sidebar-card {
-  box-shadow: none;
 }
 
 .card-design-editor__center-spacer {
