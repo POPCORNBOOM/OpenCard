@@ -35,6 +35,8 @@ export type {
 export type BaseBlock = {
     id: string
     name?: string
+    notes?: string
+    visible?: string
     width?: CSSValue
     height?: CSSValue
     borderColor?: string
@@ -360,6 +362,8 @@ function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
     }
 
     setIfDefined(block, 'name', init.name)
+    setIfDefined(block, 'notes', init.notes)
+    setIfDefined(block, 'visible', init.visible)
     setIfDefined(block, 'width', init.width)
     setIfDefined(block, 'height', init.height)
     setIfDefined(block, 'borderColor', init.borderColor)

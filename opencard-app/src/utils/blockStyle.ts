@@ -63,6 +63,7 @@ export function getBlockBoxStyles(comp: RenderReadyBaseBlock, options: BlockStyl
 
     styles.push(`width: ${comp.width}`)
     styles.push(`height: ${comp.height}`)
+    if (!comp.visible) styles.push('visibility: hidden')
     if (comp.borderWidth > 0) {
         styles.push(`outline: ${comp.borderWidth}px ${comp.borderStyle} ${comp.borderColor}`)
     }

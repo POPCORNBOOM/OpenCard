@@ -24,6 +24,7 @@
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :selected-parent-flow-direction="selectedParentFlowDirection"
+          :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
@@ -279,9 +280,14 @@ import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
   type CardViewportSelectionAction,
   type CardViewportSelectionActionLabels,
+  type CardViewportSelectionInfo,
 } from '../card-rendering/components/CardViewport.vue'
 import { runRenderPipeline } from '../card-rendering/renderPipeline'
-import type { RenderReadyCardDocument, RenderReadyCardFace } from '../card-rendering/render.types'
+import type {
+  RenderReadyCardBlock,
+  RenderReadyCardDocument,
+  RenderReadyCardFace,
+} from '../card-rendering/render.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
@@ -1369,6 +1375,29 @@ const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineRes
 const viewFace = computed<RenderReadyCardFace | null>(() => (
   viewDoc.value?.faces[activeFaceKey.value] ?? null
 ))
+function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: string): RenderReadyCardBlock | null {
+  for (const block of blocks) {
+    if (block.id === blockId) return block
+    if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
+      const descendant = findRenderBlock(block.children.map((child) => child.block), blockId)
+      if (descendant) return descendant
+    }
+  }
+  return null
+}
+
+const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
+  const block = selectedBlock.value
+  const face = viewFace.value
+  if (!block || !face) return null
+
+  const renderedBlock = findRenderBlock(face.children.map((child) => child.block), block.id)
+  return {
+    icon: getBlockTreeIcon(block.type),
+    name: renderedBlock?.name.trim() || block.name?.trim() || block.id,
+    notes: renderedBlock?.notes.trim() || '',
+  }
+})
 type ViewportCardInfoItem = {
   key: string
   value: string

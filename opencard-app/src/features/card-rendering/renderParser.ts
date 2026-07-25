@@ -259,6 +259,8 @@ function parseBaseBlock(fields: FieldReader): RenderReadyBaseBlock {
   return {
     id: fields.string('id'),
     name: fields.string('name'),
+    notes: fields.string('notes'),
+    visible: fields.boolean('visible'),
     width: fields.cssLength('width'),
     height: fields.cssLength('height'),
     borderColor: fields.string('borderColor'),
@@ -398,6 +400,9 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
     },
     number(fieldKey: string): number {
       return value(fieldKey) as number
+    },
+    boolean(fieldKey: string): boolean {
+      return value(fieldKey) as boolean
     },
     array(fieldKey: string): unknown[] {
       return value(fieldKey) as unknown[]

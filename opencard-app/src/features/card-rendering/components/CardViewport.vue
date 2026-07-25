@@ -73,6 +73,15 @@
             size="sm" variant="ghost" @select="handleSelectionQuickAction(action.key)" />
         </nav>
         </Transition>
+        <Transition name="selection-info-fade">
+        <aside v-if="selectionInfo && !isTransformingSelection" class="selection-block-info" @pointerdown.stop>
+          <span class="selection-block-info__title">
+            <OcIcon :name="selectionInfo.icon" size="sm" />
+            <span>{{ selectionInfo.name }}</span>
+          </span>
+          <span v-if="selectionInfo.notes" class="selection-block-info__notes">{{ selectionInfo.notes }}</span>
+        </aside>
+        </Transition>
         <Transition name="selection-overlay-fade">
         <output v-if="resizeMetrics?.width" class="selection-size-label selection-size-label--width">
           {{ resizeMetrics.width }}
@@ -92,6 +101,8 @@
 </template>
 
 <script lang="ts">
+import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+
 export type CardViewportSelectionAction =
   | { type: 'fill-parent', key: string }
   | { type: 'fill-cross-axis', key: string }
@@ -115,11 +126,18 @@ export type CardViewportSelectionActionLabels = {
   fillCrossAxis: string
   centerCrossAxis: string
 }
+
+export type CardViewportSelectionInfo = {
+  icon: IconToken
+  name: string
+  notes: string
+}
 </script>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AnchorPosition, FlowDirection } from '../../../entities/card/model'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import type { RenderReadyCardFace } from '../render.types'
@@ -187,6 +205,7 @@ const props = withDefaults(defineProps<{
   selectedAnchor?: AnchorPosition | null
   selectedParentBlockId?: string | null
   selectedParentFlowDirection?: FlowDirection | null
+  selectionInfo?: CardViewportSelectionInfo | null
   selectionActionLabels?: CardViewportSelectionActionLabels
   showPositionOnMove?: boolean
   showSizeOnResize?: boolean
@@ -200,6 +219,7 @@ const props = withDefaults(defineProps<{
   selectedAnchor: null,
   selectedParentBlockId: null,
   selectedParentFlowDirection: null,
+  selectionInfo: null,
   selectionActionLabels: () => ({
     label: 'Selection layout actions',
     fillParent: 'Fill parent',
@@ -1420,6 +1440,68 @@ watch(
 .selection-quick-actions :deep(.oc-button) {
   width: var(--oc-size-sm);
   height: var(--oc-size-sm);
+}
+
+.selection-block-info {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 12px);
+  z-index: 2;
+  display: flex;
+  width: max-content;
+  max-width: min(240px, 35vw);
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--oc-fg-default);
+  cursor: default;
+  font-size: var(--oc-text-xs);
+  line-height: 1.45;
+  pointer-events: auto;
+  transform-origin: left top;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.selection-block-info:hover {
+  border-color: var(--oc-border-default);
+  background: color-mix(in srgb, var(--oc-bg-raised) 94%, transparent);
+}
+
+.selection-block-info__title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+
+.selection-block-info__title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-block-info__notes {
+  overflow-wrap: anywhere;
+  color: var(--oc-fg-muted);
+  white-space: pre-wrap;
+}
+
+.selection-info-fade-enter-active {
+  transition: opacity 140ms ease-out, transform 140ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.selection-info-fade-leave-active {
+  transition: opacity 100ms ease-in, transform 100ms ease-in;
+}
+
+.selection-info-fade-enter-from,
+.selection-info-fade-leave-to {
+  opacity: 0;
+  transform: scale(.94);
 }
 
 .selection-size-label {

@@ -62,6 +62,8 @@ const rootContainerBlock = computed<RenderReadySimpleContainerBlock>(() => {
         type: 'simple-container-block',
         id: props.face.id,
         name: props.face.faceKey,
+        notes: '',
+        visible: true,
         width: `${props.face.width}px`,
         height: `${props.face.height}px`,
         children: visibleChildren.value,

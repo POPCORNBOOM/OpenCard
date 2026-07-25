@@ -6,6 +6,8 @@ function createBlock(overrides: Partial<RenderReadyBaseBlock> = {}): RenderReady
     return {
         id: 'block-1',
         name: 'Block',
+        notes: '',
+        visible: true,
         width: '120px',
         height: '80px',
         borderColor: '#000000',
@@ -48,5 +50,13 @@ describe('getBlockBoxStyles', () => {
         }), { disableTransform: false })
 
         expect(styles).not.toContain('outline:')
+    })
+
+    it('keeps invisible blocks measurable while hiding their content', () => {
+        const styles = getBlockBoxStyles(createBlock({ visible: false }), { disableTransform: false })
+
+        expect(styles).toContain('visibility: hidden')
+        expect(styles).toContain('width: 120px')
+        expect(styles).toContain('height: 80px')
     })
 })

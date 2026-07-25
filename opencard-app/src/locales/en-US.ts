@@ -434,6 +434,7 @@ export default {
       name: 'Name',
       description: 'Description',
       notes: 'Notes',
+      visible: 'Visible',
       type: 'Type',
       width: 'Width',
       height: 'Height',

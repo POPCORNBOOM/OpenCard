@@ -207,6 +207,7 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
     return {
         id: { fieldType: 'string', isReadonly: true, minLength: 1, categoryId: 'identity', acceptsBinding: false },
         name: { fieldType: 'string', categoryId: 'identity' },
+        notes: { fieldType: 'string', multiline: true, categoryId: 'identity' },
         type: { fieldType: 'string', isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         additionalFieldDefinition: { fieldType: 'object', objectType: 'AdditionalFieldDefinition', isHidden: true, acceptsBinding: false, exposesReference: false },
         width: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
@@ -219,6 +220,7 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
         zIndex: { fieldType: 'number', categoryId: 'layout' },
         rotation: { fieldType: 'number', categoryId: 'transform' },
         opacity: { fieldType: 'number', min: 0, max: 1, categoryId: 'appearance' },
+        visible: { fieldType: 'boolean', categoryId: 'appearance' },
         borderColor: { fieldType: 'color', categoryId: 'appearance' },
         borderWidth: { fieldType: 'number', min: 0, categoryId: 'appearance' },
         borderStyle: { fieldType: 'string', options: blockBorderStyleOptions, categoryId: 'appearance' },
@@ -336,6 +338,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'text-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'text-block',
         width: '32%',
         height: '18%',
@@ -367,6 +371,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'image-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'image-block',
         width: '32%',
         height: '18%',
@@ -391,6 +397,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'qrcode-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'qrcode-block',
         width: '32%',
         height: '18%',
@@ -417,6 +425,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'shape-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'shape-block',
         width: '32%',
         height: '18%',
@@ -447,6 +457,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'simple-container-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'simple-container-block',
         width: '32%',
         height: '18%',
@@ -469,6 +481,8 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     'flow-container-block': {
         id: '',
         name: '',
+        notes: '',
+        visible: 'true',
         type: 'flow-container-block',
         width: '32%',
         height: '18%',

@@ -52,10 +52,25 @@ describe('renderParser', () => {
       type: 'text-block',
       id: 'text',
       name: 'Title',
+      notes: '',
+      visible: true,
       opacity: 0.5,
       verticalAlign: 'top',
     })
     expect(result.issues).toEqual([])
+  })
+
+  it('parses block notes and visibility without materializing the source', () => {
+    const document = createDocument()
+    const block = document.faces.front.children[0]!.block
+    block.notes = 'Shown beside the selection.'
+    block.visible = 'false'
+    const sourceSnapshot = structuredClone(document)
+
+    const parsed = parseRenderDocument(document).document.faces.front.children[0]!.block
+
+    expect(parsed).toMatchObject({ notes: 'Shown beside the selection.', visible: false })
+    expect(document).toEqual(sourceSnapshot)
   })
 
   it('uses schema defaults for invalid values without changing the source document', () => {

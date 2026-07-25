@@ -81,4 +81,21 @@ describe('property binding schema policy', () => {
     expect(createPropertyDefaultValue({ fieldType: 'number' })).toBe('0')
     expect(createPropertyDefaultValue({ fieldType: 'boolean' })).toBe('false')
   })
+
+  it('defines notes and visibility for every block type', () => {
+    const blockTypes = [
+      'text-block',
+      'image-block',
+      'qrcode-block',
+      'shape-block',
+      'simple-container-block',
+      'flow-container-block',
+    ]
+
+    for (const blockType of blockTypes) {
+      const schema = getTypePropertyEditorSchema(blockType)
+      expect(schema.notes).toMatchObject({ fieldType: 'string', multiline: true, defaultValue: '' })
+      expect(schema.visible).toMatchObject({ fieldType: 'boolean', defaultValue: 'true' })
+    }
+  })
 })

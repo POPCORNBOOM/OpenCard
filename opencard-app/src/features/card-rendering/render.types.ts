@@ -11,6 +11,8 @@ import type { CardPipelineIssue } from './cardPipelineIssue'
 export type RenderReadyBaseBlock = {
   id: string
   name: string
+  notes: string
+  visible: boolean
   width: string
   height: string
   borderColor: string

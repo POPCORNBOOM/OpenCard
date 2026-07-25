@@ -164,6 +164,11 @@ describe('CardViewport wheel zoom API', () => {
         selectedLocationType: 'simple-container-location',
         selectedAnchor: 'rb',
         selectedParentBlockId: 'parent',
+        selectionInfo: {
+          icon: 'entity.block-text',
+          name: 'Title',
+          notes: 'Primary heading',
+        },
       },
       global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
     })
@@ -185,6 +190,10 @@ describe('CardViewport wheel zoom API', () => {
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
     expect(actions.map((action) => action.props('action').key))
       .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+    expect(wrapper.get('.selection-block-info__title').text()).toContain('Title')
+    expect(wrapper.get('.selection-block-info__notes').text()).toBe('Primary heading')
+    await wrapper.get('.selection-block-info').trigger('pointerdown')
+    expect(wrapper.get('.selection-frame').classes()).not.toContain('is-moving')
 
     actions.find((action) => action.props('action').key === 'fill-parent')
       ?.vm.$emit('select', { key: 'fill-parent' })
@@ -205,12 +214,14 @@ describe('CardViewport wheel zoom API', () => {
     ])
 
     await wrapper.get('.selection-handle-t').trigger('pointerdown')
+    expect(wrapper.find('.selection-block-info').exists()).toBe(false)
     expect(wrapper.find('.selection-size-label--width').exists()).toBe(false)
     expect(wrapper.get('.selection-size-label--height').text()).toBe('80px')
     window.dispatchEvent(new Event('pointercancel'))
     await nextTick()
 
     await wrapper.get('.selection-frame').trigger('pointerdown')
+    expect(wrapper.find('.selection-block-info').exists()).toBe(false)
     expect(wrapper.get('.selection-frame').classes()).toContain('is-moving')
     expect(wrapper.get('.selection-anchor-guide-label--x').text()).toBe('x 250px')
     expect(wrapper.get('.selection-anchor-guide-label--y').text()).toBe('y 170px')
