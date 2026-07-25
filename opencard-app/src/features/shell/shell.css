@@ -347,6 +347,44 @@
   justify-content: center;
 }
 
+.titlebar-app-action {
+  position: relative;
+}
+
+.titlebar-progress-ring {
+  position: absolute;
+  inset: 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  overflow: visible;
+  pointer-events: none;
+  shape-rendering: geometricPrecision;
+  transform: rotate(-90deg);
+}
+
+.titlebar-progress-ring circle {
+  fill: none;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.titlebar-progress-ring__track {
+  stroke: var(--oc-border-default);
+}
+
+.titlebar-progress-ring__value {
+  stroke: var(--oc-fg-accent);
+  stroke-dasharray: 100;
+  stroke-dashoffset: var(--titlebar-progress-offset, 100);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 180ms linear;
+}
+
+.titlebar-app-action .oc-icon {
+  position: relative;
+  z-index: 1;
+}
+
 .workspace-action,
 .shell-sidebar-action {
   border: 0;
@@ -412,7 +450,8 @@
 
 .shell-sidebar-button:disabled,
 .shell-sidebar-action:disabled,
-.workspace-action:disabled {
+.workspace-action:disabled,
+.titlebar-icon:disabled {
   cursor: default;
   opacity: 0.45;
   pointer-events: none;
@@ -425,16 +464,6 @@
 
 .titlebar-icon-window-start {
   margin-left: var(--space-2);
-}
-
-.titlebar-icon.is-spinning .oc-icon {
-  animation: shell-icon-spin 800ms linear infinite;
-}
-
-@keyframes shell-icon-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .shell-main {

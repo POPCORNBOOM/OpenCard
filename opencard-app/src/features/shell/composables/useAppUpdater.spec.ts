@@ -36,19 +36,26 @@ describe('useAppUpdater', () => {
   })
 
   it('exposes an available update and installs it before relaunching', async () => {
+    let updater: ReturnType<typeof useAppUpdater>
     const update = {
       version: '0.2.1',
-      downloadAndInstall: vi.fn().mockResolvedValue(undefined),
+      downloadAndInstall: vi.fn(async (onEvent: (event: unknown) => void) => {
+        onEvent({ event: 'Started', data: { contentLength: 100 } })
+        onEvent({ event: 'Progress', data: { chunkLength: 40 } })
+        expect(updater.installProgress.value).toBe(0)
+        onEvent({ event: 'Finished' })
+      }),
       close: vi.fn().mockResolvedValue(undefined),
     }
     mocks.check.mockResolvedValue(update)
-    const updater = useAppUpdater()
+    updater = useAppUpdater()
 
     await updater.checkForUpdate()
     expect(updater.updateVersion.value).toBe('0.2.1')
 
     await updater.installAvailableUpdate()
     expect(update.downloadAndInstall).toHaveBeenCalledOnce()
+    expect(updater.installProgress.value).toBe(1)
     expect(mocks.relaunch).toHaveBeenCalledOnce()
   })
 })

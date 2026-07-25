@@ -3,13 +3,18 @@ import { onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'v
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcActionMenu from '../../../components/standard/OcActionMenu.vue';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
-import type { ShellTitleBarMenuGroup, ShellTitleBarWindowControl } from '../shell.types';
+import type {
+  ShellTitleBarAppAction,
+  ShellTitleBarMenuGroup,
+  ShellTitleBarWindowControl,
+} from '../shell.types';
 
 const props = defineProps<{
   collapsed: boolean;
   brandLabel: string;
   brandLogoSrc?: string;
   menuGroups: ShellTitleBarMenuGroup[];
+  appActions?: ShellTitleBarAppAction[];
   windowControls?: ShellTitleBarWindowControl[];
   collapseTooltip?: string;
   expandTooltip?: string;
@@ -20,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'toggle-sidebar': [];
   'menu-action': [menuKey: string, actionKey: string];
+  'app-action': [actionKey: string];
   'window-control': [actionKey: string];
 }>();
 
@@ -47,6 +53,12 @@ function runMenuCommand(menuKey: string, actionKey: string): void {
 
 function closeMenu(): void {
   openMenu.value = null;
+}
+
+function progressStyle(progress: number | null | undefined): Record<string, string> | undefined {
+  if (progress == null) return undefined
+  const normalized = Math.min(1, Math.max(0, progress))
+  return { '--titlebar-progress-offset': String(100 - normalized * 100) }
 }
 
 function onDocumentPointerDown(event: PointerEvent): void {
@@ -126,6 +138,35 @@ onBeforeUnmount(() => {
           />
         </OcFloatingLayer>
       </div>
+
+      <button
+        v-for="action in props.appActions ?? []"
+        :key="action.key"
+        class="titlebar-icon titlebar-app-action"
+        :class="{ 'has-progress': action.progress != null }"
+        :style="progressStyle(action.progress)"
+        type="button"
+        :disabled="action.disabled"
+        :data-tooltip="action.hoverTip || null"
+        @click="emit('app-action', action.key)"
+      >
+        <svg
+          v-if="action.progress != null"
+          class="titlebar-progress-ring"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle class="titlebar-progress-ring__track" cx="12" cy="12" r="10" />
+          <circle
+            class="titlebar-progress-ring__value"
+            cx="12"
+            cy="12"
+            r="10"
+            pathLength="100"
+          />
+        </svg>
+        <OcIcon :name="action.icon" size="sm" />
+      </button>
     </div>
 
     <div class="titlebar-drag" :data-tauri-drag-region="props.dragRegion ? '' : null">
@@ -145,7 +186,6 @@ onBeforeUnmount(() => {
           'titlebar-icon-window': control.group === 'window',
           'titlebar-icon-window-start': control.group === 'window'
             && props.windowControls?.[controlIndex - 1]?.group !== 'window',
-          'is-spinning': control.spinning,
         }"
         type="button"
         :data-tooltip="control.hoverTip || null"

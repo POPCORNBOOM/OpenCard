@@ -81,6 +81,30 @@ describe('ShellTitleBar', () => {
     expect(controls[2]!.classes()).not.toContain('titlebar-icon-window-start')
   })
 
+  it('renders menu-adjacent app actions with determinate progress', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [{ key: 'help', label: 'Help', actions: [] }],
+        appActions: [{
+          key: 'install-update',
+          icon: 'action.download',
+          progress: 0.42,
+          hoverTip: 'Downloading 42%',
+        }],
+      },
+    })
+
+    const action = wrapper.get('.titlebar-app-action')
+    expect(action.element.previousElementSibling?.classList).toContain('titlebar-menu')
+    expect(action.classes()).toContain('has-progress')
+    expect(action.attributes('style')).toContain('--titlebar-progress-offset: 58')
+    expect(action.get('.titlebar-progress-ring__value').attributes('pathLength')).toBe('100')
+    await action.trigger('click')
+    expect(wrapper.emitted('app-action')).toEqual([['install-update']])
+  })
+
   it('only exposes the native drag region when dragging is enabled', async () => {
     const wrapper = mount(ShellTitleBar, {
       props: {

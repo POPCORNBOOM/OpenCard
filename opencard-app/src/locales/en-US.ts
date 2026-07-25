@@ -94,6 +94,10 @@ export default {
       checking: 'Checking for updates...',
       available: 'Download OpenCard {version}',
       installing: 'Installing update...',
+      installingProgress: 'Downloading update... {progress}%',
+      previewAvailable: 'Preview update download button',
+      enableDeveloperMode: 'Enable Developer Mode',
+      disableDeveloperMode: 'Disable Developer Mode',
     },
     about: {
       title: 'About OpenCard',

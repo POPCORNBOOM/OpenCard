@@ -17,6 +17,7 @@
       brand-label="OPENCARD"
       brand-logo-src="/icon_v2.png"
       :menu-groups="titleBarMenus"
+      :app-actions="titleBarAppActions"
       :window-controls="windowControls"
       :native-macos-controls="usesNativeMacosWindowControls"
       :collapse-tooltip="t('app.shell.collapseSidebar')"
@@ -24,6 +25,7 @@
       :drag-region="!isWindowFullscreen"
       @toggle-sidebar="toggleSidebarCollapsed"
       @menu-action="handleTitleBarMenuAction"
+      @app-action="handleTitleBarAppAction"
       @window-control="handleWindowControl"
     />
 
@@ -259,6 +261,7 @@ import {
 import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
+import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import { getOcTheme } from '../../shared/ui/foundation'
@@ -321,6 +324,7 @@ import {
 import type {
   ShellButton,
   ShellList,
+  ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
   ShellTitleBarWindowControl,
 } from './shell.types'
@@ -436,6 +440,9 @@ const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isWindowFullscreen = ref(false)
 const isWindowMaximized = ref(false)
+const developerMode = ref(false)
+const developerUpdateProgress = ref<number | null>(null)
+let developerUpdateTimer: number | null = null
 let restoreMaximizedAfterFullscreen = false
 let isFullscreenTransitioning = false
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
@@ -475,6 +482,7 @@ const {
   updateVersion,
   isChecking: isCheckingForUpdate,
   isInstalling: isInstallingUpdate,
+  installProgress: updateInstallProgress,
   checkForUpdate,
   installAvailableUpdate,
   dispose: disposeAppUpdater,
@@ -879,16 +887,31 @@ const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData
   TEMPLATE_COVER_REMOVE_ACTION_KEY,
 ))
 
-const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
-  ...(availableUpdate.value ? [{
+const titleBarAppActions = computed<ShellTitleBarAppAction[]>(() => {
+  const isPreview = import.meta.env.DEV && developerMode.value && !availableUpdate.value
+  if (!availableUpdate.value && !isPreview) return []
+
+  const progress = availableUpdate.value
+    ? (isInstallingUpdate.value ? updateInstallProgress.value ?? 0 : null)
+    : developerUpdateProgress.value
+  const disabled = availableUpdate.value
+    ? isInstallingUpdate.value
+    : progress !== null && progress < 1
+
+  return [{
     key: 'install-update',
     icon: 'action.download',
-    spinning: isInstallingUpdate.value,
-    hoverTip: isInstallingUpdate.value
-      ? t('app.updater.installing')
-      : t('app.updater.available', { version: updateVersion.value }),
-    group: 'app',
-  } satisfies ShellTitleBarWindowControl] : []),
+    progress,
+    disabled,
+    hoverTip: progress !== null
+      ? t('app.updater.installingProgress', { progress: Math.round(progress * 100) })
+      : isPreview
+        ? t('app.updater.previewAvailable')
+        : t('app.updater.available', { version: updateVersion.value }),
+  }]
+})
+
+const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
   {
     key: 'toggle-fullscreen',
     icon: isWindowFullscreen.value ? 'window.fullscreen-exit' : 'window.fullscreen',
@@ -1084,6 +1107,18 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
   ]
 })
 
+const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
+  import.meta.env.DEV
+    ? [{
+        key: 'toggle-developer-mode',
+        title: developerMode.value
+          ? t('app.updater.disableDeveloperMode')
+          : t('app.updater.enableDeveloperMode'),
+        icon: developerMode.value ? 'action.check' : 'format.code-braces',
+      }]
+    : []
+))
+
 const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   {
     key: 'file',
@@ -1198,6 +1233,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         icon: 'action.refresh',
         disabled: isCheckingForUpdate.value || isInstallingUpdate.value,
       },
+      ...developerModeMenuActions.value,
       { type: 'divider', key: 'help-about-divider' },
       {
         key: 'about-opencard',
@@ -1813,6 +1849,12 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'toggle-developer-mode' && import.meta.env.DEV) {
+    developerMode.value = !developerMode.value
+    stopDeveloperUpdatePreview()
+    return
+  }
+
   if (actionKey === 'about-opencard') {
     shellPage.value = {
       type: 'about',
@@ -1917,6 +1959,34 @@ async function handleTitleBarMenuAction(_menuKey: string, actionKey: string) {
   await runShellCommand(actionKey)
 }
 
+function stopDeveloperUpdatePreview(): void {
+  if (developerUpdateTimer !== null) window.clearInterval(developerUpdateTimer)
+  developerUpdateTimer = null
+  developerUpdateProgress.value = null
+}
+
+function startDeveloperUpdatePreview(): void {
+  stopDeveloperUpdatePreview()
+  developerUpdateProgress.value = 0
+  developerUpdateTimer = window.setInterval(() => {
+    const nextProgress = Math.min(1, (developerUpdateProgress.value ?? 0) + 0.04)
+    developerUpdateProgress.value = nextProgress
+    if (nextProgress >= 1 && developerUpdateTimer !== null) {
+      window.clearInterval(developerUpdateTimer)
+      developerUpdateTimer = null
+    }
+  }, 140)
+}
+
+async function handleTitleBarAppAction(actionKey: string): Promise<void> {
+  if (actionKey !== 'install-update') return
+  if (availableUpdate.value) {
+    await installAvailableUpdate()
+    return
+  }
+  if (import.meta.env.DEV && developerMode.value) startDeveloperUpdatePreview()
+}
+
 async function handleWorkspaceFrameAction(actionKey: string) {
   await runShellCommand(actionKey)
 }
@@ -1973,11 +2043,6 @@ async function toggleWindowFullscreen(): Promise<void> {
 }
 
 async function handleWindowControl(actionKey: string) {
-  if (actionKey === 'install-update') {
-    await installAvailableUpdate()
-    return
-  }
-
   try {
     const appWindow = getCurrentWindow()
 
@@ -2182,6 +2247,7 @@ onUnmounted(() => {
   unlistenShellFileDrop = null
   isShellFileDropActive.value = false
   disposeAppUpdater()
+  stopDeveloperUpdatePreview()
 })
 </script>
 

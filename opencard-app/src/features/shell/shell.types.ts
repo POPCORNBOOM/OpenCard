@@ -31,11 +31,15 @@ export interface ShellTitleBarMenuGroup {
   actions: readonly OcActionMenuEntry[];
 }
 
-export interface ShellTitleBarWindowControl {
+export interface ShellTitleBarAppAction {
   key: string;
   icon: IconToken;
-  group?: 'app' | 'window';
   hoverTip?: string;
+  disabled?: boolean;
+  progress?: number | null;
+}
+
+export interface ShellTitleBarWindowControl extends ShellTitleBarAppAction {
+  group?: 'app' | 'window';
   danger?: boolean;
-  spinning?: boolean;
 }

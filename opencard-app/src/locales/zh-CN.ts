@@ -94,6 +94,10 @@ export default {
       checking: '正在检查更新…',
       available: '下载 OpenCard {version}',
       installing: '正在安装更新…',
+      installingProgress: '正在下载更新… {progress}%',
+      previewAvailable: '预览更新下载按钮',
+      enableDeveloperMode: '开启开发者模式',
+      disableDeveloperMode: '关闭开发者模式',
     },
     about: {
       title: '关于 OpenCard',
