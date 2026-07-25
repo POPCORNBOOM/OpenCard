@@ -72,7 +72,6 @@
             class="card-design-editor__sidebar card-design-editor__sidebar--left"
             :class="{
               'is-collapsed': isLeftSidebarCollapsed,
-              'is-width-clipped': leftPanelWidth < SIDE_PANEL_MIN_WIDTH,
             }"
           >
             <div class="card-design-editor__sidebar-panel">
@@ -176,7 +175,6 @@
             class="card-design-editor__sidebar card-design-editor__sidebar--right"
             :class="{
               'is-collapsed': isRightSidebarCollapsed,
-              'is-width-clipped': rightPanelWidth < SIDE_PANEL_MIN_WIDTH,
             }"
           >
             <div class="card-design-editor__sidebar-panel">
@@ -372,8 +370,9 @@ type ResizeState =
 
 const SIDE_PANEL_MIN_WIDTH = 280
 const SIDE_PANEL_MAX_WIDTH = 420
-const SIDE_PANEL_COLLAPSE_THRESHOLD = SIDE_PANEL_MIN_WIDTH * 0.5
 const SIDE_PANEL_COLLAPSED_WIDTH = 0
+const SIDE_PANEL_EDGE_INSET = 16
+const SIDE_PANEL_TOGGLE_DRAG_RATIO = 0.3
 const SIDEBAR_TOP_MIN_HEIGHT = 160
 const SIDEBAR_BOTTOM_MIN_HEIGHT = 220
 const RESIZEBAR_SIZE = 8
@@ -462,6 +461,8 @@ function toggleActiveFace(): void {
 
 const currentLeftPanelWidth = computed(() => Math.max(SIDE_PANEL_MIN_WIDTH, leftPanelWidth.value))
 const currentRightPanelWidth = computed(() => Math.max(SIDE_PANEL_MIN_WIDTH, rightPanelWidth.value))
+const leftSidebarEdgeInset = computed(() => resolveSidebarEdgeInset(leftPanelWidth.value))
+const rightSidebarEdgeInset = computed(() => resolveSidebarEdgeInset(rightPanelWidth.value))
 const isSidebarWidthResizing = computed(() => (
   activeResizeTarget.value === 'left-width' || activeResizeTarget.value === 'right-width'
 ))
@@ -500,6 +501,8 @@ const editorShellStyle = computed<CSSProperties>(() => ({
   '--card-editor-right-panel-width': `${currentRightPanelWidth.value}px`,
   '--card-editor-left-sidebar-visible-width': `${leftPanelWidth.value}px`,
   '--card-editor-right-sidebar-visible-width': `${rightPanelWidth.value}px`,
+  '--card-editor-left-sidebar-edge-inset': leftSidebarEdgeInset.value,
+  '--card-editor-right-sidebar-edge-inset': rightSidebarEdgeInset.value,
   '--card-editor-left-sidebar-rows': leftSidebarRows.value,
   '--card-editor-right-sidebar-rows': rightSidebarRows.value,
   '--card-editor-left-sidebar-align-content': leftSidebarAlignContent.value,
@@ -585,6 +588,8 @@ function writeResizeStyles(): void {
   root.style.setProperty('--card-editor-right-panel-width', `${currentRightPanelWidth.value}px`)
   root.style.setProperty('--card-editor-left-sidebar-visible-width', `${leftPanelWidth.value}px`)
   root.style.setProperty('--card-editor-right-sidebar-visible-width', `${rightPanelWidth.value}px`)
+  root.style.setProperty('--card-editor-left-sidebar-edge-inset', leftSidebarEdgeInset.value)
+  root.style.setProperty('--card-editor-right-sidebar-edge-inset', rightSidebarEdgeInset.value)
   root.style.setProperty('--card-editor-left-sidebar-rows', leftSidebarRows.value)
   root.style.setProperty('--card-editor-right-sidebar-rows', rightSidebarRows.value)
   root.style.setProperty('--card-editor-left-sidebar-align-content', leftSidebarAlignContent.value)
@@ -715,14 +720,14 @@ function handleResizeEnd(): void {
     ? {
         side: 'left' as const,
         value: state.moved
-          ? snapSidebarVisibleWidth(leftPanelWidth.value)
+          ? snapSidebarVisibleWidth(leftPanelWidth.value, state.startWidth)
           : resolveSidebarMinimumToggle(state.startWidth),
       }
     : state?.target === 'right-width'
       ? {
           side: 'right' as const,
           value: state.moved
-            ? snapSidebarVisibleWidth(rightPanelWidth.value)
+            ? snapSidebarVisibleWidth(rightPanelWidth.value, state.startWidth)
             : resolveSidebarMinimumToggle(state.startWidth),
         }
       : null
@@ -735,8 +740,16 @@ function handleResizeEnd(): void {
   if (widthSnap) scheduleSidebarWidthSnap(widthSnap.side, widthSnap.value)
 }
 
-function snapSidebarVisibleWidth(value: number): number {
-  if (value < SIDE_PANEL_COLLAPSE_THRESHOLD) return SIDE_PANEL_COLLAPSED_WIDTH
+function snapSidebarVisibleWidth(value: number, startWidth: number): number {
+  if (startWidth <= SIDE_PANEL_COLLAPSED_WIDTH) {
+    return value > SIDE_PANEL_MIN_WIDTH * SIDE_PANEL_TOGGLE_DRAG_RATIO
+      ? clamp(value, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH)
+      : SIDE_PANEL_COLLAPSED_WIDTH
+  }
+
+  if (value < startWidth * (1 - SIDE_PANEL_TOGGLE_DRAG_RATIO)) {
+    return SIDE_PANEL_COLLAPSED_WIDTH
+  }
   return clamp(value, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH)
 }
 
@@ -1164,6 +1177,11 @@ function createDictionaryReferenceScope(dictionary: Readonly<Record<string, stri
     label: t('propertyEditor.references.dictionary'),
     fields: Object.keys(dictionary).map(key => ({ key, valueKind: 'string' as const })),
   }
+}
+
+function resolveSidebarEdgeInset(visibleWidth: number): string {
+  const progress = Math.min(1, Math.max(0, visibleWidth) / SIDE_PANEL_MIN_WIDTH)
+  return `${Math.round(SIDE_PANEL_EDGE_INSET * progress * 100) / 100}px`
 }
 
 const referenceCompletionContexts = computed<PropertyReferenceContexts>(() => {
@@ -2165,9 +2183,10 @@ onUnmounted(() => {
 
 .card-design-editor__stage-layer {
   position: absolute;
-  inset: var(--oc-space-4);
+  inset: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   pointer-events: none;
   z-index: 2;
 }
@@ -2178,8 +2197,11 @@ onUnmounted(() => {
 
 .card-design-editor__face-tools {
   position: absolute;
-  right: calc(var(--card-editor-right-sidebar-visible-width, 320px) + 16px);
-  bottom: 0;
+  right: calc(
+    var(--card-editor-right-sidebar-visible-width, 320px)
+    + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
+  );
+  bottom: var(--oc-space-4);
   z-index: 3;
   display: flex;
   flex-direction: column;
@@ -2207,16 +2229,23 @@ onUnmounted(() => {
 
 .card-design-editor__overlay-layout {
   width: 100%;
-  height: 100%;
+  height: calc(100% - var(--oc-space-4) - var(--oc-space-4));
+  margin-block: var(--oc-space-4);
   min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-columns:
-    minmax(0, var(--card-editor-left-sidebar-visible-width, 320px))
+    minmax(0, calc(
+      var(--card-editor-left-sidebar-visible-width, 320px)
+      + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4))
+    ))
     8px
     minmax(0, 1fr)
     8px
-    minmax(0, var(--card-editor-right-sidebar-visible-width, 320px));
+    minmax(0, calc(
+      var(--card-editor-right-sidebar-visible-width, 320px)
+      + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
+    ));
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   pointer-events: none !important;
@@ -2232,7 +2261,6 @@ onUnmounted(() => {
   pointer-events: auto;
   transition:
     height var(--oc-duration-slow) var(--oc-ease),
-    clip-path var(--oc-duration-slow) var(--oc-ease),
     transform var(--oc-duration-slow) var(--oc-ease);
 }
 
@@ -2252,14 +2280,11 @@ onUnmounted(() => {
   align-content: var(--card-editor-left-sidebar-align-content);
   align-self: var(--card-editor-left-sidebar-align-self);
   transform: translateX(
-    calc(var(--card-editor-left-sidebar-visible-width, 320px) - var(--card-editor-left-panel-width, 320px))
-  );
-}
-
-.card-design-editor__sidebar--left.is-width-clipped {
-  clip-path: inset(
-    0 0 0
-    calc(var(--card-editor-left-panel-width, 320px) - var(--card-editor-left-sidebar-visible-width, 320px))
+    calc(
+      var(--card-editor-left-sidebar-visible-width, 320px)
+      + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4))
+      - var(--card-editor-left-panel-width, 320px)
+    )
   );
 }
 
@@ -2268,12 +2293,6 @@ onUnmounted(() => {
   grid-template-rows: var(--card-editor-right-sidebar-rows);
   align-content: var(--card-editor-right-sidebar-align-content);
   align-self: var(--card-editor-right-sidebar-align-self);
-}
-
-.card-design-editor__sidebar--right.is-width-clipped {
-  clip-path: inset(
-    0 calc(var(--card-editor-right-panel-width, 320px) - var(--card-editor-right-sidebar-visible-width, 320px)) 0 0
-  );
 }
 
 .card-design-editor__sidebar-panel {
@@ -2351,7 +2370,7 @@ onUnmounted(() => {
 
 .card-design-editor__resizebar--horizontal .card-design-editor__resizebar-visual {
   width: 28px;
-  height: 3px;
+  height: 4px;
   border-radius: 999px;
 }
 
