@@ -2,12 +2,8 @@
   <div v-if="definition.isReadonly" class="readonly-value" :title="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
-  <OcFieldInput v-else-if="definition.options?.length" as="select" :value="stringValue" full-width
-    @change="emit('update:value', ($event.target as HTMLSelectElement).value)">
-    <option v-for="option in definition.options" :key="option" :value="option">
-      {{ option }}
-    </option>
-  </OcFieldInput>
+  <OcSelect v-else-if="definition.options?.length" :model-value="stringValue"
+    :options="selectOptions" full-width @update:model-value="emit('update:value', $event)" />
   <OcFieldFrame v-else-if="definition.multiline" class="multiline-field" full-width>
     <OcFieldInput as="textarea" variant="plain" full-width class="multiline-field__input"
       :value="stringValue" :minlength="definition.minLength" :maxlength="definition.maxLength"
@@ -38,6 +34,7 @@
 import { computed } from 'vue'
 import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
+import OcSelect from '../../../../components/standard/OcSelect.vue'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
@@ -50,6 +47,9 @@ const emit = defineEmits<{
 }>()
 
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
+const selectOptions = computed(() => (
+  props.definition.options?.map(option => ({ value: option, label: option })) ?? []
+))
 
 const autocompleteMatch = computed(() => {
   const current = stringValue.value

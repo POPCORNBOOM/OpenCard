@@ -15,16 +15,13 @@
 
         <label v-if="showTitle !== false" class="additional-field-dialog__field">
           <span>{{ t('propertyEditor.customFields.type') }}</span>
-          <OcFieldInput
-            as="select"
+          <OcSelect
             full-width
-            :value="fieldType"
-            @change="emitInputValue('update-field-type', $event)"
-          >
-            <option v-for="option in fieldTypes" :key="option" :value="option">
-              {{ t(`propertyEditor.fieldTypes.${option}`) }}
-            </option>
-          </OcFieldInput>
+            :model-value="fieldType"
+            :options="fieldTypeOptions"
+            :z-index="1100"
+            @update:model-value="emit('update-field-type', $event)"
+          />
         </label>
 
         <label class="additional-field-dialog__field">
@@ -63,11 +60,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   fieldTypes: readonly string[]
   fieldType: string
@@ -86,14 +85,17 @@ const emit = defineEmits<{
   (e: 'submit'): void
 }>()
 const { t } = useI18n()
+const fieldTypeOptions = computed(() => props.fieldTypes.map(option => ({
+  value: option,
+  label: t(`propertyEditor.fieldTypes.${option}`),
+})))
 
 function emitInputValue(
-  eventName: 'update-field-type' | 'update-field-key' | 'update-title',
+  eventName: 'update-field-key' | 'update-title',
   event: Event,
 ): void {
-  const value = (event.target as HTMLInputElement | HTMLSelectElement).value
-  if (eventName === 'update-field-type') emit('update-field-type', value)
-  else if (eventName === 'update-field-key') emit('update-field-key', value)
+  const value = (event.target as HTMLInputElement).value
+  if (eventName === 'update-field-key') emit('update-field-key', value)
   else emit('update-title', value)
 }
 </script>

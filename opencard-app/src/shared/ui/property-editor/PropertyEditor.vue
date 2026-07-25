@@ -21,7 +21,7 @@
         <section v-for="source in displaySources" :key="source.key" class="property-editor__source">
           <header class="property-editor__source-header">
             <span class="property-editor__icon-slot" aria-hidden="true">
-              <OcIcon name="data.symbol-class" tone="muted" />
+              <OcIcon name="data.symbol-class" size="md" tone="muted" />
             </span>
             <OcText class="property-editor__source-title" :truncate="true">{{ source.title }}</OcText>
           </header>
@@ -31,7 +31,7 @@
             <header class="property-editor__category-header">
               <span class="property-editor__category-indent" aria-hidden="true" />
               <span class="property-editor__icon-slot" aria-hidden="true">
-                <OcIcon :name="category.icon" tone="muted" />
+                <OcIcon :name="category.icon" size="md" tone="muted" />
               </span>
               <OcText class="property-editor__category-title" :truncate="true">{{ category.title }}</OcText>
               <span class="property-editor__category-actions">
@@ -47,7 +47,7 @@
               :class="{ 'is-revealed': revealedFieldIdentity === fieldIdentity(category.inputKey, entry.key) }"
               :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
-                <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" />
+                <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" size="md" tone="muted" />
                 <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
                 <OcButton class="modified-field-button" icon-only size="sm" radius="full"
                   v-if="entry.definition.resettable"
@@ -84,7 +84,7 @@
                   icon-only size="sm" variant="ghost"
                   :icon="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
                     ? getEditorIconClass(entry.definition.fieldType)
-                    : 'data.variable'"
+                    : 'data.code-string'"
                   :title="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
                     ? useFieldEditorText
                     : useRawStringEditorText"

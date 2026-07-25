@@ -3,9 +3,11 @@
 <template>
   <label class="oc-checkbox" :class="[{ 'oc-checkbox--disabled': disabled }, attrs.class]" :style="attrs.style">
     <input
+      ref="inputRef"
       type="checkbox"
       class="oc-checkbox__input"
       :checked="checked"
+      :aria-checked="indeterminate ? 'mixed' : checked"
       :disabled="disabled"
       v-bind="inputAttrs"
       @change="handleChange"
@@ -18,22 +20,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useAttrs } from 'vue'
+import { computed, onMounted, ref, useAttrs, watch } from 'vue'
 
 defineOptions({ name: 'OcCheckbox', inheritAttrs: false })
 
 interface Props {
   checked?: boolean
+  indeterminate?: boolean
   disabled?: boolean
   label?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   checked: false,
+  indeterminate: false,
   disabled: false,
 })
 
 const attrs = useAttrs()
+const inputRef = ref<HTMLInputElement | null>(null)
 const inputAttrs = computed(() => {
   const { class: _class, style: _style, ...rest } = attrs
   return rest
@@ -43,6 +48,13 @@ const emit = defineEmits<{
   'update:checked': [value: boolean]
   'change': [value: boolean, event: Event]
 }>()
+
+onMounted(syncIndeterminate)
+watch(() => props.indeterminate, syncIndeterminate)
+
+function syncIndeterminate(): void {
+  if (inputRef.value) inputRef.value.indeterminate = props.indeterminate
+}
 
 const handleChange = (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -91,7 +103,23 @@ const handleChange = (event: Event) => {
   border-color: var(--oc-bg-accent);
 }
 
-.oc-checkbox__input:checked ~ .oc-checkbox__box::after {
+.oc-checkbox__input:indeterminate ~ .oc-checkbox__box {
+  background-color: var(--oc-bg-accent);
+  border-color: var(--oc-bg-accent);
+}
+
+.oc-checkbox__input:indeterminate ~ .oc-checkbox__box::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  left: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--oc-accent-fg);
+}
+
+.oc-checkbox__input:checked:not(:indeterminate) ~ .oc-checkbox__box::after {
   content: '';
   position: absolute;
   left: 3px;

@@ -15,4 +15,23 @@ describe('OcFieldFrame', () => {
     expect(wrapper.get('.oc-field-frame__prefix').text()).toBe('P')
     expect(wrapper.get('.oc-field-frame__suffix').text()).toBe('S')
   })
+
+  it('projects shared field states to classes and aria attributes', () => {
+    const wrapper = mount(OcFieldFrame, {
+      props: { disabled: true, readonly: true, invalid: true, busy: true },
+    })
+
+    expect(wrapper.classes()).toEqual(expect.arrayContaining([
+      'oc-field-frame--disabled',
+      'oc-field-frame--readonly',
+      'oc-field-frame--invalid',
+      'oc-field-frame--busy',
+    ]))
+    expect(wrapper.attributes()).toMatchObject({
+      'aria-disabled': 'true',
+      'aria-readonly': 'true',
+      'aria-invalid': 'true',
+      'aria-busy': 'true',
+    })
+  })
 })

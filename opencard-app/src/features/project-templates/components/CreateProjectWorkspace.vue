@@ -86,32 +86,28 @@
           </label>
           <label>
             <span>{{ t('projectTemplates.fields.entry') }}</span>
-            <OcFieldInput
-              as="select"
-              :value="templateEntry"
+            <OcSelect
+              :model-value="templateEntry"
+              :options="templateEntryOptions"
               full-width
               :disabled="isBusy"
-              @change="templateEntry = ($event.target as HTMLSelectElement).value"
-            >
-              <option v-for="entry in templateInspection.entries" :key="entry" :value="entry">
-                {{ templateInspection.entryNames[entry] ?? entry }}
-              </option>
-            </OcFieldInput>
+              @update:model-value="templateEntry = $event"
+            />
           </label>
           <fieldset class="create-project__cover-options">
             <legend>{{ t('projectTemplates.fields.covers') }}</legend>
             <p v-if="templateInspection.coverCandidates.length === 0">
               {{ t('projectTemplates.status.noCoverCandidates') }}
             </p>
-            <label v-for="cover in templateInspection.coverCandidates" :key="cover">
-              <input
-                type="checkbox"
+            <OcCheckbox
+                v-for="cover in templateInspection.coverCandidates"
+                :key="cover"
                 :checked="templateCovers.includes(cover)"
                 :disabled="isBusy"
-                @change="toggleTemplateCover(cover)"
-              />
-              <span>{{ cover }}</span>
-            </label>
+                @update:checked="toggleTemplateCover(cover)"
+              >
+              {{ cover }}
+            </OcCheckbox>
           </fieldset>
           <div class="create-project__inline-actions">
             <OcButton size="sm" variant="solid" :disabled="!canSaveTemplate" @click="confirmCreateTemplate">
@@ -148,17 +144,13 @@
 
         <label v-if="selectedTemplate">
           <span>{{ t('projectTemplates.fields.entry') }}</span>
-          <OcFieldInput
-            as="select"
-            :value="selectedEntry"
+          <OcSelect
+            :model-value="selectedEntry"
+            :options="selectedEntryOptions"
             full-width
             :disabled="isBusy"
-            @change="selectedEntry = ($event.target as HTMLSelectElement).value"
-          >
-            <option v-for="entry in selectedTemplateEntries" :key="entry" :value="entry">
-              {{ selectedTemplateEntryName(entry) }}
-            </option>
-          </OcFieldInput>
+            @update:model-value="selectedEntry = $event"
+          />
         </label>
 
         <label>
@@ -195,8 +187,10 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
 import {
   TemplateServiceError,
   resolveTemplateEntries,
@@ -252,6 +246,14 @@ const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(p
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
+const selectedEntryOptions = computed(() => selectedTemplateEntries.value.map(entry => ({
+  value: entry,
+  label: selectedTemplateEntryName(entry),
+})))
+const templateEntryOptions = computed(() => templateInspection.value?.entries.map(entry => ({
+  value: entry,
+  label: templateInspection.value?.entryNames[entry] ?? entry,
+})) ?? [])
 
 function selectedTemplateEntryName(entry: string): string {
   return selectedTemplate.value?.entryNames?.[entry] ?? entry

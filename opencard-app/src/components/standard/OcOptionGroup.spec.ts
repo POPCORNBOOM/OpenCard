@@ -56,4 +56,27 @@ describe('OcOptionGroup', () => {
     expect(updates[updates.length - 1]).toEqual(['bottom-left'])
     wrapper.unmount()
   })
+
+  it('moves a transparent selection outline between options', async () => {
+    const wrapper = mount(OcOptionGroup, {
+      props: {
+        modelValue: 'rich',
+        appearance: 'sliding-outline',
+        iconOnly: true,
+        options: [
+          { value: 'rich', label: 'Rich' },
+          { value: 'source', label: 'Source' },
+        ],
+      },
+    })
+
+    expect(wrapper.classes()).toContain('oc-option-group--sliding-outline')
+    expect(wrapper.get('.oc-option-group__indicator').attributes('aria-hidden')).toBe('true')
+    expect(wrapper.attributes('style')).toContain('--oc-option-count: 2')
+    expect(wrapper.attributes('style')).toContain('--oc-option-index: 0')
+    expect(wrapper.findAll('.oc-button').every(button => button.classes().includes('oc-button--variant-ghost'))).toBe(true)
+
+    await wrapper.setProps({ modelValue: 'source' })
+    expect(wrapper.attributes('style')).toContain('--oc-option-index: 1')
+  })
 })

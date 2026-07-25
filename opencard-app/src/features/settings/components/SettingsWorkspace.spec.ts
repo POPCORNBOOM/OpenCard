@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import OcSlider from '../../../components/standard/OcSlider.vue'
 import SettingsWorkspace from './SettingsWorkspace.vue'
 
 describe('SettingsWorkspace', () => {
@@ -70,7 +71,8 @@ describe('SettingsWorkspace', () => {
       },
     })
 
-    await wrapper.get('input[type="range"]').setValue('42')
+    wrapper.getComponent(OcSlider).vm.$emit('preview', 42)
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('intent')).toEqual([[
       { type: 'setting.change', key: 'appearance.glassIntensity', value: 42 },

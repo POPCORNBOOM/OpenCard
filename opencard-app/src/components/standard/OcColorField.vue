@@ -1,22 +1,24 @@
 <!-- Standard 颜色字段：色块取色器与文本值共享同一字段表面。 -->
 <template>
-  <OcFieldFrame class="oc-color-field" full-width :disabled="disabled">
+  <OcFieldFrame class="oc-color-field" full-width :disabled="disabled" :invalid="invalidDraft">
     <template #prefix>
-      <label class="oc-color-field__swatch" title="Choose color">
-        <span class="oc-color-field__preview" :style="{ backgroundColor: pickerValue }" />
-        <input class="oc-color-field__picker" type="color" :value="pickerValue" :disabled="disabled"
-          aria-label="Choose color" @input="handleInput" />
-      </label>
+      <span class="oc-color-field__swatch">
+        <OcColorPicker :model-value="pickerValue" :disabled="disabled" embedded
+          @preview="draftValue = $event" @update:model-value="commitValue" />
+      </span>
     </template>
-    <OcFieldInput as="input" variant="plain" full-width :value="modelValue" :disabled="disabled"
-      spellcheck="false" @input="handleInput" />
+    <OcFieldInput as="input" variant="plain" full-width :value="draftValue" :disabled="disabled"
+      spellcheck="false" @input="handleTextInput" @blur="commitTextValue"
+      @keydown.enter.prevent="commitTextValue" />
   </OcFieldFrame>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import OcFieldFrame from '../base/OcFieldFrame.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
+import OcColorPicker from './OcColorPicker.vue'
+import { normalizeHexColor } from './colorModel'
 
 interface Props {
   modelValue?: string
@@ -30,57 +32,47 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  commit: [value: string]
 }>()
 
 defineOptions({ name: 'OcColorField' })
 
-const pickerValue = computed(() => toHexColor(props.modelValue) ?? '#000000')
+const draftValue = ref(props.modelValue)
+const pickerValue = computed(() => normalizeHexColor(draftValue.value) ?? '#000000')
+const invalidDraft = computed(() => Boolean(draftValue.value && !normalizeHexColor(draftValue.value)))
 
-function handleInput(event: Event): void {
+watch(() => props.modelValue, value => {
+  draftValue.value = value
+})
+
+function handleTextInput(event: Event): void {
   const target = event.target
-  if (target instanceof HTMLInputElement) emit('update:modelValue', target.value)
+  if (target instanceof HTMLInputElement) draftValue.value = target.value
 }
 
-function toHexColor(value: string): string | null {
-  const trimmed = value.trim()
-  if (/^#[\da-fA-F]{6}$/.test(trimmed)) return trimmed
-  if (/^#[\da-fA-F]{3}$/.test(trimmed)) {
-    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`
-  }
-  return null
+function commitTextValue(): void {
+  const normalized = normalizeHexColor(draftValue.value)
+  if (normalized) commitValue(normalized)
+}
+
+function commitValue(value: string): void {
+  draftValue.value = value
+  emit('update:modelValue', value)
+  emit('commit', value)
 }
 </script>
 
 <style scoped>
 .oc-color-field__swatch {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
   width: calc(var(--oc-size-md) - 2px);
-  padding: 3px;
   border-right: 1px solid var(--oc-border-muted);
   box-sizing: border-box;
-  cursor: pointer;
 }
 
-.oc-color-field__preview {
+.oc-color-field__swatch :deep(.oc-color-picker) {
   width: 100%;
-  height: 100%;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-border-strong) 55%, transparent);
 }
-
-.oc-color-field__picker {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.oc-color-field__picker:disabled { cursor: default; }
 
 .oc-color-field :deep(.oc-field-input) {
   height: 100%;

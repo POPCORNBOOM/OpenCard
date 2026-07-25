@@ -1,5 +1,5 @@
 <template>
-  <OcFieldFrame class="number-field" full-width :disabled="definition.isReadonly">
+  <OcFieldFrame class="number-field" full-width :readonly="definition.isReadonly">
     <OcFieldInput
       as="input"
       class="number-field__input"

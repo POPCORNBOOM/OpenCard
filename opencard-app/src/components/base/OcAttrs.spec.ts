@@ -43,6 +43,14 @@ describe('OC attribute forwarding', () => {
     expect(wrapper.get('input').attributes('aria-label')).toBe('Enabled')
   })
 
+  it('projects the checkbox mixed state over a checked value', () => {
+    const wrapper = mount(OcCheckbox, { props: { checked: true, indeterminate: true } })
+    const input = wrapper.get('input')
+
+    expect((input.element as HTMLInputElement).indeterminate).toBe(true)
+    expect(input.attributes('aria-checked')).toBe('mixed')
+  })
+
   it.each([
     ['none', 'oc-field-input--resize-none'],
     ['vertical', 'oc-field-input--resize-vertical'],

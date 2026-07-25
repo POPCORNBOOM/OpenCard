@@ -147,8 +147,8 @@ defineExpose({
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
-.oc-field-input--filled:focus,
-.oc-field-input--filled:focus-visible {
+.oc-field-input--filled:focus:not(:disabled):not(:read-only),
+.oc-field-input--filled:focus-visible:not(:disabled):not(:read-only) {
   border-color: var(--oc-border-accent);
   outline: none;
 }
@@ -160,8 +160,8 @@ defineExpose({
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
-.oc-field-input--plain:focus,
-.oc-field-input--plain:focus-visible {
+.oc-field-input--plain:focus:not(:disabled):not(:read-only),
+.oc-field-input--plain:focus-visible:not(:disabled):not(:read-only) {
   border-color: var(--oc-border-accent);
   outline: none;
 }
@@ -187,6 +187,29 @@ defineExpose({
 
 .oc-field-input--mono {
   font-family: var(--oc-font-mono);
+}
+
+.oc-field-input::placeholder {
+  color: var(--oc-fg-muted);
+}
+
+.oc-field-input:disabled {
+  color: var(--oc-fg-disabled);
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.oc-field-input--filled:read-only {
+  background: var(--oc-bg-raised);
+  color: var(--oc-fg-muted);
+}
+
+.oc-field-input[aria-invalid="true"] {
+  border-color: var(--oc-danger);
+}
+
+.oc-field-input[aria-busy="true"] {
+  cursor: progress;
 }
 
 .oc-field-input--resize-none {

@@ -1,12 +1,14 @@
 <template>
   <div class="reference-string-field">
-    <OcFieldFrame v-if="definition.multiline" class="reference-string-field__multiline" full-width>
+    <OcFieldFrame v-if="definition.multiline" class="reference-string-field__multiline" full-width
+      :readonly="definition.isReadonly">
       <OcFieldInput
         as="textarea"
         variant="plain"
         full-width
         class="reference-string-field__input"
         :value="draftValue"
+        :readonly="definition.isReadonly"
         :minlength="definition.minLength"
         :maxlength="definition.maxLength"
         resize="none"
@@ -26,7 +28,8 @@
       />
     </OcFieldFrame>
 
-    <OcFieldFrame v-else class="reference-string-field__singleline" full-width>
+    <OcFieldFrame v-else class="reference-string-field__singleline" full-width
+      :readonly="definition.isReadonly">
       <OcFieldInput
         as="input"
         variant="plain"
@@ -34,6 +37,7 @@
         class="reference-string-field__input"
         type="text"
         :value="draftValue"
+        :readonly="definition.isReadonly"
         :minlength="definition.minLength"
         :maxlength="definition.maxLength"
         autocomplete="off"

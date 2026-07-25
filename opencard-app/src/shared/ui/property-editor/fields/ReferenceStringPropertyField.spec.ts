@@ -85,4 +85,20 @@ describe('ReferenceStringPropertyField', () => {
 
     expect(requestedCursor).toBe(12)
   })
+
+  it.each([false, true])('projects readonly onto the native control when multiline=%s', (multiline) => {
+    const wrapper = mount(ReferenceStringPropertyField, {
+      props: {
+        definition: {
+          title: 'Readonly',
+          fieldType: 'string',
+          isReadonly: true,
+          multiline,
+        },
+        value: 'Locked',
+      },
+    })
+
+    expect(wrapper.get(multiline ? 'textarea' : 'input').attributes('readonly')).toBeDefined()
+  })
 })

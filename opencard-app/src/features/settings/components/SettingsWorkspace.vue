@@ -107,15 +107,15 @@
             @update:checked="emitSettingChange(field.key, $event)"
           />
           <div v-else-if="field.type === 'range'" class="settings-workspace__range-control">
-            <input
+            <OcSlider
               class="settings-workspace__range"
-              type="range"
-              :value="field.value"
+              :model-value="field.value"
               :min="field.min"
               :max="field.max"
               :step="field.step"
+              :value-text="`${field.value}${field.suffix}`"
               :aria-label="field.label"
-              @input="emitSettingChange(field.key, Number(($event.target as HTMLInputElement).value))"
+              @preview="emitSettingChange(field.key, $event)"
             />
             <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
               {{ field.value }}{{ field.suffix }}
@@ -145,6 +145,7 @@ import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
+import OcSlider from '../../../components/standard/OcSlider.vue'
 import AppearanceShaderPreview from './AppearanceShaderPreview.vue'
 import type { SettingsIntent } from '../model/appSettings'
 import type { SettingsCategoryViewModel } from '../composables/useSettingsWorkspace'
@@ -524,8 +525,6 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 
 .settings-workspace__range {
   width: 100%;
-  accent-color: var(--oc-accent);
-  cursor: pointer;
 }
 
 .settings-workspace__range-value {

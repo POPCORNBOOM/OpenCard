@@ -1,0 +1,48 @@
+/**
+ * 输入控件静态守卫：业务层只能组合 OpenCard 控件，原生表单语义留在基础组件内部。
+ */
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
+
+const projectRoot = process.cwd()
+const srcRoot = join(projectRoot, 'src')
+const nativeInputAllowlist = new Set(['src/components/base/OcCheckbox.vue'])
+const violations = []
+
+function walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry)
+    const stat = statSync(fullPath)
+    if (stat.isDirectory()) walk(fullPath)
+    else if (fullPath.endsWith('.vue')) inspectFile(fullPath)
+  }
+}
+
+function inspectFile(fullPath) {
+  const relativePath = relative(projectRoot, fullPath).split(sep).join('/')
+  const content = readFileSync(fullPath, 'utf8')
+  const checks = [
+    [/<select\b/i, 'use OcSelect instead of a native select'],
+    [/<textarea\b/i, 'use OcFieldInput/OcTextArea instead of a native textarea'],
+    [/\bas=["']select["']/i, 'OcFieldInput must not masquerade as a select'],
+    [/\btype=["']color["']/i, 'use OcColorPicker instead of a native color input'],
+    [/\btype=["']range["']/i, 'use OcSlider instead of a native range input'],
+  ]
+
+  if (!nativeInputAllowlist.has(relativePath) && /<input\b/i.test(content)) {
+    violations.push(`${relativePath}: use an OpenCard field component instead of a raw input`)
+  }
+  for (const [pattern, message] of checks) {
+    if (pattern.test(content)) violations.push(`${relativePath}: ${message}`)
+  }
+}
+
+walk(srcRoot)
+
+if (violations.length > 0) {
+  console.error('[lint:controls] violations found:')
+  for (const violation of violations) console.error(`- ${violation}`)
+  process.exit(1)
+}
+
+console.log('[lint:controls] pass')

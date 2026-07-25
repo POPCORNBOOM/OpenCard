@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import OcButton from '../../../components/base/OcButton.vue'
 import PropertyEditor from './PropertyEditor.vue'
 
 vi.mock('vue-i18n', () => ({
@@ -191,8 +192,12 @@ describe('PropertyEditor records protocol', () => {
     })
 
     expect(wrapper.find('.reference-string-field').exists()).toBe(false)
+    const rawToggle = () => wrapper.findAllComponents(OcButton)
+      .find(button => button.classes().includes('raw-string-toggle'))!
+    expect(rawToggle().props('icon')).toBe('data.code-string')
     await wrapper.get('button[aria-label="propertyEditor.bindings.useRawEditor"]').trigger('click')
     expect(wrapper.find('.reference-string-field').exists()).toBe(true)
+    expect(rawToggle().props('icon')).toBe('data.symbol-number')
     await wrapper.get('.reference-string-field input').setValue('{{self:score}}')
     expect(wrapper.emitted('update-property')).toEqual([[
       { key: 'block', fieldKey: 'opacity', value: '{{self:score}}' },

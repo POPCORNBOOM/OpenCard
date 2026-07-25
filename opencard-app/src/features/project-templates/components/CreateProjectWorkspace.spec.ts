@@ -2,6 +2,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, ref, type Ref } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import OcCheckbox from '../../../components/base/OcCheckbox.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
 import type {
   CreatedProject,
   ProjectTemplate,
@@ -251,9 +253,12 @@ describe('CreateProjectWorkspace', () => {
 
     const editor = wrapper.get('.create-project__template-editor')
     expect(store.inspectProjectSource).toHaveBeenCalledWith(inspection.sourcePath)
-    expect(editor.findAll('option').map((option) => option.text())).toEqual(['Cards', 'Tokens'])
+    expect(editor.getComponent(OcSelect).props('options')).toEqual([
+      { value: 'cards.opencard', label: 'Cards' },
+      { value: 'tokens.opencard', label: 'Tokens' },
+    ])
 
-    await editor.findAll<HTMLInputElement>('input[type="checkbox"]')[1].setValue(true)
+    await editor.findAllComponents(OcCheckbox)[1]!.get('input').setValue(true)
     await editor.findAll('button').find((button) => button.text() === 'Save template')!.trigger('click')
     await flushPromises()
 
@@ -323,10 +328,14 @@ describe('CreateProjectWorkspace', () => {
     const wrapper = mountWorkspace(multiEntry.key)
     await flushPromises()
 
-    expect(wrapper.get('.create-project__form select').findAll('option').map((option) => option.text()))
-      .toEqual(['Main Blueprint', 'Alternate Blueprint'])
+    const entrySelect = wrapper.get('.create-project__form').getComponent(OcSelect)
+    expect(entrySelect.props('options')).toEqual([
+      { value: 'main.opencard', label: 'Main Blueprint' },
+      { value: 'alternate.opencard', label: 'Alternate Blueprint' },
+    ])
 
-    await wrapper.get('.create-project__form select').setValue('alternate.opencard')
+    entrySelect.vm.$emit('update:modelValue', 'alternate.opencard')
+    await wrapper.vm.$nextTick()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 

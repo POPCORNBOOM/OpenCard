@@ -4,8 +4,18 @@
     class="oc-field-frame"
     :class="[
       `oc-field-frame--${size}`,
-      { 'oc-field-frame--full-width': fullWidth, 'oc-field-frame--disabled': disabled },
+      {
+        'oc-field-frame--full-width': fullWidth,
+        'oc-field-frame--disabled': disabled,
+        'oc-field-frame--readonly': readonly,
+        'oc-field-frame--invalid': invalid,
+        'oc-field-frame--busy': busy,
+      },
     ]"
+    :aria-disabled="disabled || undefined"
+    :aria-readonly="readonly || undefined"
+    :aria-invalid="invalid || undefined"
+    :aria-busy="busy || undefined"
     v-bind="$attrs"
   >
     <span v-if="$slots.prefix" class="oc-field-frame__prefix"><slot name="prefix" /></span>
@@ -19,12 +29,18 @@ interface Props {
   size?: 'sm' | 'md' | 'lg'
   fullWidth?: boolean
   disabled?: boolean
+  readonly?: boolean
+  invalid?: boolean
+  busy?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   size: 'md',
   fullWidth: false,
   disabled: false,
+  readonly: false,
+  invalid: false,
+  busy: false,
 })
 
 defineOptions({ name: 'OcFieldFrame' })
@@ -44,8 +60,9 @@ defineOptions({ name: 'OcFieldFrame' })
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
-.oc-field-frame:focus-within {
+.oc-field-frame:focus-within:not(.oc-field-frame--disabled):not(.oc-field-frame--readonly) {
   border-color: var(--oc-border-accent);
+  box-shadow: var(--oc-focus-ring);
 }
 
 .oc-field-frame--sm { height: var(--oc-size-sm); }
@@ -58,6 +75,20 @@ defineOptions({ name: 'OcFieldFrame' })
 
 .oc-field-frame--disabled {
   opacity: .5;
+  cursor: not-allowed;
+}
+
+.oc-field-frame--readonly {
+  background: var(--oc-bg-raised);
+  color: var(--oc-fg-muted);
+}
+
+.oc-field-frame--invalid {
+  border-color: var(--oc-danger);
+}
+
+.oc-field-frame--busy {
+  cursor: progress;
 }
 
 .oc-field-frame__prefix,
