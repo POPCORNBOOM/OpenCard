@@ -51,7 +51,7 @@ describe('SettingsWorkspace', () => {
     expect(wrapper.emitted('intent')).toBeUndefined()
   })
 
-  it('emits numeric glass intensity while dragging the range', async () => {
+  it('separates range preview from its committed setting change', async () => {
     const wrapper = mount(SettingsWorkspace, {
       props: {
         viewModel: {
@@ -72,11 +72,13 @@ describe('SettingsWorkspace', () => {
     })
 
     wrapper.getComponent(OcSlider).vm.$emit('preview', 42)
+    wrapper.getComponent(OcSlider).vm.$emit('commit', 42)
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.emitted('intent')).toEqual([[
-      { type: 'setting.change', key: 'appearance.glassIntensity', value: 42 },
-    ]])
+    expect(wrapper.emitted('intent')).toEqual([
+      [{ type: 'setting.preview', key: 'appearance.glassIntensity', value: 42 }],
+      [{ type: 'setting.change', key: 'appearance.glassIntensity', value: 42 }],
+    ])
   })
 
   it('renders the appearance preview when preview data is provided', () => {

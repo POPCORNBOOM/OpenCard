@@ -115,7 +115,8 @@
               :step="field.step"
               :value-text="`${field.value}${field.suffix}`"
               :aria-label="field.label"
-              @preview="emitSettingChange(field.key, $event)"
+              @preview="emitSettingPreview(field.key, $event)"
+              @commit="emitSettingChange(field.key, $event)"
             />
             <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
               {{ field.value }}{{ field.suffix }}
@@ -128,7 +129,7 @@
             variant="outline"
             :icon="field.icon"
             :disabled="field.disabled"
-            :title="field.disabledReason"
+            :data-tooltip="field.disabledReason"
             @click="emit('intent', { type: 'project-workspace.reset' })"
           >
             {{ field.actionLabel }}
@@ -161,6 +162,10 @@ const emit = defineEmits<{
 
 function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change' }>['key'], value: unknown): void {
   emit('intent', { type: 'setting.change', key, value })
+}
+
+function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.preview' }>['key'], value: unknown): void {
+  emit('intent', { type: 'setting.preview', key, value })
 }
 </script>
 

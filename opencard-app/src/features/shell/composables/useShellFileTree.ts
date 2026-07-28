@@ -61,6 +61,12 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
 
+  function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
+    if (target.value.length === nextKeys.length
+      && target.value.every((key, index) => key === nextKeys[index])) return
+    target.value = nextKeys
+  }
+
   const projectProjection = computed(() => {
     const roots: ProjectEntryView[] = []
     const byRelativePath = new Map<string, ProjectEntryView>()
@@ -141,21 +147,21 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
 
   function syncSelectionFromActiveSession(session: EditorSession | null): void {
     if (!session) {
-      openedEditorSelectedKeys.value = []
-      selectedFileKeys.value = []
+      setSelectedKeys(openedEditorSelectedKeys, [])
+      setSelectedKeys(selectedFileKeys, [])
       return
     }
 
     const opened = options.openedEditorItems.value.some((item) => item.key === session.id)
-    openedEditorSelectedKeys.value = opened ? [session.id] : []
+    setSelectedKeys(openedEditorSelectedKeys, opened ? [session.id] : [])
 
     if (session.resourceKind !== 'workspace' || !session.path) {
-      selectedFileKeys.value = []
+      setSelectedKeys(selectedFileKeys, [])
       return
     }
 
     const entry = findProjectEntryByKey(session.path)
-    selectedFileKeys.value = entry ? [entry.key] : []
+    setSelectedKeys(selectedFileKeys, entry ? [entry.key] : [])
   }
 
   function handleOpenedEditorsSelect(nextSelectedKeys: string[]): void {
@@ -178,8 +184,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   }
 
   watch(
-    () => options.activeSession.value,
-    (session) => syncSelectionFromActiveSession(session),
+    () => {
+      const session = options.activeSession.value
+      return session ? `${session.id}\0${session.resourceKind}\0${session.path ?? ''}` : ''
+    },
+    () => syncSelectionFromActiveSession(options.activeSession.value),
     { immediate: true },
   )
 

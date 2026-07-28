@@ -7,6 +7,16 @@ import { join, relative, sep } from 'node:path'
 const projectRoot = process.cwd()
 const srcRoot = join(projectRoot, 'src')
 const nativeInputAllowlist = new Set(['src/components/base/OcCheckbox.vue'])
+const visibleTitleComponents = new Set([
+  'AdditionalFieldCreateDialog',
+  'OcBar',
+  'OcCard',
+  'ShellWorkspaceFrame',
+])
+const stateBoundaryRoots = [
+  'src/components/base/',
+  'src/components/standard/',
+]
 const violations = []
 
 function walk(dir) {
@@ -34,6 +44,19 @@ function inspectFile(fullPath) {
   }
   for (const [pattern, message] of checks) {
     if (pattern.test(content)) violations.push(`${relativePath}: ${message}`)
+  }
+
+  if (stateBoundaryRoots.some((root) => relativePath.startsWith(root))
+    && /from\s+['"][^'"]*(?:\/store\/|[Pp]ersistence)[^'"]*['"]/.test(content)) {
+    violations.push(`${relativePath}: keep global stores and persistence outside reusable UI controls`)
+  }
+
+  for (const tag of content.matchAll(/<([A-Za-z][\w.-]*)\b[^>]*>/g)) {
+    const [, tagName] = tag
+    if (visibleTitleComponents.has(tagName)) continue
+    if (/(?:^|\s)(?::|v-bind:)?title\s*=/.test(tag[0])) {
+      violations.push(`${relativePath}: use data-tooltip instead of a browser-native title tooltip on <${tagName}>`)
+    }
   }
 }
 

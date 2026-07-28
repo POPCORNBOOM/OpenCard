@@ -1,5 +1,6 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
   projectEntryDeleteActionKey,
@@ -82,5 +83,47 @@ describe('useShellFileTree opened editors', () => {
       openPreviewFile: vi.fn(async () => undefined),
     })
     expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
+  })
+
+  it('keeps selection references stable when active editor content changes', async () => {
+    const path = 'D:/project/card.opencard'
+    const activeSession = ref<EditorSession | null>({
+      id: 'session-1',
+      resourceKind: 'workspace',
+      path,
+      fileTypeId: 'opencard',
+      name: 'card.opencard',
+      editorId: 'card-designer',
+      savedContent: '{}',
+      draftContent: '{}',
+      isDirty: false,
+      isPreview: false,
+    })
+    const result = useShellFileTree({
+      projectPath: ref('D:/project'),
+      indexedEntries: ref([{ name: 'card.opencard', isDirectory: false }]),
+      openedEditorItems: ref([{
+        key: 'session-1',
+        label: 'card.opencard',
+        resourceKind: 'workspace',
+        icon: 'file.opencard',
+      }]),
+      activeSession,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+    const selectedFiles = result.selectedFileKeys.value
+    const selectedEditors = result.openedEditorSelectedKeys.value
+
+    activeSession.value = {
+      ...activeSession.value!,
+      draftContent: '{"changed":true}',
+      isDirty: true,
+    }
+    await nextTick()
+
+    expect(result.selectedFileKeys.value).toBe(selectedFiles)
+    expect(result.openedEditorSelectedKeys.value).toBe(selectedEditors)
   })
 })

@@ -179,27 +179,43 @@ function resolveSessionFileType(session: EditorSession) {
 
 export function useEditorSessionStore() {
   const { projectPath, readFile, saveFile, saveProjectConfiguration, saveProjectDictionary } = useProjectStore()
+  let openedEditorItemCache: OpenedEditorItem[] = []
 
   const activeSession = computed(() =>
     sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   )
 
-  const openedEditorItems = computed<OpenedEditorItem[]>(() =>
-    sessions.value.map((session) => {
+  const openedEditorItems = computed<OpenedEditorItem[]>(() => {
+    const previousByKey = new Map(openedEditorItemCache.map((item) => [item.key, item]))
+    const nextItems = sessions.value.map((session) => {
       const fileType = resolveSessionFileType(session)
       const entryIcon = session.resourceKind === 'workspace' && session.path
         ? resolveEntryIcon(session.path, false, false, projectPath.value)
         : { icon: fileType.icon, tone: fileType.iconTone }
-
-      return {
+      const nextItem: OpenedEditorItem = {
         key: session.id,
         label: session.isDirty ? `${session.name} *` : session.name,
         resourceKind: session.resourceKind,
         icon: entryIcon.icon,
         iconTone: entryIcon.tone,
       }
+      const previous = previousByKey.get(session.id)
+      return previous
+        && previous.label === nextItem.label
+        && previous.resourceKind === nextItem.resourceKind
+        && previous.icon === nextItem.icon
+        && previous.iconTone === nextItem.iconTone
+        ? previous
+        : nextItem
     })
-  )
+
+    if (nextItems.length === openedEditorItemCache.length
+      && nextItems.every((item, index) => item === openedEditorItemCache[index])) {
+      return openedEditorItemCache
+    }
+    openedEditorItemCache = nextItems
+    return nextItems
+  })
 
   function setSessionPreviewState(sessionId: string, isPreview: boolean) {
     sessions.value = sessions.value.map((session) =>

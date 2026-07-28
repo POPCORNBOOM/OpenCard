@@ -45,6 +45,11 @@ export interface AppSettings {
 
 export type SettingsIntent =
   | {
+      type: 'setting.preview'
+      key: AppSettingKey
+      value: unknown
+    }
+  | {
       type: 'setting.change'
       key: AppSettingKey
       value: unknown

@@ -18,6 +18,7 @@ export interface AppSettingsStore {
   isReady: Readonly<Ref<boolean>>
   error: Readonly<Ref<string | null>>
   initialize(): Promise<void>
+  previewSetting(key: AppSettingKey, value: unknown): void
   updateSetting(key: AppSettingKey, value: unknown): void
   updateShell(patch: Partial<AppSettings['shell']>): void
   updateProjectCreation(patch: Partial<AppSettings['projectCreation']>): void
@@ -87,8 +88,7 @@ export function createAppSettingsStore(
     queueSave()
   }
 
-  function updateSetting(key: AppSettingKey, value: unknown): void {
-    const candidate = normalizeAppSettings(settings.value)
+  function applySetting(candidate: AppSettings, key: AppSettingKey, value: unknown): void {
     if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
@@ -101,6 +101,17 @@ export function createAppSettingsStore(
     } else if (key === 'workspace.showSelectionSizeOnResize') {
       candidate.workspace.showSelectionSizeOnResize = value as boolean
     }
+  }
+
+  function previewSetting(key: AppSettingKey, value: unknown): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applySetting(candidate, key, value)
+    settings.value = normalizeAppSettings(candidate)
+  }
+
+  function updateSetting(key: AppSettingKey, value: unknown): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applySetting(candidate, key, value)
     commit(candidate)
   }
 
@@ -174,6 +185,7 @@ export function createAppSettingsStore(
     isReady: readonly(isReady),
     error: readonly(error),
     initialize,
+    previewSetting,
     updateSetting,
     updateShell,
     updateProjectCreation,

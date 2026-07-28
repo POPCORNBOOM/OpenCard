@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createDefaultAppSettings } from '../model/appSettings'
 import { MemorySettingsPersistence } from '../services/settingsPersistence'
 import { createAppSettingsStore } from './appSettingsStore'
@@ -47,6 +47,27 @@ describe('appSettingsStore', () => {
       },
       projectCreation: { lastParentPath: 'D:\\Cards' },
     })
+  })
+
+  it('applies continuous previews without persisting until commit', async () => {
+    const persistence = new MemorySettingsPersistence()
+    const save = vi.spyOn(persistence, 'save')
+    const store = createAppSettingsStore(persistence)
+    await store.initialize()
+    save.mockClear()
+
+    for (let value = 61; value <= 80; value += 1) {
+      store.previewSetting('appearance.glassIntensity', value)
+    }
+
+    expect(store.settings.value.appearance.glassIntensity).toBe(80)
+    expect(save).not.toHaveBeenCalled()
+
+    store.updateSetting('appearance.glassIntensity', 80)
+    await store.flush()
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(await persistence.load()).toMatchObject({ appearance: { glassIntensity: 80 } })
   })
 
   it('keeps recently opened projects in most-recent-first order', async () => {
