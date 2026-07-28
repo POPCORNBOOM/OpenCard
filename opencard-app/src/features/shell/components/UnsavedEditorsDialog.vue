@@ -262,6 +262,15 @@ function handleCancel(): void {
   background: var(--oc-bg-surface);
   box-shadow: var(--oc-shadow-lg);
   color: var(--oc-fg-default);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.unsaved-editors-dialog input,
+.unsaved-editors-dialog textarea,
+.unsaved-editors-dialog [contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .unsaved-editors-dialog--single {
