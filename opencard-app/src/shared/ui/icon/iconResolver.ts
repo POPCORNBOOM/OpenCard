@@ -11,7 +11,7 @@ import type { IconGlyph } from './iconTypes'
 export type IconResolvable = IconToken | IconGlyph
 
 export const UNKNOWN_ICON_TOKEN: IconToken = 'status.unknown'
-export const DEFAULT_ICON_TOKEN: IconToken = 'file.default'
+export const DEFAULT_ICON_TOKEN: IconToken = 'file.generic'
 
 const warnedMissingTokens = new Set<string>()
 

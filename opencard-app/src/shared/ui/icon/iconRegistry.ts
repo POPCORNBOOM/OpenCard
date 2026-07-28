@@ -35,16 +35,9 @@ export type IconTone =
   | 'html'
   | 'css'
   | 'image'
-  | 'package'
   | 'config'
   | 'folder-default'
   | 'folder-open'
-  | 'folder-src'
-  | 'folder-assets'
-  | 'folder-components'
-  | 'folder-views'
-  | 'folder-locales'
-  | 'folder-core'
 
 export {
   iconTokens,

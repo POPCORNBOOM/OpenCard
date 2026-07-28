@@ -41,7 +41,7 @@ defineOptions({
 })
 
 const props = withDefaults(defineProps<OcIconProps>(), {
-  name: 'file.default',
+  name: 'file.generic',
   tone: 'default',
   size: 'md',
 })
@@ -71,16 +71,9 @@ const iconColorMap: Record<IconTone, string> = {
   html: 'var(--oc-icon-file-html)',
   css: 'var(--oc-icon-file-css)',
   image: 'var(--oc-icon-file-image)',
-  package: 'var(--oc-icon-file-config)',
   config: 'var(--oc-icon-file-config)',
   'folder-default': 'var(--oc-icon-folder)',
   'folder-open': 'var(--oc-icon-folder-open)',
-  'folder-src': 'var(--oc-icon-folder)',
-  'folder-assets': 'var(--oc-icon-folder)',
-  'folder-components': 'var(--oc-icon-folder)',
-  'folder-views': 'var(--oc-icon-folder)',
-  'folder-locales': 'var(--oc-icon-folder)',
-  'folder-core': 'var(--oc-icon-folder)',
 }
 
 const sizeClass = computed(() => `oc-icon--${props.size}`)

@@ -240,7 +240,12 @@
             @zoom-in="zoomViewportBy(VIEWPORT_ZOOM_STEP)"
           />
           <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
-          <OcActionButton :action="clipAction" size="sm" variant="ghost" @select="toggleFaceClip" />
+          <OcActionButton
+            :action="clipAction"
+            size="sm"
+            :variant="clipToFace ? 'soft' : 'ghost'"
+            @select="toggleFaceClip"
+          />
           <OcActionButton :action="faceSwitchAction" size="sm" variant="ghost" @select="toggleActiveFace" />
         </div>
       </div>
@@ -436,7 +441,8 @@ function commitViewState(): void {
 
 const clipAction = computed<OcActionButtonAction>(() => ({
   key: 'toggle-face-clip',
-  icon: clipToFace.value ? 'tool.clip-on' : 'tool.clip-off',
+  icon: 'tool.clip',
+  iconTone: clipToFace.value ? 'active' : 'default',
   title: clipToFace.value
     ? t('cardDesigner.view.disableClip')
     : t('cardDesigner.view.enableClip'),

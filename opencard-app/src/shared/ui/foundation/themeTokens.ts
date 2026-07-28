@@ -7,7 +7,6 @@ export type OcThemeId = 'dark' | 'light'
 export const OC_THEME_TOKEN_KEYS = [
   // 滚动条
   '--oc-scrollbar-size',
-  '--oc-scrollbar-track',
   '--oc-scrollbar-thumb',
   '--oc-scrollbar-thumb-hover',
 
@@ -15,7 +14,6 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-bg-base',
   '--oc-bg-surface',
   '--oc-bg-raised',
-  '--oc-bg-overlay',
 
   // 背景 — 交互态
   '--oc-bg-hover',

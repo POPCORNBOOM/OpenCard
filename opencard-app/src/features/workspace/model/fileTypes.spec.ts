@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveFileType } from './fileTypes'
+import { resolveDirectoryIcon, resolveEntryIcon, resolveFileType } from './fileTypes'
 
 describe('project metadata file types', () => {
   it('recognizes only the two exact special file names', () => {
@@ -22,5 +22,32 @@ describe('project metadata file types', () => {
   it('keeps special file names case-sensitive on POSIX paths', () => {
     expect(resolveFileType('/cards/.dictionary', '/cards').id).toBe('opencard-dictionary')
     expect(resolveFileType('/cards/.DICTIONARY', '/cards').id).toBe('plaintext')
+  })
+})
+
+describe('workspace entry icon tokens', () => {
+  it('keeps category-specific collapsed folders and shares the open-folder token', () => {
+    expect(resolveDirectoryIcon('D:/Cards/src', false)).toEqual({
+      icon: 'folder.src',
+      tone: 'folder-default',
+    })
+    expect(resolveDirectoryIcon('D:/Cards/src', true)).toEqual({
+      icon: 'folder.open',
+      tone: 'folder-open',
+    })
+  })
+
+  it('uses the generic fallback token for unknown folders', () => {
+    expect(resolveDirectoryIcon('D:/Cards/custom', false)).toEqual({
+      icon: 'folder.generic',
+      tone: 'folder-default',
+    })
+  })
+
+  it('uses the config tone for package metadata', () => {
+    expect(resolveEntryIcon('D:/Cards/package.json', false)).toEqual({
+      icon: 'file.package',
+      tone: 'config',
+    })
   })
 })

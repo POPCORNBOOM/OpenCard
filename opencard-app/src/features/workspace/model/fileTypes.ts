@@ -35,16 +35,9 @@ const iconTone = {
   html: 'html',
   css: 'css',
   image: 'image',
-  package: 'package',
   config: 'config',
   folderDefault: 'folder-default',
   folderOpen: 'folder-open',
-  folderSrc: 'folder-src',
-  folderAssets: 'folder-assets',
-  folderComponents: 'folder-components',
-  folderViews: 'folder-views',
-  folderLocales: 'folder-locales',
-  folderCore: 'folder-core',
 } as const satisfies Record<string, EntryIconTone>
 
 const defaultFileType: FileTypeDefinition = {
@@ -186,7 +179,7 @@ const fileTypes: FileTypeDefinition[] = [
 const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.opencardprojectprofile': { icon: 'file.opencard-project', tone: iconTone.config },
   '.dictionary': { icon: 'data.collection', tone: iconTone.config },
-  'package.json': { icon: 'file.package', tone: iconTone.package },
+  'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
   'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
   'jsconfig.json': { icon: 'file.settings', tone: iconTone.config },
@@ -195,28 +188,28 @@ const specialFileIcons: Record<string, EntryIconPresentation> = {
 
 const directoryIcons: Record<string, { collapsed: EntryIconPresentation; expanded: EntryIconPresentation }> = {
   src: {
-    collapsed: { icon: 'folder.src', tone: iconTone.folderSrc },
-    expanded: { icon: 'folder.src-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.src', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
   assets: {
-    collapsed: { icon: 'folder.assets', tone: iconTone.folderAssets },
-    expanded: { icon: 'folder.assets-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.assets', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
   components: {
-    collapsed: { icon: 'folder.components', tone: iconTone.folderComponents },
-    expanded: { icon: 'folder.components-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.components', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
   views: {
-    collapsed: { icon: 'folder.views', tone: iconTone.folderViews },
-    expanded: { icon: 'folder.views-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.views', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
   locales: {
-    collapsed: { icon: 'folder.locales', tone: iconTone.folderLocales },
-    expanded: { icon: 'folder.locales-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.locales', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
   core: {
-    collapsed: { icon: 'folder.core', tone: iconTone.folderCore },
-    expanded: { icon: 'folder.core-expanded', tone: iconTone.folderOpen },
+    collapsed: { icon: 'folder.core', tone: iconTone.folderDefault },
+    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
   },
 }
 
@@ -308,7 +301,7 @@ export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIc
   }
 
   return {
-    icon: isExpanded ? 'folder.default-expanded' : 'folder.default',
+    icon: isExpanded ? 'folder.open' : 'folder.generic',
     tone: isExpanded ? iconTone.folderOpen : iconTone.folderDefault,
   }
 }
