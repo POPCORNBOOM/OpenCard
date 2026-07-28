@@ -2064,7 +2064,6 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
-  void ensureProjectTreeLoaded()
   void checkForUpdate()
 })
 

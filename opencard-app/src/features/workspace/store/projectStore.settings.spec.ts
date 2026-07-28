@@ -128,6 +128,8 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
 
     expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.opencardprojectprofile')
+    expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project', 1, '')
+    expect(mocks.readDirectoryEntries.mock.calls.every(([, depth]) => Number.isFinite(depth))).toBe(true)
     await store.setProjectPath('')
   })
 

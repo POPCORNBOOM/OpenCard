@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createFilePathCompletionProvider } from './filePathCompletion'
 
 describe('createFilePathCompletionProvider', () => {
-  it('loads the current directory, filters extensions, and keeps directories open', async () => {
+  it('lazily loads only the requested directory, filters extensions, and keeps directories open', async () => {
     const listDirectory = vi.fn(async () => [
       { name: 'assets/characters', isDirectory: true },
       { name: 'assets/card.png', isDirectory: false },
@@ -16,6 +16,7 @@ describe('createFilePathCompletionProvider', () => {
 
     const result = await provider({ value: 'assets/c', cursor: 8 })
 
+    expect(listDirectory).toHaveBeenCalledOnce()
     expect(listDirectory).toHaveBeenCalledWith('assets')
     expect(result?.items).toEqual([
       expect.objectContaining({ label: 'characters', value: 'assets/characters/', keepOpen: true }),

@@ -95,8 +95,8 @@ describe('useShellProjectLifecycle', () => {
       'detach:D:/old-project',
       'set:D:/new-project',
       'remember:D:/new-project',
-      'load-tree',
     ])
+    expect(harness.readDirectoryEntries).not.toHaveBeenCalled()
     expect(harness.shellPage.value).toEqual({ type: 'workbench' })
   })
 
@@ -112,9 +112,9 @@ describe('useShellProjectLifecycle', () => {
       'detach:D:/old-project',
       'set:D:/new-project',
       'remember:D:/new-project',
-      'load-tree',
       'open-entry:cards/main.opencard',
     ])
+    expect(harness.readDirectoryEntries).not.toHaveBeenCalled()
   })
 
   it('does not detach sessions when activating the current project again', async () => {
@@ -138,9 +138,13 @@ describe('useShellProjectLifecycle', () => {
   it('rejects a second activation while the first one is still running', async () => {
     const harness = createHarness()
     let finishLoading: (() => void) | undefined
-    harness.readDirectoryEntries.mockImplementationOnce(() => new Promise<void>((resolve) => {
-      finishLoading = resolve
-    }))
+    harness.setProjectPath.mockImplementationOnce(async (path: string) => {
+      harness.events.push(`set:${path}`)
+      await new Promise<void>((resolve) => {
+        finishLoading = resolve
+      })
+      harness.projectPath.value = path
+    })
 
     const firstActivation = harness.lifecycle.openRecentProject('D:/new-project')
     await Promise.resolve()
@@ -149,6 +153,15 @@ describe('useShellProjectLifecycle', () => {
     await expect(firstActivation).resolves.toBe(true)
 
     expect(harness.setProjectPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads the complete project tree only when explicitly requested', async () => {
+    const harness = createHarness()
+
+    await harness.lifecycle.ensureProjectTreeLoaded()
+
+    expect(harness.readDirectoryEntries).toHaveBeenCalledOnce()
+    expect(harness.readDirectoryEntries).toHaveBeenCalledWith('', Number.POSITIVE_INFINITY)
   })
 
   it('clears busy and exposes an activation error when project loading fails', async () => {

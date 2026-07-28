@@ -57,7 +57,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
 
       await options.project.setProjectPath(path)
       options.settings.rememberRecentProject(options.project.projectPath.value)
-      await ensureProjectTreeLoaded()
       if (entryPath) {
         await options.sessions.openFile(entryPath)
       }
