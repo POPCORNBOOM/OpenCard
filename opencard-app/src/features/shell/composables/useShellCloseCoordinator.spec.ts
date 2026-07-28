@@ -130,19 +130,19 @@ describe('useShellCloseCoordinator', () => {
     expect(coordinator.decisions.value.map(row => row.sessionId)).toEqual([first.id])
   })
 
-  it('keeps completion blocked after cancel or save failure', async () => {
+  it('keeps project completion blocked after cancel or save failure', async () => {
     const session = createSession('dirty', { isDirty: true })
     const { coordinator, saveSession, completions } = createCoordinator([session])
-    await coordinator.requestApplicationClose()
+    await coordinator.requestProjectClose('welcome')
     coordinator.cancel()
-    expect(completions.application).not.toHaveBeenCalled()
+    expect(completions.project).not.toHaveBeenCalled()
 
-    await coordinator.requestApplicationClose()
+    await coordinator.requestProjectClose('welcome')
     saveSession.mockResolvedValueOnce('skipped')
     await coordinator.markSelectedSave()
     await expect(coordinator.confirm()).resolves.toBe(false)
 
-    expect(completions.application).not.toHaveBeenCalled()
+    expect(completions.project).not.toHaveBeenCalled()
     expect(coordinator.isOpen.value).toBe(true)
   })
 

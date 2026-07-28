@@ -300,7 +300,6 @@ import WorkspaceBottomPanel, {
 } from './components/WorkspaceBottomPanel.vue'
 import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
 import type {
-  CreatedProject,
   ProjectTemplate,
   ProjectTemplateKey,
   TemplateExportSelection,
@@ -319,6 +318,7 @@ import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
 import { useShellEditorHost } from './composables/useShellEditorHost'
+import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
@@ -354,7 +354,6 @@ import type {
 import {
   getOtherPrimaryShellPage,
   getPrimaryShellPage,
-  resolveShellPageAfterProjectClose,
   type ProjectCloseDestination,
   type PrimaryShellPage,
   type ShellPage,
@@ -404,7 +403,6 @@ const {
   resolvedDictionary,
   indexedEntries,
   chooseProjectDirectory,
-  openProject: openProjectFn,
   isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
@@ -449,8 +447,6 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
   entryNames: {},
   covers: [],
 })
-const projectActivationError = ref('')
-const isActivatingProject = ref(false)
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
@@ -577,6 +573,39 @@ const {
 })
 
 const {
+  isActivating: isActivatingProject,
+  activationError: projectActivationError,
+  openProject,
+  openRecentProject,
+  relocateRecentProject: relocateRecentProjectPath,
+  activateCreatedProject: handleProjectCreated,
+  enterCreateProject,
+  completeProjectClose,
+  ensureProjectTreeLoaded,
+} = useShellProjectLifecycle({
+  project: {
+    projectPath,
+    chooseProjectDirectory,
+    setProjectPath,
+    readDirectoryEntries,
+  },
+  sessions: {
+    detachWorkspaceSessions,
+    closeWorkspaceSessions,
+    openFile: openEditorSession,
+  },
+  settings: {
+    rememberRecentProject: settingsStore.rememberRecentProject,
+    forgetRecentProject: settingsStore.forgetRecentProject,
+  },
+  templates: {
+    load: templateStore.load,
+  },
+  shellPage,
+  translate: t,
+})
+
+const {
   pendingIntent: pendingCloseIntent,
   decisions: unsavedEditorDecisions,
   isOpen: isUnsavedEditorsDialogOpen,
@@ -610,7 +639,7 @@ const {
   saveSession,
   completions: {
     sessions: performSessionClose,
-    project: performProjectClose,
+    project: completeProjectClose,
     trash: performPathTrash,
     application: performApplicationClose,
   },
@@ -737,6 +766,9 @@ const recentProjectTreeData = computed(() => (
   )
 ))
 const selectedRecentProjectKeys = ref<string[]>([])
+watch(projectPath, () => {
+  selectedRecentProjectKeys.value = []
+}, { flush: 'sync' })
 
 let recentProjectProbeRevision = 0
 watch(
@@ -1553,17 +1585,6 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   await resetProjectWorkspaceState()
 }
 
-async function performProjectClose(destination: ProjectCloseDestination = 'current'): Promise<void> {
-  closeWorkspaceSessions()
-  await setProjectPath('')
-  selectedRecentProjectKeys.value = []
-  shellPage.value = resolveShellPageAfterProjectClose(shellPage.value, destination)
-  if (destination === 'create-project') {
-    projectActivationError.value = ''
-    void templateStore.load().catch(() => undefined)
-  }
-}
-
 async function performApplicationClose(): Promise<void> {
   await getCurrentWindow().destroy()
 }
@@ -1700,20 +1721,6 @@ function handleExportSelectionTreeIntent(intent: OcTreeIntent): void {
   }
 }
 
-async function openProject() {
-  const previousProjectPath = projectPath.value
-  const openedPath = await openProjectFn()
-  if (!openedPath) return
-
-  if (previousProjectPath && projectPath.value !== previousProjectPath) {
-    detachWorkspaceSessions(previousProjectPath)
-  }
-
-  settingsStore.rememberRecentProject(projectPath.value)
-  showPrimaryShellPage('workbench')
-  await ensureProjectTreeLoaded()
-}
-
 async function closeProjectFolder(destination: ProjectCloseDestination = 'current'): Promise<void> {
   if (!projectPath.value) return
   await requestProjectClose(destination)
@@ -1768,24 +1775,9 @@ function handleShellFileDropEvent(event: TauriEvent<DragDropEvent>): void {
   }
 }
 
-async function openRecentProject(path: string): Promise<void> {
-  const previousProjectPath = projectPath.value
-  if (previousProjectPath && previousProjectPath !== path) {
-    detachWorkspaceSessions(previousProjectPath)
-  }
-  await setProjectPath(path)
-  settingsStore.rememberRecentProject(projectPath.value)
-  selectedRecentProjectKeys.value = []
-  showPrimaryShellPage('workbench')
-  await ensureProjectTreeLoaded()
-}
-
 async function relocateRecentProject(missingPath: string): Promise<void> {
-  const selectedPath = await chooseProjectDirectory()
+  const selectedPath = await relocateRecentProjectPath(missingPath)
   if (!selectedPath) return
-
-  settingsStore.forgetRecentProject(missingPath)
-  settingsStore.rememberRecentProject(selectedPath)
   selectedRecentProjectKeys.value = []
 }
 
@@ -1796,40 +1788,7 @@ async function openCreateProject(): Promise<void> {
     return
   }
 
-  projectActivationError.value = ''
-  shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
-  void templateStore.load().catch(() => undefined)
-}
-
-async function handleProjectCreated(project: CreatedProject): Promise<void> {
-  if (isActivatingProject.value) return
-  isActivatingProject.value = true
-  projectActivationError.value = ''
-
-  try {
-    if (projectPath.value && projectPath.value !== project.path) {
-      detachWorkspaceSessions(projectPath.value)
-    }
-
-    await setProjectPath(project.path)
-    settingsStore.rememberRecentProject(project.path)
-    await ensureProjectTreeLoaded()
-    await openEditorSession(project.entry)
-    showPrimaryShellPage('workbench')
-  } catch (error) {
-    projectActivationError.value = t('projectTemplates.errors.activationFailed')
-    console.error('激活新建项目失败:', error)
-  } finally {
-    isActivatingProject.value = false
-  }
-}
-
-async function ensureProjectTreeLoaded() {
-  if (!projectPath.value) {
-    return
-  }
-
-  await readDirectoryEntries('', Number.POSITIVE_INFINITY)
+  enterCreateProject()
 }
 
 function toggleSidebarCollapsed() {
