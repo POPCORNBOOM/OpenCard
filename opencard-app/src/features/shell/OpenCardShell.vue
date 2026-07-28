@@ -283,15 +283,12 @@ import {
   createDefaultOpenCardContent,
   useEditorSessionStore,
 } from '../workspace/store/editorSessionStore'
-import MonacoEditor from '../../components/editors/MonacoEditor.vue'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
-import { getOcTheme } from '../../shared/ui/foundation'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
-import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -313,16 +310,14 @@ import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspa
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import type { SettingsCategoryKey, SettingsIntent } from '../settings/model/appSettings'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
-import { editorRegistry } from '../editor-runtime/registry/editorRegistry'
 import type {
   EditorIssueSnapshot,
-  EditorNavigationResult,
   SessionIssueNavigationRequest,
-  SessionNavigationToken,
 } from '../editor-runtime/model/editorIssue'
-import { resolveFileType, resolveFileTypeById } from '../workspace/model/fileTypes'
+import { resolveFileType } from '../workspace/model/fileTypes'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
+import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import {
   useUnsavedSessionGuard,
@@ -406,16 +401,6 @@ const EMPTY_TREE_DATA: OcTreeData = {
 const workspaceOutputLines: readonly string[] = []
 const themeClass = 'shell-theme-graphite'
 
-type CurrentEditorRef = {
-  save?: () => Promise<void> | void
-  flush?: () => Promise<void> | void
-  undo?: () => Promise<void> | void
-  redo?: () => Promise<void> | void
-  canUndo?: boolean
-  canRedo?: boolean
-  navigate?: (token: SessionNavigationToken) => Promise<EditorNavigationResult> | EditorNavigationResult
-}
-
 const {
   projectPath,
   projectInformation,
@@ -489,12 +474,6 @@ const SHELL_SHORTCUT_KEYS = {
   undo: 'z',
   redo: 'y',
 } as const
-const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
-type PendingViewportTransform = {
-  sessionId: string
-  editorId: 'card-designer' | 'image-preview'
-  value: { x: number; y: number; scale: number }
-}
 const primaryShortcutParts = (key: string, shift = false): readonly string[] => (
   usesNativeMacosWindowControls
     ? [...(shift ? ['⇧'] : []), '⌘', key.toUpperCase()]
@@ -514,8 +493,6 @@ let unlistenWindowResize: (() => void) | null = null
 let unlistenWindowClose: (() => void) | null = null
 let unlistenExternalOpen: (() => void) | null = null
 let unlistenShellFileDrop: (() => void) | null = null
-let viewportTransformPersistTimer: number | null = null
-let pendingViewportTransform: PendingViewportTransform | null = null
 const isShellFileDropActive = ref(false)
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
@@ -540,7 +517,6 @@ const effectiveSidebarCollapsed = computed(() => (
 const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWidth)
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
 const exportRendererRef = ref<InstanceType<typeof CardFaceRenderer>>()
-const currentEditorRef = ref<CurrentEditorRef | null>(null)
 const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 
 const {
@@ -572,6 +548,35 @@ const {
   saveActiveSession,
   remapSessionPaths,
 } = useEditorSessionStore()
+
+const {
+  editorRef: currentEditorRef,
+  component: currentEditorComponent,
+  key: currentEditorKey,
+  props: currentEditorProps,
+  resourceRootPath: activeSessionResourceRootPath,
+  isCardDesigner: isActiveCardDesignerEditor,
+  handleViewportTransform: handleViewportTransformUpdate,
+  handleCardDesignerLayout: handleCardDesignerLayoutUpdate,
+  handleCardDesignerView: handleCardDesignerViewUpdate,
+  handleModified: handleEditorModified,
+  handleSaveEvent: handleEditorSave,
+  save: triggerCurrentEditorSave,
+  undo: triggerCurrentEditorUndo,
+  redo: triggerCurrentEditorRedo,
+  flushAffectedSessions: flushActiveEditorForClose,
+  dispose: disposeEditorHost,
+} = useShellEditorHost({
+  activeSession,
+  projectPath,
+  settings: settingsStore.settings,
+  sessionActions: {
+    updateDraftContent,
+    setSessionDirtyState,
+    updateSessionUiState,
+    saveActiveSession,
+  },
+})
 
 const {
   pendingIntent: pendingCloseIntent,
@@ -639,14 +644,6 @@ function getPathDirectory(path: string): string {
   const separatorIndex = normalizedPath.lastIndexOf('/')
   return separatorIndex > 0 ? normalizedPath.slice(0, separatorIndex) : ''
 }
-
-const activeSessionResourceRootPath = computed<string | null>(() => {
-  const session = activeSession.value
-  if (!session) return null
-  if (session.resourceKind === 'workspace') return projectPath.value || null
-  if (session.resourceKind === 'external' && session.path) return getPathDirectory(session.path) || null
-  return null
-})
 
 const {
   issueTreeData,
@@ -787,12 +784,6 @@ const projectFolderName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).filter(Boolean).pop() || ''
 })
-
-const editorThemeId = computed(() => (
-  settingsStore.settings.value.appearance.theme === 'system'
-    ? getOcTheme()
-    : settingsStore.settings.value.appearance.theme
-))
 
 function hasRootProjectFile(fileName: string): boolean {
   const expectedType = fileName === '.dictionary' ? 'opencard-dictionary' : 'opencard-project-profile'
@@ -1312,14 +1303,14 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         title: t('app.menu.undo'),
         icon: 'action.undo',
         shortcut: shellShortcutParts.undo,
-        disabled: !isActiveCardDesignerEditor(),
+        disabled: !isActiveCardDesignerEditor.value,
       },
       {
         key: 'redo-active-editor',
         title: t('app.menu.redo'),
         icon: 'action.redo',
         shortcut: shellShortcutParts.redo,
-        disabled: !isActiveCardDesignerEditor(),
+        disabled: !isActiveCardDesignerEditor.value,
       },
       { type: 'divider', key: 'edit-settings-divider' },
       { key: 'open-settings', title: t('settings.title'), icon: 'tool.settings' },
@@ -1400,157 +1391,6 @@ const workspaceTitle = computed(() => {
 })
 
 const workspaceActions = computed(() => [])
-
-function resolveSessionFileType(session: { fileTypeId: string; path: string | null }) {
-  const fileTypeFromId = resolveFileTypeById(session.fileTypeId)
-  if (!session.path) {
-    return fileTypeFromId
-  }
-
-  const fileTypeFromPath = resolveFileType(session.path)
-  return fileTypeFromPath.id === session.fileTypeId
-    ? fileTypeFromPath
-    : fileTypeFromId
-}
-
-const currentLanguage = computed(() => {
-  if (!activeSession.value) return ''
-  return resolveSessionFileType(activeSession.value).language ?? 'plaintext'
-})
-
-const currentEditorComponent = computed(() => {
-  if (!activeSession.value) return null
-  const editor = editorRegistry.getEditor(activeSession.value.editorId)
-  return editor?.component ?? MonacoEditor
-})
-
-const currentEditorKey = computed(() => {
-  if (!activeSession.value) return 'none'
-  return [
-    activeSession.value.id,
-    activeSession.value.path ?? `draft://${activeSession.value.id}`,
-    activeSession.value.editorId,
-  ].join('|')
-})
-
-// 根据编辑器类型传不同的 props
-// 方案 B 编辑器（如 CardDesignEditor）只需要 filePath
-// 旧式编辑器（如 MonacoEditor）还需要 modelValue + language
-const currentEditorProps = computed(() => {
-  if (!activeSession.value) {
-    return {}
-  }
-
-  const sessionId = activeSession.value.id
-  const fileType = resolveSessionFileType(activeSession.value)
-  const filePath = activeSession.value.path ?? `draft://${activeSession.value.id}`
-  const editor = editorRegistry.getEditor(fileType.editorId)
-  if (editor && editor.id !== 'monaco') {
-    const baseProps = {
-      filePath,
-      modelValue: activeSession.value.draftContent,
-      themeId: editorThemeId.value,
-      'onUpdate:modelValue': (v: string) => { updateDraftContent(sessionId, v) },
-    }
-
-    if (editor.id === 'card-designer') {
-      return {
-        ...baseProps,
-        fileName: activeSession.value.name,
-        resourceRootPath: activeSessionResourceRootPath.value,
-        viewportTransform: activeSession.value.uiState?.cardDesigner?.viewportTransform,
-        cardDesignerLayout: activeSession.value.uiState?.cardDesigner?.layout,
-        cardDesignerView: activeSession.value.uiState?.cardDesigner?.view,
-        structureTreeSelectionBehavior:
-          settingsStore.settings.value.workspace.structureTreeSelectionBehavior,
-        structureTreeScrollToSelection:
-          settingsStore.settings.value.workspace.structureTreeScrollToSelection,
-        showSelectionPositionOnMove:
-          settingsStore.settings.value.workspace.showSelectionPositionOnMove,
-        showSelectionSizeOnResize:
-          settingsStore.settings.value.workspace.showSelectionSizeOnResize,
-      }
-    }
-
-    if (editor.id === 'image-preview') {
-      return {
-        ...baseProps,
-        viewportTransform: activeSession.value.uiState?.imagePreview?.viewportTransform,
-      }
-    }
-
-    return baseProps
-  }
-  return {
-    modelValue: activeSession.value.draftContent,
-    'onUpdate:modelValue': (v: string) => { updateDraftContent(sessionId, v) },
-    language: currentLanguage.value,
-    themeId: editorThemeId.value,
-  }
-})
-
-function persistPendingViewportTransform(): void {
-  if (viewportTransformPersistTimer !== null) {
-    window.clearTimeout(viewportTransformPersistTimer)
-    viewportTransformPersistTimer = null
-  }
-
-  const pending = pendingViewportTransform
-  pendingViewportTransform = null
-  if (!pending) return
-
-  if (pending.editorId === 'card-designer') {
-    updateSessionUiState(pending.sessionId, {
-      cardDesigner: { viewportTransform: pending.value },
-    })
-  } else {
-    updateSessionUiState(pending.sessionId, {
-      imagePreview: { viewportTransform: pending.value },
-    })
-  }
-}
-
-function handleViewportTransformUpdate(value: { x: number; y: number; scale: number }): void {
-  const session = activeSession.value
-  if (!session || (session.editorId !== 'card-designer' && session.editorId !== 'image-preview')) {
-    return
-  }
-
-  if (pendingViewportTransform && pendingViewportTransform.sessionId !== session.id) {
-    persistPendingViewportTransform()
-  }
-
-  pendingViewportTransform = {
-    sessionId: session.id,
-    editorId: session.editorId,
-    value,
-  }
-  if (viewportTransformPersistTimer !== null) {
-    window.clearTimeout(viewportTransformPersistTimer)
-  }
-  viewportTransformPersistTimer = window.setTimeout(
-    persistPendingViewportTransform,
-    VIEWPORT_TRANSFORM_PERSIST_DELAY_MS,
-  )
-}
-
-function handleCardDesignerLayoutUpdate(value: CardDesignerLayoutState): void {
-  const session = activeSession.value
-  if (!session || session.editorId !== 'card-designer') return
-
-  updateSessionUiState(session.id, {
-    cardDesigner: { layout: value },
-  })
-}
-
-function handleCardDesignerViewUpdate(value: CardDesignerViewState): void {
-  const session = activeSession.value
-  if (!session || session.editorId !== 'card-designer') return
-
-  updateSessionUiState(session.id, {
-    cardDesigner: { view: value },
-  })
-}
 
 function handleEditorIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {
   reportSessionIssueSnapshot(sessionId, snapshot)
@@ -1719,12 +1559,6 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   }
 
   await resetProjectWorkspaceState()
-}
-
-async function flushActiveEditorForClose(sessionIds: readonly string[]): Promise<void> {
-  const activeId = activeSession.value?.id
-  if (!activeId || !sessionIds.includes(activeId)) return
-  await currentEditorRef.value?.flush?.()
 }
 
 async function requestUnsavedClose(intent: UnsavedCloseIntent): Promise<void> {
@@ -2350,75 +2184,6 @@ async function handleOpenFile(path: string) {
   }
 }
 
-async function handleEditorSave() {
-  if (!activeSession.value) {
-    return
-  }
-
-  try {
-    await saveActiveSession()
-  } catch (error) {
-    console.error('同步编辑器保存结果失败:', error)
-  }
-}
-
-function handleEditorModified(modified: boolean) {
-  const session = activeSession.value
-  if (!session) {
-    return
-  }
-
-  setSessionDirtyState(session.id, modified)
-}
-
-async function triggerCurrentEditorSave() {
-  if (!activeSession.value) {
-    return
-  }
-
-  const editor = editorRegistry.getEditor(activeSession.value.editorId)
-
-  if (editor?.id !== 'monaco' && currentEditorRef.value?.save) {
-    await currentEditorRef.value.save()
-    return
-  }
-
-  await saveActiveSession()
-}
-
-function isActiveCardDesignerEditor() {
-  const editorId = activeSession.value?.editorId
-  if (!editorId) {
-    return false
-  }
-
-  return editorRegistry.getEditor(editorId)?.id === 'card-designer'
-}
-
-async function triggerCurrentEditorUndo() {
-  if (!isActiveCardDesignerEditor()) {
-    return
-  }
-
-  if (currentEditorRef.value?.canUndo === false || !currentEditorRef.value?.undo) {
-    return
-  }
-
-  await currentEditorRef.value.undo()
-}
-
-async function triggerCurrentEditorRedo() {
-  if (!isActiveCardDesignerEditor()) {
-    return
-  }
-
-  if (currentEditorRef.value?.canRedo === false || !currentEditorRef.value?.redo) {
-    return
-  }
-
-  await currentEditorRef.value.redo()
-}
-
 async function handleGlobalKeydown(event: KeyboardEvent) {
   if (event.key === SHELL_SHORTCUT_KEYS.fullscreen) {
     event.preventDefault()
@@ -2456,7 +2221,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.undo) {
-    if (!isActiveCardDesignerEditor()) {
+    if (!isActiveCardDesignerEditor.value) {
       return
     }
 
@@ -2471,7 +2236,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.redo) {
-    if (!isActiveCardDesignerEditor()) {
+    if (!isActiveCardDesignerEditor.value) {
       return
     }
 
@@ -2522,7 +2287,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  persistPendingViewportTransform()
+  disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('resize', handleViewportResize)
   unlistenWindowResize?.()
