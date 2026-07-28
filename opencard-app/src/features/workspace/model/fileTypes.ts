@@ -149,6 +149,14 @@ const fileTypes: FileTypeDefinition[] = [
     editorId: 'monaco',
   },
   {
+    id: 'font',
+    labelKey: 'fileTypes.font',
+    extensions: ['woff', 'woff2', 'ttf', 'otf'],
+    icon: 'file.font',
+    iconTone: 'active',
+    editorId: 'monaco',
+  },
+  {
     id: 'image',
     labelKey: 'fileTypes.image',
     extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],

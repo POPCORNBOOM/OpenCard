@@ -31,6 +31,7 @@ type UseCdeTreeOpsOptions = {
   documentRevision: Readonly<Ref<number>>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
+  getDefaultBlockName: (type: CardBlock['type']) => string
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
@@ -284,28 +285,29 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function createBlockAt(container: BlockContainer, type: CardBlock['type']): void {
+    const name = options.getDefaultBlockName(type).trim() || undefined
     let block: CardBlock
     switch (type) {
       case 'text-block':
-        block = createBlock('text-block')
+        block = createBlock('text-block', { name })
         break
       case 'markdown-text-block':
-        block = createBlock('markdown-text-block')
+        block = createBlock('markdown-text-block', { name })
         break
       case 'image-block':
-        block = createBlock('image-block')
+        block = createBlock('image-block', { name })
         break
       case 'qrcode-block':
-        block = createBlock('qrcode-block')
+        block = createBlock('qrcode-block', { name })
         break
       case 'shape-block':
-        block = createBlock('shape-block')
+        block = createBlock('shape-block', { name })
         break
       case 'simple-container-block':
-        block = createBlock('simple-container-block')
+        block = createBlock('simple-container-block', { name })
         break
       case 'flow-container-block':
-        block = createBlock('flow-container-block')
+        block = createBlock('flow-container-block', { name })
         break
     }
     addBlockToContainer(container, block, options.parentLookup.value)

@@ -257,10 +257,9 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         defaultValue: createPropertyDefaultValue(definition),
         title: labels?.[fieldKey] ?? resolveFieldTitle(fieldKey, definition),
         category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
-        deletable: definition.deletable === true || (
-          categorylessKeys.has(fieldKey)
-          && options.selectedCardId.value === options.blueprintCardId
-        ),
+        deletable: options.selectedCardId.value === options.blueprintCardId
+          && definition.isReadonly !== true
+          && (definition.deletable === true || definition.required !== true),
         ...(definition.fieldType === 'string' && definition.autocomplete?.length
           ? {
               completion: {
@@ -692,12 +691,51 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   function deleteProperty({ key, fieldKey }: CdePropertyDeleteMutation): boolean {
     const document = options.cardDoc.value
     const block = options.selectedBlock.value
-    if (!block || !document || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
+    if (!document || options.selectedCardId.value !== options.blueprintCardId) {
       return false
     }
-    deleteBlockAdditionalField(document, block, fieldKey)
+
+    if (block?.id === key) {
+      if (block.additionalFieldDefinition?.[fieldKey]) {
+        deleteBlockAdditionalField(document, block, fieldKey)
+      } else if (!deleteOptionalSchemaField(block as unknown as Record<string, unknown>, fieldKey)) {
+        return false
+      } else {
+        for (const instance of document.instances) {
+          resetInstanceOverrideField(instance.data, block.id, fieldKey)
+        }
+      }
+    } else if (isSelectedLayoutKey(key)) {
+      const layout = selectedLayout.value
+      if (!layout || !deleteOptionalSchemaField(layout as unknown as Record<string, unknown>, fieldKey)) {
+        return false
+      }
+    } else if (isSelectedDocumentKey(key)) {
+      if (!deleteOptionalSchemaField(document as unknown as Record<string, unknown>, fieldKey)) {
+        return false
+      }
+    } else if (isSelectedFaceKey(key)) {
+      const face = options.activeFace.value
+      if (!face || !deleteOptionalSchemaField(face as unknown as Record<string, unknown>, fieldKey)) {
+        return false
+      }
+    } else {
+      return false
+    }
+
     options.refreshDocumentState()
     options.markDocumentChanged('action')
+    return true
+  }
+
+  function deleteOptionalSchemaField(record: Record<string, unknown>, fieldKey: string): boolean {
+    const typeName = typeof record.type === 'string' ? record.type : undefined
+    const definition = getTypePropertyEditorSchema(typeName)[fieldKey]
+    if (!definition || definition.required === true || definition.isReadonly === true
+      || !Object.prototype.hasOwnProperty.call(record, fieldKey)) {
+      return false
+    }
+    delete record[fieldKey]
     return true
   }
 

@@ -51,6 +51,7 @@ describe('useCdeTreeOps active face boundary', () => {
       documentRevision,
       parentLookup,
       selectedBlockKeys,
+      getDefaultBlockName: type => `Localized ${type}`,
       refreshDocumentState: () => {
         documentRevision.value += 1
         parentLookup.value = buildParentLookup(document)
@@ -82,10 +83,12 @@ describe('useCdeTreeOps active face boundary', () => {
     state.handleRootAction('add-text-block')
     expect(document.faces.back.children).toHaveLength(2)
     expect(document.faces.front.children).toHaveLength(1)
+    expect(document.faces.back.children[1]?.block.name).toBe('Localized text-block')
     expect(markDocumentChanged).toHaveBeenCalledWith('action')
 
     state.handleRootAction('add-markdown-text-block')
     expect(document.faces.back.children).toHaveLength(3)
     expect(document.faces.back.children[2]?.block.type).toBe('markdown-text-block')
+    expect(document.faces.back.children[2]?.block.name).toBe('Localized markdown-text-block')
   })
 })

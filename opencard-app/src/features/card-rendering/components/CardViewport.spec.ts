@@ -195,6 +195,8 @@ describe('CardViewport wheel zoom API', () => {
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
     expect(actions.map((action) => action.props('action').key))
       .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+    expect(actions.map((action) => action.props('action').icon))
+      .toEqual(['layout.fill', 'layout.center', 'layout.inset', 'layout.outset'])
     expect(wrapper.get('.selection-block-info__title').text()).toContain('Title')
     expect(wrapper.get('.selection-block-info__notes').text()).toBe('Primary heading')
     await wrapper.get('.selection-block-info').trigger('pointerdown')

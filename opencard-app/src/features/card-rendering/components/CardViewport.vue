@@ -6,6 +6,7 @@
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace"
         :resource-root-path="resourceRootPath"
+        :remote-resource-policy="remoteResourcePolicy"
         @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
@@ -144,6 +145,7 @@ import OcIcon from '../../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import type { RenderReadyCardFace } from '../render.types'
+import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'l' | 'r' | 't' | 'b'
 type ResizeMode = 'absolute' | 'flow' | 'none'
@@ -216,6 +218,7 @@ const props = withDefaults(defineProps<{
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
+  remoteResourcePolicy?: ProjectRemoteResourcePolicy
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -240,6 +243,7 @@ const props = withDefaults(defineProps<{
   transformDisabledBlockIds: () => [],
   clipToFace: false,
   resourceRootPath: null,
+  remoteResourcePolicy: undefined,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -361,7 +365,7 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
       {
         key: 'center',
         title: props.selectionActionLabels.centerInParent,
-        icon: 'format.anchor-center',
+        icon: 'layout.center',
       },
       {
         key: 'inset',

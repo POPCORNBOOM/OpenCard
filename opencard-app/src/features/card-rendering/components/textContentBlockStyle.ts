@@ -1,4 +1,5 @@
 import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
+import { toCssFontFamily } from '../../workspace/model/projectFonts'
 import type { RenderReadyMarkdownTextBlock, RenderReadyTextBlock } from '../render.types'
 
 type RenderReadyTextContentBlock = RenderReadyTextBlock | RenderReadyMarkdownTextBlock
@@ -20,7 +21,7 @@ export function getTextContentBlockStyle(
   style += '; display: flex; flex-direction: column'
   style += `; justify-content: ${verticalJustifyMap[block.verticalAlign]}`
   style += `; font-size: ${block.fontSize}`
-  style += `; font-family: ${block.fontFamily}`
+  style += `; font-family: ${toCssFontFamily(block.fontFamily)}`
   style += `; font-weight: ${block.fontWeight}`
   style += `; color: ${block.color}`
   style += `; text-align: ${block.textAlign}`

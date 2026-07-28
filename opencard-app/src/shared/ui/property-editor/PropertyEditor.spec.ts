@@ -21,6 +21,7 @@ describe('PropertyEditor records protocol', () => {
     const wrapper = mount(PropertyEditor, {
       props: {
         sortMode: 'category',
+        deleteMode: false,
         inputs: [{
           key: 'block',
           record: { opacity: 1 },
@@ -152,7 +153,7 @@ describe('PropertyEditor records protocol', () => {
     wrapper.unmount()
   })
 
-  it('requires two clicks before emitting a generic delete intent', async () => {
+  it('shows deletable fields only in delete mode and emits on the first click', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {
         sortMode: 'category',
@@ -166,35 +167,32 @@ describe('PropertyEditor records protocol', () => {
       },
     })
 
+    expect(wrapper.find('.delete-field-button').exists()).toBe(false)
+    await wrapper.setProps({ deleteMode: true })
     const button = wrapper.get('.delete-field-button')
-    await button.trigger('click')
-    expect(wrapper.emitted('delete-property')).toBeUndefined()
-    expect(button.classes()).toContain('is-armed')
-
+    expect(button.classes()).not.toContain('is-armed')
     await button.trigger('click')
     expect(wrapper.emitted('delete-property')).toEqual([[
       { key: 'block', fieldKey: 'score' },
     ]])
   })
 
-  it('cancels an armed delete when another editor area is clicked', async () => {
+  it('does not expose delete mode for required fields', () => {
     const wrapper = mount(PropertyEditor, {
       props: {
         sortMode: 'category',
+        deleteMode: true,
         inputs: [{
           key: 'block',
           record: { score: 10 },
           fields: {
-            score: { title: 'Score', fieldType: 'number', deletable: true },
+            score: { title: 'Score', fieldType: 'number' },
           },
         }],
       },
     })
 
-    const button = wrapper.get('.delete-field-button')
-    await button.trigger('click')
-    await wrapper.get('.property-editor__source-header').trigger('pointerdown')
-    expect(button.classes()).not.toContain('is-armed')
+    expect(wrapper.find('.delete-field-button').exists()).toBe(false)
   })
 
   it('switches a bindable number field to the raw string editor', async () => {

@@ -41,6 +41,27 @@ describe('RichTextStringPropertyField', () => {
     wrapper.unmount()
   })
 
+  it('passes the shared font catalog to the rich-text editor', async () => {
+    const fontOptions = [{
+      label: 'Brand Sans',
+      value: 'project:brand-sans',
+      cssFamily: '"project:brand-sans"',
+    }]
+    const wrapper = mount(RichTextStringPropertyField, {
+      attachTo: document.body,
+      props: {
+        definition: { title: 'Content', fieldType: 'string', richText: true, fontOptions },
+        value: '<p>Original</p>',
+      },
+    })
+
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await nextTick()
+
+    expect(wrapper.getComponent(OcRichTextEditor).props('fontOptions')).toEqual(fontOptions)
+    wrapper.unmount()
+  })
+
   it('keeps the rich-text draft open when binding editing consumes Escape', async () => {
     const wrapper = mount(RichTextStringPropertyField, {
       attachTo: document.body,

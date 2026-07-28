@@ -30,7 +30,6 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
       <div class="about-workspace__brand">
         <img :src="staticLogo" alt="OpenCard" />
         <div>
-          <p class="about-workspace__eyebrow">{{ t('app.about.eyebrow') }}</p>
           <h1>OpenCard</h1>
           <div class="about-workspace__version-row">
             <p class="about-workspace__version">{{ t('app.about.version', { version }) }}</p>
@@ -101,17 +100,10 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
   object-fit: contain;
 }
 
-.about-workspace__eyebrow,
 .about-workspace__version,
 .about-workspace__copy p,
 .about-workspace h1 {
   margin: 0;
-}
-
-.about-workspace__eyebrow {
-  margin-bottom: var(--oc-space-1);
-  color: var(--oc-fg-accent);
-  font-size: var(--oc-text-sm);
 }
 
 .about-workspace h1 {

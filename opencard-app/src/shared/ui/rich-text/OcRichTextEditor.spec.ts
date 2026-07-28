@@ -5,9 +5,22 @@ import type { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
 import OcRichTextEditor from './OcRichTextEditor.vue'
 
 describe('OcRichTextEditor', () => {
+  it('preserves consecutive spaces when parsing initial and external HTML', async () => {
+    const wrapper = mount(OcRichTextEditor, {
+      props: { modelValue: '<p>Left   right</p>' },
+    })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+
+    expect(editor.getHTML()).toBe('<p>Left   right</p>')
+    await wrapper.setProps({ modelValue: '<p>Next    value</p>' })
+    expect(editor.getHTML()).toBe('<p>Next    value</p>')
+    wrapper.unmount()
+  })
+
   it('serializes selection formatting as controlled HTML', () => {
     const wrapper = mount(OcRichTextEditor, {
       props: { modelValue: '<p>Hello</p>' },
@@ -44,6 +57,30 @@ describe('OcRichTextEditor', () => {
     expect(html).toContain('-webkit-text-stroke-width: 1px')
     expect(html).toContain('text-align: center')
 
+    wrapper.unmount()
+  })
+
+  it('maps project font references to CSS-safe rich-text values', async () => {
+    const wrapper = mount(OcRichTextEditor, {
+      props: {
+        modelValue: '<p>Hello</p>',
+        fontOptions: [{
+          label: 'Brand Sans',
+          value: 'project:brand-sans',
+          cssFamily: '"project:brand-sans"',
+        }],
+      },
+    })
+    await nextTick()
+    await nextTick()
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    editor.commands.setTextSelection({ from: 1, to: 6 })
+
+    wrapper.getComponent(OcSelect).vm.$emit('update:modelValue', 'project:brand-sans')
+    await nextTick()
+
+    expect(editor.getHTML()).toContain('font-family: &quot;project:brand-sans&quot;')
+    expect(wrapper.getComponent(OcSelect).props('modelValue')).toBe('project:brand-sans')
     wrapper.unmount()
   })
 

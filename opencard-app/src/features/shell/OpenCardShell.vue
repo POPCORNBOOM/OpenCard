@@ -14,11 +14,12 @@
   <main class="shell-root open-card-shell" :class="themeClass">
     <ShellTitleBar
       :collapsed="effectiveSidebarCollapsed"
-      brand-label="OPENCARD"
+      :brand-label="titleBarBrandLabel"
       brand-logo-src="/icon_v2.png"
       :menu-groups="titleBarMenus"
       :primary-page-action="primaryPageToggleAction"
       :app-actions="titleBarAppActions"
+      :tasks="titleBarTasks"
       :window-controls="windowControls"
       :native-macos-controls="usesNativeMacosWindowControls"
       :collapse-tooltip="t('app.shell.collapseSidebar')"
@@ -242,6 +243,7 @@
         :face="exportCardFace"
         :clip-to-face="true"
         :resource-root-path="activeSessionResourceRootPath"
+        :remote-resource-policy="activeRemoteResourcePolicy"
       />
     </div>
 
@@ -327,8 +329,15 @@ import type {
   SessionIssueNavigationRequest,
 } from '../editor-runtime/model/editorIssue'
 import { resolveFileType } from '../workspace/model/fileTypes'
+import {
+  PROJECT_PROFILE_FILE_NAME,
+  parseProjectMetadataText,
+  serializeProjectMetadata,
+} from '../workspace/model/projectMetadata'
+import { createProjectFontRegistration } from '../workspace/model/projectFonts'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
+import { useShellProgressTasks } from './composables/useShellProgressTasks'
 import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
@@ -340,6 +349,7 @@ import {
   PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
+  PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY,
   PROJECT_ENTRY_REVEAL_ACTION_KEY,
   isProjectEntryConfirmDeleteActionKey,
   projectEntryConfirmDeleteActionKey,
@@ -409,6 +419,7 @@ const themeClass = 'shell-theme-graphite'
 
 const {
   projectPath,
+  projectProfile,
   projectInformation,
   resolvedDictionary,
   indexedEntries,
@@ -566,6 +577,18 @@ watch([isAboutMode, currentReleaseNotes], ([aboutMode, release]) => {
 })
 
 const {
+  tasks: titleBarTasks,
+  setTask: setShellProgressTask,
+  removeTask: removeShellProgressTask,
+} = useShellProgressTasks()
+const UPDATE_PROGRESS_TASK_KEY = 'app-update'
+const titleBarBrandLabel = computed(() => {
+  if (titleBarTasks.value.length === 0) return 'OPENCARD'
+  if (titleBarTasks.value.length === 1) return titleBarTasks.value[0]!.title
+  return t('app.shell.activeTasks', { count: titleBarTasks.value.length })
+})
+
+const {
   sessions,
   activeSession,
   openedEditorItems,
@@ -584,6 +607,12 @@ const {
   saveActiveSession,
   remapSessionPaths,
 } = useEditorSessionStore()
+
+const activeRemoteResourcePolicy = computed(() => (
+  activeSession.value?.resourceKind === 'workspace'
+    ? projectProfile.value?.remoteResources
+    : undefined
+))
 
 const {
   editorRef: currentEditorRef,
@@ -605,6 +634,7 @@ const {
 } = useShellEditorHost({
   activeSession,
   projectPath,
+  projectProfile,
   settings: settingsStore.settings,
   sessionActions: {
     updateDraftContent,
@@ -878,6 +908,10 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     title: t('sidebar.fileActions.reveal'),
     icon: 'status.folder-open',
   }],
+  [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY, {
+    title: t('sidebar.fileActions.registerFont'),
+    icon: 'action.import',
+  }],
   [PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY, {
     title: t('sidebar.fileActions.copyRelativePath'),
     icon: 'action.copy',
@@ -889,10 +923,14 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
   ])
 
   for (const [entryKey, item] of projectTreeData.value.items) {
+    const entry = findProjectEntryByKey(entryKey)
     const moreActionKey = projectEntryMoreActionKey(entryKey)
     const deleteActionKey = projectEntryDeleteActionKey(entryKey)
     const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
     const children = [
+      ...(entry && !entry.isDirectory && resolveFileType(entryKey, projectPath.value).id === 'font'
+        ? [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY]
+        : []),
       PROJECT_ENTRY_RENAME_ACTION_KEY,
       deleteActionKey,
       PROJECT_ENTRY_REVEAL_ACTION_KEY,
@@ -1057,13 +1095,32 @@ const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData
   TEMPLATE_COVER_REMOVE_ACTION_KEY,
 ))
 
+const updateOperationProgress = computed<number | null>(() => {
+  const isPreview = import.meta.env.DEV && developerMode.value && !availableUpdate.value
+  if (!availableUpdate.value && !isPreview) return null
+  return availableUpdate.value
+    ? (isInstallingUpdate.value ? updateInstallProgress.value ?? 0 : null)
+    : developerUpdateProgress.value
+})
+
+watch([updateOperationProgress, locale], ([progress]) => {
+  if (progress == null) {
+    removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
+    return
+  }
+  setShellProgressTask({
+    key: UPDATE_PROGRESS_TASK_KEY,
+    title: t('app.updater.installing'),
+    progress,
+    weight: 1,
+  })
+}, { immediate: true })
+
 const titleBarAppActions = computed<ShellTitleBarAppAction[]>(() => {
   const isPreview = import.meta.env.DEV && developerMode.value && !availableUpdate.value
   if (!availableUpdate.value && !isPreview) return []
 
-  const progress = availableUpdate.value
-    ? (isInstallingUpdate.value ? updateInstallProgress.value ?? 0 : null)
-    : developerUpdateProgress.value
+  const progress = updateOperationProgress.value
   const disabled = availableUpdate.value
     ? isInstallingUpdate.value
     : progress !== null && progress < 1
@@ -1071,7 +1128,6 @@ const titleBarAppActions = computed<ShellTitleBarAppAction[]>(() => {
   return [{
     key: 'install-update',
     icon: 'action.download',
-    progress,
     disabled,
     hoverTip: progress !== null
       ? t('app.updater.installingProgress', { progress: Math.round(progress * 100) })
@@ -1577,6 +1633,31 @@ async function createProjectSpecialFile(fileName: '.opencardprojectprofile' | '.
   await openEditorSession(path)
 }
 
+async function registerProjectFont(path: string): Promise<void> {
+  if (!projectPath.value) return
+  const source = getRelativeProjectPath(path)
+  if (Object.values(projectProfile.value?.fonts ?? {})
+    .some(definition => definition.faces.some(face => face.source === source))) return
+
+  const profilePath = `${projectPath.value}/${PROJECT_PROFILE_FILE_NAME}`
+  if (!hasRootProjectFile(PROJECT_PROFILE_FILE_NAME)) await createFile(PROJECT_PROFILE_FILE_NAME, '{}')
+  const session = await openEditorSession(profilePath)
+  const profile = parseProjectMetadataText(session.draftContent)
+  if (!profile) throw new Error('Cannot register a font while the project profile is invalid')
+  if (Object.values(profile.fonts ?? {})
+    .some(definition => definition.faces.some(face => face.source === source))) return
+
+  const registration = createProjectFontRegistration(source, profile.fonts)
+  updateDraftContent(session.id, serializeProjectMetadata({
+    ...profile,
+    fonts: {
+      ...profile.fonts,
+      [registration.id]: registration.definition,
+    },
+  }))
+  await saveSession(session.id)
+}
+
 async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
   if (!projectPath.value) return
   const parentPath = getProjectEntryParentPath()
@@ -1695,6 +1776,14 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
       await requestPathTrash(entry.key)
       return
     }
+    if (intent.actionKey === PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY) {
+      try {
+        await registerProjectFont(entry.key)
+      } catch (error) {
+        console.error('[workspace-action] Failed to register project font:', { path: entry.key, error })
+      }
+      return
+    }
     if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
       console.debug('[workspace-action] reveal:start', { actionKey: intent.actionKey, path: entry.key })
       try {
@@ -1732,6 +1821,8 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
     await handleProjectTreeItemToggle(entry.key, !entry.isExpanded)
     return
   }
+
+  if (resolveFileType(entry.key, projectPath.value).id === 'font') return
 
   await handleOpenFile(entry.key)
 }
@@ -2123,6 +2214,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
   disposeShellWindow()

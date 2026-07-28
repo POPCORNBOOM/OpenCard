@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcActionMenu from '../../../components/standard/OcActionMenu.vue';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
+import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
 import type {
+  ShellProgressTask,
   ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
   ShellTitleBarWindowControl,
@@ -16,6 +18,7 @@ const props = defineProps<{
   menuGroups: ShellTitleBarMenuGroup[];
   primaryPageAction?: ShellTitleBarAppAction;
   appActions?: ShellTitleBarAppAction[];
+  tasks?: readonly ShellProgressTask[];
   windowControls?: ShellTitleBarWindowControl[];
   collapseTooltip?: string;
   expandTooltip?: string;
@@ -32,7 +35,48 @@ const emit = defineEmits<{
 
 const openMenu = ref<string | null>(null);
 const titlebarRef = ref<HTMLElement | null>(null);
+const taskPanelAnchor = ref<HTMLElement | null>(null);
+const taskPanelOpen = ref(false);
 const menuAnchors = new Map<string, HTMLElement>();
+let taskPanelCloseTimer: number | null = null;
+const titlebarProgress = computed(() => {
+  if (!props.tasks?.length) return null;
+  const totals = props.tasks.reduce((result, task) => {
+    const weight = Number.isFinite(task.weight) && (task.weight ?? 0) > 0 ? task.weight! : 1;
+    result.progress += Math.min(1, Math.max(0, task.progress)) * weight;
+    result.weight += weight;
+    return result;
+  }, { progress: 0, weight: 0 });
+  return totals.progress / totals.weight;
+});
+
+function taskProgressPercent(task: ShellProgressTask): number {
+  return Math.round(Math.min(1, Math.max(0, task.progress)) * 100);
+}
+
+function cancelTaskPanelClose(): void {
+  if (taskPanelCloseTimer == null) return;
+  window.clearTimeout(taskPanelCloseTimer);
+  taskPanelCloseTimer = null;
+}
+
+function openTaskPanel(): void {
+  cancelTaskPanelClose();
+  if (props.tasks?.length) taskPanelOpen.value = true;
+}
+
+function scheduleTaskPanelClose(): void {
+  cancelTaskPanelClose();
+  taskPanelCloseTimer = window.setTimeout(() => {
+    taskPanelCloseTimer = null;
+    taskPanelOpen.value = false;
+  }, 120);
+}
+
+function closeTaskPanel(): void {
+  cancelTaskPanelClose();
+  taskPanelOpen.value = false;
+}
 
 function setMenuAnchor(menuKey: string, element: Element | ComponentPublicInstance | null): void {
   if (element instanceof HTMLElement) menuAnchors.set(menuKey, element);
@@ -54,12 +98,6 @@ function runMenuCommand(menuKey: string, actionKey: string): void {
 
 function closeMenu(): void {
   openMenu.value = null;
-}
-
-function progressStyle(progress: number | null | undefined): Record<string, string> | undefined {
-  if (progress == null) return undefined
-  const normalized = Math.min(1, Math.max(0, progress))
-  return { '--titlebar-progress-offset': String(100 - normalized * 100) }
 }
 
 function onDocumentPointerDown(event: PointerEvent): void {
@@ -88,6 +126,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  cancelTaskPanelClose();
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   document.removeEventListener('keydown', onDocumentKeydown);
 });
@@ -99,6 +138,11 @@ onBeforeUnmount(() => {
     class="titlebar"
     :class="{ 'titlebar-native-macos': props.nativeMacosControls }"
   >
+    <AppearanceShaderPreview
+      v-if="titlebarProgress != null"
+      class="titlebar-shader"
+      :progress="titlebarProgress"
+    />
     <div class="titlebar-left">
       <button
         class="titlebar-icon"
@@ -155,38 +199,68 @@ onBeforeUnmount(() => {
         v-for="action in props.appActions ?? []"
         :key="action.key"
         class="titlebar-icon titlebar-app-action"
-        :class="{ 'has-progress': action.progress != null }"
-        :style="progressStyle(action.progress)"
         type="button"
         :disabled="action.disabled"
         :data-tooltip="action.hoverTip || null"
         @click="emit('app-action', action.key)"
       >
-        <svg
-          v-if="action.progress != null"
-          class="titlebar-progress-ring"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <circle class="titlebar-progress-ring__track" cx="12" cy="12" r="10" />
-          <circle
-            class="titlebar-progress-ring__value"
-            cx="12"
-            cy="12"
-            r="10"
-            pathLength="100"
-          />
-        </svg>
         <OcIcon :name="action.icon" size="sm" />
       </button>
     </div>
 
     <div class="titlebar-drag" :data-tauri-drag-region="props.dragRegion ? '' : null">
-      <div class="titlebar-brand-lockup" :data-tauri-drag-region="props.dragRegion ? '' : null">
+      <div
+        ref="taskPanelAnchor"
+        class="titlebar-brand-lockup"
+        :data-tauri-drag-region="props.dragRegion ? '' : null"
+        :tabindex="props.tasks?.length ? 0 : undefined"
+        :aria-expanded="props.tasks?.length ? taskPanelOpen : undefined"
+        @pointerenter="openTaskPanel"
+        @pointerleave="scheduleTaskPanelClose"
+        @focusin="openTaskPanel"
+        @focusout="scheduleTaskPanelClose"
+        @keydown.esc="closeTaskPanel"
+      >
         <img v-if="props.brandLogoSrc" class="titlebar-logo" :src="props.brandLogoSrc" alt="" draggable="false" />
         <span class="titlebar-brand">{{ props.brandLabel }}</span>
       </div>
     </div>
+
+    <OcFloatingLayer
+      :open="taskPanelOpen && Boolean(props.tasks?.length)"
+      :anchor="taskPanelAnchor"
+      placement="bottom"
+      :gap="6"
+      :max-height="360"
+      class="titlebar-task-floating"
+    >
+      <section
+        class="titlebar-task-panel"
+        aria-live="polite"
+        @pointerenter="cancelTaskPanelClose"
+        @pointerleave="scheduleTaskPanelClose"
+      >
+        <div v-for="task in props.tasks ?? []" :key="task.key" class="titlebar-task-row">
+          <div class="titlebar-task-row__header">
+            <span class="titlebar-task-row__title">{{ task.title }}</span>
+            <span class="titlebar-task-row__value">{{ taskProgressPercent(task) }}%</span>
+          </div>
+          <div
+            class="titlebar-task-row__track"
+            role="progressbar"
+            :aria-label="task.title"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="taskProgressPercent(task)"
+          >
+            <span
+              class="titlebar-task-row__fill"
+              :style="{ width: `${taskProgressPercent(task)}%` }"
+            />
+          </div>
+        </div>
+      </section>
+    </OcFloatingLayer>
 
     <div class="titlebar-right">
       <button

@@ -28,9 +28,17 @@ import {
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
+import { clearProjectFonts, syncProjectFonts } from '../services/projectFontLoader'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
+const PROJECT_FONT_DIRECTORY = 'assets/fonts'
+const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf'])
+
+export type ImportedProjectFontFile = {
+  source: string
+  copied: boolean
+}
 
 interface FileChangedPayload {
   kind: string
@@ -151,6 +159,7 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
 }
 
 function clearProjectProfile() {
+  clearProjectFonts()
   projectProfile.value = null
   resolvedProject.value = null
   profileError.value = null
@@ -174,6 +183,7 @@ async function reloadProjectProfile(): Promise<boolean> {
     if (!profile) throw new Error('Invalid project profile')
     projectProfile.value = profile
     resolvedProject.value = toProjectInformation(profile)
+    await syncProjectFonts(profile.fonts, resolveAssetSrc)
     profileError.value = null
     return true
   } catch (error) {
@@ -328,6 +338,11 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
+      const fontSources = Object.values(projectProfile.value?.fonts ?? {})
+        .flatMap(definition => definition.faces.map(face => resolveProjectPath(face.source)))
+      if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
+        void syncProjectFonts(projectProfile.value?.fonts, resolveAssetSrc)
+      }
       void refreshIndexedEntries()
     })
 
@@ -425,6 +440,42 @@ async function createFolder(relativePath: string) {
 async function createFile(relativePath: string, content: string = '') {
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
   await refreshIndexedEntries()
+}
+
+async function importProjectFontFile(sourcePath: string): Promise<ImportedProjectFontFile> {
+  const normalizedSourcePath = normalizePath(sourcePath)
+  const projectRoot = ensureProjectOpen()
+  const fileName = getPathBasename(normalizedSourcePath)
+  const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
+  if (!PROJECT_FONT_EXTENSIONS.has(extension)) throw new Error('Unsupported project font file')
+
+  const sourceIdentity = pathIdentity(normalizedSourcePath)
+  const projectIdentity = pathIdentity(projectRoot)
+  if (sourceIdentity.startsWith(`${projectIdentity}/`)) {
+    return {
+      source: normalizedSourcePath.slice(projectRoot.length + 1),
+      copied: false,
+    }
+  }
+
+  const targetDirectory = resolveProjectPath(PROJECT_FONT_DIRECTORY)
+  await fileSystemService.createDirectory(targetDirectory)
+  const dotIndex = fileName.lastIndexOf('.')
+  const stem = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+  const suffix = dotIndex > 0 ? fileName.slice(dotIndex) : ''
+  let candidateName = fileName
+  let candidateIndex = 2
+  while (await fileSystemService.fileExists(`${targetDirectory}/${candidateName}`)) {
+    candidateName = `${stem} ${candidateIndex}${suffix}`
+    candidateIndex += 1
+  }
+
+  await fileSystemService.copyFile(normalizedSourcePath, `${targetDirectory}/${candidateName}`)
+  await refreshIndexedEntries()
+  return {
+    source: `${PROJECT_FONT_DIRECTORY}/${candidateName}`,
+    copied: true,
+  }
 }
 
 async function createEntryWithAvailableName(
@@ -737,6 +788,7 @@ export function useProjectStore() {
     saveFile,
     createFolder,
     createFile,
+    importProjectFontFile,
     createEntryWithAvailableName,
     trashFile,
     revealEntryInFileManager,

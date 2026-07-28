@@ -136,7 +136,21 @@ describe('useCdePropertyPanelState additional fields', () => {
 
     state.addProperty({ key: document.id, fieldKey: 'description', value: '' })
     expect(document.description).toBe('')
-    expect(state.propertyInputs.value[0]?.fields.description?.deletable).toBe(false)
+    expect(state.propertyInputs.value[0]?.fields.description?.deletable).toBe(true)
     expect(state.propertyInputs.value[0]?.fields.description?.resettable).toBeUndefined()
+  })
+
+  it('deletes optional native fields but protects required fields', () => {
+    const { block, document, state } = createHarness()
+    block.name = 'Optional name'
+    document.instances[0]!.data.text = { name: 'Instance name' }
+
+    expect(state.propertyInputs.value[0]?.fields.name?.deletable).toBe(true)
+    expect(state.propertyInputs.value[0]?.fields.content?.deletable).toBe(false)
+    expect(state.deleteProperty({ key: block.id, fieldKey: 'name' })).toBe(true)
+    expect(block.name).toBeUndefined()
+    expect(document.instances[0]!.data.text).toBeUndefined()
+    expect(state.deleteProperty({ key: block.id, fieldKey: 'content' })).toBe(false)
+    expect(block.content).toBe('Blueprint')
   })
 })

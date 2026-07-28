@@ -47,4 +47,5 @@ function handleClick(event: MouseEvent) {
 
 .text-block-content--richtext :deep(p) { margin: 0; }
 .text-block-content--richtext :deep(p + p) { margin-top: 0.35em; }
+.text-block-content--richtext { white-space: break-spaces; }
 </style>

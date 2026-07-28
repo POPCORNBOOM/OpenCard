@@ -13,11 +13,13 @@ import type {
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
 import type { OcThemeId } from '../../../shared/ui/foundation'
+import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 export interface EditorProps {
   filePath: string
   fileName?: string
   resourceRootPath?: string | null
+  remoteResourcePolicy?: ProjectRemoteResourcePolicy
   modelValue?: string
   viewportTransform?: EditorViewportTransform
   cardDesignerLayout?: CardDesignerLayoutState

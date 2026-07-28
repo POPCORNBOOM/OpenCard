@@ -50,4 +50,12 @@ describe('workspace entry icon tokens', () => {
       tone: 'config',
     })
   })
+
+  it('uses a dedicated icon for project font files', () => {
+    expect(resolveFileType('D:/Cards/assets/fonts/Brand.woff2').id).toBe('font')
+    expect(resolveEntryIcon('D:/Cards/assets/fonts/Brand.ttf', false)).toEqual({
+      icon: 'file.font',
+      tone: 'active',
+    })
+  })
 })

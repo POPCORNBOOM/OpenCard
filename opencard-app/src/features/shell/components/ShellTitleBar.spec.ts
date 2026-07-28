@@ -7,6 +7,42 @@ describe('ShellTitleBar', () => {
     document.body.innerHTML = ''
   })
 
+  it('renders weighted task progress and exposes active tasks on the title', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      attachTo: document.body,
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [],
+      },
+    })
+
+    expect(wrapper.find('.titlebar-shader').exists()).toBe(false)
+
+    await wrapper.setProps({
+      tasks: [
+        { key: 'export', title: 'Exporting cards', progress: 0.25, weight: 3 },
+        { key: 'index', title: 'Indexing files', progress: 0.75, weight: 1 },
+      ],
+    })
+
+    expect(wrapper.get('.titlebar-shader').attributes('style')).toContain('--appearance-progress: 37.5%')
+    expect(wrapper.get('.titlebar-brand-lockup').attributes('data-tooltip')).toBeUndefined()
+
+    await wrapper.get('.titlebar-brand-lockup').trigger('pointerenter')
+    const rows = document.body.querySelectorAll('.titlebar-task-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.textContent).toContain('Exporting cards')
+    expect(rows[0]?.textContent).toContain('25%')
+    expect(rows[0]?.querySelector<HTMLElement>('.titlebar-task-row__fill')?.style.width).toBe('25%')
+
+    await wrapper.setProps({
+      tasks: [{ key: 'export', title: 'Exporting cards', progress: 0.6, weight: 1 }],
+    })
+    expect(document.body.querySelector('.titlebar-task-row')?.textContent).toContain('60%')
+    wrapper.unmount()
+  })
+
   it('does not emit disabled menu actions', async () => {
     const wrapper = mount(ShellTitleBar, {
       attachTo: document.body,
@@ -81,7 +117,7 @@ describe('ShellTitleBar', () => {
     expect(controls[2]!.classes()).not.toContain('titlebar-icon-window-start')
   })
 
-  it('renders menu-adjacent app actions with determinate progress', async () => {
+  it('keeps menu-adjacent app actions independent from task progress', async () => {
     const wrapper = mount(ShellTitleBar, {
       props: {
         collapsed: false,
@@ -90,7 +126,6 @@ describe('ShellTitleBar', () => {
         appActions: [{
           key: 'install-update',
           icon: 'action.download',
-          progress: 0.42,
           hoverTip: 'Downloading 42%',
         }],
       },
@@ -98,9 +133,7 @@ describe('ShellTitleBar', () => {
 
     const action = wrapper.get('.titlebar-app-action')
     expect(action.element.previousElementSibling?.classList).toContain('titlebar-menu')
-    expect(action.classes()).toContain('has-progress')
-    expect(action.attributes('style')).toContain('--titlebar-progress-offset: 58')
-    expect(action.get('.titlebar-progress-ring__value').attributes('pathLength')).toBe('100')
+    expect(wrapper.find('.titlebar-shader').exists()).toBe(false)
     await action.trigger('click')
     expect(wrapper.emitted('app-action')).toEqual([['install-update']])
   })

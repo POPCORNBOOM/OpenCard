@@ -268,11 +268,19 @@
 }
 
 .titlebar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: stretch;
   gap: var(--space-2);
   padding: 0 var(--space-3);
+}
+
+.titlebar-shader {
+  z-index: 0;
+  pointer-events: none;
 }
 
 .titlebar.titlebar-native-macos {
@@ -281,12 +289,16 @@
 
 .titlebar-left,
 .titlebar-right {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--space-1);
 }
 
 .titlebar-drag {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -351,40 +363,6 @@
   position: relative;
 }
 
-.titlebar-progress-ring {
-  position: absolute;
-  inset: 2px;
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  overflow: visible;
-  pointer-events: none;
-  shape-rendering: geometricPrecision;
-  transform: rotate(-90deg);
-}
-
-.titlebar-progress-ring circle {
-  fill: none;
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
-
-.titlebar-progress-ring__track {
-  stroke: var(--oc-border-default);
-}
-
-.titlebar-progress-ring__value {
-  stroke: var(--oc-fg-accent);
-  stroke-dasharray: 100;
-  stroke-dashoffset: var(--titlebar-progress-offset, 100);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 180ms linear;
-}
-
-.titlebar-app-action .oc-icon {
-  position: relative;
-  z-index: 1;
-}
-
 .workspace-action,
 .shell-sidebar-action {
   border: 0;
@@ -422,6 +400,63 @@
   transition: opacity 120ms ease;
   z-index: 2147483647;
   white-space: nowrap;
+}
+
+.titlebar-task-floating {
+  width: min(320px, calc(100vw - 16px));
+  overflow: hidden;
+  border: 1px solid var(--oc-border-default);
+  border-radius: var(--oc-radius-md);
+  box-shadow: var(--oc-shadow-lg);
+}
+
+.titlebar-task-panel {
+  display: grid;
+  gap: var(--oc-space-3);
+  padding: var(--oc-space-3);
+}
+
+.titlebar-task-row {
+  display: grid;
+  gap: var(--oc-space-2);
+  min-width: 0;
+}
+
+.titlebar-task-row__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oc-space-3);
+  font-size: var(--oc-text-sm);
+}
+
+.titlebar-task-row__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--oc-fg-default);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-task-row__value {
+  flex: none;
+  color: var(--oc-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.titlebar-task-row__track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--oc-radius-pill);
+  background: var(--oc-bg-hover);
+}
+
+.titlebar-task-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--oc-accent);
+  transition: width 180ms linear;
 }
 
 .app-tooltip-layer.open {

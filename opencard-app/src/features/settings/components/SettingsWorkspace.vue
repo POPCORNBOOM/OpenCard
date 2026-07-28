@@ -62,8 +62,6 @@
               <div class="settings-workspace__preview-canvas">
                 <AppearanceShaderPreview />
                 <div class="settings-workspace__preview-document">
-                  <span class="settings-workspace__preview-card-title">OPEN CARD</span>
-                  <span class="settings-workspace__preview-card-shape" />
                   <span class="settings-workspace__preview-card-copy" />
                 </div>
                 <div class="settings-workspace__preview-glass">

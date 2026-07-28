@@ -12,6 +12,7 @@ import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
 import { resolveEditorAssetSrc } from '../../editor-runtime/services/editorResource'
+import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
@@ -29,11 +30,14 @@ const props = withDefaults(defineProps<{
     clipToFace?: boolean
     /** 当前编辑资源的相对路径解析根。 */
     resourceRootPath?: string | null
+    /** 当前项目允许加载的远程资源范围。 */
+    remoteResourcePolicy?: ProjectRemoteResourcePolicy
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
     clipToFace: false,
     resourceRootPath: null,
+    remoteResourcePolicy: undefined,
 })
 
 const cardCanvasRef = ref<HTMLElement>()
@@ -89,7 +93,11 @@ provide(cardEditorContextKey, {
     handleBlockClick: (blockId, event) => {
         emit('block-click', blockId, event)
     },
-    resolveAssetSrc: (path) => resolveEditorAssetSrc(props.resourceRootPath, path),
+    resolveAssetSrc: (path) => resolveEditorAssetSrc(
+        props.resourceRootPath,
+        path,
+        props.remoteResourcePolicy,
+    ),
 })
 
 defineExpose({

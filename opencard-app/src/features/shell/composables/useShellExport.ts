@@ -18,9 +18,14 @@ import { runRenderPipeline, type RenderPipelineResult } from '../../card-renderi
 import type { RenderReadyCardFace } from '../../card-rendering/render.types'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { ProjectInformation } from '../../workspace/model/projectMetadata'
+import { waitForProjectFonts } from '../../workspace/services/projectFontLoader'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import type { CardDesignerViewState } from '../../editor-runtime/model/editorUiState'
+import { useShellProgressTasks } from './useShellProgressTasks'
 import { exportCardAsImage } from '../../../utils/exportCard'
+
+const SINGLE_CARD_EXPORT_TASK_KEY = 'card-export-single'
+const ALL_CARD_VIEWS_EXPORT_TASK_KEY = 'card-export-all-views'
 
 type ExportRendererInstance = {
   getCanvasElement?: () => HTMLElement | undefined
@@ -198,6 +203,7 @@ function buildRenderableCardDocument(
 export function useShellExport(options: UseShellExportOptions) {
   const showExportRenderer = ref(false)
   const exportCardFace = ref<RenderReadyCardFace | null>(null)
+  const { setTask, removeTask } = useShellProgressTasks()
 
   const canExportActiveCard = computed(() =>
     Boolean(options.activeSession.value) && resolveFileTypeById(options.activeSession.value!.fileTypeId).id === 'opencard'
@@ -246,6 +252,8 @@ export function useShellExport(options: UseShellExportOptions) {
     }
 
     await waitForExportAssets(canvasElement)
+    await waitForProjectFonts()
+    await waitForNextPaint()
 
     return await exportCardAsImage(canvasElement, {
       dpi: 192,
@@ -280,6 +288,8 @@ export function useShellExport(options: UseShellExportOptions) {
       return
     }
 
+    const taskTitle = options.translate('app.exportProgress.single')
+    setTask({ key: SINGLE_CARD_EXPORT_TASK_KEY, title: taskTitle, progress: 0, weight: 1 })
     try {
       const renderResult = buildRenderableCardDocument(
         context.document,
@@ -291,12 +301,16 @@ export function useShellExport(options: UseShellExportOptions) {
         console.warn('[export] resolveReferences issues:', renderResult.issues)
       }
 
+      setTask({ key: SINGLE_CARD_EXPORT_TASK_KEY, title: taskTitle, progress: 0.15, weight: 1 })
       const dataUrl = await renderCardFaceToImage(renderResult.document.faces[faceKey])
+      setTask({ key: SINGLE_CARD_EXPORT_TASK_KEY, title: taskTitle, progress: 0.8, weight: 1 })
       await writeFile(savePath, dataUrlToBytes(dataUrl))
+      setTask({ key: SINGLE_CARD_EXPORT_TASK_KEY, title: taskTitle, progress: 1, weight: 1 })
       console.log('图片已保存到:', savePath)
     } catch (error) {
       console.error('导出图片失败:', error)
     } finally {
+      removeTask(SINGLE_CARD_EXPORT_TASK_KEY)
       resetExportRenderer()
     }
   }
@@ -317,6 +331,7 @@ export function useShellExport(options: UseShellExportOptions) {
       return
     }
 
+    let taskStarted = false
     try {
       const exportQueue = buildCardExportQueue(
         context.fileNameStem,
@@ -324,20 +339,48 @@ export function useShellExport(options: UseShellExportOptions) {
         options.projectInformation.value,
         options.resolvedDictionary.value,
       )
+      const taskTitle = options.translate('app.exportProgress.allViews')
+      const taskWeight = Math.max(1, exportQueue.length)
+      setTask({
+        key: ALL_CARD_VIEWS_EXPORT_TASK_KEY,
+        title: taskTitle,
+        progress: 0,
+        weight: taskWeight,
+      })
+      taskStarted = true
 
-      for (const entry of exportQueue) {
+      for (const [entryIndex, entry] of exportQueue.entries()) {
         if (entry.issues.length > 0) {
           console.warn(`[export] resolveReferences issues in ${entry.fileName}:`, entry.issues)
         }
 
+        setTask({
+          key: ALL_CARD_VIEWS_EXPORT_TASK_KEY,
+          title: taskTitle,
+          progress: (entryIndex + 0.15) / exportQueue.length,
+          weight: taskWeight,
+        })
         const dataUrl = await renderCardFaceToImage(entry.face)
+        setTask({
+          key: ALL_CARD_VIEWS_EXPORT_TASK_KEY,
+          title: taskTitle,
+          progress: (entryIndex + 0.8) / exportQueue.length,
+          weight: taskWeight,
+        })
         const targetPath = buildFilePath(exportDirectory, entry.fileName)
         await writeFile(targetPath, dataUrlToBytes(dataUrl))
+        setTask({
+          key: ALL_CARD_VIEWS_EXPORT_TASK_KEY,
+          title: taskTitle,
+          progress: (entryIndex + 1) / exportQueue.length,
+          weight: taskWeight,
+        })
         console.log('图片已保存到:', targetPath)
       }
     } catch (error) {
       console.error('批量导出图片失败:', error)
     } finally {
+      if (taskStarted) removeTask(ALL_CARD_VIEWS_EXPORT_TASK_KEY)
       resetExportRenderer()
     }
   }

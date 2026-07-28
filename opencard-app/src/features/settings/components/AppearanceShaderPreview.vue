@@ -1,14 +1,26 @@
 <template>
-  <canvas ref="canvasRef" class="appearance-shader" aria-hidden="true" />
+  <canvas ref="canvasRef" class="appearance-shader" :style="progressStyle" aria-hidden="true" />
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, type CSSProperties } from 'vue'
+
+const props = withDefaults(defineProps<{
+  progress?: number
+}>(), {
+  progress: 1,
+})
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const normalizedProgress = computed(() => Math.min(1, Math.max(0, props.progress)))
+const progressStyle = computed<CSSProperties>(() => ({
+  '--appearance-progress': `${normalizedProgress.value * 100}%`,
+  opacity: normalizedProgress.value > 0 ? '1' : '0',
+}))
 let frameId = 0
 let resizeObserver: ResizeObserver | null = null
 let themeObserver: MutationObserver | null = null
+let windowResizeHandler: (() => void) | null = null
 
 const vertexSource = `
 attribute vec2 a_position;
@@ -22,35 +34,49 @@ uniform float u_time;
 uniform vec3 u_accent;
 uniform vec3 u_base;
 uniform vec3 u_surface;
-uniform vec3 u_secondary;
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+float n21(vec2 p) {
+  return fract(sin(p.x * 21.281 + p.y * 93.182) * 5821.92);
 }
 
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+float lineMask(float x, float length) {
+  return smoothstep(0.0, 0.07, x) * (1.0 - smoothstep(length - 0.1, length, x));
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-  vec2 p = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
-  float t = u_time * 0.12;
-  float warp = noise(p * 1.45 + vec2(t, -t * 0.7));
-  float ribbonA = 0.5 + 0.5 * sin(p.x * 2.8 + p.y * 1.4 + warp * 3.2 + t * 2.0);
-  float ribbonB = 0.5 + 0.5 * cos(p.x * 1.3 - p.y * 2.4 - warp * 2.6 - t * 1.4);
-  float glow = smoothstep(0.25, 0.95, ribbonA * 0.62 + ribbonB * 0.52);
-  float grain = (hash(gl_FragCoord.xy + u_time) - 0.5) * 0.035;
-  vec3 base = mix(u_base, u_surface, 0.28 + uv.y * 0.22);
-  vec3 secondary = mix(u_accent, u_secondary, 0.42);
-  float colorWeight = 0.1 + ribbonA * 0.16 + glow * 0.2;
-  vec3 color = mix(base, secondary, colorWeight);
-  color = mix(color, u_accent, ribbonB * 0.1);
-  color += grain;
+  vec2 centered = uv * 2.0 - 1.0;
+  vec2 offset = abs(centered.yx) / vec2(30.0, 5.2);
+  centered += centered * offset * offset;
+  uv = centered * 0.5 + 0.5;
+
+  vec2 scale = vec2(
+    max(32.0, floor(u_resolution.x / 12.0)),
+    max(5.0, floor(u_resolution.y / 7.0))
+  );
+  vec2 baseGrid = uv * scale;
+  float rowId = floor(baseGrid.y);
+  float speedNoise = n21(vec2(0.0, rowId));
+  float depthNoise = n21(vec2(17.3, rowId));
+  float speed = 2.0 + pow(speedNoise, 1.35) * 10.0;
+  baseGrid.x -= floor(u_time * speed);
+
+  vec2 localUv = fract(baseGrid);
+  vec2 gridId = floor(baseGrid);
+  float cellNoise = n21(gridId);
+  float blockLength = mix(0.36, 0.94, n21(gridId + vec2(13.7, 4.1)));
+  float visibleBlock = step(0.4, cellNoise);
+  float rail = smoothstep(0.16, 0.38, localUv.y)
+    * (1.0 - smoothstep(0.62, 0.84, localUv.y));
+  float block = lineMask(localUv.x, blockLength) * visibleBlock * rail;
+  float leadingEdge = lineMask(localUv.x, min(blockLength, 0.16)) * visibleBlock * rail;
+  float rowDepth = 0.18 + depthNoise * 0.82;
+  float quietRail = rail * 0.025 * rowDepth;
+
+  vec3 base = mix(u_base, u_surface, 0.25 + uv.y * 0.16);
+  float accentWeight = quietRail + block * (0.07 + rowDepth * 0.27);
+  vec3 color = mix(base, u_accent, accentWeight);
+  color = mix(color, u_surface, leadingEdge * (0.04 + rowDepth * 0.11));
   gl_FragColor = vec4(color, 1.0);
 }
 `
@@ -100,8 +126,16 @@ onMounted(() => {
   const accent = gl.getUniformLocation(program, 'u_accent')
   const base = gl.getUniformLocation(program, 'u_base')
   const surface = gl.getUniformLocation(program, 'u_surface')
-  const secondary = gl.getUniformLocation(program, 'u_secondary')
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  let accentColor: [number, number, number] = [0.49, 0.42, 1]
+  let baseColor: [number, number, number] = [0.07, 0.07, 0.08]
+  let surfaceColor: [number, number, number] = [0.15, 0.15, 0.15]
+
+  const syncThemeColors = () => {
+    accentColor = parseThemeColor('--oc-accent', accentColor)
+    baseColor = parseThemeColor('--oc-bg-base', baseColor)
+    surfaceColor = parseThemeColor('--oc-bg-surface', surfaceColor)
+  }
 
   const resize = () => {
     const ratio = Math.min(devicePixelRatio, 2)
@@ -116,27 +150,34 @@ onMounted(() => {
 
   const startedAt = performance.now()
   const draw = (now: number) => {
-    resize()
-    const accentColor = parseThemeColor('--oc-accent', [0.49, 0.42, 1])
-    const baseColor = parseThemeColor('--oc-bg-base', [0.07, 0.07, 0.08])
-    const surfaceColor = parseThemeColor('--oc-bg-surface', [0.15, 0.15, 0.15])
-    const secondaryColor = parseThemeColor('--oc-fg-accent', accentColor)
     gl.uniform2f(resolution, canvas.width, canvas.height)
     gl.uniform1f(time, reducedMotion ? 0 : (now - startedAt) / 1000)
     gl.uniform3fv(accent, accentColor)
     gl.uniform3fv(base, baseColor)
     gl.uniform3fv(surface, surfaceColor)
-    gl.uniform3fv(secondary, secondaryColor)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     if (!reducedMotion) frameId = requestAnimationFrame(draw)
   }
 
-  resizeObserver = new ResizeObserver(resize)
+  const resizeAndRedraw = () => {
+    resize()
+    if (reducedMotion) draw(performance.now())
+  }
+
+  syncThemeColors()
+  resize()
+  resizeObserver = new ResizeObserver(resizeAndRedraw)
   resizeObserver.observe(canvas)
   themeObserver = new MutationObserver(() => {
+    syncThemeColors()
     if (reducedMotion) draw(performance.now())
   })
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-oc-theme'] })
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-oc-theme', 'class', 'style'],
+  })
+  windowResizeHandler = resizeAndRedraw
+  window.addEventListener('resize', windowResizeHandler)
   draw(startedAt)
 })
 
@@ -144,15 +185,31 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(frameId)
   resizeObserver?.disconnect()
   themeObserver?.disconnect()
+  if (windowResizeHandler) window.removeEventListener('resize', windowResizeHandler)
 })
 </script>
 
 <style scoped>
+@property --appearance-progress {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
 .appearance-shader {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg, var(--oc-bg-base), var(--oc-bg-accent-subtle));
+  transition: --appearance-progress 180ms linear, opacity 120ms ease;
+  -webkit-mask-image:
+    linear-gradient(to right, #000 0, #000 calc(var(--appearance-progress, 100%) - 48px), transparent var(--appearance-progress, 100%), transparent 100%),
+    linear-gradient(to bottom, #000 0, #000 calc(100% - 2px), transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, #000 0, #000 calc(var(--appearance-progress, 100%) - 48px), transparent var(--appearance-progress, 100%), transparent 100%),
+    linear-gradient(to bottom, #000 0, #000 calc(100% - 2px), transparent 100%);
+  mask-composite: intersect;
 }
 </style>

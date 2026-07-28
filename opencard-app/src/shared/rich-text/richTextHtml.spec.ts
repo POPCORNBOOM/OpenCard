@@ -34,6 +34,10 @@ describe('transformRichTextHtml', () => {
 })
 
 describe('sanitizeRichTextHtml', () => {
+  it('preserves consecutive spaces inside rich-text content', () => {
+    expect(normalizeRichTextHtml('<p>Left   right</p>')).toBe('<p>Left   right</p>')
+  })
+
   it('preserves supported inline font size', () => {
     expect(sanitizeRichTextHtml('<p><span style="font-size: 18px; position: fixed">Text</span></p>'))
       .toBe('<p><span style="font-size: 18px;">Text</span></p>')

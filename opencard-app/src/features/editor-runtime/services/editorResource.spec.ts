@@ -33,6 +33,23 @@ describe('editorResource', () => {
     expect(convertFileSrc).not.toHaveBeenCalled()
   })
 
+  it('allows only HTTPS URLs matching the project host allowlist', () => {
+    const policy = {
+      mode: 'allowlist' as const,
+      allowedHosts: ['images.example.com', '*.cdn.example.com'],
+    }
+    expect(resolveEditorAssetSrc('D:/Cards', 'https://images.example.com/portrait.png', policy))
+      .toBe('https://images.example.com/portrait.png')
+    expect(resolveEditorAssetSrc('D:/Cards', 'https://a.cdn.example.com/portrait.png', policy))
+      .toBe('https://a.cdn.example.com/portrait.png')
+    expect(resolveEditorAssetSrc('D:/Cards', 'https://cdn.example.com/portrait.png', policy)).toBe('')
+    expect(resolveEditorAssetSrc('D:/Cards', 'http://images.example.com/portrait.png', policy)).toBe('')
+    expect(resolveEditorAssetSrc('D:/Cards', 'data:image/png;base64,abc', policy)).toBe('')
+    expect(resolveEditorAssetSrc('D:/Cards', 'https://images.example.com/portrait.png')).toBe('')
+    expect(resolveEditorAssetSrc('D:/Cards', 'https://any.example.net/portrait.png', { mode: 'allow-all' }))
+      .toBe('https://any.example.net/portrait.png')
+  })
+
   it('projects files inside the resource root as relative display paths', () => {
     expect(getEditorResourceRelativePath('D:/Project', 'd:/project/cards/hero.opencard'))
       .toBe('cards/hero.opencard')

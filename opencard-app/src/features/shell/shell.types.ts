@@ -36,7 +36,13 @@ export interface ShellTitleBarAppAction {
   icon: IconToken;
   hoverTip?: string;
   disabled?: boolean;
-  progress?: number | null;
+}
+
+export interface ShellProgressTask {
+  key: string;
+  title: string;
+  progress: number;
+  weight?: number;
 }
 
 export interface ShellTitleBarWindowControl extends ShellTitleBarAppAction {

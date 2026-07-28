@@ -78,6 +78,22 @@ describe('TextBlockRenderer', () => {
     expect(style.textAlign).toBe('justify')
   })
 
+  it('renders stable project font references as CSS font families', () => {
+    const block = parseRenderReadyBlockForTest({
+      id: 'project-font-block',
+      type: 'text-block',
+      content: 'Brand text',
+      fontFamily: 'project:brand-sans',
+    })
+
+    const wrapper = mount(TextBlockRenderer, {
+      props: { block, layoutMode: 'static' },
+      global: rendererTestGlobal,
+    })
+
+    expect(wrapper.element.style.fontFamily).toBe('"project:brand-sans"')
+  })
+
   it('removes executable markup and unsupported rich-text styles', () => {
     const block = parseRenderReadyBlockForTest({
       id: 'safe-rich-text-block',

@@ -21,6 +21,7 @@
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
+          :remote-resource-policy="props.remoteResourcePolicy"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -116,6 +117,7 @@
                       :style="transformPreviewViewportStyle">
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
+                        :remote-resource-policy="props.remoteResourcePolicy"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -218,6 +220,7 @@
                   <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
                     :categories="propertyCategories" :sort-mode="propertySortMode"
                     :binding-interpreter="propertyBindingInterpreter"
+                    :delete-mode="propertyDeleteMode"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
                     @delete-property="deleteProperty" />
@@ -340,6 +343,7 @@ import {
   getProjectFieldValueKind,
   type ProjectInformation,
 } from '../workspace/model/projectMetadata'
+import { buildFontCatalog, toCssFontFamily } from '../workspace/model/projectFonts'
 import {
   isCardDesignerNavigationToken,
   type CardDesignerNavigationResult,
@@ -355,6 +359,12 @@ const emit = defineEmits<EditorEmits>()
 const { t, te } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
+const fontCatalog = computed(() => buildFontCatalog(projectStore.projectProfile.value?.fonts))
+const richTextFontOptions = computed(() => fontCatalog.value.map(font => ({
+  label: font.label,
+  value: font.value,
+  cssFamily: toCssFontFamily(font.value),
+})))
 
 type ResizeTarget = 'left-width' | 'right-width' | 'left-stack' | 'right-stack'
 type SidebarPairState = {
@@ -388,6 +398,7 @@ const RESIZEBAR_SIZE = 8
 
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
+const propertyDeleteMode = ref(false)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
 const isInstancePanelExpanded = ref(true)
@@ -959,6 +970,12 @@ const propertyCardActions = computed<OcCardAction[]>(() => [
       }]
     : []),
   {
+    key: 'toggle-property-delete-mode',
+    icon: 'action.delete',
+    iconTone: propertyDeleteMode.value ? 'danger' : 'default',
+    title: t('propertyEditor.actions.delete'),
+  },
+  {
     key: 'sort-category',
     icon: 'data.list-tree',
     title: 'Category',
@@ -1020,6 +1037,11 @@ function handlePropertyCardAction(payload: { key: string }) {
     return
   }
 
+  if (payload.key === 'toggle-property-delete-mode') {
+    propertyDeleteMode.value = !propertyDeleteMode.value
+    return
+  }
+
   if (payload.key === 'sort-category') {
     propertySortMode.value = 'category'
     return
@@ -1044,6 +1066,7 @@ const {
   documentRevision,
   parentLookup,
   selectedBlockKeys,
+  getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
   refreshDocumentState,
   markDocumentChanged,
 })
@@ -1312,6 +1335,29 @@ function createReferenceCompletionProvider(
   }
 }
 
+function createFontCompletionProvider(): PropertyCompletionProvider {
+  return ({ value, cursor }) => {
+    const fragment = value.slice(0, cursor).trim().toLocaleLowerCase()
+    const items = fontCatalog.value
+      .filter(font => !fragment
+        || font.label.toLocaleLowerCase().includes(fragment)
+        || font.value.toLocaleLowerCase().includes(fragment))
+      .map(font => ({
+        key: `font:${font.value}`,
+        label: font.label,
+        detail: font.source === 'project' ? font.detail : font.value,
+        insertText: font.value,
+        value: font.value,
+      }))
+
+    return {
+      replaceStart: 0,
+      replaceEnd: value.length,
+      items,
+    }
+  }
+}
+
 const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
   rawPropertyInputs.value.map((input) => ({
     ...input,
@@ -1334,23 +1380,32 @@ const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
             isAvailable: () => Boolean(props.resourceRootPath),
           })
         : undefined
-      const provider = filePathProvider
-        ? chainPropertyCompletionProviders([bindingProvider, filePathProvider])
-        : bindingProvider
-      if (!provider) return [fieldKey, definition]
+      const fontProvider = fieldKey === 'fontFamily'
+        ? createFontCompletionProvider()
+        : undefined
+      const hasProvider = Boolean(bindingProvider || filePathProvider || fontProvider)
+      const provider = hasProvider
+        ? chainPropertyCompletionProviders([bindingProvider, filePathProvider, fontProvider])
+        : undefined
+      const fontOptions = definition.fieldType === 'string' && definition.richText
+        ? richTextFontOptions.value
+        : undefined
+      if (!provider && !fontOptions) return [fieldKey, definition]
       return [fieldKey, {
         ...definition,
+        ...(fontOptions ? { fontOptions } : {}),
         ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
         ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
-        completion: {
-          ...definition.completion,
-          provider,
-        },
+        ...(provider ? {
+          completion: {
+            ...definition.completion,
+            provider,
+          },
+        } : {}),
       }]
     })),
   })),
 )
-
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
   return selectedLocation.value?.type ?? null
 })

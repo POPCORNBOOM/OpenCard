@@ -19,6 +19,7 @@ import type {
   EditorSessionUiState,
   SessionSaveResult,
 } from '../../workspace/store/editorSessionStore'
+import type { ProjectProfile } from '../../workspace/model/projectMetadata'
 
 const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
@@ -42,6 +43,7 @@ type SessionActions = {
 type UseShellEditorHostOptions = {
   activeSession: Readonly<Ref<EditorSession | null>>
   projectPath: Readonly<Ref<string>>
+  projectProfile: Readonly<Ref<ProjectProfile | null>>
   settings: Readonly<Ref<DeepReadonly<AppSettings>>>
   sessionActions: SessionActions
 }
@@ -118,6 +120,9 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
           ...baseProps,
           fileName: session.name,
           resourceRootPath: resourceRootPath.value,
+          remoteResourcePolicy: session.resourceKind === 'workspace'
+            ? options.projectProfile.value?.remoteResources
+            : undefined,
           viewportTransform: session.uiState?.cardDesigner?.viewportTransform,
           cardDesignerLayout: session.uiState?.cardDesigner?.layout,
           cardDesignerView: session.uiState?.cardDesigner?.view,

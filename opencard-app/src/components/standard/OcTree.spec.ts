@@ -149,7 +149,7 @@ describe('OcTree', () => {
     await wrapper.vm.$nextTick()
     expect(root.scrollTop).toBe(50)
   })
-  it('renders expanded children without distorting the node type icon', () => {
+  it('renders expanded children and rotates the node type icon', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
@@ -165,7 +165,7 @@ describe('OcTree', () => {
 
     expect(wrapper.findAll('[data-oc-tree-key]')).toHaveLength(2)
     expect(wrapper.get('[data-oc-tree-key="child"]').attributes('style')).toContain('12px')
-    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__node-icon').classes()).not.toContain('is-expanded')
+    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__node-icon').classes()).toContain('is-expanded')
     expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__child-count').classes()).toContain('is-expanded')
     expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__branch-guide').attributes('data-guide-rows')).toBe('1')
     expect(wrapper.find('[data-oc-tree-key="root"] .oc-tree__branch-connector').exists()).toBe(false)

@@ -34,6 +34,9 @@ function createHost(session = createSession()) {
   const host = useShellEditorHost({
     activeSession,
     projectPath: ref('D:/project'),
+    projectProfile: ref({
+      remoteResources: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
+    }),
     settings: ref(createDefaultAppSettings()),
     sessionActions: {
       updateDraftContent,
@@ -69,6 +72,7 @@ describe('useShellEditorHost', () => {
       filePath: 'D:/project/cards/card.opencard',
       fileName: 'card.opencard',
       resourceRootPath: 'D:/project',
+      remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
     })
     workspace.host.dispose()
 
@@ -77,6 +81,7 @@ describe('useShellEditorHost', () => {
       path: 'D:/cards/card.opencard',
     }))
     expect(external.host.resourceRootPath.value).toBe('D:/cards')
+    expect(external.host.props.value.remoteResourcePolicy).toBeUndefined()
     external.host.dispose()
 
     const draft = createHost()

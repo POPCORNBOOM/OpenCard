@@ -1,7 +1,7 @@
 <!--
   使用说明：
   - 作为通用字段编辑器使用，输入 `inputs` 与 `sortMode`。
-  - 字段更新/添加/重置都通过事件上抛，不直接改写传入 record。
+  - 字段更新/添加/重置/删除都通过事件上抛，不直接改写传入 record。
 
   职责边界：
   - 负责 schema 解析、分类展示（含本地化）、field 编辑器分派与“+ 添加字段”交互。
@@ -11,10 +11,10 @@
   - `update-property`（字段更新意图）
   - `add-property`（字段新增意图）
   - `reset-property`（字段重置意图）
+  - `delete-property`（字段删除意图）
 -->
 <template>
-  <div ref="propertyEditorRoot" class="property-editor" @pointerdown.capture="handleEditorPointerDown"
-    @keydown.esc="armedDeleteKey = null">
+  <div ref="propertyEditorRoot" class="property-editor" :class="{ 'is-delete-mode': deleteMode }">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
@@ -60,12 +60,10 @@
                   :aria-label="resetFieldActionText"
                   @click.stop="emitResetProperty(category.inputKey, entry.key)"
                 />
-                <OcButton v-if="entry.definition.deletable" class="delete-field-button"
-                  :class="{ 'is-armed': isDeleteArmed(category.inputKey, entry.key) }"
-                  icon-only size="sm" variant="ghost" icon="action.delete"
-                  :data-tooltip="isDeleteArmed(category.inputKey, entry.key) ? confirmDeleteFieldActionText : deleteFieldActionText"
-                  :aria-label="isDeleteArmed(category.inputKey, entry.key) ? confirmDeleteFieldActionText : deleteFieldActionText"
-                  @click.stop="handleDeleteField(category.inputKey, entry.key)" />
+                <OcButton v-if="deleteMode && entry.definition.deletable" class="delete-field-button"
+                  icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
+                  :data-tooltip="deleteFieldActionText" :aria-label="deleteFieldActionText"
+                  @click.stop="emitDeleteProperty(category.inputKey, entry.key)" />
               </div>
               <div class="entry-control">
                 <ReferenceStringPropertyField
@@ -169,6 +167,7 @@ const props = defineProps<{
   categories?: ReadonlyMap<string, PropertyEditorCategoryDefinition>
   sortMode: PropertyEditorSortMode
   bindingInterpreter?: PropertyEditorBindingInterpreter
+  deleteMode?: boolean
 }>()
 
 // 运行时依赖与编辑器映射。
@@ -207,12 +206,10 @@ const resetFieldActionText = computed(() =>
   resolveLocalizedText('propertyEditor.actions.reset', 'Reset')
 )
 const deleteFieldActionText = computed(() => resolveLocalizedText('propertyEditor.actions.delete', 'Delete'))
-const confirmDeleteFieldActionText = computed(() => resolveLocalizedText('propertyEditor.actions.confirmDelete', 'Click again to delete'))
 const useRawStringEditorText = computed(() => t('propertyEditor.bindings.useRawEditor'))
 const useFieldEditorText = computed(() => t('propertyEditor.bindings.useFieldEditor'))
 const ADD_PROPERTY_ACTION_KEY = 'add-property'
 const ADD_PROPERTY_FIELD_ACTION_PREFIX = 'add-property:'
-const armedDeleteKey = ref<string | null>(null)
 const rawStringEditorKeys = ref<ReadonlySet<string>>(new Set())
 const propertyEditorRoot = ref<HTMLElement | null>(null)
 const revealedFieldIdentity = ref<string | null>(null)
@@ -367,7 +364,6 @@ function resolveCategoryActions(category: PropertyEditorCategoryView): OcActionB
       })),
     })
   }
-
   return actions
 }
 
@@ -389,29 +385,8 @@ function handleCategoryAction(payload: { key: string }, category: PropertyEditor
   })
 }
 
-function deleteIdentity(sourceKey: string, fieldKey: string): string {
-  return fieldIdentity(sourceKey, fieldKey)
-}
-
-function isDeleteArmed(sourceKey: string, fieldKey: string): boolean {
-  return armedDeleteKey.value === deleteIdentity(sourceKey, fieldKey)
-}
-
-function handleDeleteField(sourceKey: string, fieldKey: string): void {
-  const identity = deleteIdentity(sourceKey, fieldKey)
-  if (armedDeleteKey.value !== identity) {
-    armedDeleteKey.value = identity
-    return
-  }
-  armedDeleteKey.value = null
+function emitDeleteProperty(sourceKey: string, fieldKey: string): void {
   emit('delete-property', { key: sourceKey, fieldKey })
-}
-
-function handleEditorPointerDown(event: PointerEvent): void {
-  const target = event.target
-  if (!(target instanceof Element) || !target.closest('.delete-field-button')) {
-    armedDeleteKey.value = null
-  }
 }
 
 function emitResetProperty(key: string, fieldKey: string): void {
@@ -686,12 +661,7 @@ onBeforeUnmount(() => {
   flex: 0 0 20px;
   width: 20px;
   height: 20px;
-  color: var(--oc-fg-muted);
-}
-
-.delete-field-button.is-armed {
   color: var(--oc-fg-danger);
-  background: var(--oc-bg-hover);
 }
 
 @media (hover: none) {

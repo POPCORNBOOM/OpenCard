@@ -60,6 +60,7 @@
             :tone="entry.item.iconTone"
             size="md"
             class="oc-tree__node-icon"
+            :class="{ 'is-expanded': isExpandable(entry.key) && isExpanded(entry.key) }"
           />
           <span
             v-if="isExpandable(entry.key)"
@@ -767,6 +768,12 @@ onBeforeUnmount(() => {
 
 .oc-tree__node-icon {
   flex: 0 0 auto;
+  transform-origin: center;
+  transition: transform var(--oc-duration-fast) var(--oc-ease);
+}
+
+.oc-tree__node-icon.is-expanded {
+  transform: rotate(45deg);
 }
 
 .oc-tree__child-count {

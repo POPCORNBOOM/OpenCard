@@ -102,9 +102,16 @@ import type { IconToken } from '../icon/iconRegistry'
 import { BindingNode } from './BindingNode'
 import type { RichTextBindingCompletionProvider } from './bindingNode.types'
 
+type RichTextFontOption = {
+  label: string
+  value: string
+  cssFamily?: string
+}
+
 const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
+  fontOptions?: readonly RichTextFontOption[]
 }>()
 
 const emit = defineEmits<{
@@ -112,6 +119,7 @@ const emit = defineEmits<{
 }>()
 
 const lastEmittedValue = ref<string | null>(null)
+const toolbarRevision = ref(0)
 type ColorCommand = 'foreground' | 'background' | 'stroke'
 type ColorSnapshot = {
   content: JSONContent
@@ -151,7 +159,7 @@ const TextStyleAttributes = Extension.create({
   },
 })
 
-const fontFamilies = [
+const fallbackFontFamilies: readonly RichTextFontOption[] = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Georgia', value: 'Georgia' },
   { label: 'Impact', value: 'Impact' },
@@ -159,10 +167,10 @@ const fontFamilies = [
   { label: '微软雅黑', value: 'Microsoft YaHei' },
   { label: '宋体', value: 'SimSun' },
 ] as const
-const fontOptions = [
+const fontOptions = computed(() => [
   { label: '默认字体', value: '' },
-  ...fontFamilies,
-]
+  ...(props.fontOptions ?? fallbackFontFamilies),
+])
 const strokeWidthOptions = [
   { label: '无描边', value: '0px' },
   { label: '0.5 px', value: '0.5px' },
@@ -173,6 +181,7 @@ const strokeWidthOptions = [
 ] as const
 const fontSizeSteps = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96] as const
 const defaultFontSize = 16
+const richTextParseOptions = { preserveWhitespace: 'full' as const }
 
 const alignments: ReadonlyArray<{
   value: 'left' | 'center' | 'right' | 'justify'
@@ -189,10 +198,16 @@ const foregroundColor = computed(() => editor.value?.getAttributes('textStyle').
 const backgroundColor = computed(() => editor.value?.getAttributes('highlight').color || '#fff59d')
 const strokeColor = computed(() => editor.value?.getAttributes('textStyle').textStrokeColor || '#000000')
 const strokeWidth = computed(() => editor.value?.getAttributes('textStyle').textStrokeWidth || '0px')
-const activeFontFamily = computed(() => editor.value?.getAttributes('textStyle').fontFamily || '')
+const activeFontFamily = computed(() => {
+  toolbarRevision.value
+  const activeValue = editor.value?.getAttributes('textStyle').fontFamily || ''
+  return fontOptions.value.find(option => (option.cssFamily ?? option.value) === activeValue)?.value
+    ?? activeValue
+})
 
 const editor = useEditor({
   content: normalizeRichTextHtml(props.modelValue),
+  parseOptions: richTextParseOptions,
   extensions: [
     StarterKit.configure({
       blockquote: false,
@@ -224,6 +239,9 @@ const editor = useEditor({
     lastEmittedValue.value = value
     emit('update:modelValue', value)
   },
+  onTransaction: () => {
+    toolbarRevision.value += 1
+  },
 })
 
 watch(() => props.modelValue, (value) => {
@@ -236,13 +254,14 @@ watch(() => props.modelValue, (value) => {
   if (!currentEditor) return
   const normalizedValue = normalizeRichTextHtml(value)
   if (currentEditor.getHTML() === normalizedValue) return
-  currentEditor.commands.setContent(normalizedValue, false)
+  currentEditor.commands.setContent(normalizedValue, false, richTextParseOptions)
 })
 
 function setFontFamily(value: string): void {
   const chain = editor.value?.chain().focus()
   if (!chain) return
-  if (value) chain.setFontFamily(value).run()
+  const cssFamily = fontOptions.value.find(option => option.value === value)?.cssFamily ?? value
+  if (cssFamily) chain.setFontFamily(cssFamily).run()
   else chain.unsetFontFamily().run()
 }
 
@@ -401,6 +420,7 @@ defineExpose({ editor, focus })
   outline: none;
   color: var(--oc-fg-default);
   overflow-wrap: anywhere;
+  white-space: break-spaces;
 }
 
 .oc-rich-text-editor__surface :deep(p) {

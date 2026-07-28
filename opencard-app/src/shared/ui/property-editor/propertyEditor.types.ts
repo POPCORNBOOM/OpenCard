@@ -79,12 +79,18 @@ type PropertyEditorFieldBase = {
   title: string
   category?: string
   defaultValue?: unknown
+  required?: boolean
   isHidden?: boolean
   isReadonly?: boolean
   resettable?: boolean
   deletable?: boolean
   autoPairs?: readonly PropertyInputPair[]
   completion?: PropertyCompletion
+  fontOptions?: readonly {
+    label: string
+    value: string
+    cssFamily?: string
+  }[]
   binding?: {
     provider?: PropertyCompletionProvider
   }

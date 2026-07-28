@@ -20,6 +20,7 @@
           <div class="rich-text-string-popover__editor">
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
+              :font-options="definition.fontOptions"
               @update:model-value="draftValue = $event" />
             <OcFieldInput v-else ref="sourceEditor" as="textarea" variant="plain" full-width mono
               class="rich-text-string-popover__source" :value="sourceValue"
@@ -162,7 +163,7 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre;
 }
 
 .rich-text-string-field__content :deep(p),

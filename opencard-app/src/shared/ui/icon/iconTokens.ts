@@ -66,6 +66,7 @@ export const iconTokens = {
   'layout.fill': true,
   'layout.fill-horizontal': true,
   'layout.fill-vertical': true,
+  'layout.center': true,
   'layout.inset': true,
   'layout.outset': true,
 
@@ -131,6 +132,7 @@ export const iconTokens = {
 
   'file.css': true,
   'file.env': true,
+  'file.font': true,
   'file.generic': true,
   'file.git': true,
   'file.html': true,

@@ -1,4 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
+import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 export function resolveEditorResourcePath(rootPath: string | null, path: string): string | null {
   const normalizedPath = normalizePath(path)
@@ -9,7 +10,36 @@ export function resolveEditorResourcePath(rootPath: string | null, path: string)
   return normalizedRoot ? `${normalizedRoot}/${normalizedPath}` : null
 }
 
-export function resolveEditorAssetSrc(rootPath: string | null, path: string): string {
+export function isRemoteResourceAllowed(
+  source: string,
+  policy: ProjectRemoteResourcePolicy | undefined,
+): boolean {
+  let url: URL
+  try {
+    url = new URL(source)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:' || !policy || policy.mode === 'deny') return false
+  if (policy.mode === 'allow-all') return true
+
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
+  return policy.allowedHosts.some((candidate) => {
+    const allowedHost = candidate.toLowerCase().replace(/\.$/, '')
+    if (!allowedHost.startsWith('*.')) return hostname === allowedHost
+    const suffix = allowedHost.slice(1)
+    return hostname.endsWith(suffix) && hostname.length > suffix.length
+  })
+}
+
+export function resolveEditorAssetSrc(
+  rootPath: string | null,
+  path: string,
+  remoteResourcePolicy?: ProjectRemoteResourcePolicy,
+): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path) && !/^[a-z]:[\\/]/i.test(path)) {
+    return isRemoteResourceAllowed(path, remoteResourcePolicy) ? path : ''
+  }
   const resolvedPath = resolveEditorResourcePath(rootPath, path)
   return resolvedPath ? convertFileSrc(resolvedPath) : ''
 }

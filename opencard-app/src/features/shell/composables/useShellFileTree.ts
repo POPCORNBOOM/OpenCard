@@ -1,12 +1,13 @@
 /** Workspace entry lookup and key-only OcTree projection. */
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
-import { resolveEntryIcon } from '../../workspace/model/fileTypes'
+import { resolveEntryIcon, resolveFileType } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
 export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
 export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
+export const PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY = 'project-entry-register-font'
 export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
 export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-absolute-path'
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
@@ -175,6 +176,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     if (nextSelectedKeys.length !== 1) return
     const selectedEntry = findProjectEntryByKey(nextSelectedKeys[0])
     if (!selectedEntry || selectedEntry.isDirectory) return
+    if (resolveFileType(selectedEntry.key, options.projectPath.value).id === 'font') return
 
     try {
       await options.openPreviewFile(selectedEntry.key)
