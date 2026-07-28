@@ -39,6 +39,23 @@ describe('TextBlockRenderer', () => {
     expect(content.get('strong').text()).toBe('second')
   })
 
+  it('renders underline and strikethrough marks', () => {
+    const block = parseRenderReadyBlockForTest({
+      id: 'decorated-rich-text-block',
+      type: 'text-block',
+      content: '<p><u>Underline</u> <s>Strike</s></p>',
+    })
+
+    const wrapper = mount(TextBlockRenderer, {
+      props: { block, layoutMode: 'static' },
+      global: rendererTestGlobal,
+    })
+    const content = wrapper.get('.text-block-content--richtext')
+
+    expect(content.get('u').text()).toBe('Underline')
+    expect(content.get('s').text()).toBe('Strike')
+  })
+
   it('keeps horizontal text alignment independent from vertical content alignment', () => {
     const source: TextBlockModel = {
       id: 'text-block-test',

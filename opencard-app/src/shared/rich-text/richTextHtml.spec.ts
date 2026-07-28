@@ -38,6 +38,11 @@ describe('sanitizeRichTextHtml', () => {
     expect(sanitizeRichTextHtml('<p><span style="font-size: 18px; position: fixed">Text</span></p>'))
       .toBe('<p><span style="font-size: 18px;">Text</span></p>')
   })
+
+  it('preserves underline and strikethrough marks', () => {
+    expect(sanitizeRichTextHtml('<p><u>Underline</u> <s>Strike</s></p>'))
+      .toBe('<p><u>Underline</u> <s>Strike</s></p>')
+  })
 })
 
 describe('formatRichTextHtmlSource', () => {

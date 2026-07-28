@@ -9,6 +9,7 @@ const allowedTags = new Set([
   'SPAN',
   'STRIKE',
   'STRONG',
+  'U',
 ])
 
 const blockedTags = new Set(['IFRAME', 'OBJECT', 'SCRIPT', 'STYLE', 'TEMPLATE'])

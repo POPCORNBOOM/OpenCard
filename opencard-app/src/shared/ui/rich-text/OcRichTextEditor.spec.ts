@@ -18,6 +18,8 @@ describe('OcRichTextEditor', () => {
       .setTextSelection({ from: 1, to: 6 })
       .toggleBold()
       .toggleItalic()
+      .toggleUnderline()
+      .toggleStrike()
       .setColor('#ff0000')
       .setHighlight({ color: '#ffff00' })
       .setFontFamily('Impact')
@@ -32,6 +34,8 @@ describe('OcRichTextEditor', () => {
     const html = editor.getHTML()
     expect(html).toContain('<strong>')
     expect(html).toContain('<em>')
+    expect(html).toContain('<u>')
+    expect(html).toContain('<s>')
     expect(html).toContain('color: rgb(255, 0, 0)')
     expect(html).toContain('background-color: rgb(255, 255, 0)')
     expect(html).toContain('font-family: Impact')
@@ -58,6 +62,8 @@ describe('OcRichTextEditor', () => {
       'format.code-braces',
       'format.bold',
       'format.italic',
+      'format.underline',
+      'format.strikethrough',
       'format.color-fill',
       'format.color-highlight',
       'format.clear',
@@ -66,6 +72,10 @@ describe('OcRichTextEditor', () => {
     ]))
 
     editor.commands.setTextSelection({ from: 1, to: 6 })
+    await wrapper.get('button[data-tooltip="下划线"]').trigger('click')
+    await wrapper.get('button[data-tooltip="删除线"]').trigger('click')
+    expect(editor.getHTML()).toContain('<u>')
+    expect(editor.getHTML()).toContain('<s>')
     await wrapper.get('button[data-tooltip="增大字号"]').trigger('click')
     expect(editor.getHTML()).toContain('font-size: 18px')
     await wrapper.get('button[data-tooltip="减小字号"]').trigger('click')

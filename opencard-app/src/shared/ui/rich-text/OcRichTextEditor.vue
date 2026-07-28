@@ -22,6 +22,12 @@
         <OcButton size="md" icon-only icon="format.italic"
           :active="editor.isActive('italic')" data-tooltip="斜体" aria-label="斜体" @mousedown.prevent
           @click="editor.chain().focus().toggleItalic().run()" />
+        <OcButton size="md" icon-only icon="format.underline"
+          :active="editor.isActive('underline')" data-tooltip="下划线" aria-label="下划线" @mousedown.prevent
+          @click="editor.chain().focus().toggleUnderline().run()" />
+        <OcButton size="md" icon-only icon="format.strikethrough"
+          :active="editor.isActive('strike')" data-tooltip="删除线" aria-label="删除线" @mousedown.prevent
+          @click="editor.chain().focus().toggleStrike().run()" />
         <OcButton v-if="bindingCompletion" size="md" icon-only icon="format.code-braces"
           data-tooltip="插入 binding" aria-label="插入 binding" @mousedown.prevent @click="insertBinding" />
       </div>
@@ -84,6 +90,7 @@ import FontFamily from '@tiptap/extension-font-family'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
+import Underline from '@tiptap/extension-underline'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import OcButton from '../../../components/base/OcButton.vue'
@@ -196,6 +203,7 @@ const editor = useEditor({
       orderedList: false,
     }),
     TextStyle,
+    Underline,
     Color,
     FontFamily,
     Highlight.configure({ multicolor: true }),
