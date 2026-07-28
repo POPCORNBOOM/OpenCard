@@ -544,6 +544,7 @@ const viewportSize = ref({
   width: 0,
   height: 0,
 })
+let shouldFitViewportOnOpen = true
 const previewDragState = ref<{
   pointerId: number
   startClientX: number
@@ -1741,6 +1742,22 @@ function fitViewport(): void {
     : undefined)
 }
 
+function scheduleInitialViewportFit(): void {
+  void nextTick(() => {
+    if (
+      !shouldFitViewportOnOpen
+      || viewportSize.value.width <= 0
+      || viewportSize.value.height <= 0
+      || !viewFace.value
+    ) {
+      return
+    }
+
+    shouldFitViewportOnOpen = false
+    fitViewport()
+  })
+}
+
 function commitViewportTransform(payload: { x: number; y: number; scale: number }): void {
   viewportTransform.value = payload
   emit('update-viewport-transform', payload)
@@ -1752,6 +1769,7 @@ function handleViewportTransformChange(payload: { x: number; y: number; scale: n
 
 function handleViewportSizeChange(payload: { width: number; height: number }): void {
   viewportSize.value = payload
+  scheduleInitialViewportFit()
 }
 
 function startPreviewViewportDrag(event: PointerEvent): void {
@@ -2114,8 +2132,12 @@ watch(
       emit('issue-snapshot', { scopeKey: BLUEPRINT_CARD_ID, scopeOrder: [], issues: [] })
     }
     loadedFilePath.value = nextFilePath
-    viewportTransform.value = props.viewportTransform ?? DEFAULT_VIEWPORT_TRANSFORM
+    if (fileChanged) {
+      shouldFitViewportOnOpen = true
+      viewportTransform.value = { ...DEFAULT_VIEWPORT_TRANSFORM }
+    }
     loadRawDoc(content)
+    if (fileChanged) scheduleInitialViewportFit()
   },
   { immediate: true },
 )

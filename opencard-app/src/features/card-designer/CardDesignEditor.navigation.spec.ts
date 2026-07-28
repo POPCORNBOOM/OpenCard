@@ -343,6 +343,57 @@ describe('CardDesignEditor issue navigation', () => {
     expect(child.location).toMatchObject({ anchor: 'lt', x: '0px', y: '0px' })
   })
 
+  it('fits the viewport when opening a card file without refitting content updates', async () => {
+    const fitView = vi.fn()
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: {
+        transform: Object,
+      },
+      emits: ['viewport-size-change'],
+      setup(_, { expose }) {
+        expose({ fitView })
+        return {}
+      },
+      template: '<div class="card-viewport-stub" />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        viewportTransform: { x: 80, y: -40, scale: 2 },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    expect(viewport.props('transform')).toEqual({ x: 0, y: 0, scale: 1 })
+    viewport.vm.$emit('viewport-size-change', { width: 1000, height: 800 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    const updatedDocument = createDocument()
+    updatedDocument.name = 'Updated Document'
+    await wrapper.setProps({ modelValue: JSON.stringify(updatedDocument) })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ filePath: 'D:/Project/cards/other.opencard' })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(2)
+  })
+
   it('maps canvas keyboard shortcuts to viewport selection commands', async () => {
     const nudgeSelection = vi.fn(() => true)
     const runSelectionQuickAction = vi.fn(() => true)
