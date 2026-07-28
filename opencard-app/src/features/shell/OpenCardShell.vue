@@ -317,12 +317,9 @@ import type {
 import { resolveFileType } from '../workspace/model/fileTypes'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
+import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
-import {
-  useUnsavedSessionGuard,
-  type UnsavedCloseIntent,
-} from './composables/useUnsavedSessionGuard'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
@@ -591,7 +588,6 @@ const {
   allPendingSelected: allUnsavedPendingSelected,
   somePendingSelected: someUnsavedPendingSelected,
   canConfirm: canConfirmUnsavedClose,
-  requestClose: requestGuardedClose,
   setRowSelected: setUnsavedRowSelected,
   setAllPendingSelected: setAllUnsavedPendingSelected,
   markSelectedDiscard: markSelectedUnsavedDiscard,
@@ -599,30 +595,25 @@ const {
   resetDecision: resetUnsavedDecision,
   confirm: confirmUnsavedClose,
   cancel: cancelUnsavedClose,
-} = useUnsavedSessionGuard({
+  requestSessionClose,
+  requestProjectClose,
+  requestPathTrash,
+  requestApplicationClose,
+  discardSingle: discardSingleUnsavedEditor,
+  saveSingle: saveSingleUnsavedEditor,
+} = useShellCloseCoordinator({
   sessions,
+  flushAffectedSessions: flushActiveEditorForClose,
   pickDraftDirectory: () => fileSystemService.pickDirectory(t('app.unsavedEditors.pickDraftDirectory')),
   fileExists: path => fileSystemService.fileExists(path),
   saveSession,
-  completeClose: completeUnsavedClose,
+  completions: {
+    sessions: performSessionClose,
+    project: performProjectClose,
+    trash: performPathTrash,
+    application: performApplicationClose,
+  },
 })
-
-async function discardSingleUnsavedEditor(): Promise<void> {
-  const row = unsavedEditorDecisions.value[0]
-  if (!row || isUnsavedCloseBusy.value) return
-  if (row.decision !== 'pending') resetUnsavedDecision(row.sessionId)
-  setUnsavedRowSelected(row.sessionId, true)
-  markSelectedUnsavedDiscard()
-  await confirmUnsavedClose()
-}
-
-async function saveSingleUnsavedEditor(): Promise<void> {
-  const row = unsavedEditorDecisions.value[0]
-  if (!row || isUnsavedCloseBusy.value) return
-  if (row.decision !== 'pending') resetUnsavedDecision(row.sessionId)
-  setUnsavedRowSelected(row.sessionId, true)
-  if (await markSelectedUnsavedSave()) await confirmUnsavedClose()
-}
 
 function formatSessionTitle(session: { name: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
   if (session.resourceKind === 'external') {
@@ -1561,23 +1552,6 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   await resetProjectWorkspaceState()
 }
 
-async function requestUnsavedClose(intent: UnsavedCloseIntent): Promise<void> {
-  await flushActiveEditorForClose(intent.sessionIds)
-  await requestGuardedClose(intent)
-}
-
-function getWorkspaceSessionIds(): string[] {
-  return sessions.value
-    .filter(session => session.resourceKind === 'workspace')
-    .map(session => session.id)
-}
-
-function getSessionIdsAtPath(path: string): string[] {
-  return sessions.value
-    .filter(session => session.path && pathContains(path, session.path))
-    .map(session => session.id)
-}
-
 async function performProjectClose(destination: ProjectCloseDestination = 'current'): Promise<void> {
   closeWorkspaceSessions()
   await setProjectPath('')
@@ -1593,33 +1567,14 @@ async function performApplicationClose(): Promise<void> {
   await getCurrentWindow().destroy()
 }
 
-async function completeUnsavedClose(intent: UnsavedCloseIntent): Promise<void> {
-  if (intent.type === 'project') {
-    await performProjectClose(intent.projectDestination)
-    return
-  }
-
-  if (intent.type === 'app') {
-    await performApplicationClose()
-    return
-  }
-
-  if (intent.type === 'trash') {
-    if (!intent.path) return
-    await trashFile(intent.path)
-    closeSessionsByPath(intent.path)
-    selectedFileKeys.value = selectedFileKeys.value.filter(key => key !== intent.path)
-    return
-  }
-
-  for (const sessionId of intent.sessionIds) closeSession(sessionId)
+function performSessionClose(sessionIds: readonly string[]): void {
+  for (const sessionId of sessionIds) closeSession(sessionId)
 }
 
-async function requestApplicationClose(): Promise<void> {
-  await requestUnsavedClose({
-    type: 'app',
-    sessionIds: sessions.value.map(session => session.id),
-  })
+async function performPathTrash(path: string): Promise<void> {
+  await trashFile(path)
+  closeSessionsByPath(path)
+  selectedFileKeys.value = selectedFileKeys.value.filter(key => key !== path)
 }
 
 async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
@@ -1629,7 +1584,7 @@ async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
   }
 
   if (intent.type === 'action.invoke' && intent.actionKey === OPENED_EDITOR_CLOSE_ACTION_KEY) {
-    await requestUnsavedClose({ type: 'sessions', sessionIds: [intent.key] })
+    await requestSessionClose([intent.key])
   }
 }
 
@@ -1673,11 +1628,7 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
     }
 
     if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
-      await requestUnsavedClose({
-        type: 'trash',
-        sessionIds: getSessionIdsAtPath(entry.key),
-        path: entry.key,
-      })
+      await requestPathTrash(entry.key)
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
@@ -1764,11 +1715,7 @@ async function openProject() {
 
 async function closeProjectFolder(destination: ProjectCloseDestination = 'current'): Promise<void> {
   if (!projectPath.value) return
-  await requestUnsavedClose({
-    type: 'project',
-    sessionIds: getWorkspaceSessionIds(),
-    projectDestination: destination,
-  })
+  await requestProjectClose(destination)
 }
 
 async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> {
@@ -1844,11 +1791,7 @@ async function relocateRecentProject(missingPath: string): Promise<void> {
 async function openCreateProject(): Promise<void> {
   if (isProjectTemplateBusy.value) return
   if (projectPath.value) {
-    await requestUnsavedClose({
-      type: 'project',
-      sessionIds: getWorkspaceSessionIds(),
-      projectDestination: 'create-project',
-    })
+    await requestProjectClose('create-project')
     return
   }
 
