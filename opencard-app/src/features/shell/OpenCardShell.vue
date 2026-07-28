@@ -246,6 +246,28 @@
       <span>{{ t('app.shell.dropFilesToOpen') }}</span>
     </div>
 
+    <UnsavedEditorsDialog
+      :open="isUnsavedEditorsDialogOpen"
+      :intent-type="pendingCloseIntent?.type"
+      :rows="unsavedEditorDecisions"
+      :busy="isUnsavedCloseBusy"
+      :global-error="unsavedCloseError"
+      :selected-count="unsavedSelectedCount"
+      :pending-count="unsavedPendingCount"
+      :save-count="unsavedSaveCount"
+      :discard-count="unsavedDiscardCount"
+      :all-pending-selected="allUnsavedPendingSelected"
+      :some-pending-selected="someUnsavedPendingSelected"
+      :can-confirm="canConfirmUnsavedClose"
+      @select-all="setAllUnsavedPendingSelected"
+      @select-row="setUnsavedRowSelected"
+      @mark-discard="markSelectedUnsavedDiscard"
+      @mark-save="markSelectedUnsavedSave"
+      @change-decision="resetUnsavedDecision"
+      @cancel="cancelUnsavedClose"
+      @confirm="confirmUnsavedClose"
+    />
+
     <FloatingMenuHost />
   </main>
 </template>
@@ -276,6 +298,7 @@ import AboutWorkspace from './components/AboutWorkspace.vue'
 import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
 } from './components/WorkspaceBottomPanel.vue'
+import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
 import type {
   CreatedProject,
   ProjectTemplate,
@@ -298,6 +321,10 @@ import { resolveFileType, resolveFileTypeById } from '../workspace/model/fileTyp
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
+import {
+  useUnsavedSessionGuard,
+  type UnsavedCloseIntent,
+} from './composables/useUnsavedSessionGuard'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
@@ -321,6 +348,7 @@ import {
   filterSupportedExternalOpenPaths,
   listenForExternalOpenRequests,
 } from './services/externalOpenService'
+import { fileSystemService } from '../workspace/services/fileSystemService'
 import type {
   ShellButton,
   ShellList,
@@ -331,6 +359,7 @@ import type {
 import {
   getPrimaryShellPage,
   resolveShellPageAfterProjectClose,
+  type ProjectCloseDestination,
   type PrimaryShellPage,
   type ShellPage,
 } from './shellPage'
@@ -375,6 +404,7 @@ const themeClass = 'shell-theme-graphite'
 
 type CurrentEditorRef = {
   save?: () => Promise<void> | void
+  flush?: () => Promise<void> | void
   undo?: () => Promise<void> | void
   redo?: () => Promise<void> | void
   canUndo?: boolean
@@ -448,6 +478,7 @@ let isFullscreenTransitioning = false
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 let unlistenWindowResize: (() => void) | null = null
+let unlistenWindowClose: (() => void) | null = null
 let unlistenExternalOpen: (() => void) | null = null
 let unlistenShellFileDrop: (() => void) | null = null
 const isShellFileDropActive = ref(false)
@@ -502,9 +533,39 @@ const {
   closeSession,
   closeWorkspaceSessions,
   closeSessionsByPath,
+  saveSession,
   saveActiveSession,
   remapSessionPaths,
 } = useEditorSessionStore()
+
+const {
+  pendingIntent: pendingCloseIntent,
+  decisions: unsavedEditorDecisions,
+  isOpen: isUnsavedEditorsDialogOpen,
+  isBusy: isUnsavedCloseBusy,
+  globalError: unsavedCloseError,
+  selectedCount: unsavedSelectedCount,
+  pendingCount: unsavedPendingCount,
+  saveCount: unsavedSaveCount,
+  discardCount: unsavedDiscardCount,
+  allPendingSelected: allUnsavedPendingSelected,
+  somePendingSelected: someUnsavedPendingSelected,
+  canConfirm: canConfirmUnsavedClose,
+  requestClose: requestGuardedClose,
+  setRowSelected: setUnsavedRowSelected,
+  setAllPendingSelected: setAllUnsavedPendingSelected,
+  markSelectedDiscard: markSelectedUnsavedDiscard,
+  markSelectedSave: markSelectedUnsavedSave,
+  resetDecision: resetUnsavedDecision,
+  confirm: confirmUnsavedClose,
+  cancel: cancelUnsavedClose,
+} = useUnsavedSessionGuard({
+  sessions,
+  pickDraftDirectory: () => fileSystemService.pickDirectory(t('app.unsavedEditors.pickDraftDirectory')),
+  fileExists: path => fileSystemService.fileExists(path),
+  saveSession,
+  completeClose: completeUnsavedClose,
+})
 
 function formatSessionTitle(session: { name: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
   if (session.resourceKind === 'external') {
@@ -1134,6 +1195,12 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         icon: 'action.close',
         disabled: !projectPath.value,
       },
+      {
+        key: 'close-project-and-welcome',
+        title: t('app.menu.closeProjectAndWelcome'),
+        icon: 'nav.compass',
+        disabled: !projectPath.value,
+      },
       { type: 'divider', key: 'file-save-divider' },
       {
         key: 'save-active-editor',
@@ -1297,6 +1364,7 @@ const currentEditorProps = computed(() => {
     return {}
   }
 
+  const sessionId = activeSession.value.id
   const fileType = resolveSessionFileType(activeSession.value)
   const filePath = activeSession.value.path ?? `draft://${activeSession.value.id}`
   const editor = editorRegistry.getEditor(fileType.editorId)
@@ -1305,7 +1373,7 @@ const currentEditorProps = computed(() => {
       filePath,
       modelValue: activeSession.value.draftContent,
       themeId: editorThemeId.value,
-      'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
+      'onUpdate:modelValue': (v: string) => { updateDraftContent(sessionId, v) },
     }
 
     if (editor.id === 'card-designer') {
@@ -1338,7 +1406,7 @@ const currentEditorProps = computed(() => {
   }
   return {
     modelValue: activeSession.value.draftContent,
-    'onUpdate:modelValue': (v: string) => { updateDraftContent(activeSession.value!.id, v) },
+    'onUpdate:modelValue': (v: string) => { updateDraftContent(sessionId, v) },
     language: currentLanguage.value,
     themeId: editorThemeId.value,
   }
@@ -1541,14 +1609,77 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   await resetProjectWorkspaceState()
 }
 
-function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
+async function flushActiveEditorForClose(sessionIds: readonly string[]): Promise<void> {
+  const activeId = activeSession.value?.id
+  if (!activeId || !sessionIds.includes(activeId)) return
+  await currentEditorRef.value?.flush?.()
+}
+
+async function requestUnsavedClose(intent: UnsavedCloseIntent): Promise<void> {
+  await flushActiveEditorForClose(intent.sessionIds)
+  await requestGuardedClose(intent)
+}
+
+function getWorkspaceSessionIds(): string[] {
+  return sessions.value
+    .filter(session => session.resourceKind === 'workspace')
+    .map(session => session.id)
+}
+
+function getSessionIdsAtPath(path: string): string[] {
+  return sessions.value
+    .filter(session => session.path && pathContains(path, session.path))
+    .map(session => session.id)
+}
+
+async function performProjectClose(destination: ProjectCloseDestination = 'current'): Promise<void> {
+  closeWorkspaceSessions()
+  await setProjectPath('')
+  selectedRecentProjectKeys.value = []
+  shellPage.value = resolveShellPageAfterProjectClose(shellPage.value, destination)
+}
+
+async function performApplicationClose(): Promise<void> {
+  await getCurrentWindow().destroy()
+}
+
+async function completeUnsavedClose(intent: UnsavedCloseIntent): Promise<void> {
+  if (intent.type === 'project') {
+    await performProjectClose(intent.projectDestination)
+    return
+  }
+
+  if (intent.type === 'app') {
+    await performApplicationClose()
+    return
+  }
+
+  if (intent.type === 'trash') {
+    if (!intent.path) return
+    await trashFile(intent.path)
+    closeSessionsByPath(intent.path)
+    selectedFileKeys.value = selectedFileKeys.value.filter(key => key !== intent.path)
+    return
+  }
+
+  for (const sessionId of intent.sessionIds) closeSession(sessionId)
+}
+
+async function requestApplicationClose(): Promise<void> {
+  await requestUnsavedClose({
+    type: 'app',
+    sessionIds: sessions.value.map(session => session.id),
+  })
+}
+
+async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'selection.change') {
     handleOpenedEditorsSelect(intent.selectedKeys)
     return
   }
 
   if (intent.type === 'action.invoke' && intent.actionKey === OPENED_EDITOR_CLOSE_ACTION_KEY) {
-    closeSession(intent.key)
+    await requestUnsavedClose({ type: 'sessions', sessionIds: [intent.key] })
   }
 }
 
@@ -1592,9 +1723,11 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
     }
 
     if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
-      await trashFile(entry.key)
-      closeSessionsByPath(entry.key)
-      selectedFileKeys.value = selectedFileKeys.value.filter((key) => key !== entry.key)
+      await requestUnsavedClose({
+        type: 'trash',
+        sessionIds: getSessionIdsAtPath(entry.key),
+        path: entry.key,
+      })
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
@@ -1679,14 +1812,13 @@ async function openProject() {
   await ensureProjectTreeLoaded()
 }
 
-async function closeProjectFolder(): Promise<void> {
-  const currentProjectPath = projectPath.value
-  if (!currentProjectPath) return
-
-  closeWorkspaceSessions()
-  await setProjectPath('')
-  selectedRecentProjectKeys.value = []
-  shellPage.value = resolveShellPageAfterProjectClose(shellPage.value)
+async function closeProjectFolder(destination: ProjectCloseDestination = 'current'): Promise<void> {
+  if (!projectPath.value) return
+  await requestUnsavedClose({
+    type: 'project',
+    sessionIds: getWorkspaceSessionIds(),
+    projectDestination: destination,
+  })
 }
 
 async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> {
@@ -1932,6 +2064,10 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'close-project-and-welcome') {
+    await closeProjectFolder('welcome')
+    return
+  }
 
   if (actionKey === 'export-project-template') {
     if (projectPath.value) {
@@ -2044,6 +2180,11 @@ async function toggleWindowFullscreen(): Promise<void> {
 
 async function handleWindowControl(actionKey: string) {
   try {
+    if (actionKey === 'close') {
+      await requestApplicationClose()
+      return
+    }
+
     const appWindow = getCurrentWindow()
 
     if (actionKey === 'minimize') {
@@ -2063,13 +2204,9 @@ async function handleWindowControl(actionKey: string) {
       return
     }
 
-    if (actionKey === 'close') {
-      await appWindow.close()
-      return
-    }
   } catch (error) {
     if (actionKey === 'close') {
-      window.close()
+      console.warn('关闭窗口失败:', error)
       return
     }
 
@@ -2226,14 +2363,28 @@ onMounted(() => {
       unlistenWindowResize = null
     }
   })()
+  void (async () => {
+    try {
+      unlistenWindowClose = await getCurrentWindow().onCloseRequested((event) => {
+        event.preventDefault()
+        void requestApplicationClose()
+      })
+    } catch {
+      unlistenWindowClose = null
+    }
+  })()
   void ensureProjectTreeLoaded()
   void checkForUpdate()
   void listenForExternalOpenRequests(handleExternalOpenPaths)
     .then((unlisten) => { unlistenExternalOpen = unlisten })
     .catch(() => { unlistenExternalOpen = null })
-  void getCurrentWindow().onDragDropEvent(handleShellFileDropEvent)
-    .then((unlisten) => { unlistenShellFileDrop = unlisten })
-    .catch(() => { unlistenShellFileDrop = null })
+  void (async () => {
+    try {
+      unlistenShellFileDrop = await getCurrentWindow().onDragDropEvent(handleShellFileDropEvent)
+    } catch {
+      unlistenShellFileDrop = null
+    }
+  })()
 })
 
 onUnmounted(() => {
@@ -2241,6 +2392,8 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleViewportResize)
   unlistenWindowResize?.()
   unlistenWindowResize = null
+  unlistenWindowClose?.()
+  unlistenWindowClose = null
   unlistenExternalOpen?.()
   unlistenExternalOpen = null
   unlistenShellFileDrop?.()

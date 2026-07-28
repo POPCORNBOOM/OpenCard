@@ -1,6 +1,7 @@
 import type { SettingsCategoryKey } from '../settings/model/appSettings'
 
 export type PrimaryShellPage = 'welcome' | 'workbench'
+export type ProjectCloseDestination = 'current' | 'welcome'
 
 export type ShellPage =
   | { type: 'welcome' }
@@ -16,6 +17,10 @@ export function getPrimaryShellPage(page: ShellPage): PrimaryShellPage {
     : page.returnPage
 }
 
-export function resolveShellPageAfterProjectClose(page: ShellPage): ShellPage {
+export function resolveShellPageAfterProjectClose(
+  page: ShellPage,
+  destination: ProjectCloseDestination = 'current',
+): ShellPage {
+  if (destination === 'welcome') return { type: 'welcome' }
   return page.type === 'export-template' ? { type: 'workbench' } : page
 }

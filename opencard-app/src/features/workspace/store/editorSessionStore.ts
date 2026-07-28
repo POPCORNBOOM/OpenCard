@@ -92,6 +92,22 @@ function stripFileExtension(fileName: string) {
   return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
 }
 
+function resolveOpenCardDraftName(content: string, fallback: string): string {
+  try {
+    const document = JSON.parse(content) as { type?: unknown, name?: unknown }
+    if (document.type !== 'card-document' || typeof document.name !== 'string') return fallback
+
+    const fileName = document.name
+      .trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/[. ]+$/g, '')
+    if (!fileName) return fallback
+    return fileName.toLowerCase().endsWith('.opencard') ? fileName : `${fileName}.opencard`
+  } catch {
+    return fallback
+  }
+}
+
 function isAbsolutePath(path: string): boolean {
   const normalizedPath = normalizePath(path)
   return /^[a-z]:\//i.test(normalizedPath) || normalizedPath.startsWith('/')
@@ -257,8 +273,11 @@ export function useEditorSessionStore() {
   function createDraftSession(options: CreateDraftSessionOptions = {}) {
     const fileTypeId = options.fileTypeId ?? 'opencard'
     const fileType = resolveFileTypeById(fileTypeId)
-    const name = options.name ?? buildDraftName(fileTypeId, sessions.value.map((session) => session.name))
-    const content = options.content ?? (fileType.id === 'opencard' ? createDefaultOpenCardContent(name) : '')
+    const fallbackName = options.name ?? buildDraftName(fileTypeId, sessions.value.map((session) => session.name))
+    const content = options.content ?? (fileType.id === 'opencard' ? createDefaultOpenCardContent(fallbackName) : '')
+    const name = fileType.id === 'opencard'
+      ? resolveOpenCardDraftName(content, fallbackName)
+      : fallbackName
 
     const session: EditorSession = {
       id: crypto.randomUUID(),
@@ -301,6 +320,9 @@ export function useEditorSessionStore() {
       const isDirty = content !== session.savedContent
       return {
         ...session,
+        name: session.resourceKind === 'draft' && session.fileTypeId === 'opencard'
+          ? resolveOpenCardDraftName(content, session.name)
+          : session.name,
         draftContent: content,
         isDirty,
         isPreview: isDirty ? false : session.isPreview,
@@ -421,7 +443,7 @@ export function useEditorSessionStore() {
     await fileSystemService.writeFile(path, content)
   }
 
-  async function saveSession(sessionId: string): Promise<SessionSaveResult> {
+  async function saveSession(sessionId: string, targetPath?: string): Promise<SessionSaveResult> {
     taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
@@ -432,8 +454,11 @@ export function useEditorSessionStore() {
       return 'skipped'
     }
 
-    let nextPath = session.path
-    let nextResourceKind = session.resourceKind
+    const normalizedTargetPath = targetPath ? normalizePath(targetPath) : null
+    let nextPath = normalizedTargetPath ?? session.path
+    let nextResourceKind = normalizedTargetPath
+      ? (isPathInsideProject(normalizedTargetPath, projectPath.value) ? 'workspace' : 'external')
+      : session.resourceKind
 
     if (!nextPath) {
       const fileType = resolveSessionFileType(session)

@@ -246,8 +246,8 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   }
 
   function dispose() {
-    clearTypingTimer()
-    hasPendingTypingCommit.value = false
+    // Disposal is the final handoff boundary for a session-backed editor.
+    flushPendingChangesSync()
   }
 
   return {

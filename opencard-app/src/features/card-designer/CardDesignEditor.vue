@@ -2059,6 +2059,7 @@ watch(
 
 defineExpose({
   save: saveFile,
+  flush: flushPendingChanges,
   undo: undoFile,
   redo: redoFile,
   canUndo,

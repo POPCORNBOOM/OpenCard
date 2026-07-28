@@ -25,4 +25,14 @@ describe('shellPage', () => {
     expect(resolveShellPageAfterProjectClose({ type: 'export-template', returnPage: 'welcome' }))
       .toEqual({ type: 'workbench' })
   })
+
+  it('returns to welcome only when the close command explicitly requests it', () => {
+    expect(resolveShellPageAfterProjectClose({ type: 'workbench' }, 'welcome'))
+      .toEqual({ type: 'welcome' })
+    expect(resolveShellPageAfterProjectClose({
+      type: 'settings',
+      categoryKey: 'workspace',
+      returnPage: 'workbench',
+    }, 'welcome')).toEqual({ type: 'welcome' })
+  })
 })

@@ -1,0 +1,94 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  writeFile: vi.fn(),
+  pickSavePath: vi.fn(),
+}))
+
+vi.mock('./projectStore', () => ({
+  useProjectStore: () => ({
+    projectPath: { value: 'D:/project' },
+    readFile: vi.fn(),
+    saveFile: vi.fn(),
+    saveProjectConfiguration: vi.fn(),
+    saveProjectDictionary: vi.fn(),
+  }),
+}))
+
+vi.mock('../services/fileSystemService', () => ({
+  fileSystemService: {
+    writeFile: mocks.writeFile,
+    pickSavePath: mocks.pickSavePath,
+  },
+}))
+
+import { useEditorSessionStore } from './editorSessionStore'
+
+describe('editorSessionStore explicit save path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.writeFile.mockResolvedValue(undefined)
+  })
+
+  it('persists a draft to the supplied path without opening Save As', async () => {
+    const store = useEditorSessionStore()
+    const session = store.createDraftSession({
+      name: 'Draft.opencard',
+      content: '{"draft":true}',
+    })
+
+    await store.saveSession(session.id, 'D:/exports/Draft.opencard')
+
+    expect(mocks.pickSavePath).not.toHaveBeenCalled()
+    expect(mocks.writeFile).toHaveBeenCalledWith('D:/exports/Draft.opencard', '{"draft":true}')
+    expect(store.sessions.value.find(candidate => candidate.id === session.id)).toMatchObject({
+      resourceKind: 'external',
+      path: 'D:/exports/Draft.opencard',
+      savedContent: '{"draft":true}',
+      draftContent: '{"draft":true}',
+      isDirty: false,
+    })
+
+    store.closeSession(session.id)
+  })
+
+  it('uses the current OpenCard document name across draft display and Save As', async () => {
+    const store = useEditorSessionStore()
+    const session = store.createDraftSession({
+      name: 'Untitled-1.opencard',
+      content: JSON.stringify({ type: 'card-document', name: 'Current Card' }),
+    })
+    mocks.pickSavePath.mockResolvedValueOnce(null)
+
+    expect(session.name).toBe('Current Card.opencard')
+    expect(store.openedEditorItems.value.find(item => item.key === session.id)?.label)
+      .toBe('Current Card.opencard')
+
+    await expect(store.saveSession(session.id)).resolves.toBe('cancelled')
+    expect(mocks.pickSavePath).toHaveBeenCalledWith(expect.objectContaining({
+      defaultPath: 'Current Card.opencard',
+    }))
+
+    store.closeSession(session.id)
+  })
+
+  it('updates only an OpenCard draft name when its document name changes', () => {
+    const store = useEditorSessionStore()
+    const session = store.createDraftSession({
+      name: 'Untitled-1.opencard',
+      content: JSON.stringify({ type: 'card-document', name: 'Before' }),
+    })
+
+    store.updateDraftContent(
+      session.id,
+      JSON.stringify({ type: 'card-document', name: 'After' }),
+    )
+
+    expect(store.sessions.value.find(candidate => candidate.id === session.id)?.name)
+      .toBe('After.opencard')
+    expect(store.openedEditorItems.value.find(item => item.key === session.id)?.label)
+      .toBe('After.opencard *')
+
+    store.closeSession(session.id)
+  })
+})
