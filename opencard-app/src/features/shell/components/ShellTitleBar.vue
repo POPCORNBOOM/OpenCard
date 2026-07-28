@@ -14,6 +14,7 @@ const props = defineProps<{
   brandLabel: string;
   brandLogoSrc?: string;
   menuGroups: ShellTitleBarMenuGroup[];
+  primaryPageAction?: ShellTitleBarAppAction;
   appActions?: ShellTitleBarAppAction[];
   windowControls?: ShellTitleBarWindowControl[];
   collapseTooltip?: string;
@@ -106,6 +107,17 @@ onBeforeUnmount(() => {
         @click="emit('toggle-sidebar')"
       >
         <OcIcon :name="props.collapsed ? 'nav.sidebar-expand' : 'nav.sidebar-collapse'" size="sm" />
+      </button>
+
+      <button
+        v-if="props.primaryPageAction"
+        class="titlebar-icon titlebar-primary-page-action"
+        type="button"
+        :disabled="props.primaryPageAction.disabled"
+        :data-tooltip="props.primaryPageAction.hoverTip || null"
+        @click="emit('app-action', props.primaryPageAction.key)"
+      >
+        <OcIcon :name="props.primaryPageAction.icon" size="sm" />
       </button>
 
       <div

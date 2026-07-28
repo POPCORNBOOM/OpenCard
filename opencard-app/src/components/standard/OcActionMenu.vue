@@ -24,7 +24,7 @@
           type="button"
           class="oc-action-menu__button"
           :disabled="entry.disabled === true"
-          :title="entry.title"
+          :data-tooltip="entry.title || null"
           role="menuitem"
           :aria-haspopup="hasActionChildren(entry) ? 'menu' : undefined"
           :aria-expanded="hasActionChildren(entry) ? openChildKey === entry.key : undefined"
@@ -39,6 +39,11 @@
           />
           <span v-else class="oc-action-menu__icon-spacer" />
           <span class="oc-action-menu__label">{{ entry.title ?? entry.key }}</span>
+          <span v-if="entry.shortcut?.length" class="oc-action-menu__shortcut" aria-hidden="true">
+            <span v-for="part in entry.shortcut" :key="part" class="oc-action-menu__shortcut-chip">
+              {{ part }}
+            </span>
+          </span>
           <OcIcon
             v-if="hasActionChildren(entry)"
             name="nav.arrow-right"
@@ -78,6 +83,7 @@ export interface OcActionDefinition {
   icon?: IconToken
   iconTone?: IconTone
   title?: string
+  shortcut?: readonly string[]
   disabled?: boolean
   children?: readonly OcActionMenuEntry[]
 }
@@ -249,5 +255,30 @@ function handleActionClick(action: OcActionDefinition): void {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.oc-action-menu__shortcut {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+}
+
+.oc-action-menu__shortcut-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--oc-radius-sm);
+  background: var(--oc-bg-hover);
+  color: var(--oc-fg-muted);
+  font-family: var(--oc-font-mono);
+  font-size: var(--oc-text-xs);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--oc-border-muted);
 }
 </style>

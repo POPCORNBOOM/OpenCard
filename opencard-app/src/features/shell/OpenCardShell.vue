@@ -17,6 +17,7 @@
       brand-label="OPENCARD"
       brand-logo-src="/icon_v2.png"
       :menu-groups="titleBarMenus"
+      :primary-page-action="primaryPageToggleAction"
       :app-actions="titleBarAppActions"
       :window-controls="windowControls"
       :native-macos-controls="usesNativeMacosWindowControls"
@@ -266,6 +267,8 @@
       @change-decision="resetUnsavedDecision"
       @cancel="cancelUnsavedClose"
       @confirm="confirmUnsavedClose"
+      @discard-single="discardSingleUnsavedEditor"
+      @save-single="saveSingleUnsavedEditor"
     />
 
     <FloatingMenuHost />
@@ -357,6 +360,7 @@ import type {
   ShellTitleBarWindowControl,
 } from './shell.types'
 import {
+  getOtherPrimaryShellPage,
   getPrimaryShellPage,
   resolveShellPageAfterProjectClose,
   type ProjectCloseDestination,
@@ -477,10 +481,41 @@ let restoreMaximizedAfterFullscreen = false
 let isFullscreenTransitioning = false
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
+const SHELL_SHORTCUT_KEYS = {
+  fullscreen: 'F11',
+  newProject: 'n',
+  newOpenCard: 'n',
+  save: 's',
+  undo: 'z',
+  redo: 'y',
+} as const
+const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
+type PendingViewportTransform = {
+  sessionId: string
+  editorId: 'card-designer' | 'image-preview'
+  value: { x: number; y: number; scale: number }
+}
+const primaryShortcutParts = (key: string, shift = false): readonly string[] => (
+  usesNativeMacosWindowControls
+    ? [...(shift ? ['⇧'] : []), '⌘', key.toUpperCase()]
+    : ['Ctrl', ...(shift ? ['Shift'] : []), key.toUpperCase()]
+)
+const shellShortcutParts = {
+  fullscreen: [SHELL_SHORTCUT_KEYS.fullscreen],
+  newProject: primaryShortcutParts(SHELL_SHORTCUT_KEYS.newProject),
+  newOpenCard: primaryShortcutParts(SHELL_SHORTCUT_KEYS.newOpenCard, true),
+  save: primaryShortcutParts(SHELL_SHORTCUT_KEYS.save),
+  undo: primaryShortcutParts(SHELL_SHORTCUT_KEYS.undo),
+  redo: usesNativeMacosWindowControls
+    ? primaryShortcutParts(SHELL_SHORTCUT_KEYS.undo, true)
+    : primaryShortcutParts(SHELL_SHORTCUT_KEYS.redo),
+} as const
 let unlistenWindowResize: (() => void) | null = null
 let unlistenWindowClose: (() => void) | null = null
 let unlistenExternalOpen: (() => void) | null = null
 let unlistenShellFileDrop: (() => void) | null = null
+let viewportTransformPersistTimer: number | null = null
+let pendingViewportTransform: PendingViewportTransform | null = null
 const isShellFileDropActive = ref(false)
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
@@ -566,6 +601,23 @@ const {
   saveSession,
   completeClose: completeUnsavedClose,
 })
+
+async function discardSingleUnsavedEditor(): Promise<void> {
+  const row = unsavedEditorDecisions.value[0]
+  if (!row || isUnsavedCloseBusy.value) return
+  if (row.decision !== 'pending') resetUnsavedDecision(row.sessionId)
+  setUnsavedRowSelected(row.sessionId, true)
+  markSelectedUnsavedDiscard()
+  await confirmUnsavedClose()
+}
+
+async function saveSingleUnsavedEditor(): Promise<void> {
+  const row = unsavedEditorDecisions.value[0]
+  if (!row || isUnsavedCloseBusy.value) return
+  if (row.decision !== 'pending') resetUnsavedDecision(row.sessionId)
+  setUnsavedRowSelected(row.sessionId, true)
+  if (await markSelectedUnsavedSave()) await confirmUnsavedClose()
+}
 
 function formatSessionTitle(session: { name: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
   if (session.resourceKind === 'external') {
@@ -972,6 +1024,17 @@ const titleBarAppActions = computed<ShellTitleBarAppAction[]>(() => {
   }]
 })
 
+const primaryPageToggleAction = computed<ShellTitleBarAppAction>(() => {
+  const targetPage = getOtherPrimaryShellPage(shellPage.value)
+  return {
+    key: 'toggle-primary-page',
+    icon: targetPage === 'workbench' ? 'nav.workbench' : 'nav.welcome',
+    hoverTip: targetPage === 'workbench'
+      ? t('app.menu.goWorkbench')
+      : t('app.menu.returnWelcome'),
+  }
+})
+
 const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
   {
     key: 'toggle-fullscreen',
@@ -1185,8 +1248,18 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
     key: 'file',
     label: t('app.menu.file'),
     actions: [
-      { key: 'new-project', title: t('app.menu.newProject'), icon: 'action.folder-plus' },
-      { key: 'new-open-card', title: t('app.menu.newOpenCard'), icon: 'action.file-plus' },
+      {
+        key: 'new-project',
+        title: projectPath.value ? t('app.menu.closeAndNewProject') : t('app.menu.newProject'),
+        icon: 'action.folder-plus',
+        shortcut: shellShortcutParts.newProject,
+      },
+      {
+        key: 'new-open-card',
+        title: t('app.menu.newOpenCard'),
+        icon: 'action.file-plus',
+        shortcut: shellShortcutParts.newOpenCard,
+      },
       { type: 'divider', key: 'file-open-divider' },
       { key: 'open-project', title: t('sidebar.openProject'), icon: 'status.folder-open' },
       {
@@ -1206,6 +1279,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         key: 'save-active-editor',
         title: t('app.menu.save'),
         icon: 'action.save',
+        shortcut: shellShortcutParts.save,
         disabled: !activeSession.value,
       },
       { type: 'divider', key: 'file-export-divider' },
@@ -1237,12 +1311,14 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         key: 'undo-active-editor',
         title: t('app.menu.undo'),
         icon: 'action.undo',
+        shortcut: shellShortcutParts.undo,
         disabled: !isActiveCardDesignerEditor(),
       },
       {
         key: 'redo-active-editor',
         title: t('app.menu.redo'),
         icon: 'action.redo',
+        shortcut: shellShortcutParts.redo,
         disabled: !isActiveCardDesignerEditor(),
       },
       { type: 'divider', key: 'edit-settings-divider' },
@@ -1285,6 +1361,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
           ? t('app.shell.exitFullscreen')
           : t('app.shell.enterFullscreen'),
         icon: isWindowFullscreen.value ? 'window.fullscreen-exit' : 'window.fullscreen',
+        shortcut: shellShortcutParts.fullscreen,
       },
     ],
   },
@@ -1412,19 +1489,49 @@ const currentEditorProps = computed(() => {
   }
 })
 
-function handleViewportTransformUpdate(value: { x: number; y: number; scale: number }) {
-  const session = activeSession.value
-  if (!session) return
+function persistPendingViewportTransform(): void {
+  if (viewportTransformPersistTimer !== null) {
+    window.clearTimeout(viewportTransformPersistTimer)
+    viewportTransformPersistTimer = null
+  }
 
-  if (session.editorId === 'card-designer') {
-    updateSessionUiState(session.id, {
-      cardDesigner: { viewportTransform: value },
+  const pending = pendingViewportTransform
+  pendingViewportTransform = null
+  if (!pending) return
+
+  if (pending.editorId === 'card-designer') {
+    updateSessionUiState(pending.sessionId, {
+      cardDesigner: { viewportTransform: pending.value },
     })
-  } else if (session.editorId === 'image-preview') {
-    updateSessionUiState(session.id, {
-      imagePreview: { viewportTransform: value },
+  } else {
+    updateSessionUiState(pending.sessionId, {
+      imagePreview: { viewportTransform: pending.value },
     })
   }
+}
+
+function handleViewportTransformUpdate(value: { x: number; y: number; scale: number }): void {
+  const session = activeSession.value
+  if (!session || (session.editorId !== 'card-designer' && session.editorId !== 'image-preview')) {
+    return
+  }
+
+  if (pendingViewportTransform && pendingViewportTransform.sessionId !== session.id) {
+    persistPendingViewportTransform()
+  }
+
+  pendingViewportTransform = {
+    sessionId: session.id,
+    editorId: session.editorId,
+    value,
+  }
+  if (viewportTransformPersistTimer !== null) {
+    window.clearTimeout(viewportTransformPersistTimer)
+  }
+  viewportTransformPersistTimer = window.setTimeout(
+    persistPendingViewportTransform,
+    VIEWPORT_TRANSFORM_PERSIST_DELAY_MS,
+  )
 }
 
 function handleCardDesignerLayoutUpdate(value: CardDesignerLayoutState): void {
@@ -1601,6 +1708,11 @@ function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
 }
 
 async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
+  if (intent.type === 'setting.preview') {
+    settingsStore.previewSetting(intent.key, intent.value)
+    return
+  }
+
   if (intent.type === 'setting.change') {
     settingsStore.updateSetting(intent.key, intent.value)
     return
@@ -1637,6 +1749,10 @@ async function performProjectClose(destination: ProjectCloseDestination = 'curre
   await setProjectPath('')
   selectedRecentProjectKeys.value = []
   shellPage.value = resolveShellPageAfterProjectClose(shellPage.value, destination)
+  if (destination === 'create-project') {
+    projectActivationError.value = ''
+    void templateStore.load().catch(() => undefined)
+  }
 }
 
 async function performApplicationClose(): Promise<void> {
@@ -1891,8 +2007,17 @@ async function relocateRecentProject(missingPath: string): Promise<void> {
   selectedRecentProjectKeys.value = []
 }
 
-function openCreateProject(): void {
+async function openCreateProject(): Promise<void> {
   if (isProjectTemplateBusy.value) return
+  if (projectPath.value) {
+    await requestUnsavedClose({
+      type: 'project',
+      sessionIds: getWorkspaceSessionIds(),
+      projectDestination: 'create-project',
+    })
+    return
+  }
+
   projectActivationError.value = ''
   shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
   void templateStore.load().catch(() => undefined)
@@ -1957,7 +2082,6 @@ function handleSidebarResize(width: number) {
 }
 
 function createUntitledOpenCard() {
-  if (!projectPath.value) return
   showPrimaryShellPage('workbench')
   createDraftSession({
     fileTypeId: 'opencard',
@@ -2045,7 +2169,7 @@ async function runShellCommand(actionKey: string) {
   }
 
   if (actionKey === 'new-project') {
-    openCreateProject()
+    await openCreateProject()
     return
   }
 
@@ -2115,6 +2239,10 @@ function startDeveloperUpdatePreview(): void {
 }
 
 async function handleTitleBarAppAction(actionKey: string): Promise<void> {
+  if (actionKey === 'toggle-primary-page') {
+    showPrimaryShellPage(getOtherPrimaryShellPage(shellPage.value))
+    return
+  }
   if (actionKey !== 'install-update') return
   if (availableUpdate.value) {
     await installAvailableUpdate()
@@ -2292,7 +2420,7 @@ async function triggerCurrentEditorRedo() {
 }
 
 async function handleGlobalKeydown(event: KeyboardEvent) {
-  if (event.key === 'F11') {
+  if (event.key === SHELL_SHORTCUT_KEYS.fullscreen) {
     event.preventDefault()
     if (!event.repeat) {
       try {
@@ -2309,19 +2437,25 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   const key = event.key.toLowerCase()
-  if (key === 'n') {
+  if (key === SHELL_SHORTCUT_KEYS.newOpenCard && event.shiftKey) {
     event.preventDefault()
     createUntitledOpenCard()
     return
   }
 
-  if (key === 's') {
+  if (key === SHELL_SHORTCUT_KEYS.newProject) {
+    event.preventDefault()
+    await openCreateProject()
+    return
+  }
+
+  if (key === SHELL_SHORTCUT_KEYS.save) {
     event.preventDefault()
     await triggerCurrentEditorSave()
     return
   }
 
-  if (key === 'z') {
+  if (key === SHELL_SHORTCUT_KEYS.undo) {
     if (!isActiveCardDesignerEditor()) {
       return
     }
@@ -2336,7 +2470,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
     return
   }
 
-  if (key === 'y') {
+  if (key === SHELL_SHORTCUT_KEYS.redo) {
     if (!isActiveCardDesignerEditor()) {
       return
     }
@@ -2388,6 +2522,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  persistPendingViewportTransform()
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('resize', handleViewportResize)
   unlistenWindowResize?.()

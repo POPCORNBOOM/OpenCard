@@ -105,6 +105,29 @@ describe('ShellTitleBar', () => {
     expect(wrapper.emitted('app-action')).toEqual([['install-update']])
   })
 
+  it('places the primary page action beside the sidebar toggle', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [{ key: 'file', label: 'File', actions: [] }],
+        primaryPageAction: {
+          key: 'toggle-primary-page',
+          icon: 'nav.workbench',
+          hoverTip: 'Show Workbench',
+        },
+      },
+    })
+
+    const leftIcons = wrapper.findAll('.titlebar-left > .titlebar-icon')
+    expect(leftIcons).toHaveLength(2)
+    expect(leftIcons[1]!.classes()).toContain('titlebar-primary-page-action')
+    expect(leftIcons[1]!.element.nextElementSibling?.classList).toContain('titlebar-menu')
+
+    await leftIcons[1]!.trigger('click')
+    expect(wrapper.emitted('app-action')).toEqual([['toggle-primary-page']])
+  })
+
   it('only exposes the native drag region when dragging is enabled', async () => {
     const wrapper = mount(ShellTitleBar, {
       props: {

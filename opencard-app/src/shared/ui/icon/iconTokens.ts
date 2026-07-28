@@ -45,6 +45,8 @@ export const iconTokens = {
   'nav.more': true,
   'nav.sidebar-collapse': true,
   'nav.sidebar-expand': true,
+  'nav.welcome': true,
+  'nav.workbench': true,
 
   'window.fullscreen': true,
   'window.fullscreen-exit': true,

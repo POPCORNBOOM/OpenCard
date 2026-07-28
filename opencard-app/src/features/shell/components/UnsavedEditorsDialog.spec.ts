@@ -42,12 +42,12 @@ const rows: UnsavedEditorDecision[] = [
   },
 ]
 
-function mountDialog() {
+function mountDialog(dialogRows: UnsavedEditorDecision[] = rows) {
   return mount(UnsavedEditorsDialog, {
     props: {
       open: true,
       intentType: 'app',
-      rows,
+      rows: dialogRows,
       busy: false,
       globalError: '',
       selectedCount: 1,
@@ -91,5 +91,24 @@ describe('UnsavedEditorsDialog', () => {
 
     expect(wrapper.emitted('mark-discard')).toHaveLength(1)
     expect(wrapper.emitted('mark-save')).toHaveLength(1)
+  })
+
+  it('shows direct cancel, discard, and save actions for one editor', async () => {
+    const wrapper = mountDialog([rows[0]!])
+
+    expect(wrapper.findComponent(OcCheckbox).exists()).toBe(false)
+    expect(wrapper.find('.unsaved-editors-dialog__list').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Save changes to “Pending.opencard”?')
+    expect(wrapper.text()).toContain('This draft has not been saved to disk.')
+    expect(wrapper.text()).not.toContain('Save selected')
+    expect(wrapper.text()).not.toContain('Confirm decisions')
+    expect(wrapper.text()).not.toContain('Not saved to disk')
+
+    const buttons = wrapper.findAll('button')
+    await buttons.find(button => button.text() === 'Discard')!.trigger('click')
+    await buttons.find(button => button.text() === 'Save')!.trigger('click')
+
+    expect(wrapper.emitted('discard-single')).toHaveLength(1)
+    expect(wrapper.emitted('save-single')).toHaveLength(1)
   })
 })

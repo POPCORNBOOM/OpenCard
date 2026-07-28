@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getPrimaryShellPage, resolveShellPageAfterProjectClose } from './shellPage'
+import {
+  getOtherPrimaryShellPage,
+  getPrimaryShellPage,
+  resolveShellPageAfterProjectClose,
+} from './shellPage'
 
 describe('shellPage', () => {
   it('returns the explicit origin of an auxiliary page', () => {
@@ -9,6 +13,16 @@ describe('shellPage', () => {
       .toBe('workbench')
     expect(getPrimaryShellPage({ type: 'about', returnPage: 'welcome' }))
       .toBe('welcome')
+  })
+
+  it('switches to the other explicit primary page', () => {
+    expect(getOtherPrimaryShellPage({ type: 'welcome' })).toBe('workbench')
+    expect(getOtherPrimaryShellPage({ type: 'workbench' })).toBe('welcome')
+    expect(getOtherPrimaryShellPage({
+      type: 'settings',
+      categoryKey: 'general',
+      returnPage: 'welcome',
+    })).toBe('workbench')
   })
 
   it('keeps the current page when a project closes', () => {
@@ -34,5 +48,15 @@ describe('shellPage', () => {
       categoryKey: 'workspace',
       returnPage: 'workbench',
     }, 'welcome')).toEqual({ type: 'welcome' })
+  })
+
+  it('enters project creation while preserving the originating primary page', () => {
+    expect(resolveShellPageAfterProjectClose({ type: 'workbench' }, 'create-project'))
+      .toEqual({ type: 'create-project', returnPage: 'workbench' })
+    expect(resolveShellPageAfterProjectClose({
+      type: 'settings',
+      categoryKey: 'general',
+      returnPage: 'welcome',
+    }, 'create-project')).toEqual({ type: 'create-project', returnPage: 'welcome' })
   })
 })

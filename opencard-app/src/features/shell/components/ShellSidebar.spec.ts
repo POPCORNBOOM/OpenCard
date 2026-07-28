@@ -35,7 +35,7 @@ describe('ShellSidebar list actions', () => {
     await wrapper.get('button[aria-label="New File"]').trigger('click')
     await flushPromises()
     document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[title="OpenCard (.opencard)"]',
+      '.oc-action-menu__button[data-tooltip="OpenCard (.opencard)"]',
     )?.click()
     await flushPromises()
 

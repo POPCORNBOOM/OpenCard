@@ -77,6 +77,19 @@ describe('useUnsavedSessionGuard', () => {
     expect(completeClose).toHaveBeenCalledWith(intent)
   })
 
+  it('preserves project creation as a post-close destination', async () => {
+    const clean = createSession('clean')
+    const { guard, completeClose } = createGuard([clean])
+    const intent = {
+      type: 'project' as const,
+      sessionIds: [clean.id],
+      projectDestination: 'create-project' as const,
+    }
+
+    await expect(guard.requestClose(intent)).resolves.toBe('completed')
+    expect(completeClose).toHaveBeenCalledWith(intent)
+  })
+
   it('removes checkboxes from decided rows and restores them only through change', async () => {
     const first = createSession('first', { isDirty: true })
     const second = createSession('second', { isDirty: true })

@@ -3,6 +3,7 @@
     <div v-if="open" class="unsaved-editors-dialog__backdrop">
       <section
         class="unsaved-editors-dialog"
+        :class="{ 'unsaved-editors-dialog--single': isSingle }"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="titleId"
@@ -11,11 +12,14 @@
         <header class="unsaved-editors-dialog__header">
           <div>
             <h2 :id="titleId">{{ title }}</h2>
-            <p>{{ t('app.unsavedEditors.description') }}</p>
+            <p>{{ description }}</p>
+            <p v-if="singleError" class="unsaved-editors-dialog__error" role="alert">
+              {{ resolveError(singleError) }}
+            </p>
           </div>
         </header>
 
-        <div class="unsaved-editors-dialog__selection-bar">
+        <div v-if="!isSingle" class="unsaved-editors-dialog__selection-bar">
           <OcCheckbox
             autofocus
             :checked="allPendingSelected"
@@ -27,7 +31,7 @@
           <span>{{ t('app.unsavedEditors.pendingCount', { count: pendingCount }) }}</span>
         </div>
 
-        <div class="unsaved-editors-dialog__list" role="list">
+        <div v-if="!isSingle" class="unsaved-editors-dialog__list" role="list">
           <article
             v-for="row in rows"
             :key="row.sessionId"
@@ -35,7 +39,7 @@
             :class="`unsaved-editors-dialog__row--${row.decision}`"
             role="listitem"
           >
-            <div class="unsaved-editors-dialog__selection">
+            <div v-if="!isSingle" class="unsaved-editors-dialog__selection">
               <OcCheckbox
                 v-if="row.decision === 'pending'"
                 :checked="row.selected"
@@ -59,16 +63,16 @@
 
             <div class="unsaved-editors-dialog__identity">
               <strong>{{ row.name }}</strong>
-              <span :title="row.path ?? undefined">
+              <span :data-tooltip="row.path ?? undefined">
                 {{ row.resourceKind === 'draft' ? t('app.unsavedEditors.notOnDisk') : row.path }}
               </span>
             </div>
 
-            <div class="unsaved-editors-dialog__decision">
+            <div v-if="!isSingle" class="unsaved-editors-dialog__decision">
               <span
                 class="unsaved-editors-dialog__decision-label"
                 :class="`unsaved-editors-dialog__decision-label--${row.decision}`"
-                :title="row.savePath ?? undefined"
+                :data-tooltip="row.savePath ?? undefined"
               >
                 {{ decisionLabel(row) }}
               </span>
@@ -78,7 +82,7 @@
             </div>
 
             <OcButton
-              v-if="row.decision !== 'pending'"
+              v-if="!isSingle && row.decision !== 'pending'"
               class="unsaved-editors-dialog__change-button"
               size="sm"
               :disabled="busy"
@@ -89,7 +93,7 @@
           </article>
         </div>
 
-        <div class="unsaved-editors-dialog__batch-actions">
+        <div v-if="!isSingle" class="unsaved-editors-dialog__batch-actions">
           <OcButton
             class="unsaved-editors-dialog__discard-button"
             variant="soft"
@@ -112,7 +116,7 @@
         </div>
 
         <footer class="unsaved-editors-dialog__footer">
-          <div class="unsaved-editors-dialog__summary" aria-live="polite">
+          <div v-if="!isSingle" class="unsaved-editors-dialog__summary" aria-live="polite">
             {{ t('app.unsavedEditors.summary', {
               save: saveCount,
               discard: discardCount,
@@ -126,7 +130,20 @@
             <OcButton :disabled="busy" @click="emit('cancel')">
               {{ t('app.unsavedEditors.cancel') }}
             </OcButton>
-            <OcButton variant="solid" :disabled="!canConfirm" @click="emit('confirm')">
+            <template v-if="isSingle">
+              <OcButton
+                class="unsaved-editors-dialog__discard-button"
+                variant="soft"
+                :disabled="busy"
+                @click="emit('discard-single')"
+              >
+                {{ t('app.unsavedEditors.singleDiscard') }}
+              </OcButton>
+              <OcButton variant="solid" :disabled="busy" @click="emit('save-single')">
+                {{ busy ? t('app.unsavedEditors.processing') : t('app.unsavedEditors.singleSave') }}
+              </OcButton>
+            </template>
+            <OcButton v-else variant="solid" :disabled="!canConfirm" @click="emit('confirm')">
               {{ busy ? t('app.unsavedEditors.processing') : t('app.unsavedEditors.confirm') }}
             </OcButton>
           </div>
@@ -173,11 +190,23 @@ const emit = defineEmits<{
   (e: 'change-decision', sessionId: string): void
   (e: 'cancel'): void
   (e: 'confirm'): void
+  (e: 'discard-single'): void
+  (e: 'save-single'): void
 }>()
 
 const { t } = useI18n()
 const titleId = `unsaved-editors-title-${Math.random().toString(36).slice(2)}`
-const title = computed(() => t(`app.unsavedEditors.titles.${props.intentType ?? 'sessions'}`))
+const isSingle = computed(() => props.rows.length === 1)
+const singleRow = computed(() => isSingle.value ? props.rows[0] : undefined)
+const title = computed(() => singleRow.value
+  ? t('app.unsavedEditors.singleTitle', { name: singleRow.value.name })
+  : t(`app.unsavedEditors.titles.${props.intentType ?? 'sessions'}`))
+const description = computed(() => singleRow.value
+  ? t(singleRow.value.resourceKind === 'draft'
+      ? 'app.unsavedEditors.singleDraftDescription'
+      : 'app.unsavedEditors.singleDirtyDescription')
+  : t('app.unsavedEditors.description'))
+const singleError = computed(() => singleRow.value?.error || props.globalError)
 
 function decisionIcon(decision: UnsavedDecision): IconToken {
   if (decision === 'save') return 'action.save'
@@ -233,6 +262,11 @@ function handleCancel(): void {
   background: var(--oc-bg-surface);
   box-shadow: var(--oc-shadow-lg);
   color: var(--oc-fg-default);
+}
+
+.unsaved-editors-dialog--single {
+  width: min(520px, 100%);
+  grid-template-rows: auto auto;
 }
 
 .unsaved-editors-dialog__header,
