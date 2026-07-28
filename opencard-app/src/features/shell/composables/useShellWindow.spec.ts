@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import mainWindowCapability from '../../../../src-tauri/capabilities/default.json'
 
 const mocks = vi.hoisted(() => ({
   fullscreen: false,
@@ -55,6 +56,10 @@ function createShellWindow() {
 }
 
 describe('useShellWindow', () => {
+  it('authorizes the terminal destroy command used after guarded application close', () => {
+    expect(mainWindowCapability.permissions).toContain('core:window:allow-destroy')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.fullscreen = false
