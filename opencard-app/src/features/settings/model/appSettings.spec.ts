@@ -24,6 +24,7 @@ describe('appSettings', () => {
       version: APP_SETTINGS_VERSION,
       appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 100 },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
+      updates: { suppressReleaseNotesAfterUpdate: false },
       workspace: {
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
@@ -42,6 +43,7 @@ describe('appSettings', () => {
     })
 
     expect(settings.workspace).toEqual(createDefaultAppSettings().workspace)
+    expect(settings.updates).toEqual(createDefaultAppSettings().updates)
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
   })

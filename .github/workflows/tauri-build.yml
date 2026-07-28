@@ -54,6 +54,14 @@ jobs:
       - name: Install NPM dependencies
         run: npm ci
 
+      - name: Read release notes
+        id: release-notes
+        shell: bash
+        run: |
+          echo 'body<<OPENCARD_RELEASE_NOTES_EOF' >> "$GITHUB_OUTPUT"
+          cat RELEASE_NOTES.md >> "$GITHUB_OUTPUT"
+          echo 'OPENCARD_RELEASE_NOTES_EOF' >> "$GITHUB_OUTPUT"
+
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v1
         env:
@@ -64,7 +72,7 @@ jobs:
           projectPath: opencard-app
           tagName: v__VERSION__
           releaseName: OpenCard v__VERSION__
-          releaseBody: See the assets to download and install this version.
+          releaseBody: ${{ steps.release-notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           updaterJsonPreferNsis: true

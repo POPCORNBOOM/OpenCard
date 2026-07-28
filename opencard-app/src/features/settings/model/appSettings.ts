@@ -14,6 +14,7 @@ export type AppSettingKey =
   | 'appearance.theme'
   | 'appearance.locale'
   | 'appearance.glassIntensity'
+  | 'updates.suppressReleaseNotesAfterUpdate'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
   | 'workspace.showSelectionPositionOnMove'
@@ -29,6 +30,9 @@ export interface AppSettings {
   shell: {
     sidebarWidth: number
     sidebarCollapsed: boolean
+  }
+  updates: {
+    suppressReleaseNotesAfterUpdate: boolean
   }
   workspace: {
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
@@ -68,6 +72,9 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   shell: Object.freeze({
     sidebarWidth: 292,
     sidebarCollapsed: false,
+  }),
+  updates: Object.freeze({
+    suppressReleaseNotesAfterUpdate: false,
   }),
   workspace: Object.freeze({
     structureTreeSelectionBehavior: 'expand-exclusive',
@@ -136,6 +143,7 @@ export function createDefaultAppSettings(): AppSettings {
     version: APP_SETTINGS_VERSION,
     appearance: { ...DEFAULT_APP_SETTINGS.appearance },
     shell: { ...DEFAULT_APP_SETTINGS.shell },
+    updates: { ...DEFAULT_APP_SETTINGS.updates },
     workspace: { ...DEFAULT_APP_SETTINGS.workspace },
     projectCreation: {
       ...DEFAULT_APP_SETTINGS.projectCreation,
@@ -152,6 +160,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
 
   const appearance = isRecord(value.appearance) ? value.appearance : {}
   const shell = isRecord(value.shell) ? value.shell : {}
+  const updates = isRecord(value.updates) ? value.updates : {}
   const workspace = isRecord(value.workspace) ? value.workspace : {}
   const projectCreation = isRecord(value.projectCreation) ? value.projectCreation : {}
 
@@ -176,6 +185,11 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       sidebarCollapsed: typeof shell.sidebarCollapsed === 'boolean'
         ? shell.sidebarCollapsed
         : DEFAULT_APP_SETTINGS.shell.sidebarCollapsed,
+    },
+    updates: {
+      suppressReleaseNotesAfterUpdate: typeof updates.suppressReleaseNotesAfterUpdate === 'boolean'
+        ? updates.suppressReleaseNotesAfterUpdate
+        : DEFAULT_APP_SETTINGS.updates.suppressReleaseNotesAfterUpdate,
     },
     workspace: {
       structureTreeSelectionBehavior: workspace.structureTreeSelectionBehavior === 'none'

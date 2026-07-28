@@ -27,6 +27,7 @@ describe('appSettingsStore', () => {
     store.updateSetting('appearance.theme', 'light')
     store.updateSetting('appearance.locale', 'zh-CN')
     store.updateSetting('appearance.glassIntensity', 75)
+    store.updateSetting('updates.suppressReleaseNotesAfterUpdate', true)
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
     store.updateSetting('workspace.structureTreeScrollToSelection', false)
@@ -39,6 +40,7 @@ describe('appSettingsStore', () => {
     expect(saved).toMatchObject({
       appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 75 },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
+      updates: { suppressReleaseNotesAfterUpdate: true },
       workspace: {
         structureTreeSelectionBehavior: 'expand',
         structureTreeScrollToSelection: false,

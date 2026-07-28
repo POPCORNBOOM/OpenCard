@@ -10,7 +10,7 @@ to finish, so callers should keep waiting for this process instead of running
 the release command again.
 
 .EXAMPLE
-.\scripts\release.ps1 0.2.6
+.\scripts\release.ps1 0.2.6 -ReleaseNotesPath C:\Temp\opencard-0.2.6.md
 
 .EXAMPLE
 .\scripts\release.ps1 0.2.6 -SkipChecks
@@ -21,6 +21,10 @@ the release command again.
 .PARAMETER NoWaitForWorkflow
 Returns after the atomic push instead of waiting for GitHub Actions.
 
+.PARAMETER ReleaseNotesPath
+Markdown release notes to publish and bundle with the application. Defaults to
+opencard-app/RELEASE_NOTES.md.
+
 .PARAMETER WorkflowTimeoutMinutes
 Maximum time to wait for GitHub Actions after a successful push. Defaults to
 60 minutes. A timeout does not mean the release should be run again.
@@ -29,6 +33,8 @@ Maximum time to wait for GitHub Actions after a successful push. Defaults to
 param(
   [Parameter(Position = 0)]
   [string]$Version,
+
+  [string]$ReleaseNotesPath,
 
   [switch]$SkipChecks,
   [switch]$NoPush,
@@ -193,7 +199,22 @@ $cargoRoot = Join-Path $appRoot 'src-tauri'
 $cargoTomlPath = Join-Path $cargoRoot 'Cargo.toml'
 $cargoLockPath = Join-Path $cargoRoot 'Cargo.lock'
 $tauriConfigPath = Join-Path $cargoRoot 'tauri.conf.json'
+$releaseNotesTargetPath = Join-Path $appRoot 'RELEASE_NOTES.md'
 $tag = "v$Version"
+
+if ([string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
+  $ReleaseNotesPath = $releaseNotesTargetPath
+}
+if (-not (Test-Path -LiteralPath $ReleaseNotesPath -PathType Leaf)) {
+  throw "Release notes file does not exist: $ReleaseNotesPath"
+}
+$releaseNotes = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $ReleaseNotesPath).Path).Trim()
+if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
+  throw 'Release notes must not be empty.'
+}
+if ($releaseNotes -match '(?m)^OPENCARD_RELEASE_NOTES_EOF\s*$') {
+  throw 'Release notes contain the reserved workflow delimiter OPENCARD_RELEASE_NOTES_EOF.'
+}
 
 foreach ($command in @('git', 'node', 'npm.cmd', 'cargo')) {
   if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -210,12 +231,20 @@ if ($repositoryTopLevel -ne $repoRoot) {
   throw "Expected a Git repository rooted at $repoRoot"
 }
 
+$previousReleaseNotes = (& git -C $repoRoot show 'HEAD:opencard-app/RELEASE_NOTES.md' 2>$null | Out-String).Trim()
+if ($LASTEXITCODE -eq 0 -and $releaseNotes -eq $previousReleaseNotes) {
+  throw 'Release notes still match the previous release. Update RELEASE_NOTES.md or pass -ReleaseNotesPath.'
+}
+
 $workingTreeStatus = & git -C $repoRoot status --porcelain
 if ($LASTEXITCODE -ne 0) {
   throw 'Could not inspect the Git working tree.'
 }
-if ($workingTreeStatus) {
-  throw 'The working tree is not clean. Commit or stash all changes before creating a release.'
+$unexpectedChanges = @($workingTreeStatus | Where-Object {
+  $_.Length -lt 4 -or $_.Substring(3).Replace('\', '/') -ne 'opencard-app/RELEASE_NOTES.md'
+})
+if ($unexpectedChanges.Count -gt 0) {
+  throw 'The working tree contains changes other than RELEASE_NOTES.md. Commit or stash them before creating a release.'
 }
 
 $branch = (& git -C $repoRoot branch --show-current).Trim()
@@ -244,6 +273,11 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 Write-Host 'Updating application versions...' -ForegroundColor Cyan
+[System.IO.File]::WriteAllText(
+  $releaseNotesTargetPath,
+  "$releaseNotes$([Environment]::NewLine)",
+  [System.Text.UTF8Encoding]::new($false)
+)
 Invoke-NativeCommand -Command 'npm.cmd' -Arguments @(
   'version',
   $Version,
@@ -290,6 +324,7 @@ if (-not $SkipChecks) {
 $versionFiles = @(
   'opencard-app/package.json',
   'opencard-app/package-lock.json',
+  'opencard-app/RELEASE_NOTES.md',
   'opencard-app/src-tauri/Cargo.toml',
   'opencard-app/src-tauri/Cargo.lock',
   'opencard-app/src-tauri/tauri.conf.json'

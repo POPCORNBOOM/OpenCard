@@ -21,6 +21,11 @@ describe('useSettingsWorkspace', () => {
       key: 'appearance.locale',
       value: 'system',
     })
+    expect(activeCategory.value.fields[1]).toMatchObject({
+      type: 'checkbox',
+      key: 'updates.suppressReleaseNotesAfterUpdate',
+      checked: false,
+    })
 
     categoryKey.value = 'appearance'
     expect(activeCategory.value.preview).toEqual({ glassIntensity: 60 })

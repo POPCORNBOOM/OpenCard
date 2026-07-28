@@ -91,17 +91,28 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.general,
-        fields: [{
-          type: 'options',
-          key: 'appearance.locale',
-          label: options.translate('settings.fields.language', 'Language'),
-          value: settings.appearance.locale,
-          options: [
-            { value: 'system', label: options.translate('settings.values.systemLanguage', 'System') },
-            { value: 'zh-CN', label: '简体中文' },
-            { value: 'en-US', label: 'English' },
-          ],
-        }],
+        fields: [
+          {
+            type: 'options',
+            key: 'appearance.locale',
+            label: options.translate('settings.fields.language', 'Language'),
+            value: settings.appearance.locale,
+            options: [
+              { value: 'system', label: options.translate('settings.values.systemLanguage', 'System') },
+              { value: 'zh-CN', label: '简体中文' },
+              { value: 'en-US', label: 'English' },
+            ],
+          },
+          {
+            type: 'checkbox',
+            key: 'updates.suppressReleaseNotesAfterUpdate',
+            label: options.translate(
+              'settings.fields.suppressReleaseNotesAfterUpdate',
+              'Do not show release notes after an update',
+            ),
+            checked: settings.updates.suppressReleaseNotesAfterUpdate,
+          },
+        ],
       }
     }
 

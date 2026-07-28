@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import packageMetadata from '../../../../package.json'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import staticLogo from '../../../assets/icon_v2.png'
 import OcButton from '../../../components/base/OcButton.vue'
+import { renderMarkdown } from '../../card-rendering/markdown/renderMarkdown'
+import type { CurrentReleaseNotes } from '../composables/updateStatePersistence'
 
 defineOptions({ name: 'AboutWorkspace' })
 
+const props = defineProps<{
+  currentReleaseNotes?: CurrentReleaseNotes | null
+  availableUpdateVersion?: string
+}>()
+
 const emit = defineEmits<{
   back: []
+  showAvailableRelease: []
 }>()
 
 const { t } = useI18n()
 const version = packageMetadata.version
+const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseNotes?.body ?? ''))
 </script>
 
 <template>
@@ -22,7 +32,18 @@ const version = packageMetadata.version
         <div>
           <p class="about-workspace__eyebrow">{{ t('app.about.eyebrow') }}</p>
           <h1>OpenCard</h1>
-          <p class="about-workspace__version">{{ t('app.about.version', { version }) }}</p>
+          <div class="about-workspace__version-row">
+            <p class="about-workspace__version">{{ t('app.about.version', { version }) }}</p>
+            <OcButton
+              v-if="availableUpdateVersion"
+              size="sm"
+              variant="ghost"
+              icon="action.download"
+              :aria-label="t('app.updater.available', { version: availableUpdateVersion })"
+              :data-tooltip="t('app.updater.available', { version: availableUpdateVersion })"
+              @click="emit('showAvailableRelease')"
+            />
+          </div>
         </div>
       </div>
 
@@ -30,6 +51,11 @@ const version = packageMetadata.version
         <p>{{ t('app.about.description') }}</p>
         <p>{{ t('app.about.detail') }}</p>
       </div>
+
+      <section v-if="currentReleaseNotes?.body" class="about-workspace__release-notes">
+        <h2>{{ t('app.about.releaseNotes') }}</h2>
+        <div v-html="renderedReleaseNotes" />
+      </section>
 
       <footer>
         <span>{{ t('app.about.copyright') }}</span>
@@ -95,9 +121,15 @@ const version = packageMetadata.version
 }
 
 .about-workspace__version {
-  margin-top: var(--oc-space-2);
   color: var(--oc-fg-subtle);
   font-size: var(--oc-text-base);
+}
+
+.about-workspace__version-row {
+  display: flex;
+  align-items: center;
+  gap: var(--oc-space-1);
+  margin-top: var(--oc-space-2);
 }
 
 .about-workspace__copy {
@@ -108,6 +140,39 @@ const version = packageMetadata.version
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-base);
   line-height: 1.7;
+}
+
+.about-workspace__release-notes {
+  padding: 0 0 var(--oc-space-6);
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-base);
+  line-height: 1.65;
+}
+
+.about-workspace__release-notes h2 {
+  margin: 0 0 var(--oc-space-3);
+  color: var(--oc-fg-default);
+  font-size: var(--oc-text-lg);
+}
+
+.about-workspace__release-notes :deep(:first-child) {
+  margin-top: 0;
+}
+
+.about-workspace__release-notes :deep(:last-child) {
+  margin-bottom: 0;
+}
+
+.about-workspace__release-notes :deep(ul),
+.about-workspace__release-notes :deep(ol) {
+  padding-inline-start: var(--oc-space-5);
+}
+
+.about-workspace__release-notes :deep(h1),
+.about-workspace__release-notes :deep(h2),
+.about-workspace__release-notes :deep(h3) {
+  color: var(--oc-fg-default);
+  font-size: var(--oc-text-base);
 }
 
 .about-workspace footer {

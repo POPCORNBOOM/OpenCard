@@ -180,7 +180,10 @@
             />
             <AboutWorkspace
               v-else-if="isAboutMode"
+              :current-release-notes="currentReleaseNotes"
+              :available-update-version="availableUpdate ? updateVersion : undefined"
               @back="showPrimaryShellPage(getCurrentPrimaryShellPage())"
+              @show-available-release="releaseNotesDialogMode = 'available'"
             />
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
@@ -271,6 +274,15 @@
       @save-single="saveSingleUnsavedEditor"
     />
 
+    <ReleaseNotesDialog
+      :open="releaseNotesDialogMode !== null"
+      :release="displayedReleaseNotes"
+      :available="releaseNotesDialogMode === 'available'"
+      :installing="isInstallingUpdate"
+      @close="closeReleaseNotesDialog"
+      @install="installAvailableRelease"
+    />
+
     <FloatingMenuHost />
   </main>
 </template>
@@ -299,6 +311,7 @@ import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
 } from './components/WorkspaceBottomPanel.vue'
 import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
+import ReleaseNotesDialog from './components/ReleaseNotesDialog.vue'
 import type {
   ProjectTemplate,
   ProjectTemplateKey,
@@ -516,16 +529,41 @@ const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | nul
 const {
   availableUpdate,
   updateVersion,
+  availableReleaseNotes,
+  currentReleaseNotes,
+  hasUnseenCurrentReleaseNotes,
   isChecking: isCheckingForUpdate,
   isInstalling: isInstallingUpdate,
   installProgress: updateInstallProgress,
   developerPreviewProgress: developerUpdateProgress,
+  initialize: initializeAppUpdater,
   checkForUpdate,
+  markCurrentReleaseNotesSeen,
   installAvailableUpdate,
   startDeveloperPreview: startDeveloperUpdatePreview,
   stopDeveloperPreview: stopDeveloperUpdatePreview,
   dispose: disposeAppUpdater,
 } = useAppUpdater()
+
+const releaseNotesDialogMode = ref<'current' | 'available' | null>(null)
+const displayedReleaseNotes = computed(() => (
+  releaseNotesDialogMode.value === 'available'
+    ? availableReleaseNotes.value
+    : currentReleaseNotes.value
+))
+
+watch(
+  [hasUnseenCurrentReleaseNotes, () => settingsStore.settings.value.updates.suppressReleaseNotesAfterUpdate],
+  ([unseen, suppress]) => {
+    if (unseen && !suppress && releaseNotesDialogMode.value === null) {
+      releaseNotesDialogMode.value = 'current'
+    }
+  },
+)
+
+watch([isAboutMode, currentReleaseNotes], ([aboutMode, release]) => {
+  if (aboutMode && release?.seenAt === null) void markCurrentReleaseNotesSeen()
+})
 
 const {
   sessions,
@@ -1943,6 +1981,18 @@ async function handleTitleBarMenuAction(_menuKey: string, actionKey: string) {
   await runShellCommand(actionKey)
 }
 
+async function closeReleaseNotesDialog(): Promise<void> {
+  if (releaseNotesDialogMode.value === 'current') {
+    await markCurrentReleaseNotesSeen()
+  }
+  releaseNotesDialogMode.value = null
+}
+
+async function installAvailableRelease(): Promise<void> {
+  if (!availableUpdate.value) return
+  await installAvailableUpdate()
+}
+
 async function handleTitleBarAppAction(actionKey: string): Promise<void> {
   if (actionKey === 'toggle-primary-page') {
     showPrimaryShellPage(getOtherPrimaryShellPage(shellPage.value))
@@ -1950,7 +2000,7 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
   }
   if (actionKey !== 'install-update') return
   if (availableUpdate.value) {
-    await installAvailableUpdate()
+    releaseNotesDialogMode.value = 'available'
     return
   }
   if (import.meta.env.DEV && developerMode.value) startDeveloperUpdatePreview()
@@ -2061,10 +2111,15 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
+async function startAppUpdater(): Promise<void> {
+  await initializeAppUpdater()
+  await checkForUpdate()
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
-  void checkForUpdate()
+  void startAppUpdater()
 })
 
 onUnmounted(() => {

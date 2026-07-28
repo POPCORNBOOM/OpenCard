@@ -92,7 +92,9 @@ export function createAppSettingsStore(
     if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
-    else if (key === 'workspace.structureTreeSelectionBehavior') {
+    else if (key === 'updates.suppressReleaseNotesAfterUpdate') {
+      candidate.updates.suppressReleaseNotesAfterUpdate = value as boolean
+    } else if (key === 'workspace.structureTreeSelectionBehavior') {
       candidate.workspace.structureTreeSelectionBehavior = value as AppSettings['workspace']['structureTreeSelectionBehavior']
     } else if (key === 'workspace.structureTreeScrollToSelection') {
       candidate.workspace.structureTreeScrollToSelection = value as boolean
