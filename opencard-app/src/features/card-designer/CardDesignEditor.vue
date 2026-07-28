@@ -379,7 +379,7 @@ type ResizeState =
 const SIDE_PANEL_MIN_WIDTH = 280
 const SIDE_PANEL_MAX_WIDTH = 420
 const SIDE_PANEL_COLLAPSED_WIDTH = 0
-const SIDE_PANEL_EDGE_INSET = 16
+const SIDE_PANEL_EDGE_INSET = 6
 const SIDE_PANEL_EXPAND_DRAG_RATIO = 0.1
 const SIDE_PANEL_COLLAPSE_DRAG_RATIO = 0.25
 const SIDEBAR_TOP_MIN_HEIGHT = 160
@@ -2292,8 +2292,9 @@ onUnmounted(() => {
   right: calc(
     var(--card-editor-right-sidebar-visible-width, 320px)
     + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
+    + var(--oc-space-2)
   );
-  bottom: var(--oc-space-4);
+  bottom: var(--oc-space-2);
   z-index: 3;
   display: flex;
   flex-direction: column;
@@ -2310,7 +2311,7 @@ onUnmounted(() => {
 }
 
 .card-design-editor__face-tools.is-right-sidebar-collapsed {
-  right: 0;
+  right: var(--oc-space-2);
 }
 
 .card-design-editor__face-tools-divider {
@@ -2321,8 +2322,8 @@ onUnmounted(() => {
 
 .card-design-editor__overlay-layout {
   width: 100%;
-  height: calc(100% - var(--oc-space-4) - var(--oc-space-4));
-  margin-block: var(--oc-space-4);
+  height: calc(100% - var(--oc-space-2) - var(--oc-space-2));
+  margin-block: var(--oc-space-2);
   min-width: 0;
   min-height: 0;
   display: grid;
