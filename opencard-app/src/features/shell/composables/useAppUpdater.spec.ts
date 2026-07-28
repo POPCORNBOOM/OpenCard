@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppUpdater } from './useAppUpdater'
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +24,10 @@ describe('useAppUpdater', () => {
     mocks.tauri = true
     mocks.check.mockReset()
     mocks.relaunch.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('does not check for updates outside Tauri', async () => {
@@ -57,5 +61,18 @@ describe('useAppUpdater', () => {
     expect(update.downloadAndInstall).toHaveBeenCalledOnce()
     expect(updater.installProgress.value).toBe(1)
     expect(mocks.relaunch).toHaveBeenCalledOnce()
+  })
+
+  it('owns and disposes the developer update preview timer', () => {
+    vi.useFakeTimers()
+    const updater = useAppUpdater()
+
+    updater.startDeveloperPreview()
+    vi.advanceTimersByTime(140)
+    expect(updater.developerPreviewProgress.value).toBe(0.04)
+
+    updater.dispose()
+    vi.advanceTimersByTime(140)
+    expect(updater.developerPreviewProgress.value).toBeNull()
   })
 })

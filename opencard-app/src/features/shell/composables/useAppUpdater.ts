@@ -4,13 +4,16 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 
 const PROGRESS_UPDATE_INTERVAL = 120
+const DEVELOPER_PREVIEW_INTERVAL = 140
 
 export function useAppUpdater() {
   const availableUpdate = shallowRef<Update | null>(null)
   const isChecking = ref(false)
   const isInstalling = ref(false)
   const installProgress = ref<number | null>(null)
+  const developerPreviewProgress = ref<number | null>(null)
   let progressTimer: ReturnType<typeof setTimeout> | null = null
+  let developerPreviewTimer: ReturnType<typeof setInterval> | null = null
   let pendingProgress: number | null = null
   let lastProgressUpdate = 0
 
@@ -87,8 +90,28 @@ export function useAppUpdater() {
     }
   }
 
+  function stopDeveloperPreview(): void {
+    if (developerPreviewTimer !== null) clearInterval(developerPreviewTimer)
+    developerPreviewTimer = null
+    developerPreviewProgress.value = null
+  }
+
+  function startDeveloperPreview(): void {
+    stopDeveloperPreview()
+    developerPreviewProgress.value = 0
+    developerPreviewTimer = setInterval(() => {
+      const nextProgress = Math.min(1, (developerPreviewProgress.value ?? 0) + 0.04)
+      developerPreviewProgress.value = nextProgress
+      if (nextProgress >= 1 && developerPreviewTimer !== null) {
+        clearInterval(developerPreviewTimer)
+        developerPreviewTimer = null
+      }
+    }, DEVELOPER_PREVIEW_INTERVAL)
+  }
+
   function dispose(): void {
     clearProgressTimer()
+    stopDeveloperPreview()
     if (!isInstalling.value) {
       void availableUpdate.value?.close()
     }
@@ -100,8 +123,11 @@ export function useAppUpdater() {
     isChecking,
     isInstalling,
     installProgress,
+    developerPreviewProgress,
     checkForUpdate,
     installAvailableUpdate,
+    startDeveloperPreview,
+    stopDeveloperPreview,
     dispose,
   }
 }

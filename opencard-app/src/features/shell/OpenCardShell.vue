@@ -319,6 +319,7 @@ import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
+import { useShellWindow } from './composables/useShellWindow'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
@@ -333,15 +334,11 @@ import {
   projectEntryMoreActionKey,
   useShellFileTree,
 } from './composables/useShellFileTree'
-import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window'
-import type { Event as TauriEvent } from '@tauri-apps/api/event'
 import ShellSidebar from './components/ShellSidebar.vue'
 import ShellTitleBar from './components/ShellTitleBar.vue'
 import ShellWorkspaceFrame from './components/ShellWorkspaceFrame.vue'
 import {
   classifyExternalOpenPath,
-  filterSupportedExternalOpenPaths,
-  listenForExternalOpenRequests,
 } from './services/externalOpenService'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import type {
@@ -450,13 +447,7 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
-const isWindowFullscreen = ref(false)
-const isWindowMaximized = ref(false)
 const developerMode = ref(false)
-const developerUpdateProgress = ref<number | null>(null)
-let developerUpdateTimer: number | null = null
-let restoreMaximizedAfterFullscreen = false
-let isFullscreenTransitioning = false
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 const SHELL_SHORTCUT_KEYS = {
@@ -482,11 +473,22 @@ const shellShortcutParts = {
     ? primaryShortcutParts(SHELL_SHORTCUT_KEYS.undo, true)
     : primaryShortcutParts(SHELL_SHORTCUT_KEYS.redo),
 } as const
-let unlistenWindowResize: (() => void) | null = null
-let unlistenWindowClose: (() => void) | null = null
-let unlistenExternalOpen: (() => void) | null = null
-let unlistenShellFileDrop: (() => void) | null = null
-const isShellFileDropActive = ref(false)
+const {
+  viewportWidth,
+  isFullscreen: isWindowFullscreen,
+  isMaximized: isWindowMaximized,
+  isFileDropActive: isShellFileDropActive,
+  toggleFullscreen: toggleWindowFullscreen,
+  minimize: minimizeWindow,
+  toggleMaximize: toggleWindowMaximize,
+  requestClose: requestWindowClose,
+  destroy: destroyWindow,
+  start: startShellWindow,
+  dispose: disposeShellWindow,
+} = useShellWindow({
+  requestApplicationClose: () => requestApplicationClose(),
+  handleExternalOpenPaths,
+})
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value || isCreateProjectOperationBusy.value
@@ -503,7 +505,6 @@ const { categoryTreeData: settingsCategoryTreeData, activeCategory: activeSettin
 })
 
 const sidebarCollapsed = computed(() => settingsStore.settings.value.shell.sidebarCollapsed)
-const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
 const effectiveSidebarCollapsed = computed(() => (
   sidebarCollapsed.value || (viewportWidth.value < 960 && !isCreateProjectMode.value)
 ))
@@ -518,8 +519,11 @@ const {
   isChecking: isCheckingForUpdate,
   isInstalling: isInstallingUpdate,
   installProgress: updateInstallProgress,
+  developerPreviewProgress: developerUpdateProgress,
   checkForUpdate,
   installAvailableUpdate,
+  startDeveloperPreview: startDeveloperUpdatePreview,
+  stopDeveloperPreview: stopDeveloperUpdatePreview,
   dispose: disposeAppUpdater,
 } = useAppUpdater()
 
@@ -1586,7 +1590,7 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
 }
 
 async function performApplicationClose(): Promise<void> {
-  await getCurrentWindow().destroy()
+  await destroyWindow()
 }
 
 function performSessionClose(sessionIds: readonly string[]): void {
@@ -1755,23 +1759,6 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
     } catch (error) {
       console.error('处理外部打开请求失败:', normalizedPath, error)
     }
-  }
-}
-
-function handleShellFileDropEvent(event: TauriEvent<DragDropEvent>): void {
-  const payload = event.payload
-  if (payload.type === 'enter') {
-    isShellFileDropActive.value = filterSupportedExternalOpenPaths(payload.paths).length > 0
-    return
-  }
-  if (payload.type === 'drop') {
-    isShellFileDropActive.value = false
-    const paths = filterSupportedExternalOpenPaths(payload.paths)
-    if (paths.length > 0) void handleExternalOpenPaths(paths)
-    return
-  }
-  if (payload.type === 'leave') {
-    isShellFileDropActive.value = false
   }
 }
 
@@ -1956,25 +1943,6 @@ async function handleTitleBarMenuAction(_menuKey: string, actionKey: string) {
   await runShellCommand(actionKey)
 }
 
-function stopDeveloperUpdatePreview(): void {
-  if (developerUpdateTimer !== null) window.clearInterval(developerUpdateTimer)
-  developerUpdateTimer = null
-  developerUpdateProgress.value = null
-}
-
-function startDeveloperUpdatePreview(): void {
-  stopDeveloperUpdatePreview()
-  developerUpdateProgress.value = 0
-  developerUpdateTimer = window.setInterval(() => {
-    const nextProgress = Math.min(1, (developerUpdateProgress.value ?? 0) + 0.04)
-    developerUpdateProgress.value = nextProgress
-    if (nextProgress >= 1 && developerUpdateTimer !== null) {
-      window.clearInterval(developerUpdateTimer)
-      developerUpdateTimer = null
-    }
-  }, 140)
-}
-
 async function handleTitleBarAppAction(actionKey: string): Promise<void> {
   if (actionKey === 'toggle-primary-page') {
     showPrimaryShellPage(getOtherPrimaryShellPage(shellPage.value))
@@ -1992,68 +1960,15 @@ async function handleWorkspaceFrameAction(actionKey: string) {
   await runShellCommand(actionKey)
 }
 
-async function syncWindowState(): Promise<void> {
-  try {
-    const appWindow = getCurrentWindow()
-    const [fullscreen, maximized] = await Promise.all([
-      appWindow.isFullscreen(),
-      appWindow.isMaximized(),
-    ])
-    isWindowFullscreen.value = fullscreen
-    isWindowMaximized.value = maximized
-  } catch {
-    isWindowFullscreen.value = false
-    isWindowMaximized.value = false
-  }
-}
-
-async function toggleWindowFullscreen(): Promise<void> {
-  if (isFullscreenTransitioning) return
-
-  const appWindow = getCurrentWindow()
-  isFullscreenTransitioning = true
-
-  try {
-    const fullscreen = await appWindow.isFullscreen()
-
-    if (!fullscreen) {
-      restoreMaximizedAfterFullscreen = await appWindow.isMaximized()
-      if (restoreMaximizedAfterFullscreen) {
-        await appWindow.toggleMaximize()
-      }
-      await appWindow.setFullscreen(true)
-    } else {
-      await appWindow.setFullscreen(false)
-      if (restoreMaximizedAfterFullscreen && !(await appWindow.isMaximized())) {
-        await appWindow.toggleMaximize()
-      }
-      restoreMaximizedAfterFullscreen = false
-    }
-
-    await syncWindowState()
-  } catch (error) {
-    if (restoreMaximizedAfterFullscreen && !(await appWindow.isMaximized().catch(() => false))) {
-      await appWindow.toggleMaximize().catch(() => undefined)
-    }
-    restoreMaximizedAfterFullscreen = false
-    await syncWindowState()
-    throw error
-  } finally {
-    isFullscreenTransitioning = false
-  }
-}
-
 async function handleWindowControl(actionKey: string) {
   try {
     if (actionKey === 'close') {
-      await requestApplicationClose()
+      await requestWindowClose()
       return
     }
 
-    const appWindow = getCurrentWindow()
-
     if (actionKey === 'minimize') {
-      await appWindow.minimize()
+      await minimizeWindow()
       return
     }
 
@@ -2063,9 +1978,7 @@ async function handleWindowControl(actionKey: string) {
     }
 
     if (actionKey === 'toggle-maximize') {
-      if (await appWindow.isFullscreen()) return
-      await appWindow.toggleMaximize()
-      isWindowMaximized.value = await appWindow.isMaximized()
+      await toggleWindowMaximize()
       return
     }
 
@@ -2148,62 +2061,18 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-function handleViewportResize(): void {
-  viewportWidth.value = window.innerWidth
-}
-
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
-  window.addEventListener('resize', handleViewportResize)
-  void (async () => {
-    await syncWindowState()
-    try {
-      unlistenWindowResize = await getCurrentWindow().onResized(() => {
-        void syncWindowState()
-      })
-    } catch {
-      unlistenWindowResize = null
-    }
-  })()
-  void (async () => {
-    try {
-      unlistenWindowClose = await getCurrentWindow().onCloseRequested((event) => {
-        event.preventDefault()
-        void requestApplicationClose()
-      })
-    } catch {
-      unlistenWindowClose = null
-    }
-  })()
+  void startShellWindow()
   void ensureProjectTreeLoaded()
   void checkForUpdate()
-  void listenForExternalOpenRequests(handleExternalOpenPaths)
-    .then((unlisten) => { unlistenExternalOpen = unlisten })
-    .catch(() => { unlistenExternalOpen = null })
-  void (async () => {
-    try {
-      unlistenShellFileDrop = await getCurrentWindow().onDragDropEvent(handleShellFileDropEvent)
-    } catch {
-      unlistenShellFileDrop = null
-    }
-  })()
 })
 
 onUnmounted(() => {
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
-  window.removeEventListener('resize', handleViewportResize)
-  unlistenWindowResize?.()
-  unlistenWindowResize = null
-  unlistenWindowClose?.()
-  unlistenWindowClose = null
-  unlistenExternalOpen?.()
-  unlistenExternalOpen = null
-  unlistenShellFileDrop?.()
-  unlistenShellFileDrop = null
-  isShellFileDropActive.value = false
+  disposeShellWindow()
   disposeAppUpdater()
-  stopDeveloperUpdatePreview()
 })
 </script>
 

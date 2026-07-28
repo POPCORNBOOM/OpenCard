@@ -49,6 +49,11 @@ export async function listenForExternalOpenRequests(
   const unlisten = await listen(EXTERNAL_OPEN_EVENT, () => {
     void requestDrain()
   })
-  await requestDrain()
-  return unlisten
+  try {
+    await requestDrain()
+    return unlisten
+  } catch (error) {
+    unlisten()
+    throw error
+  }
 }

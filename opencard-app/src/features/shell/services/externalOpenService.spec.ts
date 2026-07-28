@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -19,6 +19,11 @@ import {
 } from './externalOpenService'
 
 describe('externalOpenService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.eventHandler = null
+  })
+
   it('classifies only OpenCard file types', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.opencard')).toBe('card')
     expect(classifyExternalOpenPath('D:/Cards/.opencardprojectprofile')).toBe('project-resource')
@@ -51,5 +56,14 @@ describe('externalOpenService', () => {
       expect(handlePaths).toHaveBeenCalledWith(['D:/Templates/demo.opencardtemplate'])
     })
     expect(unlisten).toBe(mocks.unlisten)
+  })
+
+  it('releases the event listener when the initial request drain fails', async () => {
+    mocks.listen.mockResolvedValueOnce(mocks.unlisten)
+    mocks.invoke.mockRejectedValueOnce(new Error('drain failed'))
+
+    await expect(listenForExternalOpenRequests(vi.fn())).rejects.toThrow('drain failed')
+
+    expect(mocks.unlisten).toHaveBeenCalledOnce()
   })
 })
