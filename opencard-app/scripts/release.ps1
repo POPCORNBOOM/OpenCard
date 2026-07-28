@@ -1,10 +1,41 @@
+<#
+.SYNOPSIS
+Creates and publishes a stable OpenCard release.
+
+.DESCRIPTION
+Updates all application version files, runs the frontend and Rust checks,
+creates the release commit and annotated tag, and pushes both atomically.
+After pushing, the script waits for the tag-triggered GitHub Actions workflow
+to finish, so callers should keep waiting for this process instead of running
+the release command again.
+
+.EXAMPLE
+.\scripts\release.ps1 0.2.6
+
+.EXAMPLE
+.\scripts\release.ps1 0.2.6 -SkipChecks
+
+.EXAMPLE
+.\scripts\release.ps1 0.2.6 -NoPush
+
+.PARAMETER NoWaitForWorkflow
+Returns after the atomic push instead of waiting for GitHub Actions.
+
+.PARAMETER WorkflowTimeoutMinutes
+Maximum time to wait for GitHub Actions after a successful push. Defaults to
+60 minutes. A timeout does not mean the release should be run again.
+#>
 [CmdletBinding()]
 param(
   [Parameter(Position = 0)]
   [string]$Version,
 
   [switch]$SkipChecks,
-  [switch]$NoPush
+  [switch]$NoPush,
+  [switch]$NoWaitForWorkflow,
+
+  [ValidateRange(1, 1440)]
+  [int]$WorkflowTimeoutMinutes = 60
 )
 
 Set-StrictMode -Version Latest
@@ -58,6 +89,94 @@ function Set-FirstRegexMatch {
 
   $updated = $regex.Replace($content, $Replacement, 1)
   [System.IO.File]::WriteAllText($Path, $updated, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Get-GitHubRepositorySlug {
+  param(
+    [Parameter(Mandatory)]
+    [string]$RepositoryRoot
+  )
+
+  $originUrl = (& git -C $RepositoryRoot remote get-url origin).Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Could not read the origin remote URL.'
+  }
+
+  $normalizedUrl = ($originUrl -replace '\\', '/') -replace '\.git$', ''
+  if ($normalizedUrl -notmatch 'github\.com[/:](?<slug>[^/]+/[^/]+)$') {
+    throw "Origin is not a supported GitHub repository URL: $originUrl"
+  }
+
+  return $Matches.slug
+}
+
+function Wait-GitHubWorkflow {
+  param(
+    [Parameter(Mandatory)]
+    [string]$Repository,
+
+    [Parameter(Mandatory)]
+    [string]$Workflow,
+
+    [Parameter(Mandatory)]
+    [string]$Tag,
+
+    [Parameter(Mandatory)]
+    [string]$HeadSha,
+
+    [Parameter(Mandatory)]
+    [int]$TimeoutMinutes
+  )
+
+  $headers = @{
+    Accept = 'application/vnd.github+json'
+    'User-Agent' = 'OpenCard-release-script'
+    'X-GitHub-Api-Version' = '2022-11-28'
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+    $headers.Authorization = "Bearer $($env:GITHUB_TOKEN)"
+  }
+
+  $encodedWorkflow = [System.Uri]::EscapeDataString($Workflow)
+  $runsUrl = "https://api.github.com/repos/$Repository/actions/workflows/$encodedWorkflow/runs?event=push&per_page=20"
+  $deadline = [DateTimeOffset]::UtcNow.AddMinutes($TimeoutMinutes)
+  $run = $null
+
+  Write-Host "Waiting for GitHub Actions workflow $Workflow for $Tag..." -ForegroundColor Cyan
+
+  while ([DateTimeOffset]::UtcNow -lt $deadline) {
+    try {
+      $response = Invoke-RestMethod -Uri $runsUrl -Headers $headers
+    }
+    catch {
+      throw "Release $Tag was pushed, but its GitHub Actions status could not be read. Do not run the release again. $($_.Exception.Message)"
+    }
+
+    $run = @($response.workflow_runs) |
+      Where-Object { $_.head_sha -eq $HeadSha -and $_.head_branch -eq $Tag } |
+      Select-Object -First 1
+
+    if ($null -eq $run) {
+      Write-Host 'The workflow run is not visible yet; checking again in 15 seconds...'
+      Start-Sleep -Seconds 15
+      continue
+    }
+
+    Write-Host "Workflow status: $($run.status) $($run.html_url)"
+    if ($run.status -eq 'completed') {
+      if ($run.conclusion -eq 'success') {
+        Write-Host "GitHub Actions completed successfully for $Tag." -ForegroundColor Green
+        return
+      }
+
+      throw "Release $Tag was pushed, but GitHub Actions concluded with '$($run.conclusion)'. Do not run the release again. Inspect $($run.html_url)"
+    }
+
+    Start-Sleep -Seconds 60
+  }
+
+  $runUrl = if ($null -ne $run) { " Inspect $($run.html_url)" } else { '' }
+  throw "Release $Tag was pushed, but GitHub Actions did not finish within $TimeoutMinutes minutes. Do not run the release again.$runUrl"
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -197,3 +316,21 @@ Invoke-NativeCommand -Command 'git' -Arguments @(
 ) -WorkingDirectory $repoRoot
 
 Write-Host "Released $tag. GitHub Actions will now build the desktop release." -ForegroundColor Green
+
+if ($NoWaitForWorkflow) {
+  Write-Host 'GitHub Actions waiting was skipped because -NoWaitForWorkflow was supplied.' -ForegroundColor Yellow
+  exit 0
+}
+
+$repository = Get-GitHubRepositorySlug -RepositoryRoot $repoRoot
+$releaseCommit = (& git -C $repoRoot rev-list -n 1 $tag).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseCommit)) {
+  throw "Release $tag was pushed, but its commit could not be resolved. Do not run the release again."
+}
+
+Wait-GitHubWorkflow `
+  -Repository $repository `
+  -Workflow 'tauri-build.yml' `
+  -Tag $tag `
+  -HeadSha $releaseCommit `
+  -TimeoutMinutes $WorkflowTimeoutMinutes
