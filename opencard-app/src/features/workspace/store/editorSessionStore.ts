@@ -430,6 +430,26 @@ export function useEditorSessionStore() {
     }
   }
 
+  function detachWorkspaceSessions(oldProjectRoot: string) {
+    const normalizedRoot = normalizePath(oldProjectRoot)
+    if (!normalizedRoot) return
+
+    sessions.value = sessions.value.map((session) => {
+      if (session.resourceKind !== 'workspace') {
+        return session
+      }
+
+      taskScheduler.cancel(projectConfigurationAutosaveKey(session.id))
+      return {
+        ...session,
+        resourceKind: 'external',
+        path: session.path && !isAbsolutePath(session.path)
+          ? normalizePath(`${normalizedRoot}/${session.path}`)
+          : session.path,
+      }
+    })
+  }
+
   function closeSessionsByPath(path: string) {
     const normalizedPath = normalizePath(path)
     const closedSessionIds = new Set(
@@ -623,6 +643,7 @@ export function useEditorSessionStore() {
     updateSessionUiState,
     closeSession,
     closeWorkspaceSessions,
+    detachWorkspaceSessions,
     closeSessionsByPath,
     saveSession,
     saveActiveSession,

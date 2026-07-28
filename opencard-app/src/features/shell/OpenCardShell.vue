@@ -540,6 +540,7 @@ const {
   updateSessionUiState,
   closeSession,
   closeWorkspaceSessions,
+  detachWorkspaceSessions,
   closeSessionsByPath,
   saveSession,
   saveActiveSession,
@@ -1705,7 +1706,7 @@ async function openProject() {
   if (!openedPath) return
 
   if (previousProjectPath && projectPath.value !== previousProjectPath) {
-    closeWorkspaceSessions()
+    detachWorkspaceSessions(previousProjectPath)
   }
 
   settingsStore.rememberRecentProject(projectPath.value)
@@ -1770,7 +1771,7 @@ function handleShellFileDropEvent(event: TauriEvent<DragDropEvent>): void {
 async function openRecentProject(path: string): Promise<void> {
   const previousProjectPath = projectPath.value
   if (previousProjectPath && previousProjectPath !== path) {
-    closeWorkspaceSessions()
+    detachWorkspaceSessions(previousProjectPath)
   }
   await setProjectPath(path)
   settingsStore.rememberRecentProject(projectPath.value)
@@ -1806,8 +1807,8 @@ async function handleProjectCreated(project: CreatedProject): Promise<void> {
   projectActivationError.value = ''
 
   try {
-    if (projectPath.value) {
-      closeWorkspaceSessions()
+    if (projectPath.value && projectPath.value !== project.path) {
+      detachWorkspaceSessions(projectPath.value)
     }
 
     await setProjectPath(project.path)

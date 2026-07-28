@@ -23,9 +23,14 @@ vi.mock('../services/fileSystemService', () => ({
 }))
 
 import { useEditorSessionStore } from './editorSessionStore'
+import { taskScheduler } from '../../../utils/taskScheduler'
 
 describe('editorSessionStore project switching', () => {
   beforeEach(() => {
+    const store = useEditorSessionStore()
+    for (const session of store.sessions.value) {
+      store.closeSession(session.id)
+    }
     vi.clearAllMocks()
     mocks.readFile.mockResolvedValue('{"project":"old"}')
     mocks.saveFile.mockResolvedValue(undefined)
@@ -33,19 +38,85 @@ describe('editorSessionStore project switching', () => {
     mocks.readExternalFile.mockResolvedValue('{"external":true}')
   })
 
-  it('closes old workspace sessions before opening the same relative path in a new project', async () => {
+  it('detaches workspace sessions without losing identity, edits, active state, or UI state', async () => {
     const store = useEditorSessionStore()
+    const previewSession = await store.openPreviewFile('preview.opencard')
     const oldSession = await store.openFile('main.opencard')
+    store.updateDraftContent(oldSession.id, '{"project":"edited"}')
+    store.updateSessionUiState(oldSession.id, {
+      cardDesigner: {
+        viewportTransform: { x: 12, y: 24, scale: 1.5 },
+      },
+    })
+    const pendingAutosave = vi.fn()
+    const autosaveKey = `project-configuration-autosave:${oldSession.id}`
+    taskScheduler.schedule(autosaveKey, 60_000, pendingAutosave)
 
-    store.closeWorkspaceSessions()
+    store.detachWorkspaceSessions('D:\\old-project\\')
+    await taskScheduler.flush(autosaveKey)
 
-    expect(store.sessions.value).not.toContainEqual(expect.objectContaining({ id: oldSession.id }))
-    expect(store.activeSessionId.value).toBe('')
+    expect(store.sessions.value).toContainEqual(expect.objectContaining({
+      id: oldSession.id,
+      resourceKind: 'external',
+      path: 'D:/old-project/main.opencard',
+      savedContent: '{"project":"old"}',
+      draftContent: '{"project":"edited"}',
+      isDirty: true,
+      uiState: {
+        cardDesigner: {
+          viewportTransform: { x: 12, y: 24, scale: 1.5 },
+        },
+      },
+    }))
+    expect(store.activeSessionId.value).toBe(oldSession.id)
+    expect(pendingAutosave).not.toHaveBeenCalled()
+    expect(store.sessions.value.find((session) => session.id === previewSession.id)).toMatchObject({
+      resourceKind: 'external',
+      path: 'D:/old-project/preview.opencard',
+      isPreview: true,
+    })
 
     const newSession = await store.openFile('main.opencard')
     expect(newSession.id).not.toBe(oldSession.id)
     expect(newSession.resourceKind).toBe('workspace')
+    store.closeSession(previewSession.id)
+    store.closeSession(oldSession.id)
     store.closeSession(newSession.id)
+  })
+
+  it('keeps absolute workspace paths absolute and leaves external and draft sessions unchanged', async () => {
+    const store = useEditorSessionStore()
+    const workspaceSession = await store.openFile('D:/old-project/cards/main.opencard')
+    const externalSession = await store.openFile('D:/outside/card.opencard')
+    const draftSession = store.createDraftSession({ name: 'draft.opencard' })
+    const externalSnapshot = structuredClone(externalSession)
+    const draftSnapshot = structuredClone(draftSession)
+
+    store.detachWorkspaceSessions('D:/old-project')
+
+    expect(store.sessions.value.find((session) => session.id === workspaceSession.id)).toMatchObject({
+      resourceKind: 'external',
+      path: 'D:/old-project/cards/main.opencard',
+    })
+    expect(store.sessions.value.find((session) => session.id === externalSession.id)).toStrictEqual(externalSnapshot)
+    expect(store.sessions.value.find((session) => session.id === draftSession.id)).toStrictEqual(draftSnapshot)
+
+    store.closeSession(workspaceSession.id)
+    store.closeSession(externalSession.id)
+    store.closeSession(draftSession.id)
+  })
+
+  it('still closes workspace sessions on explicit project close', async () => {
+    const store = useEditorSessionStore()
+    const workspaceSession = await store.openFile('main.opencard')
+    const externalSession = await store.openFile('D:/outside/card.opencard')
+
+    store.closeWorkspaceSessions()
+
+    expect(store.sessions.value.some((session) => session.id === workspaceSession.id)).toBe(false)
+    expect(store.sessions.value.map((session) => session.id)).toEqual([externalSession.id])
+    expect(store.activeSessionId.value).toBe(externalSession.id)
+    store.closeSession(externalSession.id)
   })
 
   it('closes sessions at and below a deleted workspace path', async () => {
