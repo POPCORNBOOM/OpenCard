@@ -500,6 +500,25 @@ function handleSelectionQuickAction(actionKey: string): void {
   })
 }
 
+function runSelectionQuickAction(actionKey: string): boolean {
+  if (!selectionQuickActions.value.some((action) => action.key === actionKey)) return false
+  handleSelectionQuickAction(actionKey)
+  return true
+}
+
+function nudgeSelection(deltaX: number, deltaY: number): boolean {
+  if (!showMoveHandle.value) return false
+  const measurement = measureSelection()
+  if (!measurement) return false
+
+  emit('move-selection', buildMovePayload({
+    ...measurement.worldRect,
+    left: measurement.worldRect.left + deltaX,
+    top: measurement.worldRect.top + deltaY,
+  }, measurement))
+  return true
+}
+
 function buildQuickActionRect(
   actionKey: string,
   measurement: SelectionMeasurement,
@@ -1171,7 +1190,14 @@ onBeforeUnmount(() => {
   resizeObserver = null
 })
 
-defineExpose({ zoomBy, zoomByWheelAt, resetView, fitView })
+defineExpose({
+  zoomBy,
+  zoomByWheelAt,
+  resetView,
+  fitView,
+  nudgeSelection,
+  runSelectionQuickAction,
+})
 
 watch(
   () => [

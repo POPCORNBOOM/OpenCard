@@ -218,6 +218,20 @@ describe('CardViewport wheel zoom API', () => {
       }],
     ])
 
+    expect(wrapper.vm.runSelectionQuickAction('outset')).toBe(true)
+    expect(wrapper.vm.nudgeSelection(1, -1)).toBe(true)
+    const selectionActions = wrapper.emitted('selection-action') ?? []
+    expect(selectionActions[selectionActions.length - 1]).toEqual([{
+      type: 'geometry.apply',
+      operation: 'outset',
+      key: 'selected',
+      width: 120,
+      height: 100,
+      x: 240,
+      y: 160,
+    }])
+    expect(wrapper.emitted('move-selection')).toEqual([[{ x: 249, y: 171 }]])
+
     await wrapper.get('.selection-handle-t').trigger('pointerdown')
     expect(wrapper.find('.selection-block-info').exists()).toBe(false)
     expect(wrapper.find('.selection-size-label--width').exists()).toBe(false)

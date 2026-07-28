@@ -343,6 +343,74 @@ describe('CardDesignEditor issue navigation', () => {
     expect(child.location).toMatchObject({ anchor: 'lt', x: '0px', y: '0px' })
   })
 
+  it('maps canvas keyboard shortcuts to viewport selection commands', async () => {
+    const nudgeSelection = vi.fn(() => true)
+    const runSelectionQuickAction = vi.fn(() => true)
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: {
+        selectedBlockId: String,
+        selectionActionLabels: Object,
+      },
+      emits: ['block-click'],
+      setup(_, { expose }) {
+        expose({ nudgeSelection, runSelectionQuickAction })
+        return {}
+      },
+      template: '<div class="card-viewport-stub"><input class="shortcut-input" /></div>',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
+    await nextTick()
+
+    const labels = viewport.props('selectionActionLabels') as Record<string, string>
+    expect(labels).toMatchObject({
+      fillParent: 'Fill parent (F)',
+      centerInParent: 'Center in parent (C)',
+      inset: 'Inset 10 px (I)',
+      outset: 'Outset 10 px (O)',
+    })
+
+    const root = wrapper.get('.card-design-editor')
+    await root.trigger('keydown', { key: 'ArrowRight' })
+    await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
+    await root.trigger('keydown', { key: 'f' })
+    await root.trigger('keydown', { key: 'C' })
+    await root.trigger('keydown', { key: 'i' })
+    await root.trigger('keydown', { key: 'o' })
+
+    expect(nudgeSelection).toHaveBeenNthCalledWith(1, 1, 0)
+    expect(nudgeSelection).toHaveBeenNthCalledWith(2, 0, -10)
+    expect(runSelectionQuickAction.mock.calls).toEqual([
+      ['fill-parent'],
+      ['center'],
+      ['inset'],
+      ['outset'],
+    ])
+
+    await wrapper.get('.shortcut-input').trigger('keydown', { key: 'ArrowLeft' })
+    expect(nudgeSelection).toHaveBeenCalledTimes(2)
+  })
+
   it('fills and centers a flow child only on the cross axis', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const source = createDocument()

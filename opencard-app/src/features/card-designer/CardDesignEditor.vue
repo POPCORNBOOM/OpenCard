@@ -13,7 +13,8 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle">
+  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle" tabindex="-1"
+    @keydown="handleEditorKeydown">
     <div class="card-design-editor__stage">
       <div class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
@@ -29,7 +30,9 @@
           :show-info="!selectedBlock"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
-          :transform-disabled-block-ids="transformDisabledBlockIds" @block-click="handleViewportBlockClick"
+          :transform-disabled-block-ids="transformDisabledBlockIds"
+          @pointerdown.capture="focusEditorForCanvasShortcut"
+          @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @selection-action="handleSelectionAction"
           @face-dimension-change="handleFaceDimensionChange"
@@ -519,6 +522,8 @@ type CardViewportHandle = {
   zoomByWheelAt: (deltaY: number, deltaMode: number, viewportX: number, viewportY: number) => void
   resetView: () => void
   fitView: (targetRect?: { left: number; top: number; width: number; height: number }) => void
+  nudgeSelection: (deltaX: number, deltaY: number) => boolean
+  runSelectionQuickAction: (actionKey: string) => boolean
 }
 
 type PropertyEditorHandle = {
@@ -1025,7 +1030,7 @@ const {
   selectedLocation,
   handleTreeIntent,
   handleRootAction,
-  handleViewportBlockClick,
+  handleViewportBlockClick: selectViewportBlock,
   clearSelection,
 } = useCdeTreeOps({
   activeFace,
@@ -1360,14 +1365,17 @@ const selectedParentFlowDirection = computed(() => {
   const parent = parentLookup.value.get(block.id)
   return parent?.type === 'flow-container-block' ? parent.direction : null
 })
+function withShortcut(label: string, shortcut: string): string {
+  return `${label} (${shortcut})`
+}
 const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => ({
   label: t('cardDesigner.selectionActions.label'),
-  fillParent: t('cardDesigner.selectionActions.fillParent'),
-  centerInParent: t('cardDesigner.selectionActions.centerInParent'),
-  inset: t('cardDesigner.selectionActions.inset'),
-  outset: t('cardDesigner.selectionActions.outset'),
-  fillCrossAxis: t('cardDesigner.selectionActions.fillCrossAxis'),
-  centerCrossAxis: t('cardDesigner.selectionActions.centerCrossAxis'),
+  fillParent: withShortcut(t('cardDesigner.selectionActions.fillParent'), 'F'),
+  centerInParent: withShortcut(t('cardDesigner.selectionActions.centerInParent'), 'C'),
+  inset: withShortcut(t('cardDesigner.selectionActions.inset'), 'I'),
+  outset: withShortcut(t('cardDesigner.selectionActions.outset'), 'O'),
+  fillCrossAxis: withShortcut(t('cardDesigner.selectionActions.fillCrossAxis'), 'F'),
+  centerCrossAxis: withShortcut(t('cardDesigner.selectionActions.centerCrossAxis'), 'C'),
 }))
 const transformDisabledBlockIds = computed(() => {
   const block = selectedBlock.value
@@ -1805,6 +1813,58 @@ function handlePreviewViewportKeydown(event: KeyboardEvent): void {
     y: viewportTransform.value.y - movement.y * viewportTransform.value.scale,
     scale: viewportTransform.value.scale,
   })
+}
+
+function focusEditorForCanvasShortcut(event: PointerEvent): void {
+  if (event.button !== 0) return
+  const target = event.target
+  if (target instanceof Element && target.closest('button, input, textarea, select, [contenteditable="true"]')) {
+    return
+  }
+  editorRootRef.value?.focus({ preventScroll: true })
+}
+
+function handleViewportBlockClick(blockId: string): void {
+  selectViewportBlock(blockId)
+  void nextTick(() => editorRootRef.value?.focus({ preventScroll: true }))
+}
+
+function handleEditorKeydown(event: KeyboardEvent): void {
+  if (
+    event.defaultPrevented
+    || event.target !== editorRootRef.value
+    || event.ctrlKey
+    || event.metaKey
+    || event.altKey
+    || !selectedBlock.value
+  ) {
+    return
+  }
+
+  const movement = {
+    ArrowLeft: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 },
+    ArrowUp: { x: 0, y: -1 },
+    ArrowDown: { x: 0, y: 1 },
+  }[event.key]
+  if (movement) {
+    const step = event.shiftKey ? 10 : 1
+    if (!cardViewportRef.value?.nudgeSelection(movement.x * step, movement.y * step)) return
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  const shortcut = event.key.toLowerCase()
+  const actionKey = selectedLocationType.value === 'simple-container-location'
+    ? ({ f: 'fill-parent', c: 'center', i: 'inset', o: 'outset' } as const)[shortcut as 'f' | 'c' | 'i' | 'o']
+    : selectedLocationType.value === 'flow-container-location'
+      ? ({ f: 'fill-cross-axis', c: 'center-cross-axis' } as const)[shortcut as 'f' | 'c']
+      : undefined
+  if (!actionKey || !cardViewportRef.value?.runSelectionQuickAction(actionKey)) return
+
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 function formatViewportCssValue(value: number): string {
