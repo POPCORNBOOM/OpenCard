@@ -13,11 +13,11 @@
     />
     <template #suffix>
       <span class="number-field__steppers">
-        <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.arrow-up"
-          :disabled="definition.isReadonly || isAtMaximum" title="Increase" aria-label="Increase"
+        <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.chevron-up"
+          :disabled="definition.isReadonly || isAtMaximum" data-tooltip="Increase" aria-label="Increase"
           @click="handleStepperClick(1, $event)" @pointerdown="startStepHold(1, $event)" />
-        <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.arrow-down"
-          :disabled="definition.isReadonly || isAtMinimum" title="Decrease" aria-label="Decrease"
+        <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.chevron-down"
+          :disabled="definition.isReadonly || isAtMinimum" data-tooltip="Decrease" aria-label="Decrease"
           @click="handleStepperClick(-1, $event)" @pointerdown="startStepHold(-1, $event)" />
       </span>
     </template>

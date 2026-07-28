@@ -36,6 +36,8 @@ describe('OcActionButton', () => {
     })
 
     expect(wrapper.find('.oc-button__icon').attributes('style')).toContain('var(--oc-icon-success)')
+    expect(wrapper.get('button').attributes('data-tooltip')).toBe('Open')
+    expect(wrapper.get('button').attributes('title')).toBeUndefined()
   })
 
   it('uses the shared floating layer and flips above the anchor', async () => {
@@ -92,7 +94,7 @@ describe('OcActionButton', () => {
     await new Promise((resolve) => window.setTimeout(resolve, 120))
     await flushPromises()
     const revealButton = document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[title="Reveal in File Manager"]',
+      '.oc-action-menu__button[data-tooltip="Reveal in File Manager"]',
     )
     expect(revealButton).not.toBeNull()
 

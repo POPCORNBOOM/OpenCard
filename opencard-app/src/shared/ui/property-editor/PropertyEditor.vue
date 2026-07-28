@@ -48,17 +48,22 @@
               :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
                 <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" size="md" tone="muted" />
-                <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
+                <button type="button" class="property-editor__field-key-button"
+                  :data-tooltip="t('propertyEditor.actions.copyFieldKeyTooltip', { key: entry.key })"
+                  :aria-label="t('propertyEditor.actions.copyFieldKey', { key: entry.key })"
+                  @click.stop="copyFieldKey(entry.key)">
+                  <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
+                </button>
                 <OcButton class="modified-field-button" icon-only size="sm" radius="full"
                   v-if="entry.definition.resettable"
-                  variant="ghost" icon="action.discard" :title="resetFieldActionText"
+                  variant="ghost" icon="action.discard" :data-tooltip="resetFieldActionText"
                   :aria-label="resetFieldActionText"
                   @click.stop="emitResetProperty(category.inputKey, entry.key)"
                 />
                 <OcButton v-if="entry.definition.deletable" class="delete-field-button"
                   :class="{ 'is-armed': isDeleteArmed(category.inputKey, entry.key) }"
                   icon-only size="sm" variant="ghost" icon="action.delete"
-                  :title="isDeleteArmed(category.inputKey, entry.key) ? confirmDeleteFieldActionText : deleteFieldActionText"
+                  :data-tooltip="isDeleteArmed(category.inputKey, entry.key) ? confirmDeleteFieldActionText : deleteFieldActionText"
                   :aria-label="isDeleteArmed(category.inputKey, entry.key) ? confirmDeleteFieldActionText : deleteFieldActionText"
                   @click.stop="handleDeleteField(category.inputKey, entry.key)" />
               </div>
@@ -85,7 +90,7 @@
                   :icon="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
                     ? getEditorIconClass(entry.definition.fieldType)
                     : 'data.code-string'"
-                  :title="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
+                  :data-tooltip="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
                     ? useFieldEditorText
                     : useRawStringEditorText"
                   :aria-label="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
@@ -212,6 +217,14 @@ const rawStringEditorKeys = ref<ReadonlySet<string>>(new Set())
 const propertyEditorRoot = ref<HTMLElement | null>(null)
 const revealedFieldIdentity = ref<string | null>(null)
 let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
+
+async function copyFieldKey(fieldKey: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(fieldKey)
+  } catch (error) {
+    console.error('[PropertyEditor] Failed to copy field key', { fieldKey, error })
+  }
+}
 
 const { displaySources } = usePropertyEditorView({
   inputs: toRef(props, 'inputs'),
@@ -590,6 +603,30 @@ onBeforeUnmount(() => {
 
 .property-editor__row-label-text {
   min-width: 0;
+}
+
+.property-editor__field-key-button {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition: color var(--oc-duration-fast) var(--oc-ease);
+}
+
+.property-editor__field-key-button:hover,
+.property-editor__field-key-button:focus-visible {
+  color: var(--oc-fg-default);
+}
+
+.property-editor__field-key-button:focus-visible {
+  outline: none;
+  box-shadow: var(--oc-focus-ring);
 }
 
 .entry-control {

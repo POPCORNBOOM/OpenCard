@@ -126,7 +126,7 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
       :variant="appearance === 'sliding-outline' ? 'ghost' : isSelected(option.value) ? 'solid' : 'soft'"
       :block="fill"
       :icon-only="iconOnly"
-      :title="option.label"
+      :data-tooltip="option.label"
       :aria-label="option.label"
       role="radio"
       :aria-checked="isSelected(option.value)"

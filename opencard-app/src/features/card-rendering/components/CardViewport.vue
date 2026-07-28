@@ -95,7 +95,8 @@
         </output>
         </Transition>
         <button v-for="handle in activeHandles" :key="handle" type="button" class="selection-handle"
-          :class="[`selection-handle-${handle}`, { 'is-active': activeHandle === handle }]" :title="`Resize ${handle}`"
+          :class="[`selection-handle-${handle}`, { 'is-active': activeHandle === handle }]"
+          :data-tooltip="`Resize ${handle}`" :aria-label="`Resize ${handle}`"
           @pointerdown.stop.prevent="startResize(handle)" />
       </div>
     </div>

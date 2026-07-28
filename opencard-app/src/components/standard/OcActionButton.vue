@@ -19,7 +19,7 @@
       icon-only
       :icon="action.icon"
       :icon-tone="action.iconTone"
-      :title="action.title"
+      :data-tooltip="action.title || null"
       :aria-label="action.title ?? action.key"
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"

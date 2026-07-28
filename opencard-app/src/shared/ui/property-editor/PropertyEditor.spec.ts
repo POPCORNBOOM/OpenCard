@@ -12,6 +12,34 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('copies the stable field key from the field title button', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'block',
+          record: { opacity: 1 },
+          fields: {
+            opacity: { title: 'Opacity', fieldType: 'number' },
+          },
+        }],
+      },
+    })
+
+    const button = wrapper.get('.property-editor__field-key-button')
+    expect(button.text()).toBe('Opacity')
+    expect(button.attributes('data-tooltip')).toBe('propertyEditor.actions.copyFieldKeyTooltip')
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith('opacity')
+  })
+
   it('dispatches explicitly marked strings to the rich-text editor', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {

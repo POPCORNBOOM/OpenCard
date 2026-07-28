@@ -33,9 +33,9 @@
               @update:model-value="setEditorMode" />
             <span class="rich-text-string-popover__actions">
               <OcButton size="md" icon-only icon="action.close" icon-tone="danger"
-                title="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
+                data-tooltip="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
               <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
-                title="保存" aria-label="保存富文本编辑" @click="saveEditor" />
+                data-tooltip="保存" aria-label="保存富文本编辑" @click="saveEditor" />
             </span>
           </footer>
         </div>

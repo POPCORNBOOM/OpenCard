@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import OcButton from '../../../../components/base/OcButton.vue'
 import NumberPropertyField from './NumberPropertyField.vue'
 
 describe('NumberPropertyField', () => {
@@ -17,6 +18,8 @@ describe('NumberPropertyField', () => {
 
     const steppers = wrapper.findAll('.number-field__stepper')
     expect(steppers).toHaveLength(2)
+    expect(wrapper.findAllComponents(OcButton).map(button => button.props('icon')))
+      .toEqual(['nav.chevron-up', 'nav.chevron-down'])
 
     await steppers[0].trigger('click')
     await steppers[1].trigger('click')

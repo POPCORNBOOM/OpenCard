@@ -1,5 +1,5 @@
 <template>
-  <div v-if="definition.isReadonly" class="readonly-value" :title="stringValue || '-'">
+  <div v-if="definition.isReadonly" class="readonly-value" :data-tooltip="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
   <OcSelect v-else-if="definition.options?.length" :model-value="stringValue"

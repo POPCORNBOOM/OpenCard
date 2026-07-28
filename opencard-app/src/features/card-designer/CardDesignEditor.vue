@@ -45,7 +45,7 @@
                   'is-highlighted': highlightedInfoKeys.has(item.key),
                   'is-group-separated': item.separated,
                   'is-multiline': item.multiline,
-                }" :title="item.value">
+                }" :data-tooltip="item.value">
                 {{ item.value }}
               </span>
             </section>

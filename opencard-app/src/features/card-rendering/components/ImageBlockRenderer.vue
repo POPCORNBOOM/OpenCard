@@ -17,7 +17,7 @@
             class="image-block__placeholder"
             role="img"
             :aria-label="imageLoadState === 'error' ? '图片加载失败' : '未配置图片'"
-            :title="imageLoadState === 'error' ? '图片加载失败' : '未配置图片'"
+            :data-tooltip="imageLoadState === 'error' ? '图片加载失败' : '未配置图片'"
         >
             <OcIcon
                 :name="imageLoadState === 'error' ? 'status.warning' : 'file.media'"

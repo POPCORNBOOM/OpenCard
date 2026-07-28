@@ -12,7 +12,7 @@
       icon-only
       size="sm"
       icon="tool.zoom-out"
-      title="缩小"
+      data-tooltip="缩小"
       aria-label="缩小"
       @click="emit('zoom-out')"
     />
@@ -20,7 +20,7 @@
       icon-only
       size="sm"
       icon="tool.fit-screen"
-      title="适应窗口"
+      data-tooltip="适应窗口"
       aria-label="适应窗口"
       @click="emit('reset')"
     />
@@ -31,7 +31,7 @@
       icon-only
       size="sm"
       icon="tool.zoom-in"
-      title="放大"
+      data-tooltip="放大"
       aria-label="放大"
       @click="emit('zoom-in')"
     />

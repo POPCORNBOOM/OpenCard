@@ -36,7 +36,7 @@
         :ref="(element) => setRowRef(entry.key, element)"
         class="oc-tree__row"
         :class="{ 'is-disabled': entry.item.disabled }"
-        :title="entry.item.disabledReason"
+        :data-tooltip="entry.item.disabledReason"
         :role="rowRole"
         :tabindex="activeKey === entry.key && !entry.item.disabled ? 0 : -1"
         :aria-disabled="entry.item.disabled || undefined"

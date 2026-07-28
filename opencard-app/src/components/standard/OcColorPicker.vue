@@ -81,7 +81,7 @@
             :class="{ 'is-selected': preset === displayColor }"
             :style="{ backgroundColor: preset }"
             :aria-label="preset"
-            :title="preset"
+            :data-tooltip="preset"
             @click="commitColor(preset)"
           />
         </div>

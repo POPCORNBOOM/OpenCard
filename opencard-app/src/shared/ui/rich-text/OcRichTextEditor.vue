@@ -2,28 +2,28 @@
   <div class="oc-rich-text-editor">
     <div v-if="editor" class="oc-rich-text-editor__toolbar" role="toolbar" aria-label="Text formatting">
       <div class="oc-rich-text-editor__tool-group" role="group" aria-label="历史">
-        <OcButton size="md" icon-only icon="action.undo" title="撤销"
+        <OcButton size="md" icon-only icon="action.undo" data-tooltip="撤销" aria-label="撤销"
           :disabled="!editor.can().chain().focus().undo().run()" @mousedown.prevent @click="editor.chain().focus().undo().run()" />
-        <OcButton size="md" icon-only icon="action.redo" title="重做"
+        <OcButton size="md" icon-only icon="action.redo" data-tooltip="重做" aria-label="重做"
           :disabled="!editor.can().chain().focus().redo().run()" @mousedown.prevent @click="editor.chain().focus().redo().run()" />
       </div>
 
       <div class="oc-rich-text-editor__tool-group" role="group" aria-label="字体">
-        <OcSelect class="oc-rich-text-editor__font" title="字体" aria-label="字体"
+        <OcSelect class="oc-rich-text-editor__font" data-tooltip="字体" aria-label="字体"
           :model-value="activeFontFamily" :options="fontOptions" :z-index="2500"
           @update:model-value="setFontFamily" />
-        <OcButton size="md" icon-only icon="format.font-size-decrease" title="减小字号"
+        <OcButton size="md" icon-only icon="format.font-size-decrease" data-tooltip="减小字号" aria-label="减小字号"
           @mousedown.prevent @click="adjustFontSize(-1)" />
-        <OcButton size="md" icon-only icon="format.font-size-increase" title="增大字号"
+        <OcButton size="md" icon-only icon="format.font-size-increase" data-tooltip="增大字号" aria-label="增大字号"
           @mousedown.prevent @click="adjustFontSize(1)" />
         <OcButton size="md" icon-only icon="format.bold"
-          :active="editor.isActive('bold')" title="粗体" @mousedown.prevent
+          :active="editor.isActive('bold')" data-tooltip="粗体" aria-label="粗体" @mousedown.prevent
           @click="editor.chain().focus().toggleBold().run()" />
         <OcButton size="md" icon-only icon="format.italic"
-          :active="editor.isActive('italic')" title="斜体" @mousedown.prevent
+          :active="editor.isActive('italic')" data-tooltip="斜体" aria-label="斜体" @mousedown.prevent
           @click="editor.chain().focus().toggleItalic().run()" />
         <OcButton v-if="bindingCompletion" size="md" icon-only icon="format.code-braces"
-          title="插入 binding" @mousedown.prevent @click="insertBinding" />
+          data-tooltip="插入 binding" aria-label="插入 binding" @mousedown.prevent @click="insertBinding" />
       </div>
 
       <div class="oc-rich-text-editor__tool-group" role="group" aria-label="颜色与描边">
@@ -55,18 +55,19 @@
               :style="{ WebkitTextStrokeColor: color }">A</span>
           </template>
         </OcColorPicker>
-        <OcSelect class="oc-rich-text-editor__stroke-width" title="描边宽度" aria-label="描边宽度"
+        <OcSelect class="oc-rich-text-editor__stroke-width" data-tooltip="描边宽度" aria-label="描边宽度"
           :model-value="strokeWidth" :options="strokeWidthOptions" :z-index="2500"
           @update:model-value="setStrokeWidth" />
       </div>
 
       <div class="oc-rich-text-editor__tool-group" role="group" aria-label="段落对齐">
         <OcButton v-for="alignment in alignments" :key="alignment.value" size="md" icon-only
-          :icon="alignment.icon" :title="alignment.title" :active="editor.isActive({ textAlign: alignment.value })"
+          :icon="alignment.icon" :data-tooltip="alignment.title" :aria-label="alignment.title"
+          :active="editor.isActive({ textAlign: alignment.value })"
           @mousedown.prevent @click="editor.chain().focus().setTextAlign(alignment.value).run()" />
       </div>
       <div class="oc-rich-text-editor__tool-group oc-rich-text-editor__tool-group--tail" role="group" aria-label="清除格式">
-        <OcButton size="md" icon-only icon="format.clear" title="清除字符格式" @mousedown.prevent
+        <OcButton size="md" icon-only icon="format.clear" data-tooltip="清除字符格式" aria-label="清除字符格式" @mousedown.prevent
           @click="editor.chain().focus().unsetAllMarks().run()" />
       </div>
     </div>

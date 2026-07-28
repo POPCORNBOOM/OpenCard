@@ -41,7 +41,7 @@ describe('DictionaryEditor', () => {
 
     await languageInput.setValue('English')
     expect(latestDictionary(wrapper).languages.en_US).toEqual({ title: 'English' })
-    await wrapper.get('button[title="dictionaryEditor.actions.resetOverride"]').trigger('click')
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.resetOverride"]').trigger('click')
     expect(latestDictionary(wrapper).languages.en_US).toEqual({})
   })
 
@@ -52,9 +52,9 @@ describe('DictionaryEditor', () => {
         modelValue: JSON.stringify({ languages: { en_US: {} } }),
       },
     })
-    await wrapper.get('button[title="dictionaryEditor.actions.setActive"]').trigger('click')
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.setActive"]').trigger('click')
     expect(latestDictionary(wrapper).active).toBe('en_US')
-    await wrapper.get('button[title="dictionaryEditor.actions.useBase"]').trigger('click')
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.useBase"]').trigger('click')
     expect(latestDictionary(wrapper)).not.toHaveProperty('active')
   })
 
@@ -68,7 +68,7 @@ describe('DictionaryEditor', () => {
         }),
       },
     })
-    await wrapper.get('button[title="dictionaryEditor.actions.renameRecord"]').trigger('click')
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.renameRecord"]').trigger('click')
     const renameForm = wrapper.get('tbody .dictionary-editor__rename')
     await renameForm.get('input').setValue('heading')
     await renameForm.get('button').trigger('click')
@@ -77,7 +77,7 @@ describe('DictionaryEditor', () => {
       languages: { en_US: { heading: 'English' } },
     })
 
-    await wrapper.get('button[title="dictionaryEditor.actions.deleteRecord"]').trigger('click')
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.deleteRecord"]').trigger('click')
     expect(latestDictionary(wrapper)).toEqual({ languages: { en_US: {} } })
   })
 

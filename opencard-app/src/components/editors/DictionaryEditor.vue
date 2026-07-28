@@ -60,7 +60,8 @@
                     variant="ghost"
                     icon="action.check"
                     :class="{ 'is-selected': !dictionary.active }"
-                    :title="t('dictionaryEditor.actions.useBase')"
+                    :data-tooltip="t('dictionaryEditor.actions.useBase')"
+                    :aria-label="t('dictionaryEditor.actions.useBase')"
                     @click="setActiveLanguage(undefined)"
                   />
                 </div>
@@ -75,11 +76,14 @@
                   <div class="dictionary-editor__row-actions">
                     <OcButton icon-only size="sm" variant="ghost" icon="action.check"
                       :class="{ 'is-selected': isActiveLanguage(language) }"
-                      :title="t('dictionaryEditor.actions.setActive')" @click="setActiveLanguage(language)" />
+                      :data-tooltip="t('dictionaryEditor.actions.setActive')"
+                      :aria-label="t('dictionaryEditor.actions.setActive')" @click="setActiveLanguage(language)" />
                     <OcButton icon-only size="sm" variant="ghost" icon="action.edit"
-                      :title="t('dictionaryEditor.actions.renameLanguage')" @click="beginLanguageRename(language)" />
+                      :data-tooltip="t('dictionaryEditor.actions.renameLanguage')"
+                      :aria-label="t('dictionaryEditor.actions.renameLanguage')" @click="beginLanguageRename(language)" />
                     <OcButton icon-only size="sm" variant="ghost" icon="action.delete"
-                      :title="t('dictionaryEditor.actions.deleteLanguage')" @click="deleteLanguage(language)" />
+                      :data-tooltip="t('dictionaryEditor.actions.deleteLanguage')"
+                      :aria-label="t('dictionaryEditor.actions.deleteLanguage')" @click="deleteLanguage(language)" />
                   </div>
                 </div>
                 <form v-else class="dictionary-editor__rename" @submit.prevent="commitLanguageRename(language)">
@@ -104,9 +108,11 @@
                   <code>{{ recordKey }}</code>
                   <div class="dictionary-editor__row-actions">
                     <OcButton icon-only size="sm" variant="ghost" icon="action.edit"
-                      :title="t('dictionaryEditor.actions.renameRecord')" @click="beginRecordRename(recordKey)" />
+                      :data-tooltip="t('dictionaryEditor.actions.renameRecord')"
+                      :aria-label="t('dictionaryEditor.actions.renameRecord')" @click="beginRecordRename(recordKey)" />
                     <OcButton icon-only size="sm" variant="ghost" icon="action.delete"
-                      :title="t('dictionaryEditor.actions.deleteRecord')" @click="deleteRecord(recordKey)" />
+                      :data-tooltip="t('dictionaryEditor.actions.deleteRecord')"
+                      :aria-label="t('dictionaryEditor.actions.deleteRecord')" @click="deleteRecord(recordKey)" />
                   </div>
                 </div>
                 <form v-else class="dictionary-editor__rename" @submit.prevent="commitRecordRename(recordKey)">
@@ -140,7 +146,8 @@
                     size="sm"
                     variant="ghost"
                     icon="action.undo"
-                    :title="t('dictionaryEditor.actions.resetOverride')"
+                    :data-tooltip="t('dictionaryEditor.actions.resetOverride')"
+                    :aria-label="t('dictionaryEditor.actions.resetOverride')"
                     @click="resetOverride(language, recordKey)"
                   />
                 </div>

@@ -1,8 +1,13 @@
+import { resolveIcon, type IconToken } from '../icon/iconRegistry';
+
 const TOOLTIP_SELECTOR = '[data-tooltip]';
 const TOOLTIP_LAYER_ID = 'oc-tooltip-layer';
 const TOOLTIP_GAP = 10;
 const TOOLTIP_EDGE_PADDING = 8;
+const TOOLTIP_POINTER_DELAY_MS = 350;
 const TOOLTIP_INIT_FLAG = '__oc_tooltip_initialized__';
+const TOOLTIP_INLINE_TOKEN_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]/g;
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) {
@@ -14,6 +19,55 @@ function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
 
 function getTooltipText(target: HTMLElement): string {
   return target.getAttribute('data-tooltip')?.trim() ?? '';
+}
+
+function createTooltipIcon(token: string): SVGSVGElement {
+  const glyph = resolveIcon(token as IconToken, 'globalTooltip.inline');
+  const icon = document.createElementNS(SVG_NAMESPACE, 'svg');
+  icon.setAttribute('class', 'app-tooltip-layer__icon');
+  icon.setAttribute('viewBox', glyph.viewBox ?? '0 0 24 24');
+  icon.setAttribute('fill', 'currentColor');
+  icon.setAttribute('aria-hidden', 'true');
+
+  const path = document.createElementNS(SVG_NAMESPACE, 'path');
+  path.setAttribute('d', glyph.path);
+  icon.appendChild(path);
+  return icon;
+}
+
+function createTooltipChip(text: string): HTMLSpanElement {
+  const chip = document.createElement('span');
+  chip.className = 'app-tooltip-layer__chip';
+  chip.textContent = text;
+  return chip;
+}
+
+function renderTooltipContent(layer: HTMLDivElement, text: string): void {
+  const fragment = document.createDocumentFragment();
+  let cursor = 0;
+
+  for (const match of text.matchAll(TOOLTIP_INLINE_TOKEN_PATTERN)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      fragment.append(document.createTextNode(text.slice(cursor, index)));
+    }
+
+    const kind = match[1];
+    const value = match[2]?.trim() ?? '';
+    if (!value) {
+      fragment.append(document.createTextNode(match[0]));
+    } else if (kind === 'icon') {
+      fragment.append(createTooltipIcon(value));
+    } else {
+      fragment.append(createTooltipChip(value));
+    }
+    cursor = index + match[0].length;
+  }
+
+  if (cursor < text.length) {
+    fragment.append(document.createTextNode(text.slice(cursor)));
+  }
+  layer.replaceChildren(fragment);
 }
 
 export function setupGlobalTooltip(): void {
@@ -32,14 +86,25 @@ export function setupGlobalTooltip(): void {
     existingLayer instanceof HTMLDivElement ? existingLayer : document.createElement('div');
   layer.id = TOOLTIP_LAYER_ID;
   layer.className = 'app-tooltip-layer';
+  layer.setAttribute('role', 'tooltip');
   layer.hidden = true;
   if (!layer.isConnected) {
     document.body.appendChild(layer);
   }
 
   let activeTarget: HTMLElement | null = null;
+  let pendingTarget: HTMLElement | null = null;
+  let showTimer: number | null = null;
+
+  const cancelPendingTooltip = (): void => {
+    pendingTarget = null;
+    if (showTimer === null) return;
+    window.clearTimeout(showTimer);
+    showTimer = null;
+  };
 
   const hideTooltip = (): void => {
+    cancelPendingTooltip();
     activeTarget = null;
     layer.classList.remove('open');
     layer.hidden = true;
@@ -75,17 +140,29 @@ export function setupGlobalTooltip(): void {
   };
 
   const showTooltip = (target: HTMLElement): void => {
+    cancelPendingTooltip();
     const text = getTooltipText(target);
-    if (!text) {
+    if (!text || !target.isConnected) {
       hideTooltip();
       return;
     }
 
     activeTarget = target;
-    layer.textContent = text;
+    renderTooltipContent(layer, text);
     layer.hidden = false;
     layer.classList.add('open');
     placeTooltip();
+  };
+
+  const scheduleTooltip = (target: HTMLElement): void => {
+    if (target === activeTarget || target === pendingTarget) return;
+    hideTooltip();
+    pendingTarget = target;
+    showTimer = window.setTimeout(() => {
+      showTimer = null;
+      pendingTarget = null;
+      showTooltip(target);
+    }, TOOLTIP_POINTER_DELAY_MS);
   };
 
   document.addEventListener(
@@ -93,7 +170,7 @@ export function setupGlobalTooltip(): void {
     (event) => {
       const target = getTooltipTarget(event.target);
       if (target) {
-        showTooltip(target);
+        scheduleTooltip(target);
       }
     },
     true
@@ -102,17 +179,18 @@ export function setupGlobalTooltip(): void {
   document.addEventListener(
     'mouseout',
     (event) => {
-      if (!activeTarget) {
+      const trackedTarget = activeTarget ?? pendingTarget;
+      if (!trackedTarget) {
         return;
       }
 
       const from = event.target;
-      if (!(from instanceof Node) || !activeTarget.contains(from)) {
+      if (!(from instanceof Node) || !trackedTarget.contains(from)) {
         return;
       }
 
       const related = event.relatedTarget;
-      if (related instanceof Node && activeTarget.contains(related)) {
+      if (related instanceof Node && trackedTarget.contains(related)) {
         return;
       }
 
@@ -120,6 +198,8 @@ export function setupGlobalTooltip(): void {
     },
     true
   );
+
+  document.addEventListener('pointerdown', hideTooltip, true);
 
   document.addEventListener(
     'focusin',
@@ -136,12 +216,13 @@ export function setupGlobalTooltip(): void {
     'focusout',
     () => {
       queueMicrotask(() => {
-        if (!activeTarget) {
+        const trackedTarget = activeTarget ?? pendingTarget;
+        if (!trackedTarget) {
           return;
         }
 
         const focusedElement = document.activeElement;
-        if (focusedElement instanceof Node && activeTarget.contains(focusedElement)) {
+        if (focusedElement instanceof Node && trackedTarget.contains(focusedElement)) {
           return;
         }
 
@@ -163,6 +244,10 @@ export function setupGlobalTooltip(): void {
 
   const onViewportChanged = (): void => {
     if (activeTarget && !layer.hidden) {
+      if (!activeTarget.isConnected) {
+        hideTooltip();
+        return;
+      }
       placeTooltip();
     }
   };

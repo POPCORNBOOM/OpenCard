@@ -35,7 +35,8 @@
       :style="expressionStyle"
       role="button"
       tabindex="-1"
-      title="点击选中 binding"
+      data-tooltip="点击选中 binding"
+      aria-label="点击选中 binding"
       @mousedown.stop
       @click="handleLabelClick"
       @dblclick.stop="startEditing"
@@ -45,7 +46,7 @@
       v-if="!editing"
       type="button"
       class="binding-node__action"
-      title="编辑 binding"
+      data-tooltip="编辑 binding"
       aria-label="编辑 binding"
       @mousedown.prevent.stop
       @click.stop="startEditing"
@@ -55,7 +56,7 @@
     <button
       type="button"
       class="binding-node__action"
-      title="删除 binding"
+      data-tooltip="删除 binding"
       aria-label="删除 binding"
       @mousedown.prevent.stop
       @click.stop="deleteNode"

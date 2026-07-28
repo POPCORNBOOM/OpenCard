@@ -66,9 +66,9 @@ describe('OcRichTextEditor', () => {
     ]))
 
     editor.commands.setTextSelection({ from: 1, to: 6 })
-    await wrapper.get('button[title="增大字号"]').trigger('click')
+    await wrapper.get('button[data-tooltip="增大字号"]').trigger('click')
     expect(editor.getHTML()).toContain('font-size: 18px')
-    await wrapper.get('button[title="减小字号"]').trigger('click')
+    await wrapper.get('button[data-tooltip="减小字号"]').trigger('click')
     expect(editor.getHTML()).toContain('font-size: 16px')
     wrapper.unmount()
   })
@@ -184,7 +184,7 @@ describe('OcRichTextEditor', () => {
     const editor = (wrapper.vm as unknown as { editor: Editor }).editor
 
     await nextTick()
-    await wrapper.get('button[title="插入 binding"]').trigger('click')
+    await wrapper.get('button[data-tooltip="插入 binding"]').trigger('click')
     await nextTick()
     await nextTick()
     const input = editor.view.dom.querySelector<HTMLInputElement>('.binding-node__input')!
