@@ -471,11 +471,22 @@ describe('CardDesignEditor issue navigation', () => {
       button: 0,
       clientX: 320,
     }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 100 }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 220 }))
     expect(root.style.getPropertyValue('--card-editor-left-panel-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('100px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('5.71px')
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 100 }))
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('220px')
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('12.57px')
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 220 }))
+    await flushSidebarSnap()
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('280px')
+    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('16px')
+
+    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      clientX: 320,
+    }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 240 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 240 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('0px')
     expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('0px')
@@ -497,8 +508,8 @@ describe('CardDesignEditor issue navigation', () => {
       button: 0,
       clientX: 700,
     }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 790 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 790 }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 800 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 800 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('280px')
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
@@ -508,8 +519,8 @@ describe('CardDesignEditor issue navigation', () => {
       button: 0,
       clientX: 700,
     }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 790 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 790 }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 780 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 780 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-edge-inset')).toBe('0px')
@@ -519,8 +530,8 @@ describe('CardDesignEditor issue navigation', () => {
       button: 0,
       clientX: 900,
     }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 820 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 820 }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 880 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 880 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
 
@@ -529,8 +540,8 @@ describe('CardDesignEditor issue navigation', () => {
       button: 0,
       clientX: 900,
     }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 810 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 810 }))
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 870 }))
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 870 }))
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-edge-inset')).toBe('16px')

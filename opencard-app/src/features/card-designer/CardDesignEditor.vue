@@ -372,7 +372,8 @@ const SIDE_PANEL_MIN_WIDTH = 280
 const SIDE_PANEL_MAX_WIDTH = 420
 const SIDE_PANEL_COLLAPSED_WIDTH = 0
 const SIDE_PANEL_EDGE_INSET = 16
-const SIDE_PANEL_TOGGLE_DRAG_RATIO = 0.3
+const SIDE_PANEL_EXPAND_DRAG_RATIO = 0.1
+const SIDE_PANEL_COLLAPSE_DRAG_RATIO = 0.25
 const SIDEBAR_TOP_MIN_HEIGHT = 160
 const SIDEBAR_BOTTOM_MIN_HEIGHT = 220
 const RESIZEBAR_SIZE = 8
@@ -741,13 +742,15 @@ function handleResizeEnd(): void {
 }
 
 function snapSidebarVisibleWidth(value: number, startWidth: number): number {
+  const expandThreshold = SIDE_PANEL_MIN_WIDTH * SIDE_PANEL_EXPAND_DRAG_RATIO
+  const collapseThreshold = SIDE_PANEL_MIN_WIDTH * (1 - SIDE_PANEL_COLLAPSE_DRAG_RATIO)
   if (startWidth <= SIDE_PANEL_COLLAPSED_WIDTH) {
-    return value > SIDE_PANEL_MIN_WIDTH * SIDE_PANEL_TOGGLE_DRAG_RATIO
+    return value > expandThreshold
       ? clamp(value, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH)
       : SIDE_PANEL_COLLAPSED_WIDTH
   }
 
-  if (value < startWidth * (1 - SIDE_PANEL_TOGGLE_DRAG_RATIO)) {
+  if (value < collapseThreshold) {
     return SIDE_PANEL_COLLAPSED_WIDTH
   }
   return clamp(value, SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH)
