@@ -428,8 +428,8 @@ export default {
     },
     dataTable: {
       title: '卡牌数据表',
-      designMode: '设计视图',
-      tableMode: '数据表视图',
+      switchToDesignMode: '切换到设计视图',
+      switchToTableMode: '切换到数据表视图',
       fieldColumn: 'Block / 字段',
       blueprint: '蓝图',
       addInstance: '新增实例',

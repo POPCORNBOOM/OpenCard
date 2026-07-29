@@ -184,7 +184,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     const blockRecord = block as unknown as Record<string, unknown>
 
     return Object.entries(definitions)
-      .filter(([, definition]) => !definition.isHidden)
+      .filter(([, definition]) => !definition.isHidden && !definition.isReadonly)
       .map(([fieldKey, definition]) => ({
         key: fieldKey,
         title: definition.title,

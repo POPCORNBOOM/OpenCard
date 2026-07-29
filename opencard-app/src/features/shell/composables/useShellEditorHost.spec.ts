@@ -71,6 +71,7 @@ describe('useShellEditorHost', () => {
     expect(workspace.host.props.value).toMatchObject({
       filePath: 'D:/project/cards/card.opencard',
       fileName: 'card.opencard',
+      cardDesignerMode: 'design',
       resourceRootPath: 'D:/project',
       remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
     })
@@ -87,6 +88,13 @@ describe('useShellEditorHost', () => {
     const draft = createHost()
     expect(draft.host.resourceRootPath.value).toBeNull()
     draft.host.dispose()
+
+    const dataTable = createHost(createSession({
+      uiState: { cardDesigner: { mode: 'data-table' } },
+    }))
+    expect(dataTable.host.cardDesignerMode.value).toBe('data-table')
+    expect(dataTable.host.props.value.cardDesignerMode).toBe('data-table')
+    dataTable.host.dispose()
   })
 
   it('falls back to Monaco and projects its language', () => {
@@ -166,7 +174,7 @@ describe('useShellEditorHost', () => {
     })
   })
 
-  it('routes Card Designer layout and view state to the active session', () => {
+  it('routes Card Designer mode, layout and view state to the active session', () => {
     const { host, updateSessionUiState } = createHost()
     const layout = {
       panels: {
@@ -179,20 +187,22 @@ describe('useShellEditorHost', () => {
       rightTopHeight: null,
     }
     const view = {
-      mode: 'design' as const,
-      dataTableFields: {},
       activeFace: 'back' as const,
       clipToFace: true,
       selectedInstanceId: 'instance-1',
     }
 
+    host.handleCardDesignerMode('data-table')
     host.handleCardDesignerLayout(layout)
     host.handleCardDesignerView(view)
 
     expect(updateSessionUiState).toHaveBeenNthCalledWith(1, 'session-a', {
-      cardDesigner: { layout },
+      cardDesigner: { mode: 'data-table' },
     })
     expect(updateSessionUiState).toHaveBeenNthCalledWith(2, 'session-a', {
+      cardDesigner: { layout },
+    })
+    expect(updateSessionUiState).toHaveBeenNthCalledWith(3, 'session-a', {
       cardDesigner: { view },
     })
     host.dispose()

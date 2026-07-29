@@ -78,14 +78,16 @@ describe('useCdeDataTableModel', () => {
     expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
   })
 
-  it('unions schema, custom and legacy override fields without materializing inheritance', () => {
+  it('projects editable schema and custom fields without materializing inheritance', () => {
     const { model } = createHarness()
     const childCatalog = model.catalogFaceGroups.value[0]?.blocks.find(block => block.key === 'child')
     const keys = childCatalog?.fields.map(field => field.key) ?? []
     expect(keys).toContain('fontSize')
     expect(keys).toContain('score')
-    expect(keys).toContain('legacy')
+    expect(keys).not.toContain('legacy')
     expect(keys).not.toContain('additionalFieldDefinition')
+    expect(keys).not.toContain('id')
+    expect(keys).not.toContain('type')
 
     const child = model.faceGroups.value[0]?.blocks.find(block => block.key === 'child')
     const content = child?.fields.find(field => field.key === 'content')

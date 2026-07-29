@@ -56,12 +56,14 @@ function createDocument(): CardDocument {
 describe('card document storage contract', () => {
   it('accepts strings, arrays and objects and serializes without changing scalar types', () => {
     const document = createDocument()
+    document.dataTable = { blocks: { text: ['content', 'score'] } }
     const serialized = serializeCardDocument(document)
     const parsed = parseCardDocument(JSON.parse(serialized))
 
     expect(parsed).toEqual(document)
     expect(parsed.width).toBe('540')
     expect(parsed.instances[0]?.amount).toBe('1')
+    expect(parsed.dataTable?.blocks).toEqual({ text: ['content', 'score'] })
   })
 
   it('accepts sparse optional document metadata', () => {
@@ -110,5 +112,12 @@ describe('card document storage contract', () => {
     delete faces.back
 
     expect(() => parseCardDocument(document)).toThrow('$.faces.back must be an object')
+  })
+
+  it('rejects malformed data-table field selections', () => {
+    const document = createDocument() as unknown as Record<string, unknown>
+    document.dataTable = { blocks: { text: 'content' } }
+
+    expect(() => parseCardDocument(document)).toThrow('$.dataTable.blocks.text must be an array')
   })
 })

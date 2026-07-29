@@ -428,8 +428,8 @@ export default {
     },
     dataTable: {
       title: 'Card data table',
-      designMode: 'Design view',
-      tableMode: 'Data table view',
+      switchToDesignMode: 'Switch to design view',
+      switchToTableMode: 'Switch to data table view',
       fieldColumn: 'Block / Field',
       blueprint: 'Blueprint',
       addInstance: 'Add instance',

@@ -36,10 +36,28 @@ export function parseCardDocument(value: unknown): CardDocument {
   assertFace(value.faces.front, '$.faces.front')
   assertFace(value.faces.back, '$.faces.back')
 
+  if (value.dataTable !== undefined) {
+    assertDataTableConfiguration(value.dataTable, '$.dataTable')
+  }
+
   const instances = assertArrayField(value, 'instances', '$')
   instances.forEach((instance, index) => assertInstance(instance, `$.instances[${index}]`))
 
   return value as CardDocument
+}
+
+function assertDataTableConfiguration(value: unknown, path: string): void {
+  assertStoredObject(value, path)
+  assertStoredObject(value.blocks, `${path}.blocks`)
+  for (const [blockId, fieldKeys] of Object.entries(value.blocks)) {
+    if (!blockId) throw new Error(`${path}.blocks contains an empty Block ID`)
+    if (!Array.isArray(fieldKeys)) throw new Error(`${path}.blocks.${blockId} must be an array`)
+    fieldKeys.forEach((fieldKey, index) => {
+      if (typeof fieldKey !== 'string' || !fieldKey) {
+        throw new Error(`${path}.blocks.${blockId}[${index}] must be a non-empty string`)
+      }
+    })
+  }
 }
 
 function assertFace(value: unknown, path: string): asserts value is CardFace {

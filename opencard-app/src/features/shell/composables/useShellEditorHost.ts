@@ -5,6 +5,7 @@ import { getOcTheme } from '../../../shared/ui/foundation'
 import type { AppSettings } from '../../settings/model/appSettings'
 import type {
   CardDesignerLayoutState,
+  CardDesignerMode,
   CardDesignerViewState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
@@ -123,6 +124,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
           remoteResourcePolicy: session.resourceKind === 'workspace'
             ? options.projectProfile.value?.remoteResources
             : undefined,
+          cardDesignerMode: session.uiState?.cardDesigner?.mode ?? 'design',
           viewportTransform: session.uiState?.cardDesigner?.viewportTransform,
           cardDesignerLayout: session.uiState?.cardDesigner?.layout,
           cardDesignerView: session.uiState?.cardDesigner?.view,
@@ -159,6 +161,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     const editorId = options.activeSession.value?.editorId
     return Boolean(editorId && editorRegistry.getEditor(editorId)?.id === 'card-designer')
   })
+
+  const cardDesignerMode = computed<CardDesignerMode>(() => (
+    options.activeSession.value?.uiState?.cardDesigner?.mode ?? 'design'
+  ))
 
   function persistPendingViewportTransform(): void {
     if (viewportTransformPersistTimer !== null) {
@@ -197,6 +203,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     const session = options.activeSession.value
     if (!session || session.editorId !== 'card-designer') return
     options.sessionActions.updateSessionUiState(session.id, { cardDesigner: { layout: value } })
+  }
+
+  function handleCardDesignerMode(value: CardDesignerMode): void {
+    const session = options.activeSession.value
+    if (!session || session.editorId !== 'card-designer') return
+    options.sessionActions.updateSessionUiState(session.id, { cardDesigner: { mode: value } })
   }
 
   function handleCardDesignerView(value: CardDesignerViewState): void {
@@ -263,7 +275,9 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     props,
     resourceRootPath,
     isCardDesigner,
+    cardDesignerMode,
     handleViewportTransform,
+    handleCardDesignerMode,
     handleCardDesignerLayout,
     handleCardDesignerView,
     handleModified,

@@ -20,9 +20,9 @@ export interface CardDesignerLayoutState {
   rightTopHeight: number | null
 }
 
+export type CardDesignerMode = 'design' | 'data-table'
+
 export interface CardDesignerViewState {
-  mode: 'design' | 'data-table'
-  dataTableFields: Readonly<Record<string, readonly string[]>>
   activeFace: CardFaceKey
   clipToFace: boolean
   selectedInstanceId: string | null

@@ -8,6 +8,7 @@
 import type { Component } from 'vue'
 import type {
   CardDesignerLayoutState,
+  CardDesignerMode,
   CardDesignerViewState,
   EditorViewportTransform,
 } from '../model/editorUiState'
@@ -22,6 +23,7 @@ export interface EditorProps {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   modelValue?: string
   viewportTransform?: EditorViewportTransform
+  cardDesignerMode?: CardDesignerMode
   cardDesignerLayout?: CardDesignerLayoutState
   cardDesignerView?: CardDesignerViewState
   structureTreeSelectionBehavior?: 'none' | 'expand' | 'expand-exclusive'
@@ -36,6 +38,7 @@ export interface EditorEmits {
   (e: 'modified', isModified: boolean): void
   (e: 'update:modelValue', value: string): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
+  (e: 'update:card-designer-mode', value: CardDesignerMode): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
   (e: 'update-card-designer-view', value: CardDesignerViewState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void

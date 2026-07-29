@@ -72,10 +72,10 @@
                 </span>
               </th>
               <td v-for="cell in field.cells" :key="cell.identity"
-                class="card-data-table__cell" :class="{ 'is-inherited': cell.inherited }"
+                class="card-data-table__cell" :class="{ 'is-inherited': cell.inherited, 'has-reset': cell.overridden }"
                 :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)">
                 <template v-if="shouldMountCell(cell.identity)">
-                  <PropertyFieldControl :identity="cell.identity"
+                  <PropertyFieldControl :identity="cell.identity" appearance="embedded"
                     :definition="getCellDefinition?.(block.key, field, cell) ?? field.definition"
                     :value="cell.value" :binding-interpreter="bindingInterpreter"
                     @update:value="emit('update-cell', {
@@ -221,7 +221,7 @@ function columnAction(column: CdeDataTableColumn): OcActionButtonAction {
   if (column.kind === 'blueprint') {
     return {
       key: 'duplicate',
-      icon: 'action.copy',
+      icon: 'action.add',
       title: t('cardDesigner.dataTable.duplicateBlueprint'),
     }
   }
@@ -374,7 +374,6 @@ onBeforeUnmount(() => {
 }
 
 .card-data-table {
-  padding-top: 44px;
   background: var(--oc-bg-base);
 }
 
@@ -484,6 +483,10 @@ tbody th {
   box-shadow: inset 0 0 0 2px var(--oc-fg-accent);
 }
 
+.card-data-table__cell:focus-within:not(.is-revealed) {
+  box-shadow: inset 0 0 0 1px var(--oc-border-accent);
+}
+
 .card-data-table__cell-preview {
   display: block;
   min-width: 0;
@@ -496,8 +499,8 @@ tbody th {
   white-space: nowrap;
 }
 
-.card-data-table__cell :deep(.property-field-control) {
-  padding-right: var(--oc-size-sm);
+.card-data-table__cell.has-reset {
+  padding-right: calc(var(--oc-size-sm) + var(--oc-space-2));
 }
 
 .card-data-table__reset {

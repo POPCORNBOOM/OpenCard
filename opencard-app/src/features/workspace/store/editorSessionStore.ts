@@ -11,6 +11,7 @@ import { fileSystemService } from '../services/fileSystemService'
 import { useProjectStore } from './projectStore'
 import type {
   CardDesignerLayoutState,
+  CardDesignerMode,
   CardDesignerViewState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
@@ -45,6 +46,7 @@ export type OpenedEditorItem = {
 
 export type EditorSessionUiState = {
   cardDesigner?: {
+    mode?: CardDesignerMode
     viewportTransform?: EditorViewportTransform
     layout?: CardDesignerLayoutState
     view?: CardDesignerViewState

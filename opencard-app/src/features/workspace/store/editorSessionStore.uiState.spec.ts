@@ -66,18 +66,16 @@ describe('editorSessionStore card designer layout', () => {
       rightTopHeight: null,
     }
     const view: CardDesignerViewState = {
-      mode: 'data-table',
-      dataTableFields: { 'block-1': ['content'] },
       activeFace: 'back',
       clipToFace: true,
       selectedInstanceId: 'instance-1',
     }
 
-    store.updateSessionUiState(session.id, { cardDesigner: { layout } })
+    store.updateSessionUiState(session.id, { cardDesigner: { mode: 'data-table', layout } })
     store.updateSessionUiState(session.id, { cardDesigner: { view } })
 
     expect(store.sessions.value.find((candidate) => candidate.id === session.id)?.uiState?.cardDesigner)
-      .toEqual({ layout, view })
+      .toEqual({ mode: 'data-table', layout, view })
 
     store.closeSession(session.id)
   })
@@ -89,9 +87,8 @@ describe('editorSessionStore card designer layout', () => {
 
     store.updateSessionUiState(session.id, {
       cardDesigner: {
+        mode: 'design',
         view: {
-          mode: 'design',
-          dataTableFields: {},
           activeFace: 'front',
           clipToFace: true,
           selectedInstanceId: null,

@@ -202,6 +202,7 @@
                 @save="handleEditorSave"
                 @open-file="handleOpenFile"
                 @update-viewport-transform="handleViewportTransformUpdate"
+                @update:card-designer-mode="handleCardDesignerModeUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
                 @update-card-designer-view="handleCardDesignerViewUpdate"
                 @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
@@ -366,6 +367,7 @@ import {
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import type {
   ShellButton,
+  ShellAction,
   ShellList,
   ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
@@ -409,6 +411,7 @@ const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.opencard'
 const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.opencardprojectprofile'
 const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.dictionary'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
+const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const EMPTY_TREE_DATA: OcTreeData = {
   rootKeys: [],
   items: new Map(),
@@ -621,7 +624,9 @@ const {
   props: currentEditorProps,
   resourceRootPath: activeSessionResourceRootPath,
   isCardDesigner: isActiveCardDesignerEditor,
+  cardDesignerMode: activeCardDesignerMode,
   handleViewportTransform: handleViewportTransformUpdate,
+  handleCardDesignerMode: handleCardDesignerModeUpdate,
   handleCardDesignerLayout: handleCardDesignerLayoutUpdate,
   handleCardDesignerView: handleCardDesignerViewUpdate,
   handleModified: handleEditorModified,
@@ -1512,7 +1517,17 @@ const workspaceTitle = computed(() => {
     : projectName.value || t('app.menu.workbench')
 })
 
-const workspaceActions = computed(() => [])
+const workspaceActions = computed<ShellAction[]>(() => {
+  if (!isWorkbenchMode.value || !isActiveCardDesignerEditor.value) return []
+  const tableMode = activeCardDesignerMode.value === 'data-table'
+  return [{
+    key: CARD_DESIGNER_MODE_ACTION_KEY,
+    icon: tableMode ? 'file.opencard' : 'data.table',
+    hoverTip: tableMode
+      ? t('cardDesigner.dataTable.switchToDesignMode')
+      : t('cardDesigner.dataTable.switchToTableMode'),
+  }]
+})
 
 function handleEditorIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {
   reportSessionIssueSnapshot(sessionId, snapshot)
@@ -2098,6 +2113,12 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
 }
 
 async function handleWorkspaceFrameAction(actionKey: string) {
+  if (actionKey === CARD_DESIGNER_MODE_ACTION_KEY) {
+    handleCardDesignerModeUpdate(
+      activeCardDesignerMode.value === 'design' ? 'data-table' : 'design',
+    )
+    return
+  }
   await runShellCommand(actionKey)
 }
 

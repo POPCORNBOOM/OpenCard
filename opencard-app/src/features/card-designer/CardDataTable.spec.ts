@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import OcActionButton from '../../components/standard/OcActionButton.vue'
+import PropertyFieldControl from '../../shared/ui/property-editor/PropertyFieldControl.vue'
 import CardDataTable from './CardDataTable.vue'
 import type {
   CdeDataTableFaceCatalog,
@@ -91,6 +92,9 @@ describe('CardDataTable', () => {
     expect(wrapper.findAll('.card-data-table__face-row')).toHaveLength(2)
     expect(wrapper.get('.card-data-table__block-heading').attributes('style')).toContain('14px')
     expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('is-inherited')
+    expect(wrapper.findAllComponents(PropertyFieldControl).every(
+      control => control.props('appearance') === 'embedded',
+    )).toBe(true)
 
     const faceAction = wrapper.findAllComponents(OcActionButton)
       .find(action => action.props('action').key === 'add-block')!
@@ -119,9 +123,11 @@ describe('CardDataTable', () => {
 
   it('supports blueprint duplication and instance rename, copy, delete and reset actions', async () => {
     const wrapper = mount(CardDataTable, { props: { columns, catalogFaceGroups, faceGroups } })
+    expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('has-reset')
     const columnActions = wrapper.findAllComponents(OcActionButton)
       .filter(action => action.element.closest('thead'))
     expect(columnActions).toHaveLength(2)
+    expect(columnActions[0]!.props('action').icon).toBe('action.add')
 
     columnActions[0]!.vm.$emit('select', { key: 'duplicate' })
     expect(wrapper.emitted('duplicate-card')).toEqual([['__blueprint__']])

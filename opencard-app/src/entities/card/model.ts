@@ -167,6 +167,10 @@ export type CardFace = {
     children: RootChild[]
 }
 
+export type CardDataTableConfiguration = {
+    blocks: Record<string, string[]>
+}
+
 export type CardDocument = {
     type: "card-document"
     schemaVersion: '2'
@@ -179,6 +183,7 @@ export type CardDocument = {
     height: string
     faces: Record<CardFaceKey, CardFace>
     instances: CardInstanceRecord[]
+    dataTable?: CardDataTableConfiguration
 }
 
 export type CardInstanceRecord = {

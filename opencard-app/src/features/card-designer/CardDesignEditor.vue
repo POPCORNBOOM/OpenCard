@@ -19,7 +19,9 @@
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
     >
-      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
+      <Transition name="card-designer-view-fade">
+        <div :key="workspaceMode" class="card-design-editor__mode-view">
+          <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
@@ -282,16 +284,8 @@
           <OcActionButton :action="faceSwitchAction" size="sm" variant="ghost" @select="toggleActiveFace" />
         </div>
       </div>
-    </div>
-
-    <div class="card-design-editor__mode-switch">
-      <OcOptionGroup
-        :model-value="workspaceMode"
-        :options="workspaceModeOptions"
-        appearance="sliding-outline"
-        size="sm"
-        @update:model-value="setWorkspaceMode"
-      />
+        </div>
+      </Transition>
     </div>
 
     <AdditionalFieldCreateDialog
@@ -343,7 +337,6 @@ import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
-import OcOptionGroup, { type OcOption } from '../../components/standard/OcOptionGroup.vue'
 import OcViewportControls from '../../components/standard/OcViewportControls.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
 import { useCdeDocumentState } from './useCdeDocumentState'
@@ -450,8 +443,7 @@ const RESIZEBAR_SIZE = 8
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
 const propertyDeleteMode = ref(false)
-const workspaceMode = ref<'design' | 'data-table'>(props.cardDesignerView?.mode ?? 'design')
-const dataTableFields = ref(normalizeDataTableFields(props.cardDesignerView?.dataTableFields))
+const workspaceMode = computed(() => props.cardDesignerMode ?? 'design')
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
@@ -492,8 +484,6 @@ function commitLayoutState(): void {
 
 function createViewState(): CardDesignerViewState {
   return {
-    mode: workspaceMode.value,
-    dataTableFields: normalizeDataTableFields(dataTableFields.value),
     activeFace: activeFaceKey.value,
     clipToFace: clipToFace.value,
     selectedInstanceId: selectedCardId.value === BLUEPRINT_CARD_ID
@@ -508,37 +498,48 @@ function commitViewState(): void {
 
 function includeDataTableBlock(blockId: string): void {
   if (!blockId || Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
-  dataTableFields.value = { ...dataTableFields.value, [blockId]: [] }
-  commitViewState()
+  updateDataTableFields({ ...dataTableFields.value, [blockId]: [] })
 }
 
 function removeDataTableBlock(blockId: string): void {
   if (!Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
   const next = { ...dataTableFields.value }
   delete next[blockId]
-  dataTableFields.value = next
-  commitViewState()
+  updateDataTableFields(next)
 }
 
 function includeDataTableField(blockId: string, fieldKey: string): void {
   if (!blockId || !fieldKey) return
   const current = dataTableFields.value[blockId] ?? []
   if (current.includes(fieldKey)) return
-  dataTableFields.value = {
+  updateDataTableFields({
     ...dataTableFields.value,
     [blockId]: [...current, fieldKey],
-  }
-  commitViewState()
+  })
 }
 
 function excludeDataTableField(blockId: string, fieldKey: string): void {
   const current = dataTableFields.value[blockId]
   if (!current?.includes(fieldKey)) return
-  dataTableFields.value = {
+  updateDataTableFields({
     ...dataTableFields.value,
     [blockId]: current.filter(candidate => candidate !== fieldKey),
-  }
-  commitViewState()
+  })
+}
+
+function updateDataTableFields(value: Readonly<Record<string, readonly string[]>>): void {
+  if (!writeDataTableFields(value)) return
+  refreshDocumentState()
+  markDocumentChanged('action')
+}
+
+function writeDataTableFields(value: Readonly<Record<string, readonly string[]>>): boolean {
+  const document = cardDoc.value
+  if (!document) return false
+  const blocks = normalizeDataTableFields(value)
+  if (Object.keys(blocks).length === 0) delete document.dataTable
+  else document.dataTable = { blocks }
+  return true
 }
 
 function normalizeDataTableFields(
@@ -548,26 +549,6 @@ function normalizeDataTableFields(
     if (!blockId || !Array.isArray(fieldKeys)) return []
     return [[blockId, Array.from(new Set(fieldKeys.filter(fieldKey => Boolean(fieldKey))))]]
   }))
-}
-
-const workspaceModeOptions = computed<OcOption[]>(() => [
-  {
-    value: 'design',
-    label: t('cardDesigner.dataTable.designMode'),
-    icon: 'file.opencard',
-  },
-  {
-    value: 'data-table',
-    label: t('cardDesigner.dataTable.tableMode'),
-    icon: 'data.list-tree',
-  },
-])
-
-function setWorkspaceMode(value: string): void {
-  if (value !== 'design' && value !== 'data-table') return
-  if (workspaceMode.value === value) return
-  workspaceMode.value = value
-  commitViewState()
 }
 
 const clipAction = computed<OcActionButtonAction>(() => ({
@@ -1049,6 +1030,11 @@ const blockFieldCommands = useCdeBlockFieldCommands({
   markDocumentChanged,
 })
 
+const dataTableFields = computed(() => {
+  documentRevision.value
+  return normalizeDataTableFields(cardDoc.value?.dataTable?.blocks)
+})
+
 const {
   columns: dataTableColumns,
   catalogFaceGroups: dataTableCatalogFaceGroups,
@@ -1103,8 +1089,17 @@ function openDataTableFieldDialog(blockId: string): void {
 }
 
 function deleteDataTableField(blockId: string, fieldKey: string): void {
-  if (blockFieldCommands.deleteField({ cardId: BLUEPRINT_CARD_ID, blockId, fieldKey })) {
-    excludeDataTableField(blockId, fieldKey)
+  const previous = dataTableFields.value
+  const current = previous[blockId]
+  if (current?.includes(fieldKey)) {
+    writeDataTableFields({
+      ...previous,
+      [blockId]: current.filter(candidate => candidate !== fieldKey),
+    })
+  }
+  if (!blockFieldCommands.deleteField({ cardId: BLUEPRINT_CARD_ID, blockId, fieldKey })) {
+    writeDataTableFields(previous)
+    refreshDocumentState()
   }
 }
 
@@ -1116,10 +1111,21 @@ function closeAdditionalFieldDialog(): void {
 function submitAdditionalFieldDialog(): void {
   const blockId = dataTableCustomFieldTargetBlockId.value
   const fieldKey = additionalFieldCreateDraft.value.fieldKey
+  const previous = dataTableFields.value
+  if (blockId && fieldKey) {
+    const current = previous[blockId] ?? []
+    writeDataTableFields({
+      ...previous,
+      [blockId]: current.includes(fieldKey) ? current : [...current, fieldKey],
+    })
+  }
   const result = submitAdditionalFieldCreate()
-  if (result) return
+  if (result) {
+    writeDataTableFields(previous)
+    refreshDocumentState()
+    return
+  }
   dataTableCustomFieldTargetBlockId.value = null
-  if (blockId) includeDataTableField(blockId, fieldKey)
 }
 
 const canMutateSelectedInstance = computed(() =>
@@ -2576,22 +2582,25 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
 
   if (workspaceMode.value === 'data-table' && target.owner === 'block') {
     if (!target.blockId) return 'not-found'
-    includeDataTableField(target.blockId, target.fieldKey)
-    commitViewState()
-    await nextTick()
-    await nextTick()
-    if (!cardDataTableRef.value) return 'not-found'
-    return await cardDataTableRef.value.revealCell(
-      cardKey,
-      target.blockId,
-      target.fieldKey,
-      target.characterOffset,
-    )
-      ? 'success'
-      : 'not-found'
+    if (dataTableFields.value[target.blockId]?.includes(target.fieldKey)) {
+      await nextTick()
+      if (!cardDataTableRef.value) return 'not-found'
+      return await cardDataTableRef.value.revealCell(
+        cardKey,
+        target.blockId,
+        target.fieldKey,
+        target.characterOffset,
+      )
+        ? 'success'
+        : 'not-found'
+    }
   }
 
-  workspaceMode.value = 'design'
+  if (workspaceMode.value !== 'design') {
+    emit('update:card-designer-mode', 'design')
+    await nextTick()
+    await nextTick()
+  }
   if (target.owner === 'block' || target.owner === 'location') {
     forceStructureTreeReveal.value = true
     selectedBlockKeys.value = target.blockId ? [target.blockId] : []
@@ -2638,8 +2647,6 @@ watch(
 watch(
   () => props.cardDesignerView,
   (view) => {
-    workspaceMode.value = view?.mode ?? 'design'
-    dataTableFields.value = normalizeDataTableFields(view?.dataTableFields)
     const nextFace = view?.activeFace ?? 'front'
     if (activeFaceKey.value !== nextFace) {
       activeFaceKey.value = nextFace
@@ -2813,25 +2820,41 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.card-design-editor__mode-view {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.card-designer-view-fade-enter-active,
+.card-designer-view-fade-leave-active {
+  transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-designer-view-fade-leave-active {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.card-designer-view-fade-enter-from,
+.card-designer-view-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-designer-view-fade-enter-active,
+  .card-designer-view-fade-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+
 .card-design-editor__stage-base {
   width: 100%;
   height: 100%;
   position: relative;
   z-index: 0;
-}
-
-.card-design-editor__mode-switch {
-  position: absolute;
-  top: var(--oc-space-2);
-  left: 50%;
-  z-index: 10;
-  padding: 3px;
-  border: 1px solid var(--oc-border-muted);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-glass);
-  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
-  box-shadow: var(--oc-shadow-md);
-  transform: translateX(-50%);
 }
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-base {

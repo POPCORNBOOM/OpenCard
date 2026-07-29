@@ -330,6 +330,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         height: { fieldType: 'number', required: true, min: 0, categoryId: 'layout', bindingScopes: ['project'] },
         faces: { fieldType: 'object', objectType: 'CardFace', required: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         instances: { fieldType: 'object', objectType: 'CardInstanceRecord', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+        dataTable: { fieldType: 'object', objectType: 'CardDataTableConfiguration', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'card-face': {
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },

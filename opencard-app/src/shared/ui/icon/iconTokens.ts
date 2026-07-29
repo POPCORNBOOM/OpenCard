@@ -79,6 +79,7 @@ export const iconTokens = {
   'data.layers': true,
   'data.list-selection': true,
   'data.list-tree': true,
+  'data.table': true,
   'data.symbol-boolean': true,
   'data.symbol-class': true,
   'data.symbol-color': true,
