@@ -326,6 +326,11 @@
   -webkit-user-select: none;
 }
 
+.titlebar-drag-enabled {
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+
 .titlebar-brand-lockup {
   display: inline-flex;
   align-items: center;
@@ -333,6 +338,11 @@
   gap: 8px;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.titlebar-brand-lockup-interactive {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
 }
 
 .titlebar-logo {

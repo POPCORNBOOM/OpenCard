@@ -173,9 +173,17 @@ describe('ShellTitleBar', () => {
     })
 
     expect(wrapper.get('.titlebar-drag').attributes()).toHaveProperty('data-tauri-drag-region')
+    expect(wrapper.get('.titlebar-drag').classes()).toContain('titlebar-drag-enabled')
+    expect(wrapper.get('.titlebar-brand-lockup').attributes()).toHaveProperty('data-tauri-drag-region')
+
+    await wrapper.setProps({ tasks: [{ key: 'export', title: 'Exporting', progress: 0.5 }] })
+
+    expect(wrapper.get('.titlebar-brand-lockup').attributes()).not.toHaveProperty('data-tauri-drag-region')
+    expect(wrapper.get('.titlebar-brand-lockup').classes()).toContain('titlebar-brand-lockup-interactive')
 
     await wrapper.setProps({ dragRegion: false })
 
     expect(wrapper.get('.titlebar-drag').attributes()).not.toHaveProperty('data-tauri-drag-region')
+    expect(wrapper.get('.titlebar-drag').classes()).not.toContain('titlebar-drag-enabled')
   })
 })

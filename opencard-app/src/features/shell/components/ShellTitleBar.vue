@@ -208,11 +208,16 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="titlebar-drag" :data-tauri-drag-region="props.dragRegion ? '' : null">
+    <div
+      class="titlebar-drag"
+      :class="{ 'titlebar-drag-enabled': props.dragRegion }"
+      :data-tauri-drag-region="props.dragRegion ? '' : null"
+    >
       <div
         ref="taskPanelAnchor"
         class="titlebar-brand-lockup"
-        :data-tauri-drag-region="props.dragRegion ? '' : null"
+        :class="{ 'titlebar-brand-lockup-interactive': Boolean(props.tasks?.length) }"
+        :data-tauri-drag-region="props.dragRegion && !props.tasks?.length ? '' : null"
         :tabindex="props.tasks?.length ? 0 : undefined"
         :aria-expanded="props.tasks?.length ? taskPanelOpen : undefined"
         @pointerenter="openTaskPanel"
