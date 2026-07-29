@@ -66,6 +66,8 @@ describe('editorSessionStore card designer layout', () => {
       rightTopHeight: null,
     }
     const view: CardDesignerViewState = {
+      mode: 'data-table',
+      dataTableFields: { 'block-1': ['content'] },
       activeFace: 'back',
       clipToFace: true,
       selectedInstanceId: 'instance-1',
@@ -87,7 +89,13 @@ describe('editorSessionStore card designer layout', () => {
 
     store.updateSessionUiState(session.id, {
       cardDesigner: {
-        view: { activeFace: 'front', clipToFace: true, selectedInstanceId: null },
+        view: {
+          mode: 'design',
+          dataTableFields: {},
+          activeFace: 'front',
+          clipToFace: true,
+          selectedInstanceId: null,
+        },
       },
     })
 

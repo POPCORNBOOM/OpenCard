@@ -21,6 +21,8 @@ export interface CardDesignerLayoutState {
 }
 
 export interface CardDesignerViewState {
+  mode: 'design' | 'data-table'
+  dataTableFields: Readonly<Record<string, readonly string[]>>
   activeFace: CardFaceKey
   clipToFace: boolean
   selectedInstanceId: string | null

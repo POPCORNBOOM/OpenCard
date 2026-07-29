@@ -19,7 +19,7 @@
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
     >
-      <div class="card-design-editor__stage-base">
+      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
@@ -76,7 +76,29 @@
         </OcPanel>
       </div>
 
-      <div class="card-design-editor__stage-layer"
+      <CardDataTable
+        v-else
+        ref="cardDataTableRef"
+        :columns="dataTableColumns"
+        :catalog-face-groups="dataTableCatalogFaceGroups"
+        :face-groups="dataTableFaceGroups"
+        :binding-interpreter="propertyBindingInterpreter"
+        :get-cell-definition="getDataTableCellDefinition"
+        @add-instance="createInstance"
+        @rename-instance="renameInstance"
+        @duplicate-card="duplicateDataTableCard"
+        @delete-instance="deleteInstance"
+        @add-block="includeDataTableBlock"
+        @remove-block="removeDataTableBlock"
+        @include-field="includeDataTableField"
+        @exclude-field="excludeDataTableField"
+        @create-field="openDataTableFieldDialog"
+        @delete-field="deleteDataTableField"
+        @update-cell="updateDataTableCell"
+        @reset-cell="resetDataTableCell"
+      />
+
+      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer"
         :class="{ 'is-sidebar-width-resizing': isSidebarWidthResizing }">
         <div class="card-design-editor__overlay-layout">
           <aside
@@ -262,6 +284,16 @@
       </div>
     </div>
 
+    <div class="card-design-editor__mode-switch">
+      <OcOptionGroup
+        :model-value="workspaceMode"
+        :options="workspaceModeOptions"
+        appearance="sliding-outline"
+        size="sm"
+        @update:model-value="setWorkspaceMode"
+      />
+    </div>
+
     <AdditionalFieldCreateDialog
       :open="additionalFieldCreateDialogOpen"
       :field-types="additionalFieldTypeOptions"
@@ -273,8 +305,8 @@
       @update-field-type="updateAdditionalFieldType"
       @update-field-key="updateAdditionalFieldKey"
       @update-title="updateAdditionalFieldTitle"
-      @close="closeAdditionalFieldCreateDialog"
-      @submit="submitAdditionalFieldCreate"
+      @close="closeAdditionalFieldDialog"
+      @submit="submitAdditionalFieldDialog"
     />
   </div>
 </template>
@@ -311,6 +343,7 @@ import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
+import OcOptionGroup, { type OcOption } from '../../components/standard/OcOptionGroup.vue'
 import OcViewportControls from '../../components/standard/OcViewportControls.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
 import { useCdeDocumentState } from './useCdeDocumentState'
@@ -321,6 +354,13 @@ import {
   type CdePropertySortMode,
 } from './useCdePropertyPanelState'
 import { useCdeTreeOps } from './useCdeTreeOps'
+import CardDataTable from './CardDataTable.vue'
+import { useCdeDataTableModel } from './useCdeDataTableModel'
+import {
+  findCdeBlock,
+  useCdeBlockFieldCommands,
+  type CdeBlockFieldTarget,
+} from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
@@ -336,8 +376,10 @@ import {
 } from '../editor-runtime/services/referenceCompletion'
 import type {
   PropertyCompletionProvider,
+  PropertyEditorFieldDefinition,
   PropertyEditorInput,
 } from '../../shared/ui/property-editor/propertyEditor.types'
+import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 import { chainPropertyCompletionProviders } from '../../shared/ui/property-editor/propertyCompletion'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { createFilePathCompletionProvider } from '../workspace/services/filePathCompletion'
@@ -365,7 +407,7 @@ const BLUEPRINT_CARD_ID = '__blueprint__'
 // 组件输入输出
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
-const { t, te } = useI18n()
+const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 const fontCatalog = computed(() => buildFontCatalog(projectStore.projectProfile.value?.fonts))
@@ -408,6 +450,9 @@ const RESIZEBAR_SIZE = 8
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
 const propertyDeleteMode = ref(false)
+const workspaceMode = ref<'design' | 'data-table'>(props.cardDesignerView?.mode ?? 'design')
+const dataTableFields = ref(normalizeDataTableFields(props.cardDesignerView?.dataTableFields))
+const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
 const isInstancePanelExpanded = ref(true)
@@ -447,6 +492,8 @@ function commitLayoutState(): void {
 
 function createViewState(): CardDesignerViewState {
   return {
+    mode: workspaceMode.value,
+    dataTableFields: normalizeDataTableFields(dataTableFields.value),
     activeFace: activeFaceKey.value,
     clipToFace: clipToFace.value,
     selectedInstanceId: selectedCardId.value === BLUEPRINT_CARD_ID
@@ -457,6 +504,70 @@ function createViewState(): CardDesignerViewState {
 
 function commitViewState(): void {
   emit('update-card-designer-view', createViewState())
+}
+
+function includeDataTableBlock(blockId: string): void {
+  if (!blockId || Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
+  dataTableFields.value = { ...dataTableFields.value, [blockId]: [] }
+  commitViewState()
+}
+
+function removeDataTableBlock(blockId: string): void {
+  if (!Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
+  const next = { ...dataTableFields.value }
+  delete next[blockId]
+  dataTableFields.value = next
+  commitViewState()
+}
+
+function includeDataTableField(blockId: string, fieldKey: string): void {
+  if (!blockId || !fieldKey) return
+  const current = dataTableFields.value[blockId] ?? []
+  if (current.includes(fieldKey)) return
+  dataTableFields.value = {
+    ...dataTableFields.value,
+    [blockId]: [...current, fieldKey],
+  }
+  commitViewState()
+}
+
+function excludeDataTableField(blockId: string, fieldKey: string): void {
+  const current = dataTableFields.value[blockId]
+  if (!current?.includes(fieldKey)) return
+  dataTableFields.value = {
+    ...dataTableFields.value,
+    [blockId]: current.filter(candidate => candidate !== fieldKey),
+  }
+  commitViewState()
+}
+
+function normalizeDataTableFields(
+  value: Readonly<Record<string, readonly string[]>> | null | undefined,
+): Record<string, string[]> {
+  return Object.fromEntries(Object.entries(value ?? {}).flatMap(([blockId, fieldKeys]) => {
+    if (!blockId || !Array.isArray(fieldKeys)) return []
+    return [[blockId, Array.from(new Set(fieldKeys.filter(fieldKey => Boolean(fieldKey))))]]
+  }))
+}
+
+const workspaceModeOptions = computed<OcOption[]>(() => [
+  {
+    value: 'design',
+    label: t('cardDesigner.dataTable.designMode'),
+    icon: 'file.opencard',
+  },
+  {
+    value: 'data-table',
+    label: t('cardDesigner.dataTable.tableMode'),
+    icon: 'data.list-tree',
+  },
+])
+
+function setWorkspaceMode(value: string): void {
+  if (value !== 'design' && value !== 'data-table') return
+  if (workspaceMode.value === value) return
+  workspaceMode.value = value
+  commitViewState()
 }
 
 const clipAction = computed<OcActionButtonAction>(() => ({
@@ -560,9 +671,19 @@ type PropertyEditorHandle = {
   revealField: (inputKey: string, fieldKey: string, characterOffset?: number) => Promise<boolean>
 }
 
+type CardDataTableHandle = {
+  revealCell: (
+    cardId: string,
+    blockId: string,
+    fieldKey: string,
+    characterOffset?: number,
+  ) => Promise<boolean>
+}
+
 const cardViewportRef = ref<CardViewportHandle | null>(null)
 const centerSpacerRef = ref<HTMLElement | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
+const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const viewportTransform = ref({
@@ -921,12 +1042,35 @@ const {
 
 const activeFace = computed(() => cardDoc.value?.faces[activeFaceKey.value] ?? null)
 
+const blockFieldCommands = useCdeBlockFieldCommands({
+  cardDoc,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  refreshDocumentState,
+  markDocumentChanged,
+})
+
+const {
+  columns: dataTableColumns,
+  catalogFaceGroups: dataTableCatalogFaceGroups,
+  faceGroups: dataTableFaceGroups,
+} = useCdeDataTableModel({
+  cardDoc,
+  documentRevision,
+  fieldSelection: dataTableFields,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  blueprintTitle: () => t('cardDesigner.dataTable.blueprint'),
+  faceTitle: faceKey => t(`cardDesigner.info.${faceKey}`),
+  translate: messageKey => t(messageKey),
+  hasMessage: messageKey => te(messageKey),
+})
+
 // 实例树与实例编辑协议。
 const {
   selectedCard,
   instanceTreeData,
   handleInstanceTreeIntent: handleInstanceModelTreeIntent,
   createInstance,
+  renameInstance,
   duplicateInstance,
   deleteInstance,
 } = useCdeInstanceOps({
@@ -938,6 +1082,45 @@ const {
   refreshDocumentState,
   markDocumentChanged,
 })
+
+function duplicateDataTableCard(cardId: string): void {
+  if (cardId === BLUEPRINT_CARD_ID) createInstance()
+  else duplicateInstance(cardId)
+}
+
+function updateDataTableCell(payload: CdeBlockFieldTarget & { value: unknown }): void {
+  blockFieldCommands.updateField(payload, payload.value, 'typing')
+}
+
+function resetDataTableCell(payload: CdeBlockFieldTarget): void {
+  blockFieldCommands.resetField(payload)
+}
+
+function openDataTableFieldDialog(blockId: string): void {
+  dataTableCustomFieldTargetBlockId.value = openAdditionalFieldCreateDialog(blockId, BLUEPRINT_CARD_ID)
+    ? blockId
+    : null
+}
+
+function deleteDataTableField(blockId: string, fieldKey: string): void {
+  if (blockFieldCommands.deleteField({ cardId: BLUEPRINT_CARD_ID, blockId, fieldKey })) {
+    excludeDataTableField(blockId, fieldKey)
+  }
+}
+
+function closeAdditionalFieldDialog(): void {
+  dataTableCustomFieldTargetBlockId.value = null
+  closeAdditionalFieldCreateDialog()
+}
+
+function submitAdditionalFieldDialog(): void {
+  const blockId = dataTableCustomFieldTargetBlockId.value
+  const fieldKey = additionalFieldCreateDraft.value.fieldKey
+  const result = submitAdditionalFieldCreate()
+  if (result) return
+  dataTableCustomFieldTargetBlockId.value = null
+  if (blockId) includeDataTableField(blockId, fieldKey)
+}
 
 const canMutateSelectedInstance = computed(() =>
   Boolean(selectedCardKeys.value[0] && selectedCardKeys.value[0] !== BLUEPRINT_CARD_ID),
@@ -1232,6 +1415,78 @@ function createDictionaryReferenceScope(dictionary: Readonly<Record<string, stri
   }
 }
 
+function createBlockReferenceCompletionContext(
+  cardId: string,
+  blockId: string,
+  fieldKey: string,
+): ReferenceCompletionContext | null {
+  const document = cardDoc.value
+  if (!document) return null
+  const block = findCdeBlock(document, blockId)
+  const faceKey = resolveBlockFaceKey(blockId)
+  if (!block || !faceKey) return null
+
+  const instance = cardId === BLUEPRINT_CARD_ID
+    ? null
+    : document.instances?.find(candidate => candidate.id === cardId) ?? null
+  if (cardId !== BLUEPRINT_CARD_ID && !instance) return null
+  const currentCard = instance ?? document
+  const currentBlockRecord = {
+    ...block,
+    ...(instance?.data[block.id] ?? {}),
+  } as Record<string, unknown>
+  const ancestorScopes: ReferenceCompletionScope[] = []
+  let currentBlockId = block.id
+  let depth = 1
+  while (true) {
+    const parent = parentLookup.value.get(currentBlockId)
+    if (!parent || parent.type === 'card-face') break
+    const ancestorRecord = {
+      ...parent,
+      ...(instance?.data[parent.id] ?? {}),
+    } as Record<string, unknown>
+    ancestorScopes.push(createReferenceScope(
+      depth === 1
+        ? t('propertyEditor.references.parent')
+        : t('propertyEditor.references.ancestor', { depth }),
+      ancestorRecord,
+    ))
+    currentBlockId = parent.id
+    depth += 1
+  }
+
+  return {
+    currentBlock: createReferenceScope(t('propertyEditor.references.self'), currentBlockRecord),
+    currentCard: createReferenceScope(
+      instance
+        ? t('propertyEditor.references.currentCard')
+        : t('propertyEditor.references.currentCardBlueprint'),
+      currentCard as unknown as Record<string, unknown>,
+    ),
+    currentFace: createReferenceScope(
+      t('propertyEditor.references.currentFace'),
+      document.faces[faceKey] as unknown as Record<string, unknown>,
+    ),
+    oppositeFace: createReferenceScope(
+      t('propertyEditor.references.oppositeFace'),
+      document.faces[faceKey === 'front' ? 'back' : 'front'] as unknown as Record<string, unknown>,
+    ),
+    document: createReferenceScope(
+      t('propertyEditor.references.document'),
+      document as unknown as Record<string, unknown>,
+    ),
+    project: projectStore.resolvedProject.value
+      ? createProjectReferenceScope(projectStore.resolvedProject.value)
+      : undefined,
+    dictionary: projectStore.resolvedDictionary.value
+      ? createDictionaryReferenceScope(projectStore.resolvedDictionary.value)
+      : undefined,
+    allowedScopes: getCardFieldDefinition(currentBlockRecord, fieldKey)?.bindingScopes,
+    getAncestor: ancestorDepth => ancestorScopes[ancestorDepth - 1],
+    targetKind: getCardFieldValueKind(currentBlockRecord, fieldKey),
+  }
+}
+
 function resolveSidebarEdgeInset(visibleWidth: number): string {
   const progress = Math.min(1, Math.max(0, visibleWidth) / SIDE_PANEL_MIN_WIDTH)
   return `${Math.round(SIDE_PANEL_EDGE_INSET * progress * 100) / 100}px`
@@ -1373,63 +1628,116 @@ function createFontCompletionProvider(): PropertyCompletionProvider {
   }
 }
 
+function enrichPropertyFieldDefinition(
+  definition: CdePropertyFieldDefinition,
+  fieldKey: string,
+  record: Readonly<Record<string, unknown>>,
+  context: ReferenceCompletionContext | null | undefined,
+): PropertyEditorFieldDefinition {
+  const bindingProvider = context && definition.acceptsBinding !== false && definition.fieldType !== 'object'
+    ? createReferenceCompletionProvider(context)
+    : undefined
+  const filePathProvider = definition.fieldType === 'filePath'
+    ? createFilePathCompletionProvider({
+        listDirectory: async (relativeDirectory) => {
+          const directoryPath = relativeDirectory
+            ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
+            : props.resourceRootPath
+          if (!directoryPath) return []
+          return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
+        },
+        getRootEntries: () => [],
+        extensions: definition.extensionsFilter,
+        isAvailable: () => Boolean(props.resourceRootPath),
+      })
+    : undefined
+  const fontProvider = fieldKey === 'fontFamily' ? createFontCompletionProvider() : undefined
+  const provider = bindingProvider || filePathProvider || fontProvider
+    ? chainPropertyCompletionProviders([bindingProvider, filePathProvider, fontProvider])
+    : undefined
+  const fontOptions = definition.fieldType === 'string' && definition.richText
+    ? richTextFontOptions.value
+    : undefined
+  const richTextBaseStyle = definition.fieldType === 'string' && definition.richText
+    ? {
+        ...(typeof record.fontSize === 'string' && record.fontSize
+          ? { fontSize: record.fontSize }
+          : {}),
+        ...(typeof record.fontFamily === 'string' && record.fontFamily
+          ? { fontFamily: toCssFontFamily(record.fontFamily) }
+          : {}),
+      }
+    : undefined
+  if (!provider && !fontOptions && !richTextBaseStyle) return definition
+  return {
+    ...definition,
+    ...(fontOptions ? { fontOptions } : {}),
+    ...(richTextBaseStyle ? { richTextBaseStyle } : {}),
+    ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
+    ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
+    ...(provider ? { completion: { ...definition.completion, provider } } : {}),
+  } as PropertyEditorFieldDefinition
+}
+
+const dataTableCellDefinitionCache = new Map<string, PropertyEditorFieldDefinition>()
+let dataTableCellDefinitionCacheContext: readonly unknown[] = []
+
+function syncDataTableCellDefinitionCache(): void {
+  const context = [
+    cardDoc.value,
+    documentRevision.value,
+    props.resourceRootPath,
+    locale.value,
+    projectStore.projectProfile.value,
+    projectStore.resolvedProject.value,
+    projectStore.resolvedDictionary.value,
+  ] as const
+  if (context.some((value, index) => value !== dataTableCellDefinitionCacheContext[index])) {
+    dataTableCellDefinitionCache.clear()
+    dataTableCellDefinitionCacheContext = context
+  }
+}
+
+function getDataTableCellDefinition(
+  blockId: string,
+  field: { key: string; definition: CdePropertyFieldDefinition },
+  cell: { cardId: string; identity: string },
+): PropertyEditorFieldDefinition {
+  syncDataTableCellDefinitionCache()
+  const cached = dataTableCellDefinitionCache.get(cell.identity)
+  if (cached) return cached
+  const document = cardDoc.value
+  const block = document ? findCdeBlock(document, blockId) : null
+  if (!document || !block) return field.definition
+  const instance = cell.cardId === BLUEPRINT_CARD_ID
+    ? null
+    : document.instances?.find(candidate => candidate.id === cell.cardId) ?? null
+  const record = {
+    ...block,
+    ...(instance?.data[block.id] ?? {}),
+  } as Record<string, unknown>
+  const definition = enrichPropertyFieldDefinition(
+    field.definition,
+    field.key,
+    record,
+    createBlockReferenceCompletionContext(cell.cardId, block.id, field.key),
+  )
+  dataTableCellDefinitionCache.set(cell.identity, definition)
+  return definition
+}
+
 const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
   rawPropertyInputs.value.map((input) => ({
     ...input,
-    fields: Object.fromEntries(Object.entries(input.fields).map(([fieldKey, definition]) => {
-      const context = referenceCompletionContexts.value[input.key]?.[fieldKey]
-      const bindingProvider = context && definition.acceptsBinding !== false && definition.fieldType !== 'object'
-        ? createReferenceCompletionProvider(context)
-        : undefined
-      const filePathProvider = definition.fieldType === 'filePath'
-        ? createFilePathCompletionProvider({
-            listDirectory: async (relativeDirectory) => {
-              const directoryPath = relativeDirectory
-                ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
-                : props.resourceRootPath
-              if (!directoryPath) return []
-              return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
-            },
-            getRootEntries: () => [],
-            extensions: definition.extensionsFilter,
-            isAvailable: () => Boolean(props.resourceRootPath),
-          })
-        : undefined
-      const fontProvider = fieldKey === 'fontFamily'
-        ? createFontCompletionProvider()
-        : undefined
-      const hasProvider = Boolean(bindingProvider || filePathProvider || fontProvider)
-      const provider = hasProvider
-        ? chainPropertyCompletionProviders([bindingProvider, filePathProvider, fontProvider])
-        : undefined
-      const fontOptions = definition.fieldType === 'string' && definition.richText
-        ? richTextFontOptions.value
-        : undefined
-      const richTextBaseStyle = definition.fieldType === 'string' && definition.richText
-        ? {
-            ...(typeof input.record.fontSize === 'string' && input.record.fontSize
-              ? { fontSize: input.record.fontSize }
-              : {}),
-            ...(typeof input.record.fontFamily === 'string' && input.record.fontFamily
-              ? { fontFamily: toCssFontFamily(input.record.fontFamily) }
-              : {}),
-          }
-        : undefined
-      if (!provider && !fontOptions && !richTextBaseStyle) return [fieldKey, definition]
-      return [fieldKey, {
-        ...definition,
-        ...(fontOptions ? { fontOptions } : {}),
-        ...(richTextBaseStyle ? { richTextBaseStyle } : {}),
-        ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
-        ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
-        ...(provider ? {
-          completion: {
-            ...definition.completion,
-            provider,
-          },
-        } : {}),
-      }]
-    })),
+    fields: Object.fromEntries(Object.entries(input.fields).map(([fieldKey, definition]) => [
+      fieldKey,
+      enrichPropertyFieldDefinition(
+        definition,
+        fieldKey,
+        input.record,
+        referenceCompletionContexts.value[input.key]?.[fieldKey],
+      ),
+    ])),
   })),
 )
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
@@ -2265,6 +2573,25 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
   if (target.faceKey) {
     activeFaceKey.value = target.faceKey
   }
+
+  if (workspaceMode.value === 'data-table' && target.owner === 'block') {
+    if (!target.blockId) return 'not-found'
+    includeDataTableField(target.blockId, target.fieldKey)
+    commitViewState()
+    await nextTick()
+    await nextTick()
+    if (!cardDataTableRef.value) return 'not-found'
+    return await cardDataTableRef.value.revealCell(
+      cardKey,
+      target.blockId,
+      target.fieldKey,
+      target.characterOffset,
+    )
+      ? 'success'
+      : 'not-found'
+  }
+
+  workspaceMode.value = 'design'
   if (target.owner === 'block' || target.owner === 'location') {
     forceStructureTreeReveal.value = true
     selectedBlockKeys.value = target.blockId ? [target.blockId] : []
@@ -2311,6 +2638,8 @@ watch(
 watch(
   () => props.cardDesignerView,
   (view) => {
+    workspaceMode.value = view?.mode ?? 'design'
+    dataTableFields.value = normalizeDataTableFields(view?.dataTableFields)
     const nextFace = view?.activeFace ?? 'front'
     if (activeFaceKey.value !== nextFace) {
       activeFaceKey.value = nextFace
@@ -2489,6 +2818,20 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   z-index: 0;
+}
+
+.card-design-editor__mode-switch {
+  position: absolute;
+  top: var(--oc-space-2);
+  left: 50%;
+  z-index: 10;
+  padding: 3px;
+  border: 1px solid var(--oc-border-muted);
+  border-radius: var(--oc-radius-md);
+  background: var(--oc-bg-glass);
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+  box-shadow: var(--oc-shadow-md);
+  transform: translateX(-50%);
 }
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-base {

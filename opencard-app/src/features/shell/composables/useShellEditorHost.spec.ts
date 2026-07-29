@@ -178,7 +178,13 @@ describe('useShellEditorHost', () => {
       leftTopHeight: 240,
       rightTopHeight: null,
     }
-    const view = { activeFace: 'back' as const, clipToFace: true, selectedInstanceId: 'instance-1' }
+    const view = {
+      mode: 'design' as const,
+      dataTableFields: {},
+      activeFace: 'back' as const,
+      clipToFace: true,
+      selectedInstanceId: 'instance-1',
+    }
 
     host.handleCardDesignerLayout(layout)
     host.handleCardDesignerView(view)

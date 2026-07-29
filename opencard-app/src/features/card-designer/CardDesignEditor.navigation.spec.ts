@@ -5,12 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createCardFace,
   createFlowContainerBlock,
+  createImageBlock,
   createSimpleContainerBlock,
   createTextBlock,
   type CardDocument,
 } from '../../entities/card/model'
 import enUS from '../../locales/en-US'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
+import OcOptionGroup from '../../components/standard/OcOptionGroup.vue'
+import { fileSystemService } from '../workspace/services/fileSystemService'
 import CardDesignEditor from './CardDesignEditor.vue'
 
 class ResizeObserverMock {
@@ -158,6 +161,119 @@ describe('CardDesignEditor issue navigation', () => {
     expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
   })
 
+  it('keeps data-table mode and reveals a block field Cell', async () => {
+    const revealCell = vi.fn().mockResolvedValue(true)
+    const CardDataTableStub = defineComponent({
+      name: 'CardDataTable',
+      setup(_, { expose }) {
+        expose({ revealCell })
+        return () => h('div', { class: 'card-data-table-stub' })
+      },
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: {},
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardDataTable: CardDataTableStub,
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const result = await (wrapper.vm as unknown as {
+      navigate: (value: SessionNavigationToken) => Promise<string>
+    }).navigate({
+      protocol: 'card-designer',
+      version: 2,
+      target: {
+        kind: 'property',
+        instanceId: 'instance-1',
+        faceKey: 'front',
+        blockId: 'text-1',
+        owner: 'block',
+        fieldKey: 'content',
+        characterOffset: 2,
+      },
+    })
+
+    expect(result).toBe('success')
+    expect(revealCell).toHaveBeenCalledWith('instance-1', 'text-1', 'content', 2)
+    expect(wrapper.find('.card-data-table-stub').exists()).toBe(true)
+    const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(viewUpdates[viewUpdates.length - 1]?.[0]).toMatchObject({
+      mode: 'data-table',
+      selectedInstanceId: 'instance-1',
+    })
+  })
+
+  it('returns from data-table mode to PropertyEditor for a non-block issue', async () => {
+    const revealField = vi.fn().mockResolvedValue(true)
+    const PropertyEditorStub = defineComponent({
+      name: 'PropertyEditor',
+      setup(_, { expose }) {
+        expose({ revealField })
+        return () => h('div', { class: 'property-editor-stub' })
+      },
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: {},
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          PropertyEditor: PropertyEditorStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const result = await (wrapper.vm as unknown as {
+      navigate: (value: SessionNavigationToken) => Promise<string>
+    }).navigate({
+      protocol: 'card-designer',
+      version: 2,
+      target: {
+        kind: 'property',
+        instanceId: null,
+        faceKey: null,
+        owner: 'document',
+        fieldKey: 'version',
+      },
+    })
+
+    expect(result).toBe('success')
+    expect(revealField).toHaveBeenCalledWith('document-1', 'version', undefined)
+    expect(wrapper.find('.property-editor-stub').exists()).toBe(true)
+    const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(viewUpdates[viewUpdates.length - 1]?.[0]).toMatchObject({ mode: 'design' })
+  })
+
   it('projects relative file, blueprint, and instance information for the viewport', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const CardViewportStub = defineComponent({
@@ -201,6 +317,8 @@ describe('CardDesignEditor issue navigation', () => {
 
     await wrapper.setProps({
       cardDesignerView: {
+        mode: 'design',
+        dataTableFields: {},
         activeFace: 'front',
         clipToFace: false,
         selectedInstanceId: 'instance-1',
@@ -241,6 +359,8 @@ describe('CardDesignEditor issue navigation', () => {
         fileName: 'UNTITLED.opencard',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerView: {
+          mode: 'design',
+          dataTableFields: {},
           activeFace: 'back',
           clipToFace: false,
           selectedInstanceId: null,
@@ -283,6 +403,8 @@ describe('CardDesignEditor issue navigation', () => {
 
     const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
     expect(viewUpdates[viewUpdates.length - 1]?.[0]).toEqual({
+      mode: 'design',
+      dataTableFields: {},
       activeFace: 'front',
       clipToFace: true,
       selectedInstanceId: null,
@@ -836,5 +958,217 @@ describe('CardDesignEditor issue navigation', () => {
     await flushSidebarSnap()
     expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('420px')
     expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('420px')
+  })
+
+  it('switches between design and data-table modes through session view state', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: {},
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: { plugins: [i18n] },
+    })
+    await nextTick()
+
+    const table = wrapper.findComponent({ name: 'CardDataTable' })
+    expect(table.exists()).toBe(true)
+    expect((table.props('faceGroups') as Array<{ blocks: unknown[] }>)[0]?.blocks).toEqual([])
+    expect(wrapper.find('.card-design-editor__face-tools').exists()).toBe(false)
+
+    table.vm.$emit('add-block', 'text-1')
+    await nextTick()
+    table.vm.$emit('include-field', 'text-1', 'content')
+    await nextTick()
+    const configuredGroups = table.props('faceGroups') as Array<{
+      blocks: Array<{ key: string; fields: Array<{ key: string }> }>
+    }>
+    expect(configuredGroups[0]?.blocks).toEqual([
+      expect.objectContaining({ key: 'text-1', fields: [expect.objectContaining({ key: 'content' })] }),
+    ])
+    const configuredViewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(configuredViewUpdates[configuredViewUpdates.length - 1]?.[0]).toMatchObject({
+      mode: 'data-table',
+      dataTableFields: { 'text-1': ['content'] },
+    })
+
+    wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'design')
+    await nextTick()
+    const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(viewUpdates[viewUpdates.length - 1]?.[0]).toMatchObject({ mode: 'design' })
+    expect(wrapper.findComponent({ name: 'CardDataTable' }).exists()).toBe(false)
+  })
+
+  it('creates a custom field for the explicit table Block and includes it in the session view', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: { 'text-1': [] },
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: { plugins: [i18n] },
+    })
+    await nextTick()
+
+    wrapper.getComponent({ name: 'CardDataTable' }).vm.$emit('create-field', 'text-1')
+    await nextTick()
+    const dialog = wrapper.getComponent({ name: 'AdditionalFieldCreateDialog' })
+    expect(dialog.props('open')).toBe(true)
+    dialog.vm.$emit('update-field-key', 'score')
+    dialog.vm.$emit('update-field-type', 'number')
+    dialog.vm.$emit('update-title', 'Score')
+    await nextTick()
+    dialog.vm.$emit('submit')
+    await nextTick()
+
+    const contentUpdates = wrapper.emitted('update:modelValue') ?? []
+    const updatedDocument = JSON.parse(String(contentUpdates[contentUpdates.length - 1]?.[0])) as CardDocument
+    const textBlock = (updatedDocument.faces.front.children[0]!.block as ReturnType<typeof createSimpleContainerBlock>)
+      .children[0]!.block
+    expect(textBlock.additionalFieldDefinition?.score).toMatchObject({ fieldType: 'number', title: 'Score' })
+
+    const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    expect(viewUpdates[viewUpdates.length - 1]?.[0]).toMatchObject({
+      dataTableFields: { 'text-1': ['score'] },
+    })
+    expect(dialog.props('open')).toBe(false)
+  })
+
+  it('builds binding completion from each data-table column card', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: { 'text-1': ['content'] },
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: { plugins: [i18n] },
+    })
+    await nextTick()
+
+    const table = wrapper.findComponent({ name: 'CardDataTable' })
+    const faceGroups = table.props('faceGroups') as Array<{
+      blocks: Array<{
+        key: string
+        fields: Array<{
+          key: string
+          definition: Record<string, unknown>
+          cells: Array<{ cardId: string; identity: string }>
+        }>
+      }>
+    }>
+    const content = faceGroups[0]?.blocks.find(block => block.key === 'text-1')
+      ?.fields.find(field => field.key === 'content')
+    expect(content).toBeDefined()
+    const getDefinition = table.props('getCellDefinition') as (
+      blockId: string,
+      field: typeof content,
+      cell: NonNullable<typeof content>['cells'][number],
+    ) => { completion?: { provider?: (request: { value: string; cursor: number }) => unknown } }
+    const completionItems = async (cellIndex: number) => {
+      const definition = getDefinition('text-1', content, content!.cells[cellIndex]!)
+      const result = await Promise.resolve(definition.completion?.provider?.({ value: '{{card:}}', cursor: 7 })) as {
+        items?: Array<{ insertText: string }>
+      } | null
+      return result?.items?.map(item => item.insertText) ?? []
+    }
+
+    expect(await completionItems(0)).toContain('card:version')
+    expect(await completionItems(1)).not.toContain('card:version')
+    expect(await completionItems(1)).toContain('card:name')
+  })
+
+  it('provides file and font completion to data-table Cells', async () => {
+    const document = createDocument()
+    document.faces.front.children.push({
+      block: createImageBlock({ id: 'image-1', name: 'Portrait', image: '' }),
+      location: { id: 'location-image', type: 'simple-container-location', anchor: 'lt' },
+    })
+    const readDirectoryEntries = vi.spyOn(fileSystemService, 'readDirectoryEntries').mockResolvedValue([{
+      name: 'portrait.png',
+      isDirectory: false,
+      isFile: true,
+      isSymlink: false,
+    }])
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/card.opencard',
+        resourceRootPath: 'D:/Project',
+        modelValue: JSON.stringify(document),
+        cardDesignerView: {
+          mode: 'data-table',
+          dataTableFields: {
+            'text-1': ['content', 'fontFamily'],
+            'image-1': ['image'],
+          },
+          activeFace: 'front',
+          clipToFace: false,
+          selectedInstanceId: null,
+        },
+      },
+      global: { plugins: [i18n] },
+    })
+    await nextTick()
+
+    const table = wrapper.findComponent({ name: 'CardDataTable' })
+    const faceGroups = table.props('faceGroups') as Array<{
+      blocks: Array<{
+        key: string
+        fields: Array<{
+          key: string
+          cells: Array<{ cardId: string; identity: string }>
+        }>
+      }>
+    }>
+    const getDefinition = table.props('getCellDefinition') as (
+      blockId: string,
+      field: { key: string; cells: Array<{ cardId: string; identity: string }> },
+      cell: { cardId: string; identity: string },
+    ) => {
+      completion?: { provider?: (request: { value: string; cursor: number }) => unknown }
+      fontOptions?: Array<{ value: string }>
+    }
+    const textBlock = faceGroups[0]!.blocks.find(block => block.key === 'text-1')!
+    const fontField = textBlock.fields.find(field => field.key === 'fontFamily')!
+    const fontDefinition = getDefinition('text-1', fontField, fontField.cells[0]!)
+    const fontResult = await Promise.resolve(fontDefinition.completion?.provider?.({ value: 'Arial', cursor: 5 })) as {
+      items?: Array<{ value?: string }>
+    } | null
+    const contentField = textBlock.fields.find(field => field.key === 'content')!
+    const contentDefinition = getDefinition('text-1', contentField, contentField.cells[0]!)
+
+    const imageBlock = faceGroups[0]!.blocks.find(block => block.key === 'image-1')!
+    const imageField = imageBlock.fields.find(field => field.key === 'image')!
+    const imageDefinition = getDefinition('image-1', imageField, imageField.cells[0]!)
+    const imageResult = await Promise.resolve(imageDefinition.completion?.provider?.({ value: '', cursor: 0 })) as {
+      items?: Array<{ value?: string }>
+    } | null
+
+    expect(fontResult?.items?.map(item => item.value)).toContain('Arial')
+    expect(contentDefinition.fontOptions?.map(item => item.value)).toContain('Arial')
+    expect(imageResult?.items?.map(item => item.value)).toContain('portrait.png')
+    expect(readDirectoryEntries).toHaveBeenCalledWith('D:/Project', 1, '')
+    readDirectoryEntries.mockRestore()
   })
 })

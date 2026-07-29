@@ -185,6 +185,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     instanceTreeData,
     handleInstanceTreeIntent,
     createInstance,
+    renameInstance,
     duplicateInstance,
     deleteInstance,
   }

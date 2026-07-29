@@ -68,6 +68,8 @@ describe('useShellExport queue', () => {
 
   it('uses the current instance and face for a single export', () => {
     const target = resolveActiveCardExportTarget(createDocument(), {
+      mode: 'design',
+      dataTableFields: {},
       activeFace: 'back',
       clipToFace: false,
       selectedInstanceId: 'knight',
@@ -87,6 +89,8 @@ describe('useShellExport queue', () => {
       projectionSuffix: 'blueprint',
     })
     expect(resolveActiveCardExportTarget(createDocument(), {
+      mode: 'design',
+      dataTableFields: {},
       activeFace: 'back',
       clipToFace: true,
       selectedInstanceId: 'missing',
