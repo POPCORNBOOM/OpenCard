@@ -97,8 +97,8 @@
             :options="field.options"
             @update:model-value="emitSettingChange(field.key, $event)"
           />
-          <OcCheckbox
-            v-else-if="field.type === 'checkbox'"
+          <OcSwitch
+            v-else-if="field.type === 'switch'"
             class="settings-workspace__control"
             :checked="field.checked"
             :aria-label="field.label"
@@ -140,8 +140,8 @@
 
 <script setup lang="ts">
 import OcButton from '../../../components/base/OcButton.vue'
-import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'

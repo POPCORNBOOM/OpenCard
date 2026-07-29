@@ -6,7 +6,10 @@ import { join, relative, sep } from 'node:path'
 
 const projectRoot = process.cwd()
 const srcRoot = join(projectRoot, 'src')
-const nativeInputAllowlist = new Set(['src/components/base/OcCheckbox.vue'])
+const nativeInputAllowlist = new Set([
+  'src/components/base/OcCheckbox.vue',
+  'src/components/base/OcSwitch.vue',
+])
 const visibleTitleComponents = new Set([
   'AdditionalFieldCreateDialog',
   'OcBar',

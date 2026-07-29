@@ -139,17 +139,17 @@ defineExpose({
 }
 
 .oc-field-input--filled {
-  background: var(--oc-bg-input);
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-sm);
-  padding: var(--oc-space-1) var(--oc-space-2);
+  background: var(--oc-field-surface-background, var(--oc-bg-input));
+  border: 1px solid var(--oc-field-surface-border-color, var(--oc-border-default));
+  border-radius: var(--oc-field-surface-border-radius, var(--oc-radius-sm));
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   color: var(--oc-fg-default);
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
 .oc-field-input--filled:focus:not(:disabled):not(:read-only),
 .oc-field-input--filled:focus-visible:not(:disabled):not(:read-only) {
-  border-color: var(--oc-border-accent);
+  border-color: var(--oc-field-surface-focus-border-color, var(--oc-border-accent));
   outline: none;
 }
 
@@ -162,7 +162,7 @@ defineExpose({
 
 .oc-field-input--plain:focus:not(:disabled):not(:read-only),
 .oc-field-input--plain:focus-visible:not(:disabled):not(:read-only) {
-  border-color: var(--oc-border-accent);
+  border-color: var(--oc-field-surface-focus-border-color, var(--oc-border-accent));
   outline: none;
 }
 
@@ -200,12 +200,12 @@ defineExpose({
 }
 
 .oc-field-input--filled:read-only {
-  background: var(--oc-bg-raised);
+  background: var(--oc-field-readonly-background, var(--oc-bg-raised));
   color: var(--oc-fg-muted);
 }
 
 .oc-field-input[aria-invalid="true"] {
-  border-color: var(--oc-danger);
+  border-color: var(--oc-field-invalid-border-color, var(--oc-danger));
 }
 
 .oc-field-input[aria-busy="true"] {

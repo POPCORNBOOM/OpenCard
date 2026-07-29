@@ -1,6 +1,6 @@
 <!-- 通用单字段控件：分派字段编辑器并维护当前 Cell 的源码编辑状态。 -->
 <template>
-  <div class="property-field-control">
+  <div class="property-field-control" :class="`property-field-control--${appearance}`">
     <ReferenceStringPropertyField
       v-if="usesRawStringEditor"
       :definition="rawStringDefinition"
@@ -61,7 +61,10 @@ const props = defineProps<{
   definition: PropertyEditorFieldDefinition
   value: unknown
   bindingInterpreter?: PropertyEditorBindingInterpreter
+  appearance?: 'default' | 'embedded'
 }>()
+
+const appearance = computed(() => props.appearance ?? 'default')
 
 const emit = defineEmits<{
   'update:value': [value: unknown]
@@ -118,5 +121,25 @@ watch(() => props.identity, () => {
 .property-field-control > .raw-string-toggle {
   flex: 0 0 auto;
   width: var(--oc-size-sm);
+}
+
+.property-field-control--embedded {
+  --oc-field-surface-background: transparent;
+  --oc-field-surface-border-color: transparent;
+  --oc-field-surface-border-radius: 0;
+  --oc-field-surface-hover-border-color: transparent;
+  --oc-field-surface-focus-border-color: transparent;
+  --oc-field-surface-focus-shadow: none;
+  --oc-field-invalid-border-color: transparent;
+  --oc-field-readonly-background: transparent;
+  --oc-field-content-padding: 0;
+  --oc-field-control-gap: 0;
+  --oc-control-border-radius: 0;
+  --oc-control-icon-border-radius: 0;
+  --oc-control-focus-shadow: none;
+
+  height: 100%;
+  align-items: stretch;
+  gap: 0;
 }
 </style>

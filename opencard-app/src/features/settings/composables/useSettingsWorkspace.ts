@@ -18,7 +18,7 @@ export type SettingsFieldViewModel =
       options: readonly OcOption[]
     }
   | {
-      type: 'checkbox'
+      type: 'switch'
       key: AppSettingKey
       label: string
       checked: boolean
@@ -104,7 +104,7 @@ export function useSettingsWorkspace(
             ],
           },
           {
-            type: 'checkbox',
+            type: 'switch',
             key: 'updates.suppressReleaseNotesAfterUpdate',
             label: options.translate(
               'settings.fields.suppressReleaseNotesAfterUpdate',
@@ -172,13 +172,13 @@ export function useSettingsWorkspace(
           ],
         },
         {
-          type: 'checkbox',
+          type: 'switch',
           key: 'workspace.structureTreeScrollToSelection',
           label: options.translate('settings.fields.structureTreeScrollToSelection', 'Scroll to selected block'),
           checked: settings.workspace.structureTreeScrollToSelection,
         },
         {
-          type: 'checkbox',
+          type: 'switch',
           key: 'workspace.showSelectionPositionOnMove',
           label: options.translate(
             'settings.fields.showSelectionPositionOnMove',
@@ -187,7 +187,7 @@ export function useSettingsWorkspace(
           checked: settings.workspace.showSelectionPositionOnMove,
         },
         {
-          type: 'checkbox',
+          type: 'switch',
           key: 'workspace.showSelectionSizeOnResize',
           label: options.translate(
             'settings.fields.showSelectionSizeOnResize',

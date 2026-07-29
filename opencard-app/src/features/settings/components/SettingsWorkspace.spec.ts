@@ -1,9 +1,37 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'
 import SettingsWorkspace from './SettingsWorkspace.vue'
 
 describe('SettingsWorkspace', () => {
+  it('emits a setting change from a Switch field', async () => {
+    const wrapper = mount(SettingsWorkspace, {
+      props: {
+        viewModel: {
+          key: 'general',
+          title: 'General',
+          fields: [{
+            type: 'switch',
+            key: 'updates.suppressReleaseNotesAfterUpdate',
+            label: 'Do not show release notes after an update',
+            checked: false,
+          }],
+        },
+      },
+    })
+
+    await wrapper.getComponent(OcSwitch).get('input').setValue(true)
+
+    expect(wrapper.emitted('intent')).toEqual([[
+      {
+        type: 'setting.change',
+        key: 'updates.suppressReleaseNotesAfterUpdate',
+        value: true,
+      },
+    ]])
+  })
+
   it('returns semantic setting intent without mutating its view model', async () => {
     const viewModel = {
       key: 'appearance' as const,

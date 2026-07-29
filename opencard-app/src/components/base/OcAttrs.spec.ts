@@ -6,6 +6,7 @@ import OcCheckbox from './OcCheckbox.vue'
 import OcFieldInput from './OcFieldInput.vue'
 import OcIcon from './OcIcon.vue'
 import OcPanel from './OcPanel.vue'
+import OcSwitch from './OcSwitch.vue'
 import OcActionButton from '../standard/OcActionButton.vue'
 import OcBar from '../standard/OcBar.vue'
 import OcCard from '../standard/OcCard.vue'
@@ -49,6 +50,24 @@ describe('OC attribute forwarding', () => {
 
     expect((input.element as HTMLInputElement).indeterminate).toBe(true)
     expect(input.attributes('aria-checked')).toBe('mixed')
+  })
+
+  it('forwards Switch layout attrs and emits its checked state', async () => {
+    const wrapper = mount(OcSwitch, {
+      attrs: { class: 'consumer-class', style: 'width: 40px', name: 'enabled', 'aria-label': 'Enabled' },
+    })
+
+    expect(wrapper.classes()).toContain('consumer-class')
+    expect(wrapper.attributes('style')).toContain('width: 40px')
+    expect(wrapper.get('input').attributes()).toMatchObject({
+      name: 'enabled',
+      'aria-label': 'Enabled',
+      role: 'switch',
+    })
+
+    await wrapper.get('input').setValue(true)
+    expect(wrapper.emitted('update:checked')).toEqual([[true]])
+    expect(wrapper.emitted('change')?.[0]?.[0]).toBe(true)
   })
 
   it.each([

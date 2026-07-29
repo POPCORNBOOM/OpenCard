@@ -172,7 +172,7 @@ const stateClasses = computed(() => ({
 }
 
 .oc-button:focus-visible {
-  box-shadow: var(--oc-focus-ring);
+  box-shadow: var(--oc-control-focus-shadow, var(--oc-focus-ring));
 }
 
 .oc-button:disabled {
@@ -208,15 +208,15 @@ const stateClasses = computed(() => ({
 
 /* Radius variants */
 .oc-button--radius-sm {
-  border-radius: var(--oc-radius-sm);
+  border-radius: var(--oc-control-border-radius, var(--oc-radius-sm));
 }
 
 .oc-button--radius-md {
-  border-radius: var(--oc-radius-md);
+  border-radius: var(--oc-control-border-radius, var(--oc-radius-md));
 }
 
 .oc-button--radius-full {
-  border-radius: 50%;
+  border-radius: var(--oc-control-icon-border-radius, 50%);
 }
 
 /* Variant: solid */

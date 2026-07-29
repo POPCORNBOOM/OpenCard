@@ -53,16 +53,16 @@ defineOptions({ name: 'OcFieldFrame' })
   min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-input);
+  border: 1px solid var(--oc-field-surface-border-color, var(--oc-border-default));
+  border-radius: var(--oc-field-surface-border-radius, var(--oc-radius-sm));
+  background: var(--oc-field-surface-background, var(--oc-bg-input));
   color: var(--oc-fg-default);
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
 .oc-field-frame:focus-within:not(.oc-field-frame--disabled):not(.oc-field-frame--readonly) {
-  border-color: var(--oc-border-accent);
-  box-shadow: var(--oc-focus-ring);
+  border-color: var(--oc-field-surface-focus-border-color, var(--oc-border-accent));
+  box-shadow: var(--oc-field-surface-focus-shadow, var(--oc-focus-ring));
 }
 
 .oc-field-frame--sm { height: var(--oc-size-sm); }
@@ -79,12 +79,12 @@ defineOptions({ name: 'OcFieldFrame' })
 }
 
 .oc-field-frame--readonly {
-  background: var(--oc-bg-raised);
+  background: var(--oc-field-readonly-background, var(--oc-bg-raised));
   color: var(--oc-fg-muted);
 }
 
 .oc-field-frame--invalid {
-  border-color: var(--oc-danger);
+  border-color: var(--oc-field-invalid-border-color, var(--oc-danger));
 }
 
 .oc-field-frame--busy {

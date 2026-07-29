@@ -160,7 +160,7 @@ onBeforeUnmount(stopStepHold)
 .number-field :deep(.number-field__input.oc-field-input) {
   height: 100%;
   min-height: 0;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
 }
 
 .number-field :deep(.number-field__input:focus),

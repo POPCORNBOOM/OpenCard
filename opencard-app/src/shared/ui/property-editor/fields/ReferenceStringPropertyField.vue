@@ -311,12 +311,12 @@ function handleKeydown(event: KeyboardEvent): void {
   width: 100%;
   height: 100%;
   border: 0;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   background: transparent;
 }
 
 .reference-string-field__multiline :deep(.reference-string-field__input) {
-  padding: var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-2));
   overflow-y: auto;
 }
 
@@ -325,7 +325,7 @@ function handleKeydown(event: KeyboardEvent): void {
   inset: 0;
   display: flex;
   align-items: center;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   color: var(--oc-fg-disabled);
   pointer-events: none;
   white-space: nowrap;

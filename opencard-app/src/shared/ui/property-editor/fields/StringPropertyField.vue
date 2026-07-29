@@ -108,7 +108,7 @@ function handleKeydown(event: KeyboardEvent) {
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-2));
   overflow-y: auto;
   border: 0;
   line-height: 1.45;
@@ -132,7 +132,7 @@ function handleKeydown(event: KeyboardEvent) {
   z-index: 1;
   background: transparent;
   border: 0;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   line-height: normal;
 }
 
@@ -141,7 +141,7 @@ function handleKeydown(event: KeyboardEvent) {
   inset: 0;
   display: flex;
   align-items: center;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   font-size: var(--oc-text-base);
   line-height: normal;
   color: var(--oc-fg-disabled);
@@ -157,7 +157,7 @@ function handleKeydown(event: KeyboardEvent) {
 .readonly-value {
   flex: 1;
   min-width: 0;
-  padding: var(--oc-space-1) var(--oc-space-2);
+  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   font-size: var(--oc-text-base);
   line-height: 1.4;
   color: var(--oc-fg-default);

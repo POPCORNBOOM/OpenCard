@@ -1,6 +1,6 @@
 <template>
   <div class="boolean-field">
-    <OcCheckbox
+    <OcSwitch
       :checked="value === 'true'"
       :disabled="definition.isReadonly"
       @update:checked="emit('update:value', String($event))"
@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import OcCheckbox from '../../../../components/base/OcCheckbox.vue'
+import OcSwitch from '../../../../components/base/OcSwitch.vue'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 defineProps<{

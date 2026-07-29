@@ -22,7 +22,7 @@ describe('useSettingsWorkspace', () => {
       value: 'system',
     })
     expect(activeCategory.value.fields[1]).toMatchObject({
-      type: 'checkbox',
+      type: 'switch',
       key: 'updates.suppressReleaseNotesAfterUpdate',
       checked: false,
     })
@@ -60,17 +60,17 @@ describe('useSettingsWorkspace', () => {
         value: 'expand-exclusive',
       }),
       expect.objectContaining({
-        type: 'checkbox',
+        type: 'switch',
         key: 'workspace.structureTreeScrollToSelection',
         checked: true,
       }),
       expect.objectContaining({
-        type: 'checkbox',
+        type: 'switch',
         key: 'workspace.showSelectionPositionOnMove',
         checked: true,
       }),
       expect.objectContaining({
-        type: 'checkbox',
+        type: 'switch',
         key: 'workspace.showSelectionSizeOnResize',
         checked: true,
       }),

@@ -54,13 +54,13 @@ const containerStyle = computed<CSSProperties>(() => {
       ...selectionStyle,
       display: 'grid',
       gridTemplateColumns: `repeat(${props.columns}, 1fr)`,
-      gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-space-1)'
+      gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-field-control-gap, var(--oc-space-1))'
     }
   }
   return {
     ...selectionStyle,
     display: 'flex',
-    gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-space-1)'
+    gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-field-control-gap, var(--oc-space-1))'
   }
 })
 

@@ -303,7 +303,7 @@ function handleDocumentPointerDown(event: PointerEvent): void {
   height: 100%;
   align-items: center;
   gap: var(--oc-space-2);
-  padding: 0 var(--oc-space-2);
+  padding: var(--oc-field-content-padding, 0 var(--oc-space-2));
   border: 0;
   outline: 0;
   background: transparent;
