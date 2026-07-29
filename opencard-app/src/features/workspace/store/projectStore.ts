@@ -28,7 +28,11 @@ import {
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
-import { clearProjectFonts, syncProjectFonts } from '../services/projectFontLoader'
+import {
+  clearProjectFonts,
+  syncProjectFonts,
+  type ProjectFontLoadError,
+} from '../services/projectFontLoader'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -67,6 +71,7 @@ const expandedDirectories = ref(new Set<string>())
 const projectProfile = ref<ProjectProfile | null>(null)
 const resolvedProject = ref<ProjectInformation | null>(null)
 const profileError = ref<string | null>(null)
+const projectFontLoadErrors = ref<readonly ProjectFontLoadError[]>([])
 const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
@@ -160,9 +165,15 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
 
 function clearProjectProfile() {
   clearProjectFonts()
+  projectFontLoadErrors.value = []
   projectProfile.value = null
   resolvedProject.value = null
   profileError.value = null
+}
+
+async function syncRegisteredProjectFonts(fonts: ProjectProfile['fonts']): Promise<void> {
+  const result = await syncProjectFonts(fonts, resolveAssetSrc)
+  if (result.current) projectFontLoadErrors.value = result.errors
 }
 
 function clearProjectDictionary() {
@@ -183,7 +194,7 @@ async function reloadProjectProfile(): Promise<boolean> {
     if (!profile) throw new Error('Invalid project profile')
     projectProfile.value = profile
     resolvedProject.value = toProjectInformation(profile)
-    await syncProjectFonts(profile.fonts, resolveAssetSrc)
+    await syncRegisteredProjectFonts(profile.fonts)
     profileError.value = null
     return true
   } catch (error) {
@@ -341,7 +352,7 @@ async function startWatching() {
       const fontSources = Object.values(projectProfile.value?.fonts ?? {})
         .flatMap(definition => definition.faces.map(face => resolveProjectPath(face.source)))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
-        void syncProjectFonts(projectProfile.value?.fonts, resolveAssetSrc)
+        void syncRegisteredProjectFonts(projectProfile.value?.fonts)
       }
       void refreshIndexedEntries()
     })
@@ -756,6 +767,7 @@ export function useProjectStore() {
     resolvedProject: readonly(resolvedProject),
     projectInformation: readonly(resolvedProject),
     profileError: readonly(profileError),
+    projectFontLoadErrors: readonly(projectFontLoadErrors),
     projectDictionary: readonly(projectDictionary),
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),

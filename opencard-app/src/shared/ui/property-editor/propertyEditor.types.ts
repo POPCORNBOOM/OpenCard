@@ -91,6 +91,10 @@ type PropertyEditorFieldBase = {
     value: string
     cssFamily?: string
   }[]
+  richTextBaseStyle?: {
+    fontFamily?: string
+    fontSize?: string
+  }
   binding?: {
     provider?: PropertyCompletionProvider
   }

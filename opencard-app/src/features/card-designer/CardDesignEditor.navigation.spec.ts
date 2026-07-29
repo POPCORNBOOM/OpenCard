@@ -397,25 +397,43 @@ describe('CardDesignEditor issue navigation', () => {
   it('maps canvas keyboard shortcuts to viewport selection commands', async () => {
     const nudgeSelection = vi.fn(() => true)
     const runSelectionQuickAction = vi.fn(() => true)
+    const stepLayer = vi.fn()
+    const focusLayerBlock = vi.fn()
+    const getFocusedLayerBlockId = vi.fn(() => 'container-1')
+    const cycleLayerByInitial = vi.fn(() => true)
     const CardViewportStub = defineComponent({
       name: 'CardViewport',
       props: {
         selectedBlockId: String,
         selectionActionLabels: Object,
+        layerViewActive: Boolean,
+        spaceModifierActive: Boolean,
+        layerViewShortcutLegendLabel: String,
+        layerViewShortcutHints: Array,
+        face: Object,
       },
-      emits: ['block-click'],
+      emits: ['block-click', 'blank-click', 'z-index-step'],
       setup(_, { expose }) {
-        expose({ nudgeSelection, runSelectionQuickAction })
+        expose({
+          nudgeSelection,
+          runSelectionQuickAction,
+          stepLayer,
+          focusLayerBlock,
+          getFocusedLayerBlockId,
+          cycleLayerByInitial,
+        })
         return {}
       },
       template: '<div class="card-viewport-stub"><input class="shortcut-input" /></div>',
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const source = createDocument()
+    source.faces.front.children[0]!.block.zIndex = '2'
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
         filePath: 'D:/Project/cards/hero.opencard',
         fileName: 'hero.opencard',
-        modelValue: JSON.stringify(createDocument()),
+        modelValue: JSON.stringify(source),
       },
       global: {
         plugins: [i18n],
@@ -440,8 +458,82 @@ describe('CardDesignEditor issue navigation', () => {
       inset: 'Inset 10 px (I)',
       outset: 'Outset 10 px (O)',
     })
+    expect(viewport.props('layerViewShortcutLegendLabel')).toBe('Layer view shortcuts')
+    expect(viewport.props('layerViewShortcutHints')).toEqual([
+      { keys: ['Wheel', '↑ / ↓'], label: 'Step through planes' },
+      { keys: ['Shift', 'Wheel', '↑ / ↓'], label: 'Jump between layers' },
+      { keys: ['A-Z'], label: 'Cycle by name initial' },
+      { keys: ['Shift', 'A-Z'], label: 'Cycle names in current layer' },
+      { keys: ['Space'], label: 'Select the focused plane' },
+      { keys: ['Space', 'Wheel', '↑ / ↓'], label: 'Adjust zIndex' },
+      {
+        keys: ['Shift', 'Space', 'Wheel', '↑ / ↓'],
+        label: 'Switch to an existing layer',
+      },
+    ])
 
     const root = wrapper.get('.card-design-editor')
+    await root.trigger('keydown', { key: 'Tab' })
+    expect(viewport.props('layerViewActive')).toBe(true)
+    expect(wrapper.get('.card-design-editor__stage').classes()).toContain('is-layer-view-active')
+    await root.trigger('keydown', { key: 'ArrowUp' })
+    await root.trigger('keydown', { key: 'ArrowDown' })
+    await root.trigger('keydown', { key: 'ArrowDown', shiftKey: true })
+    expect(stepLayer.mock.calls).toEqual([[-1, false], [1, false], [1, true]])
+    await root.trigger('keydown', { key: 'a' })
+    await root.trigger('keydown', { key: 'A', shiftKey: true })
+    await root.trigger('keydown', { key: 'f' })
+    expect(cycleLayerByInitial.mock.calls).toEqual([
+      ['a', false],
+      ['A', true],
+      ['f', false],
+    ])
+    expect(runSelectionQuickAction).not.toHaveBeenCalled()
+
+    await root.trigger('keydown', { key: ' ', code: 'Space' })
+    await nextTick()
+    expect(viewport.props('selectedBlockId')).toBe('container-1')
+    expect(focusLayerBlock).not.toHaveBeenCalled()
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
+    getFocusedLayerBlockId.mockReturnValue('text-1')
+    await nextTick()
+
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab' }))
+    await nextTick()
+    expect(viewport.props('layerViewActive')).toBe(false)
+    expect(wrapper.get('.card-design-editor__stage').classes()).not.toContain('is-layer-view-active')
+
+    await root.trigger('keydown', { key: ' ', code: 'Space' })
+    expect(viewport.props('spaceModifierActive')).toBe(true)
+    await root.trigger('keydown', { key: 'ArrowUp' })
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    await nextTick()
+    expect(viewport.props('spaceModifierActive')).toBe(false)
+    const projectedFace = viewport.props('face') as {
+      children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
+    }
+    expect(projectedFace.children[0]?.block.children[0]?.block.zIndex).toBe(1)
+    expect(focusLayerBlock).toHaveBeenCalledWith('text-1')
+
+    await root.trigger('keydown', { key: ' ', code: 'Space', shiftKey: true })
+    await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    await nextTick()
+    const shiftedFace = viewport.props('face') as {
+      children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
+    }
+    expect(shiftedFace.children[0]?.block.children[0]?.block.zIndex).toBe(2)
+
+    await root.trigger('keydown', { key: ' ', code: 'Space' })
+    viewport.vm.$emit('z-index-step', { delta: -1, existingLayersOnly: false })
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    await nextTick()
+    const wheelAdjustedFace = viewport.props('face') as {
+      children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
+    }
+    expect(wheelAdjustedFace.children[0]?.block.children[0]?.block.zIndex).toBe(1)
+
     await root.trigger('keydown', { key: 'ArrowRight' })
     await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
     await root.trigger('keydown', { key: 'f' })
@@ -460,6 +552,20 @@ describe('CardDesignEditor issue navigation', () => {
 
     await wrapper.get('.shortcut-input').trigger('keydown', { key: 'ArrowLeft' })
     expect(nudgeSelection).toHaveBeenCalledTimes(2)
+    await wrapper.get('.shortcut-input').trigger('keydown', { key: 'Tab' })
+    expect(viewport.props('layerViewActive')).toBe(false)
+
+    viewport.vm.$emit('blank-click', new MouseEvent('click'))
+    await nextTick()
+    expect(viewport.props('selectedBlockId')).toBeNull()
+    await root.trigger('keydown', { key: 'Tab' })
+    await root.trigger('keydown', { key: ' ', code: 'Space' })
+    await nextTick()
+    expect(viewport.props('selectedBlockId')).toBe('text-1')
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    window.dispatchEvent(new Event('blur'))
+    await nextTick()
+    expect(viewport.props('layerViewActive')).toBe(false)
   })
 
   it('fills and centers a flow child only on the cross axis', async () => {

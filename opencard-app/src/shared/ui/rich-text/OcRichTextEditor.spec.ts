@@ -67,8 +67,9 @@ describe('OcRichTextEditor', () => {
         fontOptions: [{
           label: 'Brand Sans',
           value: 'project:brand-sans',
-          cssFamily: '"project:brand-sans"',
+          cssFamily: '"OpenCardProjectFont-brand-sans"',
         }],
+        baseStyle: { fontSize: '32px' },
       },
     })
     await nextTick()
@@ -79,8 +80,16 @@ describe('OcRichTextEditor', () => {
     wrapper.getComponent(OcSelect).vm.$emit('update:modelValue', 'project:brand-sans')
     await nextTick()
 
-    expect(editor.getHTML()).toContain('font-family: &quot;project:brand-sans&quot;')
+    expect(editor.getHTML()).toContain('font-family: &quot;OpenCardProjectFont-brand-sans&quot;')
     expect(wrapper.getComponent(OcSelect).props('modelValue')).toBe('project:brand-sans')
+    expect(wrapper.findAllComponents(OcSelect)[1]?.props('modelValue')).toBe('32')
+    editor.chain().selectAll().setMark('textStyle', { fontSize: '37px' }).run()
+    await nextTick()
+    expect(wrapper.findAllComponents(OcSelect)[1]?.props('options'))
+      .toContainEqual({ label: '37 px', value: '37' })
+    await wrapper.get('button[data-tooltip="增大字号"]').trigger('click')
+    expect(editor.getHTML()).toContain('font-family: &quot;OpenCardProjectFont-brand-sans&quot;')
+    expect(editor.getHTML()).toContain('font-size: 40px')
     wrapper.unmount()
   })
 

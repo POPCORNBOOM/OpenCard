@@ -103,6 +103,7 @@ export function sanitizeRichTextHtml(source: string): string {
       property,
       (element as HTMLElement).style.getPropertyValue(property),
     ]))
+    styleValues['font-family'] = normalizeLegacyProjectFontFamily(styleValues['font-family'])
     const bindingExpression = element.tagName === 'SPAN'
       ? sanitizeBindingExpression(element.getAttribute('data-oc-binding'))
       : null
@@ -121,6 +122,18 @@ export function sanitizeRichTextHtml(source: string): string {
   }
 
   return documentNode.body.innerHTML
+}
+
+function normalizeLegacyProjectFontFamily(value: string): string {
+  const trimmed = value.trim()
+  const unquoted = trimmed.length >= 2
+    && ((trimmed.startsWith('"') && trimmed.endsWith('"'))
+      || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+    ? trimmed.slice(1, -1)
+    : trimmed
+  if (!unquoted.startsWith('project:')) return value
+  const id = unquoted.slice('project:'.length)
+  return id ? JSON.stringify(`OpenCardProjectFont-${id}`) : value
 }
 
 function sanitizeBindingExpression(value: string | null): string | null {

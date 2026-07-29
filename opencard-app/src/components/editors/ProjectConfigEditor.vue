@@ -30,6 +30,7 @@
           :fonts="profile.fonts"
           :busy="fontImportBusy"
           :error="fontImportError"
+          :load-errors="projectStore.projectFontLoadErrors.value"
           @update:fonts="updateFonts"
           @import-font="importFont"
           @import-face="importFontFace"

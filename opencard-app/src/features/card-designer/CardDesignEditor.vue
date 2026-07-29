@@ -15,7 +15,10 @@
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle" tabindex="-1"
     @keydown="handleEditorKeydown">
-    <div class="card-design-editor__stage">
+    <div
+      class="card-design-editor__stage"
+      :class="{ 'is-layer-view-active': layerViewActive }"
+    >
       <div class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
@@ -28,6 +31,10 @@
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
+          :layer-view-active="layerViewActive"
+          :space-modifier-active="spaceHeld"
+          :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
+          :layer-view-shortcut-hints="layerViewShortcutHints"
           :show-info="!selectedBlock"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
@@ -36,6 +43,7 @@
           @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @selection-action="handleSelectionAction"
+          @z-index-step="handleLayerZIndexStep"
           @face-dimension-change="handleFaceDimensionChange"
           @viewport-transform-change="handleViewportTransformChange"
           @viewport-size-change="handleViewportSizeChange">
@@ -292,6 +300,7 @@ import CardViewport, {
   type CardViewportSelectionActionLabels,
   type CardViewportSelectionInfo,
 } from '../card-rendering/components/CardViewport.vue'
+import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
 import { runRenderPipeline } from '../card-rendering/renderPipeline'
 import type {
   RenderReadyCardBlock,
@@ -541,6 +550,10 @@ type CardViewportHandle = {
   fitView: (targetRect?: { left: number; top: number; width: number; height: number }) => void
   nudgeSelection: (deltaX: number, deltaY: number) => boolean
   runSelectionQuickAction: (actionKey: string) => boolean
+  stepLayer: (direction: -1 | 1, wholeLayer?: boolean) => void
+  focusLayerBlock: (blockId: string) => void
+  getFocusedLayerBlockId: () => string | null
+  cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
 }
 
 type PropertyEditorHandle = {
@@ -561,6 +574,8 @@ const viewportSize = ref({
   width: 0,
   height: 0,
 })
+const layerViewActive = ref(false)
+const spaceHeld = ref(false)
 let shouldFitViewportOnOpen = true
 const previewDragState = ref<{
   pointerId: number
@@ -1390,10 +1405,21 @@ const propertyEditorInputs = computed<readonly PropertyEditorInput[]>(() =>
       const fontOptions = definition.fieldType === 'string' && definition.richText
         ? richTextFontOptions.value
         : undefined
-      if (!provider && !fontOptions) return [fieldKey, definition]
+      const richTextBaseStyle = definition.fieldType === 'string' && definition.richText
+        ? {
+            ...(typeof input.record.fontSize === 'string' && input.record.fontSize
+              ? { fontSize: input.record.fontSize }
+              : {}),
+            ...(typeof input.record.fontFamily === 'string' && input.record.fontFamily
+              ? { fontFamily: toCssFontFamily(input.record.fontFamily) }
+              : {}),
+          }
+        : undefined
+      if (!provider && !fontOptions && !richTextBaseStyle) return [fieldKey, definition]
       return [fieldKey, {
         ...definition,
         ...(fontOptions ? { fontOptions } : {}),
+        ...(richTextBaseStyle ? { richTextBaseStyle } : {}),
         ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
         ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
         ...(provider ? {
@@ -1439,6 +1465,36 @@ const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => 
   fillCrossAxis: withShortcut(t('cardDesigner.selectionActions.fillCrossAxis'), 'F'),
   centerCrossAxis: withShortcut(t('cardDesigner.selectionActions.centerCrossAxis'), 'C'),
 }))
+const layerViewShortcutHints = computed(() => [
+  {
+    keys: [t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    label: t('cardDesigner.layerView.stepPlane'),
+  },
+  {
+    keys: ['Shift', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    label: t('cardDesigner.layerView.stepLayer'),
+  },
+  {
+    keys: ['A-Z'],
+    label: t('cardDesigner.layerView.cycleByInitial'),
+  },
+  {
+    keys: ['Shift', 'A-Z'],
+    label: t('cardDesigner.layerView.cycleCurrentLayer'),
+  },
+  {
+    keys: ['Space'],
+    label: t('cardDesigner.layerView.selectFocused'),
+  },
+  {
+    keys: ['Space', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    label: t('cardDesigner.layerView.adjustZIndex'),
+  },
+  {
+    keys: ['Shift', 'Space', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    label: t('cardDesigner.layerView.switchExistingLayer'),
+  },
+])
 const transformDisabledBlockIds = computed(() => {
   const block = selectedBlock.value
   if (!block) {
@@ -1915,10 +1971,52 @@ function handleEditorKeydown(event: KeyboardEvent): void {
     || event.ctrlKey
     || event.metaKey
     || event.altKey
-    || !selectedBlock.value
   ) {
     return
   }
+
+  if (event.key === 'Tab') {
+    if (viewFace.value) layerViewActive.value = true
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  if (event.code === 'Space' || event.key === ' ') {
+    if (!spaceHeld.value) {
+      const focusedBlockId = cardViewportRef.value?.getFocusedLayerBlockId()
+      if (focusedBlockId) selectViewportBlock(focusedBlockId)
+    }
+    spaceHeld.value = true
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  const verticalDirection = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : null
+  if (spaceHeld.value && verticalDirection) {
+    adjustSelectedBlockZIndex(verticalDirection === -1 ? 1 : -1, event.shiftKey)
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  if (layerViewActive.value) {
+    if (verticalDirection) {
+      cardViewportRef.value?.stepLayer(verticalDirection, event.shiftKey)
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    if (!event.isComposing && /^\p{L}$/u.test(event.key)) {
+      cardViewportRef.value?.cycleLayerByInitial(event.key, event.shiftKey)
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    return
+  }
+
+  if (!selectedBlock.value) return
 
   const movement = {
     ArrowLeft: { x: -1, y: 0 },
@@ -1944,6 +2042,46 @@ function handleEditorKeydown(event: KeyboardEvent): void {
 
   event.preventDefault()
   event.stopPropagation()
+}
+
+function adjustSelectedBlockZIndex(delta: -1 | 1, existingLayersOnly = false): void {
+  const block = selectedBlock.value
+  if (!block) return
+  const parsed = Number(block.zIndex ?? '0')
+  const current = Number.isFinite(parsed) ? parsed : 0
+  let next = Math.round((current + delta) * 100) / 100
+  if (existingLayersOnly) {
+    const face = viewFace.value
+    if (!face) return
+    const existingLayers = buildCardLayerGroups(face).map(layer => layer.zIndex).sort((a, b) => a - b)
+    const adjacent = delta > 0
+      ? existingLayers.find(value => value > current)
+      : [...existingLayers].reverse().find(value => value < current)
+    if (adjacent === undefined) return
+    next = adjacent
+  }
+  block.zIndex = String(Object.is(next, -0) ? 0 : next)
+  refreshDocumentState()
+  markDocumentChanged('action')
+  void nextTick(() => cardViewportRef.value?.focusLayerBlock(block.id))
+}
+
+function handleLayerZIndexStep(payload: { delta: -1 | 1; existingLayersOnly: boolean }): void {
+  adjustSelectedBlockZIndex(payload.delta, payload.existingLayersOnly)
+}
+
+function deactivateLayerView(): void {
+  layerViewActive.value = false
+}
+
+function handleLayerViewKeyup(event: KeyboardEvent): void {
+  if (event.key === 'Tab') deactivateLayerView()
+  if (event.code === 'Space' || event.key === ' ') spaceHeld.value = false
+}
+
+function handleEditorBlur(): void {
+  spaceHeld.value = false
+  deactivateLayerView()
 }
 
 function formatViewportCssValue(value: number): string {
@@ -2214,6 +2352,8 @@ defineExpose({
 })
 
 onMounted(() => {
+  window.addEventListener('keyup', handleLayerViewKeyup)
+  window.addEventListener('blur', handleEditorBlur)
   transformPreviewSizeObserver = new ResizeObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.target !== transformPreviewHostRef.value) {
@@ -2233,6 +2373,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keyup', handleLayerViewKeyup)
+  window.removeEventListener('blur', handleEditorBlur)
+  handleEditorBlur()
   handleResizeEnd()
   if (sidebarWidthSnapFrame !== null) cancelAnimationFrame(sidebarWidthSnapFrame)
   sidebarWidthSnapFrame = null
@@ -2328,6 +2471,10 @@ onUnmounted(() => {
   z-index: 0;
 }
 
+.card-design-editor__stage.is-layer-view-active .card-design-editor__stage-base {
+  z-index: 3;
+}
+
 .card-design-editor__stage-layer {
   position: absolute;
   inset: 0;
@@ -2336,6 +2483,17 @@ onUnmounted(() => {
   overflow: hidden;
   pointer-events: none;
   z-index: 2;
+  opacity: 1;
+  transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer {
+  opacity: 0.45;
+}
+
+.card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer,
+.card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer * {
+  pointer-events: none !important;
 }
 
 .card-design-editor__viewport-controls {
@@ -2527,6 +2685,7 @@ onUnmounted(() => {
   .card-design-editor__resizebar--vertical,
   .card-design-editor__resizebar--vertical .card-design-editor__resizebar-visual,
   .card-design-editor__face-tools,
+  .card-design-editor__stage-layer,
   .card-design-editor__overlay-layout {
     transition: none;
   }

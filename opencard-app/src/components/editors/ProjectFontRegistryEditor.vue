@@ -45,17 +45,29 @@
         <div class="project-font-registry__faces">
           <div v-for="(face, faceIndex) in definition.faces" :key="`${face.source}:${faceIndex}`"
             class="project-font-registry__face">
-            <OcFieldInput class="project-font-registry__source" full-width size="sm" mono readonly
-              :value="face.source" :aria-label="t('projectConfig.fonts.source')" />
-            <OcSelect size="sm" :model-value="face.weight ?? 'normal'" :options="weightOptions"
-              :aria-label="t('projectConfig.fonts.weight')"
-              @update:model-value="updateFace(id, faceIndex, { weight: $event })" />
-            <OcSelect size="sm" :model-value="face.style ?? 'normal'" :options="styleOptions"
-              :aria-label="t('projectConfig.fonts.style')"
-              @update:model-value="updateFace(id, faceIndex, { style: asFontStyle($event) })" />
-            <OcButton v-if="definition.faces.length > 1" icon="action.delete" icon-only size="sm"
-              icon-tone="danger" :data-tooltip="t('projectConfig.fonts.removeFace')"
-              :aria-label="t('projectConfig.fonts.removeFace')" @click="removeFace(id, faceIndex)" />
+            <label class="project-font-registry__face-field">
+              <span>{{ t('projectConfig.fonts.source') }}</span>
+              <OcFieldInput class="project-font-registry__source" full-width size="sm" mono readonly
+                :value="face.source" />
+            </label>
+            <label class="project-font-registry__face-field">
+              <span>{{ t('projectConfig.fonts.weight') }}</span>
+              <OcSelect size="sm" :model-value="face.weight ?? 'normal'" :options="weightOptions"
+                @update:model-value="updateFace(id, faceIndex, { weight: $event })" />
+            </label>
+            <label class="project-font-registry__face-field">
+              <span>{{ t('projectConfig.fonts.style') }}</span>
+              <OcSelect size="sm" :model-value="face.style ?? 'normal'" :options="styleOptions"
+                @update:model-value="updateFace(id, faceIndex, { style: asFontStyle($event) })" />
+            </label>
+            <span class="project-font-registry__face-actions">
+              <OcIcon v-if="resolveLoadError(id, face.source)" name="status.warning" size="sm" tone="warning"
+                :data-tooltip="resolveLoadError(id, face.source)"
+                :aria-label="resolveLoadError(id, face.source)" />
+              <OcButton v-if="definition.faces.length > 1" icon="action.delete" icon-only size="sm"
+                icon-tone="danger" :data-tooltip="t('projectConfig.fonts.removeFace')"
+                :aria-label="t('projectConfig.fonts.removeFace')" @click="removeFace(id, faceIndex)" />
+            </span>
           </div>
         </div>
       </article>
@@ -76,6 +88,7 @@ import type {
   ProjectFontFace,
   ProjectFontRegistry,
 } from '../../features/workspace/model/projectMetadata'
+import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
 import { toCssFontFamily } from '../../features/workspace/model/projectFonts'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
@@ -87,10 +100,12 @@ const props = withDefaults(defineProps<{
   fonts?: ProjectFontRegistry
   busy?: boolean
   error?: string
+  loadErrors?: readonly ProjectFontLoadError[]
 }>(), {
   fonts: () => ({}),
   busy: false,
   error: '',
+  loadErrors: () => [],
 })
 
 const emit = defineEmits<{
@@ -156,6 +171,10 @@ function removeFace(id: string, faceIndex: number): void {
 
 function asFontStyle(value: string): ProjectFontFace['style'] {
   return value === 'italic' || value === 'oblique' ? value : 'normal'
+}
+
+function resolveLoadError(fontId: string, source: string): string | undefined {
+  return props.loadErrors.find(error => error.fontId === fontId && error.source === source)?.message
 }
 </script>
 
@@ -235,6 +254,13 @@ function asFontStyle(value: string): ProjectFontFace['style'] {
   gap: var(--oc-space-1);
 }
 
+.project-font-registry__face-actions {
+  display: inline-flex;
+  min-height: var(--oc-size-sm);
+  align-items: center;
+  gap: var(--oc-space-1);
+}
+
 .project-font-registry__family {
   display: grid;
   grid-template-columns: minmax(72px, 112px) minmax(0, 1fr);
@@ -257,6 +283,17 @@ function asFontStyle(value: string): ProjectFontFace['style'] {
 
 .project-font-registry__source {
   min-width: 0;
+}
+
+.project-font-registry__face-field {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.project-font-registry__face-field > span {
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-xs);
 }
 
 .project-font-registry__empty {

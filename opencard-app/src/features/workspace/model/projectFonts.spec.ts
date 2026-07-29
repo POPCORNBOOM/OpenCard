@@ -20,8 +20,8 @@ describe('project font catalog', () => {
       label: 'Brand Sans',
       source: 'project',
     })
-    expect(toCssFontFamily('project:brand-sans')).toBe('"project:brand-sans"')
-    expect(fromCssFontFamily('"project:brand-sans"')).toBe('project:brand-sans')
+    expect(toCssFontFamily('project:brand-sans')).toBe('"OpenCardProjectFont-brand-sans"')
+    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans"')).toBe('project:brand-sans')
     expect(toCssFontFamily('Arial')).toBe('Arial')
   })
 

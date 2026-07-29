@@ -43,6 +43,11 @@ describe('sanitizeRichTextHtml', () => {
       .toBe('<p><span style="font-size: 18px;">Text</span></p>')
   })
 
+  it('migrates legacy project font families to the stable CSS alias', () => {
+    expect(normalizeRichTextHtml('<p><span style="font-family: &quot;project:brand-sans&quot;">Text</span></p>'))
+      .toBe('<p><span style="font-family: &quot;OpenCardProjectFont-brand-sans&quot;;">Text</span></p>')
+  })
+
   it('preserves underline and strikethrough marks', () => {
     expect(sanitizeRichTextHtml('<p><u>Underline</u> <s>Strike</s></p>'))
       .toBe('<p><u>Underline</u> <s>Strike</s></p>')

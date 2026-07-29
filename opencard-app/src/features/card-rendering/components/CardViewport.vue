@@ -1,5 +1,8 @@
 <template>
-  <div ref="viewportRef" class="card-viewport" :class="{ 'card-viewport-panning': isPanning }"
+  <div ref="viewportRef" class="card-viewport" :class="{
+    'card-viewport-panning': isPanning,
+    'card-viewport--layer-view': effectiveLayerViewActive,
+  }"
     @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
     @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
@@ -32,7 +35,21 @@
         </span>
       </aside>
     </div>
-    <div class="card-selection-layer">
+    <CardLayerView
+      v-if="effectiveLayerViewActive"
+      ref="layerViewRef"
+      :face="face"
+      :source-root="stageRef"
+      :selected-block-id="selectedBlockId"
+      :space-modifier-active="spaceModifierActive"
+      :shortcut-legend-label="layerViewShortcutLegendLabel"
+      :shortcut-hints="layerViewShortcutHints"
+      :viewport-width="viewportWidth"
+      :viewport-height="viewportHeight"
+      @block-click="handleBlockClick"
+      @z-index-step="emit('z-index-step', $event)"
+    />
+    <div v-if="!effectiveLayerViewActive" class="card-selection-layer">
       <Transition name="selection-overlay-fade">
       <svg v-if="moveGuide" class="selection-anchor-guide" aria-hidden="true">
         <defs>
@@ -144,6 +161,8 @@ import type { AnchorPosition, FlowDirection } from '../../../entities/card/model
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import CardFaceRenderer from './CardFaceRenderer.vue'
+import CardLayerView from './CardLayerView.vue'
+import { buildCardLayerGroups } from './cardLayerModel'
 import type { RenderReadyCardFace } from '../render.types'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
@@ -199,6 +218,7 @@ const emit = defineEmits<{
   (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
   (e: 'face-dimension-change', payload: { dimension: FaceDimension; value: number; final: boolean }): void
+  (e: 'z-index-step', payload: { delta: -1 | 1; existingLayersOnly: boolean }): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -215,6 +235,10 @@ const props = withDefaults(defineProps<{
   showPositionOnMove?: boolean
   showSizeOnResize?: boolean
   showInfo?: boolean
+  layerViewActive?: boolean
+  spaceModifierActive?: boolean
+  layerViewShortcutLegendLabel?: string
+  layerViewShortcutHints?: Array<{ keys: string[]; label: string }>
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
@@ -239,6 +263,10 @@ const props = withDefaults(defineProps<{
   showPositionOnMove: true,
   showSizeOnResize: true,
   showInfo: true,
+  layerViewActive: false,
+  spaceModifierActive: false,
+  layerViewShortcutLegendLabel: '',
+  layerViewShortcutHints: () => [],
   transform: undefined,
   transformDisabledBlockIds: () => [],
   clipToFace: false,
@@ -248,6 +276,12 @@ const props = withDefaults(defineProps<{
 
 const viewportRef = ref<HTMLElement | null>(null)
 const stageRef = ref<HTMLElement | null>(null)
+const layerViewRef = ref<{
+  stepLayer: (direction: -1 | 1, wholeLayer?: boolean) => void
+  focusBlock: (blockId: string) => void
+  getFocusedBlockId: () => string | null
+  cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
+} | null>(null)
 const viewportWidth = ref(0)
 const viewportHeight = ref(0)
 const panX = ref(0)
@@ -276,6 +310,10 @@ let zoomAnimationFrame: number | null = null
 let lastEmittedTransform: ViewportTransform | null = null
 let pendingTransformEchoes: ViewportTransform[] = []
 let previousDimensionCursor = ''
+
+const effectiveLayerViewActive = computed(() => (
+  props.layerViewActive && buildCardLayerGroups(props.face).length > 0
+))
 
 function applyViewportTransform(transform: ViewportTransform | undefined) {
   const nextTransform = transform ?? { x: 0, y: 0, scale: 1 }
@@ -551,6 +589,7 @@ function buildQuickActionRect(
 }
 
 function handleMouseDown(event: MouseEvent) {
+  if (effectiveLayerViewActive.value) return
   if (event.button !== 1) return
 
   event.preventDefault()
@@ -580,6 +619,7 @@ function handleMouseUp() {
 }
 
 function handleWheel(event: WheelEvent) {
+  if (effectiveLayerViewActive.value) return
   const viewport = viewportRef.value
   if (!viewport) return
 
@@ -598,6 +638,7 @@ function zoomByWheelAt(
   viewportX: number,
   viewportY: number,
 ): void {
+  if (effectiveLayerViewActive.value) return
   const normalizedDelta = normalizeWheelDelta(deltaY, deltaMode)
   if (Math.abs(normalizedDelta) < 0.01) return
   zoomAt(
@@ -608,6 +649,7 @@ function zoomByWheelAt(
 }
 
 function zoomBy(factor: number): void {
+  if (effectiveLayerViewActive.value) return
   zoomAt(
     targetScale.value * factor,
     viewportWidth.value / 2,
@@ -634,6 +676,7 @@ function zoomAt(nextValue: number, viewportX: number, viewportY: number): void {
 }
 
 function resetView(): void {
+  if (effectiveLayerViewActive.value) return
   stopZoomAnimation()
   panX.value = 0
   panY.value = 0
@@ -644,6 +687,7 @@ function resetView(): void {
 }
 
 function fitView(targetRect?: { left: number; top: number; width: number; height: number }): void {
+  if (effectiveLayerViewActive.value) return
   const viewport = viewportRef.value
   if (!viewport || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
 
@@ -741,6 +785,22 @@ function clamp(value: number, min: number, max: number) {
 
 function handleBlockClick(blockId: string, event: MouseEvent) {
   emit('block-click', blockId, event)
+}
+
+function stepLayer(direction: -1 | 1, wholeLayer = false): void {
+  layerViewRef.value?.stepLayer(direction, wholeLayer)
+}
+
+function focusLayerBlock(blockId: string): void {
+  layerViewRef.value?.focusBlock(blockId)
+}
+
+function getFocusedLayerBlockId(): string | null {
+  return layerViewRef.value?.getFocusedBlockId() ?? null
+}
+
+function cycleLayerByInitial(initial: string, currentLayerOnly = false): boolean {
+  return layerViewRef.value?.cycleLayerByInitial(initial, currentLayerOnly) ?? false
 }
 
 function handleViewportPointerDown(event: PointerEvent) {
@@ -1202,6 +1262,10 @@ defineExpose({
   fitView,
   nudgeSelection,
   runSelectionQuickAction,
+  stepLayer,
+  focusLayerBlock,
+  getFocusedLayerBlockId,
+  cycleLayerByInitial,
 })
 
 watch(
@@ -1265,10 +1329,21 @@ watch(
   top: 0;
   transform-origin: 0 0;
   pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--oc-duration-fast) var(--oc-ease);
+}
+
+.card-viewport--layer-view .card-viewport-stage {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .card-viewport-stage :deep([data-block-id]) {
   pointer-events: auto;
+}
+
+.card-viewport--layer-view .card-viewport-stage :deep([data-block-id]) {
+  pointer-events: none;
 }
 
 .card-viewport-info {
@@ -1291,6 +1366,12 @@ watch(
 .card-info-fade-enter-from,
 .card-info-fade-leave-to {
   opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-viewport-stage {
+    transition: none;
+  }
 }
 
 .card-viewport-left-info,

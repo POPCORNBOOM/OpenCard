@@ -2,7 +2,9 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardFace } from '../render.types'
+import { createTextBlock } from '../../../entities/card/model'
 import CardViewport from './CardViewport.vue'
+import { parseRenderReadyBlockForTest } from './renderTestUtils'
 
 const face: RenderReadyCardFace = {
   type: 'card-face',
@@ -12,6 +14,20 @@ const face: RenderReadyCardFace = {
   height: 880,
   background: '#ffffff',
   children: [],
+}
+
+const layeredFace: RenderReadyCardFace = {
+  ...face,
+  children: [{
+    block: parseRenderReadyBlockForTest(createTextBlock({ id: 'layer-block', zIndex: '2' })),
+    location: {
+      id: 'layer-location',
+      type: 'simple-container-location',
+      anchor: 'lt',
+      x: '0px',
+      y: '0px',
+    },
+  }],
 }
 
 class ResizeObserverMock {
@@ -117,6 +133,35 @@ describe('CardViewport wheel zoom API', () => {
     })
 
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
+  })
+
+  it('pauses viewport zoom while layer view is active and restores it on exit', async () => {
+    const LayerSourceStub = defineComponent({
+      name: 'CardFaceRenderer',
+      template: '<div data-block-id="layer-block">Layer</div>',
+    })
+    const wrapper = mount(CardViewport, {
+      props: { face: layeredFace, layerViewActive: true },
+      global: { stubs: { CardFaceRenderer: LayerSourceStub } },
+    })
+    const viewport = wrapper.vm as unknown as {
+      zoomBy: (factor: number) => void
+      cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
+    }
+
+    const layerName = layeredFace.children[0]!.block.name || 'layer-block'
+    expect(viewport.cycleLayerByInitial(Array.from(layerName.trimStart())[0]!)).toBe(true)
+
+    viewport.zoomBy(1.25)
+    await flushAnimation()
+    expect(wrapper.emitted('viewport-transform-change')).toBeUndefined()
+    expect(wrapper.get('.card-viewport').classes()).toContain('card-viewport--layer-view')
+
+    await wrapper.setProps({ layerViewActive: false })
+    viewport.zoomBy(1.25)
+    await flushAnimation()
+    expect(wrapper.emitted('viewport-transform-change')?.length).toBeGreaterThan(0)
+    expect(wrapper.get('.card-viewport').classes()).not.toContain('card-viewport--layer-view')
   })
 
   it('anchors supplemental information to the top-right of the face', async () => {

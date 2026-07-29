@@ -446,6 +446,17 @@ export default {
       fillCrossAxis: 'Fill cross axis',
       centerCrossAxis: 'Center on cross axis',
     },
+    layerView: {
+      shortcutLegend: 'Layer view shortcuts',
+      wheel: 'Wheel',
+      stepPlane: 'Step through planes',
+      stepLayer: 'Jump between layers',
+      cycleByInitial: 'Cycle by name initial',
+      cycleCurrentLayer: 'Cycle names in current layer',
+      selectFocused: 'Select the focused plane',
+      adjustZIndex: 'Adjust zIndex',
+      switchExistingLayer: 'Switch to an existing layer',
+    },
   },
   propertyEditor: {
     categories: {

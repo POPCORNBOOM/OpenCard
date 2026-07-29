@@ -14,10 +14,19 @@ describe('ProjectFontRegistryEditor', () => {
             faces: [{ source: 'assets/fonts/BrandSans.woff2', weight: '400', style: 'normal' }],
           },
         },
+        loadErrors: [{
+          fontId: 'brand-sans',
+          source: 'assets/fonts/BrandSans.woff2',
+          message: 'Invalid font data',
+        }],
       },
     })
 
     expect(wrapper.text()).toContain('project:brand-sans')
+    expect(wrapper.text()).toContain('projectConfig.fonts.source')
+    expect(wrapper.text()).toContain('projectConfig.fonts.weight')
+    expect(wrapper.text()).toContain('projectConfig.fonts.style')
+    expect(wrapper.get('[data-tooltip="Invalid font data"]').attributes('aria-label')).toBe('Invalid font data')
     await wrapper.get('.project-font-registry__family input').setValue('Brand Display')
 
     expect(wrapper.emitted('update:fonts')?.[0]?.[0]).toMatchObject({

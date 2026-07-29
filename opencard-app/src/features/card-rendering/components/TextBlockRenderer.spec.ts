@@ -91,7 +91,7 @@ describe('TextBlockRenderer', () => {
       global: rendererTestGlobal,
     })
 
-    expect(wrapper.element.style.fontFamily).toBe('"project:brand-sans"')
+    expect(wrapper.element.style.fontFamily).toBe('"OpenCardProjectFont-brand-sans"')
   })
 
   it('removes executable markup and unsupported rich-text styles', () => {

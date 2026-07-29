@@ -446,6 +446,17 @@ export default {
       fillCrossAxis: '填满交叉轴',
       centerCrossAxis: '交叉轴居中',
     },
+    layerView: {
+      shortcutLegend: '层级视图快捷键',
+      wheel: '滚轮',
+      stepPlane: '逐平面切换',
+      stepLayer: '跨层切换',
+      cycleByInitial: '按名称首字母遍历',
+      cycleCurrentLayer: '在当前层按名称遍历',
+      selectFocused: '选中聚焦平面',
+      adjustZIndex: '调整 zIndex',
+      switchExistingLayer: '切换到已有层',
+    },
   },
   propertyEditor: {
     categories: {

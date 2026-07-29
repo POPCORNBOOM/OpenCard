@@ -21,6 +21,7 @@
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
               :font-options="definition.fontOptions"
+              :base-style="definition.richTextBaseStyle"
               @update:model-value="draftValue = $event" />
             <OcFieldInput v-else ref="sourceEditor" as="textarea" variant="plain" full-width mono
               class="rich-text-string-popover__source" :value="sourceValue"

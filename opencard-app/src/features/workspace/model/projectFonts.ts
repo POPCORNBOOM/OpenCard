@@ -25,17 +25,28 @@ export function createProjectFontReference(id: string): string {
   return `project:${id}`
 }
 
+export function createProjectFontCssFamily(id: string): string {
+  return `OpenCardProjectFont-${id}`
+}
+
 export function toCssFontFamily(reference: string): string {
-  return reference.startsWith('project:') ? JSON.stringify(reference) : reference
+  return reference.startsWith('project:')
+    ? JSON.stringify(createProjectFontCssFamily(reference.slice('project:'.length)))
+    : reference
 }
 
 export function fromCssFontFamily(value: string): string {
   const trimmed = value.trim()
   if (trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"'))
     || (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
-    return trimmed.slice(1, -1)
+    const family = trimmed.slice(1, -1)
+    return family.startsWith('OpenCardProjectFont-')
+      ? createProjectFontReference(family.slice('OpenCardProjectFont-'.length))
+      : family
   }
-  return trimmed
+  return trimmed.startsWith('OpenCardProjectFont-')
+    ? createProjectFontReference(trimmed.slice('OpenCardProjectFont-'.length))
+    : trimmed
 }
 
 export function buildFontCatalog(fonts: ProjectFontRegistry | null | undefined): readonly FontCatalogEntry[] {

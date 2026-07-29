@@ -1,5 +1,5 @@
 <template>
-  <div class="oc-rich-text-editor">
+  <div class="oc-rich-text-editor" :style="baseStyle">
     <div v-if="editor" class="oc-rich-text-editor__toolbar" role="toolbar" aria-label="Text formatting">
       <div class="oc-rich-text-editor__tool-group" role="group" aria-label="历史">
         <OcButton size="md" icon-only icon="action.undo" data-tooltip="撤销" aria-label="撤销"
@@ -12,6 +12,9 @@
         <OcSelect class="oc-rich-text-editor__font" data-tooltip="字体" aria-label="字体"
           :model-value="activeFontFamily" :options="fontOptions" :z-index="2500"
           @update:model-value="setFontFamily" />
+        <OcSelect class="oc-rich-text-editor__font-size" data-tooltip="字号" aria-label="字号"
+          :model-value="activeFontSize" :options="fontSizeOptions" :z-index="2500"
+          @update:model-value="setFontSize" />
         <OcButton size="md" icon-only icon="format.font-size-decrease" data-tooltip="减小字号" aria-label="减小字号"
           @mousedown.prevent @click="adjustFontSize(-1)" />
         <OcButton size="md" icon-only icon="format.font-size-increase" data-tooltip="增大字号" aria-label="增大字号"
@@ -112,6 +115,10 @@ const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
   fontOptions?: readonly RichTextFontOption[]
+  baseStyle?: {
+    fontFamily?: string
+    fontSize?: string
+  }
 }>()
 
 const emit = defineEmits<{
@@ -204,6 +211,16 @@ const activeFontFamily = computed(() => {
   return fontOptions.value.find(option => (option.cssFamily ?? option.value) === activeValue)?.value
     ?? activeValue
 })
+const activeFontSize = computed(() => {
+  toolbarRevision.value
+  return String(resolveActiveFontSize())
+})
+const fontSizeOptions = computed(() => {
+  toolbarRevision.value
+  const activeSize = resolveActiveFontSize()
+  const sizes = [...new Set<number>([...fontSizeSteps, activeSize])].sort((left, right) => left - right)
+  return sizes.map(size => ({ label: `${size} px`, value: String(size) }))
+})
 
 const editor = useEditor({
   content: normalizeRichTextHtml(props.modelValue),
@@ -265,11 +282,33 @@ function setFontFamily(value: string): void {
   else chain.unsetFontFamily().run()
 }
 
+function parsePositiveNumber(value: unknown): number | null {
+  const parsed = Number.parseFloat(String(value ?? ''))
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function resolveActiveFontSize(): number {
+  const currentEditor = editor.value
+  const inlineSize = parsePositiveNumber(currentEditor?.getAttributes('textStyle').fontSize)
+  if (inlineSize !== null) return inlineSize
+
+  const contentElement = currentEditor?.view.dom
+  const computedSize = contentElement ? parsePositiveNumber(getComputedStyle(contentElement).fontSize) : null
+  if (computedSize !== null) return computedSize
+
+  return parsePositiveNumber(props.baseStyle?.fontSize) ?? defaultFontSize
+}
+
+function setFontSize(value: string): void {
+  const size = parsePositiveNumber(value)
+  if (size === null) return
+  editor.value?.chain().focus().setMark('textStyle', { fontSize: `${size}px` }).run()
+}
+
 function adjustFontSize(direction: -1 | 1): void {
   const currentEditor = editor.value
   if (!currentEditor) return
-  const currentValue = Number.parseFloat(currentEditor.getAttributes('textStyle').fontSize)
-  const currentSize = Number.isFinite(currentValue) ? currentValue : defaultFontSize
+  const currentSize = resolveActiveFontSize()
   const nextSize = direction > 0
     ? fontSizeSteps.find(size => size > currentSize) ?? fontSizeSteps[fontSizeSteps.length - 1]
     : [...fontSizeSteps].reverse().find(size => size < currentSize) ?? fontSizeSteps[0]
@@ -378,6 +417,10 @@ defineExpose({ editor, focus })
 
 .oc-rich-text-editor__font {
   width: 124px;
+}
+
+.oc-rich-text-editor__font-size {
+  width: 82px;
 }
 
 .oc-rich-text-editor__stroke-width {
