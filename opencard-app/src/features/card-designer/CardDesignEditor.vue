@@ -1467,11 +1467,20 @@ const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => 
 }))
 const layerViewShortcutHints = computed(() => [
   {
-    keys: [t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    keys: [
+      { icon: 'input.mouse-scroll-wheel' as const },
+      { separator: t('cardDesigner.layerView.shortcutOr') },
+      '↑ / ↓',
+    ],
     label: t('cardDesigner.layerView.stepPlane'),
   },
   {
-    keys: ['Shift', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    keys: [
+      { icon: 'input.keyboard-shift' as const },
+      { icon: 'input.mouse-scroll-wheel' as const },
+      { separator: t('cardDesigner.layerView.shortcutOr') },
+      '↑ / ↓',
+    ],
     label: t('cardDesigner.layerView.stepLayer'),
   },
   {
@@ -1479,19 +1488,30 @@ const layerViewShortcutHints = computed(() => [
     label: t('cardDesigner.layerView.cycleByInitial'),
   },
   {
-    keys: ['Shift', 'A-Z'],
+    keys: [{ icon: 'input.keyboard-shift' as const }, 'A-Z'],
     label: t('cardDesigner.layerView.cycleCurrentLayer'),
   },
   {
-    keys: ['Space'],
+    keys: [{ icon: 'input.keyboard-space' as const }],
     label: t('cardDesigner.layerView.selectFocused'),
   },
   {
-    keys: ['Space', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    keys: [
+      { icon: 'input.keyboard-space' as const },
+      { icon: 'input.mouse-scroll-wheel' as const },
+      { separator: t('cardDesigner.layerView.shortcutOr') },
+      '↑ / ↓',
+    ],
     label: t('cardDesigner.layerView.adjustZIndex'),
   },
   {
-    keys: ['Shift', 'Space', t('cardDesigner.layerView.wheel'), '↑ / ↓'],
+    keys: [
+      { icon: 'input.keyboard-shift' as const },
+      { icon: 'input.keyboard-space' as const },
+      { icon: 'input.mouse-scroll-wheel' as const },
+      { separator: t('cardDesigner.layerView.shortcutOr') },
+      '↑ / ↓',
+    ],
     label: t('cardDesigner.layerView.switchExistingLayer'),
   },
 ])

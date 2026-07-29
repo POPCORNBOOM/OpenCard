@@ -279,8 +279,27 @@
 }
 
 .titlebar-shader {
+  position: absolute;
+  inset: 0;
   z-index: 0;
   pointer-events: none;
+}
+
+.titlebar-progress-fade-enter-active,
+.titlebar-progress-fade-leave-active {
+  transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.titlebar-progress-fade-enter-from,
+.titlebar-progress-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titlebar-progress-fade-enter-active,
+  .titlebar-progress-fade-leave-active {
+    transition-duration: 0ms;
+  }
 }
 
 .titlebar.titlebar-native-macos {

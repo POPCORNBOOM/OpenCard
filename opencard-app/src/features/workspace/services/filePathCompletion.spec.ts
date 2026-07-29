@@ -22,6 +22,7 @@ describe('createFilePathCompletionProvider', () => {
       expect.objectContaining({ label: 'characters', value: 'assets/characters/', keepOpen: true }),
       expect.objectContaining({ label: 'card.png', value: 'assets/card.png', keepOpen: false }),
     ])
+    expect(result?.items.every((item) => item.detail === undefined)).toBe(true)
   })
 
   it('leaves binding expressions to an earlier provider in the chain', async () => {

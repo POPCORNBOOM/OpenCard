@@ -1,7 +1,8 @@
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardBlock, RenderReadyCardFace } from '../render.types'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import CardLayerView from './CardLayerView.vue'
 
 function block(id: string, zIndex: number): RenderReadyCardBlock {
@@ -174,8 +175,12 @@ describe('CardLayerView', () => {
     expect(tickFontSizes[2]).toBeGreaterThan(tickFontSizes[1]!)
     expect(tickFontSizes[1]).toBeGreaterThan(tickFontSizes[0]!)
     const railLeft = Number.parseFloat((wrapper.get('.card-layer-view__rail').element as HTMLElement).style.left)
-    expect(railLeft).toBeGreaterThan(500)
-    expect(railLeft).toBeLessThan(850)
+    const radians = Math.PI / 180
+    const projectedHalfWidth = (
+      630 * scale * Math.cos(24 * radians)
+      + 880 * scale * Math.cos(56 * radians) * Math.sin(24 * radians)
+    ) / 2
+    expect(railLeft).toBeCloseTo(500 - 40 + projectedHalfWidth + 28)
 
     await wrapper.setProps({ selectedBlockId: 'high-a' })
     expect(wrapper.findAll('.card-layer-view__block-plane')[0]?.classes()).toContain('is-selected')
@@ -216,6 +221,39 @@ describe('CardLayerView', () => {
     expect(view.cycleLayerByInitial('a', true)).toBe(true)
     expect(view.getFocusedBlockId()).toBe('high-a')
     expect(view.cycleLayerByInitial('z')).toBe(false)
+    expect(view.getFocusedBlockId()).toBe('high-a')
+  })
+
+  it('cycles Chinese block names by their Pinyin initial', async () => {
+    const namedFace = createFace()
+    namedFace.children[0]!.block.name = '标题'
+    namedFace.children[1]!.block.name = '背景'
+    namedFace.children[2]!.block.name = 'Button'
+    const wrapper = mount(CardLayerView, {
+      props: {
+        face: namedFace,
+        sourceRoot: createSourceRoot(),
+        selectedBlockId: 'high-a',
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      },
+    })
+    await nextTick()
+    const view = wrapper.vm as unknown as {
+      cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
+      getFocusedBlockId: () => string | null
+    }
+
+    expect(view.cycleLayerByInitial('b')).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('high-b')
+    expect(view.cycleLayerByInitial('B')).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('low')
+    expect(view.cycleLayerByInitial('b')).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('high-a')
+
+    expect(view.cycleLayerByInitial('b', true)).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('high-b')
+    expect(view.cycleLayerByInitial('b', true)).toBe(true)
     expect(view.getFocusedBlockId()).toBe('high-a')
   })
 
@@ -276,8 +314,19 @@ describe('CardLayerView', () => {
         viewportHeight: 800,
         shortcutLegendLabel: 'Layer view shortcuts',
         shortcutHints: [
-          { keys: ['Wheel', '↑ / ↓'], label: 'Step through planes' },
-          { keys: ['Shift', 'Wheel', '↑ / ↓'], label: 'Jump between layers' },
+          {
+            keys: [{ icon: 'input.mouse-scroll-wheel' }, { separator: 'or' }, '↑ / ↓'],
+            label: 'Step through planes',
+          },
+          {
+            keys: [
+              { icon: 'input.keyboard-shift' },
+              { icon: 'input.mouse-scroll-wheel' },
+              { separator: 'or' },
+              '↑ / ↓',
+            ],
+            label: 'Jump between layers',
+          },
         ],
       },
     })
@@ -287,7 +336,13 @@ describe('CardLayerView', () => {
     expect(legend.attributes('aria-label')).toBe('Layer view shortcuts')
     expect(legend.findAll('.card-layer-view__shortcut-row')).toHaveLength(2)
     expect(legend.findAll('.app-tooltip-layer__chip').map(chip => chip.text()))
-      .toEqual(['Wheel', '↑ / ↓', 'Shift', 'Wheel', '↑ / ↓'])
+      .toEqual(['', '↑ / ↓', '', '', '↑ / ↓'])
+    expect(legend.findAll('.card-layer-view__shortcut-separator').map(separator => separator.text()))
+      .toEqual(['or', 'or'])
+    expect(legend.findAllComponents(OcIcon).map(
+      (icon: VueWrapper) => (icon.props() as { name: string }).name,
+    ))
+      .toEqual(['input.mouse-scroll-wheel', 'input.keyboard-shift', 'input.mouse-scroll-wheel'])
     expect(legend.findAll('.card-layer-view__shortcut-label').map(label => label.text()))
       .toEqual(['Step through planes', 'Jump between layers'])
   })
@@ -391,7 +446,7 @@ describe('CardLayerView', () => {
     expect(wrapper.emitted('z-index-step')?.[0]).toEqual([{ delta: -1, existingLayersOnly: false }])
   })
 
-  it('switches layers by wheel, rail click, and vertical drag', async () => {
+  it('switches layers by wheel and rail click without canvas drag navigation', async () => {
     const wrapper = mount(CardLayerView, {
       props: {
         face: createFace(),
@@ -418,7 +473,7 @@ describe('CardLayerView', () => {
     dispatchPointer(root.element, 'pointermove', { button: 0, pointerId: 2, clientX: 400, clientY: 240 })
     dispatchPointer(root.element, 'pointerup', { button: 0, pointerId: 2, clientX: 400, clientY: 240 })
     await flushAnimation()
-    expect(wrapper.findAll('.card-layer-view__tick')[1]?.classes()).toContain('is-active')
+    expect(lowTick.classes()).toContain('is-active')
   })
 
   it('emits clicks only from the active layer', async () => {

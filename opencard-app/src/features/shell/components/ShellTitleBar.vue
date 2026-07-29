@@ -138,11 +138,11 @@ onBeforeUnmount(() => {
     class="titlebar"
     :class="{ 'titlebar-native-macos': props.nativeMacosControls }"
   >
-    <AppearanceShaderPreview
-      v-if="titlebarProgress != null"
-      class="titlebar-shader"
-      :progress="titlebarProgress"
-    />
+    <Transition name="titlebar-progress-fade">
+      <div v-if="titlebarProgress != null" class="titlebar-shader">
+        <AppearanceShaderPreview :progress="titlebarProgress" />
+      </div>
+    </Transition>
     <div class="titlebar-left">
       <button
         class="titlebar-icon"

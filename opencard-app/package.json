@@ -37,6 +37,7 @@
     "markdown-it": "^14.3.0",
     "markdown-it-attrs": "^5.0.0",
     "monaco-editor": "^0.55.1",
+    "pinyin-pro": "^3.28.2",
     "qrcode": "^1.5.4",
     "vue": "^3.5.13",
     "vue-i18n": "^11.3.2"

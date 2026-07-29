@@ -35,7 +35,7 @@ export function createFilePathCompletionProvider(
       }
 
       const items = entries
-        .map((entry) => prepareEntry(entry, directory, extensions))
+        .map((entry) => prepareEntry(entry, extensions))
         .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
         .filter((entry) => !fragment || entry.label.toLocaleLowerCase().includes(fragment))
         .sort((left, right) => {
@@ -58,7 +58,6 @@ export function createFilePathCompletionProvider(
 
 function prepareEntry(
   entry: FilePathCompletionEntry,
-  directory: string,
   extensions: readonly string[],
 ) {
   const normalizedPath = normalizePath(entry.name)
@@ -74,7 +73,6 @@ function prepareEntry(
   return {
     key: normalizedPath,
     label,
-    detail: directory ? normalizedPath : undefined,
     icon: (isDirectory ? 'folder.generic' : 'file.generic') as IconToken,
     insertText: label + (isDirectory ? '/' : ''),
     value,

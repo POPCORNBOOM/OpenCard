@@ -63,6 +63,10 @@ export const iconTokens = {
   'tool.zoom-in': true,
   'tool.zoom-out': true,
 
+  'input.mouse-scroll-wheel': true,
+  'input.keyboard-space': true,
+  'input.keyboard-shift': true,
+
   'layout.fill': true,
   'layout.fill-horizontal': true,
   'layout.fill-vertical': true,

@@ -170,6 +170,23 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('refreshes the workspace index after saving a new file into the project', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    mocks.readDirectoryEntries.mockResolvedValue([{
+      name: 'Draft.opencard',
+      isDirectory: false,
+      isFile: true,
+      isSymlink: false,
+    }])
+
+    await store.saveFile('D:/project/Draft.opencard', '{}')
+
+    expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Draft.opencard', '{}')
+    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('Draft.opencard')
+    await store.setProjectPath('')
+  })
+
   it('preserves the loaded profile when moving it to trash fails', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencardprojectprofile'))
     mocks.readFile.mockResolvedValue('{"name":"Demo"}')

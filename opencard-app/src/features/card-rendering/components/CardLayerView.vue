@@ -2,11 +2,7 @@
   <div
     ref="rootRef"
     class="card-layer-view"
-    :class="{ 'is-dragging': dragState }"
-    @pointerdown="handlePointerDown"
-    @pointermove="handlePointerMove"
     @pointerup="handlePointerUp"
-    @pointercancel="handlePointerUp"
     @wheel.stop.prevent="handleWheel"
   >
     <div class="card-layer-view__stack">
@@ -88,9 +84,13 @@
     >
       <div v-for="hint in shortcutHints" :key="hint.label" class="card-layer-view__shortcut-row">
         <span class="card-layer-view__shortcut-keys" aria-hidden="true">
-          <span v-for="key in hint.keys" :key="key" class="app-tooltip-layer__chip">
-            {{ key }}
-          </span>
+          <template v-for="(key, keyIndex) in hint.keys" :key="keyIndex">
+            <span v-if="typeof key === 'string'" class="app-tooltip-layer__chip">{{ key }}</span>
+            <span v-else-if="'icon' in key" class="app-tooltip-layer__chip">
+              <OcIcon :name="key.icon" size="sm" />
+            </span>
+            <span v-else class="card-layer-view__shortcut-separator">{{ key.separator }}</span>
+          </template>
         </span>
         <span class="card-layer-view__shortcut-label">{{ hint.label }}</span>
       </div>
@@ -100,6 +100,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
+import { pinyin } from 'pinyin-pro'
+import OcIcon from '../../../components/base/OcIcon.vue'
+import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 import type { RenderReadyCardFace } from '../render.types'
 import { buildCardLayerGroups, type CardLayerGroup } from './cardLayerModel'
 
@@ -113,30 +116,21 @@ type Snapshot = {
   y: number
 }
 
-type DragState = {
-  pointerId: number
-  startX: number
-  startY: number
-  startPosition: number
-  moved: boolean
-  blockId: string | null
-  blockLayerIndex: number | null
-  targetLayerIndex: number | null
-}
-
 type PlaneEntry = {
   id: string
   layerIndex: number
   blockIndex: number
 }
 
-const DRAG_THRESHOLD = 5
+type ShortcutKey = string | { icon: IconToken } | { separator: string }
+
 const POSITION_EPSILON = 0.002
 const POSITION_SMOOTHING = 0.22
 const WHEEL_FOCUS_THRESHOLD = 40
 const WHEEL_RESET_DELAY = 140
 const RULER_TICK_PITCH = 30
 const RULER_LAYER_PITCH = 72
+const RULER_STACK_GAP = 28
 
 const props = defineProps<{
   face: RenderReadyCardFace
@@ -146,7 +140,7 @@ const props = defineProps<{
   viewportHeight: number
   spaceModifierActive?: boolean
   shortcutLegendLabel?: string
-  shortcutHints?: Array<{ keys: string[]; label: string }>
+  shortcutHints?: Array<{ keys: ShortcutKey[]; label: string }>
 }>()
 
 const emit = defineEmits<{
@@ -160,7 +154,6 @@ const snapshots = ref(new Map<string, Snapshot>())
 const layerPosition = ref(0)
 const targetLayerPosition = ref(0)
 const focusedPlaneIndex = ref(0)
-const dragState = ref<DragState | null>(null)
 let animationFrame: number | null = null
 let accumulatedWheelDelta = 0
 let wheelResetTimer: number | null = null
@@ -210,7 +203,7 @@ const railStyle = computed<CSSProperties>(() => {
     + props.face.height * planeScale.value * Math.cos(56 * radians) * Math.sin(24 * radians)
   ) / 2
   const stackCenterX = props.viewportWidth / 2 - 40
-  const left = stackCenterX + projectedHalfWidth + 14
+  const left = stackCenterX + projectedHalfWidth + RULER_STACK_GAP
   return {
     left: `${left}px`,
     width: `${Math.max(96, Math.min(180, props.viewportWidth - left - 12))}px`,
@@ -461,50 +454,17 @@ function handleWheel(event: WheelEvent): void {
   stepLayer(direction, event.shiftKey)
 }
 
-function handlePointerDown(event: PointerEvent): void {
+function handlePointerUp(event: PointerEvent): void {
   if (event.button !== 0) return
   const target = event.target instanceof Element ? event.target : null
   const block = target?.closest<HTMLElement>('[data-layer-block-id]')
+  const blockLayerIndex = block?.dataset.layerIndex
+  if (block?.dataset.layerBlockId && Number(blockLayerIndex) === activeLayerIndex.value) {
+    emit('block-click', block.dataset.layerBlockId, event)
+    return
+  }
   const targetIndex = target?.closest<HTMLElement>('[data-layer-target-index]')?.dataset.layerTargetIndex
-  stopAnimation()
-  dragState.value = {
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    startPosition: layerPosition.value,
-    moved: false,
-    blockId: block?.dataset.layerBlockId ?? null,
-    blockLayerIndex: block?.dataset.layerIndex ? Number(block.dataset.layerIndex) : null,
-    targetLayerIndex: targetIndex !== undefined ? Number(targetIndex) : null,
-  }
-  rootRef.value?.setPointerCapture?.(event.pointerId)
-  event.preventDefault()
-}
-
-function handlePointerMove(event: PointerEvent): void {
-  const state = dragState.value
-  if (!state || state.pointerId !== event.pointerId) return
-  const deltaX = event.clientX - state.startX
-  const deltaY = event.clientY - state.startY
-  if (!state.moved && Math.hypot(deltaX, deltaY) >= DRAG_THRESHOLD) state.moved = true
-  if (!state.moved) return
-  layerPosition.value = clampIndex(state.startPosition + deltaY / sameLayerPitch.value)
-  targetLayerPosition.value = layerPosition.value
-  focusedPlaneIndex.value = clampIndex(Math.round(layerPosition.value))
-}
-
-function handlePointerUp(event: PointerEvent): void {
-  const state = dragState.value
-  if (!state || state.pointerId !== event.pointerId) return
-  if (rootRef.value?.hasPointerCapture?.(event.pointerId)) rootRef.value.releasePointerCapture(event.pointerId)
-  dragState.value = null
-
-  if (!state.moved && state.blockId && state.blockLayerIndex === activeLayerIndex.value) {
-    emit('block-click', state.blockId, event)
-  }
-  focusPlane(state.moved
-    ? Math.round(layerPosition.value)
-    : state.targetLayerIndex ?? Math.round(layerPosition.value))
+  if (targetIndex !== undefined) focusPlane(Number(targetIndex))
 }
 
 function selectInitialLayer(): void {
@@ -527,8 +487,19 @@ function getFocusedBlockId(): string | null {
   return planeEntries.value[focusedPlaneIndex.value]?.id ?? null
 }
 
+function getNameInitial(name: string): string | undefined {
+  const firstCharacter = Array.from(name.trimStart())[0]
+  if (!firstCharacter) return undefined
+  if (/^\p{Script=Han}$/u.test(firstCharacter)) {
+    return pinyin(firstCharacter, { pattern: 'first', toneType: 'none' })
+      .charAt(0)
+      .toLocaleLowerCase()
+  }
+  return firstCharacter.toLocaleLowerCase()
+}
+
 function cycleLayerByInitial(initial: string, currentLayerOnly = false): boolean {
-  const initialLetter = Array.from(initial.trim())[0]?.toLocaleLowerCase()
+  const initialLetter = getNameInitial(initial)
   const entryCount = planeEntries.value.length
   if (!initialLetter || entryCount === 0) return false
 
@@ -537,7 +508,7 @@ function cycleLayerByInitial(initial: string, currentLayerOnly = false): boolean
     const index = (focusedPlaneIndex.value + offset) % entryCount
     const entry = planeEntries.value[index]
     if (!entry || (currentLayerOnly && entry.layerIndex !== focusedLayerIndex)) continue
-    const nameInitial = Array.from(getPlaneName(entry).trimStart())[0]?.toLocaleLowerCase()
+    const nameInitial = getNameInitial(getPlaneName(entry))
     if (nameInitial !== initialLetter) continue
     focusPlane(index)
     return true
@@ -576,16 +547,11 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   inset: 0;
   z-index: 6;
   overflow: hidden;
-  cursor: grab;
   user-select: none;
   touch-action: none;
   perspective: 1400px;
   background: color-mix(in srgb, var(--oc-bg-raised) 24%, transparent);
   animation: layer-view-enter var(--oc-duration-normal) var(--oc-ease) both;
-}
-
-.card-layer-view.is-dragging {
-  cursor: grabbing;
 }
 
 .card-layer-view__stack {
@@ -821,6 +787,11 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.card-layer-view__shortcut-separator {
+  margin: 0 1px;
+  color: var(--oc-fg-muted);
 }
 
 .card-layer-view__shortcut-label {

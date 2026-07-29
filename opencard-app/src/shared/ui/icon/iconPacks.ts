@@ -5,6 +5,7 @@
  * - 只提供图标实现映射，不处理回退和告警
  */
 import {
+  mdiAppleKeyboardShift,
   mdiAlertCircleOutline,
   mdiAlertOutline,
   mdiArrowBottomLeftThin,
@@ -92,6 +93,7 @@ import {
   mdiHumanGreeting,
   mdiImageFilterCenterFocus,
   mdiImageOutline,
+  mdiKeyboardSpace,
   mdiImageMinusOutline,
   mdiImagePlusOutline,
   mdiImport,
@@ -107,6 +109,7 @@ import {
   mdiLockOutline,
   mdiMagnifyMinusOutline,
   mdiMagnifyPlusOutline,
+  mdiMouseScrollWheel,
   mdiNumeric,
   mdiPackageVariantClosed,
   mdiPaperCutVertical,
@@ -205,6 +208,10 @@ export const iconGlyphs = {
   'tool.settings': glyph(mdiCogOutline),
   'tool.zoom-in': glyph(mdiMagnifyPlusOutline),
   'tool.zoom-out': glyph(mdiMagnifyMinusOutline),
+
+  'input.mouse-scroll-wheel': glyph(mdiMouseScrollWheel),
+  'input.keyboard-space': glyph(mdiKeyboardSpace),
+  'input.keyboard-shift': glyph(mdiAppleKeyboardShift),
 
   'layout.fill': glyph(mdiArrowExpandAll),
   'layout.fill-horizontal': glyph(mdiArrowExpandHorizontal),

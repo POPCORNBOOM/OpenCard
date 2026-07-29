@@ -460,14 +460,42 @@ describe('CardDesignEditor issue navigation', () => {
     })
     expect(viewport.props('layerViewShortcutLegendLabel')).toBe('Layer view shortcuts')
     expect(viewport.props('layerViewShortcutHints')).toEqual([
-      { keys: ['Wheel', '↑ / ↓'], label: 'Step through planes' },
-      { keys: ['Shift', 'Wheel', '↑ / ↓'], label: 'Jump between layers' },
-      { keys: ['A-Z'], label: 'Cycle by name initial' },
-      { keys: ['Shift', 'A-Z'], label: 'Cycle names in current layer' },
-      { keys: ['Space'], label: 'Select the focused plane' },
-      { keys: ['Space', 'Wheel', '↑ / ↓'], label: 'Adjust zIndex' },
       {
-        keys: ['Shift', 'Space', 'Wheel', '↑ / ↓'],
+        keys: [{ icon: 'input.mouse-scroll-wheel' }, { separator: 'or' }, '↑ / ↓'],
+        label: 'Step through planes',
+      },
+      {
+        keys: [
+          { icon: 'input.keyboard-shift' },
+          { icon: 'input.mouse-scroll-wheel' },
+          { separator: 'or' },
+          '↑ / ↓',
+        ],
+        label: 'Jump between layers',
+      },
+      { keys: ['A-Z'], label: 'Cycle by name or Pinyin initial' },
+      {
+        keys: [{ icon: 'input.keyboard-shift' }, 'A-Z'],
+        label: 'Cycle names or Pinyin in current layer',
+      },
+      { keys: [{ icon: 'input.keyboard-space' }], label: 'Select the focused plane' },
+      {
+        keys: [
+          { icon: 'input.keyboard-space' },
+          { icon: 'input.mouse-scroll-wheel' },
+          { separator: 'or' },
+          '↑ / ↓',
+        ],
+        label: 'Adjust zIndex',
+      },
+      {
+        keys: [
+          { icon: 'input.keyboard-shift' },
+          { icon: 'input.keyboard-space' },
+          { icon: 'input.mouse-scroll-wheel' },
+          { separator: 'or' },
+          '↑ / ↓',
+        ],
         label: 'Switch to an existing layer',
       },
     ])

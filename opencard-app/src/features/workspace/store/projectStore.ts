@@ -441,6 +441,7 @@ async function isProjectAvailable(path: string): Promise<boolean> {
 
 async function saveFile(relativePath: string, content: string) {
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
+  await refreshIndexedEntries()
 }
 
 async function createFolder(relativePath: string) {

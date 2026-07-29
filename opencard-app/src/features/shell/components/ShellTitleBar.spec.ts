@@ -26,7 +26,8 @@ describe('ShellTitleBar', () => {
       ],
     })
 
-    expect(wrapper.get('.titlebar-shader').attributes('style')).toContain('--appearance-progress: 37.5%')
+    expect(wrapper.get('transition-stub').attributes('name')).toBe('titlebar-progress-fade')
+    expect(wrapper.get('.titlebar-shader .appearance-shader').attributes('style')).toContain('--appearance-progress: 37.5%')
     expect(wrapper.get('.titlebar-brand-lockup').attributes('data-tooltip')).toBeUndefined()
 
     await wrapper.get('.titlebar-brand-lockup').trigger('pointerenter')

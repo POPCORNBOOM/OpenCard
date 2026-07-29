@@ -238,7 +238,10 @@ const props = withDefaults(defineProps<{
   layerViewActive?: boolean
   spaceModifierActive?: boolean
   layerViewShortcutLegendLabel?: string
-  layerViewShortcutHints?: Array<{ keys: string[]; label: string }>
+  layerViewShortcutHints?: Array<{
+    keys: Array<string | { icon: IconToken } | { separator: string }>
+    label: string
+  }>
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
