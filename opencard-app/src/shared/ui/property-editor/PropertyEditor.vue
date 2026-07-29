@@ -47,7 +47,7 @@
               :class="{ 'is-revealed': revealedFieldIdentity === fieldIdentity(category.inputKey, entry.key) }"
               :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
-                <OcIcon :name="getEditorIconClass(entry.definition.fieldType)" size="md" tone="muted" />
+                <OcIcon :name="getPropertyFieldIcon(entry.definition.fieldType)" size="md" tone="muted" />
                 <button type="button" class="property-editor__field-key-button"
                   :data-tooltip="t('propertyEditor.actions.copyFieldKeyTooltip', { key: entry.key })"
                   :aria-label="t('propertyEditor.actions.copyFieldKey', { key: entry.key })"
@@ -65,37 +65,14 @@
                   :data-tooltip="deleteFieldActionText" :aria-label="deleteFieldActionText"
                   @click.stop="emitDeleteProperty(category.inputKey, entry.key)" />
               </div>
-              <div class="entry-control">
-                <ReferenceStringPropertyField
-                  v-if="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)"
-                  :definition="toRawStringDefinition(entry.definition)"
-                  :value="entry.value"
-                  @update:value="emitRawStringValue(category.inputKey, entry.key, $event)" />
-                <ArrayPropertyField
-                  v-else-if="isArrayPropertyFieldType(entry.definition.fieldType)"
-                  :definition="entry.definition"
-                  :element-component="getArrayElementComponent(entry.definition.fieldType)"
-                  :element-definition="toArrayElementDefinition(entry.definition)"
-                  :value="entry.value"
-                  @update:value="emitPropertyValue(category.inputKey, entry.key, $event)"
-                />
-                <component v-else :is="getEditorComponent(entry.definition.fieldType, entry.definition)"
-                  :definition="entry.definition" :value="entry.value"
-                  @update:value="emitPropertyValue(category.inputKey, entry.key, $event)" />
-                <OcButton v-if="canToggleRawStringEditor(entry.definition) && !isBindingValue(entry.value)"
-                  class="raw-string-toggle"
-                  icon-only size="sm" variant="ghost"
-                  :icon="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
-                    ? getEditorIconClass(entry.definition.fieldType)
-                    : 'data.code-string'"
-                  :data-tooltip="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
-                    ? useFieldEditorText
-                    : useRawStringEditorText"
-                  :aria-label="usesRawStringEditor(category.inputKey, entry.key, entry.value, entry.definition)
-                    ? useFieldEditorText
-                    : useRawStringEditorText"
-                  @click="toggleRawStringEditor(category.inputKey, entry.key)" />
-              </div>
+              <PropertyFieldControl
+                class="entry-control"
+                :identity="fieldIdentity(category.inputKey, entry.key)"
+                :definition="entry.definition"
+                :value="entry.value"
+                :binding-interpreter="bindingInterpreter"
+                @update:value="emitPropertyValue(category.inputKey, entry.key, $event)"
+              />
             </div>
             </div>
           </section>
@@ -108,7 +85,7 @@
 
 <script setup lang="ts">
 // Vue 基础能力与依赖组件。
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, toRef, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {
   PropertyEditorBindingInterpreter,
@@ -118,40 +95,20 @@ import type {
   PropertyEditorInput,
   PropertyEditorMutation,
   PropertyEditorSortMode,
-  BasePropertyFieldType,
-  PropertyFieldType,
 } from './propertyEditor.types'
-import {
-  getArrayElementFieldType,
-  isArrayPropertyFieldType,
-} from './propertyEditor.types'
-import AlignPositionPropertyField from './fields/AlignPositionPropertyField.vue'
-import BooleanPropertyField from './fields/BooleanPropertyField.vue'
-import AnchorPositionPropertyField from './fields/AnchorPositionPropertyField.vue'
-import ColorPropertyField from './fields/ColorPropertyField.vue'
-import FilePathPropertyField from './fields/FilePathPropertyField.vue'
-import FlowDirectionPropertyField from './fields/FlowDirectionPropertyField.vue'
-import NumberPropertyField from './fields/NumberPropertyField.vue'
-import ObjectPropertyField from './fields/ObjectPropertyField.vue'
-import StringPropertyField from './fields/StringPropertyField.vue'
-import ReferenceStringPropertyField from './fields/ReferenceStringPropertyField.vue'
-import VerticalAlignPositionPropertyField from './fields/VerticalAlignPositionPropertyField.vue'
-import ArrayPropertyField from './fields/ArrayPropertyField.vue'
+import { isArrayPropertyFieldType } from './propertyEditor.types'
 import {
   usePropertyEditorView,
   type PropertyEditorCategoryView,
 } from './usePropertyEditorView'
-import type { IconToken } from '../icon/iconRegistry'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcPanel from '../../../components/base/OcPanel.vue'
-
-const RichTextStringPropertyField = defineAsyncComponent(
-  () => import('./fields/RichTextStringPropertyField.vue'),
-)
+import PropertyFieldControl from './PropertyFieldControl.vue'
+import { getPropertyFieldIcon } from './propertyFieldRegistry'
 
 // 输出事件协议。
 const emit = defineEmits<{
@@ -170,25 +127,6 @@ const props = defineProps<{
   deleteMode?: boolean
 }>()
 
-// 运行时依赖与编辑器映射。
-type FieldTypeEditorEntry = {
-  component: Component
-  icon: IconToken
-}
-
-const fieldTypeEditorMap: Record<BasePropertyFieldType, FieldTypeEditorEntry> = {
-  string: { component: StringPropertyField, icon: 'data.symbol-string' },
-  anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
-  alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
-  verticalAlignPosition: { component: VerticalAlignPositionPropertyField, icon: 'data.layers' },
-  flowDirection: { component: FlowDirectionPropertyField, icon: 'nav.arrow-right' },
-  number: { component: NumberPropertyField, icon: 'data.symbol-number' },
-  boolean: { component: BooleanPropertyField, icon: 'data.symbol-boolean' },
-  color: { component: ColorPropertyField, icon: 'data.symbol-color' },
-  filePath: { component: FilePathPropertyField, icon: 'file.generic' },
-  object: { component: ObjectPropertyField, icon: 'data.symbol-class' },
-}
-
 const { t, te } = useI18n()
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
@@ -206,11 +144,8 @@ const resetFieldActionText = computed(() =>
   resolveLocalizedText('propertyEditor.actions.reset', 'Reset')
 )
 const deleteFieldActionText = computed(() => resolveLocalizedText('propertyEditor.actions.delete', 'Delete'))
-const useRawStringEditorText = computed(() => t('propertyEditor.bindings.useRawEditor'))
-const useFieldEditorText = computed(() => t('propertyEditor.bindings.useFieldEditor'))
 const ADD_PROPERTY_ACTION_KEY = 'add-property'
 const ADD_PROPERTY_FIELD_ACTION_PREFIX = 'add-property:'
-const rawStringEditorKeys = ref<ReadonlySet<string>>(new Set())
 const propertyEditorRoot = ref<HTMLElement | null>(null)
 const revealedFieldIdentity = ref<string | null>(null)
 let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
@@ -233,120 +168,12 @@ const { displaySources } = usePropertyEditorView({
   })),
 })
 
-function getEditorComponent(fieldType: PropertyFieldType, definition?: PropertyEditorFieldDefinition): Component {
-  if (definition?.fieldType === 'string' && definition.richText) {
-    return RichTextStringPropertyField
-  }
-  if (definition?.fieldType === 'string'
-    && definition
-    && !definition.options
-    && definition.completion?.provider) {
-    return ReferenceStringPropertyField
-  }
-  if (isArrayPropertyFieldType(fieldType)) return ArrayPropertyField
-  return (fieldTypeEditorMap[fieldType] ?? fieldTypeEditorMap.string).component
-}
-
-function getArrayElementComponent(fieldType: PropertyFieldType): Component {
-  if (!isArrayPropertyFieldType(fieldType)) return fieldTypeEditorMap.string.component
-  return fieldTypeEditorMap[getArrayElementFieldType(fieldType)].component
-}
-
-function getScalarDefaultValue(fieldType: BasePropertyFieldType): unknown {
-  if (fieldType === 'boolean') return 'false'
-  if (fieldType === 'number') return '0'
-  if (fieldType === 'object') return {}
-  return ''
-}
-
-function toArrayElementDefinition(
-  definition: PropertyEditorFieldDefinition,
-): Extract<PropertyEditorFieldDefinition, { fieldType: BasePropertyFieldType }> {
-  if (!isArrayPropertyFieldType(definition.fieldType)) {
-    throw new Error(`Expected an array field type, received "${definition.fieldType}"`)
-  }
-  const fieldType = getArrayElementFieldType(definition.fieldType)
-  return {
-    ...definition,
-    fieldType,
-    defaultValue: getScalarDefaultValue(fieldType),
-  } as Extract<PropertyEditorFieldDefinition, { fieldType: BasePropertyFieldType }>
-}
-
-function usesInlineBindingEditor(definition: PropertyEditorFieldDefinition): boolean {
-  return definition.fieldType === 'string'
-    && !definition.options
-    && Boolean(definition.completion?.provider)
-}
-
-function canToggleRawStringEditor(definition: PropertyEditorFieldDefinition): boolean {
-  return !isArrayPropertyFieldType(definition.fieldType)
-    && Boolean(definition.binding?.provider)
-    && !usesInlineBindingEditor(definition)
-}
-
-function toRawStringDefinition(
-  definition: PropertyEditorFieldDefinition,
-): Extract<PropertyEditorFieldDefinition, { fieldType: 'string' }> {
-  const { options: _options, ...baseDefinition } = definition as PropertyEditorFieldDefinition & {
-    options?: readonly string[]
-  }
-  return {
-    ...baseDefinition,
-    fieldType: 'string',
-  }
-}
-
-function isBindingValue(value: unknown): boolean {
-  return props.bindingInterpreter?.isExpression(value) ?? false
-}
-
 function emitPropertyValue(sourceKey: string, fieldKey: string, value: unknown): void {
   emit('update-property', { key: sourceKey, fieldKey, value })
 }
 
-function emitRawStringValue(sourceKey: string, fieldKey: string, value: string): void {
-  const identity = rawStringEditorIdentity(sourceKey, fieldKey)
-  if (!rawStringEditorKeys.value.has(identity)) {
-    rawStringEditorKeys.value = new Set([...rawStringEditorKeys.value, identity])
-  }
-  emitPropertyValue(sourceKey, fieldKey, value)
-}
-
-function rawStringEditorIdentity(sourceKey: string, fieldKey: string): string {
-  return fieldIdentity(sourceKey, fieldKey)
-}
-
 function fieldIdentity(inputKey: string, fieldKey: string): string {
   return `${inputKey}\u0000${fieldKey}`
-}
-
-function usesRawStringEditor(
-  sourceKey: string,
-  fieldKey: string,
-  value: unknown,
-  definition: PropertyEditorFieldDefinition,
-): boolean {
-  return canToggleRawStringEditor(definition)
-    && (isBindingValue(value) || rawStringEditorKeys.value.has(rawStringEditorIdentity(sourceKey, fieldKey)))
-}
-
-function toggleRawStringEditor(sourceKey: string, fieldKey: string): void {
-  const identity = rawStringEditorIdentity(sourceKey, fieldKey)
-  const nextKeys = new Set(rawStringEditorKeys.value)
-  if (nextKeys.has(identity)) {
-    nextKeys.delete(identity)
-  } else {
-    nextKeys.add(identity)
-  }
-  rawStringEditorKeys.value = nextKeys
-}
-
-function getEditorIconClass(fieldType: PropertyFieldType): IconToken {
-  const resolvedType = isArrayPropertyFieldType(fieldType)
-    ? getArrayElementFieldType(fieldType)
-    : fieldType
-  return (fieldTypeEditorMap[resolvedType] ?? fieldTypeEditorMap.string).icon
 }
 
 // 添加字段与重置交互。
@@ -359,7 +186,7 @@ function resolveCategoryActions(category: PropertyEditorCategoryView): OcActionB
       title: `${addFieldActionText.value} (${category.addableFields.length})`,
       children: category.addableFields.map((field) => ({
         key: `${ADD_PROPERTY_FIELD_ACTION_PREFIX}${field.key}`,
-        icon: getEditorIconClass(field.definition.fieldType),
+        icon: getPropertyFieldIcon(field.definition.fieldType),
         title: field.label,
       })),
     })
@@ -608,20 +435,6 @@ onBeforeUnmount(() => {
   margin: var(--oc-space-1) 0;
   width: 100%;
   min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--oc-space-2);
-}
-
-.entry-control > * {
-  flex: 1 1 auto;
-  width: 100%;
-  min-width: 0;
-}
-
-.entry-control > .raw-string-toggle {
-  flex: 0 0 auto;
-  width: var(--oc-size-sm);
 }
 
 .modified-field-button {

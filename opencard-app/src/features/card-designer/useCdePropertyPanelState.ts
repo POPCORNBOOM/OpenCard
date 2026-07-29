@@ -9,23 +9,16 @@ import type {
 } from '../../entities/card/model'
 import type {
   PropertyEditorCategoryDefinition,
-  PropertyEditorFieldDefinition,
-  PropertyEditorInput,
   PropertyEditorSortMode,
 } from '../../shared/ui/property-editor/propertyEditor.types'
-import type { BindingScopeKind } from '../editor-runtime/model/bindingExpression'
 import {
-  createBlockAdditionalField,
-  deleteBlockAdditionalField,
   getAdditionalFieldPropertyDefinition,
   isCardStoredValue,
-  setCardFieldValue,
   validateAdditionalFieldKey,
   type AdditionalFieldKeyError,
 } from '../../entities/card/model'
 import {
   additionalFieldTypes,
-  createPropertyDefaultValue,
   getDefault,
   getTypePropertyEditorSchema,
   propertyEditorCategoryDefinitions,
@@ -33,22 +26,19 @@ import {
   type EditorPropertyDefinition,
   type PropertyFieldType,
 } from '../../entities/card/schema'
-import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
+import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
+import {
+  resolveCdePropertyFields,
+  type CdePropertyEditorInput,
+  type CdePropertyFieldDefinition,
+} from './cdePropertyFieldDefinitions'
+
+export type { CdePropertyEditorInput, CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 
 type CardLocationInfo = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 export type CdePropertySortMode = PropertyEditorSortMode
-
-export type CdePropertyFieldDefinition = PropertyEditorFieldDefinition & {
-  acceptsBinding?: false
-  bindingScopes?: readonly BindingScopeKind[]
-  extensionsFilter?: readonly string[]
-}
-
-export type CdePropertyEditorInput = Omit<PropertyEditorInput, 'fields'> & {
-  fields: Readonly<Record<string, CdePropertyFieldDefinition>>
-}
 
 export type CdePropertyMutation = {
   key: string
@@ -97,7 +87,9 @@ type UseCdePropertyPanelStateOptions = {
 }
 
 export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOptions) {
+  const blockFieldCommands = useCdeBlockFieldCommands(options)
   const additionalFieldCreateDialogOpen = ref(false)
+  const additionalFieldTargetBlockId = ref<string | null>(null)
   const additionalFieldCreateDraft = ref<CdeAdditionalFieldCreateDraft>({
     fieldKey: '',
     fieldType: additionalFieldTypes[0] ?? 'string',
@@ -108,8 +100,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     && options.selectedCardId.value === options.blueprintCardId,
   ))
   const additionalFieldCreateError = computed<AdditionalFieldKeyError | 'invalid-target' | null>(() => {
-    const block = options.selectedBlock.value
-    if (!block || !canCreateAdditionalField.value) return 'invalid-target'
+    const document = options.cardDoc.value
+    const block = document && additionalFieldTargetBlockId.value
+      ? findCdeBlock(document, additionalFieldTargetBlockId.value)
+      : null
+    if (!block) return 'invalid-target'
     if (!additionalFieldTypes.includes(additionalFieldCreateDraft.value.fieldType)) {
       return 'unsupported-field-type'
     }
@@ -220,58 +215,20 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return options.hasMessage(messageKey) ? options.translate(messageKey) : fallback
   }
 
-  function resolveFieldTitle(fieldKey: string, definition: EditorPropertyDefinition): string {
-    const displayKey = definition.displayFieldKey ?? fieldKey
-    return resolveLocalizedText(`propertyEditor.fields.${displayKey}`, fieldKey)
-  }
-
   function resolveFields(
     record: Readonly<Record<string, unknown>>,
     override?: Readonly<Record<string, Partial<EditorPropertyDefinition>>>,
     labels?: Readonly<Record<string, string>>,
     categorylessKeys: ReadonlySet<string> = new Set(),
   ): Record<string, CdePropertyFieldDefinition> {
-    const typeName = typeof record.type === 'string' ? record.type : undefined
-    const definitions: Record<string, EditorPropertyDefinition> = { ...getTypePropertyEditorSchema(typeName) }
-    for (const [fieldKey, fieldOverride] of Object.entries(override ?? {})) {
-      const base = definitions[fieldKey]
-      if (base) {
-        definitions[fieldKey] = { ...base, ...fieldOverride } as EditorPropertyDefinition
-      } else if (fieldOverride.fieldType) {
-        definitions[fieldKey] = fieldOverride as EditorPropertyDefinition
-      }
-    }
-    for (const fieldKey of Object.keys(record)) {
-      if (!definitions[fieldKey]) {
-        definitions[fieldKey] = {
-          fieldType: 'string',
-          isReadonly: true,
-        }
-      }
-    }
-
-    return Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => [
-      fieldKey,
-      {
-        ...definition,
-        defaultValue: createPropertyDefaultValue(definition),
-        title: labels?.[fieldKey] ?? resolveFieldTitle(fieldKey, definition),
-        category: categorylessKeys.has(fieldKey) ? undefined : definition.categoryId,
-        deletable: options.selectedCardId.value === options.blueprintCardId
-          && definition.isReadonly !== true
-          && (definition.deletable === true || definition.required !== true),
-        ...(definition.fieldType === 'string' && definition.autocomplete?.length
-          ? {
-              completion: {
-                static: {
-                  values: definition.autocomplete,
-                  presentation: 'ghost' as const,
-                },
-              },
-            }
-          : {}),
-      },
-    ]))
+    return resolveCdePropertyFields(record, {
+      allowDelete: options.selectedCardId.value === options.blueprintCardId,
+      translate: options.translate,
+      hasMessage: options.hasMessage,
+      override,
+      labels,
+      categorylessKeys,
+    })
   }
 
   const propertyInputs = computed<CdePropertyEditorInput[]>(() => {
@@ -408,42 +365,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return true
   }
 
-  function updateInstanceOverrideField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
-    const block = options.selectedBlock.value
-    const selectedCard = options.selectedCard.value
-    if (!block || options.selectedCardId.value === options.blueprintCardId || !selectedCard || !isCardStoredValue(value)) {
-      return false
-    }
-
-    const instanceBlockData = selectedCard.data[block.id] ?? (selectedCard.data[block.id] = {})
-    instanceBlockData[fieldKey] = value
-    options.refreshDocumentState()
-    options.markDocumentChanged(mode)
-    return true
-  }
-
-  function updateBlueprintBlockField(
-    fieldKey: string,
-    value: unknown,
-    mode: CdeDocumentChangeMode,
-    clearLegacyImagePath: boolean,
-  ): boolean {
-    const block = options.selectedBlock.value
-    if (!block || !isCardStoredValue(value)) {
-      return false
-    }
-
-    const record = block as unknown as Record<string, unknown>
-    if (!setCardFieldValue(record, fieldKey, value)) record[fieldKey] = value
-    if (clearLegacyImagePath && block.type === 'image-block' && fieldKey === 'image') {
-      delete (block as Record<string, unknown>).imagePath
-    }
-
-    options.refreshDocumentState()
-    options.markDocumentChanged(mode)
-    return true
-  }
-
   function updateProperty({
     key,
     fieldKey,
@@ -472,12 +393,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (!isSelectedBlockKey(key)) {
       return
     }
-
-    if (updateInstanceOverrideField(fieldKey, value, 'typing')) {
-      return
-    }
-
-    updateBlueprintBlockField(fieldKey, value, 'typing', true)
+    blockFieldCommands.updateField({
+      cardId: options.selectedCardId.value ?? options.blueprintCardId,
+      blockId: key,
+      fieldKey,
+    }, value, 'typing')
   }
 
   function addProperty({
@@ -508,12 +428,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (!isSelectedBlockKey(key)) {
       return
     }
-
-    if (updateInstanceOverrideField(fieldKey, value, 'action')) {
-      return
-    }
-
-    updateBlueprintBlockField(fieldKey, value, 'action', false)
+    blockFieldCommands.updateField({
+      cardId: options.selectedCardId.value ?? options.blueprintCardId,
+      blockId: key,
+      fieldKey,
+    }, value, 'action')
   }
 
   function resetLayoutField(fieldKey: string): boolean {
@@ -585,39 +504,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return true
   }
 
-  function resetBlockField(fieldKey: string): boolean {
-    const block = options.selectedBlock.value
-    if (!block) {
-      return false
-    }
-
-    if (options.selectedCardId.value !== options.blueprintCardId && options.selectedCard.value) {
-      const didResetOverride = resetInstanceOverrideField(options.selectedCard.value.data, block.id, fieldKey)
-      if (!didResetOverride) {
-        return false
-      }
-
-      options.refreshDocumentState()
-      options.markDocumentChanged('action')
-      return true
-    }
-
-    const defaultValue = getDefault(block.type, fieldKey)
-    if (defaultValue === undefined) {
-      delete (block as Record<string, unknown>)[fieldKey]
-    } else {
-      ; (block as Record<string, unknown>)[fieldKey] = defaultValue
-    }
-
-    if (block.type === 'image-block' && fieldKey === 'image') {
-      delete (block as Record<string, unknown>).imagePath
-    }
-
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
-    return true
-  }
-
   function resetProperty({
     key,
     fieldKey,
@@ -643,24 +529,31 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
 
     if (isSelectedBlockKey(key)) {
-      resetBlockField(fieldKey)
+      blockFieldCommands.resetField({
+        cardId: options.selectedCardId.value ?? options.blueprintCardId,
+        blockId: key,
+        fieldKey,
+      })
     }
   }
 
   function createAdditionalField({ key, fieldKey, title, fieldType }: CdeAdditionalFieldCreateMutation) {
-    const block = options.selectedBlock.value
-    if (!block || block.id !== key || options.selectedCardId.value !== options.blueprintCardId) {
-      return 'invalid-target' as const
-    }
-    const error = createBlockAdditionalField(block, fieldKey, fieldType, title)
-    if (error) return error
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
-    return null
+    return blockFieldCommands.createField({
+      cardId: options.blueprintCardId,
+      blockId: key,
+      fieldKey,
+      fieldType,
+      title,
+    })
   }
 
-  function openAdditionalFieldCreateDialog(): boolean {
-    if (!canCreateAdditionalField.value) return false
+  function openAdditionalFieldCreateDialog(
+    blockId: string | null = options.selectedBlock.value?.id ?? null,
+    cardId: string | null = options.selectedCardId.value,
+  ): boolean {
+    if (!blockId || cardId !== options.blueprintCardId || !options.cardDoc.value
+      || !findCdeBlock(options.cardDoc.value, blockId)) return false
+    additionalFieldTargetBlockId.value = blockId
     additionalFieldCreateDraft.value = {
       fieldKey: '',
       fieldType: additionalFieldTypes[0] ?? 'string',
@@ -672,10 +565,14 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
   function closeAdditionalFieldCreateDialog(): void {
     additionalFieldCreateDialogOpen.value = false
+    additionalFieldTargetBlockId.value = null
   }
 
   function submitAdditionalFieldCreate(): AdditionalFieldKeyError | 'invalid-target' | null {
-    const block = options.selectedBlock.value
+    const document = options.cardDoc.value
+    const block = document && additionalFieldTargetBlockId.value
+      ? findCdeBlock(document, additionalFieldTargetBlockId.value)
+      : null
     const error = additionalFieldCreateError.value
     if (!block || error) return error ?? 'invalid-target'
     const result = createAdditionalField({
@@ -696,15 +593,11 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
 
     if (block?.id === key) {
-      if (block.additionalFieldDefinition?.[fieldKey]) {
-        deleteBlockAdditionalField(document, block, fieldKey)
-      } else if (!deleteOptionalSchemaField(block as unknown as Record<string, unknown>, fieldKey)) {
-        return false
-      } else {
-        for (const instance of document.instances) {
-          resetInstanceOverrideField(instance.data, block.id, fieldKey)
-        }
-      }
+      return blockFieldCommands.deleteField({
+        cardId: options.blueprintCardId,
+        blockId: key,
+        fieldKey,
+      })
     } else if (isSelectedLayoutKey(key)) {
       const layout = selectedLayout.value
       if (!layout || !deleteOptionalSchemaField(layout as unknown as Record<string, unknown>, fieldKey)) {
