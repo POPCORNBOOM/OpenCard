@@ -11,11 +11,11 @@
   - 无 页面组件通过内部编排调用 store/composable
 -->
 <template>
-  <main class="shell-root open-card-shell" :class="themeClass">
+  <main class="shell-root open-card-shell">
     <ShellTitleBar
       :collapsed="effectiveSidebarCollapsed"
       :brand-label="titleBarBrandLabel"
-      brand-logo-src="/icon_v2.png"
+      brand-logo-src="/opencard-logo.png"
       :menu-groups="titleBarMenus"
       :primary-page-action="primaryPageToggleAction"
       :app-actions="titleBarAppActions"
@@ -176,7 +176,6 @@
             <SettingsWorkspace
               v-else-if="isSettingsMode"
               :view-model="activeSettingsCategory"
-              :native-macos-controls="usesNativeMacosWindowControls"
               @intent="handleSettingsIntent"
             />
             <AboutWorkspace
@@ -418,7 +417,6 @@ const EMPTY_TREE_DATA: OcTreeData = {
   children: new Map(),
 }
 const workspaceOutputLines: readonly string[] = []
-const themeClass = 'shell-theme-graphite'
 
 const {
   projectPath,
@@ -1720,6 +1718,21 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
     return
   }
 
+  if (intent.type === 'theme-color.preview' || intent.type === 'theme-color.cancel') {
+    settingsStore.previewThemeColor(intent.themeId, intent.token, intent.value)
+    return
+  }
+
+  if (intent.type === 'theme-color.change') {
+    settingsStore.updateThemeColor(intent.themeId, intent.token, intent.value)
+    return
+  }
+
+  if (intent.type === 'theme-colors.reset') {
+    settingsStore.resetThemeColors()
+    return
+  }
+
   await resetProjectWorkspaceState()
 }
 
@@ -2244,10 +2257,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.open-card-shell {
-  color: var(--color-text-primary);
-}
-
 .open-card-shell__workspace-stack {
   width: 100%;
   height: 100%;
@@ -2288,10 +2297,10 @@ onUnmounted(() => {
   justify-content: center;
   gap: var(--oc-space-3, 8px);
   pointer-events: none;
-  border: 2px solid var(--oc-border-accent, #7c6cff);
+  border: 2px solid var(--oc-border-accent);
   border-radius: var(--oc-radius-lg, 8px);
-  background: color-mix(in srgb, var(--oc-bg-base, #1e1e1e) 88%, transparent);
-  color: var(--oc-fg-primary, #f3f3f3);
+  background: color-mix(in srgb, var(--oc-bg-base) 88%, transparent);
+  color: var(--oc-fg-default);
   font-size: var(--oc-text-lg, 15px);
   font-weight: 600;
 }

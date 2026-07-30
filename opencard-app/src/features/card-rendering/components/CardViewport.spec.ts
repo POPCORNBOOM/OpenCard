@@ -5,6 +5,7 @@ import type { RenderReadyCardFace } from '../render.types'
 import { createTextBlock } from '../../../entities/card/model'
 import CardViewport from './CardViewport.vue'
 import { parseRenderReadyBlockForTest } from './renderTestUtils'
+import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
 const face: RenderReadyCardFace = {
   type: 'card-face',
@@ -61,6 +62,7 @@ describe('CardViewport wheel zoom API', () => {
   })
 
   afterEach(() => {
+    useFloatingMenu().closeMenu()
     vi.unstubAllGlobals()
   })
 
@@ -141,7 +143,7 @@ describe('CardViewport wheel zoom API', () => {
       template: '<div data-block-id="layer-block">Layer</div>',
     })
     const wrapper = mount(CardViewport, {
-      props: { face: layeredFace, layerViewActive: true },
+      props: { face: layeredFace, layerViewActive: true, layerViewBasePlaneLabel: 'Base plate' },
       global: { stubs: { CardFaceRenderer: LayerSourceStub } },
     })
     const viewport = wrapper.vm as unknown as {
@@ -150,6 +152,7 @@ describe('CardViewport wheel zoom API', () => {
     }
 
     const layerName = layeredFace.children[0]!.block.name || 'layer-block'
+    expect(wrapper.get('.card-layer-view__base-index').text()).toBe('Base plate')
     expect(viewport.cycleLayerByInitial(Array.from(layerName.trimStart())[0]!)).toBe(true)
 
     viewport.zoomBy(1.25)
@@ -278,6 +281,16 @@ describe('CardViewport wheel zoom API', () => {
       y: 160,
     }])
     expect(wrapper.emitted('move-selection')).toEqual([[{ x: 249, y: 171 }]])
+
+    await wrapper.get('.selection-frame').trigger('contextmenu')
+    const menu = useFloatingMenu()
+    expect(menu.state.value.items.map(item => item.key))
+      .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+    menu.selectMenuItem('fill-parent')
+    const contextSelectionActions = wrapper.emitted('selection-action') ?? []
+    expect(contextSelectionActions[contextSelectionActions.length - 1]).toEqual([
+      { type: 'fill-parent', key: 'selected' },
+    ])
 
     await wrapper.get('.selection-handle-t').trigger('pointerdown')
     expect(wrapper.find('.selection-block-info').exists()).toBe(false)

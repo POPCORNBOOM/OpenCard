@@ -377,6 +377,13 @@ export default {
       language: 'Language',
       suppressReleaseNotesAfterUpdate: 'Do not show release notes after an update',
       theme: 'Theme',
+      accentColor: 'Theme color',
+      baseBackgroundColor: 'Background',
+      primaryTextColor: 'Foreground',
+      accentNeighborAngle: 'Secondary color phase angle',
+      themeColors: 'Theme colors',
+      darkThemeColors: 'Dark theme',
+      lightThemeColors: 'Light theme',
       glassIntensity: 'Glass intensity',
       projectWorkspaceState: 'Project workspace state',
       structureTreeSelectionBehavior: 'Structure tree selection',
@@ -396,6 +403,7 @@ export default {
     actions: {
       back: 'Back to workspace',
       reset: 'Reset',
+      resetThemeColors: 'Reset colors',
     },
     reasons: {
       openProjectFirst: 'Open a project first',
@@ -470,6 +478,7 @@ export default {
       centerCrossAxis: 'Center on cross axis',
     },
     layerView: {
+      basePlane: 'Base',
       shortcutLegend: 'Layer view shortcuts',
       shortcutOr: 'or',
       stepPlane: 'Step through planes',

@@ -4,7 +4,7 @@ import { createTextBlock, type CardDocument } from '../../entities/card/model'
 import { useCdePropertyPanelState } from './useCdePropertyPanelState'
 
 function createHarness() {
-  const block = createTextBlock({ id: 'text', content: 'Blueprint' })
+  const block = createTextBlock({ id: 'text', name: 'Blueprint name', content: 'Blueprint' })
   block.additionalFieldDefinition = { score: { fieldType: 'number', title: 'Score' } }
   ;(block as unknown as Record<string, unknown>).score = '10'
   const document: CardDocument = {
@@ -69,6 +69,7 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(input.record.score).toBe('10')
     expect(input.fields.score?.title).toBe('Score')
     expect(input.fields.score?.deletable).toBe(true)
+    expect(input.fields.name).toBeDefined()
 
     expect(state.createAdditionalField({
       key: block.id,
@@ -85,6 +86,7 @@ describe('useCdePropertyPanelState additional fields', () => {
     selectedCardId.value = 'instance'
 
     expect(state.propertyInputs.value[0]?.record.score).toBe('10')
+    expect(state.propertyInputs.value[0]?.fields.name).toBeUndefined()
     state.updateProperty({ key: block.id, fieldKey: 'score', value: '24' })
     expect(document.instances[0]!.data.text?.score).toBe('24')
     expect((block as unknown as Record<string, unknown>).score).toBe('10')
@@ -93,6 +95,20 @@ describe('useCdePropertyPanelState additional fields', () => {
     state.resetProperty({ key: block.id, fieldKey: 'score' })
     expect(document.instances[0]!.data.text).toBeUndefined()
     expect(state.propertyInputs.value[0]?.record.score).toBe('10')
+  })
+
+  it('ignores legacy instance block names and does not expose name editing', () => {
+    const { block, document, selectedCardId, state } = createHarness()
+    document.instances[0]!.data.text = { name: 'Legacy instance name' }
+    selectedCardId.value = 'instance'
+
+    const input = state.propertyInputs.value[0]!
+    expect(input.title).toBe('Blueprint name')
+    expect(input.record.name).toBe('Blueprint name')
+    expect(input.fields.name).toBeUndefined()
+
+    state.updateProperty({ key: block.id, fieldKey: 'name', value: 'New instance name' })
+    expect(document.instances[0]!.data.text?.name).toBe('Legacy instance name')
   })
 
   it('deletes the blueprint field and every instance override', () => {

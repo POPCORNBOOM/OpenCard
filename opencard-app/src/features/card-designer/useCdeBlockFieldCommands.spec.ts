@@ -50,6 +50,8 @@ describe('useCdeBlockFieldCommands', () => {
     expect(commands.updateField({ cardId: 'two', blockId: 'text', fieldKey: 'content' }, 'Override')).toBe(true)
     expect(document.instances[0]!.data.text).toBeUndefined()
     expect(document.instances[1]!.data.text?.content).toBe('Override')
+    expect(commands.updateField({ cardId: 'two', blockId: 'text', fieldKey: 'name' }, 'Instance title')).toBe(false)
+    expect(document.instances[1]!.data.text).not.toHaveProperty('name')
     expect(markDocumentChanged).toHaveBeenLastCalledWith('typing')
   })
 

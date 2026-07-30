@@ -1,5 +1,10 @@
 /** Versioned application settings contract and normalization boundary. */
-import type { OcThemeId } from '../../../shared/ui/foundation'
+import {
+  OC_EDITABLE_THEME_COLOR_KEYS,
+  type OcEditableThemeColorKey,
+  type OcThemeColorOverrides,
+  type OcThemeId,
+} from '../../../shared/ui/foundation'
 
 export const APP_SETTINGS_VERSION = 1 as const
 export const MIN_SIDEBAR_WIDTH = 220
@@ -14,6 +19,7 @@ export type AppSettingKey =
   | 'appearance.theme'
   | 'appearance.locale'
   | 'appearance.glassIntensity'
+  | 'appearance.accentNeighborAngle'
   | 'updates.suppressReleaseNotesAfterUpdate'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
@@ -26,6 +32,8 @@ export interface AppSettings {
     theme: AppThemePreference
     locale: AppLocale
     glassIntensity: number
+    accentNeighborAngle: number
+    themeOverrides: Record<OcThemeId, OcThemeColorOverrides>
   }
   shell: {
     sidebarWidth: number
@@ -59,6 +67,13 @@ export type SettingsIntent =
       value: unknown
     }
   | {
+      type: 'theme-color.preview' | 'theme-color.change' | 'theme-color.cancel'
+      themeId: OcThemeId
+      token: OcEditableThemeColorKey
+      value: string | null
+    }
+  | { type: 'theme-colors.reset' }
+  | {
       type: 'project-workspace.reset'
     }
 
@@ -68,6 +83,8 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     theme: 'system',
     locale: 'system',
     glassIntensity: 60,
+    accentNeighborAngle: -50,
+    themeOverrides: Object.freeze({ dark: Object.freeze({}), light: Object.freeze({}) }),
   }),
   shell: Object.freeze({
     sidebarWidth: 292,
@@ -121,6 +138,25 @@ function normalizeRecentProjects(value: unknown): string[] {
   return result
 }
 
+function clampAngle(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_APP_SETTINGS.appearance.accentNeighborAngle
+  }
+  return Math.min(180, Math.max(-180, Math.round(value)))
+}
+
+function normalizeThemeColorOverrides(value: unknown): OcThemeColorOverrides {
+  if (!isRecord(value)) return {}
+  const result: OcThemeColorOverrides = {}
+  for (const token of OC_EDITABLE_THEME_COLOR_KEYS) {
+    const color = value[token]
+    if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) {
+      result[token] = color.toUpperCase()
+    }
+  }
+  return result
+}
+
 function normalizeWorkspaceStates(value: unknown): Record<string, { expandedDirectories: string[] }> {
   if (!isRecord(value)) return {}
   const result: Record<string, { expandedDirectories: string[] }> = {}
@@ -141,7 +177,10 @@ function normalizeWorkspaceStates(value: unknown): Record<string, { expandedDire
 export function createDefaultAppSettings(): AppSettings {
   return {
     version: APP_SETTINGS_VERSION,
-    appearance: { ...DEFAULT_APP_SETTINGS.appearance },
+    appearance: {
+      ...DEFAULT_APP_SETTINGS.appearance,
+      themeOverrides: { dark: {}, light: {} },
+    },
     shell: { ...DEFAULT_APP_SETTINGS.shell },
     updates: { ...DEFAULT_APP_SETTINGS.updates },
     workspace: { ...DEFAULT_APP_SETTINGS.workspace },
@@ -179,6 +218,15 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         appearance.glassIntensity,
         DEFAULT_APP_SETTINGS.appearance.glassIntensity,
       ),
+      accentNeighborAngle: clampAngle(appearance.accentNeighborAngle),
+      themeOverrides: {
+        dark: normalizeThemeColorOverrides(isRecord(appearance.themeOverrides)
+          ? appearance.themeOverrides.dark
+          : undefined),
+        light: normalizeThemeColorOverrides(isRecord(appearance.themeOverrides)
+          ? appearance.themeOverrides.light
+          : undefined),
+      },
     },
     shell: {
       sidebarWidth: clampSidebarWidth(shell.sidebarWidth),

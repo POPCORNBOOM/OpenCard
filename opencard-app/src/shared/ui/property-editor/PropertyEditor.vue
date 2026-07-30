@@ -28,7 +28,10 @@
 
           <section v-for="category in source.categories" :key="`${source.key}:${category.key}`"
             class="property-editor__category">
-            <header class="property-editor__category-header">
+            <header class="property-editor__category-header"
+              :tabindex="resolveCategoryActions(category).length > 0 ? 0 : undefined"
+              @contextmenu="openCategoryContextMenu($event, category)"
+              @keydown="openCategoryKeyboardMenu($event, category)">
               <span class="property-editor__category-indent" aria-hidden="true" />
               <span class="property-editor__icon-slot" aria-hidden="true">
                 <OcIcon :name="category.icon" size="md" tone="muted" />
@@ -109,6 +112,7 @@ import OcText from '../../../components/base/OcText.vue'
 import OcPanel from '../../../components/base/OcPanel.vue'
 import PropertyFieldControl from './PropertyFieldControl.vue'
 import { getPropertyFieldIcon } from './propertyFieldRegistry'
+import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
 // 输出事件协议。
 const emit = defineEmits<{
@@ -128,6 +132,7 @@ const props = defineProps<{
 }>()
 
 const { t, te } = useI18n()
+const { openContextMenu } = useFloatingMenu()
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
   if (te(messageKey)) {
@@ -209,6 +214,26 @@ function handleCategoryAction(payload: { key: string }, category: PropertyEditor
     key: category.inputKey,
     fieldKey: field.key,
     value: createDefaultValue(field.definition),
+  })
+}
+
+function openCategoryContextMenu(event: MouseEvent, category: PropertyEditorCategoryView): void {
+  openContextMenu({
+    event,
+    items: resolveCategoryActions(category),
+    onSelect: key => handleCategoryAction({ key }, category),
+  })
+}
+
+function openCategoryKeyboardMenu(event: KeyboardEvent, category: PropertyEditorCategoryView): void {
+  if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return
+  const actions = resolveCategoryActions(category)
+  if (actions.length === 0 || !(event.currentTarget instanceof HTMLElement)) return
+  event.preventDefault()
+  openContextMenu({
+    anchor: event.currentTarget,
+    items: actions,
+    onSelect: key => handleCategoryAction({ key }, category),
   })
 }
 

@@ -42,4 +42,17 @@ describe('QRCodeBlockRenderer', () => {
     expect(wrapper.get('path[stroke]').attributes('stroke')).toBe('#112233')
     expect(wrapper.get('path[fill]').attributes('fill')).toBe('#FDFDFD')
   })
+
+  it('keeps the rendered graphic when only zIndex changes', async () => {
+    const wrapper = mount(QRCodeBlockRenderer, {
+      props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
+      global: rendererTestGlobal,
+    })
+
+    await vi.waitFor(() => expect(wrapper.find('.qrcode-block__graphic svg').exists()).toBe(true))
+    await wrapper.setProps({ block: { ...wrapper.props('block'), zIndex: 7 } })
+
+    expect(wrapper.find('.qrcode-block__graphic svg').exists()).toBe(true)
+    expect(wrapper.find('.qrcode-block__placeholder').exists()).toBe(false)
+  })
 })

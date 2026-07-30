@@ -5,7 +5,26 @@
     @pointerup="handlePointerUp"
     @wheel.stop.prevent="handleWheel"
   >
+    <aside
+      v-if="facePreviewHtml"
+      class="card-layer-view__card-preview"
+      :style="facePreviewStyle"
+      aria-hidden="true"
+    >
+      <div class="card-layer-view__card-preview-content" v-html="facePreviewHtml" />
+    </aside>
+
     <div class="card-layer-view__stack">
+      <div
+        class="card-layer-view__block-plane card-layer-view__base-plane"
+        :style="basePlaneStyle"
+        aria-hidden="true"
+      >
+        <span class="card-layer-view__plane card-layer-view__base-face" :style="baseFaceStyle" />
+        <span class="card-layer-view__plane-index card-layer-view__base-index" aria-hidden="true">
+          {{ basePlaneLabel ?? 'Base' }}
+        </span>
+      </div>
       <section
         v-for="(layer, layerIndex) in layers"
         :key="layer.zIndex"
@@ -45,7 +64,27 @@
     </div>
 
     <nav class="card-layer-view__rail" :style="railStyle" aria-label="Layer ruler" data-layer-rail>
-      <span class="card-layer-view__rail-line" aria-hidden="true" />
+      <span
+        v-for="(layer, layerIndex) in layers"
+        :key="layer.zIndex"
+        class="card-layer-view__rail-segment"
+        :class="{ 'is-active': layerIndex === activeLayerIndex }"
+        :style="getRailSegmentStyle(layerIndex)"
+        aria-hidden="true"
+      >
+        <span class="card-layer-view__rail-segment-line" />
+        <span v-if="layerIndex !== activeLayerIndex" class="card-layer-view__rail-segment-index">
+          {{ formatZIndex(layer.zIndex) }}
+        </span>
+      </span>
+      <span
+        v-if="planeEntries.length > 0"
+        class="card-layer-view__rail-active-index"
+        :style="thumbStyle"
+        aria-hidden="true"
+      >
+        {{ formatZIndex(activeLayerZIndex) }}
+      </span>
       <button
         v-for="(entry, index) in planeEntries"
         :key="entry.id"
@@ -59,19 +98,6 @@
         :aria-label="`${getPlaneName(entry)}, z-index ${formatZIndex(getPlaneZIndex(entry))}`"
         :data-layer-target-index="index"
       >
-        <span
-          v-if="isLayerBoundary(index)"
-          class="card-layer-view__layer-boundary"
-          :style="getLayerBoundaryStyle(index)"
-          aria-hidden="true"
-        >
-          <span class="card-layer-view__layer-boundary-index card-layer-view__layer-boundary-index--upper">
-            {{ formatZIndex(getPreviousLayerZIndex(index)) }}
-          </span>
-          <span class="card-layer-view__layer-boundary-index card-layer-view__layer-boundary-index--lower">
-            {{ formatZIndex(getPlaneZIndex(entry)) }}
-          </span>
-        </span>
         <span class="card-layer-view__tick-name">{{ getPlaneName(entry) }}</span>
       </button>
       <span class="card-layer-view__thumb" :style="thumbStyle" aria-hidden="true" />
@@ -122,6 +148,10 @@ type PlaneEntry = {
   blockIndex: number
 }
 
+type VisualPlaneSlot =
+  | { type: 'block'; entryIndex: number; zIndex: number }
+  | { type: 'face'; zIndex: 0 }
+
 type ShortcutKey = string | { icon: IconToken } | { separator: string }
 
 const POSITION_EPSILON = 0.002
@@ -130,7 +160,7 @@ const WHEEL_FOCUS_THRESHOLD = 40
 const WHEEL_RESET_DELAY = 140
 const RULER_TICK_PITCH = 30
 const RULER_LAYER_PITCH = 72
-const RULER_STACK_GAP = 28
+const RULER_STACK_GAP = 78
 
 const props = defineProps<{
   face: RenderReadyCardFace
@@ -140,6 +170,7 @@ const props = defineProps<{
   viewportHeight: number
   spaceModifierActive?: boolean
   shortcutLegendLabel?: string
+  basePlaneLabel?: string
   shortcutHints?: Array<{ keys: ShortcutKey[]; label: string }>
 }>()
 
@@ -151,6 +182,7 @@ const emit = defineEmits<{
 const rootRef = ref<HTMLElement | null>(null)
 const layers = computed(() => buildCardLayerGroups(props.face))
 const snapshots = ref(new Map<string, Snapshot>())
+const facePreviewHtml = ref('')
 const layerPosition = ref(0)
 const targetLayerPosition = ref(0)
 const focusedPlaneIndex = ref(0)
@@ -161,8 +193,34 @@ let wheelResetTimer: number | null = null
 const planeEntries = computed<PlaneEntry[]>(() => layers.value.flatMap((layer, layerIndex) => (
   layer.blocks.map((block, blockIndex) => ({ id: block.id, layerIndex, blockIndex }))
 )))
+const visualPlaneSlots = computed<VisualPlaneSlot[]>(() => {
+  const blockSlots = planeEntries.value.map<VisualPlaneSlot>((entry, entryIndex) => ({
+    type: 'block',
+    entryIndex,
+    zIndex: layers.value[entry.layerIndex]?.zIndex ?? 0,
+  }))
+  const firstNegativeIndex = blockSlots.findIndex(slot => slot.zIndex < 0)
+  const faceIndex = firstNegativeIndex >= 0 ? firstNegativeIndex : blockSlots.length
+  blockSlots.splice(faceIndex, 0, { type: 'face', zIndex: 0 })
+  return blockSlots
+})
+const visualIndexByEntry = computed(() => {
+  const indexes = new Map<number, number>()
+  visualPlaneSlots.value.forEach((slot, visualIndex) => {
+    if (slot.type === 'block') indexes.set(slot.entryIndex, visualIndex)
+  })
+  return indexes
+})
+const faceVisualIndex = computed(() => Math.max(
+  0,
+  visualPlaneSlots.value.findIndex(slot => slot.type === 'face'),
+))
 const activePlaneIndex = computed(() => focusedPlaneIndex.value)
 const activeLayerIndex = computed(() => planeEntries.value[activePlaneIndex.value]?.layerIndex ?? 0)
+const activeLayerZIndex = computed(() => layers.value[activeLayerIndex.value]?.zIndex ?? 0)
+const focusedVisualIndex = computed(() => (
+  visualIndexByEntry.value.get(focusedPlaneIndex.value) ?? faceVisualIndex.value
+))
 const planeScale = computed(() => {
   const radians = Math.PI / 180
   const projectedWidth = props.face.width * Math.cos(24 * radians)
@@ -175,16 +233,46 @@ const planeScale = computed(() => {
     props.viewportHeight * 0.5 / Math.max(1, projectedHeight),
   ))
 })
+const facePreviewScale = computed(() => Math.min(
+  0.4,
+  Math.max(0.04, props.viewportWidth * 0.28 / Math.max(1, props.face.width)),
+  Math.max(0.04, props.viewportHeight * 0.46 / Math.max(1, props.face.height)),
+))
+const facePreviewStyle = computed<CSSProperties>(() => ({
+  zIndex: '300',
+  width: `${props.face.width * facePreviewScale.value}px`,
+  height: `${props.face.height * facePreviewScale.value}px`,
+  '--card-layer-preview-scale': String(facePreviewScale.value),
+  '--card-layer-preview-width': `${props.face.width}px`,
+  '--card-layer-preview-height': `${props.face.height}px`,
+}))
 const layerPitch = computed(() => Math.min(400, Math.max(220, props.viewportHeight * 0.36)))
 const sameLayerPitch = computed(() => Math.min(180, Math.max(110, props.viewportHeight * 0.16)))
 const planeOffsets = computed(() => {
   const offsets = [0]
-  for (let index = 1; index < planeEntries.value.length; index += 1) {
-    const sameLayer = planeEntries.value[index - 1]?.layerIndex === planeEntries.value[index]?.layerIndex
+  for (let index = 1; index < visualPlaneSlots.value.length; index += 1) {
+    const sameLayer = visualPlaneSlots.value[index - 1]?.zIndex === visualPlaneSlots.value[index]?.zIndex
     offsets.push(offsets[index - 1]! + (sameLayer ? sameLayerPitch.value : layerPitch.value))
   }
   return offsets
 })
+const currentPlaneOffset = computed(() => {
+  const lowerIndex = Math.floor(layerPosition.value)
+  const upperIndex = Math.ceil(layerPosition.value)
+  const progress = layerPosition.value - lowerIndex
+  return (planeOffsets.value[lowerIndex] ?? 0) * (1 - progress)
+    + (planeOffsets.value[upperIndex] ?? planeOffsets.value[lowerIndex] ?? 0) * progress
+})
+const basePlaneStyle = computed<CSSProperties>(() => {
+  return {
+    width: `${props.face.width * planeScale.value}px`,
+    height: `${props.face.height * planeScale.value}px`,
+    ...getVisualPlaneStyle(faceVisualIndex.value),
+  }
+})
+const baseFaceStyle = computed<CSSProperties>(() => ({
+  background: props.face.background,
+}))
 const rulerOffsets = computed(() => {
   const offsets = [0]
   for (let index = 1; index < planeEntries.value.length; index += 1) {
@@ -236,18 +324,19 @@ function isLayerStart(index: number): boolean {
   return getPlaneZIndex(planeEntries.value[index]!) !== getPlaneZIndex(planeEntries.value[index - 1]!)
 }
 
-function isLayerBoundary(index: number): boolean {
-  return index > 0 && isLayerStart(index)
-}
-
-function getPreviousLayerZIndex(index: number): number {
-  const previous = planeEntries.value[index - 1]
-  return previous ? getPlaneZIndex(previous) : getPlaneZIndex(planeEntries.value[index]!)
-}
-
-function getLayerBoundaryStyle(index: number): CSSProperties {
-  const gap = (rulerOffsets.value[index] ?? 0) - (rulerOffsets.value[index - 1] ?? 0)
-  return { top: `${12 - gap / 2}px` }
+function getRailSegmentStyle(layerIndex: number): CSSProperties {
+  const entryIndexes = planeEntries.value.flatMap((entry, entryIndex) => (
+    entry.layerIndex === layerIndex ? [entryIndex] : []
+  ))
+  const firstIndex = entryIndexes[0]
+  const lastIndex = entryIndexes[entryIndexes.length - 1]
+  if (firstIndex === undefined || lastIndex === undefined) return { display: 'none' }
+  const top = getRailY(firstIndex) - RULER_TICK_PITCH / 2
+  const bottom = getRailY(lastIndex) + RULER_TICK_PITCH / 2
+  return {
+    top: `${top}px`,
+    height: `${Math.max(RULER_TICK_PITCH, bottom - top)}px`,
+  }
 }
 
 function getTickStyle(index: number): CSSProperties {
@@ -277,19 +366,20 @@ function getBlockPlaneStyle(
   layerIndex: number,
 ): CSSProperties {
   const planeIndex = getPlaneIndex(layerIndex, blockIndex)
-  const distance = planeIndex - layerPosition.value
-  const absoluteDistance = Math.abs(distance)
-  const focusDistance = Math.abs(planeIndex - focusedPlaneIndex.value)
-  const lowerIndex = Math.floor(layerPosition.value)
-  const upperIndex = Math.ceil(layerPosition.value)
-  const progress = layerPosition.value - lowerIndex
-  const currentOffset = (planeOffsets.value[lowerIndex] ?? 0) * (1 - progress)
-    + (planeOffsets.value[upperIndex] ?? planeOffsets.value[lowerIndex] ?? 0) * progress
+  const visualIndex = visualIndexByEntry.value.get(planeIndex) ?? planeIndex
   return {
     width: `${props.face.width * planeScale.value}px`,
     height: `${props.face.height * planeScale.value}px`,
-    opacity: String(Math.max(0.025, Math.exp(-1.5 * focusDistance))),
-    transform: `translate(-50%, -50%) translate3d(0, ${(planeOffsets.value[planeIndex] ?? 0) - currentOffset}px, ${-absoluteDistance * 54}px) rotateX(56deg) rotateZ(-24deg)`,
+    ...getVisualPlaneStyle(visualIndex),
+  }
+}
+
+function getVisualPlaneStyle(visualIndex: number): CSSProperties {
+  const absoluteDistance = Math.abs(visualIndex - layerPosition.value)
+  const focusDistance = Math.abs(visualIndex - focusedVisualIndex.value)
+  return {
+    opacity: String(focusDistance >= 2 ? 0.015 : Math.exp(-1.0 * focusDistance)),
+    transform: `perspective(1400px) translate(-50%, -50%) translate3d(0, ${(planeOffsets.value[visualIndex] ?? 0) - currentPlaneOffset.value}px, ${-absoluteDistance * 54}px) rotateX(56deg) rotateZ(-24deg)`,
     zIndex: String(100 - Math.round(absoluteDistance * 10)),
   }
 }
@@ -324,11 +414,19 @@ function rebuildSnapshots(): void {
   const nextSnapshots = new Map<string, Snapshot>()
   if (!sourceRoot) {
     snapshots.value = nextSnapshots
+    facePreviewHtml.value = ''
     return
   }
 
   const sourceBlocks = [...sourceRoot.querySelectorAll<HTMLElement>('[data-block-id]')]
   const faceElement = sourceRoot.querySelector<HTMLElement>('.card-canvas') ?? sourceRoot
+  const faceClone = faceElement.cloneNode(true) as HTMLElement
+  removeDuplicateIds(faceClone)
+  faceClone.removeAttribute('data-block-id')
+  faceClone.querySelectorAll('[data-block-id]').forEach(element => element.removeAttribute('data-block-id'))
+  faceClone.style.width = `${props.face.width}px`
+  faceClone.style.height = `${props.face.height}px`
+  facePreviewHtml.value = faceClone.outerHTML
   const faceRect = faceElement.getBoundingClientRect()
   const coordinateScaleX = faceRect.width > 0 ? props.face.width / faceRect.width : 1
   const coordinateScaleY = faceRect.height > 0 ? props.face.height / faceRect.height : 1
@@ -392,7 +490,7 @@ function animateToTarget(): void {
 
 function focusPlane(value: number): void {
   focusedPlaneIndex.value = clampIndex(Math.round(value))
-  targetLayerPosition.value = focusedPlaneIndex.value
+  targetLayerPosition.value = focusedVisualIndex.value
   animateToTarget()
 }
 
@@ -472,10 +570,13 @@ function selectInitialLayer(): void {
     ? planeEntries.value.findIndex(entry => entry.id === props.selectedBlockId)
     : -1
   layerPosition.value = selectedIndex >= 0
+    ? visualIndexByEntry.value.get(selectedIndex) ?? selectedIndex
+    : visualIndexByEntry.value.get(Math.max(0, Math.floor((planeEntries.value.length - 1) / 2)))
+      ?? faceVisualIndex.value
+  focusedPlaneIndex.value = clampIndex(selectedIndex >= 0
     ? selectedIndex
-    : Math.max(0, Math.floor((planeEntries.value.length - 1) / 2))
-  focusedPlaneIndex.value = clampIndex(layerPosition.value)
-  targetLayerPosition.value = layerPosition.value
+    : Math.max(0, Math.floor((planeEntries.value.length - 1) / 2)))
+  targetLayerPosition.value = focusedVisualIndex.value
 }
 
 function focusBlock(blockId: string): void {
@@ -524,8 +625,8 @@ watch(() => [props.face, props.sourceRoot, props.viewportWidth, props.viewportHe
 watch(planeEntries, () => {
   const next = clampIndex(focusedPlaneIndex.value)
   focusedPlaneIndex.value = next
-  layerPosition.value = next
-  targetLayerPosition.value = next
+  layerPosition.value = focusedVisualIndex.value
+  targetLayerPosition.value = focusedVisualIndex.value
 })
 
 onMounted(() => {
@@ -549,7 +650,6 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   overflow: hidden;
   user-select: none;
   touch-action: none;
-  perspective: 1400px;
   background: color-mix(in srgb, var(--oc-bg-raised) 24%, transparent);
   animation: layer-view-enter var(--oc-duration-normal) var(--oc-ease) both;
 }
@@ -560,12 +660,51 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   transform-style: preserve-3d;
 }
 
+.card-layer-view__card-preview {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.card-layer-view__card-preview-content {
+  width: var(--card-layer-preview-width);
+  height: var(--card-layer-preview-height);
+  transform: scale(var(--card-layer-preview-scale));
+  transform-origin: 0 0;
+}
+
+.card-layer-view__card-preview-content :deep(*) {
+  pointer-events: none !important;
+}
+
 .card-layer-view__level {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
   transition: opacity var(--oc-duration-fast) var(--oc-ease);
   will-change: transform, opacity;
+}
+
+.card-layer-view__base-plane {
+  pointer-events: none;
+}
+
+.card-layer-view__base-face {
+  display: block;
+}
+
+.card-layer-view__base-face::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.86);
+  pointer-events: none;
 }
 
 .card-layer-view__block-plane {
@@ -590,6 +729,10 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   background: color-mix(in srgb, var(--oc-bg-base) 62%, transparent);
   box-shadow: 24px 30px 44px color-mix(in srgb, #000000 17%, transparent);
   pointer-events: none;
+}
+
+.card-layer-view__plane.card-layer-view__base-face {
+  border-color: var(--oc-accent);
 }
 
 .card-layer-view__block {
@@ -666,18 +809,85 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   pointer-events: auto;
 }
 
-.card-layer-view__rail-line {
+.card-layer-view__rail-segment {
   position: absolute;
-  top: 18px;
-  bottom: 18px;
   left: 8px;
-  width: 1px;
-  background: color-mix(in srgb, var(--oc-fg-default) 28%, transparent);
+  width: 2px;
+  color: var(--oc-fg-muted);
+  transition:
+    top var(--oc-duration-normal) var(--oc-ease),
+    height var(--oc-duration-normal) var(--oc-ease),
+    color var(--oc-duration-fast) var(--oc-ease);
+  will-change: top, height;
+}
+
+.card-layer-view__rail-segment-line {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--oc-radius-full);
+  background: currentColor;
+  opacity: 0.46;
+}
+
+.card-layer-view__rail-segment-line::before,
+.card-layer-view__rail-segment-line::after {
+  position: absolute;
+  left: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: var(--oc-radius-full);
+  background: currentColor;
+  content: '';
+  transform: translateX(-50%);
+}
+
+.card-layer-view__rail-segment-line::before {
+  top: 0;
+}
+
+.card-layer-view__rail-segment-line::after {
+  bottom: 0;
+}
+
+.card-layer-view__rail-segment-index {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: currentColor;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.card-layer-view__rail-segment.is-active {
+  color: var(--oc-fg-accent);
+}
+
+.card-layer-view__rail-segment.is-active .card-layer-view__rail-segment-line {
+  opacity: 1;
+}
+
+.card-layer-view__rail-active-index {
+  position: absolute;
+  left: 8px;
+  color: var(--oc-fg-accent);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-left: -10px;
+  transform: translate(-100%, -50%);
+  white-space: nowrap;
 }
 
 .card-layer-view__tick {
   position: absolute;
   left: 2px;
+  display: flex;
+  align-items: center;
   width: max-content;
   min-width: 100%;
   height: 24px;
@@ -701,7 +911,7 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   content: '';
   position: absolute;
   top: 50%;
-  left: 2px;
+  left: 6px;
   width: 8px;
   height: 1px;
   background: currentColor;
@@ -720,35 +930,8 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
 
 .card-layer-view__tick-name {
   display: block;
-  white-space: nowrap;
-}
-
-.card-layer-view__layer-boundary {
-  position: absolute;
-  left: 2px;
-  width: 8px;
-  height: 1px;
-  background: color-mix(in srgb, var(--oc-fg-default) 38%, transparent);
-  pointer-events: none;
-}
-
-.card-layer-view__layer-boundary-index {
-  position: absolute;
-  right: 12px;
-  color: var(--oc-fg-subtle);
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
-}
-
-.card-layer-view__layer-boundary-index--upper {
-  bottom: 6px;
-}
-
-.card-layer-view__layer-boundary-index--lower {
-  top: 6px;
 }
 
 .card-layer-view__thumb {

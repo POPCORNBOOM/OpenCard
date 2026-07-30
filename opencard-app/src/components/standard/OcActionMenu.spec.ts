@@ -24,4 +24,57 @@ describe('OcActionMenu', () => {
     await wrapper.findAll('[role="menuitem"]')[1]!.trigger('click')
     expect(wrapper.emitted('select')).toEqual([[{ key: 'export' }]])
   })
+
+  it('moves keyboard focus across enabled commands', async () => {
+    const wrapper = mount(OcActionMenu, {
+      attachTo: document.body,
+      props: {
+        actions: [
+          { key: 'first', title: 'First' },
+          { key: 'disabled', title: 'Disabled', disabled: true },
+          { key: 'last', title: 'Last' },
+        ],
+      },
+    })
+    const buttons = wrapper.findAll<HTMLButtonElement>('[role="menuitem"]')
+
+    wrapper.vm.focusFirst()
+    expect(document.activeElement).toBe(buttons[0]!.element)
+    await buttons[0]!.trigger('keydown', { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(buttons[2]!.element)
+    await buttons[2]!.trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(buttons[0]!.element)
+    await buttons[0]!.trigger('keydown', { key: 'End' })
+    expect(document.activeElement).toBe(buttons[2]!.element)
+    wrapper.unmount()
+  })
+
+  it('opens nested commands with ArrowRight and requests close with ArrowLeft', async () => {
+    const wrapper = mount(OcActionMenu, {
+      attachTo: document.body,
+      props: {
+        actions: [{
+          key: 'more',
+          title: 'More',
+          children: [{ key: 'rename', title: 'Rename' }],
+        }],
+      },
+    })
+
+    await wrapper.get('[role="menuitem"]').trigger('keydown', { key: 'ArrowRight' })
+    await wrapper.vm.$nextTick()
+    expect(document.activeElement?.textContent).toContain('Rename')
+    const childMenu = wrapper.findAllComponents(OcActionMenu)[0]
+    await childMenu!.get('[role="menuitem"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(childMenu!.emitted('close-submenu')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('requests dismissal on Escape', async () => {
+    const wrapper = mount(OcActionMenu, {
+      props: { actions: [{ key: 'rename', title: 'Rename' }] },
+    })
+    await wrapper.get('[role="menuitem"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('dismiss')).toHaveLength(1)
+  })
 })

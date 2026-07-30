@@ -13,7 +13,7 @@ import type {
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
-import type { OcThemeId } from '../../../shared/ui/foundation'
+import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 export interface EditorProps {
@@ -31,6 +31,7 @@ export interface EditorProps {
   showSelectionPositionOnMove?: boolean
   showSelectionSizeOnResize?: boolean
   themeId?: OcThemeId
+  themeOverrides?: OcThemeColorOverrides
 }
 
 export interface EditorEmits {

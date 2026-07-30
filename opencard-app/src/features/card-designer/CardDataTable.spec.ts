@@ -9,6 +9,7 @@ import type {
   CdeDataTableFaceGroup,
   CdeDataTableFieldRow,
 } from './useCdeDataTableModel'
+import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -74,6 +75,7 @@ catalogFaceGroups[0]!.blocks.push({
 
 describe('CardDataTable', () => {
   afterEach(() => {
+    useFloatingMenu().closeMenu()
     vi.unstubAllGlobals()
   })
 
@@ -150,6 +152,22 @@ describe('CardDataTable', () => {
     expect(wrapper.emitted('reset-cell')).toEqual([[
       { cardId: 'instance', blockId: 'text', fieldKey: 'content' },
     ]])
+  })
+
+  it('routes header and row context menus through the same command handlers', async () => {
+    const wrapper = mount(CardDataTable, { props: { columns, catalogFaceGroups, faceGroups } })
+    const menu = useFloatingMenu()
+    const headings = wrapper.findAll('.card-data-table__column-heading')
+
+    await headings[1]!.trigger('contextmenu', { clientX: 20, clientY: 30 })
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['rename', 'duplicate', 'delete'])
+    menu.selectMenuItem('duplicate')
+    expect(wrapper.emitted('duplicate-card')).toEqual([['instance']])
+
+    await wrapper.get('.card-data-table__field-heading').trigger('contextmenu')
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['exclude-field', 'delete-field'])
+    menu.selectMenuItem('exclude-field')
+    expect(wrapper.emitted('exclude-field')).toEqual([['text', 'content']])
   })
 
   it('reveals a Cell and places the caret at the issue character offset', async () => {

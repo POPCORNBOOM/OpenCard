@@ -5,11 +5,12 @@ import type { OcThemeId, OcThemeTokens } from './themeTokens'
 
 const sharedThemeTokens = {
   '--oc-scrollbar-size': '8px',
-  '--oc-bg-accent': '#7c6cff',
+  '--oc-bg-accent': '#A260FF',
   '--oc-bg-glass-blur': '18px',
   '--oc-bg-glass-saturate': '120%',
-  '--oc-border-accent': '#7c6cff',
-  '--oc-accent': '#7c6cff',
+  '--oc-border-accent': '#A260FF',
+  '--oc-accent': '#A260FF',
+  '--oc-accent-neighbor': '#60A2FF',
   '--oc-accent-fg': '#f5f2ff',
   '--oc-icon-default': 'currentColor',
   '--oc-icon-size-sm': '12px',
@@ -58,13 +59,13 @@ const darkTheme: OcThemeTokens = {
   '--oc-bg-raised': '#2d2d2d',
 
   '--oc-bg-hover': 'rgba(255, 255, 255, 0.04)',
-  '--oc-bg-active': 'rgba(124, 108, 255, 0.22)',
-  '--oc-bg-selected': 'rgba(124, 108, 255, 0.16)',
+  '--oc-bg-active': 'rgba(162, 96, 255, 0.22)',
+  '--oc-bg-selected': 'rgba(162, 96, 255, 0.16)',
 
   '--oc-bg-input': '#3c3c3c',
 
-  '--oc-bg-accent-hover': 'rgba(124, 108, 255, 0.92)',
-  '--oc-bg-accent-subtle': 'rgba(124, 108, 255, 0.12)',
+  '--oc-bg-accent-hover': 'rgba(162, 96, 255, 0.92)',
+  '--oc-bg-accent-subtle': 'rgba(162, 96, 255, 0.12)',
 
   '--oc-bg-danger-subtle': 'rgba(241, 76, 76, 0.12)',
 
@@ -73,7 +74,7 @@ const darkTheme: OcThemeTokens = {
   '--oc-border-default': '#3a3d41',
   '--oc-border-muted': '#333333',
   '--oc-border-strong': '#51555b',
-  '--oc-accent-glow': 'rgba(124, 108, 255, 0.28)',
+  '--oc-accent-glow': 'rgba(162, 96, 255, 0.28)',
 
   '--oc-danger': '#f14c4c',
 
@@ -108,7 +109,7 @@ const darkTheme: OcThemeTokens = {
   '--oc-shadow-md': '0 4px 12px rgba(0, 0, 0, 0.28)',
   '--oc-shadow-lg': '0 10px 28px rgba(0, 0, 0, 0.32)',
 
-  '--oc-focus-ring': '0 0 0 2px rgba(124, 108, 255, 0.4)',
+  '--oc-focus-ring': '0 0 0 2px rgba(162, 96, 255, 0.4)',
 }
 
 const lightTheme: OcThemeTokens = {
@@ -121,13 +122,13 @@ const lightTheme: OcThemeTokens = {
   '--oc-bg-raised': '#f8f9fd',
 
   '--oc-bg-hover': 'rgba(31, 36, 48, 0.05)',
-  '--oc-bg-active': 'rgba(124, 108, 255, 0.18)',
-  '--oc-bg-selected': 'rgba(124, 108, 255, 0.12)',
+  '--oc-bg-active': 'rgba(162, 96, 255, 0.18)',
+  '--oc-bg-selected': 'rgba(162, 96, 255, 0.12)',
 
   '--oc-bg-input': '#ffffff',
 
-  '--oc-bg-accent-hover': 'rgba(124, 108, 255, 0.84)',
-  '--oc-bg-accent-subtle': 'rgba(124, 108, 255, 0.1)',
+  '--oc-bg-accent-hover': 'rgba(162, 96, 255, 0.84)',
+  '--oc-bg-accent-subtle': 'rgba(162, 96, 255, 0.1)',
 
   '--oc-bg-danger-subtle': 'rgba(209, 67, 67, 0.1)',
 
@@ -136,7 +137,7 @@ const lightTheme: OcThemeTokens = {
   '--oc-border-default': '#e3e6f2',
   '--oc-border-muted': '#eceef5',
   '--oc-border-strong': '#d0d4e3',
-  '--oc-accent-glow': 'rgba(124, 108, 255, 0.35)',
+  '--oc-accent-glow': 'rgba(162, 96, 255, 0.35)',
 
   '--oc-danger': '#d14343',
 
@@ -171,7 +172,7 @@ const lightTheme: OcThemeTokens = {
   '--oc-shadow-md': '0 4px 12px rgba(31, 36, 48, 0.14)',
   '--oc-shadow-lg': '0 10px 28px rgba(31, 36, 48, 0.18)',
 
-  '--oc-focus-ring': '0 0 0 2px rgba(124, 108, 255, 0.5)',
+  '--oc-focus-ring': '0 0 0 2px rgba(162, 96, 255, 0.5)',
 }
 
 export const DEFAULT_OC_THEME: OcThemeId = 'dark'

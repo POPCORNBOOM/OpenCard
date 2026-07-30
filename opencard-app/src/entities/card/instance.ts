@@ -15,11 +15,15 @@ function cloneAdditionalFieldDefinitions(
     )
 }
 
+export function isInstanceBlockFieldOverridable(fieldKey: string): boolean {
+    return fieldKey !== 'name'
+}
+
 function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): CardBlock {
     const overrides = instance.data[block.id] ?? {}
-    const projected = Object.fromEntries(
-        Object.entries(overrides).filter(([fieldKey]) => fieldKey !== 'additionalFieldDefinition'),
-    )
+    const projected = Object.fromEntries(Object.entries(overrides).filter(([fieldKey]) => (
+        fieldKey !== 'additionalFieldDefinition' && isInstanceBlockFieldOverridable(fieldKey)
+    )))
 
     switch (block.type) {
         case 'text-block':

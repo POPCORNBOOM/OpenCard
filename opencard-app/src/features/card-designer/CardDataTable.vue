@@ -16,7 +16,9 @@
                 <OcButton icon-only size="sm" variant="ghost" icon="action.close"
                   :aria-label="t('cardDesigner.dataTable.renameCancel')" @click="cancelRename" />
               </form>
-              <div v-else class="card-data-table__column-heading">
+              <div v-else class="card-data-table__column-heading" tabindex="0"
+                @contextmenu="openColumnContextMenu($event, column)"
+                @keydown="openColumnKeyboardMenu($event, column)">
                 <OcIcon :name="column.kind === 'blueprint' ? 'entity.card-blueprint' : 'entity.card-instance'"
                   size="md" tone="muted" />
                 <span>{{ column.title }}</span>
@@ -35,7 +37,10 @@
           <tbody class="card-data-table__face-group">
             <tr class="card-data-table__face-row">
               <th scope="rowgroup">
-                <span class="card-data-table__face-heading">
+                <span class="card-data-table__face-heading"
+                  :tabindex="faceCommands(face).length > 0 ? 0 : undefined"
+                  @contextmenu="openFaceContextMenu($event, face)"
+                  @keydown="openFaceKeyboardMenu($event, face)">
                   <OcIcon name="file.opencard" size="md" tone="muted" />
                   <span>{{ face.title }}</span>
                   <OcActionButton v-if="faceBlockAction(face)" :action="faceBlockAction(face)!"
@@ -48,7 +53,10 @@
           <tbody v-for="block in face.blocks" :key="block.key" class="card-data-table__block-group">
             <tr class="card-data-table__block-row">
               <th scope="rowgroup">
-                <span class="card-data-table__block-heading" :style="{ paddingInlineStart: `${block.depth * 14}px` }">
+                <span class="card-data-table__block-heading" tabindex="0"
+                  :style="{ paddingInlineStart: `${block.depth * 14}px` }"
+                  @contextmenu="openBlockContextMenu($event, block)"
+                  @keydown="openBlockKeyboardMenu($event, block)">
                   <OcIcon :name="getBlockTreeIcon(block.type)" size="md" tone="muted" />
                   <span>{{ block.title }}</span>
                   <OcActionButton :action="blockFieldAction(block)" size="sm" variant="ghost"
@@ -60,7 +68,10 @@
             <tr v-for="field in block.fields" :key="field.key" class="card-data-table__field-row"
               :data-block-id="block.key" :data-field-key="field.key">
               <th scope="row">
-                <span class="card-data-table__field-heading" :style="{ paddingInlineStart: `${block.depth * 14 + 14}px` }">
+                <span class="card-data-table__field-heading" tabindex="0"
+                  :style="{ paddingInlineStart: `${block.depth * 14 + 14}px` }"
+                  @contextmenu="openFieldContextMenu($event, block, field)"
+                  @keydown="openFieldKeyboardMenu($event, block, field)">
                   <OcIcon :name="getPropertyFieldIcon(field.definition.fieldType)" size="sm" tone="muted" />
                   <span>{{ field.title }}</span>
                   <OcButton icon-only size="sm" variant="ghost" icon="action.close"
@@ -116,6 +127,7 @@ import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
+import { useFloatingMenu } from '../../composables/useFloatingMenu'
 import type { PropertyEditorBindingInterpreter, PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
 import PropertyFieldControl from '../../shared/ui/property-editor/PropertyFieldControl.vue'
 import { getPropertyFieldIcon } from '../../shared/ui/property-editor/propertyFieldRegistry'
@@ -160,6 +172,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { openContextMenu } = useFloatingMenu()
 const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const renamingColumnKey = ref<string | null>(null)
@@ -219,23 +232,27 @@ onMounted(() => {
   for (const element of cellElements.values()) cellObserver.observe(element)
 })
 
-function columnAction(column: CdeDataTableColumn): OcActionButtonAction {
-  if (column.kind === 'blueprint') {
-    return {
+function columnCommands(column: CdeDataTableColumn): OcActionButtonAction[] {
+  if (column.kind === 'blueprint') return [{
       key: 'duplicate',
       icon: 'action.add',
       title: t('cardDesigner.dataTable.duplicateBlueprint'),
-    }
-  }
+    }]
+  return [
+    { key: 'rename', icon: 'action.edit', title: t('cardDesigner.dataTable.renameInstance') },
+    { key: 'duplicate', icon: 'action.copy', title: t('cardDesigner.dataTable.duplicateInstance') },
+    { key: 'delete', icon: 'action.delete', title: t('cardDesigner.dataTable.deleteInstance') },
+  ]
+}
+
+function columnAction(column: CdeDataTableColumn): OcActionButtonAction {
+  const commands = columnCommands(column)
+  if (column.kind === 'blueprint') return commands[0]!
   return {
     key: 'more',
     icon: 'nav.more',
     title: t('cardDesigner.dataTable.instanceActions'),
-    children: [
-      { key: 'rename', icon: 'action.edit', title: t('cardDesigner.dataTable.renameInstance') },
-      { key: 'duplicate', icon: 'action.copy', title: t('cardDesigner.dataTable.duplicateInstance') },
-      { key: 'delete', icon: 'action.delete', title: t('cardDesigner.dataTable.deleteInstance') },
-    ],
+    children: commands,
   }
 }
 
@@ -247,35 +264,36 @@ function handleColumnAction(column: CdeDataTableColumn, actionKey: string): void
   else if (actionKey === 'delete' && column.kind === 'instance') emit('delete-instance', column.key)
 }
 
-function faceBlockAction(face: CdeDataTableFaceGroup): OcActionButtonAction | null {
+function faceCommands(face: CdeDataTableFaceGroup): OcActionButtonAction[] {
   const catalog = props.catalogFaceGroups.find(candidate => candidate.key === face.key)
-  if (!catalog) return null
+  if (!catalog) return []
   const selectedBlockIds = new Set(face.blocks.map(block => block.key))
   const availableBlocks = catalog.blocks.filter(block => !selectedBlockIds.has(block.key))
-  if (availableBlocks.length === 0) return null
+  return availableBlocks.map(block => ({
+    key: block.key,
+    icon: getBlockTreeIcon(block.type),
+    title: block.title,
+  }))
+}
+
+function faceBlockAction(face: CdeDataTableFaceGroup): OcActionButtonAction | null {
+  const commands = faceCommands(face)
+  if (commands.length === 0) return null
   return {
     key: 'add-block',
     icon: 'action.add',
     title: t('cardDesigner.dataTable.addBlock'),
-    children: availableBlocks.map(block => ({
-      key: block.key,
-      icon: getBlockTreeIcon(block.type),
-      title: block.title,
-    })),
+    children: commands,
   }
 }
 
-function blockFieldAction(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction {
+function blockCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
   const selectedFieldKeys = new Set(block.fields.map(field => field.key))
   const catalogBlock = props.catalogFaceGroups
     .flatMap(face => face.blocks)
     .find(candidate => candidate.key === block.key)
   const availableFields = catalogBlock?.fields.filter(field => !selectedFieldKeys.has(field.key)) ?? []
-  return {
-    key: 'manage-fields',
-    icon: 'action.add',
-    title: t('cardDesigner.dataTable.manageFields'),
-    children: [
+  return [
       ...availableFields.map(field => ({
         key: `${INCLUDE_FIELD_PREFIX}${field.key}`,
         icon: getPropertyFieldIcon(field.definition.fieldType),
@@ -291,7 +309,15 @@ function blockFieldAction(block: CdeDataTableBlockCatalogEntry): OcActionButtonA
         icon: 'action.close',
         title: t('cardDesigner.dataTable.removeBlock'),
       },
-    ],
+    ]
+}
+
+function blockFieldAction(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction {
+  return {
+    key: 'manage-fields',
+    icon: 'action.add',
+    title: t('cardDesigner.dataTable.manageFields'),
+    children: blockCommands(block),
   }
 }
 
@@ -300,6 +326,79 @@ function handleBlockAction(blockId: string, actionKey: string): void {
     emit('include-field', blockId, actionKey.slice(INCLUDE_FIELD_PREFIX.length))
   } else if (actionKey === 'create-field') emit('create-field', blockId)
   else if (actionKey === 'remove-block') emit('remove-block', blockId)
+}
+
+function fieldCommands(field: CdeDataTableFieldRow): OcActionButtonAction[] {
+  return [
+    { key: 'exclude-field', icon: 'action.close', title: t('cardDesigner.dataTable.excludeField') },
+    ...(field.deletable
+      ? [{ key: 'delete-field', icon: 'action.delete' as const, iconTone: 'danger' as const, title: t('cardDesigner.dataTable.deleteField') }]
+      : []),
+  ]
+}
+
+function openKeyboardContextMenu(
+  event: KeyboardEvent,
+  items: readonly OcActionButtonAction[],
+  onSelect: (key: string) => void,
+): void {
+  if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return
+  if (items.length === 0 || !(event.currentTarget instanceof HTMLElement)) return
+  event.preventDefault()
+  openContextMenu({ anchor: event.currentTarget, items, onSelect })
+}
+
+function openColumnContextMenu(event: MouseEvent, column: CdeDataTableColumn): void {
+  openContextMenu({ event, items: columnCommands(column), onSelect: key => handleColumnAction(column, key) })
+}
+
+function openColumnKeyboardMenu(event: KeyboardEvent, column: CdeDataTableColumn): void {
+  openKeyboardContextMenu(event, columnCommands(column), key => handleColumnAction(column, key))
+}
+
+function openFaceContextMenu(event: MouseEvent, face: CdeDataTableFaceGroup): void {
+  openContextMenu({ event, items: faceCommands(face), onSelect: key => emit('add-block', key) })
+}
+
+function openFaceKeyboardMenu(event: KeyboardEvent, face: CdeDataTableFaceGroup): void {
+  openKeyboardContextMenu(event, faceCommands(face), key => emit('add-block', key))
+}
+
+function openBlockContextMenu(event: MouseEvent, block: CdeDataTableBlockCatalogEntry): void {
+  openContextMenu({ event, items: blockCommands(block), onSelect: key => handleBlockAction(block.key, key) })
+}
+
+function openBlockKeyboardMenu(event: KeyboardEvent, block: CdeDataTableBlockCatalogEntry): void {
+  openKeyboardContextMenu(event, blockCommands(block), key => handleBlockAction(block.key, key))
+}
+
+function handleFieldAction(blockId: string, fieldKey: string, actionKey: string): void {
+  if (actionKey === 'exclude-field') emit('exclude-field', blockId, fieldKey)
+  else if (actionKey === 'delete-field') emit('delete-field', blockId, fieldKey)
+}
+
+function openFieldContextMenu(
+  event: MouseEvent,
+  block: CdeDataTableBlockCatalogEntry,
+  field: CdeDataTableFieldRow,
+): void {
+  openContextMenu({
+    event,
+    items: fieldCommands(field),
+    onSelect: key => handleFieldAction(block.key, field.key, key),
+  })
+}
+
+function openFieldKeyboardMenu(
+  event: KeyboardEvent,
+  block: CdeDataTableBlockCatalogEntry,
+  field: CdeDataTableFieldRow,
+): void {
+  openKeyboardContextMenu(
+    event,
+    fieldCommands(field),
+    key => handleFieldAction(block.key, field.key, key),
+  )
 }
 
 function commitRename(cardId: string): void {

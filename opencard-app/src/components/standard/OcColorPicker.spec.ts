@@ -15,6 +15,32 @@ describe('OcColorPicker', () => {
     wrapper.unmount()
   })
 
+  it('offers an editable color field with a contrast-safe foreground', async () => {
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#112233', variant: 'field' },
+    })
+
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(241, 243, 245)')
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('--oc-color-picker-dot-border: #CBCBCB')
+    await wrapper.get('.oc-color-picker__field-input').setValue('#FFFFFF')
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(36, 39, 44)')
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('--oc-color-picker-dot-border: #9E9E9E')
+    await wrapper.get('.oc-color-picker__field-input').trigger('blur')
+    expect(wrapper.emitted('commit')).toEqual([['#FFFFFF']])
+  })
+
+  it('restores an invalid inline value on blur', async () => {
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#112233', variant: 'field' },
+    })
+
+    await wrapper.get('.oc-color-picker__field-input').setValue('#NOPE')
+    await wrapper.get('.oc-color-picker__field-input').trigger('blur')
+
+    expect((wrapper.get('.oc-color-picker__field-input').element as HTMLInputElement).value).toBe('#112233')
+    expect(wrapper.emitted('commit')).toBeUndefined()
+  })
+
   it('previews valid hex input and commits it explicitly', async () => {
     const wrapper = mount(OcColorPicker, {
       props: { modelValue: '#112233' },

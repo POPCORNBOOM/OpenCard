@@ -7,6 +7,7 @@ import {
 } from '../../entities/card/model'
 import type { EditorPropertyDefinition } from '../../entities/card/schema'
 import { isBlockContainer } from '../../entities/card/tree'
+import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 import { resolveCdePropertyFields } from './cdePropertyFieldDefinitions'
 
@@ -208,7 +209,8 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
       const overrideRecord = column.kind === 'instance'
         ? instanceLookup.get(column.key)?.data[block.id]
         : undefined
-      const overridden = Boolean(overrideRecord && hasOwn(overrideRecord, field.key))
+      const canOverride = column.kind === 'blueprint' || isInstanceBlockFieldOverridable(field.key)
+      const overridden = Boolean(canOverride && overrideRecord && hasOwn(overrideRecord, field.key))
       return {
         identity: `${column.key}\u0000${block.id}\u0000${field.key}`,
         cardId: column.key,

@@ -167,6 +167,7 @@
         </div>
         <div class="dictionary-editor__source">
           <MonacoEditor :model-value="modelValue ?? ''" language="json" :theme-id="themeId"
+            :theme-overrides="themeOverrides"
             @update:model-value="emit('update:modelValue', $event)" @save="save" />
         </div>
       </section>
@@ -202,6 +203,7 @@ const editingLanguage = ref<string | null>(null)
 const renameDraft = ref('')
 
 const themeId = computed(() => props.themeId ?? 'dark')
+const themeOverrides = computed(() => props.themeOverrides ?? {})
 const recordKeys = computed(() => Object.keys(dictionary.value?.base ?? {}))
 const languageKeys = computed(() => Object.keys(dictionary.value?.languages ?? {}))
 const missingActiveLanguage = computed(() => Boolean(

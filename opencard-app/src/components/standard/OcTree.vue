@@ -47,6 +47,7 @@
         @dblclick="handleRowDoubleClick($event, entry.key)"
         @mousedown="handleRowMouseDown($event, entry.key)"
         @keydown="handleRowKeydown($event, entry.key, index)"
+        @contextmenu="handleRowContextMenu($event, entry.key)"
       >
         <span
           class="oc-tree__icon-slot"
@@ -114,6 +115,7 @@ import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import { useFloatingMenu } from '../../composables/useFloatingMenu'
 import type {
   OcTreeActionDefinition,
   OcTreeData,
@@ -164,6 +166,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
 const emit = defineEmits<{
   intent: [intent: OcTreeIntent]
 }>()
+const { openContextMenu } = useFloatingMenu()
 
 const treeRootElement = ref<HTMLElement | null>(null)
 const rowRefs = new Map<OcTreeKey, HTMLElement>()
@@ -246,6 +249,7 @@ function validateContract(): void {
   }
   for (const item of props.data.items.values()) {
     for (const actionKey of item.actions ?? []) visitAction(actionKey, new Set())
+    for (const actionKey of item.contextActions ?? []) visitAction(actionKey, new Set())
   }
 }
 
@@ -487,6 +491,30 @@ function resolveItemActions(key: OcTreeKey): OcActionButtonAction[] {
     .filter((action): action is OcActionButtonAction => action !== null)
 }
 
+function resolveContextActions(key: OcTreeKey): OcActionButtonAction[] {
+  return (props.data.items.get(key)?.contextActions ?? [])
+    .map((actionKey) => resolveAction(key, actionKey, new Set()))
+    .filter((action): action is OcActionButtonAction => action !== null)
+}
+
+function openItemContextMenu(key: OcTreeKey, event?: MouseEvent): boolean {
+  const item = props.data.items.get(key)
+  if (!item || item.disabled) return false
+  const actions = resolveContextActions(key)
+  if (actions.length === 0) return false
+  if (!isSelected(key)) emitSelectionIntent(key, false)
+  return openContextMenu({
+    event,
+    anchor: event ? undefined : rowRefs.get(key),
+    items: actions,
+    onSelect: actionKey => emitActionIntent(key, actionKey),
+  })
+}
+
+function handleRowContextMenu(event: MouseEvent, key: OcTreeKey): void {
+  openItemContextMenu(key, event)
+}
+
 function emitActionIntent(key: OcTreeKey, actionKey: string): void {
   const disabledReason = props.data.items.get(key)?.disabledActions?.get(actionKey)
   if (disabledReason !== undefined) return
@@ -574,6 +602,8 @@ function handleRowKeydown(event: KeyboardEvent, key: OcTreeKey, index: number): 
   } else if (event.key === 'F2') {
     event.preventDefault()
     if (props.data.items.get(key)?.renamable) emit('intent', { type: 'rename.request', key })
+  } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+    if (openItemContextMenu(key)) event.preventDefault()
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     emitSelectionIntent(key, event.ctrlKey || event.metaKey)
@@ -860,6 +890,6 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__node.is-drop-inside .oc-tree__row {
-  background: var(--oc-bg-accent-soft);
+  background: var(--oc-bg-accent-subtle);
 }
 </style>

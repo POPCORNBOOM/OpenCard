@@ -42,13 +42,13 @@ const blockStyle = computed(() => {
 })
 
 watch(
-  () => [
-    props.block.content,
-    props.block.errorCorrection,
-    props.block.foreground,
-    props.block.backgroundColor,
-    props.block.quietZone,
-  ] as const,
+  [
+    () => props.block.content,
+    () => props.block.errorCorrection,
+    () => props.block.foreground,
+    () => props.block.backgroundColor,
+    () => props.block.quietZone,
+  ],
   async ([content, errorCorrection, foreground, backgroundColor, quietZone]) => {
     const revision = ++renderRevision
     if (!content) {

@@ -34,6 +34,7 @@
           :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
           :layer-view-active="layerViewActive"
+          :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
           :space-modifier-active="spaceHeld"
           :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
           :layer-view-shortcut-hints="layerViewShortcutHints"
@@ -226,7 +227,8 @@
                       ? 'expand'
                       : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                     :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
-                    selection-mode="single" @intent="handleStructureTreeIntent" />
+                    selection-mode="single" activation-mode="double-click"
+                    @intent="handleStructureTreeIntent" />
                 </OcPanel>
               </OcCard>
             </div>
@@ -356,6 +358,7 @@ import {
 } from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer } from '../../entities/card/tree'
+import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerLayoutState, CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
@@ -1279,6 +1282,14 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     expandedBlockKeys.value = [...nextKeys]
     return
   }
+  if (intent.type === 'node.activate') {
+    if ((blockTreeData.value.children.get(intent.key)?.length ?? 0) === 0) return
+    const nextKeys = new Set(expandedBlockKeys.value)
+    if (nextKeys.has(intent.key)) nextKeys.delete(intent.key)
+    else nextKeys.add(intent.key)
+    expandedBlockKeys.value = [...nextKeys]
+    return
+  }
   if (intent.type === 'rename.request') {
     void structureTreeRef.value?.beginRename(intent.key)
     return
@@ -1706,12 +1717,15 @@ function getDataTableCellDefinition(
   const instance = cell.cardId === BLUEPRINT_CARD_ID
     ? null
     : document.instances?.find(candidate => candidate.id === cell.cardId) ?? null
+  const canOverride = cell.cardId === BLUEPRINT_CARD_ID || isInstanceBlockFieldOverridable(field.key)
   const record = {
     ...block,
-    ...(instance?.data[block.id] ?? {}),
+    ...Object.fromEntries(Object.entries(instance?.data[block.id] ?? {}).filter(
+      ([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey),
+    )),
   } as Record<string, unknown>
   const definition = enrichPropertyFieldDefinition(
-    field.definition,
+    canOverride ? field.definition : { ...field.definition, isReadonly: true, resettable: false },
     field.key,
     record,
     createBlockReferenceCompletionContext(cell.cardId, block.id, field.key),

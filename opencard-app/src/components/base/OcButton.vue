@@ -162,7 +162,7 @@ const stateClasses = computed(() => ({
   background: transparent;
   color: var(--oc-fg-default);
   font: inherit;
-  line-height: 1.2;
+  line-height: 1.4;
   text-decoration: none;
   cursor: pointer;
   transition:
@@ -238,7 +238,7 @@ const stateClasses = computed(() => ({
 }
 
 .oc-button--variant-soft:hover:not(:disabled) {
-  background-color: var(--oc-bg-accent-hover);
+  border-color: var(--oc-border-accent);
 }
 
 /* Variant: ghost */

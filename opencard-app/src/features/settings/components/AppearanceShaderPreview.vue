@@ -1,5 +1,11 @@
 <template>
-  <canvas ref="canvasRef" class="appearance-shader" :style="progressStyle" aria-hidden="true" />
+  <canvas
+    ref="canvasRef"
+    class="appearance-shader"
+    :class="{ 'appearance-shader--dot-noise': props.variant === 'dot-noise' }"
+    :style="progressStyle"
+    aria-hidden="true"
+  />
 </template>
 
 <script setup lang="ts">
@@ -7,8 +13,10 @@ import { computed, onBeforeUnmount, onMounted, ref, type CSSProperties } from 'v
 
 const props = withDefaults(defineProps<{
   progress?: number
+  variant?: 'waterfall' | 'dot-noise'
 }>(), {
   progress: 1,
+  variant: 'waterfall',
 })
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -81,6 +89,60 @@ void main() {
 }
 `
 
+const dotNoiseFragmentSource = `
+precision mediump float;
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform vec3 u_base;
+uniform vec3 u_dot;
+
+float hash21(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float valueNoise(vec2 p) {
+  vec2 cell = floor(p);
+  vec2 local = fract(p);
+  local = local * local * (3.0 - 2.0 * local);
+  float a = hash21(cell);
+  float b = hash21(cell + vec2(1.0, 0.0));
+  float c = hash21(cell + vec2(0.0, 1.0));
+  float d = hash21(cell + vec2(1.0, 1.0));
+  return mix(mix(a, b, local.x), mix(c, d, local.x), local.y);
+}
+
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.56;
+  for (int octave = 0; octave < 4; octave++) {
+    value += valueNoise(p) * amplitude;
+    p = p * 2.03 + vec2(13.1, 7.7);
+    amplitude *= 0.48;
+  }
+  return value;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+  vec2 scale = vec2(
+    max(12.0, floor(u_resolution.x / 12.0)),
+    max(8.0, floor(u_resolution.y / 12.0))
+  );
+  vec2 grid = uv * scale;
+  vec2 local = fract(grid) - 0.5;
+
+  vec2 flow = vec2(uv.x * 2.2 - u_time * 0.10, uv.y * 2.8);
+  flow.y += sin(u_time * 0.16 + uv.x * 3.0) * 0.16;
+  float field = fbm(flow);
+  float wave = smoothstep(0.30, 0.78, field);
+  float radius = mix(0.055, 0.15, wave);
+  float dotShape = 1.0 - smoothstep(radius, radius + 0.055, length(local));
+  float strength = dotShape * mix(0.24, 0.78, wave);
+
+  gl_FragColor = vec4(mix(u_base, u_dot, strength), 1.0);
+}
+`
+
 function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
   const shader = gl.createShader(type)
   if (!shader) return null
@@ -106,7 +168,11 @@ onMounted(() => {
   if (!canvas || !gl) return
 
   const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource)
-  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource)
+  const fragment = compileShader(
+    gl,
+    gl.FRAGMENT_SHADER,
+    props.variant === 'dot-noise' ? dotNoiseFragmentSource : fragmentSource,
+  )
   const program = gl.createProgram()
   if (!vertex || !fragment || !program) return
   gl.attachShader(program, vertex)
@@ -126,15 +192,18 @@ onMounted(() => {
   const accent = gl.getUniformLocation(program, 'u_accent')
   const base = gl.getUniformLocation(program, 'u_base')
   const surface = gl.getUniformLocation(program, 'u_surface')
+  const dot = gl.getUniformLocation(program, 'u_dot')
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   let accentColor: [number, number, number] = [0.49, 0.42, 1]
   let baseColor: [number, number, number] = [0.07, 0.07, 0.08]
   let surfaceColor: [number, number, number] = [0.15, 0.15, 0.15]
+  let dotColor: [number, number, number] = [0.23, 0.24, 0.25]
 
   const syncThemeColors = () => {
     accentColor = parseThemeColor('--oc-accent', accentColor)
     baseColor = parseThemeColor('--oc-bg-base', baseColor)
     surfaceColor = parseThemeColor('--oc-bg-surface', surfaceColor)
+    dotColor = parseThemeColor('--oc-border-default', dotColor)
   }
 
   const resize = () => {
@@ -155,6 +224,7 @@ onMounted(() => {
     gl.uniform3fv(accent, accentColor)
     gl.uniform3fv(base, baseColor)
     gl.uniform3fv(surface, surfaceColor)
+    gl.uniform3fv(dot, dotColor)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
     if (!reducedMotion) frameId = requestAnimationFrame(draw)
   }
@@ -211,5 +281,13 @@ onBeforeUnmount(() => {
     linear-gradient(to right, #000 0, #000 calc(var(--appearance-progress, 100%) - 48px), transparent var(--appearance-progress, 100%), transparent 100%),
     linear-gradient(to bottom, #000 0, #000 calc(100% - 2px), transparent 100%);
   mask-composite: intersect;
+}
+
+.appearance-shader--dot-noise {
+  background-color: var(--oc-bg-base);
+  background-image: radial-gradient(circle, var(--oc-border-default) 0 1px, transparent 1px);
+  background-size: 12px 12px;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 </style>

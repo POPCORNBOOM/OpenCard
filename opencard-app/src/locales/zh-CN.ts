@@ -377,6 +377,13 @@ export default {
       language: '语言',
       suppressReleaseNotesAfterUpdate: '更新后不显示新版本说明',
       theme: '主题',
+      accentColor: '主题色',
+      baseBackgroundColor: '背景色',
+      primaryTextColor: '前景色',
+      accentNeighborAngle: '次级颜色相位角',
+      themeColors: '主题颜色',
+      darkThemeColors: '深色主题',
+      lightThemeColors: '浅色主题',
       glassIntensity: '玻璃效果强度',
       projectWorkspaceState: '项目工作区状态',
       structureTreeSelectionBehavior: '结构树选中行为',
@@ -396,6 +403,7 @@ export default {
     actions: {
       back: '返回工作区',
       reset: '重置',
+      resetThemeColors: '重置颜色',
     },
     reasons: {
       openProjectFirst: '请先打开一个项目',
@@ -470,6 +478,7 @@ export default {
       centerCrossAxis: '交叉轴居中',
     },
     layerView: {
+      basePlane: '基板',
       shortcutLegend: '层级视图快捷键',
       shortcutOr: '或',
       stepPlane: '逐平面切换',

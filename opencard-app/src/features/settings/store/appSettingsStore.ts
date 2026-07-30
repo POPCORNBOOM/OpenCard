@@ -1,5 +1,6 @@
 /** Global application settings truth with serialized persistence writes. */
 import { readonly, ref, type DeepReadonly, type Ref } from 'vue'
+import type { OcEditableThemeColorKey, OcThemeId } from '../../../shared/ui/foundation'
 import {
   createDefaultAppSettings,
   normalizeAppSettings,
@@ -20,6 +21,9 @@ export interface AppSettingsStore {
   initialize(): Promise<void>
   previewSetting(key: AppSettingKey, value: unknown): void
   updateSetting(key: AppSettingKey, value: unknown): void
+  previewThemeColor(themeId: OcThemeId, token: OcEditableThemeColorKey, value: string | null): void
+  updateThemeColor(themeId: OcThemeId, token: OcEditableThemeColorKey, value: string | null): void
+  resetThemeColors(): void
   updateShell(patch: Partial<AppSettings['shell']>): void
   updateProjectCreation(patch: Partial<AppSettings['projectCreation']>): void
   rememberRecentProject(path: string): void
@@ -92,6 +96,7 @@ export function createAppSettingsStore(
     if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
+    else if (key === 'appearance.accentNeighborAngle') candidate.appearance.accentNeighborAngle = value as number
     else if (key === 'updates.suppressReleaseNotesAfterUpdate') {
       candidate.updates.suppressReleaseNotesAfterUpdate = value as boolean
     } else if (key === 'workspace.structureTreeSelectionBehavior') {
@@ -165,6 +170,44 @@ export function createAppSettingsStore(
     updateProjectCreation({ recentProjects, workspaceStates })
   }
 
+  function applyThemeColor(
+    candidate: AppSettings,
+    themeId: OcThemeId,
+    token: OcEditableThemeColorKey,
+    value: string | null,
+  ): void {
+    const overrides = { ...candidate.appearance.themeOverrides[themeId] }
+    if (value === null) delete overrides[token]
+    else overrides[token] = value
+    candidate.appearance.themeOverrides[themeId] = overrides
+  }
+
+  function previewThemeColor(
+    themeId: OcThemeId,
+    token: OcEditableThemeColorKey,
+    value: string | null,
+  ): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applyThemeColor(candidate, themeId, token, value)
+    settings.value = normalizeAppSettings(candidate)
+  }
+
+  function updateThemeColor(
+    themeId: OcThemeId,
+    token: OcEditableThemeColorKey,
+    value: string | null,
+  ): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applyThemeColor(candidate, themeId, token, value)
+    commit(candidate)
+  }
+
+  function resetThemeColors(): void {
+    const candidate = normalizeAppSettings(settings.value)
+    candidate.appearance.themeOverrides = { dark: {}, light: {} }
+    commit(candidate)
+  }
+
   function resetSection(section: SettingsSection): void {
     const defaults = createDefaultAppSettings()
     commit({
@@ -189,6 +232,9 @@ export function createAppSettingsStore(
     initialize,
     previewSetting,
     updateSetting,
+    previewThemeColor,
+    updateThemeColor,
+    resetThemeColors,
     updateShell,
     updateProjectCreation,
     rememberRecentProject,

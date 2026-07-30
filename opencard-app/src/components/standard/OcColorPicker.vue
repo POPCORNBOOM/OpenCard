@@ -1,11 +1,48 @@
 <template>
   <span ref="rootRef" class="oc-color-picker" :class="[{ 'is-open': open }, attrs.class]" :style="attrs.style">
+    <span v-if="variant === 'field'" class="oc-color-picker__field" :style="fieldStyle">
+      <button
+        ref="triggerRef"
+        v-bind="triggerAttrs"
+        type="button"
+        class="oc-color-picker__field-trigger"
+        :disabled="disabled"
+        :aria-label="label"
+        :aria-expanded="open"
+        aria-haspopup="dialog"
+        @click="togglePicker"
+        @keydown.esc.stop="closePicker(true, true)"
+      >
+        <span class="oc-color-picker__field-dot" />
+      </button>
+      <OcFieldInput
+        class="oc-color-picker__field-input"
+        variant="plain"
+        size="sm"
+        mono
+        :value="hexDraft"
+        :disabled="disabled"
+        :aria-label="label"
+        style="color: inherit"
+        spellcheck="false"
+        maxlength="7"
+        @input="handleHexInput"
+        @blur="commitInlineDraft"
+        @keydown.enter.prevent="commitInlineDraft"
+        @keydown.esc.stop.prevent="restoreInlineDraft"
+      />
+    </span>
     <button
+      v-else
       ref="triggerRef"
       v-bind="triggerAttrs"
       type="button"
       class="oc-color-picker__trigger"
-      :class="[`oc-color-picker__trigger--${size}`, { 'is-embedded': embedded }]"
+      :class="[
+        `oc-color-picker__trigger--${size}`,
+        `oc-color-picker__trigger--${variant}`,
+        { 'is-embedded': embedded },
+      ]"
       :disabled="disabled"
       :aria-label="label"
       :aria-expanded="open"
@@ -94,7 +131,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useAttrs, useId, watch, type CSSProperties } from 'vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
-import { hexToHsv, hsvToHex, normalizeHexColor, type HsvColor } from './colorModel'
+import { getReadableForegroundTone, hexToHsv, hsvToHex, normalizeHexColor, type HsvColor } from './colorModel'
 
 defineOptions({ name: 'OcColorPicker', inheritAttrs: false })
 
@@ -104,6 +141,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   embedded?: boolean
   size?: 'sm' | 'md' | 'lg'
+  variant?: 'default' | 'field'
   zIndex?: number
   presets?: readonly string[]
 }>(), {
@@ -112,6 +150,7 @@ const props = withDefaults(defineProps<{
   disabled: false,
   embedded: false,
   size: 'md',
+  variant: 'default',
   zIndex: 2000,
   presets: () => ['#FFFFFF', '#B8B8B8', '#1F2430', '#000000', '#F14C4C', '#F59E0B', '#3FB950', '#58A6FF', '#7C6CFF', '#A855F7'],
 })
@@ -149,6 +188,14 @@ const saturationCursorStyle = computed<CSSProperties>(() => ({
   top: `${(1 - hsv.value.value) * 100}%`,
 }))
 const hueCursorStyle = computed<CSSProperties>(() => ({ left: `${(hsv.value.hue / 360) * 100}%` }))
+const fieldStyle = computed<CSSProperties>(() => {
+  const foregroundTone = getReadableForegroundTone(displayColor.value)
+  return {
+    backgroundColor: displayColor.value,
+    color: foregroundTone === 'dark' ? '#24272C' : '#F1F3F5',
+    '--oc-color-picker-dot-border': foregroundTone === 'dark' ? '#9E9E9E' : '#CBCBCB',
+  }
+})
 
 watch(() => props.modelValue, value => {
   if (open.value || dragKind) return
@@ -180,7 +227,7 @@ function togglePicker(): void {
   if (props.disabled) return
   if (open.value) closePicker(false, false)
   else {
-    syncColor(props.modelValue)
+    if (props.variant !== 'field') syncColor(props.modelValue)
     setOpen(true)
   }
 }
@@ -299,6 +346,17 @@ function commitHexDraft(): void {
   if (normalizedDraft.value) commitColor(normalizedDraft.value)
 }
 
+function commitInlineDraft(): void {
+  if (normalizedDraft.value) commitColor(normalizedDraft.value)
+  else restoreInlineDraft()
+}
+
+function restoreInlineDraft(): void {
+  const changed = displayColor.value !== committedValue.value
+  syncDraft(committedValue.value, changed)
+  if (changed) emit('cancel')
+}
+
 function handleDocumentPointerDown(event: PointerEvent): void {
   if (!open.value) return
   const path = event.composedPath()
@@ -342,6 +400,67 @@ function clampUnit(value: number): number {
 .oc-color-picker__trigger--lg {
   width: var(--oc-size-lg);
   height: var(--oc-size-lg);
+}
+
+.oc-color-picker__field {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  height: var(--oc-size-sm);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: var(--oc-radius-sm);
+}
+
+.oc-color-picker__field:focus-within {
+  border-color: var(--oc-border-accent);
+  box-shadow: var(--oc-focus-ring);
+}
+
+.oc-color-picker__field-trigger {
+  box-sizing: border-box;
+  display: grid;
+  flex: 0 0 var(--oc-size-sm);
+  width: var(--oc-size-sm);
+  height: 100%;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.oc-color-picker__field-dot {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--oc-color-picker-dot-border);
+  border-radius: var(--oc-radius-full);
+  background: transparent;
+}
+
+.oc-color-picker__field-input {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--oc-space-2) 0 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-family: var(--oc-font-mono);
+  font-size: var(--oc-text-xs);
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.oc-color-picker__field-trigger:disabled,
+.oc-color-picker__field-input:disabled {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 .oc-color-picker__trigger.is-embedded {

@@ -10,12 +10,22 @@ interface FloatingMenuState {
   items: readonly FloatingMenuItem[]
   anchor: HTMLElement | DOMRect | null
   placement: FloatingMenuPlacement
+  focusOnOpen: boolean
 }
 
 export interface OpenFloatingMenuOptions {
   anchor: HTMLElement | DOMRect
   items: readonly FloatingMenuItem[]
   placement?: FloatingMenuPlacement
+  onSelect?: (key: string) => void
+  focusOnOpen?: boolean
+  returnFocusTo?: HTMLElement | null
+}
+
+export interface OpenContextMenuOptions {
+  event?: MouseEvent
+  anchor?: HTMLElement | DOMRect
+  items: readonly FloatingMenuItem[]
   onSelect?: (key: string) => void
 }
 
@@ -24,11 +34,13 @@ const state = shallowRef<FloatingMenuState>({
   items: [],
   anchor: null,
   placement: 'bottom-end',
+  focusOnOpen: false,
 })
 
 const publicState = shallowReadonly(state)
 
 let selectHandler: ((key: string) => void) | null = null
+let returnFocusTarget: HTMLElement | null = null
 
 function openMenu(options: OpenFloatingMenuOptions): void {
   state.value = {
@@ -36,11 +48,35 @@ function openMenu(options: OpenFloatingMenuOptions): void {
     items: options.items,
     anchor: options.anchor,
     placement: options.placement ?? 'bottom-end',
+    focusOnOpen: options.focusOnOpen ?? false,
   }
   selectHandler = options.onSelect ?? null
+  returnFocusTarget = options.returnFocusTo ?? null
+}
+
+function openContextMenu(options: OpenContextMenuOptions): boolean {
+  if (options.items.length === 0) return false
+  const event = options.event
+  const anchor = options.anchor ?? (event
+    ? new DOMRect(event.clientX, event.clientY, 0, 0)
+    : null)
+  if (!anchor) return false
+  event?.preventDefault()
+  openMenu({
+    anchor,
+    items: options.items,
+    placement: 'bottom-start',
+    onSelect: options.onSelect,
+    focusOnOpen: true,
+    returnFocusTo: event?.currentTarget instanceof HTMLElement
+      ? event.currentTarget
+      : options.anchor instanceof HTMLElement ? options.anchor : null,
+  })
+  return true
 }
 
 function closeMenu(): void {
+  const focusTarget = returnFocusTarget
   state.value = {
     ...state.value,
     isOpen: false,
@@ -48,6 +84,8 @@ function closeMenu(): void {
     anchor: null,
   }
   selectHandler = null
+  returnFocusTarget = null
+  focusTarget?.focus()
 }
 
 function selectMenuItem(key: string): void {
@@ -60,6 +98,7 @@ export function useFloatingMenu() {
   return {
     state: publicState,
     openMenu,
+    openContextMenu,
     closeMenu,
     selectMenuItem,
   }

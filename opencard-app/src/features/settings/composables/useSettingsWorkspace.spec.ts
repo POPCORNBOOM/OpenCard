@@ -43,7 +43,28 @@ describe('useSettingsWorkspace', () => {
         min: 0,
         max: 100,
       }),
+      expect.objectContaining({
+        type: 'range',
+        key: 'appearance.accentNeighborAngle',
+        value: -50,
+        min: -180,
+        max: 180,
+        suffix: '°',
+      }),
+      expect.objectContaining({
+        type: 'theme-color-panel',
+        key: 'appearance.darkThemeColors',
+        themeId: 'dark',
+        colors: expect.arrayContaining([
+          expect.objectContaining({ key: 'accentColor', token: '--oc-accent' }),
+        ]),
+      }),
+      expect.objectContaining({ type: 'theme-color-panel', key: 'appearance.lightThemeColors', themeId: 'light' }),
+      expect.objectContaining({ type: 'action', key: 'theme-colors.reset' }),
     ]))
+    const colorPanels = activeCategory.value.fields.filter(field => field.type === 'theme-color-panel')
+    expect(colorPanels).toHaveLength(2)
+    expect(colorPanels.every(panel => panel.colors.length === 3)).toBe(true)
 
     categoryKey.value = 'workspace'
     expect(activeCategory.value.fields.map((field) => field.key)).toEqual([

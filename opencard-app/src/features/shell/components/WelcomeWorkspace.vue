@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import staticLogo from '../../../assets/icon_v2.png'
-import phaseLogo from '../../../assets/opencard-logo-phase.png'
+import phaseLogo from '../../../assets/opencard-logo-phase-map.png'
+import wordmarkBrightness from '../../../assets/opencard-wordmark-brightness-map.png'
+import wordmarkPhase from '../../../assets/opencard-wordmark-phase-map.png'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
 
@@ -20,12 +21,20 @@ const { t } = useI18n()
     <OcPhaseImage
       class="workspace-empty-state__icon"
       :src="phaseLogo"
-      :placeholder-src="staticLogo"
+      fit="contain"
       alt="OpenCard"
     />
     <h1>
       <span>{{ t('app.welcome.prefix') }}</span>
-      <img class="workspace-empty-state__wordmark" src="/OpenCard_Icon.png" alt="OpenCard" />
+      <OcPhaseImage
+        class="workspace-empty-state__wordmark"
+        :src="wordmarkPhase"
+        :brightness-src="wordmarkBrightness"
+        fit="contain"
+        alt="OpenCard"
+        :duration-ms="12_000"
+        direction="reverse"
+      />
     </h1>
     <p>{{ t('app.welcome.subtitle') }}</p>
     <div class="workspace-empty-state__actions">
@@ -56,10 +65,11 @@ const { t } = useI18n()
 }
 
 .workspace-empty-state__icon {
-  width: 72px;
+  --oc-phase-image-width: 72px;
+  --oc-phase-image-aspect-ratio: 1;
+
   height: 72px;
   margin-bottom: var(--oc-space-2);
-  object-fit: contain;
 }
 
 .workspace-empty-state h1,
@@ -77,10 +87,11 @@ const { t } = useI18n()
 }
 
 .workspace-empty-state__wordmark {
-  width: auto;
-  height: 22px;
-  max-width: 132px;
-  object-fit: contain;
+  --oc-phase-image-width: 99px;
+  --oc-phase-image-aspect-ratio: 3;
+
+  height: 33px;
+  flex: 0 0 auto;
 }
 
 .workspace-empty-state p {

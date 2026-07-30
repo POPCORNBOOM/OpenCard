@@ -44,6 +44,7 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 强调色
   '--oc-accent',
+  '--oc-accent-neighbor',
   '--oc-accent-fg',
   '--oc-accent-glow',
 
@@ -146,3 +147,12 @@ export const OC_THEME_TOKEN_KEYS = [
 
 export type OcThemeTokenKey = (typeof OC_THEME_TOKEN_KEYS)[number]
 export type OcThemeTokens = Record<OcThemeTokenKey, string>
+
+export const OC_EDITABLE_THEME_COLOR_KEYS = [
+  '--oc-accent',
+  '--oc-bg-base',
+  '--oc-fg-default',
+] as const
+
+export type OcEditableThemeColorKey = (typeof OC_EDITABLE_THEME_COLOR_KEYS)[number]
+export type OcThemeColorOverrides = Partial<Record<OcEditableThemeColorKey, string>>

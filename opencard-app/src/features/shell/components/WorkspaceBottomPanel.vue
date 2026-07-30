@@ -209,8 +209,8 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 .workspace-bottom-panel {
   position: relative;
   min-width: 0;
-  border-top: 1px solid var(--oc-border-muted, #333333);
-  background: var(--color-workspace);
+  border-top: 1px solid var(--oc-border-muted);
+  background: var(--oc-bg-surface);
 }
 
 .workspace-bottom-panel__toggle {
@@ -224,11 +224,11 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--oc-border-default, #3a3d41);
+  border: 1px solid var(--oc-border-default);
   border-radius: 50%;
-  background: var(--color-workspace);
-  color: var(--color-text-muted);
-  box-shadow: var(--oc-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.18));
+  background: var(--oc-bg-surface);
+  color: var(--oc-fg-muted);
+  box-shadow: var(--oc-shadow-sm);
   transform: translate(-50%, -50%);
   transition:
     border-color var(--oc-duration-fast, 100ms) var(--oc-ease, ease),
@@ -238,22 +238,22 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 
 .workspace-bottom-panel__toggle:hover,
 .workspace-bottom-panel__toggle:focus-visible {
-  border-color: var(--oc-border-accent, #7c6cff);
-  background: var(--oc-bg-raised, #2d2d2d);
-  color: var(--oc-fg-accent, #b8b0ff);
+  border-color: var(--oc-border-accent);
+  background: var(--oc-bg-raised);
+  color: var(--oc-fg-accent);
   outline: none;
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='error'] {
-  color: var(--oc-icon-danger, #f85149);
+  color: var(--oc-icon-danger);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='warning'] {
-  color: var(--oc-icon-warning, #d29922);
+  color: var(--oc-icon-warning);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='info'] {
-  color: var(--oc-icon-accent, #9b90ff);
+  color: var(--oc-icon-accent);
 }
 
 .workspace-bottom-panel__content {
@@ -262,7 +262,7 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  background: var(--oc-bg-base, #1e1e1e);
+  background: var(--oc-bg-base);
   transition: height var(--oc-duration-normal, 150ms) var(--oc-ease, ease);
 }
 
@@ -276,7 +276,7 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   align-items: stretch;
   gap: var(--oc-space-1, 4px);
   padding: 0 var(--oc-space-3, 8px);
-  border-bottom: 1px solid var(--oc-border-muted, #333333);
+  border-bottom: 1px solid var(--oc-border-muted);
 }
 
 .workspace-bottom-panel__tab-list {
@@ -294,13 +294,13 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   justify-content: center;
   border: 0;
   background: transparent;
-  color: var(--oc-fg-subtle, #777777);
+  color: var(--oc-fg-subtle);
 }
 
 .workspace-bottom-panel__pin:hover,
 .workspace-bottom-panel__pin:focus-visible,
 .workspace-bottom-panel__pin.is-pinned {
-  color: var(--oc-fg-default, #f0f0f0);
+  color: var(--oc-fg-default);
   outline: none;
 }
 
@@ -314,7 +314,7 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   gap: var(--oc-space-1, 4px);
   border: 0;
   background: transparent;
-  color: var(--oc-fg-muted, #a5a5a5);
+  color: var(--oc-fg-muted);
   font: inherit;
   font-size: var(--oc-text-sm, 11px);
 }
@@ -332,12 +332,12 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 .workspace-bottom-panel__tab:hover,
 .workspace-bottom-panel__tab:focus-visible,
 .workspace-bottom-panel__tab.is-active {
-  color: var(--oc-fg-default, #f0f0f0);
+  color: var(--oc-fg-default);
   outline: none;
 }
 
 .workspace-bottom-panel__tab.is-active::after {
-  background: var(--oc-border-accent, #7c6cff);
+  background: var(--oc-border-accent);
 }
 
 .workspace-bottom-panel__count {
@@ -348,8 +348,8 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   align-items: center;
   justify-content: center;
   border-radius: var(--oc-radius-sm, 3px);
-  background: var(--oc-bg-raised, #2d2d2d);
-  color: var(--oc-icon-warning, #d29922);
+  background: var(--oc-bg-raised);
+  color: var(--oc-icon-warning);
   font-size: var(--oc-text-xs, 10px);
   line-height: 1;
 }
@@ -364,14 +364,14 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   height: 100%;
   display: grid;
   place-items: center;
-  color: var(--oc-fg-subtle, #777777);
+  color: var(--oc-fg-subtle);
   font-size: var(--oc-text-sm, 11px);
 }
 
 .workspace-bottom-panel__output-lines {
   font-family: var(--oc-font-mono, Consolas, monospace);
   font-size: var(--oc-text-sm, 11px);
-  color: var(--oc-fg-muted, #a5a5a5);
+  color: var(--oc-fg-muted);
 }
 
 .workspace-bottom-panel__output-line {

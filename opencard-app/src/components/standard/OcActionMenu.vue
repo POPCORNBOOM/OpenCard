@@ -1,6 +1,6 @@
 <!-- Recursive action menu shared by action buttons and text menu triggers. -->
 <template>
-  <div class="oc-action-menu" role="menu" @pointerenter="emit('keep-open')">
+  <div ref="menuElement" class="oc-action-menu" role="menu" @pointerenter="emit('keep-open')">
     <template v-for="entry in actions" :key="entry.key">
       <div
         v-if="isActionDivider(entry)"
@@ -29,6 +29,7 @@
           :aria-haspopup="hasActionChildren(entry) ? 'menu' : undefined"
           :aria-expanded="hasActionChildren(entry) ? openChildKey === entry.key : undefined"
           @click.stop="handleActionClick(entry)"
+          @keydown="handleActionKeydown($event, entry)"
         >
           <OcIcon
             v-if="entry.icon"
@@ -64,9 +65,12 @@
           @pointerleave="scheduleChildClose"
         >
           <OcActionMenu
+            :ref="(element) => setChildMenu(entry.key, element)"
             :actions="entry.children"
             @select="emit('select', $event)"
             @keep-open="keepMenusOpen"
+            @close-submenu="closeChildAndFocus(entry.key)"
+            @dismiss="emit('dismiss')"
           />
         </OcFloatingLayer>
       </div>
@@ -101,7 +105,7 @@ export interface OcActionSelectPayload {
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref, type ComponentPublicInstance } from 'vue'
+import { nextTick, onBeforeUnmount, reactive, ref, type ComponentPublicInstance } from 'vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
 
@@ -114,10 +118,14 @@ defineProps<{
 const emit = defineEmits<{
   select: [payload: OcActionSelectPayload]
   'keep-open': []
+  'close-submenu': []
+  dismiss: []
 }>()
 
+const menuElement = ref<HTMLElement | null>(null)
 const openChildKey = ref<string | null>(null)
 const childAnchors = reactive(new Map<string, HTMLElement>())
+const childMenus = new Map<string, ComponentPublicInstance & { focusFirst?: () => void }>()
 let childCloseTimer: number | null = null
 
 onBeforeUnmount(cancelChildClose)
@@ -135,6 +143,12 @@ function isActionDivider(entry: OcActionMenuEntry): entry is OcActionDivider {
 function setChildAnchor(key: string, element: Element | ComponentPublicInstance | null): void {
   if (element instanceof HTMLElement) childAnchors.set(key, element)
   else childAnchors.delete(key)
+}
+
+function setChildMenu(key: string, element: Element | ComponentPublicInstance | null): void {
+  if (element && '$el' in element) {
+    childMenus.set(key, element as ComponentPublicInstance & { focusFirst?: () => void })
+  } else childMenus.delete(key)
 }
 
 function openChild(key: string): void {
@@ -179,6 +193,60 @@ function handleItemFocusOut(action: OcActionDefinition): void {
 function handleActionClick(action: OcActionDefinition): void {
   if (!hasActionChildren(action) && action.disabled !== true) {
     emit('select', { key: action.key })
+  }
+}
+
+function enabledButtons(): HTMLButtonElement[] {
+  return Array.from(menuElement.value?.querySelectorAll<HTMLButtonElement>(
+    ':scope > .oc-action-menu__item > .oc-action-menu__button:not(:disabled)',
+  ) ?? [])
+}
+
+function focusFirst(): void {
+  enabledButtons()[0]?.focus()
+}
+
+defineExpose({ focusFirst })
+
+function moveFocus(current: HTMLButtonElement, direction: -1 | 1): void {
+  const buttons = enabledButtons()
+  const currentIndex = buttons.indexOf(current)
+  if (currentIndex < 0 || buttons.length === 0) return
+  buttons[(currentIndex + direction + buttons.length) % buttons.length]?.focus()
+}
+
+async function openChildAndFocus(action: OcActionDefinition): Promise<void> {
+  if (!hasActionChildren(action) || action.disabled === true) return
+  openChild(action.key)
+  await nextTick()
+  childMenus.get(action.key)?.focusFirst?.()
+}
+
+function closeChildAndFocus(key: string): void {
+  openChildKey.value = null
+  nextTick(() => childAnchors.get(key)?.focus())
+}
+
+function handleActionKeydown(event: KeyboardEvent, action: OcActionDefinition): void {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLButtonElement)) return
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveFocus(target, event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'Home' || event.key === 'End') {
+    event.preventDefault()
+    const buttons = enabledButtons()
+    buttons[event.key === 'Home' ? 0 : buttons.length - 1]?.focus()
+  } else if (event.key === 'ArrowRight' && hasActionChildren(action)) {
+    event.preventDefault()
+    void openChildAndFocus(action)
+  } else if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    emit('close-submenu')
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    emit('dismiss')
   }
 }
 </script>

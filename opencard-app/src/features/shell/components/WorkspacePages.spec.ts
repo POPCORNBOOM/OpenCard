@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { describe, expect, it } from 'vitest'
 import enUS from '../../../locales/en-US'
+import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
 import WorkbenchWorkspace from './WorkbenchWorkspace.vue'
 import WelcomeWorkspace from './WelcomeWorkspace.vue'
 
@@ -18,10 +19,15 @@ describe('workspace pages', () => {
     const wrapper = mount(WelcomeWorkspace, mountOptions())
 
     expect(wrapper.text()).toContain('Welcome to')
-    expect(wrapper.get('.workspace-empty-state__wordmark').attributes()).toMatchObject({
-      src: '/OpenCard_Icon.png',
-      alt: 'OpenCard',
-    })
+    const phaseImages = wrapper.findAllComponents(OcPhaseImage)
+    expect(phaseImages).toHaveLength(2)
+    expect(phaseImages[1]!.classes()).toContain('workspace-empty-state__wordmark')
+    expect(phaseImages[1]!.props('alt')).toBe('OpenCard')
+    expect(phaseImages[1]!.props('direction')).toBe('reverse')
+    expect(phaseImages.every(image => image.props('fit') === 'contain')).toBe(true)
+    expect(phaseImages[1]!.props('src')).toContain('opencard-wordmark-phase-map')
+    expect(phaseImages[1]!.props('brightnessSrc')).toContain('opencard-wordmark-brightness-map')
+    expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.text()).toContain('New Project')
     expect(wrapper.text()).toContain('Open Project Folder')
     expect(wrapper.text()).not.toContain('No editors open')

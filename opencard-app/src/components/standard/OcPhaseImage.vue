@@ -3,15 +3,10 @@
     <canvas
       ref="canvasElement"
       class="oc-phase-image__canvas"
+      :class="{ 'oc-phase-image__canvas--ready': renderReady && !renderFailed }"
       :aria-label="props.alt || undefined"
       :aria-hidden="props.alt ? undefined : 'true'"
       :role="props.alt ? 'img' : undefined"
-    />
-    <img
-      v-if="props.placeholderSrc && (!renderReady || renderFailed)"
-      class="oc-phase-image__fallback"
-      :src="props.placeholderSrc"
-      :alt="props.alt"
     />
   </span>
 </template>
@@ -20,26 +15,29 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 type OcPhaseImageDirection = 'forward' | 'reverse'
+type OcPhaseImageFit = 'contain' | 'cover' | 'fill'
 
 interface OcPhaseImageProps {
   src: string
-  placeholderSrc?: string
+  brightnessSrc?: string
   from?: string
   to?: string
   durationMs?: number
   phaseSpan?: number
   direction?: OcPhaseImageDirection
+  fit?: OcPhaseImageFit
   playing?: boolean
   alt?: string
 }
 
 const props = withDefaults(defineProps<OcPhaseImageProps>(), {
-  placeholderSrc: '',
-  from: '#5EA8FD',
-  to: '#A05DFB',
+  brightnessSrc: '',
+  from: '',
+  to: '',
   durationMs: 10_000,
   phaseSpan: 1,
   direction: 'forward',
+  fit: 'contain',
   playing: true,
   alt: '',
 })
@@ -53,20 +51,28 @@ let gl: WebGLRenderingContext | null = null
 let program: WebGLProgram | null = null
 let positionBuffer: WebGLBuffer | null = null
 let phaseTexture: WebGLTexture | null = null
+let brightnessTexture: WebGLTexture | null = null
 let paletteTexture: WebGLTexture | null = null
 let phaseUniform: WebGLUniformLocation | null = null
 let phaseSpanUniform: WebGLUniformLocation | null = null
-let imageRequestId = 0
+let hasBrightnessUniform: WebGLUniformLocation | null = null
+let fitScaleUniform: WebGLUniformLocation | null = null
+let clipOutsideUniform: WebGLUniformLocation | null = null
+let phaseImageRequestId = 0
+let brightnessImageRequestId = 0
 let animationFrame = 0
 let previousTime = 0
 let phase = 0
 let textureReady = false
+let brightnessReady = false
+let sourceAspectRatio = 1
 let visible = true
 let documentVisible = true
 let reducedMotion = false
 let resizeObserver: ResizeObserver | null = null
 let intersectionObserver: IntersectionObserver | null = null
 let motionQuery: MediaQueryList | null = null
+let themeObserver: MutationObserver | null = null
 
 const vertexShaderSource = `
   attribute vec2 a_position;
@@ -81,18 +87,35 @@ const vertexShaderSource = `
 const fragmentShaderSource = `
   precision mediump float;
   uniform sampler2D u_phase_map;
+  uniform sampler2D u_brightness_map;
   uniform sampler2D u_palette;
   uniform float u_phase;
   uniform float u_phase_span;
+  uniform float u_has_brightness;
+  uniform vec2 u_fit_scale;
+  uniform float u_clip_outside;
   varying vec2 v_uv;
 
   void main() {
-    vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);
+    vec2 fitted_uv = (v_uv - vec2(0.5)) * u_fit_scale + vec2(0.5);
+    if (u_clip_outside > 0.5 && (
+      fitted_uv.x < 0.0 || fitted_uv.x > 1.0 ||
+      fitted_uv.y < 0.0 || fitted_uv.y > 1.0
+    )) {
+      gl_FragColor = vec4(0.0);
+      return;
+    }
+    vec2 uv = vec2(fitted_uv.x, 1.0 - fitted_uv.y);
     vec4 phase_map = texture2D(u_phase_map, uv);
+    vec4 brightness_map = texture2D(u_brightness_map, uv);
     float progress = dot(phase_map.rgb, vec3(0.2126, 0.7152, 0.0722));
     float color_phase = fract(progress * u_phase_span - u_phase);
     vec3 color = texture2D(u_palette, vec2(color_phase, 0.5)).rgb;
-    float alpha = smoothstep(0.12, 0.88, phase_map.a);
+    float source_brightness = dot(brightness_map.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float brightness = mix(1.0, mix(0.72, 1.18, source_brightness), u_has_brightness);
+    float source_alpha = mix(phase_map.a, brightness_map.a, u_has_brightness);
+    float alpha = smoothstep(0.02, 0.98, source_alpha);
+    color = clamp(color * brightness, 0.0, 1.0);
     gl_FragColor = vec4(color * alpha, alpha);
   }
 `
@@ -169,6 +192,12 @@ function createPalette(from: string, to: string): Uint8Array | null {
   return palette
 }
 
+function resolvePaletteColor(value: string, token: string, fallback: string): string {
+  if (value) return value
+  const themed = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+  return themed || fallback
+}
+
 function compileShader(context: WebGLRenderingContext, type: number, source: string): WebGLShader {
   const shader = context.createShader(type)
   if (!shader) throw new Error('Unable to create shader')
@@ -208,14 +237,16 @@ function configureTexture(context: WebGLRenderingContext, texture: WebGLTexture,
   context.texParameteri(context.TEXTURE_2D, context.TEXTURE_MAG_FILTER, context.LINEAR)
 }
 
-function resolvePowerOfTwoSize(value: number): number {
-  return 2 ** Math.floor(Math.log2(Math.max(1, Math.min(value, 2048))))
-}
-
-function createMipmappedPhaseSource(image: HTMLImageElement): HTMLCanvasElement {
+function createTextureSource(image: HTMLImageElement): HTMLCanvasElement {
   const source = document.createElement('canvas')
-  source.width = resolvePowerOfTwoSize(image.naturalWidth)
-  source.height = resolvePowerOfTwoSize(image.naturalHeight)
+  const bounds = canvasElement.value?.getBoundingClientRect()
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
+  const targetWidth = bounds?.width
+    ? Math.max(1, Math.round(bounds.width * pixelRatio * 2))
+    : 512
+  const scale = Math.min(1, targetWidth / image.naturalWidth)
+  source.width = Math.max(1, Math.round(image.naturalWidth * scale))
+  source.height = Math.max(1, Math.round(image.naturalHeight * scale))
   const context = source.getContext('2d')
   if (!context) throw new Error('Unable to create phase-map resampling context')
   context.imageSmoothingEnabled = true
@@ -230,7 +261,7 @@ function initializeRenderer(): boolean {
   if (!canvas) return false
   const context = canvas.getContext('webgl', {
     alpha: true,
-    antialias: false,
+    antialias: true,
     premultipliedAlpha: true,
   })
   if (!context) return false
@@ -242,8 +273,11 @@ function initializeRenderer(): boolean {
 
     positionBuffer = context.createBuffer()
     phaseTexture = context.createTexture()
+    brightnessTexture = context.createTexture()
     paletteTexture = context.createTexture()
-    if (!positionBuffer || !phaseTexture || !paletteTexture) throw new Error('Unable to allocate WebGL resources')
+    if (!positionBuffer || !phaseTexture || !brightnessTexture || !paletteTexture) {
+      throw new Error('Unable to allocate WebGL resources')
+    }
 
     context.bindBuffer(context.ARRAY_BUFFER, positionBuffer)
     context.bufferData(
@@ -256,9 +290,13 @@ function initializeRenderer(): boolean {
     context.vertexAttribPointer(position, 2, context.FLOAT, false, 0, 0)
 
     const phaseMapUniform = context.getUniformLocation(program, 'u_phase_map')
+    const brightnessMapUniform = context.getUniformLocation(program, 'u_brightness_map')
     const paletteUniform = context.getUniformLocation(program, 'u_palette')
     phaseUniform = context.getUniformLocation(program, 'u_phase')
     phaseSpanUniform = context.getUniformLocation(program, 'u_phase_span')
+    hasBrightnessUniform = context.getUniformLocation(program, 'u_has_brightness')
+    fitScaleUniform = context.getUniformLocation(program, 'u_fit_scale')
+    clipOutsideUniform = context.getUniformLocation(program, 'u_clip_outside')
 
     context.activeTexture(context.TEXTURE0)
     configureTexture(context, phaseTexture, context.CLAMP_TO_EDGE)
@@ -266,6 +304,9 @@ function initializeRenderer(): boolean {
     context.activeTexture(context.TEXTURE1)
     configureTexture(context, paletteTexture, context.REPEAT)
     context.uniform1i(paletteUniform, 1)
+    context.activeTexture(context.TEXTURE2)
+    configureTexture(context, brightnessTexture, context.CLAMP_TO_EDGE)
+    context.uniform1i(brightnessMapUniform, 2)
     return true
   } catch (error) {
     console.warn('[OcPhaseImage] WebGL initialization failed.', error)
@@ -276,7 +317,9 @@ function initializeRenderer(): boolean {
 
 function uploadPalette(): boolean {
   if (!gl || !paletteTexture) return false
-  const palette = createPalette(props.from, props.to)
+  const from = resolvePaletteColor(props.from, '--oc-accent', '#7C6CFF')
+  const to = resolvePaletteColor(props.to, '--oc-accent-neighbor', '#60A2FF')
+  const palette = createPalette(from, to)
   if (!palette) {
     console.warn('[OcPhaseImage] Colors must use #RGB or #RRGGBB format.')
     return false
@@ -288,22 +331,27 @@ function uploadPalette(): boolean {
   return true
 }
 
+function uploadImageTexture(texture: WebGLTexture, image: HTMLImageElement): void {
+  if (!gl) return
+  const source = createTextureSource(image)
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+}
+
 function loadPhaseMap(): void {
   if (!gl || !phaseTexture) return
-  const requestId = ++imageRequestId
+  const requestId = ++phaseImageRequestId
   textureReady = false
   renderReady.value = false
   const image = new Image()
   image.onload = () => {
-    if (requestId !== imageRequestId || !gl || !phaseTexture) return
+    if (requestId !== phaseImageRequestId || !gl || !phaseTexture) return
     try {
-      const source = createMipmappedPhaseSource(image)
       gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, phaseTexture)
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
-      gl.generateMipmap(gl.TEXTURE_2D)
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+      uploadImageTexture(phaseTexture, image)
+      sourceAspectRatio = image.naturalWidth / Math.max(1, image.naturalHeight)
       textureReady = true
       renderFailed.value = false
       requestDraw()
@@ -314,7 +362,7 @@ function loadPhaseMap(): void {
     }
   }
   image.onerror = () => {
-    if (requestId !== imageRequestId) return
+    if (requestId !== phaseImageRequestId) return
     renderFailed.value = true
     textureReady = false
   }
@@ -322,11 +370,44 @@ function loadPhaseMap(): void {
   image.src = props.src
 }
 
+function loadBrightnessMap(): void {
+  brightnessImageRequestId += 1
+  brightnessReady = false
+  if (!props.brightnessSrc || !gl || !brightnessTexture) {
+    requestDraw()
+    return
+  }
+  const requestId = brightnessImageRequestId
+  renderReady.value = false
+  const image = new Image()
+  image.onload = () => {
+    if (requestId !== brightnessImageRequestId || !gl || !brightnessTexture) return
+    try {
+      gl.activeTexture(gl.TEXTURE2)
+      uploadImageTexture(brightnessTexture, image)
+      brightnessReady = true
+      renderFailed.value = false
+      requestDraw()
+    } catch (error) {
+      console.warn('[OcPhaseImage] Brightness map upload failed.', error)
+      brightnessReady = false
+      renderFailed.value = true
+    }
+  }
+  image.onerror = () => {
+    if (requestId !== brightnessImageRequestId) return
+    brightnessReady = false
+    renderFailed.value = true
+  }
+  image.crossOrigin = 'anonymous'
+  image.src = props.brightnessSrc
+}
+
 function resizeCanvas(): void {
   const canvas = canvasElement.value
   if (!canvas || !gl) return
   const bounds = canvas.getBoundingClientRect()
-  const ratio = Math.min(window.devicePixelRatio || 1, 2)
+  const ratio = Math.min(window.devicePixelRatio || 1, 3)
   const width = Math.max(1, Math.round(bounds.width * ratio))
   const height = Math.max(1, Math.round(bounds.height * ratio))
   if (canvas.width === width && canvas.height === height) return
@@ -335,13 +416,32 @@ function resizeCanvas(): void {
   gl.viewport(0, 0, width, height)
 }
 
+function texturesReady(): boolean {
+  return textureReady && (!props.brightnessSrc || brightnessReady)
+}
+
 function shouldAnimate(): boolean {
-  return props.playing && !reducedMotion && visible && documentVisible && textureReady
+  return props.playing && !reducedMotion && visible && documentVisible && texturesReady()
+}
+
+function resolveFitScale(canvasAspectRatio: number): readonly [number, number, number] {
+  if (props.fit === 'fill' || Math.abs(sourceAspectRatio - canvasAspectRatio) < 0.0001) {
+    return [1, 1, 0]
+  }
+  if (props.fit === 'contain') {
+    return sourceAspectRatio > canvasAspectRatio
+      ? [1, sourceAspectRatio / canvasAspectRatio, 1]
+      : [canvasAspectRatio / sourceAspectRatio, 1, 1]
+  }
+  return sourceAspectRatio > canvasAspectRatio
+    ? [canvasAspectRatio / sourceAspectRatio, 1, 0]
+    : [1, sourceAspectRatio / canvasAspectRatio, 0]
 }
 
 function draw(time: number): void {
   animationFrame = 0
-  if (!gl || !program) return
+  const canvas = canvasElement.value
+  if (!gl || !program || !canvas) return
   resizeCanvas()
   const elapsed = previousTime ? Math.min(50, time - previousTime) : 0
   previousTime = time
@@ -352,10 +452,14 @@ function draw(time: number): void {
   }
   gl.clearColor(0, 0, 0, 0)
   gl.clear(gl.COLOR_BUFFER_BIT)
-  if (textureReady) {
+  if (texturesReady()) {
     gl.useProgram(program)
     gl.uniform1f(phaseUniform, phase)
     gl.uniform1f(phaseSpanUniform, Math.max(0.0001, props.phaseSpan))
+    gl.uniform1f(hasBrightnessUniform, brightnessReady ? 1 : 0)
+    const [fitX, fitY, clipOutside] = resolveFitScale(canvas.width / canvas.height)
+    gl.uniform2f(fitScaleUniform, fitX, fitY)
+    gl.uniform1f(clipOutsideUniform, clipOutside)
     gl.drawArrays(gl.TRIANGLES, 0, 6)
     renderReady.value = true
   }
@@ -380,28 +484,32 @@ function handleMotionChange(event: MediaQueryListEvent): void {
 }
 
 function disposeRenderer(): void {
-  imageRequestId += 1
+  phaseImageRequestId += 1
+  brightnessImageRequestId += 1
   if (animationFrame) cancelAnimationFrame(animationFrame)
   animationFrame = 0
   if (gl) {
     if (positionBuffer) gl.deleteBuffer(positionBuffer)
     if (phaseTexture) gl.deleteTexture(phaseTexture)
+    if (brightnessTexture) gl.deleteTexture(brightnessTexture)
     if (paletteTexture) gl.deleteTexture(paletteTexture)
     if (program) gl.deleteProgram(program)
   }
   positionBuffer = null
   phaseTexture = null
+  brightnessTexture = null
   paletteTexture = null
   program = null
   gl = null
 }
 
 watch(() => props.src, loadPhaseMap)
+watch(() => props.brightnessSrc, loadBrightnessMap)
 watch(() => [props.from, props.to], () => {
   if (!uploadPalette()) renderFailed.value = true
   requestDraw()
 })
-watch(() => [props.playing, props.durationMs, props.phaseSpan, props.direction], () => {
+watch(() => [props.playing, props.durationMs, props.phaseSpan, props.direction, props.fit], () => {
   previousTime = 0
   requestDraw()
 })
@@ -416,6 +524,13 @@ onMounted(() => {
   reducedMotion = motionQuery.matches
   motionQuery.addEventListener('change', handleMotionChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  themeObserver = new MutationObserver(() => {
+    if (uploadPalette()) requestDraw()
+  })
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style', 'data-oc-theme'],
+  })
   resizeObserver = new ResizeObserver(requestDraw)
   if (rootElement.value) resizeObserver.observe(rootElement.value)
   intersectionObserver = new IntersectionObserver(entries => {
@@ -425,12 +540,14 @@ onMounted(() => {
   })
   if (rootElement.value) intersectionObserver.observe(rootElement.value)
   loadPhaseMap()
+  loadBrightnessMap()
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   intersectionObserver?.disconnect()
   motionQuery?.removeEventListener('change', handleMotionChange)
+  themeObserver?.disconnect()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   disposeRenderer()
 })
@@ -441,20 +558,25 @@ onBeforeUnmount(() => {
   position: relative;
   display: inline-block;
   overflow: hidden;
-  width: 100%;
-  aspect-ratio: 1;
+  width: var(--oc-phase-image-width, 100%);
+  aspect-ratio: var(--oc-phase-image-aspect-ratio, 1);
 }
 
-.oc-phase-image__canvas,
-.oc-phase-image__fallback {
+.oc-phase-image__canvas {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  opacity: 0;
+  transition: opacity 280ms var(--oc-ease);
 }
 
-.oc-phase-image__fallback {
-  position: absolute;
-  inset: 0;
+.oc-phase-image__canvas--ready {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-phase-image__canvas {
+    transition: none;
+  }
 }
 </style>

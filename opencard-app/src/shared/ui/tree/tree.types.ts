@@ -20,6 +20,7 @@ export interface OcTreeItem {
   renamable?: boolean
   draggable?: boolean
   actions?: readonly OcTreeActionKey[]
+  contextActions?: readonly OcTreeActionKey[]
   disabledActions?: ReadonlyMap<OcTreeActionKey, string>
 }
 

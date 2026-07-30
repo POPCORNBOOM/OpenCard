@@ -7,6 +7,7 @@ import type {
   OcTreeIntent,
 } from '../../shared/ui/tree/tree.types'
 import OcTree from './OcTree.vue'
+import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
 function createData(options: {
   roots?: string[]
@@ -23,7 +24,10 @@ function createData(options: {
 }
 
 describe('OcTree', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    useFloatingMenu().closeMenu()
+    vi.restoreAllMocks()
+  })
 
   it('renders roots as list rows and emits key-only selection intent', async () => {
     const wrapper = mount(OcTree, {
@@ -341,6 +345,59 @@ describe('OcTree', () => {
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
       { type: 'action.invoke', key: 'root', actionKey: 'duplicate' },
     ]])
+  })
+
+  it('opens direct context actions without exposing the inline more wrapper', async () => {
+    const actions = new Map<string, OcTreeActionDefinition>([
+      ['more', { title: 'More', children: ['rename', 'delete'] }],
+      ['rename', { title: 'Rename', icon: 'action.edit' }],
+      ['delete', { title: 'Delete', icon: 'action.delete' }],
+    ])
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Root',
+            actions: ['more'],
+            contextActions: ['rename', 'delete'],
+          }]],
+        }),
+        actions,
+        selectedKeys: [],
+      },
+    })
+
+    await wrapper.get('.oc-tree__row').trigger('contextmenu', { clientX: 12, clientY: 18 })
+    const menu = useFloatingMenu()
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['rename', 'delete'])
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'selection.change',
+      triggerKey: 'root',
+      selectedKeys: ['root'],
+      mode: 'replace',
+    }])
+
+    menu.selectMenuItem('rename')
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[1]).toEqual([{
+      type: 'action.invoke', key: 'root', actionKey: 'rename',
+    }])
+  })
+
+  it('preserves an existing multi-selection and supports the keyboard menu key', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'Root', contextActions: ['rename'] }]],
+        }),
+        actions: new Map([['rename', { title: 'Rename' }]]),
+        selectedKeys: ['root', 'other'],
+        selectionMode: 'multiple',
+      },
+    })
+
+    await wrapper.get('.oc-tree__row').trigger('keydown', { key: 'ContextMenu' })
+    expect(wrapper.emitted('intent')).toBeUndefined()
+    expect(useFloatingMenu().state.value.items.map(item => item.key)).toEqual(['rename'])
   })
 
   it('starts drag only after 4px and emits the visual drop candidate', async () => {

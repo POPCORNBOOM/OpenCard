@@ -22,7 +22,13 @@ describe('appSettings', () => {
       shell: { sidebarWidth: 9999, sidebarCollapsed: true },
     })).toEqual({
       version: APP_SETTINGS_VERSION,
-      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 100 },
+      appearance: {
+        theme: 'light',
+        locale: 'zh-CN',
+        glassIntensity: 100,
+        accentNeighborAngle: -50,
+        themeOverrides: { dark: {}, light: {} },
+      },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: false },
       workspace: {
@@ -32,6 +38,28 @@ describe('appSettings', () => {
         showSelectionSizeOnResize: true,
       },
       projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
+    })
+  })
+
+  it('keeps only editable valid theme colors for each theme', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      appearance: {
+        themeOverrides: {
+          dark: {
+            '--oc-accent': '#aabbcc',
+            '--oc-bg-base': 'red',
+            '--oc-bg-surface': '#223344',
+            '--oc-danger': '#112233',
+          },
+          light: { '--oc-fg-default': '#123456' },
+        },
+      },
+    })
+
+    expect(settings.appearance.themeOverrides).toEqual({
+      dark: { '--oc-accent': '#AABBCC' },
+      light: { '--oc-fg-default': '#123456' },
     })
   })
 
@@ -46,6 +74,16 @@ describe('appSettings', () => {
     expect(settings.updates).toEqual(createDefaultAppSettings().updates)
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
+    expect(settings.appearance.accentNeighborAngle).toBe(-50)
+  })
+
+  it('clamps the secondary color phase angle', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      appearance: { accentNeighborAngle: -240 },
+    })
+
+    expect(settings.appearance.accentNeighborAngle).toBe(-180)
   })
 
   it('falls back field-by-field for malformed current-version data', () => {

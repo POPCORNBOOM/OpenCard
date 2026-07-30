@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hexToHsv, hsvToHex, normalizeHexColor } from './colorModel'
+import { getReadableForegroundTone, hexToHsv, hsvToHex, normalizeHexColor } from './colorModel'
 
 describe('colorModel', () => {
   it('normalizes short and long hex values', () => {
@@ -12,4 +12,10 @@ describe('colorModel', () => {
     'round-trips %s through HSV',
     (hex) => expect(hsvToHex(hexToHsv(hex)!)).toBe(hex),
   )
+
+  it('chooses whether a dark or light foreground has higher contrast', () => {
+    expect(getReadableForegroundTone('#111111')).toBe('light')
+    expect(getReadableForegroundTone('#F5F6FB')).toBe('dark')
+    expect(getReadableForegroundTone('#7C6CFF')).toBe('dark')
+  })
 })

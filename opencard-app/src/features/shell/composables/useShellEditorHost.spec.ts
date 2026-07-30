@@ -74,6 +74,7 @@ describe('useShellEditorHost', () => {
       cardDesignerMode: 'design',
       resourceRootPath: 'D:/project',
       remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
+      themeOverrides: {},
     })
     workspace.host.dispose()
 
@@ -107,7 +108,7 @@ describe('useShellEditorHost', () => {
     }))
 
     expect(host.component.value).toBe(MonacoEditor)
-    expect(host.props.value).toMatchObject({ language: 'plaintext', modelValue: '{}' })
+    expect(host.props.value).toMatchObject({ language: 'plaintext', modelValue: '{}', themeOverrides: {} })
     host.dispose()
   })
 

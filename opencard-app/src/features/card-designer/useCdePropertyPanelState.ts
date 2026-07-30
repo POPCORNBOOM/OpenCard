@@ -28,6 +28,7 @@ import {
 } from '../../entities/card/schema'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
+import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import {
   resolveCdePropertyFields,
   type CdePropertyEditorInput,
@@ -162,7 +163,9 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       ) as Record<string, unknown> & { type?: string }
     }
 
-    const blockOverrides = options.selectedCard.value.data[block.id] ?? {}
+    const blockOverrides = Object.fromEntries(Object.entries(
+      options.selectedCard.value.data[block.id] ?? {},
+    ).filter(([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey)))
     return {
       ...resolveNulls(block.type, {
         ...block,
@@ -220,8 +223,9 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     override?: Readonly<Record<string, Partial<EditorPropertyDefinition>>>,
     labels?: Readonly<Record<string, string>>,
     categorylessKeys: ReadonlySet<string> = new Set(),
+    excludedKeys: ReadonlySet<string> = new Set(),
   ): Record<string, CdePropertyFieldDefinition> {
-    return resolveCdePropertyFields(record, {
+    const fields = resolveCdePropertyFields(record, {
       allowDelete: options.selectedCardId.value === options.blueprintCardId,
       translate: options.translate,
       hasMessage: options.hasMessage,
@@ -229,6 +233,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       labels,
       categorylessKeys,
     })
+    return Object.fromEntries(Object.entries(fields).filter(([fieldKey]) => !excludedKeys.has(fieldKey)))
   }
 
   const propertyInputs = computed<CdePropertyEditorInput[]>(() => {
@@ -252,6 +257,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
               return labels
             }, {}),
           new Set(Object.keys(selectedBlock.additionalFieldDefinition ?? {})),
+          options.selectedCardId.value === options.blueprintCardId ? new Set() : new Set(['name']),
         ),
       })
       if (layout) {

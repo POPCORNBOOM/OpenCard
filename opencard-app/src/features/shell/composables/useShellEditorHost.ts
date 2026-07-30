@@ -87,6 +87,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
       ? getOcTheme()
       : options.settings.value.appearance.theme
   ))
+  const themeOverrides = computed(() => options.settings.value.appearance.themeOverrides[themeId.value])
 
   const component = computed<Component | null>(() => {
     const session = options.activeSession.value
@@ -113,6 +114,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
         filePath,
         modelValue: session.draftContent,
         themeId: themeId.value,
+        themeOverrides: themeOverrides.value,
         'onUpdate:modelValue': (value: string) => options.sessionActions.updateDraftContent(sessionId, value),
       }
 
@@ -154,6 +156,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
       'onUpdate:modelValue': (value: string) => options.sessionActions.updateDraftContent(sessionId, value),
       language: fileType.language ?? 'plaintext',
       themeId: themeId.value,
+      themeOverrides: themeOverrides.value,
     }
   })
 

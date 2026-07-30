@@ -73,7 +73,7 @@ function face(children: RenderReadyCardBlock[]): RenderReadyCardFace {
 }
 
 describe('buildCardLayerGroups', () => {
-  it('groups nested blocks by their own zIndex and keeps traversal order', () => {
+  it('groups nested blocks by zIndex and lists later-painted peers first', () => {
     const result = buildCardLayerGroups(face([
       block('root-high', 3),
       container('container', 1, [block('nested-high', 3), block('nested-low', -1)]),
@@ -81,8 +81,8 @@ describe('buildCardLayerGroups', () => {
     ]))
 
     expect(result.map(layer => layer.zIndex)).toEqual([3, 1, -1])
-    expect(result[0]?.blocks.map(item => item.id)).toEqual(['root-high', 'nested-high'])
-    expect(result[1]?.blocks.map(item => item.id)).toEqual(['container', 'root-mid'])
+    expect(result[0]?.blocks.map(item => item.id)).toEqual(['nested-high', 'root-high'])
+    expect(result[1]?.blocks.map(item => item.id)).toEqual(['root-mid', 'container'])
   })
 
   it('omits hidden blocks and every descendant of a hidden container', () => {

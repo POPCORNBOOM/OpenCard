@@ -3,6 +3,11 @@ import { computed, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
 import type { OcOption } from '../../../components/standard/OcOptionGroup.vue'
 import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 import type { OcTreeData } from '../../../shared/ui/tree/tree.types'
+import {
+  OC_THEME_REGISTRY,
+  type OcEditableThemeColorKey,
+  type OcThemeId,
+} from '../../../shared/ui/foundation'
 import type {
   AppSettingKey,
   AppSettings,
@@ -34,8 +39,21 @@ export type SettingsFieldViewModel =
       suffix: string
     }
   | {
+      type: 'theme-color-panel'
+      key: string
+      label: string
+      themeId: OcThemeId
+      colors: readonly {
+        key: string
+        label: string
+        token: OcEditableThemeColorKey
+        value: string
+        overrideValue: string | null
+      }[]
+    }
+  | {
       type: 'action'
-      key: 'project-workspace.reset'
+      key: 'project-workspace.reset' | 'theme-colors.reset'
       label: string
       actionLabel: string
       icon: IconToken
@@ -117,6 +135,25 @@ export function useSettingsWorkspace(
     }
 
     if (categoryKey === 'appearance') {
+      const colorPanel = (themeId: OcThemeId): SettingsFieldViewModel => ({
+        type: 'theme-color-panel',
+        key: `appearance.${themeId}ThemeColors`,
+        label: options.translate(`settings.fields.${themeId}ThemeColors`, themeId === 'dark' ? 'Dark theme' : 'Light theme'),
+        themeId,
+        colors: [
+          ['accentColor', 'Theme color', '--oc-accent'],
+          ['baseBackgroundColor', 'Background', '--oc-bg-base'],
+          ['primaryTextColor', 'Foreground', '--oc-fg-default'],
+        ].map(([key, fallback, token]) => ({
+          key,
+          label: options.translate(`settings.fields.${key}`, fallback),
+          token: token as OcEditableThemeColorKey,
+          value: settings.appearance.themeOverrides[themeId][token as OcEditableThemeColorKey]
+            ?? OC_THEME_REGISTRY[themeId][token as OcEditableThemeColorKey],
+          overrideValue: settings.appearance.themeOverrides[themeId][token as OcEditableThemeColorKey] ?? null,
+        })),
+      })
+
       return {
         key: categoryKey,
         title: categoryLabels.value.appearance,
@@ -133,6 +170,18 @@ export function useSettingsWorkspace(
               { value: 'light', label: options.translate('settings.values.light', 'Light') },
             ],
           },
+          colorPanel('dark'),
+          colorPanel('light'),
+          {
+            type: 'range',
+            key: 'appearance.accentNeighborAngle',
+            label: options.translate('settings.fields.accentNeighborAngle', 'Secondary color phase angle'),
+            value: settings.appearance.accentNeighborAngle,
+            min: -180,
+            max: 180,
+            step: 1,
+            suffix: '°',
+          },
           {
             type: 'range',
             key: 'appearance.glassIntensity',
@@ -142,6 +191,14 @@ export function useSettingsWorkspace(
             max: 100,
             step: 1,
             suffix: '%',
+          },
+          {
+            type: 'action',
+            key: 'theme-colors.reset',
+            label: options.translate('settings.fields.themeColors', 'Theme colors'),
+            actionLabel: options.translate('settings.actions.resetThemeColors', 'Reset colors'),
+            icon: 'action.restart',
+            disabled: false,
           },
         ],
       }

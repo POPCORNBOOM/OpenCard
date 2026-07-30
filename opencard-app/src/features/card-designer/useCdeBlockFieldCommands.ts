@@ -14,6 +14,7 @@ import {
   type PropertyFieldType,
 } from '../../entities/card/schema'
 import { isBlockContainer } from '../../entities/card/tree'
+import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
@@ -78,7 +79,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
       if (!setCardFieldValue(record, target.fieldKey, value)) record[target.fieldKey] = value
       if (block.type === 'image-block' && target.fieldKey === 'image') delete record.imagePath
     } else {
-      if (!instance) return false
+      if (!instance || !isInstanceBlockFieldOverridable(target.fieldKey)) return false
       const overrides = instance.data[block.id] ?? (instance.data[block.id] = {})
       overrides[target.fieldKey] = value
     }

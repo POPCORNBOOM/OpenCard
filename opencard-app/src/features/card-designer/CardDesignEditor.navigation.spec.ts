@@ -77,6 +77,46 @@ describe('CardDesignEditor issue navigation', () => {
     vi.unstubAllGlobals()
   })
 
+  it('toggles structure containers through double-click activation', async () => {
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: {
+        role: String,
+        activationMode: String,
+        expandedKeys: Array,
+      },
+      emits: ['intent'],
+      template: '<div />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          OcTree: OcTreeStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')!
+
+    expect(structureTree.props('activationMode')).toBe('double-click')
+    structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
+    await nextTick()
+    expect(structureTree.props('expandedKeys')).toContain('container-1')
+
+    structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
+    await nextTick()
+    expect(structureTree.props('expandedKeys')).not.toContain('container-1')
+  })
+
   it('selects the instance and block, forces tree reveal, and focuses the property field', async () => {
     const revealField = vi.fn().mockResolvedValue(true)
     const treePropSnapshots: Array<Record<string, unknown>> = []

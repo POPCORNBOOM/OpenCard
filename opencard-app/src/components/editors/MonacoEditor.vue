@@ -7,13 +7,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as monaco from 'monaco-editor'
-import type { OcThemeId } from '../../shared/ui/foundation'
+import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundation'
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
 
 const props = withDefaults(defineProps<{
   modelValue: string
   language?: string
   themeId?: OcThemeId
+  themeOverrides?: OcThemeColorOverrides
 }>(), {
   language: 'plaintext',
   themeId: 'dark',
@@ -30,7 +31,7 @@ let editor: monaco.editor.IStandaloneCodeEditor | null = null
 onMounted(() => {
   if (!editorContainer.value) return
 
-  const appearance = registerOcMonacoTheme(monaco, props.themeId)
+  const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
   editor = monaco.editor.create(editorContainer.value, {
     value: props.modelValue,
     language: props.language,
@@ -74,8 +75,8 @@ watch(() => props.language, (newLang) => {
   }
 })
 
-watch(() => props.themeId, (themeId) => {
-  const appearance = registerOcMonacoTheme(monaco, themeId)
+watch(() => [props.themeId, props.themeOverrides] as const, ([themeId, themeOverrides]) => {
+  const appearance = registerOcMonacoTheme(monaco, themeId, themeOverrides)
   monaco.editor.setTheme(appearance.themeName)
   editor?.updateOptions({ fontFamily: appearance.fontFamily })
 })

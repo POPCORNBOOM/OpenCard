@@ -2,7 +2,7 @@
 import packageMetadata from '../../../../package.json'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import staticLogo from '../../../assets/icon_v2.png'
+import staticLogo from '../../../assets/opencard-logo.png'
 import OcButton from '../../../components/base/OcButton.vue'
 import { renderMarkdown } from '../../card-rendering/markdown/renderMarkdown'
 import type { CurrentReleaseNotes } from '../composables/updateStatePersistence'

@@ -5,81 +5,54 @@
       <div
         v-if="viewModel.preview"
         class="settings-workspace__preview"
-        :class="{ 'settings-workspace__preview--macos': nativeMacosControls }"
         aria-hidden="true"
       >
         <div class="settings-workspace__preview-titlebar">
-          <div class="settings-workspace__preview-titlebar-left">
-            <OcIcon name="nav.sidebar-collapse" size="sm" />
-            <span>文件</span>
-            <span>编辑</span>
-            <span>视图</span>
+          <AppearanceShaderPreview :progress="0.64" />
+          <span class="settings-workspace__preview-brand" />
+          <div class="settings-workspace__preview-window-dots">
+            <i /><i /><i />
           </div>
-          <strong>OpenCard</strong>
-          <span v-if="!nativeMacosControls" class="settings-workspace__preview-window-actions">- □ ×</span>
         </div>
         <div class="settings-workspace__preview-body">
           <aside class="settings-workspace__preview-sidebar">
-            <div class="settings-workspace__preview-section-title">
-              <span>工作区</span>
-              <OcIcon name="action.add" size="sm" />
-            </div>
-            <div class="settings-workspace__preview-tree-row">
-              <OcIcon name="tree.chevron-down" size="sm" />
-              <OcIcon class="is-folder" name="status.folder-open" size="sm" />
-              <span>cards</span>
-            </div>
-            <div class="settings-workspace__preview-tree-row is-selected">
-              <OcIcon class="is-card-file" name="file.opencard" size="sm" />
-              <span>sample.opencard</span>
-            </div>
-            <div class="settings-workspace__preview-tree-row is-hovered">
-              <OcIcon class="is-image-file" name="file.image" size="sm" />
-              <span>cover.png</span>
-            </div>
-            <span class="settings-workspace__preview-scrollbar" />
+            <span class="settings-workspace__preview-section-line" />
+            <span v-for="index in 5" :key="index" class="settings-workspace__preview-row"
+              :class="{ 'is-selected': index === 2, 'is-short': index === 4 }">
+              <i /><b />
+            </span>
           </aside>
           <main class="settings-workspace__preview-workspace">
             <header class="settings-workspace__preview-workspace-header">
-              <span>sample.opencard</span>
-              <div>
-                <OcIcon name="action.undo" size="sm" />
-                <OcIcon name="action.save" size="sm" />
-              </div>
+              <span />
+              <i /><i />
             </header>
             <div class="settings-workspace__preview-editor">
+              <AppearanceShaderPreview variant="dot-noise" />
               <section class="settings-workspace__preview-panel">
-                <strong>结构</strong>
-                <div class="settings-workspace__preview-block-row is-selected">
-                  <OcIcon name="entity.block-simple-container" size="sm" />
-                  <span>Card</span>
-                </div>
-                <div class="settings-workspace__preview-block-row">
-                  <OcIcon name="entity.block-text" size="sm" />
-                  <span>Title</span>
-                </div>
+                <span class="settings-workspace__preview-section-line" />
+                <span class="settings-workspace__preview-row is-selected"><i /><b /></span>
+                <span class="settings-workspace__preview-row is-indented"><i /><b /></span>
               </section>
               <div class="settings-workspace__preview-canvas">
-                <AppearanceShaderPreview />
                 <div class="settings-workspace__preview-document">
-                  <span class="settings-workspace__preview-card-copy" />
-                </div>
-                <div class="settings-workspace__preview-glass">
-                  <OcIcon name="tool.zoom-out" size="sm" />
-                  <strong>{{ viewModel.preview.glassIntensity }}%</strong>
-                  <OcIcon name="tool.zoom-in" size="sm" />
+                  <div class="settings-workspace__preview-card-corner">
+                    <b>7</b><span>♣</span>
+                  </div>
+                  <div class="settings-workspace__preview-card-pips">
+                    <i v-for="index in 7" :key="index">♣</i>
+                  </div>
+                  <div class="settings-workspace__preview-card-corner is-bottom">
+                    <b>7</b><span>♣</span>
+                  </div>
                 </div>
               </div>
               <section class="settings-workspace__preview-panel settings-workspace__preview-properties">
-                <strong>属性</strong>
-                <label><span>名称</span><i>Title</i></label>
-                <label><span>字号</span><i class="is-focused">24</i></label>
-                <label class="is-disabled"><span>绑定</span><i>未设置</i></label>
-                <div class="settings-workspace__preview-status">
-                  <OcIcon name="status.warning" size="sm" />
-                  <span>1</span>
-                  <OcIcon name="status.error" size="sm" />
-                </div>
+                <span class="settings-workspace__preview-section-line" />
+                <span v-for="index in 3" :key="index" class="settings-workspace__preview-property"
+                  :class="{ 'is-accented': index === 2 }">
+                  <i /><b />
+                </span>
               </section>
             </div>
           </main>
@@ -87,10 +60,41 @@
       </div>
 
       <div class="settings-workspace__fields">
-        <div v-for="field in viewModel.fields" :key="field.key" class="settings-workspace__row">
-          <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
+        <div
+          v-for="field in viewModel.fields"
+          :key="field.key"
+          class="settings-workspace__row"
+          :class="{ 'is-theme-color-panel': field.type === 'theme-color-panel' }"
+        >
+          <section v-if="field.type === 'theme-color-panel'" class="settings-workspace__color-panel">
+            <header class="settings-workspace__color-panel-header">
+              <OcText as="span" size="sm" bold>{{ field.label }}</OcText>
+            </header>
+            <div
+              v-for="color in field.colors"
+              :key="color.key"
+              class="settings-workspace__color-row"
+            >
+              <OcText as="span" size="sm">{{ color.label }}</OcText>
+              <div class="settings-workspace__color-value">
+                <OcColorPicker
+                  class="settings-workspace__color-picker"
+                  :model-value="color.value"
+                  :label="`${field.label} · ${color.label}`"
+                  variant="field"
+                  @preview="emitThemeColor('theme-color.preview', field.themeId, color, $event)"
+                  @commit="commitThemeColor(field.themeId, color, $event)"
+                  @cancel="cancelThemeColor(field.themeId, color)"
+                  @open-change="captureThemeColorSnapshot($event, field.themeId, color)"
+                />
+              </div>
+            </div>
+          </section>
 
-          <OcOptionGroup
+          <template v-else>
+            <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
+
+            <OcOptionGroup
             v-if="field.type === 'options'"
             class="settings-workspace__control"
             :model-value="field.value"
@@ -128,10 +132,11 @@
             :icon="field.icon"
             :disabled="field.disabled"
             :data-tooltip="field.disabledReason"
-            @click="emit('intent', { type: 'project-workspace.reset' })"
+            @click="emitAction(field.key)"
           >
             {{ field.actionLabel }}
           </OcButton>
+          </template>
         </div>
       </div>
     </div>
@@ -140,10 +145,10 @@
 
 <script setup lang="ts">
 import OcButton from '../../../components/base/OcButton.vue'
-import OcIcon from '../../../components/base/OcIcon.vue'
 import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
+import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'
 import AppearanceShaderPreview from './AppearanceShaderPreview.vue'
 import type { SettingsIntent } from '../model/appSettings'
@@ -151,7 +156,6 @@ import type { SettingsCategoryViewModel } from '../composables/useSettingsWorksp
 
 defineProps<{
   viewModel: SettingsCategoryViewModel
-  nativeMacosControls?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -164,6 +168,47 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 
 function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.preview' }>['key'], value: unknown): void {
   emit('intent', { type: 'setting.preview', key, value })
+}
+
+type ThemeColorPanel = Extract<SettingsCategoryViewModel['fields'][number], { type: 'theme-color-panel' }>
+type ThemeColor = ThemeColorPanel['colors'][number]
+const themeColorSnapshots = new Map<string, string | null>()
+
+function themeColorKey(themeId: ThemeColorPanel['themeId'], color: ThemeColor): string {
+  return `${themeId}:${color.token}`
+}
+
+function emitThemeColor(
+  type: 'theme-color.preview' | 'theme-color.change' | 'theme-color.cancel',
+  themeId: ThemeColorPanel['themeId'],
+  color: ThemeColor,
+  value: string | null,
+): void {
+  emit('intent', { type, themeId, token: color.token, value })
+}
+
+function captureThemeColorSnapshot(
+  open: boolean,
+  themeId: ThemeColorPanel['themeId'],
+  color: ThemeColor,
+): void {
+  const key = themeColorKey(themeId, color)
+  if (open) themeColorSnapshots.set(key, color.overrideValue)
+  else themeColorSnapshots.delete(key)
+}
+
+function commitThemeColor(themeId: ThemeColorPanel['themeId'], color: ThemeColor, value: string): void {
+  themeColorSnapshots.set(themeColorKey(themeId, color), value)
+  emitThemeColor('theme-color.change', themeId, color, value)
+}
+
+function cancelThemeColor(themeId: ThemeColorPanel['themeId'], color: ThemeColor): void {
+  const key = themeColorKey(themeId, color)
+  emitThemeColor('theme-color.cancel', themeId, color, themeColorSnapshots.get(key) ?? null)
+}
+
+function emitAction(key: 'project-workspace.reset' | 'theme-colors.reset'): void {
+  emit('intent', { type: key })
 }
 </script>
 
@@ -200,123 +245,101 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
 }
 
 .settings-workspace__preview-titlebar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  height: 34px;
-  padding: 0 var(--oc-space-3);
-  border-bottom: 1px solid var(--oc-border-muted);
-  background: var(--oc-bg-raised);
-  color: var(--oc-fg-muted);
-  font-size: 10px;
-}
-
-.settings-workspace__preview-titlebar-left,
-.settings-workspace__preview-window-actions {
   position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  gap: var(--oc-space-3);
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 var(--oc-space-3);
+  background: var(--oc-bg-base);
 }
 
-.settings-workspace__preview--macos .settings-workspace__preview-titlebar-left {
-  padding-left: 46px;
-}
-
-.settings-workspace__preview--macos .settings-workspace__preview-titlebar-left::before {
-  content: '';
-  position: absolute;
-  left: var(--oc-space-3);
-  width: 8px;
-  height: 8px;
+.settings-workspace__preview-brand {
+  position: relative;
+  z-index: 1;
+  width: 54px;
+  height: 5px;
   border-radius: var(--oc-radius-full);
-  background: var(--oc-danger);
-  box-shadow: 13px 0 var(--oc-icon-warning), 26px 0 var(--oc-icon-success);
+  background: var(--oc-fg-subtle);
+  opacity: 0.7;
 }
 
-.settings-workspace__preview-titlebar-left span:first-of-type {
-  padding: var(--oc-space-1) var(--oc-space-2);
+.settings-workspace__preview-window-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-workspace__preview-window-dots {
+  position: relative;
+  z-index: 1;
+}
+
+.settings-workspace__preview-window-dots i {
+  width: 7px;
+  height: 7px;
   border-radius: var(--oc-radius-full);
-  background: var(--oc-bg-hover);
-  color: var(--oc-fg-default);
-}
-
-.settings-workspace__preview-titlebar strong {
-  color: var(--oc-fg-subtle);
-  font-size: var(--oc-text-xs);
-  font-weight: 500;
-}
-
-.settings-workspace__preview-window-actions {
-  justify-content: flex-end;
-  letter-spacing: 0.5em;
+  background: var(--oc-fg-default);
+  opacity: 0.82;
 }
 
 .settings-workspace__preview-body {
   display: grid;
-  grid-template-columns: 28% 1fr;
+  grid-template-columns: 24% 1fr;
   height: calc(100% - 34px);
 }
 
 .settings-workspace__preview-sidebar {
-  position: relative;
-  display: grid;
-  align-content: start;
-  gap: var(--oc-space-1);
-  padding: var(--oc-space-3) var(--oc-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-4) var(--oc-space-3);
   border-right: 1px solid var(--oc-border-muted);
   background: var(--oc-bg-base);
-  color: var(--oc-fg-muted);
-  font-size: var(--oc-text-xs);
 }
 
-.settings-workspace__preview-section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: var(--oc-size-sm);
-  padding: 0 var(--oc-space-2);
-  color: var(--oc-fg-subtle);
+.settings-workspace__preview-section-line {
+  display: block;
+  width: 42%;
+  height: 4px;
+  margin: var(--oc-space-1) var(--oc-space-2) var(--oc-space-2);
+  border-radius: var(--oc-radius-full);
+  background: var(--oc-fg-subtle);
+  opacity: 0.65;
 }
 
-.settings-workspace__preview-tree-row,
-.settings-workspace__preview-block-row {
+.settings-workspace__preview-row {
   display: flex;
   align-items: center;
-  gap: var(--oc-space-1);
+  gap: var(--oc-space-2);
   height: var(--oc-size-sm);
-  min-width: 0;
   padding: 0 var(--oc-space-2);
   border-radius: var(--oc-radius-sm);
 }
 
-.settings-workspace__preview-tree-row:nth-of-type(n + 3) {
-  padding-left: var(--oc-space-6);
-}
-
-.settings-workspace__preview-tree-row.is-selected,
-.settings-workspace__preview-block-row.is-selected {
-  background: var(--oc-bg-selected);
-  color: var(--oc-fg-accent);
-}
-
-.settings-workspace__preview-tree-row.is-hovered {
-  background: var(--oc-bg-hover);
-  color: var(--oc-fg-default);
-}
-
-.settings-workspace__preview-tree-row .is-folder { color: var(--oc-icon-folder-open); }
-.settings-workspace__preview-tree-row .is-card-file { color: var(--oc-icon-file-opencard); }
-.settings-workspace__preview-tree-row .is-image-file { color: var(--oc-icon-file-image); }
-
-.settings-workspace__preview-scrollbar {
-  position: absolute;
-  top: 42%;
-  right: 2px;
-  width: calc(var(--oc-scrollbar-size) / 2);
-  height: 28%;
+.settings-workspace__preview-row i,
+.settings-workspace__preview-workspace-header i {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
   border-radius: var(--oc-radius-full);
-  background: var(--oc-scrollbar-thumb);
+  background: var(--oc-fg-muted);
+}
+
+.settings-workspace__preview-row b {
+  width: 62%;
+  height: 4px;
+  border-radius: var(--oc-radius-full);
+  background: var(--oc-fg-muted);
+  opacity: 0.72;
+}
+
+.settings-workspace__preview-row.is-short b { width: 38%; }
+.settings-workspace__preview-row.is-indented { margin-left: var(--oc-space-3); }
+
+.settings-workspace__preview-row.is-selected {
+  background: var(--oc-bg-selected);
 }
 
 .settings-workspace__preview-workspace {
@@ -330,64 +353,51 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
 .settings-workspace__preview-workspace-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: var(--oc-space-2);
   padding: 0 var(--oc-space-3);
   border-bottom: 1px solid var(--oc-border-muted);
-  color: var(--oc-fg-default);
-  font-size: var(--oc-text-xs);
+  background: color-mix(in srgb, var(--oc-bg-surface) 94%, var(--oc-bg-raised));
 }
 
 .settings-workspace__preview-workspace-header > span {
-  padding-left: var(--oc-space-2);
-  border-left: 2px solid var(--oc-border-accent);
-}
-
-.settings-workspace__preview-workspace-header div {
-  display: flex;
-  gap: var(--oc-space-3);
-  color: var(--oc-icon-muted);
+  width: 48px;
+  height: 4px;
+  margin-right: auto;
+  border-radius: var(--oc-radius-full);
+  background: var(--oc-fg-muted);
 }
 
 .settings-workspace__preview-editor {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 0;
   display: grid;
   grid-template-columns: 22% minmax(0, 1fr) 28%;
   gap: 1px;
-  background: var(--oc-border-muted);
+  background: var(--oc-bg-base);
 }
 
 .settings-workspace__preview-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: var(--oc-space-2);
   padding: var(--oc-space-3) var(--oc-space-2);
-  background: var(--oc-bg-surface);
-  color: var(--oc-fg-muted);
-  font-size: var(--oc-text-xs);
-}
-
-.settings-workspace__preview-panel > strong {
-  display: block;
-  margin: 0 var(--oc-space-2) var(--oc-space-2);
-  color: var(--oc-fg-default);
-  font-size: var(--oc-text-xs);
-  font-weight: 500;
+  background: var(--oc-bg-glass);
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
 }
 
 .settings-workspace__preview-canvas {
   position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--oc-bg-base);
-}
-
-.settings-workspace__preview-canvas::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, var(--oc-border-default) 0 1px, transparent 1px);
-  background-size: 12px 12px;
-  opacity: 0.55;
-  pointer-events: none;
+  background: transparent;
 }
 
 .settings-workspace__preview-document {
@@ -397,108 +407,80 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
   aspect-ratio: 5 / 7;
   overflow: hidden;
   border: 1px solid var(--oc-border-strong);
-  border-radius: var(--oc-radius-lg);
-  background: var(--oc-bg-accent);
+  border-radius: var(--oc-radius-sm);
+  background: var(--oc-bg-raised);
   box-shadow: var(--oc-shadow-md);
-  color: var(--oc-accent-fg);
 }
 
-.settings-workspace__preview-card-title {
+.settings-workspace__preview-card-corner {
   position: absolute;
-  top: 12%;
-  left: 12%;
-  font-size: var(--oc-text-sm);
-  font-weight: 700;
+  top: 7%;
+  left: 9%;
+  display: grid;
+  justify-items: center;
+  color: var(--oc-accent);
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 0.8;
 }
 
-.settings-workspace__preview-card-shape {
+.settings-workspace__preview-card-corner b {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-workspace__preview-card-corner span {
+  font-size: 12px;
+}
+
+.settings-workspace__preview-card-corner.is-bottom {
+  inset: auto 9% 7% auto;
+  transform: rotate(180deg);
+}
+
+.settings-workspace__preview-card-pips {
   position: absolute;
-  top: 32%;
-  left: 16%;
-  width: 68%;
-  aspect-ratio: 1;
-  border: 2px solid var(--oc-accent-fg);
-  border-radius: var(--oc-radius-full);
-  transform: rotate(-18deg);
+  display: grid;
+  grid-template: repeat(5, 1fr) / repeat(3, 1fr);
+  inset: 16% 22%;
+  color: var(--oc-accent);
 }
 
-.settings-workspace__preview-card-copy {
-  position: absolute;
-  right: 12%;
-  bottom: 12%;
-  width: 46%;
-  height: 4px;
-  border-radius: var(--oc-radius-full);
-  background: var(--oc-accent-fg);
+.settings-workspace__preview-card-pips i {
+  align-self: center;
+  justify-self: center;
+  font: 19px/1 Georgia, 'Times New Roman', serif;
+  font-style: normal;
 }
 
-.settings-workspace__preview-glass {
-  position: absolute;
-  z-index: 2;
-  bottom: var(--oc-space-3);
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-  min-height: var(--oc-size-sm);
-  padding: 0 var(--oc-space-3);
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-full);
-  background: var(--oc-bg-glass);
-  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
-  transform: translateX(-50%);
-}
+.settings-workspace__preview-card-pips i:nth-child(1) { grid-area: 1 / 1; }
+.settings-workspace__preview-card-pips i:nth-child(2) { grid-area: 1 / 3; }
+.settings-workspace__preview-card-pips i:nth-child(3) { grid-area: 3 / 1; }
+.settings-workspace__preview-card-pips i:nth-child(4) { grid-area: 3 / 3; }
+.settings-workspace__preview-card-pips i:nth-child(5) { grid-area: 2 / 2; }
+.settings-workspace__preview-card-pips i:nth-child(6) { grid-area: 5 / 1; transform: rotate(180deg); }
+.settings-workspace__preview-card-pips i:nth-child(7) { grid-area: 5 / 3; transform: rotate(180deg); }
 
-.settings-workspace__preview-glass strong {
-  min-width: 28px;
-  font-size: var(--oc-text-xs);
-  font-weight: 500;
-  text-align: center;
-}
-
-.settings-workspace__preview-properties label {
+.settings-workspace__preview-property {
   display: grid;
   gap: var(--oc-space-1);
-  margin-bottom: var(--oc-space-2);
 }
 
-.settings-workspace__preview-properties label > span {
-  color: var(--oc-fg-subtle);
-}
-
-.settings-workspace__preview-properties i {
-  min-height: var(--oc-size-sm);
-  padding: var(--oc-space-1) var(--oc-space-2);
-  overflow: hidden;
-  border: 1px solid var(--oc-border-default);
+.settings-workspace__preview-property i,
+.settings-workspace__preview-property b {
+  display: block;
   border-radius: var(--oc-radius-sm);
+  background: var(--oc-fg-muted);
+  opacity: 0.55;
+}
+
+.settings-workspace__preview-property i { width: 38%; height: 4px; }
+.settings-workspace__preview-property b {
+  width: 100%;
+  height: var(--oc-size-sm);
+  border: 1px solid var(--oc-border-default);
   background: var(--oc-bg-input);
-  color: var(--oc-fg-default);
-  font-style: normal;
-  text-overflow: ellipsis;
 }
-
-.settings-workspace__preview-properties i.is-focused {
-  border-color: var(--oc-border-accent);
-  box-shadow: var(--oc-focus-ring);
-}
-
-.settings-workspace__preview-properties label.is-disabled {
-  color: var(--oc-fg-disabled);
-  opacity: 0.7;
-}
-
-.settings-workspace__preview-status {
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-1);
-  margin-top: var(--oc-space-3);
-}
-
-.settings-workspace__preview-status .oc-icon:first-child { color: var(--oc-icon-warning); }
-.settings-workspace__preview-status .oc-icon:last-child { color: var(--oc-icon-danger); }
+.settings-workspace__preview-property.is-accented b { border-color: var(--oc-border-accent); }
 
 .settings-workspace__row {
   display: grid;
@@ -534,6 +516,37 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
   text-align: right;
 }
 
+.settings-workspace__row.is-theme-color-panel {
+  display: block;
+  padding: var(--oc-space-3) 0;
+}
+
+.settings-workspace__color-panel {
+  width: 100%;
+}
+
+.settings-workspace__color-panel-header,
+.settings-workspace__color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 var(--oc-space-4);
+  border-bottom: 1px solid var(--oc-border-muted);
+}
+
+.settings-workspace__color-panel-header {
+  min-height: 46px;
+}
+
+.settings-workspace__color-value {
+  width: 128px;
+}
+
+.settings-workspace__color-picker {
+  width: 100%;
+}
+
 @media (max-width: 680px) {
   .settings-workspace__content {
     padding: var(--oc-space-4);
@@ -556,5 +569,7 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
     grid-template-columns: minmax(0, 1fr) 48px;
     justify-self: stretch;
   }
+
+
 }
 </style>

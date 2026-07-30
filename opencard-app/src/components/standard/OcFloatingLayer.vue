@@ -99,6 +99,8 @@ const layerStyle = computed<CSSProperties>(() => ({
   box-sizing: border-box;
   color: var(--oc-fg-default, #cccccc);
   background-color: var(--oc-bg-surface, #252526);
+  background-clip: padding-box;
+  border-radius: var(--oc-floating-layer-radius, var(--oc-radius-md, 6px));
   isolation: isolate;
 }
 </style>

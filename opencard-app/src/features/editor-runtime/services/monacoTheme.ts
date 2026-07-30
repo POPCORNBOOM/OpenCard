@@ -1,5 +1,9 @@
 /** Maps the OC visual foundation into Monaco's concrete theme contract. */
-import { OC_THEME_REGISTRY, type OcThemeId } from '../../../shared/ui/foundation'
+import {
+  resolveOcThemeTokens,
+  type OcThemeColorOverrides,
+  type OcThemeId,
+} from '../../../shared/ui/foundation'
 
 type MonacoApi = typeof import('monaco-editor')
 type MonacoThemeData = import('monaco-editor').editor.IStandaloneThemeData
@@ -25,8 +29,11 @@ function toMonacoColor(value: string): string {
   return `#${channels.join('')}${alpha}`
 }
 
-export function createOcMonacoTheme(themeId: OcThemeId): MonacoThemeData {
-  const tokens = OC_THEME_REGISTRY[themeId]
+export function createOcMonacoTheme(
+  themeId: OcThemeId,
+  overrides: OcThemeColorOverrides = {},
+): MonacoThemeData {
+  const tokens = resolveOcThemeTokens(themeId, overrides)
   const color = (key: keyof typeof tokens) => toMonacoColor(tokens[key])
 
   return {
@@ -66,11 +73,16 @@ export function createOcMonacoTheme(themeId: OcThemeId): MonacoThemeData {
   }
 }
 
-export function registerOcMonacoTheme(monaco: MonacoApi, themeId: OcThemeId): OcMonacoAppearance {
+export function registerOcMonacoTheme(
+  monaco: MonacoApi,
+  themeId: OcThemeId,
+  overrides: OcThemeColorOverrides = {},
+): OcMonacoAppearance {
   const themeName = `opencard-${themeId}`
-  monaco.editor.defineTheme(themeName, createOcMonacoTheme(themeId))
+  const tokens = resolveOcThemeTokens(themeId, overrides)
+  monaco.editor.defineTheme(themeName, createOcMonacoTheme(themeId, overrides))
   return {
     themeName,
-    fontFamily: OC_THEME_REGISTRY[themeId]['--oc-font-mono'],
+    fontFamily: tokens['--oc-font-mono'],
   }
 }

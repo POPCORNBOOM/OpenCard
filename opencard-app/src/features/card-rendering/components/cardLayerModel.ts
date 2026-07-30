@@ -35,5 +35,8 @@ export function buildCardLayerGroups(face: RenderReadyCardFace): CardLayerGroup[
 
   return [...groups.entries()]
     .sort(([left], [right]) => right - left)
-    .map(([zIndex, layerBlocks]) => ({ zIndex, blocks: layerBlocks }))
+    .map(([zIndex, layerBlocks]) => ({
+      zIndex,
+      blocks: [...layerBlocks].reverse(),
+    }))
 }

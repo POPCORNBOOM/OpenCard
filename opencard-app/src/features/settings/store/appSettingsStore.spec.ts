@@ -27,6 +27,7 @@ describe('appSettingsStore', () => {
     store.updateSetting('appearance.theme', 'light')
     store.updateSetting('appearance.locale', 'zh-CN')
     store.updateSetting('appearance.glassIntensity', 75)
+    store.updateSetting('appearance.accentNeighborAngle', -72)
     store.updateSetting('updates.suppressReleaseNotesAfterUpdate', true)
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
@@ -38,7 +39,7 @@ describe('appSettingsStore', () => {
 
     const saved = await persistence.load()
     expect(saved).toMatchObject({
-      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 75 },
+      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 75, accentNeighborAngle: -72 },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: true },
       workspace: {
@@ -70,6 +71,26 @@ describe('appSettingsStore', () => {
 
     expect(save).toHaveBeenCalledTimes(1)
     expect(await persistence.load()).toMatchObject({ appearance: { glassIntensity: 80 } })
+  })
+
+  it('previews, persists, and resets paired theme color overrides', async () => {
+    const persistence = new MemorySettingsPersistence()
+    const save = vi.spyOn(persistence, 'save')
+    const store = createAppSettingsStore(persistence)
+    await store.initialize()
+    save.mockClear()
+
+    store.previewThemeColor('dark', '--oc-accent', '#112233')
+    expect(store.settings.value.appearance.themeOverrides.dark['--oc-accent']).toBe('#112233')
+    expect(save).not.toHaveBeenCalled()
+
+    store.updateThemeColor('dark', '--oc-accent', '#112233')
+    await store.flush()
+    expect(save).toHaveBeenCalledTimes(1)
+
+    store.resetThemeColors()
+    await store.flush()
+    expect(store.settings.value.appearance.themeOverrides).toEqual({ dark: {}, light: {} })
   })
 
   it('keeps recently opened projects in most-recent-first order', async () => {

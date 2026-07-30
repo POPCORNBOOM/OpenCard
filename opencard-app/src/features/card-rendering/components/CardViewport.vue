@@ -42,6 +42,7 @@
       :source-root="stageRef"
       :selected-block-id="selectedBlockId"
       :space-modifier-active="spaceModifierActive"
+      :base-plane-label="layerViewBasePlaneLabel"
       :shortcut-legend-label="layerViewShortcutLegendLabel"
       :shortcut-hints="layerViewShortcutHints"
       :viewport-width="viewportWidth"
@@ -85,7 +86,9 @@
         'is-resizing': activeHandle,
         'is-moving': isMovingSelection,
       }"
-        :style="selectionFrameStyle" @pointerdown="handleSelectionFramePointerDown">
+        :style="selectionFrameStyle" tabindex="0" @pointerdown="handleSelectionFramePointerDown"
+        @contextmenu="openSelectionContextMenu"
+        @keydown="openSelectionKeyboardMenu">
         <Transition name="selection-overlay-fade">
         <nav v-if="selectionQuickActions.length > 0 && !isTransformingSelection" class="selection-quick-actions"
           :aria-label="selectionActionLabels.label" @pointerdown.stop>
@@ -160,6 +163,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AnchorPosition, FlowDirection } from '../../../entities/card/model'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
+import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import CardLayerView from './CardLayerView.vue'
 import { buildCardLayerGroups } from './cardLayerModel'
@@ -238,6 +242,7 @@ const props = withDefaults(defineProps<{
   layerViewActive?: boolean
   spaceModifierActive?: boolean
   layerViewShortcutLegendLabel?: string
+  layerViewBasePlaneLabel?: string
   layerViewShortcutHints?: Array<{
     keys: Array<string | { icon: IconToken } | { separator: string }>
     label: string
@@ -269,6 +274,7 @@ const props = withDefaults(defineProps<{
   layerViewActive: false,
   spaceModifierActive: false,
   layerViewShortcutLegendLabel: '',
+  layerViewBasePlaneLabel: '',
   layerViewShortcutHints: () => [],
   transform: undefined,
   transformDisabledBlockIds: () => [],
@@ -438,6 +444,26 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
   }
   return []
 })
+const { openContextMenu } = useFloatingMenu()
+
+function openSelectionContextMenu(event: MouseEvent): void {
+  openContextMenu({
+    event,
+    items: selectionQuickActions.value,
+    onSelect: handleSelectionQuickAction,
+  })
+}
+
+function openSelectionKeyboardMenu(event: KeyboardEvent): void {
+  if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return
+  if (selectionQuickActions.value.length === 0 || !(event.currentTarget instanceof HTMLElement)) return
+  event.preventDefault()
+  openContextMenu({
+    anchor: event.currentTarget,
+    items: selectionQuickActions.value,
+    onSelect: handleSelectionQuickAction,
+  })
+}
 const selectionFrameStyle = computed(() => {
   const frame = selectionFrame.value
   if (!frame) {
@@ -1700,7 +1726,7 @@ watch(
   left: 50%;
   width: 8px;
   height: 8px;
-  border: 1px solid var(--oc-accent-contrast);
+  border: 1px solid var(--oc-accent-fg);
   border-radius: 2px;
   background: color-mix(in srgb, var(--oc-accent) 55%, transparent);
   box-shadow: 0 0 0 1px var(--oc-handle-shadow);
@@ -1714,13 +1740,13 @@ watch(
 .selection-handle:hover::before,
 .selection-handle:focus-visible::before {
   background: color-mix(in srgb, var(--oc-accent) 75%, transparent);
-  box-shadow: 0 0 0 1px var(--oc-accent-contrast), 0 0 0 3px var(--oc-accent-glow);
+  box-shadow: 0 0 0 1px var(--oc-accent-fg), 0 0 0 3px var(--oc-accent-glow);
   transform: translate(-50%, -50%) scale(1.15);
 }
 
 .selection-handle.is-active::before {
   background: var(--oc-accent);
-  box-shadow: 0 0 0 1px var(--oc-accent-contrast), 0 0 0 4px var(--oc-accent-glow);
+  box-shadow: 0 0 0 1px var(--oc-accent-fg), 0 0 0 4px var(--oc-accent-glow);
   transform: translate(-50%, -50%) scale(1.2);
 }
 

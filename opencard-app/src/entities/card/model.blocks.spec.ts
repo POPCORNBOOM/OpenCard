@@ -56,7 +56,7 @@ describe('QR code and shape blocks', () => {
   })
 
   it('applies instance overrides without owning render materialization', () => {
-    const qr = createBlock('qrcode-block', { id: 'qr', content: 'blueprint' })
+    const qr = createBlock('qrcode-block', { id: 'qr', name: 'Blueprint QR', content: 'blueprint' })
     const document: CardDocument = {
       type: 'card-document',
       schemaVersion: '2',
@@ -93,7 +93,7 @@ describe('QR code and shape blocks', () => {
       name: 'Instance',
       amount: '1',
       data: {
-        qr: { content: 'instance', errorCorrection: 'H' },
+        qr: { name: 'Instance QR', content: 'instance', errorCorrection: 'H' },
         'back-qr': { content: 'back-instance' },
       },
     }
@@ -101,6 +101,7 @@ describe('QR code and shape blocks', () => {
     const projected = applyInstance(document, instance)
     expect(projected.faces.front.children[0]?.block).toMatchObject({
       type: 'qrcode-block',
+      name: 'Blueprint QR',
       content: 'instance',
       errorCorrection: 'H',
     })

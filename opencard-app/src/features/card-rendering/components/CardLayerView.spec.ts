@@ -130,42 +130,64 @@ describe('CardLayerView', () => {
         face: createFace(),
         sourceRoot: createSourceRoot(),
         selectedBlockId: 'low',
+        basePlaneLabel: 'Base plate',
         viewportWidth: 1000,
         viewportHeight: 800,
       },
     })
     await nextTick()
 
+    const preview = wrapper.get('.card-layer-view__card-preview')
+    expect(preview.text()).toContain('high-a')
+    expect(preview.find('[data-block-id]').exists()).toBe(false)
+    expect(Number.parseFloat((preview.element as HTMLElement).style.width)).toBeCloseTo(252)
+    expect(Number.parseFloat((preview.element as HTMLElement).style.height)).toBeCloseTo(352)
+    expect((preview.element as HTMLElement).style.zIndex).toBe('300')
+    const basePlane = wrapper.get('.card-layer-view__base-plane')
+    expect(basePlane.classes()).toContain('card-layer-view__block-plane')
+    expect(basePlane.attributes('tabindex')).toBeUndefined()
+    expect(basePlane.attributes('aria-hidden')).toBe('true')
+    expect(wrapper.get('.card-layer-view__base-index').text()).toBe('Base plate')
+    expect(wrapper.get('.card-layer-view__base-face').attributes('style')).toContain('background: rgb(255, 255, 255)')
     expect(wrapper.findAll('.card-layer-view__level')).toHaveLength(2)
     expect(wrapper.findAll('.card-layer-view__level')[0]?.findAll('.card-layer-view__block')).toHaveLength(2)
     expect(wrapper.findAll('.card-layer-view__level')[0]?.findAll('.card-layer-view__block-plane')).toHaveLength(2)
     const highBlocks = wrapper.findAll('.card-layer-view__level')[0]!.findAll('.card-layer-view__block')
     const highPlanes = wrapper.findAll('.card-layer-view__level')[0]!.findAll('.card-layer-view__block-plane')
     const scale = Number.parseFloat((highPlanes[0]!.element as HTMLElement).style.width) / 630
-    expect(Number.parseFloat((highBlocks[0]!.element as HTMLElement).style.left) / scale).toBeCloseTo(60)
-    expect(Number.parseFloat((highBlocks[0]!.element as HTMLElement).style.top) / scale).toBeCloseTo(80)
-    expect(Number.parseFloat((highBlocks[1]!.element as HTMLElement).style.left) / scale).toBeCloseTo(260)
-    expect(Number.parseFloat((highBlocks[1]!.element as HTMLElement).style.top) / scale).toBeCloseTo(320)
+    expect(Number.parseFloat((basePlane.element as HTMLElement).style.width) / 630).toBeCloseTo(scale)
+    expect(Number.parseFloat((highBlocks[0]!.element as HTMLElement).style.left) / scale).toBeCloseTo(260)
+    expect(Number.parseFloat((highBlocks[0]!.element as HTMLElement).style.top) / scale).toBeCloseTo(320)
+    expect(Number.parseFloat((highBlocks[1]!.element as HTMLElement).style.left) / scale).toBeCloseTo(60)
+    expect(Number.parseFloat((highBlocks[1]!.element as HTMLElement).style.top) / scale).toBeCloseTo(80)
     expect((highPlanes[0]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, -416px, -108px)')
     expect((highPlanes[1]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, -288px, -54px)')
-    expect(Number((highPlanes[0]!.element as HTMLElement).style.opacity)).toBeCloseTo(Math.exp(-3))
-    expect(Number((highPlanes[1]!.element as HTMLElement).style.opacity)).toBeCloseTo(Math.exp(-1.5))
-    expect((wrapper.findAll('.card-layer-view__block-plane')[2]!.element as HTMLElement).style.opacity).toBe('1')
-    expect(wrapper.findAll('.card-layer-view__block-plane')[2]?.classes()).toContain('is-selected')
+    expect(Number((highPlanes[0]!.element as HTMLElement).style.opacity)).toBe(0.015)
+    expect(Number((highPlanes[1]!.element as HTMLElement).style.opacity)).toBeCloseTo(Math.exp(-1.0))
+    expect((wrapper.findAll('[data-layer-block-id]')[2]!.element as HTMLElement).style.opacity).toBe('1')
+    expect(wrapper.findAll('[data-layer-block-id]')[2]?.classes()).toContain('is-selected')
     expect(wrapper.findAll('.card-layer-view__block')[2]?.classes()).not.toContain('is-selected')
     expect(wrapper.findAll('.card-layer-view__tick')).toHaveLength(3)
     expect(wrapper.findAll('.card-layer-view__tick')[2]?.classes()).toContain('is-active')
     expect(wrapper.findAll('.card-layer-view__tick')[2]?.classes()).toContain('is-selected')
     expect(wrapper.findAll('.card-layer-view__tick-name').map(item => item.text()))
-      .toEqual(['high-a', 'high-b', 'low'])
-    expect(wrapper.findAll('.card-layer-view__plane-index').map(item => item.text()))
+      .toEqual(['high-b', 'high-a', 'low'])
+    expect(wrapper.findAll('.card-layer-view__level .card-layer-view__plane-index').map(item => item.text()))
       .toEqual(['Layer 3', 'Layer 1'])
-    expect(wrapper.findAll('.card-layer-view__layer-boundary')).toHaveLength(1)
-    expect(wrapper.get('.card-layer-view__layer-boundary-index--upper').text()).toBe('3')
-    expect(wrapper.get('.card-layer-view__layer-boundary-index--lower').text()).toBe('1')
-    expect((wrapper.get('.card-layer-view__layer-boundary').element as HTMLElement).style.top).toBe('-24px')
+    const railSegments = wrapper.findAll('.card-layer-view__rail-segment')
+    expect(railSegments).toHaveLength(2)
+    expect(wrapper.findAll('.card-layer-view__rail-segment-index').map(item => item.text()))
+      .toEqual(['3'])
+    expect(wrapper.get('.card-layer-view__rail-active-index').text()).toBe('1')
+    expect((wrapper.get('.card-layer-view__rail-active-index').element as HTMLElement).style.top)
+      .toBe('400px')
+    expect(railSegments[1]?.classes()).toContain('is-active')
+    expect((railSegments[0]!.element as HTMLElement).style.top).toBe('283px')
+    expect((railSegments[0]!.element as HTMLElement).style.height).toBe('60px')
+    expect((railSegments[1]!.element as HTMLElement).style.top).toBe('385px')
+    expect((railSegments[1]!.element as HTMLElement).style.height).toBe('30px')
     expect((wrapper.findAll('.card-layer-view__tick')[1]!.element as HTMLElement).style.top).toBe('328px')
     expect((wrapper.findAll('.card-layer-view__tick')[2]!.element as HTMLElement).style.top).toBe('400px')
     const tickFontSizes = wrapper.findAll('.card-layer-view__tick')
@@ -180,13 +202,51 @@ describe('CardLayerView', () => {
       630 * scale * Math.cos(24 * radians)
       + 880 * scale * Math.cos(56 * radians) * Math.sin(24 * radians)
     ) / 2
-    expect(railLeft).toBeCloseTo(500 - 40 + projectedHalfWidth + 28)
+    expect(railLeft).toBeCloseTo(500 - 40 + projectedHalfWidth + 78)
 
     await wrapper.setProps({ selectedBlockId: 'high-a' })
-    expect(wrapper.findAll('.card-layer-view__block-plane')[0]?.classes()).toContain('is-selected')
-    expect(wrapper.findAll('.card-layer-view__tick')[0]?.classes()).toContain('is-selected')
+    expect(wrapper.get('[data-layer-block-id="high-a"]').classes()).toContain('is-selected')
+    expect(wrapper.findAll('.card-layer-view__tick')[1]?.classes()).toContain('is-selected')
     expect(wrapper.findAll('.card-layer-view__tick')[2]?.classes()).not.toContain('is-selected')
     expect(wrapper.findAll('.card-layer-view__tick')[2]?.classes()).toContain('is-active')
+  })
+
+  it('places the non-focusable Face after Layer 0 and before negative layers', async () => {
+    const face = createFace()
+    face.background = 'transparent'
+    face.children[0]!.block.zIndex = 1
+    face.children[1]!.block.zIndex = 0
+    face.children[2]!.block.zIndex = -1
+    const wrapper = mount(CardLayerView, {
+      props: {
+        face,
+        sourceRoot: createSourceRoot(),
+        selectedBlockId: 'high-b',
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      },
+    })
+    await nextTick()
+
+    const base = wrapper.get('.card-layer-view__base-plane')
+    const high = wrapper.get('[data-layer-block-id="high-a"]')
+    const negative = wrapper.get('[data-layer-block-id="low"]')
+    expect((base.element as HTMLElement).style.transform)
+      .toContain('translate3d(0, 128px, -54px)')
+    expect((negative.element as HTMLElement).style.transform)
+      .toContain('translate3d(0, 416px, -108px)')
+    expect((base.element as HTMLElement).style.opacity)
+      .toBe((high.element as HTMLElement).style.opacity)
+    expect((base.element as HTMLElement).style.transform)
+      .toContain('translate3d(0, 128px, -54px) rotateX(56deg) rotateZ(-24deg)')
+    expect((high.element as HTMLElement).style.transform)
+      .toContain('translate3d(0, -288px, -54px) rotateX(56deg) rotateZ(-24deg)')
+    expect((base.element as HTMLElement).style.transform).toMatch(/^perspective\(1400px\)/)
+    expect((high.element as HTMLElement).style.transform).toMatch(/^perspective\(1400px\)/)
+    expect(wrapper.findAll('.card-layer-view__tick')).toHaveLength(3)
+    expect(base.attributes('tabindex')).toBeUndefined()
+    expect(wrapper.get('.card-layer-view__base-face').attributes('style'))
+      .toContain('background: transparent')
   })
 
   it('cycles matching name initials with wraparound and optional layer scope', async () => {
@@ -210,9 +270,9 @@ describe('CardLayerView', () => {
     }
 
     expect(view.cycleLayerByInitial('a')).toBe(true)
-    expect(view.getFocusedBlockId()).toBe('high-b')
-    expect(view.cycleLayerByInitial('A')).toBe(true)
     expect(view.getFocusedBlockId()).toBe('low')
+    expect(view.cycleLayerByInitial('A')).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('high-b')
     expect(view.cycleLayerByInitial('a')).toBe(true)
     expect(view.getFocusedBlockId()).toBe('high-a')
 
@@ -245,9 +305,9 @@ describe('CardLayerView', () => {
     }
 
     expect(view.cycleLayerByInitial('b')).toBe(true)
-    expect(view.getFocusedBlockId()).toBe('high-b')
-    expect(view.cycleLayerByInitial('B')).toBe(true)
     expect(view.getFocusedBlockId()).toBe('low')
+    expect(view.cycleLayerByInitial('B')).toBe(true)
+    expect(view.getFocusedBlockId()).toBe('high-b')
     expect(view.cycleLayerByInitial('b')).toBe(true)
     expect(view.getFocusedBlockId()).toBe('high-a')
 
@@ -268,7 +328,7 @@ describe('CardLayerView', () => {
       },
     })
     await nextTick()
-    const selectedPlane = selectedWrapper.findAll('.card-layer-view__block-plane')[1]!.element as HTMLElement
+    const selectedPlane = selectedWrapper.get('[data-layer-block-id="high-b"]').element as HTMLElement
     expect(selectedPlane.style.transform).toContain('translate3d(0, 0px, 0px)')
 
     const defaultWrapper = mount(CardLayerView, {
@@ -282,7 +342,7 @@ describe('CardLayerView', () => {
     })
     await nextTick()
     expect(defaultWrapper.findAll('.card-layer-view__tick')[1]?.classes()).toContain('is-active')
-    expect((defaultWrapper.findAll('.card-layer-view__block-plane')[1]!.element as HTMLElement).style.transform)
+    expect((defaultWrapper.findAll('[data-layer-block-id]')[1]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, 0px, 0px)')
   })
 
@@ -299,7 +359,7 @@ describe('CardLayerView', () => {
     })
     await nextTick()
 
-    const plane = wrapper.get('.card-layer-view__block-plane').element as HTMLElement
+    const plane = wrapper.get('[data-layer-block-id]').element as HTMLElement
     expect(Number.parseFloat(plane.style.width)).toBeLessThan(1000)
     expect(Number.parseFloat(plane.style.height)).toBeLessThan(1000)
   })
@@ -352,7 +412,7 @@ describe('CardLayerView', () => {
       props: {
         face: createFace(),
         sourceRoot: createSourceRoot(),
-        selectedBlockId: 'high-a',
+        selectedBlockId: 'high-b',
         viewportWidth: 1000,
         viewportHeight: 800,
       },
@@ -364,7 +424,7 @@ describe('CardLayerView', () => {
       deltaMode: WheelEvent.DOM_DELTA_PIXEL,
     })
     await flushAnimation()
-    expect((wrapper.findAll('.card-layer-view__block-plane')[1]!.element as HTMLElement).style.transform)
+    expect((wrapper.findAll('[data-layer-block-id]')[1]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, 0px, 0px)')
     expect(wrapper.findAll('.card-layer-view__tick')[1]?.classes()).toContain('is-active')
     expect((wrapper.get('.card-layer-view__thumb').element as HTMLElement).style.top)
@@ -394,12 +454,12 @@ describe('CardLayerView', () => {
       shiftKey: true,
     }))
     await flushAnimation()
-    expect((wrapper.findAll('.card-layer-view__block-plane')[2]!.element as HTMLElement).style.transform)
+    expect((wrapper.findAll('[data-layer-block-id]')[2]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, 0px, 0px)')
 
     view.stepLayer(-1, true)
     await flushAnimation()
-    expect((wrapper.findAll('.card-layer-view__block-plane')[1]!.element as HTMLElement).style.transform)
+    expect((wrapper.findAll('[data-layer-block-id]')[1]!.element as HTMLElement).style.transform)
       .toContain('translate3d(0, 0px, 0px)')
   })
 
@@ -421,7 +481,7 @@ describe('CardLayerView', () => {
       deltaMode: WheelEvent.DOM_DELTA_PIXEL,
     })
     expect(wrapper.emitted('z-index-step')?.[0]).toEqual([{ delta: 1, existingLayersOnly: false }])
-    expect(wrapper.findAll('.card-layer-view__tick')[0]?.classes()).toContain('is-active')
+    expect(wrapper.findAll('.card-layer-view__tick')[1]?.classes()).toContain('is-active')
   })
 
   it('maps Space-modified wheel input with only one plane', async () => {
@@ -489,7 +549,7 @@ describe('CardLayerView', () => {
     await nextTick()
 
     const blocks = wrapper.findAll('.card-layer-view__block')
-    const planes = wrapper.findAll('.card-layer-view__block-plane')
+    const planes = wrapper.findAll('[data-layer-block-id]')
     dispatchPointer(blocks[0]!.element, 'pointerdown', { button: 0, pointerId: 3, clientX: 100, clientY: 100 })
     dispatchPointer(blocks[0]!.element, 'pointerup', { button: 0, pointerId: 3, clientX: 100, clientY: 100 })
     expect(wrapper.emitted('block-click')).toBeUndefined()

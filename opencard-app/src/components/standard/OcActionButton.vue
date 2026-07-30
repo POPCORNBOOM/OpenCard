@@ -40,6 +40,7 @@
         v-if="hasActionChildren(action)"
         :actions="action.children"
         @select="handleMenuSelect"
+        @dismiss="closeMenu"
         @keep-open="cancelCloseMenu"
       />
     </OcFloatingLayer>

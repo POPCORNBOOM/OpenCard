@@ -8,24 +8,80 @@
     @pointerdown.stop
   >
     <OcActionMenu
+      ref="menuRef"
       :actions="state.items"
       @select="selectMenuItem($event.key)"
+      @dismiss="closeMenu"
     />
   </OcFloatingLayer>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import OcActionMenu from '../standard/OcActionMenu.vue'
 import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
 defineOptions({ name: 'FloatingMenuHost' })
 
-const { state, closeMenu, selectMenuItem } = useFloatingMenu()
+const { state, closeMenu: closeFloatingMenu, selectMenuItem } = useFloatingMenu()
+const menuRef = ref<InstanceType<typeof OcActionMenu> | null>(null)
 const menuAnchor = computed(() => state.value.anchor)
+const MENU_POINTER_GRACE_DISTANCE = 24
+const MENU_POINTER_CLOSE_DELAY = 180
+let pointerCloseTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => [state.value.isOpen, state.value.focusOnOpen] as const,
+  async ([isOpen, focusOnOpen]) => {
+    if (!isOpen || !focusOnOpen) return
+    await nextTick()
+    menuRef.value?.focusFirst()
+  },
+)
 function handlePointerDown(): void {
   closeMenu()
+}
+
+function closeMenu(): void {
+  cancelPointerClose()
+  closeFloatingMenu()
+}
+
+function distanceToRect(x: number, y: number, rect: DOMRect): number {
+  const deltaX = Math.max(rect.left - x, 0, x - rect.right)
+  const deltaY = Math.max(rect.top - y, 0, y - rect.bottom)
+  return Math.hypot(deltaX, deltaY)
+}
+
+function cancelPointerClose(): void {
+  if (pointerCloseTimer === null) return
+  clearTimeout(pointerCloseTimer)
+  pointerCloseTimer = null
+}
+
+function schedulePointerClose(): void {
+  if (pointerCloseTimer !== null) return
+  pointerCloseTimer = setTimeout(() => {
+    pointerCloseTimer = null
+    closeMenu()
+  }, MENU_POINTER_CLOSE_DELAY)
+}
+
+function handleWindowPointerMove(event: PointerEvent): void {
+  if (!state.value.isOpen) {
+    cancelPointerClose()
+    return
+  }
+  const surfaces = document.querySelectorAll<HTMLElement>(
+    '.floating-menu-surface, .oc-action-menu__floating',
+  )
+  const isNearMenu = Array.from(surfaces).some(surface => (
+    distanceToRect(event.clientX, event.clientY, surface.getBoundingClientRect())
+      <= MENU_POINTER_GRACE_DISTANCE
+  ))
+  if (isNearMenu) cancelPointerClose()
+  else schedulePointerClose()
 }
 
 function handleWindowKeydown(event: KeyboardEvent): void {
@@ -39,11 +95,20 @@ function handleWindowKeydown(event: KeyboardEvent): void {
 
 onMounted(() => {
   window.addEventListener('pointerdown', handlePointerDown)
+  window.addEventListener('pointermove', handleWindowPointerMove)
   window.addEventListener('keydown', handleWindowKeydown)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', handlePointerDown)
+  window.removeEventListener('pointermove', handleWindowPointerMove)
   window.removeEventListener('keydown', handleWindowKeydown)
+  cancelPointerClose()
 })
 </script>
+
+<style>
+.floating-menu-surface {
+  --oc-floating-layer-radius: var(--oc-radius-md);
+}
+</style>

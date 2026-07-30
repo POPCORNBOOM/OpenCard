@@ -1,3 +1,7 @@
+import { getReadableForegroundTone } from '../../shared/ui/foundation'
+
+export { getReadableForegroundTone }
+
 export interface HsvColor {
   hue: number
   saturation: number

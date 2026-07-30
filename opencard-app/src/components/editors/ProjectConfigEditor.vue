@@ -101,6 +101,7 @@
             :model-value="modelValue ?? ''"
             language="json"
             :theme-id="themeId"
+            :theme-overrides="themeOverrides"
             @update:model-value="updateRawSource"
             @save="save"
           />
@@ -147,6 +148,7 @@ const fontImportError = ref('')
 const remoteHostDrafts = ref<string[]>([])
 
 const themeId = computed(() => props.themeId ?? 'dark')
+const themeOverrides = computed(() => props.themeOverrides ?? {})
 const remoteResourceMode = computed(() => profile.value?.remoteResources?.mode ?? 'deny')
 const remoteResourceModeOptions = computed<readonly OcOption[]>(() => [
   { value: 'deny', label: t('projectConfig.remoteResources.deny') },

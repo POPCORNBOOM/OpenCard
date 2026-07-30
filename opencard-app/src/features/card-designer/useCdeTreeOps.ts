@@ -70,6 +70,13 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
           visibility === 'hidden' ? 'show-block' : 'hide-block',
           isBlockContainer(block) ? 'container-more' : 'block-more',
         ],
+        contextActions: [
+          visibility === 'hidden' ? 'show-block' : 'hide-block',
+          'rename',
+          ...(isBlockContainer(block) ? ['add'] : []),
+          'duplicate',
+          'delete',
+        ],
       })
       if (childKeys.length > 0) children.set(block.id, childKeys)
       if (isBlockContainer(block)) {

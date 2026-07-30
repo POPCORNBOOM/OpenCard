@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import OcButton from '../../../components/base/OcButton.vue'
 import PropertyEditor from './PropertyEditor.vue'
+import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -12,6 +13,30 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('uses the category action definitions for its context menu', async () => {
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'block',
+          record: {},
+          fields: {
+            content: { title: 'Content', fieldType: 'string', defaultValue: '' },
+          },
+        }],
+      },
+    })
+
+    await wrapper.get('.property-editor__category-header').trigger('contextmenu')
+    const menu = useFloatingMenu()
+    expect(menu.state.value.items[0]).toMatchObject({ key: 'add-property' })
+    menu.selectMenuItem('add-property:content')
+    expect(wrapper.emitted('add-property')).toEqual([[
+      { key: 'block', fieldKey: 'content', value: '' },
+    ]])
+    menu.closeMenu()
+  })
+
   it('copies the stable field key from the field title button', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {

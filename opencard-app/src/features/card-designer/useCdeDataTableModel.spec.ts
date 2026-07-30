@@ -43,13 +43,13 @@ function createHarness() {
       { type: 'card-instance', id: 'one', name: 'One', amount: '1', data: {} },
       {
         type: 'card-instance', id: 'two', name: 'Two', amount: '1',
-        data: { child: { content: 'Override', legacy: 'Visible' } },
+        data: { child: { name: 'Legacy instance name', content: 'Override', legacy: 'Visible' } },
       },
     ],
   }
   const selection = ref<Record<string, string[]>>({
     container: [],
-    child: ['content', 'score', 'legacy'],
+    child: ['name', 'content', 'score', 'legacy'],
     'back-text': ['content'],
   })
   const model = useCdeDataTableModel({
@@ -98,6 +98,13 @@ describe('useCdeDataTableModel', () => {
         { value: 'Override', inherited: false, overridden: true },
       ])
     expect(content?.cells[1]?.identity).toBe('one\u0000child\u0000content')
+    const name = child?.fields.find(field => field.key === 'name')
+    expect(name?.cells.map(cell => ({ value: cell.value, inherited: cell.inherited, overridden: cell.overridden })))
+      .toEqual([
+        { value: 'Child', inherited: false, overridden: false },
+        { value: 'Child', inherited: true, overridden: false },
+        { value: 'Child', inherited: true, overridden: false },
+      ])
   })
 
   it('does not construct Cell rows for unselected blocks or fields', () => {

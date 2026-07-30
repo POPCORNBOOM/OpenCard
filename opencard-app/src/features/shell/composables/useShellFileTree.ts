@@ -112,6 +112,16 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         renamable: true,
         draggable: true,
         actions: [projectEntryMoreActionKey(entry.key)],
+        contextActions: [
+          ...(!entry.isDirectory && resolveFileType(entry.key, options.projectPath.value).id === 'font'
+            ? [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY]
+            : []),
+          PROJECT_ENTRY_RENAME_ACTION_KEY,
+          projectEntryDeleteActionKey(entry.key),
+          PROJECT_ENTRY_REVEAL_ACTION_KEY,
+          PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
+          PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+        ],
       })
       if (entry.children.length > 0) {
         children.set(entry.key, entry.children.map((child) => child.key))
@@ -138,6 +148,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       icon: item.icon,
       iconTone: item.iconTone,
       actions: [OPENED_EDITOR_CLOSE_ACTION_KEY],
+      contextActions: [OPENED_EDITOR_CLOSE_ACTION_KEY],
     }])),
     children: new Map(),
   }))
