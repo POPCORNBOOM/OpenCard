@@ -71,6 +71,64 @@ function Invoke-NativeCommand {
   }
 }
 
+function Compare-SemVer {
+  param(
+    [Parameter(Mandatory)]
+    [string]$Left,
+
+    [Parameter(Mandatory)]
+    [string]$Right,
+
+    [Parameter(Mandatory)]
+    [string]$Pattern
+  )
+
+  $leftMatch = [regex]::Match($Left, $Pattern)
+  $rightMatch = [regex]::Match($Right, $Pattern)
+  if (-not $leftMatch.Success -or -not $rightMatch.Success) {
+    throw "Cannot compare invalid semantic versions: $Left and $Right"
+  }
+
+  foreach ($index in 1..3) {
+    $leftPart = [System.Numerics.BigInteger]::Parse($leftMatch.Groups[$index].Value)
+    $rightPart = [System.Numerics.BigInteger]::Parse($rightMatch.Groups[$index].Value)
+    if ($leftPart -lt $rightPart) { return -1 }
+    if ($leftPart -gt $rightPart) { return 1 }
+  }
+
+  $leftPrerelease = $leftMatch.Groups[4].Value
+  $rightPrerelease = $rightMatch.Groups[4].Value
+  if (-not $leftPrerelease -and -not $rightPrerelease) { return 0 }
+  if (-not $leftPrerelease) { return 1 }
+  if (-not $rightPrerelease) { return -1 }
+
+  $leftIdentifiers = $leftPrerelease.Split('.')
+  $rightIdentifiers = $rightPrerelease.Split('.')
+  $sharedLength = [Math]::Min($leftIdentifiers.Length, $rightIdentifiers.Length)
+  for ($index = 0; $index -lt $sharedLength; $index += 1) {
+    $leftIdentifier = $leftIdentifiers[$index]
+    $rightIdentifier = $rightIdentifiers[$index]
+    $leftIsNumeric = $leftIdentifier -match '^\d+$'
+    $rightIsNumeric = $rightIdentifier -match '^\d+$'
+
+    if ($leftIsNumeric -and $rightIsNumeric) {
+      $leftNumber = [System.Numerics.BigInteger]::Parse($leftIdentifier)
+      $rightNumber = [System.Numerics.BigInteger]::Parse($rightIdentifier)
+      if ($leftNumber -lt $rightNumber) { return -1 }
+      if ($leftNumber -gt $rightNumber) { return 1 }
+      continue
+    }
+    if ($leftIsNumeric) { return -1 }
+    if ($rightIsNumeric) { return 1 }
+
+    $comparison = [string]::CompareOrdinal($leftIdentifier, $rightIdentifier)
+    if ($comparison -lt 0) { return -1 }
+    if ($comparison -gt 0) { return 1 }
+  }
+
+  return $leftIdentifiers.Length.CompareTo($rightIdentifiers.Length)
+}
+
 function Set-FirstRegexMatch {
   param(
     [Parameter(Mandatory)]
@@ -190,7 +248,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 $semverIdentifier = '(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)'
-$semverPattern = "^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-$semverIdentifier(?:\.$semverIdentifier)*)?$"
+$semverPattern = "^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-($semverIdentifier(?:\.$semverIdentifier)*))?$"
 if ($Version -notmatch $semverPattern) {
   throw "Version must be a semantic version such as 0.2.2 or 0.3.0-alpha. Received: $Version"
 }
@@ -255,9 +313,8 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branch)) {
 }
 
 $tauriConfig = Get-Content $tauriConfigPath -Raw | ConvertFrom-Json
-$currentVersion = [System.Version]::Parse([string]$tauriConfig.version)
-$nextVersion = [System.Version]::Parse($Version)
-if ($nextVersion -le $currentVersion) {
+$currentVersion = [string]$tauriConfig.version
+if ((Compare-SemVer -Left $Version -Right $currentVersion -Pattern $semverPattern) -le 0) {
   throw "The release version must be newer than the current version $currentVersion."
 }
 
