@@ -8,6 +8,7 @@ import type { CardBlock } from './model'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type { BindingValueKind } from '../../features/editor-runtime/model/binding'
 import type { BindingScopeKind } from '../../features/editor-runtime/model/bindingExpression'
+import type { FilePathFilter } from '../../shared/model/filePath'
 
 type EditorPropertyBase = {
     required?: boolean
@@ -37,7 +38,7 @@ export type PropertyConstraintMap = {
     filePath: {
         minLength?: number
         maxLength?: number
-        extensionsFilter?: readonly string[]
+        filter?: FilePathFilter
     }
     anchorPosition: {}
     alignPosition: {}
@@ -262,7 +263,10 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
             required: true,
             minLength: 0,
             categoryId: 'content',
-            extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
+            filter: {
+                target: 'file',
+                extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'],
+            },
         },
         imagePath: {
             fieldType: 'filePath',
@@ -271,7 +275,10 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
             acceptsBinding: false,
             exposesReference: false,
             categoryId: 'data',
-            extensionsFilter: ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'],
+            filter: {
+                target: 'file',
+                extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'],
+            },
         },
         fit: { fieldType: 'string', required: true, options: imageFitOptions, categoryId: 'appearance' },
     },

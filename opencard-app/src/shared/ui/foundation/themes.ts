@@ -72,7 +72,7 @@ const darkTheme: OcThemeTokens = {
 
   '--oc-border-default': '#3a3d41',
   '--oc-border-muted': '#333333',
-  '--oc-border-strong': '#000000',
+  '--oc-border-strong': '#51555b',
   '--oc-accent-glow': 'rgba(124, 108, 255, 0.28)',
 
   '--oc-danger': '#f14c4c',

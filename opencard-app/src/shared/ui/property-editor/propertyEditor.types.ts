@@ -1,4 +1,5 @@
 import type { IconToken } from '../icon/iconRegistry'
+import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
 
@@ -51,6 +52,8 @@ export type PropertyFieldConstraintMap = {
   filePath: {
     minLength?: number
     maxLength?: number
+    filter?: FilePathFilter
+    directoryProvider?: FilePathDirectoryProvider
   }
   anchorPosition: Record<never, never>
   alignPosition: Record<never, never>

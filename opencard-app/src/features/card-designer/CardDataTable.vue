@@ -35,10 +35,12 @@
           <tbody class="card-data-table__face-group">
             <tr class="card-data-table__face-row">
               <th scope="rowgroup">
-                <OcIcon name="file.opencard" size="md" tone="muted" />
-                <span>{{ face.title }}</span>
-                <OcActionButton v-if="faceBlockAction(face)" :action="faceBlockAction(face)!"
-                  size="sm" variant="ghost" @select="emit('add-block', $event.key)" />
+                <span class="card-data-table__face-heading">
+                  <OcIcon name="file.opencard" size="md" tone="muted" />
+                  <span>{{ face.title }}</span>
+                  <OcActionButton v-if="faceBlockAction(face)" :action="faceBlockAction(face)!"
+                    size="sm" variant="ghost" @select="emit('add-block', $event.key)" />
+                </span>
               </th>
               <td :colspan="columns.length + 1" />
             </tr>
@@ -432,9 +434,9 @@ tbody th {
 }
 
 .card-data-table__column-heading,
+.card-data-table__face-heading,
 .card-data-table__block-heading,
 .card-data-table__field-heading,
-.card-data-table__face-row th,
 .card-data-table__rename {
   display: flex;
   align-items: center;
@@ -443,6 +445,7 @@ tbody th {
 }
 
 .card-data-table__column-heading > span,
+.card-data-table__face-heading > span,
 .card-data-table__block-heading > span,
 .card-data-table__field-heading > span {
   min-width: 0;

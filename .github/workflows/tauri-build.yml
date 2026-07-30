@@ -74,5 +74,5 @@ jobs:
           releaseName: OpenCard v__VERSION__
           releaseBody: ${{ steps.release-notes.outputs.body }}
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           updaterJsonPreferNsis: true

@@ -12,7 +12,6 @@ import type { BindingScopeKind } from '../editor-runtime/model/bindingExpression
 export type CdePropertyFieldDefinition = PropertyEditorFieldDefinition & {
   acceptsBinding?: false
   bindingScopes?: readonly BindingScopeKind[]
-  extensionsFilter?: readonly string[]
 }
 
 export type CdePropertyEditorInput = Omit<PropertyEditorInput, 'fields'> & {

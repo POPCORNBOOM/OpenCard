@@ -68,6 +68,7 @@ import {
   mdiFolderStarOutline,
   mdiFolderWrenchOutline,
   mdiFormatListBulletedSquare,
+  mdiFormatListGroup,
   mdiFormatAlignCenter,
   mdiFormatAlignJustify,
   mdiFormatAlignLeft,
@@ -174,6 +175,7 @@ export const iconGlyphs = {
   'action.redo': glyph(mdiRedoVariant),
   'action.save': glyph(mdiContentSaveOutline),
   'action.sort-alphabetical-ascending': glyph(mdiSortAlphabeticalAscending),
+  'action.sort-category': glyph(mdiFormatListGroup),
   'action.undo': glyph(mdiUndoVariant),
 
   'nav.arrow-left': glyph(mdiArrowLeft),

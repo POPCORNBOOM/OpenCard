@@ -27,6 +27,7 @@ export const iconTokens = {
   'action.redo': true,
   'action.save': true,
   'action.sort-alphabetical-ascending': true,
+  'action.sort-category': true,
   'action.undo': true,
 
   'nav.arrow-left': true,

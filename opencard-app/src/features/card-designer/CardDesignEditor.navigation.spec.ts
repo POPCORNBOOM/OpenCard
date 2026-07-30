@@ -11,6 +11,7 @@ import {
   type CardDocument,
 } from '../../entities/card/model'
 import enUS from '../../locales/en-US'
+import type { IconToken } from '../../shared/ui/icon/iconTokens'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import CardDesignEditor from './CardDesignEditor.vue'
@@ -1107,6 +1108,52 @@ describe('CardDesignEditor issue navigation', () => {
     expect(wrapper.findComponent({ name: 'OcOptionGroup' }).exists()).toBe(false)
   })
 
+  it('keeps delete as a stable toggle and uses one property sort action', async () => {
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const OcCardStub = defineComponent({
+      name: 'OcCard',
+      props: ['title', 'actions'],
+      emits: ['action'],
+      template: '<div><slot /></div>',
+    })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          OcCard: OcCardStub,
+          OcPanel: { template: '<div><slot /></div>' },
+          PropertyEditor: false,
+        },
+      },
+    })
+    await nextTick()
+
+    const propertyCard = wrapper.findAllComponents(OcCardStub)
+      .find(card => card.props('title') === '属性')!
+    const getAction = (key: string) => (propertyCard.props('actions') as Array<{
+      key: string
+      icon: IconToken
+      disabled?: boolean
+    }>).find(action => action.key === key)!
+    const propertyEditor = wrapper.getComponent({ name: 'PropertyEditor' })
+
+    expect(getAction('toggle-property-sort').icon).toBe('action.sort-alphabetical-ascending')
+    propertyCard.vm.$emit('action', { key: 'toggle-property-sort' })
+    await nextTick()
+    expect(propertyEditor.props('sortMode')).toBe('alphabetical')
+    expect(getAction('toggle-property-sort').icon).toBe('action.sort-category')
+
+    propertyCard.vm.$emit('action', { key: 'toggle-property-delete-mode' })
+    await nextTick()
+    expect(propertyEditor.props('deleteMode')).toBe(true)
+    expect(wrapper.findAll('.delete-field-button').length).toBeGreaterThan(0)
+    expect(getAction('toggle-property-delete-mode').disabled).toBeUndefined()
+  })
+
   it('creates a custom field for the explicit table Block and persists it in the document', async () => {
     const document = createDocument()
     document.dataTable = { blocks: { 'text-1': [] } }
@@ -1249,6 +1296,7 @@ describe('CardDesignEditor issue navigation', () => {
       cell: { cardId: string; identity: string },
     ) => {
       completion?: { provider?: (request: { value: string; cursor: number }) => unknown }
+      directoryProvider?: (directory: string) => Promise<Array<{ name: string }>>
       fontOptions?: Array<{ value: string }>
     }
     const textBlock = faceGroups[0]!.blocks.find(block => block.key === 'text-1')!
@@ -1263,13 +1311,11 @@ describe('CardDesignEditor issue navigation', () => {
     const imageBlock = faceGroups[0]!.blocks.find(block => block.key === 'image-1')!
     const imageField = imageBlock.fields.find(field => field.key === 'image')!
     const imageDefinition = getDefinition('image-1', imageField, imageField.cells[0]!)
-    const imageResult = await Promise.resolve(imageDefinition.completion?.provider?.({ value: '', cursor: 0 })) as {
-      items?: Array<{ value?: string }>
-    } | null
+    const imageEntries = await imageDefinition.directoryProvider?.('')
 
     expect(fontResult?.items?.map(item => item.value)).toContain('Arial')
     expect(contentDefinition.fontOptions?.map(item => item.value)).toContain('Arial')
-    expect(imageResult?.items?.map(item => item.value)).toContain('portrait.png')
+    expect(imageEntries?.map(item => item.name)).toContain('portrait.png')
     expect(readDirectoryEntries).toHaveBeenCalledWith('D:/Project', 1, '')
     readDirectoryEntries.mockRestore()
   })

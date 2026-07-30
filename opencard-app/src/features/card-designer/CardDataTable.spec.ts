@@ -90,6 +90,7 @@ describe('CardDataTable', () => {
     })
 
     expect(wrapper.findAll('.card-data-table__face-row')).toHaveLength(2)
+    expect(wrapper.get('.card-data-table__face-row > th > .card-data-table__face-heading').element.tagName).toBe('SPAN')
     expect(wrapper.get('.card-data-table__block-heading').attributes('style')).toContain('14px')
     expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('is-inherited')
     expect(wrapper.findAllComponents(PropertyFieldControl).every(

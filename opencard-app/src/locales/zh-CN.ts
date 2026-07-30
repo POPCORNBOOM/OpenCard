@@ -482,6 +482,9 @@ export default {
     },
   },
   propertyEditor: {
+    filePath: {
+      clearSelection: '清除文件选择',
+    },
     categories: {
       identity: '标识',
       layout: '布局',
@@ -516,7 +519,10 @@ export default {
     },
     actions: {
       addField: '添加字段',
+      delete: '删除字段',
       reset: '重置',
+      switchToAlphabetical: '按字母顺序排列字段',
+      switchToCategory: '按分类分组字段',
       copyFieldKey: '复制字段 Key：{key}',
       copyFieldKeyTooltip: '[[icon:action.copy]] :{key}',
     },

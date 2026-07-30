@@ -1556,7 +1556,7 @@ async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   }
 
   try {
-    await readDirectoryEntries(entry.key, 1)
+    await readDirectoryEntries(entry.key)
   } catch (error) {
     console.error('加载目录失败:', error)
   }

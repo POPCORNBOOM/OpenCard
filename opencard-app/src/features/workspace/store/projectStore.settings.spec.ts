@@ -58,7 +58,7 @@ describe('projectStore settings actions', () => {
 
     expect(mocks.cancel).toHaveBeenCalledWith('project-metadata')
     expect(store.expandedDirectories.value.size).toBe(0)
-    expect(store.registeredDirectories.value).toEqual(new Map([['', 1]]))
+    expect(store.registeredDirectories.value).toEqual(new Map([['', 2]]))
     expect(mocks.writeFile).not.toHaveBeenCalled()
 
     await store.setProjectPath('')
@@ -128,8 +128,19 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
 
     expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.opencardprojectprofile')
-    expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project', 1, '')
+    expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project', 2, '')
     expect(mocks.readDirectoryEntries.mock.calls.every(([, depth]) => Number.isFinite(depth))).toBe(true)
+    await store.setProjectPath('')
+  })
+
+  it('prefetches one level below an expanded directory', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    store.setDirectoryExpanded('D:/project/assets', true)
+    await store.readDirectoryEntries('D:/project/assets')
+
+    expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project/assets', 2, 'assets')
     await store.setProjectPath('')
   })
 

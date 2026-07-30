@@ -482,6 +482,9 @@ export default {
     },
   },
   propertyEditor: {
+    filePath: {
+      clearSelection: 'Clear selected file',
+    },
     categories: {
       identity: 'Identity',
       layout: 'Layout',
@@ -516,7 +519,10 @@ export default {
     },
     actions: {
       addField: 'Add Field',
+      delete: 'Delete fields',
       reset: 'Reset',
+      switchToAlphabetical: 'Sort fields alphabetically',
+      switchToCategory: 'Group fields by category',
       copyFieldKey: 'Copy field key: {key}',
       copyFieldKeyTooltip: '[[icon:action.copy]] :{key}',
     },

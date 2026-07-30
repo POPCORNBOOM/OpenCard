@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Creates and publishes a stable OpenCard release.
+Creates and publishes an OpenCard release.
 
 .DESCRIPTION
 Updates all application version files, runs the frontend and Rust checks,
@@ -186,11 +186,13 @@ function Wait-GitHubWorkflow {
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
-  $Version = Read-Host 'Release version (for example 0.2.2)'
+  $Version = Read-Host 'Release version (for example 0.2.2 or 0.3.0-alpha)'
 }
 
-if ($Version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
-  throw "Version must be a stable semantic version such as 0.2.2. Received: $Version"
+$semverIdentifier = '(?:0|[1-9]\d*|[A-Za-z-][0-9A-Za-z-]*)'
+$semverPattern = "^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-$semverIdentifier(?:\.$semverIdentifier)*)?$"
+if ($Version -notmatch $semverPattern) {
+  throw "Version must be a semantic version such as 0.2.2 or 0.3.0-alpha. Received: $Version"
 }
 
 $appRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

@@ -463,6 +463,7 @@ defineExpose({ editor, focus })
   outline: none;
   color: var(--oc-fg-default);
   overflow-wrap: anywhere;
+  paint-order: stroke fill;
   white-space: break-spaces;
 }
 

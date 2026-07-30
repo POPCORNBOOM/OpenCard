@@ -375,7 +375,6 @@ import type {
 import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 import { chainPropertyCompletionProviders } from '../../shared/ui/property-editor/propertyCompletion'
 import { useProjectStore } from '../workspace/store/projectStore'
-import { createFilePathCompletionProvider } from '../workspace/services/filePathCompletion'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import {
   getEditorResourceRelativePath,
@@ -1180,16 +1179,13 @@ const propertyCardActions = computed<OcCardAction[]>(() => [
     title: t('propertyEditor.actions.delete'),
   },
   {
-    key: 'sort-category',
-    icon: 'data.list-tree',
-    title: 'Category',
-    disabled: propertySortMode.value === 'category',
-  },
-  {
-    key: 'sort-alphabetical',
-    icon: 'action.sort-alphabetical-ascending',
-    title: 'A-Z',
-    disabled: propertySortMode.value === 'alphabetical',
+    key: 'toggle-property-sort',
+    icon: propertySortMode.value === 'category'
+      ? 'action.sort-alphabetical-ascending'
+      : 'action.sort-category',
+    title: propertySortMode.value === 'category'
+      ? t('propertyEditor.actions.switchToAlphabetical')
+      : t('propertyEditor.actions.switchToCategory'),
   },
   createPanelToggleAction('toggle-property-panel', isPropertyPanelExpanded.value),
 ])
@@ -1246,13 +1242,8 @@ function handlePropertyCardAction(payload: { key: string }) {
     return
   }
 
-  if (payload.key === 'sort-category') {
-    propertySortMode.value = 'category'
-    return
-  }
-
-  if (payload.key === 'sort-alphabetical') {
-    propertySortMode.value = 'alphabetical'
+  if (payload.key === 'toggle-property-sort') {
+    propertySortMode.value = propertySortMode.value === 'category' ? 'alphabetical' : 'category'
   }
 }
 
@@ -1634,6 +1625,14 @@ function createFontCompletionProvider(): PropertyCompletionProvider {
   }
 }
 
+async function listEditorResourceDirectory(relativeDirectory: string) {
+  const directoryPath = relativeDirectory
+    ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
+    : props.resourceRootPath
+  if (!directoryPath) return []
+  return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
+}
+
 function enrichPropertyFieldDefinition(
   definition: CdePropertyFieldDefinition,
   fieldKey: string,
@@ -1643,23 +1642,9 @@ function enrichPropertyFieldDefinition(
   const bindingProvider = context && definition.acceptsBinding !== false && definition.fieldType !== 'object'
     ? createReferenceCompletionProvider(context)
     : undefined
-  const filePathProvider = definition.fieldType === 'filePath'
-    ? createFilePathCompletionProvider({
-        listDirectory: async (relativeDirectory) => {
-          const directoryPath = relativeDirectory
-            ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
-            : props.resourceRootPath
-          if (!directoryPath) return []
-          return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
-        },
-        getRootEntries: () => [],
-        extensions: definition.extensionsFilter,
-        isAvailable: () => Boolean(props.resourceRootPath),
-      })
-    : undefined
   const fontProvider = fieldKey === 'fontFamily' ? createFontCompletionProvider() : undefined
-  const provider = bindingProvider || filePathProvider || fontProvider
-    ? chainPropertyCompletionProviders([bindingProvider, filePathProvider, fontProvider])
+  const provider = bindingProvider || fontProvider
+    ? chainPropertyCompletionProviders([bindingProvider, fontProvider])
     : undefined
   const fontOptions = definition.fieldType === 'string' && definition.richText
     ? richTextFontOptions.value
@@ -1679,6 +1664,9 @@ function enrichPropertyFieldDefinition(
     ...definition,
     ...(fontOptions ? { fontOptions } : {}),
     ...(richTextBaseStyle ? { richTextBaseStyle } : {}),
+    ...(definition.fieldType === 'filePath' && props.resourceRootPath
+      ? { directoryProvider: listEditorResourceDirectory }
+      : {}),
     ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
     ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
     ...(provider ? { completion: { ...definition.completion, provider } } : {}),

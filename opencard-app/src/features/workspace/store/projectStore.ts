@@ -36,6 +36,7 @@ import {
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
+const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
 const PROJECT_FONT_DIRECTORY = 'assets/fonts'
 const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf'])
 
@@ -238,8 +239,10 @@ function loadProjectWorkspaceState() {
   const entry = Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
     .find(([path]) => pathIdentity(path) === identity)
   expandedDirectories.value = new Set(entry?.[1].expandedDirectories ?? [])
-  registeredDirectories.value = new Map([['', 1]])
-  for (const relativePath of expandedDirectories.value) registeredDirectories.value.set(relativePath, 1)
+  registeredDirectories.value = new Map([['', PROJECT_TREE_LOOKAHEAD_DEPTH]])
+  for (const relativePath of expandedDirectories.value) {
+    registeredDirectories.value.set(relativePath, PROJECT_TREE_LOOKAHEAD_DEPTH)
+  }
 }
 
 function scheduleProjectMetadataSave() {
@@ -283,7 +286,7 @@ async function refreshIndexedEntries(options?: { persist?: boolean }) {
   }
 }
 
-async function readDirectoryEntries(path: string = '', depth: number = 1) {
+async function readDirectoryEntries(path: string = '', depth: number = PROJECT_TREE_LOOKAHEAD_DEPTH) {
   const relativePath = toRelativeProjectPath(path)
   const normalizedDepth = Number.isFinite(depth) ? Math.max(1, Math.floor(depth)) : Number.POSITIVE_INFINITY
   const currentDepth = registeredDirectories.value.get(relativePath) ?? 0
@@ -311,7 +314,10 @@ function setDirectoryExpanded(path: string, expanded: boolean) {
 
   if (expanded) {
     nextExpandedDirectories.add(relativePath)
-    registeredDirectories.value.set(relativePath, Math.max(registeredDirectories.value.get(relativePath) ?? 0, 1))
+    registeredDirectories.value.set(
+      relativePath,
+      Math.max(registeredDirectories.value.get(relativePath) ?? 0, PROJECT_TREE_LOOKAHEAD_DEPTH),
+    )
   } else {
     nextExpandedDirectories.delete(relativePath)
   }
@@ -423,7 +429,7 @@ async function resetProjectWorkspaceState(): Promise<void> {
   if (!projectPath.value) return
 
   taskScheduler.cancel(PROJECT_METADATA_SAVE_KEY)
-  registeredDirectories.value = new Map([['', 1]])
+  registeredDirectories.value = new Map([['', PROJECT_TREE_LOOKAHEAD_DEPTH]])
   expandedDirectories.value = new Set()
   await refreshIndexedEntries({ persist: false })
   await saveProjectWorkspaceState()
