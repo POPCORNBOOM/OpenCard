@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
+import FontFamilyAutocomplete from './FontFamilyAutocomplete.vue'
 import SettingsWorkspace from './SettingsWorkspace.vue'
 
 describe('SettingsWorkspace', () => {
@@ -121,6 +123,33 @@ describe('SettingsWorkspace', () => {
             key: 'appearance.darkThemeColors',
             label: 'Dark theme',
             themeId: 'dark',
+            preset: {
+              label: 'Preset',
+              value: 'user:Forest',
+              placeholder: 'Select preset',
+              options: [
+                { value: 'default', label: 'OpenCard' },
+                { value: 'user:Forest', label: 'Forest · Imported' },
+              ],
+              importLabel: 'Import theme',
+              exportLabel: 'Export theme',
+              deleteLabel: 'Delete imported theme',
+              canDelete: true,
+            },
+            accentNeighborAngle: {
+              label: 'Secondary color phase angle',
+              value: -72,
+              min: -180,
+              max: 180,
+              step: 1,
+              suffix: '°',
+            },
+            fontFamily: {
+              label: 'UI font',
+              value: 'system',
+              fontFamilies: ['Inter', 'Microsoft YaHei UI'],
+              placeholder: 'System default',
+            },
             colors: [
               { key: 'accentColor', label: 'Accent', token: '--oc-accent', value: '#111111', overrideValue: null },
               { key: 'baseBackgroundColor', label: 'Application background', token: '--oc-bg-base', value: '#222222', overrideValue: '#222222' },
@@ -134,21 +163,36 @@ describe('SettingsWorkspace', () => {
     expect(pickers).toHaveLength(2)
     expect(pickers.every(picker => picker.props('variant') === 'field')).toBe(true)
     expect(wrapper.get('.settings-workspace__color-panel-header').text()).toBe('Dark theme')
-    expect(wrapper.findAll('.settings-workspace__color-row').map(item => item.text())).toEqual([
-      'Accent',
-      'Application background',
-    ])
+    expect(wrapper.findAll('.settings-workspace__color-row')).toHaveLength(5)
+    const selects = wrapper.findAllComponents(OcSelect)
+    expect(selects[0]!.props('modelValue')).toBe('user:Forest')
+    expect(wrapper.getComponent(FontFamilyAutocomplete).props('modelValue')).toBe('system')
+    expect(wrapper.getComponent(OcSlider).props('modelValue')).toBe(-72)
 
     pickers[0]!.vm.$emit('open-change', true)
     pickers[0]!.vm.$emit('preview', '#223344')
     pickers[0]!.vm.$emit('cancel')
     pickers[0]!.vm.$emit('commit', '#334455')
+    wrapper.getComponent(OcSlider).vm.$emit('preview', -80)
+    wrapper.getComponent(OcSlider).vm.$emit('commit', -80)
+    selects[0]!.vm.$emit('update:modelValue', 'default')
+    wrapper.getComponent(FontFamilyAutocomplete).vm.$emit('commit', 'Inter; Microsoft YaHei UI')
+    await wrapper.get('button[aria-label="Import theme"]').trigger('click')
+    await wrapper.get('button[aria-label="Export theme"]').trigger('click')
+    await wrapper.get('button[aria-label="Delete imported theme"]').trigger('click')
     await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('intent')).toEqual([
       [{ type: 'theme-color.preview', themeId: 'dark', token: '--oc-accent', value: '#223344' }],
       [{ type: 'theme-color.cancel', themeId: 'dark', token: '--oc-accent', value: null }],
       [{ type: 'theme-color.change', themeId: 'dark', token: '--oc-accent', value: '#334455' }],
+      [{ type: 'theme-angle.preview', themeId: 'dark', value: -80 }],
+      [{ type: 'theme-angle.change', themeId: 'dark', value: -80 }],
+      [{ type: 'theme-preset.change', themeId: 'dark', presetId: 'default' }],
+      [{ type: 'theme-font.change', themeId: 'dark', value: 'Inter; Microsoft YaHei UI' }],
+      [{ type: 'theme.import', themeId: 'dark' }],
+      [{ type: 'theme.export', themeId: 'dark' }],
+      [{ type: 'theme-preset.delete', themeId: 'dark', presetId: 'user:Forest' }],
     ])
   })
 

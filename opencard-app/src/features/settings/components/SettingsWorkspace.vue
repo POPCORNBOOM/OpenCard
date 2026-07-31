@@ -70,6 +70,47 @@
             <header class="settings-workspace__color-panel-header">
               <OcText as="span" size="sm" bold>{{ field.label }}</OcText>
             </header>
+            <div class="settings-workspace__color-row">
+              <OcText as="span" size="sm">{{ field.preset.label }}</OcText>
+              <div class="settings-workspace__theme-preset-actions">
+                <OcSelect
+                  class="settings-workspace__theme-preset"
+                  size="sm"
+                  :model-value="field.preset.value"
+                  :placeholder="field.preset.placeholder"
+                  :options="field.preset.options"
+                  @update:model-value="applyThemePreset(field.themeId, $event)"
+                />
+                <OcButton
+                  icon="action.import"
+                  icon-only
+                  size="sm"
+                  variant="outline"
+                  :aria-label="field.preset.importLabel"
+                  :data-tooltip="field.preset.importLabel"
+                  @click="emitThemeFileAction('theme.import', field.themeId)"
+                />
+                <OcButton
+                  icon="action.export"
+                  icon-only
+                  size="sm"
+                  variant="outline"
+                  :aria-label="field.preset.exportLabel"
+                  :data-tooltip="field.preset.exportLabel"
+                  @click="emitThemeFileAction('theme.export', field.themeId)"
+                />
+                <OcButton
+                  icon="action.delete"
+                  icon-only
+                  size="sm"
+                  variant="outline"
+                  :disabled="!field.preset.canDelete"
+                  :aria-label="field.preset.deleteLabel"
+                  :data-tooltip="field.preset.deleteLabel"
+                  @click="deleteThemePreset(field.themeId, field.preset.value)"
+                />
+              </div>
+            </div>
             <div
               v-for="color in field.colors"
               :key="color.key"
@@ -87,6 +128,36 @@
                   @cancel="cancelThemeColor(field.themeId, color)"
                   @open-change="captureThemeColorSnapshot($event, field.themeId, color)"
                 />
+              </div>
+            </div>
+            <div class="settings-workspace__color-row">
+              <OcText as="span" size="sm">{{ field.fontFamily.label }}</OcText>
+              <FontFamilyAutocomplete
+                class="settings-workspace__theme-font"
+                :model-value="field.fontFamily.value"
+                :font-families="field.fontFamily.fontFamilies"
+                :label="`${field.label} · ${field.fontFamily.label}`"
+                :placeholder="field.fontFamily.placeholder"
+                @commit="emitThemeFont(field.themeId, $event)"
+              />
+            </div>
+            <div class="settings-workspace__color-row">
+              <OcText as="span" size="sm">{{ field.accentNeighborAngle.label }}</OcText>
+              <div class="settings-workspace__range-control settings-workspace__theme-angle">
+                <OcSlider
+                  class="settings-workspace__range"
+                  :model-value="field.accentNeighborAngle.value"
+                  :min="field.accentNeighborAngle.min"
+                  :max="field.accentNeighborAngle.max"
+                  :step="field.accentNeighborAngle.step"
+                  :value-text="`${field.accentNeighborAngle.value}${field.accentNeighborAngle.suffix}`"
+                  :aria-label="`${field.label} · ${field.accentNeighborAngle.label}`"
+                  @preview="emitThemeAngle('theme-angle.preview', field.themeId, $event)"
+                  @commit="emitThemeAngle('theme-angle.change', field.themeId, $event)"
+                />
+                <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
+                  {{ field.accentNeighborAngle.value }}{{ field.accentNeighborAngle.suffix }}
+                </OcText>
               </div>
             </div>
           </section>
@@ -149,8 +220,10 @@ import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
+import OcSelect from '../../../components/standard/OcSelect.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'
 import AppearanceShaderPreview from './AppearanceShaderPreview.vue'
+import FontFamilyAutocomplete from './FontFamilyAutocomplete.vue'
 import type { SettingsIntent } from '../model/appSettings'
 import type { SettingsCategoryViewModel } from '../composables/useSettingsWorkspace'
 
@@ -207,7 +280,31 @@ function cancelThemeColor(themeId: ThemeColorPanel['themeId'], color: ThemeColor
   emitThemeColor('theme-color.cancel', themeId, color, themeColorSnapshots.get(key) ?? null)
 }
 
-function emitAction(key: 'project-workspace.reset' | 'theme-colors.reset'): void {
+function emitThemeAngle(
+  type: 'theme-angle.preview' | 'theme-angle.change',
+  themeId: ThemeColorPanel['themeId'],
+  value: number,
+): void {
+  emit('intent', { type, themeId, value })
+}
+
+function emitThemeFont(themeId: ThemeColorPanel['themeId'], value: string): void {
+  if (value) emit('intent', { type: 'theme-font.change', themeId, value })
+}
+
+function applyThemePreset(themeId: ThemeColorPanel['themeId'], presetId: string): void {
+  if (presetId) emit('intent', { type: 'theme-preset.change', themeId, presetId })
+}
+
+function deleteThemePreset(themeId: ThemeColorPanel['themeId'], presetId: string): void {
+  if (presetId.startsWith('user:')) emit('intent', { type: 'theme-preset.delete', themeId, presetId })
+}
+
+function emitThemeFileAction(type: 'theme.import' | 'theme.export', themeId: ThemeColorPanel['themeId']): void {
+  emit('intent', { type, themeId })
+}
+
+function emitAction(key: 'project-workspace.reset' | 'themes.reset'): void {
   emit('intent', { type: key })
 }
 </script>
@@ -424,12 +521,12 @@ function emitAction(key: 'project-workspace.reset' | 'theme-colors.reset'): void
 }
 
 .settings-workspace__preview-card-corner b {
-  font-size: 12px;
+  font-size: var(--oc-text-base);
   font-weight: 600;
 }
 
 .settings-workspace__preview-card-corner span {
-  font-size: 12px;
+  font-size: var(--oc-text-base);
 }
 
 .settings-workspace__preview-card-corner.is-bottom {
@@ -545,6 +642,24 @@ function emitAction(key: 'project-workspace.reset' | 'theme-colors.reset'): void
 
 .settings-workspace__color-picker {
   width: 100%;
+}
+
+.settings-workspace__theme-preset {
+  width: 128px;
+}
+
+.settings-workspace__theme-font {
+  width: min(320px, 48vw);
+}
+
+.settings-workspace__theme-preset-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--oc-space-2);
+}
+
+.settings-workspace__theme-angle {
+  grid-template-columns: minmax(120px, 180px) 48px;
 }
 
 @media (max-width: 680px) {

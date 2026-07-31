@@ -7,6 +7,25 @@ import {
   type OcThemeTokens,
 } from './themeTokens'
 
+export type OcThemeTypography = {
+  fontFamily?: string
+  baseFontSize?: number
+}
+
+function resolveFontStack(fontFamily: string | undefined, fallback: string): string {
+  if (!fontFamily || fontFamily === 'system') return fallback
+  const families = fontFamily.split(';')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(item => item
+      .replace(/[\u0000-\u001F\u007F]/g, '')
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"'))
+    .filter(Boolean)
+    .map(item => `"${item}"`)
+  return families.length ? `${families.join(', ')}, ${fallback}` : fallback
+}
+
 let currentTheme: OcThemeId = DEFAULT_OC_THEME
 
 function normalizeThemeId(themeId: string): OcThemeId {
@@ -110,12 +129,21 @@ export function resolveOcThemeTokens(
   themeId: OcThemeId,
   overrides: OcThemeColorOverrides = {},
   accentNeighborAngle = -50,
+  typography: OcThemeTypography = {},
 ): OcThemeTokens {
   const tokens: OcThemeTokens = { ...OC_THEME_REGISTRY[themeId] }
   for (const token of OC_EDITABLE_THEME_COLOR_KEYS) {
     const value = overrides[token]
     if (value && parseHex(value)) tokens[token] = value
   }
+
+  const baseFontSize = Math.min(16, Math.max(10, Math.round(typography.baseFontSize ?? 12)))
+  tokens['--oc-font-sans'] = resolveFontStack(typography.fontFamily, tokens['--oc-font-sans'])
+  tokens['--oc-text-xs'] = `${baseFontSize - 2}px`
+  tokens['--oc-text-sm'] = `${baseFontSize - 1}px`
+  tokens['--oc-text-base'] = `${baseFontSize}px`
+  tokens['--oc-text-lg'] = `${baseFontSize + 1}px`
+  tokens['--oc-text-xl'] = `${Math.round(baseFontSize * 4 / 3)}px`
 
   const baseValue = tokens['--oc-bg-base']
   const foregroundValue = tokens['--oc-fg-default']
@@ -167,6 +195,7 @@ function applyTheme(
   themeId: OcThemeId,
   overrides: OcThemeColorOverrides,
   accentNeighborAngle: number,
+  typography: OcThemeTypography,
 ) {
   if (typeof document === 'undefined') {
     currentTheme = themeId
@@ -174,7 +203,7 @@ function applyTheme(
   }
 
   const root = document.documentElement
-  const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle)
+  const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle, typography)
   for (const token of OC_THEME_TOKEN_KEYS) {
     const value = tokens[token]
     if (typeof value !== 'string') {
@@ -193,8 +222,9 @@ export function setOcTheme(
   themeId: OcThemeId | string,
   overrides: OcThemeColorOverrides = {},
   accentNeighborAngle = -50,
+  typography: OcThemeTypography = {},
 ): void {
-  applyTheme(normalizeThemeId(themeId), overrides, accentNeighborAngle)
+  applyTheme(normalizeThemeId(themeId), overrides, accentNeighborAngle, typography)
 }
 
 export function setOcGlassIntensity(value: number): void {

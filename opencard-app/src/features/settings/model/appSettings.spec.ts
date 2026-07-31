@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APP_THEME_PRESETS,
   APP_SETTINGS_VERSION,
   createDefaultAppSettings,
+  getThemePreset,
   normalizeAppSettings,
+  parseAppTheme,
+  resolveThemePresetId,
+  serializeAppTheme,
 } from './appSettings'
 
 describe('appSettings', () => {
@@ -26,8 +31,11 @@ describe('appSettings', () => {
         theme: 'light',
         locale: 'zh-CN',
         glassIntensity: 100,
-        accentNeighborAngle: -50,
+        baseFontSize: 12,
         themeOverrides: { dark: {}, light: {} },
+        accentNeighborAngles: { dark: -50, light: -50 },
+        fontFamilies: { dark: 'system', light: 'system' },
+        userThemePresets: { dark: [], light: [] },
       },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: false },
@@ -74,16 +82,96 @@ describe('appSettings', () => {
     expect(settings.updates).toEqual(createDefaultAppSettings().updates)
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
-    expect(settings.appearance.accentNeighborAngle).toBe(-50)
+    expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })
   })
 
-  it('clamps the secondary color phase angle', () => {
+  it('migrates the legacy shared phase angle and clamps per-theme values', () => {
     const settings = normalizeAppSettings({
       version: APP_SETTINGS_VERSION,
-      appearance: { accentNeighborAngle: -240 },
+      appearance: {
+        accentNeighborAngle: -72,
+        accentNeighborAngles: { dark: -240, light: 240 },
+      },
     })
 
-    expect(settings.appearance.accentNeighborAngle).toBe(-180)
+    expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -180, light: 180 })
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      appearance: { accentNeighborAngle: -72 },
+    }).appearance.accentNeighborAngles).toEqual({ dark: -72, light: -72 })
+  })
+
+  it('defines the grass block preset and round-trips exported themes', () => {
+    const preset = getThemePreset('dark', 'grass-block')
+    expect(preset).toEqual({
+      colors: {
+        '--oc-accent': '#75FF53',
+        '--oc-bg-base': '#34251A',
+        '--oc-fg-default': '#CCCCCC',
+      },
+      accentNeighborAngle: -50,
+      fontFamily: 'system',
+    })
+    expect(resolveThemePresetId('dark', preset!.colors, -50, 'system')).toBe('grass-block')
+    expect(getThemePreset('light', 'grass-block')).toBeNull()
+
+    const content = serializeAppTheme('dark', preset!.colors, -50, 'system')
+    expect(parseAppTheme(content)).toEqual(preset)
+    expect(parseAppTheme('{"format":"opencard-theme","version":1}')).toBeNull()
+  })
+
+  it('provides five built-in presets for each color scheme', () => {
+    expect(APP_THEME_PRESETS.dark).toHaveLength(5)
+    expect(APP_THEME_PRESETS.light).toHaveLength(5)
+    expect(APP_THEME_PRESETS.dark.every(id => getThemePreset('dark', id))).toBe(true)
+    expect(APP_THEME_PRESETS.light.every(id => getThemePreset('light', id))).toBe(true)
+  })
+
+  it('normalizes imported theme presets and resolves them from current data', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      appearance: {
+        userThemePresets: {
+          dark: [{
+            name: 'Forest',
+            definition: {
+              colors: {
+                '--oc-accent': '#75ff53',
+                '--oc-bg-base': '#34251a',
+                '--oc-fg-default': '#cccccc',
+              },
+              accentNeighborAngle: -35,
+              fontFamily: 'Inter; SimSun',
+            },
+          }],
+        },
+      },
+    })
+
+    expect(settings.appearance.userThemePresets.dark[0]?.definition.colors['--oc-accent']).toBe('#75FF53')
+    expect(resolveThemePresetId(
+      'dark',
+      settings.appearance.userThemePresets.dark[0]!.definition.colors,
+      -35,
+      'Inter; SimSun',
+      settings.appearance.userThemePresets.dark,
+    )).toBe('user:Forest')
+  })
+
+  it('clamps the base font size and normalizes per-theme font choices', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      appearance: {
+        baseFontSize: 99,
+        fontFamilies: { dark: 'Inter; Microsoft YaHei UI; inter', light: 'bad\nfont' },
+      },
+    })
+
+    expect(settings.appearance.baseFontSize).toBe(16)
+    expect(settings.appearance.fontFamilies).toEqual({
+      dark: 'Inter; Microsoft YaHei UI',
+      light: 'system',
+    })
   })
 
   it('falls back field-by-field for malformed current-version data', () => {

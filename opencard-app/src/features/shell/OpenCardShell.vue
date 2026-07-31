@@ -292,6 +292,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { message as showMessage } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import {
   createDefaultOpenCardContent,
@@ -322,7 +324,12 @@ import type {
 import { useProjectTemplateStore } from '../project-templates/store/projectTemplateStore'
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
-import type { SettingsCategoryKey, SettingsIntent } from '../settings/model/appSettings'
+import {
+  parseAppTheme,
+  serializeAppTheme,
+  type SettingsCategoryKey,
+  type SettingsIntent,
+} from '../settings/model/appSettings'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import type {
   EditorIssueSnapshot,
@@ -522,10 +529,12 @@ const settingsCategoryKey = computed<SettingsCategoryKey>(() =>
   shellPage.value.type === 'settings' ? shellPage.value.categoryKey : 'general'
 )
 const projectOpen = computed(() => Boolean(projectPath.value))
+const systemFontFamilies = ref<readonly string[]>([])
 const { categoryTreeData: settingsCategoryTreeData, activeCategory: activeSettingsCategory } = useSettingsWorkspace({
   settings: settingsStore.settings,
   categoryKey: settingsCategoryKey,
   projectOpen,
+  systemFontFamilies,
   translate: t,
 })
 
@@ -1707,6 +1716,52 @@ function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
   }
 }
 
+async function importThemeFile(themeId: 'dark' | 'light'): Promise<void> {
+  try {
+    const path = await fileSystemService.pickFile({
+      title: t('settings.actions.importTheme'),
+      fileTypeName: t('settings.files.themeFile'),
+      extensions: ['opencardtheme'],
+    })
+    if (!path) return
+    const definition = parseAppTheme(await fileSystemService.readFile(path))
+    if (!definition) throw new Error(t('settings.errors.invalidThemeFile'))
+    const fileName = path.split(/[\\/]/).pop() ?? ''
+    const presetName = fileName.replace(/\.opencardtheme$/i, '').trim()
+      || t('settings.values.importedTheme')
+    settingsStore.importThemePreset(themeId, presetName, definition)
+  } catch (cause) {
+    await showMessage(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'), {
+      title: t('settings.actions.importTheme'),
+      kind: 'error',
+    })
+  }
+}
+
+async function exportThemeFile(themeId: 'dark' | 'light'): Promise<void> {
+  try {
+    const path = await fileSystemService.pickSavePath({
+      defaultPath: `opencard-${themeId}.opencardtheme`,
+      title: t('settings.actions.exportTheme'),
+      fileTypeName: t('settings.files.themeFile'),
+      extensions: ['opencardtheme'],
+    })
+    if (!path) return
+    const appearance = settingsStore.settings.value.appearance
+    await fileSystemService.writeFile(path, serializeAppTheme(
+      themeId,
+      appearance.themeOverrides[themeId],
+      appearance.accentNeighborAngles[themeId],
+      appearance.fontFamilies[themeId],
+    ))
+  } catch (cause) {
+    await showMessage(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'), {
+      title: t('settings.actions.exportTheme'),
+      kind: 'error',
+    })
+  }
+}
+
 async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   if (intent.type === 'setting.preview') {
     settingsStore.previewSetting(intent.key, intent.value)
@@ -1728,8 +1783,43 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
     return
   }
 
-  if (intent.type === 'theme-colors.reset') {
-    settingsStore.resetThemeColors()
+  if (intent.type === 'theme-angle.preview') {
+    settingsStore.previewThemeAngle(intent.themeId, intent.value)
+    return
+  }
+
+  if (intent.type === 'theme-angle.change') {
+    settingsStore.updateThemeAngle(intent.themeId, intent.value)
+    return
+  }
+
+  if (intent.type === 'theme-font.change') {
+    settingsStore.updateThemeFont(intent.themeId, intent.value)
+    return
+  }
+
+  if (intent.type === 'theme-preset.change') {
+    settingsStore.applyThemePreset(intent.themeId, intent.presetId)
+    return
+  }
+
+  if (intent.type === 'theme-preset.delete') {
+    settingsStore.deleteThemePreset(intent.themeId, intent.presetId)
+    return
+  }
+
+  if (intent.type === 'theme.import') {
+    await importThemeFile(intent.themeId)
+    return
+  }
+
+  if (intent.type === 'theme.export') {
+    await exportThemeFile(intent.themeId)
+    return
+  }
+
+  if (intent.type === 'themes.reset') {
+    settingsStore.resetThemes()
     return
   }
 
@@ -2241,10 +2331,19 @@ async function startAppUpdater(): Promise<void> {
   await checkForUpdate()
 }
 
+async function loadSystemFontFamilies(): Promise<void> {
+  try {
+    systemFontFamilies.value = await invoke<string[]>('list_system_font_families')
+  } catch (cause) {
+    console.warn('[OpenCard/Settings] Unable to enumerate system fonts.', cause)
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
   void startAppUpdater()
+  void loadSystemFontFamilies()
 })
 
 onUnmounted(() => {

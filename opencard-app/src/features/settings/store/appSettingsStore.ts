@@ -2,8 +2,11 @@
 import { readonly, ref, type DeepReadonly, type Ref } from 'vue'
 import type { OcEditableThemeColorKey, OcThemeId } from '../../../shared/ui/foundation'
 import {
+  DEFAULT_APP_SETTINGS,
   createDefaultAppSettings,
+  getThemePreset,
   normalizeAppSettings,
+  type AppThemeDefinition,
   type AppSettingKey,
   type AppSettings,
 } from '../model/appSettings'
@@ -23,7 +26,13 @@ export interface AppSettingsStore {
   updateSetting(key: AppSettingKey, value: unknown): void
   previewThemeColor(themeId: OcThemeId, token: OcEditableThemeColorKey, value: string | null): void
   updateThemeColor(themeId: OcThemeId, token: OcEditableThemeColorKey, value: string | null): void
-  resetThemeColors(): void
+  previewThemeAngle(themeId: OcThemeId, value: number): void
+  updateThemeAngle(themeId: OcThemeId, value: number): void
+  updateThemeFont(themeId: OcThemeId, value: string): void
+  applyThemePreset(themeId: OcThemeId, presetId: string): void
+  importThemePreset(themeId: OcThemeId, name: string, definition: AppThemeDefinition): void
+  deleteThemePreset(themeId: OcThemeId, presetId: string): void
+  resetThemes(): void
   updateShell(patch: Partial<AppSettings['shell']>): void
   updateProjectCreation(patch: Partial<AppSettings['projectCreation']>): void
   rememberRecentProject(path: string): void
@@ -96,7 +105,7 @@ export function createAppSettingsStore(
     if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
-    else if (key === 'appearance.accentNeighborAngle') candidate.appearance.accentNeighborAngle = value as number
+    else if (key === 'appearance.baseFontSize') candidate.appearance.baseFontSize = value as number
     else if (key === 'updates.suppressReleaseNotesAfterUpdate') {
       candidate.updates.suppressReleaseNotesAfterUpdate = value as boolean
     } else if (key === 'workspace.structureTreeSelectionBehavior') {
@@ -202,9 +211,67 @@ export function createAppSettingsStore(
     commit(candidate)
   }
 
-  function resetThemeColors(): void {
+  function applyThemeAngle(candidate: AppSettings, themeId: OcThemeId, value: number): void {
+    candidate.appearance.accentNeighborAngles[themeId] = value
+  }
+
+  function previewThemeAngle(themeId: OcThemeId, value: number): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applyThemeAngle(candidate, themeId, value)
+    settings.value = normalizeAppSettings(candidate)
+  }
+
+  function updateThemeAngle(themeId: OcThemeId, value: number): void {
+    const candidate = normalizeAppSettings(settings.value)
+    applyThemeAngle(candidate, themeId, value)
+    commit(candidate)
+  }
+
+  function updateThemeFont(themeId: OcThemeId, value: string): void {
+    const candidate = normalizeAppSettings(settings.value)
+    candidate.appearance.fontFamilies[themeId] = value
+    commit(candidate)
+  }
+
+  function applyThemePreset(themeId: OcThemeId, presetId: string): void {
+    const preset = getThemePreset(themeId, presetId, settings.value.appearance.userThemePresets[themeId])
+    if (!preset) return
+    const candidate = normalizeAppSettings(settings.value)
+    candidate.appearance.themeOverrides[themeId] = presetId === 'default' ? {} : { ...preset.colors }
+    candidate.appearance.accentNeighborAngles[themeId] = preset.accentNeighborAngle
+    candidate.appearance.fontFamilies[themeId] = preset.fontFamily
+    commit(candidate)
+  }
+
+  function importThemePreset(themeId: OcThemeId, name: string, definition: AppThemeDefinition): void {
+    const candidate = normalizeAppSettings(settings.value)
+    const presets = candidate.appearance.userThemePresets[themeId].filter(preset => (
+      preset.name.toLocaleLowerCase() !== name.trim().toLocaleLowerCase()
+    ))
+    candidate.appearance.userThemePresets[themeId] = [
+      ...presets.slice(-31),
+      { name: name.trim(), definition },
+    ]
+    candidate.appearance.themeOverrides[themeId] = { ...definition.colors }
+    candidate.appearance.accentNeighborAngles[themeId] = definition.accentNeighborAngle
+    candidate.appearance.fontFamilies[themeId] = definition.fontFamily
+    commit(candidate)
+  }
+
+  function deleteThemePreset(themeId: OcThemeId, presetId: string): void {
+    if (!presetId.startsWith('user:')) return
+    const name = presetId.slice('user:'.length)
+    const candidate = normalizeAppSettings(settings.value)
+    candidate.appearance.userThemePresets[themeId] = candidate.appearance.userThemePresets[themeId]
+      .filter(preset => preset.name !== name)
+    commit(candidate)
+  }
+
+  function resetThemes(): void {
     const candidate = normalizeAppSettings(settings.value)
     candidate.appearance.themeOverrides = { dark: {}, light: {} }
+    candidate.appearance.accentNeighborAngles = { ...DEFAULT_APP_SETTINGS.appearance.accentNeighborAngles }
+    candidate.appearance.fontFamilies = { ...DEFAULT_APP_SETTINGS.appearance.fontFamilies }
     commit(candidate)
   }
 
@@ -234,7 +301,13 @@ export function createAppSettingsStore(
     updateSetting,
     previewThemeColor,
     updateThemeColor,
-    resetThemeColors,
+    previewThemeAngle,
+    updateThemeAngle,
+    updateThemeFont,
+    applyThemePreset,
+    importThemePreset,
+    deleteThemePreset,
+    resetThemes,
     updateShell,
     updateProjectCreation,
     rememberRecentProject,

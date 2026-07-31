@@ -8,10 +8,13 @@ import {
   type OcEditableThemeColorKey,
   type OcThemeId,
 } from '../../../shared/ui/foundation'
-import type {
-  AppSettingKey,
-  AppSettings,
-  SettingsCategoryKey,
+import {
+  APP_THEME_PRESETS,
+  resolveThemePresetId,
+  type AppSettingKey,
+  type AppSettings,
+  type AppThemePresetId,
+  type SettingsCategoryKey,
 } from '../model/appSettings'
 
 export type SettingsFieldViewModel =
@@ -43,6 +46,30 @@ export type SettingsFieldViewModel =
       key: string
       label: string
       themeId: OcThemeId
+      preset: {
+        label: string
+        value: string
+        placeholder: string
+        options: readonly { value: string; label: string }[]
+        importLabel: string
+        exportLabel: string
+        deleteLabel: string
+        canDelete: boolean
+      }
+      accentNeighborAngle: {
+        label: string
+        value: number
+        min: number
+        max: number
+        step: number
+        suffix: string
+      }
+      fontFamily: {
+        label: string
+        value: string
+        fontFamilies: readonly string[]
+        placeholder: string
+      }
       colors: readonly {
         key: string
         label: string
@@ -53,7 +80,7 @@ export type SettingsFieldViewModel =
     }
   | {
       type: 'action'
-      key: 'project-workspace.reset' | 'theme-colors.reset'
+      key: 'project-workspace.reset' | 'themes.reset'
       label: string
       actionLabel: string
       icon: IconToken
@@ -74,6 +101,7 @@ interface UseSettingsWorkspaceOptions {
   settings: Readonly<Ref<DeepReadonly<AppSettings>>>
   categoryKey: Readonly<Ref<SettingsCategoryKey>>
   projectOpen: Readonly<Ref<boolean>>
+  systemFontFamilies?: Readonly<Ref<readonly string[]>>
   translate: (key: string, fallback: string) => string
 }
 
@@ -90,6 +118,7 @@ export function useSettingsWorkspace(
     appearance: options.translate('settings.categories.appearance', 'Appearance'),
     workspace: options.translate('settings.categories.workspace', 'Workspace'),
   }))
+  const systemFontFamilies = computed(() => options.systemFontFamilies?.value ?? [])
 
   const categoryTreeData = computed<OcTreeData>(() => ({
     rootKeys: CATEGORY_KEYS,
@@ -135,11 +164,75 @@ export function useSettingsWorkspace(
     }
 
     if (categoryKey === 'appearance') {
+      const presetLabel = (themeId: OcThemeId, presetId: AppThemePresetId): string => {
+        if (presetId === 'default') {
+          return themeId === 'dark'
+            ? options.translate('settings.values.openCardDarkTheme', 'OpenCard Dark')
+            : options.translate('settings.values.openCardLightTheme', 'OpenCard Light')
+        }
+        const labels: Record<Exclude<AppThemePresetId, 'default'>, [string, string]> = {
+          'grass-block': ['grassBlockTheme', 'Grass Block'],
+          'deep-sea': ['deepSeaTheme', 'Deep Sea'],
+          ember: ['emberTheme', 'Ember'],
+          'ink-bamboo': ['inkBambooTheme', 'Ink Bamboo'],
+          'morning-mist': ['morningMistTheme', 'Morning Mist'],
+          'sakura-paper': ['sakuraPaperTheme', 'Sakura Paper'],
+          dune: ['duneTheme', 'Dune'],
+          mint: ['mintTheme', 'Mint'],
+        }
+        const [key, fallback] = labels[presetId]
+        return options.translate(`settings.values.${key}`, fallback)
+      }
       const colorPanel = (themeId: OcThemeId): SettingsFieldViewModel => ({
         type: 'theme-color-panel',
         key: `appearance.${themeId}ThemeColors`,
         label: options.translate(`settings.fields.${themeId}ThemeColors`, themeId === 'dark' ? 'Dark theme' : 'Light theme'),
         themeId,
+        preset: {
+          label: options.translate('settings.fields.themePreset', 'Preset'),
+          value: resolveThemePresetId(
+            themeId,
+            settings.appearance.themeOverrides[themeId],
+            settings.appearance.accentNeighborAngles[themeId],
+            settings.appearance.fontFamilies[themeId],
+            settings.appearance.userThemePresets[themeId],
+          ),
+          placeholder: options.translate('settings.values.selectThemePreset', 'Select preset'),
+          options: [
+            ...APP_THEME_PRESETS[themeId].map(presetId => ({
+              value: presetId,
+              label: presetLabel(themeId, presetId),
+            })),
+            ...settings.appearance.userThemePresets[themeId].map(preset => ({
+              value: `user:${preset.name}`,
+              label: `${preset.name} · ${options.translate('settings.values.importedTheme', 'Imported')}`,
+            })),
+          ],
+          importLabel: options.translate('settings.actions.importTheme', 'Import theme'),
+          exportLabel: options.translate('settings.actions.exportTheme', 'Export theme'),
+          deleteLabel: options.translate('settings.actions.deleteThemePreset', 'Delete imported theme'),
+          canDelete: resolveThemePresetId(
+            themeId,
+            settings.appearance.themeOverrides[themeId],
+            settings.appearance.accentNeighborAngles[themeId],
+            settings.appearance.fontFamilies[themeId],
+            settings.appearance.userThemePresets[themeId],
+          ).startsWith('user:'),
+        },
+        accentNeighborAngle: {
+          label: options.translate('settings.fields.accentNeighborAngle', 'Secondary color phase angle'),
+          value: settings.appearance.accentNeighborAngles[themeId],
+          min: -180,
+          max: 180,
+          step: 1,
+          suffix: '°',
+        },
+        fontFamily: {
+          label: options.translate('settings.fields.uiFont', 'UI font'),
+          value: settings.appearance.fontFamilies[themeId],
+          fontFamilies: systemFontFamilies.value,
+          placeholder: options.translate('settings.values.systemFont', 'System'),
+        },
         colors: [
           ['accentColor', 'Theme color', '--oc-accent'],
           ['baseBackgroundColor', 'Background', '--oc-bg-base'],
@@ -170,18 +263,18 @@ export function useSettingsWorkspace(
               { value: 'light', label: options.translate('settings.values.light', 'Light') },
             ],
           },
-          colorPanel('dark'),
-          colorPanel('light'),
           {
             type: 'range',
-            key: 'appearance.accentNeighborAngle',
-            label: options.translate('settings.fields.accentNeighborAngle', 'Secondary color phase angle'),
-            value: settings.appearance.accentNeighborAngle,
-            min: -180,
-            max: 180,
+            key: 'appearance.baseFontSize',
+            label: options.translate('settings.fields.baseFontSize', 'Base font size'),
+            value: settings.appearance.baseFontSize,
+            min: 10,
+            max: 16,
             step: 1,
-            suffix: '°',
+            suffix: 'px',
           },
+          colorPanel('dark'),
+          colorPanel('light'),
           {
             type: 'range',
             key: 'appearance.glassIntensity',
@@ -194,9 +287,9 @@ export function useSettingsWorkspace(
           },
           {
             type: 'action',
-            key: 'theme-colors.reset',
-            label: options.translate('settings.fields.themeColors', 'Theme colors'),
-            actionLabel: options.translate('settings.actions.resetThemeColors', 'Reset colors'),
+            key: 'themes.reset',
+            label: options.translate('settings.fields.themeSettings', 'Theme settings'),
+            actionLabel: options.translate('settings.actions.resetThemes', 'Reset themes'),
             icon: 'action.restart',
             disabled: false,
           },

@@ -2759,7 +2759,7 @@ onUnmounted(() => {
   gap: 2px;
   overflow: hidden;
   color: var(--oc-fg-default);
-  font-size: 11px;
+  font-size: var(--oc-text-sm);
   line-height: 1.55;
   font-variant-numeric: tabular-nums;
 }
@@ -2789,7 +2789,7 @@ onUnmounted(() => {
 .card-design-editor__dimension-info {
   display: block;
   color: var(--oc-fg-default);
-  font-size: 11px;
+  font-size: var(--oc-text-sm);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   opacity: 1;

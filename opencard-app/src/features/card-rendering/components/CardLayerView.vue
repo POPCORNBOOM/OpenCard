@@ -776,7 +776,7 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   left: 0;
   top: -8px;
   color: var(--oc-fg-default);
-  font-size: 32px;
+  font-size: calc(var(--oc-text-xl) * 2);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -854,7 +854,7 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   top: 50%;
   right: 10px;
   color: currentColor;
-  font-size: 14px;
+  font-size: calc(var(--oc-text-lg) + 1px);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -874,7 +874,7 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   position: absolute;
   left: 8px;
   color: var(--oc-fg-accent);
-  font-size: 14px;
+  font-size: calc(var(--oc-text-lg) + 1px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;

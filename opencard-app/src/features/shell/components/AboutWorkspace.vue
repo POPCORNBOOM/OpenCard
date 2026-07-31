@@ -107,7 +107,7 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
 }
 
 .about-workspace h1 {
-  font-size: 28px;
+  font-size: calc(var(--oc-text-xl) * 1.75);
   font-weight: var(--font-weight-ui-title);
   line-height: 1.15;
 }

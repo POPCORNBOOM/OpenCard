@@ -17,7 +17,10 @@ async function bootstrap(): Promise<void> {
     const theme = appearance.theme === "system"
       ? (systemTheme.matches ? "dark" : "light")
       : appearance.theme;
-    setOcTheme(theme, appearance.themeOverrides[theme], appearance.accentNeighborAngle);
+    setOcTheme(theme, appearance.themeOverrides[theme], appearance.accentNeighborAngles[theme], {
+      fontFamily: appearance.fontFamilies[theme],
+      baseFontSize: appearance.baseFontSize,
+    });
     setOcGlassIntensity(appearance.glassIntensity);
   };
 
@@ -26,7 +29,9 @@ async function bootstrap(): Promise<void> {
       settingsStore.settings.value.appearance.theme,
       settingsStore.settings.value.appearance.glassIntensity,
       settingsStore.settings.value.appearance.themeOverrides,
-      settingsStore.settings.value.appearance.accentNeighborAngle,
+      settingsStore.settings.value.appearance.accentNeighborAngles,
+      settingsStore.settings.value.appearance.fontFamilies,
+      settingsStore.settings.value.appearance.baseFontSize,
     ] as const,
     applyAppearance,
     { immediate: true },

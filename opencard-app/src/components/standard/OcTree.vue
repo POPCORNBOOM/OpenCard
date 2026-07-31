@@ -822,7 +822,7 @@ onBeforeUnmount(() => {
   border-radius: 5px;
   background: var(--oc-bg-surface);
   color: var(--oc-fg-muted);
-  font-size: 7px;
+  font-size: calc(var(--oc-text-xs) * 0.7);
   font-weight: 600;
   line-height: 9px;
   letter-spacing: 0;

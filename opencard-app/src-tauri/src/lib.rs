@@ -1,4 +1,5 @@
 use notify::{Event, EventKind, RecursiveMode, Watcher};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Mutex;
@@ -15,6 +16,24 @@ struct WatcherState {
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+async fn list_system_font_families() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut database = fontdb::Database::new();
+        database.load_system_fonts();
+        database
+            .faces()
+            .flat_map(|face| face.families.iter().map(|(name, _language)| name.trim()))
+            .filter(|name| !name.is_empty() && !name.starts_with('@'))
+            .map(str::to_owned)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    })
+    .await
+    .map_err(|error| format!("Failed to enumerate system fonts: {error}"))
 }
 
 #[tauri::command]
@@ -177,6 +196,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            list_system_font_families,
             watch_directory,
             stop_watching,
             trash_path,

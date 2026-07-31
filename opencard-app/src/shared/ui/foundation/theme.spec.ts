@@ -76,6 +76,18 @@ describe('OC theme runtime', () => {
     expect(document.documentElement.style.getPropertyValue('--oc-fg-muted')).toBe('#737373')
     expect(document.documentElement.style.getPropertyValue('--oc-fg-subtle')).toBe('#A0A0A0')
   })
+
+  it('derives the type scale and font family from typography preferences', () => {
+    setOcTheme('dark', {}, -50, { fontFamily: 'Inter; Noto Serif CJK SC', baseFontSize: 14 })
+
+    expect(document.documentElement.style.getPropertyValue('--oc-font-sans')).toContain('Noto Serif')
+    expect(document.documentElement.style.getPropertyValue('--oc-font-sans')).toContain('"Inter", "Noto Serif CJK SC"')
+    expect(document.documentElement.style.getPropertyValue('--oc-text-xs')).toBe('12px')
+    expect(document.documentElement.style.getPropertyValue('--oc-text-sm')).toBe('13px')
+    expect(document.documentElement.style.getPropertyValue('--oc-text-base')).toBe('14px')
+    expect(document.documentElement.style.getPropertyValue('--oc-text-lg')).toBe('15px')
+    expect(document.documentElement.style.getPropertyValue('--oc-text-xl')).toBe('19px')
+  })
 })
 
 describe('theme source boundary', () => {

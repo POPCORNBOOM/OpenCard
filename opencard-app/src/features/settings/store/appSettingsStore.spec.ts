@@ -27,7 +27,9 @@ describe('appSettingsStore', () => {
     store.updateSetting('appearance.theme', 'light')
     store.updateSetting('appearance.locale', 'zh-CN')
     store.updateSetting('appearance.glassIntensity', 75)
-    store.updateSetting('appearance.accentNeighborAngle', -72)
+    store.updateSetting('appearance.baseFontSize', 14)
+    store.updateThemeAngle('light', -72)
+    store.updateThemeFont('light', 'serif')
     store.updateSetting('updates.suppressReleaseNotesAfterUpdate', true)
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
@@ -39,7 +41,14 @@ describe('appSettingsStore', () => {
 
     const saved = await persistence.load()
     expect(saved).toMatchObject({
-      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 75, accentNeighborAngle: -72 },
+      appearance: {
+        theme: 'light',
+        locale: 'zh-CN',
+        glassIntensity: 75,
+        baseFontSize: 14,
+        accentNeighborAngles: { dark: -50, light: -72 },
+        fontFamilies: { dark: 'system', light: 'serif' },
+      },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: true },
       workspace: {
@@ -73,7 +82,7 @@ describe('appSettingsStore', () => {
     expect(await persistence.load()).toMatchObject({ appearance: { glassIntensity: 80 } })
   })
 
-  it('previews, persists, and resets paired theme color overrides', async () => {
+  it('previews, persists, applies presets, and resets per-theme appearance', async () => {
     const persistence = new MemorySettingsPersistence()
     const save = vi.spyOn(persistence, 'save')
     const store = createAppSettingsStore(persistence)
@@ -85,12 +94,49 @@ describe('appSettingsStore', () => {
     expect(save).not.toHaveBeenCalled()
 
     store.updateThemeColor('dark', '--oc-accent', '#112233')
+    store.updateThemeAngle('dark', -72)
     await store.flush()
-    expect(save).toHaveBeenCalledTimes(1)
+    expect(store.settings.value.appearance.accentNeighborAngles.dark).toBe(-72)
 
-    store.resetThemeColors()
+    store.applyThemePreset('dark', 'grass-block')
+    expect(store.settings.value.appearance.themeOverrides.dark).toEqual({
+      '--oc-accent': '#75FF53',
+      '--oc-bg-base': '#34251A',
+      '--oc-fg-default': '#CCCCCC',
+    })
+
+    store.applyThemePreset('dark', 'default')
+    await store.flush()
+    expect(store.settings.value.appearance.themeOverrides.dark).toEqual({})
+    expect(store.settings.value.appearance.accentNeighborAngles.dark).toBe(-50)
+    expect(store.settings.value.appearance.fontFamilies.dark).toBe('system')
+
+    store.importThemePreset('dark', 'Forest', {
+      colors: {
+        '--oc-accent': '#228833',
+        '--oc-bg-base': '#102010',
+        '--oc-fg-default': '#DDEEDD',
+      },
+      accentNeighborAngle: -25,
+      fontFamily: 'Inter; SimSun',
+    })
+    expect(store.settings.value.appearance.userThemePresets.dark).toHaveLength(1)
+    expect(store.settings.value.appearance.themeOverrides.dark['--oc-accent']).toBe('#228833')
+
+    store.updateThemeColor('dark', '--oc-accent', '#FFFFFF')
+    store.applyThemePreset('dark', 'user:Forest')
+    expect(store.settings.value.appearance.themeOverrides.dark['--oc-accent']).toBe('#228833')
+    expect(store.settings.value.appearance.fontFamilies.dark).toBe('Inter; SimSun')
+
+    store.deleteThemePreset('dark', 'user:Forest')
+    expect(store.settings.value.appearance.userThemePresets.dark).toEqual([])
+    expect(store.settings.value.appearance.themeOverrides.dark['--oc-accent']).toBe('#228833')
+
+    store.updateThemeAngle('light', 35)
+    store.resetThemes()
     await store.flush()
     expect(store.settings.value.appearance.themeOverrides).toEqual({ dark: {}, light: {} })
+    expect(store.settings.value.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })
   })
 
   it('keeps recently opened projects in most-recent-first order', async () => {
