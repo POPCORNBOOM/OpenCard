@@ -5,7 +5,8 @@
 import { computed, type Ref } from 'vue'
 import type { AdditionalFieldKeyError, CardDocument } from '../../entities/card/model'
 import type { PropertyFieldType } from '../../entities/card/schema'
-import type { CdeDocumentChangeMode } from './useCdeDocumentState'
+
+type CdeDataTableChangeMode = 'typing' | 'action'
 
 type BlockFieldTarget = {
   cardId: string
@@ -30,11 +31,11 @@ type UseCdeDataTableCommandsOptions = {
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
   refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  markDocumentChanged: (mode?: CdeDataTableChangeMode) => void
   updateBlockField: (
     target: BlockFieldTarget,
     value: unknown,
-    mode: CdeDocumentChangeMode,
+    mode: CdeDataTableChangeMode,
   ) => boolean
   resetBlockField: (target: BlockFieldTarget) => boolean
   createBlockField: (

@@ -14,7 +14,7 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle" tabindex="-1"
-    @keydown="handleEditorKeydown">
+    @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
@@ -42,7 +42,7 @@
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
           :transform-disabled-block-ids="transformDisabledBlockIds"
-          @pointerdown.capture="focusEditorForCanvasShortcut"
+          @pointerdown.capture="handleCanvasPointerDown"
           @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @selection-action="handleSelectionAction"
@@ -308,7 +308,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
@@ -350,6 +350,10 @@ import {
   type CdeViewportPort,
 } from './useCdeViewportController'
 import { useCdeSelectionCommands } from './useCdeSelectionCommands'
+import {
+  useCdeLayerViewInteraction,
+  type CdeLayerViewPort,
+} from './useCdeLayerViewInteraction'
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
@@ -460,14 +464,7 @@ function toggleActiveFace(): void {
   commitViewState()
 }
 
-type CardViewportHandle = CdeViewportPort & {
-  nudgeSelection: (deltaX: number, deltaY: number) => boolean
-  runSelectionQuickAction: (actionKey: string) => boolean
-  stepLayer: (direction: -1 | 1, wholeLayer?: boolean) => void
-  focusLayerBlock: (blockId: string) => void
-  getFocusedLayerBlockId: () => string | null
-  cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
-}
+type CardViewportHandle = CdeViewportPort & CdeLayerViewPort
 
 type PropertyEditorHandle = {
   revealField: (inputKey: string, fieldKey: string, characterOffset?: number) => Promise<boolean>
@@ -487,8 +484,6 @@ const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
-const layerViewActive = ref(false)
-const spaceHeld = ref(false)
 const loadedFilePath = ref<string | null>(null)
 
 // 结构树操作定义
@@ -1159,6 +1154,25 @@ const {
   markDocumentChanged,
 })
 
+const interactionSelectedBlockId = computed(() => selectedBlock.value?.id ?? null)
+const hasRenderableFace = computed(() => viewFace.value !== null)
+const {
+  handleCanvasPointerDown,
+  handleLayerZIndexStep,
+  handleRootKeydown,
+  handleViewportBlockClick,
+  layerViewActive,
+  spaceHeld,
+} = useCdeLayerViewInteraction({
+  rootElement: editorRootRef,
+  hasRenderableFace,
+  selectedBlockId: interactionSelectedBlockId,
+  selectedLocationType,
+  viewportPort: cardViewportRef,
+  selectBlock: selectViewportBlock,
+  changeZIndex: changeSelectionZIndex,
+})
+
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value
   const face = viewFace.value
@@ -1299,124 +1313,6 @@ const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
 watch(editorIssueSnapshot, (snapshot) => {
   emit('issue-snapshot', snapshot)
 })
-function focusEditorForCanvasShortcut(event: PointerEvent): void {
-  if (event.button !== 0) return
-  const target = event.target
-  if (target instanceof Element && target.closest('button, input, textarea, select, [contenteditable="true"]')) {
-    return
-  }
-  editorRootRef.value?.focus({ preventScroll: true })
-}
-
-function handleViewportBlockClick(blockId: string): void {
-  selectViewportBlock(blockId)
-  void nextTick(() => editorRootRef.value?.focus({ preventScroll: true }))
-}
-
-function handleEditorKeydown(event: KeyboardEvent): void {
-  if (
-    event.defaultPrevented
-    || event.target !== editorRootRef.value
-    || event.ctrlKey
-    || event.metaKey
-    || event.altKey
-  ) {
-    return
-  }
-
-  if (event.key === 'Tab') {
-    if (viewFace.value) layerViewActive.value = true
-    event.preventDefault()
-    event.stopPropagation()
-    return
-  }
-
-  if (event.code === 'Space' || event.key === ' ') {
-    if (!spaceHeld.value) {
-      const focusedBlockId = cardViewportRef.value?.getFocusedLayerBlockId()
-      if (focusedBlockId) selectViewportBlock(focusedBlockId)
-    }
-    spaceHeld.value = true
-    event.preventDefault()
-    event.stopPropagation()
-    return
-  }
-
-  const verticalDirection = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : null
-  if (spaceHeld.value && verticalDirection) {
-    adjustSelectedBlockZIndex(verticalDirection === -1 ? 1 : -1, event.shiftKey)
-    event.preventDefault()
-    event.stopPropagation()
-    return
-  }
-
-  if (layerViewActive.value) {
-    if (verticalDirection) {
-      cardViewportRef.value?.stepLayer(verticalDirection, event.shiftKey)
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
-    if (!event.isComposing && /^\p{L}$/u.test(event.key)) {
-      cardViewportRef.value?.cycleLayerByInitial(event.key, event.shiftKey)
-      event.preventDefault()
-      event.stopPropagation()
-    }
-    return
-  }
-
-  if (!selectedBlock.value) return
-
-  const movement = {
-    ArrowLeft: { x: -1, y: 0 },
-    ArrowRight: { x: 1, y: 0 },
-    ArrowUp: { x: 0, y: -1 },
-    ArrowDown: { x: 0, y: 1 },
-  }[event.key]
-  if (movement) {
-    const step = event.shiftKey ? 10 : 1
-    if (!cardViewportRef.value?.nudgeSelection(movement.x * step, movement.y * step)) return
-    event.preventDefault()
-    event.stopPropagation()
-    return
-  }
-
-  const shortcut = event.key.toLowerCase()
-  const actionKey = selectedLocationType.value === 'simple-container-location'
-    ? ({ f: 'fill-parent', c: 'center', i: 'inset', o: 'outset' } as const)[shortcut as 'f' | 'c' | 'i' | 'o']
-    : selectedLocationType.value === 'flow-container-location'
-      ? ({ f: 'fill-cross-axis', c: 'center-cross-axis' } as const)[shortcut as 'f' | 'c']
-      : undefined
-  if (!actionKey || !cardViewportRef.value?.runSelectionQuickAction(actionKey)) return
-
-  event.preventDefault()
-  event.stopPropagation()
-}
-
-function adjustSelectedBlockZIndex(delta: -1 | 1, existingLayersOnly = false): void {
-  const blockId = selectedBlock.value?.id
-  if (!blockId || !changeSelectionZIndex({ blockId, delta, existingLayersOnly })) return
-  void nextTick(() => cardViewportRef.value?.focusLayerBlock(blockId))
-}
-
-function handleLayerZIndexStep(payload: { delta: -1 | 1; existingLayersOnly: boolean }): void {
-  adjustSelectedBlockZIndex(payload.delta, payload.existingLayersOnly)
-}
-
-function deactivateLayerView(): void {
-  layerViewActive.value = false
-}
-
-function handleLayerViewKeyup(event: KeyboardEvent): void {
-  if (event.key === 'Tab') deactivateLayerView()
-  if (event.code === 'Space' || event.key === ' ') spaceHeld.value = false
-}
-
-function handleEditorBlur(): void {
-  spaceHeld.value = false
-  deactivateLayerView()
-}
-
 async function saveFile() {
   await flushPendingChanges()
   await saveDocumentFile()
@@ -1596,15 +1492,7 @@ defineExpose({
   navigate,
 })
 
-onMounted(() => {
-  window.addEventListener('keyup', handleLayerViewKeyup)
-  window.addEventListener('blur', handleEditorBlur)
-})
-
 onUnmounted(() => {
-  window.removeEventListener('keyup', handleLayerViewKeyup)
-  window.removeEventListener('blur', handleEditorBlur)
-  handleEditorBlur()
   for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
   infoHighlightTimers.clear()
   disposeDocumentState()

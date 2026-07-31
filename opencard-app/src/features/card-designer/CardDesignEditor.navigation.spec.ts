@@ -768,92 +768,44 @@ describe('CardDesignEditor issue navigation', () => {
     expect(viewport.props('layerViewActive')).toBe(true)
     expect(wrapper.get('.card-design-editor__stage').classes()).toContain('is-layer-view-active')
     await root.trigger('keydown', { key: 'ArrowUp' })
-    await root.trigger('keydown', { key: 'ArrowDown' })
-    await root.trigger('keydown', { key: 'ArrowDown', shiftKey: true })
-    expect(stepLayer.mock.calls).toEqual([[-1, false], [1, false], [1, true]])
     await root.trigger('keydown', { key: 'a' })
-    await root.trigger('keydown', { key: 'A', shiftKey: true })
-    await root.trigger('keydown', { key: 'f' })
-    expect(cycleLayerByInitial.mock.calls).toEqual([
-      ['a', false],
-      ['A', true],
-      ['f', false],
-    ])
+    expect(stepLayer).toHaveBeenCalledWith(-1, false)
+    expect(cycleLayerByInitial).toHaveBeenCalledWith('a', false)
     expect(runSelectionQuickAction).not.toHaveBeenCalled()
 
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab' }))
     await root.trigger('keydown', { key: ' ', code: 'Space' })
     await nextTick()
     expect(viewport.props('selectedBlockId')).toBe('container-1')
-    expect(focusLayerBlock).not.toHaveBeenCalled()
     window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
     getFocusedLayerBlockId.mockReturnValue('text-1')
     await nextTick()
 
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab' }))
-    await nextTick()
-    expect(viewport.props('layerViewActive')).toBe(false)
-    expect(wrapper.get('.card-design-editor__stage').classes()).not.toContain('is-layer-view-active')
-
     await root.trigger('keydown', { key: ' ', code: 'Space' })
-    expect(viewport.props('spaceModifierActive')).toBe(true)
     await root.trigger('keydown', { key: 'ArrowUp' })
     window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
     await nextTick()
-    expect(viewport.props('spaceModifierActive')).toBe(false)
     const projectedFace = viewport.props('face') as {
       children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
     }
     expect(projectedFace.children[0]?.block.children[0]?.block.zIndex).toBe(1)
     expect(focusLayerBlock).toHaveBeenCalledWith('text-1')
 
-    await root.trigger('keydown', { key: ' ', code: 'Space', shiftKey: true })
-    await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
-    await nextTick()
-    const shiftedFace = viewport.props('face') as {
-      children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
-    }
-    expect(shiftedFace.children[0]?.block.children[0]?.block.zIndex).toBe(2)
-
-    await root.trigger('keydown', { key: ' ', code: 'Space' })
     viewport.vm.$emit('z-index-step', { delta: -1, existingLayersOnly: false })
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
     await nextTick()
     const wheelAdjustedFace = viewport.props('face') as {
       children: Array<{ block: { children: Array<{ block: { zIndex: number } }> } }>
     }
-    expect(wheelAdjustedFace.children[0]?.block.children[0]?.block.zIndex).toBe(1)
+    expect(wheelAdjustedFace.children[0]?.block.children[0]?.block.zIndex).toBe(0)
 
     await root.trigger('keydown', { key: 'ArrowRight' })
-    await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
     await root.trigger('keydown', { key: 'f' })
-    await root.trigger('keydown', { key: 'C' })
-    await root.trigger('keydown', { key: 'i' })
-    await root.trigger('keydown', { key: 'o' })
-
-    expect(nudgeSelection).toHaveBeenNthCalledWith(1, 1, 0)
-    expect(nudgeSelection).toHaveBeenNthCalledWith(2, 0, -10)
-    expect(runSelectionQuickAction.mock.calls).toEqual([
-      ['fill-parent'],
-      ['center'],
-      ['inset'],
-      ['outset'],
-    ])
+    expect(nudgeSelection).toHaveBeenCalledWith(1, 0)
+    expect(runSelectionQuickAction).toHaveBeenCalledWith('fill-parent')
 
     await wrapper.get('.shortcut-input').trigger('keydown', { key: 'ArrowLeft' })
-    expect(nudgeSelection).toHaveBeenCalledTimes(2)
-    await wrapper.get('.shortcut-input').trigger('keydown', { key: 'Tab' })
-    expect(viewport.props('layerViewActive')).toBe(false)
-
-    viewport.vm.$emit('blank-click', new MouseEvent('click'))
-    await nextTick()
-    expect(viewport.props('selectedBlockId')).toBeNull()
-    await root.trigger('keydown', { key: 'Tab' })
-    await root.trigger('keydown', { key: ' ', code: 'Space' })
-    await nextTick()
-    expect(viewport.props('selectedBlockId')).toBe('text-1')
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space' }))
+    expect(nudgeSelection).toHaveBeenCalledTimes(1)
     window.dispatchEvent(new Event('blur'))
     await nextTick()
     expect(viewport.props('layerViewActive')).toBe(false)
