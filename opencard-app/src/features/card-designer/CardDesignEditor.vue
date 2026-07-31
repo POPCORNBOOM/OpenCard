@@ -325,12 +325,6 @@ import CardViewport, {
   type CardViewportSelectionInfo,
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
-import { runRenderPipeline } from '../card-rendering/renderPipeline'
-import type {
-  RenderReadyCardBlock,
-  RenderReadyCardDocument,
-  RenderReadyCardFace,
-} from '../card-rendering/render.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
@@ -351,6 +345,7 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
+import { useCdeRenderProjection } from './useCdeRenderProjection'
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
@@ -1110,47 +1105,32 @@ const renderTargetInstance = computed(() => (
   selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null
 ))
 
-// Keep diagnostics beside the projected document so the editor reports the exact rendered card snapshot.
-const renderPipelineResult = computed(() => {
-  documentRevision.value
-  if (!cardDoc.value) {
-    return null
-  }
-
-  const result = runRenderPipeline(
-    cardDoc.value,
-    renderTargetInstance.value,
-    {
-      project: projectStore.resolvedProject.value,
-      dictionary: projectStore.resolvedDictionary.value,
-    },
-  )
-  if (result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
-  return result
+const renderContext = computed(() => ({
+  project: projectStore.resolvedProject.value,
+  dictionary: projectStore.resolvedDictionary.value,
+}))
+const {
+  findViewBlock,
+  renderPipelineResult,
+  viewDocument: viewDoc,
+  viewFace,
+} = useCdeRenderProjection({
+  cardDoc,
+  documentRevision,
+  instance: renderTargetInstance,
+  activeFaceKey,
+  renderContext,
 })
-
-const viewDoc = computed<RenderReadyCardDocument | null>(() => renderPipelineResult.value?.document ?? null)
-const viewFace = computed<RenderReadyCardFace | null>(() => (
-  viewDoc.value?.faces[activeFaceKey.value] ?? null
-))
-
-function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: string): RenderReadyCardBlock | null {
-  for (const block of blocks) {
-    if (block.id === blockId) return block
-    if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
-      const descendant = findRenderBlock(block.children.map((child) => child.block), blockId)
-      if (descendant) return descendant
-    }
-  }
-  return null
-}
+watch(renderPipelineResult, (result) => {
+  if (result && result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
+}, { immediate: true })
 
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value
   const face = viewFace.value
   if (!block || !face) return null
 
-  const renderedBlock = findRenderBlock(face.children.map((child) => child.block), block.id)
+  const renderedBlock = findViewBlock(block.id)
   return {
     icon: getBlockTreeIcon(block.type),
     name: renderedBlock?.name.trim() || block.name?.trim() || block.id,
