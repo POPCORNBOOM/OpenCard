@@ -14,10 +14,6 @@ import {
 import type { ParentLookup } from '../../entities/card/tree'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
 import type { PropertyEditorInput } from '../../shared/ui/property-editor/propertyEditor.types'
-import type {
-  ProjectFontRegistry,
-  ProjectInformation,
-} from '../workspace/model/projectMetadata'
 import { buildFontCatalog } from '../workspace/model/projectFonts'
 import type {
   ReferenceCompletionContext,
@@ -29,13 +25,8 @@ import {
   createCdeDictionaryReferenceScope,
   createCdeProjectReferenceScope,
   enrichCdePropertyFieldDefinition,
+  type CdePropertyProjectContext,
 } from './cdePropertyFieldEnrichment'
-
-export type CdePropertyProjectContext = {
-  fonts?: ProjectFontRegistry | null
-  information?: ProjectInformation | null
-  dictionary?: Readonly<Record<string, string>> | null
-}
 
 type UseCdePropertyEditorProjectionOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>

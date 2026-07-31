@@ -313,8 +313,6 @@ import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
-  getCardFieldDefinition,
-  getCardFieldValueKind,
   type CardBlock,
   type CardFaceKey,
 } from '../../entities/card/model'
@@ -343,6 +341,7 @@ import { useCdeDocumentState } from './useCdeDocumentState'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 import { useCdeOverlayLayout } from './useCdeOverlayLayout'
 import { useCdePropertyEditorProjection } from './useCdePropertyEditorProjection'
+import { useCdeDataTableCellProjection } from './useCdeDataTableCellProjection'
 import {
   useCdePropertyPanelState,
   type CdeAdditionalFieldType,
@@ -352,25 +351,15 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import {
-  findCdeBlock,
   useCdeBlockFieldCommands,
   type CdeBlockFieldTarget,
 } from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer } from '../../entities/card/tree'
-import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
-import type {
-  ReferenceCompletionContext,
-  ReferenceCompletionScope,
-} from '../editor-runtime/services/referenceCompletion'
-import type {
-  PropertyEditorFieldDefinition,
-} from '../../shared/ui/property-editor/propertyEditor.types'
-import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { fileSystemService } from '../workspace/services/fileSystemService'
@@ -378,13 +367,6 @@ import {
   getEditorResourceRelativePath,
   resolveEditorResourcePath,
 } from '../editor-runtime/services/editorResource'
-import { buildFontCatalog } from '../workspace/model/projectFonts'
-import {
-  createCdeCardReferenceScope,
-  createCdeDictionaryReferenceScope,
-  createCdeProjectReferenceScope,
-  enrichCdePropertyFieldDefinition,
-} from './cdePropertyFieldEnrichment'
 import {
   isCardDesignerNavigationToken,
   type CardDesignerNavigationResult,
@@ -400,7 +382,6 @@ const emit = defineEmits<EditorEmits>()
 const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
-const fontCatalog = computed(() => buildFontCatalog(projectStore.projectProfile.value?.fonts))
 
 const editorRootRef = ref<HTMLElement | null>(null)
 const {
@@ -1028,9 +1009,10 @@ const propertyProjectContext = computed(() => ({
   information: projectStore.resolvedProject.value,
   dictionary: projectStore.resolvedDictionary.value,
 }))
-const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => (
-  props.resourceRootPath ? listEditorResourceDirectory : undefined
-))
+const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
+  const rootPath = props.resourceRootPath
+  return rootPath ? createEditorResourceDirectoryProvider(rootPath) : undefined
+})
 const { propertyEditorInputs } = useCdePropertyEditorProjection({
   cardDoc,
   documentRevision,
@@ -1041,6 +1023,17 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   rawPropertyInputs,
   projectContext: propertyProjectContext,
   directoryProvider: propertyDirectoryProvider,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
+  hasMessage: messageKey => te(messageKey),
+})
+const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
+  cardDoc,
+  documentRevision,
+  parentLookup,
+  projectContext: propertyProjectContext,
+  directoryProvider: propertyDirectoryProvider,
+  locale,
   blueprintCardId: BLUEPRINT_CARD_ID,
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
@@ -1065,158 +1058,14 @@ function updateAdditionalFieldTitle(value: string): void {
   additionalFieldCreateDraft.value.title = value
 }
 
-function createBlockReferenceCompletionContext(
-  cardId: string,
-  blockId: string,
-  fieldKey: string,
-): ReferenceCompletionContext | null {
-  const document = cardDoc.value
-  if (!document) return null
-  const block = findCdeBlock(document, blockId)
-  const faceKey = resolveBlockFaceKey(blockId)
-  if (!block || !faceKey) return null
-
-  const instance = cardId === BLUEPRINT_CARD_ID
-    ? null
-    : document.instances?.find(candidate => candidate.id === cardId) ?? null
-  if (cardId !== BLUEPRINT_CARD_ID && !instance) return null
-  const currentCard = instance ?? document
-  const currentBlockRecord = {
-    ...block,
-    ...(instance?.data[block.id] ?? {}),
-  } as Record<string, unknown>
-  const ancestorScopes: ReferenceCompletionScope[] = []
-  let currentBlockId = block.id
-  let depth = 1
-  while (true) {
-    const parent = parentLookup.value.get(currentBlockId)
-    if (!parent || parent.type === 'card-face') break
-    const ancestorRecord = {
-      ...parent,
-      ...(instance?.data[parent.id] ?? {}),
-    } as Record<string, unknown>
-    ancestorScopes.push(createCdeCardReferenceScope({
-      label: depth === 1
-        ? t('propertyEditor.references.parent')
-        : t('propertyEditor.references.ancestor', { depth }),
-      record: ancestorRecord,
-      translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
-      hasMessage: messageKey => te(messageKey),
-    }))
-    currentBlockId = parent.id
-    depth += 1
+function createEditorResourceDirectoryProvider(rootPath: string): FilePathDirectoryProvider {
+  return async (relativeDirectory) => {
+    const directoryPath = relativeDirectory
+      ? resolveEditorResourcePath(rootPath, relativeDirectory)
+      : rootPath
+    if (!directoryPath) return []
+    return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
   }
-
-  return {
-    currentBlock: createCardReferenceScope(t('propertyEditor.references.self'), currentBlockRecord),
-    currentCard: createCardReferenceScope(
-      instance ? t('propertyEditor.references.currentCard') : t('propertyEditor.references.currentCardBlueprint'),
-      currentCard as unknown as Record<string, unknown>,
-    ),
-    currentFace: createCardReferenceScope(
-      t('propertyEditor.references.currentFace'),
-      document.faces[faceKey] as unknown as Record<string, unknown>,
-    ),
-    oppositeFace: createCardReferenceScope(
-      t('propertyEditor.references.oppositeFace'),
-      document.faces[faceKey === 'front' ? 'back' : 'front'] as unknown as Record<string, unknown>,
-    ),
-    document: createCardReferenceScope(
-      t('propertyEditor.references.document'),
-      document as unknown as Record<string, unknown>,
-    ),
-    project: projectStore.resolvedProject.value
-      ? createCdeProjectReferenceScope({
-          label: t('propertyEditor.references.project'),
-          project: projectStore.resolvedProject.value,
-          translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
-          hasMessage: messageKey => te(messageKey),
-        })
-      : undefined,
-    dictionary: projectStore.resolvedDictionary.value
-      ? createCdeDictionaryReferenceScope(
-          t('propertyEditor.references.dictionary'),
-          projectStore.resolvedDictionary.value,
-        )
-      : undefined,
-    allowedScopes: getCardFieldDefinition(currentBlockRecord, fieldKey)?.bindingScopes,
-    getAncestor: ancestorDepth => ancestorScopes[ancestorDepth - 1],
-    targetKind: getCardFieldValueKind(currentBlockRecord, fieldKey),
-  }
-}
-
-function createCardReferenceScope(
-  label: string,
-  record: Readonly<Record<string, unknown>>,
-): ReferenceCompletionScope {
-  return createCdeCardReferenceScope({
-    label,
-    record,
-    translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
-    hasMessage: messageKey => te(messageKey),
-  })
-}
-
-async function listEditorResourceDirectory(relativeDirectory: string) {
-  const directoryPath = relativeDirectory
-    ? resolveEditorResourcePath(props.resourceRootPath ?? null, relativeDirectory)
-    : props.resourceRootPath
-  if (!directoryPath) return []
-  return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
-}
-
-const dataTableCellDefinitionCache = new Map<string, PropertyEditorFieldDefinition>()
-let dataTableCellDefinitionCacheContext: readonly unknown[] = []
-
-function syncDataTableCellDefinitionCache(): void {
-  const context = [
-    cardDoc.value,
-    documentRevision.value,
-    props.resourceRootPath,
-    locale.value,
-    projectStore.projectProfile.value,
-    projectStore.resolvedProject.value,
-    projectStore.resolvedDictionary.value,
-  ] as const
-  if (context.some((value, index) => value !== dataTableCellDefinitionCacheContext[index])) {
-    dataTableCellDefinitionCache.clear()
-    dataTableCellDefinitionCacheContext = context
-  }
-}
-
-function getDataTableCellDefinition(
-  blockId: string,
-  field: { key: string; definition: CdePropertyFieldDefinition },
-  cell: { cardId: string; identity: string },
-): PropertyEditorFieldDefinition {
-  syncDataTableCellDefinitionCache()
-  const cached = dataTableCellDefinitionCache.get(cell.identity)
-  if (cached) return cached
-  const document = cardDoc.value
-  const block = document ? findCdeBlock(document, blockId) : null
-  if (!document || !block) return field.definition
-  const instance = cell.cardId === BLUEPRINT_CARD_ID
-    ? null
-    : document.instances?.find(candidate => candidate.id === cell.cardId) ?? null
-  const canOverride = cell.cardId === BLUEPRINT_CARD_ID || isInstanceBlockFieldOverridable(field.key)
-  const record = {
-    ...block,
-    ...Object.fromEntries(Object.entries(instance?.data[block.id] ?? {}).filter(
-      ([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey),
-    )),
-  } as Record<string, unknown>
-  const definition = enrichCdePropertyFieldDefinition({
-    definition: canOverride
-      ? field.definition
-      : { ...field.definition, isReadonly: true, resettable: false },
-    fieldKey: field.key,
-    record,
-    referenceContext: createBlockReferenceCompletionContext(cell.cardId, block.id, field.key),
-    fontCatalog: fontCatalog.value,
-    directoryProvider: props.resourceRootPath ? listEditorResourceDirectory : undefined,
-  })
-  dataTableCellDefinitionCache.set(cell.identity, definition)
-  return definition
 }
 
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {

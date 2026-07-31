@@ -15,6 +15,7 @@ import {
   exposesProjectFieldReference,
   getProjectFieldKeys,
   getProjectFieldValueKind,
+  type ProjectFontRegistry,
   type ProjectInformation,
 } from '../workspace/model/projectMetadata'
 import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/projectFonts'
@@ -26,6 +27,12 @@ import {
 import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 
 type Translate = (messageKey: string, parameters?: Record<string, unknown>) => string
+
+export type CdePropertyProjectContext = {
+  fonts?: ProjectFontRegistry | null
+  information?: ProjectInformation | null
+  dictionary?: Readonly<Record<string, string>> | null
+}
 
 export function createCdeCardReferenceScope(options: {
   label: string
