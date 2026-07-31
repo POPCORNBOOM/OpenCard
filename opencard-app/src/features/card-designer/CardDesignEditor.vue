@@ -156,7 +156,7 @@
                         class="card-design-editor__transform-preview-frame"
                         :class="{
                           'is-visible': isTransformPreviewFrameVisible,
-                          'is-dragging': previewDragState !== null,
+                          'is-dragging': isPreviewViewportDragging,
                         }"
                         :style="transformPreviewFrameStyle" aria-label="移动画布视口"
                         :aria-hidden="!isTransformPreviewFrameVisible || undefined"
@@ -272,9 +272,9 @@
             embedded
             aria-label="卡牌画布缩放控制"
             :scale-label="viewportScaleLabel"
-            @zoom-out="zoomViewportBy(1 / VIEWPORT_ZOOM_STEP)"
+            @zoom-out="zoomViewportOut"
             @reset="fitViewport"
-            @zoom-in="zoomViewportBy(VIEWPORT_ZOOM_STEP)"
+            @zoom-in="zoomViewportIn"
           />
           <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
           <OcActionButton
@@ -308,7 +308,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch, type CSSProperties } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
@@ -346,6 +346,10 @@ import CardDataTable from './CardDataTable.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
+import {
+  useCdeViewportController,
+  type CdeViewportPort,
+} from './useCdeViewportController'
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
@@ -456,14 +460,7 @@ function toggleActiveFace(): void {
   commitViewState()
 }
 
-const DEFAULT_VIEWPORT_TRANSFORM = { x: 0, y: 0, scale: 1 }
-const VIEWPORT_ZOOM_STEP = 1.25
-
-type CardViewportHandle = {
-  zoomBy: (factor: number) => void
-  zoomByWheelAt: (deltaY: number, deltaMode: number, viewportX: number, viewportY: number) => void
-  resetView: () => void
-  fitView: (targetRect?: { left: number; top: number; width: number; height: number }) => void
+type CardViewportHandle = CdeViewportPort & {
   nudgeSelection: (deltaX: number, deltaY: number) => boolean
   runSelectionQuickAction: (actionKey: string) => boolean
   stepLayer: (direction: -1 | 1, wholeLayer?: boolean) => void
@@ -486,29 +483,12 @@ type CardDataTableHandle = {
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
-const centerSpacerRef = ref<HTMLElement | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
-const viewportTransform = ref({
-  x: 0,
-  y: 0,
-  scale: 1,
-})
-const viewportSize = ref({
-  width: 0,
-  height: 0,
-})
 const layerViewActive = ref(false)
 const spaceHeld = ref(false)
-let shouldFitViewportOnOpen = true
-const previewDragState = ref<{
-  pointerId: number
-  startClientX: number
-  startClientY: number
-  startTransform: { x: number; y: number; scale: number }
-} | null>(null)
 const loadedFilePath = ref<string | null>(null)
 
 // 结构树操作定义
@@ -1125,6 +1105,41 @@ watch(renderPipelineResult, (result) => {
   if (result && result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
 }, { immediate: true })
 
+const viewportFaceSize = computed(() => {
+  const face = viewFace.value
+  return face ? { width: face.width, height: face.height } : null
+})
+const {
+  centerSpacerRef,
+  completeFileLoad,
+  fitViewport,
+  handlePreviewViewportDrag,
+  handlePreviewViewportKeydown,
+  handlePreviewViewportWheel,
+  handleViewportSizeChange,
+  handleViewportTransformChange,
+  isPreviewViewportDragging,
+  isTransformPreviewFrameVisible,
+  prepareForFileChange,
+  startPreviewViewportDrag,
+  stopPreviewViewportDrag,
+  transformPreviewFrameStyle,
+  transformPreviewHostRef,
+  transformPreviewRendererStyle,
+  transformPreviewViewportRef,
+  transformPreviewViewportStyle,
+  viewportScaleLabel,
+  viewportTransform,
+  zoomViewportIn,
+  zoomViewportOut,
+} = useCdeViewportController({
+  faceSize: viewportFaceSize,
+  viewportPort: cardViewportRef,
+  leftSidebarElement: leftSidebarRef,
+  rightSidebarElement: rightSidebarRef,
+  commitTransform: transform => emit('update-viewport-transform', transform),
+})
+
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value
   const face = viewFace.value
@@ -1265,263 +1280,6 @@ const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
 watch(editorIssueSnapshot, (snapshot) => {
   emit('issue-snapshot', snapshot)
 })
-const TRANSFORM_PREVIEW_MAX_SIDE = 220
-const TRANSFORM_PREVIEW_VISIBILITY_COVERAGE = 0.7
-const transformPreviewHostRef = ref<HTMLElement | null>(null)
-const transformPreviewViewportRef = ref<HTMLElement | null>(null)
-const transformPreviewHostSize = ref({
-  width: TRANSFORM_PREVIEW_MAX_SIDE,
-  height: TRANSFORM_PREVIEW_MAX_SIDE,
-})
-let transformPreviewSizeObserver: ResizeObserver | null = null
-
-function updateTransformPreviewHostSize(width: number, height: number): void {
-  transformPreviewHostSize.value = {
-    width: Math.max(1, Math.round(width)),
-    height: Math.max(1, Math.round(height)),
-  }
-}
-
-watch(transformPreviewHostRef, (nextHost, prevHost) => {
-  if (!transformPreviewSizeObserver) {
-    return
-  }
-  if (prevHost) {
-    transformPreviewSizeObserver.unobserve(prevHost)
-  }
-  if (nextHost) {
-    transformPreviewSizeObserver.observe(nextHost)
-    updateTransformPreviewHostSize(nextHost.clientWidth, nextHost.clientHeight)
-  }
-})
-
-const transformPreviewScale = computed(() => {
-  const face = viewFace.value
-  if (!face) {
-    return 1
-  }
-
-  const previewWidth = transformPreviewHostSize.value.width
-  const previewHeight = transformPreviewHostSize.value.height
-  return Math.min(
-    previewWidth / face.width,
-    previewHeight / face.height,
-    1,
-  )
-})
-const transformPreviewRendererStyle = computed<CSSProperties>(() => {
-  return {
-    transform: `scale(${transformPreviewScale.value})`,
-    transformOrigin: '0 0',
-  }
-})
-const transformPreviewViewportStyle = computed<CSSProperties>(() => {
-  const face = viewFace.value
-  if (!face) {
-    return {}
-  }
-
-  return {
-    width: `${Math.round(face.width * transformPreviewScale.value)}px`,
-    height: `${Math.round(face.height * transformPreviewScale.value)}px`,
-  }
-})
-
-const transformPreviewWorldRect = computed(() => {
-  const face = viewFace.value
-  const viewportScale = viewportTransform.value.scale
-  const width = viewportSize.value.width
-  const height = viewportSize.value.height
-  if (!face || viewportScale <= 0 || width <= 0 || height <= 0) {
-    return null
-  }
-
-  const worldWidth = width / viewportScale
-  const worldHeight = height / viewportScale
-  return {
-    left: face.width / 2 - worldWidth / 2 - viewportTransform.value.x / viewportScale,
-    top: face.height / 2 - worldHeight / 2 - viewportTransform.value.y / viewportScale,
-    width: worldWidth,
-    height: worldHeight,
-  }
-})
-
-const transformPreviewFrameStyle = computed<CSSProperties | null>(() => {
-  const rect = transformPreviewWorldRect.value
-  const previewScale = transformPreviewScale.value
-  if (!rect || previewScale <= 0) return null
-
-  return {
-    left: `${rect.left * previewScale}px`,
-    top: `${rect.top * previewScale}px`,
-    width: `${rect.width * previewScale}px`,
-    height: `${rect.height * previewScale}px`,
-  }
-})
-
-const transformPreviewVisibleCoverage = computed(() => {
-  const face = viewFace.value
-  const rect = transformPreviewWorldRect.value
-  if (!face || !rect || face.width <= 0 || face.height <= 0) {
-    return 1
-  }
-
-  const intersectionWidth = Math.max(
-    0,
-    Math.min(face.width, rect.left + rect.width) - Math.max(0, rect.left),
-  )
-  const intersectionHeight = Math.max(
-    0,
-    Math.min(face.height, rect.top + rect.height) - Math.max(0, rect.top),
-  )
-  return intersectionWidth * intersectionHeight / (face.width * face.height)
-})
-
-const isTransformPreviewFrameVisible = computed(() =>
-  transformPreviewVisibleCoverage.value < TRANSFORM_PREVIEW_VISIBILITY_COVERAGE
-  || previewDragState.value !== null
-)
-
-const viewportScaleLabel = computed(() => `${Math.round(viewportTransform.value.scale * 100)}%`)
-
-function zoomViewportBy(factor: number): void {
-  cardViewportRef.value?.zoomBy(factor)
-}
-
-function handlePreviewViewportWheel(event: WheelEvent): void {
-  const previewViewport = transformPreviewViewportRef.value
-  const previewWorldRect = transformPreviewWorldRect.value
-  const previewScale = transformPreviewScale.value
-  if (!previewViewport || previewScale <= 0) return
-
-  const previewRect = previewViewport.getBoundingClientRect()
-  const previewX = Math.min(Math.max(event.clientX - previewRect.left, 0), previewRect.width)
-  const previewY = Math.min(Math.max(event.clientY - previewRect.top, 0), previewRect.height)
-  const worldX = previewX / previewScale
-  const worldY = previewY / previewScale
-  const viewportX = previewWorldRect
-    ? (worldX - previewWorldRect.left) * viewportTransform.value.scale
-    : viewportSize.value.width / 2
-  const viewportY = previewWorldRect
-    ? (worldY - previewWorldRect.top) * viewportTransform.value.scale
-    : viewportSize.value.height / 2
-  cardViewportRef.value?.zoomByWheelAt(
-    event.deltaY,
-    event.deltaMode,
-    viewportX,
-    viewportY,
-  )
-}
-
-function fitViewport(): void {
-  const centerRect = centerSpacerRef.value?.getBoundingClientRect()
-  const leftRect = leftSidebarRef.value?.getBoundingClientRect()
-  const rightRect = rightSidebarRef.value?.getBoundingClientRect()
-  const left = leftRect?.right ?? centerRect?.left
-  const right = rightRect?.left ?? centerRect?.right
-  const hasVisibleRegion = centerRect && left !== undefined && right !== undefined && right > left
-
-  cardViewportRef.value?.fitView(hasVisibleRegion
-    ? {
-        left,
-        top: centerRect.top,
-        width: right - left,
-        height: centerRect.height,
-      }
-    : undefined)
-}
-
-function scheduleInitialViewportFit(): void {
-  void nextTick(() => {
-    if (
-      !shouldFitViewportOnOpen
-      || viewportSize.value.width <= 0
-      || viewportSize.value.height <= 0
-      || !viewFace.value
-    ) {
-      return
-    }
-
-    shouldFitViewportOnOpen = false
-    fitViewport()
-  })
-}
-
-function commitViewportTransform(payload: { x: number; y: number; scale: number }): void {
-  viewportTransform.value = payload
-  emit('update-viewport-transform', payload)
-}
-
-function handleViewportTransformChange(payload: { x: number; y: number; scale: number }) {
-  commitViewportTransform(payload)
-}
-
-function handleViewportSizeChange(payload: { width: number; height: number }): void {
-  viewportSize.value = payload
-  scheduleInitialViewportFit()
-}
-
-function startPreviewViewportDrag(event: PointerEvent): void {
-  if (event.button !== 0 || transformPreviewScale.value <= 0) return
-
-  event.preventDefault()
-  event.stopPropagation()
-  const target = event.currentTarget
-  if (target instanceof HTMLElement) {
-    target.focus()
-    target.setPointerCapture(event.pointerId)
-  }
-  previewDragState.value = {
-    pointerId: event.pointerId,
-    startClientX: event.clientX,
-    startClientY: event.clientY,
-    startTransform: { ...viewportTransform.value },
-  }
-}
-
-function handlePreviewViewportDrag(event: PointerEvent): void {
-  const state = previewDragState.value
-  const previewScale = transformPreviewScale.value
-  if (!state || state.pointerId !== event.pointerId || previewScale <= 0) return
-
-  const worldDeltaX = (event.clientX - state.startClientX) / previewScale
-  const worldDeltaY = (event.clientY - state.startClientY) / previewScale
-  commitViewportTransform({
-    x: state.startTransform.x - worldDeltaX * state.startTransform.scale,
-    y: state.startTransform.y - worldDeltaY * state.startTransform.scale,
-    scale: state.startTransform.scale,
-  })
-}
-
-function stopPreviewViewportDrag(event: PointerEvent): void {
-  const state = previewDragState.value
-  if (!state || state.pointerId !== event.pointerId) return
-
-  const target = event.currentTarget
-  if (target instanceof HTMLElement && target.hasPointerCapture(event.pointerId)) {
-    target.releasePointerCapture(event.pointerId)
-  }
-  previewDragState.value = null
-}
-
-function handlePreviewViewportKeydown(event: KeyboardEvent): void {
-  const step = event.shiftKey ? 40 : 10
-  const movement = {
-    ArrowLeft: { x: -step, y: 0 },
-    ArrowRight: { x: step, y: 0 },
-    ArrowUp: { x: 0, y: -step },
-    ArrowDown: { x: 0, y: step },
-  }[event.key]
-  if (!movement) return
-
-  event.preventDefault()
-  commitViewportTransform({
-    x: viewportTransform.value.x - movement.x * viewportTransform.value.scale,
-    y: viewportTransform.value.y - movement.y * viewportTransform.value.scale,
-    scale: viewportTransform.value.scale,
-  })
-}
-
 function focusEditorForCanvasShortcut(event: PointerEvent): void {
   if (event.button !== 0) return
   const target = event.target
@@ -1908,11 +1666,10 @@ watch(
     }
     loadedFilePath.value = nextFilePath
     if (fileChanged) {
-      shouldFitViewportOnOpen = true
-      viewportTransform.value = { ...DEFAULT_VIEWPORT_TRANSFORM }
+      prepareForFileChange()
     }
     loadRawDoc(content)
-    if (fileChanged) scheduleInitialViewportFit()
+    if (fileChanged) completeFileLoad()
   },
   { immediate: true },
 )
@@ -1930,30 +1687,12 @@ defineExpose({
 onMounted(() => {
   window.addEventListener('keyup', handleLayerViewKeyup)
   window.addEventListener('blur', handleEditorBlur)
-  transformPreviewSizeObserver = new ResizeObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.target !== transformPreviewHostRef.value) {
-        return
-      }
-
-      updateTransformPreviewHostSize(entry.contentRect.width, entry.contentRect.height)
-    })
-  })
-  if (transformPreviewHostRef.value) {
-    transformPreviewSizeObserver.observe(transformPreviewHostRef.value)
-    updateTransformPreviewHostSize(
-      transformPreviewHostRef.value.clientWidth,
-      transformPreviewHostRef.value.clientHeight,
-    )
-  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('keyup', handleLayerViewKeyup)
   window.removeEventListener('blur', handleEditorBlur)
   handleEditorBlur()
-  transformPreviewSizeObserver?.disconnect()
-  transformPreviewSizeObserver = null
   for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
   infoHighlightTimers.clear()
   disposeDocumentState()
