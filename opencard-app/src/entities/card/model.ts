@@ -37,15 +37,15 @@ export type BaseBlock = {
     name?: string
     notes?: string
     visible?: string
-    width?: CSSValue
-    height?: CSSValue
+    width?: CssValue
+    height?: CssValue
     borderColor?: string
     borderWidth?: string
     borderStyle?: 'solid' | 'dashed' | 'dotted'
-    borderRadius?: CSSValue
+    borderRadius?: CssValue
     background?: string
-    translateX?: CSSValue
-    translateY?: CSSValue
+    translateX?: CssValue
+    translateY?: CssValue
     scaleX?: string
     scaleY?: string
     transformAnchor?: AnchorPosition
@@ -56,7 +56,7 @@ export type BaseBlock = {
     additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
 
-export type CSSValue = string
+export type CssValue = string
 
 export type AnchorPosition =
     | 'lt' | 'ct' | 'rt'
@@ -69,13 +69,13 @@ export type TextWritingMode = 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
 
 type TextContentBlock = BaseBlock & {
     content: string
-    fontSize?: CSSValue
+    fontSize?: CssValue
     fontFamily?: string
     fontWeight?: string
     color?: string
     textAlign?: AlignmentPosition
     verticalAlign?: VerticalAlignmentPosition
-    lineHeight?: CSSValue
+    lineHeight?: CssValue
     writingMode?: TextWritingMode
 }
 
@@ -94,7 +94,7 @@ export type ImageBlock = BaseBlock & {
     fit: "cover" | "contain" | "fill"
 }
 
-export type QRCodeBlock = BaseBlock & {
+export type QrCodeBlock = BaseBlock & {
     type: "qrcode-block"
     content: string
     errorCorrection: "L" | "M" | "Q" | "H"
@@ -119,8 +119,8 @@ export type SimpleContainerLocationInfo = {
     id: string
     type: 'simple-container-location'
     anchor: AnchorPosition
-    x?: CSSValue
-    y?: CSSValue
+    x?: CssValue
+    y?: CssValue
 }
 
 export type SimpleContainerBlock = BaseBlock & {
@@ -143,14 +143,14 @@ export type FlowDirection = 'lr' | 'rl' | 'tb' | 'bt'
 export type FlowContainerBlock = BaseBlock & {
     type: "flow-container-block"
     direction: FlowDirection
-    gap: CSSValue
+    gap: CssValue
     children: {
         block: CardBlock
         location: FlowContainerLocationInfo
     }[]
 }
 
-export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QRCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock
+export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QrCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock
 
 export type RootChild = {
     block: CardBlock
@@ -348,7 +348,7 @@ type BlockInit = Pick<BaseBlock, 'id'> & Partial<Omit<BaseBlock, 'id'>>
 type TextBlockInit = Partial<Omit<TextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type MarkdownTextBlockInit = Partial<Omit<MarkdownTextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type ImageBlockInit = Partial<Omit<ImageBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type QRCodeBlockInit = Partial<Omit<QRCodeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
+type QrCodeBlockInit = Partial<Omit<QrCodeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type ShapeBlockInit = Partial<Omit<ShapeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type SimpleContainerBlockInit = Partial<Omit<SimpleContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
 type FlowContainerBlockInit = Partial<Omit<FlowContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
@@ -479,7 +479,7 @@ export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
     return block as ImageBlock
 }
 
-export function createQRCodeBlock(init: QRCodeBlockInit = {}): QRCodeBlock {
+export function createQrCodeBlock(init: QrCodeBlockInit = {}): QrCodeBlock {
     return {
         ...createBaseBlock({
             id: init.id ?? createBlockId('qrcode-block'),
@@ -547,7 +547,7 @@ export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): Flo
 export function createBlock(type: 'text-block', init?: TextBlockInit): TextBlock
 export function createBlock(type: 'markdown-text-block', init?: MarkdownTextBlockInit): MarkdownTextBlock
 export function createBlock(type: 'image-block', init?: ImageBlockInit): ImageBlock
-export function createBlock(type: 'qrcode-block', init?: QRCodeBlockInit): QRCodeBlock
+export function createBlock(type: 'qrcode-block', init?: QrCodeBlockInit): QrCodeBlock
 export function createBlock(type: 'shape-block', init?: ShapeBlockInit): ShapeBlock
 export function createBlock(type: 'simple-container-block', init?: SimpleContainerBlockInit): SimpleContainerBlock
 export function createBlock(type: 'flow-container-block', init?: FlowContainerBlockInit): FlowContainerBlock
@@ -560,7 +560,7 @@ export function createBlock(type: CardBlock['type'], init: unknown = {}): CardBl
         case 'image-block':
             return createImageBlock(init as ImageBlockInit)
         case 'qrcode-block':
-            return createQRCodeBlock(init as QRCodeBlockInit)
+            return createQrCodeBlock(init as QrCodeBlockInit)
         case 'shape-block':
             return createShapeBlock(init as ShapeBlockInit)
         case 'simple-container-block':

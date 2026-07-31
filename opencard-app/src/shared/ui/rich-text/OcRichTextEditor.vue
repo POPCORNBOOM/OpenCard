@@ -102,7 +102,7 @@ import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 import { normalizeRichTextHtml } from '../../rich-text/richTextHtml'
 import type { IconToken } from '../icon/iconRegistry'
-import { BindingNode } from './BindingNode'
+import { BindingNode } from './bindingNode'
 import type { RichTextBindingCompletionProvider } from './bindingNode.types'
 
 type RichTextFontOption = {

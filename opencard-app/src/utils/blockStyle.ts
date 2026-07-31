@@ -7,7 +7,7 @@ type BlockStyleOptions = {
     disableTransform: boolean
 }
 
-function isZeroCSSValue(value: string): boolean {
+function isZeroCssValue(value: string): boolean {
     const normalized = value.trim().toLowerCase()
     return normalized === '' || normalized === '0' || normalized === '0px' || normalized === '0%'
 }
@@ -82,7 +82,7 @@ export function getBlockBoxStyles(comp: RenderReadyBaseBlock, options: BlockStyl
     }
 
     const transforms: string[] = []
-    if (!options.disableTransform && (!isZeroCSSValue(comp.translateX) || !isZeroCSSValue(comp.translateY))) {
+    if (!options.disableTransform && (!isZeroCssValue(comp.translateX) || !isZeroCssValue(comp.translateY))) {
         transforms.push(`translate(${comp.translateX}, ${comp.translateY})`)
     }
     if (!options.disableTransform && (comp.scaleX !== 1 || comp.scaleY !== 1)) {

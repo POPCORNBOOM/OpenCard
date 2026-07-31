@@ -19,10 +19,10 @@ import QRCode from 'qrcode'
 import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
-import type { RenderReadyQRCodeBlock } from '../render.types'
+import type { RenderReadyQrCodeBlock } from '../render.types'
 
 const props = withDefaults(defineProps<{
-  block: RenderReadyQRCodeBlock
+  block: RenderReadyQrCodeBlock
   layoutMode?: 'absolute' | 'static'
 }>(), {
   layoutMode: 'absolute',

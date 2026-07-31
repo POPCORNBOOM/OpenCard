@@ -154,6 +154,40 @@ describe('CardDataTable', () => {
     ]])
   })
 
+  it('resizes columns with pointer and keyboard input within the supported bounds', async () => {
+    const wrapper = mount(CardDataTable, { props: { columns, catalogFaceGroups, faceGroups } })
+    const handles = wrapper.findAll('.card-data-table__column-resize')
+    const columnElements = wrapper.findAll('colgroup col')
+
+    expect(handles).toHaveLength(3)
+    expect(handles[0]!.attributes('aria-valuenow')).toBe('232')
+    expect(handles[1]!.attributes('aria-valuemin')).toBe('180')
+    expect(handles[1]!.attributes('aria-valuemax')).toBe('520')
+    expect(handles[1]!.attributes('aria-valuenow')).toBe('260')
+    expect(columnElements[1]!.attributes('style')).toContain('260px')
+    expect(wrapper.get('table').attributes('style')).toContain('792px')
+
+    await handles[1]!.trigger('keydown', { key: 'Home' })
+    expect(handles[1]!.attributes('aria-valuenow')).toBe('180')
+    expect(columnElements[1]!.attributes('style')).toContain('180px')
+
+    await handles[1]!.trigger('keydown', { key: 'End' })
+    expect(handles[1]!.attributes('aria-valuenow')).toBe('520')
+    expect(columnElements[1]!.attributes('style')).toContain('520px')
+
+    handles[2]!.element.dispatchEvent(new MouseEvent('pointerdown', {
+      bubbles: true,
+      button: 0,
+      clientX: 200,
+    }))
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 1200 }))
+    await nextTick()
+    expect(handles[2]!.attributes('aria-valuenow')).toBe('520')
+    window.dispatchEvent(new MouseEvent('pointerup'))
+    expect(document.documentElement.style.cursor).toBe('')
+    expect(document.documentElement.style.userSelect).toBe('')
+  })
+
   it('routes header and row context menus through the same command handlers', async () => {
     const wrapper = mount(CardDataTable, { props: { columns, catalogFaceGroups, faceGroups } })
     const menu = useFloatingMenu()

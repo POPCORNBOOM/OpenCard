@@ -6,7 +6,7 @@ import enUS from '../../../locales/en-US'
 import AboutWorkspace from './AboutWorkspace.vue'
 
 describe('AboutWorkspace', () => {
-  it('shows OpenCard information and emits the return intent', async () => {
+  it('shows OpenCard information and emits footer intents', async () => {
     const wrapper = mount(AboutWorkspace, {
       global: {
         plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
@@ -17,7 +17,12 @@ describe('AboutWorkspace', () => {
     expect(wrapper.text()).toContain(packageMetadata.version)
     expect(wrapper.get('img').attributes('alt')).toBe('OpenCard')
 
-    await wrapper.get('button').trigger('click')
+    const footerButtons = wrapper.findAll('.about-workspace__footer-actions button')
+    await footerButtons.find(button => button.text().includes('Feedback and Suggestions'))!.trigger('click')
+    expect(wrapper.emitted('sendFeedback')).toHaveLength(1)
+    await footerButtons.find(button => button.text().includes('My Feedback'))!.trigger('click')
+    expect(wrapper.emitted('viewFeedback')).toHaveLength(1)
+    await footerButtons.find(button => button.text().includes('Back to workspace'))!.trigger('click')
     expect(wrapper.emitted('back')).toHaveLength(1)
   })
 

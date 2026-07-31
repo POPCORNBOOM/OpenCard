@@ -1,11 +1,30 @@
 <template>
   <section ref="rootRef" class="card-data-table" :aria-label="t('cardDesigner.dataTable.title')">
     <div ref="scrollRef" class="card-data-table__scroll">
-      <table>
+      <table :style="{ width: `${tableWidth}px` }">
+        <colgroup>
+          <col :style="{ width: `${getColumnWidth(FIELD_COLUMN_KEY)}px` }">
+          <col v-for="column in columns" :key="column.key"
+            :style="{ width: `${getColumnWidth(column.key)}px` }">
+          <col :style="{ width: `${TAIL_COLUMN_WIDTH}px` }">
+        </colgroup>
         <thead>
           <tr>
-            <th class="card-data-table__corner" scope="col">{{ t('cardDesigner.dataTable.fieldColumn') }}</th>
-            <th v-for="column in columns" :key="column.key" scope="col">
+            <th class="card-data-table__corner" scope="col">
+              {{ t('cardDesigner.dataTable.fieldColumn') }}
+              <span class="card-data-table__column-resize" role="separator" tabindex="0"
+                aria-orientation="vertical" :aria-valuemin="MIN_COLUMN_WIDTH"
+                :aria-valuemax="MAX_COLUMN_WIDTH" :aria-valuenow="getColumnWidth(FIELD_COLUMN_KEY)"
+                :aria-label="t('cardDesigner.dataTable.resizeColumn', {
+                  title: t('cardDesigner.dataTable.fieldColumn'),
+                })"
+                :data-tooltip="t('cardDesigner.dataTable.resizeColumn', {
+                  title: t('cardDesigner.dataTable.fieldColumn'),
+                })"
+                @pointerdown="beginColumnResize($event, FIELD_COLUMN_KEY)"
+                @keydown="handleColumnResizeKeydown($event, FIELD_COLUMN_KEY)" />
+            </th>
+            <th v-for="column in columns" :key="column.key" class="card-data-table__data-column" scope="col">
               <form v-if="renamingColumnKey === column.key" class="card-data-table__rename"
                 @submit.prevent="commitRename(column.key)">
                 <OcFieldInput :value="renameDraft" size="sm" full-width autofocus
@@ -25,6 +44,13 @@
                 <OcActionButton :action="columnAction(column)" size="sm" variant="ghost"
                   @select="handleColumnAction(column, $event.key)" />
               </div>
+              <span class="card-data-table__column-resize" role="separator" tabindex="0"
+                aria-orientation="vertical" :aria-valuemin="MIN_COLUMN_WIDTH"
+                :aria-valuemax="MAX_COLUMN_WIDTH" :aria-valuenow="getColumnWidth(column.key)"
+                :aria-label="t('cardDesigner.dataTable.resizeColumn', { title: column.title })"
+                :data-tooltip="t('cardDesigner.dataTable.resizeColumn', { title: column.title })"
+                @pointerdown="beginColumnResize($event, column.key)"
+                @keydown="handleColumnResizeKeydown($event, column.key)" />
             </th>
             <th class="card-data-table__add-column" scope="col">
               <OcButton icon-only size="sm" variant="ghost" icon="action.add"
@@ -115,6 +141,7 @@
 
 <script setup lang="ts">
 import {
+  computed,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -177,6 +204,14 @@ const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const renamingColumnKey = ref<string | null>(null)
 const renameDraft = ref('')
+const FIELD_COLUMN_KEY = '__field-column__'
+const DEFAULT_FIELD_COLUMN_WIDTH = 232
+const TAIL_COLUMN_WIDTH = 40
+const DEFAULT_COLUMN_WIDTH = 260
+const MIN_COLUMN_WIDTH = 180
+const MAX_COLUMN_WIDTH = 520
+const COLUMN_RESIZE_STEP = 16
+const columnWidths = reactive<Record<string, number>>({})
 const INCLUDE_FIELD_PREFIX = 'include-field:'
 const supportsIntersectionObserver = typeof IntersectionObserver !== 'undefined'
 const mountedCellIdentities = reactive(new Set<string>())
@@ -184,6 +219,75 @@ const cellElements = new Map<string, HTMLElement>()
 const cellIdentityByElement = new WeakMap<Element, string>()
 let cellObserver: IntersectionObserver | null = null
 let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
+let columnResizeState: { key: string; startX: number; startWidth: number } | null = null
+let previousDocumentCursor = ''
+let previousDocumentUserSelect = ''
+
+const tableWidth = computed(() => (
+  getColumnWidth(FIELD_COLUMN_KEY)
+  + TAIL_COLUMN_WIDTH
+  + props.columns.reduce((width, column) => width + getColumnWidth(column.key), 0)
+))
+
+function clampColumnWidth(width: number): number {
+  return Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, Math.round(width)))
+}
+
+function getColumnWidth(key: string): number {
+  return columnWidths[key] ?? (key === FIELD_COLUMN_KEY ? DEFAULT_FIELD_COLUMN_WIDTH : DEFAULT_COLUMN_WIDTH)
+}
+
+function setColumnWidth(key: string, width: number): void {
+  columnWidths[key] = clampColumnWidth(width)
+}
+
+function beginColumnResize(event: PointerEvent, key: string): void {
+  if (event.button !== 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  finishColumnResize()
+  columnResizeState = { key, startX: event.clientX, startWidth: getColumnWidth(key) }
+  previousDocumentCursor = document.documentElement.style.cursor
+  previousDocumentUserSelect = document.documentElement.style.userSelect
+  document.documentElement.style.cursor = 'col-resize'
+  document.documentElement.style.userSelect = 'none'
+  rootRef.value?.classList.add('is-resizing-column')
+  window.addEventListener('pointermove', handleColumnResizeMove)
+  window.addEventListener('pointerup', finishColumnResize)
+  window.addEventListener('pointercancel', finishColumnResize)
+  window.addEventListener('blur', finishColumnResize)
+}
+
+function handleColumnResizeMove(event: PointerEvent): void {
+  if (!columnResizeState) return
+  setColumnWidth(
+    columnResizeState.key,
+    columnResizeState.startWidth + event.clientX - columnResizeState.startX,
+  )
+}
+
+function finishColumnResize(): void {
+  if (!columnResizeState) return
+  columnResizeState = null
+  document.documentElement.style.cursor = previousDocumentCursor
+  document.documentElement.style.userSelect = previousDocumentUserSelect
+  rootRef.value?.classList.remove('is-resizing-column')
+  window.removeEventListener('pointermove', handleColumnResizeMove)
+  window.removeEventListener('pointerup', finishColumnResize)
+  window.removeEventListener('pointercancel', finishColumnResize)
+  window.removeEventListener('blur', finishColumnResize)
+}
+
+function handleColumnResizeKeydown(event: KeyboardEvent, key: string): void {
+  let nextWidth: number | null = null
+  if (event.key === 'ArrowLeft') nextWidth = getColumnWidth(key) - COLUMN_RESIZE_STEP
+  else if (event.key === 'ArrowRight') nextWidth = getColumnWidth(key) + COLUMN_RESIZE_STEP
+  else if (event.key === 'Home') nextWidth = MIN_COLUMN_WIDTH
+  else if (event.key === 'End') nextWidth = MAX_COLUMN_WIDTH
+  if (nextWidth === null) return
+  event.preventDefault()
+  setColumnWidth(key, nextWidth)
+}
 
 function setCellElement(
   identity: string,
@@ -460,6 +564,7 @@ async function revealCell(
 defineExpose({ revealCell })
 
 onBeforeUnmount(() => {
+  finishColumnResize()
   cellObserver?.disconnect()
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
 })
@@ -475,6 +580,7 @@ onBeforeUnmount(() => {
 }
 
 .card-data-table {
+  --card-data-table-row-height: 40px;
   background: var(--oc-bg-base);
 }
 
@@ -483,8 +589,6 @@ onBeforeUnmount(() => {
 }
 
 table {
-  width: max-content;
-  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -493,21 +597,19 @@ table {
 th,
 td {
   box-sizing: border-box;
-  width: 260px;
-  min-width: 260px;
+  height: var(--card-data-table-row-height);
   padding: var(--oc-space-1) var(--oc-space-2);
   border-right: 1px solid var(--oc-border-muted);
   border-bottom: 1px solid var(--oc-border-muted);
   background: var(--oc-bg-base);
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 thead th {
   position: sticky;
   top: 0;
   z-index: 4;
-  height: 40px;
   background: var(--oc-bg-raised);
 }
 
@@ -516,8 +618,6 @@ tbody th {
   position: sticky;
   left: 0;
   z-index: 3;
-  width: 232px;
-  min-width: 232px;
   background: var(--oc-bg-raised);
 }
 
@@ -527,9 +627,43 @@ tbody th {
 
 .card-data-table__add-column,
 .card-data-table__tail-cell {
-  width: 40px;
-  min-width: 40px;
   text-align: center;
+}
+
+.card-data-table__data-column {
+  overflow: visible;
+}
+
+.card-data-table__column-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 1;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.card-data-table__column-resize::after {
+  position: absolute;
+  top: 8px;
+  right: 3px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--oc-border-accent);
+  content: '';
+  opacity: 0;
+}
+
+.card-data-table__column-resize:hover::after,
+.card-data-table__column-resize:focus-visible::after,
+.card-data-table.is-resizing-column .card-data-table__column-resize::after {
+  opacity: 1;
+}
+
+.card-data-table__column-resize:focus-visible {
+  outline: none;
 }
 
 .card-data-table__column-heading,
@@ -573,7 +707,6 @@ tbody th {
 
 .card-data-table__cell {
   position: relative;
-  height: var(--oc-property-row-height);
 }
 
 .card-data-table__cell.is-inherited {
@@ -607,7 +740,8 @@ tbody th {
 
 .card-data-table__reset {
   position: absolute;
-  top: var(--oc-space-1);
+  top: 50%;
   right: var(--oc-space-1);
+  transform: translateY(-50%);
 }
 </style>

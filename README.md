@@ -13,11 +13,11 @@ Built with Vue 3 and Tauri.
 
 ## Screenshots
 
-![OpenCard welcome screen](docs/screenshot1.png)
+![OpenCard welcome screen](docs/opencard-welcome.png)
 
-![OpenCard card editor](docs/screenshot2.png)
+![OpenCard card editor](docs/opencard-card-editor.png)
 
-![OpenCard light theme](docs/screenshot3.png)
+![OpenCard light theme](docs/opencard-light-theme.png)
 
 ## Development
 

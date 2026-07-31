@@ -84,7 +84,7 @@ import { computed, nextTick, onMounted, ref, useId, type ComponentPublicInstance
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
-import type { BindingNodeOptions } from './BindingNode'
+import type { BindingNodeOptions } from './bindingNode'
 import type {
   RichTextBindingCompletionItem,
   RichTextBindingCompletionResult,

@@ -1,0 +1,4 @@
+# Placeholder names for local type generation only. Never put production secrets in this file.
+GITHUB_APP_ID=placeholder
+GITHUB_INSTALLATION_ID=placeholder
+GITHUB_PRIVATE_KEY=placeholder

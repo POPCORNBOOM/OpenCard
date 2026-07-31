@@ -6,7 +6,7 @@
  */
 import { iconGlyphs } from './iconPacks'
 import type { IconToken } from './iconTokens'
-import type { IconGlyph } from './iconTypes'
+import type { IconGlyph } from './icon.types'
 
 export type IconResolvable = IconToken | IconGlyph
 

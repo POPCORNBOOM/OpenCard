@@ -1,12 +1,12 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { QRCodeBlock as QRCodeBlockModel } from '../../../entities/card/model'
-import QRCodeBlockRenderer from './QRCodeBlockRenderer.vue'
+import type { QrCodeBlock as QrCodeBlockModel } from '../../../entities/card/model'
+import QrCodeBlockRenderer from './QrCodeBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
-import type { RenderReadyQRCodeBlock } from '../render.types'
+import type { RenderReadyQrCodeBlock } from '../render.types'
 
-function createBlock(content: string): RenderReadyQRCodeBlock {
-  const block: QRCodeBlockModel = {
+function createBlock(content: string): RenderReadyQrCodeBlock {
+  const block: QrCodeBlockModel = {
     id: 'qr-test',
     name: 'QR test',
     type: 'qrcode-block',
@@ -19,9 +19,9 @@ function createBlock(content: string): RenderReadyQRCodeBlock {
   return parseRenderReadyBlockForTest(block)
 }
 
-describe('QRCodeBlockRenderer', () => {
+describe('QrCodeBlockRenderer', () => {
   it('shows an OC placeholder for empty content', () => {
-    const wrapper = mount(QRCodeBlockRenderer, {
+    const wrapper = mount(QrCodeBlockRenderer, {
       props: { block: createBlock(''), layoutMode: 'static' },
       global: rendererTestGlobal,
     })
@@ -31,7 +31,7 @@ describe('QRCodeBlockRenderer', () => {
   })
 
   it('generates a square SVG using the configured QR semantics', async () => {
-    const wrapper = mount(QRCodeBlockRenderer, {
+    const wrapper = mount(QrCodeBlockRenderer, {
       props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
       global: rendererTestGlobal,
     })
@@ -44,7 +44,7 @@ describe('QRCodeBlockRenderer', () => {
   })
 
   it('keeps the rendered graphic when only zIndex changes', async () => {
-    const wrapper = mount(QRCodeBlockRenderer, {
+    const wrapper = mount(QrCodeBlockRenderer, {
       props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
       global: rendererTestGlobal,
     })

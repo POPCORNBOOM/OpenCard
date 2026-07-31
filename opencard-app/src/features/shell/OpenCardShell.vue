@@ -184,6 +184,8 @@
               :available-update-version="availableUpdate ? updateVersion : undefined"
               @back="showPrimaryShellPage(getCurrentPrimaryShellPage())"
               @show-available-release="releaseNotesDialogMode = 'available'"
+              @send-feedback="openFeedbackCenter('submit')"
+              @view-feedback="openFeedbackCenter('history')"
             />
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
@@ -285,6 +287,23 @@
       @install="installAvailableRelease"
     />
 
+    <FeedbackDialog
+      :open="feedbackCenterPage === 'submit'"
+      :initial-kind="feedbackDialogKind"
+      active-page="submit"
+      :diagnostics="latestFeedbackDiagnostics"
+      @page-change="feedbackCenterPage = $event"
+      @close="feedbackCenterPage = null"
+    />
+
+    <FeedbackHistoryDialog
+      :open="feedbackCenterPage === 'history'"
+      active-page="history"
+      :developer-mode="developerMode"
+      @page-change="feedbackCenterPage = $event"
+      @close="feedbackCenterPage = null"
+    />
+
     <FloatingMenuHost />
   </main>
 </template>
@@ -316,6 +335,10 @@ import WorkspaceBottomPanel, {
 } from './components/WorkspaceBottomPanel.vue'
 import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
 import ReleaseNotesDialog from './components/ReleaseNotesDialog.vue'
+import FeedbackDialog from '../feedback/components/FeedbackDialog.vue'
+import FeedbackHistoryDialog from '../feedback/components/FeedbackHistoryDialog.vue'
+import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
+import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
 import type {
   ProjectTemplate,
   ProjectTemplateKey,
@@ -567,6 +590,14 @@ const {
 } = useAppUpdater()
 
 const releaseNotesDialogMode = ref<'current' | 'available' | null>(null)
+const feedbackDialogKind = ref<FeedbackKind>('suggestion')
+const feedbackCenterPage = ref<FeedbackPage | null>(null)
+const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
+
+function openFeedbackCenter(page: FeedbackPage, kind: FeedbackKind = 'suggestion'): void {
+  feedbackDialogKind.value = kind
+  feedbackCenterPage.value = page
+}
 const displayedReleaseNotes = computed(() => (
   releaseNotesDialogMode.value === 'available'
     ? availableReleaseNotes.value
@@ -1503,6 +1534,17 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         disabled: isCheckingForUpdate.value || isInstallingUpdate.value,
       },
       ...developerModeMenuActions.value,
+      { type: 'divider', key: 'help-feedback-divider' },
+      {
+        key: 'send-feedback',
+        title: t('app.menu.sendFeedback'),
+        icon: 'action.edit',
+      },
+      {
+        key: 'view-feedback',
+        title: t('app.menu.viewFeedback'),
+        icon: 'data.list-selection',
+      },
       { type: 'divider', key: 'help-about-divider' },
       {
         key: 'about-opencard',
@@ -2090,6 +2132,16 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'send-feedback') {
+    openFeedbackCenter('submit')
+    return
+  }
+
+  if (actionKey === 'view-feedback') {
+    openFeedbackCenter('history')
+    return
+  }
+
   if (actionKey === 'save-active-editor') {
     await triggerCurrentEditorSave()
     return
@@ -2222,6 +2274,7 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     )
     return
   }
+
   await runShellCommand(actionKey)
 }
 

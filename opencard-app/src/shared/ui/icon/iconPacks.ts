@@ -146,7 +146,7 @@ import {
   mdiXml,
 } from '@mdi/js'
 import type { IconToken } from './iconTokens'
-import type { IconGlyph } from './iconTypes'
+import type { IconGlyph } from './icon.types'
 
 function glyph(path: string): IconGlyph {
   return { path }

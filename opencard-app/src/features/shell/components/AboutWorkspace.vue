@@ -17,6 +17,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   back: []
   showAvailableRelease: []
+  sendFeedback: []
+  viewFeedback: []
 }>()
 
 const { t } = useI18n()
@@ -58,9 +60,17 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
 
       <footer>
         <span>{{ t('app.about.copyright') }}</span>
-        <OcButton icon="nav.arrow-left" variant="outline" @click="emit('back')">
-          {{ t('app.about.back') }}
-        </OcButton>
+        <div class="about-workspace__footer-actions">
+          <OcButton icon="action.edit" variant="outline" @click="emit('sendFeedback')">
+            {{ t('app.menu.sendFeedback') }}
+          </OcButton>
+          <OcButton icon="data.list-selection" variant="outline" @click="emit('viewFeedback')">
+            {{ t('app.menu.viewFeedback') }}
+          </OcButton>
+          <OcButton icon="nav.arrow-left" variant="outline" @click="emit('back')">
+            {{ t('app.about.back') }}
+          </OcButton>
+        </div>
       </footer>
     </div>
   </section>
@@ -178,6 +188,11 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
   font-size: var(--oc-text-sm);
 }
 
+.about-workspace__footer-actions {
+  display: flex;
+  gap: var(--oc-space-2);
+}
+
 @keyframes about-workspace-enter {
   from {
     opacity: 0;
@@ -197,6 +212,10 @@ const renderedReleaseNotes = computed(() => renderMarkdown(props.currentReleaseN
   .about-workspace footer {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .about-workspace__footer-actions {
+    flex-wrap: wrap;
   }
 }
 

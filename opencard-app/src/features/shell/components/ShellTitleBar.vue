@@ -226,7 +226,6 @@ onBeforeUnmount(() => {
         @focusout="scheduleTaskPanelClose"
         @keydown.esc="closeTaskPanel"
       >
-        <img v-if="props.brandLogoSrc" class="titlebar-logo" :src="props.brandLogoSrc" alt="" draggable="false" />
         <span class="titlebar-brand">{{ props.brandLabel }}</span>
       </div>
     </div>

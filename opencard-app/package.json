@@ -8,7 +8,11 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
-    "lint:ui": "node scripts/lint-icons.mjs && node scripts/lint-controls.mjs",
+    "audit:naming": "node scripts/lint-naming.mjs",
+    "lint:naming": "node scripts/lint-naming.mjs --check",
+    "lint:ui": "node scripts/lint-naming.mjs --check && node scripts/lint-icons.mjs && node scripts/lint-controls.mjs",
+    "rename:modules": "node scripts/rename-modules.mjs",
+    "rename:symbols": "node scripts/rename-symbols.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

@@ -57,7 +57,7 @@ export type RenderReadyImageBlock = RenderReadyBaseBlock & {
   fit: 'cover' | 'contain' | 'fill'
 }
 
-export type RenderReadyQRCodeBlock = RenderReadyBaseBlock & {
+export type RenderReadyQrCodeBlock = RenderReadyBaseBlock & {
   type: 'qrcode-block'
   content: string
   errorCorrection: 'L' | 'M' | 'Q' | 'H'
@@ -120,7 +120,7 @@ export type RenderReadyCardBlock =
   | RenderReadyTextBlock
   | RenderReadyMarkdownTextBlock
   | RenderReadyImageBlock
-  | RenderReadyQRCodeBlock
+  | RenderReadyQrCodeBlock
   | RenderReadyShapeBlock
   | RenderReadySimpleContainerBlock
   | RenderReadyFlowContainerBlock

@@ -5,7 +5,7 @@
  * - 只聚合 token/type/resolver，不承载具体库映射实现
  */
 import type { IconToken } from './iconTokens'
-import type { IconGlyph } from './iconTypes'
+import type { IconGlyph } from './icon.types'
 import { iconTokens } from './iconTokens'
 import {
   DEFAULT_ICON_TOKEN,
