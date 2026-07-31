@@ -320,7 +320,6 @@ import { getBlockTreeIcon } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
-  type CardViewportSelectionAction,
   type CardViewportSelectionActionLabels,
   type CardViewportSelectionInfo,
 } from '../card-rendering/components/CardViewport.vue'
@@ -350,6 +349,7 @@ import {
   useCdeViewportController,
   type CdeViewportPort,
 } from './useCdeViewportController'
+import { useCdeSelectionCommands } from './useCdeSelectionCommands'
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
@@ -1140,6 +1140,25 @@ const {
   commitTransform: transform => emit('update-viewport-transform', transform),
 })
 
+const availableLayerZIndices = computed(() => (
+  viewFace.value
+    ? buildCardLayerGroups(viewFace.value).map(layer => layer.zIndex)
+    : []
+))
+const {
+  applySelectionLayout: handleSelectionAction,
+  changeFaceDimension: handleFaceDimensionChange,
+  changeSelectionZIndex,
+  moveSelection: handleSelectionMove,
+  resizeSelection: handleSelectionResize,
+} = useCdeSelectionCommands({
+  cardDoc,
+  parentLookup,
+  availableLayerZIndices,
+  refreshDocumentState,
+  markDocumentChanged,
+})
+
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value
   const face = viewFace.value
@@ -1375,25 +1394,9 @@ function handleEditorKeydown(event: KeyboardEvent): void {
 }
 
 function adjustSelectedBlockZIndex(delta: -1 | 1, existingLayersOnly = false): void {
-  const block = selectedBlock.value
-  if (!block) return
-  const parsed = Number(block.zIndex ?? '0')
-  const current = Number.isFinite(parsed) ? parsed : 0
-  let next = Math.round((current + delta) * 100) / 100
-  if (existingLayersOnly) {
-    const face = viewFace.value
-    if (!face) return
-    const existingLayers = buildCardLayerGroups(face).map(layer => layer.zIndex).sort((a, b) => a - b)
-    const adjacent = delta > 0
-      ? existingLayers.find(value => value > current)
-      : [...existingLayers].reverse().find(value => value < current)
-    if (adjacent === undefined) return
-    next = adjacent
-  }
-  block.zIndex = String(Object.is(next, -0) ? 0 : next)
-  refreshDocumentState()
-  markDocumentChanged('action')
-  void nextTick(() => cardViewportRef.value?.focusLayerBlock(block.id))
+  const blockId = selectedBlock.value?.id
+  if (!blockId || !changeSelectionZIndex({ blockId, delta, existingLayersOnly })) return
+  void nextTick(() => cardViewportRef.value?.focusLayerBlock(blockId))
 }
 
 function handleLayerZIndexStep(payload: { delta: -1 | 1; existingLayersOnly: boolean }): void {
@@ -1412,97 +1415,6 @@ function handleLayerViewKeyup(event: KeyboardEvent): void {
 function handleEditorBlur(): void {
   spaceHeld.value = false
   deactivateLayerView()
-}
-
-function formatViewportCssValue(value: number): string {
-  const normalized = Math.round(value * 100) / 100
-  const safeValue = Object.is(normalized, -0) ? 0 : normalized
-  return `${safeValue}px`
-}
-
-function handleSelectionResize(payload: { width: number; height: number; x?: number; y?: number }) {
-  //console.log('handleSelectionResize', payload)
-  const block = selectedBlock.value
-  if (!block) {
-    return
-  }
-
-  block.width = formatViewportCssValue(payload.width)
-  block.height = formatViewportCssValue(payload.height)
-
-  const location = selectedLocation.value
-  if (location?.type === 'simple-container-location') {
-    location.x = formatViewportCssValue(payload.x ?? 0)
-    location.y = formatViewportCssValue(payload.y ?? 0)
-  }
-
-  refreshDocumentState()
-  markDocumentChanged('action')
-}
-
-function handleSelectionMove(payload: { x: number; y: number }) {
-  const location = selectedLocation.value
-  if (location?.type !== 'simple-container-location') {
-    return
-  }
-
-  location.x = formatViewportCssValue(payload.x)
-  location.y = formatViewportCssValue(payload.y)
-  refreshDocumentState()
-  markDocumentChanged('action')
-}
-
-function handleSelectionAction(payload: CardViewportSelectionAction): void {
-  const block = selectedBlock.value
-  const location = selectedLocation.value
-  if (!block || block.id !== payload.key || !location) return
-
-  if (payload.type === 'geometry.apply') {
-    if (location.type !== 'simple-container-location') return
-    handleSelectionResize(payload)
-    return
-  }
-
-  if (payload.type === 'fill-parent') {
-    if (location.type !== 'simple-container-location') return
-    block.width = '100%'
-    block.height = '100%'
-    location.x = '0px'
-    location.y = '0px'
-  } else {
-    if (location.type !== 'flow-container-location') return
-    const parent = parentLookup.value.get(block.id)
-    if (parent?.type !== 'flow-container-block') return
-
-    if (payload.type === 'fill-cross-axis') {
-      if (parent.direction === 'lr' || parent.direction === 'rl') {
-        block.height = '100%'
-      } else {
-        block.width = '100%'
-      }
-      location.align = 'justify'
-    } else if (payload.type === 'center-cross-axis') {
-      location.align = 'center'
-    }
-  }
-
-  refreshDocumentState()
-  markDocumentChanged('action')
-}
-
-function handleFaceDimensionChange(payload: {
-  dimension: 'width' | 'height'
-  value: number
-  final: boolean
-}): void {
-  const document = cardDoc.value
-  if (!document) return
-  const nextValue = String(payload.value)
-  if (document[payload.dimension] !== nextValue) {
-    document[payload.dimension] = nextValue
-    refreshDocumentState()
-  }
-  markDocumentChanged(payload.final ? 'action' : 'typing')
 }
 
 async function saveFile() {

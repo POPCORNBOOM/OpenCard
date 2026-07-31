@@ -593,7 +593,7 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     expect(viewport.props('selectedBlockId')).toBe('text-1')
 
-    viewport.vm.$emit('selection-action', { type: 'fill-parent', key: 'text-1' })
+    viewport.vm.$emit('selection-action', { type: 'fill-parent', blockId: 'text-1' })
     await nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []
@@ -896,7 +896,7 @@ describe('CardDesignEditor issue navigation', () => {
     const viewport = wrapper.findComponent({ name: 'CardViewport' })
     viewport.vm.$emit('block-click', 'flow-text', new MouseEvent('click'))
     await nextTick()
-    viewport.vm.$emit('selection-action', { type: 'fill-cross-axis', key: 'flow-text' })
+    viewport.vm.$emit('selection-action', { type: 'fill-cross-axis', blockId: 'flow-text' })
     await nextTick()
 
     let updates = wrapper.emitted('update:modelValue') ?? []
@@ -907,7 +907,7 @@ describe('CardDesignEditor issue navigation', () => {
     expect(flow.children[0]!.block).toMatchObject({ width: '120px', height: '100%' })
     expect(flow.children[0]!.location.align).toBe('justify')
 
-    viewport.vm.$emit('selection-action', { type: 'center-cross-axis', key: 'flow-text' })
+    viewport.vm.$emit('selection-action', { type: 'center-cross-axis', blockId: 'flow-text' })
     await nextTick()
     updates = wrapper.emitted('update:modelValue') ?? []
     document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument

@@ -128,13 +128,13 @@
 import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 
 export type CardViewportSelectionAction =
-  | { type: 'fill-parent', key: string }
-  | { type: 'fill-cross-axis', key: string }
-  | { type: 'center-cross-axis', key: string }
+  | { type: 'fill-parent'; blockId: string }
+  | { type: 'fill-cross-axis'; blockId: string }
+  | { type: 'center-cross-axis'; blockId: string }
   | {
       type: 'geometry.apply'
       operation: 'center' | 'inset' | 'outset'
-      key: string
+      blockId: string
       width: number
       height: number
       x: number
@@ -216,8 +216,8 @@ const MIN_SELECTION_SIZE = 24
 const emit = defineEmits<{
   (e: 'block-click', blockId: string, event: MouseEvent): void
   (e: 'blank-click', event: MouseEvent): void
-  (e: 'resize-selection', payload: ResizePayload): void
-  (e: 'move-selection', payload: MovePayload): void
+  (e: 'resize-selection', payload: ResizePayload & { blockId: string }): void
+  (e: 'move-selection', payload: MovePayload & { blockId: string }): void
   (e: 'selection-action', payload: CardViewportSelectionAction): void
   (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
@@ -307,6 +307,7 @@ const activeHandle = ref<ResizeHandle | null>(null)
 const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
+const transformBlockId = ref<string | null>(null)
 const faceDimensionDrag = ref<{
   dimension: FaceDimension
   startClientPosition: number
@@ -539,19 +540,19 @@ function getAnchorPoint(frame: SelectionFrame, anchor: AnchorPosition): { x: num
 }
 
 function handleSelectionQuickAction(actionKey: string): void {
-  const key = props.selectedBlockId
-  if (!key) return
+  const blockId = props.selectedBlockId
+  if (!blockId) return
 
   if (actionKey === 'fill-parent') {
-    emit('selection-action', { type: 'fill-parent', key })
+    emit('selection-action', { type: 'fill-parent', blockId })
     return
   }
   if (actionKey === 'fill-cross-axis') {
-    emit('selection-action', { type: 'fill-cross-axis', key })
+    emit('selection-action', { type: 'fill-cross-axis', blockId })
     return
   }
   if (actionKey === 'center-cross-axis') {
-    emit('selection-action', { type: 'center-cross-axis', key })
+    emit('selection-action', { type: 'center-cross-axis', blockId })
     return
   }
   if (actionKey !== 'center' && actionKey !== 'inset' && actionKey !== 'outset') return
@@ -564,7 +565,7 @@ function handleSelectionQuickAction(actionKey: string): void {
   emit('selection-action', {
     type: 'geometry.apply',
     operation: actionKey,
-    key,
+    blockId,
     width: geometry.width,
     height: geometry.height,
     x: geometry.x ?? 0,
@@ -579,15 +580,19 @@ function runSelectionQuickAction(actionKey: string): boolean {
 }
 
 function nudgeSelection(deltaX: number, deltaY: number): boolean {
-  if (!showMoveHandle.value) return false
+  const blockId = props.selectedBlockId
+  if (!showMoveHandle.value || !blockId) return false
   const measurement = measureSelection()
   if (!measurement) return false
 
-  emit('move-selection', buildMovePayload({
-    ...measurement.worldRect,
-    left: measurement.worldRect.left + deltaX,
-    top: measurement.worldRect.top + deltaY,
-  }, measurement))
+  emit('move-selection', {
+    blockId,
+    ...buildMovePayload({
+      ...measurement.worldRect,
+      left: measurement.worldRect.left + deltaX,
+      top: measurement.worldRect.top + deltaY,
+    }, measurement),
+  })
   return true
 }
 
@@ -964,6 +969,7 @@ function startResize(handle: ResizeHandle) {
   isMovingSelection.value = false
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
+  transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
 
   bindTransformListeners()
@@ -983,6 +989,7 @@ function startMove() {
   isMovingSelection.value = true
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
+  transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
 
   bindTransformListeners()
@@ -1156,15 +1163,16 @@ function hasMeaningfulMoveChange(preview: SelectionFrame, measurement: Selection
 function stopTransform() {
   const measurement = dragMeasurement.value
   const preview = previewWorldRect.value
-  if (measurement && preview) {
+  const blockId = transformBlockId.value
+  if (measurement && preview && blockId) {
     if (activeHandle.value && hasMeaningfulResizeChange(preview, measurement)) {
       const payload = resizeMode.value === 'flow'
         ? { width: preview.width, height: preview.height }
         : buildAbsoluteResizePayload(preview, measurement)
       //console.log(payload)
-      emit('resize-selection', payload)
+      emit('resize-selection', { blockId, ...payload })
     } else if (isMovingSelection.value && hasMeaningfulMoveChange(preview, measurement)) {
-      emit('move-selection', buildMovePayload(preview, measurement))
+      emit('move-selection', { blockId, ...buildMovePayload(preview, measurement) })
     }
   }
 
@@ -1172,6 +1180,7 @@ function stopTransform() {
   isMovingSelection.value = false
   dragMeasurement.value = null
   previewWorldRect.value = null
+  transformBlockId.value = null
   window.removeEventListener('pointermove', handleTransformMove)
   window.removeEventListener('pointerup', stopTransform)
   window.removeEventListener('pointercancel', stopTransform)

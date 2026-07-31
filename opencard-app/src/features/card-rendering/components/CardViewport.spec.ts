@@ -256,11 +256,11 @@ describe('CardViewport wheel zoom API', () => {
       ?.vm.$emit('select', { key: 'center' })
 
     expect(wrapper.emitted('selection-action')).toEqual([
-      [{ type: 'fill-parent', key: 'selected' }],
+      [{ type: 'fill-parent', blockId: 'selected' }],
       [{
         type: 'geometry.apply',
         operation: 'center',
-        key: 'selected',
+        blockId: 'selected',
         width: 100,
         height: 80,
         x: 150,
@@ -274,13 +274,17 @@ describe('CardViewport wheel zoom API', () => {
     expect(selectionActions[selectionActions.length - 1]).toEqual([{
       type: 'geometry.apply',
       operation: 'outset',
-      key: 'selected',
+      blockId: 'selected',
       width: 120,
       height: 100,
       x: 240,
       y: 160,
     }])
-    expect(wrapper.emitted('move-selection')).toEqual([[{ x: 249, y: 171 }]])
+    expect(wrapper.emitted('move-selection')).toEqual([[{
+      blockId: 'selected',
+      x: 249,
+      y: 171,
+    }]])
 
     await wrapper.get('.selection-frame').trigger('contextmenu')
     const menu = useFloatingMenu()
@@ -289,14 +293,27 @@ describe('CardViewport wheel zoom API', () => {
     menu.selectMenuItem('fill-parent')
     const contextSelectionActions = wrapper.emitted('selection-action') ?? []
     expect(contextSelectionActions[contextSelectionActions.length - 1]).toEqual([
-      { type: 'fill-parent', key: 'selected' },
+      { type: 'fill-parent', blockId: 'selected' },
     ])
 
     await wrapper.get('.selection-handle-t').trigger('pointerdown')
     expect(wrapper.find('.selection-block-info').exists()).toBe(false)
     expect(wrapper.find('.selection-size-label--width').exists()).toBe(false)
     expect(wrapper.get('.selection-size-label--height').text()).toBe('80px')
-    window.dispatchEvent(new Event('pointercancel'))
+    await wrapper.setProps({ selectedBlockId: 'other' })
+    const resizeMove = new Event('pointermove')
+    Object.defineProperties(resizeMove, {
+      movementX: { value: 0 },
+      movementY: { value: -10 },
+    })
+    window.dispatchEvent(resizeMove)
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toMatchObject({
+      blockId: 'selected',
+      width: 100,
+      height: 90,
+    })
+    await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
 
     await wrapper.get('.selection-frame').trigger('pointerdown')
