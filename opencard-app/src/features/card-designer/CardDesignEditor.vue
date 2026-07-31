@@ -350,9 +350,9 @@ import {
 import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
+import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import {
   useCdeBlockFieldCommands,
-  type CdeBlockFieldTarget,
 } from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer } from '../../entities/card/tree'
@@ -429,61 +429,6 @@ function createViewState(): CardDesignerViewState {
 
 function commitViewState(): void {
   emit('update-card-designer-view', createViewState())
-}
-
-function includeDataTableBlock(blockId: string): void {
-  if (!blockId || Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
-  updateDataTableFields({ ...dataTableFields.value, [blockId]: [] })
-}
-
-function removeDataTableBlock(blockId: string): void {
-  if (!Object.prototype.hasOwnProperty.call(dataTableFields.value, blockId)) return
-  const next = { ...dataTableFields.value }
-  delete next[blockId]
-  updateDataTableFields(next)
-}
-
-function includeDataTableField(blockId: string, fieldKey: string): void {
-  if (!blockId || !fieldKey) return
-  const current = dataTableFields.value[blockId] ?? []
-  if (current.includes(fieldKey)) return
-  updateDataTableFields({
-    ...dataTableFields.value,
-    [blockId]: [...current, fieldKey],
-  })
-}
-
-function excludeDataTableField(blockId: string, fieldKey: string): void {
-  const current = dataTableFields.value[blockId]
-  if (!current?.includes(fieldKey)) return
-  updateDataTableFields({
-    ...dataTableFields.value,
-    [blockId]: current.filter(candidate => candidate !== fieldKey),
-  })
-}
-
-function updateDataTableFields(value: Readonly<Record<string, readonly string[]>>): void {
-  if (!writeDataTableFields(value)) return
-  refreshDocumentState()
-  markDocumentChanged('action')
-}
-
-function writeDataTableFields(value: Readonly<Record<string, readonly string[]>>): boolean {
-  const document = cardDoc.value
-  if (!document) return false
-  const blocks = normalizeDataTableFields(value)
-  if (Object.keys(blocks).length === 0) delete document.dataTable
-  else document.dataTable = { blocks }
-  return true
-}
-
-function normalizeDataTableFields(
-  value: Readonly<Record<string, readonly string[]>> | null | undefined,
-): Record<string, string[]> {
-  return Object.fromEntries(Object.entries(value ?? {}).flatMap(([blockId, fieldKeys]) => {
-    if (!blockId || !Array.isArray(fieldKeys)) return []
-    return [[blockId, Array.from(new Set(fieldKeys.filter(fieldKey => Boolean(fieldKey))))]]
-  }))
 }
 
 const clipAction = computed<OcActionButtonAction>(() => ({
@@ -683,9 +628,26 @@ const blockFieldCommands = useCdeBlockFieldCommands({
   markDocumentChanged,
 })
 
-const dataTableFields = computed(() => {
-  documentRevision.value
-  return normalizeDataTableFields(cardDoc.value?.dataTable?.blocks)
+const {
+  createField: createDataTableField,
+  deleteField: deleteDataTableField,
+  excludeField: excludeDataTableField,
+  fieldSelection: dataTableFields,
+  includeBlock: includeDataTableBlock,
+  includeField: includeDataTableField,
+  removeBlock: removeDataTableBlock,
+  resetCell: resetDataTableCell,
+  updateCell: updateDataTableCell,
+} = useCdeDataTableCommands({
+  cardDoc,
+  documentRevision,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  refreshDocumentState,
+  markDocumentChanged,
+  updateBlockField: blockFieldCommands.updateField,
+  resetBlockField: blockFieldCommands.resetField,
+  createBlockField: blockFieldCommands.createField,
+  deleteBlockField: blockFieldCommands.deleteField,
 })
 
 const {
@@ -727,33 +689,10 @@ function duplicateDataTableCard(cardId: string): void {
   else duplicateInstance(cardId)
 }
 
-function updateDataTableCell(payload: CdeBlockFieldTarget & { value: unknown }): void {
-  blockFieldCommands.updateField(payload, payload.value, 'typing')
-}
-
-function resetDataTableCell(payload: CdeBlockFieldTarget): void {
-  blockFieldCommands.resetField(payload)
-}
-
 function openDataTableFieldDialog(blockId: string): void {
   dataTableCustomFieldTargetBlockId.value = openAdditionalFieldCreateDialog(blockId, BLUEPRINT_CARD_ID)
     ? blockId
     : null
-}
-
-function deleteDataTableField(blockId: string, fieldKey: string): void {
-  const previous = dataTableFields.value
-  const current = previous[blockId]
-  if (current?.includes(fieldKey)) {
-    writeDataTableFields({
-      ...previous,
-      [blockId]: current.filter(candidate => candidate !== fieldKey),
-    })
-  }
-  if (!blockFieldCommands.deleteField({ cardId: BLUEPRINT_CARD_ID, blockId, fieldKey })) {
-    writeDataTableFields(previous)
-    refreshDocumentState()
-  }
 }
 
 function closeAdditionalFieldDialog(): void {
@@ -763,22 +702,19 @@ function closeAdditionalFieldDialog(): void {
 
 function submitAdditionalFieldDialog(): void {
   const blockId = dataTableCustomFieldTargetBlockId.value
-  const fieldKey = additionalFieldCreateDraft.value.fieldKey
-  const previous = dataTableFields.value
-  if (blockId && fieldKey) {
-    const current = previous[blockId] ?? []
-    writeDataTableFields({
-      ...previous,
-      [blockId]: current.includes(fieldKey) ? current : [...current, fieldKey],
-    })
-  }
-  const result = submitAdditionalFieldCreate()
-  if (result) {
-    writeDataTableFields(previous)
-    refreshDocumentState()
+  if (!blockId) {
+    submitAdditionalFieldCreate()
     return
   }
+  const result = createDataTableField({
+    blockId,
+    fieldKey: additionalFieldCreateDraft.value.fieldKey,
+    fieldType: additionalFieldCreateDraft.value.fieldType,
+    title: additionalFieldCreateDraft.value.title,
+  })
+  if (result) return
   dataTableCustomFieldTargetBlockId.value = null
+  closeAdditionalFieldCreateDialog()
 }
 
 const canMutateSelectedInstance = computed(() =>
