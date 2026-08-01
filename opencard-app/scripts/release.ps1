@@ -5,6 +5,8 @@ Creates and publishes an OpenCard release.
 .DESCRIPTION
 Updates all application version files, runs the frontend and Rust checks,
 creates the release commit and annotated tag, and pushes both atomically.
+After the tag is pushed, it clears RELEASE_NOTES.md in a follow-up commit so
+the next release starts with an empty draft.
 After pushing, the script waits for the tag-triggered GitHub Actions workflow
 to finish, so callers should keep waiting for this process instead of running
 the release command again.
@@ -410,6 +412,29 @@ Invoke-NativeCommand -Command 'git' -Arguments @(
 ) -WorkingDirectory $repoRoot
 
 Write-Host "Released $tag. GitHub Actions will now build the desktop release." -ForegroundColor Green
+
+Write-Host 'Clearing the release notes draft for the next version...' -ForegroundColor Cyan
+[System.IO.File]::WriteAllText(
+  $releaseNotesTargetPath,
+  '',
+  [System.Text.UTF8Encoding]::new($false)
+)
+try {
+  Invoke-NativeCommand -Command 'git' -Arguments @('add', '--', 'opencard-app/RELEASE_NOTES.md') -WorkingDirectory $repoRoot
+  Invoke-NativeCommand -Command 'git' -Arguments @(
+    'commit',
+    '-m',
+    "chore(release): reset notes after $tag"
+  ) -WorkingDirectory $repoRoot
+  Invoke-NativeCommand -Command 'git' -Arguments @(
+    'push',
+    'origin',
+    "HEAD:refs/heads/$branch"
+  ) -WorkingDirectory $repoRoot
+}
+catch {
+  throw "Release $tag was pushed, but the release notes draft could not be reset on $branch. Do not run the release again. $($_.Exception.Message)"
+}
 
 if ($NoWaitForWorkflow) {
   Write-Host 'GitHub Actions waiting was skipped because -NoWaitForWorkflow was supplied.' -ForegroundColor Yellow
