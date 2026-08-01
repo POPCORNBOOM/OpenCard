@@ -441,6 +441,8 @@ const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.opencardprojectprofile'
 const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.dictionary'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
+const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
+const CARD_DATA_TABLE_EXPORT_ACTION_KEY = 'card-designer.data-table.export'
 const EMPTY_TREE_DATA: OcTreeData = {
   rootKeys: [],
   items: new Map(),
@@ -663,6 +665,10 @@ const {
   resourceRootPath: activeSessionResourceRootPath,
   isCardDesigner: isActiveCardDesignerEditor,
   cardDesignerMode: activeCardDesignerMode,
+  dataTableWorkbookBusy: isDataTableWorkbookBusy,
+  canExportDataTableWorkbook,
+  importDataTableWorkbook,
+  exportDataTableWorkbook,
   handleViewportTransform: handleViewportTransformUpdate,
   handleCardDesignerMode: handleCardDesignerModeUpdate,
   handleCardDesignerLayout: handleCardDesignerLayoutUpdate,
@@ -1569,13 +1575,30 @@ const workspaceTitle = computed(() => {
 const workspaceActions = computed<ShellAction[]>(() => {
   if (!isWorkbenchMode.value || !isActiveCardDesignerEditor.value) return []
   const tableMode = activeCardDesignerMode.value === 'data-table'
-  return [{
+  const actions: ShellAction[] = [{
     key: CARD_DESIGNER_MODE_ACTION_KEY,
     icon: tableMode ? 'file.opencard' : 'data.table',
     hoverTip: tableMode
       ? t('cardDesigner.dataTable.switchToDesignMode')
       : t('cardDesigner.dataTable.switchToTableMode'),
   }]
+  if (tableMode) {
+    actions.push(
+      {
+        key: CARD_DATA_TABLE_IMPORT_ACTION_KEY,
+        icon: 'action.import',
+        hoverTip: t('cardDesigner.dataTable.importWorkbook'),
+        disabled: isDataTableWorkbookBusy.value,
+      },
+      {
+        key: CARD_DATA_TABLE_EXPORT_ACTION_KEY,
+        icon: 'action.export',
+        hoverTip: t('cardDesigner.dataTable.exportWorkbook'),
+        disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
+      },
+    )
+  }
+  return actions
 })
 
 function handleEditorIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {
@@ -2272,6 +2295,16 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     handleCardDesignerModeUpdate(
       activeCardDesignerMode.value === 'design' ? 'data-table' : 'design',
     )
+    return
+  }
+
+  if (actionKey === CARD_DATA_TABLE_IMPORT_ACTION_KEY) {
+    await importDataTableWorkbook()
+    return
+  }
+
+  if (actionKey === CARD_DATA_TABLE_EXPORT_ACTION_KEY) {
+    await exportDataTableWorkbook()
     return
   }
 

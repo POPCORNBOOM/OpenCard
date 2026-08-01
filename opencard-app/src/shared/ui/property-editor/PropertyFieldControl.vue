@@ -125,6 +125,7 @@ watch(() => props.identity, () => {
 
 .property-field-control--embedded {
   --oc-field-surface-background: transparent;
+  --oc-field-surface-border-width: 0;
   --oc-field-surface-border-color: transparent;
   --oc-field-surface-border-radius: 0;
   --oc-field-surface-hover-border-color: transparent;

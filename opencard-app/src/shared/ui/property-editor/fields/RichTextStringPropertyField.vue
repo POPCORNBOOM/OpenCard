@@ -137,11 +137,11 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
 .rich-text-string-field__preview {
   display: block;
   width: 100%;
-  height: var(--oc-property-row-height);
+  height: var(--oc-field-control-height, var(--oc-property-row-height));
   min-width: 0;
   padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   overflow: hidden;
-  border: 1px solid var(--oc-field-surface-border-color, var(--oc-border-default));
+  border: var(--oc-field-surface-border-width, 1px) solid var(--oc-field-surface-border-color, var(--oc-border-default));
   border-radius: var(--oc-field-surface-border-radius, var(--oc-radius-sm));
   background: var(--oc-field-surface-background, var(--oc-bg-input));
   color: var(--oc-fg-default);

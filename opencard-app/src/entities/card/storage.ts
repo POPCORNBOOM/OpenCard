@@ -58,6 +58,21 @@ function assertDataTableConfiguration(value: unknown, path: string): void {
       }
     })
   }
+  if (value.exportInstanceIds !== undefined) {
+    if (!Array.isArray(value.exportInstanceIds)) {
+      throw new Error(`${path}.exportInstanceIds must be an array`)
+    }
+    const seen = new Set<string>()
+    value.exportInstanceIds.forEach((instanceId, index) => {
+      if (typeof instanceId !== 'string' || !instanceId) {
+        throw new Error(`${path}.exportInstanceIds[${index}] must be a non-empty string`)
+      }
+      if (seen.has(instanceId)) {
+        throw new Error(`${path}.exportInstanceIds contains duplicate Instance ID ${instanceId}`)
+      }
+      seen.add(instanceId)
+    })
+  }
 }
 
 function assertFace(value: unknown, path: string): asserts value is CardFace {

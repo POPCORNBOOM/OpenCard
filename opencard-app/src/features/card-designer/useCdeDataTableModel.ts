@@ -15,12 +15,14 @@ export type CdeDataTableColumn = {
   key: string
   kind: 'blueprint' | 'instance'
   title: string
+  exported: boolean
 }
 
 export type CdeDataTableCell = {
   identity: string
   cardId: string
   value: unknown
+  readonly: boolean
   inherited: boolean
   overridden: boolean
 }
@@ -66,6 +68,7 @@ type UseCdeDataTableModelOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
   documentRevision: Readonly<Ref<number>>
   fieldSelection: Readonly<Ref<CdeDataTableFieldSelection>>
+  exportInstanceIds?: Readonly<Ref<readonly string[]>>
   blueprintCardId: string
   blueprintTitle: () => string
   faceTitle: (faceKey: CardFaceKey) => string
@@ -80,12 +83,15 @@ function hasOwn(record: object, fieldKey: string): boolean {
 export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
   const columns = computed<CdeDataTableColumn[]>(() => {
     options.documentRevision.value
+    const instances = options.cardDoc.value?.instances ?? []
+    const selected = new Set(options.exportInstanceIds?.value ?? instances.map(instance => instance.id))
     return [
-      { key: options.blueprintCardId, kind: 'blueprint', title: options.blueprintTitle() },
-      ...(options.cardDoc.value?.instances ?? []).map(instance => ({
+      { key: options.blueprintCardId, kind: 'blueprint', title: options.blueprintTitle(), exported: true },
+      ...instances.map(instance => ({
         key: instance.id,
         kind: 'instance' as const,
         title: instance.name?.trim() || instance.id,
+        exported: selected.has(instance.id),
       })),
     ]
   })
@@ -185,7 +191,9 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     const blockRecord = block as unknown as Record<string, unknown>
 
     return Object.entries(definitions)
-      .filter(([, definition]) => !definition.isHidden && !definition.isReadonly)
+      .filter(([fieldKey, definition]) => (
+        fieldKey !== 'name' && !definition.isHidden && !definition.isReadonly
+      ))
       .map(([fieldKey, definition]) => ({
         key: fieldKey,
         title: definition.title,
@@ -215,6 +223,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
         identity: `${column.key}\u0000${block.id}\u0000${field.key}`,
         cardId: column.key,
         value: overridden ? overrideRecord![field.key] : blueprintValue,
+        readonly: !canOverride,
         inherited: column.kind === 'instance' && !overridden,
         overridden,
       }

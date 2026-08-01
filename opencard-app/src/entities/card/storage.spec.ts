@@ -56,7 +56,10 @@ function createDocument(): CardDocument {
 describe('card document storage contract', () => {
   it('accepts strings, arrays and objects and serializes without changing scalar types', () => {
     const document = createDocument()
-    document.dataTable = { blocks: { text: ['content', 'score'] } }
+    document.dataTable = {
+      blocks: { text: ['content', 'score'] },
+      exportInstanceIds: ['instance'],
+    }
     const serialized = serializeCardDocument(document)
     const parsed = parseCardDocument(JSON.parse(serialized))
 
@@ -64,6 +67,7 @@ describe('card document storage contract', () => {
     expect(parsed.width).toBe('540')
     expect(parsed.instances[0]?.amount).toBe('1')
     expect(parsed.dataTable?.blocks).toEqual({ text: ['content', 'score'] })
+    expect(parsed.dataTable?.exportInstanceIds).toEqual(['instance'])
   })
 
   it('accepts sparse optional document metadata', () => {
@@ -119,5 +123,17 @@ describe('card document storage contract', () => {
     document.dataTable = { blocks: { text: 'content' } }
 
     expect(() => parseCardDocument(document)).toThrow('$.dataTable.blocks.text must be an array')
+  })
+
+  it('rejects malformed or duplicate data-table export Instance IDs', () => {
+    const malformed = createDocument() as unknown as Record<string, unknown>
+    malformed.dataTable = { blocks: {}, exportInstanceIds: ['instance', ''] }
+    expect(() => parseCardDocument(malformed))
+      .toThrow('$.dataTable.exportInstanceIds[1] must be a non-empty string')
+
+    const duplicate = createDocument() as unknown as Record<string, unknown>
+    duplicate.dataTable = { blocks: {}, exportInstanceIds: ['instance', 'instance'] }
+    expect(() => parseCardDocument(duplicate))
+      .toThrow('$.dataTable.exportInstanceIds contains duplicate Instance ID instance')
   })
 })

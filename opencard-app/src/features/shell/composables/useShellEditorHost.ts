@@ -32,6 +32,10 @@ export type ShellEditorRef = {
   canUndo?: boolean
   canRedo?: boolean
   navigate?: (token: SessionNavigationToken) => Promise<EditorNavigationResult> | EditorNavigationResult
+  importDataTableWorkbook?: () => Promise<void> | void
+  exportDataTableWorkbook?: () => Promise<void> | void
+  dataTableWorkbookBusy?: boolean
+  canExportDataTableWorkbook?: boolean
 }
 
 type SessionActions = {
@@ -169,6 +173,14 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     options.activeSession.value?.uiState?.cardDesigner?.mode ?? 'design'
   ))
 
+  const dataTableWorkbookBusy = computed(() => (
+    isCardDesigner.value && editorRef.value?.dataTableWorkbookBusy === true
+  ))
+
+  const canExportDataTableWorkbook = computed(() => (
+    isCardDesigner.value && editorRef.value?.canExportDataTableWorkbook === true
+  ))
+
   function persistPendingViewportTransform(): void {
     if (viewportTransformPersistTimer !== null) {
       window.clearTimeout(viewportTransformPersistTimer)
@@ -254,6 +266,16 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     await editorRef.value.redo()
   }
 
+  async function importDataTableWorkbook(): Promise<void> {
+    if (!isCardDesigner.value || dataTableWorkbookBusy.value) return
+    await editorRef.value?.importDataTableWorkbook?.()
+  }
+
+  async function exportDataTableWorkbook(): Promise<void> {
+    if (!isCardDesigner.value || dataTableWorkbookBusy.value || !canExportDataTableWorkbook.value) return
+    await editorRef.value?.exportDataTableWorkbook?.()
+  }
+
   async function flushAffectedSessions(sessionIds: readonly string[]): Promise<void> {
     const activeId = options.activeSession.value?.id
     if (activeId && sessionIds.includes(activeId)) await editorRef.value?.flush?.()
@@ -279,6 +301,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     resourceRootPath,
     isCardDesigner,
     cardDesignerMode,
+    dataTableWorkbookBusy,
+    canExportDataTableWorkbook,
     handleViewportTransform,
     handleCardDesignerMode,
     handleCardDesignerLayout,
@@ -288,6 +312,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     save,
     undo,
     redo,
+    importDataTableWorkbook,
+    exportDataTableWorkbook,
     flushAffectedSessions,
     dispose,
   }

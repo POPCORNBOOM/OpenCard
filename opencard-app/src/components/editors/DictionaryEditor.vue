@@ -87,11 +87,10 @@
                   </div>
                 </div>
                 <form v-else class="dictionary-editor__rename" @submit.prevent="commitLanguageRename(language)">
-                  <OcFieldInput :value="renameDraft" size="sm" mono full-width
-                    @input="renameDraft = ($event.target as HTMLInputElement).value" />
-                  <OcButton icon-only size="sm" icon="action.check" :disabled="!canUseLanguageKey(renameDraft, language)"
-                    @click="commitLanguageRename(language)" />
-                  <OcButton icon-only size="sm" type="button" variant="ghost" icon="action.close" @click="cancelRename" />
+                  <OcFieldInput :value="renameDraft" size="sm" mono full-width autofocus
+                    @input="renameDraft = ($event.target as HTMLInputElement).value"
+                    @blur="commitLanguageRename(language)"
+                    @keydown.esc.stop.prevent="cancelRename" />
                 </form>
               </th>
             </tr>
@@ -116,11 +115,10 @@
                   </div>
                 </div>
                 <form v-else class="dictionary-editor__rename" @submit.prevent="commitRecordRename(recordKey)">
-                  <OcFieldInput :value="renameDraft" size="sm" mono full-width
-                    @input="renameDraft = ($event.target as HTMLInputElement).value" />
-                  <OcButton icon-only size="sm" icon="action.check" :disabled="!canUseRecordKey(renameDraft, recordKey)"
-                    @click="commitRecordRename(recordKey)" />
-                  <OcButton icon-only size="sm" type="button" variant="ghost" icon="action.close" @click="cancelRename" />
+                  <OcFieldInput :value="renameDraft" size="sm" mono full-width autofocus
+                    @input="renameDraft = ($event.target as HTMLInputElement).value"
+                    @blur="commitRecordRename(recordKey)"
+                    @keydown.esc.stop.prevent="cancelRename" />
                 </form>
               </th>
               <td>
@@ -336,6 +334,7 @@ function cancelRename() {
 }
 
 function commitRecordRename(recordKey: string) {
+  if (editingRecord.value !== recordKey) return
   if (!canUseRecordKey(renameDraft.value, recordKey)) return
   const nextKey = renameDraft.value.trim()
   const next = cloneDictionary()
@@ -351,6 +350,7 @@ function commitRecordRename(recordKey: string) {
 }
 
 function commitLanguageRename(language: string) {
+  if (editingLanguage.value !== language) return
   if (!canUseLanguageKey(renameDraft.value, language)) return
   const nextKey = renameDraft.value.trim()
   const next = cloneDictionary()
@@ -405,7 +405,6 @@ defineExpose({ save })
 .dictionary-editor__record-heading,
 .dictionary-editor__row-actions,
 .dictionary-editor__cell,
-.dictionary-editor__rename,
 .dictionary-editor__diagnostic {
   display: flex;
   align-items: center;
@@ -513,8 +512,7 @@ defineExpose({ save })
   opacity: 1;
 }
 
-.dictionary-editor__cell,
-.dictionary-editor__rename {
+.dictionary-editor__cell {
   gap: var(--oc-space-1);
 }
 

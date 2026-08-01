@@ -299,12 +299,12 @@ function handleKeydown(event: KeyboardEvent): void {
 }
 
 .reference-string-field__multiline {
-  height: var(--oc-property-row-height);
+  height: var(--oc-field-control-height, var(--oc-property-row-height));
   transition: height var(--oc-duration-normal) var(--oc-ease);
 }
 
 .reference-string-field__multiline:focus-within {
-  height: var(--oc-property-row-expanded-height);
+  height: var(--oc-field-control-expanded-height, var(--oc-property-row-expanded-height));
 }
 
 .reference-string-field__input {

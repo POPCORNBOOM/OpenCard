@@ -29,11 +29,8 @@
                 @submit.prevent="commitRename(column.key)">
                 <OcFieldInput :value="renameDraft" size="sm" full-width autofocus
                   @input="renameDraft = ($event.target as HTMLInputElement).value"
-                  @keydown.esc.prevent="cancelRename" />
-                <OcButton icon-only size="sm" variant="ghost" icon="action.check"
-                  :aria-label="t('cardDesigner.dataTable.renameConfirm')" type="submit" />
-                <OcButton icon-only size="sm" variant="ghost" icon="action.close"
-                  :aria-label="t('cardDesigner.dataTable.renameCancel')" @click="cancelRename" />
+                  @blur="commitRename(column.key)"
+                  @keydown.esc.stop.prevent="cancelRename" />
               </form>
               <div v-else class="card-data-table__column-heading" tabindex="0"
                 @contextmenu="openColumnContextMenu($event, column)"
@@ -41,6 +38,20 @@
                 <OcIcon :name="column.kind === 'blueprint' ? 'entity.card-blueprint' : 'entity.card-instance'"
                   size="md" tone="muted" />
                 <span>{{ column.title }}</span>
+                <OcButton
+                  v-if="column.kind === 'instance'"
+                  icon-only
+                  size="sm"
+                  variant="ghost"
+                  :icon="column.exported ? 'status.eye' : 'status.eye-off'"
+                  :icon-tone="column.exported ? 'primary' : 'muted'"
+                  :data-tooltip="column.exported
+                    ? t('cardDesigner.dataTable.excludeInstanceFromExport')
+                    : t('cardDesigner.dataTable.includeInstanceInExport')"
+                  :aria-label="column.exported
+                    ? t('cardDesigner.dataTable.excludeInstanceFromExport')
+                    : t('cardDesigner.dataTable.includeInstanceInExport')"
+                  @click="emit('set-instance-exported', column.key, !column.exported)" />
                 <OcActionButton :action="columnAction(column)" size="sm" variant="ghost"
                   @select="handleColumnAction(column, $event.key)" />
               </div>
@@ -87,6 +98,8 @@
                   <span>{{ block.title }}</span>
                   <OcActionButton :action="blockFieldAction(block)" size="sm" variant="ghost"
                     @select="handleBlockAction(block.key, $event.key)" />
+                  <OcActionButton :action="removeBlockAction()" size="sm" variant="ghost"
+                    @select="handleBlockAction(block.key, $event.key)" />
                 </span>
               </th>
               <td :colspan="columns.length + 1" />
@@ -100,33 +113,39 @@
                   @keydown="openFieldKeyboardMenu($event, block, field)">
                   <OcIcon :name="getPropertyFieldIcon(field.definition.fieldType)" size="sm" tone="muted" />
                   <span>{{ field.title }}</span>
-                  <OcButton icon-only size="sm" variant="ghost" icon="action.close"
-                    :data-tooltip="t('cardDesigner.dataTable.excludeField')"
-                    :aria-label="t('cardDesigner.dataTable.excludeField')"
-                    @click="emit('exclude-field', block.key, field.key)" />
-                  <OcButton v-if="field.deletable" icon-only size="sm" variant="ghost" icon="action.delete"
-                    icon-tone="danger" :data-tooltip="t('cardDesigner.dataTable.deleteField')"
-                    :aria-label="t('cardDesigner.dataTable.deleteField')"
-                    @click="emit('delete-field', block.key, field.key)" />
+                  <OcActionButton v-if="field.deletable" :action="deleteFieldAction()"
+                    size="sm" variant="ghost"
+                    @select="handleFieldAction(block.key, field.key, $event.key)" />
+                  <OcActionButton :action="excludeFieldAction()" size="sm" variant="ghost"
+                    @select="handleFieldAction(block.key, field.key, $event.key)" />
                 </span>
               </th>
               <td v-for="cell in field.cells" :key="cell.identity"
                 class="card-data-table__cell" :class="{ 'is-inherited': cell.inherited, 'has-reset': cell.overridden }"
                 :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)">
                 <template v-if="shouldMountCell(cell.identity)">
-                  <PropertyFieldControl :identity="cell.identity" appearance="embedded"
-                    :definition="getCellDefinition?.(block.key, field, cell) ?? field.definition"
-                    :value="cell.value" :binding-interpreter="bindingInterpreter"
-                    @update:value="emit('update-cell', {
-                      cardId: cell.cardId,
-                      blockId: block.key,
-                      fieldKey: field.key,
-                      value: $event,
-                    })" />
-                  <OcButton v-if="cell.overridden" class="card-data-table__reset" icon-only size="sm"
-                    variant="ghost" icon="action.discard" :data-tooltip="t('cardDesigner.dataTable.resetOverride')"
-                    :aria-label="t('cardDesigner.dataTable.resetOverride')"
-                    @click="emit('reset-cell', { cardId: cell.cardId, blockId: block.key, fieldKey: field.key })" />
+                  <span v-if="cell.readonly" class="card-data-table__cell-preview">
+                    {{ formatCellPreview(cell.value) }}
+                  </span>
+                  <template v-else>
+                    <PropertyFieldControl :identity="cell.identity" appearance="embedded"
+                      :definition="resolveCellDefinition(block.key, field, cell)"
+                      :value="cell.value" :binding-interpreter="bindingInterpreter"
+                      @update:value="emit('update-cell', {
+                        cardId: cell.cardId,
+                        blockId: block.key,
+                        fieldKey: field.key,
+                        value: $event,
+                      })" />
+                    <span v-if="cell.overridden" class="card-data-table__cell-actions">
+                      <OcActionButton :action="resetCellAction()" size="sm" variant="ghost"
+                        @select="emit('reset-cell', {
+                          cardId: cell.cardId,
+                          blockId: block.key,
+                          fieldKey: field.key,
+                        })" />
+                    </span>
+                  </template>
                 </template>
                 <span v-else class="card-data-table__cell-preview">{{ formatCellPreview(cell.value) }}</span>
               </td>
@@ -188,6 +207,7 @@ const emit = defineEmits<{
   'rename-instance': [cardId: string, name: string]
   'duplicate-card': [cardId: string]
   'delete-instance': [cardId: string]
+  'set-instance-exported': [cardId: string, exported: boolean]
   'add-block': [blockId: string]
   'remove-block': [blockId: string]
   'include-field': [blockId: string, fieldKey: string]
@@ -321,6 +341,14 @@ function formatCellPreview(value: unknown): string {
   }
 }
 
+function resolveCellDefinition(
+  blockId: string,
+  field: CdeDataTableFieldRow,
+  cell: CdeDataTableCell,
+): PropertyEditorFieldDefinition {
+  return props.getCellDefinition?.(blockId, field, cell) ?? field.definition
+}
+
 onMounted(() => {
   if (!supportsIntersectionObserver) return
   cellObserver = new IntersectionObserver((entries) => {
@@ -391,7 +419,7 @@ function faceBlockAction(face: CdeDataTableFaceGroup): OcActionButtonAction | nu
   }
 }
 
-function blockCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
+function blockFieldCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
   const selectedFieldKeys = new Set(block.fields.map(field => field.key))
   const catalogBlock = props.catalogFaceGroups
     .flatMap(face => face.blocks)
@@ -408,11 +436,6 @@ function blockCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonActi
         icon: 'action.add',
         title: t('cardDesigner.dataTable.createField'),
       },
-      {
-        key: 'remove-block',
-        icon: 'action.close',
-        title: t('cardDesigner.dataTable.removeBlock'),
-      },
     ]
 }
 
@@ -420,9 +443,46 @@ function blockFieldAction(block: CdeDataTableBlockCatalogEntry): OcActionButtonA
   return {
     key: 'manage-fields',
     icon: 'action.add',
-    title: t('cardDesigner.dataTable.manageFields'),
-    children: blockCommands(block),
+    title: t('cardDesigner.dataTable.editBlockFields'),
+    children: blockFieldCommands(block),
   }
+}
+
+function removeBlockAction(): OcActionButtonAction {
+  return {
+    key: 'remove-block',
+    icon: 'action.close',
+    title: t('cardDesigner.dataTable.stopEditingBlock'),
+  }
+}
+
+function deleteFieldAction(): OcActionButtonAction {
+  return {
+    key: 'delete-field',
+    icon: 'action.delete',
+    iconTone: 'danger',
+    title: t('cardDesigner.dataTable.deleteField'),
+  }
+}
+
+function excludeFieldAction(): OcActionButtonAction {
+  return {
+    key: 'exclude-field',
+    icon: 'action.close',
+    title: t('cardDesigner.dataTable.stopEditingField'),
+  }
+}
+
+function resetCellAction(): OcActionButtonAction {
+  return {
+    key: 'reset-cell',
+    icon: 'action.discard',
+    title: t('cardDesigner.dataTable.resetOverride'),
+  }
+}
+
+function blockContextCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
+  return [blockFieldAction(block), removeBlockAction()]
 }
 
 function handleBlockAction(blockId: string, actionKey: string): void {
@@ -434,10 +494,8 @@ function handleBlockAction(blockId: string, actionKey: string): void {
 
 function fieldCommands(field: CdeDataTableFieldRow): OcActionButtonAction[] {
   return [
-    { key: 'exclude-field', icon: 'action.close', title: t('cardDesigner.dataTable.excludeField') },
-    ...(field.deletable
-      ? [{ key: 'delete-field', icon: 'action.delete' as const, iconTone: 'danger' as const, title: t('cardDesigner.dataTable.deleteField') }]
-      : []),
+    ...(field.deletable ? [deleteFieldAction()] : []),
+    excludeFieldAction(),
   ]
 }
 
@@ -469,11 +527,11 @@ function openFaceKeyboardMenu(event: KeyboardEvent, face: CdeDataTableFaceGroup)
 }
 
 function openBlockContextMenu(event: MouseEvent, block: CdeDataTableBlockCatalogEntry): void {
-  openContextMenu({ event, items: blockCommands(block), onSelect: key => handleBlockAction(block.key, key) })
+  openContextMenu({ event, items: blockContextCommands(block), onSelect: key => handleBlockAction(block.key, key) })
 }
 
 function openBlockKeyboardMenu(event: KeyboardEvent, block: CdeDataTableBlockCatalogEntry): void {
-  openKeyboardContextMenu(event, blockCommands(block), key => handleBlockAction(block.key, key))
+  openKeyboardContextMenu(event, blockContextCommands(block), key => handleBlockAction(block.key, key))
 }
 
 function handleFieldAction(blockId: string, fieldKey: string, actionKey: string): void {
@@ -506,6 +564,7 @@ function openFieldKeyboardMenu(
 }
 
 function commitRename(cardId: string): void {
+  if (renamingColumnKey.value !== cardId) return
   const name = renameDraft.value.trim()
   if (!name) return
   emit('rename-instance', cardId, name)
@@ -580,7 +639,9 @@ onBeforeUnmount(() => {
 }
 
 .card-data-table {
-  --card-data-table-row-height: 40px;
+  --card-data-table-row-height: var(--oc-table-row-height);
+  --oc-field-control-height: calc(var(--oc-table-row-height) - var(--oc-border-width));
+  --oc-field-control-expanded-height: var(--oc-field-control-height);
   background: var(--oc-bg-base);
 }
 
@@ -598,9 +659,9 @@ th,
 td {
   box-sizing: border-box;
   height: var(--card-data-table-row-height);
-  padding: var(--oc-space-1) var(--oc-space-2);
-  border-right: 1px solid var(--oc-border-muted);
-  border-bottom: 1px solid var(--oc-border-muted);
+  padding: 0 var(--oc-space-2);
+  border-right: var(--oc-border-width) solid var(--oc-border-muted);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
   text-align: left;
   vertical-align: middle;
@@ -618,7 +679,6 @@ tbody th {
   position: sticky;
   left: 0;
   z-index: 3;
-  background: var(--oc-bg-raised);
 }
 
 .card-data-table__corner {
@@ -669,8 +729,7 @@ tbody th {
 .card-data-table__column-heading,
 .card-data-table__face-heading,
 .card-data-table__block-heading,
-.card-data-table__field-heading,
-.card-data-table__rename {
+.card-data-table__field-heading {
   display: flex;
   align-items: center;
   gap: var(--oc-space-2);
@@ -690,17 +749,23 @@ tbody th {
 
 .card-data-table__face-row th,
 .card-data-table__face-row td {
-  background: var(--oc-bg-raised);
+  background: var(--oc-bg-surface);
   color: var(--oc-fg-default);
   font-weight: 600;
 }
 
 .card-data-table__block-row th,
 .card-data-table__block-row td {
-  background: var(--oc-bg-subtle);
+  background: var(--oc-bg-block);
+}
+
+.card-data-table__field-row th,
+.card-data-table__field-row td {
+  background: var(--oc-bg-base);
 }
 
 .card-data-table__field-heading {
+  min-height: var(--oc-field-control-height);
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-sm);
 }
@@ -715,21 +780,18 @@ tbody th {
 
 .card-data-table__cell.is-revealed {
   background: var(--oc-bg-selected);
-  box-shadow: inset 0 0 0 2px var(--oc-fg-accent);
-}
-
-.card-data-table__cell:focus-within:not(.is-revealed) {
-  box-shadow: inset 0 0 0 1px var(--oc-border-accent);
+  outline: 2px solid var(--oc-fg-accent);
+  outline-offset: -2px;
 }
 
 .card-data-table__cell-preview {
-  display: block;
+  display: flex;
+  align-items: center;
   min-width: 0;
-  height: var(--oc-size-md);
+  height: 100%;
   overflow: hidden;
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-sm);
-  line-height: var(--oc-size-md);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -738,10 +800,13 @@ tbody th {
   padding-right: calc(var(--oc-size-sm) + var(--oc-space-2));
 }
 
-.card-data-table__reset {
+.card-data-table__cell-actions {
   position: absolute;
-  top: 50%;
-  right: var(--oc-space-1);
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  right: var(--oc-space-2);
+  display: flex;
+  align-items: center;
 }
+
 </style>

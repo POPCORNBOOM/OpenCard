@@ -16,8 +16,8 @@ vi.mock('vue-i18n', () => ({
 }))
 
 const columns = [
-  { key: '__blueprint__', kind: 'blueprint' as const, title: 'Blueprint' },
-  { key: 'instance', kind: 'instance' as const, title: 'Instance' },
+  { key: '__blueprint__', kind: 'blueprint' as const, title: 'Blueprint', exported: true },
+  { key: 'instance', kind: 'instance' as const, title: 'Instance', exported: true },
 ]
 
 const faceGroups: CdeDataTableFaceGroup[] = [{
@@ -36,11 +36,11 @@ const faceGroups: CdeDataTableFaceGroup[] = [{
       cells: [
         {
           identity: '__blueprint__\0text\0content', cardId: '__blueprint__', value: 'Blueprint',
-          inherited: false, overridden: false,
+          readonly: false, inherited: false, overridden: false,
         },
         {
           identity: 'instance\0text\0content', cardId: 'instance', value: 'Override',
-          inherited: false, overridden: true,
+          readonly: false, inherited: false, overridden: true,
         },
       ],
     }],
@@ -111,7 +111,16 @@ describe('CardDataTable', () => {
     expect(wrapper.emitted('include-field')).toEqual([['text', 'fontSize']])
     expect(wrapper.emitted('create-field')).toEqual([['text']])
 
-    await wrapper.get('button[aria-label="cardDesigner.dataTable.excludeField"]').trigger('click')
+    const removeBlockAction = wrapper.findAllComponents(OcActionButton)
+      .find(action => action.props('action').key === 'remove-block')!
+    expect(removeBlockAction.props('action')).toMatchObject({
+      icon: 'action.close',
+      title: 'cardDesigner.dataTable.stopEditingBlock',
+    })
+    removeBlockAction.vm.$emit('select', { key: 'remove-block' })
+    expect(wrapper.emitted('remove-block')).toEqual([['text']])
+
+    await wrapper.get('button[aria-label="cardDesigner.dataTable.stopEditingField"]').trigger('click')
     expect(wrapper.emitted('exclude-field')).toEqual([['text', 'content']])
     await wrapper.get('button[aria-label="cardDesigner.dataTable.deleteField"]').trigger('click')
     expect(wrapper.emitted('delete-field')).toEqual([['text', 'content']])
@@ -124,8 +133,27 @@ describe('CardDataTable', () => {
     }])
   })
 
+  it('renders readonly instance cells as non-focusable text', () => {
+    const readonlyGroups = structuredClone(faceGroups)
+    readonlyGroups[0]!.blocks[0]!.fields[0]!.cells[1]!.readonly = true
+    const wrapper = mount(CardDataTable, {
+      props: {
+        columns,
+        catalogFaceGroups,
+        faceGroups: readonlyGroups,
+      },
+    })
+
+    expect(wrapper.find('[data-card-id="__blueprint__"] input').exists()).toBe(true)
+    expect(wrapper.find('[data-card-id="instance"] input').exists()).toBe(false)
+    expect(wrapper.get('[data-card-id="instance"] .card-data-table__cell-preview').text()).toBe('Override')
+  })
+
   it('supports blueprint duplication and instance rename, copy, delete and reset actions', async () => {
-    const wrapper = mount(CardDataTable, { props: { columns, catalogFaceGroups, faceGroups } })
+    const wrapper = mount(CardDataTable, {
+      attachTo: document.body,
+      props: { columns, catalogFaceGroups, faceGroups },
+    })
     expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('has-reset')
     const columnActions = wrapper.findAllComponents(OcActionButton)
       .filter(action => action.element.closest('thead'))
@@ -137,8 +165,21 @@ describe('CardDataTable', () => {
 
     columnActions[1]!.vm.$emit('select', { key: 'rename' })
     await nextTick()
-    await wrapper.get('.card-data-table__rename input').setValue('Renamed')
-    await wrapper.get('.card-data-table__rename').trigger('submit')
+    const renameInput = wrapper.get('.card-data-table__rename input')
+    expect(wrapper.find('.card-data-table__rename button').exists()).toBe(false)
+    ;(renameInput.element as HTMLInputElement).focus()
+    await renameInput.setValue('Renamed')
+    ;(wrapper.get('[data-card-id="__blueprint__"] input').element as HTMLInputElement).focus()
+    await nextTick()
+    expect(wrapper.emitted('rename-instance')).toEqual([['instance', 'Renamed']])
+
+    const currentColumnActions = wrapper.findAllComponents(OcActionButton)
+      .filter(action => action.element.closest('thead'))
+    currentColumnActions[1]!.vm.$emit('select', { key: 'rename' })
+    await nextTick()
+    await wrapper.get('.card-data-table__rename input').setValue('Cancelled')
+    await wrapper.get('.card-data-table__rename input').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('.card-data-table__rename').exists()).toBe(false)
     expect(wrapper.emitted('rename-instance')).toEqual([['instance', 'Renamed']])
 
     const instanceAction = wrapper.findAllComponents(OcActionButton)
@@ -152,6 +193,7 @@ describe('CardDataTable', () => {
     expect(wrapper.emitted('reset-cell')).toEqual([[
       { cardId: 'instance', blockId: 'text', fieldKey: 'content' },
     ]])
+    wrapper.unmount()
   })
 
   it('resizes columns with pointer and keyboard input within the supported bounds', async () => {
@@ -198,8 +240,16 @@ describe('CardDataTable', () => {
     menu.selectMenuItem('duplicate')
     expect(wrapper.emitted('duplicate-card')).toEqual([['instance']])
 
+    await wrapper.get('.card-data-table__block-heading').trigger('contextmenu')
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['manage-fields', 'remove-block'])
+    const manageFields = menu.state.value.items[0]
+    expect(manageFields?.type !== 'divider' && manageFields.children?.map(item => item.key))
+      .toEqual(['include-field:fontSize', 'create-field'])
+    menu.selectMenuItem('remove-block')
+    expect(wrapper.emitted('remove-block')).toEqual([['text']])
+
     await wrapper.get('.card-data-table__field-heading').trigger('contextmenu')
-    expect(menu.state.value.items.map(item => item.key)).toEqual(['exclude-field', 'delete-field'])
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['delete-field', 'exclude-field'])
     menu.selectMenuItem('exclude-field')
     expect(wrapper.emitted('exclude-field')).toEqual([['text', 'content']])
   })
@@ -266,5 +316,18 @@ describe('CardDataTable', () => {
     expect(instanceCell.find('input').exists()).toBe(true)
     expect(wrapper.findAll('.card-data-table__cell-preview')).toHaveLength(1)
     expect(getCellDefinition).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits Instance export selection without owning workbook actions', async () => {
+    const wrapper = mount(CardDataTable, {
+      props: { columns, catalogFaceGroups, faceGroups },
+    })
+
+    const exportToggle = wrapper.get('[aria-label="cardDesigner.dataTable.excludeInstanceFromExport"]')
+    expect(exportToggle.get('.oc-icon').attributes('style')).toContain('var(--oc-icon-accent)')
+
+    await exportToggle.trigger('click')
+    expect(wrapper.emitted('set-instance-exported')).toEqual([['instance', false]])
+    expect(wrapper.find('.card-data-table__toolbar').exists()).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
@@ -51,6 +51,52 @@ describe('FloatingMenuHost pointer dismissal', () => {
     vi.advanceTimersByTime(100)
 
     expect(menu.state.value.isOpen).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('selects a leaf through arbitrarily nested teleported context menus', async () => {
+    const onSelect = vi.fn()
+    const wrapper = mount(FloatingMenuHost, { attachTo: document.body })
+    const menu = useFloatingMenu()
+    menu.openMenu({
+      anchor: new DOMRect(10, 10, 0, 0),
+      items: [{
+        key: 'level-1',
+        title: 'Level 1',
+        children: [{
+          key: 'level-2',
+          title: 'Level 2',
+          children: [{
+            key: 'level-3',
+            title: 'Level 3',
+            children: [{ key: 'leaf', title: 'Leaf' }],
+          }],
+        }],
+      }],
+      onSelect,
+    })
+    await nextTick()
+
+    for (let depth = 1; depth < 4; depth += 1) {
+      const layers = document.body.querySelectorAll<HTMLElement>('.oc-floating-layer')
+      layers[layers.length - 1]?.querySelector<HTMLElement>('.oc-action-menu__item')
+        ?.dispatchEvent(new Event('pointerenter'))
+      await flushPromises()
+    }
+
+    const leafButton = document.body.querySelector<HTMLButtonElement>(
+      '.oc-action-menu__button[data-tooltip="Leaf"]',
+    )
+    expect(leafButton).not.toBeNull()
+    leafButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))
+    await flushPromises()
+    expect(leafButton?.isConnected).toBe(true)
+
+    leafButton?.click()
+    await flushPromises()
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(onSelect).toHaveBeenCalledWith('leaf')
+    expect(menu.state.value.isOpen).toBe(false)
     wrapper.unmount()
   })
 })

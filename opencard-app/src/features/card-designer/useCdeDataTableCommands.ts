@@ -3,8 +3,16 @@
  * Owns document-write transactions only; projection, UI, selection, and Cell caches stay outside.
  */
 import { computed, type Ref } from 'vue'
-import type { AdditionalFieldKeyError, CardDocument } from '../../entities/card/model'
+import {
+  setCardFieldValue,
+  type AdditionalFieldKeyError,
+  type CardBlock,
+  type CardDocument,
+} from '../../entities/card/model'
+import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
+import { isBlockContainer } from '../../entities/card/tree'
 import type { PropertyFieldType } from '../../entities/card/schema'
+import type { CardDataWorkbookUpdate } from './cardDataWorkbook'
 
 type CdeDataTableChangeMode = 'typing' | 'action'
 
@@ -50,6 +58,15 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     return normalizeFieldSelection(options.cardDoc.value?.dataTable?.blocks)
   })
 
+  const exportInstanceIds = computed(() => {
+    options.documentRevision.value
+    const document = options.cardDoc.value
+    if (!document) return []
+    const configured = document.dataTable?.exportInstanceIds
+    const selected = new Set(configured ?? document.instances.map(instance => instance.id))
+    return document.instances.flatMap(instance => selected.has(instance.id) ? [instance.id] : [])
+  })
+
   function includeBlock(blockId: string): boolean {
     if (!blockId || hasOwn(fieldSelection.value, blockId)) return false
     return commitFieldSelection({ ...fieldSelection.value, [blockId]: [] })
@@ -85,8 +102,65 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     return options.updateBlockField(payload, payload.value, 'typing')
   }
 
+  function setInstanceExported(instanceId: string, exported: boolean): boolean {
+    const document = options.cardDoc.value
+    if (!document?.instances.some(instance => instance.id === instanceId)) return false
+    const current = new Set(exportInstanceIds.value)
+    if (current.has(instanceId) === exported) return false
+    if (exported) current.add(instanceId)
+    else current.delete(instanceId)
+    const orderedIds = document.instances.flatMap(instance => current.has(instance.id) ? [instance.id] : [])
+    document.dataTable = {
+      blocks: normalizeFieldSelection(document.dataTable?.blocks),
+      exportInstanceIds: orderedIds,
+    }
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
   function resetCell(payload: BlockFieldTarget): boolean {
     return options.resetBlockField(payload)
+  }
+
+  function applyWorkbookUpdates(updates: readonly CardDataWorkbookUpdate[]): boolean {
+    const document = options.cardDoc.value
+    if (!document || updates.length === 0) return false
+    const blockLookup = createBlockLookup(document)
+    const instanceLookup = new Map(document.instances.map(instance => [instance.id, instance]))
+    let changed = false
+
+    for (const update of updates) {
+      const block = blockLookup.get(update.blockId)
+      if (!block) continue
+      if (update.cardId === options.blueprintCardId) {
+        if (update.reset || update.value === undefined) continue
+        const record = block as unknown as Record<string, unknown>
+        if (storedValuesEqual(record[update.fieldKey], update.value)) continue
+        changed = setCardFieldValue(record, update.fieldKey, structuredClone(update.value)) || changed
+        continue
+      }
+
+      const instance = instanceLookup.get(update.cardId)
+      if (!instance || !isInstanceBlockFieldOverridable(update.fieldKey)) continue
+      const blockData = instance.data[update.blockId]
+      if (update.reset) {
+        if (!blockData || !Object.prototype.hasOwnProperty.call(blockData, update.fieldKey)) continue
+        delete blockData[update.fieldKey]
+        if (Object.keys(blockData).length === 0) delete instance.data[update.blockId]
+        changed = true
+        continue
+      }
+      if (update.value === undefined || storedValuesEqual(blockData?.[update.fieldKey], update.value)) continue
+      const target = blockData ?? (instance.data[update.blockId] = {})
+      target[update.fieldKey] = structuredClone(update.value)
+      changed = true
+    }
+
+    if (!changed) return false
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
   }
 
   function createField(
@@ -145,8 +219,12 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     const document = options.cardDoc.value
     if (!document) return false
     const blocks = normalizeFieldSelection(value)
-    if (Object.keys(blocks).length === 0) delete document.dataTable
-    else document.dataTable = { blocks }
+    const exportInstanceIds = document.dataTable?.exportInstanceIds
+    if (Object.keys(blocks).length === 0 && exportInstanceIds === undefined) delete document.dataTable
+    else document.dataTable = {
+      blocks,
+      ...(exportInstanceIds === undefined ? {} : { exportInstanceIds: [...exportInstanceIds] }),
+    }
     return true
   }
 
@@ -154,13 +232,34 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     createField,
     deleteField,
     excludeField,
+    exportInstanceIds,
+    applyWorkbookUpdates,
     fieldSelection,
     includeBlock,
     includeField,
     removeBlock,
     resetCell,
+    setInstanceExported,
     updateCell,
   }
+}
+
+function createBlockLookup(document: CardDocument): Map<string, CardBlock> {
+  const lookup = new Map<string, CardBlock>()
+  function visit(block: CardBlock): void {
+    lookup.set(block.id, block)
+    if (isBlockContainer(block)) {
+      for (const child of block.children) visit(child.block)
+    }
+  }
+  for (const face of Object.values(document.faces)) {
+    for (const child of face.children) visit(child.block)
+  }
+  return lookup
+}
+
+function storedValuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 function normalizeFieldSelection(

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import ShellTitleBar from './ShellTitleBar.vue'
 
@@ -70,6 +70,53 @@ describe('ShellTitleBar', () => {
 
     items[0]!.click()
     expect(wrapper.emitted('menu-action')).toEqual([['file', 'open-project']])
+    wrapper.unmount()
+  })
+
+  it('keeps an arbitrarily deep title menu branch mounted through pointerdown', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      attachTo: document.body,
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [{
+          key: 'file',
+          label: 'File',
+          actions: [{
+            key: 'level-1',
+            title: 'Level 1',
+            children: [{
+              key: 'level-2',
+              title: 'Level 2',
+              children: [{
+                key: 'level-3',
+                title: 'Level 3',
+                children: [{ key: 'leaf', title: 'Leaf' }],
+              }],
+            }],
+          }],
+        }],
+      },
+    })
+
+    await wrapper.get('.titlebar-menu-button').trigger('click')
+    for (let depth = 1; depth < 4; depth += 1) {
+      const layers = document.body.querySelectorAll<HTMLElement>('.oc-floating-layer')
+      layers[layers.length - 1]?.querySelector<HTMLElement>('.oc-action-menu__item')
+        ?.dispatchEvent(new Event('pointerenter'))
+      await flushPromises()
+    }
+
+    const leafButton = document.body.querySelector<HTMLButtonElement>(
+      '.oc-action-menu__button[data-tooltip="Leaf"]',
+    )
+    expect(leafButton).not.toBeNull()
+    leafButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))
+    await flushPromises()
+    expect(leafButton?.isConnected).toBe(true)
+
+    leafButton?.click()
+    expect(wrapper.emitted('menu-action')).toEqual([['file', 'leaf']])
     wrapper.unmount()
   })
 

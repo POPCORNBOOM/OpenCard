@@ -37,6 +37,7 @@
     "@tiptap/vue-3": "2.27.1",
     "@vueuse/core": "^13.9.0",
     "dom-to-image-more": "^3.7.2",
+    "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "markdown-it": "^14.3.0",
     "markdown-it-attrs": "^5.0.0",
@@ -57,5 +58,10 @@
     "vite": "^6.0.3",
     "vitest": "^4.1.4",
     "vue-tsc": "^2.1.10"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
   }
 }

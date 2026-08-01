@@ -5,11 +5,13 @@
     :anchor="menuAnchor"
     :placement="state.placement"
     class="floating-menu-surface"
+    :data-oc-action-menu-branch="menuBranchId"
     @pointerdown.stop
   >
     <OcActionMenu
       ref="menuRef"
       :actions="state.items"
+      :branch-id="menuBranchId"
       @select="selectMenuItem($event.key)"
       @dismiss="closeMenu"
     />
@@ -17,8 +19,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import OcActionMenu from '../standard/OcActionMenu.vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import OcActionMenu, { isActionMenuBranchEvent } from '../standard/OcActionMenu.vue'
 import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
@@ -26,6 +28,7 @@ defineOptions({ name: 'FloatingMenuHost' })
 
 const { state, closeMenu: closeFloatingMenu, selectMenuItem } = useFloatingMenu()
 const menuRef = ref<InstanceType<typeof OcActionMenu> | null>(null)
+const menuBranchId = useId()
 const menuAnchor = computed(() => state.value.anchor)
 const MENU_POINTER_GRACE_DISTANCE = 24
 const MENU_POINTER_CLOSE_DELAY = 180
@@ -39,7 +42,8 @@ watch(
     menuRef.value?.focusFirst()
   },
 )
-function handlePointerDown(): void {
+function handlePointerDown(event: PointerEvent): void {
+  if (isActionMenuBranchEvent(event, menuBranchId)) return
   closeMenu()
 }
 

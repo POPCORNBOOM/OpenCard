@@ -57,7 +57,7 @@ const currentValue = computed(() => {
 }
 
 .anchor-grid {
-  --anchor-grid-max-size: 96px;
+  --anchor-grid-max-size: calc(var(--oc-table-row-height) * 3 - var(--oc-border-width));
   width: var(--anchor-grid-max-size);
   max-width: var(--anchor-grid-max-size);
 }

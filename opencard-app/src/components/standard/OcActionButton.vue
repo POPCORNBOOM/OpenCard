@@ -33,12 +33,14 @@
       :gap="0"
       :max-height="480"
       class="oc-action-button__floating"
+      :data-oc-action-menu-branch="menuBranchId"
       @pointerenter="cancelCloseMenu"
       @pointerleave="scheduleCloseMenu"
     >
       <OcActionMenu
         v-if="hasActionChildren(action)"
         :actions="action.children"
+        :branch-id="menuBranchId"
         @select="handleMenuSelect"
         @dismiss="closeMenu"
         @keep-open="cancelCloseMenu"
@@ -55,12 +57,13 @@ export type {
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcActionMenu, {
   type OcActionDefinition,
   type OcActionMenuEntry,
   type OcActionSelectPayload,
+  isActionMenuBranchEvent,
 } from './OcActionMenu.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
 
@@ -86,6 +89,7 @@ const emit = defineEmits<{
 }>()
 
 const rootRef = ref<HTMLElement | null>(null)
+const menuBranchId = useId()
 const isMenuOpen = ref(false)
 const isMenuPinned = ref(false)
 let closeTimer: number | null = null
@@ -158,9 +162,7 @@ function handleDocumentPointerDown(event: PointerEvent): void {
   if (!isMenuPinned.value) return
   const path = event.composedPath()
   const isInsideTrigger = rootRef.value ? path.includes(rootRef.value) : false
-  const isInsideActionMenu = path.some((target) => (
-    target instanceof HTMLElement && target.classList.contains('oc-action-button__floating')
-  ))
+  const isInsideActionMenu = isActionMenuBranchEvent(event, menuBranchId)
   if (!isInsideTrigger && !isInsideActionMenu) closeMenu()
 }
 

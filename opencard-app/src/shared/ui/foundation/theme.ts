@@ -175,7 +175,7 @@ export function resolveOcThemeTokens(
   const accent = parseHex(accentValue)
   tokens['--oc-accent-neighbor'] = deriveAccentNeighborColor(accentValue, accentNeighborAngle)
   if (accent) {
-    const surface = parseHex(tokens['--oc-bg-surface']) ?? base!
+    const accentSurface = parseHex(tokens['--oc-bg-surface']) ?? base!
     tokens['--oc-bg-active'] = withAlpha(accentValue, usesLightForeground ? 0.22 : 0.18)
     tokens['--oc-bg-selected'] = withAlpha(accentValue, usesLightForeground ? 0.16 : 0.12)
     tokens['--oc-bg-accent'] = accentValue
@@ -184,7 +184,7 @@ export function resolveOcThemeTokens(
     tokens['--oc-border-accent'] = accentValue
     tokens['--oc-accent-fg'] = accentForeground(accent)
     tokens['--oc-accent-glow'] = withAlpha(accentValue, usesLightForeground ? 0.28 : 0.35)
-    tokens['--oc-fg-accent'] = readableAccent(accent, surface)
+    tokens['--oc-fg-accent'] = readableAccent(accent, accentSurface)
     tokens['--oc-icon-accent'] = tokens['--oc-fg-accent']
     tokens['--oc-focus-ring'] = `0 0 0 2px ${withAlpha(accentValue, usesLightForeground ? 0.4 : 0.5)}`
   }

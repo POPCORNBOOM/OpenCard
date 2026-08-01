@@ -237,6 +237,26 @@ describe('OcTree', () => {
     }])
   })
 
+  it('commits rename on a real focus change and cancels it on Escape', async () => {
+    const wrapper = mount(OcTree, { attachTo: document.body, props: { data: createData() } })
+    const tree = wrapper.vm as unknown as { beginRename: (key: string) => Promise<void> }
+
+    await tree.beginRename('root')
+    await wrapper.get('input').setValue('Blurred')
+    ;(wrapper.get('.oc-tree__row').element as HTMLElement).focus()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'rename.commit', key: 'root', name: 'Blurred' },
+    ]])
+
+    await tree.beginRename('root')
+    await wrapper.get('input').setValue('Cancelled')
+    await wrapper.get('input').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('input').exists()).toBe(false)
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('keeps rename actions generic until the parent calls beginRename', async () => {
     const wrapper = mount(OcTree, {
       attachTo: document.body,

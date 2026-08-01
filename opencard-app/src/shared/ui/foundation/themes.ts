@@ -39,10 +39,12 @@ const sharedThemeTokens = {
   '--oc-content-width-md': '720px',
   '--oc-property-row-height': '28px',
   '--oc-property-row-expanded-height': '112px',
+  '--oc-table-row-height': '32px',
   '--oc-radius-sm': '3px',
   '--oc-radius-md': '6px',
   '--oc-radius-lg': '12px',
   '--oc-radius-full': '999px',
+  '--oc-border-width': '1px',
   '--oc-duration-fast': '100ms',
   '--oc-duration-normal': '150ms',
   '--oc-duration-slow': '250ms',
@@ -56,6 +58,7 @@ const darkTheme: OcThemeTokens = {
 
   '--oc-bg-base': '#1e1e1e',
   '--oc-bg-surface': '#252526',
+  '--oc-bg-block': '#222223',
   '--oc-bg-raised': '#2d2d2d',
 
   '--oc-bg-hover': 'rgba(255, 255, 255, 0.04)',
@@ -119,6 +122,7 @@ const lightTheme: OcThemeTokens = {
 
   '--oc-bg-base': '#f5f6fb',
   '--oc-bg-surface': '#ffffff',
+  '--oc-bg-block': '#fbfbfd',
   '--oc-bg-raised': '#f8f9fd',
 
   '--oc-bg-hover': 'rgba(31, 36, 48, 0.05)',

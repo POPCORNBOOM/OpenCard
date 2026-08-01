@@ -100,6 +100,57 @@ describe('useCdeDataTableCommands', () => {
     expect(resetBlockField).toHaveBeenCalledWith(target)
   })
 
+  it('defaults to exporting all Instances and persists explicit selection', () => {
+    const { cardDoc, markDocumentChanged, state } = createHarness()
+    cardDoc.value!.instances = [
+      { type: 'card-instance', id: 'one', name: 'One', amount: '1', data: {} },
+      { type: 'card-instance', id: 'two', name: 'Two', amount: '1', data: {} },
+    ]
+
+    expect(state.exportInstanceIds.value).toEqual(['one', 'two'])
+    expect(state.setInstanceExported('one', false)).toBe(true)
+    expect(cardDoc.value?.dataTable?.exportInstanceIds).toEqual(['two'])
+    expect(state.exportInstanceIds.value).toEqual(['two'])
+    expect(state.setInstanceExported('one', true)).toBe(true)
+    expect(cardDoc.value?.dataTable?.exportInstanceIds).toEqual(['one', 'two'])
+    expect(state.setInstanceExported('missing', true)).toBe(false)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps explicit Instance selection when the last field selection is removed', () => {
+    const { cardDoc, state } = createHarness()
+    cardDoc.value!.dataTable!.exportInstanceIds = []
+
+    expect(state.excludeField('text', 'content')).toBe(true)
+    expect(state.removeBlock('text')).toBe(true)
+    expect(cardDoc.value?.dataTable).toEqual({ blocks: {}, exportInstanceIds: [] })
+  })
+
+  it('applies workbook values and inheritance resets in one action', () => {
+    const { cardDoc, markDocumentChanged, refreshDocumentState, state } = createHarness()
+    cardDoc.value!.faces.front.children = [{
+      block: { type: 'text-block', id: 'text', name: 'Text', content: 'Before' },
+      location: { type: 'simple-container-location', id: 'location', anchor: 'lt' },
+    }]
+    cardDoc.value!.instances = [{
+      type: 'card-instance',
+      id: 'instance',
+      name: 'Instance',
+      amount: '1',
+      data: { text: { content: 'Override' } },
+    }]
+
+    expect(state.applyWorkbookUpdates([
+      { cardId: '__blueprint__', blockId: 'text', fieldKey: 'content', value: 'After', reset: false },
+      { cardId: 'instance', blockId: 'text', fieldKey: 'content', reset: true },
+    ])).toBe(true)
+    expect(cardDoc.value!.faces.front.children[0]!.block).toMatchObject({ content: 'After' })
+    expect(cardDoc.value!.instances[0]!.data).toEqual({})
+    expect(refreshDocumentState).toHaveBeenCalledTimes(1)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(1)
+    expect(markDocumentChanged).toHaveBeenCalledWith('action')
+  })
+
   it('includes a custom field before creation and keeps it on success', () => {
     const { cardDoc, createBlockField, state } = createHarness()
     createBlockField.mockImplementation((target) => {

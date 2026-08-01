@@ -169,6 +169,7 @@ export type CardFace = {
 
 export type CardDataTableConfiguration = {
     blocks: Record<string, string[]>
+    exportInstanceIds?: string[]
 }
 
 export type CardDocument = {

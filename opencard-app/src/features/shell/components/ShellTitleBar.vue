@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, type ComponentPublicInstance } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
-import OcActionMenu from '../../../components/standard/OcActionMenu.vue';
+import OcActionMenu, { isActionMenuBranchEvent } from '../../../components/standard/OcActionMenu.vue';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
 import type {
@@ -34,6 +34,7 @@ const emit = defineEmits<{
 }>();
 
 const openMenu = ref<string | null>(null);
+const menuBranchId = useId();
 const titlebarRef = ref<HTMLElement | null>(null);
 const taskPanelAnchor = ref<HTMLElement | null>(null);
 const taskPanelOpen = ref(false);
@@ -107,7 +108,7 @@ function onDocumentPointerDown(event: PointerEvent): void {
 
   const target = event.target;
   const isInsideTitlebar = target instanceof Node && titlebarRef.value?.contains(target);
-  const isInsideActionMenu = target instanceof Element && target.closest('.oc-action-menu');
+  const isInsideActionMenu = isActionMenuBranchEvent(event, menuBranchId);
   if (!isInsideTitlebar && !isInsideActionMenu) {
     closeMenu();
   }
@@ -187,9 +188,11 @@ onBeforeUnmount(() => {
           :gap="8"
           :max-height="480"
           class="titlebar-menu-floating"
+          :data-oc-action-menu-branch="menuBranchId"
         >
           <OcActionMenu
             :actions="menu.actions"
+            :branch-id="menuBranchId"
             @select="runMenuCommand(menu.key, $event.key)"
           />
         </OcFloatingLayer>

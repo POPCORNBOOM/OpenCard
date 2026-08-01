@@ -62,7 +62,7 @@ const BUILTIN_THEME_DEFINITIONS: Partial<Record<AppThemePresetId, AppThemeDefini
   },
   'ink-bamboo': {
     colors: { '--oc-accent': '#78C091', '--oc-bg-base': '#101A16', '--oc-fg-default': '#D5E2DA' },
-    accentNeighborAngle: -45,
+    accentNeighborAngle: -110,
     fontFamily: 'system',
   },
   'morning-mist': {

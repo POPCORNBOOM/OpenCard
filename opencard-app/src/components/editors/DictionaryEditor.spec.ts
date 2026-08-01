@@ -60,6 +60,7 @@ describe('DictionaryEditor', () => {
 
   it('renames and deletes records across all overrides', async () => {
     const wrapper = mount(DictionaryEditor, {
+      attachTo: document.body,
       props: {
         filePath: 'D:/Demo/.dictionary',
         modelValue: JSON.stringify({
@@ -70,15 +71,42 @@ describe('DictionaryEditor', () => {
     })
     await wrapper.get('button[data-tooltip="dictionaryEditor.actions.renameRecord"]').trigger('click')
     const renameForm = wrapper.get('tbody .dictionary-editor__rename')
-    await renameForm.get('input').setValue('heading')
-    await renameForm.get('button').trigger('click')
+    expect(renameForm.find('button').exists()).toBe(false)
+    const recordRenameInput = renameForm.get('input')
+    ;(recordRenameInput.element as HTMLInputElement).focus()
+    expect(document.activeElement).toBe(recordRenameInput.element)
+    await recordRenameInput.setValue('heading')
+    const baseValueInput = wrapper.get('tbody td input')
+    ;(baseValueInput.element as HTMLInputElement).focus()
+    expect(document.activeElement).toBe(baseValueInput.element)
+    await wrapper.vm.$nextTick()
     expect(latestDictionary(wrapper)).toEqual({
       base: { heading: '默认' },
       languages: { en_US: { heading: 'English' } },
     })
 
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.renameLanguage"]').trigger('click')
+    const languageRenameForm = wrapper.get('thead .dictionary-editor__rename')
+    const languageRenameInput = languageRenameForm.get('input')
+    ;(languageRenameInput.element as HTMLInputElement).focus()
+    await languageRenameInput.setValue('en_GB')
+    ;(wrapper.get('tbody td input').element as HTMLInputElement).focus()
+    await wrapper.vm.$nextTick()
+    expect(latestDictionary(wrapper)).toEqual({
+      base: { heading: '默认' },
+      languages: { en_GB: { heading: 'English' } },
+    })
+
+    const updateCount = wrapper.emitted('update:modelValue')?.length
+    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.renameRecord"]').trigger('click')
+    await wrapper.get('tbody .dictionary-editor__rename input').setValue('cancelled')
+    await wrapper.get('tbody .dictionary-editor__rename input').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('tbody .dictionary-editor__rename').exists()).toBe(false)
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(updateCount ?? 0)
+
     await wrapper.get('button[data-tooltip="dictionaryEditor.actions.deleteRecord"]').trigger('click')
-    expect(latestDictionary(wrapper)).toEqual({ languages: { en_US: {} } })
+    expect(latestDictionary(wrapper)).toEqual({ languages: { en_GB: {} } })
+    wrapper.unmount()
   })
 
   it('uses source repair mode for invalid content', () => {

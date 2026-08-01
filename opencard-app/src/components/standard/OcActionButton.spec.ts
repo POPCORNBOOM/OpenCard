@@ -106,7 +106,7 @@ describe('OcActionButton', () => {
     wrapper.unmount()
   })
 
-  it('keeps every ancestor open while crossing four nested menu levels', async () => {
+  it('selects a leaf through four teleported menu levels without dismissing its ancestors', async () => {
     const wrapper = mount(OcActionButton, {
       attachTo: document.body,
       props: {
@@ -132,6 +132,7 @@ describe('OcActionButton', () => {
 
     await wrapper.trigger('pointerenter')
     await flushPromises()
+    await wrapper.get('button[aria-label="More"]').trigger('click')
 
     for (let depth = 1; depth < 4; depth += 1) {
       const layersBeforeOpen = document.body.querySelectorAll<HTMLElement>('.oc-floating-layer')
@@ -149,6 +150,19 @@ describe('OcActionButton', () => {
     await new Promise((resolve) => window.setTimeout(resolve, 120))
     expect(document.body.querySelectorAll('.oc-floating-layer')).toHaveLength(4)
     expect(document.body.querySelectorAll('.oc-action-menu')).toHaveLength(4)
+
+    const confirmButton = document.body.querySelector<HTMLButtonElement>(
+      '.oc-action-menu__button[data-tooltip="Confirm Delete"]',
+    )
+    expect(confirmButton).not.toBeNull()
+    confirmButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))
+    await flushPromises()
+    expect(confirmButton?.isConnected).toBe(true)
+
+    confirmButton?.click()
+    await flushPromises()
+    expect(wrapper.emitted('select')).toEqual([[{ key: 'confirm-delete' }]])
+    expect(document.body.querySelectorAll('.oc-floating-layer')).toHaveLength(0)
 
     wrapper.unmount()
   })

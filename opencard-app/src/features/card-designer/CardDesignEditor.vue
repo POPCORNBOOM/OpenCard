@@ -91,6 +91,7 @@
         @rename-instance="renameInstance"
         @duplicate-card="duplicateDataTableCard"
         @delete-instance="deleteInstance"
+        @set-instance-exported="setDataTableInstanceExported"
         @add-block="includeDataTableBlock"
         @remove-block="removeDataTableBlock"
         @include-field="includeDataTableField"
@@ -344,6 +345,7 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
+import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
 import {
   useCdeViewportController,
@@ -600,13 +602,16 @@ const blockFieldCommands = useCdeBlockFieldCommands({
 
 const {
   createField: createDataTableField,
+  applyWorkbookUpdates: applyDataTableWorkbookUpdates,
   deleteField: deleteDataTableField,
   excludeField: excludeDataTableField,
   fieldSelection: dataTableFields,
+  exportInstanceIds: dataTableExportInstanceIds,
   includeBlock: includeDataTableBlock,
   includeField: includeDataTableField,
   removeBlock: removeDataTableBlock,
   resetCell: resetDataTableCell,
+  setInstanceExported: setDataTableInstanceExported,
   updateCell: updateDataTableCell,
 } = useCdeDataTableCommands({
   cardDoc,
@@ -628,11 +633,27 @@ const {
   cardDoc,
   documentRevision,
   fieldSelection: dataTableFields,
+  exportInstanceIds: dataTableExportInstanceIds,
   blueprintCardId: BLUEPRINT_CARD_ID,
   blueprintTitle: () => t('cardDesigner.dataTable.blueprint'),
   faceTitle: faceKey => t(`cardDesigner.info.${faceKey}`),
   translate: messageKey => t(messageKey),
   hasMessage: messageKey => te(messageKey),
+})
+
+const {
+  busy: dataTableWorkbookBusy,
+  canExport: canExportDataTableWorkbook,
+  exportWorkbook: exportDataTableWorkbook,
+  importWorkbook: importDataTableWorkbook,
+} = useCdeDataTableWorkbook({
+  cardDoc,
+  columns: dataTableColumns,
+  faceGroups: dataTableFaceGroups,
+  exportInstanceIds: dataTableExportInstanceIds,
+  flushPendingChanges,
+  applyUpdates: applyDataTableWorkbookUpdates,
+  translate: (key, parameters) => t(key, parameters ?? {}),
 })
 
 // 实例树与实例编辑协议。
@@ -1490,6 +1511,10 @@ defineExpose({
   canUndo,
   canRedo,
   navigate,
+  importDataTableWorkbook,
+  exportDataTableWorkbook,
+  dataTableWorkbookBusy,
+  canExportDataTableWorkbook,
 })
 
 onUnmounted(() => {

@@ -39,6 +39,12 @@ describe('OC theme runtime', () => {
     expect(document.documentElement.style.colorScheme).toBe(themeId)
     expect(document.documentElement.style.getPropertyValue('--oc-bg-base'))
       .toBe(OC_THEME_REGISTRY[themeId]['--oc-bg-base'])
+    expect(document.documentElement.style.getPropertyValue('--oc-bg-block'))
+      .toBe(OC_THEME_REGISTRY[themeId]['--oc-bg-block'])
+    expect(document.documentElement.style.getPropertyValue('--oc-table-row-height'))
+      .toBe(OC_THEME_REGISTRY[themeId]['--oc-table-row-height'])
+    expect(document.documentElement.style.getPropertyValue('--oc-border-width'))
+      .toBe(OC_THEME_REGISTRY[themeId]['--oc-border-width'])
   })
 
   it('falls back unknown themes to the default theme', () => {

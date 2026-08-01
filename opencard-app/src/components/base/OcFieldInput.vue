@@ -138,9 +138,14 @@ defineExpose({
   min-width: 0;
 }
 
+.oc-field-input:is(input, textarea) {
+  caret-color: var(--oc-fg-default);
+  cursor: text;
+}
+
 .oc-field-input--filled {
   background: var(--oc-field-surface-background, var(--oc-bg-input));
-  border: 1px solid var(--oc-field-surface-border-color, var(--oc-border-default));
+  border: var(--oc-field-surface-border-width, 1px) solid var(--oc-field-surface-border-color, var(--oc-border-default));
   border-radius: var(--oc-field-surface-border-radius, var(--oc-radius-sm));
   padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
   color: var(--oc-fg-default);
@@ -155,7 +160,7 @@ defineExpose({
 
 .oc-field-input--plain {
   background: transparent;
-  border: 1px solid transparent;
+  border: var(--oc-field-surface-border-width, 1px) solid transparent;
   color: var(--oc-fg-default);
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
@@ -167,17 +172,17 @@ defineExpose({
 }
 
 .oc-field-input--sm {
-  min-height: var(--oc-size-sm);
+  min-height: var(--oc-field-control-height, var(--oc-size-sm));
   font-size: var(--oc-text-sm);
 }
 
 .oc-field-input--md {
-  min-height: var(--oc-size-md);
+  min-height: var(--oc-field-control-height, var(--oc-size-md));
   font-size: var(--oc-text-base);
 }
 
 .oc-field-input--lg {
-  min-height: var(--oc-size-lg);
+  min-height: var(--oc-field-control-height, var(--oc-size-lg));
   font-size: var(--oc-text-lg);
 }
 

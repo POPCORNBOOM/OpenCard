@@ -88,23 +88,17 @@ describe('useCdeDataTableModel', () => {
     expect(keys).not.toContain('additionalFieldDefinition')
     expect(keys).not.toContain('id')
     expect(keys).not.toContain('type')
+    expect(keys).not.toContain('name')
 
     const child = model.faceGroups.value[0]?.blocks.find(block => block.key === 'child')
     const content = child?.fields.find(field => field.key === 'content')
-    expect(content?.cells.map(cell => ({ value: cell.value, inherited: cell.inherited, overridden: cell.overridden })))
+    expect(content?.cells.map(cell => ({ value: cell.value, readonly: cell.readonly, inherited: cell.inherited, overridden: cell.overridden })))
       .toEqual([
-        { value: 'Blueprint', inherited: false, overridden: false },
-        { value: 'Blueprint', inherited: true, overridden: false },
-        { value: 'Override', inherited: false, overridden: true },
+        { value: 'Blueprint', readonly: false, inherited: false, overridden: false },
+        { value: 'Blueprint', readonly: false, inherited: true, overridden: false },
+        { value: 'Override', readonly: false, inherited: false, overridden: true },
       ])
     expect(content?.cells[1]?.identity).toBe('one\u0000child\u0000content')
-    const name = child?.fields.find(field => field.key === 'name')
-    expect(name?.cells.map(cell => ({ value: cell.value, inherited: cell.inherited, overridden: cell.overridden })))
-      .toEqual([
-        { value: 'Child', inherited: false, overridden: false },
-        { value: 'Child', inherited: true, overridden: false },
-        { value: 'Child', inherited: true, overridden: false },
-      ])
   })
 
   it('does not construct Cell rows for unselected blocks or fields', () => {

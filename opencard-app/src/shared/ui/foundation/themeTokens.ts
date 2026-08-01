@@ -13,6 +13,7 @@ export const OC_THEME_TOKEN_KEYS = [
   // 背景 — 层级
   '--oc-bg-base',
   '--oc-bg-surface',
+  '--oc-bg-block',
   '--oc-bg-raised',
 
   // 背景 — 交互态
@@ -37,6 +38,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-bg-glass-saturate',
 
   // 边框
+  '--oc-border-width',
   '--oc-border-default',
   '--oc-border-muted',
   '--oc-border-strong',
@@ -123,6 +125,9 @@ export const OC_THEME_TOKEN_KEYS = [
   // 属性编辑器行高
   '--oc-property-row-height',
   '--oc-property-row-expanded-height',
+
+  // 数据表行高
+  '--oc-table-row-height',
 
   // 圆角
   '--oc-radius-sm',

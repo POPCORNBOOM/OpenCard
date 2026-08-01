@@ -232,6 +232,31 @@ describe('useShellEditorHost', () => {
     host.dispose()
   })
 
+  it('projects and routes Card Designer workbook actions through a narrow editor boundary', async () => {
+    const { host } = createHost()
+    const importDataTableWorkbook = vi.fn()
+    const exportDataTableWorkbook = vi.fn()
+    host.editorRef.value = {
+      importDataTableWorkbook,
+      exportDataTableWorkbook,
+      dataTableWorkbookBusy: false,
+      canExportDataTableWorkbook: true,
+    }
+
+    expect(host.dataTableWorkbookBusy.value).toBe(false)
+    expect(host.canExportDataTableWorkbook.value).toBe(true)
+    await host.importDataTableWorkbook()
+    await host.exportDataTableWorkbook()
+
+    host.editorRef.value.dataTableWorkbookBusy = true
+    await host.importDataTableWorkbook()
+    await host.exportDataTableWorkbook()
+
+    expect(importDataTableWorkbook).toHaveBeenCalledTimes(1)
+    expect(exportDataTableWorkbook).toHaveBeenCalledTimes(1)
+    host.dispose()
+  })
+
   it('uses the session save path for Monaco editors', async () => {
     const { host, saveActiveSession } = createHost(createSession({
       fileTypeId: 'text',

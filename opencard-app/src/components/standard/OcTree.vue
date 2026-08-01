@@ -10,7 +10,6 @@
     }"
     :role="props.role"
     :aria-multiselectable="props.selectionMode === 'multiple' ? 'true' : undefined"
-    @mousedown="handleRootMouseDown"
   >
     <div
       v-for="(entry, index) in visibleEntries"
@@ -86,7 +85,7 @@
           @dblclick.stop
           @input="handleRenameInput"
           @keydown="handleRenameKeydown($event, entry.key)"
-          @blur="cancelRename"
+          @blur="commitRename(entry.key)"
         />
         <OcText v-else class="oc-tree__label" :truncate="true">
           {{ entry.item.label }}
@@ -627,10 +626,6 @@ function handleRowMouseDown(event: MouseEvent, key: OcTreeKey): void {
   const target = event.target
   if (target instanceof HTMLElement && target.closest('[data-tree-interactive="true"]')) return
   pendingDrag.value = { key, startX: event.clientX, startY: event.clientY }
-}
-
-function handleRootMouseDown(event: MouseEvent): void {
-  if (event.target === treeRootElement.value) cancelRename()
 }
 
 function clearDragState(): void {

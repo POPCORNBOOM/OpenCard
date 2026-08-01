@@ -1,6 +1,12 @@
 <!-- Recursive action menu shared by action buttons and text menu triggers. -->
 <template>
-  <div ref="menuElement" class="oc-action-menu" role="menu" @pointerenter="emit('keep-open')">
+  <div
+    ref="menuElement"
+    class="oc-action-menu"
+    role="menu"
+    :data-oc-action-menu-branch="props.branchId"
+    @pointerenter="emit('keep-open')"
+  >
     <template v-for="entry in actions" :key="entry.key">
       <div
         v-if="isActionDivider(entry)"
@@ -61,12 +67,14 @@
           :gap="0"
           :max-height="480"
           class="oc-action-menu__floating"
+          :data-oc-action-menu-branch="props.branchId"
           @pointerenter="keepMenusOpen"
           @pointerleave="scheduleChildClose"
         >
           <OcActionMenu
             :ref="(element) => setChildMenu(entry.key, element)"
             :actions="entry.children"
+            :branch-id="props.branchId"
             @select="emit('select', $event)"
             @keep-open="keepMenusOpen"
             @close-submenu="closeChildAndFocus(entry.key)"
@@ -102,6 +110,13 @@ export type OcActionMenuEntry = OcActionDefinition | OcActionDivider
 export interface OcActionSelectPayload {
   key: string
 }
+
+export function isActionMenuBranchEvent(event: Event, branchId: string): boolean {
+  return event.composedPath().some(target => (
+    target instanceof HTMLElement
+      && target.dataset.ocActionMenuBranch === branchId
+  ))
+}
 </script>
 
 <script setup lang="ts">
@@ -111,8 +126,9 @@ import OcFloatingLayer from './OcFloatingLayer.vue'
 
 defineOptions({ name: 'OcActionMenu' })
 
-defineProps<{
+const props = defineProps<{
   actions: readonly OcActionMenuEntry[]
+  branchId?: string
 }>()
 
 const emit = defineEmits<{

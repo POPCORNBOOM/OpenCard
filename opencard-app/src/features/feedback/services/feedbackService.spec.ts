@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import packageMetadata from '../../../../package.json'
 import type { FeedbackSubmission } from '../model/feedback'
 import {
   createFeedbackEnvironment,
@@ -138,7 +139,7 @@ describe('feedback service', () => {
 
   it('uses application metadata and a privacy-limited platform value', () => {
     expect(createFeedbackEnvironment('zh-CN')).toEqual({
-      appVersion: '0.2.13',
+      appVersion: packageMetadata.version,
       locale: 'zh-CN',
       platform: navigator.platform || 'unknown',
     })

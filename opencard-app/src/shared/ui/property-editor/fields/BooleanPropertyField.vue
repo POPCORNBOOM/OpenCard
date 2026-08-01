@@ -27,6 +27,6 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: var(--oc-size-md);
+  min-height: var(--oc-field-control-height, var(--oc-size-md));
 }
 </style>

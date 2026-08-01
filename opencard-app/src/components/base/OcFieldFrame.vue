@@ -53,7 +53,7 @@ defineOptions({ name: 'OcFieldFrame' })
   min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid var(--oc-field-surface-border-color, var(--oc-border-default));
+  border: var(--oc-field-surface-border-width, 1px) solid var(--oc-field-surface-border-color, var(--oc-border-default));
   border-radius: var(--oc-field-surface-border-radius, var(--oc-radius-sm));
   background: var(--oc-field-surface-background, var(--oc-bg-input));
   color: var(--oc-fg-default);
@@ -65,9 +65,9 @@ defineOptions({ name: 'OcFieldFrame' })
   box-shadow: var(--oc-field-surface-focus-shadow, var(--oc-focus-ring));
 }
 
-.oc-field-frame--sm { height: var(--oc-size-sm); }
-.oc-field-frame--md { height: var(--oc-size-md); }
-.oc-field-frame--lg { height: var(--oc-size-lg); }
+.oc-field-frame--sm { height: var(--oc-field-control-height, var(--oc-size-sm)); }
+.oc-field-frame--md { height: var(--oc-field-control-height, var(--oc-size-md)); }
+.oc-field-frame--lg { height: var(--oc-field-control-height, var(--oc-size-lg)); }
 
 .oc-field-frame--full-width {
   width: 100%;

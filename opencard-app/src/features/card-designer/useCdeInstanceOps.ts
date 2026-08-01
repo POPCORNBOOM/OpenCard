@@ -132,6 +132,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       data: {},
     }
     options.cardDoc.value.instances = [...(options.cardDoc.value.instances ?? []), nextInstance]
+    includeNewInstanceInDataTableExport(options.cardDoc.value, nextInstance.id)
     options.selectedCardId.value = nextInstance.id
     options.selectedCardKeys.value = [nextInstance.id]
     options.refreshDocumentState()
@@ -152,6 +153,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     const nextInstances = [...options.cardDoc.value.instances]
     nextInstances.splice(sourceIndex + 1, 0, duplicated)
     options.cardDoc.value.instances = nextInstances
+    includeNewInstanceInDataTableExport(options.cardDoc.value, duplicated.id)
     options.selectedCardId.value = duplicated.id
     options.selectedCardKeys.value = [duplicated.id]
     options.refreshDocumentState()
@@ -162,6 +164,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
     if (!options.cardDoc.value.instances.some((item) => item.id === instanceId)) return
     options.cardDoc.value.instances = options.cardDoc.value.instances.filter((item) => item.id !== instanceId)
+    if (options.cardDoc.value.dataTable?.exportInstanceIds) {
+      options.cardDoc.value.dataTable.exportInstanceIds = options.cardDoc.value.dataTable.exportInstanceIds
+        .filter(candidate => candidate !== instanceId)
+    }
     if (options.selectedCardId.value === instanceId) {
       options.selectedCardId.value = options.blueprintCardId
       options.selectedCardKeys.value = [options.blueprintCardId]
@@ -190,4 +196,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     duplicateInstance,
     deleteInstance,
   }
+}
+
+function includeNewInstanceInDataTableExport(document: CardDocument, instanceId: string): void {
+  const configured = document.dataTable?.exportInstanceIds
+  if (!configured || configured.includes(instanceId)) return
+  configured.push(instanceId)
 }
