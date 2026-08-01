@@ -24,7 +24,7 @@ export type CdePropertyFieldDefinitionOptions = {
   hasMessage: (messageKey: string) => boolean
   override?: Readonly<Record<string, Partial<EditorPropertyDefinition>>>
   labels?: Readonly<Record<string, string>>
-  categorylessKeys?: ReadonlySet<string>
+  customKeys?: ReadonlySet<string>
 }
 
 export function resolveCdePropertyFields(
@@ -42,7 +42,7 @@ export function resolveCdePropertyFields(
     if (!definitions[fieldKey]) definitions[fieldKey] = { fieldType: 'string', isReadonly: true }
   }
 
-  return Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => {
+  return Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition], order) => {
     const displayKey = definition.displayFieldKey ?? fieldKey
     const messageKey = `propertyEditor.fields.${displayKey}`
     const title = options.labels?.[fieldKey]
@@ -51,7 +51,8 @@ export function resolveCdePropertyFields(
       ...definition,
       defaultValue: createPropertyDefaultValue(definition),
       title,
-      category: options.categorylessKeys?.has(fieldKey) ? undefined : definition.categoryId,
+      category: options.customKeys?.has(fieldKey) ? 'custom' : definition.categoryId,
+      order,
       deletable: options.allowDelete
         && definition.isReadonly !== true
         && (definition.deletable === true || definition.required !== true),

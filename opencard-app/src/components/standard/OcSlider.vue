@@ -171,14 +171,14 @@ function handleKeydown(event: KeyboardEvent): void {
   height: 4px;
   overflow: hidden;
   border-radius: var(--oc-radius-full);
-  background: var(--oc-border-default);
+  background: var(--oc-slider-rail-background, var(--oc-border-default));
 }
 
 .oc-slider__fill {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--oc-accent);
+  background: var(--oc-slider-fill-background, var(--oc-accent));
 }
 
 .oc-slider__thumb {
@@ -188,7 +188,7 @@ function handleKeydown(event: KeyboardEvent): void {
   height: 14px;
   border: 2px solid var(--oc-bg-surface);
   border-radius: 50%;
-  background: var(--oc-accent);
+  background: var(--oc-slider-thumb-background, var(--oc-accent));
   box-shadow: 0 0 0 1px var(--oc-border-strong), var(--oc-shadow-sm);
   transform: translate(-50%, -50%);
   transition: transform var(--oc-duration-fast) var(--oc-ease);

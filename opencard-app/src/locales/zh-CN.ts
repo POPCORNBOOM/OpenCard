@@ -590,7 +590,7 @@ export default {
       clearSelection: '清除文件选择',
     },
     categories: {
-      identity: '标识',
+      identity: '常规',
       layout: '布局',
       transform: '变换',
       appearance: '外观',

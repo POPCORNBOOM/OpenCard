@@ -1,8 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import OcButton from '../../../components/base/OcButton.vue'
+import OcActionButton from '../../../components/standard/OcActionButton.vue'
 import PropertyEditor from './PropertyEditor.vue'
+import PropertyFieldActionRail from './PropertyFieldActionRail.vue'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
 vi.mock('vue-i18n', () => ({
@@ -192,13 +193,42 @@ describe('PropertyEditor records protocol', () => {
       },
     })
 
-    expect(wrapper.find('.delete-field-button').exists()).toBe(false)
+    const findDeleteAction = () => wrapper.findAllComponents(OcActionButton)
+      .find(button => button.props('action').key === 'delete-property')
+    expect(findDeleteAction()).toBeUndefined()
     await wrapper.setProps({ deleteMode: true })
-    const button = wrapper.get('.delete-field-button')
-    expect(button.classes()).not.toContain('is-armed')
-    await button.trigger('click')
+    const button = findDeleteAction()!
+    button.vm.$emit('select', { key: 'delete-property' })
     expect(wrapper.emitted('delete-property')).toEqual([[
       { key: 'block', fieldKey: 'score' },
+    ]])
+  })
+
+  it('projects editor mode and reset through the same field Action Rail', () => {
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'block',
+          record: { opacity: 1 },
+          fields: {
+            opacity: {
+              title: 'Opacity',
+              fieldType: 'number',
+              resettable: true,
+              binding: { provider: () => null },
+            },
+          },
+        }],
+      },
+    })
+    const rail = wrapper.getComponent(PropertyFieldActionRail)
+
+    expect(rail.props('actions').map(action => action.key))
+      .toEqual(['field-editor.use-raw-string', 'reset-property'])
+    rail.vm.$emit('action', 'reset-property')
+    expect(wrapper.emitted('reset-property')).toEqual([[
+      { key: 'block', fieldKey: 'opacity' },
     ]])
   })
 
@@ -217,7 +247,8 @@ describe('PropertyEditor records protocol', () => {
       },
     })
 
-    expect(wrapper.find('.delete-field-button').exists()).toBe(false)
+    expect(wrapper.findAllComponents(OcActionButton)
+      .some(button => button.props('action').key === 'delete-property')).toBe(false)
   })
 
   it('switches a bindable number field to the raw string editor', async () => {
@@ -243,12 +274,12 @@ describe('PropertyEditor records protocol', () => {
     })
 
     expect(wrapper.find('.reference-string-field').exists()).toBe(false)
-    const rawToggle = () => wrapper.findAllComponents(OcButton)
-      .find(button => button.classes().includes('raw-string-toggle'))!
-    expect(rawToggle().props('icon')).toBe('data.code-string')
+    const rawToggle = () => wrapper.findAllComponents(OcActionButton)
+      .find(button => button.props('action').key.startsWith('field-editor.'))!
+    expect(rawToggle().props('action').icon).toBe('data.code-string')
     await wrapper.get('button[aria-label="propertyEditor.bindings.useRawEditor"]').trigger('click')
     expect(wrapper.find('.reference-string-field').exists()).toBe(true)
-    expect(rawToggle().props('icon')).toBe('data.symbol-number')
+    expect(rawToggle().props('action').icon).toBe('data.symbol-number')
     await wrapper.get('.reference-string-field input').setValue('{{self:score}}')
     expect(wrapper.emitted('update-property')).toEqual([[
       { key: 'block', fieldKey: 'opacity', value: '{{self:score}}' },

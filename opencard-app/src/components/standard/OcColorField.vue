@@ -1,33 +1,31 @@
-<!-- Standard 颜色字段：色块取色器与文本值共享同一字段表面。 -->
+<!-- Standard 颜色字段：复用 OcColorPicker 的完整字段变体。 -->
 <template>
-  <OcFieldFrame class="oc-color-field" full-width :disabled="disabled" :invalid="invalidDraft">
-    <template #prefix>
-      <span class="oc-color-field__swatch">
-        <OcColorPicker :model-value="pickerValue" :disabled="disabled" embedded
-          @preview="draftValue = $event" @update:model-value="commitValue" />
-      </span>
-    </template>
-    <OcFieldInput as="input" variant="plain" full-width :value="draftValue" :disabled="disabled"
-      spellcheck="false" @input="handleTextInput" @blur="commitTextValue"
-      @keydown.enter.prevent="commitTextValue" />
-  </OcFieldFrame>
+  <OcColorPicker
+    class="oc-color-field"
+    :model-value="modelValue"
+    :label="label"
+    :disabled="disabled"
+    :allow-alpha="allowAlpha"
+    variant="field"
+    @update:model-value="commitValue"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import OcFieldFrame from '../base/OcFieldFrame.vue'
-import OcFieldInput from '../base/OcFieldInput.vue'
 import OcColorPicker from './OcColorPicker.vue'
-import { normalizeHexColor } from './colorModel'
 
 interface Props {
   modelValue?: string
+  label?: string
   disabled?: boolean
+  allowAlpha?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   modelValue: '',
+  label: 'Choose color',
   disabled: false,
+  allowAlpha: true,
 })
 
 const emit = defineEmits<{
@@ -37,51 +35,14 @@ const emit = defineEmits<{
 
 defineOptions({ name: 'OcColorField' })
 
-const draftValue = ref(props.modelValue)
-const pickerValue = computed(() => normalizeHexColor(draftValue.value) ?? '#000000')
-const invalidDraft = computed(() => Boolean(draftValue.value && !normalizeHexColor(draftValue.value)))
-
-watch(() => props.modelValue, value => {
-  draftValue.value = value
-})
-
-function handleTextInput(event: Event): void {
-  const target = event.target
-  if (target instanceof HTMLInputElement) draftValue.value = target.value
-}
-
-function commitTextValue(): void {
-  const normalized = normalizeHexColor(draftValue.value)
-  if (normalized) commitValue(normalized)
-}
-
 function commitValue(value: string): void {
-  draftValue.value = value
   emit('update:modelValue', value)
   emit('commit', value)
 }
 </script>
 
 <style scoped>
-.oc-color-field__swatch {
-  display: inline-flex;
-  width: calc(var(--oc-size-md) - 2px);
-  border-right: 1px solid var(--oc-border-muted);
-  box-sizing: border-box;
-}
-
-.oc-color-field__swatch :deep(.oc-color-picker) {
+.oc-color-field {
   width: 100%;
-}
-
-.oc-color-field :deep(.oc-field-input) {
-  height: 100%;
-  min-height: 0;
-  padding: var(--oc-field-content-padding, var(--oc-space-1) var(--oc-space-2));
-}
-
-.oc-color-field :deep(.oc-field-input:focus),
-.oc-color-field :deep(.oc-field-input:focus-visible) {
-  border-color: transparent;
 }
 </style>

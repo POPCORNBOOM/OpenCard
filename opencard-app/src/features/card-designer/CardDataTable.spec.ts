@@ -2,7 +2,8 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import OcActionButton from '../../components/standard/OcActionButton.vue'
-import PropertyFieldControl from '../../shared/ui/property-editor/PropertyFieldControl.vue'
+import PropertyFieldActionRail from '../../shared/ui/property-editor/PropertyFieldActionRail.vue'
+import PropertyFieldRenderer from '../../shared/ui/property-editor/PropertyFieldRenderer.vue'
 import CardDataTable from './CardDataTable.vue'
 import type {
   CdeDataTableFaceCatalog,
@@ -95,7 +96,7 @@ describe('CardDataTable', () => {
     expect(wrapper.get('.card-data-table__face-row > th > .card-data-table__face-heading').element.tagName).toBe('SPAN')
     expect(wrapper.get('.card-data-table__block-heading').attributes('style')).toContain('14px')
     expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('is-inherited')
-    expect(wrapper.findAllComponents(PropertyFieldControl).every(
+    expect(wrapper.findAllComponents(PropertyFieldRenderer).every(
       control => control.props('appearance') === 'embedded',
     )).toBe(true)
 
@@ -149,12 +150,27 @@ describe('CardDataTable', () => {
     expect(wrapper.get('[data-card-id="instance"] .card-data-table__cell-preview').text()).toBe('Override')
   })
 
+  it('marks multiline Field rows so focus expands every instance Cell together', () => {
+    const multilineGroups = structuredClone(faceGroups)
+    const definition = multilineGroups[0]!.blocks[0]!.fields[0]!.definition
+    if (definition.fieldType !== 'string') throw new Error('Expected string field definition')
+    definition.multiline = true
+    const wrapper = mount(CardDataTable, {
+      props: { columns, catalogFaceGroups, faceGroups: multilineGroups },
+    })
+
+    const row = wrapper.get('.card-data-table__field-row')
+    expect(row.classes()).toContain('is-multiline')
+    expect(row.findAll('textarea')).toHaveLength(2)
+  })
+
   it('supports blueprint duplication and instance rename, copy, delete and reset actions', async () => {
     const wrapper = mount(CardDataTable, {
       attachTo: document.body,
       props: { columns, catalogFaceGroups, faceGroups },
     })
-    expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('has-reset')
+    expect(wrapper.findAllComponents(OcActionButton)
+      .some(action => action.props('action').key === 'reset-cell')).toBe(true)
     const columnActions = wrapper.findAllComponents(OcActionButton)
       .filter(action => action.element.closest('thead'))
     expect(columnActions).toHaveLength(2)
@@ -194,6 +210,33 @@ describe('CardDataTable', () => {
       { cardId: 'instance', blockId: 'text', fieldKey: 'content' },
     ]])
     wrapper.unmount()
+  })
+
+  it('projects editor mode and Instance reset through the same Cell Action Rail', async () => {
+    const wrapper = mount(CardDataTable, {
+      props: {
+        columns,
+        catalogFaceGroups,
+        faceGroups,
+        getCellDefinition: (_blockId, field) => ({
+          ...field.definition,
+          binding: { provider: () => null },
+        }),
+      },
+    })
+    const instanceCell = wrapper.get('[data-card-id="instance"]')
+    const rail = instanceCell.getComponent(PropertyFieldActionRail)
+
+    expect(rail.props('actions').map(action => action.key))
+      .toEqual(['field-editor.use-raw-string', 'reset-cell'])
+    rail.vm.$emit('action', 'field-editor.use-raw-string')
+    await nextTick()
+    expect(instanceCell.getComponent(PropertyFieldRenderer).props('editorId')).toBe('raw-string')
+
+    instanceCell.getComponent(PropertyFieldActionRail).vm.$emit('action', 'reset-cell')
+    expect(wrapper.emitted('reset-cell')).toEqual([[{
+      cardId: 'instance', blockId: 'text', fieldKey: 'content',
+    }]])
   })
 
   it('resizes columns with pointer and keyboard input within the supported bounds', async () => {
@@ -315,7 +358,33 @@ describe('CardDataTable', () => {
     expect(blueprintCell.find('input').exists()).toBe(false)
     expect(instanceCell.find('input').exists()).toBe(true)
     expect(wrapper.findAll('.card-data-table__cell-preview')).toHaveLength(1)
-    expect(getCellDefinition).toHaveBeenCalledTimes(1)
+    expect(getCellDefinition).toHaveBeenCalledWith(
+      'text',
+      expect.objectContaining({ key: 'content' }),
+      expect.objectContaining({ cardId: 'instance' }),
+    )
+  })
+
+  it('refreshes mounted Cell definitions when the parent context changes', async () => {
+    let definition: CdeDataTableFieldRow['definition'] = {
+      title: 'Initial definition',
+      fieldType: 'string',
+    }
+    const getCellDefinition = vi.fn(() => definition)
+    const wrapper = mount(CardDataTable, {
+      props: { columns, catalogFaceGroups, faceGroups, getCellDefinition },
+    })
+
+    const instanceCell = wrapper.get('[data-card-id="instance"]')
+    expect(instanceCell.getComponent(PropertyFieldRenderer).props('definition').title)
+      .toBe('Initial definition')
+
+    definition = { title: 'Updated definition', fieldType: 'string' }
+    wrapper.vm.$forceUpdate()
+    await nextTick()
+
+    expect(instanceCell.getComponent(PropertyFieldRenderer).props('definition').title)
+      .toBe('Updated definition')
   })
 
   it('emits Instance export selection without owning workbook actions', async () => {

@@ -7,6 +7,7 @@ import {
   getPropertyValueKind,
   getTypePropertyEditorSchema,
   isReferenceFieldExposed,
+  propertyEditorCategoryDefinitions,
 } from './schema'
 
 describe('property binding schema policy', () => {
@@ -97,6 +98,45 @@ describe('property binding schema policy', () => {
       const schema = getTypePropertyEditorSchema(blockType)
       expect(schema.notes).toMatchObject({ fieldType: 'string', multiline: true, defaultValue: '' })
       expect(schema.visible).toMatchObject({ fieldType: 'boolean', defaultValue: 'true' })
+    }
+  })
+
+  it('groups disputed visual fields by their user-facing editing task', () => {
+    const textSchema = getTypePropertyEditorSchema('text-block')
+    const shapeSchema = getTypePropertyEditorSchema('shape-block')
+
+    expect(textSchema.color?.categoryId).toBe('typography')
+    expect(textSchema.customCss?.categoryId).toBe('custom')
+    expect(shapeSchema.shape?.categoryId).toBe('appearance')
+  })
+
+  it('assigns every visible native field to a registered category', () => {
+    const typeNames = [
+      'text-block',
+      'markdown-text-block',
+      'image-block',
+      'qrcode-block',
+      'shape-block',
+      'simple-container-block',
+      'flow-container-block',
+      'simple-container-location',
+      'flow-container-location',
+      'card-document',
+      'card-face',
+      'card-instance',
+    ]
+
+    for (const typeName of typeNames) {
+      for (const [fieldKey, definition] of Object.entries(getTypePropertyEditorSchema(typeName))) {
+        if (definition.isHidden) continue
+        expect(
+          definition.categoryId,
+          `${typeName}.${fieldKey} should have a registered category`,
+        ).toBeDefined()
+        if (definition.categoryId) {
+          expect(propertyEditorCategoryDefinitions).toHaveProperty(definition.categoryId)
+        }
+      }
     }
   })
 

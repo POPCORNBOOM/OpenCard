@@ -98,8 +98,8 @@ function buildCategories(
   return Array.from(categoryMap.values())
     .map((category) => ({
       ...category,
-      entries: sortByLabel(category.entries),
-      addableFields: sortByLabel(category.addableFields),
+      entries: sortByDefaultOrder(category.entries),
+      addableFields: sortByDefaultOrder(category.addableFields),
     }))
     .sort((left, right) => {
       if (left.key === OTHER_CATEGORY_KEY) return 1
@@ -157,9 +157,21 @@ function ensureCategory(
   return category
 }
 
-function sortByLabel<T extends { key: string, label: string }>(items: readonly T[]): T[] {
+function sortByDefaultOrder<T extends { key: string, label: string, definition: PropertyEditorFieldDefinition }>(
+  items: readonly T[],
+): T[] {
   return [...items].sort((left, right) => {
-    const labelCompare = left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })
-    return labelCompare || left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
+    const leftOrder = left.definition.order ?? Number.MAX_SAFE_INTEGER
+    const rightOrder = right.definition.order ?? Number.MAX_SAFE_INTEGER
+    return leftOrder - rightOrder || compareByLabel(left, right)
   })
+}
+
+function sortByLabel<T extends { key: string, label: string }>(items: readonly T[]): T[] {
+  return [...items].sort(compareByLabel)
+}
+
+function compareByLabel<T extends { key: string, label: string }>(left: T, right: T): number {
+  const labelCompare = left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })
+  return labelCompare || left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
 }

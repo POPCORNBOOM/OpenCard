@@ -57,25 +57,20 @@
                   @click.stop="copyFieldKey(entry.key)">
                   <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
                 </button>
-                <OcButton class="modified-field-button" icon-only size="sm" radius="full"
-                  v-if="entry.definition.resettable"
-                  variant="ghost" icon="action.discard" :data-tooltip="resetFieldActionText"
-                  :aria-label="resetFieldActionText"
-                  @click.stop="emitResetProperty(category.inputKey, entry.key)"
-                />
-                <OcButton v-if="deleteMode && entry.definition.deletable" class="delete-field-button"
-                  icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
-                  :data-tooltip="deleteFieldActionText" :aria-label="deleteFieldActionText"
-                  @click.stop="emitDeleteProperty(category.inputKey, entry.key)" />
               </div>
-              <PropertyFieldControl
-                class="entry-control"
-                :identity="fieldIdentity(category.inputKey, entry.key)"
-                :definition="entry.definition"
-                :value="entry.value"
-                :binding-interpreter="bindingInterpreter"
-                @update:value="emitPropertyValue(category.inputKey, entry.key, $event)"
-              />
+              <div class="property-editor__value">
+                <PropertyFieldRenderer
+                  class="entry-control"
+                  :definition="entry.definition"
+                  :value="entry.value"
+                  :editor-id="resolveFieldEditorState(category.inputKey, entry).editorId"
+                  @update:value="handleFieldValueUpdate(category.inputKey, entry, $event)"
+                />
+                <PropertyFieldActionRail
+                  :actions="resolveFieldActions(category.inputKey, entry)"
+                  @action="handleFieldAction(category.inputKey, entry, $event)"
+                />
+              </div>
             </div>
             </div>
           </section>
@@ -103,14 +98,19 @@ import { isArrayPropertyFieldType } from './propertyEditor.types'
 import {
   usePropertyEditorView,
   type PropertyEditorCategoryView,
+  type PropertyEditorEntry,
 } from './usePropertyEditorView'
-import OcButton from '../../../components/base/OcButton.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcPanel from '../../../components/base/OcPanel.vue'
-import PropertyFieldControl from './PropertyFieldControl.vue'
+import PropertyFieldActionRail from './PropertyFieldActionRail.vue'
+import PropertyFieldRenderer from './PropertyFieldRenderer.vue'
+import {
+  createPropertyFieldEditorModeAction,
+  usePropertyFieldEditorModes,
+} from './propertyFieldEditorMode'
 import { getPropertyFieldIcon } from './propertyFieldRegistry'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
@@ -133,6 +133,7 @@ const props = defineProps<{
 
 const { t, te } = useI18n()
 const { openContextMenu } = useFloatingMenu()
+const fieldEditorModes = usePropertyFieldEditorModes()
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
   if (te(messageKey)) {
@@ -179,6 +180,55 @@ function emitPropertyValue(sourceKey: string, fieldKey: string, value: unknown):
 
 function fieldIdentity(inputKey: string, fieldKey: string): string {
   return `${inputKey}\u0000${fieldKey}`
+}
+
+function resolveFieldEditorState(inputKey: string, entry: PropertyEditorEntry) {
+  return fieldEditorModes.resolve({
+    identity: fieldIdentity(inputKey, entry.key),
+    definition: entry.definition,
+    value: entry.value,
+    bindingInterpreter: props.bindingInterpreter,
+  })
+}
+
+function resolveFieldActions(inputKey: string, entry: PropertyEditorEntry): OcActionButtonAction[] {
+  const actions: OcActionButtonAction[] = []
+  const modeAction = createPropertyFieldEditorModeAction(
+    resolveFieldEditorState(inputKey, entry),
+    entry.definition,
+    {
+      useFieldEditor: t('propertyEditor.bindings.useFieldEditor'),
+      useRawStringEditor: t('propertyEditor.bindings.useRawEditor'),
+    },
+  )
+  if (modeAction) actions.push(modeAction)
+  if (entry.definition.resettable) {
+    actions.push({ key: 'reset-property', icon: 'action.discard', title: resetFieldActionText.value })
+  }
+  if (props.deleteMode && entry.definition.deletable) {
+    actions.push({
+      key: 'delete-property',
+      icon: 'action.delete',
+      iconTone: 'danger',
+      title: deleteFieldActionText.value,
+    })
+  }
+  return actions
+}
+
+function handleFieldAction(inputKey: string, entry: PropertyEditorEntry, actionKey: string): void {
+  const identity = fieldIdentity(inputKey, entry.key)
+  if (fieldEditorModes.select(identity, actionKey)) return
+  if (actionKey === 'reset-property') emitResetProperty(inputKey, entry.key)
+  else if (actionKey === 'delete-property') emitDeleteProperty(inputKey, entry.key)
+}
+
+function handleFieldValueUpdate(inputKey: string, entry: PropertyEditorEntry, value: unknown): void {
+  const identity = fieldIdentity(inputKey, entry.key)
+  if (resolveFieldEditorState(inputKey, entry).editorId === 'raw-string') {
+    fieldEditorModes.preserveRawString(identity)
+  }
+  emitPropertyValue(inputKey, entry.key, value)
 }
 
 // 添加字段与重置交互。
@@ -462,44 +512,12 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.modified-field-button {
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  color: var(--oc-fg-accent);
-}
-
-.modified-field-button::before {
-  content: '';
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  box-sizing: border-box;
-  opacity: .8;
-}
-
-.modified-field-button :deep(.oc-button__icon) {
-  opacity: 0;
-}
-
-.modified-field-button:hover::before,
-.modified-field-button:focus-visible::before {
-  opacity: 0;
-}
-
-.modified-field-button:hover :deep(.oc-button__icon),
-.modified-field-button:focus-visible :deep(.oc-button__icon) {
-  opacity: 1;
-}
-
-.delete-field-button {
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
-  color: var(--oc-fg-danger);
+.property-editor__value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--oc-space-1);
+  min-width: 0;
 }
 
 @media (hover: none) {

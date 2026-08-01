@@ -105,6 +105,7 @@
               <td :colspan="columns.length + 1" />
             </tr>
             <tr v-for="field in block.fields" :key="field.key" class="card-data-table__field-row"
+              :class="{ 'is-multiline': isMultilineField(field) }"
               :data-block-id="block.key" :data-field-key="field.key">
               <th scope="row">
                 <span class="card-data-table__field-heading" tabindex="0"
@@ -121,30 +122,23 @@
                 </span>
               </th>
               <td v-for="cell in field.cells" :key="cell.identity"
-                class="card-data-table__cell" :class="{ 'is-inherited': cell.inherited, 'has-reset': cell.overridden }"
+                class="card-data-table__cell" :class="{ 'is-inherited': cell.inherited }"
                 :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)">
                 <template v-if="shouldMountCell(cell.identity)">
                   <span v-if="cell.readonly" class="card-data-table__cell-preview">
                     {{ formatCellPreview(cell.value) }}
                   </span>
                   <template v-else>
-                    <PropertyFieldControl :identity="cell.identity" appearance="embedded"
-                      :definition="resolveCellDefinition(block.key, field, cell)"
-                      :value="cell.value" :binding-interpreter="bindingInterpreter"
-                      @update:value="emit('update-cell', {
-                        cardId: cell.cardId,
-                        blockId: block.key,
-                        fieldKey: field.key,
-                        value: $event,
-                      })" />
-                    <span v-if="cell.overridden" class="card-data-table__cell-actions">
-                      <OcActionButton :action="resetCellAction()" size="sm" variant="ghost"
-                        @select="emit('reset-cell', {
-                          cardId: cell.cardId,
-                          blockId: block.key,
-                          fieldKey: field.key,
-                        })" />
-                    </span>
+                    <div class="card-data-table__cell-editor">
+                      <PropertyFieldRenderer appearance="embedded"
+                        :definition="resolveCellDefinition(block.key, field, cell)"
+                        :value="cell.value"
+                        :editor-id="resolveCellEditorState(block.key, field, cell).editorId"
+                        @update:value="handleCellValueUpdate(block.key, field, cell, $event)" />
+                      <PropertyFieldActionRail
+                        :actions="resolveCellActions(block.key, field, cell)"
+                        @action="handleCellAction(block.key, field, cell, $event)" />
+                    </div>
                   </template>
                 </template>
                 <span v-else class="card-data-table__cell-preview">{{ formatCellPreview(cell.value) }}</span>
@@ -175,7 +169,12 @@ import OcIcon from '../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 import type { PropertyEditorBindingInterpreter, PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
-import PropertyFieldControl from '../../shared/ui/property-editor/PropertyFieldControl.vue'
+import PropertyFieldActionRail from '../../shared/ui/property-editor/PropertyFieldActionRail.vue'
+import PropertyFieldRenderer from '../../shared/ui/property-editor/PropertyFieldRenderer.vue'
+import {
+  createPropertyFieldEditorModeAction,
+  usePropertyFieldEditorModes,
+} from '../../shared/ui/property-editor/propertyFieldEditorMode'
 import { getPropertyFieldIcon } from '../../shared/ui/property-editor/propertyFieldRegistry'
 import { getBlockTreeIcon } from './blockPresentation'
 import type {
@@ -220,6 +219,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { openContextMenu } = useFloatingMenu()
+const fieldEditorModes = usePropertyFieldEditorModes()
 const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const renamingColumnKey = ref<string | null>(null)
@@ -341,12 +341,73 @@ function formatCellPreview(value: unknown): string {
   }
 }
 
+function isMultilineField(field: CdeDataTableFieldRow): boolean {
+  return field.definition.fieldType === 'string' && Boolean(field.definition.multiline)
+}
+
 function resolveCellDefinition(
   blockId: string,
   field: CdeDataTableFieldRow,
   cell: CdeDataTableCell,
 ): PropertyEditorFieldDefinition {
   return props.getCellDefinition?.(blockId, field, cell) ?? field.definition
+}
+
+function resolveCellEditorState(
+  blockId: string,
+  field: CdeDataTableFieldRow,
+  cell: CdeDataTableCell,
+) {
+  return fieldEditorModes.resolve({
+    identity: cell.identity,
+    definition: resolveCellDefinition(blockId, field, cell),
+    value: cell.value,
+    bindingInterpreter: props.bindingInterpreter,
+  })
+}
+
+function resolveCellActions(
+  blockId: string,
+  field: CdeDataTableFieldRow,
+  cell: CdeDataTableCell,
+): OcActionButtonAction[] {
+  const definition = resolveCellDefinition(blockId, field, cell)
+  const modeAction = createPropertyFieldEditorModeAction(
+    resolveCellEditorState(blockId, field, cell),
+    definition,
+    {
+      useFieldEditor: t('propertyEditor.bindings.useFieldEditor'),
+      useRawStringEditor: t('propertyEditor.bindings.useRawEditor'),
+    },
+  )
+  return [
+    ...(modeAction ? [modeAction] : []),
+    ...(cell.overridden ? [resetCellAction()] : []),
+  ]
+}
+
+function handleCellAction(
+  blockId: string,
+  field: CdeDataTableFieldRow,
+  cell: CdeDataTableCell,
+  actionKey: string,
+): void {
+  if (fieldEditorModes.select(cell.identity, actionKey)) return
+  if (actionKey === 'reset-cell') {
+    emit('reset-cell', { cardId: cell.cardId, blockId, fieldKey: field.key })
+  }
+}
+
+function handleCellValueUpdate(
+  blockId: string,
+  field: CdeDataTableFieldRow,
+  cell: CdeDataTableCell,
+  value: unknown,
+): void {
+  if (resolveCellEditorState(blockId, field, cell).editorId === 'raw-string') {
+    fieldEditorModes.preserveRawString(cell.identity)
+  }
+  emit('update-cell', { cardId: cell.cardId, blockId, fieldKey: field.key, value })
 }
 
 onMounted(() => {
@@ -641,7 +702,6 @@ onBeforeUnmount(() => {
 .card-data-table {
   --card-data-table-row-height: var(--oc-table-row-height);
   --oc-field-control-height: calc(var(--oc-table-row-height) - var(--oc-border-width));
-  --oc-field-control-expanded-height: var(--oc-field-control-height);
   background: var(--oc-bg-base);
 }
 
@@ -764,6 +824,17 @@ tbody th {
   background: var(--oc-bg-base);
 }
 
+.card-data-table__field-row.is-multiline:focus-within {
+  --oc-field-control-target-height: var(
+    --oc-field-control-expanded-height,
+    var(--oc-property-row-expanded-height)
+  );
+}
+
+.card-data-table__field-row.is-multiline:focus-within .card-data-table__cell-preview {
+  align-items: flex-start;
+}
+
 .card-data-table__field-heading {
   min-height: var(--oc-field-control-height);
   color: var(--oc-fg-muted);
@@ -796,17 +867,14 @@ tbody th {
   white-space: nowrap;
 }
 
-.card-data-table__cell.has-reset {
-  padding-right: calc(var(--oc-size-sm) + var(--oc-space-2));
-}
-
-.card-data-table__cell-actions {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: var(--oc-space-2);
-  display: flex;
-  align-items: center;
+.card-data-table__cell-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--oc-space-1);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--oc-field-control-height);
 }
 
 </style>

@@ -182,14 +182,14 @@ export type PropertyEditorCategoryDefinition = {
 
 export const propertyEditorCategoryDefinitions: Record<PropertyEditorCategoryId, PropertyEditorCategoryDefinition> = {
     identity: { icon: 'data.symbol-key' },
-    layout: { icon: 'data.layers' },
-    transform: { icon: 'nav.arrow-swap' },
-    appearance: { icon: 'data.symbol-color' },
-    data: { icon: 'data.collection' },
     content: { icon: 'data.symbol-string' },
-    typography: { icon: 'format.align-start' },
+    layout: { icon: 'data.layers' },
     position: { icon: 'nav.compass' },
     flow: { icon: 'nav.arrow-right' },
+    transform: { icon: 'nav.arrow-swap' },
+    typography: { icon: 'format.align-start' },
+    appearance: { icon: 'data.symbol-color' },
+    data: { icon: 'data.collection' },
     custom: { icon: 'data.variable' },
     uncategorized: { icon: 'data.list-tree' },
 }
@@ -207,28 +207,28 @@ const cssLengthAutocomplete = ['px', '%'] as const
 
 function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
     return {
-        id: { fieldType: 'string', required: true, isReadonly: true, minLength: 1, categoryId: 'identity', acceptsBinding: false },
         name: { fieldType: 'string', categoryId: 'identity' },
         notes: { fieldType: 'string', multiline: true, categoryId: 'identity' },
+        id: { fieldType: 'string', required: true, isReadonly: true, minLength: 1, categoryId: 'identity', acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         additionalFieldDefinition: { fieldType: 'object', objectType: 'AdditionalFieldDefinition', isHidden: true, acceptsBinding: false, exposesReference: false },
         width: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         height: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
+        zIndex: { fieldType: 'number', categoryId: 'layout' },
+        transformAnchor: { fieldType: 'anchorPosition', categoryId: 'transform' },
         translateX: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
         translateY: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'transform' },
+        rotation: { fieldType: 'number', categoryId: 'transform' },
         scaleX: { fieldType: 'number', categoryId: 'transform' },
         scaleY: { fieldType: 'number', categoryId: 'transform' },
-        transformAnchor: { fieldType: 'anchorPosition', categoryId: 'transform' },
-        zIndex: { fieldType: 'number', categoryId: 'layout' },
-        rotation: { fieldType: 'number', categoryId: 'transform' },
-        opacity: { fieldType: 'number', min: 0, max: 1, categoryId: 'appearance' },
         visible: { fieldType: 'boolean', categoryId: 'appearance' },
+        opacity: { fieldType: 'number', min: 0, max: 1, categoryId: 'appearance' },
+        background: { fieldType: 'string', categoryId: 'appearance' },
         borderColor: { fieldType: 'color', categoryId: 'appearance' },
         borderWidth: { fieldType: 'number', min: 0, categoryId: 'appearance' },
         borderStyle: { fieldType: 'string', options: blockBorderStyleOptions, categoryId: 'appearance' },
         borderRadius: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'appearance' },
-        background: { fieldType: 'string', categoryId: 'appearance' },
-        customCss: { fieldType: 'string', multiline: true, categoryId: 'appearance' },
+        customCss: { fieldType: 'string', multiline: true, categoryId: 'custom' },
     }
 }
 
@@ -245,10 +245,10 @@ function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<s
         fontSize: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         fontFamily: { fieldType: 'string', categoryId: 'typography' },
         fontWeight: { fieldType: 'string', categoryId: 'typography' },
-        color: { fieldType: 'color', categoryId: 'appearance', displayFieldKey: 'textColor' },
+        color: { fieldType: 'color', categoryId: 'typography', displayFieldKey: 'textColor' },
+        lineHeight: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         textAlign: { fieldType: 'alignPosition', categoryId: 'typography' },
         verticalAlign: { fieldType: 'verticalAlignPosition', categoryId: 'typography' },
-        lineHeight: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'typography' },
         writingMode: { fieldType: 'string', options: textWritingModeOptions, categoryId: 'typography' },
     }
 }
@@ -292,7 +292,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
     'shape-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        shape: { fieldType: 'string', required: true, options: shapeOptions, categoryId: 'content' },
+        shape: { fieldType: 'string', required: true, options: shapeOptions, categoryId: 'appearance' },
         fill: { fieldType: 'color', required: true, categoryId: 'appearance' },
         stroke: { fieldType: 'color', required: true, categoryId: 'appearance' },
         strokeWidth: { fieldType: 'number', required: true, min: 0, categoryId: 'appearance' },
@@ -326,13 +326,13 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         align: { fieldType: 'alignPosition', categoryId: 'flow' },
     },
     'card-document': {
-        type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
-        schemaVersion: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         name: { fieldType: 'string', categoryId: 'identity', bindingScopes: ['project'] },
         description: { fieldType: 'string', multiline: true, categoryId: 'identity', bindingScopes: ['project'] },
         notes: { fieldType: 'string', multiline: true, categoryId: 'identity', bindingScopes: ['project'] },
-        id: { fieldType: 'string', required: true, categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         version: { fieldType: 'string', required: true, categoryId: 'identity', bindingScopes: ['project'] },
+        id: { fieldType: 'string', required: true, categoryId: 'identity', isReadonly: true, acceptsBinding: false },
+        type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
+        schemaVersion: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         width: { fieldType: 'number', required: true, min: 0, categoryId: 'layout', bindingScopes: ['project'] },
         height: { fieldType: 'number', required: true, min: 0, categoryId: 'layout', bindingScopes: ['project'] },
         faces: { fieldType: 'object', objectType: 'CardFace', required: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
@@ -346,10 +346,10 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         children: { fieldType: 'object', objectType: 'RootChild', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'card-instance': {
+        name: { fieldType: 'string', required: true, categoryId: 'identity' },
+        id: { fieldType: 'string', required: true, categoryId: 'identity', isReadonly: true, acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
         amount: { fieldType: 'number', required: true, min: 0, categoryId: 'data' },
-        id: { fieldType: 'string', required: true, categoryId: 'identity', isReadonly: true, acceptsBinding: false },
-        name: { fieldType: 'string', required: true, categoryId: 'identity' },
         data: { fieldType: 'object', objectType: 'instanceData', required: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
 }

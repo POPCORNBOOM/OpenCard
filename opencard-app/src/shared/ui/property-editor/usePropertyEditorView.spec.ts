@@ -51,6 +51,21 @@ describe('usePropertyEditorView', () => {
     })
   })
 
+  it('uses schema order in category mode instead of localized label order', () => {
+    const { displaySources } = createView([{
+      key: 'text',
+      record: { name: 'Title', id: 'text-1', content: 'Hello' },
+      fields: {
+        name: { title: 'Z name', fieldType: 'string', category: 'identity', order: 0 },
+        id: { title: 'A id', fieldType: 'string', category: 'identity', order: 1 },
+        content: { title: 'Content', fieldType: 'string', category: 'content', order: 2 },
+      },
+    }])
+
+    expect(displaySources.value[0]?.categories[0]?.entries.map(entry => entry.key))
+      .toEqual(['name', 'id'])
+  })
+
   it('warns and skips a record key without a prepared definition', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const { displaySources } = createView([{

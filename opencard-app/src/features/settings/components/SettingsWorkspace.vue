@@ -123,6 +123,7 @@
                   :model-value="color.value"
                   :label="`${field.label} · ${color.label}`"
                   variant="field"
+                  :allow-alpha="false"
                   @preview="emitThemeColor('theme-color.preview', field.themeId, color, $event)"
                   @commit="commitThemeColor(field.themeId, color, $event)"
                   @cancel="cancelThemeColor(field.themeId, color)"

@@ -94,14 +94,20 @@ function handleKeydown(event: KeyboardEvent) {
 <style scoped>
 .multiline-field {
   flex: 1 1 auto;
-  height: var(--oc-field-control-height, var(--oc-property-row-height));
+  height: var(
+    --oc-field-control-target-height,
+    var(--oc-field-control-height, var(--oc-property-row-height))
+  );
   transition:
     height var(--oc-duration-normal) var(--oc-ease),
     border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
 .multiline-field:focus-within {
-  height: var(--oc-field-control-expanded-height, var(--oc-property-row-expanded-height));
+  --oc-field-control-target-height: var(
+    --oc-field-control-expanded-height,
+    var(--oc-property-row-expanded-height)
+  );
 }
 
 .multiline-field :deep(.multiline-field__input) {

@@ -81,6 +81,7 @@ export type PropertyFieldType = BasePropertyFieldType | PropertyArrayFieldType
 type PropertyEditorFieldBase = {
   title: string
   category?: string
+  order?: number
   defaultValue?: unknown
   required?: boolean
   isHidden?: boolean

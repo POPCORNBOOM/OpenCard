@@ -590,7 +590,7 @@ export default {
       clearSelection: 'Clear selected file',
     },
     categories: {
-      identity: 'Identity',
+      identity: 'General',
       layout: 'Layout',
       transform: 'Transform',
       appearance: 'Appearance',

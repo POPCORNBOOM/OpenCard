@@ -4,7 +4,7 @@
 
 - `OcActionButton`：定义式 action 渲染与意图输出。
 - `OcBar`、`OcCard`：结构化 section；`OcCard` 直接绘制表面，不嵌套 Surface/Stack。
-- `OcColorField`：色块、原生 picker 与文本值共享一个 FieldFrame。
+- `OcColorField`：复用 `OcColorPicker` 的完整颜色字段变体，统一色值输入、取色弹层与提交语义，并按领域需要选择是否开放 Alpha。
 - `OcOptionGroup`：互斥选择、radiogroup 语义与 roving tabindex。
 - `OcTree`：key-only tree view model 与统一 intent。
 - `OcJsonEditor`：结构化 JSON 编辑协议。

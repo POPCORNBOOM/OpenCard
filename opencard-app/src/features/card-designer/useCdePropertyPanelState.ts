@@ -222,7 +222,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     record: Readonly<Record<string, unknown>>,
     override?: Readonly<Record<string, Partial<EditorPropertyDefinition>>>,
     labels?: Readonly<Record<string, string>>,
-    categorylessKeys: ReadonlySet<string> = new Set(),
+    customKeys: ReadonlySet<string> = new Set(),
     excludedKeys: ReadonlySet<string> = new Set(),
   ): Record<string, CdePropertyFieldDefinition> {
     const fields = resolveCdePropertyFields(record, {
@@ -231,7 +231,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       hasMessage: options.hasMessage,
       override,
       labels,
-      categorylessKeys,
+      customKeys,
     })
     return Object.fromEntries(Object.entries(fields).filter(([fieldKey]) => !excludedKeys.has(fieldKey)))
   }

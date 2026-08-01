@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import OcFieldFrame from '../base/OcFieldFrame.vue'
 import OcColorPicker from './OcColorPicker.vue'
 
 describe('OcColorPicker', () => {
@@ -11,6 +12,8 @@ describe('OcColorPicker', () => {
 
     await wrapper.get('.oc-color-picker__trigger').trigger('click')
     expect(document.body.querySelector('.oc-color-picker__panel')).not.toBeNull()
+    expect(document.body.querySelector('[role="slider"][aria-label="Alpha"]')).not.toBeNull()
+    expect(document.body.querySelector('input[aria-label="Alpha"]')).not.toBeNull()
     expect(document.body.querySelector('input[type="color"]')).toBeNull()
     wrapper.unmount()
   })
@@ -20,13 +23,62 @@ describe('OcColorPicker', () => {
       props: { modelValue: '#112233', variant: 'field' },
     })
 
+    expect(wrapper.getComponent(OcFieldFrame).classes()).toContain('oc-color-picker__field')
+    expect(wrapper.getComponent(OcFieldFrame)
+      .get('.oc-field-frame__prefix .oc-color-picker__field-trigger').element.tagName).toBe('BUTTON')
     expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(241, 243, 245)')
-    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('--oc-color-picker-dot-border: #CBCBCB')
     await wrapper.get('.oc-color-picker__field-input').setValue('#FFFFFF')
     expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(36, 39, 44)')
-    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('--oc-color-picker-dot-border: #9E9E9E')
     await wrapper.get('.oc-color-picker__field-input').trigger('blur')
     expect(wrapper.emitted('commit')).toEqual([['#FFFFFF']])
+  })
+
+  it('keeps a contrasting foreground on middle-gray colors', () => {
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#ACACAC', variant: 'field' },
+    })
+
+    expect(wrapper.get('.oc-color-picker__field').attributes('style'))
+      .toContain('color: rgb(36, 39, 44)')
+  })
+
+  it.each(['#000000', '#FFFFFF'])(
+    'keeps the selected hue while editing achromatic color %s',
+    async (modelValue) => {
+      const wrapper = mount(OcColorPicker, {
+        props: { modelValue },
+        attachTo: document.body,
+      })
+      await wrapper.get('.oc-color-picker__trigger').trigger('click')
+      const hue = document.body.querySelector<HTMLElement>('[role="slider"][aria-label="Hue"]')!
+      hue.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        bubbles: true,
+      }))
+      await wrapper.vm.$nextTick()
+
+      const cursor = hue.querySelector<HTMLElement>('.oc-slider__thumb')!
+      expect(Number.parseFloat(cursor.style.left)).toBeGreaterThan(0)
+      wrapper.unmount()
+    },
+  )
+
+  it('keeps saturation while editing pure black', async () => {
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#000000' },
+      attachTo: document.body,
+    })
+    await wrapper.get('.oc-color-picker__trigger').trigger('click')
+    const saturation = document.body.querySelector<HTMLElement>('.oc-color-picker__saturation')!
+    saturation.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      bubbles: true,
+    }))
+    await wrapper.vm.$nextTick()
+
+    const cursor = document.body.querySelector<HTMLElement>('.oc-color-picker__cursor')!
+    expect(Number.parseFloat(cursor.style.left)).toBeGreaterThan(0)
+    wrapper.unmount()
   })
 
   it('restores an invalid inline value on blur', async () => {
@@ -47,9 +99,8 @@ describe('OcColorPicker', () => {
       attachTo: document.body,
     })
     await wrapper.get('.oc-color-picker__trigger').trigger('click')
-    const input = document.body.querySelector<HTMLInputElement>('.oc-color-picker__hex')!
+    const input = document.body.querySelector<HTMLInputElement>('.oc-color-picker__channel-input')!
     input.value = '#AABBCC'
-    input.dispatchEvent(new Event('input', { bubbles: true }))
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     await wrapper.vm.$nextTick()
 
@@ -65,12 +116,12 @@ describe('OcColorPicker', () => {
 
   it('reports cancellation after restoring an uncommitted preview', async () => {
     const wrapper = mount(OcColorPicker, {
-      props: { modelValue: '#112233' },
+      props: { modelValue: '#112233', variant: 'field' },
       attachTo: document.body,
     })
-    await wrapper.get('.oc-color-picker__trigger').trigger('click')
+    await wrapper.get('.oc-color-picker__field-trigger').trigger('click')
     const panel = document.body.querySelector<HTMLElement>('.oc-color-picker__panel')!
-    const input = panel.querySelector<HTMLInputElement>('.oc-color-picker__hex')!
+    const input = wrapper.get('.oc-color-picker__field-input').element as HTMLInputElement
     input.value = '#AABBCC'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -80,6 +131,44 @@ describe('OcColorPicker', () => {
     expect(previews[previews.length - 1]).toEqual(['#112233'])
     expect(wrapper.emitted('cancel')).toEqual([[]])
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('switches color models while keeping all linear channels on the same Slider', async () => {
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#11223380', allowAlpha: true },
+      attachTo: document.body,
+    })
+    await wrapper.get('.oc-color-picker__trigger').trigger('click')
+    const panel = document.body.querySelector<HTMLElement>('.oc-color-picker__panel')!
+
+    expect(panel.querySelector('.oc-color-picker__saturation')).not.toBeNull()
+    expect(panel.querySelectorAll('.oc-color-picker__channel-sliders .oc-slider')).toHaveLength(1)
+    expect(panel.querySelector('[role="radiogroup"]')).not.toBeNull()
+
+    panel.querySelector<HTMLButtonElement>('[aria-label="RGB"]')!.click()
+    await wrapper.vm.$nextTick()
+    expect(panel.querySelector('.oc-color-picker__saturation')).toBeNull()
+    expect(panel.querySelectorAll('.oc-color-picker__channel-sliders .oc-slider')).toHaveLength(3)
+    const red = panel.querySelector<HTMLInputElement>('input[aria-label="Red"]')!
+    const alpha = panel.querySelector<HTMLInputElement>('input[aria-label="Alpha"]')!
+    expect(red.value).toBe('17')
+    expect(alpha.value).toBe('50')
+    red.value = '255'
+    red.dispatchEvent(new Event('blur', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('update:modelValue')).toContainEqual(['#FF223380'])
+
+    panel.querySelector<HTMLButtonElement>('[aria-label="HSV"]')!.click()
+    await wrapper.vm.$nextTick()
+    expect(panel.querySelectorAll('.oc-color-picker__channel-sliders .oc-slider')).toHaveLength(3)
+    expect(panel.querySelector<HTMLInputElement>('input[aria-label="Hue"]')!.value).not.toBe('')
+    const hsvAlpha = panel.querySelector<HTMLInputElement>('input[aria-label="Alpha"]')!
+    hsvAlpha.value = '25'
+    hsvAlpha.dispatchEvent(new Event('blur', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    expect(updates[updates.length - 1]).toEqual(['#FF223340'])
     wrapper.unmount()
   })
 })

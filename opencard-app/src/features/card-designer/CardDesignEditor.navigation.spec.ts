@@ -1142,7 +1142,10 @@ describe('CardDesignEditor issue navigation', () => {
     propertyCard.vm.$emit('action', { key: 'toggle-property-delete-mode' })
     await nextTick()
     expect(propertyEditor.props('deleteMode')).toBe(true)
-    expect(wrapper.findAll('.delete-field-button').length).toBeGreaterThan(0)
+    expect(wrapper.findAllComponents({ name: 'PropertyFieldActionRail' })
+      .some(rail => rail.props('actions')?.some(
+        (action: { key: string }) => action.key === 'delete-property',
+      ))).toBe(true)
     expect(getAction('toggle-property-delete-mode').disabled).toBeUndefined()
   })
 

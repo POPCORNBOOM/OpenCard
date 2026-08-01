@@ -104,5 +104,15 @@ defineOptions({ name: 'OcFieldFrame' })
   flex: 1 1 auto;
   min-width: 0;
   align-items: stretch;
+  --oc-field-surface-border-width: 0;
+  --oc-field-surface-border-radius: 0;
+  --oc-field-surface-focus-border-color: transparent;
+  --oc-field-surface-focus-shadow: none;
+}
+
+.oc-field-frame__control > :deep(*) {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 </style>

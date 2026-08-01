@@ -186,7 +186,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
       hasMessage: options.hasMessage,
       override,
       labels,
-      categorylessKeys: new Set(Object.keys(block.additionalFieldDefinition ?? {})),
+      customKeys: new Set(Object.keys(block.additionalFieldDefinition ?? {})),
     })
     const blockRecord = block as unknown as Record<string, unknown>
 

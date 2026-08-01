@@ -114,6 +114,15 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-size-md',
   '--oc-size-lg',
 
+  // 颜色通道控件
+  '--oc-color-picker-plane-height',
+  '--oc-color-channel-track-height',
+  '--oc-color-channel-handle-width',
+  '--oc-color-channel-handle-height',
+  '--oc-color-channel-handle-border-width',
+  '--oc-color-channel-handle-border-color',
+  '--oc-color-channel-handle-shadow',
+
   // 列表高度上限
   '--oc-list-max-height-sm',
   '--oc-list-max-height-md',

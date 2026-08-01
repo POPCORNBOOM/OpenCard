@@ -1575,30 +1575,29 @@ const workspaceTitle = computed(() => {
 const workspaceActions = computed<ShellAction[]>(() => {
   if (!isWorkbenchMode.value || !isActiveCardDesignerEditor.value) return []
   const tableMode = activeCardDesignerMode.value === 'data-table'
-  const actions: ShellAction[] = [{
+  const modeAction: ShellAction = {
     key: CARD_DESIGNER_MODE_ACTION_KEY,
     icon: tableMode ? 'file.opencard' : 'data.table',
     hoverTip: tableMode
       ? t('cardDesigner.dataTable.switchToDesignMode')
       : t('cardDesigner.dataTable.switchToTableMode'),
-  }]
-  if (tableMode) {
-    actions.push(
-      {
-        key: CARD_DATA_TABLE_IMPORT_ACTION_KEY,
-        icon: 'action.import',
-        hoverTip: t('cardDesigner.dataTable.importWorkbook'),
-        disabled: isDataTableWorkbookBusy.value,
-      },
-      {
-        key: CARD_DATA_TABLE_EXPORT_ACTION_KEY,
-        icon: 'action.export',
-        hoverTip: t('cardDesigner.dataTable.exportWorkbook'),
-        disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
-      },
-    )
   }
-  return actions
+  if (!tableMode) return [modeAction]
+  return [
+    {
+      key: CARD_DATA_TABLE_IMPORT_ACTION_KEY,
+      icon: 'action.import',
+      hoverTip: t('cardDesigner.dataTable.importWorkbook'),
+      disabled: isDataTableWorkbookBusy.value,
+    },
+    {
+      key: CARD_DATA_TABLE_EXPORT_ACTION_KEY,
+      icon: 'action.export',
+      hoverTip: t('cardDesigner.dataTable.exportWorkbook'),
+      disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
+    },
+    modeAction,
+  ]
 })
 
 function handleEditorIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {

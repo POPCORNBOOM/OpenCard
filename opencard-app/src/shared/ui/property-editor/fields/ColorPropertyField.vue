@@ -1,6 +1,7 @@
-<!-- Base 颜色选取器：使用原生 color input 输出十六进制颜色值。 -->
+<!-- 属性颜色字段：把值与只读协议适配到标准颜色字段。 -->
 <template>
-  <OcColorField :model-value="stringValue" :disabled="definition.isReadonly"
+  <OcColorField :model-value="stringValue" :label="definition.title"
+    :disabled="definition.isReadonly" allow-alpha
     @update:model-value="emit('update:value', $event)" />
 </template>
 
