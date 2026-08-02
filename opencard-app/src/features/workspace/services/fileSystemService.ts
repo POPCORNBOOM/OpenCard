@@ -41,6 +41,7 @@ export interface FileSystemService {
   trashFile(path: string): Promise<void>
   renameFile(oldPath: string, newPath: string): Promise<void>
   revealInFileManager(path: string): Promise<void>
+  openWithDefaultApp(path: string): Promise<void>
   fileExists(path: string): Promise<boolean>
   getFileInfo(path: string): Promise<FileInfo>
   readDirectory(path: string, recursive?: boolean): Promise<DirEntry[]>
@@ -126,6 +127,10 @@ class FileSystemServiceImpl implements FileSystemService {
 
   async revealInFileManager(path: string): Promise<void> {
     await invoke('reveal_path', { path })
+  }
+
+  async openWithDefaultApp(path: string): Promise<void> {
+    await invoke('open_path', { path })
   }
 
   async fileExists(path: string): Promise<boolean> {

@@ -177,6 +177,8 @@ class MemoryFileSystem implements FileSystemService {
 
   async revealInFileManager(_path: string): Promise<void> {}
 
+  async openWithDefaultApp(_path: string): Promise<void> {}
+
   async fileExists(path: string): Promise<boolean> {
     const normalized = normalizePath(path)
     return this.directories.has(normalized) || this.files.has(normalized)

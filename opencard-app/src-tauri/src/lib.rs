@@ -5,6 +5,14 @@ use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Emitter, State};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::ffi::OsStrExt;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::UI::{
+    Shell::ShellExecuteW,
+    WindowsAndMessaging::SW_SHOWNORMAL,
+};
+
 mod external_open;
 
 // 存储 watcher 的全局状态
@@ -158,6 +166,60 @@ fn reveal_path(path: String) -> Result<(), String> {
         .map_err(|error| format!("Failed to reveal '{}': {}", path, error))
 }
 
+#[cfg(target_os = "windows")]
+fn open_with_default_app(target: &Path) -> Result<(), String> {
+    let operation = std::ffi::OsStr::new("open")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let target_path = target
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            target_path.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    if result as isize <= 32 {
+        return Err(format!("ShellExecuteW failed with code {}", result as isize));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn open_with_default_app(target: &Path) -> Result<(), String> {
+    Command::new("open")
+        .arg(target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn open_with_default_app(target: &Path) -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    let target = Path::new(&path);
+    std::fs::symlink_metadata(target)
+        .map_err(|error| format!("Cannot open '{}': {}", path, error))?;
+
+    open_with_default_app(target).map_err(|error| format!("Failed to open '{}': {}", path, error))
+}
+
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::*;
@@ -170,6 +232,7 @@ mod tests {
         let arguments: Vec<_> = command.get_args().collect();
         assert_eq!(arguments, [r"/select,D:\My Cards\main.opencard"]);
     }
+
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -201,6 +264,7 @@ pub fn run() {
             stop_watching,
             trash_path,
             reveal_path,
+            open_path,
             external_open::take_external_open_requests,
         ])
         .build(tauri::generate_context!())

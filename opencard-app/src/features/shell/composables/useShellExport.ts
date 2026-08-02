@@ -23,6 +23,7 @@ import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import type { CardDesignerViewState } from '../../editor-runtime/model/editorUiState'
 import { useShellProgressTasks } from './useShellProgressTasks'
 import { exportCardAsImage } from '../../../utils/exportCard'
+import { reportAppError } from '../../logging/appErrorCatalog'
 
 const SINGLE_CARD_EXPORT_TASK_KEY = 'card-export-single'
 const ALL_CARD_VIEWS_EXPORT_TASK_KEY = 'card-export-all-views'
@@ -212,18 +213,18 @@ export function useShellExport(options: UseShellExportOptions) {
   function getActiveCardExportContext(): CardExportContext | null {
     const session = options.activeSession.value
     if (!session) {
-      console.error('没有打开的文件')
+      reportAppError('OC-E5001')
       return null
     }
 
     if (resolveFileTypeById(session.fileTypeId).id !== 'opencard') {
-      console.error('当前活动文件不是 .opencard')
+      reportAppError('OC-E5002', { fileTypeId: session.fileTypeId })
       return null
     }
 
     const currentContent = session.draftContent.trim()
     if (!currentContent) {
-      console.error('当前 .opencard 内容为空')
+      reportAppError('OC-E5003', { sessionId: session.id })
       return null
     }
 
@@ -234,7 +235,7 @@ export function useShellExport(options: UseShellExportOptions) {
         document: parseCardDocument(parsed),
       }
     } catch (error) {
-      console.error('解析 .opencard 失败:', error)
+      reportAppError('OC-E5004', error)
       return null
     }
   }
@@ -308,7 +309,7 @@ export function useShellExport(options: UseShellExportOptions) {
       setTask({ key: SINGLE_CARD_EXPORT_TASK_KEY, title: taskTitle, progress: 1, weight: 1 })
       console.log('图片已保存到:', savePath)
     } catch (error) {
-      console.error('导出图片失败:', error)
+      reportAppError('OC-E5005', error)
     } finally {
       removeTask(SINGLE_CARD_EXPORT_TASK_KEY)
       resetExportRenderer()
@@ -378,7 +379,7 @@ export function useShellExport(options: UseShellExportOptions) {
         console.log('图片已保存到:', targetPath)
       }
     } catch (error) {
-      console.error('批量导出图片失败:', error)
+      reportAppError('OC-E5006', error)
     } finally {
       if (taskStarted) removeTask(ALL_CARD_VIEWS_EXPORT_TASK_KEY)
       resetExportRenderer()

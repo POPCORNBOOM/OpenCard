@@ -1,6 +1,6 @@
 /** Adapts the active editor session to a registered editor without owning session truth. */
 import { computed, ref, watch, type Component, type DeepReadonly, type Ref } from 'vue'
-import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
+import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 import { getOcTheme } from '../../../shared/ui/foundation'
 import type { AppSettings } from '../../settings/model/appSettings'
 import type {
@@ -21,6 +21,7 @@ import type {
   SessionSaveResult,
 } from '../../workspace/store/editorSessionStore'
 import type { ProjectProfile } from '../../workspace/model/projectMetadata'
+import { reportAppError } from '../../logging/appErrorCatalog'
 
 const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
@@ -96,7 +97,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   const component = computed<Component | null>(() => {
     const session = options.activeSession.value
     if (!session) return null
-    return editorRegistry.getEditor(session.editorId)?.component ?? MonacoEditor
+    return editorRegistry.getEditor(session.editorId)?.component ?? UnsupportedFileEditor
   })
 
   const key = computed(() => {
@@ -112,10 +113,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     const sessionId = session.id
     const fileType = resolveSessionFileType(session)
     const filePath = session.path ?? `draft://${session.id}`
-    const editor = editorRegistry.getEditor(fileType.editorId)
+    const editor = editorRegistry.getEditor(session.editorId) ?? editorRegistry.getEditor('unsupported-file')
     if (editor && editor.id !== 'monaco') {
       const baseProps = {
         filePath,
+        fileName: session.name,
+        resourceRootPath: resourceRootPath.value,
         modelValue: session.draftContent,
         themeId: themeId.value,
         themeOverrides: themeOverrides.value,
@@ -242,7 +245,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     try {
       await options.sessionActions.saveActiveSession()
     } catch (error) {
-      console.error('同步编辑器保存结果失败:', error)
+      reportAppError('OC-E4002', error)
     }
   }
 

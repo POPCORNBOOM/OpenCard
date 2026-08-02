@@ -114,6 +114,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { reportAppError } from '../../features/logging/appErrorCatalog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import {
@@ -239,7 +240,7 @@ function updateProfile(next: ProjectProfile) {
     profile.value = next
     emit('update:modelValue', serialized)
   } catch (error) {
-    console.error('[project-profile] Invalid profile draft', error)
+    reportAppError('OC-E3006', error)
   }
 }
 
@@ -273,7 +274,7 @@ async function pickAndImportFont(targetId?: string) {
     }
     updateFonts({ ...fonts, [registration.id]: registration.definition })
   } catch (error) {
-    console.error('[project-profile] Failed to import font:', error)
+    reportAppError('OC-E3007', error)
     fontImportError.value = t('projectConfig.fonts.importFailed')
   } finally {
     fontImportBusy.value = false
@@ -301,7 +302,7 @@ async function openOrCreateDictionary() {
     }
     emit('open-file', path)
   } catch (error) {
-    console.error('[project-profile] Failed to open dictionary:', { path, error })
+    reportAppError('OC-E3008', { path, error })
   }
 }
 

@@ -82,7 +82,74 @@ describe('card data workbook', () => {
     expect(worksheet.getCell('F1').value).toBe('__blueprint__')
     expect(worksheet.getCell('G1').value).toBe('instance-1')
     expect(worksheet.getCell('G3').value).toBe('Override')
-    expect(workbook.getWorksheet('_OpenCard')!.state).toBe('veryHidden')
+    expect(worksheet.getCell('A3').protection?.locked).not.toBe(false)
+    expect(worksheet.getCell('D3').protection.locked).toBe(false)
+    expect(worksheet.getCell('G3').protection.locked).toBe(false)
+    expect(readSheetProtection(worksheet)?.sheet).toBe(true)
+    expect(readSheetProtection(worksheet)?.insertColumns).toBe(true)
+    const metadata = workbook.getWorksheet('_OpenCard')!
+    expect(metadata.state).toBe('veryHidden')
+    expect(readSheetProtection(metadata)?.sheet).toBe(true)
+  })
+
+  it('imports a renamed Block and a new instance column', async () => {
+    const document = createDocument()
+    const bytes = await exportCardDataWorkbook({
+      document,
+      columns: createColumns(),
+      faceGroups: createFaceGroups(),
+      exportInstanceIds: ['instance-1'],
+      labels: { face: 'Face', block: 'Block Name', field: 'Field' },
+    })
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(bytes)
+    const worksheet = workbook.getWorksheet('Card Data')!
+    worksheet.getCell('D3').value = 'Renamed Block'
+    worksheet.getCell('H2').value = 'Instance 2'
+    worksheet.getCell('H3').value = 'New value'
+    const modified = await workbook.xlsx.writeBuffer()
+
+    const result = await importCardDataWorkbook(new Uint8Array(modified), document, createFaceGroups())
+    expect(result.blockRenames).toEqual([{
+      blockId: 'block-1',
+      previousName: 'Title Block',
+      nextName: 'Renamed Block',
+    }])
+    expect(result.newInstances).toHaveLength(1)
+    expect(result.newInstances[0]).toMatchObject({ name: 'Instance 2', amount: '1', data: {} })
+    expect(result.updates).toContainEqual({
+      cardId: result.newInstances[0]!.id,
+      blockId: 'block-1',
+      fieldKey: 'content',
+      value: 'New value',
+      reset: false,
+    })
+  })
+
+  it('adds portable dropdown validation for boolean fields', async () => {
+    const groups = createFaceGroups()
+    groups[0]!.blocks[0]!.fields[0]!.definition = {
+      title: 'Visible',
+      fieldType: 'boolean',
+    }
+    const bytes = await exportCardDataWorkbook({
+      document: createDocument(),
+      columns: createColumns(),
+      faceGroups: groups,
+      exportInstanceIds: ['instance-1'],
+      labels: { face: 'Face', block: 'Block Name', field: 'Field' },
+    })
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(bytes)
+
+    expect(workbook.getWorksheet('Card Data')!.getCell('F3').dataValidation).toMatchObject({
+      type: 'list',
+      showErrorMessage: true,
+      errorStyle: 'stop',
+      formulae: ['"true,false"'],
+    })
   })
 
   it('imports exact Blueprint references as reset operations', async () => {
@@ -116,6 +183,30 @@ describe('card data workbook', () => {
     expect(workbook.getWorksheet('Card Data')!.getCell('G3').formula).toBe('$F3')
     const result = await importCardDataWorkbook(bytes, document, createFaceGroups())
     expect(result.warnings).toEqual([])
+    expect(result.updates).toContainEqual({
+      cardId: 'instance-1',
+      blockId: 'block-1',
+      fieldKey: 'content',
+      reset: true,
+    })
+  })
+
+  it('treats an empty existing Instance cell as no override', async () => {
+    const document = createDocument()
+    const bytes = await exportCardDataWorkbook({
+      document,
+      columns: createColumns(),
+      faceGroups: createFaceGroups(),
+      exportInstanceIds: ['instance-1'],
+      labels: { face: 'Face', block: 'Block Name', field: 'Field' },
+    })
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(bytes)
+    workbook.getWorksheet('Card Data')!.getCell('G3').value = null
+    const modified = await workbook.xlsx.writeBuffer()
+
+    const result = await importCardDataWorkbook(new Uint8Array(modified), document, createFaceGroups())
     expect(result.updates).toContainEqual({
       cardId: 'instance-1',
       blockId: 'block-1',
@@ -179,3 +270,11 @@ describe('card data workbook', () => {
       .rejects.toThrow('Workbook contains duplicate card column instance-1')
   })
 })
+
+function readSheetProtection(
+  worksheet: import('exceljs').Worksheet,
+): { sheet?: boolean; insertColumns?: boolean } | null {
+  return (worksheet as unknown as {
+    sheetProtection: { sheet?: boolean; insertColumns?: boolean } | null
+  }).sheetProtection
+}

@@ -1,0 +1,68 @@
+import { mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import UnsupportedFileEditor from './UnsupportedFileEditor.vue'
+
+const mocks = vi.hoisted(() => ({
+  readFile: vi.fn(),
+  openWithDefaultApp: vi.fn(),
+}))
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({ t: (key: string) => key }),
+}))
+
+vi.mock('../../features/workspace/services/fileSystemService', () => ({
+  fileSystemService: mocks,
+}))
+
+vi.mock('./MonacoEditor.vue', () => ({
+  default: {
+    name: 'MonacoEditor',
+    props: {
+      modelValue: String,
+      language: String,
+      readOnly: Boolean,
+    },
+    template: '<div class="monaco-stub" />',
+  },
+}))
+
+describe('UnsupportedFileEditor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.readFile.mockResolvedValue('readonly content')
+    mocks.openWithDefaultApp.mockResolvedValue(undefined)
+  })
+
+  it('loads workspace content only after the user chooses readonly text', async () => {
+    const wrapper = mount(UnsupportedFileEditor, {
+      props: {
+        filePath: 'assets/reference.bin',
+        fileName: 'reference.bin',
+        resourceRootPath: 'D:/project',
+      },
+    })
+
+    expect(mocks.readFile).not.toHaveBeenCalled()
+    expect(wrapper.findAll('button').every(button => button.attributes('disabled') === undefined)).toBe(true)
+    await wrapper.findAll('button')[0]!.trigger('click')
+
+    expect(mocks.readFile).toHaveBeenCalledWith('D:/project/assets/reference.bin')
+    expect(wrapper.getComponent({ name: 'MonacoEditor' }).props()).toMatchObject({
+      modelValue: 'readonly content',
+      language: 'plaintext',
+      readOnly: true,
+    })
+  })
+
+  it('delegates system opening without reading the file', async () => {
+    const wrapper = mount(UnsupportedFileEditor, {
+      props: { filePath: 'D:/outside/reference.bin', fileName: 'reference.bin' },
+    })
+
+    await wrapper.findAll('button')[1]!.trigger('click')
+
+    expect(mocks.openWithDefaultApp).toHaveBeenCalledWith('D:/outside/reference.bin')
+    expect(mocks.readFile).not.toHaveBeenCalled()
+  })
+})

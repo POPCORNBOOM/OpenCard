@@ -5,14 +5,14 @@ describe('project metadata file types', () => {
   it('recognizes only the two exact special file names', () => {
     expect(resolveFileType('D:/Cards/.opencardprojectprofile').id).toBe('opencard-project-profile')
     expect(resolveFileType('D:/Cards/.dictionary').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/en_US.opencardproject').id).toBe('plaintext')
-    expect(resolveFileType('D:/Cards/notes.dictionary').id).toBe('plaintext')
+    expect(resolveFileType('D:/Cards/en_US.opencardproject').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/notes.dictionary').id).toBe('unsupported')
   })
 
   it('restricts special files to the project root', () => {
     expect(resolveFileType('D:/Cards/.dictionary', 'D:/Cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/locales/.dictionary', 'D:/Cards').id).toBe('plaintext')
-    expect(resolveFileType('D:/Cards/nested/.opencardprojectprofile', 'D:/Cards').id).toBe('plaintext')
+    expect(resolveFileType('D:/Cards/locales/.dictionary', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.opencardprojectprofile', 'D:/Cards').id).toBe('unsupported')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {
@@ -21,7 +21,7 @@ describe('project metadata file types', () => {
 
   it('keeps special file names case-sensitive on POSIX paths', () => {
     expect(resolveFileType('/cards/.dictionary', '/cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('/cards/.DICTIONARY', '/cards').id).toBe('plaintext')
+    expect(resolveFileType('/cards/.DICTIONARY', '/cards').id).toBe('unsupported')
   })
 })
 
@@ -52,10 +52,24 @@ describe('workspace entry icon tokens', () => {
   })
 
   it('uses a dedicated icon for project font files', () => {
-    expect(resolveFileType('D:/Cards/assets/fonts/Brand.woff2').id).toBe('font')
+    expect(resolveFileType('D:/Cards/assets/fonts/Brand.woff2')).toMatchObject({
+      id: 'font',
+      editorId: 'font-preview',
+    })
     expect(resolveEntryIcon('D:/Cards/assets/fonts/Brand.ttf', false)).toEqual({
       icon: 'file.font',
       tone: 'active',
+    })
+  })
+
+  it('keeps known text files editable and routes unknown extensions to the unsupported-file session', () => {
+    expect(resolveFileType('D:/Cards/notes.txt')).toMatchObject({
+      id: 'plaintext',
+      editorId: 'monaco',
+    })
+    expect(resolveFileType('D:/Cards/archive.bin')).toMatchObject({
+      id: 'unsupported',
+      editorId: 'unsupported-file',
     })
   })
 })

@@ -1,11 +1,11 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, shallowRef, type Ref } from 'vue'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import type { CardDocument } from '../../entities/card/model'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import {
   exportCardDataWorkbook,
   importCardDataWorkbook,
-  type CardDataWorkbookUpdate,
+  type CardDataWorkbookImportResult,
 } from './cardDataWorkbook'
 import type {
   CdeDataTableColumn,
@@ -18,12 +18,13 @@ type UseCdeDataTableWorkbookOptions = {
   faceGroups: Readonly<Ref<readonly CdeDataTableFaceGroup[]>>
   exportInstanceIds: Readonly<Ref<readonly string[]>>
   flushPendingChanges: () => Promise<void>
-  applyUpdates: (updates: readonly CardDataWorkbookUpdate[]) => boolean
+  applyImport: (result: CardDataWorkbookImportResult) => boolean
   translate: (key: string, parameters?: Record<string, unknown>) => string
 }
 
 export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions) {
   const busy = ref(false)
+  const pendingImport = shallowRef<CardDataWorkbookImportResult | null>(null)
   const canExport = computed(() => Boolean(
     options.cardDoc.value
     && options.faceGroups.value.some(face => face.blocks.some(block => block.fields.length > 0)),
@@ -55,9 +56,8 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
         },
       })
       await fileSystemService.writeBinaryFile(path, bytes)
-      await notify(options.translate('cardDesigner.dataTable.exportSuccess'), 'info')
     } catch (error) {
-      await notify(errorMessage(error, options.translate('cardDesigner.dataTable.exportFailed')), 'error')
+      await notifyError(errorMessage(error, options.translate('cardDesigner.dataTable.exportFailed')))
     } finally {
       busy.value = false
     }
@@ -77,30 +77,40 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
     try {
       await options.flushPendingChanges()
       const bytes = await fileSystemService.readBinaryFile(path)
-      const result = await importCardDataWorkbook(bytes, document, options.faceGroups.value)
-      const changed = options.applyUpdates(result.updates)
-      const messageKey = changed
-        ? 'cardDesigner.dataTable.importSuccess'
-        : 'cardDesigner.dataTable.importNoChanges'
-      const body = result.warnings.length > 0
-        ? `${options.translate(messageKey)}\n\n${result.warnings.join('\n')}`
-        : options.translate(messageKey)
-      await notify(body, result.warnings.length > 0 ? 'warning' : 'info')
+      pendingImport.value = await importCardDataWorkbook(bytes, document, options.faceGroups.value)
     } catch (error) {
-      await notify(errorMessage(error, options.translate('cardDesigner.dataTable.importFailed')), 'error')
+      await notifyError(errorMessage(error, options.translate('cardDesigner.dataTable.importFailed')))
     } finally {
       busy.value = false
     }
   }
 
-  async function notify(body: string, kind: 'info' | 'warning' | 'error'): Promise<void> {
+  function confirmImport(): void {
+    if (!pendingImport.value) return
+    options.applyImport(pendingImport.value)
+    pendingImport.value = null
+  }
+
+  function cancelImport(): void {
+    pendingImport.value = null
+  }
+
+  async function notifyError(body: string): Promise<void> {
     await showMessage(body, {
       title: options.translate('cardDesigner.dataTable.workbookTitle'),
-      kind,
+      kind: 'error',
     })
   }
 
-  return { busy, canExport, exportWorkbook, importWorkbook }
+  return {
+    busy,
+    canExport,
+    pendingImport,
+    exportWorkbook,
+    importWorkbook,
+    confirmImport,
+    cancelImport,
+  }
 }
 
 function safeFileName(value: string): string {

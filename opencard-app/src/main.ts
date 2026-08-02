@@ -4,8 +4,11 @@ import { i18n, setAppLocale } from "./i18n";
 import { setupGlobalTooltip } from "./shared/ui/tooltip/globalTooltip";
 import { setOcGlassIntensity, setOcTheme } from "./shared/ui/foundation";
 import { useAppSettingsStore } from "./features/settings/store/appSettingsStore";
+import { installAppConsoleCapture } from "./features/logging/appConsole";
 import "./features/shell/shell.css";
 import "./styles.css";
+
+installAppConsoleCapture();
 
 async function bootstrap(): Promise<void> {
   const settingsStore = useAppSettingsStore();

@@ -1,5 +1,6 @@
 import type { ProjectFontRegistry } from '../model/projectMetadata'
 import { createProjectFontCssFamily } from '../model/projectFonts'
+import { reportAppError } from '../../logging/appErrorCatalog'
 
 let generation = 0
 let projectFontStyle: HTMLStyleElement | null = null
@@ -77,7 +78,7 @@ async function loadFonts(
         if (currentGeneration !== generation) return { current: false, errors: [] }
         const message = error instanceof Error ? error.message : String(error)
         errors.push({ fontId: id, source: faceDefinition.source, message })
-        console.error('[project-fonts] Failed to load font face', {
+        reportAppError('OC-E3005', {
           id,
           source: faceDefinition.source,
           error,

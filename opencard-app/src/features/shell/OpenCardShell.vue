@@ -219,11 +219,23 @@
             :issue-tree-data="visibleIssueTreeData"
             :issue-navigation-targets="issueNavigationTargets"
             :expanded-issue-keys="expandedIssueKeys"
-            :output-lines="workspaceOutputLines"
+            :output-entries="appConsoleEntries"
             :issues-label="t('app.problems.tab')"
             :output-label="t('app.problems.outputTab')"
             :issue-empty-label="t('app.problems.empty')"
             :output-empty-label="t('app.problems.outputEmpty')"
+            :output-filter-empty-label="t('app.problems.outputFilterEmpty')"
+            :output-clear-label="t('app.problems.clearOutput')"
+            :output-copy-label="t('app.problems.copyOutput')"
+            :output-locale="locale"
+            :output-severity-filter-label="t('app.problems.severityFilter')"
+            :output-severity-labels="{
+              debug: t('app.problems.severities.debug'),
+              log: t('app.problems.severities.log'),
+              info: t('app.problems.severities.info'),
+              warn: t('app.problems.severities.warn'),
+              error: t('app.problems.severities.error'),
+            }"
             :expand-label="t('app.shell.expandBottomPanel')"
             :collapse-label="t('app.shell.collapseBottomPanel')"
             :pin-label="t('app.shell.pinBottomPanel')"
@@ -232,6 +244,7 @@
             @tab-change="activeBottomTab = $event"
             @issue-expansion-change="setIssueNodeExpanded"
             @issue-navigate="handleWorkspaceIssueNavigate"
+            @output-clear="clearAppConsoleEntries"
           />
         </div>
       </ShellWorkspaceFrame>
@@ -339,6 +352,8 @@ import FeedbackDialog from '../feedback/components/FeedbackDialog.vue'
 import FeedbackHistoryDialog from '../feedback/components/FeedbackHistoryDialog.vue'
 import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
 import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
+import { appConsoleEntries, clearAppConsoleEntries } from '../logging/appConsole'
+import { reportAppError } from '../logging/appErrorCatalog'
 import type {
   ProjectTemplate,
   ProjectTemplateKey,
@@ -448,8 +463,6 @@ const EMPTY_TREE_DATA: OcTreeData = {
   items: new Map(),
   children: new Map(),
 }
-const workspaceOutputLines: readonly string[] = []
-
 const {
   projectPath,
   projectProfile,
@@ -1629,7 +1642,7 @@ async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   try {
     await readDirectoryEntries(entry.key)
   } catch (error) {
-    console.error('加载目录失败:', error)
+    reportAppError('OC-E2001', { path: entry.key, error })
   }
 }
 
@@ -1962,7 +1975,7 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
       try {
         await registerProjectFont(entry.key)
       } catch (error) {
-        console.error('[workspace-action] Failed to register project font:', { path: entry.key, error })
+        reportAppError('OC-E3004', { path: entry.key, error })
       }
       return
     }
@@ -1972,7 +1985,7 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
         await revealEntryInFileManager(entry.key)
         console.debug('[workspace-action] reveal:success', { actionKey: intent.actionKey, path: entry.key })
       } catch (error) {
-        console.error('[workspace-action] reveal:failed', {
+        reportAppError('OC-E2004', {
           actionKey: intent.actionKey,
           path: entry.key,
           error,
@@ -2068,7 +2081,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
       }
     } catch (error) {
-      console.error('处理外部打开请求失败:', normalizedPath, error)
+      reportAppError('OC-E2002', { path: normalizedPath, error })
     }
   }
 }
@@ -2346,7 +2359,7 @@ async function handleOpenFile(path: string) {
   try {
     await openEditorSession(path)
   } catch (error) {
-    console.error('打开文件失败:', error)
+    reportAppError('OC-E2003', { path, error })
   }
 }
 

@@ -15,6 +15,7 @@ const props = withDefaults(defineProps<{
   language?: string
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
+  readOnly?: boolean
 }>(), {
   language: 'plaintext',
   themeId: 'dark',
@@ -47,6 +48,7 @@ onMounted(() => {
     renderLineHighlight: 'all',
     roundedSelection: false,
     smoothScrolling: true,
+    readOnly: props.readOnly,
     cursorSmoothCaretAnimation: 'on',
     scrollbar: {
       verticalScrollbarSize: 8,
@@ -73,6 +75,10 @@ watch(() => props.language, (newLang) => {
       monaco.editor.setModelLanguage(model, newLang)
     }
   }
+})
+
+watch(() => props.readOnly, (readOnly) => {
+  editor?.updateOptions({ readOnly })
 })
 
 watch(() => [props.themeId, props.themeOverrides] as const, ([themeId, themeOverrides]) => {

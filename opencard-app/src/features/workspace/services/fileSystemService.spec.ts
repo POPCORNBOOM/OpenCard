@@ -44,4 +44,11 @@ describe('fileSystemService native file actions', () => {
     await expect(fileSystemService.trashFile('D:/cards/a.opencard')).rejects.toThrow('trash unavailable')
     expect(mocks.invoke).toHaveBeenCalledWith('trash_path', { path: 'D:/cards/a.opencard' })
   })
+
+  it('uses the native default-app command instead of the reveal command', async () => {
+    await fileSystemService.openWithDefaultApp('D:/cards/reference.bin')
+
+    expect(mocks.invoke).toHaveBeenCalledWith('open_path', { path: 'D:/cards/reference.bin' })
+    expect(mocks.invoke).not.toHaveBeenCalledWith('reveal_path', expect.anything())
+  })
 })

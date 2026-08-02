@@ -41,16 +41,23 @@ const iconTone = {
 } as const satisfies Record<string, EntryIconTone>
 
 const defaultFileType: FileTypeDefinition = {
-  id: 'plaintext',
-  labelKey: 'fileTypes.plaintext',
-  extensions: ['txt'],
-  icon: 'file.text',
+  id: 'unsupported',
+  labelKey: 'fileTypes.unsupported',
+  icon: 'file.generic',
   iconTone: 'muted',
-  language: 'plaintext',
-  editorId: 'monaco',
+  editorId: 'unsupported-file',
 }
 
 const fileTypes: FileTypeDefinition[] = [
+  {
+    id: 'plaintext',
+    labelKey: 'fileTypes.plaintext',
+    extensions: ['txt'],
+    icon: 'file.text',
+    iconTone: 'muted',
+    language: 'plaintext',
+    editorId: 'monaco',
+  },
   {
     id: 'opencard-project-profile',
     labelKey: 'fileTypes.opencardProjectProfile',
@@ -154,7 +161,7 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['woff', 'woff2', 'ttf', 'otf'],
     icon: 'file.font',
     iconTone: 'active',
-    editorId: 'monaco',
+    editorId: 'font-preview',
   },
   {
     id: 'image',

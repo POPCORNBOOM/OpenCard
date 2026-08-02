@@ -1,4 +1,6 @@
-import type { CardStoredValue, CardDocument } from '../../entities/card/model'
+import type { CardStoredValue, CardDocument, CardInstanceRecord } from '../../entities/card/model'
+import { getPropertyFieldTypeOptions } from '../../entities/card/schema'
+import type { PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
 import type {
   CdeDataTableCell,
   CdeDataTableColumn,
@@ -33,6 +35,8 @@ export type CardDataWorkbookUpdate = {
 
 export type CardDataWorkbookImportResult = {
   updates: CardDataWorkbookUpdate[]
+  blockRenames: Array<{ blockId: string; previousName: string; nextName: string }>
+  newInstances: CardInstanceRecord[]
   warnings: string[]
 }
 
@@ -71,10 +75,17 @@ export async function exportCardDataWorkbook(
   ))
   includedColumns.forEach((column, index) => {
     const columnNumber = FIRST_DATA_COLUMN + index
-    worksheet.getColumn(columnNumber).width = 32
+    const worksheetColumn = worksheet.getColumn(columnNumber)
+    worksheetColumn.width = 32
+    worksheetColumn.protection = { locked: false }
     setCell(worksheet, 1, columnNumber, column.key)
+    worksheet.getCell(1, columnNumber).protection = { locked: true }
     setCell(worksheet, 2, columnNumber, column.title)
+    worksheet.getCell(2, columnNumber).protection = { locked: true }
   })
+  const newInstanceColumnNumber = FIRST_DATA_COLUMN + includedColumns.length
+  worksheet.getColumn(newInstanceColumnNumber).width = 32
+  worksheet.getColumn(newInstanceColumnNumber).protection = { locked: false }
   setCell(worksheet, 2, 3, input.labels.face)
   setCell(worksheet, 2, 4, input.labels.block)
   setCell(worksheet, 2, 5, input.labels.field)
@@ -87,14 +98,16 @@ export async function exportCardDataWorkbook(
         setCell(worksheet, rowNumber, 2, field.key)
         setCell(worksheet, rowNumber, 3, face.title)
         setCell(worksheet, rowNumber, 4, block.title)
+        worksheet.getCell(rowNumber, 4).protection = { locked: false }
         setCell(worksheet, rowNumber, 5, field.title)
         const cells = new Map(field.cells.map(cell => [cell.cardId, cell]))
         includedColumns.forEach((column, index) => {
           const columnNumber = FIRST_DATA_COLUMN + index
           const cell = cells.get(column.key)
           if (!cell) return
-          writeExportCell(worksheet, rowNumber, columnNumber, cell, column.kind)
+          writeExportCell(worksheet, rowNumber, columnNumber, cell, column.kind, field.definition)
         })
+        applyCellValidation(worksheet.getCell(rowNumber, newInstanceColumnNumber), field.definition)
         rowNumber += 1
       }
     }
@@ -108,6 +121,16 @@ export async function exportCardDataWorkbook(
   metadata.getCell('B2').value = FORMAT_VERSION
   metadata.getCell('A3').value = 'documentId'
   metadata.getCell('B3').value = input.document.id
+
+  await worksheet.protect('', {
+    insertColumns: true,
+    selectLockedCells: true,
+    selectUnlockedCells: true,
+  })
+  await metadata.protect('', {
+    selectLockedCells: true,
+    selectUnlockedCells: false,
+  })
 
   const buffer = await workbook.xlsx.writeBuffer()
   return buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
@@ -128,6 +151,7 @@ export async function importCardDataWorkbook(
 
   const visibleFields = new Set<string>()
   const blockSamples = new Map<string, unknown>()
+  const currentCells = new Map<string, CdeDataTableCell>()
   for (const face of faceGroups) {
     for (const block of face.blocks) {
       for (const field of block.fields) {
@@ -135,6 +159,7 @@ export async function importCardDataWorkbook(
         visibleFields.add(key)
         const blueprintCell = field.cells.find(cell => cell.cardId === BLUEPRINT_CARD_ID)
         blockSamples.set(key, blueprintCell?.value)
+        for (const cell of field.cells) currentCells.set(`${key}\u0000${cell.cardId}`, cell)
       }
     }
   }
@@ -143,7 +168,34 @@ export async function importCardDataWorkbook(
   const columnTargets = readColumnTargets(worksheet, currentInstanceIds)
   const warnings = columnTargets.warnings
   const updates: CardDataWorkbookUpdate[] = []
+  const newInstanceIds = new Set(columnTargets.newInstances.map(instance => instance.id))
   const seenFields = new Set<string>()
+  const blockTitles = new Map<string, string>()
+  for (const face of faceGroups) {
+    for (const block of face.blocks) blockTitles.set(block.key, block.title)
+  }
+  const renameCandidates = new Map<string, Set<string>>()
+  function appendUpdate(update: CardDataWorkbookUpdate): void {
+    if (newInstanceIds.has(update.cardId)) {
+      if (!update.reset) updates.push(update)
+      return
+    }
+    const current = currentCells.get(`${update.blockId}\u0000${update.fieldKey}\u0000${update.cardId}`)
+    if (!current) {
+      updates.push(update)
+      return
+    }
+    if (update.reset) {
+      if (current.overridden) updates.push(update)
+      return
+    }
+    if (update.value === undefined) return
+    if (update.cardId !== BLUEPRINT_CARD_ID && current.inherited) {
+      updates.push(update)
+      return
+    }
+    if (!storedValuesEqual(current.value, update.value)) updates.push(update)
+  }
 
   for (let rowNumber = FIRST_DATA_ROW; rowNumber <= worksheet.rowCount; rowNumber += 1) {
     const blockId = readString(worksheet.getCell(rowNumber, 1).value)
@@ -161,6 +213,14 @@ export async function importCardDataWorkbook(
       throw new CardDataWorkbookError(`Field ${blockId}.${fieldKey} is not visible in the Data Table`)
     }
 
+    const exportedBlockTitle = blockTitles.get(blockId)
+    const workbookBlockTitle = readString(worksheet.getCell(rowNumber, 4).value)
+    if (exportedBlockTitle !== undefined && workbookBlockTitle !== exportedBlockTitle) {
+      const candidates = renameCandidates.get(blockId) ?? new Set<string>()
+      candidates.add(workbookBlockTitle)
+      renameCandidates.set(blockId, candidates)
+    }
+
     const sample = blockSamples.get(fieldIdentity)
     columnTargets.columns.forEach(({ columnNumber, cardId }) => {
       const cell = worksheet.getCell(rowNumber, columnNumber)
@@ -170,12 +230,16 @@ export async function importCardDataWorkbook(
           throw new CardDataWorkbookError(`Blueprint cell ${cell.address} cannot contain an inherit formula`)
         }
         if (normalizeFormula(formula) === `F${rowNumber}`) {
-          updates.push({ cardId, blockId, fieldKey, reset: true })
+          appendUpdate({ cardId, blockId, fieldKey, reset: true })
           return
         }
         throw new CardDataWorkbookError(`Unsupported formula in ${cell.address}`)
       }
-      updates.push({
+      if (cardId !== BLUEPRINT_CARD_ID && (cell.value === null || cell.value === undefined || cell.value === '')) {
+        appendUpdate({ cardId, blockId, fieldKey, reset: true })
+        return
+      }
+      appendUpdate({
         cardId,
         blockId,
         fieldKey,
@@ -185,7 +249,18 @@ export async function importCardDataWorkbook(
     })
   }
 
-  return { updates, warnings }
+  const blockRenames = Array.from(renameCandidates, ([blockId, candidates]) => {
+    if (candidates.size > 1) {
+      throw new CardDataWorkbookError(`Workbook contains conflicting names for Block ${blockId}`)
+    }
+    return {
+      blockId,
+      previousName: blockTitles.get(blockId) ?? blockId,
+      nextName: Array.from(candidates)[0] ?? '',
+    }
+  })
+
+  return { updates, blockRenames, newInstances: columnTargets.newInstances, warnings }
 }
 
 async function loadExcelJs(): Promise<ExcelJsModule> {
@@ -198,8 +273,11 @@ function writeExportCell(
   columnNumber: number,
   cell: CdeDataTableCell,
   kind: CdeDataTableColumn['kind'],
+  definition: PropertyEditorFieldDefinition,
 ): void {
   const target = worksheet.getCell(rowNumber, columnNumber)
+  target.protection = { locked: false }
+  applyCellValidation(target, definition)
   if (kind === 'instance' && cell.inherited) {
     const blueprintColumn = getColumnLetter(FIRST_DATA_COLUMN)
     target.value = { formula: `$${blueprintColumn}${rowNumber}`, result: encodeCellValue(cell.value) }
@@ -225,13 +303,36 @@ function validateMetadata(workbook: import('exceljs').Workbook, document: CardDo
 function readColumnTargets(
   worksheet: import('exceljs').Worksheet,
   currentInstanceIds: ReadonlySet<string>,
-): { columns: Array<{ columnNumber: number; cardId: string }>; warnings: string[] } {
+): {
+  columns: Array<{ columnNumber: number; cardId: string }>
+  newInstances: CardInstanceRecord[]
+  warnings: string[]
+} {
   const columns: Array<{ columnNumber: number; cardId: string }> = []
+  const newInstances: CardInstanceRecord[] = []
   const warnings: string[] = []
   const seenCardIds = new Set<string>()
   for (let columnNumber = FIRST_DATA_COLUMN; columnNumber <= worksheet.columnCount; columnNumber += 1) {
     const cardId = readString(worksheet.getCell(1, columnNumber).value)
-    if (!cardId) continue
+    if (!cardId) {
+      const instanceName = readString(worksheet.getCell(2, columnNumber).value)
+      if (!instanceName) {
+        if (columnHasData(worksheet, columnNumber)) {
+          throw new CardDataWorkbookError(`Column ${getColumnLetter(columnNumber)} has data but no instance name`)
+        }
+        continue
+      }
+      const newInstance: CardInstanceRecord = {
+        type: 'card-instance',
+        id: `instance-${crypto.randomUUID()}`,
+        name: instanceName,
+        amount: '1',
+        data: {},
+      }
+      newInstances.push(newInstance)
+      columns.push({ columnNumber, cardId: newInstance.id })
+      continue
+    }
     if (seenCardIds.has(cardId)) {
       throw new CardDataWorkbookError(`Workbook contains duplicate card column ${cardId}`)
     }
@@ -245,7 +346,34 @@ function readColumnTargets(
   if (!columns.some(column => column.cardId === BLUEPRINT_CARD_ID)) {
     throw new CardDataWorkbookError('Workbook is missing the Blueprint column')
   }
-  return { columns, warnings }
+  return { columns, newInstances, warnings }
+}
+
+function columnHasData(worksheet: import('exceljs').Worksheet, columnNumber: number): boolean {
+  for (let rowNumber = FIRST_DATA_ROW; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+    const value = worksheet.getCell(rowNumber, columnNumber).value
+    if (value !== null && value !== undefined && value !== '') return true
+  }
+  return false
+}
+
+function applyCellValidation(
+  cell: import('exceljs').Cell,
+  definition: PropertyEditorFieldDefinition,
+): void {
+  const values = definition.fieldType === 'boolean'
+    ? ['true', 'false']
+    : definition.fieldType === 'string'
+      ? definition.options
+      : getPropertyFieldTypeOptions(definition.fieldType.replace(/\[\]$/, '') as Parameters<typeof getPropertyFieldTypeOptions>[0])
+  if (!values?.length) return
+  cell.dataValidation = {
+    type: 'list',
+    allowBlank: true,
+    showErrorMessage: true,
+    errorStyle: 'stop',
+    formulae: [`"${values.join(',').replace(/"/g, '""')}"`],
+  }
 }
 
 function encodeCellValue(value: unknown): string {
@@ -278,6 +406,10 @@ function isStoredValue(value: unknown): value is CardStoredValue {
   if (Array.isArray(value)) return value.every(isStoredValue)
   if (!value || typeof value !== 'object') return false
   return Object.values(value).every(isStoredValue)
+}
+
+function storedValuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 function normalizeFormula(formula: string): string {

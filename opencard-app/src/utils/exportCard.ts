@@ -21,21 +21,15 @@ export async function exportCardAsImage(
   // 计算缩放比例（屏幕通常是 96 DPI）
   const scale = dpi / 96
 
-  try {
-    if (format === 'jpeg') {
-      return await domtoimage.toJpeg(element, {
-        quality: quality,
-        scale,
-      })
-    } else {
-      return await domtoimage.toPng(element, {
-        scale,
-      })
-    }
-  } catch (error) {
-    console.error('Export error:', error)
-    throw error
+  if (format === 'jpeg') {
+    return await domtoimage.toJpeg(element, {
+      quality: quality,
+      scale,
+    })
   }
+  return await domtoimage.toPng(element, {
+    scale,
+  })
 }
 
 /**

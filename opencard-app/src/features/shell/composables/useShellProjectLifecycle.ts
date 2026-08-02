@@ -1,5 +1,6 @@
 import { readonly, ref, type Ref } from 'vue'
 import type { CreatedProject } from '../../project-templates/model/projectTemplate'
+import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   getPrimaryShellPage,
   resolveShellPageAfterProjectClose,
@@ -64,7 +65,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
       return true
     } catch (error) {
       activationError.value = options.translate('projectTemplates.errors.activationFailed')
-      console.error('激活项目失败:', error)
+      reportAppError('OC-E3001', error)
       return false
     } finally {
       isActivating.value = false

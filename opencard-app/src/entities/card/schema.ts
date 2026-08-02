@@ -152,12 +152,18 @@ const propertyOptionsByFieldType: Partial<Record<PropertyFieldType, readonly str
     flowDirection: ['lr', 'rl', 'tb', 'bt'],
 }
 
+export function getPropertyFieldTypeOptions(
+    fieldType: PropertyFieldType
+): readonly string[] | undefined {
+    return propertyOptionsByFieldType[fieldType]
+}
+
 export function getPropertyAllowedValues(
     definition: EditorPropertyDefinition | undefined
 ): readonly string[] | undefined {
     if (!definition) return undefined
     if (definition.fieldType === 'string') return definition.options
-    return propertyOptionsByFieldType[definition.fieldType]
+    return getPropertyFieldTypeOptions(definition.fieldType)
 }
 
 export type TypePropertyDefinitions = Record<string, Record<string, EditorPropertyDefinition>>

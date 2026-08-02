@@ -78,9 +78,17 @@ describe('OC theme runtime', () => {
     expect(document.documentElement.style.getPropertyValue('--oc-bg-surface')).toBe('#FAFAFA')
     expect(document.documentElement.style.getPropertyValue('--oc-bg-raised')).toBe('#F5F5F5')
     expect(document.documentElement.style.getPropertyValue('--oc-bg-input')).toBe('#FBFBFB')
+    expect(document.documentElement.style.getPropertyValue('--oc-bg-block')).toBe('#F5F5F5')
     expect(document.documentElement.style.getPropertyValue('--oc-border-default')).toBe('#CECECE')
     expect(document.documentElement.style.getPropertyValue('--oc-fg-muted')).toBe('#737373')
     expect(document.documentElement.style.getPropertyValue('--oc-fg-subtle')).toBe('#A0A0A0')
+  })
+
+  it('keeps Block surfaces in the selected dark background family', () => {
+    setOcTheme('dark', { '--oc-bg-base': '#34251A' })
+
+    expect(document.documentElement.style.getPropertyValue('--oc-bg-surface')).toBe('#3D2F24')
+    expect(document.documentElement.style.getPropertyValue('--oc-bg-block')).toBe('#392A1F')
   })
 
   it('derives the type scale and font family from typography preferences', () => {
@@ -93,6 +101,7 @@ describe('OC theme runtime', () => {
     expect(document.documentElement.style.getPropertyValue('--oc-text-base')).toBe('14px')
     expect(document.documentElement.style.getPropertyValue('--oc-text-lg')).toBe('15px')
     expect(document.documentElement.style.getPropertyValue('--oc-text-xl')).toBe('19px')
+    expect(document.documentElement.style.getPropertyValue('--oc-font-preview-size')).toBe('56px')
   })
 })
 

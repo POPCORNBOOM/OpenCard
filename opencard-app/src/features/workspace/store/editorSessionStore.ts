@@ -18,6 +18,7 @@ import type {
 import { taskScheduler } from '../../../utils/taskScheduler'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
@@ -252,7 +253,7 @@ export function useEditorSessionStore() {
       normalizedPath,
       resourceKind === 'workspace' ? projectPath.value : undefined,
     )
-    const content = fileType.editorId === 'image-preview'
+    const content = CONTENTLESS_EDITOR_IDS.has(fileType.editorId)
       ? ''
       : resourceKind === 'workspace'
         ? await readFile(normalizedPath)
@@ -488,7 +489,7 @@ export function useEditorSessionStore() {
       return 'skipped'
     }
 
-    if (session.editorId === 'image-preview') {
+    if (CONTENTLESS_EDITOR_IDS.has(session.editorId)) {
       return 'skipped'
     }
 
@@ -577,7 +578,7 @@ export function useEditorSessionStore() {
       return
     }
 
-    if (session.editorId === 'image-preview' || session.resourceKind === 'draft') {
+    if (CONTENTLESS_EDITOR_IDS.has(session.editorId) || session.resourceKind === 'draft') {
       return
     }
 

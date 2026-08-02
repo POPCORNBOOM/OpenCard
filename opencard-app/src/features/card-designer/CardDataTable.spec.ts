@@ -94,7 +94,10 @@ describe('CardDataTable', () => {
 
     expect(wrapper.findAll('.card-data-table__face-row')).toHaveLength(2)
     expect(wrapper.get('.card-data-table__face-row > th > .card-data-table__face-heading').element.tagName).toBe('SPAN')
-    expect(wrapper.get('.card-data-table__block-heading').attributes('style')).toContain('14px')
+    expect(wrapper.get('.card-data-table__block-heading').attributes('style'))
+      .toContain('calc(var(--oc-tree-indent) * 2)')
+    expect(wrapper.get('.card-data-table__field-heading').attributes('style'))
+      .toContain('calc(var(--oc-tree-indent) * 3)')
     expect(wrapper.get('[data-card-id="instance"]').classes()).toContain('is-inherited')
     expect(wrapper.findAllComponents(PropertyFieldRenderer).every(
       control => control.props('appearance') === 'embedded',
@@ -132,6 +135,19 @@ describe('CardDataTable', () => {
     expect(updates[updates.length - 1]).toEqual([{
       cardId: '__blueprint__', blockId: 'text', fieldKey: 'content', value: 'Changed',
     }])
+  })
+
+  it('indents root Blocks one level below their Face', () => {
+    const rootGroups = structuredClone(faceGroups)
+    rootGroups[0]!.blocks[0]!.depth = 0
+    const wrapper = mount(CardDataTable, {
+      props: { columns, catalogFaceGroups, faceGroups: rootGroups },
+    })
+
+    expect(wrapper.get('.card-data-table__block-heading').attributes('style'))
+      .toContain('calc(var(--oc-tree-indent) * 1)')
+    expect(wrapper.get('.card-data-table__field-heading').attributes('style'))
+      .toContain('calc(var(--oc-tree-indent) * 2)')
   })
 
   it('renders readonly instance cells as non-focusable text', () => {

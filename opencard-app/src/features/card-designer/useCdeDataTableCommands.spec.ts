@@ -151,6 +151,42 @@ describe('useCdeDataTableCommands', () => {
     expect(markDocumentChanged).toHaveBeenCalledWith('action')
   })
 
+  it('creates workbook Instances, renames Blocks, and applies their values atomically', () => {
+    const { cardDoc, markDocumentChanged, refreshDocumentState, state } = createHarness()
+    cardDoc.value!.faces.front.children = [{
+      block: { type: 'text-block', id: 'text', name: 'Before', content: 'Blueprint' },
+      location: { type: 'simple-container-location', id: 'location', anchor: 'lt' },
+    }]
+    const instance = {
+      type: 'card-instance' as const,
+      id: 'new-instance',
+      name: 'Imported',
+      amount: '1',
+      data: {},
+    }
+
+    expect(state.applyWorkbookImport({
+      newInstances: [instance],
+      blockRenames: [{ blockId: 'text', previousName: 'Before', nextName: 'After' }],
+      updates: [{
+        cardId: instance.id,
+        blockId: 'text',
+        fieldKey: 'content',
+        value: 'Imported value',
+        reset: false,
+      }],
+      warnings: [],
+    })).toBe(true)
+    expect(cardDoc.value!.faces.front.children[0]!.block.name).toBe('After')
+    expect(cardDoc.value!.instances).toEqual([{
+      ...instance,
+      data: { text: { content: 'Imported value' } },
+    }])
+    expect(cardDoc.value!.dataTable?.exportInstanceIds).toContain(instance.id)
+    expect(refreshDocumentState).toHaveBeenCalledTimes(1)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(1)
+  })
+
   it('includes a custom field before creation and keeps it on success', () => {
     const { cardDoc, createBlockField, state } = createHarness()
     createBlockField.mockImplementation((target) => {

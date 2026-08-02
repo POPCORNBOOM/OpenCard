@@ -5,6 +5,7 @@ import {
 } from '../../entities/card/model'
 import { buildParentLookup, type ParentLookup } from '../../entities/card/tree'
 import { parseCardDocument, serializeCardDocument } from '../../entities/card/storage'
+import { reportAppError } from '../logging/appErrorCatalog'
 
 const TYPING_DEBOUNCE_MS = 300
 export type CdeDocumentChangeMode = 'typing' | 'action'
@@ -198,7 +199,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       setSavedContent(content)
       resetDocumentHistory()
     } catch (e) {
-      console.error('读取 .opencard 文件失败:', e)
+      reportAppError('OC-E4003', e)
       cardDoc.value = null
       rebuildParentLookup()
       setSavedContent(content)
@@ -241,7 +242,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       options.emitModelValueUpdate(content)
       options.emitSave()
     } catch (e) {
-      console.error('保存失败:', e)
+      reportAppError('OC-E4004', e)
     }
   }
 

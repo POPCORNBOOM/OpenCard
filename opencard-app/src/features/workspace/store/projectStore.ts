@@ -28,6 +28,7 @@ import {
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
+import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   clearProjectFonts,
   syncProjectFonts,
@@ -202,7 +203,7 @@ async function reloadProjectProfile(): Promise<boolean> {
     profileError.value = error instanceof Error ? error.message : String(error)
     projectProfile.value = null
     resolvedProject.value = null
-    console.error('[project-profile] Failed to reload profile:', { path, error })
+    reportAppError('OC-E3002', { path, error })
     return false
   }
 }
@@ -229,7 +230,7 @@ async function reloadProjectDictionary(): Promise<boolean> {
     dictionaryError.value = error instanceof Error ? error.message : String(error)
     projectDictionary.value = null
     resolvedDictionary.value = null
-    console.error('[project-dictionary] Failed to reload dictionary:', { path, error })
+    reportAppError('OC-E3003', { path, error })
     return false
   }
 }
@@ -282,7 +283,7 @@ async function refreshIndexedEntries(options?: { persist?: boolean }) {
       scheduleProjectMetadataSave()
     }
   } catch (error) {
-    console.error('刷新目录索引失败:', error)
+    reportAppError('OC-E2005', error)
   }
 }
 
@@ -366,7 +367,7 @@ async function startWatching() {
     await fileSystemService.startWatching(projectPath.value)
     isWatching.value = true
   } catch (error) {
-    console.error('启动监听失败:', error)
+    reportAppError('OC-E2006', error)
   }
 }
 
@@ -716,7 +717,7 @@ async function renameEntry(path: string, nextName: string): Promise<RenameEntryR
       toPath: targetPath,
     }
   } catch (error) {
-    console.error('重命名文件失败:', error)
+    reportAppError('OC-E2007', error)
     return { ok: false, reason: 'rename-failed' }
   }
 }
@@ -762,7 +763,7 @@ async function moveEntryByDrop(payload: WorkspaceEntryMoveRequest): Promise<Move
       toPath: destinationPath,
     }
   } catch (error) {
-    console.error('移动文件失败:', error)
+    reportAppError('OC-E2008', error)
     return { ok: false, reason: 'move-failed' }
   }
 }

@@ -144,6 +144,7 @@ export function resolveOcThemeTokens(
   tokens['--oc-text-base'] = `${baseFontSize}px`
   tokens['--oc-text-lg'] = `${baseFontSize + 1}px`
   tokens['--oc-text-xl'] = `${Math.round(baseFontSize * 4 / 3)}px`
+  tokens['--oc-font-preview-size'] = `${baseFontSize * 4}px`
 
   const baseValue = tokens['--oc-bg-base']
   const foregroundValue = tokens['--oc-fg-default']
@@ -154,6 +155,8 @@ export function resolveOcThemeTokens(
 
   if (base && overrides['--oc-bg-base']) {
     tokens['--oc-bg-surface'] = toHex(mix(base, white, usesLightForeground ? 0.045 : 0.7))
+    const surface = parseHex(tokens['--oc-bg-surface'])!
+    tokens['--oc-bg-block'] = toHex(mix(base, surface, 0.5))
     tokens['--oc-bg-raised'] = toHex(mix(base, white, usesLightForeground ? 0.09 : 0.35))
     tokens['--oc-bg-input'] = toHex(mix(base, white, usesLightForeground ? 0.14 : 0.72))
   }

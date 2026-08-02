@@ -305,6 +305,11 @@
       @close="closeAdditionalFieldDialog"
       @submit="submitAdditionalFieldDialog"
     />
+    <DataTableWorkbookImportDialog
+      :result="pendingDataTableWorkbookImport"
+      @cancel="cancelDataTableWorkbookImport"
+      @confirm="confirmDataTableWorkbookImport"
+    />
   </div>
 </template>
 
@@ -343,6 +348,7 @@ import {
 } from './useCdePropertyPanelState'
 import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
+import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -602,7 +608,7 @@ const blockFieldCommands = useCdeBlockFieldCommands({
 
 const {
   createField: createDataTableField,
-  applyWorkbookUpdates: applyDataTableWorkbookUpdates,
+  applyWorkbookImport: applyDataTableWorkbookImport,
   deleteField: deleteDataTableField,
   excludeField: excludeDataTableField,
   fieldSelection: dataTableFields,
@@ -644,15 +650,18 @@ const {
 const {
   busy: dataTableWorkbookBusy,
   canExport: canExportDataTableWorkbook,
+  pendingImport: pendingDataTableWorkbookImport,
   exportWorkbook: exportDataTableWorkbook,
   importWorkbook: importDataTableWorkbook,
+  confirmImport: confirmDataTableWorkbookImport,
+  cancelImport: cancelDataTableWorkbookImport,
 } = useCdeDataTableWorkbook({
   cardDoc,
   columns: dataTableColumns,
   faceGroups: dataTableFaceGroups,
   exportInstanceIds: dataTableExportInstanceIds,
   flushPendingChanges,
-  applyUpdates: applyDataTableWorkbookUpdates,
+  applyImport: applyDataTableWorkbookImport,
   translate: (key, parameters) => t(key, parameters ?? {}),
 })
 

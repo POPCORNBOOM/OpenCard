@@ -19,6 +19,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "trash",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

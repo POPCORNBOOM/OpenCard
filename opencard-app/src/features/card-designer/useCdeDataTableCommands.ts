@@ -12,7 +12,7 @@ import {
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { isBlockContainer } from '../../entities/card/tree'
 import type { PropertyFieldType } from '../../entities/card/schema'
-import type { CardDataWorkbookUpdate } from './cardDataWorkbook'
+import type { CardDataWorkbookImportResult, CardDataWorkbookUpdate } from './cardDataWorkbook'
 
 type CdeDataTableChangeMode = 'typing' | 'action'
 
@@ -126,10 +126,58 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   function applyWorkbookUpdates(updates: readonly CardDataWorkbookUpdate[]): boolean {
     const document = options.cardDoc.value
     if (!document || updates.length === 0) return false
+    const changed = applyWorkbookUpdatesWithoutCommit(updates, document)
+    if (!changed) return false
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
+  function applyWorkbookImport(result: CardDataWorkbookImportResult): boolean {
+    const document = options.cardDoc.value
+    if (!document) return false
     const blockLookup = createBlockLookup(document)
-    const instanceLookup = new Map(document.instances.map(instance => [instance.id, instance]))
     let changed = false
 
+    if (result.newInstances.length > 0) {
+      document.instances = [
+        ...document.instances,
+        ...result.newInstances.map(instance => structuredClone(instance)),
+      ]
+      const exported = new Set(document.dataTable?.exportInstanceIds ?? document.instances.map(instance => instance.id))
+      for (const instance of result.newInstances) exported.add(instance.id)
+      document.dataTable = {
+        blocks: normalizeFieldSelection(document.dataTable?.blocks),
+        exportInstanceIds: document.instances.flatMap(instance => exported.has(instance.id) ? [instance.id] : []),
+      }
+      changed = true
+    }
+
+    for (const rename of result.blockRenames) {
+      const block = blockLookup.get(rename.blockId)
+      if (!block) continue
+      const currentName = block.name?.trim() || block.id
+      if (currentName === rename.nextName) continue
+      if (rename.nextName) block.name = rename.nextName
+      else delete block.name
+      changed = true
+    }
+
+    const updatesChanged = applyWorkbookUpdatesWithoutCommit(result.updates, document, blockLookup)
+    changed = updatesChanged || changed
+    if (!changed) return false
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
+    return true
+  }
+
+  function applyWorkbookUpdatesWithoutCommit(
+    updates: readonly CardDataWorkbookUpdate[],
+    document: CardDocument,
+    blockLookup = createBlockLookup(document),
+  ): boolean {
+    const instanceLookup = new Map(document.instances.map(instance => [instance.id, instance]))
+    let changed = false
     for (const update of updates) {
       const block = blockLookup.get(update.blockId)
       if (!block) continue
@@ -156,11 +204,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
       target[update.fieldKey] = structuredClone(update.value)
       changed = true
     }
-
-    if (!changed) return false
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
-    return true
+    return changed
   }
 
   function createField(
@@ -233,6 +277,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     deleteField,
     excludeField,
     exportInstanceIds,
+    applyWorkbookImport,
     applyWorkbookUpdates,
     fieldSelection,
     includeBlock,

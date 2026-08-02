@@ -4,6 +4,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import packageMetadata from '../../../../package.json'
 import bundledReleaseNotes from '../../../../RELEASE_NOTES.md?raw'
+import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   createUpdateStatePersistence,
   type CurrentReleaseNotes,
@@ -208,7 +209,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
       })
       await relaunch()
     } catch (error) {
-      console.error('安装更新失败:', error)
+      reportAppError('OC-E6001', error)
       isInstalling.value = false
       clearProgressTimer()
       installProgress.value = null

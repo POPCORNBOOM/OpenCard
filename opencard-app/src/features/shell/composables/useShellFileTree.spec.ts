@@ -127,12 +127,12 @@ describe('useShellFileTree opened editors', () => {
     expect(result.openedEditorSelectedKeys.value).toBe(selectedEditors)
   })
 
-  it('selects font files without opening them as text previews', async () => {
-    const path = 'D:/project/assets/fonts/Brand.woff2'
+  it('opens font files through their dedicated preview session', async () => {
+    const path = 'D:/project/assets/fonts/Brand.otf'
     const openPreviewFile = vi.fn(async () => undefined)
     const result = useShellFileTree({
       projectPath: ref('D:/project'),
-      indexedEntries: ref([{ name: 'assets/fonts/Brand.woff2', isDirectory: false }]),
+      indexedEntries: ref([{ name: 'assets/fonts/Brand.otf', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       isDirectoryExpanded: vi.fn(() => false),
@@ -143,6 +143,6 @@ describe('useShellFileTree opened editors', () => {
     await result.handleFileTreeSelect([path])
 
     expect(result.selectedFileKeys.value).toEqual([path])
-    expect(openPreviewFile).not.toHaveBeenCalled()
+    expect(openPreviewFile).toHaveBeenCalledWith(path)
   })
 })

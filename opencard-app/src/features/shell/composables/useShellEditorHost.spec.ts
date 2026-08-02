@@ -1,6 +1,8 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
+import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
+import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 import { createDefaultAppSettings } from '../../settings/model/appSettings'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { useShellEditorHost } from './useShellEditorHost'
@@ -98,10 +100,10 @@ describe('useShellEditorHost', () => {
     dataTable.host.dispose()
   })
 
-  it('falls back to Monaco and projects its language', () => {
+  it('uses Monaco only for explicitly supported text files', () => {
     const { host } = createHost(createSession({
-      fileTypeId: 'text',
-      editorId: 'missing-editor',
+      fileTypeId: 'plaintext',
+      editorId: 'monaco',
       name: 'notes.txt',
       path: 'D:/notes.txt',
       resourceKind: 'external',
@@ -110,6 +112,37 @@ describe('useShellEditorHost', () => {
     expect(host.component.value).toBe(MonacoEditor)
     expect(host.props.value).toMatchObject({ language: 'plaintext', modelValue: '{}', themeOverrides: {} })
     host.dispose()
+  })
+
+  it('routes font files and missing editors to safe preview sessions', () => {
+    const font = createHost(createSession({
+      fileTypeId: 'font',
+      editorId: 'font-preview',
+      name: 'Brand.woff2',
+      path: 'assets/Brand.woff2',
+      resourceKind: 'workspace',
+    }))
+    expect(font.host.component.value).toBe(FontPreviewEditor)
+    expect(font.host.props.value).toMatchObject({
+      filePath: 'assets/Brand.woff2',
+      fileName: 'Brand.woff2',
+      resourceRootPath: 'D:/project',
+    })
+    font.host.dispose()
+
+    const unsupported = createHost(createSession({
+      fileTypeId: 'unsupported',
+      editorId: 'missing-editor',
+      name: 'reference.bin',
+      path: 'D:/reference.bin',
+      resourceKind: 'external',
+    }))
+    expect(unsupported.host.component.value).toBe(UnsupportedFileEditor)
+    expect(unsupported.host.props.value).toMatchObject({
+      filePath: 'D:/reference.bin',
+      fileName: 'reference.bin',
+    })
+    unsupported.host.dispose()
   })
 
   it('binds draft updates to the session that produced the props', () => {

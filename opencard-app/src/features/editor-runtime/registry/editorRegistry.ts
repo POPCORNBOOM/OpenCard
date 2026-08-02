@@ -84,6 +84,8 @@ import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
+import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
+import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -114,6 +116,20 @@ editorRegistry.register({
   id: 'project-config',
   name: 'Project Configuration',
   component: ProjectConfigEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'font-preview',
+  name: 'Font Preview',
+  component: FontPreviewEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'unsupported-file',
+  name: 'Unsupported File',
+  component: UnsupportedFileEditor,
   hasPreview: false,
 })
 

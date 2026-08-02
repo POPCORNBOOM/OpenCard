@@ -1,8 +1,9 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
+import type { AppConsoleEntry } from '../../logging/appConsole'
 import WorkspaceBottomPanel from './WorkspaceBottomPanel.vue'
 
 const issueTreeData: OcTreeData = {
@@ -19,21 +20,39 @@ const issueNavigationTargets = new Map([
   ['issue:a', { sessionId: 'a', token: navigationToken }],
 ])
 
-function mountPanel(expanded = true) {
+const outputEntries: AppConsoleEntry[] = [
+  { id: 1, severity: 'debug', timestamp: 1_000, message: 'debug message' },
+  { id: 2, severity: 'warn', timestamp: 2_000, message: 'warning message' },
+  { id: 3, severity: 'error', timestamp: 3_000, message: 'error details', errorCode: 'OC-E2003' },
+]
+
+function mountPanel(
+  expanded = true,
+  output: readonly AppConsoleEntry[] = [],
+  activeTab: 'issues' | 'output' = 'issues',
+) {
   return mount(WorkspaceBottomPanel, {
     props: {
       expanded,
-      activeTab: 'issues',
+      activeTab,
       issueCount: 1,
       issueSeverity: 'warning',
       issueTreeData,
       issueNavigationTargets,
       expandedIssueKeys: ['session:a'],
-      outputLines: [],
+      outputEntries: output,
       issuesLabel: 'Problems',
       outputLabel: 'Output',
       issueEmptyLabel: 'No problems',
       outputEmptyLabel: 'No output',
+      outputFilterEmptyLabel: 'No matching output',
+      outputClearLabel: 'Clear',
+      outputCopyLabel: 'Click to copy',
+      outputLocale: 'en-US',
+      outputSeverityFilterLabel: 'Severity filters',
+      outputSeverityLabels: {
+        debug: 'Debug', log: 'Log', info: 'Info', warn: 'Warning', error: 'Error',
+      },
       expandLabel: 'Expand panel',
       collapseLabel: 'Collapse panel',
       pinLabel: 'Pin panel',
@@ -172,5 +191,64 @@ describe('WorkspaceBottomPanel', () => {
     }))
 
     expect(wrapper.emitted('expanded-change')).toEqual([[true], [false]])
+  })
+
+  it('renders timestamped output, filters by severity, and emits clear', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    const wrapper = mountPanel(true, outputEntries, 'output')
+
+    expect(wrapper.findAll('.workspace-bottom-panel__output-line')).toHaveLength(3)
+    expect(wrapper.get('.workspace-bottom-panel__output').element.lastElementChild)
+      .toBe(wrapper.get('.workspace-bottom-panel__output-toolbar').element)
+    expect(wrapper.get('.workspace-bottom-panel__severity-dock')
+      .find('.workspace-bottom-panel__severity-filters').exists()).toBe(true)
+    expect(wrapper.get('[data-severity="warn"] .workspace-bottom-panel__output-message').text())
+      .toBe('warning message')
+    const errorEntry = wrapper.get('.workspace-bottom-panel__output-line[data-severity="error"]')
+    expect(errorEntry.text()).toContain('OC-E2003')
+    expect(errorEntry.text()).toContain('Could not open the file')
+    expect(errorEntry.text()).not.toContain('error details')
+    await errorEntry.trigger('click')
+    expect(writeText).toHaveBeenCalledWith(
+      'OC-E2003 Could not open the file\nerror details',
+    )
+    expect(wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warn"]')
+      .text()).toContain('1')
+
+    await wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warn"]').trigger('click')
+    expect(wrapper.findAll('.workspace-bottom-panel__output-line')).toHaveLength(2)
+    expect(wrapper.find('.workspace-bottom-panel__output-line[data-severity="warn"]').exists()).toBe(false)
+
+    const clear = wrapper.findAll('button').find(button => button.text() === 'Clear')!
+    expect(clear.classes()).toContain('workspace-bottom-panel__output-clear')
+    await clear.trigger('click')
+    expect(wrapper.emitted('output-clear')).toEqual([[]])
+  })
+
+  it('follows new output only while the log view is at the end', async () => {
+    const wrapper = mountPanel(true, outputEntries, 'output')
+    const scroll = wrapper.get<HTMLElement>('.workspace-bottom-panel__output-scroll')
+    Object.defineProperties(scroll.element, {
+      scrollHeight: { configurable: true, value: 300 },
+      clientHeight: { configurable: true, value: 100 },
+    })
+
+    await wrapper.setProps({ outputEntries: [...outputEntries, {
+      id: 4, severity: 'log', timestamp: 4_000, message: 'new message',
+    }] })
+    await flushPromises()
+    expect(scroll.element.scrollTop).toBe(300)
+
+    scroll.element.scrollTop = 50
+    await scroll.trigger('scroll')
+    await wrapper.setProps({ outputEntries: [...outputEntries, {
+      id: 5, severity: 'log', timestamp: 5_000, message: 'later message',
+    }] })
+    await flushPromises()
+    expect(scroll.element.scrollTop).toBe(50)
   })
 })

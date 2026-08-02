@@ -91,7 +91,7 @@
             <tr class="card-data-table__block-row">
               <th scope="rowgroup">
                 <span class="card-data-table__block-heading" tabindex="0"
-                  :style="{ paddingInlineStart: `${block.depth * 14}px` }"
+                  :style="{ paddingInlineStart: `calc(var(--oc-tree-indent) * ${block.depth + 1})` }"
                   @contextmenu="openBlockContextMenu($event, block)"
                   @keydown="openBlockKeyboardMenu($event, block)">
                   <OcIcon :name="getBlockTreeIcon(block.type)" size="md" tone="muted" />
@@ -109,7 +109,7 @@
               :data-block-id="block.key" :data-field-key="field.key">
               <th scope="row">
                 <span class="card-data-table__field-heading" tabindex="0"
-                  :style="{ paddingInlineStart: `${block.depth * 14 + 14}px` }"
+                  :style="{ paddingInlineStart: `calc(var(--oc-tree-indent) * ${block.depth + 2})` }"
                   @contextmenu="openFieldContextMenu($event, block, field)"
                   @keydown="openFieldKeyboardMenu($event, block, field)">
                   <OcIcon :name="getPropertyFieldIcon(field.definition.fieldType)" size="sm" tone="muted" />

@@ -46,6 +46,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { reportAppError } from '../../../../features/logging/appErrorCatalog'
 import type {
   PropertyCompletionItem,
   PropertyCompletionResult,
@@ -146,7 +147,7 @@ async function refreshCompletion(
     applyCompletionResult(resolution.result, resolution.state)
   } catch (error) {
     if (currentRequest !== requestId) return
-    console.error('Failed to load file path completions:', error)
+    reportAppError('OC-E4005', error)
     clearCompletion()
   }
 }

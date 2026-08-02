@@ -3,6 +3,7 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveEntryIcon, resolveFileType } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
+import { reportAppError } from '../../logging/appErrorCatalog'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
 export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
@@ -187,12 +188,10 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     if (nextSelectedKeys.length !== 1) return
     const selectedEntry = findProjectEntryByKey(nextSelectedKeys[0])
     if (!selectedEntry || selectedEntry.isDirectory) return
-    if (resolveFileType(selectedEntry.key, options.projectPath.value).id === 'font') return
-
     try {
       await options.openPreviewFile(selectedEntry.key)
     } catch (error) {
-      console.error('预览打开文件失败:', error)
+      reportAppError('OC-E4001', { path: selectedEntry.key, error })
     }
   }
 

@@ -99,6 +99,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-text-base',
   '--oc-text-lg',
   '--oc-text-xl',
+  '--oc-font-preview-size',
 
   // 间距
   '--oc-space-1',
@@ -108,6 +109,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-space-5',
   '--oc-space-6',
   '--oc-space-8',
+  '--oc-tree-indent',
 
   // 控件高度
   '--oc-size-sm',
@@ -130,6 +132,7 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 页面内容宽度
   '--oc-content-width-md',
+  '--oc-z-modal',
 
   // 属性编辑器行高
   '--oc-property-row-height',
