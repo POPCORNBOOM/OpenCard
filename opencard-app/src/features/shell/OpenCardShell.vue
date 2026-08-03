@@ -847,6 +847,7 @@ const {
   isDirectoryExpanded,
   activateSession,
   openPreviewFile,
+  translate: t,
 })
 
 function createTemplateTreeData(templates: readonly ProjectTemplate[]): OcTreeData {

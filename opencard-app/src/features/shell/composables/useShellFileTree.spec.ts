@@ -21,6 +21,7 @@ describe('useShellFileTree opened editors', () => {
       indexedEntries: ref([]),
       openedEditorItems,
       activeSession: ref(null),
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
@@ -36,6 +37,7 @@ describe('useShellFileTree opened editors', () => {
       indexedEntries: ref([{ name: 'cards/main.opencard', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
@@ -59,6 +61,7 @@ describe('useShellFileTree opened editors', () => {
       ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
@@ -78,11 +81,51 @@ describe('useShellFileTree opened editors', () => {
       indexedEntries: ref([{ name: '.dictionary', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
     })
     expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
+  })
+
+  it('localizes and pins root project files without changing nested file names', () => {
+    const projectPath = 'D:/project'
+    const labels: Record<string, string> = {
+      'fileTypes.opencardProjectProfile': 'Project profile',
+      'fileTypes.opencardFontRegistry': 'Font registry',
+      'fileTypes.opencardIconRegistry': 'Icon registry',
+      'fileTypes.opencardDictionary': 'Dictionary',
+    }
+    const { projectTreeData } = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([
+        { name: 'cards', isDirectory: true },
+        { name: 'notes.txt', isDirectory: false },
+        { name: '.dictionary', isDirectory: false },
+        { name: '.iconreg', isDirectory: false },
+        { name: '.fontreg', isDirectory: false },
+        { name: '.opencardprojectprofile', isDirectory: false },
+        { name: 'cards/.dictionary', isDirectory: false },
+      ]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      translate: key => labels[key] ?? key,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+
+    expect(projectTreeData.value.rootKeys).toEqual([
+      `${projectPath}/.opencardprojectprofile`,
+      `${projectPath}/.fontreg`,
+      `${projectPath}/.iconreg`,
+      `${projectPath}/.dictionary`,
+      `${projectPath}/cards`,
+      `${projectPath}/notes.txt`,
+    ])
+    expect(projectTreeData.value.items.get(`${projectPath}/.iconreg`)?.label).toBe('Icon registry')
+    expect(projectTreeData.value.items.get(`${projectPath}/cards/.dictionary`)?.label).toBe('.dictionary')
   })
 
   it('keeps selection references stable when active editor content changes', async () => {
@@ -109,6 +152,7 @@ describe('useShellFileTree opened editors', () => {
         icon: 'file.opencard',
       }]),
       activeSession,
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
@@ -135,6 +179,7 @@ describe('useShellFileTree opened editors', () => {
       indexedEntries: ref([{ name: 'assets/fonts/Brand.otf', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile,

@@ -1,14 +1,13 @@
 /** Workspace entry lookup and key-only OcTree projection. */
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
-import { resolveEntryIcon, resolveFileType } from '../../workspace/model/fileTypes'
+import { resolveEntryIcon, resolveProjectTreeFilePresentation } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { reportAppError } from '../../logging/appErrorCatalog'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
 export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
 export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
-export const PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY = 'project-entry-register-font'
 export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
 export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-absolute-path'
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
@@ -42,6 +41,7 @@ type ProjectEntryView = {
   label: string
   isDirectory: boolean
   isExpanded: boolean
+  rootPriority: number | null
   children: ProjectEntryView[]
 }
 
@@ -53,6 +53,7 @@ type UseShellFileTreeOptions = {
   isDirectoryExpanded: (path: string) => boolean
   activateSession: (sessionId: string) => void
   openPreviewFile: (path: string) => Promise<unknown>
+  translate: (key: string) => string
 }
 
 function normalizeShellPath(path: string): string {
@@ -79,12 +80,18 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const key = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
       const parts = relativePath.split('/')
       const isDirectory = Boolean(file.isDirectory)
+      const rootPresentation = !isDirectory && parts.length === 1
+        ? resolveProjectTreeFilePresentation(key, options.projectPath.value)
+        : null
       const entry: ProjectEntryView = {
         key,
         relativePath,
-        label: parts[parts.length - 1] ?? relativePath,
+        label: rootPresentation
+          ? options.translate(rootPresentation.labelKey)
+          : parts[parts.length - 1] ?? relativePath,
         isDirectory,
         isExpanded: isDirectory && options.isDirectoryExpanded(key),
+        rootPriority: rootPresentation?.priority ?? null,
         children: [],
       }
       byRelativePath.set(relativePath, entry)
@@ -96,6 +103,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       if (separatorIndex < 0) roots.push(entry)
       else byRelativePath.get(relativePath.slice(0, separatorIndex))?.children.push(entry)
     }
+
+    roots.sort((left, right) => (
+      (left.rootPriority ?? Number.MAX_SAFE_INTEGER)
+      - (right.rootPriority ?? Number.MAX_SAFE_INTEGER)
+    ))
 
     return { roots, byKey }
   })
@@ -114,9 +126,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         draggable: true,
         actions: [projectEntryMoreActionKey(entry.key)],
         contextActions: [
-          ...(!entry.isDirectory && resolveFileType(entry.key, options.projectPath.value).id === 'font'
-            ? [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY]
-            : []),
           PROJECT_ENTRY_RENAME_ACTION_KEY,
           projectEntryDeleteActionKey(entry.key),
           PROJECT_ENTRY_REVEAL_ACTION_KEY,
