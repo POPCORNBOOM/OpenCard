@@ -62,7 +62,7 @@ const contentId = computed(() => `${props.sectionId}-content`)
 .project-config-section {
   scroll-margin-block-start: var(--oc-space-5);
   padding-block: var(--oc-space-5);
-  border-top: var(--oc-border-width) solid var(--oc-border-muted);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .project-config-section--indent-single {
