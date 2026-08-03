@@ -5,6 +5,8 @@ describe('project metadata file types', () => {
   it('recognizes only the two exact special file names', () => {
     expect(resolveFileType('D:/Cards/.opencardprojectprofile').id).toBe('opencard-project-profile')
     expect(resolveFileType('D:/Cards/.dictionary').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/Cards/.fontreg').id).toBe('opencard-font-registry')
+    expect(resolveFileType('D:/Cards/.iconreg').id).toBe('opencard-icon-registry')
     expect(resolveFileType('D:/Cards/en_US.opencardproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.dictionary').id).toBe('unsupported')
   })
@@ -13,6 +15,8 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/.dictionary', 'D:/Cards').id).toBe('opencard-dictionary')
     expect(resolveFileType('D:/Cards/locales/.dictionary', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.opencardprojectprofile', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.fontreg', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.iconreg', 'D:/Cards').id).toBe('unsupported')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {

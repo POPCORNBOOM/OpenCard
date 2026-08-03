@@ -259,6 +259,7 @@
         :clip-to-face="true"
         :resource-root-path="activeSessionResourceRootPath"
         :remote-resource-policy="activeRemoteResourcePolicy"
+        :project-icon-catalog="projectIconCatalog"
       />
     </div>
 
@@ -374,12 +375,6 @@ import type {
   SessionIssueNavigationRequest,
 } from '../editor-runtime/model/editorIssue'
 import { resolveFileType } from '../workspace/model/fileTypes'
-import {
-  PROJECT_PROFILE_FILE_NAME,
-  parseProjectMetadataText,
-  serializeProjectMetadata,
-} from '../workspace/model/projectMetadata'
-import { createProjectFontRegistration } from '../workspace/model/projectFonts'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellProgressTasks } from './composables/useShellProgressTasks'
@@ -394,7 +389,6 @@ import {
   PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
-  PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY,
   PROJECT_ENTRY_REVEAL_ACTION_KEY,
   isProjectEntryConfirmDeleteActionKey,
   projectEntryConfirmDeleteActionKey,
@@ -453,6 +447,8 @@ const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
 const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.opencard'
 const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.opencardprojectprofile'
+const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.fontreg'
+const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.iconreg'
 const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.dictionary'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
@@ -467,6 +463,7 @@ const {
   projectPath,
   projectProfile,
   projectInformation,
+  projectIconCatalog,
   resolvedDictionary,
   indexedEntries,
   chooseProjectDirectory,
@@ -944,7 +941,7 @@ const projectFolderName = computed(() => {
 })
 
 function hasRootProjectFile(fileName: string): boolean {
-  const expectedType = fileName === '.dictionary' ? 'opencard-dictionary' : 'opencard-project-profile'
+  const expectedType = resolveFileType(`${projectPath.value}/${fileName}`, projectPath.value).id
   return indexedEntries.value.some(entry => !entry.isDirectory && (
     resolveFileType(`${projectPath.value}/${entry.name}`, projectPath.value).id === expectedType
   ))
@@ -970,10 +967,6 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     title: t('sidebar.fileActions.reveal'),
     icon: 'status.folder-open',
   }],
-  [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY, {
-    title: t('sidebar.fileActions.registerFont'),
-    icon: 'action.import',
-  }],
   [PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY, {
     title: t('sidebar.fileActions.copyRelativePath'),
     icon: 'action.copy',
@@ -985,14 +978,10 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
   ])
 
   for (const [entryKey, item] of projectTreeData.value.items) {
-    const entry = findProjectEntryByKey(entryKey)
     const moreActionKey = projectEntryMoreActionKey(entryKey)
     const deleteActionKey = projectEntryDeleteActionKey(entryKey)
     const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
     const children = [
-      ...(entry && !entry.isDirectory && resolveFileType(entryKey, projectPath.value).id === 'font'
-        ? [PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY]
-        : []),
       PROJECT_ENTRY_RENAME_ACTION_KEY,
       deleteActionKey,
       PROJECT_ENTRY_REVEAL_ACTION_KEY,
@@ -1085,7 +1074,12 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeItem>()
   for (const [key, item] of projectTreeData.value.items) {
     const relativePath = exportRelativePath(key)
-    const isProjectFile = relativePath === '.opencardprojectprofile' || relativePath === '.dictionary'
+    const isProjectFile = [
+      '.opencardprojectprofile',
+      '.fontreg',
+      '.iconreg',
+      '.dictionary',
+    ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
     const isExcluded = isExportPathExcluded(relativePath)
     const isImage = resolveFileType(key).id === 'image'
@@ -1381,6 +1375,16 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
               key: PROJECT_NEW_PROFILE_ACTION_KEY,
               title: t('sidebar.fileActions.newProjectProfile'),
               icon: 'file.opencard-project' as const,
+            }] : []),
+            ...(!hasRootProjectFile('.fontreg') ? [{
+              key: PROJECT_NEW_FONT_REGISTRY_ACTION_KEY,
+              title: t('sidebar.fileActions.newFontRegistry'),
+              icon: 'file.font' as const,
+            }] : []),
+            ...(!hasRootProjectFile('.iconreg') ? [{
+              key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
+              title: t('sidebar.fileActions.newIconRegistry'),
+              icon: 'file.image' as const,
             }] : []),
             ...(!hasRootProjectFile('.dictionary') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
@@ -1691,6 +1695,14 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       await createProjectSpecialFile('.opencardprojectprofile')
       return
     }
+    if (actionKey === PROJECT_NEW_FONT_REGISTRY_ACTION_KEY) {
+      await createProjectSpecialFile('.fontreg')
+      return
+    }
+    if (actionKey === PROJECT_NEW_ICON_REGISTRY_ACTION_KEY) {
+      await createProjectSpecialFile('.iconreg')
+      return
+    }
     if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
       await createProjectSpecialFile('.dictionary')
       return
@@ -1724,37 +1736,14 @@ function getProjectEntryParentPath(): string {
   return separatorIndex < 0 ? projectPath.value : selectedEntry.key.slice(0, separatorIndex)
 }
 
-async function createProjectSpecialFile(fileName: '.opencardprojectprofile' | '.dictionary'): Promise<void> {
+async function createProjectSpecialFile(
+  fileName: '.opencardprojectprofile' | '.fontreg' | '.iconreg' | '.dictionary',
+): Promise<void> {
   if (!projectPath.value || hasRootProjectFile(fileName)) return
   await createFile(fileName, '{}')
   const path = `${projectPath.value}/${fileName}`
   selectedFileKeys.value = [path]
   await openEditorSession(path)
-}
-
-async function registerProjectFont(path: string): Promise<void> {
-  if (!projectPath.value) return
-  const source = getRelativeProjectPath(path)
-  if (Object.values(projectProfile.value?.fonts ?? {})
-    .some(definition => definition.faces.some(face => face.source === source))) return
-
-  const profilePath = `${projectPath.value}/${PROJECT_PROFILE_FILE_NAME}`
-  if (!hasRootProjectFile(PROJECT_PROFILE_FILE_NAME)) await createFile(PROJECT_PROFILE_FILE_NAME, '{}')
-  const session = await openEditorSession(profilePath)
-  const profile = parseProjectMetadataText(session.draftContent)
-  if (!profile) throw new Error('Cannot register a font while the project profile is invalid')
-  if (Object.values(profile.fonts ?? {})
-    .some(definition => definition.faces.some(face => face.source === source))) return
-
-  const registration = createProjectFontRegistration(source, profile.fonts)
-  updateDraftContent(session.id, serializeProjectMetadata({
-    ...profile,
-    fonts: {
-      ...profile.fonts,
-      [registration.id]: registration.definition,
-    },
-  }))
-  await saveSession(session.id)
 }
 
 async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
@@ -1969,14 +1958,6 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
 
     if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
       await requestPathTrash(entry.key)
-      return
-    }
-    if (intent.actionKey === PROJECT_ENTRY_REGISTER_FONT_ACTION_KEY) {
-      try {
-        await registerProjectFont(entry.key)
-      } catch (error) {
-        reportAppError('OC-E3004', { path: entry.key, error })
-      }
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {

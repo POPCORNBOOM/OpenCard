@@ -5,6 +5,8 @@ import { parseCardDocument } from '../../../entities/card/storage'
 import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
+import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
+import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
@@ -32,7 +34,15 @@ const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
 const TEMPLATE_MANIFEST_FILE_NAME = 'template.json'
 const TEMPLATE_CONTENT_DIRECTORY_NAME = 'content'
 const PROJECT_FILE_NAME = '.opencardprojectprofile'
+const FONT_REGISTRY_FILE_NAME = '.fontreg'
+const ICON_REGISTRY_FILE_NAME = '.iconreg'
 const DICTIONARY_FILE_NAME = '.dictionary'
+const STRUCTURED_PROJECT_FILES = [
+  { name: PROJECT_FILE_NAME, parse: parseProjectMetadataText, label: 'project file' },
+  { name: FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
+  { name: ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
+  { name: DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
+] as const
 const TEMPLATE_PACKAGE_EXTENSIONS = ['opencardtemplate', 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024
 const MAX_TEMPLATE_UNPACKED_BYTES = 256 * 1024 * 1024
@@ -143,6 +153,20 @@ function isExcludedPath(path: string, excludedPaths: readonly string[]): boolean
   return excludedPaths.some((excluded) => path === excluded || path.startsWith(`${excluded}/`))
 }
 
+async function assertValidStructuredProjectFiles(
+  fs: FileSystemService,
+  paths: ProjectTemplatePathService,
+  rootPath: string,
+  errorKind: 'source-not-project' | 'invalid-package' | 'invalid-manifest',
+): Promise<void> {
+  for (const file of STRUCTURED_PROJECT_FILES) {
+    const path = await paths.join(rootPath, file.name)
+    if (await fs.fileExists(path) && !file.parse(await fs.readFile(path))) {
+      throw new TemplateServiceError(errorKind, `OpenCard ${file.label} is invalid`)
+    }
+  }
+}
+
 function normalizeArchivePath(value: string): string | null {
   const normalized = value.replace(/\\/g, '/').replace(/\/+$/g, '')
   if (!normalized || normalized.startsWith('/') || /^[a-z]:/i.test(normalized)) return null
@@ -198,16 +222,7 @@ export class ProjectTemplateService {
 
   async inspectProjectSource(sourcePath: string): Promise<TemplateProjectInspection> {
     await this.assertSourceRoot(sourcePath)
-    const workspacePath = await this.paths.join(sourcePath, PROJECT_FILE_NAME)
-    if (await this.fs.fileExists(workspacePath)
-      && !parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
-      throw new TemplateServiceError('source-not-project', 'OpenCard project file is invalid')
-    }
-    const dictionaryPath = await this.paths.join(sourcePath, DICTIONARY_FILE_NAME)
-    if (await this.fs.fileExists(dictionaryPath)
-      && !parseProjectDictionaryText(await this.fs.readFile(dictionaryPath))) {
-      throw new TemplateServiceError('source-not-project', 'OpenCard dictionary file is invalid')
-    }
+    await assertValidStructuredProjectFiles(this.fs, this.paths, sourcePath, 'source-not-project')
 
     const entries = await this.fs.readDirectoryEntries(sourcePath, Number.POSITIVE_INFINITY)
     assertNoSymlinks(entries)
@@ -270,13 +285,11 @@ export class ProjectTemplateService {
       throw new TemplateServiceError('cover-not-found', 'Template cover is missing')
     }
     const excludedPaths = normalizeExcludedPaths(request.excludedPaths)
-    if (await this.fs.fileExists(await this.paths.join(request.sourcePath, PROJECT_FILE_NAME))
-      && isExcludedPath(PROJECT_FILE_NAME, excludedPaths)) {
-      throw new TemplateServiceError('source-not-project', 'The project file cannot be excluded')
-    }
-    if (await this.fs.fileExists(await this.paths.join(request.sourcePath, DICTIONARY_FILE_NAME))
-      && isExcludedPath(DICTIONARY_FILE_NAME, excludedPaths)) {
-      throw new TemplateServiceError('source-not-project', 'The dictionary file cannot be excluded')
+    for (const file of STRUCTURED_PROJECT_FILES) {
+      if (await this.fs.fileExists(await this.paths.join(request.sourcePath, file.name))
+        && isExcludedPath(file.name, excludedPaths)) {
+        throw new TemplateServiceError('source-not-project', `The ${file.label} cannot be excluded`)
+      }
     }
     if (entries.some((candidate) => isExcludedPath(candidate, excludedPaths))) {
       throw new TemplateServiceError('entry-not-found', 'A selected entry is excluded')
@@ -448,13 +461,10 @@ export class ProjectTemplateService {
       }
       content.set(path.slice(TEMPLATE_CONTENT_DIRECTORY_NAME.length + 1), bytesValue)
     }
-    if (content.has(PROJECT_FILE_NAME)
-      && !parseProjectMetadataText(strFromU8(content.get(PROJECT_FILE_NAME)!))) {
-      throw new TemplateServiceError('invalid-package', 'OpenCard project file is invalid')
-    }
-    if (content.has(DICTIONARY_FILE_NAME)
-      && !parseProjectDictionaryText(strFromU8(content.get(DICTIONARY_FILE_NAME)!))) {
-      throw new TemplateServiceError('invalid-package', 'OpenCard dictionary file is invalid')
+    for (const file of STRUCTURED_PROJECT_FILES) {
+      if (content.has(file.name) && !file.parse(strFromU8(content.get(file.name)!))) {
+        throw new TemplateServiceError('invalid-package', `OpenCard ${file.label} is invalid`)
+      }
     }
     const entries = resolveTemplateEntries(manifest)
     if (entries.some((entry) => !content.has(entry))) {
@@ -613,22 +623,13 @@ export class ProjectTemplateService {
     if (!manifest) throw new TemplateServiceError('invalid-manifest', `Invalid template manifest: ${manifestPath}`)
 
     const contentPath = await this.paths.join(rootPath, TEMPLATE_CONTENT_DIRECTORY_NAME)
-    const workspacePath = await this.paths.join(contentPath, PROJECT_FILE_NAME)
     const entryPaths = await Promise.all(resolveTemplateEntries(manifest).map(async (entry) => (
       await this.paths.join(contentPath, ...pathSegments(entry))
     )))
     if ((await Promise.all(entryPaths.map((path) => this.fs.fileExists(path)))).some((exists) => !exists)) {
       throw new TemplateServiceError('invalid-manifest', `Template content is incomplete: ${rootPath}`)
     }
-    if (await this.fs.fileExists(workspacePath)
-      && !parseProjectMetadataText(await this.fs.readFile(workspacePath))) {
-      throw new TemplateServiceError('invalid-manifest', `Template project file is invalid: ${workspacePath}`)
-    }
-    const dictionaryPath = await this.paths.join(contentPath, DICTIONARY_FILE_NAME)
-    if (await this.fs.fileExists(dictionaryPath)
-      && !parseProjectDictionaryText(await this.fs.readFile(dictionaryPath))) {
-      throw new TemplateServiceError('invalid-manifest', `Template dictionary file is invalid: ${dictionaryPath}`)
-    }
+    await assertValidStructuredProjectFiles(this.fs, this.paths, contentPath, 'invalid-manifest')
     for (const cover of manifest.covers ?? []) {
       const coverPath = await this.paths.join(contentPath, ...pathSegments(cover))
       if (!await this.fs.fileExists(coverPath)) {
