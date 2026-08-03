@@ -32,8 +32,12 @@ export const OC_THEME_TOKEN_KEYS = [
   // 背景 — 危险
   '--oc-bg-danger-subtle',
 
+  // 背景 — 警告
+  '--oc-bg-warning-subtle',
+
   // 背景 — 特殊
   '--oc-bg-glass',
+  '--oc-bg-modal-backdrop',
   '--oc-bg-glass-blur',
   '--oc-bg-glass-saturate',
 
@@ -74,6 +78,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-size-sm',
   '--oc-icon-size-md',
   '--oc-icon-size-lg',
+  '--oc-field-affix-icon-offset-y',
 
   // 文件类型图标色
   '--oc-icon-file-opencard',
@@ -133,6 +138,7 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 页面内容宽度
   '--oc-content-width-md',
+  '--oc-project-outline-width',
   '--oc-project-icon-atlas-height',
   '--oc-project-icon-property-min-width',
   '--oc-project-icon-inspector-min-height',
@@ -142,6 +148,22 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-project-icon-preview-size',
   '--oc-overlay-toolbar-field-min-width',
   '--oc-overlay-toolbar-field-max-width',
+  '--oc-autocomplete-popover-min-width',
+  '--oc-dialog-width-sm',
+  '--oc-dialog-width-md',
+  '--oc-dialog-width-lg',
+  '--oc-dialog-width-xl',
+  '--oc-dialog-height-sm',
+  '--oc-dialog-height-md',
+  '--oc-dialog-height-lg',
+  '--oc-dialog-height-workspace',
+  '--oc-dialog-max-height',
+  '--oc-dialog-header-padding-block',
+  '--oc-dialog-header-padding-inline',
+  '--oc-dialog-body-padding',
+  '--oc-dialog-body-gap',
+  '--oc-dialog-footer-padding-block',
+  '--oc-dialog-footer-padding-inline',
   '--oc-z-modal',
   '--oc-z-overlay-toolbar',
 
@@ -151,6 +173,20 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 数据表行高
   '--oc-table-row-height',
+
+  // 数据网格几何
+  '--oc-data-grid-key-column-width',
+  '--oc-data-grid-column-width',
+  '--oc-data-grid-column-min-width',
+  '--oc-data-grid-column-max-width',
+  '--oc-data-grid-tail-column-width',
+  '--oc-data-grid-column-resize-step',
+  '--oc-data-grid-bg-inherited',
+  '--oc-data-grid-preload-block-distance',
+  '--oc-data-grid-preload-inline-distance',
+  '--oc-data-grid-z-sticky-column',
+  '--oc-data-grid-z-sticky-header',
+  '--oc-data-grid-z-corner',
 
   // 圆角
   '--oc-radius-sm',

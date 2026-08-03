@@ -25,6 +25,23 @@ describe('OcActionMenu', () => {
     expect(wrapper.emitted('select')).toEqual([[{ key: 'export' }]])
   })
 
+  it('renders generic action thumbnails in the dense menu row', () => {
+    const wrapper = mount(OcActionMenu, {
+      props: {
+        actions: [{
+          key: 'status/wide',
+          title: 'Wide',
+          thumbnailStyle: { width: '2em', height: '1em', backgroundImage: 'url("status.png")' },
+          thumbnailLabel: 'Wide icon',
+        }],
+      },
+    })
+    const thumbnail = wrapper.get('.oc-action-menu__thumbnail')
+    expect(thumbnail.attributes('aria-label')).toBe('Wide icon')
+    expect(thumbnail.attributes('style')).toContain('background-image')
+    expect(wrapper.find('.oc-action-menu__icon-spacer').exists()).toBe(false)
+  })
+
   it('moves keyboard focus across enabled commands', async () => {
     const wrapper = mount(OcActionMenu, {
       attachTo: document.body,

@@ -27,7 +27,7 @@ describe('ProjectFontRegistryFileEditor', () => {
     await wrapper.vm.$nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates.at(-1)?.[0] as string)).toEqual({
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({
       fonts: { display: { name: 'Display', source: 'assets/fonts/Display.woff2' } },
     })
 

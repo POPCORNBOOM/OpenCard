@@ -1,18 +1,9 @@
 <template>
-  <Teleport to="body">
-    <div v-if="result" class="workbook-import-dialog__backdrop" @mousedown.self="emit('cancel')">
-      <section
-        class="workbook-import-dialog"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="t('cardDesigner.dataTable.importReviewTitle')"
-        @keydown.esc.prevent="emit('cancel')"
-      >
-        <header>
-          <h2>{{ t('cardDesigner.dataTable.importReviewTitle') }}</h2>
-          <p>{{ t('cardDesigner.dataTable.importReviewDescription') }}</p>
-        </header>
-
+  <OcDialog class="workbook-import-dialog" :open="Boolean(result)"
+    :title="t('cardDesigner.dataTable.importReviewTitle')"
+    :description="t('cardDesigner.dataTable.importReviewDescription')"
+    size="lg" height-mode="fixed" height="lg" close-on-backdrop @request-close="emit('cancel')">
+    <template v-if="result">
         <dl class="workbook-import-dialog__summary">
           <div>
             <dt>{{ t('cardDesigner.dataTable.importReviewInstances') }}</dt>
@@ -53,21 +44,21 @@
           {{ t('cardDesigner.dataTable.importNoChanges') }}
         </p>
 
-        <footer>
-          <OcButton @click="emit('cancel')">{{ t('cardDesigner.dataTable.importCancel') }}</OcButton>
-          <OcButton variant="solid" :disabled="!hasChanges" @click="emit('confirm')">
-            {{ t('cardDesigner.dataTable.importConfirm') }}
-          </OcButton>
-        </footer>
-      </section>
-    </div>
-  </Teleport>
+    </template>
+    <template #footer>
+      <OcButton @click="emit('cancel')">{{ t('cardDesigner.dataTable.importCancel') }}</OcButton>
+      <OcButton variant="solid" :disabled="!hasChanges" @click="emit('confirm')">
+        {{ t('cardDesigner.dataTable.importConfirm') }}
+      </OcButton>
+    </template>
+  </OcDialog>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../components/base/OcButton.vue'
+import OcDialog from '../../components/standard/OcDialog.vue'
 import type { CardDataWorkbookImportResult } from './cardDataWorkbook'
 
 const props = defineProps<{ result: CardDataWorkbookImportResult | null }>()
@@ -80,31 +71,6 @@ const hasChanges = computed(() => Boolean(
 </script>
 
 <style scoped>
-.workbook-import-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--oc-z-modal);
-  display: grid;
-  place-items: center;
-  padding: var(--oc-space-6);
-  background: var(--oc-bg-glass);
-}
-
-.workbook-import-dialog {
-  display: grid;
-  gap: var(--oc-space-4);
-  width: min(100%, var(--oc-content-width-md));
-  max-height: var(--oc-list-max-height-lg);
-  padding: var(--oc-space-5);
-  overflow: auto;
-  border: var(--oc-border-width) solid var(--oc-border-default);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
-}
-
-.workbook-import-dialog h2,
 .workbook-import-dialog h3,
 .workbook-import-dialog p,
 .workbook-import-dialog dl,
@@ -112,7 +78,6 @@ const hasChanges = computed(() => Boolean(
   margin: 0;
 }
 
-.workbook-import-dialog header p,
 .workbook-import-dialog__empty {
   color: var(--oc-fg-muted);
 }
@@ -155,9 +120,4 @@ const hasChanges = computed(() => Boolean(
   color: var(--oc-icon-warning);
 }
 
-.workbook-import-dialog footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--oc-space-2);
-}
 </style>

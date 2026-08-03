@@ -21,4 +21,24 @@ describe('StringPropertyField static completion', () => {
     await wrapper.get('input').trigger('keydown', { key: 'Tab' })
     expect(wrapper.emitted('update:value')).toEqual([['12px']])
   })
+
+  it('commits deferred text on blur and cancels it with Escape', async () => {
+    const wrapper = mount(StringPropertyField, {
+      props: {
+        value: 'before',
+        definition: { title: 'Name', fieldType: 'string', commitMode: 'blur' },
+      },
+    })
+    const input = wrapper.get('input')
+    await input.setValue('after')
+    expect(wrapper.emitted('update:value')).toBeUndefined()
+    await input.trigger('blur')
+    expect(wrapper.emitted('update:value')).toEqual([['after']])
+
+    await wrapper.setProps({ value: 'after' })
+    await input.setValue('cancelled')
+    await input.trigger('keydown', { key: 'Escape' })
+    expect((input.element as HTMLInputElement).value).toBe('after')
+    expect(wrapper.emitted('update:value')).toEqual([['after']])
+  })
 })

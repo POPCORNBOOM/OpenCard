@@ -42,6 +42,14 @@ export type SettingsFieldViewModel =
       suffix: string
     }
   | {
+      type: 'text'
+      key: AppSettingKey
+      label: string
+      value: string
+      placeholder?: string
+      mono?: boolean
+    }
+  | {
       type: 'theme-color-panel'
       key: string
       label: string
@@ -344,6 +352,22 @@ export function useSettingsWorkspace(
             'Show width and height labels while resizing blocks',
           ),
           checked: settings.workspace.showSelectionSizeOnResize,
+        },
+        {
+          type: 'text',
+          key: 'workspace.defaultFontImportDirectory',
+          label: options.translate('settings.fields.defaultFontImportDirectory', 'Default project font directory'),
+          value: settings.workspace.defaultFontImportDirectory,
+          placeholder: 'assets/fonts',
+          mono: true,
+        },
+        {
+          type: 'text',
+          key: 'workspace.defaultIconImportDirectory',
+          label: options.translate('settings.fields.defaultIconImportDirectory', 'Default project icon set directory'),
+          value: settings.workspace.defaultIconImportDirectory,
+          placeholder: 'assets/icons',
+          mono: true,
         },
         {
           type: 'action',

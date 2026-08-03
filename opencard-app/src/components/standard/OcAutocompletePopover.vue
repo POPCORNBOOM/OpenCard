@@ -5,7 +5,7 @@
     :placement="placement"
     :max-height="maxHeight"
     :z-index="zIndex"
-    match-anchor-width
+    :match-anchor-width="matchAnchorWidth"
     class="oc-autocomplete-popover"
     role="listbox"
     :id="id"
@@ -24,7 +24,9 @@
       >
         <span class="oc-autocomplete-popover__main">
           <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
-          <span class="oc-autocomplete-popover__label">{{ item.label }}</span>
+          <span v-else-if="item.thumbnailStyle" class="oc-autocomplete-popover__thumbnail"
+            :style="item.thumbnailStyle" role="img" :aria-label="item.thumbnailLabel ?? item.label" />
+          <span class="oc-autocomplete-popover__label" :style="item.labelStyle">{{ item.label }}</span>
         </span>
         <span v-if="item.detail" class="oc-autocomplete-popover__detail">{{ item.detail }}</span>
       </div>
@@ -44,21 +46,26 @@ export type OcAutocompleteItem = {
   label: string
   detail?: string
   icon?: IconToken
+  thumbnailStyle?: Readonly<Record<string, string>>
+  thumbnailLabel?: string
+  labelStyle?: Readonly<Record<string, string>>
 }
 
 const props = withDefaults(defineProps<{
   id: string
   open: boolean
-  anchor: HTMLElement | null
+  anchor: HTMLElement | DOMRect | null
   items: readonly OcAutocompleteItem[]
   activeKey: string | null
   placement?: Placement
   maxHeight?: number
   zIndex?: number
+  matchAnchorWidth?: boolean
 }>(), {
   placement: 'bottom-start',
   maxHeight: 220,
   zIndex: 2000,
+  matchAnchorWidth: true,
 })
 
 const emit = defineEmits<{
@@ -93,6 +100,7 @@ watch(
 
 <style scoped>
 .oc-autocomplete-popover {
+  min-width: var(--oc-autocomplete-popover-min-width);
   padding: var(--oc-space-1);
   border: 1px solid var(--oc-border-default);
   border-radius: var(--oc-radius-sm);
@@ -133,6 +141,14 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.oc-autocomplete-popover__thumbnail {
+  display: inline-block;
+  flex: none;
+  font-size: var(--oc-size-sm);
+  background-repeat: no-repeat;
+  vertical-align: text-bottom;
 }
 
 .oc-autocomplete-popover__detail {

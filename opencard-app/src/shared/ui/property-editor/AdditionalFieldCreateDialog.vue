@@ -1,25 +1,12 @@
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="additional-field-dialog__backdrop" @mousedown.self="emit('close')">
-      <form
-        class="additional-field-dialog"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="t('propertyEditor.customFields.create')"
-        @submit.prevent="emit('submit')"
-        @keydown.esc.prevent="emit('close')"
-      >
-        <header class="additional-field-dialog__header">
-          <h2>{{ t('propertyEditor.customFields.create') }}</h2>
-        </header>
-
+  <OcDialog :open="open" :title="t('propertyEditor.customFields.create')" as="form" size="sm"
+    close-on-backdrop @request-close="emit('close')" @submit="emit('submit')">
         <label v-if="showTitle !== false" class="additional-field-dialog__field">
           <span>{{ t('propertyEditor.customFields.type') }}</span>
           <OcSelect
             full-width
             :model-value="fieldType"
             :options="fieldTypeOptions"
-            :z-index="1100"
             @update:model-value="emit('update-field-type', $event)"
           />
         </label>
@@ -46,17 +33,15 @@
 
         <p v-if="errorText" class="additional-field-dialog__error" role="alert">{{ errorText }}</p>
 
-        <footer class="additional-field-dialog__actions">
-          <OcButton type="button" @click="emit('close')">
-            {{ t('propertyEditor.customFields.cancel') }}
-          </OcButton>
-          <OcButton type="submit" variant="solid" :disabled="invalid">
-            {{ t('propertyEditor.customFields.confirmCreate') }}
-          </OcButton>
-        </footer>
-      </form>
-    </div>
-  </Teleport>
+    <template #footer>
+      <OcButton type="button" @click="emit('close')">
+        {{ t('propertyEditor.customFields.cancel') }}
+      </OcButton>
+      <OcButton type="submit" variant="solid" :disabled="invalid">
+        {{ t('propertyEditor.customFields.confirmCreate') }}
+      </OcButton>
+    </template>
+  </OcDialog>
 </template>
 
 <script setup lang="ts">
@@ -64,6 +49,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 
 const props = defineProps<{
@@ -101,34 +87,6 @@ function emitInputValue(
 </script>
 
 <style scoped>
-.additional-field-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: var(--oc-space-6);
-  background: color-mix(in srgb, var(--oc-bg-base) 62%, transparent);
-}
-
-.additional-field-dialog {
-  width: min(360px, 100%);
-  display: grid;
-  gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
-}
-
-.additional-field-dialog__header h2 {
-  margin: 0;
-  font-size: var(--oc-text-lg);
-  font-weight: 600;
-}
-
 .additional-field-dialog__field {
   display: grid;
   gap: var(--oc-space-2);
@@ -143,9 +101,4 @@ function emitInputValue(
   color: var(--oc-fg-danger);
 }
 
-.additional-field-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--oc-space-2);
-}
 </style>

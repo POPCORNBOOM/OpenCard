@@ -17,6 +17,7 @@
         :tone="iconTone"
         :size="iconSize"
       />
+      <slot name="icon" />
       <span v-if="!isIconOnly" class="oc-button__label">
         <slot />
       </span>

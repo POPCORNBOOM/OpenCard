@@ -10,6 +10,7 @@ import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyTextBlock } from '../render.types'
 import { normalizeRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
+import { EMPTY_PROJECT_ICON_CATALOG, renderProjectIconsInRichText } from '../../workspace/services/projectIconCatalog'
 
 const props = withDefaults(defineProps<{
     /** 文本块数据模型。 */
@@ -22,7 +23,10 @@ const props = withDefaults(defineProps<{
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
-const richTextContent = computed(() => normalizeRichTextHtml(props.block.content))
+const richTextContent = computed(() => renderProjectIconsInRichText(
+    normalizeRichTextHtml(props.block.content),
+    editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+))
 const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
     props.layoutMode,
@@ -50,5 +54,10 @@ function handleClick(event: MouseEvent) {
 .text-block-content--richtext {
     paint-order: stroke fill;
     white-space: break-spaces;
+}
+.text-block-content--richtext :deep(.project-inline-icon) {
+    display: inline-block;
+    background-repeat: no-repeat;
+    vertical-align: text-bottom;
 }
 </style>

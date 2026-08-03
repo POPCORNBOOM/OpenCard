@@ -1,5 +1,6 @@
 import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
+import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
 
@@ -18,6 +19,9 @@ export type PropertyCompletionItem = {
   label: string
   detail?: string
   icon?: IconToken
+  thumbnailStyle?: Readonly<Record<string, string>>
+  thumbnailLabel?: string
+  labelStyle?: Readonly<Record<string, string>>
   insertText: string
   value?: unknown
   keepOpen?: boolean
@@ -86,6 +90,7 @@ type PropertyEditorFieldBase = {
   required?: boolean
   isHidden?: boolean
   isReadonly?: boolean
+  commitMode?: 'input' | 'blur'
   resettable?: boolean
   deletable?: boolean
   autoPairs?: readonly PropertyInputPair[]
@@ -101,6 +106,10 @@ type PropertyEditorFieldBase = {
   }
   binding?: {
     provider?: PropertyCompletionProvider
+  }
+  projectIcon?: {
+    provider?: PropertyCompletionProvider
+    catalog?: ProjectIconCatalog
   }
 }
 

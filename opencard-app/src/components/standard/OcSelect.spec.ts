@@ -50,4 +50,24 @@ describe('OcSelect', () => {
     expect(wrapper.get('.oc-select__trigger').attributes('disabled')).toBeUndefined()
     expect(wrapper.get('.oc-select__trigger').attributes('aria-expanded')).toBe('false')
   })
+
+  it('renders selected and menu labels with the option presentation style', async () => {
+    const wrapper = mount(OcSelect, {
+      props: {
+        modelValue: 'brand',
+        options: [{
+          value: 'brand',
+          label: 'Brand',
+          labelStyle: { fontFamily: 'Brand Preview' },
+        }],
+      },
+      attachTo: document.body,
+    })
+
+    expect((wrapper.get('.oc-select__value').element as HTMLElement).style.fontFamily).toBe('"Brand Preview"')
+    await wrapper.get('.oc-select__trigger').trigger('click')
+    expect((document.body.querySelector('.oc-select__option-label') as HTMLElement).style.fontFamily)
+      .toBe('"Brand Preview"')
+    wrapper.unmount()
+  })
 })

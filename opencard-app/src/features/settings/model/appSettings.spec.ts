@@ -44,6 +44,8 @@ describe('appSettings', () => {
         structureTreeScrollToSelection: true,
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
+        defaultFontImportDirectory: 'assets/fonts',
+        defaultIconImportDirectory: 'assets/icons',
       },
       projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
     })
@@ -71,6 +73,27 @@ describe('appSettings', () => {
     })
   })
 
+  it('normalizes project-profile collapse state in project workspace cache', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      projectCreation: {
+        workspaceStates: {
+          'D:\\Cards\\Demo\\': {
+            expandedDirectories: ['assets'],
+            projectProfile: {
+              collapsedSections: ['fonts', 'fonts', '', 42],
+            },
+          },
+        },
+      },
+    })
+
+    expect(settings.projectCreation.workspaceStates['D:/Cards/Demo']).toEqual({
+      expandedDirectories: ['assets'],
+      projectProfile: { collapsedSections: ['fonts'] },
+    })
+  })
+
   it('fills workspace behavior defaults for older current-version settings', () => {
     const settings = normalizeAppSettings({
       version: APP_SETTINGS_VERSION,
@@ -83,6 +106,28 @@ describe('appSettings', () => {
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
     expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })
+  })
+
+  it('keeps a valid project-relative font directory and rejects unsafe paths', () => {
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { defaultFontImportDirectory: 'resources/typefaces/' },
+    }).workspace.defaultFontImportDirectory).toBe('resources/typefaces')
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { defaultFontImportDirectory: '../fonts' },
+    }).workspace.defaultFontImportDirectory).toBe('assets/fonts')
+  })
+
+  it('keeps a valid project-relative icon directory and rejects unsafe paths', () => {
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { defaultIconImportDirectory: 'resources/sprites/' },
+    }).workspace.defaultIconImportDirectory).toBe('resources/sprites')
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { defaultIconImportDirectory: '../icons' },
+    }).workspace.defaultIconImportDirectory).toBe('assets/icons')
   })
 
   it('migrates the legacy shared phase angle and clamps per-theme values', () => {

@@ -6,7 +6,7 @@ const TOOLTIP_GAP = 10;
 const TOOLTIP_EDGE_PADDING = 8;
 const TOOLTIP_POINTER_DELAY_MS = 350;
 const TOOLTIP_INIT_FLAG = '__oc_tooltip_initialized__';
-const TOOLTIP_INLINE_TOKEN_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]/g;
+const TOOLTIP_INLINE_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]|\[(b|i|code)\]([^\[\]\r\n]+)\[\/\3\]|\[br\]/gi;
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
@@ -46,7 +46,7 @@ function renderTooltipContent(layer: HTMLDivElement, text: string): void {
   const fragment = document.createDocumentFragment();
   let cursor = 0;
 
-  for (const match of text.matchAll(TOOLTIP_INLINE_TOKEN_PATTERN)) {
+  for (const match of text.matchAll(TOOLTIP_INLINE_PATTERN)) {
     const index = match.index ?? 0;
     if (index > cursor) {
       fragment.append(document.createTextNode(text.slice(cursor, index)));
@@ -54,7 +54,17 @@ function renderTooltipContent(layer: HTMLDivElement, text: string): void {
 
     const kind = match[1];
     const value = match[2]?.trim() ?? '';
-    if (!value) {
+    const bbcodeTag = match[3]?.toLocaleLowerCase();
+    const bbcodeText = match[4]?.trim() ?? '';
+    if (match[0].toLocaleLowerCase() === '[br]') {
+      fragment.append(document.createElement('br'));
+    } else if (bbcodeTag === 'code') {
+      fragment.append(createTooltipChip(bbcodeText));
+    } else if (bbcodeTag === 'b' || bbcodeTag === 'i') {
+      const emphasis = document.createElement(bbcodeTag === 'b' ? 'strong' : 'em');
+      emphasis.textContent = bbcodeText;
+      fragment.append(emphasis);
+    } else if (!value) {
       fragment.append(document.createTextNode(match[0]));
     } else if (kind === 'icon') {
       fragment.append(createTooltipIcon(value));

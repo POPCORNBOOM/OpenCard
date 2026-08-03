@@ -6,8 +6,8 @@
     :options="selectOptions" full-width @update:model-value="emit('update:value', $event)" />
   <OcFieldFrame v-else-if="definition.multiline" class="multiline-field" full-width>
     <OcFieldInput as="textarea" variant="plain" full-width class="multiline-field__input"
-      :value="stringValue" :minlength="definition.minLength" :maxlength="definition.maxLength"
-      resize="none" @input="emit('update:value', ($event.target as HTMLTextAreaElement).value)" />
+      :value="draftValue" :minlength="definition.minLength" :maxlength="definition.maxLength"
+      resize="none" @input="handleInput" @blur="handleBlur" @keydown="handleKeydown" />
   </OcFieldFrame>
   <OcFieldFrame v-else class="autocomplete-field" full-width>
     <OcFieldInput
@@ -17,21 +17,22 @@
       class="autocomplete-input"
       input-class="autocomplete-input"
       type="text"
-      :value="stringValue"
+      :value="draftValue"
       :minlength="definition.minLength"
       :maxlength="definition.maxLength" :readonly="definition.isReadonly"
-      @input="emit('update:value', ($event.target as HTMLInputElement).value)"
+      @input="handleInput"
+      @blur="handleBlur"
       @keydown="handleKeydown"
     />
     <div v-if="ghostSuffix" class="autocomplete-ghost" aria-hidden="true">
-      <span class="autocomplete-current">{{ stringValue }}</span>
+      <span class="autocomplete-current">{{ draftValue }}</span>
       <span>{{ ghostSuffix }}</span>
     </div>
   </OcFieldFrame>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
 import OcSelect from '../../../../components/standard/OcSelect.vue'
@@ -47,12 +48,18 @@ const emit = defineEmits<{
 }>()
 
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
+const draftValue = ref(stringValue.value)
+let cancelPending = false
+
+watch(stringValue, value => {
+  draftValue.value = value
+})
 const selectOptions = computed(() => (
   props.definition.options?.map(option => ({ value: option, label: option })) ?? []
 ))
 
 const autocompleteMatch = computed(() => {
-  const current = stringValue.value
+  const current = draftValue.value
   const suggestions = props.definition.completion?.static?.values ?? []
   if (!current) return ''
 
@@ -76,18 +83,46 @@ const autocompleteMatch = computed(() => {
 
 const ghostSuffix = computed(() => {
   const suggestion = autocompleteMatch.value
-  const current = stringValue.value
+  const current = draftValue.value
   if (!suggestion || !current) return ''
   return suggestion.slice(current.length)
 })
 
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Tab' || !autocompleteMatch.value || props.definition.isReadonly) {
+function commitDraft(): void {
+  if (draftValue.value !== stringValue.value) emit('update:value', draftValue.value)
+}
+
+function handleInput(event: Event): void {
+  draftValue.value = (event.target as HTMLInputElement | HTMLTextAreaElement).value
+  if ((props.definition.commitMode ?? 'input') === 'input') emit('update:value', draftValue.value)
+}
+
+function handleBlur(): void {
+  if ((props.definition.commitMode ?? 'input') === 'blur' && !cancelPending) commitDraft()
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (props.definition.isReadonly) return
+  if ((props.definition.commitMode ?? 'input') === 'blur' && event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    cancelPending = true
+    draftValue.value = stringValue.value
+    ;(event.currentTarget as HTMLInputElement | HTMLTextAreaElement).blur()
+    cancelPending = false
     return
   }
+  if ((props.definition.commitMode ?? 'input') === 'blur' && event.key === 'Enter'
+    && !props.definition.multiline && !event.isComposing) {
+    event.preventDefault()
+    ;(event.currentTarget as HTMLInputElement).blur()
+    return
+  }
+  if (event.key !== 'Tab' || !autocompleteMatch.value) return
 
   event.preventDefault()
-  emit('update:value', autocompleteMatch.value)
+  draftValue.value = autocompleteMatch.value
+  if ((props.definition.commitMode ?? 'input') === 'input') emit('update:value', draftValue.value)
 }
 </script>
 

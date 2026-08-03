@@ -1,6 +1,12 @@
 import MarkdownIt from 'markdown-it'
 import markdownItAttrs from 'markdown-it-attrs'
 import type Token from 'markdown-it/lib/token.mjs'
+import { parseProjectIconToken } from '../../workspace/model/projectIcons'
+import {
+  createProjectIconStyle,
+  findProjectIcon,
+  type ProjectIconCatalog,
+} from '../../workspace/services/projectIconCatalog'
 
 const IMAGE_ATTRIBUTE_NAMES = new Set(['width', 'height', 'fit', 'align'])
 const CSS_LENGTH_PATTERN = /^(?:auto|0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|%|em|rem|vw|vh|vmin|vmax|ch|ex|cm|mm|in|pt|pc))$/i
@@ -16,6 +22,22 @@ const markdown = new MarkdownIt({
 
 markdown.use(markdownItAttrs, {
   allowedAttributes: [...IMAGE_ATTRIBUTE_NAMES],
+})
+
+markdown.inline.ruler.before('emphasis', 'opencard_project_icon', (state, silent) => {
+  if (!state.src.startsWith('[[icon:', state.pos)) return false
+  const end = state.src.indexOf(']]', state.pos + 7)
+  if (end < 0) return false
+  const source = state.src.slice(state.pos, end + 2)
+  const reference = parseProjectIconToken(source)
+  if (!reference) return false
+  if (!silent) {
+    const token = state.push('opencard_project_icon', '', 0)
+    token.content = source
+    token.meta = reference
+  }
+  state.pos = end + 2
+  return true
 })
 
 function removeImageAttributesFromNonImageTokens(tokens: Token[]): void {
@@ -35,10 +57,25 @@ markdown.core.ruler.after('curly_attributes', 'opencard_image_attributes', (stat
 
 export type MarkdownRenderOptions = {
   resolveImageSrc?: (path: string) => string
+  projectIconCatalog?: ProjectIconCatalog
 }
 
 type MarkdownEnvironment = {
   resolveImageSrc?: (path: string) => string
+  projectIconCatalog?: ProjectIconCatalog
+}
+
+markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, environment) => {
+  const token = tokens[index]
+  const reference = token?.meta as { seriesKey?: string; iconKey?: string } | undefined
+  const entry = reference?.seriesKey && reference.iconKey
+    ? findProjectIcon((environment as MarkdownEnvironment).projectIconCatalog, reference.seriesKey, reference.iconKey)
+    : null
+  if (!entry) return markdown.utils.escapeHtml(token?.content ?? '')
+  const style = Object.entries(createProjectIconStyle(entry))
+    .map(([name, value]) => `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${value}`)
+    .join(';')
+  return `<span class="project-inline-icon" role="img" aria-label="${markdown.utils.escapeHtml(entry.name)}" style="${markdown.utils.escapeHtml(style)}"></span>`
 }
 
 function readCssLength(token: Token, name: 'width' | 'height'): string | null {
@@ -101,5 +138,6 @@ markdown.renderer.rules.image = (tokens, index, _options, environment) => {
 export function renderMarkdown(source: string, options: MarkdownRenderOptions = {}): string {
   return markdown.render(source, {
     resolveImageSrc: options.resolveImageSrc,
+    projectIconCatalog: options.projectIconCatalog,
   } satisfies MarkdownEnvironment)
 }

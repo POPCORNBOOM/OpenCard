@@ -1,23 +1,19 @@
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="unsaved-editors-dialog__backdrop">
-      <section
-        class="unsaved-editors-dialog"
-        :class="{ 'unsaved-editors-dialog--single': isSingle }"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-        @keydown.esc.prevent="handleCancel"
-      >
-        <header class="unsaved-editors-dialog__header">
+  <OcDialog class="unsaved-editors-dialog"
+    :open="open" :title="title" :description="description" :size="isSingle ? 'md' : 'lg'"
+    :height-mode="isSingle ? 'content' : 'fixed'" :height="isSingle ? undefined : 'lg'"
+    :padded="false" :scrollable="false" :dismissible="!busy" @request-close="handleCancel">
+    <template #header="{ titleId, descriptionId }">
+        <div class="unsaved-editors-dialog__header-content">
           <div>
             <h2 :id="titleId">{{ title }}</h2>
-            <p>{{ description }}</p>
+            <p :id="descriptionId">{{ description }}</p>
             <p v-if="singleError" class="unsaved-editors-dialog__error" role="alert">
               {{ resolveError(singleError) }}
             </p>
           </div>
-        </header>
+        </div>
+    </template>
 
         <div v-if="!isSingle" class="unsaved-editors-dialog__selection-bar">
           <OcCheckbox
@@ -115,7 +111,8 @@
           </OcButton>
         </div>
 
-        <footer class="unsaved-editors-dialog__footer">
+    <template #footer>
+        <div class="unsaved-editors-dialog__footer-content">
           <div v-if="!isSingle" class="unsaved-editors-dialog__summary" aria-live="polite">
             {{ t('app.unsavedEditors.summary', {
               save: saveCount,
@@ -147,10 +144,9 @@
               {{ busy ? t('app.unsavedEditors.processing') : t('app.unsavedEditors.confirm') }}
             </OcButton>
           </div>
-        </footer>
-      </section>
-    </div>
-  </Teleport>
+        </div>
+    </template>
+  </OcDialog>
 </template>
 
 <script setup lang="ts">
@@ -159,6 +155,7 @@ import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type {
@@ -195,7 +192,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const titleId = `unsaved-editors-title-${Math.random().toString(36).slice(2)}`
 const isSingle = computed(() => props.rows.length === 1)
 const singleRow = computed(() => isSingle.value ? props.rows[0] : undefined)
 const title = computed(() => singleRow.value
@@ -241,27 +237,7 @@ function handleCancel(): void {
 </script>
 
 <style scoped>
-.unsaved-editors-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: var(--oc-space-6);
-  background: color-mix(in srgb, var(--oc-bg-base) 68%, transparent);
-}
-
 .unsaved-editors-dialog {
-  width: min(760px, 100%);
-  max-height: min(720px, calc(100vh - 48px));
-  display: grid;
-  grid-template-rows: auto auto minmax(120px, 1fr) auto auto;
-  overflow: hidden;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-lg);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -273,37 +249,29 @@ function handleCancel(): void {
   -webkit-user-select: text;
 }
 
-.unsaved-editors-dialog--single {
-  width: min(520px, 100%);
-  grid-template-rows: auto auto;
-}
-
-.unsaved-editors-dialog__header,
 .unsaved-editors-dialog__selection-bar,
-.unsaved-editors-dialog__batch-actions,
-.unsaved-editors-dialog__footer {
+.unsaved-editors-dialog__batch-actions {
   padding-inline: var(--oc-space-5);
 }
 
-.unsaved-editors-dialog__header {
+.unsaved-editors-dialog__header-content {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--oc-space-4);
-  padding-block: var(--oc-space-5) var(--oc-space-4);
 }
 
-.unsaved-editors-dialog__header h2,
-.unsaved-editors-dialog__header p {
+.unsaved-editors-dialog__header-content h2,
+.unsaved-editors-dialog__header-content p {
   margin: 0;
 }
 
-.unsaved-editors-dialog__header h2 {
+.unsaved-editors-dialog__header-content h2 {
   font-size: var(--oc-text-lg);
   font-weight: 600;
 }
 
-.unsaved-editors-dialog__header p {
+.unsaved-editors-dialog__header-content p {
   margin-top: var(--oc-space-2);
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-sm);
@@ -321,6 +289,8 @@ function handleCancel(): void {
 }
 
 .unsaved-editors-dialog__list {
+  min-height: 0;
+  flex: 1 1 auto;
   overflow: auto;
   padding: var(--oc-space-2) var(--oc-space-3);
 }
@@ -423,14 +393,12 @@ function handleCancel(): void {
   color: var(--oc-fg-danger);
 }
 
-.unsaved-editors-dialog__footer {
+.unsaved-editors-dialog__footer-content {
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: var(--oc-space-4);
-  padding-block: var(--oc-space-4);
-  border-top: 1px solid var(--oc-border-default);
-  background: var(--oc-bg-raised);
 }
 
 .unsaved-editors-dialog__summary {
@@ -459,7 +427,7 @@ function handleCancel(): void {
     grid-row: 1;
   }
 
-  .unsaved-editors-dialog__footer {
+  .unsaved-editors-dialog__footer-content {
     align-items: stretch;
     flex-direction: column;
   }

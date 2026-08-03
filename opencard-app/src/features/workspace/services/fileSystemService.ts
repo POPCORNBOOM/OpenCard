@@ -25,7 +25,12 @@ import { invoke } from '@tauri-apps/api/core'
 export interface FileSystemService {
   openProject(): Promise<string | null>
   pickDirectory(title: string): Promise<string | null>
-  pickFile(options: { title: string; fileTypeName: string; extensions: string[] }): Promise<string | null>
+  pickFile(options: {
+    title: string
+    fileTypeName: string
+    extensions: string[]
+    defaultPath?: string
+  }): Promise<string | null>
   pickSavePath(options: {
     defaultPath: string
     fileTypeName?: string
@@ -66,11 +71,17 @@ class FileSystemServiceImpl implements FileSystemService {
     return selected as string | null
   }
 
-  async pickFile(options: { title: string; fileTypeName: string; extensions: string[] }): Promise<string | null> {
+  async pickFile(options: {
+    title: string
+    fileTypeName: string
+    extensions: string[]
+    defaultPath?: string
+  }): Promise<string | null> {
     const selected = await open({
       directory: false,
       multiple: false,
       title: options.title,
+      defaultPath: options.defaultPath,
       filters: [{ name: options.fileTypeName, extensions: options.extensions }],
     })
     return selected as string | null

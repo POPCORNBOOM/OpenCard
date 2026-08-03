@@ -100,6 +100,8 @@ describe('useSettingsWorkspace', () => {
       'workspace.structureTreeScrollToSelection',
       'workspace.showSelectionPositionOnMove',
       'workspace.showSelectionSizeOnResize',
+      'workspace.defaultFontImportDirectory',
+      'workspace.defaultIconImportDirectory',
       'project-workspace.reset',
     ])
     expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
@@ -122,6 +124,18 @@ describe('useSettingsWorkspace', () => {
         type: 'switch',
         key: 'workspace.showSelectionSizeOnResize',
         checked: true,
+      }),
+      expect.objectContaining({
+        type: 'text',
+        key: 'workspace.defaultFontImportDirectory',
+        value: 'assets/fonts',
+        mono: true,
+      }),
+      expect.objectContaining({
+        type: 'text',
+        key: 'workspace.defaultIconImportDirectory',
+        value: 'assets/icons',
+        mono: true,
       }),
       expect.objectContaining({ type: 'action', key: 'project-workspace.reset', disabled: true }),
     ]))

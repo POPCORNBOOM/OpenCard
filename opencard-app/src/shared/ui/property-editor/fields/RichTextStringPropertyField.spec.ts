@@ -44,8 +44,8 @@ describe('RichTextStringPropertyField', () => {
   it('passes the shared font catalog to the rich-text editor', async () => {
     const fontOptions = [{
       label: 'Brand Sans',
-      value: 'project:brand-sans',
-      cssFamily: '"project:brand-sans"',
+      value: 'font:brand-sans',
+      cssFamily: '"font:brand-sans"',
     }]
     const wrapper = mount(RichTextStringPropertyField, {
       attachTo: document.body,
@@ -84,7 +84,9 @@ describe('RichTextStringPropertyField', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await new Promise(resolve => window.setTimeout(resolve, 0))
 
-    expect(document.querySelector('[aria-label="富文本编辑器"]')).not.toBeNull()
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    expect(document.getElementById(dialog!.getAttribute('aria-labelledby')!)?.textContent).toBe('Content')
     expect(editor.getHTML()).toContain('data-oc-binding="self:name"')
     expect(wrapper.emitted('update:value')).toBeUndefined()
     wrapper.unmount()

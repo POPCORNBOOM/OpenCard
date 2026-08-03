@@ -4,6 +4,7 @@ import {
   OC_THEME_TOKEN_KEYS,
   type OcThemeColorOverrides,
   type OcThemeId,
+  type OcThemeTokenKey,
   type OcThemeTokens,
 } from './themeTokens'
 
@@ -27,6 +28,19 @@ function resolveFontStack(fontFamily: string | undefined, fallback: string): str
 }
 
 let currentTheme: OcThemeId = DEFAULT_OC_THEME
+
+export function resolveOcPixelToken(
+  token: OcThemeTokenKey,
+  element?: Element | null,
+): number {
+  const computedValue = element && typeof getComputedStyle !== 'undefined'
+    ? getComputedStyle(element).getPropertyValue(token).trim()
+    : ''
+  const value = computedValue || OC_THEME_REGISTRY[currentTheme][token]
+  const pixels = Number.parseFloat(value)
+  if (!Number.isFinite(pixels)) throw new Error(`Theme token ${token} must resolve to pixels`)
+  return pixels
+}
 
 function normalizeThemeId(themeId: string): OcThemeId {
   if (themeId === 'dark' || themeId === 'light') {

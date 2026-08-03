@@ -358,15 +358,15 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='error'] {
-  color: var(--oc-icon-danger);
+  background: var(--oc-bg-danger-subtle);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='warning'] {
-  color: var(--oc-icon-warning);
+  background: var(--oc-bg-warning-subtle);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='info'] {
-  color: var(--oc-icon-accent);
+  background: var(--oc-bg-accent-subtle);
 }
 
 .workspace-bottom-panel__content {

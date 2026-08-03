@@ -27,10 +27,6 @@
         @input="previewText = ($event.target as HTMLTextAreaElement).value"
       />
     </main>
-    <footer v-if="!loading && !loadFailed" class="font-preview-editor__reference">
-      <OcText tone="muted">{{ t('fontPreview.characterSet') }}</OcText>
-      <p :style="specimenStyle">Aa Bb Cc　0123456789　，。！？　天地玄黄</p>
-    </footer>
   </section>
 </template>
 
@@ -130,7 +126,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   background: var(--oc-bg-base);
   color: var(--oc-fg-default);
@@ -187,20 +183,4 @@ onBeforeUnmount(() => {
   line-height: normal;
 }
 
-.font-preview-editor__reference {
-  display: grid;
-  gap: var(--oc-space-2);
-  padding: var(--oc-space-3) var(--oc-space-5);
-  overflow: hidden;
-  border-top: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-raised);
-}
-
-.font-preview-editor__reference p {
-  margin: 0;
-  overflow-x: auto;
-  color: var(--oc-fg-default);
-  font-size: var(--oc-text-xl);
-  white-space: nowrap;
-}
 </style>

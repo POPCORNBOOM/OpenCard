@@ -1,12 +1,13 @@
 <template>
-  <section class="project-font-registry" :aria-label="t('projectConfig.fonts.title')">
-    <header class="project-font-registry__header">
+  <section class="project-font-registry" :class="{ 'project-font-registry--embedded': !showHeader }"
+    :aria-label="t('projectConfig.fonts.title')">
+    <header v-if="showHeader" class="project-font-registry__header">
       <div>
         <h2>{{ t('projectConfig.fonts.title') }}</h2>
         <OcText tone="muted" size="sm">{{ t('projectConfig.fonts.description') }}</OcText>
       </div>
-      <OcButton icon="action.import" variant="soft" :disabled="busy" @click="emit('import-font')">
-        {{ t('projectConfig.fonts.import') }}
+      <OcButton icon="action.add" variant="soft" :disabled="busy" @click="emit('register-font')">
+        {{ t('projectConfig.fonts.register') }}
       </OcButton>
     </header>
 
@@ -16,60 +17,30 @@
 
     <div v-if="fontEntries.length" class="project-font-registry__list">
       <article v-for="[id, definition] in fontEntries" :key="id" class="project-font-registry__item">
-        <header class="project-font-registry__item-header">
-          <div class="project-font-registry__identity">
-            <OcIcon name="file.font" size="lg" tone="active" />
-            <div>
-              <strong :style="{ fontFamily: toCssFontFamily(`project:${id}`) }">
-                {{ definition.family }}
-              </strong>
-              <code>project:{{ id }}</code>
-            </div>
-          </div>
-          <span class="project-font-registry__item-actions">
-            <OcButton icon="action.import" icon-only size="sm"
-              :disabled="busy" :data-tooltip="t('projectConfig.fonts.addFace')"
-              :aria-label="t('projectConfig.fonts.addFace')" @click="emit('import-face', id)" />
-            <OcButton icon="action.delete" icon-tone="danger" icon-only size="sm"
-              :data-tooltip="t('projectConfig.fonts.remove')" :aria-label="t('projectConfig.fonts.remove')"
-              @click="removeFont(id)" />
-          </span>
-        </header>
-
-        <label class="project-font-registry__family">
-          <span>{{ t('projectConfig.fonts.family') }}</span>
-          <OcFieldInput full-width size="sm" :value="definition.family"
-            @input="updateFamily(id, $event)" />
-        </label>
-
-        <div class="project-font-registry__faces">
-          <div v-for="(face, faceIndex) in definition.faces" :key="`${face.source}:${faceIndex}`"
-            class="project-font-registry__face">
-            <label class="project-font-registry__face-field">
-              <span>{{ t('projectConfig.fonts.source') }}</span>
-              <OcFieldInput class="project-font-registry__source" full-width size="sm" mono readonly
-                :value="face.source" />
-            </label>
-            <label class="project-font-registry__face-field">
-              <span>{{ t('projectConfig.fonts.weight') }}</span>
-              <OcSelect size="sm" :model-value="face.weight ?? 'normal'" :options="weightOptions"
-                @update:model-value="updateFace(id, faceIndex, { weight: $event })" />
-            </label>
-            <label class="project-font-registry__face-field">
-              <span>{{ t('projectConfig.fonts.style') }}</span>
-              <OcSelect size="sm" :model-value="face.style ?? 'normal'" :options="styleOptions"
-                @update:model-value="updateFace(id, faceIndex, { style: asFontStyle($event) })" />
-            </label>
-            <span class="project-font-registry__face-actions">
-              <OcIcon v-if="resolveLoadError(id, face.source)" name="status.warning" size="sm" tone="warning"
-                :data-tooltip="resolveLoadError(id, face.source)"
-                :aria-label="resolveLoadError(id, face.source)" />
-              <OcButton v-if="definition.faces.length > 1" icon="action.delete" icon-only size="sm"
-                icon-tone="danger" :data-tooltip="t('projectConfig.fonts.removeFace')"
-                :aria-label="t('projectConfig.fonts.removeFace')" @click="removeFace(id, faceIndex)" />
-            </span>
+        <div class="project-font-registry__identity">
+          <OcIcon name="file.font" size="lg" tone="active" />
+          <div>
+            <strong :style="{ fontFamily: toCssFontFamily(`font:${id}`) }">
+              {{ definition.name }}
+            </strong>
+            <code>font:{{ id }}</code>
           </div>
         </div>
+
+        <OcFieldInput class="project-font-registry__source" full-width size="sm" mono readonly
+          :aria-label="t('projectConfig.fonts.source')" :value="definition.source" />
+
+        <span class="project-font-registry__actions">
+          <OcIcon v-if="resolveLoadError(id, definition.source)" name="status.warning" size="sm" tone="warning"
+            :data-tooltip="resolveLoadError(id, definition.source)"
+            :aria-label="resolveLoadError(id, definition.source)" />
+          <OcButton icon="tool.settings" icon-only size="sm" :disabled="busy"
+            :data-tooltip="t('projectConfig.fonts.configure')" :aria-label="t('projectConfig.fonts.configure')"
+            @click="emit('configure-font', id)" />
+          <OcButton icon="action.delete" icon-tone="danger" icon-only size="sm"
+            :data-tooltip="t('projectConfig.fonts.remove')" :aria-label="t('projectConfig.fonts.remove')"
+            @click="removeFont(id)" />
+        </span>
       </article>
     </div>
 
@@ -83,98 +54,44 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type {
-  ProjectFontDefinition,
-  ProjectFontFace,
-  ProjectFontRegistry,
-} from '../../features/workspace/model/projectMetadata'
+import type { ProjectFontRegistry } from '../../features/workspace/model/projectFontRegistry'
 import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
 import { toCssFontFamily } from '../../features/workspace/model/projectFonts'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
-import OcSelect from '../standard/OcSelect.vue'
 
 const props = withDefaults(defineProps<{
   fonts?: ProjectFontRegistry
   busy?: boolean
   error?: string
   loadErrors?: readonly ProjectFontLoadError[]
+  showHeader?: boolean
 }>(), {
   fonts: () => ({}),
   busy: false,
   error: '',
   loadErrors: () => [],
+  showHeader: true,
 })
 
 const emit = defineEmits<{
   'update:fonts': [fonts: ProjectFontRegistry]
-  'import-font': []
-  'import-face': [id: string]
+  'register-font': []
+  'configure-font': [key: string]
 }>()
 
 const { t } = useI18n()
 const fontEntries = computed(() => Object.entries(props.fonts))
-const weightOptions = computed(() => [
-  { label: t('projectConfig.fonts.weights.normal'), value: 'normal' },
-  ...Array.from({ length: 9 }, (_, index) => {
-    const value = String((index + 1) * 100)
-    return { label: value, value }
-  }),
-  { label: t('projectConfig.fonts.weights.bold'), value: 'bold' },
-])
-const styleOptions = computed(() => [
-  { label: t('projectConfig.fonts.styles.normal'), value: 'normal' },
-  { label: t('projectConfig.fonts.styles.italic'), value: 'italic' },
-  { label: t('projectConfig.fonts.styles.oblique'), value: 'oblique' },
-])
-
-function emitRegistry(nextEntries: readonly [string, ProjectFontDefinition][]): void {
-  emit('update:fonts', Object.fromEntries(nextEntries))
-}
-
-function updateFamily(id: string, event: Event): void {
-  const target = event.target
-  if (!(target instanceof HTMLInputElement)) return
-  const family = target.value.trimStart()
-  emitRegistry(fontEntries.value.map(([entryId, definition]) => [
-    entryId,
-    entryId === id ? { ...definition, family } : definition,
-  ]))
-}
-
-function updateFace(id: string, faceIndex: number, patch: Partial<ProjectFontFace>): void {
-  emitRegistry(fontEntries.value.map(([entryId, definition]) => [
-    entryId,
-    entryId === id
-      ? {
-          ...definition,
-          faces: definition.faces.map((face, index) => index === faceIndex ? { ...face, ...patch } : face),
-        }
-      : definition,
-  ]))
-}
 
 function removeFont(id: string): void {
-  emitRegistry(fontEntries.value.filter(([entryId]) => entryId !== id))
-}
-
-function removeFace(id: string, faceIndex: number): void {
-  emitRegistry(fontEntries.value.map(([entryId, definition]) => [
-    entryId,
-    entryId === id
-      ? { ...definition, faces: definition.faces.filter((_, index) => index !== faceIndex) }
-      : definition,
-  ]))
-}
-
-function asFontStyle(value: string): ProjectFontFace['style'] {
-  return value === 'italic' || value === 'oblique' ? value : 'normal'
+  emit('update:fonts', Object.fromEntries(fontEntries.value.filter(([entryId]) => entryId !== id)))
 }
 
 function resolveLoadError(fontId: string, source: string): string | undefined {
-  return props.loadErrors.find(error => error.fontId === fontId && error.source === source)?.message
+  const error = props.loadErrors.find(candidate => candidate.fontId === fontId && candidate.source === source)
+  return error ? t('projectConfig.fonts.loadFailed', { message: error.message }) : undefined
 }
 </script>
 
@@ -183,20 +100,24 @@ function resolveLoadError(fontId: string, source: string): string | undefined {
   display: grid;
   gap: var(--oc-space-4);
   padding-block: var(--oc-space-5);
-  border-top: 1px solid var(--oc-border-muted);
+  border-top: var(--oc-border-width) solid var(--oc-border-muted);
+}
+
+.project-font-registry--embedded {
+  padding-block: 0;
+  border-top: 0;
 }
 
 .project-font-registry__header,
-.project-font-registry__item-header,
+.project-font-registry__item,
 .project-font-registry__identity,
-.project-font-registry__item-actions,
-.project-font-registry__face {
+.project-font-registry__actions {
   display: flex;
   align-items: center;
 }
 
 .project-font-registry__header,
-.project-font-registry__item-header {
+.project-font-registry__item {
   justify-content: space-between;
   gap: var(--oc-space-3);
 }
@@ -214,14 +135,13 @@ function resolveLoadError(fontId: string, source: string): string | undefined {
 
 .project-font-registry__list {
   display: grid;
-  gap: var(--oc-space-3);
+  gap: var(--oc-space-2);
 }
 
 .project-font-registry__item {
-  display: grid;
-  gap: var(--oc-space-3);
+  min-width: 0;
   padding: var(--oc-space-3);
-  border: 1px solid var(--oc-border-muted);
+  border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-surface);
 }
@@ -234,11 +154,12 @@ function resolveLoadError(fontId: string, source: string): string | undefined {
 .project-font-registry__identity > div {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: var(--oc-space-1);
 }
 
 .project-font-registry__identity strong,
-.project-font-registry__identity code {
+.project-font-registry__identity code,
+.project-font-registry__source {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -249,75 +170,21 @@ function resolveLoadError(fontId: string, source: string): string | undefined {
   font-size: var(--oc-text-xs);
 }
 
-.project-font-registry__item-actions {
+.project-font-registry__source {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-font-registry__actions {
   flex: 0 0 auto;
   gap: var(--oc-space-1);
 }
 
-.project-font-registry__face-actions {
-  display: inline-flex;
-  min-height: var(--oc-size-sm);
-  align-items: center;
-  gap: var(--oc-space-1);
-}
-
-.project-font-registry__family {
-  display: grid;
-  grid-template-columns: minmax(72px, 112px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--oc-space-2);
-  color: var(--oc-fg-muted);
-  font-size: var(--oc-text-sm);
-}
-
-.project-font-registry__faces {
-  display: grid;
-  gap: var(--oc-space-2);
-}
-
-.project-font-registry__face {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 104px auto;
-  gap: var(--oc-space-2);
-}
-
-.project-font-registry__source {
-  min-width: 0;
-}
-
-.project-font-registry__face-field {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.project-font-registry__face-field > span {
-  color: var(--oc-fg-muted);
-  font-size: var(--oc-text-xs);
-}
-
 .project-font-registry__empty {
-  display: flex;
-  min-height: 96px;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  justify-items: center;
   gap: var(--oc-space-2);
-  border: 1px dashed var(--oc-border-muted);
-  border-radius: var(--oc-radius-md);
+  padding-block: var(--oc-space-6);
 }
 
-@media (max-width: 720px) {
-  .project-font-registry__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .project-font-registry__face {
-    grid-template-columns: minmax(0, 1fr) minmax(84px, 0.5fr);
-  }
-
-  .project-font-registry__source {
-    grid-column: 1 / -1;
-  }
-}
 </style>

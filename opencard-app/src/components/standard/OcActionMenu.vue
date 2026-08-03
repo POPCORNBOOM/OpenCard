@@ -37,8 +37,11 @@
           @click.stop="handleActionClick(entry)"
           @keydown="handleActionKeydown($event, entry)"
         >
+          <span v-if="entry.thumbnailStyle" class="oc-action-menu__thumbnail"
+            :style="entry.thumbnailStyle" role="img"
+            :aria-label="entry.thumbnailLabel ?? entry.title ?? entry.key" />
           <OcIcon
-            v-if="entry.icon"
+            v-else-if="entry.icon"
             :name="entry.icon"
             :tone="entry.iconTone"
             size="md"
@@ -94,6 +97,8 @@ export interface OcActionDefinition {
   key: string
   icon?: IconToken
   iconTone?: IconTone
+  thumbnailStyle?: Readonly<Record<string, string>>
+  thumbnailLabel?: string
   title?: string
   shortcut?: readonly string[]
   disabled?: boolean
@@ -324,8 +329,15 @@ function handleActionKeydown(event: KeyboardEvent, action: OcActionDefinition): 
 
 .oc-action-menu__icon,
 .oc-action-menu__icon-spacer,
+.oc-action-menu__thumbnail,
 .oc-action-menu__caret {
   flex: 0 0 auto;
+}
+
+.oc-action-menu__thumbnail {
+  display: inline-block;
+  font-size: var(--oc-icon-size-md);
+  background-repeat: no-repeat;
 }
 
 .oc-action-menu__icon-spacer {

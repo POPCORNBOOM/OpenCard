@@ -78,12 +78,12 @@ describe('TextBlockRenderer', () => {
     expect(style.textAlign).toBe('justify')
   })
 
-  it('renders stable project font references as CSS font families', () => {
+  it('renders semicolon-separated project and system font fallbacks', () => {
     const block = parseRenderReadyBlockForTest({
       id: 'project-font-block',
       type: 'text-block',
       content: 'Brand text',
-      fontFamily: 'project:brand-sans',
+      fontFamily: 'font:brand-sans; Microsoft YaHei; sans-serif',
     })
 
     const wrapper = mount(TextBlockRenderer, {
@@ -91,7 +91,8 @@ describe('TextBlockRenderer', () => {
       global: rendererTestGlobal,
     })
 
-    expect(wrapper.element.style.fontFamily).toBe('"OpenCardProjectFont-brand-sans"')
+    expect(wrapper.element.style.fontFamily)
+      .toBe('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
   })
 
   it('removes executable markup and unsupported rich-text styles', () => {

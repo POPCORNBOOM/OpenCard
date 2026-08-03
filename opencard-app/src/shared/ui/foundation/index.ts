@@ -2,6 +2,7 @@ export {
   getOcTheme,
   deriveAccentNeighborColor,
   getReadableForegroundTone,
+  resolveOcPixelToken,
   resolveOcThemeTokens,
   setOcGlassIntensity,
   setOcTheme,

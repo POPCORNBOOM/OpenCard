@@ -19,6 +19,9 @@ import {
 } from '../workspace/model/projectMetadata'
 import type { ProjectFontRegistry } from '../workspace/model/projectFontRegistry'
 import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/projectFonts'
+import type { ProjectIconSeries } from '../workspace/model/projectIcons'
+import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import { createProjectIconCompletionProvider } from '../workspace/services/projectIconCompletion'
 import {
   resolveReferenceCompletion,
   type ReferenceCompletionContext,
@@ -32,6 +35,8 @@ export type CdePropertyProjectContext = {
   fonts?: ProjectFontRegistry | null
   information?: ProjectInformation | null
   dictionary?: Readonly<Record<string, string>> | null
+  iconSeries?: readonly ProjectIconSeries[] | null
+  projectIconCatalog?: ProjectIconCatalog | null
 }
 
 export function createCdeCardReferenceScope(options: {
@@ -98,6 +103,8 @@ export function enrichCdePropertyFieldDefinition(options: {
   referenceContext?: ReferenceCompletionContext | null
   fontCatalog: readonly FontCatalogEntry[]
   directoryProvider?: FilePathDirectoryProvider
+  iconSeries?: readonly ProjectIconSeries[] | null
+  projectIconCatalog?: ProjectIconCatalog | null
 }): PropertyEditorFieldDefinition {
   const bindingProvider = options.referenceContext
     && options.definition.acceptsBinding !== false
@@ -107,8 +114,11 @@ export function enrichCdePropertyFieldDefinition(options: {
   const fontProvider = options.fieldKey === 'fontFamily'
     ? createFontCompletionProvider(options.fontCatalog)
     : undefined
-  const provider = bindingProvider || fontProvider
-    ? chainPropertyCompletionProviders([bindingProvider, fontProvider])
+  const iconProvider = options.fieldKey === 'content' && options.definition.fieldType === 'string'
+    ? createProjectIconCompletionProvider(options.iconSeries, options.projectIconCatalog)
+    : undefined
+  const provider = bindingProvider || fontProvider || iconProvider
+    ? chainPropertyCompletionProviders([bindingProvider, fontProvider, iconProvider])
     : undefined
   const fontOptions = options.definition.fieldType === 'string' && options.definition.richText
     ? options.fontCatalog.map(font => ({
@@ -137,8 +147,12 @@ export function enrichCdePropertyFieldDefinition(options: {
     ...(fontOptions ? { fontOptions } : {}),
     ...(richTextBaseStyle ? { richTextBaseStyle } : {}),
     ...(directoryProvider ? { directoryProvider } : {}),
-    ...(bindingProvider ? { autoPairs: [{ open: '{{', close: '}}' }] } : {}),
+    ...(bindingProvider || iconProvider ? { autoPairs: [
+      ...(bindingProvider ? [{ open: '{{', close: '}}' }] : []),
+      ...(iconProvider ? [{ open: '[[', close: ']]' }] : []),
+    ] } : {}),
     ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
+    ...(iconProvider ? { projectIcon: { provider: iconProvider, catalog: options.projectIconCatalog ?? undefined } } : {}),
     ...(provider ? { completion: { ...options.definition.completion, provider } } : {}),
   } as PropertyEditorFieldDefinition
 }
@@ -168,10 +182,15 @@ function createFontCompletionProvider(
   fontCatalog: readonly FontCatalogEntry[],
 ): PropertyCompletionProvider {
   return ({ value, cursor }) => {
-    const fragment = value.slice(0, cursor).trim().toLocaleLowerCase()
+    const position = Math.min(cursor, value.length)
+    const replaceStart = value.lastIndexOf(';', Math.max(0, position - 1)) + 1
+    const nextSeparator = value.indexOf(';', position)
+    const replaceEnd = nextSeparator < 0 ? value.length : nextSeparator
+    const fragment = value.slice(replaceStart, position).trim().toLocaleLowerCase()
+    const insertionPrefix = replaceStart > 0 ? ' ' : ''
     return {
-      replaceStart: 0,
-      replaceEnd: value.length,
+      replaceStart,
+      replaceEnd,
       items: fontCatalog
         .filter(font => !fragment
           || font.label.toLocaleLowerCase().includes(fragment)
@@ -180,8 +199,9 @@ function createFontCompletionProvider(
           key: `font:${font.value}`,
           label: font.label,
           detail: font.value.replace(/^(?:font|project):/, ''),
-          insertText: font.value,
-          value: font.value,
+          labelStyle: { fontFamily: toCssFontFamily(font.value) },
+          insertText: `${insertionPrefix}${font.value}`,
+          value: `${insertionPrefix}${font.value}`,
         })),
     }
   }

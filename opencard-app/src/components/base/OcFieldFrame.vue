@@ -50,6 +50,7 @@ defineOptions({ name: 'OcFieldFrame' })
 .oc-field-frame {
   display: flex;
   align-items: stretch;
+  column-gap: var(--oc-space-1);
   min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
@@ -95,7 +96,14 @@ defineOptions({ name: 'OcFieldFrame' })
 .oc-field-frame__suffix {
   display: inline-flex;
   flex: 0 0 auto;
-  align-items: stretch;
+  align-items: center;
+  gap: var(--oc-space-1);
+}
+
+.oc-field-frame__prefix > :deep(.oc-icon),
+.oc-field-frame__suffix > :deep(.oc-icon) {
+  position: relative;
+  inset-block-start: var(--oc-field-affix-icon-offset-y);
 }
 
 .oc-field-frame__control {

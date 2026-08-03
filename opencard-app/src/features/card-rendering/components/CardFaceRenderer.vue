@@ -13,6 +13,10 @@ import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
 import { resolveEditorAssetSrc } from '../../editor-runtime/services/editorResource'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
+import {
+    EMPTY_PROJECT_ICON_CATALOG,
+    type ProjectIconCatalog,
+} from '../../workspace/services/projectIconCatalog'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
@@ -32,12 +36,14 @@ const props = withDefaults(defineProps<{
     resourceRootPath?: string | null
     /** 当前项目允许加载的远程资源范围。 */
     remoteResourcePolicy?: ProjectRemoteResourcePolicy
+    projectIconCatalog?: ProjectIconCatalog
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
     clipToFace: false,
     resourceRootPath: null,
     remoteResourcePolicy: undefined,
+    projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
 })
 
 const cardCanvasRef = ref<HTMLElement>()
@@ -98,6 +104,7 @@ provide(cardEditorContextKey, {
         path,
         props.remoteResourcePolicy,
     ),
+    projectIconCatalog: computed(() => props.projectIconCatalog),
 })
 
 defineExpose({

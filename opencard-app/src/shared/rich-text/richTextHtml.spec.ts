@@ -43,14 +43,21 @@ describe('sanitizeRichTextHtml', () => {
       .toBe('<p><span style="font-size: 18px;">Text</span></p>')
   })
 
-  it('migrates legacy project font families to the stable CSS alias', () => {
-    expect(normalizeRichTextHtml('<p><span style="font-family: &quot;project:brand-sans&quot;">Text</span></p>'))
+  it('normalizes project font references to the stable CSS alias', () => {
+    expect(normalizeRichTextHtml('<p><span style="font-family: &quot;font:brand-sans&quot;">Text</span></p>'))
       .toBe('<p><span style="font-family: &quot;OpenCardProjectFont-brand-sans&quot;;">Text</span></p>')
   })
 
   it('preserves underline and strikethrough marks', () => {
     expect(sanitizeRichTextHtml('<p><u>Underline</u> <s>Strike</s></p>'))
       .toBe('<p><u>Underline</u> <s>Strike</s></p>')
+  })
+
+  it('preserves only valid project icon keys and canonical fallback text', () => {
+    expect(sanitizeRichTextHtml('<span data-oc-icon-series="status" data-oc-icon-key="wide" style="background:url(bad)">bad</span>'))
+      .toBe('<span data-oc-icon-series="status" data-oc-icon-key="wide">[[icon:status/wide]]</span>')
+    expect(sanitizeRichTextHtml('<span data-oc-icon-series="Bad Key" data-oc-icon-key="wide">bad</span>'))
+      .toBe('<span>bad</span>')
   })
 })
 

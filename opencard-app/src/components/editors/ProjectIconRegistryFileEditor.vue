@@ -13,8 +13,10 @@
       @update:model-value="updateRawSource" @save="save" />
 
     <ProjectIconRegistrationDialog :open="registrationDialogOpen" :series="document?.iconSeries"
-      :busy="importBusy" :error="importError" :default-directory="DEFAULT_PROJECT_ICON_DIRECTORY"
+      :busy="importBusy" :error="importError"
+      :default-directory="settingsStore.settings.value.workspace.defaultIconImportDirectory"
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
+      :resolve-import-conflict="projectStore.getProjectIconImportConflict"
       @close="closeRegistrationDialog" @submit="registerIconSet" />
   </ProjectRegistryEditorShell>
 </template>
@@ -30,6 +32,7 @@ import type {
   SessionNavigationToken,
 } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
+import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import {
   parseProjectIconRegistryText,
   PROJECT_ICON_REGISTRY_FILE_NAME,
@@ -37,7 +40,6 @@ import {
   type ProjectIconRegistryDocument,
 } from '../../features/workspace/model/projectIconRegistry'
 import {
-  DEFAULT_PROJECT_ICON_DIRECTORY,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   type ProjectIconKeyConflict,
   type ProjectIconSeries,
@@ -54,6 +56,7 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
+const settingsStore = useAppSettingsStore()
 const document = ref<ProjectIconRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
@@ -153,11 +156,11 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
       importError.value = t('projectConfig.icons.iconSetKeyExists')
       return
     }
-    const imported = await projectStore.importProjectIconFile(request.sourcePath, request.targetDirectory)
-    if (iconSeries.some(series => series.source.toLocaleLowerCase() === imported.source.toLocaleLowerCase())) {
-      importError.value = t('projectConfig.icons.alreadyRegistered')
-      return
-    }
+    const imported = await projectStore.importProjectIconFile(
+      request.sourcePath,
+      request.targetDirectory,
+      request.conflictResolution,
+    )
     iconSeries.push({
       name: request.name,
       key: request.key,

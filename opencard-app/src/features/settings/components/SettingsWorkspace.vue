@@ -196,6 +196,15 @@
               {{ field.value }}{{ field.suffix }}
             </OcText>
           </div>
+          <OcFieldInput
+            v-else-if="field.type === 'text'"
+            class="settings-workspace__control"
+            full-width
+            :mono="field.mono"
+            :value="field.value"
+            :placeholder="field.placeholder"
+            @change="emitTextSettingChange(field.key, $event)"
+          />
           <OcButton
             v-else
             class="settings-workspace__control"
@@ -217,6 +226,7 @@
 
 <script setup lang="ts">
 import OcButton from '../../../components/base/OcButton.vue'
+import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
@@ -242,6 +252,13 @@ function emitSettingChange(key: Extract<SettingsIntent, { type: 'setting.change'
 
 function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.preview' }>['key'], value: unknown): void {
   emit('intent', { type: 'setting.preview', key, value })
+}
+
+function emitTextSettingChange(
+  key: Extract<SettingsIntent, { type: 'setting.change' }>['key'],
+  event: Event,
+): void {
+  if (event.target instanceof HTMLInputElement) emitSettingChange(key, event.target.value)
 }
 
 type ThemeColorPanel = Extract<SettingsCategoryViewModel['fields'][number], { type: 'theme-color-panel' }>

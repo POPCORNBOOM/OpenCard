@@ -12,9 +12,9 @@ describe('projectFontLoader', () => {
     else Reflect.deleteProperty(document, 'fonts')
   })
 
-  it('registers export-visible font-face rules and reports per-face failures', async () => {
+  it('registers export-visible font-face rules and reports per-font failures', async () => {
     const load = vi.fn(async (font: string) => {
-      if (font.includes('700')) throw new Error('Invalid font data')
+      if (font.includes('broken')) throw new Error('Invalid font data')
       return [{}]
     })
     Object.defineProperty(document, 'fonts', {
@@ -28,24 +28,24 @@ describe('projectFontLoader', () => {
 
     const result = await syncProjectFonts({
       brand: {
-        family: 'Brand',
-        faces: [
-          { source: 'assets/Brand.woff2' },
-          { source: 'assets/Broken.woff2', weight: '700' },
-        ],
+        name: 'Brand',
+        source: 'assets/Brand.woff2',
+      },
+      broken: {
+        name: 'Broken',
+        source: 'assets/Broken.woff2',
       },
     }, source => `asset://${source}`)
 
     expect(result).toEqual({
       current: true,
-      errors: [{ fontId: 'brand', source: 'assets/Broken.woff2', message: 'Invalid font data' }],
+      errors: [{ fontId: 'broken', source: 'assets/Broken.woff2', message: 'Invalid font data' }],
     })
     const style = document.head.querySelector('style[data-opencard-project-fonts]')
     expect(style?.textContent).toContain('font-family: "OpenCardProjectFont-brand"')
     expect(style?.textContent).toContain('url("asset://assets/Brand.woff2")')
-    expect(style?.textContent).toContain('font-weight: 700')
-    expect(load).toHaveBeenCalledWith('normal normal 16px "OpenCardProjectFont-brand"')
-    expect(load).toHaveBeenCalledWith('normal 700 16px "OpenCardProjectFont-brand"')
+    expect(load).toHaveBeenCalledWith('16px "OpenCardProjectFont-brand"')
+    expect(load).toHaveBeenCalledWith('16px "OpenCardProjectFont-broken"')
   })
 
   it('atomically replaces and clears the owned project font stylesheet', async () => {
@@ -55,10 +55,10 @@ describe('projectFontLoader', () => {
     })
 
     await syncProjectFonts({
-      first: { family: 'First', faces: [{ source: 'First.woff2' }] },
+      first: { name: 'First', source: 'First.woff2' },
     }, source => `asset://${source}`)
     await syncProjectFonts({
-      second: { family: 'Second', faces: [{ source: 'Second.woff2' }] },
+      second: { name: 'Second', source: 'Second.woff2' },
     }, source => `asset://${source}`)
 
     const styles = document.head.querySelectorAll('style[data-opencard-project-fonts]')

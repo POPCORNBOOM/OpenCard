@@ -58,6 +58,8 @@ export function transformRichTextHtml(
         }
         return
       }
+      if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-series')
+        && node.hasAttribute('data-oc-icon-key')) return
     }
 
     if (node instanceof Text) {
@@ -103,10 +105,14 @@ export function sanitizeRichTextHtml(source: string): string {
       property,
       (element as HTMLElement).style.getPropertyValue(property),
     ]))
-    styleValues['font-family'] = normalizeLegacyProjectFontFamily(styleValues['font-family'])
+    styleValues['font-family'] = normalizeProjectFontFamilyStyle(styleValues['font-family'])
     const bindingExpression = element.tagName === 'SPAN'
       ? sanitizeBindingExpression(element.getAttribute('data-oc-binding'))
       : null
+    const iconSeries = element.tagName === 'SPAN'
+      ? sanitizeProjectIconKey(element.getAttribute('data-oc-icon-series')) : null
+    const iconKey = element.tagName === 'SPAN'
+      ? sanitizeProjectIconKey(element.getAttribute('data-oc-icon-key')) : null
 
     for (const attribute of Array.from(element.attributes)) {
       element.removeAttribute(attribute.name)
@@ -114,25 +120,32 @@ export function sanitizeRichTextHtml(source: string): string {
 
     for (const property of allowedStyleProperties) {
       const value = styleValues[property]
-      if (value) (element as HTMLElement).style.setProperty(property, value)
+      if (value && !(iconSeries !== null && iconKey !== null)) {
+        (element as HTMLElement).style.setProperty(property, value)
+      }
     }
     if (bindingExpression !== null) {
       element.setAttribute('data-oc-binding', bindingExpression)
+    }
+    if (iconSeries !== null && iconKey !== null) {
+      element.setAttribute('data-oc-icon-series', iconSeries)
+      element.setAttribute('data-oc-icon-key', iconKey)
+      element.textContent = `[[icon:${iconSeries}/${iconKey}]]`
     }
   }
 
   return documentNode.body.innerHTML
 }
 
-function normalizeLegacyProjectFontFamily(value: string): string {
+function normalizeProjectFontFamilyStyle(value: string): string {
   const trimmed = value.trim()
   const unquoted = trimmed.length >= 2
     && ((trimmed.startsWith('"') && trimmed.endsWith('"'))
       || (trimmed.startsWith("'") && trimmed.endsWith("'")))
     ? trimmed.slice(1, -1)
     : trimmed
-  if (!unquoted.startsWith('project:')) return value
-  const id = unquoted.slice('project:'.length)
+  if (!unquoted.startsWith('font:')) return value
+  const id = unquoted.slice('font:'.length)
   return id ? JSON.stringify(`OpenCardProjectFont-${id}`) : value
 }
 
@@ -141,6 +154,11 @@ function sanitizeBindingExpression(value: string | null): string | null {
   const expression = value.trim()
   if (/[{}<>\u0000-\u001f\u007f]/.test(expression)) return null
   return expression
+}
+
+function sanitizeProjectIconKey(value: string | null): string | null {
+  const key = value?.trim() ?? ''
+  return /^[a-z0-9][a-z0-9._-]*$/.test(key) ? key : null
 }
 
 export function normalizeRichTextHtml(source: string): string {

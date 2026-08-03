@@ -30,15 +30,11 @@ function createProjectFontCss(
   fonts: ProjectFontRegistry | null | undefined,
   resolveAssetSrc: (source: string) => string,
 ): string {
-  return Object.entries(fonts ?? {}).flatMap(([id, definition]) =>
-    definition.faces.map(face => {
-      const family = JSON.stringify(createProjectFontCssFamily(id))
-      const source = JSON.stringify(resolveAssetSrc(face.source))
-      const weight = face.weight ?? 'normal'
-      const style = face.style ?? 'normal'
-      return `@font-face { font-family: ${family}; src: url(${source}); font-weight: ${weight}; font-style: ${style}; }`
-    })
-  ).join('\n')
+  return Object.entries(fonts ?? {}).map(([id, definition]) => {
+    const family = JSON.stringify(createProjectFontCssFamily(id))
+    const source = JSON.stringify(resolveAssetSrc(definition.source))
+    return `@font-face { font-family: ${family}; src: url(${source}); font-weight: normal; font-style: normal; }`
+  }).join('\n')
 }
 
 function replaceProjectFontStyle(cssText: string): void {
@@ -67,23 +63,21 @@ async function loadFonts(
   const errors: ProjectFontLoadError[] = []
 
   for (const [id, definition] of Object.entries(fonts ?? {})) {
-    for (const faceDefinition of definition.faces) {
-      try {
-        const loadedFaces = await document.fonts.load(
-          `${faceDefinition.style ?? 'normal'} ${faceDefinition.weight ?? 'normal'} 16px ${JSON.stringify(createProjectFontCssFamily(id))}`,
-        )
-        if (currentGeneration !== generation) return { current: false, errors: [] }
-        if (loadedFaces.length === 0) throw new Error('Font face did not load')
-      } catch (error) {
-        if (currentGeneration !== generation) return { current: false, errors: [] }
-        const message = error instanceof Error ? error.message : String(error)
-        errors.push({ fontId: id, source: faceDefinition.source, message })
-        reportAppError('OC-E3005', {
-          id,
-          source: faceDefinition.source,
-          error,
-        })
-      }
+    try {
+      const loadedFaces = await document.fonts.load(
+        `16px ${JSON.stringify(createProjectFontCssFamily(id))}`,
+      )
+      if (currentGeneration !== generation) return { current: false, errors: [] }
+      if (loadedFaces.length === 0) throw new Error('Font face did not load')
+    } catch (error) {
+      if (currentGeneration !== generation) return { current: false, errors: [] }
+      const message = error instanceof Error ? error.message : String(error)
+      errors.push({ fontId: id, source: definition.source, message })
+      reportAppError('OC-E3005', {
+        id,
+        source: definition.source,
+        error,
+      })
     }
   }
   return { current: currentGeneration === generation, errors }

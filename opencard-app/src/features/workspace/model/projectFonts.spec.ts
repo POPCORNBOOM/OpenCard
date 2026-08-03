@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildFontCatalog,
-  createProjectFontRegistration,
   fromCssFontFamily,
+  normalizeProjectFontDirectory,
   toCssFontFamily,
 } from './projectFonts'
 
@@ -10,35 +10,28 @@ describe('project font catalog', () => {
   it('uses stable project references and CSS-safe family names', () => {
     const catalog = buildFontCatalog({
       'brand-sans': {
-        family: 'Brand Sans',
-        faces: [{ source: 'assets/fonts/BrandSans.woff2' }],
+        name: 'Brand Sans',
+        source: 'assets/fonts/BrandSans.woff2',
       },
     })
 
     expect(catalog[0]).toMatchObject({
-      value: 'project:brand-sans',
+      value: 'font:brand-sans',
       label: 'Brand Sans',
       source: 'project',
     })
-    expect(toCssFontFamily('project:brand-sans')).toBe('"OpenCardProjectFont-brand-sans"')
-    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans"')).toBe('project:brand-sans')
+    expect(toCssFontFamily('font:brand-sans')).toBe('"OpenCardProjectFont-brand-sans"')
+    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans"')).toBe('font:brand-sans')
     expect(toCssFontFamily('Arial')).toBe('Arial')
+    expect(toCssFontFamily('font:brand-sans; Microsoft YaHei; sans-serif'))
+      .toBe('"OpenCardProjectFont-brand-sans", Microsoft YaHei, sans-serif')
+    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif'))
+      .toBe('font:brand-sans; Microsoft YaHei; sans-serif')
   })
 
-  it('infers editable registration metadata from imported file names', () => {
-    expect(createProjectFontRegistration('assets/fonts/BrandSans-SemiBoldItalic.woff2', {})).toEqual({
-      id: 'brand-sans',
-      definition: {
-        family: 'Brand Sans',
-        faces: [{
-          source: 'assets/fonts/BrandSans-SemiBoldItalic.woff2',
-          weight: '600',
-          style: 'italic',
-        }],
-      },
-    })
-    expect(createProjectFontRegistration('assets/fonts/思源黑体.ttf', {
-      font: { family: 'Existing', faces: [{ source: 'existing.ttf' }] },
-    }).id).toBe('font-2')
+  it('normalizes only safe project-relative font directories', () => {
+    expect(normalizeProjectFontDirectory(' resources\\fonts/ ')).toBe('resources/fonts')
+    expect(normalizeProjectFontDirectory('../fonts')).toBeNull()
+    expect(normalizeProjectFontDirectory('D:/fonts')).toBeNull()
   })
 })

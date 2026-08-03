@@ -284,6 +284,41 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('plans numbered import copies and can use the existing project file', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    mocks.fileExists.mockImplementation(async (path: string) => (
+      path.endsWith('/Brand.woff2') || /\/Brand \((?:[2-9]|10)\)\.woff2$/.test(path)
+    ))
+
+    await expect(store.getProjectFontImportConflict(
+      'D:/Downloads/Brand.woff2',
+      'assets/fonts',
+    )).resolves.toEqual({
+      existingSource: 'assets/fonts/Brand.woff2',
+      availableCopySource: 'assets/fonts/Brand (11).woff2',
+    })
+
+    await expect(store.importProjectFontFile(
+      'D:/Downloads/Brand.woff2',
+      'assets/fonts',
+      'use-existing',
+    )).resolves.toEqual({ source: 'assets/fonts/Brand.woff2', copied: false })
+    expect(mocks.copyFile).not.toHaveBeenCalled()
+
+    await expect(store.importProjectFontFile(
+      'D:/Downloads/Brand.woff2',
+      'assets/fonts',
+      'rename-copy',
+    )).resolves.toEqual({ source: 'assets/fonts/Brand (11).woff2', copied: true })
+    expect(mocks.copyFile).toHaveBeenCalledWith(
+      'D:/Downloads/Brand.woff2',
+      'D:/project/assets/fonts/Brand (11).woff2',
+    )
+
+    await store.setProjectPath('')
+  })
+
   it('refreshes the workspace index after saving a new file into the project', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')

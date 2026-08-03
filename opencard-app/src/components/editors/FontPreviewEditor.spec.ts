@@ -66,6 +66,7 @@ describe('FontPreviewEditor', () => {
     const input = wrapper.get('textarea')
     expect(input.attributes('style')).toContain('OpenCardFontPreview-')
     expect((input.element as HTMLTextAreaElement).value).toBe('fontPreview.sample')
+    expect(wrapper.find('.font-preview-editor__reference').exists()).toBe(false)
     await input.setValue('自定义试字 OpenCard')
     expect((input.element as HTMLTextAreaElement).value).toBe('自定义试字 OpenCard')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()

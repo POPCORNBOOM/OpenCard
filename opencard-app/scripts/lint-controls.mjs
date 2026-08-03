@@ -14,6 +14,7 @@ const visibleTitleComponents = new Set([
   'AdditionalFieldCreateDialog',
   'OcBar',
   'OcCard',
+  'OcDialog',
   'ShellWorkspaceFrame',
 ])
 const stateBoundaryRoots = [

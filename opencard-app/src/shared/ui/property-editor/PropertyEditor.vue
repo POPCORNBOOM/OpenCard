@@ -60,6 +60,7 @@
               </div>
               <div class="property-editor__value">
                 <PropertyFieldRenderer
+                  :ref="component => setFieldRendererRef(fieldIdentity(category.inputKey, entry.key), component)"
                   class="entry-control"
                   :definition="entry.definition"
                   :value="entry.value"
@@ -155,7 +156,14 @@ const ADD_PROPERTY_ACTION_KEY = 'add-property'
 const ADD_PROPERTY_FIELD_ACTION_PREFIX = 'add-property:'
 const propertyEditorRoot = ref<HTMLElement | null>(null)
 const revealedFieldIdentity = ref<string | null>(null)
+const fieldRendererRefs = new Map<string, { activate: () => boolean | Promise<boolean> }>()
 let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
+
+function setFieldRendererRef(identity: string, component: unknown): void {
+  const handle = component as { activate?: () => boolean | Promise<boolean> } | null
+  if (handle?.activate) fieldRendererRefs.set(identity, { activate: handle.activate })
+  else fieldRendererRefs.delete(identity)
+}
 
 async function copyFieldKey(fieldKey: string): Promise<void> {
   try {
@@ -334,6 +342,15 @@ function focusFieldControl(row: HTMLElement, characterOffset?: number): void {
   }
 }
 
+function highlightField(inputKey: string, fieldKey: string): void {
+  revealedFieldIdentity.value = fieldIdentity(inputKey, fieldKey)
+  if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
+  revealHighlightTimer = setTimeout(() => {
+    revealedFieldIdentity.value = null
+    revealHighlightTimer = null
+  }, 1600)
+}
+
 async function revealField(
   inputKey: string,
   fieldKey: string,
@@ -345,16 +362,23 @@ async function revealField(
 
   row.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   focusFieldControl(row, characterOffset)
-  revealedFieldIdentity.value = fieldIdentity(inputKey, fieldKey)
-  if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
-  revealHighlightTimer = setTimeout(() => {
-    revealedFieldIdentity.value = null
-    revealHighlightTimer = null
-  }, 1600)
+  highlightField(inputKey, fieldKey)
   return true
 }
 
-defineExpose({ revealField })
+async function activateField(inputKey: string, fieldKey: string): Promise<boolean> {
+  await nextTick()
+  const row = findFieldRow(inputKey, fieldKey)
+  if (!row) return false
+
+  row.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  highlightField(inputKey, fieldKey)
+  const activated = await fieldRendererRefs.get(fieldIdentity(inputKey, fieldKey))?.activate()
+  if (!activated) focusFieldControl(row)
+  return true
+}
+
+defineExpose({ revealField, activateField })
 
 onBeforeUnmount(() => {
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)

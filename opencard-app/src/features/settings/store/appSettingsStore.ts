@@ -116,6 +116,10 @@ export function createAppSettingsStore(
       candidate.workspace.showSelectionPositionOnMove = value as boolean
     } else if (key === 'workspace.showSelectionSizeOnResize') {
       candidate.workspace.showSelectionSizeOnResize = value as boolean
+    } else if (key === 'workspace.defaultFontImportDirectory') {
+      candidate.workspace.defaultFontImportDirectory = String(value)
+    } else if (key === 'workspace.defaultIconImportDirectory') {
+      candidate.workspace.defaultIconImportDirectory = String(value)
     }
   }
 

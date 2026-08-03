@@ -35,8 +35,20 @@
     <label v-if="copyRequired" class="project-icon-registration-dialog__field">
       <span>{{ t('projectConfig.icons.copyDirectory') }}</span>
       <OcFieldInput full-width mono :value="copyDirectory" :aria-invalid="!normalizedCopyDirectory"
-        @input="updateText('copyDirectory', $event)" />
+        @input="updateText('copyDirectory', $event)" @blur="checkImportConflict" />
     </label>
+
+    <div v-if="importConflict" class="project-icon-registration-dialog__conflict" role="group"
+      :aria-label="t('projectConfig.importConflict.title')">
+      <OcText as="p" size="sm">
+        {{ t('projectConfig.importConflict.message', { path: importConflict.existingSource }) }}
+      </OcText>
+      <OcOptionGroup :model-value="conflictResolution ?? ''" :options="conflictOptions"
+        fill :columns="2" @update:model-value="selectConflictResolution" />
+      <OcText v-if="conflictResolution" as="p" tone="muted" size="sm" mono>
+        {{ t('projectConfig.importConflict.selectedPath', { path: selectedConflictPath }) }}
+      </OcText>
+    </div>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">
       {{ validationMessage }}
@@ -58,6 +70,7 @@ export type ProjectIconRegistrationRequest = {
   key: string
   sourcePath: string
   targetDirectory?: string
+  conflictResolution?: ProjectAssetImportResolution
 }
 </script>
 
@@ -70,12 +83,17 @@ import {
   projectIconKeyPattern,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
+import type {
+  ProjectAssetImportConflict,
+  ProjectAssetImportResolution,
+} from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import OcDialog from '../standard/OcDialog.vue'
+import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -85,6 +103,7 @@ const props = withDefaults(defineProps<{
   busy?: boolean
   error?: string
   getRelativeProjectPath: (path: string) => string | null
+  resolveImportConflict: (sourcePath: string, targetDirectory: string) => Promise<ProjectAssetImportConflict | null>
 }>(), {
   series: () => [],
   defaultOpenPath: undefined,
@@ -103,6 +122,11 @@ const copyDirectory = ref('')
 const iconSetName = ref('')
 const iconSetKey = ref('')
 const keyEdited = ref(false)
+const importConflict = ref<ProjectAssetImportConflict | null>(null)
+const conflictResolution = ref<ProjectAssetImportResolution | null>(null)
+const conflictCheckPending = ref(false)
+const conflictCheckFailed = ref(false)
+let conflictCheckVersion = 0
 
 const normalizedName = computed(() => iconSetName.value.trim())
 const validName = computed(() => normalizedName.value.length > 0)
@@ -111,16 +135,32 @@ const uniqueKey = computed(() => !props.series.some(series => (
   series.key.toLocaleLowerCase() === iconSetKey.value.toLocaleLowerCase()
 )))
 const normalizedCopyDirectory = computed(() => normalizeProjectIconDirectory(copyDirectory.value))
-const sourceAlreadyRegistered = computed(() => Boolean(projectSource.value && props.series.some(series => (
-  series.source.toLocaleLowerCase() === projectSource.value?.toLocaleLowerCase()
-))))
+const conflictOptions = computed<readonly OcOption[]>(() => [
+  {
+    value: 'rename-copy',
+    label: t('projectConfig.importConflict.renameCopy', {
+      name: fileName(importConflict.value?.availableCopySource ?? ''),
+    }),
+  },
+  {
+    value: 'use-existing',
+    label: t('projectConfig.importConflict.useExisting', {
+      name: fileName(importConflict.value?.existingSource ?? ''),
+    }),
+  },
+])
+const selectedConflictPath = computed(() => conflictResolution.value === 'use-existing'
+  ? importConflict.value?.existingSource ?? ''
+  : importConflict.value?.availableCopySource ?? '')
 const canSubmit = computed(() => Boolean(
   selectedPath.value
   && validName.value
   && validKey.value
   && uniqueKey.value
-  && !sourceAlreadyRegistered.value
-  && (!copyRequired.value || normalizedCopyDirectory.value),
+  && (!copyRequired.value || normalizedCopyDirectory.value)
+  && !conflictCheckPending.value
+  && !conflictCheckFailed.value
+  && (!importConflict.value || conflictResolution.value)
 ))
 const validationMessage = computed(() => {
   if (!validName.value) return t('projectConfig.icons.invalidIconSetName')
@@ -128,7 +168,7 @@ const validationMessage = computed(() => {
   if (!uniqueKey.value) return t('projectConfig.icons.iconSetKeyExists')
   if (!selectedPath.value) return ''
   if (copyRequired.value && !normalizedCopyDirectory.value) return t('projectConfig.icons.invalidCopyDirectory')
-  if (sourceAlreadyRegistered.value) return t('projectConfig.icons.alreadyRegistered')
+  if (conflictCheckFailed.value) return t('projectConfig.importConflict.checkFailed')
   return ''
 })
 
@@ -141,6 +181,7 @@ watch(() => props.open, open => {
   iconSetName.value = t('projectConfig.icons.defaultIconSetName')
   iconSetKey.value = createAvailableProjectIconSeriesKey(iconSetName.value, props.series)
   keyEdited.value = false
+  resetImportConflict()
 }, { immediate: true })
 
 async function pickIconFile(): Promise<void> {
@@ -157,6 +198,7 @@ async function pickIconFile(): Promise<void> {
   const derivedName = fileName(path).replace(/\.(?:png|jpe?g|webp)$/i, '')
   iconSetName.value = derivedName
   if (!keyEdited.value) iconSetKey.value = createAvailableProjectIconSeriesKey(derivedName, props.series)
+  await checkImportConflict()
 }
 
 function fileName(path: string): string {
@@ -165,7 +207,10 @@ function fileName(path: string): string {
 }
 function updateText(field: 'copyDirectory' | 'name' | 'key', event: Event): void {
   if (!(event.target instanceof HTMLInputElement)) return
-  if (field === 'copyDirectory') copyDirectory.value = event.target.value
+  if (field === 'copyDirectory') {
+    copyDirectory.value = event.target.value
+    resetImportConflict(Boolean(selectedPath.value && copyRequired.value))
+  }
   else if (field === 'name') {
     iconSetName.value = event.target.value
     if (!keyEdited.value) iconSetKey.value = createAvailableProjectIconSeriesKey(iconSetName.value, props.series)
@@ -186,7 +231,44 @@ function submit(): void {
     ...(copyRequired.value && normalizedCopyDirectory.value
       ? { targetDirectory: normalizedCopyDirectory.value }
       : {}),
+    ...(conflictResolution.value ? { conflictResolution: conflictResolution.value } : {}),
   })
+}
+
+function resetImportConflict(pending = false): void {
+  conflictCheckVersion += 1
+  importConflict.value = null
+  conflictResolution.value = null
+  conflictCheckPending.value = pending
+  conflictCheckFailed.value = false
+}
+
+async function checkImportConflict(): Promise<void> {
+  const targetDirectory = normalizedCopyDirectory.value
+  if (!selectedPath.value || !copyRequired.value || !targetDirectory) {
+    resetImportConflict()
+    return
+  }
+  const version = ++conflictCheckVersion
+  conflictCheckPending.value = true
+  conflictCheckFailed.value = false
+  try {
+    const conflict = await props.resolveImportConflict(selectedPath.value, targetDirectory)
+    if (version !== conflictCheckVersion) return
+    importConflict.value = conflict
+    conflictResolution.value = null
+  } catch {
+    if (version !== conflictCheckVersion) return
+    importConflict.value = null
+    conflictResolution.value = null
+    conflictCheckFailed.value = true
+  } finally {
+    if (version === conflictCheckVersion) conflictCheckPending.value = false
+  }
+}
+
+function selectConflictResolution(value: string): void {
+  if (value === 'rename-copy' || value === 'use-existing') conflictResolution.value = value
 }
 </script>
 
@@ -208,4 +290,6 @@ function submit(): void {
 
 .project-icon-registration-dialog__file-control > :first-child { min-width: 0; flex: 1; }
 .project-icon-registration-dialog__mode { padding-block: var(--oc-space-2); border-block: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-icon-registration-dialog__conflict { display: grid; gap: var(--oc-space-2); padding: var(--oc-space-3); border-radius: var(--oc-radius-sm); background: var(--oc-bg-warning-subtle); }
+.project-icon-registration-dialog__conflict p { margin: 0; overflow-wrap: anywhere; }
 </style>

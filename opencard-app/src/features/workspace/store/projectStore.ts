@@ -74,6 +74,11 @@ export type ImportedProjectFontFile = {
   copied: boolean
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
+export type ProjectAssetImportConflict = {
+  existingSource: string
+  availableCopySource: string
+}
+export type ProjectAssetImportResolution = 'rename-copy' | 'use-existing'
 
 interface FileChangedPayload {
   kind: string
@@ -624,6 +629,7 @@ async function importProjectAssetFile(
   targetDirectoryPath: string,
   supportedExtensions: ReadonlySet<string>,
   unsupportedMessage: string,
+  conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectFontFile> {
   const normalizedSourcePath = normalizePath(sourcePath)
   const projectRoot = ensureProjectOpen()
@@ -641,17 +647,17 @@ async function importProjectAssetFile(
   }
 
   const targetDirectory = resolveProjectPath(targetDirectoryPath)
-  await fileSystemService.createDirectory(targetDirectory)
-  const dotIndex = fileName.lastIndexOf('.')
-  const stem = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
-  const suffix = dotIndex > 0 ? fileName.slice(dotIndex) : ''
   let candidateName = fileName
-  let candidateIndex = 2
-  while (await fileSystemService.fileExists(`${targetDirectory}/${candidateName}`)) {
-    candidateName = `${stem} ${candidateIndex}${suffix}`
-    candidateIndex += 1
+  const targetExists = await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)
+  if (targetExists && conflictResolution === 'use-existing') {
+    return { source: `${targetDirectoryPath}/${fileName}`, copied: false }
   }
+  if (!targetExists && conflictResolution === 'use-existing') {
+    throw new Error('The selected existing project asset is no longer available')
+  }
+  if (targetExists) candidateName = await findAvailableProjectAssetName(targetDirectory, fileName)
 
+  await fileSystemService.createDirectory(targetDirectory)
   await fileSystemService.copyFile(normalizedSourcePath, `${targetDirectory}/${candidateName}`)
   await refreshIndexedEntries()
   return {
@@ -660,13 +666,62 @@ async function importProjectAssetFile(
   }
 }
 
+async function findAvailableProjectAssetName(targetDirectory: string, fileName: string): Promise<string> {
+  const dotIndex = fileName.lastIndexOf('.')
+  const stem = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+  const suffix = dotIndex > 0 ? fileName.slice(dotIndex) : ''
+  let candidateIndex = 2
+  while (await fileSystemService.fileExists(`${targetDirectory}/${stem} (${candidateIndex})${suffix}`)) {
+    candidateIndex += 1
+  }
+  return `${stem} (${candidateIndex})${suffix}`
+}
+
+async function getProjectAssetImportConflict(
+  sourcePath: string,
+  targetDirectoryPath: string,
+  supportedExtensions: ReadonlySet<string>,
+  unsupportedMessage: string,
+): Promise<ProjectAssetImportConflict | null> {
+  const normalizedSourcePath = normalizePath(sourcePath)
+  const projectRoot = ensureProjectOpen()
+  const fileName = getPathBasename(normalizedSourcePath)
+  const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
+  if (!supportedExtensions.has(extension)) throw new Error(unsupportedMessage)
+  if (pathIdentity(normalizedSourcePath).startsWith(`${pathIdentity(projectRoot)}/`)) return null
+
+  const targetDirectory = resolveProjectPath(targetDirectoryPath)
+  if (!await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)) return null
+  const availableName = await findAvailableProjectAssetName(targetDirectory, fileName)
+  return {
+    existingSource: `${targetDirectoryPath}/${fileName}`,
+    availableCopySource: `${targetDirectoryPath}/${availableName}`,
+  }
+}
+
 async function importProjectFontFile(
   sourcePath: string,
   targetDirectoryPath = DEFAULT_PROJECT_FONT_DIRECTORY,
+  conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectFontFile> {
   const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
   if (!targetDirectory) throw new Error('Invalid project font directory')
   return await importProjectAssetFile(
+    sourcePath,
+    targetDirectory,
+    PROJECT_FONT_EXTENSIONS,
+    'Unsupported project font file',
+    conflictResolution,
+  )
+}
+
+async function getProjectFontImportConflict(
+  sourcePath: string,
+  targetDirectoryPath = DEFAULT_PROJECT_FONT_DIRECTORY,
+): Promise<ProjectAssetImportConflict | null> {
+  const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
+  if (!targetDirectory) throw new Error('Invalid project font directory')
+  return await getProjectAssetImportConflict(
     sourcePath,
     targetDirectory,
     PROJECT_FONT_EXTENSIONS,
@@ -677,10 +732,26 @@ async function importProjectFontFile(
 async function importProjectIconFile(
   sourcePath: string,
   targetDirectoryPath = DEFAULT_PROJECT_ICON_DIRECTORY,
+  conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectIconFile> {
   const targetDirectory = normalizeProjectIconDirectory(targetDirectoryPath)
   if (!targetDirectory) throw new Error('Invalid project icon directory')
   return await importProjectAssetFile(
+    sourcePath,
+    targetDirectory,
+    PROJECT_ICON_EXTENSIONS,
+    'Unsupported project icon series image',
+    conflictResolution,
+  )
+}
+
+async function getProjectIconImportConflict(
+  sourcePath: string,
+  targetDirectoryPath = DEFAULT_PROJECT_ICON_DIRECTORY,
+): Promise<ProjectAssetImportConflict | null> {
+  const targetDirectory = normalizeProjectIconDirectory(targetDirectoryPath)
+  if (!targetDirectory) throw new Error('Invalid project icon directory')
+  return await getProjectAssetImportConflict(
     sourcePath,
     targetDirectory,
     PROJECT_ICON_EXTENSIONS,
@@ -1035,7 +1106,9 @@ export function useProjectStore() {
     createFolder,
     createFile,
     importProjectFontFile,
+    getProjectFontImportConflict,
     importProjectIconFile,
+    getProjectIconImportConflict,
     createEntryWithAvailableName,
     trashFile,
     revealEntryInFileManager,

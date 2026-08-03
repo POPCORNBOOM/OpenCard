@@ -10,16 +10,14 @@
       <span v-else class="rich-text-string-field__empty">-</span>
     </div>
 
-    <Teleport to="body">
-      <div v-if="open" class="rich-text-string-dialog-backdrop" @pointerdown.self="cancelEditor">
-        <div class="rich-text-string-popover" role="dialog" aria-modal="true" aria-label="富文本编辑器"
-          @keydown.esc.stop="cancelEditor">
-          <header class="rich-text-string-popover__header">
-            <span>{{ definition.title }}</span>
-          </header>
+  <OcDialog class="rich-text-string-popover" :open="open" :title="definition.title" size="lg"
+      :padded="false" :scrollable="false" height-mode="fixed" height="workspace"
+      close-on-backdrop @request-close="cancelEditor">
           <div class="rich-text-string-popover__editor">
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
+              :project-icon-completion="definition.projectIcon?.provider"
+              :project-icon-catalog="definition.projectIcon?.catalog"
               :font-options="definition.fontOptions"
               :base-style="definition.richTextBaseStyle"
               @update:model-value="draftValue = $event" />
@@ -29,7 +27,8 @@
               aria-label="HTML 源码"
               @input="handleSourceInput" />
           </div>
-          <footer class="rich-text-string-popover__footer">
+      <template #footer>
+          <div class="rich-text-string-popover__footer-content">
             <OcOptionGroup :model-value="editorMode" :options="editorModeOptions"
               size="md" icon-only appearance="sliding-outline" aria-label="编辑视图"
               @update:model-value="setEditorMode" />
@@ -39,10 +38,9 @@
               <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
                 data-tooltip="保存" aria-label="保存富文本编辑" @click="saveEditor" />
             </span>
-          </footer>
-        </div>
-      </div>
-    </Teleport>
+          </div>
+      </template>
+    </OcDialog>
   </div>
 </template>
 
@@ -50,9 +48,12 @@
 import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
 import OcButton from '../../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
+import OcDialog from '../../../../components/standard/OcDialog.vue'
 import OcOptionGroup, { type OcOption } from '../../../../components/standard/OcOptionGroup.vue'
 import { formatRichTextHtmlSource, normalizeRichTextHtml } from '../../../rich-text/richTextHtml'
 import OcRichTextEditor from '../../rich-text/OcRichTextEditor.vue'
+import { renderProjectIconsInRichText } from '../../../../features/workspace/services/projectIconCatalog'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
@@ -72,7 +73,10 @@ const editorMode = ref<'rich' | 'source'>('rich')
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
 const draftValue = ref('')
 const sourceValue = ref('')
-const safeStringValue = computed(() => normalizeRichTextHtml(stringValue.value))
+const safeStringValue = computed(() => renderProjectIconsInRichText(
+  normalizeRichTextHtml(stringValue.value),
+  props.definition.projectIcon?.catalog ?? EMPTY_PROJECT_ICON_CATALOG,
+))
 const editorModeOptions: readonly OcOption[] = [
   { value: 'rich', label: '富文本', icon: 'format.text-variant-outline' },
   { value: 'source', label: 'HTML 源码', icon: 'format.xml' },
@@ -126,9 +130,16 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
   anchor.value = element instanceof HTMLElement ? element : null
 }
 
+defineExpose({ activate: openEditor })
+
 </script>
 
 <style scoped>
+.rich-text-string-field__content :deep(.project-inline-icon) {
+  display: inline-block;
+  background-repeat: no-repeat;
+  vertical-align: text-bottom;
+}
 .rich-text-string-field {
   width: 100%;
   min-width: 0;
@@ -182,42 +193,7 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
 }
 </style>
 
-<style>
-.rich-text-string-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2400;
-  display: grid;
-  place-items: center;
-  padding: 8px;
-  background: rgb(0 0 0 / 16%);
-}
-
-.rich-text-string-popover {
-  width: min(720px, calc(100vw - 16px));
-  height: min(400px, calc(100vh - 16px));
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
-  color: var(--oc-fg-default);
-  box-shadow: var(--oc-shadow-lg);
-}
-
-.rich-text-string-popover__header {
-  display: flex;
-  min-height: var(--oc-size-lg);
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  padding-inline: var(--oc-space-4);
-  border-bottom: 1px solid var(--oc-border-default);
-  font-size: var(--oc-text-sm);
-  font-weight: 600;
-}
-
+<style scoped>
 .rich-text-string-popover__editor {
   min-height: 0;
   flex: 1 1 auto;
@@ -234,16 +210,12 @@ function setAnchor(element: Element | ComponentPublicInstance | null): void {
   line-height: 1.55;
 }
 
-.rich-text-string-popover__footer {
+.rich-text-string-popover__footer-content {
   display: flex;
-  min-height: var(--oc-size-md);
-  flex: 0 0 auto;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: var(--oc-space-1);
-  padding: var(--oc-space-1) var(--oc-space-2);
-  border-top: 1px solid var(--oc-border-default);
-  background: var(--oc-bg-raised);
 }
 
 .rich-text-string-popover__actions {

@@ -1,17 +1,12 @@
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="feedback-history__backdrop">
-      <section
-        class="feedback-history"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-        @keydown.esc.prevent="close"
-      >
-        <header class="feedback-history__header">
+  <OcDialog class="feedback-history" :open="open" :title="t('app.feedback.title')"
+    :description="t('app.feedback.history.description')" size="xl" :padded="false"
+    :scrollable="false" height-mode="fixed" height="lg" @request-close="close">
+    <template #header="{ titleId, descriptionId }">
+        <div class="feedback-history__header-content">
           <div>
             <h2 :id="titleId">{{ t('app.feedback.title') }}</h2>
-            <p>{{ t('app.feedback.history.description') }}</p>
+            <p :id="descriptionId">{{ t('app.feedback.history.description') }}</p>
           </div>
           <FeedbackPageTabs
             :active-page="activePage"
@@ -23,7 +18,8 @@
             :aria-label="t('app.feedback.actions.close')"
             @click="close"
           />
-        </header>
+        </div>
+    </template>
 
         <div v-if="loading" class="feedback-history__empty" role="status">
           {{ t('app.feedback.history.loading') }}
@@ -117,15 +113,14 @@
             </footer>
           </article>
         </div>
-      </section>
-    </div>
-  </Teleport>
+  </OcDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
 import type { FeedbackPage } from '../model/feedback'
 import { FeedbackServiceError, getFeedbackStatuses } from '../services/feedbackService'
 import {
@@ -144,7 +139,6 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{ close: []; pageChange: [page: FeedbackPage] }>()
 const { locale, t } = useI18n()
-const titleId = `feedback-history-title-${Math.random().toString(36).slice(2)}`
 const records = ref<FeedbackReceiptRecord[]>([])
 const selectedReportId = ref<string | null>(null)
 const loading = ref(false)
@@ -248,57 +242,34 @@ function formatDate(value: string): string {
 </script>
 
 <style scoped>
-.feedback-history__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: var(--oc-space-6);
-  background: color-mix(in srgb, var(--oc-bg-base) 68%, transparent);
-}
-
-.feedback-history {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  width: min(860px, 100%);
-  height: min(720px, calc(100vh - 48px));
-  overflow: hidden;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-lg);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
-}
-
-.feedback-history__header {
+.feedback-history__header-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
-  border-bottom: 1px solid var(--oc-border-muted);
 }
-.feedback-history__header > :last-child { justify-self: end; }
+.feedback-history__header-content > :last-child { justify-self: end; }
 
-.feedback-history__header h2,
-.feedback-history__header p,
+.feedback-history__header-content h2,
+.feedback-history__header-content p,
 .feedback-history__detail h3,
 .feedback-history__response h4,
 .feedback-history__response p {
   margin: 0;
 }
 
-.feedback-history__header h2 { font-size: var(--oc-text-lg); }
-.feedback-history__header p,
+.feedback-history__header-content h2 { font-size: var(--oc-text-lg); }
+.feedback-history__header-content p,
 .feedback-history__muted { color: var(--oc-fg-muted); }
-.feedback-history__header p { margin-top: var(--oc-space-1); }
+.feedback-history__header-content p { margin-top: var(--oc-space-1); }
 
 .feedback-history__body {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr);
   min-height: 0;
+  flex: 1 1 auto;
+  width: 100%;
 }
 
 .feedback-history__body nav {
@@ -429,6 +400,7 @@ function formatDate(value: string): string {
 .feedback-history__empty {
   display: grid;
   min-height: 0;
+  flex: 1 1 auto;
   place-content: center;
   gap: var(--oc-space-2);
   padding: var(--oc-space-6);
@@ -437,8 +409,8 @@ function formatDate(value: string): string {
 }
 
 @media (max-width: 700px) {
-  .feedback-history__header { grid-template-columns: 1fr auto; }
-  .feedback-history__header > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .feedback-history__header-content { grid-template-columns: 1fr auto; }
+  .feedback-history__header-content > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .feedback-history__body { grid-template-columns: 1fr; }
   .feedback-history__body nav { max-height: 180px; border-right: 0; border-bottom: 1px solid var(--oc-border-muted); }
 }

@@ -15,6 +15,8 @@ export interface OcTreeItem {
   label: string
   icon?: IconToken
   iconTone?: IconTone
+  thumbnailStyle?: Readonly<Record<string, string>>
+  thumbnailLabel?: string
   disabled?: boolean
   disabledReason?: string
   renamable?: boolean

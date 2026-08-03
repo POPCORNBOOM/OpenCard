@@ -1,0 +1,49 @@
+<template>
+  <NodeViewWrapper as="span" class="project-icon-node"
+    :class="{ 'is-selected': selected, 'is-missing': !entry }"
+    contenteditable="false" tabindex="-1" data-tooltip="点击选中项目图标"
+    aria-label="点击选中项目图标" @mousedown.stop @click="selectIconNode">
+    <span v-if="entry" class="project-icon-node__image" :style="iconStyle" role="img"
+      :aria-label="entry.name" :data-tooltip="entry.name" />
+    <span v-else class="project-icon-node__missing">图标不可用</span>
+  </NodeViewWrapper>
+</template>
+
+<script setup lang="ts">
+import type { NodeViewProps } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
+import { NodeViewWrapper } from '@tiptap/vue-3'
+import { computed } from 'vue'
+import { createProjectIconStyle, findProjectIcon } from '../../../features/workspace/services/projectIconCatalog'
+import type { ProjectIconNodeOptions } from './projectIconNode'
+
+const props = defineProps<NodeViewProps>()
+
+const seriesKey = computed(() => String(props.node.attrs.seriesKey ?? ''))
+const iconKey = computed(() => String(props.node.attrs.iconKey ?? ''))
+const options = computed(() => props.extension.options as ProjectIconNodeOptions)
+const entry = computed(() => findProjectIcon(options.value.catalog?.(), seriesKey.value, iconKey.value))
+const iconStyle = computed(() => entry.value ? createProjectIconStyle(entry.value) : undefined)
+
+function selectIconNode(): void {
+  const position = props.getPos()
+  if (typeof position !== 'number') return
+  props.editor.view.dispatch(
+    props.editor.state.tr.setSelection(NodeSelection.create(props.editor.state.doc, position)),
+  )
+  props.editor.view.focus()
+}
+</script>
+
+<style scoped>
+.project-icon-node {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--oc-radius-sm);
+  vertical-align: text-bottom;
+  cursor: default;
+}
+.project-icon-node__image { display: inline-block; flex: none; background-repeat: no-repeat; vertical-align: text-bottom; }
+.project-icon-node__missing { color: var(--oc-fg-danger); font-family: var(--oc-font-mono); }
+.project-icon-node.is-selected { box-shadow: var(--oc-focus-ring); }
+</style>

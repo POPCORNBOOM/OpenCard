@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
+  open: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: vi.fn() }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: mocks.open, save: vi.fn() }))
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
@@ -50,5 +51,16 @@ describe('fileSystemService native file actions', () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith('open_path', { path: 'D:/cards/reference.bin' })
     expect(mocks.invoke).not.toHaveBeenCalledWith('reveal_path', expect.anything())
+  })
+
+  it('forwards the requested initial directory to the native file picker', async () => {
+    mocks.open.mockResolvedValueOnce(null)
+    await fileSystemService.pickFile({
+      title: 'Choose image',
+      fileTypeName: 'Images',
+      extensions: ['png'],
+      defaultPath: 'D:/Project',
+    })
+    expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: 'D:/Project' }))
   })
 })

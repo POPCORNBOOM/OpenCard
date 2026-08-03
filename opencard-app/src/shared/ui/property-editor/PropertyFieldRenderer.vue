@@ -3,12 +3,14 @@
   <div class="property-field-renderer" :class="`property-field-renderer--${appearance}`">
     <ReferenceStringPropertyField
       v-if="editorId === 'raw-string'"
+      ref="fieldComponent"
       :definition="rawStringDefinition"
       :value="value"
       @update:value="emit('update:value', $event)"
     />
     <ArrayPropertyField
       v-else-if="isArrayPropertyFieldType(definition.fieldType)"
+      ref="fieldComponent"
       :definition="definition"
       :element-component="getArrayPropertyElementComponent(definition.fieldType)"
       :element-definition="toArrayPropertyElementDefinition(definition)"
@@ -17,6 +19,7 @@
     />
     <component
       v-else
+      ref="fieldComponent"
       :is="getPropertyFieldComponent(definition)"
       :definition="definition"
       :value="value"
@@ -26,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { PropertyEditorFieldDefinition } from './propertyEditor.types'
 import { isArrayPropertyFieldType } from './propertyEditor.types'
 import type { PropertyFieldEditorId } from './propertyFieldEditorMode'
@@ -50,6 +53,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:value': [value: unknown]
 }>()
+
+type ActivatablePropertyField = {
+  activate?: () => void | Promise<void>
+}
+
+const fieldComponent = ref<ActivatablePropertyField | null>(null)
+let activationPending = false
+
+async function activate(): Promise<boolean> {
+  const component = fieldComponent.value
+  if (!component) {
+    activationPending = true
+    return true
+  }
+  if (!component.activate) return false
+  await component.activate()
+  return true
+}
+
+watch(fieldComponent, async (component) => {
+  if (!activationPending || !component) return
+  activationPending = false
+  await component.activate?.()
+})
+
+defineExpose({ activate })
 
 const appearance = computed(() => props.appearance ?? 'default')
 const rawStringDefinition = computed(() => {

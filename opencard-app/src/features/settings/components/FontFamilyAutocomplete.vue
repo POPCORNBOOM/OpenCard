@@ -67,7 +67,11 @@ const suggestions = computed(() => props.fontFamilies
   .filter(fontFamily => !segment.value.fragment
     || fontFamily.toLocaleLowerCase().includes(segment.value.fragment))
   .slice(0, 60)
-  .map(fontFamily => ({ key: fontFamily, label: fontFamily })))
+  .map(fontFamily => ({
+    key: fontFamily,
+    label: fontFamily,
+    labelStyle: { fontFamily },
+  })))
 
 watch(() => props.modelValue, (value) => {
   const nextValue = value === 'system' ? '' : value

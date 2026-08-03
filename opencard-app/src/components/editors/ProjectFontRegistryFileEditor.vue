@@ -20,6 +20,7 @@
       :original-key="registrationOriginalKey" :busy="importBusy" :error="importError"
       :default-directory="settingsStore.settings.value.workspace.defaultFontImportDirectory"
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
+      :resolve-import-conflict="projectStore.getProjectFontImportConflict"
       @close="closeRegistrationDialog" @submit="registerFont" />
   </ProjectRegistryEditorShell>
 </template>
@@ -117,14 +118,11 @@ async function registerFont(request: ProjectFontRegistrationRequest): Promise<vo
     const original = request.originalKey ? fonts[request.originalKey] : undefined
     const source = original && request.sourcePath === original.source && !request.targetDirectory
       ? original.source
-      : (await projectStore.importProjectFontFile(request.sourcePath, request.targetDirectory)).source
-    if (Object.entries(fonts).some(([key, definition]) => (
-      key.toLocaleLowerCase() !== originalIdentity
-      && definition.source.toLocaleLowerCase() === source.toLocaleLowerCase()
-    ))) {
-      importError.value = t('projectConfig.fonts.alreadyRegistered')
-      return
-    }
+      : (await projectStore.importProjectFontFile(
+          request.sourcePath,
+          request.targetDirectory,
+          request.conflictResolution,
+        )).source
 
     const definition = { name: request.name, source }
     const entries = request.originalKey

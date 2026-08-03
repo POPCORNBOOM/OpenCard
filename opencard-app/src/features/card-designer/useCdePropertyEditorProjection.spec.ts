@@ -15,7 +15,7 @@ function createHarness() {
     id: 'text',
     name: 'Text',
     content: 'Instance content',
-    fontFamily: 'project:body',
+    fontFamily: 'font:body; Arial; sans-serif',
     fontSize: '18px',
   })
   const parent = createSimpleContainerBlock({ id: 'parent', name: 'Parent' })
@@ -72,7 +72,7 @@ function createHarness() {
     rawPropertyInputs,
     projectContext: computed(() => ({
       fonts: {
-        body: { family: 'Body Font', faces: [{ source: 'fonts/body.woff2' }] },
+        body: { name: 'Body Font', source: 'fonts/body.woff2' },
       },
       information: { name: 'Project', description: 'Description', version: '2.0.0' },
       dictionary: { greeting: 'Hello' },
@@ -91,7 +91,7 @@ async function completionItems(
   cursor: number,
 ) {
   const result = await Promise.resolve(provider?.({ value, cursor })) as {
-    items?: Array<{ insertText: string; value?: unknown }>
+    items?: Array<{ insertText: string; value?: unknown; labelStyle?: Readonly<Record<string, string>> }>
   } | null
   return result?.items ?? []
 }
@@ -119,12 +119,22 @@ describe('useCdePropertyEditorProjection', () => {
     const fields = state.propertyEditorInputs.value[0]!.fields
     const fontItems = await completionItems(fields.fontFamily?.completion?.provider, 'Body', 4)
 
-    expect(fontItems.map(item => item.value)).toContain('project:body')
-    expect(fields.content?.fontOptions?.map(item => item.value)).toContain('project:body')
+    expect(fontItems.map(item => item.value)).toContain('font:body')
+    expect(fontItems.find(item => item.value === 'font:body')?.labelStyle)
+      .toEqual({ fontFamily: '"OpenCardProjectFont-body"' })
+    expect(fields.content?.fontOptions?.map(item => item.value)).toContain('font:body')
     expect(fields.content?.richTextBaseStyle).toEqual({
-      fontFamily: '"OpenCardProjectFont-body"',
+      fontFamily: '"OpenCardProjectFont-body", Arial, sans-serif',
       fontSize: '18px',
     })
+
+    const fallbackValue = 'font:body; Ar'
+    const completion = await fields.fontFamily?.completion?.provider?.({
+      value: fallbackValue,
+      cursor: fallbackValue.length,
+    })
+    expect(completion).toMatchObject({ replaceStart: 10, replaceEnd: fallbackValue.length })
+    expect(completion?.items.find(item => item.value === ' Arial')?.insertText).toBe(' Arial')
   })
 
   it('passes file-path directory reads through the injected provider', async () => {

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectIconRegistrationDialog from './ProjectIconRegistrationDialog.vue'
 import OcButton from '../base/OcButton.vue'
 
-const mocks = vi.hoisted(() => ({ pickFile: vi.fn() }))
+const mocks = vi.hoisted(() => ({ pickFile: vi.fn(), resolveImportConflict: vi.fn() }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
@@ -11,7 +11,10 @@ vi.mock('../../features/workspace/services/fileSystemService', () => ({
 }))
 
 describe('ProjectIconRegistrationDialog', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveImportConflict.mockResolvedValue(null)
+  })
 
   it('registers an external image with a filename-derived name and copy directory', async () => {
     mocks.pickFile.mockResolvedValue('D:/Downloads/Status Icons.PNG')
@@ -21,6 +24,7 @@ describe('ProjectIconRegistrationDialog', () => {
         defaultDirectory: 'assets/icons',
         defaultOpenPath: 'D:/Project',
         getRelativeProjectPath: () => null,
+        resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
@@ -47,9 +51,10 @@ describe('ProjectIconRegistrationDialog', () => {
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        series: [{ name: 'Existing status', key: 'status', source: 'assets/icons/old.png', icons: [] }],
+        series: [{ name: 'Existing status', key: 'status', source: 'assets/icons/status.png', icons: [] }],
         defaultDirectory: 'assets/icons',
         getRelativeProjectPath: () => 'assets/icons/status.png',
+        resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
@@ -64,6 +69,33 @@ describe('ProjectIconRegistrationDialog', () => {
       name: 'status',
       key: 'status-2',
       sourcePath: 'D:/Project/assets/icons/status.png',
+    })
+  })
+
+  it('can use an existing same-name project image', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Downloads/status.png')
+    mocks.resolveImportConflict.mockResolvedValue({
+      existingSource: 'assets/icons/status.png',
+      availableCopySource: 'assets/icons/status (2).png',
+    })
+    const wrapper = mount(ProjectIconRegistrationDialog, {
+      props: {
+        open: true,
+        defaultDirectory: 'assets/icons',
+        getRelativeProjectPath: () => null,
+        resolveImportConflict: mocks.resolveImportConflict,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    await wrapper.findAllComponents(OcButton)[0]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[role="radio"]')).toHaveLength(2)
+    await wrapper.findAll('[role="radio"]')[1]!.trigger('click')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      conflictResolution: 'use-existing',
+      targetDirectory: 'assets/icons',
     })
   })
 })

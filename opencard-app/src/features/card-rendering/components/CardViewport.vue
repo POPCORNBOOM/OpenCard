@@ -10,6 +10,7 @@
         :clip-to-face="clipToFace"
         :resource-root-path="resourceRootPath"
         :remote-resource-policy="remoteResourcePolicy"
+        :project-icon-catalog="projectIconCatalog"
         @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
@@ -93,7 +94,7 @@
         <nav v-if="selectionQuickActions.length > 0 && !isTransformingSelection" class="selection-quick-actions"
           :aria-label="selectionActionLabels.label" @pointerdown.stop>
           <OcActionButton v-for="action in selectionQuickActions" :key="action.key" :action="action"
-            size="md" variant="ghost" @select="handleSelectionQuickAction(action.key)" />
+            size="md" variant="ghost" @select="handleSelectionQuickAction($event.key)" />
         </nav>
         </Transition>
         <Transition name="selection-info-fade">
@@ -141,6 +142,11 @@ export type CardViewportSelectionAction =
       y: number
     }
 
+export type CardViewportSelectionCommand = {
+  key: string
+  blockId: string
+}
+
 export type CardViewportSelectionActionLabels = {
   label: string
   fillParent: string
@@ -169,6 +175,16 @@ import CardLayerView from './CardLayerView.vue'
 import { buildCardLayerGroups } from './cardLayerModel'
 import type { RenderReadyCardFace } from '../render.types'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
+import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import {
+  VIEWPORT_FIT_PADDING,
+  VIEWPORT_MAX_SCALE,
+  VIEWPORT_MIN_SCALE,
+  VIEWPORT_WHEEL_ZOOM_SENSITIVITY,
+  VIEWPORT_ZOOM_ANIMATION_EPSILON,
+  VIEWPORT_ZOOM_ANIMATION_SMOOTHING,
+  normalizeViewportWheelDelta,
+} from '../../../shared/ui/viewport/viewportNavigation'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'l' | 'r' | 't' | 'b'
 type ResizeMode = 'absolute' | 'flow' | 'none'
@@ -202,14 +218,6 @@ type ViewportTransform = {
   scale: number
 }
 const TRANSFORM_EPSILON = 0.0001
-const MIN_SCALE = 0.2
-const MAX_SCALE = 4
-const WHEEL_ZOOM_SENSITIVITY = 0.0015
-const WHEEL_LINE_HEIGHT = 16
-const MAX_WHEEL_DELTA_PX = 240
-const ZOOM_ANIMATION_SMOOTHING = 0.25
-const ZOOM_ANIMATION_EPSILON = 0.001
-const FIT_PADDING = 32
 const SELECTION_INSET_STEP = 10
 const MIN_SELECTION_SIZE = 24
 
@@ -219,6 +227,7 @@ const emit = defineEmits<{
   (e: 'resize-selection', payload: ResizePayload & { blockId: string }): void
   (e: 'move-selection', payload: MovePayload & { blockId: string }): void
   (e: 'selection-action', payload: CardViewportSelectionAction): void
+  (e: 'selection-command', payload: CardViewportSelectionCommand): void
   (e: 'viewport-transform-change', payload: { x: number; y: number; scale: number }): void
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
   (e: 'face-dimension-change', payload: { dimension: FaceDimension; value: number; final: boolean }): void
@@ -236,6 +245,7 @@ const props = withDefaults(defineProps<{
   selectedParentFlowDirection?: FlowDirection | null
   selectionInfo?: CardViewportSelectionInfo | null
   selectionActionLabels?: CardViewportSelectionActionLabels
+  selectionCommandActions?: readonly OcActionButtonAction[]
   showPositionOnMove?: boolean
   showSizeOnResize?: boolean
   showInfo?: boolean
@@ -251,6 +261,7 @@ const props = withDefaults(defineProps<{
   transformDisabledBlockIds?: string[]
   resourceRootPath?: string | null
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
+  projectIconCatalog?: ProjectIconCatalog
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -259,6 +270,7 @@ const props = withDefaults(defineProps<{
   selectedParentBlockId: null,
   selectedParentFlowDirection: null,
   selectionInfo: null,
+  selectionCommandActions: () => [],
   selectionActionLabels: () => ({
     label: 'Selection layout actions',
     fillParent: 'Fill parent',
@@ -281,6 +293,7 @@ const props = withDefaults(defineProps<{
   clipToFace: false,
   resourceRootPath: null,
   remoteResourcePolicy: undefined,
+  projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -329,7 +342,7 @@ function applyViewportTransform(transform: ViewportTransform | undefined) {
   const nextTransform = transform ?? { x: 0, y: 0, scale: 1 }
   panX.value = nextTransform.x
   panY.value = nextTransform.y
-  scale.value = clamp(nextTransform.scale, MIN_SCALE, MAX_SCALE)
+  scale.value = clamp(nextTransform.scale, VIEWPORT_MIN_SCALE, VIEWPORT_MAX_SCALE)
   targetPanX.value = panX.value
   targetPanY.value = panY.value
   targetScale.value = scale.value
@@ -405,6 +418,7 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
   if (!props.selectedBlockId) return []
   if (resizeMode.value === 'absolute') {
     return [
+      ...props.selectionCommandActions,
       {
         key: 'fill-parent',
         title: props.selectionActionLabels.fillParent,
@@ -431,6 +445,7 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
     const horizontalFlow = props.selectedParentFlowDirection === 'lr'
       || props.selectedParentFlowDirection === 'rl'
     return [
+      ...props.selectionCommandActions,
       {
         key: 'fill-cross-axis',
         title: props.selectionActionLabels.fillCrossAxis,
@@ -445,6 +460,21 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
   }
   return []
 })
+
+function findSelectionAction(
+  actions: readonly OcActionButtonAction[],
+  actionKey: string,
+): OcActionButtonAction | null {
+  for (const action of actions) {
+    if (action.key === actionKey) return action
+    for (const child of action.children ?? []) {
+      if (child.type === 'divider') continue
+      const match = findSelectionAction([child], actionKey)
+      if (match) return match
+    }
+  }
+  return null
+}
 const { openContextMenu } = useFloatingMenu()
 
 function openSelectionContextMenu(event: MouseEvent): void {
@@ -555,6 +585,10 @@ function handleSelectionQuickAction(actionKey: string): void {
     emit('selection-action', { type: 'center-cross-axis', blockId })
     return
   }
+  if (findSelectionAction(props.selectionCommandActions, actionKey)) {
+    emit('selection-command', { key: actionKey, blockId })
+    return
+  }
   if (actionKey !== 'center' && actionKey !== 'inset' && actionKey !== 'outset') return
 
   const measurement = measureSelection()
@@ -574,7 +608,8 @@ function handleSelectionQuickAction(actionKey: string): void {
 }
 
 function runSelectionQuickAction(actionKey: string): boolean {
-  if (!selectionQuickActions.value.some((action) => action.key === actionKey)) return false
+  const action = findSelectionAction(selectionQuickActions.value, actionKey)
+  if (!action || action.disabled) return false
   handleSelectionQuickAction(actionKey)
   return true
 }
@@ -662,7 +697,7 @@ function handleWheel(event: WheelEvent) {
   const mouseY = event.clientY - rect.top
   const normalizedDelta = normalizeWheelDelta(event.deltaY, event.deltaMode)
   if (Math.abs(normalizedDelta) < 0.01) return
-  const nextScale = targetScale.value * Math.exp(-normalizedDelta * WHEEL_ZOOM_SENSITIVITY)
+  const nextScale = targetScale.value * Math.exp(-normalizedDelta * VIEWPORT_WHEEL_ZOOM_SENSITIVITY)
   zoomAt(nextScale, mouseX, mouseY)
 }
 
@@ -676,7 +711,7 @@ function zoomByWheelAt(
   const normalizedDelta = normalizeWheelDelta(deltaY, deltaMode)
   if (Math.abs(normalizedDelta) < 0.01) return
   zoomAt(
-    targetScale.value * Math.exp(-normalizedDelta * WHEEL_ZOOM_SENSITIVITY),
+    targetScale.value * Math.exp(-normalizedDelta * VIEWPORT_WHEEL_ZOOM_SENSITIVITY),
     viewportX,
     viewportY,
   )
@@ -693,7 +728,7 @@ function zoomBy(factor: number): void {
 
 function zoomAt(nextValue: number, viewportX: number, viewportY: number): void {
   const previousScale = targetScale.value
-  const nextScale = clamp(nextValue, MIN_SCALE, MAX_SCALE)
+  const nextScale = clamp(nextValue, VIEWPORT_MIN_SCALE, VIEWPORT_MAX_SCALE)
   if (Math.abs(nextScale - previousScale) < 0.0001) return
 
   const previousTranslateX = getBaseOffsetXForScale(previousScale) + targetPanX.value
@@ -731,12 +766,12 @@ function fitView(targetRect?: { left: number; top: number; width: number; height
   const regionTop = hasTargetRegion ? targetRect!.top - viewportRect.top : 0
   const regionWidth = hasTargetRegion ? targetRect!.width : viewportWidth.value
   const regionHeight = hasTargetRegion ? targetRect!.height : viewportHeight.value
-  const availableWidth = Math.max(1, regionWidth - FIT_PADDING * 2)
-  const availableHeight = Math.max(1, regionHeight - FIT_PADDING * 2)
+  const availableWidth = Math.max(1, regionWidth - VIEWPORT_FIT_PADDING * 2)
+  const availableHeight = Math.max(1, regionHeight - VIEWPORT_FIT_PADDING * 2)
   const nextScale = clamp(
     Math.min(availableWidth / props.face.width, availableHeight / props.face.height),
-    MIN_SCALE,
-    MAX_SCALE,
+    VIEWPORT_MIN_SCALE,
+    VIEWPORT_MAX_SCALE,
   )
 
   stopZoomAnimation()
@@ -749,13 +784,7 @@ function fitView(targetRect?: { left: number; top: number; width: number; height
 }
 
 function normalizeWheelDelta(deltaY: number, deltaMode: number): number {
-  let delta = deltaY
-  if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    delta *= WHEEL_LINE_HEIGHT
-  } else if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-    delta *= viewportHeight.value || window.innerHeight
-  }
-  return clamp(delta, -MAX_WHEEL_DELTA_PX, MAX_WHEEL_DELTA_PX)
+  return normalizeViewportWheelDelta(deltaY, deltaMode, viewportHeight.value || window.innerHeight)
 }
 
 function getBaseOffsetXForScale(value: number): number {
@@ -783,9 +812,9 @@ function startZoomAnimation() {
     const panYDelta = targetPanY.value - panY.value
 
     if (
-      Math.abs(scaleDelta) < ZOOM_ANIMATION_EPSILON &&
-      Math.abs(panXDelta) < ZOOM_ANIMATION_EPSILON &&
-      Math.abs(panYDelta) < ZOOM_ANIMATION_EPSILON
+      Math.abs(scaleDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON &&
+      Math.abs(panXDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON &&
+      Math.abs(panYDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON
     ) {
       scale.value = targetScale.value
       panX.value = targetPanX.value
@@ -794,9 +823,9 @@ function startZoomAnimation() {
       return
     }
 
-    scale.value += scaleDelta * ZOOM_ANIMATION_SMOOTHING
-    panX.value += panXDelta * ZOOM_ANIMATION_SMOOTHING
-    panY.value += panYDelta * ZOOM_ANIMATION_SMOOTHING
+    scale.value += scaleDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
+    panX.value += panXDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
+    panY.value += panYDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
     zoomAnimationFrame = requestAnimationFrame(animate)
   }
 

@@ -513,6 +513,7 @@ describe('CardDesignEditor issue navigation', () => {
         plugins: [i18n],
         stubs: {
           CardViewport: CardViewportStub,
+          OcOverlayToolbar: false,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
           Teleport: true,
@@ -604,6 +605,120 @@ describe('CardDesignEditor issue navigation', () => {
     const child = container.children[0]!
     expect(child.block).toMatchObject({ width: '100%', height: '100%' })
     expect(child.location).toMatchObject({ anchor: 'lt', x: '0px', y: '0px' })
+  })
+
+  it('projects rich-text selection Actions and activates the existing content field editor', async () => {
+    const activateField = vi.fn(async () => true)
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: {
+        selectedBlockId: String,
+        selectionCommandActions: Array,
+      },
+      emits: ['block-click', 'selection-command'],
+      template: '<div class="card-viewport-stub" />',
+    })
+    const PropertyEditorStub = defineComponent({
+      name: 'PropertyEditor',
+      setup(_, { expose }) {
+        expose({ activateField, revealField: vi.fn(async () => true) })
+        return () => h('div', { class: 'property-editor-stub' })
+      },
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.opencard',
+        fileName: 'hero.opencard',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          PropertyEditor: PropertyEditorStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent(CardViewportStub)
+    viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
+    await nextTick()
+    expect(viewport.props('selectionCommandActions')).toEqual([{
+      key: 'content.edit-rich-text',
+      icon: 'format.text-variant-outline',
+      title: 'Edit rich text',
+    }])
+
+    viewport.vm.$emit('selection-command', {
+      key: 'content.edit-rich-text',
+      blockId: 'text-1',
+    })
+    await nextTick()
+    expect(activateField).toHaveBeenCalledWith('text-1', 'content')
+  })
+
+  it('projects four Flow Container direction Actions and writes each direction through Block commands', async () => {
+    const source = createDocument()
+    source.faces.front.children[0]!.block = createFlowContainerBlock({
+      id: 'flow-1',
+      direction: 'lr',
+    })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: {
+        selectedBlockId: String,
+        selectionCommandActions: Array,
+      },
+      emits: ['block-click', 'selection-command'],
+      template: '<div class="card-viewport-stub" />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/flow.opencard',
+        fileName: 'flow.opencard',
+        modelValue: JSON.stringify(source),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent(CardViewportStub)
+    viewport.vm.$emit('block-click', 'flow-1', new MouseEvent('click'))
+    await nextTick()
+    expect(viewport.props('selectionCommandActions')).toEqual([
+      { key: 'flow.direction.left', icon: 'nav.arrow-left', iconTone: 'default', title: 'Flow left' },
+      { key: 'flow.direction.up', icon: 'nav.arrow-up', iconTone: 'default', title: 'Flow up' },
+      { key: 'flow.direction.down', icon: 'nav.arrow-down', iconTone: 'default', title: 'Flow down' },
+      { key: 'flow.direction.right', icon: 'nav.arrow-right', iconTone: 'primary', title: 'Flow right' },
+    ])
+
+    const directions = [
+      ['flow.direction.left', 'rl'],
+      ['flow.direction.up', 'bt'],
+      ['flow.direction.down', 'tb'],
+      ['flow.direction.right', 'lr'],
+    ] as const
+    for (const [key, direction] of directions) {
+      viewport.vm.$emit('selection-command', { key, blockId: 'flow-1' })
+      await nextTick()
+      const updates = wrapper.emitted('update:modelValue') ?? []
+      const document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+      expect(document.faces.front.children[0]!.block).toMatchObject({ direction })
+    }
   })
 
   it('fits the viewport when opening a card file without refitting content updates', async () => {
@@ -890,6 +1005,7 @@ describe('CardDesignEditor issue navigation', () => {
         plugins: [i18n],
         stubs: {
           CardViewport: true,
+          OcOverlayToolbar: false,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
           Teleport: true,

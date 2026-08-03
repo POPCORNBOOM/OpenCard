@@ -1,15 +1,23 @@
-import type { ProjectFontDefinition, ProjectFontRegistry } from './projectFontRegistry'
+import type { ProjectFontRegistry } from './projectFontRegistry'
+
+export const DEFAULT_PROJECT_FONT_DIRECTORY = 'assets/fonts'
+export const projectFontIdPattern = /^[a-z0-9][a-z0-9._-]*$/
+
+export function normalizeProjectFontDirectory(value: string): string | null {
+  const directory = value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  const segments = directory.split('/')
+  if (!directory || /^[a-z]:\//i.test(directory) || directory.startsWith('//')
+    || segments.some(segment => segment === '.' || segment === '..' || /[\u0000-\u001f\u007f]/.test(segment))) {
+    return null
+  }
+  return directory
+}
 
 export type FontCatalogEntry = {
   value: string
   label: string
   source: 'system' | 'project'
   detail?: string
-}
-
-export type ProjectFontRegistration = {
-  id: string
-  definition: ProjectFontDefinition
 }
 
 export const SYSTEM_FONT_CATALOG: readonly FontCatalogEntry[] = [
@@ -22,7 +30,7 @@ export const SYSTEM_FONT_CATALOG: readonly FontCatalogEntry[] = [
 ]
 
 export function createProjectFontReference(id: string): string {
-  return `project:${id}`
+  return `font:${id}`
 }
 
 export function createProjectFontCssFamily(id: string): string {
@@ -30,103 +38,55 @@ export function createProjectFontCssFamily(id: string): string {
 }
 
 export function toCssFontFamily(reference: string): string {
-  return reference.startsWith('project:')
-    ? JSON.stringify(createProjectFontCssFamily(reference.slice('project:'.length)))
-    : reference
+  return splitFontReferences(reference)
+    .map(value => value.startsWith('font:')
+      ? JSON.stringify(createProjectFontCssFamily(value.slice('font:'.length)))
+      : value)
+    .join(', ')
 }
 
 export function fromCssFontFamily(value: string): string {
-  const trimmed = value.trim()
-  if (trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"'))
-    || (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
-    const family = trimmed.slice(1, -1)
+  return splitCssFontFamilies(value).map(candidate => {
+    const trimmed = candidate.trim()
+    const family = trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"'))
+      || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+      ? trimmed.slice(1, -1)
+      : trimmed
     return family.startsWith('OpenCardProjectFont-')
       ? createProjectFontReference(family.slice('OpenCardProjectFont-'.length))
       : family
-  }
-  return trimmed.startsWith('OpenCardProjectFont-')
-    ? createProjectFontReference(trimmed.slice('OpenCardProjectFont-'.length))
-    : trimmed
+  }).filter(Boolean).join('; ')
 }
 
 export function buildFontCatalog(fonts: ProjectFontRegistry | null | undefined): readonly FontCatalogEntry[] {
   const projectEntries = Object.entries(fonts ?? {}).map(([id, definition]) => ({
     value: createProjectFontReference(id),
-    label: definition.family,
+    label: definition.name,
     source: 'project' as const,
-    detail: definition.faces.map(face => face.source).join(', '),
+    detail: definition.source,
   }))
   return [...projectEntries, ...SYSTEM_FONT_CATALOG]
 }
 
-function getSourceStem(source: string): string {
-  const fileName = source.replace(/\\/g, '/').split('/').pop() ?? source
-  const dotIndex = fileName.lastIndexOf('.')
-  return dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+export function splitFontReferences(value: string): string[] {
+  return value.split(';').map(reference => reference.trim()).filter(Boolean)
 }
 
-function inferFontWeight(stem: string): string {
-  const normalized = stem.toLocaleLowerCase().replace(/[\s_-]+/g, '')
-  if (normalized.includes('thin')) return '100'
-  if (normalized.includes('extralight') || normalized.includes('ultralight')) return '200'
-  if (normalized.includes('light')) return '300'
-  if (normalized.includes('medium')) return '500'
-  if (normalized.includes('semibold') || normalized.includes('demibold')) return '600'
-  if (normalized.includes('extrabold') || normalized.includes('ultrabold')) return '800'
-  if (normalized.includes('black') || normalized.includes('heavy')) return '900'
-  if (normalized.includes('bold')) return '700'
-  return '400'
-}
-
-function inferFontFamily(stem: string): string {
-  const withoutVariant = stem.replace(
-    /(?:[\s_-]*(?:thin|extra[\s_-]*light|ultra[\s_-]*light|light|regular|normal|medium|semi[\s_-]*bold|demi[\s_-]*bold|extra[\s_-]*bold|ultra[\s_-]*bold|bold|black|heavy|italic|oblique))+$/i,
-    '',
-  )
-  const readable = (withoutVariant || stem)
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[\s_-]+/g, ' ')
-    .trim()
-  return readable || 'Project Font'
-}
-
-function createAvailableFontId(family: string, fonts: ProjectFontRegistry | null | undefined): string {
-  const base = family
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '') || 'font'
-  let candidate = base
-  let suffix = 2
-  while (fonts?.[candidate]) {
-    candidate = `${base}-${suffix}`
-    suffix += 1
+function splitCssFontFamilies(value: string): string[] {
+  const families: string[] = []
+  let start = 0
+  let quote = ''
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index] ?? ''
+    if (quote) {
+      if (character === quote && value[index - 1] !== '\\') quote = ''
+    } else if (character === '"' || character === "'") {
+      quote = character
+    } else if (character === ',') {
+      families.push(value.slice(start, index))
+      start = index + 1
+    }
   }
-  return candidate
-}
-
-export function createProjectFontRegistration(
-  source: string,
-  fonts: ProjectFontRegistry | null | undefined,
-): ProjectFontRegistration {
-  const normalizedSource = source.replace(/\\/g, '/')
-  const stem = getSourceStem(normalizedSource)
-  const family = inferFontFamily(stem)
-  const style = /oblique/i.test(stem)
-    ? 'oblique' as const
-    : /italic/i.test(stem)
-      ? 'italic' as const
-      : 'normal' as const
-  return {
-    id: createAvailableFontId(family, fonts),
-    definition: {
-      family,
-      faces: [{
-        source: normalizedSource,
-        weight: inferFontWeight(stem),
-        style,
-      }],
-    },
-  }
+  families.push(value.slice(start))
+  return families
 }

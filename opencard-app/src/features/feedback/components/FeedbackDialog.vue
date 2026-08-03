@@ -1,17 +1,13 @@
 <template>
-  <Teleport to="body">
-    <div v-if="open" class="feedback-dialog__backdrop">
-      <section
-        class="feedback-dialog"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-        @keydown.esc.prevent="close"
-      >
-        <header class="feedback-dialog__header">
+  <OcDialog class="feedback-dialog" :open="open" :title="t('app.feedback.title')"
+    :description="t('app.feedback.description')" as="form" size="xl"
+    min-height="md"
+    :dismissible="!submitting" @request-close="close" @submit="submit">
+    <template #header="{ titleId, descriptionId }">
+        <div class="feedback-dialog__header-content">
           <div>
             <h2 :id="titleId">{{ t('app.feedback.title') }}</h2>
-            <p>{{ t('app.feedback.description') }}</p>
+            <p :id="descriptionId">{{ t('app.feedback.description') }}</p>
           </div>
           <FeedbackPageTabs
             :active-page="activePage"
@@ -24,9 +20,8 @@
             :disabled="submitting"
             @click="close"
           />
-        </header>
-
-        <form class="feedback-dialog__form" @submit.prevent="submit">
+        </div>
+    </template>
           <div class="feedback-dialog__kind" role="group" :aria-label="t('app.feedback.kind.label')">
             <OcButton
               variant="outline"
@@ -145,23 +140,15 @@
             {{ t(errorKey) }}
           </p>
 
-          <footer>
-            <OcButton :disabled="submitting" @click="close">
-              {{ status === 'success' ? t('app.feedback.actions.done') : t('app.feedback.actions.cancel') }}
-            </OcButton>
-            <OcButton
-              v-if="status !== 'success'"
-              type="submit"
-              variant="solid"
-              :disabled="!canSubmit"
-            >
-              {{ submitting ? t('app.feedback.actions.submitting') : t('app.feedback.actions.submit') }}
-            </OcButton>
-          </footer>
-        </form>
-      </section>
-    </div>
-  </Teleport>
+    <template #footer>
+      <OcButton type="button" :disabled="submitting" @click="close">
+        {{ status === 'success' ? t('app.feedback.actions.done') : t('app.feedback.actions.cancel') }}
+      </OcButton>
+      <OcButton v-if="status !== 'success'" type="submit" variant="solid" :disabled="!canSubmit">
+        {{ submitting ? t('app.feedback.actions.submitting') : t('app.feedback.actions.submit') }}
+      </OcButton>
+    </template>
+  </OcDialog>
 </template>
 
 <script setup lang="ts">
@@ -170,6 +157,7 @@ import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
 import FeedbackPageTabs from './FeedbackPageTabs.vue'
 import {
   createFeedbackSubmission,
@@ -199,7 +187,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ close: []; pageChange: [page: FeedbackPage] }>()
 const { locale, t } = useI18n()
-const titleId = `feedback-title-${Math.random().toString(36).slice(2)}`
 const kind = ref<FeedbackKind>(props.initialKind)
 const message = ref('')
 const reproduction = ref('')
@@ -285,68 +272,27 @@ async function submit(): Promise<void> {
 </script>
 
 <style scoped>
-.feedback-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: grid;
-  place-items: center;
-  padding: var(--oc-space-6);
-  background: color-mix(in srgb, var(--oc-bg-base) 68%, transparent);
-}
-
-.feedback-dialog {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  width: min(860px, 100%);
-  height: min(720px, calc(100vh - 48px));
-  overflow: hidden;
-  border: 1px solid var(--oc-border-default);
-  border-radius: var(--oc-radius-lg);
-  background: var(--oc-bg-surface);
-  box-shadow: var(--oc-shadow-lg);
-  color: var(--oc-fg-default);
-}
-
-.feedback-dialog__header,
-.feedback-dialog footer {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
-}
-
-.feedback-dialog__header {
+.feedback-dialog__header-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: start;
-  border-bottom: 1px solid var(--oc-border-muted);
+  gap: var(--oc-space-4);
 }
 
-.feedback-dialog__header > :last-child { justify-self: end; }
+.feedback-dialog__header-content > :last-child { justify-self: end; }
 
-.feedback-dialog__header h2,
-.feedback-dialog__header p {
+.feedback-dialog__header-content h2,
+.feedback-dialog__header-content p {
   margin: 0;
 }
 
-.feedback-dialog__header h2 {
+.feedback-dialog__header-content h2 {
   font-size: var(--oc-text-lg);
 }
 
-.feedback-dialog__header p {
+.feedback-dialog__header-content p {
   margin-top: var(--oc-space-1);
   color: var(--oc-fg-muted);
-}
-
-.feedback-dialog__form {
-  display: flex;
-  min-height: 0;
-  overflow: auto;
-  flex-direction: column;
-  gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
 }
 
 .feedback-dialog__kind,
@@ -400,20 +346,11 @@ async function submit(): Promise<void> {
   border: 1px solid var(--oc-border-accent);
 }
 
-.feedback-dialog footer {
-  position: sticky;
-  bottom: calc(var(--oc-space-5) * -1);
-  justify-content: flex-end;
-  margin: auto calc(var(--oc-space-5) * -1) calc(var(--oc-space-5) * -1);
-  border-top: 1px solid var(--oc-border-default);
-  background: var(--oc-bg-raised);
-}
-
 @media (max-width: 640px) {
-  .feedback-dialog__header {
+  .feedback-dialog__header-content {
     grid-template-columns: 1fr auto;
   }
-  .feedback-dialog__header > :nth-child(2) {
+  .feedback-dialog__header-content > :nth-child(2) {
     grid-column: 1 / -1;
     grid-row: 2;
   }

@@ -28,7 +28,8 @@
         @click="toggleOpen"
         @keydown="handleTriggerKeydown"
       >
-        <span class="oc-select__value" :class="{ 'is-placeholder': !selectedOption }">
+        <span class="oc-select__value" :class="{ 'is-placeholder': !selectedOption }"
+          :style="selectedOption?.labelStyle">
           {{ selectedOption?.label ?? placeholder }}
         </span>
         <OcIcon
@@ -70,7 +71,7 @@
           @mousedown.prevent
           @click="selectOption(option)"
         >
-          <span class="oc-select__option-label">{{ option.label }}</span>
+          <span class="oc-select__option-label" :style="option.labelStyle">{{ option.label }}</span>
           <OcIcon
             v-if="option.value === modelValue"
             name="action.check"
@@ -89,6 +90,7 @@ export interface OcSelectOption {
   value: string
   label: string
   disabled?: boolean
+  labelStyle?: Readonly<Record<string, string>>
 }
 </script>
 

@@ -222,6 +222,11 @@ describe('CardViewport wheel zoom API', () => {
           name: 'Title',
           notes: 'Primary heading',
         },
+        selectionCommandActions: [{
+          key: 'content.edit-rich-text',
+          icon: 'format.text-variant-outline',
+          title: 'Edit rich text',
+        }],
       },
       global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
     })
@@ -242,9 +247,15 @@ describe('CardViewport wheel zoom API', () => {
     await nextTick()
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
     expect(actions.map((action) => action.props('action').key))
-      .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+      .toEqual(['content.edit-rich-text', 'fill-parent', 'center', 'inset', 'outset'])
     expect(actions.map((action) => action.props('action').icon))
-      .toEqual(['layout.fill', 'layout.center', 'layout.inset', 'layout.outset'])
+      .toEqual([
+        'format.text-variant-outline',
+        'layout.fill',
+        'layout.center',
+        'layout.inset',
+        'layout.outset',
+      ])
     expect(wrapper.get('.selection-block-info__title').text()).toContain('Title')
     expect(wrapper.get('.selection-block-info__notes').text()).toBe('Primary heading')
     await wrapper.get('.selection-block-info').trigger('pointerdown')
@@ -254,6 +265,8 @@ describe('CardViewport wheel zoom API', () => {
       ?.vm.$emit('select', { key: 'fill-parent' })
     actions.find((action) => action.props('action').key === 'center')
       ?.vm.$emit('select', { key: 'center' })
+    actions.find((action) => action.props('action').key === 'content.edit-rich-text')
+      ?.vm.$emit('select', { key: 'content.edit-rich-text' })
 
     expect(wrapper.emitted('selection-action')).toEqual([
       [{ type: 'fill-parent', blockId: 'selected' }],
@@ -267,6 +280,9 @@ describe('CardViewport wheel zoom API', () => {
         y: 110,
       }],
     ])
+    expect(wrapper.emitted('selection-command')).toEqual([[
+      { key: 'content.edit-rich-text', blockId: 'selected' },
+    ]])
 
     expect(wrapper.vm.runSelectionQuickAction('outset')).toBe(true)
     expect(wrapper.vm.nudgeSelection(1, -1)).toBe(true)
@@ -289,7 +305,7 @@ describe('CardViewport wheel zoom API', () => {
     await wrapper.get('.selection-frame').trigger('contextmenu')
     const menu = useFloatingMenu()
     expect(menu.state.value.items.map(item => item.key))
-      .toEqual(['fill-parent', 'center', 'inset', 'outset'])
+      .toEqual(['content.edit-rich-text', 'fill-parent', 'center', 'inset', 'outset'])
     menu.selectMenuItem('fill-parent')
     const contextSelectionActions = wrapper.emitted('selection-action') ?? []
     expect(contextSelectionActions[contextSelectionActions.length - 1]).toEqual([

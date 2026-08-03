@@ -20,7 +20,11 @@ describe('FontFamilyAutocomplete', () => {
 
     await input.setValue('Inter; Micro')
     expect(wrapper.getComponent(OcAutocompletePopover).props('items')).toEqual([
-      { key: 'Microsoft YaHei UI', label: 'Microsoft YaHei UI' },
+      {
+        key: 'Microsoft YaHei UI',
+        label: 'Microsoft YaHei UI',
+        labelStyle: { fontFamily: 'Microsoft YaHei UI' },
+      },
     ])
 
     wrapper.getComponent(OcAutocompletePopover).vm.$emit('select', 'Microsoft YaHei UI')

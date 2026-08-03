@@ -11,6 +11,7 @@ import type { RenderReadyMarkdownTextBlock } from '../render.types'
 import { renderMarkdown } from '../markdown/renderMarkdown'
 import { useCardEditorContext } from './cardEditorContext'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../workspace/services/projectIconCatalog'
 
 const props = withDefaults(defineProps<{
   block: RenderReadyMarkdownTextBlock
@@ -23,6 +24,7 @@ const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
   resolveImageSrc: editorContext.resolveAssetSrc,
+  projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,
@@ -119,6 +121,12 @@ function handleClick(event: MouseEvent): void {
   max-width: 100%;
   height: auto;
   vertical-align: middle;
+}
+
+.markdown-text-block-content :deep(.project-inline-icon) {
+  display: inline-block;
+  background-repeat: no-repeat;
+  vertical-align: text-bottom;
 }
 
 .markdown-text-block-content :deep(table) {

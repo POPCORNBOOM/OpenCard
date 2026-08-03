@@ -87,7 +87,10 @@ describe('PropertyEditor records protocol', () => {
     expect(wrapper.find('.rich-text-string-field__preview').exists()).toBe(true)
     expect(wrapper.find('textarea').exists()).toBe(false)
 
-    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    const editor = wrapper.vm as unknown as {
+      activateField: (inputKey: string, fieldKey: string) => Promise<boolean>
+    }
+    expect(await editor.activateField('text', 'content')).toBe(true)
     await flushPromises()
     expect(document.body.querySelector('.rich-text-string-popover')).not.toBeNull()
     wrapper.unmount()

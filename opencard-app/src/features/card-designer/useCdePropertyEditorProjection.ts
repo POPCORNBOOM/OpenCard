@@ -129,6 +129,8 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           record: input.record,
           referenceContext,
           fontCatalog,
+          iconSeries: projectContext.iconSeries,
+          projectIconCatalog: projectContext.projectIconCatalog,
           directoryProvider: options.directoryProvider.value,
         })]
       })),

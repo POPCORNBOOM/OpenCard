@@ -5,13 +5,13 @@ import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 describe('ProjectFontRegistryEditor', () => {
-  it('shows stable references and emits visual family edits', async () => {
+  it('shows one file per project font and exposes configuration', async () => {
     const wrapper = mount(ProjectFontRegistryEditor, {
       props: {
         fonts: {
           'brand-sans': {
-            family: 'Brand Sans',
-            faces: [{ source: 'assets/fonts/BrandSans.woff2', weight: '400', style: 'normal' }],
+            name: 'Brand Sans',
+            source: 'assets/fonts/BrandSans.woff2',
           },
         },
         loadErrors: [{
@@ -22,34 +22,28 @@ describe('ProjectFontRegistryEditor', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('project:brand-sans')
-    expect(wrapper.text()).toContain('projectConfig.fonts.source')
-    expect(wrapper.text()).toContain('projectConfig.fonts.weight')
-    expect(wrapper.text()).toContain('projectConfig.fonts.style')
-    expect(wrapper.get('[data-tooltip="Invalid font data"]').attributes('aria-label')).toBe('Invalid font data')
-    await wrapper.get('.project-font-registry__family input').setValue('Brand Display')
-
-    expect(wrapper.emitted('update:fonts')?.[0]?.[0]).toMatchObject({
-      'brand-sans': { family: 'Brand Display' },
-    })
+    expect(wrapper.text()).toContain('Brand Sans')
+    expect(wrapper.text()).toContain('font:brand-sans')
+    expect(wrapper.get('input').element.value).toBe('assets/fonts/BrandSans.woff2')
+    expect(wrapper.get('[data-tooltip="projectConfig.fonts.loadFailed"]').attributes('aria-label'))
+      .toBe('projectConfig.fonts.loadFailed')
+    await wrapper.get('[aria-label="projectConfig.fonts.configure"]').trigger('click')
+    expect(wrapper.emitted('configure-font')).toEqual([['brand-sans']])
   })
 
-  it('exposes import commands for new fonts and additional faces', async () => {
+  it('registers and removes complete project-font records', async () => {
     const wrapper = mount(ProjectFontRegistryEditor, {
       props: {
         fonts: {
-          brand: {
-            family: 'Brand',
-            faces: [{ source: 'assets/fonts/Brand.woff2' }],
-          },
+          brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' },
         },
       },
     })
 
     await wrapper.get('.project-font-registry__header button').trigger('click')
-    await wrapper.get('[aria-label="projectConfig.fonts.addFace"]').trigger('click')
+    expect(wrapper.emitted('register-font')).toHaveLength(1)
 
-    expect(wrapper.emitted('import-font')).toHaveLength(1)
-    expect(wrapper.emitted('import-face')).toEqual([['brand']])
+    await wrapper.get('[aria-label="projectConfig.fonts.remove"]').trigger('click')
+    expect(wrapper.emitted('update:fonts')?.[0]?.[0]).toEqual({})
   })
 })

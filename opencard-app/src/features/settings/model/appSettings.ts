@@ -6,6 +6,14 @@ import {
   type OcThemeColorOverrides,
   type OcThemeId,
 } from '../../../shared/ui/foundation'
+import {
+  DEFAULT_PROJECT_FONT_DIRECTORY,
+  normalizeProjectFontDirectory,
+} from '../../workspace/model/projectFonts'
+import {
+  DEFAULT_PROJECT_ICON_DIRECTORY,
+  normalizeProjectIconDirectory,
+} from '../../workspace/model/projectIcons'
 
 export const APP_SETTINGS_VERSION = 1 as const
 export const MIN_SIDEBAR_WIDTH = 220
@@ -33,6 +41,12 @@ export type AppThemeDefinition = {
   colors: Required<OcThemeColorOverrides>
   accentNeighborAngle: number
   fontFamily: string
+}
+export type ProjectWorkspaceState = {
+  expandedDirectories: string[]
+  projectProfile?: {
+    collapsedSections: string[]
+  }
 }
 export type AppUserThemePreset = {
   name: string
@@ -96,6 +110,8 @@ export type AppSettingKey =
   | 'workspace.structureTreeScrollToSelection'
   | 'workspace.showSelectionPositionOnMove'
   | 'workspace.showSelectionSizeOnResize'
+  | 'workspace.defaultFontImportDirectory'
+  | 'workspace.defaultIconImportDirectory'
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
@@ -121,11 +137,13 @@ export interface AppSettings {
     structureTreeScrollToSelection: boolean
     showSelectionPositionOnMove: boolean
     showSelectionSizeOnResize: boolean
+    defaultFontImportDirectory: string
+    defaultIconImportDirectory: string
   }
   projectCreation: {
     lastParentPath: string
     recentProjects: string[]
-    workspaceStates: Record<string, { expandedDirectories: string[] }>
+    workspaceStates: Record<string, ProjectWorkspaceState>
   }
 }
 
@@ -191,6 +209,8 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     structureTreeScrollToSelection: true,
     showSelectionPositionOnMove: true,
     showSelectionSizeOnResize: true,
+    defaultFontImportDirectory: DEFAULT_PROJECT_FONT_DIRECTORY,
+    defaultIconImportDirectory: DEFAULT_PROJECT_ICON_DIRECTORY,
   }),
   projectCreation: Object.freeze({
     lastParentPath: '',
@@ -407,18 +427,24 @@ function normalizeUserThemePresets(value: unknown): AppUserThemePreset[] {
   return result
 }
 
-function normalizeWorkspaceStates(value: unknown): Record<string, { expandedDirectories: string[] }> {
+function normalizeWorkspaceStates(value: unknown): Record<string, ProjectWorkspaceState> {
   if (!isRecord(value)) return {}
-  const result: Record<string, { expandedDirectories: string[] }> = {}
+  const result: Record<string, ProjectWorkspaceState> = {}
   for (const [pathInput, state] of Object.entries(value)) {
     if (!isRecord(state) || !Array.isArray(state.expandedDirectories)) continue
     const path = pathInput.trim().replace(/\\/g, '/').replace(/\/+$/, '')
     if (!path) continue
+    const collapsedSections = isRecord(state.projectProfile) && Array.isArray(state.projectProfile.collapsedSections)
+      ? [...new Set(state.projectProfile.collapsedSections.filter((item): item is string => (
+          typeof item === 'string' && item.trim() !== ''
+        )).map(item => item.trim()))]
+      : []
     result[path] = {
       expandedDirectories: state.expandedDirectories
         .filter((item): item is string => typeof item === 'string')
         .map(item => item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
         .filter(Boolean),
+      ...(collapsedSections.length > 0 ? { projectProfile: { collapsedSections } } : {}),
     }
   }
   return result
@@ -530,6 +556,12 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       showSelectionSizeOnResize: typeof workspace.showSelectionSizeOnResize === 'boolean'
         ? workspace.showSelectionSizeOnResize
         : DEFAULT_APP_SETTINGS.workspace.showSelectionSizeOnResize,
+      defaultFontImportDirectory: typeof workspace.defaultFontImportDirectory === 'string'
+        ? normalizeProjectFontDirectory(workspace.defaultFontImportDirectory) ?? DEFAULT_PROJECT_FONT_DIRECTORY
+        : DEFAULT_PROJECT_FONT_DIRECTORY,
+      defaultIconImportDirectory: typeof workspace.defaultIconImportDirectory === 'string'
+        ? normalizeProjectIconDirectory(workspace.defaultIconImportDirectory) ?? DEFAULT_PROJECT_ICON_DIRECTORY
+        : DEFAULT_PROJECT_ICON_DIRECTORY,
     },
     projectCreation: {
       lastParentPath: typeof projectCreation.lastParentPath === 'string'

@@ -11,7 +11,7 @@ describe('globalTooltip', () => {
     document.body.innerHTML = `
       <button id="first" data-tooltip="First tooltip">First</button>
       <button id="second" data-tooltip="Second tooltip">Second</button>
-      <button id="rich" data-tooltip="Before [[chip:Ctrl]] [[icon:action.copy]] after">Rich</button>
+      <button id="rich" data-tooltip="[b]Before[/b][br][i]Now[/i] [[chip:Ctrl]] [[icon:action.copy]] [code]Alt[/code]">Rich</button>
     `
     setupGlobalTooltip()
 
@@ -41,7 +41,11 @@ describe('globalTooltip', () => {
 
     const rich = document.getElementById('rich')!
     rich.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    expect(layer.textContent).toBe('Before Ctrl  after')
+    expect(layer.textContent).toBe('BeforeNow Ctrl  Alt')
+    expect(layer.querySelector('strong')?.textContent).toBe('Before')
+    expect(layer.querySelector('em')?.textContent).toBe('Now')
+    expect(layer.querySelector('br')).not.toBeNull()
+    expect(layer.querySelectorAll('.app-tooltip-layer__chip')).toHaveLength(2)
     expect(layer.querySelector('.app-tooltip-layer__chip')?.textContent).toBe('Ctrl')
     expect(layer.querySelector('.app-tooltip-layer__icon path')).not.toBeNull()
   })
