@@ -77,7 +77,7 @@ function commit(next: ProjectFontRegistryDocument): void {
     document.value = parseProjectFontRegistryText(content)
     emit('update:modelValue', content)
   } catch (error) {
-    reportAppError('OC-E3006', error)
+    reportAppError('OC-E3012', error)
   }
 }
 

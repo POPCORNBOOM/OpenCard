@@ -123,7 +123,7 @@ function commit(next: ProjectIconRegistryDocument): void {
     document.value = parseProjectIconRegistryText(content)
     emit('update:modelValue', content)
   } catch (error) {
-    reportAppError('OC-E3006', error)
+    reportAppError('OC-E3012', error)
   }
 }
 
@@ -172,7 +172,7 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
     registrationDialogOpen.value = false
     importError.value = ''
   } catch (error) {
-    reportAppError('OC-E3010', error)
+    reportAppError('OC-E3011', error)
     importError.value = t('projectConfig.icons.importFailed')
   } finally {
     importBusy.value = false

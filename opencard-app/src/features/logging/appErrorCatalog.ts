@@ -108,6 +108,16 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法加载项目图标注册表', 'en-US': 'Could not load the project icon registry' },
     solution: '检查 .iconreg 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
   },
+  'OC-E3011': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法导入项目图标集', 'en-US': 'Could not import the project icon set' },
+    solution: '确认所选图片是受支持且未损坏的图标集，并检查项目目录写入权限。',
+  },
+  'OC-E3012': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '注册表草稿无效', 'en-US': 'The project registry draft is invalid' },
+    solution: '在源码中修复注册表 JSON，确认内容有效后再次保存。',
+  },
   'OC-E4001': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法在预览会话中打开文件', 'en-US': 'Could not open the file in a preview session' },
