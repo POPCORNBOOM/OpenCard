@@ -153,6 +153,34 @@ describe('OcTree', () => {
     await wrapper.vm.$nextTick()
     expect(root.scrollTop).toBe(50)
   })
+
+  it('windows a thousand fixed-height rows and reveals an offscreen selection', async () => {
+    const keys = Array.from({ length: 1000 }, (_, index) => `item-${index}`)
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: keys,
+          items: keys.map(key => [key, { label: key }]),
+        }),
+        fill: true,
+        virtualized: true,
+        scrollToSelection: true,
+      },
+    })
+
+    expect(wrapper.findAll('[data-oc-tree-key]').length).toBeLessThanOrEqual(12)
+    await wrapper.setProps({ selectedKeys: ['item-999'] })
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    const selectedRow = wrapper.get('[data-oc-tree-key="item-999"] .oc-tree__row')
+    expect(selectedRow.attributes()).toMatchObject({
+      'aria-posinset': '1000',
+      'aria-setsize': '1000',
+      tabindex: '0',
+    })
+    expect(wrapper.findAll('[data-oc-tree-key]').length).toBeLessThanOrEqual(12)
+  })
   it('renders expanded children and rotates the node type icon', () => {
     const wrapper = mount(OcTree, {
       props: {

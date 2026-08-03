@@ -40,6 +40,32 @@ describe('OcActionButton', () => {
     expect(wrapper.get('button').attributes('title')).toBeUndefined()
   })
 
+  it('mounts floating behavior and the outside listener only when needed', async () => {
+    const addListener = vi.spyOn(document, 'addEventListener')
+    const wrapper = mount(OcActionButton, {
+      attachTo: document.body,
+      props: {
+        action: {
+          key: 'more',
+          title: 'More',
+          children: [{ key: 'delete', title: 'Delete' }],
+        },
+      },
+    })
+
+    expect(document.body.querySelector('.oc-floating-layer')).toBeNull()
+    expect(addListener.mock.calls.some(([type]) => type === 'pointerdown')).toBe(false)
+
+    await wrapper.trigger('pointerenter')
+    await flushPromises()
+    expect(document.body.querySelector('.oc-floating-layer')).not.toBeNull()
+    expect(addListener.mock.calls.some(([type]) => type === 'pointerdown')).toBe(false)
+
+    await wrapper.get('button').trigger('click')
+    expect(addListener.mock.calls.some(([type]) => type === 'pointerdown')).toBe(true)
+    wrapper.unmount()
+  })
+
   it('uses the shared floating layer and flips above the anchor', async () => {
     vi.stubGlobal('innerWidth', 300)
     vi.stubGlobal('innerHeight', 200)

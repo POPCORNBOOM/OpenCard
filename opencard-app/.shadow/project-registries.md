@@ -37,13 +37,16 @@ issues use the `icon-registry` navigation protocol, version 1, and carry stable
 indices plus the conflicting key. Editors own business state and commands;
 shared shell and repair components own only common document UI geometry.
 
-The icon registry editor uses a controlled workbench. Its left tree owns only
-icon-set selection and set-level commands. The selected-set workspace owns the
-canvas, icon list, property projection, and grid generation, and emits immutable
-series replacements. It must not mirror the registry array into a second draft.
-Workbench side panels use the shared `OcCard` action contract instead of local
-headers and buttons. The selected canvas reuses the project catalog immediately,
-then refreshes only its current series when editor-local asset state changes.
-No icon set is selected on initial open; registration and issue navigation select
-explicitly through the workbench API. The removed accordion editor must not be
-reintroduced as a compatibility wrapper.
+The icon registry editor uses a controlled two-column workbench and must not
+mirror the registry array into a second draft. The left column owns the editor
+title and one expanded icon-set section; its body pairs the icon tree with a
+property editor whose intrinsic height determines the section height. Only the
+tree scrolls within that height. The right column owns the persistent atlas
+viewport above a large selected-icon preview.
+
+The selected canvas reuses the project catalog immediately, then refreshes only
+its current series when editor-local asset state changes. Crop interaction stays
+local until pointer release and emits one immutable series replacement per drag.
+The icon tree filters by display name or icon key while retaining original array
+indexes for every command, and opts into `OcTree` fixed-row virtualization.
+Registration and issue navigation select through the workbench API.

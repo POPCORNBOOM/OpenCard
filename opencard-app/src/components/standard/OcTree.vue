@@ -10,14 +10,17 @@
     }"
     :role="props.role"
     :aria-multiselectable="props.selectionMode === 'multiple' ? 'true' : undefined"
+    @scroll.passive="handleTreeScroll"
   >
+    <div class="oc-tree__content" :class="{ 'is-virtualized': props.virtualized }"
+      :style="virtualContentStyle">
     <div
-      v-for="(entry, index) in visibleEntries"
+      v-for="entry in renderedEntries"
       :key="entry.key"
       class="oc-tree__node"
       :class="resolveNodeClass(entry.key)"
       :data-oc-tree-key="entry.key"
-      :style="{ '--oc-tree-indent': `${entry.level * 12}px` }"
+      :style="resolveNodeStyle(entry)"
     >
       <span
         v-if="entry.guideRows > 0"
@@ -41,11 +44,13 @@
         :aria-disabled="entry.item.disabled || undefined"
         :aria-selected="props.role !== 'menu' && props.selectionMode !== 'none' ? isSelected(entry.key) : undefined"
         :aria-expanded="isExpandable(entry.key) ? isExpanded(entry.key) : undefined"
+        :aria-posinset="props.virtualized ? entry.index + 1 : undefined"
+        :aria-setsize="props.virtualized ? visibleEntries.length : undefined"
         @focus="activeKey = entry.key"
         @click="handleRowClick($event, entry.key)"
         @dblclick="handleRowDoubleClick($event, entry.key)"
         @mousedown="handleRowMouseDown($event, entry.key)"
-        @keydown="handleRowKeydown($event, entry.key, index)"
+        @keydown="handleRowKeydown($event, entry.key, entry.index)"
         @contextmenu="handleRowContextMenu($event, entry.key)"
       >
         <span
@@ -55,7 +60,10 @@
           @mousedown="handleIconMouseDown($event, entry.key)"
           @click="handleIconClick($event, entry.key)"
         >
-          <OcIcon
+          <span v-if="entry.item.thumbnailStyle" class="oc-tree__thumbnail"
+            :style="entry.item.thumbnailStyle" role="img"
+            :aria-label="entry.item.thumbnailLabel ?? entry.item.label" />
+          <OcIcon v-else
             :name="entry.item.icon ?? 'tree.chevron-right'"
             :tone="entry.item.iconTone"
             size="md"
@@ -104,11 +112,13 @@
         </span>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect, type ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect,
+  type ComponentPublicInstance, type CSSProperties } from 'vue'
 import type { OcActionButtonAction } from './OcActionButton.vue'
 import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
@@ -122,6 +132,7 @@ import type {
   OcTreeIntent,
   OcTreeKey,
 } from '../../shared/ui/tree/tree.types'
+import { resolveOcPixelToken } from '../../shared/ui/foundation'
 
 type OcTreeSelectionMode = 'none' | 'single' | 'multiple'
 type OcTreeActivationMode = 'none' | 'single-click' | 'double-click'
@@ -138,6 +149,7 @@ interface OcTreeProps {
   fill?: boolean
   selectionExpansionMode?: 'none' | 'expand' | 'expand-exclusive'
   scrollToSelection?: boolean
+  virtualized?: boolean
 }
 
 type VisibleEntry = {
@@ -146,6 +158,7 @@ type VisibleEntry = {
   level: number
   parentKey: OcTreeKey | null
   guideRows: number
+  index: number
 }
 
 defineOptions({ name: 'OcTree' })
@@ -160,6 +173,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   fill: false,
   selectionExpansionMode: 'none',
   scrollToSelection: false,
+  virtualized: false,
 })
 
 const emit = defineEmits<{
@@ -179,6 +193,11 @@ const dropTargetKey = ref<OcTreeKey | null>(null)
 const dropPosition = ref<OcTreeDropPosition | null>(null)
 const suppressClick = ref(false)
 const warnedMessages = new Set<string>()
+const virtualScrollTop = ref(0)
+const virtualViewportHeight = ref(0)
+const virtualRowHeight = ref(1)
+const VIRTUAL_OVERSCAN_ROWS = 6
+let treeResizeObserver: ResizeObserver | null = null
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 const expandedKeySet = computed(() => new Set(props.expandedKeys))
@@ -274,7 +293,7 @@ const visibleEntries = computed<VisibleEntry[]>(() => {
     }
 
     visited.add(key)
-    entries.push({ key, item, level, parentKey, guideRows: 0 })
+    entries.push({ key, item, level, parentKey, guideRows: 0, index: entries.length })
     if (!isExpanded(key)) return
 
     const nextAncestors = new Set(ancestors)
@@ -298,6 +317,44 @@ const visibleEntries = computed<VisibleEntry[]>(() => {
 
   return entries
 })
+
+const virtualRange = computed(() => {
+  if (!props.virtualized) return { start: 0, end: visibleEntries.value.length }
+  const rowHeight = virtualRowHeight.value
+  const start = Math.max(0, Math.floor(virtualScrollTop.value / rowHeight) - VIRTUAL_OVERSCAN_ROWS)
+  const visibleRows = Math.ceil(virtualViewportHeight.value / rowHeight)
+  return {
+    start,
+    end: Math.min(visibleEntries.value.length, start + visibleRows + VIRTUAL_OVERSCAN_ROWS * 2),
+  }
+})
+const renderedEntries = computed(() => visibleEntries.value.slice(
+  virtualRange.value.start,
+  virtualRange.value.end,
+))
+const virtualContentStyle = computed<CSSProperties | undefined>(() => props.virtualized
+  ? { height: `${visibleEntries.value.length * virtualRowHeight.value}px` }
+  : undefined)
+
+function resolveNodeStyle(entry: VisibleEntry): CSSProperties {
+  return {
+    '--oc-tree-indent': `${entry.level * 12}px`,
+    ...(props.virtualized ? { transform: `translateY(${entry.index * virtualRowHeight.value}px)` } : {}),
+  } as CSSProperties
+}
+
+function handleTreeScroll(event: Event): void {
+  if (!props.virtualized || !(event.currentTarget instanceof HTMLElement)) return
+  virtualScrollTop.value = event.currentTarget.scrollTop
+}
+
+function syncVirtualMetrics(): void {
+  const root = treeRootElement.value
+  if (!props.virtualized || !root) return
+  virtualRowHeight.value = Math.max(1, resolveOcPixelToken('--oc-size-md', root))
+  virtualViewportHeight.value = root.clientHeight
+  virtualScrollTop.value = root.scrollTop
+}
 
 function resolveSelectionAncestorKeys(key: OcTreeKey): OcTreeKey[] {
   const ancestors: OcTreeKey[] = []
@@ -361,8 +418,20 @@ watch(
 
 function scrollRowIntoTreeViewport(key: OcTreeKey): void {
   const root = treeRootElement.value
+  if (!root) return
+  if (props.virtualized) {
+    const index = visibleEntries.value.findIndex(entry => entry.key === key)
+    if (index < 0) return
+    const rowTop = index * virtualRowHeight.value
+    const rowBottom = rowTop + virtualRowHeight.value
+    if (rowTop < root.scrollTop) root.scrollTop = rowTop
+    else if (rowBottom > root.scrollTop + root.clientHeight) root.scrollTop = rowBottom - root.clientHeight
+    virtualScrollTop.value = root.scrollTop
+    return
+  }
+
   const row = rowRefs.get(key)
-  if (!root || !row) return
+  if (!row) return
 
   const rootRect = root.getBoundingClientRect()
   const rowRect = row.getBoundingClientRect()
@@ -392,6 +461,13 @@ watch(
   },
   { immediate: true },
 )
+watch(renderedEntries, entries => {
+  if (!props.virtualized || entries.some(entry => entry.key === activeKey.value)) return
+  const selectedKey = props.selectedKeys[0]
+  activeKey.value = entries.find(entry => entry.key === selectedKey && !entry.item.disabled)?.key
+    ?? entries.find(entry => !entry.item.disabled)?.key
+    ?? null
+})
 
 function isSelected(key: OcTreeKey): boolean {
   return selectedKeySet.value.has(key)
@@ -525,6 +601,7 @@ async function startRename(key: OcTreeKey): Promise<void> {
   if (!item?.renamable || item.disabled) return
   renamingKey.value = key
   renameDraft.value = item.label
+  if (props.virtualized) scrollRowIntoTreeViewport(key)
   await nextTick()
   renameInputRefs.get(key)?.focus()
   const element = renameInputRefs.get(key)?.$el
@@ -561,11 +638,13 @@ function handleRenameKeydown(event: KeyboardEvent, key: OcTreeKey): void {
   }
 }
 
-function focusEntry(index: number): void {
+async function focusEntry(index: number): Promise<void> {
   const entry = visibleEntries.value[index]
   if (!entry || entry.item.disabled) return
   activeKey.value = entry.key
-  nextTick(() => rowRefs.get(entry.key)?.focus())
+  if (props.virtualized) scrollRowIntoTreeViewport(entry.key)
+  await nextTick()
+  rowRefs.get(entry.key)?.focus()
 }
 
 function findFocusableIndex(start: number, direction: -1 | 1): number {
@@ -688,12 +767,28 @@ function resolveNodeClass(key: OcTreeKey): Record<string, boolean> {
   }
 }
 
+watch([() => props.virtualized, () => visibleEntries.value.length], async () => {
+  await nextTick()
+  syncVirtualMetrics()
+  const root = treeRootElement.value
+  if (!props.virtualized || !root) return
+  const maximum = Math.max(0, visibleEntries.value.length * virtualRowHeight.value - root.clientHeight)
+  if (root.scrollTop > maximum) root.scrollTop = maximum
+  virtualScrollTop.value = root.scrollTop
+})
+
 onMounted(() => {
   window.addEventListener('mousemove', handleGlobalMouseMove)
   window.addEventListener('mouseup', handleGlobalMouseUp)
+  syncVirtualMetrics()
+  if (typeof ResizeObserver !== 'undefined' && treeRootElement.value) {
+    treeResizeObserver = new ResizeObserver(syncVirtualMetrics)
+    treeResizeObserver.observe(treeRootElement.value)
+  }
 })
 
 onBeforeUnmount(() => {
+  treeResizeObserver?.disconnect()
   window.removeEventListener('mousemove', handleGlobalMouseMove)
   window.removeEventListener('mouseup', handleGlobalMouseUp)
 })
@@ -705,6 +800,33 @@ onBeforeUnmount(() => {
   flex-direction: column;
   min-width: 0;
   user-select: none;
+}
+
+.oc-tree__content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.oc-tree__content.is-virtualized {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.oc-tree__content.is-virtualized > .oc-tree__node {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.oc-tree__thumbnail {
+  display: inline-block;
+  flex: none;
+  font-size: var(--oc-size-sm);
+  background-repeat: no-repeat;
+  vertical-align: text-bottom;
 }
 
 .oc-tree.is-fill {

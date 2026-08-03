@@ -113,6 +113,7 @@ const interaction = ref<{
   startY: number
   icon: ProjectIcon
 } | null>(null)
+const previewIcon = ref<ProjectIcon | null>(null)
 
 const scaleLabel = computed(() => `${Math.round(scale.value * 100)}%`)
 const fitScale = computed(() => {
@@ -138,12 +139,13 @@ const mediaStyle = computed<CSSProperties>(() => {
 })
 
 const selectionStyle = computed(() => {
-  if (!props.runtime || !props.icon) return undefined
+  const icon = previewIcon.value ?? props.icon
+  if (!props.runtime || !icon) return undefined
   return {
-    left: `${props.icon.x / props.runtime.imageWidth * 100}%`,
-    top: `${props.icon.y / props.runtime.imageHeight * 100}%`,
-    width: `${props.icon.width / props.runtime.imageWidth * 100}%`,
-    height: `${props.icon.height / props.runtime.imageHeight * 100}%`,
+    left: `${icon.x / props.runtime.imageWidth * 100}%`,
+    top: `${icon.y / props.runtime.imageHeight * 100}%`,
+    width: `${icon.width / props.runtime.imageWidth * 100}%`,
+    height: `${icon.height / props.runtime.imageHeight * 100}%`,
   }
 })
 
@@ -377,14 +379,17 @@ function continueInteraction(event: PointerEvent): void {
     }
   }
 
-  emit('update:icon', { ...original, x: left, y: top, width: right - left, height: bottom - top })
+  previewIcon.value = { ...original, x: left, y: top, width: right - left, height: bottom - top }
 }
 
 function endInteraction(): void {
+  const committedIcon = previewIcon.value
   interaction.value = null
+  previewIcon.value = null
   window.removeEventListener('pointermove', continueInteraction)
   window.removeEventListener('pointerup', endInteraction)
   window.removeEventListener('pointercancel', endInteraction)
+  if (committedIcon) emit('update:icon', committedIcon)
 }
 
 watch(() => props.runtime

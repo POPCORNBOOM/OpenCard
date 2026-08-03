@@ -27,7 +27,8 @@
       @click.stop="handleButtonClick"
     />
     <OcFloatingLayer
-      :open="isMenuOpen && hasActionChildren(action)"
+      v-if="isMenuOpen && hasActionChildren(action)"
+      :open="true"
       :anchor="rootRef"
       placement="bottom-end"
       :gap="0"
@@ -57,7 +58,7 @@ export type {
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { onBeforeUnmount, ref, useId } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcActionMenu, {
   type OcActionDefinition,
@@ -93,14 +94,11 @@ const menuBranchId = useId()
 const isMenuOpen = ref(false)
 const isMenuPinned = ref(false)
 let closeTimer: number | null = null
-
-onMounted(() => {
-  document.addEventListener('pointerdown', handleDocumentPointerDown, true)
-})
+let listeningForOutsidePointer = false
 
 onBeforeUnmount(() => {
   cancelCloseMenu()
-  document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+  stopListeningForOutsidePointer()
 })
 
 function handleButtonClick(): void {
@@ -114,6 +112,7 @@ function handleButtonClick(): void {
       return
     }
     isMenuPinned.value = true
+    startListeningForOutsidePointer()
     openMenu()
     return
   }
@@ -156,6 +155,19 @@ function closeMenu(): void {
   cancelCloseMenu()
   isMenuPinned.value = false
   isMenuOpen.value = false
+  stopListeningForOutsidePointer()
+}
+
+function startListeningForOutsidePointer(): void {
+  if (listeningForOutsidePointer) return
+  listeningForOutsidePointer = true
+  document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+}
+
+function stopListeningForOutsidePointer(): void {
+  if (!listeningForOutsidePointer) return
+  listeningForOutsidePointer = false
+  document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
 }
 
 function handleDocumentPointerDown(event: PointerEvent): void {

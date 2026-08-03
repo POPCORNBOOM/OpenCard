@@ -1,6 +1,7 @@
 <template>
-  <section class="project-registry-shell" :class="`project-registry-shell--${contentMode}`">
-    <header class="project-registry-shell__header">
+  <section class="project-registry-shell"
+    :class="[`project-registry-shell--${contentMode}`, `project-registry-shell--header-${headerMode}`]">
+    <header v-if="headerMode === 'default'" class="project-registry-shell__header">
       <div class="project-registry-shell__identity">
         <OcIcon :name="icon" size="lg" />
         <div>
@@ -28,8 +29,10 @@ withDefaults(defineProps<{
   heading: string
   description: string
   contentMode?: 'padded' | 'workspace'
+  headerMode?: 'default' | 'hidden'
 }>(), {
   contentMode: 'padded',
+  headerMode: 'default',
 })
 </script>
 
@@ -93,5 +96,9 @@ withDefaults(defineProps<{
 .project-registry-shell--workspace .project-registry-shell__content {
   overflow: hidden;
   padding: 0;
+}
+
+.project-registry-shell--header-hidden {
+  grid-template-rows: minmax(0, 1fr);
 }
 </style>

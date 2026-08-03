@@ -2,11 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
-import OcCard from '../standard/OcCard.vue'
-import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
 import OcTree from '../standard/OcTree.vue'
-import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
-import ProjectIconGridDialog from './ProjectIconGridDialog.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -25,29 +21,50 @@ const runtime = {
 }
 
 describe('ProjectIconSetWorkspace', () => {
-  it('keeps the canvas, icon list and property editor in one selected-set workspace', () => {
+  it('keeps the icon tree and property editor side by side inside an expanded set', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndex: 0 },
     })
-    expect(wrapper.find('.project-icon-set-workspace__canvas-pane').exists()).toBe(true)
-    expect(wrapper.find('.project-icon-set-workspace__icon-list').exists()).toBe(true)
-    expect(wrapper.find('.project-icon-set-workspace__properties').exists()).toBe(true)
-    expect(wrapper.getComponent(ProjectIconCropEditor).props('fill')).toBe(true)
-    expect(wrapper.findAllComponents(OcCard).map(card => card.props('title'))).toEqual([
-      'projectConfig.icons.iconList',
-      'projectConfig.icons.properties',
-    ])
-    expect(wrapper.findAllComponents(OcOverlayToolbar)).toHaveLength(3)
+    expect(wrapper.find('.project-icon-set-workspace__tree-pane').exists()).toBe(true)
+    expect(wrapper.find('.project-icon-set-workspace__property-pane').exists()).toBe(true)
+    expect(wrapper.getComponent(OcTree).props('virtualized')).toBe(true)
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
   })
 
-  it('opens grid generation through the icon-list card action', async () => {
+  it('filters by icon name or key while preserving original icon indexes', async () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndex: 0 },
     })
-    wrapper.findAllComponents(OcCard)[0]!.vm.$emit('action', { key: 'generate' })
-    await wrapper.vm.$nextTick()
-    expect(wrapper.getComponent(ProjectIconGridDialog).props('open')).toBe(true)
+    const input = wrapper.get('input[placeholder="projectConfig.icons.filterPlaceholder"]')
+
+    await input.setValue('success')
+    expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual(['icon:1'])
+
+    await input.setValue('warning')
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'selection.change', triggerKey: 'icon:0', selectedKeys: ['icon:0'], mode: 'replace',
+    })
+    expect(wrapper.emitted('update:selectedIconIndex')).toEqual([[0]])
+  })
+
+  it('keeps a 992-icon set windowed in the DOM', () => {
+    const largeSeries: ProjectIconSeries = {
+      ...series,
+      icons: Array.from({ length: 992 }, (_, index) => ({
+        iconKey: `icon-${index}`,
+        name: `Icon ${index}`,
+        x: 0,
+        y: 0,
+        width: 16,
+        height: 16,
+      })),
+    }
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series: largeSeries, runtime, selectedIconIndex: 0 },
+    })
+
+    expect(wrapper.getComponent(OcTree).props('data').rootKeys).toHaveLength(992)
+    expect(wrapper.findAll('[data-oc-tree-key]').length).toBeLessThanOrEqual(12)
   })
 
   it('emits controlled selection and immutable series updates', async () => {
@@ -69,17 +86,4 @@ describe('ProjectIconSetWorkspace', () => {
     expect(series.icons[0]?.name).toBe('Warning')
   })
 
-  it('keeps grid snapping and pixel preview updates on the selected series', async () => {
-    const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndex: 0 },
-    })
-    await wrapper.get('button[aria-label="projectConfig.icons.snapToGrid"]').trigger('click')
-    let updates = wrapper.emitted('update:series') ?? []
-    expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).grid?.snapToGrid).toBe(true)
-
-    wrapper.getComponent(ProjectIconCropEditor).vm.$emit('update:pixelated', true)
-    await wrapper.vm.$nextTick()
-    updates = wrapper.emitted('update:series') ?? []
-    expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).grid?.pixelated).toBe(true)
-  })
 })

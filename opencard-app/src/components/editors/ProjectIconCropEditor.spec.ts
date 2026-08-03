@@ -59,6 +59,7 @@ describe('ProjectIconCropEditor', () => {
       new PointerEvent('pointerdown', { clientX: 20, clientY: 20, bubbles: true }),
     )
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 30 }))
+    expect(wrapper.emitted('update:icon')).toBeUndefined()
     window.dispatchEvent(new PointerEvent('pointerup'))
     const updates = wrapper.emitted('update:icon') ?? []
     expect(updates[updates.length - 1]?.[0]).toMatchObject({ x: 20, y: 15, width: 20, height: 10 })

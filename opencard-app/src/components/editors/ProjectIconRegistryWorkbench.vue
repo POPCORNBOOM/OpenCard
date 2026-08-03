@@ -1,37 +1,107 @@
 <template>
   <div class="project-icon-registry-workbench">
-    <aside class="project-icon-registry-workbench__series-pane">
-      <OcCard fill variant="glass" icon="file.image" :title="t('projectConfig.icons.iconSets')"
-        :actions="seriesCardActions" @action="handleSeriesCardAction">
-        <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
-          <OcText v-if="error" class="project-icon-registry-workbench__error" tone="danger" size="sm">
-            {{ error }}
-          </OcText>
-          <OcTree v-if="series.length" class="project-icon-registry-workbench__series-tree" fill
-            role="listbox" :data="seriesTreeData" :actions="seriesTreeActions"
-            :selected-keys="selectedSeriesTreeKeys" selection-mode="single" @intent="handleSeriesTreeIntent" />
-          <OcEmpty v-else class="project-icon-registry-workbench__empty" tone="muted">
-            {{ t('projectConfig.icons.empty') }}
-          </OcEmpty>
-        </OcPanel>
-      </OcCard>
-    </aside>
+    <section class="project-icon-registry-workbench__left">
+      <header class="project-icon-registry-workbench__titlebar">
+        <div class="project-icon-registry-workbench__title">
+          <OcIcon name="file.image" size="lg" />
+          <div>
+            <h1>{{ heading }}</h1>
+            <OcText tone="muted" size="sm">{{ description }}</OcText>
+          </div>
+        </div>
+        <OcButton icon-only icon="action.add" variant="soft"
+          :aria-label="t('projectConfig.icons.register')" :data-tooltip="t('projectConfig.icons.register')"
+          @click="emit('register')" />
+      </header>
 
-    <ProjectIconSetWorkspace v-if="selectedSeries && selectedSeriesIndex !== null"
-      ref="setWorkspaceRef" :series="selectedSeries" :runtime="selectedRuntime"
-      :load-error="selectedSeriesLoadError" :selected-icon-index="selectedIconIndex"
-      @update:series="updateSelectedSeries" @update:selected-icon-index="setSelectedIconIndex"
-      @configure="openSettingsDialog(selectedSeriesIndex)" />
+      <OcText v-if="error" class="project-icon-registry-workbench__error" tone="danger" size="sm">
+        {{ error }}
+      </OcText>
+      <div class="project-icon-registry-workbench__series-list">
+        <OcEmpty v-if="series.length === 0" tone="muted">{{ t('projectConfig.icons.empty') }}</OcEmpty>
+        <ProjectConfigSection v-for="(candidate, index) in series" :key="candidate.key"
+          :section-id="`project-icon-series-${index}`" :heading="candidate.key"
+          :description="candidate.source" :collapsed="selectedSeriesIndex !== index"
+          :expand-label="t('projectConfig.sections.expand', { section: candidate.key })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: candidate.key })"
+          @toggle="toggleSeries(index)">
+          <template #heading-actions>
+            <OcText as="span" tone="muted" size="sm">
+              {{ t('projectConfig.icons.iconCount', { count: candidate.icons.length }) }}
+            </OcText>
+          </template>
+          <template #actions>
+            <OcButton icon-only size="sm" icon="tool.grid" variant="ghost"
+              :disabled="selectedSeriesIndex !== index || !selectedRuntime"
+              :aria-label="t('projectConfig.icons.generateIcons')"
+              :data-tooltip="t('projectConfig.icons.generateIcons')"
+              @click.stop="openGridDialog(index)" />
+            <OcButton icon-only size="sm" icon="tool.settings" variant="ghost"
+              :aria-label="t('projectConfig.icons.configureIconSet')"
+              :data-tooltip="t('projectConfig.icons.configureIconSet')"
+              @click.stop="openSettingsDialog(index)" />
+            <OcButton icon-only size="sm" icon="action.delete" icon-tone="danger" variant="ghost"
+              :aria-label="t('projectConfig.icons.removeSeries')"
+              :data-tooltip="t('projectConfig.icons.removeSeries')"
+              @click.stop="removeSeries(index)" />
+          </template>
+          <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index" :ref="captureSetWorkspace"
+            :series="candidate" :runtime="selectedRuntime" :selected-icon-index="selectedIconIndex"
+            @update:series="updateSelectedSeries" @update:selected-icon-index="setSelectedIconIndex" />
+        </ProjectConfigSection>
+      </div>
+    </section>
 
-    <div v-else class="project-icon-registry-workbench__placeholder">
-      <OcIcon name="file.image" size="lg" tone="muted" />
-      <OcEmpty tone="muted" inset="none">{{ t('projectConfig.icons.noSeriesSelected') }}</OcEmpty>
-    </div>
+    <section class="project-icon-registry-workbench__right">
+      <template v-if="selectedSeries">
+        <div class="project-icon-registry-workbench__atlas-pane">
+          <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
+            tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
+          <ProjectIconCropEditor fill :runtime="selectedRuntime" :icon="selectedIcon" :alt="selectedSeries.key"
+            :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+            :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+            :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+            :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
+            @update:icon="updateSelectedIcon" @update:pixelated="updateGridSettings({ pixelated: $event })" />
+          <OcOverlayToolbar class="project-icon-registry-workbench__grid-toolbar"
+            :label="t('projectConfig.icons.gridSettings')">
+            <OcButton icon-only size="sm" icon="tool.snap-grid" :active="gridSettings.snapToGrid"
+              :aria-pressed="gridSettings.snapToGrid" :variant="gridSettings.snapToGrid ? 'soft' : 'ghost'"
+              :aria-label="t('projectConfig.icons.snapToGrid')"
+              :data-tooltip="t('projectConfig.icons.snapToGrid')" @click="toggleGridSnapping" />
+            <OcFieldFrame class="project-icon-registry-workbench__grid-field" size="sm">
+              <template #prefix><OcIcon name="layout.rows" size="sm" tone="muted" /></template>
+              <OcFieldInput variant="plain" size="sm" type="number" min="1" step="1"
+                :value="gridSettings.rows" :aria-label="t('projectConfig.icons.rows')"
+                @change="updateGridDimension('rows', $event)" />
+            </OcFieldFrame>
+            <OcFieldFrame class="project-icon-registry-workbench__grid-field" size="sm">
+              <template #prefix><OcIcon name="layout.columns" size="sm" tone="muted" /></template>
+              <OcFieldInput variant="plain" size="sm" type="number" min="1" step="1"
+                :value="gridSettings.columns" :aria-label="t('projectConfig.icons.columns')"
+                @change="updateGridDimension('columns', $event)" />
+            </OcFieldFrame>
+          </OcOverlayToolbar>
+        </div>
+        <div class="project-icon-registry-workbench__preview-pane">
+          <OcText as="strong">{{ selectedIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+          <ProjectIconView v-if="selectedCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+            :entry="selectedCatalogEntry" mode="preview" />
+          <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
+        </div>
+      </template>
+      <div v-else class="project-icon-registry-workbench__placeholder">
+        <OcIcon name="file.image" size="lg" tone="muted" />
+        <OcEmpty tone="muted" inset="none">{{ t('projectConfig.icons.noSeriesSelected') }}</OcEmpty>
+      </div>
+    </section>
 
-    <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null"
-      :name="settingsSeries?.key" :source="settingsSeries?.source"
-      :existing-names="series.map(candidate => candidate.key)"
-      @close="closeSettingsDialog" @submit="saveIconSetSettings" />
+    <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null" :name="settingsSeries?.key"
+      :source="settingsSeries?.source" :existing-names="series.map(candidate => candidate.key)"
+      @close="settingsSeriesIndex = null" @submit="saveIconSetSettings" />
+    <ProjectIconGridDialog :open="gridDialogOpen" :has-icons="Boolean(selectedSeries?.icons.length)"
+      :initial-rows="gridSettings.rows" :initial-columns="gridSettings.columns"
+      :initial-pixelated="gridSettings.pixelated" @close="gridDialogOpen = false" @submit="generateIcons" />
   </div>
 </template>
 
@@ -39,36 +109,42 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   findProjectIconKeyConflicts,
+  generateProjectIconGrid,
+  type ProjectIcon,
+  type ProjectIconGridSettings,
   type ProjectIconKeyConflict,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
+import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
 import {
   buildProjectIconCatalog,
   findProjectIconSeries,
   type ProjectIconCatalog,
+  type ProjectIconCatalogEntry,
 } from '../../features/workspace/services/projectIconCatalog'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
+import OcFieldFrame from '../base/OcFieldFrame.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
-import OcPanel from '../base/OcPanel.vue'
 import OcText from '../base/OcText.vue'
-import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
-import OcTree from '../standard/OcTree.vue'
-import ProjectIconSetSettingsDialog, {
-  type ProjectIconSetSettingsRequest,
-} from './ProjectIconSetSettingsDialog.vue'
+import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
+import ProjectConfigSection from './ProjectConfigSection.vue'
+import ProjectIconCropEditor, { type ProjectIconCropHandle } from './ProjectIconCropEditor.vue'
+import ProjectIconGridDialog, { type ProjectIconGridRequest } from './ProjectIconGridDialog.vue'
+import ProjectIconSetSettingsDialog, { type ProjectIconSetSettingsRequest } from './ProjectIconSetSettingsDialog.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 
 const props = withDefaults(defineProps<{
+  heading: string
+  description: string
   series?: readonly ProjectIconSeries[]
   resolveAssetSrc: (source: string) => string
   projectIconCatalog?: ProjectIconCatalog
   error?: string
-}>(), {
-  series: () => [],
-  error: '',
-})
+}>(), { series: () => [], error: '' })
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries[]]
   'key-conflicts': [conflicts: readonly ProjectIconKeyConflict[]]
@@ -78,9 +154,11 @@ const { t } = useI18n()
 const selectedSeriesKey = ref<string | null>(null)
 const selectedIconIndexes = ref<Record<string, number | null>>({})
 const settingsSeriesIndex = ref<number | null>(null)
+const gridDialogOpen = ref(false)
 const setWorkspaceRef = ref<InstanceType<typeof ProjectIconSetWorkspace> | null>(null)
 const localCatalog = ref<ProjectIconCatalog>({ series: [], entries: [], errors: [] })
 let catalogVersion = 0
+let initialized = false
 
 const selectedSeriesIndex = computed(() => {
   if (selectedSeriesKey.value === null) return null
@@ -88,160 +166,140 @@ const selectedSeriesIndex = computed(() => {
   return index >= 0 ? index : null
 })
 const selectedSeries = computed(() => selectedSeriesIndex.value === null
-  ? null
-  : props.series[selectedSeriesIndex.value] ?? null)
+  ? null : props.series[selectedSeriesIndex.value] ?? null)
 const selectedRuntime = computed(() => selectedSeries.value
   ? findProjectIconSeries(localCatalog.value, selectedSeries.value.key)
     ?? findProjectIconSeries(props.projectIconCatalog, selectedSeries.value.key)
   : null)
-const selectedSeriesLoadError = computed(() => selectedSeries.value
-  ? [...localCatalog.value.errors, ...(props.projectIconCatalog?.errors ?? [])].some(error => (
-      error.seriesKey.toLocaleLowerCase() === selectedSeries.value!.key.toLocaleLowerCase()
-      && error.reason === 'load-failed'
-    ))
-  : false)
 const selectedIconIndex = computed(() => {
   const current = selectedSeries.value
   if (!current) return null
   const index = selectedIconIndexes.value[current.key]
   return index !== null && index !== undefined && current.icons[index] ? index : null
 })
+const selectedIcon = computed(() => selectedIconIndex.value === null
+  ? null : selectedSeries.value?.icons[selectedIconIndex.value] ?? null)
 const settingsSeries = computed(() => settingsSeriesIndex.value === null
-  ? null
-  : props.series[settingsSeriesIndex.value] ?? null)
-const conflicts = computed(() => findProjectIconKeyConflicts(props.series))
-
-const seriesTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['more', {
-    title: t('projectConfig.icons.iconSetActions'),
-    icon: 'nav.more',
-    children: ['configure', 'delete'],
-  }],
-  ['configure', { title: t('projectConfig.icons.configureIconSet'), icon: 'tool.settings' }],
-  ['delete', { title: t('projectConfig.icons.removeSeries'), icon: 'action.delete', iconTone: 'danger' }],
-]))
-const seriesCardActions = computed<OcCardAction[]>(() => [{
-  key: 'register',
-  title: t('projectConfig.icons.register'),
-  icon: 'action.add',
-}])
-const seriesTreeData = computed<OcTreeData>(() => {
-  const rootKeys = props.series.map((_, index) => `series:${index}`)
-  const conflictedIndexes = new Set(conflicts.value
-    .filter(conflict => conflict.kind === 'series')
-    .map(conflict => conflict.seriesIndex))
-  return {
-    rootKeys,
-    items: new Map(rootKeys.map((key, index) => {
-      const candidate = props.series[index]!
-      const hasLoadError = [...localCatalog.value.errors, ...(props.projectIconCatalog?.errors ?? [])].some(error => (
-        error.seriesKey.toLocaleLowerCase() === candidate.key.toLocaleLowerCase()
-      ))
-      return [key, {
-        label: candidate.key,
-        icon: 'file.image' as const,
-        ...(hasLoadError || conflictedIndexes.has(index) ? { iconTone: 'danger' as const } : {}),
-        actions: ['more'],
-        contextActions: ['configure', 'delete'],
-      }]
-    })),
-    children: new Map(),
-  }
+  ? null : props.series[settingsSeriesIndex.value] ?? null)
+const gridSettings = computed<Readonly<ProjectIconGridSettings>>(() => (
+  selectedSeries.value?.grid ?? DEFAULT_PROJECT_ICON_GRID_SETTINGS
+))
+const selectedSeriesLoadError = computed(() => selectedSeries.value
+  ? [...localCatalog.value.errors, ...(props.projectIconCatalog?.errors ?? [])].some(error => (
+      error.seriesKey.toLocaleLowerCase() === selectedSeries.value!.key.toLocaleLowerCase()
+      && error.reason === 'load-failed'
+    ))
+  : false)
+const selectedCatalogEntry = computed<ProjectIconCatalogEntry | null>(() => {
+  const icon = selectedIcon.value
+  const runtime = selectedRuntime.value
+  if (!icon || !runtime || icon.x + icon.width > runtime.imageWidth
+    || icon.y + icon.height > runtime.imageHeight) return null
+  return { ...icon, seriesKey: selectedSeries.value!.key, source: runtime.source, src: runtime.src,
+    imageWidth: runtime.imageWidth, imageHeight: runtime.imageHeight }
 })
-const selectedSeriesTreeKeys = computed(() => selectedSeriesIndex.value === null
-  ? []
-  : [`series:${selectedSeriesIndex.value}`])
+const conflicts = computed(() => findProjectIconKeyConflicts(props.series))
+const cropHandleLabels = computed<Record<ProjectIconCropHandle, string>>(() => Object.fromEntries(
+  (['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l'] as const).map(handle => [
+    handle, t('projectConfig.icons.resizeCrop', { handle: t(`projectConfig.icons.handles.${handle}`) }),
+  ]),
+) as Record<ProjectIconCropHandle, string>)
 
-watch(() => props.series, (nextSeries) => {
-  if (selectedSeriesKey.value !== null
+watch(() => props.series, nextSeries => {
+  if (!initialized) {
+    selectedSeriesKey.value = nextSeries[0]?.key ?? null
+    initialized = true
+  } else if (selectedSeriesKey.value !== null
     && !nextSeries.some(candidate => candidate.key === selectedSeriesKey.value)) {
-    selectedSeriesKey.value = null
+    selectedSeriesKey.value = nextSeries[0]?.key ?? null
   }
   const nextSelections: Record<string, number | null> = {}
   for (const candidate of nextSeries) {
     const selected = selectedIconIndexes.value[candidate.key]
     nextSelections[candidate.key] = selected !== null && selected !== undefined && candidate.icons[selected]
-      ? selected
-      : null
+      ? selected : candidate.icons.length ? 0 : null
   }
   selectedIconIndexes.value = nextSelections
 }, { immediate: true })
-
-watch(() => selectedSeries.value
-  ? `${selectedSeries.value.key}\u0000${selectedSeries.value.source}`
-  : null, async identity => {
-  const version = ++catalogVersion
-  if (identity === null || !selectedSeries.value) {
-    localCatalog.value = { series: [], entries: [], errors: [] }
-    return
-  }
-  const next = await buildProjectIconCatalog([selectedSeries.value], props.resolveAssetSrc)
-  if (version === catalogVersion) localCatalog.value = next
-}, { immediate: true })
-
+watch(() => selectedSeries.value ? `${selectedSeries.value.key}\u0000${selectedSeries.value.source}` : null,
+  async identity => {
+    const version = ++catalogVersion
+    if (identity === null || !selectedSeries.value) {
+      localCatalog.value = { series: [], entries: [], errors: [] }
+      return
+    }
+    const next = await buildProjectIconCatalog([selectedSeries.value], props.resolveAssetSrc)
+    if (version === catalogVersion) localCatalog.value = next
+  }, { immediate: true })
 watch(conflicts, value => emit('key-conflicts', value), { immediate: true })
-
-function seriesIndexFromTreeKey(key: string | null): number | null {
-  if (!key?.startsWith('series:')) return null
-  const index = Number(key.slice('series:'.length))
-  return Number.isInteger(index) && props.series[index] ? index : null
-}
 
 function selectSeriesByIndex(index: number): void {
   const candidate = props.series[index]
   if (!candidate) return
   selectedSeriesKey.value = candidate.key
-  if (selectedIconIndexes.value[candidate.key] === null && candidate.icons.length) {
+  if (selectedIconIndexes.value[candidate.key] == null && candidate.icons.length) {
     selectedIconIndexes.value[candidate.key] = 0
   }
 }
-
-function handleSeriesTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'selection.change') {
-    const index = seriesIndexFromTreeKey(intent.selectedKeys[0] ?? null)
-    if (index !== null) selectSeriesByIndex(index)
-    return
-  }
-  if (intent.type !== 'action.invoke') return
-  const index = seriesIndexFromTreeKey(intent.key)
-  if (index === null) return
-  if (intent.actionKey === 'configure') openSettingsDialog(index)
-  else if (intent.actionKey === 'delete') removeSeries(index)
+function toggleSeries(index: number): void {
+  if (selectedSeriesIndex.value === index) selectedSeriesKey.value = null
+  else selectSeriesByIndex(index)
 }
-
-function handleSeriesCardAction(payload: { key: string }): void {
-  if (payload.key === 'register') emit('register')
+function setSelectedIconIndex(index: number | null): void {
+  if (selectedSeriesKey.value !== null) selectedIconIndexes.value[selectedSeriesKey.value] = index
 }
-
 function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
   const index = selectedSeriesIndex.value
   if (index === null) return
   const next = [...props.series]
   next[index] = nextSeries
-  if (selectedSeriesKey.value !== nextSeries.key) {
-    const previousKey = selectedSeriesKey.value
-    selectedSeriesKey.value = nextSeries.key
-    if (previousKey !== null) {
-      selectedIconIndexes.value[nextSeries.key] = selectedIconIndexes.value[previousKey] ?? null
-      delete selectedIconIndexes.value[previousKey]
-    }
-  }
   emit('update:series', next)
 }
-
-function setSelectedIconIndex(index: number | null): void {
-  const key = selectedSeriesKey.value
-  if (key !== null) selectedIconIndexes.value[key] = index
+function updateSelectedIcon(icon: ProjectIcon): void {
+  const series = selectedSeries.value
+  const index = selectedIconIndex.value
+  if (!series || index === null) return
+  const icons = [...series.icons]
+  icons[index] = icon
+  updateSelectedSeries({ ...series, icons })
 }
-
+function updateGridSettings(patch: Partial<ProjectIconGridSettings>): void {
+  if (selectedSeries.value) updateSelectedSeries({
+    ...selectedSeries.value,
+    grid: { ...gridSettings.value, ...patch },
+  })
+}
+function toggleGridSnapping(): void {
+  updateGridSettings({ snapToGrid: !gridSettings.value.snapToGrid })
+}
+function updateGridDimension(field: 'rows' | 'columns', event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  const value = Number(event.target.value)
+  if (Number.isInteger(value) && value > 0) updateGridSettings({ [field]: value })
+}
+function openGridDialog(index: number): void {
+  selectSeriesByIndex(index)
+  if (selectedRuntime.value) gridDialogOpen.value = true
+}
+function generateIcons(request: ProjectIconGridRequest): void {
+  const series = selectedSeries.value
+  const runtime = selectedRuntime.value
+  if (!series || !runtime) return
+  const mode = request.overwrite ? 'replace' : 'append'
+  const generated = generateProjectIconGrid({
+    series, imageWidth: runtime.imageWidth, imageHeight: runtime.imageHeight,
+    rows: request.rows, columns: request.columns, mode, pixelated: request.pixelated,
+    createName: ({ index }) => t('projectConfig.icons.defaultIconName', { index }),
+  })
+  if (!generated) return
+  updateSelectedSeries({ ...generated, grid: { ...gridSettings.value, rows: request.rows,
+    columns: request.columns, pixelated: request.pixelated } })
+  setSelectedIconIndex(generated.icons.length ? (mode === 'append' ? series.icons.length : 0) : null)
+  gridDialogOpen.value = false
+}
 function openSettingsDialog(index: number): void {
   if (props.series[index]) settingsSeriesIndex.value = index
 }
-
-function closeSettingsDialog(): void {
-  settingsSeriesIndex.value = null
-}
-
 function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
   const index = settingsSeriesIndex.value
   const current = index === null ? null : props.series[index]
@@ -256,16 +314,20 @@ function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
   settingsSeriesIndex.value = null
   emit('update:series', next)
 }
-
 function removeSeries(index: number): void {
   const removed = props.series[index]
   if (!removed) return
-  emit('update:series', props.series.filter((_, candidateIndex) => candidateIndex !== index))
+  const remaining = props.series.filter((_, candidateIndex) => candidateIndex !== index)
+  if (selectedSeriesKey.value === removed.key) {
+    selectedSeriesKey.value = remaining[Math.min(index, remaining.length - 1)]?.key ?? null
+  }
+  emit('update:series', remaining)
   delete selectedIconIndexes.value[removed.key]
-  if (selectedSeriesKey.value === removed.key) selectedSeriesKey.value = null
   settingsSeriesIndex.value = null
 }
-
+function captureSetWorkspace(instance: unknown): void {
+  setWorkspaceRef.value = instance as InstanceType<typeof ProjectIconSetWorkspace> | null
+}
 async function selectSeries(seriesKey: string): Promise<boolean> {
   await nextTick()
   const index = props.series.findIndex(candidate => candidate.key === seriesKey)
@@ -273,7 +335,6 @@ async function selectSeries(seriesKey: string): Promise<boolean> {
   selectSeriesByIndex(index)
   return true
 }
-
 async function navigateToKeyConflict(conflict: ProjectIconKeyConflict): Promise<boolean> {
   const candidate = props.series[conflict.seriesIndex]
   if (!candidate) return false
@@ -294,42 +355,78 @@ defineExpose({ selectSeries, navigateToKeyConflict })
 <style scoped>
 .project-icon-registry-workbench {
   display: grid;
-  grid-template-columns: minmax(0, var(--oc-project-icon-workbench-series-width)) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--oc-project-icon-property-min-width), var(--oc-project-icon-workbench-series-width)) minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: var(--oc-bg-inset);
+}
+.project-icon-registry-workbench__left,
+.project-icon-registry-workbench__right { min-width: 0; min-height: 0; overflow: hidden; }
+.project-icon-registry-workbench__left {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  border-right: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
 }
-
-.project-icon-registry-workbench__series-pane {
-  min-width: 0;
-  min-height: 0;
-  padding: var(--oc-space-2);
-  overflow: hidden;
+.project-icon-registry-workbench__titlebar,
+.project-icon-registry-workbench__title { display: flex; align-items: center; }
+.project-icon-registry-workbench__titlebar {
+  justify-content: space-between;
+  gap: var(--oc-space-4);
+  padding: var(--oc-space-5) var(--oc-space-6);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
-
-.project-icon-registry-workbench__error {
-  padding: var(--oc-space-2) var(--oc-space-3);
+.project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
+.project-icon-registry-workbench__title > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
+.project-icon-registry-workbench h1 {
+  margin: 0;
+  font-size: var(--oc-text-lg);
+  font-weight: var(--font-weight-ui-title);
+  letter-spacing: 0;
 }
-
-.project-icon-registry-workbench__series-tree {
+.project-icon-registry-workbench__error { padding: var(--oc-space-2) var(--oc-space-6); }
+.project-icon-registry-workbench__series-list {
   min-height: 0;
   overflow: auto;
+  padding: 0 var(--oc-space-5) var(--oc-space-5);
 }
-
-.project-icon-registry-workbench__empty {
-  align-self: center;
-}
-
-.project-icon-registry-workbench__placeholder {
+.project-icon-registry-workbench__right {
   display: grid;
-  place-content: center;
+  grid-template-rows: minmax(0, 1fr) minmax(0, var(--oc-project-icon-atlas-height));
+}
+.project-icon-registry-workbench__atlas-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.project-icon-registry-workbench__load-error {
+  position: absolute; top: var(--oc-space-2); left: 50%; z-index: var(--oc-z-overlay-toolbar);
+  transform: translateX(-50%);
+}
+.project-icon-registry-workbench__grid-toolbar {
+  position: absolute; right: var(--oc-space-2); bottom: var(--oc-space-2); z-index: var(--oc-z-overlay-toolbar);
+}
+.project-icon-registry-workbench__grid-field {
+  min-width: var(--oc-overlay-toolbar-field-min-width);
+  max-width: var(--oc-overlay-toolbar-field-max-width);
+}
+.project-icon-registry-workbench__preview-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
   min-width: 0;
   min-height: 0;
-  gap: var(--oc-space-3);
-  background: var(--oc-bg-inset);
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-3);
+  overflow: hidden;
+  border-top: var(--oc-border-width) solid var(--oc-border-muted);
+  background: var(--oc-bg-base);
+}
+.project-icon-registry-workbench__preview-icon {
+  align-self: center;
+  font-size: var(--oc-project-icon-preview-size);
+}
+.project-icon-registry-workbench__placeholder {
+  display: grid; grid-row: 1 / -1; place-content: center; justify-items: center;
+  gap: var(--oc-space-3); min-width: 0; min-height: 0;
 }
 </style>

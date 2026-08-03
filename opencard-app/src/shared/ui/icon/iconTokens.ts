@@ -22,6 +22,7 @@ export const iconTokens = {
   'action.image-plus': true,
   'action.import': true,
   'action.play': true,
+  'action.search': true,
   'action.publish': true,
   'action.refresh': true,
   'action.restart': true,

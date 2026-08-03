@@ -1,7 +1,9 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.image" content-mode="workspace" :heading="t('iconRegistry.title')"
+  <ProjectRegistryEditorShell icon="file.image" content-mode="workspace" header-mode="hidden"
+    :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
-    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :series="document.iconSeries"
+    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
+      :description="t('iconRegistry.description')" :series="document.iconSeries"
       :resolve-asset-src="projectStore.resolveAssetSrc" :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts" @register="openRegistrationDialog" />
