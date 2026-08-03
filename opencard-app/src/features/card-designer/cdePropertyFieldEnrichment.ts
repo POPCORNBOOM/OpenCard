@@ -179,7 +179,7 @@ function createFontCompletionProvider(
         .map(font => ({
           key: `font:${font.value}`,
           label: font.label,
-          detail: font.source === 'project' ? font.detail : font.value,
+          detail: font.value.replace(/^(?:font|project):/, ''),
           insertText: font.value,
           value: font.value,
         })),

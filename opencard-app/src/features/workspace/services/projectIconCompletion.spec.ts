@@ -16,7 +16,9 @@ const catalog: ProjectIconCatalog = {
 describe('project icon completion', () => {
   it('completes a series first and keeps the menu open', async () => {
     const result = await createProjectIconCompletionProvider([series], catalog)({ value: 'x [[icon:st]]', cursor: 11 })
-    expect(result?.items[0]).toMatchObject({ label: 'Status icons', insertText: 'status/', keepOpen: true })
+    expect(result?.items[0]).toMatchObject({
+      label: 'Status icons', detail: 'status', insertText: 'status/', keepOpen: true,
+    })
   })
 
   it('searches icons by name and supplies a cropped thumbnail', async () => {
@@ -24,6 +26,7 @@ describe('project icon completion', () => {
     const result = await createProjectIconCompletionProvider([series], catalog)({ value, cursor: value.length - 2 })
     expect(result?.items[0]).toMatchObject({
       label: 'Warning badge',
+      detail: 'warning',
       insertText: '[[icon:status/warning]]',
     })
     expect(result?.items[0]?.thumbnailStyle?.width).toBe('2em')
@@ -37,7 +40,7 @@ describe('project icon completion', () => {
       cursor: seriesValue.indexOf(']]'),
     })
     expect(seriesResult).toMatchObject({ replaceStart: 6, replaceEnd: 8 })
-    expect(seriesResult?.items[0]).toMatchObject({ insertText: 'status/', keepOpen: true })
+    expect(seriesResult?.items[0]).toMatchObject({ insertText: 'icon:status/', keepOpen: true })
 
     const iconValue = 'Use [[status/badge]] here'
     const result = await provider({ value: iconValue, cursor: iconValue.indexOf(']]') })

@@ -17,7 +17,6 @@ export function createProjectIconCompletionProvider(
   const preparedSeries = (seriesList ?? []).map(series => ({
     name: series.name,
     key: series.key,
-    source: series.source,
     searchKey: series.key.toLocaleLowerCase(),
     searchName: series.name.toLocaleLowerCase(),
     icons: series.icons,
@@ -40,7 +39,7 @@ export function createProjectIconCompletionProvider(
       return {
         key: `project-icon:${series.key}/${icon.iconKey}`,
         label: icon.name,
-        detail: `${icon.iconKey} · ${series.key}`,
+        detail: icon.iconKey,
         insertText: `[[icon:${series.key}/${icon.iconKey}]]`,
         searchKeys: [icon.iconKey.toLocaleLowerCase(), icon.name.toLocaleLowerCase()],
         ...(entry ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name } : {}),
@@ -70,8 +69,8 @@ export function createProjectIconCompletionProvider(
             .map(series => ({
               key: `icon-series:${series.key}`,
               label: series.name,
-              detail: `${series.key} · ${series.source}`,
-              insertText: `${series.key}/`,
+              detail: series.key,
+              insertText: `icon:${series.key}/`,
               keepOpen: true,
             })),
         }
@@ -106,7 +105,7 @@ export function createProjectIconCompletionProvider(
           .map(series => ({
             key: `icon-series:${series.key}`,
             label: series.name,
-            detail: `${series.key} · ${series.source}`,
+            detail: series.key,
             insertText: `${series.key}/`,
             keepOpen: true,
           })),
