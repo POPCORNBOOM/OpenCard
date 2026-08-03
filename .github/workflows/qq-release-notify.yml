@@ -1,0 +1,87 @@
+name: Notify QQ About Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Send QQ release message
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      QQ_BOT_APP_ID: ${{ secrets.QQ_BOT_APP_ID }}
+      QQ_BOT_CLIENT_SECRET: ${{ secrets.QQ_BOT_CLIENT_SECRET }}
+      QQ_GROUP_OPENID: ${{ secrets.QQ_GROUP_OPENID }}
+      RELEASE_TITLE: ${{ github.event.release.name || github.event.release.tag_name }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_BODY: ${{ github.event.release.body }}
+      RELEASE_URL: ${{ github.event.release.html_url }}
+
+    steps:
+      - name: Send release notification
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const requiredSecrets = [
+              'QQ_BOT_APP_ID',
+              'QQ_BOT_CLIENT_SECRET',
+              'QQ_GROUP_OPENID',
+            ]
+            const missingSecrets = requiredSecrets.filter(name => !process.env[name])
+            if (missingSecrets.length > 0) {
+              throw new Error(`Missing GitHub Actions secrets: ${missingSecrets.join(', ')}`)
+            }
+
+            const tokenResponse = await fetch('https://api.bot.qq.com/app/getAppAccessToken', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                appId: process.env.QQ_BOT_APP_ID,
+                clientSecret: process.env.QQ_BOT_CLIENT_SECRET,
+              }),
+            })
+            const tokenBody = await tokenResponse.text()
+            if (!tokenResponse.ok) {
+              throw new Error(`QQ access token request failed (${tokenResponse.status}): ${tokenBody}`)
+            }
+            const tokenData = JSON.parse(tokenBody)
+            if (!tokenData.access_token) throw new Error('QQ access token response did not contain access_token')
+            core.setSecret(tokenData.access_token)
+
+            const releaseBody = (process.env.RELEASE_BODY || '').trim()
+            const summaryLimit = 1500
+            const summary = releaseBody.length > summaryLimit
+              ? `${releaseBody.slice(0, summaryLimit).trimEnd()}\n\n…`
+              : releaseBody
+            const markdown = [
+              `# ${process.env.RELEASE_TITLE}`,
+              '',
+              `版本：**${process.env.RELEASE_TAG}**`,
+              summary ? `\n${summary}` : '',
+              '',
+              `[查看并下载新版本](${process.env.RELEASE_URL})`,
+            ].join('\n')
+
+            const messageResponse = await fetch(
+              `https://api.bot.qq.com/v2/groups/${encodeURIComponent(process.env.QQ_GROUP_OPENID)}/messages`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `QQBot ${tokenData.access_token}`,
+                  'Content-Type': 'application/json; charset=utf-8',
+                },
+                body: JSON.stringify({
+                  msg_type: 2,
+                  markdown: { content: markdown },
+                }),
+              },
+            )
+            const messageBody = await messageResponse.text()
+            if (!messageResponse.ok) {
+              throw new Error(`QQ release notification failed (${messageResponse.status}): ${messageBody}`)
+            }
+            core.info(`QQ release notification sent for ${process.env.RELEASE_TAG}`)
