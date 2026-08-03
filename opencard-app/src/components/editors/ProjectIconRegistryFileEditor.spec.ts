@@ -19,13 +19,13 @@ describe('ProjectIconRegistryFileEditor', () => {
       props: { filePath: 'D:/Demo/.iconreg', modelValue: '{}' },
     })
     wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('update:series', [{
-      key: 'status', source: 'assets/icons/status.png', icons: [],
+      name: 'Status icons', key: 'status', source: 'assets/icons/status.png', icons: [],
     }])
     await wrapper.vm.$nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({
-      iconSeries: [{ key: 'status', source: 'assets/icons/status.png', icons: [] }],
+      iconSeries: [{ name: 'Status icons', key: 'status', source: 'assets/icons/status.png', icons: [] }],
     })
   })
 
@@ -35,7 +35,7 @@ describe('ProjectIconRegistryFileEditor', () => {
       props: {
         filePath: 'D:/Demo/.iconreg',
         modelValue: JSON.stringify({
-          iconSeries: [{ key: 'status', source: 'status.png', icons: [icon, { ...icon, x: 8 }] }],
+          iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', icons: [icon, { ...icon, x: 8 }] }],
         }),
       },
     })
