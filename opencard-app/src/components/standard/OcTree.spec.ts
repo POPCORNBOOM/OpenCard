@@ -7,6 +7,7 @@ import type {
   OcTreeIntent,
 } from '../../shared/ui/tree/tree.types'
 import OcTree from './OcTree.vue'
+import OcActionButton from './OcActionButton.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 
 function createData(options: {
@@ -20,6 +21,13 @@ function createData(options: {
       ['root', { label: 'Root', icon: 'data.collection', renamable: true }],
     ]),
     children: new Map(options.children ?? []),
+  }
+}
+
+function rect(width: number, height: number): DOMRect {
+  return {
+    x: 0, y: 0, top: 0, right: width, bottom: height, left: 0, width, height,
+    toJSON: () => ({}),
   }
 }
 
@@ -393,6 +401,56 @@ describe('OcTree', () => {
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
       { type: 'action.invoke', key: 'root', actionKey: 'duplicate' },
     ]])
+  })
+
+  it('packs all root actions into one more menu when the row lacks label space', async () => {
+    let resize: ResizeObserverCallback = () => undefined
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resize = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    const actions = new Map<string, OcTreeActionDefinition>([
+      ['top', { title: 'Move to top', icon: 'tool.flip-to-front' }],
+      ['up', { title: 'Move up', icon: 'nav.arrow-up' }],
+      ['delete', { title: 'Delete', icon: 'action.delete' }],
+    ])
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'A readable label', actions: ['top', 'up', 'delete'] }]],
+        }),
+        actions,
+        actionOverflowTitle: 'Item actions',
+      },
+    })
+    const row = wrapper.get('.oc-tree__row').element as HTMLElement
+    const label = wrapper.get('.oc-tree__label').element as HTMLElement
+    let controls = wrapper.get('.oc-tree__controls').element as HTMLElement
+    Object.defineProperty(row, 'clientWidth', { configurable: true, value: 160 })
+    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(40, 28))
+    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(rect(130, 22))
+
+    resize([], {} as ResizeObserver)
+    await wrapper.vm.$nextTick()
+    const overflow = wrapper.getComponent(OcActionButton)
+    expect(overflow.props('action')).toMatchObject({
+      title: 'Item actions',
+      icon: 'nav.more',
+      children: [{ key: 'top' }, { key: 'up' }, { key: 'delete' }],
+    })
+    overflow.vm.$emit('select', { key: 'up' })
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toContainEqual([{
+      type: 'action.invoke', key: 'root', actionKey: 'up',
+    }])
+
+    controls = wrapper.get('.oc-tree__controls').element as HTMLElement
+    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(200, 28))
+    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(rect(22, 22))
+    resize([], {} as ResizeObserver)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAllComponents(OcActionButton).map(button => button.props('action').key))
+      .toEqual(['top', 'up', 'delete'])
   })
 
   it('opens direct context actions without exposing the inline more wrapper', async () => {

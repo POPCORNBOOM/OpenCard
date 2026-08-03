@@ -32,6 +32,7 @@ const sharedThemeTokens = {
   '--oc-space-6': '20px',
   '--oc-space-8': '32px',
   '--oc-tree-indent': '14px',
+  '--oc-tree-action-label-min-width': '64px',
   '--oc-size-sm': '22px',
   '--oc-size-md': '28px',
   '--oc-size-lg': '36px',

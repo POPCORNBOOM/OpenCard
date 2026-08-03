@@ -38,6 +38,7 @@
         :ref="(element) => setRowRef(entry.key, element)"
         class="oc-tree__row"
         :class="{ 'is-disabled': entry.item.disabled }"
+        :data-actions-overflowed="collapsedActionKeys.has(entry.key) || undefined"
         :data-tooltip="entry.item.disabledReason"
         :role="rowRole"
         :tabindex="activeKey === entry.key && !entry.item.disabled ? 0 : -1"
@@ -150,6 +151,7 @@ interface OcTreeProps {
   selectionExpansionMode?: 'none' | 'expand' | 'expand-exclusive'
   scrollToSelection?: boolean
   virtualized?: boolean
+  actionOverflowTitle?: string
 }
 
 type VisibleEntry = {
@@ -174,6 +176,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   selectionExpansionMode: 'none',
   scrollToSelection: false,
   virtualized: false,
+  actionOverflowTitle: 'More actions',
 })
 
 const emit = defineEmits<{
@@ -196,6 +199,8 @@ const warnedMessages = new Set<string>()
 const virtualScrollTop = ref(0)
 const virtualViewportHeight = ref(0)
 const virtualRowHeight = ref(1)
+const collapsedActionKeys = ref<ReadonlySet<OcTreeKey>>(new Set())
+const directActionWidths = new Map<OcTreeKey, number>()
 const VIRTUAL_OVERSCAN_ROWS = 6
 let treeResizeObserver: ResizeObserver | null = null
 
@@ -354,6 +359,45 @@ function syncVirtualMetrics(): void {
   virtualRowHeight.value = Math.max(1, resolveOcPixelToken('--oc-size-md', root))
   virtualViewportHeight.value = root.clientHeight
   virtualScrollTop.value = root.scrollTop
+}
+
+function syncActionOverflow(): void {
+  const nextCollapsed = new Set(collapsedActionKeys.value)
+  const minimumLabelWidth = resolveOcPixelToken('--oc-tree-action-label-min-width', treeRootElement.value)
+
+  for (const [key, row] of rowRefs) {
+    const actionCount = props.data.items.get(key)?.actions?.length ?? 0
+    if (actionCount <= 1 || row.clientWidth <= 0) {
+      nextCollapsed.delete(key)
+      directActionWidths.delete(key)
+      continue
+    }
+    const label = row.querySelector<HTMLElement>('.oc-tree__label')
+    const controls = row.querySelector<HTMLElement>('.oc-tree__controls')
+    if (!label || !controls) continue
+    const labelWidth = label.getBoundingClientRect().width
+    const controlsWidth = controls.getBoundingClientRect().width
+
+    if (!nextCollapsed.has(key)) {
+      directActionWidths.set(key, controlsWidth)
+      if (labelWidth < minimumLabelWidth) nextCollapsed.add(key)
+      continue
+    }
+
+    const directWidth = directActionWidths.get(key)
+    if (directWidth === undefined) continue
+    const projectedLabelWidth = labelWidth - Math.max(0, directWidth - controlsWidth)
+    if (projectedLabelWidth >= minimumLabelWidth) nextCollapsed.delete(key)
+  }
+
+  const current = collapsedActionKeys.value
+  if (nextCollapsed.size === current.size && [...nextCollapsed].every(key => current.has(key))) return
+  collapsedActionKeys.value = nextCollapsed
+}
+
+function syncTreeMetrics(): void {
+  syncVirtualMetrics()
+  syncActionOverflow()
 }
 
 function resolveSelectionAncestorKeys(key: OcTreeKey): OcTreeKey[] {
@@ -561,9 +605,16 @@ function resolveAction(
 }
 
 function resolveItemActions(key: OcTreeKey): OcActionButtonAction[] {
-  return (props.data.items.get(key)?.actions ?? [])
+  const actions = (props.data.items.get(key)?.actions ?? [])
     .map((actionKey) => resolveAction(key, actionKey, new Set()))
     .filter((action): action is OcActionButtonAction => action !== null)
+  if (actions.length <= 1 || !collapsedActionKeys.value.has(key)) return actions
+  return [{
+    key: `__oc-tree-action-overflow__:${key}`,
+    icon: 'nav.more',
+    title: props.actionOverflowTitle,
+    children: actions,
+  }]
 }
 
 function resolveContextActions(key: OcTreeKey): OcActionButtonAction[] {
@@ -776,13 +827,17 @@ watch([() => props.virtualized, () => visibleEntries.value.length], async () => 
   if (root.scrollTop > maximum) root.scrollTop = maximum
   virtualScrollTop.value = root.scrollTop
 })
+watch([renderedEntries, () => props.data, () => props.actions], async () => {
+  await nextTick()
+  syncActionOverflow()
+})
 
 onMounted(() => {
   window.addEventListener('mousemove', handleGlobalMouseMove)
   window.addEventListener('mouseup', handleGlobalMouseUp)
-  syncVirtualMetrics()
+  syncTreeMetrics()
   if (typeof ResizeObserver !== 'undefined' && treeRootElement.value) {
-    treeResizeObserver = new ResizeObserver(syncVirtualMetrics)
+    treeResizeObserver = new ResizeObserver(syncTreeMetrics)
     treeResizeObserver.observe(treeRootElement.value)
   }
 })

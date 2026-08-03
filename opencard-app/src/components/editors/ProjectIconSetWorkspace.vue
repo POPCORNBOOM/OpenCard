@@ -27,6 +27,7 @@
       <div class="project-icon-set-workspace__tree-scroll">
         <OcTree v-if="filteredIconIndexes.length" class="project-icon-set-workspace__icon-tree" fill
           virtualized scroll-to-selection role="listbox" :data="iconTreeData" :actions="iconTreeActions"
+          :action-overflow-title="t('projectConfig.icons.iconActions')"
           :selected-keys="selectedTreeKeys" selection-mode="single" @intent="handleTreeIntent" />
         <OcEmpty v-else tone="muted">
           {{ series.icons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
@@ -88,9 +89,10 @@ const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCatego
   ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
 ]))
 const iconTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['more', { title: t('projectConfig.icons.iconActions'), icon: 'nav.more', children: ['move-up', 'move-down', 'delete'] }],
+  ['move-top', { title: t('projectConfig.icons.moveToTop'), icon: 'tool.flip-to-front' }],
   ['move-up', { title: t('propertyEditor.arrays.moveUp'), icon: 'nav.arrow-up' }],
   ['move-down', { title: t('propertyEditor.arrays.moveDown'), icon: 'nav.arrow-down' }],
+  ['move-bottom', { title: t('projectConfig.icons.moveToBottom'), icon: 'tool.flip-to-back' }],
   ['delete', { title: t('projectConfig.icons.removeIcon'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 
@@ -132,8 +134,18 @@ const iconTreeData = computed<OcTreeData>(() => {
           ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
           : { icon: 'file.image' as const }),
         draggable: true,
-        actions: ['more'],
-        contextActions: ['move-up', 'move-down', 'delete'],
+        actions: ['move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        contextActions: ['move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        disabledActions: new Map([
+          ...(index === 0 ? [
+            ['move-top', t('projectConfig.icons.alreadyAtTop')],
+            ['move-up', t('projectConfig.icons.alreadyAtTop')],
+          ] as const : []),
+          ...(index === props.series.icons.length - 1 ? [
+            ['move-down', t('projectConfig.icons.alreadyAtBottom')],
+            ['move-bottom', t('projectConfig.icons.alreadyAtBottom')],
+          ] as const : []),
+        ]),
       }]
     })),
     children: new Map(),
@@ -197,8 +209,10 @@ function handleTreeIntent(intent: OcTreeIntent): void {
   const index = treeIndex(intent.key)
   if (index === null) return
   if (intent.actionKey === 'delete') removeIcon(index)
+  else if (intent.actionKey === 'move-top') moveIcon(index, 0)
   else if (intent.actionKey === 'move-up') moveIcon(index, index - 1)
   else if (intent.actionKey === 'move-down') moveIcon(index, index + 1)
+  else if (intent.actionKey === 'move-bottom') moveIcon(index, props.series.icons.length - 1)
 }
 
 function updateIcon(index: number, patch: Partial<ProjectIcon>): void {

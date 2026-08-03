@@ -110,6 +110,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-space-6',
   '--oc-space-8',
   '--oc-tree-indent',
+  '--oc-tree-action-label-min-width',
 
   // 控件高度
   '--oc-size-sm',
