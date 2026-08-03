@@ -8,6 +8,7 @@ import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 const series: ProjectIconSeries = {
+  name: 'Status icons',
   key: 'status',
   source: 'assets/icons/status.png',
   grid: { snapToGrid: false, rows: 2, columns: 3, pixelated: false },
@@ -17,7 +18,7 @@ const series: ProjectIconSeries = {
   ],
 }
 const runtime = {
-  key: 'status', source: series.source, src: 'asset://status', imageWidth: 64, imageHeight: 32,
+  name: 'Status icons', key: 'status', source: series.source, src: 'asset://status', imageWidth: 64, imageHeight: 32,
 }
 
 describe('ProjectIconSetWorkspace', () => {

@@ -7,7 +7,7 @@ import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 
 const labels = { lt: 'lt', t: 't', rt: 'rt', r: 'r', rb: 'rb', b: 'b', lb: 'lb', l: 'l' } as const
 const runtime = {
-  key: 'status', source: 'status.png', src: 'asset://status', imageWidth: 100, imageHeight: 50,
+  name: 'Status icons', key: 'status', source: 'status.png', src: 'asset://status', imageWidth: 100, imageHeight: 50,
 }
 const icon = { iconKey: 'one', name: 'One', x: 10, y: 10, width: 20, height: 10 }
 

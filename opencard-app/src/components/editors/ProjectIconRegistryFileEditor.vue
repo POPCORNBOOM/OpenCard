@@ -83,9 +83,9 @@ const issueSnapshot = computed<EditorIssueSnapshot>(() => ({
         : 'project-icon-registry.icon.duplicate-key',
       severity: 'error',
       locationText: conflict.kind === 'series'
-        ? t('projectConfig.icons.seriesKeyLocation', { series: series?.key ?? conflict.key })
+        ? t('projectConfig.icons.seriesKeyLocation', { series: series?.name ?? conflict.key })
         : t('projectConfig.icons.iconKeyLocation', {
-            series: series?.key ?? '',
+            series: series?.name ?? '',
             icon: icon?.name || icon?.iconKey || conflict.iconIndex + 1,
           }),
       description: t(conflict.kind === 'series'
@@ -150,7 +150,7 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
   try {
     const iconSeries = [...(document.value.iconSeries ?? [])]
     if (iconSeries.some(series => series.key.toLocaleLowerCase() === request.key.toLocaleLowerCase())) {
-      importError.value = t('projectConfig.icons.iconSetNameExists')
+      importError.value = t('projectConfig.icons.iconSetKeyExists')
       return
     }
     const imported = await projectStore.importProjectIconFile(request.sourcePath, request.targetDirectory)
@@ -159,6 +159,7 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
       return
     }
     iconSeries.push({
+      name: request.name,
       key: request.key,
       source: imported.source,
       grid: { ...DEFAULT_PROJECT_ICON_GRID_SETTINGS },

@@ -13,6 +13,7 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
     ...actual,
     buildProjectIconCatalog: vi.fn(async (series: readonly ProjectIconSeries[], resolve: (source: string) => string) => ({
       series: series.map(candidate => ({
+        name: candidate.name,
         key: candidate.key,
         source: candidate.source,
         src: resolve(candidate.source),
@@ -27,13 +28,13 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
 
 const series: ProjectIconSeries[] = [
   {
-    key: 'status', source: 'assets/icons/status.png',
+    name: 'Status icons', key: 'status', source: 'assets/icons/status.png',
     icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
   },
-  { key: 'actions', source: 'assets/icons/actions.png', icons: [] },
+  { name: 'Action icons', key: 'actions', source: 'assets/icons/actions.png', icons: [] },
 ]
 const projectIconCatalog = {
-  series: [{ key: 'status', source: series[0]!.source, src: 'asset://ready', imageWidth: 64, imageHeight: 32 }],
+  series: [{ name: 'Status icons', key: 'status', source: series[0]!.source, src: 'asset://ready', imageWidth: 64, imageHeight: 32 }],
   entries: [],
   errors: [],
 }
@@ -53,6 +54,7 @@ describe('ProjectIconRegistryWorkbench', () => {
 
     expect(wrapper.find('.project-icon-registry-workbench__placeholder').exists()).toBe(false)
     expect(wrapper.get('.project-icon-registry-workbench__left h1').text()).toBe('Icon registry')
+    expect(wrapper.get('.project-config-section__heading').text()).toContain('Status icons')
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props()).toMatchObject({
       series: series[0],
       selectedIconIndex: 0,

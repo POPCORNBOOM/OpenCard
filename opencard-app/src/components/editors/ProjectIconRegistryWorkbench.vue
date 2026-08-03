@@ -20,10 +20,10 @@
       <div class="project-icon-registry-workbench__series-list">
         <OcEmpty v-if="series.length === 0" tone="muted">{{ t('projectConfig.icons.empty') }}</OcEmpty>
         <ProjectConfigSection v-for="(candidate, index) in series" :key="candidate.key"
-          :section-id="`project-icon-series-${index}`" :heading="candidate.key"
+          :section-id="`project-icon-series-${index}`" :heading="candidate.name"
           :description="candidate.source" :collapsed="selectedSeriesIndex !== index"
-          :expand-label="t('projectConfig.sections.expand', { section: candidate.key })"
-          :collapse-label="t('projectConfig.sections.collapse', { section: candidate.key })"
+          :expand-label="t('projectConfig.sections.expand', { section: candidate.name })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: candidate.name })"
           @toggle="toggleSeries(index)">
           <template #heading-actions>
             <OcText as="span" tone="muted" size="sm">
@@ -57,7 +57,7 @@
         <div class="project-icon-registry-workbench__atlas-pane">
           <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
             tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
-          <ProjectIconCropEditor fill :runtime="selectedRuntime" :icon="selectedIcon" :alt="selectedSeries.key"
+          <ProjectIconCropEditor fill :runtime="selectedRuntime" :icon="selectedIcon" :alt="selectedSeries.name"
             :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
             :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
             :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
@@ -96,8 +96,9 @@
       </div>
     </section>
 
-    <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null" :name="settingsSeries?.key"
-      :source="settingsSeries?.source" :existing-names="series.map(candidate => candidate.key)"
+    <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null" :name="settingsSeries?.name"
+      :series-key="settingsSeries?.key" :source="settingsSeries?.source"
+      :existing-keys="series.map(candidate => candidate.key)"
       @close="settingsSeriesIndex = null" @submit="saveIconSetSettings" />
     <ProjectIconGridDialog :open="gridDialogOpen" :has-icons="Boolean(selectedSeries?.icons.length)"
       :initial-rows="gridSettings.rows" :initial-columns="gridSettings.columns"
@@ -305,7 +306,7 @@ function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
   const current = index === null ? null : props.series[index]
   if (index === null || !current) return
   const next = [...props.series]
-  next[index] = { ...current, key: request.key }
+  next[index] = { ...current, name: request.name, key: request.key }
   if (selectedSeriesKey.value === current.key) {
     selectedSeriesKey.value = request.key
     selectedIconIndexes.value[request.key] = selectedIconIndexes.value[current.key] ?? null

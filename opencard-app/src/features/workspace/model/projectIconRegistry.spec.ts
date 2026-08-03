@@ -10,6 +10,7 @@ describe('project icon registry', () => {
     expect(parseProjectIconRegistry({
       schemaVersion: 1,
       iconSeries: [{
+        name: 'Status icons',
         key: 'status',
         source: 'assets\\icons\\status.png',
         grid: { snapToGrid: true, rows: 2, columns: 3 },
@@ -17,6 +18,7 @@ describe('project icon registry', () => {
       }],
     })).toEqual({
       iconSeries: [{
+        name: 'Status icons',
         key: 'status',
         source: 'assets/icons/status.png',
         grid: { snapToGrid: true, rows: 2, columns: 3, pixelated: false },
@@ -25,9 +27,12 @@ describe('project icon registry', () => {
     })
   })
 
-  it('keeps nested icon records strict', () => {
+  it('ignores unknown nested fields without accepting missing names', () => {
     expect(parseProjectIconRegistry({
-      iconSeries: [{ key: 'status', source: 'status.png', width: 32, icons: [] }],
+      iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', width: 32, icons: [] }],
+    })).toEqual({ iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', icons: [] }] })
+    expect(parseProjectIconRegistry({
+      iconSeries: [{ key: 'status', source: 'status.png', icons: [] }],
     })).toBeNull()
   })
 
