@@ -303,6 +303,8 @@ export default {
     icons: {
       title: 'Project icon sets',
       description: 'Register icon sets and define cropped icons for card content.',
+      iconSets: 'Icon sets', iconSetActions: 'Icon set actions', iconList: 'Icons', properties: 'Properties',
+      noSeriesSelected: 'No icon set selected', emptyIconList: 'This icon set has no icons', noIconSelected: 'No icon selected',
       import: 'Register icon set', register: 'Register icon set', confirmRegister: 'Register icon set',
       empty: 'No project icon sets registered',
       iconSetName: 'Icon set name', projectFile: 'Project file', iconCount: '{count} icons',

@@ -1,15 +1,10 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.image" :heading="t('iconRegistry.title')"
+  <ProjectRegistryEditorShell icon="file.image" content-mode="workspace" :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
-    <template v-if="document" #actions>
-      <OcButton icon="action.add" variant="soft" :disabled="importBusy" @click="openRegistrationDialog">
-        {{ t('projectConfig.icons.register') }}
-      </OcButton>
-    </template>
-
-    <ProjectIconSeriesEditor v-if="document" ref="seriesEditorRef" :series="document.iconSeries"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :error="importError"
-      @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts" />
+    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :series="document.iconSeries"
+      :resolve-asset-src="projectStore.resolveAssetSrc" :project-icon-catalog="projectStore.projectIconCatalog.value"
+      :error="importError"
+      @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts" @register="openRegistrationDialog" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
       :theme-overrides="themeOverrides" :heading="t('iconRegistry.invalid')" :description="t('iconRegistry.repair')"
@@ -46,11 +41,10 @@ import {
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
-import OcButton from '../base/OcButton.vue'
 import ProjectIconRegistrationDialog, {
   type ProjectIconRegistrationRequest,
 } from './ProjectIconRegistrationDialog.vue'
-import ProjectIconSeriesEditor from './ProjectIconSeriesEditor.vue'
+import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import ProjectRegistryRepairEditor from './ProjectRegistryRepairEditor.vue'
 
@@ -63,7 +57,7 @@ const importBusy = ref(false)
 const importError = ref('')
 const registrationDialogOpen = ref(false)
 const keyConflicts = ref<readonly ProjectIconKeyConflict[]>([])
-const seriesEditorRef = ref<InstanceType<typeof ProjectIconSeriesEditor> | null>(null)
+const workbenchRef = ref<InstanceType<typeof ProjectIconRegistryWorkbench> | null>(null)
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
@@ -169,6 +163,8 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
       icons: [],
     })
     updateIconSeries(iconSeries)
+    await nextTick()
+    await workbenchRef.value?.selectSeries(request.key)
     registrationDialogOpen.value = false
     importError.value = ''
   } catch (error) {
@@ -217,7 +213,7 @@ async function navigate(token: SessionNavigationToken): Promise<EditorNavigation
         iconIndex: token.target.iconIndex,
         key: token.target.key,
       }
-  return await seriesEditorRef.value?.navigateToKeyConflict(conflict) ? 'success' : 'not-found'
+  return await workbenchRef.value?.navigateToKeyConflict(conflict) ? 'success' : 'not-found'
 }
 
 defineExpose({ save, navigate })

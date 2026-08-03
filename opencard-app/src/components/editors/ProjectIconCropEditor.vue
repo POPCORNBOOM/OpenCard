@@ -1,5 +1,6 @@
 <template>
-  <div ref="viewport" class="project-icon-crop-editor" :class="{ 'is-panning': isPanning }"
+  <div ref="viewport" class="project-icon-crop-editor"
+    :class="{ 'is-panning': isPanning, 'project-icon-crop-editor--fill': fill }"
     @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
     @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
     <div v-if="runtime" ref="media" class="project-icon-crop-editor__media"
@@ -72,6 +73,7 @@ const props = withDefaults(defineProps<{
   gridRows?: number
   gridColumns?: number
   pixelated?: boolean
+  fill?: boolean
   pixelatedLabel: string
   gridLabel: string
   moveLabel: string
@@ -81,6 +83,7 @@ const props = withDefaults(defineProps<{
   gridRows: 1,
   gridColumns: 1,
   pixelated: false,
+  fill: false,
 })
 const emit = defineEmits<{
   'update:icon': [icon: ProjectIcon]
@@ -429,6 +432,14 @@ defineExpose({
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-inset);
+}
+
+.project-icon-crop-editor--fill {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
 }
 
 .project-icon-crop-editor__media {

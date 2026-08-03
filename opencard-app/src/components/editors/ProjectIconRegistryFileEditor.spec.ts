@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ProjectIconRegistryFileEditor from './ProjectIconRegistryFileEditor.vue'
-import ProjectIconSeriesEditor from './ProjectIconSeriesEditor.vue'
+import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
@@ -18,13 +18,13 @@ describe('ProjectIconRegistryFileEditor', () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
       props: { filePath: 'D:/Demo/.iconreg', modelValue: '{}' },
     })
-    wrapper.getComponent(ProjectIconSeriesEditor).vm.$emit('update:series', [{
+    wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('update:series', [{
       key: 'status', source: 'assets/icons/status.png', icons: [],
     }])
     await wrapper.vm.$nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates.at(-1)?.[0] as string)).toEqual({
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({
       iconSeries: [{ key: 'status', source: 'assets/icons/status.png', icons: [] }],
     })
   })
@@ -39,14 +39,14 @@ describe('ProjectIconRegistryFileEditor', () => {
         }),
       },
     })
-    wrapper.getComponent(ProjectIconSeriesEditor).vm.$emit('key-conflicts', [
+    wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('key-conflicts', [
       { kind: 'icon', seriesIndex: 0, iconIndex: 0, key: 'same' },
       { kind: 'icon', seriesIndex: 0, iconIndex: 1, key: 'same' },
     ])
     await wrapper.vm.$nextTick()
 
     const snapshots = wrapper.emitted('issue-snapshot') ?? []
-    const latest = snapshots.at(-1)?.[0] as { issues: Array<{ type: string }> }
+    const latest = snapshots[snapshots.length - 1]?.[0] as { issues: Array<{ type: string }> }
     expect(latest.issues).toHaveLength(2)
     expect(latest.issues[0]?.type).toBe('project-icon-registry.icon.duplicate-key')
     await wrapper.get('.project-registry-shell').trigger('keydown', { ctrlKey: true, key: 's' })

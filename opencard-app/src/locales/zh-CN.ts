@@ -303,6 +303,8 @@ export default {
     icons: {
       title: '项目图标集',
       description: '注册图标集，并为卡牌内容定义可引用的裁切图标。',
+      iconSets: '图标集', iconSetActions: '图标集操作', iconList: '图标', properties: '属性',
+      noSeriesSelected: '未选择图标集', emptyIconList: '当前图标集暂无图标', noIconSelected: '未选择图标',
       import: '注册图标集', register: '注册图标集', confirmRegister: '注册图标集',
       empty: '尚未注册项目图标集',
       iconSetName: '图标集名称', projectFile: '项目文件', iconCount: '{count} 个图标',

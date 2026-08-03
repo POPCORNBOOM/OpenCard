@@ -36,3 +36,14 @@ The root editor ids are `font-registry` and `icon-registry`. Icon duplicate-key
 issues use the `icon-registry` navigation protocol, version 1, and carry stable
 indices plus the conflicting key. Editors own business state and commands;
 shared shell and repair components own only common document UI geometry.
+
+The icon registry editor uses a controlled workbench. Its left tree owns only
+icon-set selection and set-level commands. The selected-set workspace owns the
+canvas, icon list, property projection, and grid generation, and emits immutable
+series replacements. It must not mirror the registry array into a second draft.
+Workbench side panels use the shared `OcCard` action contract instead of local
+headers and buttons. The selected canvas reuses the project catalog immediately,
+then refreshes only its current series when editor-local asset state changes.
+No icon set is selected on initial open; registration and issue navigation select
+explicitly through the workbench API. The removed accordion editor must not be
+reintroduced as a compatibility wrapper.

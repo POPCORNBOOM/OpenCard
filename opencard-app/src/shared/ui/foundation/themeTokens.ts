@@ -132,7 +132,15 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 页面内容宽度
   '--oc-content-width-md',
+  '--oc-project-icon-atlas-height',
+  '--oc-project-icon-property-min-width',
+  '--oc-project-icon-workbench-series-width',
+  '--oc-project-icon-workbench-inspector-width',
+  '--oc-project-icon-workbench-icon-list-height',
+  '--oc-overlay-toolbar-field-min-width',
+  '--oc-overlay-toolbar-field-max-width',
   '--oc-z-modal',
+  '--oc-z-overlay-toolbar',
 
   // 属性编辑器行高
   '--oc-property-row-height',

@@ -1,5 +1,5 @@
 <template>
-  <section class="project-registry-shell">
+  <section class="project-registry-shell" :class="`project-registry-shell--${contentMode}`">
     <header class="project-registry-shell__header">
       <div class="project-registry-shell__identity">
         <OcIcon :name="icon" size="lg" />
@@ -23,11 +23,14 @@ import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 
-defineProps<{
+withDefaults(defineProps<{
   icon: IconToken
   heading: string
   description: string
-}>()
+  contentMode?: 'padded' | 'workspace'
+}>(), {
+  contentMode: 'padded',
+})
 </script>
 
 <style scoped>
@@ -85,5 +88,10 @@ defineProps<{
   overflow: auto;
   padding: var(--oc-space-5) var(--oc-space-6);
   scrollbar-gutter: stable;
+}
+
+.project-registry-shell--workspace .project-registry-shell__content {
+  overflow: hidden;
+  padding: 0;
 }
 </style>
