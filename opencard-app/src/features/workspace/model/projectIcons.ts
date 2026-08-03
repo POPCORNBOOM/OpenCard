@@ -228,6 +228,21 @@ export function appendProjectIconCrop(options: {
   return { ...series, icons: [...series.icons, icon] }
 }
 
+export function duplicateProjectIcon(
+  series: ProjectIconSeries,
+  index: number,
+): ProjectIconSeries {
+  const source = series.icons[index]
+  if (!source) return series
+  const duplicate: ProjectIcon = {
+    ...source,
+    iconKey: createAvailableProjectIconKey(source.iconKey, series.icons),
+  }
+  const icons = [...series.icons]
+  icons.splice(index + 1, 0, duplicate)
+  return { ...series, icons }
+}
+
 export function moveProjectIcon(
   series: ProjectIconSeries,
   fromIndex: number,

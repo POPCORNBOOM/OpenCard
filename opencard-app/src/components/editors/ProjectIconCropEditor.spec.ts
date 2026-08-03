@@ -46,7 +46,7 @@ describe('ProjectIconCropEditor', () => {
 
   it('moves the crop through the center interaction and exposes eight resize handles', async () => {
     const wrapper = mount(ProjectIconCropEditor, {
-      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid' },
+      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
     })
     const media = wrapper.get('.project-icon-crop-editor__media').element as HTMLElement
     media.getBoundingClientRect = () => ({
@@ -68,7 +68,7 @@ describe('ProjectIconCropEditor', () => {
 
   it('resizes from an edge handle in natural image pixels', async () => {
     const wrapper = mount(ProjectIconCropEditor, {
-      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid' },
+      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
     })
     const media = wrapper.get('.project-icon-crop-editor__media').element as HTMLElement
     media.getBoundingClientRect = () => ({
@@ -90,7 +90,7 @@ describe('ProjectIconCropEditor', () => {
       props: {
         runtime: { ...runtime, imageWidth: 101 },
         icon: { ...icon, x: 0, width: 25 },
-        alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid',
+        alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon',
         snapToGrid: true, gridRows: 2, gridColumns: 4,
       },
     })
@@ -128,7 +128,7 @@ describe('ProjectIconCropEditor', () => {
 
   it('toggles the grid overlay independently while snapping is disabled', async () => {
     const wrapper = mount(ProjectIconCropEditor, {
-      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid' },
+      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
     })
     expect(wrapper.find('.project-icon-crop-editor__grid').exists()).toBe(true)
     const gridButton = wrapper.findAllComponents(OcButton)
@@ -146,7 +146,7 @@ describe('ProjectIconCropEditor', () => {
     const wrapper = mount(ProjectIconCropEditor, {
       props: {
         runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels,
-        pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', pixelated: true,
+        pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon', pixelated: true,
       },
     })
     expect(wrapper.get('.project-icon-crop-editor__media').classes()).toContain('is-pixelated')
@@ -159,7 +159,7 @@ describe('ProjectIconCropEditor', () => {
 
   it('fits the atlas, zooms around the pointer, and pans with the middle button', async () => {
     const wrapper = mount(ProjectIconCropEditor, {
-      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid' },
+      props: { runtime, icon: null, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
     })
     await nextTick()
     expect(wrapper.findComponent(OcViewportControls).exists()).toBe(true)
@@ -202,5 +202,33 @@ describe('ProjectIconCropEditor', () => {
     })
     viewport.dispatchEvent(new MouseEvent('mouseup', { button: 1, bubbles: true }))
     wrapper.unmount()
+  })
+
+  it('smoothly auto-focuses selection while the viewport toggle is enabled', async () => {
+    const wrapper = mount(ProjectIconCropEditor, {
+      props: { runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
+    })
+    await nextTick()
+    await flushAnimation()
+    const api = wrapper.vm as unknown as {
+      getViewportTransform(): { x: number; y: number; scale: number }
+    }
+    expect(api.getViewportTransform()).toEqual({ x: 120, y: 40, scale: 4 })
+
+    const focusToggle = wrapper.get('button[aria-label="Auto-focus selected icon"]')
+    expect(focusToggle.attributes('aria-pressed')).toBe('true')
+    await focusToggle.trigger('click')
+    expect(focusToggle.attributes('aria-pressed')).toBe('false')
+
+    await wrapper.setProps({
+      icon: { iconKey: 'two', name: 'Two', x: 70, y: 30, width: 10, height: 10 },
+    })
+    await flushAnimation()
+    expect(api.getViewportTransform()).toEqual({ x: 120, y: 40, scale: 4 })
+
+    await focusToggle.trigger('click')
+    await flushAnimation()
+    expect(focusToggle.attributes('aria-pressed')).toBe('true')
+    expect(api.getViewportTransform()).toEqual({ x: -100, y: -40, scale: 4 })
   })
 })

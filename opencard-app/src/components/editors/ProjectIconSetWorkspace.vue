@@ -46,7 +46,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { moveProjectIcon, type ProjectIcon, type ProjectIconSeries } from '../../features/workspace/model/projectIcons'
+import {
+  duplicateProjectIcon,
+  moveProjectIcon,
+  type ProjectIcon,
+  type ProjectIconSeries,
+} from '../../features/workspace/model/projectIcons'
 import {
   createProjectIconStyle,
   type ProjectIconCatalogEntry,
@@ -89,10 +94,11 @@ const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCatego
   ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
 ]))
 const iconTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['move-top', { title: t('projectConfig.icons.moveToTop'), icon: 'tool.flip-to-front' }],
+  ['duplicate', { title: t('projectConfig.icons.duplicateIcon'), icon: 'action.copy' }],
+  ['move-top', { title: t('projectConfig.icons.moveToTop'), icon: 'format.vertical-top' }],
   ['move-up', { title: t('propertyEditor.arrays.moveUp'), icon: 'nav.arrow-up' }],
   ['move-down', { title: t('propertyEditor.arrays.moveDown'), icon: 'nav.arrow-down' }],
-  ['move-bottom', { title: t('projectConfig.icons.moveToBottom'), icon: 'tool.flip-to-back' }],
+  ['move-bottom', { title: t('projectConfig.icons.moveToBottom'), icon: 'format.vertical-bottom' }],
   ['delete', { title: t('projectConfig.icons.removeIcon'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 
@@ -134,8 +140,8 @@ const iconTreeData = computed<OcTreeData>(() => {
           ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
           : { icon: 'file.image' as const }),
         draggable: true,
-        actions: ['move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
-        contextActions: ['move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        actions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        contextActions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
         disabledActions: new Map([
           ...(index === 0 ? [
             ['move-top', t('projectConfig.icons.alreadyAtTop')],
@@ -208,7 +214,8 @@ function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type !== 'action.invoke') return
   const index = treeIndex(intent.key)
   if (index === null) return
-  if (intent.actionKey === 'delete') removeIcon(index)
+  if (intent.actionKey === 'duplicate') duplicateIcon(index)
+  else if (intent.actionKey === 'delete') removeIcon(index)
   else if (intent.actionKey === 'move-top') moveIcon(index, 0)
   else if (intent.actionKey === 'move-up') moveIcon(index, index - 1)
   else if (intent.actionKey === 'move-down') moveIcon(index, index + 1)
@@ -242,6 +249,13 @@ function removeIcon(index: number): void {
   if (selected === null) return
   if (selected === index) emit('update:selectedIconIndex', icons.length ? Math.min(index, icons.length - 1) : null)
   else if (selected > index) emit('update:selectedIconIndex', selected - 1)
+}
+
+function duplicateIcon(index: number): void {
+  const duplicated = duplicateProjectIcon(props.series, index)
+  if (duplicated === props.series) return
+  emit('update:series', duplicated)
+  emit('update:selectedIconIndex', index + 1)
 }
 
 function moveIcon(fromIndex: number, toIndex: number): void {

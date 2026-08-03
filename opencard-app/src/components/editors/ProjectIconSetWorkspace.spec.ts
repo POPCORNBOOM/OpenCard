@@ -40,8 +40,10 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.find('.project-icon-set-workspace__property-pane').exists()).toBe(true)
     expect(wrapper.getComponent(OcTree).props('virtualized')).toBe(true)
     expect(wrapper.getComponent(OcTree).props('data').items.get('icon:0')?.actions).toEqual([
-      'move-top', 'move-up', 'move-down', 'move-bottom', 'delete',
+      'duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete',
     ])
+    expect(wrapper.getComponent(OcTree).props('actions')?.get('move-top')?.icon).toBe('format.vertical-top')
+    expect(wrapper.getComponent(OcTree).props('actions')?.get('move-bottom')?.icon).toBe('format.vertical-bottom')
     expect([...wrapper.getComponent(OcTree).props('data').items.get('icon:0')!.disabledActions!.keys()])
       .toEqual(['move-top', 'move-up'])
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
@@ -120,6 +122,20 @@ describe('ProjectIconSetWorkspace', () => {
     updates = wrapper.emitted('update:series') ?? []
     expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).icons.map(icon => icon.iconKey))
       .toEqual(['success', 'warning'])
+  })
+
+  it('duplicates an icon after its source and selects the copy', () => {
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series, runtime, selectedIconIndex: 0 },
+    })
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'action.invoke', key: 'icon:0', actionKey: 'duplicate',
+    })
+
+    const updates = wrapper.emitted('update:series') ?? []
+    const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries
+    expect(updated.icons[1]).toEqual({ ...series.icons[0], iconKey: 'warning-2' })
+    expect(wrapper.emitted('update:selectedIconIndex')).toEqual([[1]])
   })
 
 })

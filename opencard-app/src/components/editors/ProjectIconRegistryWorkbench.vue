@@ -66,6 +66,7 @@
             :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
             :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
             :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+            :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
             :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
             @update:icon="updateSelectedIcon" @update:pixelated="updateGridSettings({ pixelated: $event })" />
           <OcOverlayToolbar class="project-icon-registry-workbench__grid-toolbar"

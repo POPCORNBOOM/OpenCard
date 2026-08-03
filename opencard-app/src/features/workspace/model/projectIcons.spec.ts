@@ -4,6 +4,7 @@ import {
   createAvailableProjectIconSeriesKey,
   DEFAULT_PROJECT_ICON_DIRECTORY,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
+  duplicateProjectIcon,
   formatProjectIconToken,
   findProjectIconKeyConflicts,
   generateProjectIconGrid,
@@ -151,6 +152,19 @@ describe('projectIcons', () => {
       series: { ...series, icons: [] }, imageWidth: 8, imageHeight: 4, rows: 1, columns: 2, mode: 'replace',
     })!
     expect(moveProjectIcon(generated, 0, 1).icons.map(icon => icon.iconKey)).toEqual(['r1-c2', 'r1-c1'])
+  })
+
+  it('duplicates a record beside its source with an available key', () => {
+    const duplicated = duplicateProjectIcon({
+      ...series,
+      icons: [...series.icons, { ...series.icons[0]!, iconKey: 'existing-2' }],
+    }, 0)
+    expect(duplicated.icons).toEqual([
+      series.icons[0],
+      { ...series.icons[0], iconKey: 'existing-3' },
+      { ...series.icons[0], iconKey: 'existing-2' },
+    ])
+    expect(duplicated.icons[1]).not.toBe(series.icons[0])
   })
 
   it('formats and parses canonical icon tokens', () => {

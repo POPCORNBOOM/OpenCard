@@ -26,6 +26,11 @@
     <OcOverlayToolbar v-if="runtime" class="project-icon-crop-editor__viewport-toolbar" orientation="vertical">
       <OcViewportControls orientation="vertical" embedded :scale-label="scaleLabel"
         @zoom-out="zoomOut" @reset="fitView" @zoom-in="zoomIn" />
+      <OcButton icon-only size="sm" icon="tool.focus-selection"
+        :disabled="!icon" :active="focusSelectionEnabled" :aria-pressed="focusSelectionEnabled"
+        :variant="focusSelectionEnabled ? 'soft' : 'ghost'"
+        :aria-label="focusSelectedLabel" :data-tooltip="focusSelectedLabel"
+        @click="toggleFocusSelection" />
       <OcButton icon-only size="sm" icon="tool.pixelated"
         :active="pixelated" :aria-pressed="pixelated"
         :variant="pixelated ? 'soft' : 'ghost'"
@@ -76,6 +81,7 @@ const props = withDefaults(defineProps<{
   fill?: boolean
   pixelatedLabel: string
   gridLabel: string
+  focusSelectedLabel: string
   moveLabel: string
   handleLabels: Readonly<Record<ProjectIconCropHandle, string>>
 }>(), {
@@ -101,6 +107,7 @@ const targetPanX = ref(0)
 const targetPanY = ref(0)
 const targetScale = ref(1)
 const gridVisible = ref(true)
+const focusSelectionEnabled = ref(true)
 const isPanning = ref(false)
 let lastPointerX = 0
 let lastPointerY = 0
@@ -191,10 +198,36 @@ function fitView(): void {
   initialFitPending = false
 }
 
+function focusSelected(): void {
+  const runtime = props.runtime
+  const icon = props.icon
+  if (!runtime || !icon || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
+  const nextScale = clampViewportScale(Math.min(
+    Math.max(1, viewportWidth.value - VIEWPORT_FIT_PADDING * 2) / icon.width,
+    Math.max(1, viewportHeight.value - VIEWPORT_FIT_PADDING * 2) / icon.height,
+  ), minimumScale.value)
+  const baseX = (viewportWidth.value - runtime.imageWidth * nextScale) / 2
+  const baseY = (viewportHeight.value - runtime.imageHeight * nextScale) / 2
+  const iconCenterX = icon.x + icon.width / 2
+  const iconCenterY = icon.y + icon.height / 2
+
+  targetScale.value = nextScale
+  targetPanX.value = viewportWidth.value / 2 - baseX - iconCenterX * nextScale
+  targetPanY.value = viewportHeight.value / 2 - baseY - iconCenterY * nextScale
+  initialFitPending = false
+  startZoomAnimation()
+}
+
+function toggleFocusSelection(): void {
+  focusSelectionEnabled.value = !focusSelectionEnabled.value
+  if (focusSelectionEnabled.value) focusSelected()
+}
+
 function scheduleInitialFit(): void {
   void nextTick(() => {
     if (!initialFitPending || !props.runtime || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
-    fitView()
+    if (props.icon && focusSelectionEnabled.value) focusSelected()
+    else fitView()
   })
 }
 
@@ -400,6 +433,13 @@ watch(() => props.runtime
   scheduleInitialFit()
 }, { immediate: true })
 
+watch(() => props.runtime && props.icon
+  ? `${props.runtime.key}\u0000${props.icon.iconKey}`
+  : null, identity => {
+  if (!identity || !focusSelectionEnabled.value) return
+  focusSelected()
+})
+
 onMounted(() => {
   if (typeof ResizeObserver === 'undefined') return
   resizeObserver = new ResizeObserver(entries => {
@@ -422,6 +462,7 @@ onBeforeUnmount(() => {
 
 defineExpose({
   fitView,
+  focusSelected,
   zoomIn,
   zoomOut,
   getViewportTransform: () => ({ x: panX.value, y: panY.value, scale: scale.value }),

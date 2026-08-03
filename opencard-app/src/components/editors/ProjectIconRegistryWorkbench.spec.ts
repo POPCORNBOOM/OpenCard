@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
+import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
@@ -67,6 +68,11 @@ describe('ProjectIconRegistryWorkbench', () => {
       imageHeight: 32,
     })
     expect(wrapper.find('.project-icon-crop-editor__viewport-toolbar').exists()).toBe(true)
+    const focusButton = wrapper.findAllComponents(OcButton)
+      .find(button => button.props('icon') === 'tool.focus-selection')
+    expect(focusButton?.attributes('aria-label')).toBe('projectConfig.icons.autoFocusSelected')
+    expect(focusButton?.props('disabled')).toBe(false)
+    expect(focusButton?.attributes('aria-pressed')).toBe('true')
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
   })
 

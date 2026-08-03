@@ -670,8 +670,8 @@ defineExpose({ save })
 
 .dictionary-editor__header {
   display: flex;
-  align-items: flex-start;
-  padding-bottom: var(--oc-space-4);
+  align-items: center;
+  padding: var(--oc-space-5) var(--oc-space-6);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
@@ -690,8 +690,14 @@ defineExpose({ save })
   gap: var(--oc-space-3);
 }
 
+.dictionary-editor__title > div {
+  display: grid;
+  min-width: 0;
+  gap: var(--oc-space-1);
+}
+
 .dictionary-editor h1 {
-  margin: 0 0 var(--oc-space-1);
+  margin: 0;
   font-size: var(--oc-text-lg);
   font-weight: var(--font-weight-ui-title);
   letter-spacing: 0;
@@ -700,14 +706,13 @@ defineExpose({ save })
 .dictionary-editor__grid {
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: var(--oc-space-5);
   border-top: var(--oc-border-width) solid var(--oc-border-muted);
   border-left: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .dictionary-editor__notice {
   gap: var(--oc-space-2);
-  margin-top: var(--oc-space-4);
+  padding: var(--oc-space-2) var(--oc-space-6);
   color: var(--oc-icon-warning);
 }
 

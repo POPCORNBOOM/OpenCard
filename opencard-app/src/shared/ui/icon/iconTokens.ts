@@ -59,6 +59,7 @@ export const iconTokens = {
   'tool.clip': true,
   'tool.box-cutter': true,
   'tool.fit-screen': true,
+  'tool.focus-selection': true,
   'tool.flip-to-back': true,
   'tool.flip-to-front': true,
   'tool.grid': true,
