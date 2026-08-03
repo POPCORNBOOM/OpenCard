@@ -270,6 +270,11 @@ defineExpose({ activateIconKey })
   overflow: hidden;
 }
 
+.project-icon-set-workspace__icon-tree {
+  position: absolute;
+  inset: 0;
+}
+
 .project-icon-set-workspace__icon-tree :deep(.oc-tree__node) {
   content-visibility: auto;
   contain-intrinsic-block-size: var(--oc-size-md);
