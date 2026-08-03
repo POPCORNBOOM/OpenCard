@@ -1,4 +1,4 @@
-import type { ProjectFontRegistry } from '../model/projectMetadata'
+import type { ProjectFontRegistry } from '../model/projectFontRegistry'
 import { createProjectFontCssFamily } from '../model/projectFonts'
 import { reportAppError } from '../../logging/appErrorCatalog'
 

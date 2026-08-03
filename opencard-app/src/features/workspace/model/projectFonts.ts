@@ -1,4 +1,4 @@
-import type { ProjectFontDefinition, ProjectFontRegistry } from './projectMetadata'
+import type { ProjectFontDefinition, ProjectFontRegistry } from './projectFontRegistry'
 
 export type FontCatalogEntry = {
   value: string

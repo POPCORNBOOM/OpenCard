@@ -15,9 +15,9 @@ import {
   exposesProjectFieldReference,
   getProjectFieldKeys,
   getProjectFieldValueKind,
-  type ProjectFontRegistry,
   type ProjectInformation,
 } from '../workspace/model/projectMetadata'
+import type { ProjectFontRegistry } from '../workspace/model/projectFontRegistry'
 import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/projectFonts'
 import {
   resolveReferenceCompletion,

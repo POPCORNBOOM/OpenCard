@@ -12,42 +12,17 @@ describe('project profile metadata', () => {
     expect(parseProjectMetadataText('{}')).toEqual({})
   })
 
-  it('parses project information and registered fonts', () => {
+  it('ignores legacy registries and other unknown top-level fields', () => {
     expect(parseProjectMetadata({
       name: 'Demo',
-      description: 'Description',
-      version: '1.0.0',
-      fonts: {
-        'brand-sans': {
-          family: 'Brand Sans',
-          faces: [
-            { source: 'assets\\fonts\\BrandSans-Regular.woff2', weight: '400' },
-            { source: 'assets/fonts/BrandSans-Bold.woff2', weight: '700', style: 'normal' },
-          ],
-        },
-      },
-    })).toEqual({
-      name: 'Demo',
-      description: 'Description',
-      version: '1.0.0',
-      fonts: {
-        'brand-sans': {
-          family: 'Brand Sans',
-          faces: [
-            { source: 'assets/fonts/BrandSans-Regular.woff2', weight: '400' },
-            { source: 'assets/fonts/BrandSans-Bold.woff2', weight: '700', style: 'normal' },
-          ],
-        },
-      },
-    })
+      fonts: { 'brand-sans': { family: 'Brand Sans', faces: [] } },
+      iconSeries: [{ invalid: true }],
+      globalvariables: {},
+    })).toEqual({ name: 'Demo' })
   })
 
-  it('rejects unknown fields and wrong value types', () => {
-    expect(parseProjectMetadata({ name: 'Demo', globalvariables: {} })).toBeNull()
+  it('rejects wrong values for known fields', () => {
     expect(parseProjectMetadata({ version: 2 })).toBeNull()
-    expect(parseProjectMetadata({
-      fonts: { unsafe: { family: 'Unsafe', faces: [{ source: '../outside.ttf' }] } },
-    })).toBeNull()
     expect(parseProjectMetadataText('{broken')).toBeNull()
   })
 
