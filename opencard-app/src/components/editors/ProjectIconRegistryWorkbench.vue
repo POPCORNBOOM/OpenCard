@@ -31,6 +31,11 @@
             </OcText>
           </template>
           <template #actions>
+            <OcButton icon-only size="sm" icon="action.image-plus" variant="ghost"
+              :disabled="selectedSeriesIndex !== index || !selectedRuntime"
+              :aria-label="t('projectConfig.icons.addSingleCrop')"
+              :data-tooltip="t('projectConfig.icons.addSingleCrop')"
+              @click.stop="addSingleCrop(index)" />
             <OcButton icon-only size="sm" icon="tool.grid" variant="ghost"
               :disabled="selectedSeriesIndex !== index || !selectedRuntime"
               :aria-label="t('projectConfig.icons.generateIcons')"
@@ -110,6 +115,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  appendProjectIconCrop,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   findProjectIconKeyConflicts,
   generateProjectIconGrid,
@@ -281,6 +287,25 @@ function updateGridDimension(field: 'rows' | 'columns', event: Event): void {
 function openGridDialog(index: number): void {
   selectSeriesByIndex(index)
   if (selectedRuntime.value) gridDialogOpen.value = true
+}
+function addSingleCrop(index: number): void {
+  const series = props.series[index]
+  if (!series) return
+  selectSeriesByIndex(index)
+  const runtime = selectedRuntime.value
+  if (!runtime) return
+  const nextSeries = appendProjectIconCrop({
+    series,
+    imageWidth: runtime.imageWidth,
+    imageHeight: runtime.imageHeight,
+    rows: gridSettings.value.rows,
+    columns: gridSettings.value.columns,
+    name: t('projectConfig.icons.defaultIconName', { index: series.icons.length + 1 }),
+    pixelated: gridSettings.value.pixelated,
+  })
+  if (!nextSeries) return
+  updateSelectedSeries(nextSeries)
+  setSelectedIconIndex(series.icons.length)
 }
 function generateIcons(request: ProjectIconGridRequest): void {
   const series = selectedSeries.value

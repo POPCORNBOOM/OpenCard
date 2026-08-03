@@ -1,3 +1,5 @@
+import { createAvailableKey } from '../../../shared/model/keySlug'
+
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
 export const DEFAULT_PROJECT_ICON_DIRECTORY = 'assets/icons'
@@ -155,17 +157,7 @@ export function createAvailableProjectIconKey(
   base: string,
   icons: readonly ProjectIcon[],
 ): string {
-  const normalizedBase = base.toLocaleLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '') || 'icon'
-  const identities = new Set(icons.map(icon => icon.iconKey.toLocaleLowerCase()))
-  let candidate = normalizedBase
-  let suffix = 2
-  while (identities.has(candidate.toLocaleLowerCase())) {
-    candidate = `${normalizedBase}-${suffix}`
-    suffix += 1
-  }
-  return candidate
+  return createAvailableKey(base, icons.map(icon => icon.iconKey), 'icon')
 }
 
 export function createAvailableProjectIconSeriesKey(
@@ -213,6 +205,29 @@ export function generateProjectIconGrid(options: {
   return { ...series, icons }
 }
 
+export function appendProjectIconCrop(options: {
+  series: ProjectIconSeries
+  imageWidth: number
+  imageHeight: number
+  rows: number
+  columns: number
+  name: string
+  pixelated?: boolean
+}): ProjectIconSeries | null {
+  const { series, imageWidth, imageHeight, rows, columns, name, pixelated } = options
+  if (![imageWidth, imageHeight, rows, columns].every(isPositiveInteger) || name.trim() === '') return null
+  const icon: ProjectIcon = {
+    name: name.trim(),
+    iconKey: createAvailableProjectIconKey(name, series.icons),
+    x: 0,
+    y: 0,
+    width: Math.max(1, Math.floor(imageWidth / columns)),
+    height: Math.max(1, Math.floor(imageHeight / rows)),
+    ...(pixelated !== undefined ? { pixelated } : {}),
+  }
+  return { ...series, icons: [...series.icons, icon] }
+}
+
 export function moveProjectIcon(
   series: ProjectIconSeries,
   fromIndex: number,
@@ -235,4 +250,3 @@ export function parseProjectIconToken(value: string): { seriesKey: string; iconK
   const match = /^\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]$/.exec(value)
   return match ? { seriesKey: match[1]!, iconKey: match[2]! } : null
 }
-import { createAvailableKey } from '../../../shared/model/keySlug'

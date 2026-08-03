@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appendProjectIconCrop,
   createAvailableProjectIconSeriesKey,
   DEFAULT_PROJECT_ICON_DIRECTORY,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
@@ -30,6 +31,22 @@ describe('projectIcons', () => {
 
   it('creates a case-insensitively unique series key from a filename', () => {
     expect(createAvailableProjectIconSeriesKey('Status.PNG', [series])).toBe('status-2')
+  })
+
+  it('appends one crop using the first current grid cell', () => {
+    const updated = appendProjectIconCrop({
+      series,
+      imageWidth: 101,
+      imageHeight: 51,
+      rows: 2,
+      columns: 4,
+      name: 'Icon 2',
+      pixelated: true,
+    })
+    expect(updated?.icons[1]).toEqual({
+      iconKey: 'icon-2', name: 'Icon 2', x: 0, y: 0, width: 25, height: 25, pixelated: true,
+    })
+    expect(series.icons).toHaveLength(1)
   })
 
   it('parses independent display names and ignores unknown persisted fields', () => {

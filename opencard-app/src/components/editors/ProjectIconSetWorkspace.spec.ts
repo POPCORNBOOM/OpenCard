@@ -22,6 +22,16 @@ const runtime = {
 }
 
 describe('ProjectIconSetWorkspace', () => {
+  it('shows a dashed crop placeholder instead of empty inspector panes', () => {
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series: { ...series, icons: [] }, runtime, selectedIconIndex: null },
+    })
+    expect(wrapper.get('.project-icon-set-workspace').classes()).toContain('is-empty')
+    expect(wrapper.get('.project-icon-set-workspace__empty').text()).toContain('projectConfig.icons.noCropRecords')
+    expect(wrapper.find('.project-icon-set-workspace__tree-pane').exists()).toBe(false)
+    expect(wrapper.find('.project-icon-set-workspace__property-pane').exists()).toBe(false)
+  })
+
   it('keeps the icon tree and property editor side by side inside an expanded set', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndex: 0 },

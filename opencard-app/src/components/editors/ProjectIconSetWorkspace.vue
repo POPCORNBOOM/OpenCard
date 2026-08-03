@@ -1,5 +1,17 @@
 <template>
-  <div class="project-icon-set-workspace">
+  <div class="project-icon-set-workspace" :class="{ 'is-empty': series.icons.length === 0 }">
+    <div v-if="series.icons.length === 0" class="project-icon-set-workspace__empty">
+      <OcIcon name="tool.box-cutter" size="lg" tone="muted" />
+      <OcText as="strong">{{ t('projectConfig.icons.noCropRecords') }}</OcText>
+      <OcText class="project-icon-set-workspace__empty-hint" tone="muted" size="sm">
+        <span>{{ t('projectConfig.icons.createCropHintStart') }}</span>
+        <OcIcon name="action.image-plus" size="sm" />
+        <span>{{ t('projectConfig.icons.createCropHintOr') }}</span>
+        <OcIcon name="tool.grid" size="sm" />
+        <span>{{ t('projectConfig.icons.createCropHintEnd') }}</span>
+      </OcText>
+    </div>
+    <template v-else>
     <div class="project-icon-set-workspace__tree-pane">
       <OcFieldFrame class="project-icon-set-workspace__filter" full-width>
         <template #prefix><OcIcon name="action.search" size="sm" tone="muted" /></template>
@@ -26,6 +38,7 @@
         :categories="iconPropertyCategories" sort-mode="category" @update-property="updateIconProperty" />
       <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
     </div>
+    </template>
   </div>
 </template>
 
@@ -50,6 +63,7 @@ import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldFrame from '../base/OcFieldFrame.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
+import OcText from '../base/OcText.vue'
 import OcTree from '../standard/OcTree.vue'
 
 const props = defineProps<{
@@ -244,6 +258,28 @@ defineExpose({ activateIconKey })
   min-height: var(--oc-project-icon-inspector-min-height);
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
+}
+
+.project-icon-set-workspace.is-empty { border-style: dashed; }
+
+.project-icon-set-workspace__empty {
+  display: grid;
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: var(--oc-project-icon-inspector-min-height);
+  place-content: center;
+  justify-items: center;
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-4);
+  text-align: center;
+}
+
+.project-icon-set-workspace__empty-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-1);
 }
 
 .project-icon-set-workspace__tree-pane,

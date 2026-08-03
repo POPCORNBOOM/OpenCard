@@ -76,6 +76,24 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.emitted('register')).toEqual([[]])
   })
 
+  it('adds and selects one crop beside the even-grid action', async () => {
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: { ...baseProps, projectIconCatalog },
+    })
+    await wrapper.vm.$nextTick()
+    const addButton = wrapper.get('button[aria-label="projectConfig.icons.addSingleCrop"]')
+    expect(wrapper.get('button[aria-label="projectConfig.icons.generateIcons"]')).toBeTruthy()
+    await addButton.trigger('click')
+
+    const updates = wrapper.emitted('update:series') ?? []
+    const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries[]
+    expect(updated[0]?.icons[1]).toMatchObject({
+      name: 'projectConfig.icons.defaultIconName', x: 0, y: 0, width: 32, height: 16,
+    })
+    await wrapper.setProps({ series: updated })
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndex')).toBe(1)
+  })
+
   it('replaces only the expanded series and selects the remaining set after deletion', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: baseProps,
