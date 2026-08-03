@@ -1385,7 +1385,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
             ...(!hasRootProjectFile('.iconreg') ? [{
               key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newIconRegistry'),
-              icon: 'file.image' as const,
+              icon: 'file.package-variant' as const,
             }] : []),
             ...(!hasRootProjectFile('.dictionary') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,

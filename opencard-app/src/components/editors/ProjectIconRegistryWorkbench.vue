@@ -3,7 +3,7 @@
     <section class="project-icon-registry-workbench__left">
       <header class="project-icon-registry-workbench__titlebar">
         <div class="project-icon-registry-workbench__title">
-          <OcIcon name="file.image" size="lg" />
+          <OcIcon name="file.package-variant" size="lg" />
           <div>
             <h1>{{ heading }}</h1>
             <OcText tone="muted" size="sm">{{ description }}</OcText>
@@ -96,7 +96,7 @@
         </div>
       </template>
       <div v-else class="project-icon-registry-workbench__placeholder">
-        <OcIcon name="file.image" size="lg" tone="muted" />
+        <OcIcon name="file.package-variant" size="lg" tone="muted" />
         <OcEmpty tone="muted" inset="none">{{ t('projectConfig.icons.noSeriesSelected') }}</OcEmpty>
       </div>
     </section>

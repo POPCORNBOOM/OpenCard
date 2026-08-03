@@ -90,7 +90,7 @@ const fileTypes: FileTypeDefinition[] = [
     id: 'opencard-icon-registry',
     labelKey: 'fileTypes.opencardIconRegistry',
     fileNames: ['.iconreg'],
-    icon: 'file.image',
+    icon: 'file.package-variant',
     iconTone: iconTone.config,
     language: 'json',
     editorId: 'icon-registry',
@@ -224,7 +224,7 @@ const fileTypes: FileTypeDefinition[] = [
 const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.opencardprojectprofile': { icon: 'file.opencard-project', tone: iconTone.config },
   '.fontreg': { icon: 'file.font', tone: iconTone.config },
-  '.iconreg': { icon: 'file.image', tone: iconTone.config },
+  '.iconreg': { icon: 'file.package-variant', tone: iconTone.config },
   '.dictionary': { icon: 'data.collection', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },

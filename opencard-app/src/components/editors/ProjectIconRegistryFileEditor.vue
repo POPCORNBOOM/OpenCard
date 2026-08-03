@@ -1,5 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.image" content-mode="workspace" header-mode="hidden"
+  <ProjectRegistryEditorShell icon="file.package-variant" content-mode="workspace" header-mode="hidden"
     :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"

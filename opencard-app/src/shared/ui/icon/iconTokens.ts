@@ -160,6 +160,7 @@ export const iconTokens = {
   'file.opencard': true,
   'file.opencard-project': true,
   'file.package': true,
+  'file.package-variant': true,
   'file.settings': true,
   'file.text': true,
   'file.typescript': true,

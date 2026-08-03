@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
+import OcIcon from '../base/OcIcon.vue'
 import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
@@ -54,6 +55,7 @@ describe('ProjectIconRegistryWorkbench', () => {
 
     expect(wrapper.find('.project-icon-registry-workbench__placeholder').exists()).toBe(false)
     expect(wrapper.get('.project-icon-registry-workbench__left h1').text()).toBe('Icon registry')
+    expect(wrapper.findAllComponents(OcIcon).some(icon => icon.props('name') === 'file.package-variant')).toBe(true)
     expect(wrapper.get('.project-config-section__heading').text()).toContain('Status icons')
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props()).toMatchObject({
       series: series[0],

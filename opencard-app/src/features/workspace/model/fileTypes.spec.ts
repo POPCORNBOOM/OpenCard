@@ -55,6 +55,13 @@ describe('workspace entry icon tokens', () => {
     })
   })
 
+  it('uses the package variant icon for the project icon registry', () => {
+    expect(resolveEntryIcon('D:/Cards/.iconreg', false, false, 'D:/Cards')).toEqual({
+      icon: 'file.package-variant',
+      tone: 'config',
+    })
+  })
+
   it('uses a dedicated icon for project font files', () => {
     expect(resolveFileType('D:/Cards/assets/fonts/Brand.woff2')).toMatchObject({
       id: 'font',
