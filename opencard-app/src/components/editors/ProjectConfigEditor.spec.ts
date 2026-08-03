@@ -1,13 +1,19 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcButton from '../base/OcButton.vue'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
+vi.mock('../../features/workspace/store/projectStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../features/workspace/store/projectStore')>()
+  const store = actual.useProjectStore()
+  return { ...actual, useProjectStore: () => store }
+})
 vi.mock('../../features/workspace/services/projectIconCatalog', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../features/workspace/services/projectIconCatalog')>()
   return {
@@ -18,6 +24,7 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
 
 describe('ProjectConfigEditor', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
 
@@ -90,8 +97,10 @@ describe('ProjectConfigEditor', () => {
       props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{}' },
     })
 
-    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(3)
-    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(3)
+    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(5)
+    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(5)
+    expect(wrapper.findAllComponents(ProjectConfigSection).map(section => section.props('contentIndent')))
+      .toEqual(['single', 'single', 'single', 'single', 'single'])
     expect(wrapper.find('.project-profile-editor__outline').text()).not.toContain('projectConfig.outline.title')
     expect(wrapper.getComponent(ProjectConfigSection).getComponent(OcButton).props('icon')).toBe('tree.chevron-right')
     await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')
@@ -103,6 +112,34 @@ describe('ProjectConfigEditor', () => {
       expandedDirectories: [],
       projectProfile: { collapsedSections: ['information'] },
     })
+  })
+
+  it('creates and opens missing font and icon registries from profile sections', async () => {
+    const projectStore = useProjectStore()
+    const createFile = vi.spyOn(projectStore, 'createFile').mockResolvedValue(undefined)
+    vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{}' },
+    })
+
+    await wrapper.get('[data-linked-file="fonts"]').trigger('click')
+    await wrapper.get('[data-linked-file="icons"]').trigger('click')
+    await flushPromises()
+
+    expect(createFile.mock.calls).toEqual([
+      ['.fontreg', '{}'],
+      ['.iconreg', '{}'],
+    ])
+    const opened = (wrapper.emitted('open-file') ?? []).map(([path]) => String(path).replace(/\\/g, '/'))
+    expect(opened[0]).toMatch(/\/\.fontreg$/)
+    expect(opened[1]).toMatch(/\/\.iconreg$/)
+    expect(wrapper.get('[data-linked-file="fonts"]').text()).toBe('projectConfig.fonts.openRegistry')
+    expect(wrapper.get('[data-linked-file="icons"]').text()).toBe('projectConfig.icons.openRegistry')
+    await wrapper.get('[data-linked-file="fonts"]').trigger('click')
+    await wrapper.get('[data-linked-file="icons"]').trigger('click')
+    await flushPromises()
+    expect(createFile).toHaveBeenCalledTimes(2)
+    expect(wrapper.emitted('open-file')).toHaveLength(4)
   })
 
   it('expands a collapsed section when navigating from the outline', async () => {

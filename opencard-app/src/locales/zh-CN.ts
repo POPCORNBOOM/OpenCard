@@ -254,6 +254,8 @@ export default {
     fonts: {
       title: '项目字体',
       description: '注册项目使用的字体文件；在字体字段中用分号排列多个字体可设置回退顺序。',
+      createRegistry: '创建 .fontreg', openRegistry: '打开字体注册表',
+      registryAvailable: '项目字体注册表已经创建，可以继续编辑。', registryMissing: '项目尚未创建字体注册表。',
       register: '注册字体',
       configure: '配置字体',
       confirmRegister: '注册',
@@ -303,6 +305,8 @@ export default {
     icons: {
       title: '项目图标套装',
       description: '注册图标套装，并为卡牌内容定义可引用的裁切图标。',
+      createRegistry: '创建 .iconreg', openRegistry: '打开图标套装',
+      registryAvailable: '项目图标注册表已经创建，可以继续编辑。', registryMissing: '项目尚未创建图标注册表。',
       iconSets: '图标套装', iconSetActions: '图标套装操作', iconList: '图标', properties: '属性',
       noSeriesSelected: '未选择图标套装', emptyIconList: '当前图标套装暂无图标', noIconSelected: '未选择图标',
       noCropRecords: '还没有创建图标裁切记录', createCropHintStart: '点击右上角',
@@ -343,7 +347,7 @@ export default {
   },
   iconRegistry: {
     title: '项目图标套装',
-    description: '独立管理项目图标套装与可引用的裁切图标。',
+    description: '将精灵表形式的整套图标切割、定义并附加效果',
     invalid: '图标套装文件格式无效',
     repair: '请在源码中修复 JSON，内容有效后将自动恢复图标套装编辑器。',
   },

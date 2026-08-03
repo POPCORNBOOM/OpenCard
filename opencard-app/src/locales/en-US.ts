@@ -254,6 +254,8 @@ export default {
     fonts: {
       title: 'Project Fonts',
       description: 'Register font files used by this project. Separate fonts with semicolons to define fallback order.',
+      createRegistry: 'Create .fontreg', openRegistry: 'Open Font Registry',
+      registryAvailable: 'The project font registry is ready to edit.', registryMissing: 'This project does not have a font registry yet.',
       register: 'Register Font',
       configure: 'Configure Font',
       confirmRegister: 'Register',
@@ -303,6 +305,8 @@ export default {
     icons: {
       title: 'Project icon sets',
       description: 'Register icon sets and define cropped icons for card content.',
+      createRegistry: 'Create .iconreg', openRegistry: 'Open Icon Sets',
+      registryAvailable: 'The project icon registry is ready to edit.', registryMissing: 'This project does not have an icon registry yet.',
       iconSets: 'Icon sets', iconSetActions: 'Icon set actions', iconList: 'Icons', properties: 'Properties',
       noSeriesSelected: 'No icon set selected', emptyIconList: 'This icon set has no icons', noIconSelected: 'No icon selected',
       noCropRecords: 'No icon crops have been created', createCropHintStart: 'Use',

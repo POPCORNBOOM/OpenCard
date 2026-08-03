@@ -13,6 +13,7 @@
 
       <template v-if="profile">
         <ProjectConfigSection section-id="project-profile-section-information"
+          content-indent="single"
           :heading="t('projectConfig.sections.information')"
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.sections.information') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.sections.information') })"
@@ -36,6 +37,7 @@
         </ProjectConfigSection>
 
         <ProjectConfigSection section-id="project-profile-section-remote-resources"
+          content-indent="single"
           :heading="t('projectConfig.remoteResources.title')"
           :description="t('projectConfig.remoteResources.description')"
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.remoteResources.title') })"
@@ -76,11 +78,12 @@
         </ProjectConfigSection>
 
         <ProjectConfigSection section-id="project-profile-section-dictionary"
+          content-indent="single"
           :heading="t('projectConfig.dictionary.title')" :description="t('projectConfig.dictionary.description')"
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.dictionary.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.dictionary.title') })"
           :collapsed="isProjectSectionCollapsed('dictionary')" @toggle="toggleProjectSection('dictionary')">
-          <div class="project-profile-editor__dictionary">
+          <div class="project-profile-editor__linked-file">
             <div>
               <OcText tone="muted" size="sm">{{ dictionaryExists
                 ? t('projectConfig.dictionary.available')
@@ -91,6 +94,38 @@
               {{ dictionaryExists
                 ? t('projectConfig.dictionary.open')
                 : t('projectConfig.dictionary.create') }}
+            </OcButton>
+          </div>
+        </ProjectConfigSection>
+
+        <ProjectConfigSection section-id="project-profile-section-fonts" content-indent="single"
+          :heading="t('projectConfig.fonts.title')" :description="t('projectConfig.fonts.description')"
+          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.fonts.title') })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.fonts.title') })"
+          :collapsed="isProjectSectionCollapsed('fonts')" @toggle="toggleProjectSection('fonts')">
+          <div class="project-profile-editor__linked-file">
+            <OcText tone="muted" size="sm">{{ fontRegistryExists
+              ? t('projectConfig.fonts.registryAvailable')
+              : t('projectConfig.fonts.registryMissing') }}</OcText>
+            <OcButton data-linked-file="fonts" :icon="fontRegistryExists ? 'nav.arrow-right' : 'action.add'"
+              variant="soft" @click="openOrCreateFontRegistry">
+              {{ fontRegistryExists ? t('projectConfig.fonts.openRegistry') : t('projectConfig.fonts.createRegistry') }}
+            </OcButton>
+          </div>
+        </ProjectConfigSection>
+
+        <ProjectConfigSection section-id="project-profile-section-icons" content-indent="single"
+          :heading="t('projectConfig.icons.title')" :description="t('projectConfig.icons.description')"
+          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.icons.title') })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.icons.title') })"
+          :collapsed="isProjectSectionCollapsed('icons')" @toggle="toggleProjectSection('icons')">
+          <div class="project-profile-editor__linked-file">
+            <OcText tone="muted" size="sm">{{ iconRegistryExists
+              ? t('projectConfig.icons.registryAvailable')
+              : t('projectConfig.icons.registryMissing') }}</OcText>
+            <OcButton data-linked-file="icons" :icon="iconRegistryExists ? 'nav.arrow-right' : 'action.add'"
+              variant="soft" @click="openOrCreateIconRegistry">
+              {{ iconRegistryExists ? t('projectConfig.icons.openRegistry') : t('projectConfig.icons.createRegistry') }}
             </OcButton>
           </div>
         </ProjectConfigSection>
@@ -148,6 +183,8 @@ import {
   type ProjectProfile,
 } from '../../features/workspace/model/projectMetadata'
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../features/workspace/model/projectDictionary'
+import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectFontRegistry'
+import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectIconRegistry'
 import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
@@ -164,16 +201,20 @@ const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const profile = ref<ProjectProfile | null>(null)
 const dictionaryExists = ref(false)
+const fontRegistryExists = ref(false)
+const iconRegistryExists = ref(false)
 const remoteHostDrafts = ref<string[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
 
-type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'dictionary'
+type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'dictionary' | 'fonts' | 'icons'
 
 const projectProfileSections = [
   { key: 'information', labelKey: 'projectConfig.sections.information' },
   { key: 'remote-resources', labelKey: 'projectConfig.remoteResources.title' },
   { key: 'dictionary', labelKey: 'projectConfig.dictionary.title' },
+  { key: 'fonts', labelKey: 'projectConfig.fonts.title' },
+  { key: 'icons', labelKey: 'projectConfig.icons.title' },
 ] as const satisfies readonly { key: ProjectProfileSectionKey, labelKey: string }[]
 
 const themeId = computed(() => props.themeId ?? 'dark')
@@ -208,13 +249,16 @@ watch(() => props.modelValue, content => {
 }, { immediate: true })
 
 watch(() => projectStore.indexedEntries.value, () => {
-  dictionaryExists.value = projectStore.indexedEntries.value.some(entry => (
-    !entry.isDirectory
-    && resolveFileType(
+  const fileTypeIds = new Set(projectStore.indexedEntries.value.flatMap(entry => {
+    if (entry.isDirectory) return []
+    return [resolveFileType(
       projectStore.resolveProjectPath(entry.name),
       projectStore.projectPath.value,
-    ).id === 'opencard-dictionary'
-  ))
+    ).id]
+  }))
+  dictionaryExists.value = fileTypeIds.has('opencard-dictionary')
+  fontRegistryExists.value = fileTypeIds.has('opencard-font-registry')
+  iconRegistryExists.value = fileTypeIds.has('opencard-icon-registry')
 }, { immediate: true })
 
 function updateProfileField(fieldKey: 'name' | 'description' | 'version', event: Event) {
@@ -348,15 +392,47 @@ function updateRawSource(content: string) {
 }
 
 async function openOrCreateDictionary() {
-  const path = projectStore.resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)
+  await openOrCreateLinkedFile(
+    PROJECT_DICTIONARY_FILE_NAME,
+    dictionaryExists.value,
+    () => { dictionaryExists.value = true },
+    'OC-E3008',
+  )
+}
+
+async function openOrCreateFontRegistry() {
+  await openOrCreateLinkedFile(
+    PROJECT_FONT_REGISTRY_FILE_NAME,
+    fontRegistryExists.value,
+    () => { fontRegistryExists.value = true },
+    'OC-E3009',
+  )
+}
+
+async function openOrCreateIconRegistry() {
+  await openOrCreateLinkedFile(
+    PROJECT_ICON_REGISTRY_FILE_NAME,
+    iconRegistryExists.value,
+    () => { iconRegistryExists.value = true },
+    'OC-E3010',
+  )
+}
+
+async function openOrCreateLinkedFile(
+  fileName: string,
+  exists: boolean,
+  markExists: () => void,
+  errorCode: 'OC-E3008' | 'OC-E3009' | 'OC-E3010',
+): Promise<void> {
+  const path = projectStore.resolveProjectPath(fileName)
   try {
-    if (!dictionaryExists.value) {
-      await projectStore.createFile(PROJECT_DICTIONARY_FILE_NAME, '{}')
-      dictionaryExists.value = true
+    if (!exists) {
+      await projectStore.createFile(fileName, '{}')
+      markExists()
     }
     emit('open-file', path)
   } catch (error) {
-    reportAppError('OC-E3008', { path, error })
+    reportAppError(errorCode, { path, error })
   }
 }
 
@@ -402,7 +478,7 @@ defineExpose({ save })
 }
 
 .project-profile-editor__header,
-.project-profile-editor__dictionary,
+.project-profile-editor__linked-file,
 .project-profile-editor__diagnostic {
   display: flex;
   align-items: center;
@@ -443,7 +519,7 @@ defineExpose({ save })
   min-height: 88px;
 }
 
-.project-profile-editor__dictionary {
+.project-profile-editor__linked-file {
   justify-content: space-between;
 }
 
@@ -473,7 +549,7 @@ defineExpose({ save })
   justify-self: start;
 }
 
-.project-profile-editor__dictionary > div {
+.project-profile-editor__linked-file > div {
   min-width: 0;
 }
 
@@ -591,7 +667,7 @@ defineExpose({ save })
     padding-inline: var(--oc-space-3);
   }
 
-  .project-profile-editor__dictionary {
+  .project-profile-editor__linked-file {
     align-items: flex-start;
     flex-direction: column;
   }
