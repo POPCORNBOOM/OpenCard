@@ -1,6 +1,6 @@
 [package]
 name = "OpenCard"
-version = "0.2.16"
+version = "0.3.0"
 description = "A visual card design and template workspace."
 authors = ["Yigu Wang"]
 edition = "2021"
