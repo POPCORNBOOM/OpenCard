@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   fileExists: vi.fn(),
   readDirectoryEntries: vi.fn(),
   writeFile: vi.fn(),
+  createDirectory: vi.fn(),
+    copyFile: vi.fn(),
+    renameFile: vi.fn(),
   readFile: vi.fn(),
   trashFile: vi.fn(),
   startWatching: vi.fn(),
@@ -27,14 +30,25 @@ vi.mock('../services/fileSystemService', () => ({
     fileExists: mocks.fileExists,
     readDirectoryEntries: mocks.readDirectoryEntries,
     writeFile: mocks.writeFile,
+    createDirectory: mocks.createDirectory,
+    copyFile: mocks.copyFile,
+    renameFile: mocks.renameFile,
     readFile: mocks.readFile,
     trashFile: mocks.trashFile,
     startWatching: mocks.startWatching,
     stopWatching: mocks.stopWatching,
   },
 }))
+vi.mock('../services/projectIconCatalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/projectIconCatalog')>()
+  return {
+    ...actual,
+    buildProjectIconCatalog: vi.fn(async () => ({ series: [], entries: [], errors: [] })),
+  }
+})
 
 import { useProjectStore } from './projectStore'
+import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 
 describe('projectStore settings actions', () => {
   beforeEach(() => {
@@ -43,10 +57,14 @@ describe('projectStore settings actions', () => {
     mocks.fileExists.mockResolvedValue(false)
     mocks.readDirectoryEntries.mockResolvedValue([])
     mocks.writeFile.mockResolvedValue(undefined)
+    mocks.createDirectory.mockResolvedValue(undefined)
+    mocks.copyFile.mockResolvedValue(undefined)
+    mocks.renameFile.mockResolvedValue(undefined)
     mocks.readFile.mockResolvedValue('{}')
     mocks.trashFile.mockResolvedValue(undefined)
     mocks.startWatching.mockResolvedValue(undefined)
     mocks.stopWatching.mockResolvedValue(undefined)
+    useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
 
   it('resets workspace state through the store and rewrites project metadata', async () => {
@@ -82,6 +100,70 @@ describe('projectStore settings actions', () => {
     })
     expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.opencardprojectprofile', saved)
 
+    await store.setProjectPath('')
+  })
+
+  it('rejects duplicate project icon keys at the icon-registry save boundary', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    const icon = { iconKey: 'same', name: '', x: 0, y: 0, width: 8, height: 8 }
+
+    await expect(store.saveProjectIconRegistry('.iconreg', JSON.stringify({
+      iconSeries: [{
+        key: 'status',
+        source: 'assets/icons/status.png',
+        icons: [icon, { ...icon, x: 8 }],
+      }],
+    }))).rejects.toThrow('Invalid .iconreg content')
+    expect(mocks.writeFile).not.toHaveBeenCalled()
+    await store.setProjectPath('')
+  })
+
+  it('loads font and icon registries independently from the profile', async () => {
+    mocks.fileExists.mockImplementation(async (path: string) => (
+      path.endsWith('.opencardprojectprofile') || path.endsWith('.fontreg') || path.endsWith('.iconreg')
+    ))
+    mocks.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith('.fontreg')) {
+        return JSON.stringify({ fonts: {} })
+      }
+      if (path.endsWith('.iconreg')) {
+        return JSON.stringify({ iconSeries: [] })
+      }
+      return JSON.stringify({ name: 'Demo', fonts: { ignored: true }, iconSeries: [{ ignored: true }] })
+    })
+
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    expect(store.resolvedProject.value?.name).toBe('Demo')
+    expect(store.projectFonts.value).toEqual({})
+    expect(store.projectIconSeries.value).toEqual([])
+
+    await store.setProjectPath('')
+  })
+
+  it('preserves project-profile editor state when saving expanded directories', async () => {
+    const settingsStore = useAppSettingsStore()
+    settingsStore.updateProjectCreation({
+      workspaceStates: {
+        'D:/project': {
+          expandedDirectories: [],
+          projectProfile: { collapsedSections: ['fonts'] },
+        },
+      },
+    })
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    store.setDirectoryExpanded('D:/project/assets', true)
+
+    const scheduledSave = mocks.schedule.mock.calls[mocks.schedule.mock.calls.length - 1]?.[2]
+    await scheduledSave?.()
+
+    expect(settingsStore.settings.value.projectCreation.workspaceStates['D:/project']).toEqual({
+      expandedDirectories: ['assets'],
+      projectProfile: { collapsedSections: ['fonts'] },
+    })
     await store.setProjectPath('')
   })
 
@@ -181,6 +263,27 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('distinguishes project font files from external files and uses a custom import directory', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    expect(store.getRelativeProjectPathIfInside('D:/project/assets/fonts/Brand.woff2'))
+      .toBe('assets/fonts/Brand.woff2')
+    expect(store.getRelativeProjectPathIfInside('D:/other/Brand.woff2')).toBeNull()
+
+    await expect(store.importProjectFontFile(
+      'D:/Downloads/Brand.woff2',
+      'resources/typefaces',
+    )).resolves.toEqual({ source: 'resources/typefaces/Brand.woff2', copied: true })
+    expect(mocks.createDirectory).toHaveBeenCalledWith('D:/project/resources/typefaces')
+    expect(mocks.copyFile).toHaveBeenCalledWith(
+      'D:/Downloads/Brand.woff2',
+      'D:/project/resources/typefaces/Brand.woff2',
+    )
+
+    await store.setProjectPath('')
+  })
+
   it('refreshes the workspace index after saving a new file into the project', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
@@ -195,6 +298,34 @@ describe('projectStore settings actions', () => {
 
     expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Draft.opencard', '{}')
     expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('Draft.opencard')
+    await store.setProjectPath('')
+  })
+
+  it('moves a nested special file back to the project root beside a root entry', async () => {
+    mocks.readDirectoryEntries.mockResolvedValue([
+      { name: 'config', isDirectory: true, isFile: false, isSymlink: false },
+      { name: 'config/.dictionary', isDirectory: false, isFile: true, isSymlink: false },
+      { name: 'cards.opencard', isDirectory: false, isFile: true, isSymlink: false },
+    ])
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    const request = {
+      key: 'D:/project/config/.dictionary',
+      targetKey: 'D:/project/cards.opencard',
+      position: 'before' as const,
+    }
+
+    expect(store.canMoveEntryByDrop(request)).toBe(true)
+    await expect(store.moveEntryByDrop(request)).resolves.toEqual({
+      ok: true,
+      fromPath: 'D:/project/config/.dictionary',
+      toPath: 'D:/project/.dictionary',
+    })
+    expect(mocks.renameFile).toHaveBeenCalledWith(
+      'D:/project/config/.dictionary',
+      'D:/project/.dictionary',
+    )
+
     await store.setProjectPath('')
   })
 

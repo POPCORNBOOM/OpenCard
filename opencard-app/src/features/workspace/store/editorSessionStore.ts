@@ -181,7 +181,15 @@ function resolveSessionFileType(session: EditorSession) {
 }
 
 export function useEditorSessionStore() {
-  const { projectPath, readFile, saveFile, saveProjectConfiguration, saveProjectDictionary } = useProjectStore()
+  const {
+    projectPath,
+    readFile,
+    saveFile,
+    saveProjectConfiguration,
+    saveProjectFontRegistry,
+    saveProjectIconRegistry,
+    saveProjectDictionary,
+  } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
   const activeSession = computed(() =>
@@ -524,16 +532,20 @@ export function useEditorSessionStore() {
       nextPath,
       nextResourceKind === 'workspace' ? projectPath.value : undefined,
     )
-    const isProjectProfile = nextResourceKind === 'workspace' && nextFileType.id === 'opencard-project-profile'
-    const isProjectDictionary = nextResourceKind === 'workspace' && nextFileType.id === 'opencard-dictionary'
-    const isStructuredProjectFile = isProjectProfile || isProjectDictionary
-    const savedContent = isProjectProfile
-      ? await saveProjectConfiguration(nextPath, session.draftContent)
-      : isProjectDictionary
-        ? await saveProjectDictionary(nextPath, session.draftContent)
-        : session.draftContent
+    const structuredProjectSavers = {
+      'opencard-project-profile': saveProjectConfiguration,
+      'opencard-font-registry': saveProjectFontRegistry,
+      'opencard-icon-registry': saveProjectIconRegistry,
+      'opencard-dictionary': saveProjectDictionary,
+    } as const
+    const structuredSaver = nextResourceKind === 'workspace'
+      ? structuredProjectSavers[nextFileType.id as keyof typeof structuredProjectSavers]
+      : undefined
+    const savedContent = structuredSaver
+      ? await structuredSaver(nextPath, session.draftContent)
+      : session.draftContent
 
-    if (!isStructuredProjectFile) {
+    if (!structuredSaver) {
       await writeContentByResourceKind(nextResourceKind, nextPath, savedContent)
     }
 

@@ -1,13 +1,26 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
-import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
+import ProjectConfigSection from './ProjectConfigSection.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
+import OcButton from '../base/OcButton.vue'
+import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
+vi.mock('../../features/workspace/services/projectIconCatalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../features/workspace/services/projectIconCatalog')>()
+  return {
+    ...actual,
+    buildProjectIconCatalog: vi.fn(async () => ({ series: [], entries: [], errors: [] })),
+  }
+})
 
 describe('ProjectConfigEditor', () => {
+  beforeEach(() => {
+    useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
+  })
+
   it('edits only project name, description, and version', async () => {
     const wrapper = mount(ProjectConfigEditor, {
       props: {
@@ -33,24 +46,6 @@ describe('ProjectConfigEditor', () => {
     await wrapper.get('[data-field-key="name"] input').setValue('')
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({})
-  })
-
-  it('edits fonts through the visual registry instead of a JSON property field', async () => {
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{}' },
-    })
-    expect(wrapper.find('[data-field-key="fonts"]').exists()).toBe(false)
-
-    wrapper.getComponent(ProjectFontRegistryEditor).vm.$emit('update:fonts', {
-      'brand-sans': {
-        family: 'Brand Sans',
-        faces: [{ source: 'assets/fonts/BrandSans.woff2', weight: '400', style: 'normal' }],
-      },
-    })
-    await wrapper.vm.$nextTick()
-
-    const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates[updates.length - 1]?.[0] as string).fonts).toHaveProperty('brand-sans')
   })
 
   it('edits the project HTTPS host allowlist with custom controls', async () => {
@@ -90,6 +85,53 @@ describe('ProjectConfigEditor', () => {
     expect(wrapper.find('.project-profile-editor__host-list').exists()).toBe(false)
   })
 
+  it('persists collapsed project-profile sections and exposes them in the outline', async () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{}' },
+    })
+
+    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(3)
+    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(3)
+    expect(wrapper.find('.project-profile-editor__outline').text()).not.toContain('projectConfig.outline.title')
+    expect(wrapper.getComponent(ProjectConfigSection).getComponent(OcButton).props('icon')).toBe('tree.chevron-right')
+    await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')
+
+    expect(wrapper.get('#project-profile-section-information-content').attributes('aria-hidden')).toBe('true')
+    expect(wrapper.find('[data-field-key="name"]').exists()).toBe(true)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(useAppSettingsStore().settings.value.projectCreation.workspaceStates['D:/Demo']).toEqual({
+      expandedDirectories: [],
+      projectProfile: { collapsedSections: ['information'] },
+    })
+  })
+
+  it('expands a collapsed section when navigating from the outline', async () => {
+    useAppSettingsStore().updateProjectCreation({
+      workspaceStates: {
+        'D:/Demo': {
+          expandedDirectories: [],
+          projectProfile: { collapsedSections: ['remote-resources'] },
+        },
+      },
+    })
+    const wrapper = mount(ProjectConfigEditor, {
+      props: {
+        filePath: 'D:/Demo/.opencardprojectprofile',
+        modelValue: '{}',
+      },
+    })
+
+    expect(wrapper.get('#project-profile-section-remote-resources-content').attributes('aria-hidden')).toBe('true')
+    await wrapper.findAll('.project-profile-editor__outline-item')[1]!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('#project-profile-section-remote-resources-content').attributes('aria-hidden')).toBe('false')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(useAppSettingsStore().settings.value.projectCreation.workspaceStates['D:/Demo']).toEqual({
+      expandedDirectories: [],
+    })
+  })
+
   it('shows the embedded JSON repair editor for invalid content', () => {
     const wrapper = mount(ProjectConfigEditor, {
       props: { filePath: 'D:/Demo/.opencardprojectprofile', modelValue: '{broken' },
@@ -105,4 +147,5 @@ describe('ProjectConfigEditor', () => {
     await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)
   })
+
 })

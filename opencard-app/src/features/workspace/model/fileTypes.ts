@@ -69,6 +69,26 @@ const fileTypes: FileTypeDefinition[] = [
     previewable: true,
   },
   {
+    id: 'opencard-font-registry',
+    labelKey: 'fileTypes.opencardFontRegistry',
+    fileNames: ['.fontreg'],
+    icon: 'file.font',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'font-registry',
+    previewable: true,
+  },
+  {
+    id: 'opencard-icon-registry',
+    labelKey: 'fileTypes.opencardIconRegistry',
+    fileNames: ['.iconreg'],
+    icon: 'file.image',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'icon-registry',
+    previewable: true,
+  },
+  {
     id: 'opencard-dictionary',
     labelKey: 'fileTypes.opencardDictionary',
     fileNames: ['.dictionary'],
@@ -193,6 +213,8 @@ const fileTypes: FileTypeDefinition[] = [
 
 const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.opencardprojectprofile': { icon: 'file.opencard-project', tone: iconTone.config },
+  '.fontreg': { icon: 'file.font', tone: iconTone.config },
+  '.iconreg': { icon: 'file.image', tone: iconTone.config },
   '.dictionary': { icon: 'data.collection', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
@@ -269,6 +291,8 @@ export function resolveFileType(path: string, projectRoot?: string): FileTypeDef
 
   const fileNameMatch = fileTypes.find((definition) => {
     const isProjectMetadata = definition.id === 'opencard-project-profile'
+      || definition.id === 'opencard-font-registry'
+      || definition.id === 'opencard-icon-registry'
       || definition.id === 'opencard-dictionary'
     const compareCaseInsensitive = !isProjectMetadata
       || isWindowsLikePath(projectRoot ?? path)

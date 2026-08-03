@@ -83,6 +83,8 @@ import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
+import ProjectFontRegistryFileEditor from '../../../components/editors/ProjectFontRegistryFileEditor.vue'
+import ProjectIconRegistryFileEditor from '../../../components/editors/ProjectIconRegistryFileEditor.vue'
 import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
@@ -116,6 +118,20 @@ editorRegistry.register({
   id: 'project-config',
   name: 'Project Configuration',
   component: ProjectConfigEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'font-registry',
+  name: 'Project Font Registry',
+  component: ProjectFontRegistryFileEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'icon-registry',
+  name: 'Project Icon Registry',
+  component: ProjectIconRegistryFileEditor,
   hasPreview: false,
 })
 

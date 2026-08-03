@@ -98,6 +98,16 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法打开项目字典', 'en-US': 'Could not open the project dictionary' },
     solution: '确认字典路径有效；若文件不存在，先在项目配置中重新创建或选择字典。',
   },
+  'OC-E3009': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法加载项目字体注册表', 'en-US': 'Could not load the project font registry' },
+    solution: '检查 .fontreg 的语法、字体 Key 与项目相对路径，然后重新打开项目。',
+  },
+  'OC-E3010': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法加载项目图标注册表', 'en-US': 'Could not load the project icon registry' },
+    solution: '检查 .iconreg 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
+  },
   'OC-E4001': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法在预览会话中打开文件', 'en-US': 'Could not open the file in a preview session' },

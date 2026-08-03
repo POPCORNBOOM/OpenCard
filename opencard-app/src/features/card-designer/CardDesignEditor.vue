@@ -27,12 +27,14 @@
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="props.remoteResourcePolicy"
+          :project-icon-catalog="projectStore.projectIconCatalog.value"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
+          :selection-command-actions="selectionCommandActions"
           :layer-view-active="layerViewActive"
           :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
           :space-modifier-active="spaceHeld"
@@ -46,6 +48,7 @@
           @block-click="handleViewportBlockClick"
           @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @selection-action="handleSelectionAction"
+          @selection-command="handleSelectionCommand"
           @z-index-step="handleLayerZIndexStep"
           @face-dimension-change="handleFaceDimensionChange"
           @viewport-transform-change="handleViewportTransformChange"
@@ -152,6 +155,7 @@
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
                         :remote-resource-policy="props.remoteResourcePolicy"
+                        :project-icon-catalog="projectStore.projectIconCatalog.value"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -265,7 +269,7 @@
           </aside>
         </div>
 
-        <div v-if="viewFace" class="card-design-editor__face-tools"
+        <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools" orientation="vertical"
           :class="{ 'is-right-sidebar-collapsed': isRightSidebarCollapsed }">
           <OcViewportControls
             class="card-design-editor__viewport-controls"
@@ -285,7 +289,7 @@
             @select="toggleFaceClip"
           />
           <OcActionButton :action="faceSwitchAction" size="sm" variant="ghost" @select="toggleActiveFace" />
-        </div>
+        </OcOverlayToolbar>
       </div>
         </div>
       </Transition>
@@ -319,14 +323,17 @@ import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
+  getCardFieldDefinition,
   type CardBlock,
   type CardFaceKey,
+  type FlowDirection,
 } from '../../entities/card/model'
 import { getBlockTreeIcon } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
   type CardViewportSelectionActionLabels,
+  type CardViewportSelectionCommand,
   type CardViewportSelectionInfo,
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
@@ -336,6 +343,7 @@ import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import OcViewportControls from '../../components/standard/OcViewportControls.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
+import OcOverlayToolbar from '../../components/standard/OcOverlayToolbar.vue'
 import { useCdeDocumentState } from './useCdeDocumentState'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 import { useCdeOverlayLayout } from './useCdeOverlayLayout'
@@ -386,6 +394,18 @@ import {
 
 // 蓝图实例固定 ID
 const BLUEPRINT_CARD_ID = '__blueprint__'
+const EDIT_RICH_TEXT_ACTION_KEY = 'content.edit-rich-text'
+const FLOW_DIRECTION_ACTIONS = [
+  { key: 'flow.direction.left', direction: 'rl', icon: 'nav.arrow-left', titleKey: 'flowLeft' },
+  { key: 'flow.direction.up', direction: 'bt', icon: 'nav.arrow-up', titleKey: 'flowUp' },
+  { key: 'flow.direction.down', direction: 'tb', icon: 'nav.arrow-down', titleKey: 'flowDown' },
+  { key: 'flow.direction.right', direction: 'lr', icon: 'nav.arrow-right', titleKey: 'flowRight' },
+] as const satisfies readonly {
+  key: string
+  direction: FlowDirection
+  icon: OcActionButtonAction['icon']
+  titleKey: string
+}[]
 
 // 组件输入输出
 const props = defineProps<EditorProps>()
@@ -476,6 +496,7 @@ type CardViewportHandle = CdeViewportPort & CdeLayerViewPort
 
 type PropertyEditorHandle = {
   revealField: (inputKey: string, fieldKey: string, characterOffset?: number) => Promise<boolean>
+  activateField: (inputKey: string, fieldKey: string) => Promise<boolean>
 }
 
 type CardDataTableHandle = {
@@ -941,9 +962,11 @@ const {
 })
 
 const propertyProjectContext = computed(() => ({
-  fonts: projectStore.projectProfile.value?.fonts,
+  fonts: projectStore.projectFonts.value,
   information: projectStore.resolvedProject.value,
   dictionary: projectStore.resolvedDictionary.value,
+  iconSeries: projectStore.projectIconSeries.value,
+  projectIconCatalog: projectStore.projectIconCatalog.value,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
   const rootPath = props.resourceRootPath
@@ -1037,6 +1060,57 @@ const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => 
   fillCrossAxis: withShortcut(t('cardDesigner.selectionActions.fillCrossAxis'), 'F'),
   centerCrossAxis: withShortcut(t('cardDesigner.selectionActions.centerCrossAxis'), 'C'),
 }))
+const selectionCommandActions = computed<OcActionButtonAction[]>(() => {
+  const block = selectedBlock.value
+  if (!block) return []
+  const actions: OcActionButtonAction[] = []
+  if (block.type === 'flow-container-block') {
+    actions.push(...FLOW_DIRECTION_ACTIONS.map(action => ({
+      key: action.key,
+      icon: action.icon,
+      iconTone: block.direction === action.direction ? 'primary' : 'default',
+      title: t(`cardDesigner.selectionActions.${action.titleKey}`),
+    } satisfies OcActionButtonAction)))
+  }
+
+  const input = propertyEditorInputs.value.find(candidate => candidate.key === block.id)
+  const definition = input?.fields.content ?? getCardFieldDefinition(block, 'content')
+  if (
+    definition?.fieldType !== 'string'
+    || !definition.richText
+    || definition.isReadonly
+    || isBindingExpression(input?.record.content)
+  ) return actions
+
+  actions.push({
+    key: EDIT_RICH_TEXT_ACTION_KEY,
+    icon: 'format.text-variant-outline',
+    title: t('cardDesigner.selectionActions.editRichText'),
+  })
+  return actions
+})
+
+async function handleSelectionCommand(intent: CardViewportSelectionCommand): Promise<void> {
+  const block = selectedBlock.value
+  if (!block || block.id !== intent.blockId) return
+
+  const flowDirectionAction = FLOW_DIRECTION_ACTIONS.find(action => action.key === intent.key)
+  if (flowDirectionAction) {
+    if (block.type !== 'flow-container-block' || block.direction === flowDirectionAction.direction) return
+    blockFieldCommands.updateField({
+      cardId: selectedCardId.value ?? BLUEPRINT_CARD_ID,
+      blockId: block.id,
+      fieldKey: 'direction',
+    }, flowDirectionAction.direction, 'action')
+    return
+  }
+
+  if (intent.key !== EDIT_RICH_TEXT_ACTION_KEY) return
+
+  ensurePanelsExpanded(['property'])
+  await nextTick()
+  await propertyEditorRef.value?.activateField(block.id, 'content')
+}
 const layerViewShortcutHints = computed(() => [
   {
     keys: [
@@ -1648,7 +1722,7 @@ onUnmounted(() => {
 }
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-base {
-  z-index: 3;
+  z-index: var(--oc-z-overlay-toolbar);
 }
 
 .card-design-editor__stage-layer {
@@ -1685,17 +1759,6 @@ onUnmounted(() => {
   );
   bottom: var(--oc-space-2);
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--oc-space-1);
-  padding: 3px;
-  border: 1px solid var(--oc-border-muted);
-  border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-glass);
-  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
-  box-shadow: var(--oc-shadow-md);
-  pointer-events: auto;
   transition: right var(--oc-duration-slow) var(--oc-ease);
 }
 
@@ -1704,8 +1767,8 @@ onUnmounted(() => {
 }
 
 .card-design-editor__face-tools-divider {
-  width: 16px;
-  height: 1px;
+  width: var(--oc-space-4);
+  height: var(--oc-border-width);
   background: var(--oc-border-muted);
 }
 
