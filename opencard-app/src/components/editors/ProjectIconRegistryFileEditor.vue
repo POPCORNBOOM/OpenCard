@@ -1,5 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.image" :title="t('iconRegistry.title')"
+  <ProjectRegistryEditorShell icon="file.image" :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <template v-if="document" #actions>
       <OcButton icon="action.add" variant="soft" :disabled="importBusy" @click="openRegistrationDialog">
@@ -12,7 +12,7 @@
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
-      :theme-overrides="themeOverrides" :title="t('iconRegistry.invalid')" :description="t('iconRegistry.repair')"
+      :theme-overrides="themeOverrides" :heading="t('iconRegistry.invalid')" :description="t('iconRegistry.repair')"
       @update:model-value="updateRawSource" @save="save" />
 
     <ProjectIconRegistrationDialog :open="registrationDialogOpen" :series="document?.iconSeries"

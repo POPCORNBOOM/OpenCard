@@ -311,7 +311,7 @@ export default {
       copyDirectory: '复制到项目目录', invalidCopyDirectory: '请输入有效的项目内相对目录。',
       identity: '图标信息', crop: '裁切范围', appearance: '显示方式', referenceName: '引用名称', iconName: '图标名称',
       width: '宽度', height: '高度', defaultIconName: '图标 {index}',
-      rows: '行数', columns: '列数', gridSettings: '网格设置', snapToGrid: '吸附到网格', pixelated: '像素化',
+      rows: '行数', columns: '列数', gridSettings: '网格设置', snapToGrid: '吸附到网格', showGrid: '显示网格', pixelated: '像素化',
       generateIcons: '生成图标', overwriteExisting: '覆盖已有图标', generate: '生成',
       configureIconSet: '配置图标集', iconActions: '图标操作', removeIcon: '移除图标', removeSeries: '移除图标集',
       save: '保存', cancel: '取消',

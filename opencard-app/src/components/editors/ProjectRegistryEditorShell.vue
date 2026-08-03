@@ -4,7 +4,7 @@
       <div class="project-registry-shell__identity">
         <OcIcon :name="icon" size="lg" />
         <div>
-          <h1>{{ title }}</h1>
+          <h1>{{ heading }}</h1>
           <OcText tone="muted" size="sm">{{ description }}</OcText>
         </div>
       </div>
@@ -25,7 +25,7 @@ import OcText from '../base/OcText.vue'
 
 defineProps<{
   icon: IconToken
-  title: string
+  heading: string
   description: string
 }>()
 </script>

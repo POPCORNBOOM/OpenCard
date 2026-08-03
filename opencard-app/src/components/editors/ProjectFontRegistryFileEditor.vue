@@ -1,5 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.font" :title="t('fontRegistry.title')"
+  <ProjectRegistryEditorShell icon="file.font" :heading="t('fontRegistry.title')"
     :description="t('fontRegistry.description')" @keydown.ctrl.s.prevent="save">
     <template v-if="document" #actions>
       <OcButton icon="action.add" variant="soft" :disabled="importBusy" @click="openRegistrationDialog()">
@@ -13,7 +13,7 @@
       @configure-font="openRegistrationDialog" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
-      :theme-overrides="themeOverrides" :title="t('fontRegistry.invalid')" :description="t('fontRegistry.repair')"
+      :theme-overrides="themeOverrides" :heading="t('fontRegistry.invalid')" :description="t('fontRegistry.repair')"
       @update:model-value="updateRawSource" @save="save" />
 
     <ProjectFontRegistrationDialog :open="registrationDialogOpen" :fonts="document?.fonts"

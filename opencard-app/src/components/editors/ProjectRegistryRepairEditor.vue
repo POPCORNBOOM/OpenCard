@@ -3,7 +3,7 @@
     <div class="project-registry-repair__message">
       <OcIcon name="status.error" tone="danger" />
       <div>
-        <strong>{{ title }}</strong>
+        <strong>{{ heading }}</strong>
         <OcText tone="muted" size="sm">{{ description }}</OcText>
       </div>
     </div>
@@ -21,7 +21,7 @@ import MonacoEditor from './MonacoEditor.vue'
 
 defineProps<{
   modelValue: string
-  title: string
+  heading: string
   description: string
   themeId: OcThemeId
   themeOverrides: OcThemeColorOverrides

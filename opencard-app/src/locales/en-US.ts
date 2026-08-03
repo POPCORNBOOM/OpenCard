@@ -312,7 +312,7 @@ export default {
       copyDirectory: 'Copy to project directory', invalidCopyDirectory: 'Enter a valid project-relative directory.',
       identity: 'Icon', crop: 'Crop', appearance: 'Appearance', referenceName: 'Reference name', iconName: 'Icon name',
       width: 'Width', height: 'Height', defaultIconName: 'Icon {index}',
-      rows: 'Rows', columns: 'Columns', gridSettings: 'Grid settings', snapToGrid: 'Snap to grid', pixelated: 'Pixelated',
+      rows: 'Rows', columns: 'Columns', gridSettings: 'Grid settings', snapToGrid: 'Snap to grid', showGrid: 'Show grid', pixelated: 'Pixelated',
       generateIcons: 'Generate icons', overwriteExisting: 'Overwrite existing icons', generate: 'Generate',
       configureIconSet: 'Configure icon set', iconActions: 'Icon actions', removeIcon: 'Remove icon', removeSeries: 'Remove icon set',
       save: 'Save', cancel: 'Cancel',
