@@ -10,9 +10,9 @@ function createSession(id: string, patch: Partial<EditorSession> = {}): EditorSe
   return {
     id,
     resourceKind: 'workspace',
-    path: `D:/project/${id}.opencard`,
+    path: `D:/project/${id}.ocdocument`,
     fileTypeId: 'opencard',
-    name: `${id}.opencard`,
+    name: `${id}.ocdocument`,
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
@@ -85,7 +85,7 @@ describe('useShellCloseCoordinator', () => {
 
   it('selects only workspace sessions for project close and preserves destination', async () => {
     const workspace = createSession('workspace')
-    const external = createSession('external', { resourceKind: 'external', path: 'D:/outside.opencard' })
+    const external = createSession('external', { resourceKind: 'external', path: 'D:/outside.ocdocument' })
     const draft = createSession('draft', { resourceKind: 'draft', path: null })
     const { coordinator, flushAffectedSessions, completions } = createCoordinator([workspace, external, draft])
 
@@ -107,9 +107,9 @@ describe('useShellCloseCoordinator', () => {
   })
 
   it('selects only sessions at or below the trashed path', async () => {
-    const direct = createSession('direct', { path: 'D:/project/cards/main.opencard' })
-    const nested = createSession('nested', { path: 'D:/project/cards/set/other.opencard' })
-    const sibling = createSession('sibling', { path: 'D:/project/cards-old/keep.opencard' })
+    const direct = createSession('direct', { path: 'D:/project/cards/main.ocdocument' })
+    const nested = createSession('nested', { path: 'D:/project/cards/set/other.ocdocument' })
+    const sibling = createSession('sibling', { path: 'D:/project/cards-old/keep.ocdocument' })
     const { coordinator, flushAffectedSessions, completions } = createCoordinator([direct, nested, sibling])
 
     await coordinator.requestPathTrash('D:\\project\\cards\\')

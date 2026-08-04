@@ -78,7 +78,7 @@
             </span>
           </template>
         </CardViewport>
-        <OcEmpty v-else>无法解析 .opencard 文件</OcEmpty>
+        <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
         </OcPanel>
       </div>
 

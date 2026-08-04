@@ -48,13 +48,13 @@ describe('appConsole', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     installAppConsoleCapture()
 
-    reportAppError('OC-E2003', { path: 'missing.opencard' })
+    reportAppError('OC-E2003', { path: 'missing.ocdocument' })
 
     expect(appConsoleEntries.value[0]).toMatchObject({
       severity: 'error',
       errorCode: 'OC-E2003',
     })
-    expect(appConsoleEntries.value[0]!.message).toContain('missing.opencard')
+    expect(appConsoleEntries.value[0]!.message).toContain('missing.ocdocument')
   })
 
   it('does not wrap the console more than once when installed repeatedly', () => {

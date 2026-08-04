@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { TextBlock as TextBlockModel } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
+import { setProjectFonts } from '../../workspace/model/projectFonts'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 
 describe('TextBlockRenderer', () => {
@@ -79,6 +80,7 @@ describe('TextBlockRenderer', () => {
   })
 
   it('renders semicolon-separated project and system font fallbacks', () => {
+    setProjectFonts([{ key: 'brand-sans', name: 'Brand Sans', source: 'BrandSans.woff2' }])
     const block = parseRenderReadyBlockForTest({
       id: 'project-font-block',
       type: 'text-block',

@@ -40,8 +40,8 @@ describe('editorSessionStore project switching', () => {
 
   it('detaches workspace sessions without losing identity, edits, active state, or UI state', async () => {
     const store = useEditorSessionStore()
-    const previewSession = await store.openPreviewFile('preview.opencard')
-    const oldSession = await store.openFile('main.opencard')
+    const previewSession = await store.openPreviewFile('preview.ocdocument')
+    const oldSession = await store.openFile('main.ocdocument')
     store.updateDraftContent(oldSession.id, '{"project":"edited"}')
     store.updateSessionUiState(oldSession.id, {
       cardDesigner: {
@@ -58,7 +58,7 @@ describe('editorSessionStore project switching', () => {
     expect(store.sessions.value).toContainEqual(expect.objectContaining({
       id: oldSession.id,
       resourceKind: 'external',
-      path: 'D:/old-project/main.opencard',
+      path: 'D:/old-project/main.ocdocument',
       savedContent: '{"project":"old"}',
       draftContent: '{"project":"edited"}',
       isDirty: true,
@@ -72,11 +72,11 @@ describe('editorSessionStore project switching', () => {
     expect(pendingAutosave).not.toHaveBeenCalled()
     expect(store.sessions.value.find((session) => session.id === previewSession.id)).toMatchObject({
       resourceKind: 'external',
-      path: 'D:/old-project/preview.opencard',
+      path: 'D:/old-project/preview.ocdocument',
       isPreview: true,
     })
 
-    const newSession = await store.openFile('main.opencard')
+    const newSession = await store.openFile('main.ocdocument')
     expect(newSession.id).not.toBe(oldSession.id)
     expect(newSession.resourceKind).toBe('workspace')
     store.closeSession(previewSession.id)
@@ -86,9 +86,9 @@ describe('editorSessionStore project switching', () => {
 
   it('keeps absolute workspace paths absolute and leaves external and draft sessions unchanged', async () => {
     const store = useEditorSessionStore()
-    const workspaceSession = await store.openFile('D:/old-project/cards/main.opencard')
-    const externalSession = await store.openFile('D:/outside/card.opencard')
-    const draftSession = store.createDraftSession({ name: 'draft.opencard' })
+    const workspaceSession = await store.openFile('D:/old-project/cards/main.ocdocument')
+    const externalSession = await store.openFile('D:/outside/card.ocdocument')
+    const draftSession = store.createDraftSession({ name: 'draft.ocdocument' })
     const externalSnapshot = structuredClone(externalSession)
     const draftSnapshot = structuredClone(draftSession)
 
@@ -96,7 +96,7 @@ describe('editorSessionStore project switching', () => {
 
     expect(store.sessions.value.find((session) => session.id === workspaceSession.id)).toMatchObject({
       resourceKind: 'external',
-      path: 'D:/old-project/cards/main.opencard',
+      path: 'D:/old-project/cards/main.ocdocument',
     })
     expect(store.sessions.value.find((session) => session.id === externalSession.id)).toStrictEqual(externalSnapshot)
     expect(store.sessions.value.find((session) => session.id === draftSession.id)).toStrictEqual(draftSnapshot)
@@ -108,8 +108,8 @@ describe('editorSessionStore project switching', () => {
 
   it('still closes workspace sessions on explicit project close', async () => {
     const store = useEditorSessionStore()
-    const workspaceSession = await store.openFile('main.opencard')
-    const externalSession = await store.openFile('D:/outside/card.opencard')
+    const workspaceSession = await store.openFile('main.ocdocument')
+    const externalSession = await store.openFile('D:/outside/card.ocdocument')
 
     store.closeWorkspaceSessions()
 
@@ -121,8 +121,8 @@ describe('editorSessionStore project switching', () => {
 
   it('closes sessions at and below a deleted workspace path', async () => {
     const store = useEditorSessionStore()
-    const retained = await store.openFile('other.opencard')
-    const removed = await store.openFile('cards/main.opencard')
+    const retained = await store.openFile('other.ocdocument')
+    const removed = await store.openFile('cards/main.ocdocument')
 
     store.closeSessionsByPath('cards')
 
@@ -134,14 +134,14 @@ describe('editorSessionStore project switching', () => {
 
   it('opens absolute paths outside the project as external sessions', async () => {
     const store = useEditorSessionStore()
-    const session = await store.openFile('D:/outside/card.opencard')
+    const session = await store.openFile('D:/outside/card.ocdocument')
 
     expect(session).toMatchObject({
       resourceKind: 'external',
-      path: 'D:/outside/card.opencard',
+      path: 'D:/outside/card.ocdocument',
       draftContent: '{"external":true}',
     })
-    expect(mocks.readExternalFile).toHaveBeenCalledWith('D:/outside/card.opencard')
+    expect(mocks.readExternalFile).toHaveBeenCalledWith('D:/outside/card.ocdocument')
     expect(mocks.readFile).not.toHaveBeenCalled()
     store.closeSession(session.id)
   })

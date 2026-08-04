@@ -16,6 +16,22 @@ describe('ProjectFontRegistrationDialog', () => {
     mocks.resolveImportConflict.mockResolvedValue(null)
   })
 
+  it('asks for a font file before validating generated font details', () => {
+    const wrapper = mount(ProjectFontRegistrationDialog, {
+      props: {
+        open: true,
+        defaultDirectory: 'assets/fonts',
+        getRelativeProjectPath: () => null,
+        resolveImportConflict: mocks.resolveImportConflict,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    expect(wrapper.text()).toContain('projectConfig.fonts.fileRequired')
+    expect(wrapper.text()).not.toContain('projectConfig.fonts.nameRequired')
+    expect(wrapper.findAll('input')[0]!.attributes('aria-invalid')).toBe('true')
+  })
+
   it('registers one external font with its name, key, and copy destination', async () => {
     mocks.pickFile.mockResolvedValue('D:/Downloads/BrandSans-BoldItalic.woff2')
     const wrapper = mount(ProjectFontRegistrationDialog, {
@@ -28,10 +44,12 @@ describe('ProjectFontRegistrationDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    await wrapper.findAll('input')[0]!.setValue('Brand Sans Bold Italic')
-    await wrapper.findAll('input')[1]!.setValue('brand-sans-bold-italic')
     await wrapper.findAllComponents(OcButton)[0]!.trigger('click')
     await flushPromises()
+
+    expect(wrapper.findAll('input')[1]!.element.value).toBe('BrandSans-BoldItalic')
+    await wrapper.findAll('input')[1]!.setValue('Brand Sans Bold Italic')
+    await wrapper.findAll('input')[2]!.setValue('brand-sans-bold-italic')
 
     expect(wrapper.text()).toContain('projectConfig.fonts.copyIntoProject')
     expect(wrapper.findAll('input')[3]!.element.value).toBe('resources/fonts')
@@ -66,8 +84,8 @@ describe('ProjectFontRegistrationDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    await wrapper.findAll('input')[0]!.setValue('Brand Display')
-    await wrapper.findAll('input')[1]!.setValue('brand-display')
+    await wrapper.findAll('input')[1]!.setValue('Brand Display')
+    await wrapper.findAll('input')[2]!.setValue('brand-display')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
@@ -79,6 +97,7 @@ describe('ProjectFontRegistrationDialog', () => {
   })
 
   it('prevents case-insensitive key collisions', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Project/assets/fonts/Body.woff2')
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
@@ -92,7 +111,9 @@ describe('ProjectFontRegistrationDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    await wrapper.findAll('input')[1]!.setValue('BRAND')
+    await wrapper.findAllComponents(OcButton)[0]!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('input')[2]!.setValue('BRAND')
     expect(wrapper.text()).toContain('projectConfig.fonts.keyExists')
     const buttons = wrapper.findAllComponents(OcButton)
     expect(buttons[buttons.length - 1]!.props('disabled')).toBe(true)
@@ -111,10 +132,10 @@ describe('ProjectFontRegistrationDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    await wrapper.findAll('input')[0]!.setValue('Brand Alternate')
-    await wrapper.findAll('input')[1]!.setValue('brand-alternate')
     await wrapper.findAllComponents(OcButton)[0]!.trigger('click')
     await flushPromises()
+    await wrapper.findAll('input')[1]!.setValue('Brand Alternate')
+    await wrapper.findAll('input')[2]!.setValue('brand-alternate')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({

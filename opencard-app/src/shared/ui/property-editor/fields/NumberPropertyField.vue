@@ -10,6 +10,7 @@
       :readonly="definition.isReadonly"
       full-width
       @input="onInput"
+      @change="onCommit"
     />
     <template #suffix>
       <span class="number-field__steppers">
@@ -38,6 +39,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
+  (e: 'commit', value: string): void
 }>()
 
 const HOLD_DELAY_MS = 420
@@ -59,16 +61,33 @@ const numberValue = computed(() => {
   const parsed = textValue.value.trim() === '' ? Number.NaN : Number(textValue.value)
   return Number.isFinite(parsed) ? parsed : undefined
 })
-const isAtMinimum = computed(() => props.definition.min != null && numberValue.value != null
-  && numberValue.value <= props.definition.min)
-const isAtMaximum = computed(() => props.definition.max != null && numberValue.value != null
-  && numberValue.value >= props.definition.max)
+const allowedValues = computed(() => [...new Set(props.definition.allowedValues ?? [])]
+  .filter(value => Number.isFinite(value)
+    && (props.definition.min == null || value >= props.definition.min)
+    && (props.definition.max == null || value <= props.definition.max))
+  .sort((left, right) => left - right))
+const effectiveMinimum = computed(() => allowedValues.value[0] ?? props.definition.min)
+const effectiveMaximum = computed(() => allowedValues.value[allowedValues.value.length - 1] ?? props.definition.max)
+const isAtMinimum = computed(() => effectiveMinimum.value != null && numberValue.value != null
+  && numberValue.value <= effectiveMinimum.value)
+const isAtMaximum = computed(() => effectiveMaximum.value != null && numberValue.value != null
+  && numberValue.value >= effectiveMaximum.value)
 
 function onInput(event: Event) {
   emit('update:value', (event.target as HTMLInputElement).value)
 }
 
+function onCommit(event: Event) {
+  emit('commit', (event.target as HTMLInputElement).value)
+}
+
 function calculateNextValue(current: number, direction: -1 | 1, shiftKey: boolean): number {
+  if (allowedValues.value.length) {
+    const candidates = direction > 0
+      ? allowedValues.value.filter(value => value > current)
+      : allowedValues.value.filter(value => value < current).reverse()
+    return candidates[Math.min(candidates.length - 1, (shiftKey ? SHIFT_STEP_MULTIPLIER : 1) - 1)] ?? current
+  }
   const minimum = props.definition.min ?? -Infinity
   const maximum = props.definition.max ?? Infinity
   const step = shiftKey ? SHIFT_STEP_MULTIPLIER : 1

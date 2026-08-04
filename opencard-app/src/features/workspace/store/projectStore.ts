@@ -19,9 +19,12 @@ import {
 } from '../model/projectMetadata'
 import {
   PROJECT_FONT_REGISTRY_FILE_NAME,
+  buildProjectFontRegistry,
   parseProjectFontRegistryText,
   serializeProjectFontRegistry,
+  type ProjectFont,
   type ProjectFontRegistry,
+  type ProjectFontSet,
 } from '../model/projectFontRegistry'
 import {
   PROJECT_ICON_REGISTRY_FILE_NAME,
@@ -107,6 +110,8 @@ const expandedDirectories = ref(new Set<string>())
 const projectProfile = ref<ProjectProfile | null>(null)
 const resolvedProject = ref<ProjectInformation | null>(null)
 const profileError = ref<string | null>(null)
+const projectFontFiles = ref<readonly ProjectFont[]>([])
+const projectFontSets = ref<readonly ProjectFontSet[]>([])
 const projectFonts = ref<ProjectFontRegistry>({})
 const fontRegistryError = ref<string | null>(null)
 const projectFontLoadErrors = ref<readonly ProjectFontLoadError[]>([])
@@ -188,7 +193,7 @@ async function saveProjectWorkspaceState() {
 
 async function saveProjectConfiguration(path: string, content: string): Promise<string> {
   const profile = parseProjectMetadataText(content)
-  if (!profile) throw new Error('Invalid .opencardprojectprofile content')
+  if (!profile) throw new Error('Invalid .ocproject content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME))) {
     throw new Error('Project profile must be stored at the project root')
@@ -201,7 +206,7 @@ async function saveProjectConfiguration(path: string, content: string): Promise<
 
 async function saveProjectFontRegistry(path: string, content: string): Promise<string> {
   const document = parseProjectFontRegistryText(content)
-  if (!document) throw new Error('Invalid .fontreg content')
+  if (!document) throw new Error('Invalid .ocfonts content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME))) {
     throw new Error('Project font registry must be stored at the project root')
@@ -215,7 +220,7 @@ async function saveProjectFontRegistry(path: string, content: string): Promise<s
 async function saveProjectIconRegistry(path: string, content: string): Promise<string> {
   const document = parseProjectIconRegistryText(content)
   if (!document || findProjectIconKeyConflicts(document.iconSeries).length > 0) {
-    throw new Error('Invalid .iconreg content')
+    throw new Error('Invalid .ocicons content')
   }
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME))) {
@@ -229,7 +234,7 @@ async function saveProjectIconRegistry(path: string, content: string): Promise<s
 
 async function saveProjectDictionary(path: string, content: string): Promise<string> {
   const dictionary = parseProjectDictionaryText(content)
-  if (!dictionary) throw new Error('Invalid .dictionary content')
+  if (!dictionary) throw new Error('Invalid .oclocale content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME))) {
     throw new Error('Project dictionary must be stored at the project root')
@@ -248,6 +253,8 @@ function clearProjectProfile() {
 
 function clearProjectFontRegistry() {
   clearProjectFonts()
+  projectFontFiles.value = []
+  projectFontSets.value = []
   projectFonts.value = {}
   fontRegistryError.value = null
   projectFontLoadErrors.value = []
@@ -261,8 +268,11 @@ function clearProjectIconRegistry() {
   projectIconLoadErrors.value = []
 }
 
-async function syncRegisteredProjectFonts(fonts: ProjectFontRegistry): Promise<void> {
-  const result = await syncProjectFonts(fonts, resolveAssetSrc)
+async function syncRegisteredProjectFonts(
+  fonts: readonly ProjectFont[],
+  fontSets: readonly ProjectFontSet[] = projectFontSets.value,
+): Promise<void> {
+  const result = await syncProjectFonts(fonts, resolveAssetSrc, fontSets)
   if (result.current) projectFontLoadErrors.value = result.errors
 }
 
@@ -313,8 +323,10 @@ async function reloadProjectFontRegistry(): Promise<boolean> {
   try {
     const document = parseProjectFontRegistryText(await fileSystemService.readFile(path))
     if (!document) throw new Error('Invalid project font registry')
-    projectFonts.value = document.fonts ?? {}
-    await syncRegisteredProjectFonts(projectFonts.value)
+    projectFontFiles.value = document.fonts ?? []
+    projectFontSets.value = document.fontSets ?? []
+    projectFonts.value = buildProjectFontRegistry(projectFontFiles.value, projectFontSets.value)
+    await syncRegisteredProjectFonts(projectFontFiles.value, projectFontSets.value)
     fontRegistryError.value = null
     return true
   } catch (error) {
@@ -508,10 +520,10 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
-      const fontSources = Object.values(projectFonts.value)
-        .map(definition => resolveProjectPath(definition.source))
+      const fontSources = projectFontFiles.value
+        .map(font => resolveProjectPath(font.source))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
-        void syncRegisteredProjectFonts(projectFonts.value)
+        void syncRegisteredProjectFonts(projectFontFiles.value)
       }
       const iconSources = projectIconSeries.value.map(series => resolveProjectPath(series.source))
       if (changedPaths.some(path => iconSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
@@ -1060,6 +1072,8 @@ export function useProjectStore() {
     resolvedProject: readonly(resolvedProject),
     projectInformation: readonly(resolvedProject),
     profileError: readonly(profileError),
+    projectFontFiles: readonly(projectFontFiles),
+    projectFontSets: readonly(projectFontSets),
     projectFonts: readonly(projectFonts),
     fontRegistryError: readonly(fontRegistryError),
     projectFontLoadErrors: readonly(projectFontLoadErrors),

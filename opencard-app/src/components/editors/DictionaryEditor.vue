@@ -7,7 +7,7 @@
           <OcIcon name="data.collection" size="lg" />
           <div>
             <h1>{{ t('dictionaryEditor.title') }}</h1>
-            <OcText tone="muted" size="sm">{{ filePath }}</OcText>
+            <OcText tone="muted" size="sm">{{ t('dictionaryEditor.description') }}</OcText>
           </div>
         </div>
       </header>
@@ -16,11 +16,6 @@
         <OcIcon name="status.warning" tone="warning" />
         <OcText size="sm">{{ t('dictionaryEditor.missingActive', { language: dictionary.active }) }}</OcText>
       </div>
-      <div v-if="clipboardNotice" class="dictionary-editor__notice" role="status">
-        <OcIcon name="status.warning" tone="warning" />
-        <OcText size="sm">{{ clipboardNotice }}</OcText>
-      </div>
-
       <section v-if="dictionary" class="dictionary-editor__grid oc-data-grid">
         <div ref="scrollRef" class="dictionary-editor__table-scroll oc-data-grid__scroll">
           <table class="dictionary-editor__table oc-data-grid__table" :style="{ width: `${tableWidth}px` }">
@@ -41,11 +36,7 @@
                     @resize-keydown="handleColumnResizeKeydown($event, KEY_COLUMN_KEY)" />
                 </th>
                 <th v-for="column in grid.columns" :key="column.key"
-                  class="dictionary-editor__data-column" :class="{
-                    'is-active': column.active,
-                    'is-selected': isColumnSelected(column.key),
-                  }" scope="col" :aria-selected="isColumnSelected(column.key)"
-                  tabindex="0" @click="selectColumn(column.key, $event)"
+                  class="dictionary-editor__data-column" scope="col" tabindex="0"
                   @contextmenu="openColumnContextMenu($event, column)"
                   @keydown="openColumnKeyboardMenu($event, column)">
                   <form v-if="editingLanguage === column.sourceKey" class="dictionary-editor__rename"
@@ -59,7 +50,7 @@
                     <span>{{ column.kind === 'base' ? t('dictionaryEditor.columns.base') : column.sourceKey }}</span>
                     <span class="dictionary-editor__column-actions">
                       <OcButton icon-only size="sm" variant="ghost" icon="action.check"
-                        :class="{ 'is-selected': column.active }"
+                        :active="column.active"
                         :data-tooltip="column.kind === 'base'
                           ? t('dictionaryEditor.actions.useBase')
                           : t('dictionaryEditor.actions.setActive')"
@@ -67,7 +58,7 @@
                           ? t('dictionaryEditor.actions.useBase')
                           : t('dictionaryEditor.actions.setActive')"
                         @click="setActiveLanguage(column.sourceKey)" />
-                      <OcActionButton v-if="column.kind === 'language'" :action="languageAction(column.sourceKey!)"
+                      <OcActionButton v-if="column.kind === 'language'" :action="languageAction()"
                         size="sm" variant="ghost" @select="handleLanguageAction(column.sourceKey!, $event.key)" />
                     </span>
                   </div>
@@ -99,10 +90,7 @@
                 </td>
               </tr>
               <tr v-for="row in grid.rows" :key="row.key">
-                <th class="dictionary-editor__key-column oc-data-grid__sticky-column"
-                  :class="{ 'is-selected': isRowSelected(row.key) }" scope="row"
-                  :aria-selected="isRowSelected(row.key)" tabindex="0"
-                  @click="selectRow(row.key, $event)"
+                <th class="dictionary-editor__key-column oc-data-grid__sticky-column" scope="row" tabindex="0"
                   @contextmenu="openRecordContextMenu($event, row.key)"
                   @keydown="openRecordKeyboardMenu($event, row.key)">
                   <form v-if="editingRecord === row.key" class="dictionary-editor__rename"
@@ -114,21 +102,15 @@
                   </form>
                   <div v-else class="dictionary-editor__record-heading">
                     <code>{{ row.key }}</code>
-                    <OcActionButton :action="recordAction(row.key)" size="sm" variant="ghost"
+                    <OcActionButton :action="recordAction()" size="sm" variant="ghost"
                       @select="handleRecordAction(row.key, $event.key)" />
                   </div>
                 </th>
                 <td v-for="cell in row.cells" :key="cell.columnKey"
                   class="dictionary-editor__cell oc-data-grid__cell"
-                  :class="{
-                    'is-active': isActiveColumn(cell.columnKey),
-                    'is-inherited': cell.inherited,
-                    'is-selected': isCellSelected(cell.recordKey, cell.columnKey),
-                  }" tabindex="0" :aria-selected="isCellSelected(cell.recordKey, cell.columnKey)"
+                  :class="{ 'is-inherited': cell.inherited }"
                   :data-grid-row="cell.recordKey" :data-grid-column="cell.columnKey"
-                  :ref="element => setCellElement(cellIdentity(cell.recordKey, cell.columnKey), element)"
-                  @click="selectCell(cell.recordKey, cell.columnKey, $event)"
-                  @keydown="handleCellKeydown($event, cell.recordKey, cell.columnKey)">
+                  :ref="element => setCellElement(cellIdentity(cell.recordKey, cell.columnKey), element)">
                   <div v-if="shouldMountCell(cellIdentity(cell.recordKey, cell.columnKey))"
                     class="oc-data-grid__cell-editor">
                     <PropertyFieldRenderer appearance="embedded" :definition="cellDefinition"
@@ -179,22 +161,23 @@
         </div>
       </section>
     </div>
+    <DictionaryWorkbookImportDialog :result="pendingWorkbookImport"
+      @cancel="pendingWorkbookImport = null" @confirm="confirmWorkbookImport" />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { parseProjectDictionaryText, serializeProjectDictionary, type ProjectDictionary } from '../../features/workspace/model/projectDictionary'
 import {
   DICTIONARY_BASE_COLUMN_KEY,
   addDictionaryLanguage,
   addDictionaryRecord,
-  applyDictionaryCellMatrix,
   canUseDictionaryLanguageKey,
   canUseDictionaryRecordKey,
-  clearDictionaryCells,
   deleteDictionaryLanguages,
   deleteDictionaryRecords,
   projectDictionaryGrid,
@@ -206,16 +189,22 @@ import {
   type DictionaryGridColumn,
 } from '../../features/workspace/model/projectDictionaryGrid'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
-import { formatDataGridTsv, parseDataGridTsv } from '../../shared/ui/data-grid/dataGridClipboard'
 import OcDataGridColumnResizeHandle from '../../shared/ui/data-grid/OcDataGridColumnResizeHandle.vue'
 import { useDataGridCellMounting } from '../../shared/ui/data-grid/useDataGridCellMounting'
 import { useDataGridColumnSizing } from '../../shared/ui/data-grid/useDataGridColumnSizing'
-import { useDataGridSelection } from '../../shared/ui/data-grid/useDataGridSelection'
 import '../../shared/ui/data-grid/dataGrid.css'
+import { reportAppError } from '../../features/logging/appErrorCatalog'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import {
+  exportProjectDictionaryWorkbook,
+  importProjectDictionaryWorkbook,
+  type ProjectDictionaryWorkbookImportResult,
+} from '../../features/workspace/model/projectDictionaryWorkbook'
 import type { PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
 import PropertyFieldActionRail from '../../shared/ui/property-editor/PropertyFieldActionRail.vue'
 import PropertyFieldRenderer from '../../shared/ui/property-editor/PropertyFieldRenderer.vue'
 import MonacoEditor from './MonacoEditor.vue'
+import DictionaryWorkbookImportDialog from './DictionaryWorkbookImportDialog.vue'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -236,18 +225,21 @@ const addingLanguage = ref(false)
 const editingRecord = ref<string | null>(null)
 const editingLanguage = ref<string | null>(null)
 const renameDraft = ref('')
-const clipboardNotice = ref('')
+const dictionaryWorkbookBusy = ref(false)
+const pendingWorkbookImport = shallowRef<ProjectDictionaryWorkbookImportResult | null>(null)
 const KEY_COLUMN_KEY = '$key'
 const NEW_LANGUAGE_COLUMN_KEY = '$new-language'
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
 const grid = computed(() => projectDictionaryGrid(dictionary.value ?? {}))
-const recordKeys = computed(() => grid.value.rows.map(row => row.key))
 const columnKeys = computed(() => grid.value.columns.map(column => column.key))
 const missingActiveLanguage = computed(() => Boolean(
   dictionary.value?.active
   && !grid.value.columns.some(column => column.kind === 'language' && column.active),
+))
+const canExportDictionaryWorkbook = computed(() => Boolean(
+  dictionary.value && Object.keys(dictionary.value.base ?? {}).length,
 ))
 const cellDefinition = computed<PropertyEditorFieldDefinition>(() => ({
   title: t('dictionaryEditor.columns.value'),
@@ -269,8 +261,6 @@ const tailColumnWidth = computed(() => addingLanguage.value
 const tableWidth = computed(() => getColumnWidth(KEY_COLUMN_KEY) + tailColumnWidth.value
   + columnKeys.value.reduce((width, key) => width + getColumnWidth(key), 0))
 
-const gridSelection = useDataGridSelection({ rowKeys: recordKeys, columnKeys })
-const { selection, normalizedRange } = gridSelection
 const { setCellElement, shouldMountCell } = useDataGridCellMounting({ scrollRoot: scrollRef })
 
 watch(() => props.modelValue, content => {
@@ -377,90 +367,85 @@ function commitLanguageRename(language: string) {
   cancelRename()
 }
 
-function selectedRecordKeysFor(recordKey: string): string[] {
-  return selection.value.kind === 'rows' && selection.value.keys.has(recordKey)
-    ? recordKeys.value.filter(key => selection.value.kind === 'rows' && selection.value.keys.has(key))
-    : [recordKey]
+async function copyDictionaryKey(key: string, kind: 'record' | 'language'): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(key)
+  } catch (error) {
+    reportAppError('OC-E1002', { source: `dictionary-${kind}-key`, key, error })
+  }
 }
 
-function selectedLanguageKeysFor(language: string): string[] {
-  return selection.value.kind === 'columns' && selection.value.keys.has(language)
-    ? columnKeys.value.filter(key => key !== DICTIONARY_BASE_COLUMN_KEY
-      && selection.value.kind === 'columns' && selection.value.keys.has(key))
-    : [language]
-}
-
-function recordCommands(recordKey: string): OcActionButtonAction[] {
-  const count = selectedRecordKeysFor(recordKey).length
+function recordCommands(): OcActionButtonAction[] {
   return [
-    { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameRecord'), disabled: count > 1 },
+    { key: 'copy', icon: 'action.copy', title: t('dictionaryEditor.actions.copyRecordKey') },
+    { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameRecord') },
     {
       key: 'delete',
       icon: 'action.delete',
       iconTone: 'danger',
-      title: t('dictionaryEditor.actions.deleteRecords', { count }),
+      title: t('dictionaryEditor.actions.deleteRecords', { count: 1 }),
       children: [{
         key: 'confirm-delete',
         icon: 'action.delete',
         iconTone: 'danger',
-        title: t('dictionaryEditor.actions.confirmDeleteRecords', { count }),
+        title: t('dictionaryEditor.actions.confirmDeleteRecords', { count: 1 }),
       }],
     },
   ]
 }
 
-function recordAction(recordKey: string): OcActionButtonAction {
+function recordAction(): OcActionButtonAction {
   return {
     key: 'more',
     icon: 'nav.more',
     title: t('dictionaryEditor.actions.recordActions'),
-    children: recordCommands(recordKey),
+    children: recordCommands(),
   }
 }
 
 function handleRecordAction(recordKey: string, actionKey: string): void {
-  if (actionKey === 'rename') beginRecordRename(recordKey)
+  if (actionKey === 'copy') void copyDictionaryKey(recordKey, 'record')
+  else if (actionKey === 'rename') beginRecordRename(recordKey)
   else if (actionKey === 'confirm-delete' && dictionary.value) {
-    commit(deleteDictionaryRecords(dictionary.value, selectedRecordKeysFor(recordKey)))
-    gridSelection.clearSelection()
+    commit(deleteDictionaryRecords(dictionary.value, [recordKey]))
   }
 }
 
-function languageCommands(language: string): OcActionButtonAction[] {
-  const count = selectedLanguageKeysFor(language).length
+function languageCommands(): OcActionButtonAction[] {
   return [
-    { key: 'set-active', icon: 'action.check', title: t('dictionaryEditor.actions.setActive'), disabled: count > 1 },
-    { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameLanguage'), disabled: count > 1 },
+    { key: 'copy', icon: 'action.copy', title: t('dictionaryEditor.actions.copyLanguage') },
+    { key: 'set-active', icon: 'action.check', title: t('dictionaryEditor.actions.setActive') },
+    { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameLanguage') },
     {
       key: 'delete',
       icon: 'action.delete',
       iconTone: 'danger',
-      title: t('dictionaryEditor.actions.deleteLanguages', { count }),
+      title: t('dictionaryEditor.actions.deleteLanguages', { count: 1 }),
       children: [{
         key: 'confirm-delete',
         icon: 'action.delete',
         iconTone: 'danger',
-        title: t('dictionaryEditor.actions.confirmDeleteLanguages', { count }),
+        title: t('dictionaryEditor.actions.confirmDeleteLanguages', { count: 1 }),
       }],
     },
   ]
 }
 
-function languageAction(language: string): OcActionButtonAction {
+function languageAction(): OcActionButtonAction {
   return {
     key: 'more',
     icon: 'nav.more',
     title: t('dictionaryEditor.actions.languageActions'),
-    children: languageCommands(language),
+    children: languageCommands(),
   }
 }
 
 function handleLanguageAction(language: string, actionKey: string): void {
-  if (actionKey === 'set-active') setActiveLanguage(language)
+  if (actionKey === 'copy') void copyDictionaryKey(language, 'language')
+  else if (actionKey === 'set-active') setActiveLanguage(language)
   else if (actionKey === 'rename') beginLanguageRename(language)
   else if (actionKey === 'confirm-delete' && dictionary.value) {
-    commit(deleteDictionaryLanguages(dictionary.value, selectedLanguageKeysFor(language)))
-    gridSelection.clearSelection()
+    commit(deleteDictionaryLanguages(dictionary.value, [language]))
   }
 }
 
@@ -478,20 +463,20 @@ function openKeyboardContextMenu(
 function openRecordContextMenu(event: MouseEvent, recordKey: string): void {
   openContextMenu({
     event,
-    items: recordCommands(recordKey),
+    items: recordCommands(),
     onSelect: key => handleRecordAction(recordKey, key),
   })
 }
 
 function openRecordKeyboardMenu(event: KeyboardEvent, recordKey: string): void {
-  openKeyboardContextMenu(event, recordCommands(recordKey), key => handleRecordAction(recordKey, key))
+  openKeyboardContextMenu(event, recordCommands(), key => handleRecordAction(recordKey, key))
 }
 
 function openColumnContextMenu(event: MouseEvent, column: DictionaryGridColumn): void {
   if (column.kind !== 'language') return
   openContextMenu({
     event,
-    items: languageCommands(column.sourceKey!),
+    items: languageCommands(),
     onSelect: key => handleLanguageAction(column.sourceKey!, key),
   })
 }
@@ -500,122 +485,13 @@ function openColumnKeyboardMenu(event: KeyboardEvent, column: DictionaryGridColu
   if (column.kind !== 'language') return
   openKeyboardContextMenu(
     event,
-    languageCommands(column.sourceKey!),
+    languageCommands(),
     key => handleLanguageAction(column.sourceKey!, key),
   )
 }
 
-function selectCell(recordKey: string, columnKey: string, event: MouseEvent): void {
-  gridSelection.selectCell({ rowKey: recordKey, columnKey }, event.shiftKey)
-}
-
 function cellIdentity(recordKey: string, columnKey: string): string {
   return `${recordKey}\u0000${columnKey}`
-}
-
-function selectRow(recordKey: string, event: MouseEvent): void {
-  gridSelection.selectRow(recordKey, event.ctrlKey || event.metaKey)
-}
-
-function selectColumn(columnKey: string, event: MouseEvent): void {
-  gridSelection.selectColumn(columnKey, event.ctrlKey || event.metaKey)
-}
-
-function isCellSelected(recordKey: string, columnKey: string): boolean {
-  return gridSelection.isCellSelected({ rowKey: recordKey, columnKey })
-}
-
-function isRowSelected(recordKey: string): boolean {
-  return selection.value.kind === 'rows' && selection.value.keys.has(recordKey)
-}
-
-function isColumnSelected(columnKey: string): boolean {
-  return selection.value.kind === 'columns' && selection.value.keys.has(columnKey)
-}
-
-function isActiveColumn(columnKey: string): boolean {
-  return grid.value.columns.some(column => column.key === columnKey && column.active)
-}
-
-function selectedMatrixCoordinates(): { rowKeys: string[]; columnKeys: string[] } | null {
-  if (selection.value.kind === 'rows') return {
-    rowKeys: recordKeys.value.filter(key => selection.value.kind === 'rows' && selection.value.keys.has(key)),
-    columnKeys: [...columnKeys.value],
-  }
-  if (selection.value.kind === 'columns') return {
-    rowKeys: [...recordKeys.value],
-    columnKeys: columnKeys.value.filter(key => selection.value.kind === 'columns' && selection.value.keys.has(key)),
-  }
-  const range = normalizedRange.value
-  if (!range) return null
-  const startRow = recordKeys.value.indexOf(range.start.rowKey)
-  const endRow = recordKeys.value.indexOf(range.end.rowKey)
-  const startColumn = columnKeys.value.indexOf(range.start.columnKey)
-  const endColumn = columnKeys.value.indexOf(range.end.columnKey)
-  return {
-    rowKeys: recordKeys.value.slice(startRow, endRow + 1),
-    columnKeys: columnKeys.value.slice(startColumn, endColumn + 1),
-  }
-}
-
-function valueAt(recordKey: string, columnKey: string): string {
-  return grid.value.rows.find(row => row.key === recordKey)?.cells.find(
-    cell => cell.columnKey === columnKey,
-  )?.value ?? ''
-}
-
-async function copySelection(): Promise<void> {
-  const coordinates = selectedMatrixCoordinates()
-  if (!coordinates || !navigator.clipboard?.writeText) return
-  const matrix = coordinates.rowKeys.map(rowKey => coordinates.columnKeys.map(
-    columnKey => valueAt(rowKey, columnKey),
-  ))
-  await navigator.clipboard.writeText(formatDataGridTsv(matrix))
-  clipboardNotice.value = ''
-}
-
-async function pasteSelection(): Promise<void> {
-  if (!dictionary.value || !gridSelection.focus.value || !navigator.clipboard?.readText) return
-  const matrix = parseDataGridTsv(await navigator.clipboard.readText())
-  const coordinates = selectedMatrixCoordinates()
-  const result = applyDictionaryCellMatrix(
-    dictionary.value,
-    gridSelection.focus.value,
-    matrix,
-    coordinates ?? undefined,
-  )
-  commit(result.dictionary)
-  clipboardNotice.value = result.clipped ? t('dictionaryEditor.feedback.pasteClipped') : ''
-}
-
-function clearSelectedCells(): void {
-  if (!dictionary.value || selection.value.kind !== 'cells') return
-  const coordinates = selectedMatrixCoordinates()
-  if (!coordinates) return
-  commit(clearDictionaryCells(dictionary.value, coordinates.rowKeys, coordinates.columnKeys))
-}
-
-async function focusSelectedCell(): Promise<void> {
-  await nextTick()
-  const focused = gridSelection.focus.value
-  if (!focused) return
-  const cells = rootRef.value?.querySelectorAll<HTMLElement>('[data-grid-row][data-grid-column]') ?? []
-  Array.from(cells).find(cell => cell.dataset.gridRow === focused.rowKey
-    && cell.dataset.gridColumn === focused.columnKey)?.focus()
-}
-
-function handleCellKeydown(event: KeyboardEvent, recordKey: string, columnKey: string): void {
-  if (!gridSelection.focus.value) gridSelection.selectCell({ rowKey: recordKey, columnKey })
-  const direction = event.key === 'ArrowUp' ? 'up'
-    : event.key === 'ArrowDown' ? 'down'
-      : event.key === 'ArrowLeft' ? 'left'
-        : event.key === 'ArrowRight' ? 'right'
-          : null
-  if (!direction) return
-  event.preventDefault()
-  event.stopPropagation()
-  gridSelection.moveFocus(direction, event.shiftKey)
-  void focusSelectedCell()
 }
 
 function handleGridKeydown(event: KeyboardEvent): void {
@@ -624,19 +500,70 @@ function handleGridKeydown(event: KeyboardEvent): void {
     save()
     return
   }
-  const target = event.target
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-    || (target instanceof HTMLElement && target.isContentEditable)) return
-  if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'c') {
-    event.preventDefault()
-    void copySelection()
-  } else if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'v') {
-    event.preventDefault()
-    void pasteSelection()
-  } else if (event.key === 'Delete' || event.key === 'Backspace') {
-    event.preventDefault()
-    clearSelectedCells()
+}
+
+async function exportDictionaryWorkbook(): Promise<void> {
+  if (!dictionary.value || !canExportDictionaryWorkbook.value || dictionaryWorkbookBusy.value) return
+  const path = await fileSystemService.pickSavePath({
+    defaultPath: `${dictionaryWorkbookFileName()}.xlsx`,
+    fileTypeName: 'Excel Workbook',
+    extensions: ['xlsx'],
+    title: t('dictionaryEditor.workbook.export'),
+  })
+  if (!path) return
+  dictionaryWorkbookBusy.value = true
+  try {
+    const bytes = await exportProjectDictionaryWorkbook(dictionary.value, {
+      key: t('dictionaryEditor.columns.key'),
+      base: t('dictionaryEditor.columns.base'),
+    })
+    await fileSystemService.writeBinaryFile(path, bytes)
+  } catch (error) {
+    await notifyWorkbookError(error, 'dictionaryEditor.workbook.exportFailed')
+  } finally {
+    dictionaryWorkbookBusy.value = false
   }
+}
+
+async function importDictionaryWorkbook(): Promise<void> {
+  if (!dictionary.value || dictionaryWorkbookBusy.value) return
+  const path = await fileSystemService.pickFile({
+    title: t('dictionaryEditor.workbook.import'),
+    fileTypeName: 'Excel Workbook',
+    extensions: ['xlsx'],
+  })
+  if (!path) return
+  dictionaryWorkbookBusy.value = true
+  try {
+    pendingWorkbookImport.value = await importProjectDictionaryWorkbook(
+      await fileSystemService.readBinaryFile(path),
+      dictionary.value,
+    )
+  } catch (error) {
+    await notifyWorkbookError(error, 'dictionaryEditor.workbook.importFailed')
+  } finally {
+    dictionaryWorkbookBusy.value = false
+  }
+}
+
+function confirmWorkbookImport(): void {
+  if (!pendingWorkbookImport.value) return
+  commit(pendingWorkbookImport.value.dictionary)
+  pendingWorkbookImport.value = null
+}
+
+function dictionaryWorkbookFileName(): string {
+  const source = (props.fileName || props.filePath.split(/[\\/]/).pop() || '')
+    .replace(/\.oclocale$/i, '')
+  const normalized = source.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').trim()
+  return normalized || 'OpenCard Dictionary'
+}
+
+async function notifyWorkbookError(error: unknown, fallbackKey: string): Promise<void> {
+  await showMessage(error instanceof Error && error.message ? error.message : t(fallbackKey), {
+    title: t('dictionaryEditor.workbook.title'),
+    kind: 'error',
+  })
 }
 
 function save() {
@@ -644,7 +571,13 @@ function save() {
 }
 
 onBeforeUnmount(finishColumnResize)
-defineExpose({ save })
+defineExpose({
+  save,
+  importDataTableWorkbook: importDictionaryWorkbook,
+  exportDataTableWorkbook: exportDictionaryWorkbook,
+  dataTableWorkbookBusy: dictionaryWorkbookBusy,
+  canExportDataTableWorkbook: canExportDictionaryWorkbook,
+})
 </script>
 
 <style scoped>
@@ -671,7 +604,7 @@ defineExpose({ save })
 .dictionary-editor__header {
   display: flex;
   align-items: center;
-  padding: var(--oc-space-5) var(--oc-space-6);
+  padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
@@ -706,8 +639,6 @@ defineExpose({ save })
 .dictionary-editor__grid {
   flex: 1 1 auto;
   min-height: 0;
-  border-top: var(--oc-border-width) solid var(--oc-border-muted);
-  border-left: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .dictionary-editor__notice {
@@ -721,32 +652,8 @@ defineExpose({ save })
   font-size: var(--oc-text-sm);
 }
 
-.dictionary-editor__key-column {
-  background: var(--oc-bg-raised);
-}
-
 .dictionary-editor__data-column {
   overflow: visible;
-}
-
-.dictionary-editor__table .is-active {
-  background: var(--oc-bg-accent-subtle);
-}
-
-.dictionary-editor__table .is-selected {
-  background: var(--oc-bg-selected);
-  outline: var(--oc-border-width) solid var(--oc-fg-accent);
-  outline-offset: calc(-1 * var(--oc-border-width));
-}
-
-.dictionary-editor__table th,
-.dictionary-editor__table td {
-  transition: background-color var(--oc-duration-fast) var(--oc-ease);
-}
-
-.dictionary-editor__table th:hover,
-.dictionary-editor__table td:hover {
-  background: var(--oc-bg-hover);
 }
 
 .dictionary-editor__column-heading,
@@ -763,10 +670,6 @@ defineExpose({ save })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.dictionary-editor__column-heading :deep(.is-selected) {
-  color: var(--oc-icon-active);
 }
 
 .dictionary-editor__column-actions {

@@ -6,6 +6,9 @@
  */
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
+export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
+export const CARD_DOCUMENT_SUFFIX = `.${CARD_DOCUMENT_EXTENSION}`
+
 export interface FileTypeDefinition {
   id: string
   labelKey: string
@@ -20,7 +23,7 @@ export interface FileTypeDefinition {
 }
 
 export interface ProjectTreeFilePresentation {
-  labelKey: string
+  annotationKey: string
   priority: number
 }
 
@@ -67,7 +70,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-project-profile',
     labelKey: 'fileTypes.opencardProjectProfile',
-    fileNames: ['.opencardprojectprofile'],
+    fileNames: ['.ocproject'],
     icon: 'file.opencard-project',
     iconTone: iconTone.config,
     language: 'json',
@@ -78,7 +81,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-font-registry',
     labelKey: 'fileTypes.opencardFontRegistry',
-    fileNames: ['.fontreg'],
+    fileNames: ['.ocfonts'],
     icon: 'file.font',
     iconTone: iconTone.config,
     language: 'json',
@@ -89,7 +92,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-icon-registry',
     labelKey: 'fileTypes.opencardIconRegistry',
-    fileNames: ['.iconreg'],
+    fileNames: ['.ocicons'],
     icon: 'file.package-variant',
     iconTone: iconTone.config,
     language: 'json',
@@ -100,7 +103,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-dictionary',
     labelKey: 'fileTypes.opencardDictionary',
-    fileNames: ['.dictionary'],
+    fileNames: ['.oclocale'],
     icon: 'data.collection',
     iconTone: iconTone.config,
     language: 'json',
@@ -111,7 +114,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard',
     labelKey: 'fileTypes.opencard',
-    extensions: ['opencard'],
+    extensions: [CARD_DOCUMENT_EXTENSION],
     icon: 'file.opencard',
     iconTone: iconTone.opencard,
     language: 'json',
@@ -222,10 +225,10 @@ const fileTypes: FileTypeDefinition[] = [
 ]
 
 const specialFileIcons: Record<string, EntryIconPresentation> = {
-  '.opencardprojectprofile': { icon: 'file.opencard-project', tone: iconTone.config },
-  '.fontreg': { icon: 'file.font', tone: iconTone.config },
-  '.iconreg': { icon: 'file.package-variant', tone: iconTone.config },
-  '.dictionary': { icon: 'data.collection', tone: iconTone.config },
+  '.ocproject': { icon: 'file.opencard-project', tone: iconTone.config },
+  '.ocfonts': { icon: 'file.font', tone: iconTone.config },
+  '.ocicons': { icon: 'file.package-variant', tone: iconTone.config },
+  '.oclocale': { icon: 'data.collection', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
   'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
@@ -349,7 +352,7 @@ export function resolveProjectTreeFilePresentation(
   const fileType = resolveFileType(path, projectRoot)
   return fileType.projectTreePriority === undefined
     ? null
-    : { labelKey: fileType.labelKey, priority: fileType.projectTreePriority }
+    : { annotationKey: fileType.labelKey, priority: fileType.projectTreePriority }
 }
 
 export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIconPresentation {

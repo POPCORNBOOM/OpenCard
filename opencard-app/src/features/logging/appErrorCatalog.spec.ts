@@ -30,8 +30,8 @@ describe('appErrorCatalog', () => {
     expect(getAppErrorMeaning('OC-E2003', 'zh-CN')).toBe('无法打开文件')
     expect(getAppErrorMeaning('OC-E2003', 'en-US')).toBe('Could not open the file')
 
-    const report = createAppErrorReport('OC-E2003', { path: 'missing.opencard' })
+    const report = createAppErrorReport('OC-E2003', { path: 'missing.ocdocument' })
     expect(isAppErrorReport(report)).toBe(true)
-    expect(report).toMatchObject({ code: 'OC-E2003', details: { path: 'missing.opencard' } })
+    expect(report).toMatchObject({ code: 'OC-E2003', details: { path: 'missing.ocdocument' } })
   })
 })

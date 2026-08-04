@@ -13,9 +13,9 @@ function createSession(
   return {
     id,
     resourceKind: 'workspace',
-    path: `${id}.opencard`,
+    path: `${id}.ocdocument`,
     fileTypeId: 'opencard',
-    name: `${id}.opencard`,
+    name: `${id}.ocdocument`,
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
@@ -118,25 +118,25 @@ describe('useUnsavedSessionGuard', () => {
 
   it('chooses one directory for many drafts and avoids existing target names', async () => {
     const first = createSession('first', {
-      resourceKind: 'draft', path: null, name: 'Card Name.opencard',
+      resourceKind: 'draft', path: null, name: 'Card Name.ocdocument',
     })
     const second = createSession('second', {
-      resourceKind: 'draft', path: null, name: 'Card Name.opencard',
+      resourceKind: 'draft', path: null, name: 'Card Name.ocdocument',
     })
     const { guard, pickDraftDirectory, fileExists } = createGuard([first, second])
-    fileExists.mockImplementation(async (path: string) => path === 'D:/drafts/Card Name.opencard')
+    fileExists.mockImplementation(async (path: string) => path === 'D:/drafts/Card Name.ocdocument')
     await guard.requestClose({ type: 'app', sessionIds: [first.id, second.id] })
 
     await expect(guard.markSelectedSave()).resolves.toBe(true)
 
     expect(pickDraftDirectory).toHaveBeenCalledTimes(1)
     expect(guard.decisions.value.map(row => row.name)).toEqual([
-      'Card Name.opencard',
-      'Card Name.opencard',
+      'Card Name.ocdocument',
+      'Card Name.ocdocument',
     ])
     expect(guard.decisions.value.map(row => row.savePath)).toEqual([
-      'D:/drafts/Card Name-2.opencard',
-      'D:/drafts/Card Name-3.opencard',
+      'D:/drafts/Card Name-2.ocdocument',
+      'D:/drafts/Card Name-3.ocdocument',
     ])
     expect(guard.decisions.value.every(row => row.decision === 'save' && !row.selected)).toBe(true)
     expect(guard.canConfirm.value).toBe(true)

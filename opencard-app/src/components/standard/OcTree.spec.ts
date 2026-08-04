@@ -266,11 +266,9 @@ describe('OcTree', () => {
     await input.trigger('keydown', { key: 'Enter' })
 
     expect(data.items.get('root')?.label).toBe('Root')
-    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
-      type: 'rename.commit',
-      key: 'root',
-      name: 'Renamed',
-    }])
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
+      { type: 'rename.commit', key: 'root', name: 'Renamed' },
+    ]])
   })
 
   it('commits rename on a real focus change and cancels it on Escape', async () => {
@@ -388,6 +386,7 @@ describe('OcTree', () => {
         data: createData({
           items: [['root', {
             label: 'Root',
+            tail: 'Metadata',
             actions: ['duplicate', 'delete'],
             disabledActions: new Map([['delete', 'Protected']]),
           }]],
@@ -397,6 +396,7 @@ describe('OcTree', () => {
     })
 
     await wrapper.get('button[aria-label="Duplicate"]').trigger('click')
+    expect(wrapper.get('.oc-tree__tail').text()).toBe('Metadata')
     expect(wrapper.get('button[aria-label="Delete: Protected"]').attributes('disabled')).toBeDefined()
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
       { type: 'action.invoke', key: 'root', actionKey: 'duplicate' },

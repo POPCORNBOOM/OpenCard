@@ -26,16 +26,10 @@ describe('projectFontLoader', () => {
     })
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    const result = await syncProjectFonts({
-      brand: {
-        name: 'Brand',
-        source: 'assets/Brand.woff2',
-      },
-      broken: {
-        name: 'Broken',
-        source: 'assets/Broken.woff2',
-      },
-    }, source => `asset://${source}`)
+    const result = await syncProjectFonts([
+      { key: 'brand', name: 'Brand', source: 'assets/Brand.woff2' },
+      { key: 'broken', name: 'Broken', source: 'assets/Broken.woff2' },
+    ], source => `asset://${source}`)
 
     expect(result).toEqual({
       current: true,
@@ -54,12 +48,12 @@ describe('projectFontLoader', () => {
       value: { load: vi.fn(async () => [{}]), ready: Promise.resolve() },
     })
 
-    await syncProjectFonts({
-      first: { name: 'First', source: 'First.woff2' },
-    }, source => `asset://${source}`)
-    await syncProjectFonts({
-      second: { name: 'Second', source: 'Second.woff2' },
-    }, source => `asset://${source}`)
+    await syncProjectFonts([
+      { key: 'first', name: 'First', source: 'First.woff2' },
+    ], source => `asset://${source}`)
+    await syncProjectFonts([
+      { key: 'second', name: 'Second', source: 'Second.woff2' },
+    ], source => `asset://${source}`)
 
     const styles = document.head.querySelectorAll('style[data-opencard-project-fonts]')
     expect(styles).toHaveLength(1)

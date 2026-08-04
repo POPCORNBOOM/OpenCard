@@ -2,9 +2,9 @@
 
 ## Boundary
 
-`.opencardprojectprofile` owns project information and the remote-resource policy.
-`.fontreg` owns the project font registry. `.iconreg` owns ordered icon series.
-The three files are independent root-only structured documents.
+`.ocproject` owns project information and the remote-resource policy.
+`.ocfonts` owns project fonts and font sets. `.ocicons` owns ordered icon sets.
+`.oclocale` owns project localization. The four files are independent root-only structured documents.
 
 ## Runtime Truth
 
@@ -18,8 +18,8 @@ reload the affected registry resources without reloading unrelated project data.
 
 ## Document Contract
 
-`.fontreg` uses `{ fonts?: Record<key, { name, source }> }`.
-`.iconreg` uses `{ iconSeries?: ProjectIconSeries[] }`.
+`.ocfonts` uses `{ fonts?: ProjectFont[], fontSets?: ProjectFontSet[] }`.
+`.ocicons` uses `{ iconSeries?: ProjectIconSeries[] }`.
 Unknown document-level fields are ignored on read. Known fields and nested
 resource records remain validated. Serialization writes only the canonical
 known fields and omits empty collections.

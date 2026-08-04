@@ -122,6 +122,24 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props('series')).toEqual(series[1])
   })
 
+  it('keeps the next neighboring set selected after deleting a middle set', async () => {
+    const threeSeries = [
+      series[0]!,
+      series[1]!,
+      { name: 'Social icons', key: 'social', source: 'assets/icons/social.png', icons: [] },
+    ]
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: { ...baseProps, series: threeSeries },
+    })
+    await (wrapper.vm as unknown as { selectSeries(key: string): Promise<boolean> }).selectSeries('actions')
+    await wrapper.findAll('button[aria-label="projectConfig.icons.removeSeries"]')[1]!.trigger('click')
+    const updates = wrapper.emitted('update:series') ?? []
+    const remaining = updates[updates.length - 1]?.[0] as ProjectIconSeries[]
+    await wrapper.setProps({ series: remaining })
+
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('series')).toEqual(threeSeries[2])
+  })
+
   it('selects the target set and icon for issue navigation', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: baseProps,

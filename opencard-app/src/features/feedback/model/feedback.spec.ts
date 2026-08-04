@@ -35,7 +35,7 @@ describe('feedback model', () => {
 
   it('redacts local identity and credentials from diagnostics', () => {
     const diagnostic = [
-      'C:\\Users\\Alice\\Cards\\secret.opencard',
+      'C:\\Users\\Alice\\Cards\\secret.ocdocument',
       '/home/bob/projects/opencard/file.ts',
       'https://alice:password@example.com/report?token=secret&safe=yes',
       'alice@example.com',

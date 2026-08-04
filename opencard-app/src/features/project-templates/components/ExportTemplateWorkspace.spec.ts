@@ -33,12 +33,12 @@ describe('ExportTemplateWorkspace', () => {
   beforeEach(() => {
     store = {
       inspectProjectSource: vi.fn(async () => ({
-        sourcePath: '/project', suggestedName: 'Portable', entries: ['main.opencard', 'alternate.opencard'],
-        entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
+        sourcePath: '/project', suggestedName: 'Portable', entries: ['main.ocdocument', 'alternate.ocdocument'],
+        entryNames: { 'main.ocdocument': 'Main Blueprint', 'alternate.ocdocument': 'Alternate Blueprint' },
         coverCandidates: ['cover.png'],
       })),
-      pickTemplateExportPath: vi.fn(async () => '/exports/Portable.opencardtemplate'),
-      exportProjectTemplate: vi.fn(async () => '/exports/Portable.opencardtemplate'),
+      pickTemplateExportPath: vi.fn(async () => '/exports/Portable.octemplate'),
+      exportProjectTemplate: vi.fn(async () => '/exports/Portable.octemplate'),
     } as unknown as ProjectTemplateStore
   })
 
@@ -56,29 +56,29 @@ describe('ExportTemplateWorkspace', () => {
       togglePathIncluded(path: string): void
     }
     workspace.toggleCover('cover.png')
-    workspace.toggleEntry('alternate.opencard')
+    workspace.toggleEntry('alternate.ocdocument')
     workspace.togglePathIncluded('notes')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(store.pickTemplateExportPath).toHaveBeenCalledWith('Portable.opencardtemplate', 'Choose output')
+    expect(store.pickTemplateExportPath).toHaveBeenCalledWith('Portable.octemplate', 'Choose output')
     expect(store.exportProjectTemplate).toHaveBeenCalledWith({
       sourcePath: '/project',
-      outputPath: '/exports/Portable.opencardtemplate',
+      outputPath: '/exports/Portable.octemplate',
       name: 'Portable',
       description: '',
-      entry: 'main.opencard',
-      entries: ['main.opencard', 'alternate.opencard'],
+      entry: 'main.ocdocument',
+      entries: ['main.ocdocument', 'alternate.ocdocument'],
       covers: ['cover.png'],
       excludedPaths: ['notes'],
     })
     const selectionEvents = wrapper.emitted('selection-change') ?? []
     expect(selectionEvents[selectionEvents.length - 1]).toEqual([{
-      entries: ['main.opencard', 'alternate.opencard'],
-      entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
+      entries: ['main.ocdocument', 'alternate.ocdocument'],
+      entryNames: { 'main.ocdocument': 'Main Blueprint', 'alternate.ocdocument': 'Alternate Blueprint' },
       covers: ['cover.png'],
       excludedPaths: ['notes'],
     }])
-    expect(wrapper.text()).toContain('/exports/Portable.opencardtemplate')
+    expect(wrapper.text()).toContain('/exports/Portable.octemplate')
   })
 })

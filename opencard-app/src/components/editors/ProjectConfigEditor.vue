@@ -7,7 +7,7 @@
           <OcIcon name="file.opencard-project" size="lg" />
           <div class="project-profile-editor__heading">
             <h1>{{ t('projectConfig.title') }}</h1>
-            <OcText tone="muted" size="sm">{{ filePath }}</OcText>
+            <OcText tone="muted" size="sm">{{ t('projectConfig.description') }}</OcText>
           </div>
         </header>
 
@@ -183,7 +183,10 @@ import {
   type ProjectProfile,
 } from '../../features/workspace/model/projectMetadata'
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../features/workspace/model/projectDictionary'
-import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectFontRegistry'
+import {
+  PROJECT_FONT_REGISTRY_FILE_NAME,
+  serializeProjectFontRegistry,
+} from '../../features/workspace/model/projectFontRegistry'
 import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectIconRegistry'
 import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
@@ -401,12 +404,13 @@ async function openOrCreateDictionary() {
 }
 
 async function openOrCreateFontRegistry() {
-  await openOrCreateLinkedFile(
-    PROJECT_FONT_REGISTRY_FILE_NAME,
-    fontRegistryExists.value,
-    () => { fontRegistryExists.value = true },
-    'OC-E3009',
-  )
+  const path = projectStore.resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME)
+  if (fontRegistryExists.value) emit('open-file', path)
+  else {
+    await projectStore.createFile(PROJECT_FONT_REGISTRY_FILE_NAME, serializeProjectFontRegistry({}))
+    fontRegistryExists.value = true
+    emit('open-file', path)
+  }
 }
 
 async function openOrCreateIconRegistry() {
@@ -464,7 +468,7 @@ defineExpose({ save })
   min-height: 100%;
   margin-inline: auto;
   gap: var(--oc-space-6);
-  padding: var(--oc-space-6) var(--oc-space-5);
+  padding: var(--oc-space-5);
 }
 
 .project-profile-editor__layout--single {
@@ -486,7 +490,8 @@ defineExpose({ save })
 }
 
 .project-profile-editor__header {
-  padding-bottom: var(--oc-space-4);
+  padding-bottom: var(--oc-space-5);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .project-profile-editor__heading {

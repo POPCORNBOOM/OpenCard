@@ -16,6 +16,8 @@ import {
 } from '../../workspace/model/projectIcons'
 
 export const APP_SETTINGS_VERSION = 1 as const
+export const APP_THEME_FILE_EXTENSION = 'octheme'
+export const APP_THEME_FILE_SUFFIX = `.${APP_THEME_FILE_EXTENSION}`
 export const MIN_SIDEBAR_WIDTH = 220
 export const MAX_SIDEBAR_WIDTH = 640
 export const MAX_RECENT_PROJECTS = 8

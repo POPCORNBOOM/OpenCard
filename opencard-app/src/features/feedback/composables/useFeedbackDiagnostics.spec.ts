@@ -16,7 +16,7 @@ function mountCapture() {
 describe('useFeedbackDiagnostics', () => {
   it('keeps the latest uncaught error in memory after immediate redaction', async () => {
     const wrapper = mountCapture()
-    const error = new Error('Failed to read C:\\Users\\Alice\\secret.opencard')
+    const error = new Error('Failed to read C:\\Users\\Alice\\secret.ocdocument')
     window.dispatchEvent(new ErrorEvent('error', { error, message: error.message }))
     await nextTick()
 

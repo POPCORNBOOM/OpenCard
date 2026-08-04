@@ -39,6 +39,7 @@ type ProjectEntryView = {
   key: string
   relativePath: string
   label: string
+  tail?: string
   isDirectory: boolean
   isExpanded: boolean
   rootPriority: number | null
@@ -86,9 +87,8 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const entry: ProjectEntryView = {
         key,
         relativePath,
-        label: rootPresentation
-          ? options.translate(rootPresentation.labelKey)
-          : parts[parts.length - 1] ?? relativePath,
+        label: parts[parts.length - 1] ?? relativePath,
+        tail: rootPresentation ? options.translate(rootPresentation.annotationKey) : undefined,
         isDirectory,
         isExpanded: isDirectory && options.isDirectoryExpanded(key),
         rootPriority: rootPresentation?.priority ?? null,
@@ -120,6 +120,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const presentation = resolveEntryIcon(entry.key, entry.isDirectory, entry.isExpanded, options.projectPath.value)
       items.set(entry.key, {
         label: entry.label,
+        tail: entry.tail,
         icon: presentation.icon,
         iconTone: presentation.tone,
         renamable: true,

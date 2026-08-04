@@ -106,7 +106,7 @@ function template(
     source,
     name,
     description: `${name} description`,
-    entry: 'main.opencard',
+    entry: 'main.ocdocument',
     rootPath: `/${source}/${id}`,
     contentPath: `/${source}/${id}/content`,
     coverPaths: [],
@@ -134,7 +134,7 @@ function createStore(templates: ProjectTemplate[]): ProjectTemplateStore {
     createUserTemplate: vi.fn(),
     exportProjectTemplate: vi.fn(),
     deleteUserTemplate: vi.fn(async () => undefined),
-    createProject: vi.fn(async () => ({ path: '/projects/example', entry: '/projects/example/main.opencard' })),
+    createProject: vi.fn(async () => ({ path: '/projects/example', entry: '/projects/example/main.ocdocument' })),
   }
 }
 
@@ -220,7 +220,7 @@ describe('CreateProjectWorkspace', () => {
   })
 
   it('imports a prepared template package without opening a metadata form', async () => {
-    vi.mocked(store.pickTemplateSourceFile).mockResolvedValue('/packages/prepared.opencardtemplate')
+    vi.mocked(store.pickTemplateSourceFile).mockResolvedValue('/packages/prepared.octemplate')
     vi.mocked(store.importUserTemplate).mockResolvedValue(user)
     const wrapper = mountWorkspace(builtin.key)
     await flushPromises()
@@ -229,7 +229,7 @@ describe('CreateProjectWorkspace', () => {
     await flushPromises()
 
     expect(store.pickTemplateSourceFile).toHaveBeenCalledWith('Choose package')
-    expect(store.importUserTemplate).toHaveBeenCalledWith('/packages/prepared.opencardtemplate')
+    expect(store.importUserTemplate).toHaveBeenCalledWith('/packages/prepared.octemplate')
     expect(wrapper.emitted('update:selectedKey')).toEqual([[user.key]])
     expect(wrapper.find('.create-project__template-editor').exists()).toBe(false)
   })
@@ -238,8 +238,8 @@ describe('CreateProjectWorkspace', () => {
     const inspection: TemplateProjectInspection = {
       sourcePath: '/source/project',
       suggestedName: 'Imported project',
-      entries: ['cards.opencard', 'tokens.opencard'],
-      entryNames: { 'cards.opencard': 'Cards', 'tokens.opencard': 'Tokens' },
+      entries: ['cards.ocdocument', 'tokens.ocdocument'],
+      entryNames: { 'cards.ocdocument': 'Cards', 'tokens.ocdocument': 'Tokens' },
       coverCandidates: ['assets/cover-a.png', 'assets/cover-b.webp'],
     }
     vi.mocked(store.inspectProjectSource).mockResolvedValue(inspection)
@@ -254,8 +254,8 @@ describe('CreateProjectWorkspace', () => {
     const editor = wrapper.get('.create-project__template-editor')
     expect(store.inspectProjectSource).toHaveBeenCalledWith(inspection.sourcePath)
     expect(editor.getComponent(OcSelect).props('options')).toEqual([
-      { value: 'cards.opencard', label: 'Cards' },
-      { value: 'tokens.opencard', label: 'Tokens' },
+      { value: 'cards.ocdocument', label: 'Cards' },
+      { value: 'tokens.ocdocument', label: 'Tokens' },
     ])
 
     await editor.findAllComponents(OcCheckbox)[1]!.get('input').setValue(true)
@@ -302,7 +302,7 @@ describe('CreateProjectWorkspace', () => {
   it('emits the created project returned by the store', async () => {
     const created: CreatedProject = {
       path: '/projects/example',
-      entry: '/projects/example/main.opencard',
+      entry: '/projects/example/main.ocdocument',
     }
     vi.mocked(store.pickProjectParentDirectory).mockResolvedValue('/projects')
     vi.mocked(store.createProject).mockResolvedValue(created)
@@ -321,8 +321,8 @@ describe('CreateProjectWorkspace', () => {
   it('creates a project with the selected candidate entry', async () => {
     const multiEntry = {
       ...builtin,
-      entries: ['main.opencard', 'alternate.opencard'],
-      entryNames: { 'main.opencard': 'Main Blueprint', 'alternate.opencard': 'Alternate Blueprint' },
+      entries: ['main.ocdocument', 'alternate.ocdocument'],
+      entryNames: { 'main.ocdocument': 'Main Blueprint', 'alternate.ocdocument': 'Alternate Blueprint' },
     }
     store = createStore([multiEntry])
     const wrapper = mountWorkspace(multiEntry.key)
@@ -330,18 +330,18 @@ describe('CreateProjectWorkspace', () => {
 
     const entrySelect = wrapper.get('.create-project__form').getComponent(OcSelect)
     expect(entrySelect.props('options')).toEqual([
-      { value: 'main.opencard', label: 'Main Blueprint' },
-      { value: 'alternate.opencard', label: 'Alternate Blueprint' },
+      { value: 'main.ocdocument', label: 'Main Blueprint' },
+      { value: 'alternate.ocdocument', label: 'Alternate Blueprint' },
     ])
 
-    entrySelect.vm.$emit('update:modelValue', 'alternate.opencard')
+    entrySelect.vm.$emit('update:modelValue', 'alternate.ocdocument')
     await wrapper.vm.$nextTick()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(store.createProject).toHaveBeenCalledWith(expect.objectContaining({
       template: multiEntry,
-      entry: 'alternate.opencard',
+      entry: 'alternate.ocdocument',
     }))
   })
 })

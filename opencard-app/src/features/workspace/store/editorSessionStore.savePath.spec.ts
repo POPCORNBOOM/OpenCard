@@ -33,17 +33,17 @@ describe('editorSessionStore explicit save path', () => {
   it('persists a draft to the supplied path without opening Save As', async () => {
     const store = useEditorSessionStore()
     const session = store.createDraftSession({
-      name: 'Draft.opencard',
+      name: 'Draft.ocdocument',
       content: '{"draft":true}',
     })
 
-    await store.saveSession(session.id, 'D:/exports/Draft.opencard')
+    await store.saveSession(session.id, 'D:/exports/Draft.ocdocument')
 
     expect(mocks.pickSavePath).not.toHaveBeenCalled()
-    expect(mocks.writeFile).toHaveBeenCalledWith('D:/exports/Draft.opencard', '{"draft":true}')
+    expect(mocks.writeFile).toHaveBeenCalledWith('D:/exports/Draft.ocdocument', '{"draft":true}')
     expect(store.sessions.value.find(candidate => candidate.id === session.id)).toMatchObject({
       resourceKind: 'external',
-      path: 'D:/exports/Draft.opencard',
+      path: 'D:/exports/Draft.ocdocument',
       savedContent: '{"draft":true}',
       draftContent: '{"draft":true}',
       isDirty: false,
@@ -55,18 +55,18 @@ describe('editorSessionStore explicit save path', () => {
   it('uses the current OpenCard document name across draft display and Save As', async () => {
     const store = useEditorSessionStore()
     const session = store.createDraftSession({
-      name: 'Untitled-1.opencard',
+      name: 'Untitled-1.ocdocument',
       content: JSON.stringify({ type: 'card-document', name: 'Current Card' }),
     })
     mocks.pickSavePath.mockResolvedValueOnce(null)
 
-    expect(session.name).toBe('Current Card.opencard')
+    expect(session.name).toBe('Current Card.ocdocument')
     expect(store.openedEditorItems.value.find(item => item.key === session.id)?.label)
-      .toBe('Current Card.opencard')
+      .toBe('Current Card.ocdocument')
 
     await expect(store.saveSession(session.id)).resolves.toBe('cancelled')
     expect(mocks.pickSavePath).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPath: 'Current Card.opencard',
+      defaultPath: 'Current Card.ocdocument',
     }))
 
     store.closeSession(session.id)
@@ -75,7 +75,7 @@ describe('editorSessionStore explicit save path', () => {
   it('updates only an OpenCard draft name when its document name changes', () => {
     const store = useEditorSessionStore()
     const session = store.createDraftSession({
-      name: 'Untitled-1.opencard',
+      name: 'Untitled-1.ocdocument',
       content: JSON.stringify({ type: 'card-document', name: 'Before' }),
     })
 
@@ -85,9 +85,9 @@ describe('editorSessionStore explicit save path', () => {
     )
 
     expect(store.sessions.value.find(candidate => candidate.id === session.id)?.name)
-      .toBe('After.opencard')
+      .toBe('After.ocdocument')
     expect(store.openedEditorItems.value.find(item => item.key === session.id)?.label)
-      .toBe('After.opencard *')
+      .toBe('After.ocdocument *')
 
     store.closeSession(session.id)
   })

@@ -91,7 +91,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
       },
       global: {
@@ -151,7 +151,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         structureTreeSelectionBehavior: 'none',
         structureTreeScrollToSelection: false,
@@ -220,7 +220,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         structureTreeSelectionBehavior: 'none',
         structureTreeScrollToSelection: false,
@@ -283,7 +283,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(document),
         cardDesignerMode: 'data-table',
         cardDesignerView: {
@@ -339,7 +339,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(document),
         cardDesignerMode: 'data-table',
       },
@@ -377,7 +377,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerMode: 'data-table',
         cardDesignerView: {
@@ -431,8 +431,8 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         resourceRootPath: 'D:/Project',
         modelValue: JSON.stringify(createDocument()),
       },
@@ -451,7 +451,7 @@ describe('CardDesignEditor issue navigation', () => {
     const infoValues = () => wrapper.findAll('.card-design-editor__card-info > span')
       .map((item) => item.text())
     expect(infoValues()).toEqual([
-      'cards/hero.opencard',
+      'cards/hero.ocdocument',
       'Document @ 1.0.0',
       '"Reusable hero\ncard."',
       '1 instances',
@@ -472,7 +472,7 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
 
     expect(infoValues()).toEqual([
-      'cards/hero.opencard',
+      'cards/hero.ocdocument',
       'Document @ 1.0.0',
       '"Reusable hero\ncard."',
       '1 instances',
@@ -501,7 +501,7 @@ describe('CardDesignEditor issue navigation', () => {
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
         filePath: 'draft://53e4786d-a867-4a8c-b235-cbedb03ea801',
-        fileName: 'UNTITLED.opencard',
+        fileName: 'UNTITLED.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerView: {
           activeFace: 'back',
@@ -526,7 +526,7 @@ describe('CardDesignEditor issue navigation', () => {
     const viewport = wrapper.findComponent({ name: 'CardViewport' })
     expect(viewport.props('face')).toEqual(expect.objectContaining({ faceKey: 'back' }))
     expect(viewport.props('clipToFace')).toBe(false)
-    expect(wrapper.find('.card-viewport-stub').text()).toContain('UNTITLED.opencard')
+    expect(wrapper.find('.card-viewport-stub').text()).toContain('UNTITLED.ocdocument')
     expect(wrapper.find('.card-viewport-stub').text()).not.toContain('53e4786d-a867')
 
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
@@ -573,8 +573,8 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(createDocument()),
       },
       global: {
@@ -628,8 +628,8 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(createDocument()),
       },
       global: {
@@ -680,8 +680,8 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/flow.opencard',
-        fileName: 'flow.opencard',
+        filePath: 'D:/Project/cards/flow.ocdocument',
+        fileName: 'flow.ocdocument',
         modelValue: JSON.stringify(source),
       },
       global: {
@@ -738,8 +738,8 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         viewportTransform: { x: 80, y: -40, scale: 2 },
       },
@@ -767,7 +767,7 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     expect(fitView).toHaveBeenCalledTimes(1)
 
-    await wrapper.setProps({ filePath: 'D:/Project/cards/other.opencard' })
+    await wrapper.setProps({ filePath: 'D:/Project/cards/other.ocdocument' })
     await nextTick()
     expect(fitView).toHaveBeenCalledTimes(2)
   })
@@ -809,8 +809,8 @@ describe('CardDesignEditor issue navigation', () => {
     source.faces.front.children[0]!.block.zIndex = '2'
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(source),
       },
       global: {
@@ -944,8 +944,8 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/flow.opencard',
-        fileName: 'flow.opencard',
+        filePath: 'D:/Project/cards/flow.ocdocument',
+        fileName: 'flow.ocdocument',
         modelValue: JSON.stringify(source),
       },
       global: {
@@ -987,8 +987,8 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerLayout: {
           panels: {
@@ -1025,8 +1025,8 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/hero.opencard',
-        fileName: 'hero.opencard',
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
         modelValue: JSON.stringify(createDocument()),
       },
       global: {
@@ -1173,7 +1173,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
         cardDesignerMode: 'data-table',
         cardDesignerView: {
@@ -1226,7 +1226,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(createDocument()),
       },
       global: {
@@ -1271,7 +1271,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(document),
         cardDesignerMode: 'data-table',
         cardDesignerView: {
@@ -1311,7 +1311,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'card.opencard',
+        filePath: 'card.ocdocument',
         modelValue: JSON.stringify(document),
         cardDesignerMode: 'data-table',
         cardDesignerView: {
@@ -1377,7 +1377,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
-        filePath: 'D:/Project/cards/card.opencard',
+        filePath: 'D:/Project/cards/card.ocdocument',
         resourceRootPath: 'D:/Project',
         modelValue: JSON.stringify(document),
         cardDesignerMode: 'data-table',

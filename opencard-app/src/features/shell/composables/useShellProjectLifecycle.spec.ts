@@ -105,14 +105,14 @@ describe('useShellProjectLifecycle', () => {
 
     await expect(harness.lifecycle.activateCreatedProject({
       path: 'D:/new-project',
-      entry: 'cards/main.opencard',
+      entry: 'cards/main.ocdocument',
     })).resolves.toBe(true)
 
     expect(harness.events).toEqual([
       'detach:D:/old-project',
       'set:D:/new-project',
       'remember:D:/new-project',
-      'open-entry:cards/main.opencard',
+      'open-entry:cards/main.ocdocument',
     ])
     expect(harness.readDirectoryEntries).not.toHaveBeenCalled()
   })
@@ -183,7 +183,7 @@ describe('useShellProjectLifecycle', () => {
 
     await expect(harness.lifecycle.activateCreatedProject({
       path: 'D:/new-project',
-      entry: 'main.opencard',
+      entry: 'main.ocdocument',
     })).resolves.toBe(false)
 
     expect(harness.lifecycle.isActivating.value).toBe(false)

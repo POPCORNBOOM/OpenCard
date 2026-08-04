@@ -226,11 +226,11 @@ mod tests {
 
     #[test]
     fn explorer_select_switch_and_path_are_one_argument() {
-        let target = Path::new("D:/My Cards/main.opencard");
+        let target = Path::new("D:/My Cards/main.ocdocument");
         let command = create_windows_reveal_command(target, false);
 
         let arguments: Vec<_> = command.get_args().collect();
-        assert_eq!(arguments, [r"/select,D:\My Cards\main.opencard"]);
+        assert_eq!(arguments, [r"/select,D:\My Cards\main.ocdocument"]);
     }
 
 }

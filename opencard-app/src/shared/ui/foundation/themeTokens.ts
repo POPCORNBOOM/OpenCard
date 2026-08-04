@@ -139,6 +139,8 @@ export const OC_THEME_TOKEN_KEYS = [
   // 页面内容宽度
   '--oc-content-width-md',
   '--oc-project-outline-width',
+  '--oc-project-font-list-min-width',
+  '--oc-project-font-list-width',
   '--oc-project-icon-atlas-height',
   '--oc-project-icon-property-min-width',
   '--oc-project-icon-inspector-min-height',
@@ -166,6 +168,9 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-dialog-footer-padding-inline',
   '--oc-z-modal',
   '--oc-z-overlay-toolbar',
+  '--oc-viewport-dot-pattern',
+  '--oc-viewport-dot-size',
+  '--oc-viewport-dot-position',
 
   // 属性编辑器行高
   '--oc-property-row-height',

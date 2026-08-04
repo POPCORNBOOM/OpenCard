@@ -101,12 +101,12 @@ export const APP_ERROR_CATALOG = {
   'OC-E3009': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法加载项目字体注册表', 'en-US': 'Could not load the project font registry' },
-    solution: '检查 .fontreg 的语法、字体 Key 与项目相对路径，然后重新打开项目。',
+    solution: '检查 .ocfonts 的语法、字体 Key 与项目相对路径，然后重新打开项目。',
   },
   'OC-E3010': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法加载项目图标套装', 'en-US': 'Could not load the project icon registry' },
-    solution: '检查 .iconreg 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
+    solution: '检查 .ocicons 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
   },
   'OC-E3011': {
     area: '项目与资源',
@@ -131,7 +131,7 @@ export const APP_ERROR_CATALOG = {
   'OC-E4003': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法读取卡牌文档', 'en-US': 'Could not read the card document' },
-    solution: '检查 .opencard 文件是否为有效 JSON 和受支持的数据结构；从备份恢复损坏内容。',
+    solution: '检查 .ocdocument 文件是否为有效 JSON 和受支持的数据结构；从备份恢复损坏内容。',
   },
   'OC-E4004': {
     area: '编辑器与文档',
@@ -146,17 +146,17 @@ export const APP_ERROR_CATALOG = {
   'OC-E5001': {
     area: '渲染与导出',
     meaning: { 'zh-CN': '没有可导出的活动文件', 'en-US': 'There is no active file to export' },
-    solution: '先打开并激活一个 .opencard 文件，再执行导出。',
+    solution: '先打开并激活一个 .ocdocument 文件，再执行导出。',
   },
   'OC-E5002': {
     area: '渲染与导出',
     meaning: { 'zh-CN': '活动文件不支持卡牌导出', 'en-US': 'The active file does not support card export' },
-    solution: '切换到 .opencard 文件后重新执行导出。',
+    solution: '切换到 .ocdocument 文件后重新执行导出。',
   },
   'OC-E5003': {
     area: '渲染与导出',
     meaning: { 'zh-CN': '活动卡牌文档内容为空', 'en-US': 'The active card document is empty' },
-    solution: '先为当前 .opencard 文档添加有效内容并保存，再执行导出。',
+    solution: '先为当前 .ocdocument 文档添加有效内容并保存，再执行导出。',
   },
   'OC-E5004': {
     area: '渲染与导出',

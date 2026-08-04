@@ -138,4 +138,24 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.emitted('update:selectedIconIndex')).toEqual([[1]])
   })
 
+  it('selects the next neighboring icon after deleting a middle icon', async () => {
+    const icons = [
+      series.icons[0]!,
+      series.icons[1]!,
+      { iconKey: 'info', name: 'Info', x: 32, y: 0, width: 16, height: 16 },
+    ]
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series: { ...series, icons }, runtime, selectedIconIndex: 1 },
+    })
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'action.invoke', key: 'icon:1', actionKey: 'delete',
+    })
+    const updates = wrapper.emitted('update:series') ?? []
+    const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries
+    await wrapper.setProps({ series: updated, selectedIconIndex: 1 })
+
+    expect(wrapper.emitted('update:selectedIconIndex')).toEqual([[1]])
+    expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Info')
+  })
+
 })

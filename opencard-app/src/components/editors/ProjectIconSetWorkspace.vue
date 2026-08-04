@@ -245,10 +245,11 @@ function updateIconProperty(mutation: PropertyEditorMutation): void {
 function removeIcon(index: number): void {
   const icons = props.series.icons.filter((_, iconIndex) => iconIndex !== index)
   const selected = props.selectedIconIndex
+  if (selected !== null) {
+    if (selected === index) emit('update:selectedIconIndex', icons.length ? Math.min(index, icons.length - 1) : null)
+    else if (selected > index) emit('update:selectedIconIndex', selected - 1)
+  }
   emit('update:series', { ...props.series, icons })
-  if (selected === null) return
-  if (selected === index) emit('update:selectedIconIndex', icons.length ? Math.min(index, icons.length - 1) : null)
-  else if (selected > index) emit('update:selectedIconIndex', selected - 1)
 }
 
 function duplicateIcon(index: number): void {

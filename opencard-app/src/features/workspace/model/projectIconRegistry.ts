@@ -1,6 +1,6 @@
 import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 
-export const PROJECT_ICON_REGISTRY_FILE_NAME = '.iconreg'
+export const PROJECT_ICON_REGISTRY_FILE_NAME = '.ocicons'
 
 export type ProjectIconRegistryDocument = {
   iconSeries?: readonly ProjectIconSeries[]

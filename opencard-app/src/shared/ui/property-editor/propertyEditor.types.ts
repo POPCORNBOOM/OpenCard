@@ -66,6 +66,7 @@ export type PropertyFieldConstraintMap = {
   number: {
     min?: number
     max?: number
+    allowedValues?: readonly number[]
   }
   boolean: Record<never, never>
   color: Record<never, never>

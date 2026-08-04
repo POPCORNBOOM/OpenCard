@@ -1,6 +1,8 @@
 export const PROJECT_TEMPLATE_SCHEMA_VERSION = 1 as const
 export const PROJECT_TEMPLATE_NAME_MAX_LENGTH = 80
 export const PROJECT_TEMPLATE_DESCRIPTION_MAX_LENGTH = 200
+export const PROJECT_TEMPLATE_PACKAGE_EXTENSION = 'octemplate'
+export const PROJECT_TEMPLATE_PACKAGE_SUFFIX = `.${PROJECT_TEMPLATE_PACKAGE_EXTENSION}`
 
 export type ProjectTemplateSource = 'builtin' | 'user'
 export type ProjectTemplateKey = `${ProjectTemplateSource}:${string}`

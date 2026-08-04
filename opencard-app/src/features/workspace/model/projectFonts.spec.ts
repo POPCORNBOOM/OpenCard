@@ -3,30 +3,57 @@ import {
   buildFontCatalog,
   fromCssFontFamily,
   normalizeProjectFontDirectory,
+  resolveProjectFontExpression,
+  setProjectFonts,
   toCssFontFamily,
 } from './projectFonts'
 
 describe('project font catalog', () => {
-  it('uses stable project references and CSS-safe family names', () => {
+  it('resolves direct fonts and nested font sets with stable deduplication', () => {
+    setProjectFonts([
+      { key: 'brand-latin', name: 'Latin', source: 'assets/fonts/Brand.woff2' },
+      { key: 'brand-cjk', name: 'CJK', source: 'assets/fonts/BrandCJK.woff2' },
+    ], [
+      { key: 'cjk', name: 'CJK fallback', fontKeys: ['brand-cjk'] },
+      { key: 'body', name: 'Body', fontKeys: ['brand-latin', 'cjk', 'brand-latin'] },
+    ])
     const catalog = buildFontCatalog({
-      'brand-sans': {
-        name: 'Brand Sans',
-        source: 'assets/fonts/BrandSans.woff2',
+      body: {
+        name: 'Body',
+        source: 'font:brand-latin; font:cjk',
       },
     })
 
-    expect(catalog[0]).toMatchObject({
-      value: 'font:brand-sans',
-      label: 'Brand Sans',
+    expect(catalog.find(entry => entry.value === 'font:body')).toMatchObject({
+      value: 'font:body',
+      label: 'Body',
       source: 'project',
     })
-    expect(toCssFontFamily('font:brand-sans')).toBe('"OpenCardProjectFont-brand-sans"')
-    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans"')).toBe('font:brand-sans')
+    const projectCss = '"OpenCardProjectFontSet-body", "OpenCardProjectFont-brand-latin", "OpenCardProjectFont-brand-cjk"'
+    expect(toCssFontFamily('font:body')).toBe(projectCss)
+    expect(fromCssFontFamily(projectCss)).toBe('font:body')
     expect(toCssFontFamily('Arial')).toBe('Arial')
-    expect(toCssFontFamily('font:brand-sans; Microsoft YaHei; sans-serif'))
-      .toBe('"OpenCardProjectFont-brand-sans", Microsoft YaHei, sans-serif')
-    expect(fromCssFontFamily('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif'))
-      .toBe('font:brand-sans; Microsoft YaHei; sans-serif')
+    expect(toCssFontFamily('font:body; Microsoft YaHei; sans-serif'))
+      .toBe(`${projectCss}, Microsoft YaHei, sans-serif`)
+    expect(fromCssFontFamily('"OpenCardProjectFont-brand-latin", "Microsoft YaHei", sans-serif'))
+      .toBe('font:brand-latin; Microsoft YaHei; sans-serif')
+  })
+
+  it('skips missing and cyclic branches while preserving valid fonts', () => {
+    setProjectFonts([
+      { key: 'a', name: 'A', source: 'a.ttf' },
+      { key: 'b', name: 'B', source: 'b.ttf' },
+    ], [
+      { key: 'first', name: 'First', fontKeys: ['a', 'second', 'missing'] },
+      { key: 'second', name: 'Second', fontKeys: ['b', 'first'] },
+    ])
+
+    const result = resolveProjectFontExpression('font:first;font:a;font:b')
+    expect(result.fontKeys).toEqual(['a', 'b'])
+    expect(result.issues).toEqual([
+      { kind: 'cycle', key: 'first', path: ['first', 'second', 'first'] },
+      { kind: 'missing', key: 'missing', path: ['first'] },
+    ])
   })
 
   it('normalizes only safe project-relative font directories', () => {

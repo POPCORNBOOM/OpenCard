@@ -11,7 +11,7 @@ function createSession(id: string, name: string): EditorSession {
   return {
     id,
     resourceKind: 'workspace',
-    path: `/project/${name}.opencard`,
+    path: `/project/${name}.ocdocument`,
     fileTypeId: 'opencard',
     name,
     editorId: 'card-designer',

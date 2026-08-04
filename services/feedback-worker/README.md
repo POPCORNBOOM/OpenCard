@@ -31,7 +31,7 @@ Paste the full generated `.pem` file when Wrangler asks for `GITHUB_PRIVATE_KEY`
 After deployment, configure the desktop build with the full Worker route:
 
 ```text
-VITE_OPENCARD_FEEDBACK_ENDPOINT=https://opencard-feedback.opencardfeedbackworker.workers.dev/feedback
+VITE_OPENCARD_FEEDBACK_ENDPOINT=https://opencard-feedback.reversewizard.site/feedback
 ```
 
 This value is a public endpoint, not a secret. It can be stored in the release build environment. Until it is set, OpenCard shows the feedback form as unavailable and never pretends a report was sent.

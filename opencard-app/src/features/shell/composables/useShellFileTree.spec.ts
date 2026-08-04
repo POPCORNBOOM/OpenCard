@@ -12,7 +12,7 @@ describe('useShellFileTree opened editors', () => {
   it('projects a close action onto every opened editor item', () => {
     const openedEditorItems = ref([{
       key: 'session-1',
-      label: 'card.opencard',
+      label: 'card.ocdocument',
       resourceKind: 'workspace' as const,
       icon: 'file.opencard' as const,
     }])
@@ -34,7 +34,7 @@ describe('useShellFileTree opened editors', () => {
   it('projects project entries as draggable, renamable action hosts', () => {
     const { projectTreeData } = useShellFileTree({
       projectPath: ref('D:/project'),
-      indexedEntries: ref([{ name: 'cards/main.opencard', isDirectory: false }]),
+      indexedEntries: ref([{ name: 'cards/main.ocdocument', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -43,21 +43,21 @@ describe('useShellFileTree opened editors', () => {
       openPreviewFile: vi.fn(async () => undefined),
     })
 
-    expect(projectTreeData.value.items.get('D:/project/cards/main.opencard')).toMatchObject({
+    expect(projectTreeData.value.items.get('D:/project/cards/main.ocdocument')).toMatchObject({
       renamable: true,
       draggable: true,
-      actions: [projectEntryMoreActionKey('D:/project/cards/main.opencard')],
+      actions: [projectEntryMoreActionKey('D:/project/cards/main.ocdocument')],
     })
   })
 
   it('allows deletion for the root project interpretation file', () => {
     const projectPath = 'D:/project'
-    const entryKey = `${projectPath}/.opencardprojectprofile`
+    const entryKey = `${projectPath}/.ocproject`
     const { projectTreeData } = useShellFileTree({
       projectPath: ref(projectPath),
       indexedEntries: ref([
-        { name: '.opencardprojectprofile', isDirectory: false },
-        { name: 'cards/main.opencard', isDirectory: false },
+        { name: '.ocproject', isDirectory: false },
+        { name: 'cards/main.ocdocument', isDirectory: false },
       ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
@@ -70,15 +70,15 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get(entryKey)?.disabledActions?.has(
       projectEntryDeleteActionKey(entryKey),
     )).toBeUndefined()
-    expect(projectTreeData.value.items.get(`${projectPath}/cards/main.opencard`)?.disabledActions)
+    expect(projectTreeData.value.items.get(`${projectPath}/cards/main.ocdocument`)?.disabledActions)
       .toBeUndefined()
   })
 
   it('treats project metadata files as ordinary actionable tree entries', () => {
-    const path = 'D:/project/.dictionary'
+    const path = 'D:/project/.oclocale'
     const { projectTreeData } = useShellFileTree({
       projectPath: ref('D:/project'),
-      indexedEntries: ref([{ name: '.dictionary', isDirectory: false }]),
+      indexedEntries: ref([{ name: '.oclocale', isDirectory: false }]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -89,7 +89,7 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
   })
 
-  it('localizes and pins root project files without changing nested file names', () => {
+  it('pins root project files by filename and moves their localized annotation to the tail', () => {
     const projectPath = 'D:/project'
     const labels: Record<string, string> = {
       'fileTypes.opencardProjectProfile': 'Project profile',
@@ -102,11 +102,11 @@ describe('useShellFileTree opened editors', () => {
       indexedEntries: ref([
         { name: 'cards', isDirectory: true },
         { name: 'notes.txt', isDirectory: false },
-        { name: '.dictionary', isDirectory: false },
-        { name: '.iconreg', isDirectory: false },
-        { name: '.fontreg', isDirectory: false },
-        { name: '.opencardprojectprofile', isDirectory: false },
-        { name: 'cards/.dictionary', isDirectory: false },
+        { name: '.oclocale', isDirectory: false },
+        { name: '.ocicons', isDirectory: false },
+        { name: '.ocfonts', isDirectory: false },
+        { name: '.ocproject', isDirectory: false },
+        { name: 'cards/.oclocale', isDirectory: false },
       ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
@@ -117,25 +117,31 @@ describe('useShellFileTree opened editors', () => {
     })
 
     expect(projectTreeData.value.rootKeys).toEqual([
-      `${projectPath}/.opencardprojectprofile`,
-      `${projectPath}/.fontreg`,
-      `${projectPath}/.iconreg`,
-      `${projectPath}/.dictionary`,
+      `${projectPath}/.ocproject`,
+      `${projectPath}/.ocfonts`,
+      `${projectPath}/.ocicons`,
+      `${projectPath}/.oclocale`,
       `${projectPath}/cards`,
       `${projectPath}/notes.txt`,
     ])
-    expect(projectTreeData.value.items.get(`${projectPath}/.iconreg`)?.label).toBe('Icon registry')
-    expect(projectTreeData.value.items.get(`${projectPath}/cards/.dictionary`)?.label).toBe('.dictionary')
+    expect(projectTreeData.value.items.get(`${projectPath}/.ocicons`)).toMatchObject({
+      label: '.ocicons',
+      tail: 'Icon registry',
+    })
+    expect(projectTreeData.value.items.get(`${projectPath}/cards/.oclocale`)).toMatchObject({
+      label: '.oclocale',
+      tail: undefined,
+    })
   })
 
   it('keeps selection references stable when active editor content changes', async () => {
-    const path = 'D:/project/card.opencard'
+    const path = 'D:/project/card.ocdocument'
     const activeSession = ref<EditorSession | null>({
       id: 'session-1',
       resourceKind: 'workspace',
       path,
       fileTypeId: 'opencard',
-      name: 'card.opencard',
+      name: 'card.ocdocument',
       editorId: 'card-designer',
       savedContent: '{}',
       draftContent: '{}',
@@ -144,10 +150,10 @@ describe('useShellFileTree opened editors', () => {
     })
     const result = useShellFileTree({
       projectPath: ref('D:/project'),
-      indexedEntries: ref([{ name: 'card.opencard', isDirectory: false }]),
+      indexedEntries: ref([{ name: 'card.ocdocument', isDirectory: false }]),
       openedEditorItems: ref([{
         key: 'session-1',
-        label: 'card.opencard',
+        label: 'card.ocdocument',
         resourceKind: 'workspace',
         icon: 'file.opencard',
       }]),

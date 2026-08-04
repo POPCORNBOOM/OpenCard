@@ -45,6 +45,8 @@ describe('OC theme runtime', () => {
       .toBe(OC_THEME_REGISTRY[themeId]['--oc-table-row-height'])
     expect(document.documentElement.style.getPropertyValue('--oc-border-width'))
       .toBe(OC_THEME_REGISTRY[themeId]['--oc-border-width'])
+    expect(document.documentElement.style.getPropertyValue('--oc-viewport-dot-pattern'))
+      .toBe(OC_THEME_REGISTRY[themeId]['--oc-viewport-dot-pattern'])
   })
 
   it('falls back unknown themes to the default theme', () => {

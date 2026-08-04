@@ -51,9 +51,9 @@ describe('editorResource', () => {
   })
 
   it('projects files inside the resource root as relative display paths', () => {
-    expect(getEditorResourceRelativePath('D:/Project', 'd:/project/cards/hero.opencard'))
-      .toBe('cards/hero.opencard')
-    expect(getEditorResourceRelativePath('D:/Project', 'C:/External/hero.opencard')).toBeNull()
+    expect(getEditorResourceRelativePath('D:/Project', 'd:/project/cards/hero.ocdocument'))
+      .toBe('cards/hero.ocdocument')
+    expect(getEditorResourceRelativePath('D:/Project', 'C:/External/hero.ocdocument')).toBeNull()
     expect(getEditorResourceRelativePath(null, 'draft://card-id')).toBeNull()
   })
 })

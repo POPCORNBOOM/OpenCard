@@ -3,5 +3,5 @@
   "id": "blank",
   "name": "Blank Project",
   "description": "Start with an empty OpenCard document.",
-  "entry": "main.opencard"
+  "entry": "main.ocdocument"
 }

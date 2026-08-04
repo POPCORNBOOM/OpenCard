@@ -13,16 +13,16 @@ describe('project template model', () => {
       id: 'tactical-showcase',
       name: '  Tactical Showcase  ',
       description: '  Advanced demo  ',
-      entry: 'cards\\main.opencard',
-      entries: ['cards\\main.opencard', 'cards/alternate.opencard', 'cards/alternate.opencard'],
+      entry: 'cards\\main.ocdocument',
+      entries: ['cards\\main.ocdocument', 'cards/alternate.ocdocument', 'cards/alternate.ocdocument'],
       covers: ['assets\\cover.png', 'assets/cover.png', 'assets/second.webp'],
     })).toEqual({
       schemaVersion: 1,
       id: 'tactical-showcase',
       name: 'Tactical Showcase',
       description: 'Advanced demo',
-      entry: 'cards/main.opencard',
-      entries: ['cards/main.opencard', 'cards/alternate.opencard'],
+      entry: 'cards/main.ocdocument',
+      entries: ['cards/main.ocdocument', 'cards/alternate.ocdocument'],
       covers: ['assets/cover.png', 'assets/second.webp'],
     })
   })
@@ -52,8 +52,8 @@ describe('project template model', () => {
   })
 
   it.each([
-    { id: 'valid-id', entry: 'main.opencard', covers: ['../cover.png'] },
-    { id: 'valid-id', entry: 'main.opencard', covers: ['assets/cover.txt'] },
+    { id: 'valid-id', entry: 'main.ocdocument', covers: ['../cover.png'] },
+    { id: 'valid-id', entry: 'main.ocdocument', covers: ['assets/cover.txt'] },
   ])('rejects unsafe cover data %#', ({ id, entry, covers }) => {
     expect(parseProjectTemplateManifest({
       schemaVersion: 1,
@@ -66,10 +66,10 @@ describe('project template model', () => {
   })
 
   it.each([
-    { id: 'Bad_ID', entry: 'main.opencard' },
-    { id: 'valid-id', entry: '../main.opencard' },
-    { id: 'valid-id', entry: '/main.opencard' },
-    { id: 'valid-id', entry: 'C:\\main.opencard' },
+    { id: 'Bad_ID', entry: 'main.ocdocument' },
+    { id: 'valid-id', entry: '../main.ocdocument' },
+    { id: 'valid-id', entry: '/main.ocdocument' },
+    { id: 'valid-id', entry: 'C:\\main.ocdocument' },
   ])('rejects unsafe manifest data %#', ({ id, entry }) => {
     expect(parseProjectTemplateManifest({
       schemaVersion: 1,
@@ -86,8 +86,8 @@ describe('project template model', () => {
       id: 'valid-id',
       name: 'Template',
       description: '',
-      entry: 'main.opencard',
-      entries: ['alternate.opencard'],
+      entry: 'main.ocdocument',
+      entries: ['alternate.ocdocument'],
     })).toBeNull()
   })
 })

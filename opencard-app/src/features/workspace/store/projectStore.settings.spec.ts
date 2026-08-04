@@ -87,7 +87,7 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
     store.setDirectoryExpanded('D:/project/assets', true)
 
-    const saved = await store.saveProjectConfiguration('.opencardprojectprofile', JSON.stringify({
+    const saved = await store.saveProjectConfiguration('.ocproject', JSON.stringify({
       name: 'Renamed',
       description: 'Demo cards',
       version: '1.0.0',
@@ -98,7 +98,7 @@ describe('projectStore settings actions', () => {
       description: 'Demo cards',
       version: '1.0.0',
     })
-    expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.opencardprojectprofile', saved)
+    expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.ocproject', saved)
 
     await store.setProjectPath('')
   })
@@ -108,26 +108,29 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
     const icon = { iconKey: 'same', name: '', x: 0, y: 0, width: 8, height: 8 }
 
-    await expect(store.saveProjectIconRegistry('.iconreg', JSON.stringify({
+    await expect(store.saveProjectIconRegistry('.ocicons', JSON.stringify({
       iconSeries: [{
         key: 'status',
         source: 'assets/icons/status.png',
         icons: [icon, { ...icon, x: 8 }],
       }],
-    }))).rejects.toThrow('Invalid .iconreg content')
+    }))).rejects.toThrow('Invalid .ocicons content')
     expect(mocks.writeFile).not.toHaveBeenCalled()
     await store.setProjectPath('')
   })
 
   it('loads font and icon registries independently from the profile', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.opencardprojectprofile') || path.endsWith('.fontreg') || path.endsWith('.iconreg')
+      path.endsWith('.ocproject') || path.endsWith('.ocfonts') || path.endsWith('.ocicons')
     ))
     mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith('.fontreg')) {
-        return JSON.stringify({ fonts: {} })
+      if (path.endsWith('.ocfonts')) {
+        return JSON.stringify({
+          fonts: [{ key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' }],
+          fontSets: [{ key: 'body', name: 'Body', fontKeys: ['brand'] }],
+        })
       }
-      if (path.endsWith('.iconreg')) {
+      if (path.endsWith('.ocicons')) {
         return JSON.stringify({ iconSeries: [] })
       }
       return JSON.stringify({ name: 'Demo', fonts: { ignored: true }, iconSeries: [{ ignored: true }] })
@@ -137,7 +140,14 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
 
     expect(store.resolvedProject.value?.name).toBe('Demo')
-    expect(store.projectFonts.value).toEqual({})
+    expect(store.projectFonts.value).toEqual({
+      brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' },
+      body: { name: 'Body', source: 'font:brand' },
+    })
+    expect(store.projectFontFiles.value).toEqual([
+      { key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' },
+    ])
+    expect(store.projectFontSets.value).toEqual([{ key: 'body', name: 'Body', fontKeys: ['brand'] }])
     expect(store.projectIconSeries.value).toEqual([])
 
     await store.setProjectPath('')
@@ -174,13 +184,13 @@ describe('projectStore settings actions', () => {
       languages: { en_US: { title: 'English' } },
     })
     mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.opencardprojectprofile') || path.endsWith('.dictionary')
+      path.endsWith('.ocproject') || path.endsWith('.oclocale')
     ))
     mocks.readFile.mockImplementation(async (path: string) => (
-      path.endsWith('.dictionary') ? dictionaryContent : '{"name":"Demo"}'
+      path.endsWith('.oclocale') ? dictionaryContent : '{"name":"Demo"}'
     ))
     mocks.writeFile.mockImplementation(async (path: string, content: string) => {
-      if (path.endsWith('.dictionary')) dictionaryContent = content
+      if (path.endsWith('.oclocale')) dictionaryContent = content
     })
 
     const store = useProjectStore()
@@ -188,7 +198,7 @@ describe('projectStore settings actions', () => {
     expect(store.resolvedProject.value?.name).toBe('Demo')
     expect(store.resolvedDictionary.value).toEqual({ title: 'English' })
 
-    const saved = await store.saveProjectDictionary('.dictionary', JSON.stringify({
+    const saved = await store.saveProjectDictionary('.oclocale', JSON.stringify({
       base: { title: 'Changed' },
     }))
     expect(JSON.parse(saved)).toEqual({ base: { title: 'Changed' } })
@@ -200,7 +210,7 @@ describe('projectStore settings actions', () => {
 
   it('keeps the project file visible in the workspace index', async () => {
     mocks.readDirectoryEntries.mockResolvedValue([{
-      name: '.opencardprojectprofile',
+      name: '.ocproject',
       isDirectory: false,
       isFile: true,
       isSymlink: false,
@@ -209,7 +219,7 @@ describe('projectStore settings actions', () => {
 
     await store.setProjectPath('D:/project')
 
-    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.opencardprojectprofile')
+    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.ocproject')
     expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project', 2, '')
     expect(mocks.readDirectoryEntries.mock.calls.every(([, depth]) => Number.isFinite(depth))).toBe(true)
     await store.setProjectPath('')
@@ -254,11 +264,11 @@ describe('projectStore settings actions', () => {
 
     await expect(store.createEntryWithAvailableName(
       'D:/project',
-      'Untitled.opencard',
+      'Untitled.ocdocument',
       'file',
       '{}',
-    )).resolves.toBe('D:/project/Untitled 2.opencard')
-    expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Untitled 2.opencard', '{}')
+    )).resolves.toBe('D:/project/Untitled 2.ocdocument')
+    expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Untitled 2.ocdocument', '{}')
 
     await store.setProjectPath('')
   })
@@ -323,70 +333,70 @@ describe('projectStore settings actions', () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     mocks.readDirectoryEntries.mockResolvedValue([{
-      name: 'Draft.opencard',
+      name: 'Draft.ocdocument',
       isDirectory: false,
       isFile: true,
       isSymlink: false,
     }])
 
-    await store.saveFile('D:/project/Draft.opencard', '{}')
+    await store.saveFile('D:/project/Draft.ocdocument', '{}')
 
-    expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Draft.opencard', '{}')
-    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('Draft.opencard')
+    expect(mocks.writeFile).toHaveBeenCalledWith('D:/project/Draft.ocdocument', '{}')
+    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('Draft.ocdocument')
     await store.setProjectPath('')
   })
 
   it('moves a nested special file back to the project root beside a root entry', async () => {
     mocks.readDirectoryEntries.mockResolvedValue([
       { name: 'config', isDirectory: true, isFile: false, isSymlink: false },
-      { name: 'config/.dictionary', isDirectory: false, isFile: true, isSymlink: false },
-      { name: 'cards.opencard', isDirectory: false, isFile: true, isSymlink: false },
+      { name: 'config/.oclocale', isDirectory: false, isFile: true, isSymlink: false },
+      { name: 'cards.ocdocument', isDirectory: false, isFile: true, isSymlink: false },
     ])
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     const request = {
-      key: 'D:/project/config/.dictionary',
-      targetKey: 'D:/project/cards.opencard',
+      key: 'D:/project/config/.oclocale',
+      targetKey: 'D:/project/cards.ocdocument',
       position: 'before' as const,
     }
 
     expect(store.canMoveEntryByDrop(request)).toBe(true)
     await expect(store.moveEntryByDrop(request)).resolves.toEqual({
       ok: true,
-      fromPath: 'D:/project/config/.dictionary',
-      toPath: 'D:/project/.dictionary',
+      fromPath: 'D:/project/config/.oclocale',
+      toPath: 'D:/project/.oclocale',
     })
     expect(mocks.renameFile).toHaveBeenCalledWith(
-      'D:/project/config/.dictionary',
-      'D:/project/.dictionary',
+      'D:/project/config/.oclocale',
+      'D:/project/.oclocale',
     )
 
     await store.setProjectPath('')
   })
 
   it('preserves the loaded profile when moving it to trash fails', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencardprojectprofile'))
+    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocproject'))
     mocks.readFile.mockResolvedValue('{"name":"Demo"}')
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     expect(store.resolvedProject.value?.name).toBe('Demo')
     mocks.trashFile.mockRejectedValueOnce(new Error('trash unavailable'))
 
-    await expect(store.trashFile('.opencardprojectprofile')).rejects.toThrow('trash unavailable')
+    await expect(store.trashFile('.ocproject')).rejects.toThrow('trash unavailable')
     expect(store.resolvedProject.value).not.toBeNull()
 
     await store.setProjectPath('')
   })
 
   it('clears the loaded profile only after it reaches trash', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencardprojectprofile'))
+    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocproject'))
     mocks.readFile.mockResolvedValue('{"name":"Demo"}')
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     expect(store.resolvedProject.value?.name).toBe('Demo')
 
-    await store.trashFile('.opencardprojectprofile')
-    expect(mocks.trashFile).toHaveBeenCalledWith('D:/project/.opencardprojectprofile')
+    await store.trashFile('.ocproject')
+    expect(mocks.trashFile).toHaveBeenCalledWith('D:/project/.ocproject')
     expect(store.resolvedProject.value).toBeNull()
 
     await store.setProjectPath('')

@@ -9,6 +9,7 @@ import { buildParentLookup } from '../../entities/card/tree'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
 import type { CdePropertyEditorInput } from './cdePropertyFieldDefinitions'
 import { useCdePropertyEditorProjection } from './useCdePropertyEditorProjection'
+import { setProjectFonts } from '../workspace/model/projectFonts'
 
 function createHarness() {
   const text = createTextBlock({
@@ -115,6 +116,7 @@ describe('useCdePropertyEditorProjection', () => {
   })
 
   it('adds project fonts and rich-text base styles without owning UI state', async () => {
+    setProjectFonts([{ key: 'body', name: 'Body Font', source: 'fonts/body.woff2' }])
     const { state } = createHarness()
     const fields = state.propertyEditorInputs.value[0]!.fields
     const fontItems = await completionItems(fields.fontFamily?.completion?.provider, 'Body', 4)

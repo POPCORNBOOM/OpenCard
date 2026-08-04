@@ -123,7 +123,7 @@ editorRegistry.register({
 
 editorRegistry.register({
   id: 'font-registry',
-  name: 'Project Font Registry',
+  name: 'Project Font Set',
   component: ProjectFontRegistryFileEditor,
   hasPreview: false,
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import playingCardSource from '../../../src-tauri/resources/templates/playing-card-reskin/content/playing-card.opencard?raw'
-import tacticalSource from '../../../src-tauri/resources/templates/tactical-showcase/content/tactical-showcase.opencard?raw'
+import playingCardSource from '../../../src-tauri/resources/templates/playing-card-reskin/content/playing-card.ocdocument?raw'
+import tacticalSource from '../../../src-tauri/resources/templates/tactical-showcase/content/tactical-showcase.ocdocument?raw'
 
 function collectTextBlockContents(value: unknown, contents: string[]): void {
   if (Array.isArray(value)) {

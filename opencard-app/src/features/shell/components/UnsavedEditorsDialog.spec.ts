@@ -9,7 +9,7 @@ import UnsavedEditorsDialog from './UnsavedEditorsDialog.vue'
 const rows: UnsavedEditorDecision[] = [
   {
     sessionId: 'pending',
-    name: 'Pending.opencard',
+    name: 'Pending.ocdocument',
     fileTypeId: 'opencard',
     resourceKind: 'draft',
     path: null,
@@ -20,18 +20,18 @@ const rows: UnsavedEditorDecision[] = [
   },
   {
     sessionId: 'save',
-    name: 'Save.opencard',
+    name: 'Save.ocdocument',
     fileTypeId: 'opencard',
     resourceKind: 'draft',
     path: null,
     decision: 'save',
-    savePath: 'D:/cards/Save.opencard',
+    savePath: 'D:/cards/Save.ocdocument',
     selected: false,
     error: '',
   },
   {
     sessionId: 'discard',
-    name: 'Discard.opencard',
+    name: 'Discard.ocdocument',
     fileTypeId: 'opencard',
     resourceKind: 'draft',
     path: null,
@@ -71,7 +71,7 @@ describe('UnsavedEditorsDialog', () => {
 
     expect(wrapper.findAllComponents(OcCheckbox)).toHaveLength(2)
     expect(wrapper.text()).toContain('Undecided')
-    expect(wrapper.text()).toContain('Will save to D:/cards/Save.opencard')
+    expect(wrapper.text()).toContain('Will save to D:/cards/Save.ocdocument')
     expect(wrapper.text()).toContain('Will discard changes')
     expect(wrapper.get('.unsaved-editors-dialog__footer-actions .oc-button--variant-solid').attributes('disabled'))
       .toBeDefined()
@@ -98,7 +98,7 @@ describe('UnsavedEditorsDialog', () => {
 
     expect(wrapper.findComponent(OcCheckbox).exists()).toBe(false)
     expect(wrapper.find('.unsaved-editors-dialog__list').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Save changes to “Pending.opencard”?')
+    expect(wrapper.text()).toContain('Save changes to “Pending.ocdocument”?')
     expect(wrapper.text()).toContain('This draft has not been saved to disk.')
     expect(wrapper.text()).not.toContain('Save selected')
     expect(wrapper.text()).not.toContain('Confirm decisions')

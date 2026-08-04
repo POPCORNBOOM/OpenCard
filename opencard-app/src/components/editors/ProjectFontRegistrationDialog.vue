@@ -2,9 +2,20 @@
   <OcDialog class="project-font-dialog" :open="open" :title="dialogTitle" as="form" size="md" min-height="md"
     close-on-backdrop :dismissible="!busy" @request-close="close" @submit="submit">
     <label class="project-font-dialog__field">
+      <span>{{ t('projectConfig.fonts.file') }}</span>
+      <span class="project-font-dialog__file-control">
+        <OcFieldInput full-width mono readonly :value="selectedPath" :aria-invalid="!selectedPath"
+          :placeholder="t('projectConfig.fonts.noFileSelected')" />
+        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy" @click="pickFontFile">
+          {{ t('projectConfig.fonts.chooseFile') }}
+        </OcButton>
+      </span>
+    </label>
+
+    <label class="project-font-dialog__field">
       <span>{{ t('projectConfig.fonts.name') }}</span>
-      <OcFieldInput full-width autofocus :value="fontName"
-        :aria-invalid="!fontName.trim()" @input="updateText('name', $event)" />
+      <OcFieldInput full-width :value="fontName"
+        :aria-invalid="Boolean(selectedPath) && !fontName.trim()" @input="updateText('name', $event)" />
     </label>
 
     <label class="project-font-dialog__field">
@@ -12,17 +23,6 @@
       <OcFieldInput full-width mono :value="fontKey" :placeholder="generatedKey"
         :aria-invalid="Boolean(fontKey) && (!validKey || !uniqueKey)"
         @input="updateText('key', $event)" />
-    </label>
-
-    <label class="project-font-dialog__field">
-      <span>{{ t('projectConfig.fonts.file') }}</span>
-      <span class="project-font-dialog__file-control">
-        <OcFieldInput full-width mono readonly :value="selectedPath"
-          :placeholder="t('projectConfig.fonts.noFileSelected')" />
-        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy" @click="pickFontFile">
-          {{ t('projectConfig.fonts.chooseFile') }}
-        </OcButton>
-      </span>
     </label>
 
     <div v-if="selectedPath" class="project-font-dialog__mode" role="status">
@@ -103,6 +103,7 @@ import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 const props = withDefaults(defineProps<{
   open: boolean
   fonts?: ProjectFontRegistry
+  reservedKeys?: readonly string[]
   originalKey?: string
   defaultDirectory: string
   defaultOpenPath?: string
@@ -112,6 +113,7 @@ const props = withDefaults(defineProps<{
   resolveImportConflict: (sourcePath: string, targetDirectory: string) => Promise<ProjectAssetImportConflict | null>
 }>(), {
   fonts: () => ({}),
+  reservedKeys: () => [],
   originalKey: undefined,
   defaultOpenPath: undefined,
   busy: false,
@@ -137,12 +139,13 @@ let conflictCheckVersion = 0
 const editing = computed(() => Boolean(props.originalKey))
 const generatedKey = computed(() => createAvailableKey(
   fontName.value,
-  Object.keys(props.fonts).filter(key => key.toLocaleLowerCase() !== props.originalKey?.toLocaleLowerCase()),
+  [...Object.keys(props.fonts), ...props.reservedKeys]
+    .filter(key => key.toLocaleLowerCase() !== props.originalKey?.toLocaleLowerCase()),
   'font',
 ))
 const effectiveKey = computed(() => fontKey.value || generatedKey.value)
 const validKey = computed(() => projectFontIdPattern.test(effectiveKey.value))
-const uniqueKey = computed(() => !Object.keys(props.fonts).some(key => (
+const uniqueKey = computed(() => ![...Object.keys(props.fonts), ...props.reservedKeys].some(key => (
   key.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
   && key.toLocaleLowerCase() !== props.originalKey?.toLocaleLowerCase()
 )))
@@ -181,10 +184,10 @@ const submitLabel = computed(() => editing.value
   ? t('projectConfig.fonts.save')
   : t('projectConfig.fonts.confirmRegister'))
 const validationMessage = computed(() => {
+  if (!selectedPath.value) return t('projectConfig.fonts.fileRequired')
   if (!uniqueKey.value) return t('projectConfig.fonts.keyExists')
   if (fontKey.value && !validKey.value) return t('projectConfig.fonts.invalidKey')
   if (!fontName.value.trim()) return t('projectConfig.fonts.nameRequired')
-  if (!selectedPath.value) return ''
   if (copyRequired.value && !normalizedCopyDirectory.value) return t('projectConfig.fonts.invalidCopyDirectory')
   if (conflictCheckFailed.value) return t('projectConfig.importConflict.checkFailed')
   return ''
@@ -198,7 +201,7 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   copyRequired.value = false
   copyDirectory.value = props.defaultDirectory
   fontKey.value = props.originalKey ?? ''
-  fontName.value = definition?.name ?? createDefaultFontName()
+  fontName.value = definition?.name ?? ''
   resetImportConflict()
 }, { immediate: true })
 
@@ -211,6 +214,7 @@ async function pickFontFile(): Promise<void> {
   })
   if (!path) return
   selectedPath.value = path
+  fontName.value = fontNameFromPath(path)
   projectSource.value = props.getRelativeProjectPath(path)
   copyRequired.value = projectSource.value === null
   await checkImportConflict()
@@ -284,11 +288,9 @@ function projectAssetName(path: string): string {
   return path.replace(/\\/g, '/').split('/').pop() ?? path
 }
 
-function createDefaultFontName(): string {
-  const existingNames = new Set(Object.values(props.fonts).map(font => font.name.toLocaleLowerCase()))
-  let index = 1
-  while (existingNames.has(t('projectConfig.fonts.defaultName', { index }).toLocaleLowerCase())) index += 1
-  return t('projectConfig.fonts.defaultName', { index })
+function fontNameFromPath(path: string): string {
+  const name = projectAssetName(path)
+  return name.replace(/\.(?:woff2?|ttf|otf)$/i, '')
 }
 </script>
 

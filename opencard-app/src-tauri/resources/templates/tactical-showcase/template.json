@@ -3,7 +3,7 @@
   "id": "tactical-showcase",
   "name": "Tactical Showcase",
   "description": "Advanced tactical card showcase.",
-  "entry": "tactical-showcase.opencard",
+  "entry": "tactical-showcase.ocdocument",
   "covers": [
     "assets/portraits/sentinel.png",
     "assets/portraits/vanguard.png",

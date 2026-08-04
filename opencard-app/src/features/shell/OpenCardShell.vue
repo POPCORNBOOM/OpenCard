@@ -364,6 +364,8 @@ import { useProjectTemplateStore } from '../project-templates/store/projectTempl
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
+  APP_THEME_FILE_EXTENSION,
+  APP_THEME_FILE_SUFFIX,
   parseAppTheme,
   serializeAppTheme,
   type SettingsCategoryKey,
@@ -374,7 +376,7 @@ import type {
   EditorIssueSnapshot,
   SessionIssueNavigationRequest,
 } from '../editor-runtime/model/editorIssue'
-import { resolveFileType } from '../workspace/model/fileTypes'
+import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
 import { useShellExport } from './composables/useShellExport'
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellProgressTasks } from './composables/useShellProgressTasks'
@@ -445,20 +447,23 @@ const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
 const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
-const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.opencard'
-const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.opencardprojectprofile'
-const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.fontreg'
-const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.iconreg'
-const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.dictionary'
+const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
+const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.ocproject'
+const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.ocfonts'
+const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.ocicons'
+const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.oclocale'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
 const CARD_DATA_TABLE_EXPORT_ACTION_KEY = 'card-designer.data-table.export'
+const DICTIONARY_IMPORT_ACTION_KEY = 'dictionary.workbook.import'
+const DICTIONARY_EXPORT_ACTION_KEY = 'dictionary.workbook.export'
 const EMPTY_TREE_DATA: OcTreeData = {
   rootKeys: [],
   items: new Map(),
   children: new Map(),
 }
+const projectStore = useProjectStore()
 const {
   projectPath,
   projectProfile,
@@ -480,7 +485,7 @@ const {
   getRelativeProjectPath,
   moveEntryByDrop,
   renameEntry,
-} = useProjectStore()
+} = projectStore
 
 const settingsStore = useAppSettingsStore()
 const templateStore = useProjectTemplateStore()
@@ -674,6 +679,7 @@ const {
   props: currentEditorProps,
   resourceRootPath: activeSessionResourceRootPath,
   isCardDesigner: isActiveCardDesignerEditor,
+  isDictionaryEditor: isActiveDictionaryEditor,
   cardDesignerMode: activeCardDesignerMode,
   dataTableWorkbookBusy: isDataTableWorkbookBusy,
   canExportDataTableWorkbook,
@@ -1076,15 +1082,15 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
   for (const [key, item] of projectTreeData.value.items) {
     const relativePath = exportRelativePath(key)
     const isProjectFile = [
-      '.opencardprojectprofile',
-      '.fontreg',
-      '.iconreg',
-      '.dictionary',
+      '.ocproject',
+      '.ocfonts',
+      '.ocicons',
+      '.oclocale',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
     const isExcluded = isExportPathExcluded(relativePath)
     const isImage = resolveFileType(key).id === 'image'
-    const isOpenCard = relativePath.toLowerCase().endsWith('.opencard')
+    const isOpenCard = relativePath.toLowerCase().endsWith(CARD_DOCUMENT_SUFFIX)
     const actions: string[] = []
 
     if (!isProjectFile && !isRuntimeCache) {
@@ -1372,22 +1378,22 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
               title: t('sidebar.fileActions.newOpenCard'),
               icon: 'file.opencard',
             },
-            ...(!hasRootProjectFile('.opencardprojectprofile') ? [{
+            ...(!hasRootProjectFile('.ocproject') ? [{
               key: PROJECT_NEW_PROFILE_ACTION_KEY,
               title: t('sidebar.fileActions.newProjectProfile'),
               icon: 'file.opencard-project' as const,
             }] : []),
-            ...(!hasRootProjectFile('.fontreg') ? [{
+            ...(!hasRootProjectFile('.ocfonts') ? [{
               key: PROJECT_NEW_FONT_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newFontRegistry'),
               icon: 'file.font' as const,
             }] : []),
-            ...(!hasRootProjectFile('.iconreg') ? [{
+            ...(!hasRootProjectFile('.ocicons') ? [{
               key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newIconRegistry'),
               icon: 'file.package-variant' as const,
             }] : []),
-            ...(!hasRootProjectFile('.dictionary') ? [{
+            ...(!hasRootProjectFile('.oclocale') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
               title: t('sidebar.fileActions.newDictionary'),
               icon: 'data.collection' as const,
@@ -1591,7 +1597,22 @@ const workspaceTitle = computed(() => {
 })
 
 const workspaceActions = computed<ShellAction[]>(() => {
-  if (!isWorkbenchMode.value || !isActiveCardDesignerEditor.value) return []
+  if (!isWorkbenchMode.value) return []
+  if (isActiveDictionaryEditor.value) return [
+    {
+      key: DICTIONARY_IMPORT_ACTION_KEY,
+      icon: 'action.import',
+      hoverTip: t('dictionaryEditor.workbook.import'),
+      disabled: isDataTableWorkbookBusy.value,
+    },
+    {
+      key: DICTIONARY_EXPORT_ACTION_KEY,
+      icon: 'action.export',
+      hoverTip: t('dictionaryEditor.workbook.export'),
+      disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
+    },
+  ]
+  if (!isActiveCardDesignerEditor.value) return []
   const tableMode = activeCardDesignerMode.value === 'data-table'
   const modeAction: ShellAction = {
     key: CARD_DESIGNER_MODE_ACTION_KEY,
@@ -1693,19 +1714,19 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       return
     }
     if (actionKey === PROJECT_NEW_PROFILE_ACTION_KEY) {
-      await createProjectSpecialFile('.opencardprojectprofile')
+      await createProjectSpecialFile('.ocproject')
       return
     }
     if (actionKey === PROJECT_NEW_FONT_REGISTRY_ACTION_KEY) {
-      await createProjectSpecialFile('.fontreg')
+      await createProjectSpecialFile('.ocfonts')
       return
     }
     if (actionKey === PROJECT_NEW_ICON_REGISTRY_ACTION_KEY) {
-      await createProjectSpecialFile('.iconreg')
+      await createProjectSpecialFile('.ocicons')
       return
     }
     if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
-      await createProjectSpecialFile('.dictionary')
+      await createProjectSpecialFile('.oclocale')
       return
     }
     if (actionKey === PROJECT_NEW_FOLDER_ACTION_KEY) {
@@ -1738,7 +1759,7 @@ function getProjectEntryParentPath(): string {
 }
 
 async function createProjectSpecialFile(
-  fileName: '.opencardprojectprofile' | '.fontreg' | '.iconreg' | '.dictionary',
+  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.oclocale',
 ): Promise<void> {
   if (!projectPath.value || hasRootProjectFile(fileName)) return
   await createFile(fileName, '{}')
@@ -1788,13 +1809,15 @@ async function importThemeFile(themeId: 'dark' | 'light'): Promise<void> {
     const path = await fileSystemService.pickFile({
       title: t('settings.actions.importTheme'),
       fileTypeName: t('settings.files.themeFile'),
-      extensions: ['opencardtheme'],
+      extensions: [APP_THEME_FILE_EXTENSION],
     })
     if (!path) return
     const definition = parseAppTheme(await fileSystemService.readFile(path))
     if (!definition) throw new Error(t('settings.errors.invalidThemeFile'))
     const fileName = path.split(/[\\/]/).pop() ?? ''
-    const presetName = fileName.replace(/\.opencardtheme$/i, '').trim()
+    const presetName = fileName.toLocaleLowerCase().endsWith(APP_THEME_FILE_SUFFIX)
+      ? fileName.slice(0, -APP_THEME_FILE_SUFFIX.length).trim()
+      : fileName.trim()
       || t('settings.values.importedTheme')
     settingsStore.importThemePreset(themeId, presetName, definition)
   } catch (cause) {
@@ -1808,10 +1831,10 @@ async function importThemeFile(themeId: 'dark' | 'light'): Promise<void> {
 async function exportThemeFile(themeId: 'dark' | 'light'): Promise<void> {
   try {
     const path = await fileSystemService.pickSavePath({
-      defaultPath: `opencard-${themeId}.opencardtheme`,
+      defaultPath: `opencard-${themeId}${APP_THEME_FILE_SUFFIX}`,
       title: t('settings.actions.exportTheme'),
       fileTypeName: t('settings.files.themeFile'),
-      extensions: ['opencardtheme'],
+      extensions: [APP_THEME_FILE_EXTENSION],
     })
     if (!path) return
     const appearance = settingsStore.settings.value.appearance
@@ -2292,12 +2315,12 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     return
   }
 
-  if (actionKey === CARD_DATA_TABLE_IMPORT_ACTION_KEY) {
+  if (actionKey === CARD_DATA_TABLE_IMPORT_ACTION_KEY || actionKey === DICTIONARY_IMPORT_ACTION_KEY) {
     await importDataTableWorkbook()
     return
   }
 
-  if (actionKey === CARD_DATA_TABLE_EXPORT_ACTION_KEY) {
+  if (actionKey === CARD_DATA_TABLE_EXPORT_ACTION_KEY || actionKey === DICTIONARY_EXPORT_ACTION_KEY) {
     await exportDataTableWorkbook()
     return
   }

@@ -35,7 +35,7 @@ describe('FeedbackDialog', () => {
     const wrapper = mountDialog({
       open: true,
       initialKind: 'bug',
-      diagnostics: { errorMessage: 'Failed at C:\\Users\\Alice\\secret.opencard' },
+      diagnostics: { errorMessage: 'Failed at C:\\Users\\Alice\\secret.ocdocument' },
     })
     expect(wrapper.find('.feedback-dialog__diagnostics').exists()).toBe(false)
 

@@ -1,5 +1,5 @@
-import type { ProjectFontRegistry } from '../model/projectFontRegistry'
-import { createProjectFontCssFamily } from '../model/projectFonts'
+import type { ProjectFont, ProjectFontSet } from '../model/projectFontRegistry'
+import { createProjectFontCssFamily, setProjectFonts } from '../model/projectFonts'
 import { reportAppError } from '../../logging/appErrorCatalog'
 
 let generation = 0
@@ -27,12 +27,12 @@ function removeProjectFontStyle(): void {
 }
 
 function createProjectFontCss(
-  fonts: ProjectFontRegistry | null | undefined,
+  fonts: readonly ProjectFont[] | null | undefined,
   resolveAssetSrc: (source: string) => string,
 ): string {
-  return Object.entries(fonts ?? {}).map(([id, definition]) => {
-    const family = JSON.stringify(createProjectFontCssFamily(id))
-    const source = JSON.stringify(resolveAssetSrc(definition.source))
+  return (fonts ?? []).map(font => {
+    const family = JSON.stringify(createProjectFontCssFamily(font.key))
+    const source = JSON.stringify(resolveAssetSrc(font.source))
     return `@font-face { font-family: ${family}; src: url(${source}); font-weight: normal; font-style: normal; }`
   }).join('\n')
 }
@@ -54,7 +54,7 @@ function replaceProjectFontStyle(cssText: string): void {
 
 async function loadFonts(
   currentGeneration: number,
-  fonts: ProjectFontRegistry | null | undefined,
+  fonts: readonly ProjectFont[] | null | undefined,
 ): Promise<ProjectFontLoadResult> {
   if (typeof document === 'undefined' || !document.fonts) {
     return { current: currentGeneration === generation, errors: [] }
@@ -62,20 +62,20 @@ async function loadFonts(
 
   const errors: ProjectFontLoadError[] = []
 
-  for (const [id, definition] of Object.entries(fonts ?? {})) {
+  for (const font of fonts ?? []) {
     try {
       const loadedFaces = await document.fonts.load(
-        `16px ${JSON.stringify(createProjectFontCssFamily(id))}`,
+        `16px ${JSON.stringify(createProjectFontCssFamily(font.key))}`,
       )
       if (currentGeneration !== generation) return { current: false, errors: [] }
       if (loadedFaces.length === 0) throw new Error('Font face did not load')
     } catch (error) {
       if (currentGeneration !== generation) return { current: false, errors: [] }
       const message = error instanceof Error ? error.message : String(error)
-      errors.push({ fontId: id, source: definition.source, message })
+      errors.push({ fontId: font.key, source: font.source, message })
       reportAppError('OC-E3005', {
-        id,
-        source: definition.source,
+        id: font.key,
+        source: font.source,
         error,
       })
     }
@@ -84,10 +84,12 @@ async function loadFonts(
 }
 
 export function syncProjectFonts(
-  fonts: ProjectFontRegistry | null | undefined,
+  fonts: readonly ProjectFont[] | null | undefined,
   resolveAssetSrc: (source: string) => string,
+  fontSets: readonly ProjectFontSet[] | null | undefined = [],
 ): Promise<ProjectFontLoadResult> {
   generation += 1
+  setProjectFonts(fonts, fontSets)
   replaceProjectFontStyle(createProjectFontCss(fonts, resolveAssetSrc))
   readiness = loadFonts(generation, fonts)
   return readiness
@@ -95,6 +97,7 @@ export function syncProjectFonts(
 
 export function clearProjectFonts(): void {
   generation += 1
+  setProjectFonts([])
   removeProjectFontStyle()
   readiness = Promise.resolve({ current: true, errors: [] })
 }

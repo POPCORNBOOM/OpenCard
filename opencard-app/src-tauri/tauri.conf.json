@@ -46,7 +46,7 @@
     "fileAssociations": [
       {
         "ext": [
-          "opencard"
+          "ocdocument"
         ],
         "name": "OpenCard Card Document",
         "description": "OpenCard card document",
@@ -62,15 +62,15 @@
       },
       {
         "ext": [
-          "opencardproject"
+          "ocproject"
         ],
-        "name": "OpenCard Project File",
-        "description": "OpenCard project file",
-        "mimeType": "application/vnd.opencard.project+json",
+        "name": "OpenCard Project Configuration",
+        "description": "OpenCard project configuration",
+        "mimeType": "application/vnd.opencard.project-configuration+json",
         "role": "Editor",
         "rank": "Owner",
         "exportedType": {
-          "identifier": "per.yiguwang.opencard.project",
+          "identifier": "per.yiguwang.opencard.project-configuration",
           "conformsTo": [
             "public.json"
           ]
@@ -78,7 +78,55 @@
       },
       {
         "ext": [
-          "opencardtemplate"
+          "ocfonts"
+        ],
+        "name": "OpenCard Project Font Registry",
+        "description": "OpenCard project font registry",
+        "mimeType": "application/vnd.opencard.project-font-registry+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.project-font-registry",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "ocicons"
+        ],
+        "name": "OpenCard Project Icon Registry",
+        "description": "OpenCard project icon registry",
+        "mimeType": "application/vnd.opencard.project-icon-registry+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.project-icon-registry",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "oclocale"
+        ],
+        "name": "OpenCard Project Global Dictionary",
+        "description": "OpenCard project global dictionary",
+        "mimeType": "application/vnd.opencard.project-global-dictionary+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.project-global-dictionary",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "octemplate"
         ],
         "name": "OpenCard Project Template",
         "description": "OpenCard project template package",

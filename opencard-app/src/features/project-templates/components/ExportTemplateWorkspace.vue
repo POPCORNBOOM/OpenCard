@@ -101,6 +101,7 @@ import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import {
   TemplateServiceError,
+  PROJECT_TEMPLATE_PACKAGE_SUFFIX,
   validateTemplateDescription,
   validateTemplateName,
   type TemplateExportSelection,
@@ -198,7 +199,7 @@ watch(covers, restartCoverTimer, { deep: true })
 
 function togglePathIncluded(path: string): void {
   const normalized = normalizeRelativePath(path)
-  if (!normalized || normalized === '.opencardprojectprofile' || normalized === '.dictionary') return
+  if (!normalized || normalized === '.ocproject' || normalized === '.oclocale') return
   const coveringExclusion = excludedPaths.value.find((excluded) => pathContains(excluded, normalized))
   if (coveringExclusion) {
     excludedPaths.value = excludedPaths.value.filter((excluded) => excluded !== coveringExclusion)
@@ -249,7 +250,7 @@ async function exportTemplate(): Promise<void> {
   exportedPath.value = ''
   try {
     const outputPath = await store.pickTemplateExportPath(
-      `${safeFileName(name.value)}.opencardtemplate`,
+      `${safeFileName(name.value)}${PROJECT_TEMPLATE_PACKAGE_SUFFIX}`,
       t('templateExport.dialogs.chooseOutput'),
     )
     if (!outputPath) return

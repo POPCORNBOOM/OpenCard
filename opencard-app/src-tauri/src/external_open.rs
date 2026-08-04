@@ -80,7 +80,11 @@ fn is_supported_path(path: &Path) -> bool {
     if path
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.eq_ignore_ascii_case(".opencardproject"))
+        .is_some_and(|name| {
+            [".ocproject", ".ocfonts", ".ocicons", ".oclocale"]
+                .iter()
+                .any(|supported| name.eq_ignore_ascii_case(supported))
+        })
     {
         return true;
     }
@@ -88,8 +92,9 @@ fn is_supported_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("opencard")
-                || extension.eq_ignore_ascii_case("opencardtemplate")
+            ["ocdocument", "octemplate"]
+                .iter()
+                .any(|supported| extension.eq_ignore_ascii_case(supported))
         })
 }
 
@@ -102,9 +107,12 @@ mod tests {
     fn collects_registered_file_types_and_resolves_relative_paths() {
         let paths = collect_supported_paths(
             [
-                "cards/main.opencard",
-                ".opencardproject",
-                "template.opencardtemplate",
+                "cards/main.ocdocument",
+                ".ocproject",
+                ".ocfonts",
+                ".ocicons",
+                ".oclocale",
+                "template.octemplate",
                 "notes.txt",
             ],
             Path::new("D:/Project"),
@@ -113,9 +121,12 @@ mod tests {
         assert_eq!(
             paths,
             [
-                "D:/Project/cards/main.opencard",
-                "D:/Project/.opencardproject",
-                "D:/Project/template.opencardtemplate",
+                "D:/Project/cards/main.ocdocument",
+                "D:/Project/.ocproject",
+                "D:/Project/.ocfonts",
+                "D:/Project/.ocicons",
+                "D:/Project/.oclocale",
+                "D:/Project/template.octemplate",
             ]
         );
     }

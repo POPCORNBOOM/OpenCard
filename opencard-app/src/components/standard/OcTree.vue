@@ -93,11 +93,15 @@
           @click.stop
           @dblclick.stop
           @input="handleRenameInput"
-          @keydown="handleRenameKeydown($event, entry.key)"
+          @keydown.stop="handleRenameKeydown($event, entry.key)"
           @blur="commitRename(entry.key)"
         />
         <OcText v-else class="oc-tree__label" :truncate="true">
           {{ entry.item.label }}
+        </OcText>
+
+        <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
+          {{ entry.item.tail }}
         </OcText>
 
         <span class="oc-tree__controls" data-tree-interactive="true">
@@ -1014,6 +1018,11 @@ onBeforeUnmount(() => {
 
 .oc-tree__label {
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+.oc-tree__tail {
+  flex: 0 1 auto;
   min-width: 0;
 }
 

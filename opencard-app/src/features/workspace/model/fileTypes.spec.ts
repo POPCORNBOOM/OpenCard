@@ -2,30 +2,35 @@ import { describe, expect, it } from 'vitest'
 import { resolveDirectoryIcon, resolveEntryIcon, resolveFileType } from './fileTypes'
 
 describe('project metadata file types', () => {
-  it('recognizes only the two exact special file names', () => {
-    expect(resolveFileType('D:/Cards/.opencardprojectprofile').id).toBe('opencard-project-profile')
-    expect(resolveFileType('D:/Cards/.dictionary').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/.fontreg').id).toBe('opencard-font-registry')
-    expect(resolveFileType('D:/Cards/.iconreg').id).toBe('opencard-icon-registry')
-    expect(resolveFileType('D:/Cards/en_US.opencardproject').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/notes.dictionary').id).toBe('unsupported')
+  it('recognizes only the four exact project resource file names', () => {
+    expect(resolveFileType('D:/Cards/.ocproject').id).toBe('opencard-project-profile')
+    expect(resolveFileType('D:/Cards/.oclocale').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/Cards/.ocfonts').id).toBe('opencard-font-registry')
+    expect(resolveFileType('D:/Cards/.ocicons').id).toBe('opencard-icon-registry')
+    expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })
 
   it('restricts special files to the project root', () => {
-    expect(resolveFileType('D:/Cards/.dictionary', 'D:/Cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/locales/.dictionary', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.opencardprojectprofile', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.fontreg', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.iconreg', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/.oclocale', 'D:/Cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/Cards/locales/.oclocale', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.ocproject', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.ocfonts', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.ocicons', 'D:/Cards').id).toBe('unsupported')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {
-    expect(resolveFileType('D:/CARDS/.DICTIONARY', 'd:/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/CARDS/.OCLOCALE', 'd:/cards').id).toBe('opencard-dictionary')
   })
 
   it('keeps special file names case-sensitive on POSIX paths', () => {
-    expect(resolveFileType('/cards/.dictionary', '/cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('/cards/.DICTIONARY', '/cards').id).toBe('unsupported')
+    expect(resolveFileType('/cards/.oclocale', '/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('/cards/.OCLOCALE', '/cards').id).toBe('unsupported')
+  })
+
+  it('recognizes card documents only by the new extension', () => {
+    expect(resolveFileType('D:/Cards/main.ocdocument').id).toBe('opencard')
+    expect(resolveFileType('D:/Cards/main.opencard').id).toBe('unsupported')
   })
 })
 
@@ -56,7 +61,7 @@ describe('workspace entry icon tokens', () => {
   })
 
   it('uses the package variant icon for the project icon registry', () => {
-    expect(resolveEntryIcon('D:/Cards/.iconreg', false, false, 'D:/Cards')).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.ocicons', false, false, 'D:/Cards')).toEqual({
       icon: 'file.package-variant',
       tone: 'config',
     })

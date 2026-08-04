@@ -41,7 +41,7 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 vi.mock('../services/externalOpenService', () => ({
   filterSupportedExternalOpenPaths: (paths: readonly string[]) => (
-    paths.filter(path => path.toLowerCase().endsWith('.opencard'))
+    paths.filter(path => path.toLowerCase().endsWith('.ocdocument'))
   ),
   listenForExternalOpenRequests: mocks.listenExternal,
 }))
@@ -169,15 +169,15 @@ describe('useShellWindow', () => {
     await shellWindow.start()
 
     mocks.dropHandler?.({
-      payload: { type: 'enter', paths: ['D:/cards/main.opencard', 'D:/cards/readme.txt'] },
+      payload: { type: 'enter', paths: ['D:/cards/main.ocdocument', 'D:/cards/readme.txt'] },
     })
     expect(shellWindow.isFileDropActive.value).toBe(true)
 
     mocks.dropHandler?.({
-      payload: { type: 'drop', paths: ['D:/cards/main.opencard', 'D:/cards/readme.txt'] },
+      payload: { type: 'drop', paths: ['D:/cards/main.ocdocument', 'D:/cards/readme.txt'] },
     })
     expect(shellWindow.isFileDropActive.value).toBe(false)
-    expect(handleExternalOpenPaths).toHaveBeenCalledWith(['D:/cards/main.opencard'])
+    expect(handleExternalOpenPaths).toHaveBeenCalledWith(['D:/cards/main.ocdocument'])
 
     mocks.dropHandler?.({ payload: { type: 'enter', paths: ['D:/cards/readme.txt'] } })
     expect(shellWindow.isFileDropActive.value).toBe(false)
@@ -195,8 +195,8 @@ describe('useShellWindow', () => {
     expect(mocks.unlistenExternal).toHaveBeenCalledOnce()
 
     mocks.closeHandler?.({ preventDefault: vi.fn() })
-    mocks.dropHandler?.({ payload: { type: 'drop', paths: ['D:/cards/main.opencard'] } })
-    await mocks.externalHandler?.(['D:/cards/main.opencard'])
+    mocks.dropHandler?.({ payload: { type: 'drop', paths: ['D:/cards/main.ocdocument'] } })
+    await mocks.externalHandler?.(['D:/cards/main.ocdocument'])
     expect(requestApplicationClose).not.toHaveBeenCalled()
     expect(handleExternalOpenPaths).not.toHaveBeenCalled()
     expect(shellWindow.isFileDropActive.value).toBe(false)

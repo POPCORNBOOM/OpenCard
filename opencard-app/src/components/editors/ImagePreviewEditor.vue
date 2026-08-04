@@ -367,13 +367,9 @@ defineExpose({ save, resetView })
   overflow: hidden;
   outline: none;
   background-color: var(--oc-bg-raised);
-  background-image: radial-gradient(
-    circle at center,
-    color-mix(in srgb, var(--oc-fg-subtle) 38%, transparent) 1px,
-    transparent 1.25px
-  );
-  background-size: 18px 18px;
-  background-position: 9px 9px;
+  background-image: var(--oc-viewport-dot-pattern);
+  background-size: var(--oc-viewport-dot-size);
+  background-position: var(--oc-viewport-dot-position);
   cursor: grab;
   user-select: none;
   touch-action: none;

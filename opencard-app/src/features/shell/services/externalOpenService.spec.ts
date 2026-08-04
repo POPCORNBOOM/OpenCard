@@ -25,23 +25,23 @@ describe('externalOpenService', () => {
   })
 
   it('classifies only OpenCard file types', () => {
-    expect(classifyExternalOpenPath('D:\\Cards\\main.opencard')).toBe('card')
-    expect(classifyExternalOpenPath('D:/Cards/.opencardprojectprofile')).toBe('project-resource')
-    expect(classifyExternalOpenPath('D:/Cards/.DICTIONARY')).toBe('project-resource')
-    expect(classifyExternalOpenPath('D:/Cards/en_US.opencardproject')).toBeNull()
-    expect(classifyExternalOpenPath('/cards/.DICTIONARY')).toBeNull()
-    expect(classifyExternalOpenPath('D:/Cards/demo.opencardtemplate')).toBe('template')
+    expect(classifyExternalOpenPath('D:\\Cards\\main.ocdocument')).toBe('card')
+    expect(classifyExternalOpenPath('D:/Cards/.ocproject')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.OCLOCALE')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeNull()
+    expect(classifyExternalOpenPath('/cards/.OCLOCALE')).toBeNull()
+    expect(classifyExternalOpenPath('D:/Cards/demo.octemplate')).toBe('template')
     expect(classifyExternalOpenPath('D:/Cards/demo.zip')).toBeNull()
     expect(filterSupportedExternalOpenPaths([
-      'D:/Cards/main.opencard',
+      'D:/Cards/main.ocdocument',
       'D:/Cards/readme.txt',
-    ])).toEqual(['D:/Cards/main.opencard'])
+    ])).toEqual(['D:/Cards/main.ocdocument'])
   })
 
   it('drains startup paths and paths queued by later app launches', async () => {
     mocks.invoke
-      .mockResolvedValueOnce(['D:/Cards/main.opencard'])
-      .mockResolvedValueOnce(['D:/Templates/demo.opencardtemplate'])
+      .mockResolvedValueOnce(['D:/Cards/main.ocdocument'])
+      .mockResolvedValueOnce(['D:/Templates/demo.octemplate'])
     mocks.listen.mockImplementation(async (_event, handler: () => void) => {
       mocks.eventHandler = handler
       return mocks.unlisten
@@ -49,11 +49,11 @@ describe('externalOpenService', () => {
     const handlePaths = vi.fn()
 
     const unlisten = await listenForExternalOpenRequests(handlePaths)
-    expect(handlePaths).toHaveBeenCalledWith(['D:/Cards/main.opencard'])
+    expect(handlePaths).toHaveBeenCalledWith(['D:/Cards/main.ocdocument'])
 
     mocks.eventHandler?.()
     await vi.waitFor(() => {
-      expect(handlePaths).toHaveBeenCalledWith(['D:/Templates/demo.opencardtemplate'])
+      expect(handlePaths).toHaveBeenCalledWith(['D:/Templates/demo.octemplate'])
     })
     expect(unlisten).toBe(mocks.unlisten)
   })

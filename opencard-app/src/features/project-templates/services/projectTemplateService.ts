@@ -4,12 +4,15 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { parseCardDocument } from '../../../entities/card/storage'
 import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
+import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
+  PROJECT_TEMPLATE_PACKAGE_EXTENSION,
+  PROJECT_TEMPLATE_PACKAGE_SUFFIX,
   TemplateServiceError,
   parseProjectTemplateManifest,
   resolveTemplateEntries,
@@ -33,17 +36,17 @@ const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
 const TEMPLATE_MANIFEST_FILE_NAME = 'template.json'
 const TEMPLATE_CONTENT_DIRECTORY_NAME = 'content'
-const PROJECT_FILE_NAME = '.opencardprojectprofile'
-const FONT_REGISTRY_FILE_NAME = '.fontreg'
-const ICON_REGISTRY_FILE_NAME = '.iconreg'
-const DICTIONARY_FILE_NAME = '.dictionary'
+const PROJECT_FILE_NAME = '.ocproject'
+const FONT_REGISTRY_FILE_NAME = '.ocfonts'
+const ICON_REGISTRY_FILE_NAME = '.ocicons'
+const DICTIONARY_FILE_NAME = '.oclocale'
 const STRUCTURED_PROJECT_FILES = [
   { name: PROJECT_FILE_NAME, parse: parseProjectMetadataText, label: 'project file' },
   { name: FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
   { name: ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
   { name: DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
 ] as const
-const TEMPLATE_PACKAGE_EXTENSIONS = ['opencardtemplate', 'zip']
+const TEMPLATE_PACKAGE_EXTENSIONS = [PROJECT_TEMPLATE_PACKAGE_EXTENSION, 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024
 const MAX_TEMPLATE_UNPACKED_BYTES = 256 * 1024 * 1024
 
@@ -101,7 +104,7 @@ function pathSegments(value: string): string[] {
 
 function isOpenCardDocument(relativePath: string): boolean {
   const normalized = normalizeRelativePath(relativePath)
-  return normalized.toLowerCase().endsWith('.opencard')
+  return normalized.toLowerCase().endsWith(CARD_DOCUMENT_SUFFIX)
 }
 
 function entryDepth(entry: DirEntry): number {
@@ -177,7 +180,7 @@ function normalizeArchivePath(value: string): string | null {
 function assertSupportedPackagePath(path: string): void {
   const extension = path.split('.').pop()?.toLowerCase()
   if (!extension || !TEMPLATE_PACKAGE_EXTENSIONS.includes(extension)) {
-    throw new TemplateServiceError('invalid-package', 'Template package must be .opencardtemplate or .zip')
+    throw new TemplateServiceError('invalid-package', 'Template package must be .octemplate or .zip')
   }
 }
 export class ProjectTemplateService {
@@ -204,7 +207,7 @@ export class ProjectTemplateService {
       defaultPath,
       title,
       fileTypeName: 'OpenCard Template',
-      extensions: ['opencardtemplate'],
+      extensions: [PROJECT_TEMPLATE_PACKAGE_EXTENSION],
     })
   }
 
@@ -307,9 +310,9 @@ export class ProjectTemplateService {
       ...(entries.length > 1 ? { entries } : {}),
       ...(covers.length ? { covers } : {}),
     }
-    const outputPath = request.outputPath.toLowerCase().endsWith('.opencardtemplate')
+    const outputPath = request.outputPath.toLowerCase().endsWith(PROJECT_TEMPLATE_PACKAGE_SUFFIX)
       ? request.outputPath
-      : `${request.outputPath}.opencardtemplate`
+      : `${request.outputPath}${PROJECT_TEMPLATE_PACKAGE_SUFFIX}`
     try {
       const entries = await this.fs.readDirectoryEntries(request.sourcePath, Number.POSITIVE_INFINITY)
       assertNoSymlinks(entries)

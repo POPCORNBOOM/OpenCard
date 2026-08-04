@@ -13,6 +13,7 @@ export interface OcTreeData {
 
 export interface OcTreeItem {
   label: string
+  tail?: string
   icon?: IconToken
   iconTone?: IconTone
   thumbnailStyle?: Readonly<Record<string, string>>

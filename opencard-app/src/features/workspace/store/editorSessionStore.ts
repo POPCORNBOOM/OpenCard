@@ -6,7 +6,12 @@
  */
 import { computed, readonly, ref } from 'vue'
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
-import { resolveEntryIcon, resolveFileType, resolveFileTypeById } from '../model/fileTypes'
+import {
+  CARD_DOCUMENT_SUFFIX,
+  resolveEntryIcon,
+  resolveFileType,
+  resolveFileTypeById,
+} from '../model/fileTypes'
 import { fileSystemService } from '../services/fileSystemService'
 import { useProjectStore } from './projectStore'
 import type {
@@ -105,7 +110,7 @@ function resolveOpenCardDraftName(content: string, fallback: string): string {
       .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
       .replace(/[. ]+$/g, '')
     if (!fileName) return fallback
-    return fileName.toLowerCase().endsWith('.opencard') ? fileName : `${fileName}.opencard`
+    return fileName.toLowerCase().endsWith(CARD_DOCUMENT_SUFFIX) ? fileName : `${fileName}${CARD_DOCUMENT_SUFFIX}`
   } catch {
     return fallback
   }

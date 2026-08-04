@@ -15,7 +15,7 @@ function template(
     source,
     name,
     description: '',
-    entry: 'main.opencard',
+    entry: 'main.ocdocument',
     rootPath: `/${source}/${id}`,
     contentPath: `/${source}/${id}/content`,
     coverPaths: [],

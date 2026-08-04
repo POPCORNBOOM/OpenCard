@@ -1,4 +1,4 @@
-export const PROJECT_DICTIONARY_FILE_NAME = '.dictionary'
+export const PROJECT_DICTIONARY_FILE_NAME = '.oclocale'
 
 export type ProjectDictionary = {
   active?: string

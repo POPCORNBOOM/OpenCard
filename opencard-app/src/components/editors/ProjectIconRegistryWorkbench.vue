@@ -108,7 +108,9 @@
       @close="settingsSeriesIndex = null" @submit="saveIconSetSettings" />
     <ProjectIconGridDialog :open="gridDialogOpen" :has-icons="Boolean(selectedSeries?.icons.length)"
       :initial-rows="gridSettings.rows" :initial-columns="gridSettings.columns"
-      :initial-pixelated="gridSettings.pixelated" @close="gridDialogOpen = false" @submit="generateIcons" />
+      :initial-pixelated="gridSettings.pixelated" :image-src="selectedRuntime?.src"
+      :image-width="selectedRuntime?.imageWidth" :image-height="selectedRuntime?.imageHeight"
+      @close="gridDialogOpen = false" @submit="generateIcons" />
   </div>
 </template>
 
@@ -348,9 +350,9 @@ function removeSeries(index: number): void {
   if (selectedSeriesKey.value === removed.key) {
     selectedSeriesKey.value = remaining[Math.min(index, remaining.length - 1)]?.key ?? null
   }
-  emit('update:series', remaining)
   delete selectedIconIndexes.value[removed.key]
   settingsSeriesIndex.value = null
+  emit('update:series', remaining)
 }
 function captureSetWorkspace(instance: unknown): void {
   setWorkspaceRef.value = instance as InstanceType<typeof ProjectIconSetWorkspace> | null
@@ -403,7 +405,7 @@ defineExpose({ selectSeries, navigateToKeyConflict })
 .project-icon-registry-workbench__titlebar {
   justify-content: space-between;
   gap: var(--oc-space-4);
-  padding: var(--oc-space-5) var(--oc-space-6);
+  padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 .project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
@@ -424,7 +426,16 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   display: grid;
   grid-template-rows: minmax(0, 1fr) minmax(0, var(--oc-project-icon-atlas-height));
 }
-.project-icon-registry-workbench__atlas-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.project-icon-registry-workbench__atlas-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--oc-bg-raised);
+  background-image: var(--oc-viewport-dot-pattern);
+  background-size: var(--oc-viewport-dot-size);
+  background-position: var(--oc-viewport-dot-position);
+}
 .project-icon-registry-workbench__load-error {
   position: absolute; top: var(--oc-space-2); left: 50%; z-index: var(--oc-z-overlay-toolbar);
   transform: translateX(-50%);

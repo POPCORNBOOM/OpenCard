@@ -172,16 +172,23 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     return Boolean(editorId && editorRegistry.getEditor(editorId)?.id === 'card-designer')
   })
 
+  const isDictionaryEditor = computed(() => {
+    const editorId = options.activeSession.value?.editorId
+    return Boolean(editorId && editorRegistry.getEditor(editorId)?.id === 'dictionary')
+  })
+
+  const hasDataTableWorkbook = computed(() => isCardDesigner.value || isDictionaryEditor.value)
+
   const cardDesignerMode = computed<CardDesignerMode>(() => (
     options.activeSession.value?.uiState?.cardDesigner?.mode ?? 'design'
   ))
 
   const dataTableWorkbookBusy = computed(() => (
-    isCardDesigner.value && editorRef.value?.dataTableWorkbookBusy === true
+    hasDataTableWorkbook.value && editorRef.value?.dataTableWorkbookBusy === true
   ))
 
   const canExportDataTableWorkbook = computed(() => (
-    isCardDesigner.value && editorRef.value?.canExportDataTableWorkbook === true
+    hasDataTableWorkbook.value && editorRef.value?.canExportDataTableWorkbook === true
   ))
 
   function persistPendingViewportTransform(): void {
@@ -270,12 +277,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   }
 
   async function importDataTableWorkbook(): Promise<void> {
-    if (!isCardDesigner.value || dataTableWorkbookBusy.value) return
+    if (!hasDataTableWorkbook.value || dataTableWorkbookBusy.value) return
     await editorRef.value?.importDataTableWorkbook?.()
   }
 
   async function exportDataTableWorkbook(): Promise<void> {
-    if (!isCardDesigner.value || dataTableWorkbookBusy.value || !canExportDataTableWorkbook.value) return
+    if (!hasDataTableWorkbook.value || dataTableWorkbookBusy.value || !canExportDataTableWorkbook.value) return
     await editorRef.value?.exportDataTableWorkbook?.()
   }
 
@@ -303,6 +310,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     props,
     resourceRootPath,
     isCardDesigner,
+    isDictionaryEditor,
     cardDesignerMode,
     dataTableWorkbookBusy,
     canExportDataTableWorkbook,

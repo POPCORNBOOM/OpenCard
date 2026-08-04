@@ -31,19 +31,19 @@ describe('fileSystemService native file actions', () => {
 
   it('issues an independent reveal command for every click', async () => {
     await Promise.all([
-      fileSystemService.revealInFileManager('D:/cards/a.opencard'),
-      fileSystemService.revealInFileManager('D:/cards/a.opencard'),
-      fileSystemService.revealInFileManager('D:/cards/a.opencard'),
+      fileSystemService.revealInFileManager('D:/cards/a.ocdocument'),
+      fileSystemService.revealInFileManager('D:/cards/a.ocdocument'),
+      fileSystemService.revealInFileManager('D:/cards/a.ocdocument'),
     ])
 
     expect(mocks.invoke).toHaveBeenCalledTimes(3)
-    expect(mocks.invoke).toHaveBeenNthCalledWith(1, 'reveal_path', { path: 'D:/cards/a.opencard' })
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, 'reveal_path', { path: 'D:/cards/a.ocdocument' })
   })
 
   it('uses trash_path for user deletion and propagates failure', async () => {
     mocks.invoke.mockRejectedValueOnce(new Error('trash unavailable'))
-    await expect(fileSystemService.trashFile('D:/cards/a.opencard')).rejects.toThrow('trash unavailable')
-    expect(mocks.invoke).toHaveBeenCalledWith('trash_path', { path: 'D:/cards/a.opencard' })
+    await expect(fileSystemService.trashFile('D:/cards/a.ocdocument')).rejects.toThrow('trash unavailable')
+    expect(mocks.invoke).toHaveBeenCalledWith('trash_path', { path: 'D:/cards/a.ocdocument' })
   })
 
   it('uses the native default-app command instead of the reveal command', async () => {

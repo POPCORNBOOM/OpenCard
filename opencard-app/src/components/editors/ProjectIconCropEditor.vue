@@ -486,6 +486,7 @@ defineExpose({
   min-height: 0;
   border: 0;
   border-radius: 0;
+  background: transparent;
 }
 
 .project-icon-crop-editor__media {

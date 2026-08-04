@@ -54,6 +54,22 @@ describe('NumberPropertyField', () => {
     expect(wrapper.emitted('update:value')).toEqual([['6']])
   })
 
+  it('steps between allowed values and exposes raw commits to its parent', async () => {
+    const wrapper = mount(NumberPropertyField, {
+      props: {
+        definition: { title: 'Factor', fieldType: 'number', min: 1, max: 12, allowedValues: [1, 2, 3, 4, 6, 12] },
+        value: '4',
+      },
+    })
+
+    await wrapper.findAll('.number-field__stepper')[0]!.trigger('click')
+    await wrapper.findAll('.number-field__stepper')[1]!.trigger('click')
+    expect(wrapper.emitted('update:value')).toEqual([['6'], ['3']])
+
+    await wrapper.get('input').setValue('5')
+    expect(wrapper.emitted('commit')).toEqual([['5']])
+  })
+
   it('accelerates repeated steps while held and stops on release', async () => {
     vi.useFakeTimers()
     const wrapper = mount(NumberPropertyField, {

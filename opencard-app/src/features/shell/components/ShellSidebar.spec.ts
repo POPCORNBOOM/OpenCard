@@ -24,8 +24,8 @@ describe('ShellSidebar list actions', () => {
             icon: 'action.file-plus',
             hoverTip: 'New File',
             children: [
-              { key: 'project.new-file.opencard', title: 'OpenCard (.opencard)' },
-              { key: 'project.new-file.opencardproject', title: 'Project Interpretation' },
+              { key: 'project.new-file.ocdocument', title: 'OpenCard (.ocdocument)' },
+              { key: 'project.new-file.ocproject', title: 'Project Configuration' },
             ],
           }],
         }],
@@ -35,13 +35,13 @@ describe('ShellSidebar list actions', () => {
     await wrapper.get('button[aria-label="New File"]').trigger('click')
     await flushPromises()
     document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="OpenCard (.opencard)"]',
+      '.oc-action-menu__button[data-tooltip="OpenCard (.ocdocument)"]',
     )?.click()
     await flushPromises()
 
     expect(wrapper.emitted('list-button-clicked')).toEqual([[
       'project-files',
-      'project.new-file.opencard',
+      'project.new-file.ocdocument',
     ]])
   })
 })

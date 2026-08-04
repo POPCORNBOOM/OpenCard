@@ -17,7 +17,7 @@ function createSession(patch: Partial<EditorSession> = {}): EditorSession {
     resourceKind: 'draft',
     path: null,
     fileTypeId: 'opencard',
-    name: 'card.opencard',
+    name: 'card.ocdocument',
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
@@ -65,14 +65,14 @@ describe('useShellEditorHost', () => {
   it('projects registered editor props and resource roots', () => {
     const workspace = createHost(createSession({
       resourceKind: 'workspace',
-      path: 'D:/project/cards/card.opencard',
+      path: 'D:/project/cards/card.ocdocument',
     }))
 
-    expect(workspace.host.key.value).toBe('session-a|D:/project/cards/card.opencard|card-designer')
+    expect(workspace.host.key.value).toBe('session-a|D:/project/cards/card.ocdocument|card-designer')
     expect(workspace.host.resourceRootPath.value).toBe('D:/project')
     expect(workspace.host.props.value).toMatchObject({
-      filePath: 'D:/project/cards/card.opencard',
-      fileName: 'card.opencard',
+      filePath: 'D:/project/cards/card.ocdocument',
+      fileName: 'card.ocdocument',
       cardDesignerMode: 'design',
       resourceRootPath: 'D:/project',
       remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
@@ -82,7 +82,7 @@ describe('useShellEditorHost', () => {
 
     const external = createHost(createSession({
       resourceKind: 'external',
-      path: 'D:/cards/card.opencard',
+      path: 'D:/cards/card.ocdocument',
     }))
     expect(external.host.resourceRootPath.value).toBe('D:/cards')
     expect(external.host.props.value.remoteResourcePolicy).toBeUndefined()
@@ -265,8 +265,13 @@ describe('useShellEditorHost', () => {
     host.dispose()
   })
 
-  it('projects and routes Card Designer workbook actions through a narrow editor boundary', async () => {
-    const { host } = createHost()
+  it.each([
+    ['Card Designer', createSession()],
+    ['Dictionary', createSession({
+      fileTypeId: 'dictionary', editorId: 'dictionary', name: '.oclocale', path: 'D:/project/.oclocale',
+    })],
+  ])('projects and routes %s workbook actions through a narrow editor boundary', async (_name, session) => {
+    const { host } = createHost(session)
     const importDataTableWorkbook = vi.fn()
     const exportDataTableWorkbook = vi.fn()
     host.editorRef.value = {

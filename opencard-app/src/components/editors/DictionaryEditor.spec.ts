@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OcActionButton from '../standard/OcActionButton.vue'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import { exportProjectDictionaryWorkbook } from '../../features/workspace/model/projectDictionaryWorkbook'
 import DictionaryEditor from './DictionaryEditor.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -22,14 +24,63 @@ function actionButton(wrapper: ReturnType<typeof mount>, title: string) {
 
 describe('DictionaryEditor', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     clipboard.readText.mockReset()
     clipboard.writeText.mockReset().mockResolvedValue()
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
   })
 
+  it('does not add row, column, or cell selection states', async () => {
+    const wrapper = mount(DictionaryEditor, {
+      props: {
+        filePath: 'D:/Demo/.oclocale',
+        modelValue: JSON.stringify({ base: { title: 'Default' }, languages: { en_US: {} } }),
+      },
+    })
+    await wrapper.get('tbody th[scope="row"]').trigger('click', { ctrlKey: true })
+    await wrapper.get('th.dictionary-editor__data-column').trigger('click', { shiftKey: true })
+    await wrapper.get('td[data-grid-column="$base"]').trigger('click', { shiftKey: true })
+
+    expect(wrapper.find('[aria-selected]').exists()).toBe(false)
+    expect(wrapper.find('.is-selected').exists()).toBe(false)
+  })
+
+  it('imports and exports dictionary workbooks through the exposed shell boundary', async () => {
+    const bytes = await exportProjectDictionaryWorkbook({
+      base: { title: 'Changed' },
+      languages: { en_US: { title: 'English' } },
+    }, { key: 'Key', base: 'Base' })
+    vi.spyOn(fileSystemService, 'pickFile').mockResolvedValue('D:/Demo/dictionary.xlsx')
+    vi.spyOn(fileSystemService, 'readBinaryFile').mockResolvedValue(bytes)
+    vi.spyOn(fileSystemService, 'pickSavePath').mockResolvedValue('D:/Demo/export.xlsx')
+    const writeBinaryFile = vi.spyOn(fileSystemService, 'writeBinaryFile').mockResolvedValue()
+    const wrapper = mount(DictionaryEditor, {
+      props: {
+        filePath: 'D:/Demo/.oclocale',
+        modelValue: JSON.stringify({ base: { title: 'Default' } }),
+      },
+      global: { stubs: { Teleport: true } },
+    })
+    const editor = wrapper.vm as unknown as {
+      importDataTableWorkbook: () => Promise<void>
+      exportDataTableWorkbook: () => Promise<void>
+    }
+
+    await editor.exportDataTableWorkbook()
+    expect(writeBinaryFile).toHaveBeenCalledWith('D:/Demo/export.xlsx', expect.any(Uint8Array))
+    await editor.importDataTableWorkbook()
+    await flushPromises()
+    expect(wrapper.text()).toContain('dictionaryEditor.workbook.reviewTitle')
+    await wrapper.get('button.oc-button--variant-solid').trigger('click')
+    expect(latestDictionary(wrapper)).toEqual({
+      base: { title: 'Changed' },
+      languages: { en_US: { title: 'English' } },
+    })
+  })
+
   it('adds records and language columns in place inside the grid', async () => {
     const wrapper = mount(DictionaryEditor, {
-      props: { filePath: 'D:/Demo/.dictionary', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.oclocale', modelValue: '{}' },
     })
     await wrapper.get('tbody button').trigger('click')
     const recordForm = wrapper.get('tbody .dictionary-editor__inline-create')
@@ -50,7 +101,7 @@ describe('DictionaryEditor', () => {
   it('uses embedded fields, shows inheritance, creates overrides, and resets them', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.dictionary',
+        filePath: 'D:/Demo/.oclocale',
         modelValue: JSON.stringify({ base: { title: '默认' }, languages: { en_US: {} } }),
       },
     })
@@ -68,20 +119,24 @@ describe('DictionaryEditor', () => {
   it('sets and clears the active language in the draft', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.dictionary',
+        filePath: 'D:/Demo/.oclocale',
         modelValue: JSON.stringify({ languages: { en_US: {} } }),
       },
     })
-    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.setActive"]').trigger('click')
+    const setActive = wrapper.get('button[data-tooltip="dictionaryEditor.actions.setActive"]')
+    await setActive.trigger('click')
     expect(latestDictionary(wrapper).active).toBe('en_US')
-    await wrapper.get('button[data-tooltip="dictionaryEditor.actions.useBase"]').trigger('click')
+    expect(setActive.classes()).toContain('oc-button--active')
+    const useBase = wrapper.get('button[data-tooltip="dictionaryEditor.actions.useBase"]')
+    await useBase.trigger('click')
     expect(latestDictionary(wrapper)).not.toHaveProperty('active')
+    expect(useBase.classes()).toContain('oc-button--active')
   })
 
   it('keeps language header actions together in one trailing group', () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.dictionary',
+        filePath: 'D:/Demo/.oclocale',
         modelValue: JSON.stringify({ languages: { en_US: {} } }),
       },
     })
@@ -91,11 +146,11 @@ describe('DictionaryEditor', () => {
     expect(languageHeader.get('.dictionary-editor__column-heading').element.children).toHaveLength(2)
   })
 
-  it('routes rename and confirmed batch deletion through standard action buttons', async () => {
+  it('routes rename and confirmed deletion through standard action buttons', async () => {
     const wrapper = mount(DictionaryEditor, {
       attachTo: document.body,
       props: {
-        filePath: 'D:/Demo/.dictionary',
+        filePath: 'D:/Demo/.oclocale',
         modelValue: JSON.stringify({
           base: { title: '默认', body: '正文' },
           languages: { en_US: { title: 'English' } },
@@ -119,63 +174,31 @@ describe('DictionaryEditor', () => {
     await languageRenameInput.trigger('blur')
     expect(latestDictionary(wrapper).languages).toEqual({ en_GB: { heading: 'English' } })
 
-    const rowHeaders = wrapper.findAll('tbody th[scope="row"]')
-    await rowHeaders[0]!.trigger('click')
-    await rowHeaders[1]!.trigger('click', { ctrlKey: true })
     actionButton(wrapper, 'dictionaryEditor.actions.recordActions').vm.$emit('select', { key: 'confirm-delete' })
     await wrapper.vm.$nextTick()
-    expect(latestDictionary(wrapper)).toEqual({ languages: { en_GB: {} } })
+    expect(latestDictionary(wrapper)).toEqual({ base: { body: '正文' }, languages: { en_GB: {} } })
     wrapper.unmount()
   })
 
-  it('copies effective values as TSV and pastes a matrix with one dictionary write', async () => {
+  it('copies record keys and language keys from their action menus', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.dictionary',
-        modelValue: JSON.stringify({
-          base: { title: '默认', body: '正文' },
-          languages: { en_US: { title: 'English' } },
-        }),
+        filePath: 'D:/Demo/.oclocale',
+        modelValue: JSON.stringify({ base: { title: 'Default' }, languages: { en_US: {} } }),
       },
     })
-    const first = wrapper.get('td[data-grid-row="title"][data-grid-column="$base"]')
-    const last = wrapper.get('td[data-grid-row="body"][data-grid-column="en_US"]')
-    await first.trigger('click')
-    await last.trigger('click', { shiftKey: true })
-    await wrapper.get('.dictionary-editor').trigger('keydown', { key: 'c', ctrlKey: true })
+    actionButton(wrapper, 'dictionaryEditor.actions.recordActions').vm.$emit('select', { key: 'copy' })
     await flushPromises()
-    expect(clipboard.writeText).toHaveBeenCalledWith('默认\tEnglish\n正文\t正文')
+    expect(clipboard.writeText).toHaveBeenCalledWith('title')
 
-    clipboard.readText.mockResolvedValue('Base\tEnglish 2\r\nBody\tBody 2')
-    await first.trigger('click')
-    const updateCount = wrapper.emitted('update:modelValue')?.length ?? 0
-    await wrapper.get('.dictionary-editor').trigger('keydown', { key: 'v', ctrlKey: true })
+    actionButton(wrapper, 'dictionaryEditor.actions.languageActions').vm.$emit('select', { key: 'copy' })
     await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toHaveLength(updateCount + 1)
-    expect(latestDictionary(wrapper)).toEqual({
-      base: { title: 'Base', body: 'Body' },
-      languages: { en_US: { title: 'English 2', body: 'Body 2' } },
-    })
-  })
-
-  it('clears base cells and language overrides according to their semantics', async () => {
-    const wrapper = mount(DictionaryEditor, {
-      props: {
-        filePath: 'D:/Demo/.dictionary',
-        modelValue: JSON.stringify({ base: { title: '默认' }, languages: { en_US: { title: 'English' } } }),
-      },
-    })
-    const baseCell = wrapper.get('td[data-grid-column="$base"]')
-    const languageCell = wrapper.get('td[data-grid-column="en_US"]')
-    await baseCell.trigger('click')
-    await languageCell.trigger('click', { shiftKey: true })
-    await wrapper.get('.dictionary-editor').trigger('keydown', { key: 'Delete' })
-    expect(latestDictionary(wrapper)).toEqual({ base: { title: '' }, languages: { en_US: {} } })
+    expect(clipboard.writeText).toHaveBeenLastCalledWith('en_US')
   })
 
   it('uses source repair mode for invalid content', () => {
     const wrapper = mount(DictionaryEditor, {
-      props: { filePath: 'D:/Demo/.dictionary', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.oclocale', modelValue: '{broken' },
     })
     expect(wrapper.find('.dictionary-editor__repair').exists()).toBe(true)
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
@@ -184,7 +207,7 @@ describe('DictionaryEditor', () => {
   it('reports a missing active language without changing the draft', () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.dictionary',
+        filePath: 'D:/Demo/.oclocale',
         modelValue: JSON.stringify({ active: 'fr_FR', base: { title: 'Default' } }),
       },
     })

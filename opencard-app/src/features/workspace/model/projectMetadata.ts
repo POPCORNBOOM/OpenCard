@@ -1,6 +1,6 @@
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
 
-export const PROJECT_PROFILE_FILE_NAME = '.opencardprojectprofile'
+export const PROJECT_PROFILE_FILE_NAME = '.ocproject'
 
 export type ProjectRemoteResourcePolicy =
   | { mode: 'deny' }

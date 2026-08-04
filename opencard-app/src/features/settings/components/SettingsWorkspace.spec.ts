@@ -218,7 +218,7 @@ describe('SettingsWorkspace', () => {
     expect(wrapper.find('.settings-workspace__preview-titlebar .appearance-shader').exists()).toBe(true)
     expect(wrapper.find('.settings-workspace__preview-editor .appearance-shader--dot-noise').exists()).toBe(true)
     expect(wrapper.find('.settings-workspace__preview-canvas .appearance-shader').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('sample.opencard')
+    expect(wrapper.text()).not.toContain('sample.ocdocument')
     expect(wrapper.text()).not.toContain('属性')
   })
 })

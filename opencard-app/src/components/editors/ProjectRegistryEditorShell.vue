@@ -96,6 +96,7 @@ withDefaults(defineProps<{
 .project-registry-shell--workspace .project-registry-shell__content {
   overflow: hidden;
   padding: 0;
+  scrollbar-gutter: auto;
 }
 
 .project-registry-shell--header-hidden {
