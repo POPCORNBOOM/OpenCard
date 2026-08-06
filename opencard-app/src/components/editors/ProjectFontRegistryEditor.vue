@@ -44,8 +44,46 @@
             @input="updatePreviewText" />
         </header>
         <div class="project-font-registry-workbench__preview" :style="previewStyle">
-          {{ previewText }}
+          <span class="project-font-registry-workbench__preview-content">
+            <span
+              v-for="(run, index) in previewRuns"
+              :key="`${index}:${run.fontKey ?? 'fallback'}`"
+              class="project-font-registry-workbench__preview-run"
+              :data-font-key="run.fontKey ?? 'fallback'"
+              :style="runStyle(run.fontKey)"
+              @pointerenter="showFontInfo(run.fontKey, $event)"
+              @pointerleave="hideFontInfo"
+            >{{ run.text }}</span>
+          </span>
         </div>
+        <OcFloatingLayer
+          :open="Boolean(hoveredFontAnchor)"
+          :anchor="hoveredFontAnchor"
+          placement="top"
+          class="project-font-registry-workbench__font-info-layer"
+          role="tooltip"
+        >
+          <section v-if="hoveredFont" class="project-font-registry-workbench__font-info">
+            <strong>{{ hoveredFont.name }}</strong>
+            <dl>
+              <div>
+                <dt>{{ t('projectConfig.fonts.previewFontKey') }}</dt>
+                <dd>{{ hoveredFont.key }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
+                <dd>{{ hoveredFont.source }}</dd>
+              </div>
+            </dl>
+          </section>
+          <section v-else class="project-font-registry-workbench__font-info">
+            <strong>{{ coverageFailed ? t('projectConfig.fonts.previewCoverageUnavailable')
+              : t('projectConfig.fonts.previewSystemFallback') }}</strong>
+            <OcText tone="muted" size="sm">{{ coverageFailed
+              ? t('projectConfig.fonts.previewCoverageUnavailableDescription')
+              : t('projectConfig.fonts.previewSystemFallbackDescription') }}</OcText>
+          </section>
+        </OcFloatingLayer>
       </template>
       <div v-else class="project-font-registry-workbench__placeholder">
         <OcIcon :name="activePage === 'fonts' ? 'file.font' : 'data.layers'" size="lg" tone="muted" />
@@ -58,17 +96,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ProjectFont, ProjectFontSet } from '../../features/workspace/model/projectFontRegistry'
 import { createProjectFontCssFamily, resolveProjectFontExpression } from '../../features/workspace/model/projectFonts'
 import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
+import {
+  createProjectFontPreviewRuns,
+  readProjectFontCharacterSet,
+} from '../../features/workspace/services/projectFontCoverage'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import OcTree from '../standard/OcTree.vue'
 
@@ -78,6 +121,7 @@ const props = withDefaults(defineProps<{
   fonts: readonly ProjectFont[]
   fontSets?: readonly ProjectFontSet[]
   resolveAssetSrc: (source: string) => string
+  readFontBytes: (source: string) => Promise<Uint8Array>
   error?: string
   loadErrors?: readonly ProjectFontLoadError[]
 }>(), { fontSets: () => [], error: '', loadErrors: () => [] })
@@ -94,6 +138,11 @@ const activePage = ref<'fonts' | 'sets'>('fonts')
 const selectedFontKey = ref<string | null>(null)
 const selectedFontSetKey = ref<string | null>(null)
 const previewText = ref(t('projectConfig.fonts.previewSample'))
+const characterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
+const failedCoverageKeys = ref<ReadonlySet<string>>(new Set())
+const hoveredFontKey = ref<string | null>(null)
+const hoveredFontAnchor = ref<HTMLElement | null>(null)
+let coverageGeneration = 0
 const selectedFont = computed(() => props.fonts.find(font => font.key === selectedFontKey.value) ?? null)
 const selectedFontSet = computed(() => props.fontSets.find(fontSet => fontSet.key === selectedFontSetKey.value) ?? null)
 const selectedEntry = computed(() => activePage.value === 'fonts' ? selectedFont.value : selectedFontSet.value)
@@ -144,6 +193,20 @@ const previewStyle = computed(() => ({ fontFamily: activePage.value === 'sets'
 const previewFontCss = computed(() => props.fonts.map(font => (
   `@font-face { font-family: ${JSON.stringify(createProjectFontCssFamily(font.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(font.source))}); }`
 )).join('\n'))
+const previewFonts = computed(() => activePage.value === 'fonts'
+  ? selectedFont.value ? [selectedFont.value] : []
+  : resolvedSet.value.fontKeys
+      .map(key => props.fonts.find(font => font.key.toLocaleLowerCase() === key.toLocaleLowerCase()))
+      .filter((font): font is ProjectFont => Boolean(font)))
+const previewRuns = computed(() => createProjectFontPreviewRuns(
+  previewText.value,
+  previewFonts.value.map(font => font.key),
+  characterSets.value,
+))
+const hoveredFont = computed(() => hoveredFontKey.value
+  ? props.fonts.find(font => font.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
+  : null)
+const coverageFailed = computed(() => previewFonts.value.some(font => failedCoverageKeys.value.has(font.key)))
 
 watch(() => props.fonts, fonts => {
   if (!fonts.some(font => font.key === selectedFontKey.value)) selectedFontKey.value = fonts[0]?.key ?? null
@@ -151,6 +214,26 @@ watch(() => props.fonts, fonts => {
 watch(() => props.fontSets, fontSets => {
   if (!fontSets.some(fontSet => fontSet.key === selectedFontSetKey.value)) selectedFontSetKey.value = fontSets[0]?.key ?? null
 }, { immediate: true })
+watch(
+  () => previewFonts.value.map(font => `${font.key}\0${font.source}`),
+  async () => {
+    const generation = ++coverageGeneration
+    const nextCharacterSets = new Map<string, ReadonlySet<number>>()
+    const nextFailedKeys = new Set<string>()
+    await Promise.all(previewFonts.value.map(async font => {
+      try {
+        const bytes = await props.readFontBytes(font.source)
+        nextCharacterSets.set(font.key, await readProjectFontCharacterSet(bytes))
+      } catch {
+        nextFailedKeys.add(font.key)
+      }
+    }))
+    if (generation !== coverageGeneration) return
+    characterSets.value = nextCharacterSets
+    failedCoverageKeys.value = nextFailedKeys
+  },
+  { immediate: true },
+)
 
 function treeKey(page: 'fonts' | 'sets', key: string): string { return `${page}:${key}` }
 function entryKey(key: string): string { return key.slice(key.indexOf(':') + 1) }
@@ -196,6 +279,17 @@ function removeFontSet(index: number): void {
   emit('update:fontSets', next)
 }
 function updatePreviewText(event: Event): void { if (event.target instanceof HTMLInputElement) previewText.value = event.target.value }
+function runStyle(fontKey: string | null): CSSProperties | undefined {
+  return fontKey ? { fontFamily: JSON.stringify(createProjectFontCssFamily(fontKey)) } : undefined
+}
+function showFontInfo(fontKey: string | null, event: PointerEvent): void {
+  hoveredFontKey.value = fontKey
+  hoveredFontAnchor.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+}
+function hideFontInfo(): void {
+  hoveredFontKey.value = null
+  hoveredFontAnchor.value = null
+}
 async function navigateToFont(kind: 'font' | 'font-set', key: string): Promise<boolean> {
   if (kind === 'font') {
     if (!props.fonts.some(font => font.key === key)) return false
@@ -251,5 +345,27 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__right { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-base); }
 .project-font-registry-workbench__preview-toolbar { padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .project-font-registry-workbench__preview { display: grid; place-items: center; min-width: 0; min-height: 0; padding: var(--oc-space-6); overflow: auto; overflow-wrap: anywhere; font-size: var(--oc-font-preview-size); text-align: center; }
+.project-font-registry-workbench__preview-content { white-space: pre-wrap; }
+.project-font-registry-workbench__preview-run {
+  border-radius: var(--oc-radius-sm);
+  transition: background-color var(--oc-duration-fast) var(--oc-ease);
+}
+.project-font-registry-workbench__preview-run:hover { background: var(--oc-bg-hover); }
+.project-font-registry-workbench__font-info-layer {
+  max-width: var(--oc-content-width-sm);
+  border: var(--oc-border-width) solid var(--oc-border-muted);
+  box-shadow: var(--oc-shadow-md);
+  pointer-events: none;
+}
+.project-font-registry-workbench__font-info { padding: var(--oc-space-3); }
+.project-font-registry-workbench__font-info strong { display: block; margin-bottom: var(--oc-space-2); }
+.project-font-registry-workbench__font-info dl { display: grid; gap: var(--oc-space-1); margin: 0; }
+.project-font-registry-workbench__font-info dl > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--oc-space-2);
+}
+.project-font-registry-workbench__font-info dt { color: var(--oc-fg-muted); }
+.project-font-registry-workbench__font-info dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .project-font-registry-workbench__placeholder { display: grid; grid-row: 1 / -1; place-content: center; justify-items: center; gap: var(--oc-space-3); min-width: 0; min-height: 0; }
 </style>

@@ -4,7 +4,8 @@
     @keydown.ctrl.s.prevent="save">
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
       :description="t('fontRegistry.description')" :fonts="document.fonts ?? []" :font-sets="document.fontSets ?? []"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :load-errors="projectStore.projectFontLoadErrors.value"
+      :resolve-asset-src="projectStore.resolveAssetSrc" :read-font-bytes="readFontBytes"
+      :load-errors="projectStore.projectFontLoadErrors.value"
       :error="importError" @update:fonts="updateFonts" @update:font-sets="updateFontSets"
       @register-font="openRegistrationDialog()" @configure-font="openRegistrationDialog"
       @register-font-set="openFontSetDialog()" @configure-font-set="openFontSetDialog" />
@@ -44,6 +45,7 @@ import {
 } from '../../features/workspace/model/projectFontRegistry'
 import { findProjectFontRegistryIssues } from '../../features/workspace/model/projectFonts'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import ProjectFontRegistrationDialog, {
   type ProjectFontRegistrationRequest,
 } from './ProjectFontRegistrationDialog.vue'
@@ -76,6 +78,7 @@ const projectDirectory = computed(() => {
     ? normalized.slice(0, -PROJECT_FONT_REGISTRY_FILE_NAME.length - 1)
     : normalized
 })
+const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectPath(source))
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const fontSets = document.value?.fontSets ?? []
   const registryIssues: EditorIssue[] = document.value

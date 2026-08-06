@@ -5,6 +5,19 @@ import OcTree from '../standard/OcTree.vue'
 import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('../../features/workspace/services/projectFontCoverage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../features/workspace/services/projectFontCoverage')>()
+  return {
+    ...actual,
+    readProjectFontCharacterSet: vi.fn(async (bytes: Uint8Array) => new Set(
+      bytes[0] === 1
+        ? [32, 65, 66, 67]
+        : bytes[0] === 2
+          ? [0x4e2d, 0x6587]
+          : [],
+    )),
+  }
+})
 
 const fonts: ProjectFont[] = [
   { key: 'brand-latin', name: 'Latin', source: 'assets/fonts/Brand.woff2' },
@@ -20,6 +33,9 @@ const baseProps = {
   fonts,
   fontSets,
   resolveAssetSrc: (source: string) => `asset://${source}`,
+  readFontBytes: async (source: string) => new Uint8Array([
+    source.includes('BrandCJK') ? 2 : source.includes('Brand.woff2') ? 1 : 3,
+  ]),
 }
 
 describe('ProjectFontRegistryEditor', () => {
@@ -62,5 +78,32 @@ describe('ProjectFontRegistryEditor', () => {
     expect(wrapper.emitted('register-font-set')).toHaveLength(1)
     wrapper.getComponent(OcTree).vm.$emit('intent', { type: 'node.activate', key: 'sets:body' })
     expect(wrapper.emitted('configure-font-set')).toEqual([['body']])
+  })
+
+  it('groups preview text by resolved font and shows registration details on hover', async () => {
+    const wrapper = mount(ProjectFontRegistryEditor, { props: baseProps, attachTo: document.body })
+    await wrapper.findAll('[role="radio"]')[1]!.trigger('click')
+    const input = wrapper.get<HTMLInputElement>('.project-font-registry-workbench__preview-toolbar input')
+    await input.setValue('AB中文🙂 C')
+
+    await vi.waitFor(() => {
+      expect(wrapper.findAll('.project-font-registry-workbench__preview-run').map(run => ({
+        fontKey: run.attributes('data-font-key'),
+        text: run.element.textContent,
+      }))).toEqual([
+        { fontKey: 'brand-latin', text: 'AB' },
+        { fontKey: 'brand-cjk', text: '中文' },
+        { fontKey: 'fallback', text: '🙂' },
+        { fontKey: 'brand-latin', text: ' C' },
+      ])
+    })
+
+    await wrapper.get('[data-font-key="brand-cjk"]').trigger('pointerenter')
+    await wrapper.vm.$nextTick()
+    const info = document.body.querySelector('.project-font-registry-workbench__font-info')
+    expect(info?.textContent).toContain('CJK')
+    expect(info?.textContent).toContain('brand-cjk')
+    expect(info?.textContent).toContain('assets/fonts/BrandCJK.woff2')
+    wrapper.unmount()
   })
 })

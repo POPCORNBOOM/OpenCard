@@ -40,6 +40,7 @@
     "dom-to-image-more": "^3.7.2",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
+    "fontkit": "^2.0.4",
     "markdown-it": "^14.3.0",
     "markdown-it-attrs": "^5.0.0",
     "monaco-editor": "^0.55.1",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/fontkit": "^2.0.9",
     "@types/markdown-it": "^14.1.2",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^5.2.1",
