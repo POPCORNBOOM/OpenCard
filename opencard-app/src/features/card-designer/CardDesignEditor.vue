@@ -44,6 +44,7 @@
           :show-info="!selectedBlock"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
+          :alignment-snapping-enabled="alignmentSnappingEnabled"
           :transform-disabled-block-ids="transformDisabledBlockIds"
           @pointerdown.capture="handleCanvasPointerDown"
           @block-click="handleViewportBlockClick"
@@ -284,6 +285,12 @@
           />
           <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
           <OcActionButton
+            :action="alignmentSnappingAction"
+            size="sm"
+            :variant="alignmentSnappingEnabled ? 'soft' : 'ghost'"
+            @select="toggleAlignmentSnapping"
+          />
+          <OcActionButton
             :action="clipAction"
             size="sm"
             :variant="clipToFace ? 'soft' : 'ghost'"
@@ -448,11 +455,17 @@ const workspaceMode = computed(() => props.cardDesignerMode ?? 'design')
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
+const alignmentSnappingEnabled = ref(
+  props.cardDesignerView?.alignmentSnappingEnabled
+    ?? props.alignmentSnappingEnabledByDefault
+    ?? true,
+)
 
 function createViewState(): CardDesignerViewState {
   return {
     activeFace: activeFaceKey.value,
     clipToFace: clipToFace.value,
+    alignmentSnappingEnabled: alignmentSnappingEnabled.value,
     selectedInstanceId: selectedCardId.value === BLUEPRINT_CARD_ID
       ? null
       : selectedCardId.value,
@@ -465,11 +478,20 @@ function commitViewState(): void {
 
 const clipAction = computed<OcActionButtonAction>(() => ({
   key: 'toggle-face-clip',
-  icon: 'tool.clip',
+  icon: clipToFace.value ? 'tool.box-cutter' : 'tool.box-cutter-off',
   iconTone: clipToFace.value ? 'active' : 'default',
   title: clipToFace.value
     ? t('cardDesigner.view.disableClip')
     : t('cardDesigner.view.enableClip'),
+}))
+
+const alignmentSnappingAction = computed<OcActionButtonAction>(() => ({
+  key: 'toggle-alignment-snapping',
+  icon: alignmentSnappingEnabled.value ? 'tool.snap-grid-on' : 'tool.snap-grid',
+  iconTone: alignmentSnappingEnabled.value ? 'active' : 'default',
+  title: alignmentSnappingEnabled.value
+    ? t('cardDesigner.view.disableAlignmentSnapping')
+    : t('cardDesigner.view.enableAlignmentSnapping'),
 }))
 
 const faceSwitchAction = computed<OcActionButtonAction>(() => ({
@@ -483,6 +505,11 @@ const faceSwitchAction = computed<OcActionButtonAction>(() => ({
 }))
 function toggleFaceClip(): void {
   clipToFace.value = !clipToFace.value
+  commitViewState()
+}
+
+function toggleAlignmentSnapping(): void {
+  alignmentSnappingEnabled.value = !alignmentSnappingEnabled.value
   commitViewState()
 }
 
@@ -1541,8 +1568,8 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
 }
 
 watch(
-  () => props.cardDesignerView,
-  (view) => {
+  () => [props.cardDesignerView, props.alignmentSnappingEnabledByDefault] as const,
+  ([view, alignmentSnappingEnabledByDefault]) => {
     const nextFace = view?.activeFace ?? 'front'
     if (activeFaceKey.value !== nextFace) {
       activeFaceKey.value = nextFace
@@ -1550,6 +1577,9 @@ watch(
       forceStructureTreeReveal.value = false
     }
     clipToFace.value = view?.clipToFace ?? false
+    alignmentSnappingEnabled.value = view?.alignmentSnappingEnabled
+      ?? alignmentSnappingEnabledByDefault
+      ?? true
     const nextCardId = view?.selectedInstanceId ?? BLUEPRINT_CARD_ID
     selectedCardId.value = nextCardId
   },

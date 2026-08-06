@@ -80,22 +80,54 @@ describe('DictionaryEditor', () => {
 
   it('adds records and language columns in place inside the grid', async () => {
     const wrapper = mount(DictionaryEditor, {
+      attachTo: document.body,
       props: { filePath: 'D:/Demo/.oclocale', modelValue: '{}' },
     })
     await wrapper.get('tbody button').trigger('click')
     const recordForm = wrapper.get('tbody .dictionary-editor__inline-create')
-    await recordForm.get('input').setValue('title')
-    await recordForm.trigger('submit')
+    const recordInput = recordForm.get('input')
+    expect(document.activeElement).toBe(recordInput.element)
+    await recordInput.setValue('title')
+    await recordInput.trigger('blur')
     expect(latestDictionary(wrapper)).toEqual({ base: { title: '' } })
 
     await wrapper.get('button[data-tooltip="dictionaryEditor.actions.addLanguage"]').trigger('click')
     const languageForm = wrapper.get('thead .dictionary-editor__inline-create')
-    await languageForm.get('input').setValue('en_US')
-    await languageForm.trigger('submit')
+    const languageInput = languageForm.get('input')
+    expect(document.activeElement).toBe(languageInput.element)
+    await languageInput.setValue('en_US')
+    await languageInput.trigger('blur')
     expect(latestDictionary(wrapper)).toEqual({
       base: { title: '' },
       languages: { en_US: {} },
     })
+    wrapper.unmount()
+  })
+
+  it('leaves inline editing instead of stranding an invalid blurred draft', async () => {
+    const wrapper = mount(DictionaryEditor, {
+      attachTo: document.body,
+      props: {
+        filePath: 'D:/Demo/.oclocale',
+        modelValue: JSON.stringify({ base: { title: 'Default', body: 'Body' } }),
+      },
+    })
+
+    await wrapper.get('tbody tr:last-child button').trigger('click')
+    const createInput = wrapper.get('tbody .dictionary-editor__inline-create input')
+    await createInput.trigger('blur')
+    expect(wrapper.find('tbody .dictionary-editor__inline-create').exists()).toBe(false)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+
+    actionButton(wrapper, 'dictionaryEditor.actions.recordActions').vm.$emit('select', { key: 'rename' })
+    await wrapper.vm.$nextTick()
+    const renameInput = wrapper.get('tbody .dictionary-editor__rename input')
+    await renameInput.setValue('body')
+    await renameInput.trigger('blur')
+    expect(wrapper.find('tbody .dictionary-editor__rename').exists()).toBe(false)
+    expect(wrapper.text()).toContain('title')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    wrapper.unmount()
   })
 
   it('uses embedded fields, shows inheritance, creates overrides, and resets them', async () => {
@@ -160,6 +192,9 @@ describe('DictionaryEditor', () => {
     actionButton(wrapper, 'dictionaryEditor.actions.recordActions').vm.$emit('select', { key: 'rename' })
     await wrapper.vm.$nextTick()
     const recordRenameInput = wrapper.get('tbody .dictionary-editor__rename input')
+    expect(document.activeElement).toBe(recordRenameInput.element)
+    expect((recordRenameInput.element as HTMLInputElement).selectionStart).toBe(0)
+    expect((recordRenameInput.element as HTMLInputElement).selectionEnd).toBe('title'.length)
     await recordRenameInput.setValue('heading')
     await recordRenameInput.trigger('blur')
     expect(latestDictionary(wrapper)).toEqual({
@@ -170,6 +205,9 @@ describe('DictionaryEditor', () => {
     actionButton(wrapper, 'dictionaryEditor.actions.languageActions').vm.$emit('select', { key: 'rename' })
     await wrapper.vm.$nextTick()
     const languageRenameInput = wrapper.get('thead .dictionary-editor__rename input')
+    expect(document.activeElement).toBe(languageRenameInput.element)
+    expect((languageRenameInput.element as HTMLInputElement).selectionStart).toBe(0)
+    expect((languageRenameInput.element as HTMLInputElement).selectionEnd).toBe('en_US'.length)
     await languageRenameInput.setValue('en_GB')
     await languageRenameInput.trigger('blur')
     expect(latestDictionary(wrapper).languages).toEqual({ en_GB: { heading: 'English' } })

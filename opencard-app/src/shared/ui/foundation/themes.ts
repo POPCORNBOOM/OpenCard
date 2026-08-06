@@ -90,6 +90,8 @@ const sharedThemeTokens = {
   '--oc-viewport-dot-pattern': 'radial-gradient(circle at center, color-mix(in srgb, var(--oc-fg-subtle) 38%, transparent) 1px, transparent 1.25px)',
   '--oc-viewport-dot-size': '18px 18px',
   '--oc-viewport-dot-position': '9px 9px',
+  '--oc-viewport-alignment-snap-distance': '8px',
+  '--oc-viewport-alignment-snap-release-distance': '12px',
   '--oc-property-row-height': '28px',
   '--oc-property-row-expanded-height': '112px',
   '--oc-table-row-height': '32px',

@@ -28,7 +28,7 @@
         <OcTree v-if="filteredIconIndexes.length" class="project-icon-set-workspace__icon-tree" fill
           virtualized scroll-to-selection role="listbox" :data="iconTreeData" :actions="iconTreeActions"
           :action-overflow-title="t('projectConfig.icons.iconActions')"
-          :selected-keys="selectedTreeKeys" selection-mode="single" @intent="handleTreeIntent" />
+          :selected-keys="selectedTreeKeys" selection-mode="multiple" @intent="handleTreeIntent" />
         <OcEmpty v-else tone="muted">
           {{ series.icons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
         </OcEmpty>
@@ -75,19 +75,23 @@ import OcTree from '../standard/OcTree.vue'
 const props = defineProps<{
   series: ProjectIconSeries
   runtime: ProjectIconSeriesRuntime | null
-  selectedIconIndex: number | null
+  selectedIconIndexes: readonly number[]
 }>()
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries]
-  'update:selectedIconIndex': [index: number | null]
+  'update:selectedIconIndexes': [indexes: number[]]
 }>()
 const { t } = useI18n()
 const propertyEditorRef = ref<InstanceType<typeof PropertyEditor> | null>(null)
 const filterQuery = ref('')
 
-const selectedIcon = computed(() => props.selectedIconIndex === null
+const selectedIconIndexes = computed(() => props.selectedIconIndexes.filter(index => (
+  Number.isInteger(index) && index >= 0 && index < props.series.icons.length
+)))
+const selectedIconIndex = computed(() => selectedIconIndexes.value[0] ?? null)
+const selectedIcon = computed(() => selectedIconIndex.value === null
   ? null
-  : props.series.icons[props.selectedIconIndex] ?? null)
+  : props.series.icons[selectedIconIndex.value] ?? null)
 const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
   ['identity', { title: t('projectConfig.icons.identity'), icon: 'data.symbol-class' }],
   ['crop', { title: t('projectConfig.icons.crop'), icon: 'tool.box-cutter' }],
@@ -157,14 +161,12 @@ const iconTreeData = computed<OcTreeData>(() => {
     children: new Map(),
   }
 })
-const selectedTreeKeys = computed(() => props.selectedIconIndex === null
-  ? []
-  : [`icon:${props.selectedIconIndex}`])
+const selectedTreeKeys = computed(() => selectedIconIndexes.value.map(index => `icon:${index}`))
 const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
   const icon = selectedIcon.value
-  if (!icon || props.selectedIconIndex === null) return []
+  if (!icon || selectedIconIndex.value === null) return []
   return [{
-    key: `icon:${props.selectedIconIndex}`,
+    key: `icon:${selectedIconIndex.value}`,
     title: icon.name,
     record: {
       iconKey: icon.iconKey,
@@ -199,7 +201,9 @@ function updateFilter(event: Event): void {
 
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
-    emit('update:selectedIconIndex', treeIndex(intent.selectedKeys[0] ?? null))
+    emit('update:selectedIconIndexes', intent.selectedKeys
+      .map(key => treeIndex(key))
+      .filter((index): index is number => index !== null))
     return
   }
   if (intent.type === 'move.request') {
@@ -214,12 +218,29 @@ function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type !== 'action.invoke') return
   const index = treeIndex(intent.key)
   if (index === null) return
-  if (intent.actionKey === 'duplicate') duplicateIcon(index)
-  else if (intent.actionKey === 'delete') removeIcon(index)
-  else if (intent.actionKey === 'move-top') moveIcon(index, 0)
-  else if (intent.actionKey === 'move-up') moveIcon(index, index - 1)
-  else if (intent.actionKey === 'move-down') moveIcon(index, index + 1)
-  else if (intent.actionKey === 'move-bottom') moveIcon(index, props.series.icons.length - 1)
+  const indexes = intent.source === 'context' && ['delete', 'move-top', 'move-up', 'move-down', 'move-bottom'].includes(intent.actionKey)
+    ? selectedIconIndexes.value
+    : selectedIconIndex.value === null ? [index] : [selectedIconIndex.value]
+  if (intent.actionKey === 'duplicate') duplicateIcon(indexes[0] ?? index)
+  else if (intent.actionKey === 'delete') removeIcons(indexes)
+  else if (intent.actionKey === 'move-top') moveIcons(indexes, 'top')
+  else if (intent.actionKey === 'move-up') moveIcons(indexes, 'up')
+  else if (intent.actionKey === 'move-down') moveIcons(indexes, 'down')
+  else if (intent.actionKey === 'move-bottom') moveIcons(indexes, 'bottom')
+}
+
+function moveIcon(fromIndex: number, toIndex: number): void {
+  if (toIndex < 0 || toIndex >= props.series.icons.length || fromIndex === toIndex) return
+  emit('update:series', moveProjectIcon(props.series, fromIndex, toIndex))
+  const nextSelected = selectedIconIndexes.value.map(index => {
+    if (index === fromIndex) return toIndex
+    if (fromIndex < toIndex && index > fromIndex && index <= toIndex) return index - 1
+    if (fromIndex > toIndex && index >= toIndex && index < fromIndex) return index + 1
+    return index
+  }).sort((a, b) => a - b)
+  if (nextSelected.some((index, position) => index !== selectedIconIndexes.value[position])) {
+    emit('update:selectedIconIndexes', nextSelected)
+  }
 }
 
 function updateIcon(index: number, patch: Partial<ProjectIcon>): void {
@@ -231,7 +252,7 @@ function updateIcon(index: number, patch: Partial<ProjectIcon>): void {
 }
 
 function updateIconProperty(mutation: PropertyEditorMutation): void {
-  const index = props.selectedIconIndex
+  const index = selectedIconIndex.value
   if (index === null) return
   if (mutation.fieldKey === 'iconKey' || mutation.fieldKey === 'name') {
     updateIcon(index, { [mutation.fieldKey]: String(mutation.value) })
@@ -242,13 +263,12 @@ function updateIconProperty(mutation: PropertyEditorMutation): void {
   }
 }
 
-function removeIcon(index: number): void {
-  const icons = props.series.icons.filter((_, iconIndex) => iconIndex !== index)
-  const selected = props.selectedIconIndex
-  if (selected !== null) {
-    if (selected === index) emit('update:selectedIconIndex', icons.length ? Math.min(index, icons.length - 1) : null)
-    else if (selected > index) emit('update:selectedIconIndex', selected - 1)
-  }
+function removeIcons(indexes: readonly number[]): void {
+  const selected = [...new Set(indexes)].filter(index => index >= 0 && index < props.series.icons.length).sort((a, b) => a - b)
+  if (selected.length === 0) return
+  const selectedSet = new Set(selected)
+  const icons = props.series.icons.filter((_, index) => !selectedSet.has(index))
+  emit('update:selectedIconIndexes', icons.length ? [Math.min(selected[0]!, icons.length - 1)] : [])
   emit('update:series', { ...props.series, icons })
 }
 
@@ -256,21 +276,57 @@ function duplicateIcon(index: number): void {
   const duplicated = duplicateProjectIcon(props.series, index)
   if (duplicated === props.series) return
   emit('update:series', duplicated)
-  emit('update:selectedIconIndex', index + 1)
+  emit('update:selectedIconIndexes', [index + 1])
 }
 
-function moveIcon(fromIndex: number, toIndex: number): void {
-  if (toIndex < 0 || toIndex >= props.series.icons.length || fromIndex === toIndex) return
-  const selected = props.selectedIconIndex
-  emit('update:series', moveProjectIcon(props.series, fromIndex, toIndex))
-  if (selected === fromIndex) emit('update:selectedIconIndex', toIndex)
-  else if (selected !== null && fromIndex < selected && toIndex >= selected) emit('update:selectedIconIndex', selected - 1)
-  else if (selected !== null && fromIndex > selected && toIndex <= selected) emit('update:selectedIconIndex', selected + 1)
+function moveIcons(indexes: readonly number[], direction: 'top' | 'up' | 'down' | 'bottom'): void {
+  const selected = [...new Set(indexes)].filter(index => index >= 0 && index < props.series.icons.length).sort((a, b) => a - b)
+  if (selected.length === 0) return
+  const selectedSet = new Set(selected)
+  const icons = [...props.series.icons]
+  const nextIndexes = new Set(selected)
+
+  if (direction === 'top' || direction === 'bottom') {
+    const selectedIcons = selected.map(index => icons[index]!)
+    const remainingIcons = icons.filter((_, index) => !selectedSet.has(index))
+    const nextIcons = direction === 'top'
+      ? [...selectedIcons, ...remainingIcons]
+      : [...remainingIcons, ...selectedIcons]
+    const start = direction === 'top' ? 0 : remainingIcons.length
+    emit('update:selectedIconIndexes', selected.map((_, index) => start + index))
+    emit('update:series', { ...props.series, icons: nextIcons })
+    return
+  }
+
+  if (direction === 'up') {
+    for (let index = 1; index < icons.length; index += 1) {
+      if (!selectedSet.has(index) || selectedSet.has(index - 1)) continue
+      ;[icons[index - 1], icons[index]] = [icons[index]!, icons[index - 1]!]
+      nextIndexes.delete(index)
+      nextIndexes.add(index - 1)
+      selectedSet.delete(index)
+      selectedSet.add(index - 1)
+    }
+  } else {
+    for (let index = icons.length - 2; index >= 0; index -= 1) {
+      if (!selectedSet.has(index) || selectedSet.has(index + 1)) continue
+      ;[icons[index], icons[index + 1]] = [icons[index + 1]!, icons[index]!]
+      nextIndexes.delete(index)
+      nextIndexes.add(index + 1)
+      selectedSet.delete(index)
+      selectedSet.add(index + 1)
+    }
+  }
+
+  const nextSelected = [...nextIndexes].sort((a, b) => a - b)
+  if (nextSelected.every((index, position) => index === selected[position])) return
+  emit('update:selectedIconIndexes', nextSelected)
+  emit('update:series', { ...props.series, icons })
 }
 
 async function activateIconKey(iconIndex: number): Promise<boolean> {
   if (!props.series.icons[iconIndex]) return false
-  emit('update:selectedIconIndex', iconIndex)
+  emit('update:selectedIconIndexes', [iconIndex])
   await nextTick()
   await propertyEditorRef.value?.activateField(`icon:${iconIndex}`, 'iconKey')
   return true

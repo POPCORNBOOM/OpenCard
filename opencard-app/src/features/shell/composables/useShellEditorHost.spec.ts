@@ -74,6 +74,7 @@ describe('useShellEditorHost', () => {
       filePath: 'D:/project/cards/card.ocdocument',
       fileName: 'card.ocdocument',
       cardDesignerMode: 'design',
+      alignmentSnappingEnabledByDefault: true,
       resourceRootPath: 'D:/project',
       remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
       themeOverrides: {},

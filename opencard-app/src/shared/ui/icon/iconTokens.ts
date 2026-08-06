@@ -58,6 +58,7 @@ export const iconTokens = {
 
   'tool.clip': true,
   'tool.box-cutter': true,
+  'tool.box-cutter-off': true,
   'tool.fit-screen': true,
   'tool.focus-selection': true,
   'tool.flip-to-back': true,
@@ -65,6 +66,7 @@ export const iconTokens = {
   'tool.grid': true,
   'tool.grid-off': true,
   'tool.snap-grid': true,
+  'tool.snap-grid-on': true,
   'tool.pin': true,
   'tool.pin-off': true,
   'tool.pixelated': true,

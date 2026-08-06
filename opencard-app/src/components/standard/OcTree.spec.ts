@@ -60,6 +60,7 @@ describe('OcTree', () => {
       triggerKey: 'first',
       selectedKeys: ['first'],
       mode: 'replace',
+      input: 'left',
     }])
   })
 
@@ -312,7 +313,7 @@ describe('OcTree', () => {
     await wrapper.get('button[aria-label="Rename"]').trigger('click')
     expect(wrapper.find('input').exists()).toBe(false)
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
-      { type: 'action.invoke', key: 'root', actionKey: 'rename' },
+      { type: 'action.invoke', key: 'root', actionKey: 'rename', source: 'inline' },
     ]])
 
     await (wrapper.vm as unknown as { beginRename: (key: string) => Promise<void> })
@@ -371,9 +372,63 @@ describe('OcTree', () => {
         triggerKey: 'second',
         selectedKeys: ['root', 'second'],
         mode: 'toggle',
+        input: 'left',
       }],
       [{ type: 'expansion.change', key: 'root', expanded: true }],
     ])
+  })
+
+  it('keeps middle-button selection distinct from primary selection', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['root', 'second'],
+          items: [
+            ['root', { label: 'Root' }],
+            ['second', { label: 'Second' }],
+          ],
+        }),
+        selectedKeys: ['root'],
+        selectionMode: 'multiple',
+      },
+    })
+
+    await wrapper.get('[data-oc-tree-key="second"] .oc-tree__row').trigger('auxclick', { button: 1, ctrlKey: true })
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'selection.change',
+      triggerKey: 'second',
+      selectedKeys: ['root', 'second'],
+      mode: 'toggle',
+      input: 'middle',
+    }])
+  })
+
+  it('selects the visible range from the selection anchor with Shift', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['first', 'second', 'third'],
+          items: [
+            ['first', { label: 'First' }],
+            ['second', { label: 'Second' }],
+            ['third', { label: 'Third' }],
+          ],
+        }),
+        selectedKeys: ['first'],
+        selectionMode: 'multiple',
+      },
+    })
+
+    await wrapper.get('[data-oc-tree-key="third"] .oc-tree__row').trigger('click', { shiftKey: true })
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
+      type: 'selection.change',
+      triggerKey: 'third',
+      selectedKeys: ['first', 'second', 'third'],
+      mode: 'range',
+      input: 'left',
+    }])
   })
 
   it('shows only declared actions and keeps disabled actions visible with their reason', async () => {
@@ -399,7 +454,7 @@ describe('OcTree', () => {
     expect(wrapper.get('.oc-tree__tail').text()).toBe('Metadata')
     expect(wrapper.get('button[aria-label="Delete: Protected"]').attributes('disabled')).toBeDefined()
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
-      { type: 'action.invoke', key: 'root', actionKey: 'duplicate' },
+      { type: 'action.invoke', key: 'root', actionKey: 'duplicate', source: 'inline' },
     ]])
   })
 
@@ -441,7 +496,7 @@ describe('OcTree', () => {
     })
     overflow.vm.$emit('select', { key: 'up' })
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toContainEqual([{
-      type: 'action.invoke', key: 'root', actionKey: 'up',
+      type: 'action.invoke', key: 'root', actionKey: 'up', source: 'inline',
     }])
 
     controls = wrapper.get('.oc-tree__controls').element as HTMLElement
@@ -481,11 +536,12 @@ describe('OcTree', () => {
       triggerKey: 'root',
       selectedKeys: ['root'],
       mode: 'replace',
+      input: 'right',
     }])
 
     menu.selectMenuItem('rename')
     expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[1]).toEqual([{
-      type: 'action.invoke', key: 'root', actionKey: 'rename',
+      type: 'action.invoke', key: 'root', actionKey: 'rename', source: 'context',
     }])
   })
 

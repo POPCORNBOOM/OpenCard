@@ -1,19 +1,8 @@
 <template>
   <OcDialog class="project-icon-registration-dialog" :open="open"
-    :title="t('projectConfig.icons.register')" as="form" size="md"
+    :title="t('projectConfig.icons.createPack')" as="form" size="md"
     min-height="md"
     close-on-backdrop :dismissible="!busy" @request-close="close" @submit="submit">
-    <label class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.iconSetName') }}</span>
-      <OcFieldInput full-width autofocus :value="iconSetName"
-        :aria-invalid="!validName" @input="updateText('name', $event)" />
-    </label>
-    <label class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.iconSetKey') }}</span>
-      <OcFieldInput full-width mono :value="iconSetKey"
-        :aria-invalid="!validKey || !uniqueKey" @input="updateText('key', $event)" />
-    </label>
-
     <label class="project-icon-registration-dialog__field">
       <span>{{ t('projectConfig.icons.file') }}</span>
       <span class="project-icon-registration-dialog__file-control">
@@ -23,6 +12,17 @@
           {{ t('projectConfig.icons.chooseFile') }}
         </OcButton>
       </span>
+    </label>
+
+    <label class="project-icon-registration-dialog__field">
+      <span>{{ t('projectConfig.icons.packName') }}</span>
+      <OcFieldInput full-width autofocus :value="iconSetName"
+        :aria-invalid="Boolean(selectedPath) && !validName" @input="updateText('name', $event)" />
+    </label>
+    <label class="project-icon-registration-dialog__field">
+      <span>{{ t('projectConfig.icons.packKey') }}</span>
+      <OcFieldInput full-width mono :value="iconSetKey" :placeholder="generatedKey"
+        :aria-invalid="Boolean(iconSetKey) && (!validKey || !uniqueKey)" @input="updateText('key', $event)" />
     </label>
 
     <div v-if="selectedPath" class="project-icon-registration-dialog__mode" role="status">
@@ -58,7 +58,7 @@
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="close">{{ t('projectConfig.icons.cancel') }}</OcButton>
       <OcButton type="submit" variant="solid" :disabled="!canSubmit || busy">
-        {{ t('projectConfig.icons.confirmRegister') }}
+        {{ t('projectConfig.icons.createPack') }}
       </OcButton>
     </template>
   </OcDialog>
@@ -130,9 +130,11 @@ let conflictCheckVersion = 0
 
 const normalizedName = computed(() => iconSetName.value.trim())
 const validName = computed(() => normalizedName.value.length > 0)
-const validKey = computed(() => projectIconKeyPattern.test(iconSetKey.value))
+const generatedKey = computed(() => createAvailableProjectIconSeriesKey(iconSetName.value, props.series))
+const effectiveKey = computed(() => iconSetKey.value || generatedKey.value)
+const validKey = computed(() => projectIconKeyPattern.test(effectiveKey.value))
 const uniqueKey = computed(() => !props.series.some(series => (
-  series.key.toLocaleLowerCase() === iconSetKey.value.toLocaleLowerCase()
+  series.key.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
 )))
 const normalizedCopyDirectory = computed(() => normalizeProjectIconDirectory(copyDirectory.value))
 const conflictOptions = computed<readonly OcOption[]>(() => [
@@ -178,8 +180,8 @@ watch(() => props.open, open => {
   projectSource.value = null
   copyRequired.value = false
   copyDirectory.value = props.defaultDirectory
-  iconSetName.value = t('projectConfig.icons.defaultIconSetName')
-  iconSetKey.value = createAvailableProjectIconSeriesKey(iconSetName.value, props.series)
+  iconSetName.value = ''
+  iconSetKey.value = ''
   keyEdited.value = false
   resetImportConflict()
 }, { immediate: true })
@@ -197,7 +199,7 @@ async function pickIconFile(): Promise<void> {
   copyRequired.value = projectSource.value === null
   const derivedName = fileName(path).replace(/\.(?:png|jpe?g|webp)$/i, '')
   iconSetName.value = derivedName
-  if (!keyEdited.value) iconSetKey.value = createAvailableProjectIconSeriesKey(derivedName, props.series)
+  if (!keyEdited.value) iconSetKey.value = ''
   await checkImportConflict()
 }
 
@@ -213,7 +215,7 @@ function updateText(field: 'copyDirectory' | 'name' | 'key', event: Event): void
   }
   else if (field === 'name') {
     iconSetName.value = event.target.value
-    if (!keyEdited.value) iconSetKey.value = createAvailableProjectIconSeriesKey(iconSetName.value, props.series)
+    if (!keyEdited.value) iconSetKey.value = ''
   } else {
     iconSetKey.value = event.target.value
     keyEdited.value = true
@@ -226,7 +228,7 @@ function submit(): void {
   if (!canSubmit.value) return
   emit('submit', {
     name: normalizedName.value,
-    key: iconSetKey.value,
+    key: effectiveKey.value,
     sourcePath: selectedPath.value,
     ...(copyRequired.value && normalizedCopyDirectory.value
       ? { targetDirectory: normalizedCopyDirectory.value }

@@ -52,6 +52,10 @@
       @z-index-step="emit('z-index-step', $event)"
     />
     <div v-if="!effectiveLayerViewActive" class="card-selection-layer">
+      <svg v-if="alignmentSnapGuides.length > 0" class="selection-alignment-guides" aria-hidden="true">
+        <line v-for="guide in alignmentSnapGuides" :key="guide.axis"
+          :x1="guide.x1" :y1="guide.y1" :x2="guide.x2" :y2="guide.y2" />
+      </svg>
       <Transition name="selection-overlay-fade">
       <svg v-if="moveGuide" class="selection-anchor-guide" aria-hidden="true">
         <defs>
@@ -174,9 +178,15 @@ import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import CardLayerView from './CardLayerView.vue'
 import { buildCardLayerGroups } from './cardLayerModel'
-import type { RenderReadyCardFace } from '../render.types'
+import type { RenderReadyCardBlock, RenderReadyCardFace } from '../render.types'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import {
+  snapMoveRect,
+  snapResizeRect,
+  type ResizeSnapLocks,
+  type ResizeSnapTarget,
+} from './resizeSnapping'
 import {
   VIEWPORT_FIT_PADDING,
   VIEWPORT_MAX_SCALE,
@@ -201,6 +211,17 @@ type SelectionMeasurement = {
   worldRect: SelectionFrame
   parentWorldWidth: number
   parentWorldHeight: number
+}
+type AlignmentSnapGuide = {
+  axis: 'x' | 'y'
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+type AlignmentSnapDistances = {
+  enter: number
+  release: number
 }
 type ResizePayload = {
   width?: number
@@ -251,6 +272,7 @@ const props = withDefaults(defineProps<{
   selectionCommandActions?: readonly OcActionButtonAction[]
   showPositionOnMove?: boolean
   showSizeOnResize?: boolean
+  alignmentSnappingEnabled?: boolean
   showInfo?: boolean
   layerViewActive?: boolean
   spaceModifierActive?: boolean
@@ -286,6 +308,7 @@ const props = withDefaults(defineProps<{
   }),
   showPositionOnMove: true,
   showSizeOnResize: true,
+  alignmentSnappingEnabled: true,
   showInfo: true,
   layerViewActive: false,
   spaceModifierActive: false,
@@ -324,6 +347,10 @@ const activeHandle = ref<ResizeHandle | null>(null)
 const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
+const rawPreviewWorldRect = ref<SelectionFrame | null>(null)
+const alignmentSnapTargets = ref<ResizeSnapTarget[]>([])
+const alignmentSnapLocks = ref<ResizeSnapLocks>({})
+const alignmentSnapDistances = ref<AlignmentSnapDistances | null>(null)
 const transformBlockId = ref<string | null>(null)
 const faceDimensionDrag = ref<{
   dimension: FaceDimension
@@ -537,6 +564,31 @@ const resizeMetrics = computed(() => {
     width: changesWidth ? formatGeometryValue(preview.width) : null,
     height: changesHeight ? formatGeometryValue(preview.height) : null,
   }
+})
+const alignmentSnapGuides = computed<AlignmentSnapGuide[]>(() => {
+  if (!props.alignmentSnappingEnabled) return []
+  const measurement = dragMeasurement.value
+  const preview = previewWorldRect.value
+  if ((!activeHandle.value && !isMovingSelection.value) || !measurement || !preview) return []
+  return ([alignmentSnapLocks.value.x, alignmentSnapLocks.value.y]
+    .filter((lock): lock is NonNullable<typeof lock> => Boolean(lock))
+    .map((lock) => {
+      const target = lock.target.rect
+      const left = measurement.parentFrame.left
+        + Math.min(preview.left, target.left) * scale.value
+      const right = measurement.parentFrame.left
+        + Math.max(preview.left + preview.width, target.left + target.width) * scale.value
+      const top = measurement.parentFrame.top
+        + Math.min(preview.top, target.top) * scale.value
+      const bottom = measurement.parentFrame.top
+        + Math.max(preview.top + preview.height, target.top + target.height) * scale.value
+      const position = lock.axis === 'x'
+        ? measurement.parentFrame.left + lock.position * scale.value
+        : measurement.parentFrame.top + lock.position * scale.value
+      return lock.axis === 'x'
+        ? { axis: lock.axis, x1: position, y1: top, x2: position, y2: bottom }
+        : { axis: lock.axis, x1: left, y1: position, x2: right, y2: position }
+    }))
 })
 const moveGuide = computed(() => {
   const frame = selectionFrame.value
@@ -997,6 +1049,73 @@ function measureSelection(): SelectionMeasurement | null {
   }
 }
 
+function readAlignmentSnapDistances(): AlignmentSnapDistances | null {
+  if (!props.alignmentSnappingEnabled) return null
+  const viewport = viewportRef.value
+  if (!viewport) return null
+  const styles = getComputedStyle(viewport)
+  const enterPixels = Number.parseFloat(styles.getPropertyValue('--oc-viewport-alignment-snap-distance'))
+  const releasePixels = Number.parseFloat(styles.getPropertyValue('--oc-viewport-alignment-snap-release-distance'))
+  const safeScale = scale.value || 1
+  if (!Number.isFinite(enterPixels) || !Number.isFinite(releasePixels)
+    || enterPixels <= 0 || releasePixels < enterPixels) return null
+  return { enter: enterPixels / safeScale, release: releasePixels / safeScale }
+}
+
+function measureAlignmentSnapTargets(measurement: SelectionMeasurement): ResizeSnapTarget[] {
+  if (!props.alignmentSnappingEnabled || resizeMode.value !== 'absolute') return []
+  const stage = stageRef.value
+  const selectedBlockId = props.selectedBlockId
+  if (!stage || !selectedBlockId) return []
+
+  const targets: ResizeSnapTarget[] = [{
+    id: props.selectedParentBlockId ?? props.face.id,
+    kind: 'parent',
+    rect: {
+      left: 0,
+      top: 0,
+      width: measurement.parentWorldWidth,
+      height: measurement.parentWorldHeight,
+    },
+  }]
+  const safeScale = scale.value || 1
+  for (const block of directSiblingBlocks()) {
+    if (!block.visible || block.id === selectedBlockId) continue
+    const element = [...stage.querySelectorAll<HTMLElement>('[data-block-id]')]
+      .find(candidate => candidate.dataset.blockId === block.id)
+    if (!element) continue
+    const frame = getElementFrame(element, viewportRef.value!.getBoundingClientRect())
+    targets.push({
+      id: block.id,
+      kind: 'sibling',
+      rect: {
+        left: (frame.left - measurement.parentFrame.left) / safeScale,
+        top: (frame.top - measurement.parentFrame.top) / safeScale,
+        width: frame.width / safeScale,
+        height: frame.height / safeScale,
+      },
+    })
+  }
+  return targets
+}
+
+function directSiblingBlocks(): readonly RenderReadyCardBlock[] {
+  const parentId = props.selectedParentBlockId
+  if (!parentId) return props.face.children.map(child => child.block)
+  const parent = findRenderBlock(props.face.children.map(child => child.block), parentId)
+  return parent && 'children' in parent ? parent.children.map(child => child.block) : []
+}
+
+function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: string): RenderReadyCardBlock | null {
+  for (const block of blocks) {
+    if (block.id === blockId) return block
+    if (!('children' in block)) continue
+    const match = findRenderBlock(block.children.map(child => child.block), blockId)
+    if (match) return match
+  }
+  return null
+}
+
 async function syncSelectionFrame() {
   await nextTick()
   const measurement = measureSelection()
@@ -1017,6 +1136,10 @@ function startResize(handle: ResizeHandle) {
   isMovingSelection.value = false
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
+  rawPreviewWorldRect.value = { ...measurement.worldRect }
+  alignmentSnapTargets.value = measureAlignmentSnapTargets(measurement)
+  alignmentSnapLocks.value = {}
+  alignmentSnapDistances.value = readAlignmentSnapDistances()
   transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
 
@@ -1037,6 +1160,10 @@ function startMove() {
   isMovingSelection.value = true
   dragMeasurement.value = measurement
   previewWorldRect.value = { ...measurement.worldRect }
+  rawPreviewWorldRect.value = { ...measurement.worldRect }
+  alignmentSnapTargets.value = measureAlignmentSnapTargets(measurement)
+  alignmentSnapLocks.value = {}
+  alignmentSnapDistances.value = readAlignmentSnapDistances()
   transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
 
@@ -1072,77 +1199,96 @@ function bindTransformListeners() {
 function handleTransformMove(event: PointerEvent) {
   const measurement = dragMeasurement.value
   const preview = previewWorldRect.value
-  if (!measurement || !preview) {
+  const rawPreview = rawPreviewWorldRect.value
+  if (!measurement || !preview || !rawPreview) {
     return
   }
 
   const deltaX = event.movementX / (scale.value || 1)
   const deltaY = event.movementY / (scale.value || 1)
+  let interactionPreview = rawPreview
 
   if (isMovingSelection.value) {
-    preview.left += deltaX
-    preview.top += deltaY
+    rawPreview.left += deltaX
+    rawPreview.top += deltaY
   } else if (activeHandle.value) {
-    const minSize = 24
     const flowHorizontal = resizeMode.value === 'flow'
       && (props.selectedParentFlowDirection === 'lr' || props.selectedParentFlowDirection === 'rl')
     const centeredFlowCrossAxis = resizeMode.value === 'flow' && props.selectedFlowAlign === 'center'
     switch (activeHandle.value) {
       case 'lt':
-        preview.left += deltaX
-        preview.top += deltaY
-        preview.width -= deltaX
-        preview.height -= deltaY
+        rawPreview.left += deltaX
+        rawPreview.top += deltaY
+        rawPreview.width -= deltaX
+        rawPreview.height -= deltaY
         break
       case 'rt':
-        preview.top += deltaY
-        preview.width += deltaX
-        preview.height -= deltaY
+        rawPreview.top += deltaY
+        rawPreview.width += deltaX
+        rawPreview.height -= deltaY
         break
       case 'lb':
-        preview.left += deltaX
-        preview.width -= deltaX
-        preview.height += deltaY
+        rawPreview.left += deltaX
+        rawPreview.width -= deltaX
+        rawPreview.height += deltaY
         break
       case 'rb':
-        preview.width += deltaX
-        preview.height += deltaY
+        rawPreview.width += deltaX
+        rawPreview.height += deltaY
         break
       case 'l':
-        preview.left += deltaX
-        preview.width -= centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
+        rawPreview.left += deltaX
+        rawPreview.width -= centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
         break
       case 'r':
-        if (centeredFlowCrossAxis && !flowHorizontal) preview.left -= deltaX
-        preview.width += centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
+        if (centeredFlowCrossAxis && !flowHorizontal) rawPreview.left -= deltaX
+        rawPreview.width += centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
         break
       case 't':
-        preview.top += deltaY
-        preview.height -= centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
+        rawPreview.top += deltaY
+        rawPreview.height -= centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
         break
       case 'b':
-        if (centeredFlowCrossAxis && flowHorizontal) preview.top -= deltaY
-        preview.height += centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
+        if (centeredFlowCrossAxis && flowHorizontal) rawPreview.top -= deltaY
+        rawPreview.height += centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
         break
     }
+    interactionPreview = constrainResizePreview(
+      rawPreview,
+      activeHandle.value,
+      centeredFlowCrossAxis,
+      flowHorizontal,
+    )
+  }
 
-    if (preview.width < minSize) {
-      if (centeredFlowCrossAxis && !flowHorizontal) {
-        preview.left += (preview.width - minSize) / 2
-      } else if (activeHandle.value === 'lt' || activeHandle.value === 'lb' || activeHandle.value === 'l') {
-        preview.left -= minSize - preview.width
-      }
-      preview.width = minSize
-    }
-
-    if (preview.height < minSize) {
-      if (centeredFlowCrossAxis && flowHorizontal) {
-        preview.top += (preview.height - minSize) / 2
-      } else if (activeHandle.value === 'lt' || activeHandle.value === 'rt' || activeHandle.value === 't') {
-        preview.top -= minSize - preview.height
-      }
-      preview.height = minSize
-    }
+  if (props.alignmentSnappingEnabled && isMovingSelection.value && alignmentSnapDistances.value) {
+    const snapped = snapMoveRect({
+      rect: interactionPreview,
+      targets: alignmentSnapTargets.value,
+      enterDistance: alignmentSnapDistances.value.enter,
+      releaseDistance: alignmentSnapDistances.value.release,
+      previousLocks: alignmentSnapLocks.value,
+    })
+    Object.assign(preview, snapped.rect)
+    alignmentSnapLocks.value = snapped.locks
+  } else if (props.alignmentSnappingEnabled
+    && activeHandle.value
+    && resizeMode.value === 'absolute'
+    && alignmentSnapDistances.value) {
+    const snapped = snapResizeRect({
+      rect: interactionPreview,
+      handle: activeHandle.value,
+      targets: alignmentSnapTargets.value,
+      enterDistance: alignmentSnapDistances.value.enter,
+      releaseDistance: alignmentSnapDistances.value.release,
+      previousLocks: alignmentSnapLocks.value,
+      minSize: MIN_SELECTION_SIZE,
+    })
+    Object.assign(preview, snapped.rect)
+    alignmentSnapLocks.value = snapped.locks
+  } else {
+    Object.assign(preview, interactionPreview)
+    alignmentSnapLocks.value = {}
   }
 
   selectionFrame.value = {
@@ -1231,11 +1377,41 @@ function stopTransform() {
   isMovingSelection.value = false
   dragMeasurement.value = null
   previewWorldRect.value = null
+  rawPreviewWorldRect.value = null
+  alignmentSnapTargets.value = []
+  alignmentSnapLocks.value = {}
+  alignmentSnapDistances.value = null
   transformBlockId.value = null
   window.removeEventListener('pointermove', handleTransformMove)
   window.removeEventListener('pointerup', stopTransform)
   window.removeEventListener('pointercancel', stopTransform)
   void syncSelectionFrame()
+}
+
+function constrainResizePreview(
+  raw: SelectionFrame,
+  handle: ResizeHandle,
+  centeredFlowCrossAxis: boolean,
+  flowHorizontal: boolean,
+): SelectionFrame {
+  const constrained = { ...raw }
+  if (constrained.width < MIN_SELECTION_SIZE) {
+    if (centeredFlowCrossAxis && !flowHorizontal) {
+      constrained.left += (constrained.width - MIN_SELECTION_SIZE) / 2
+    } else if (handle === 'lt' || handle === 'lb' || handle === 'l') {
+      constrained.left -= MIN_SELECTION_SIZE - constrained.width
+    }
+    constrained.width = MIN_SELECTION_SIZE
+  }
+  if (constrained.height < MIN_SELECTION_SIZE) {
+    if (centeredFlowCrossAxis && flowHorizontal) {
+      constrained.top += (constrained.height - MIN_SELECTION_SIZE) / 2
+    } else if (handle === 'lt' || handle === 'rt' || handle === 't') {
+      constrained.top -= MIN_SELECTION_SIZE - constrained.height
+    }
+    constrained.height = MIN_SELECTION_SIZE
+  }
+  return constrained
 }
 
 function buildFlowResizePayload(preview: SelectionFrame, handle: ResizeHandle): ResizePayload {
@@ -1566,6 +1742,22 @@ watch(
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.selection-alignment-guides {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: var(--oc-accent);
+  pointer-events: none;
+}
+
+.selection-alignment-guides line {
+  stroke: currentColor;
+  stroke-width: var(--oc-border-width);
+  vector-effect: non-scaling-stroke;
 }
 
 .selection-anchor-guide {

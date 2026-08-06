@@ -6,7 +6,8 @@
       :description="t('iconRegistry.description')" :series="document.iconSeries"
       :resolve-asset-src="projectStore.resolveAssetSrc" :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
-      @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts" @register="openRegistrationDialog" />
+      @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
+      @create-pack="openCreatePackDialog" @import-pack="openImportPackDialog" @export-pack="exportIconPack" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
       :theme-overrides="themeOverrides" :heading="t('iconRegistry.invalid')" :description="t('iconRegistry.repair')"
@@ -18,6 +19,10 @@
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
       :resolve-import-conflict="projectStore.getProjectIconImportConflict"
       @close="closeRegistrationDialog" @submit="registerIconSet" />
+    <ProjectIconPackImportDialog :open="packImportDialogOpen" :series="document?.iconSeries"
+      :busy="packImportBusy" :error="packImportError"
+      :default-directory="settingsStore.settings.value.workspace.defaultIconImportDirectory"
+      :default-open-path="projectDirectory" @close="closeImportPackDialog" @submit="importIconPack" />
   </ProjectRegistryEditorShell>
 </template>
 
@@ -45,9 +50,17 @@ import {
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import {
+  exportProjectIconPack,
+  readProjectIconPack,
+} from '../../features/workspace/services/projectIconPack'
 import ProjectIconRegistrationDialog, {
   type ProjectIconRegistrationRequest,
 } from './ProjectIconRegistrationDialog.vue'
+import ProjectIconPackImportDialog, {
+  type ProjectIconPackImportRequest,
+} from './ProjectIconPackImportDialog.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import ProjectRegistryRepairEditor from './ProjectRegistryRepairEditor.vue'
@@ -61,6 +74,9 @@ const document = ref<ProjectIconRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
 const registrationDialogOpen = ref(false)
+const packImportDialogOpen = ref(false)
+const packImportBusy = ref(false)
+const packImportError = ref('')
 const keyConflicts = ref<readonly ProjectIconKeyConflict[]>([])
 const workbenchRef = ref<InstanceType<typeof ProjectIconRegistryWorkbench> | null>(null)
 
@@ -134,16 +150,28 @@ function updateKeyConflicts(conflicts: readonly ProjectIconKeyConflict[]): void 
   keyConflicts.value = conflicts
 }
 
-function openRegistrationDialog(): void {
+function openCreatePackDialog(): void {
   if (!document.value || importBusy.value) return
   importError.value = ''
   registrationDialogOpen.value = true
+}
+
+function openImportPackDialog(): void {
+  if (!document.value || packImportBusy.value) return
+  packImportError.value = ''
+  packImportDialogOpen.value = true
 }
 
 function closeRegistrationDialog(): void {
   if (importBusy.value) return
   registrationDialogOpen.value = false
   importError.value = ''
+}
+
+function closeImportPackDialog(): void {
+  if (packImportBusy.value) return
+  packImportDialogOpen.value = false
+  packImportError.value = ''
 }
 
 async function registerIconSet(request: ProjectIconRegistrationRequest): Promise<void> {
@@ -179,6 +207,83 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
   } finally {
     importBusy.value = false
   }
+}
+
+async function importIconPack(request: ProjectIconPackImportRequest): Promise<void> {
+  if (!document.value || packImportBusy.value) return
+  packImportError.value = ''
+  packImportBusy.value = true
+  try {
+    const iconPack = await readProjectIconPack(fileSystemService, request.packPath)
+    const iconSeries = [...(document.value.iconSeries ?? [])]
+    if (iconSeries.some(series => series.key.toLocaleLowerCase() === request.key.toLocaleLowerCase())) {
+      packImportError.value = t('projectConfig.icons.iconSetKeyExists')
+      return
+    }
+    const source = await copyPackSpritesheet(iconPack.spritesheetBytes, iconPack.manifest.spritesheet, request.targetDirectory)
+    iconSeries.push({
+      name: request.name,
+      key: request.key,
+      source,
+      ...(iconPack.manifest.grid ? { grid: iconPack.manifest.grid } : { grid: { ...DEFAULT_PROJECT_ICON_GRID_SETTINGS } }),
+      icons: [...iconPack.manifest.icons],
+    })
+    updateIconSeries(iconSeries)
+    await nextTick()
+    await workbenchRef.value?.selectSeries(request.key)
+    packImportDialogOpen.value = false
+    packImportError.value = ''
+  } catch (error) {
+    reportAppError('OC-E3013', error)
+    packImportError.value = t('projectConfig.icons.importPackFailed')
+  } finally {
+    packImportBusy.value = false
+  }
+}
+
+async function exportIconPack(series: ProjectIconSeries): Promise<void> {
+  const outputPath = await fileSystemService.pickSavePath({
+    defaultPath: `${projectDirectory.value}/${safeFileName(series.name)}.ociconpack`,
+    title: t('projectConfig.icons.exportPack'),
+    fileTypeName: t('projectConfig.icons.packFileType'),
+    extensions: ['ociconpack'],
+  })
+  if (!outputPath) return
+  try {
+    await exportProjectIconPack({
+      fs: fileSystemService,
+      series,
+      spritesheetPath: projectStore.resolveProjectPath(series.source),
+      outputPath,
+    })
+  } catch (error) {
+    reportAppError('OC-E3014', error)
+    importError.value = t('projectConfig.icons.exportPackFailed')
+  }
+}
+
+async function copyPackSpritesheet(bytes: Uint8Array, fileName: string, targetDirectory: string): Promise<string> {
+  const normalizedDirectory = targetDirectory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  const sourceName = fileName.replace(/\\/g, '/').split('/').pop() ?? fileName
+  const directoryPath = projectStore.resolveProjectPath(normalizedDirectory)
+  await fileSystemService.createDirectory(directoryPath)
+  let candidateName = sourceName
+  let candidatePath = `${normalizedDirectory}/${candidateName}`
+  let suffix = 2
+  while (await fileSystemService.fileExists(projectStore.resolveProjectPath(candidatePath))) {
+    const dotIndex = sourceName.lastIndexOf('.')
+    const stem = dotIndex > 0 ? sourceName.slice(0, dotIndex) : sourceName
+    const extension = dotIndex > 0 ? sourceName.slice(dotIndex) : ''
+    candidateName = `${stem} (${suffix})${extension}`
+    candidatePath = `${normalizedDirectory}/${candidateName}`
+    suffix += 1
+  }
+  await fileSystemService.writeBinaryFile(projectStore.resolveProjectPath(candidatePath), bytes)
+  return candidatePath
+}
+
+function safeFileName(value: string): string {
+  return value.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '') || 'icon-pack'
 }
 
 function updateRawSource(content: string): void {

@@ -4,6 +4,8 @@ import type { IconToken, IconTone } from '../icon/iconRegistry'
 export type OcTreeKey = string
 export type OcTreeActionKey = string
 export type OcTreeDropPosition = 'before' | 'inside' | 'after'
+export type OcTreeSelectionInput = 'left' | 'middle' | 'right' | 'keyboard'
+export type OcTreeActionSource = 'inline' | 'context'
 
 export interface OcTreeData {
   rootKeys: readonly OcTreeKey[]
@@ -39,7 +41,8 @@ export type OcTreeIntent =
       type: 'selection.change'
       triggerKey: OcTreeKey
       selectedKeys: OcTreeKey[]
-      mode: 'replace' | 'toggle'
+      mode: 'replace' | 'toggle' | 'range'
+      input: OcTreeSelectionInput
     }
   | {
       type: 'expansion.change'
@@ -59,6 +62,7 @@ export type OcTreeIntent =
       type: 'action.invoke'
       key: OcTreeKey
       actionKey: OcTreeActionKey
+      source: OcTreeActionSource
     }
   | {
       type: 'rename.request'

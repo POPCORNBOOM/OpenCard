@@ -189,6 +189,8 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-viewport-dot-pattern',
   '--oc-viewport-dot-size',
   '--oc-viewport-dot-position',
+  '--oc-viewport-alignment-snap-distance',
+  '--oc-viewport-alignment-snap-release-distance',
 
   // 属性编辑器行高
   '--oc-property-row-height',

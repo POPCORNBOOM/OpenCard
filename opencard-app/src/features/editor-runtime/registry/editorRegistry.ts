@@ -31,6 +31,7 @@ export interface EditorProps {
   structureTreeScrollToSelection?: boolean
   showSelectionPositionOnMove?: boolean
   showSelectionSizeOnResize?: boolean
+  alignmentSnappingEnabledByDefault?: boolean
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
 }

@@ -49,6 +49,7 @@
         :aria-setsize="props.virtualized ? visibleEntries.length : undefined"
         @focus="activeKey = entry.key"
         @click="handleRowClick($event, entry.key)"
+        @auxclick="handleRowAuxClick($event, entry.key)"
         @dblclick="handleRowDoubleClick($event, entry.key)"
         @mousedown="handleRowMouseDown($event, entry.key)"
         @keydown="handleRowKeydown($event, entry.key, entry.index)"
@@ -136,6 +137,7 @@ import type {
   OcTreeDropPosition,
   OcTreeIntent,
   OcTreeKey,
+  OcTreeSelectionInput,
 } from '../../shared/ui/tree/tree.types'
 import { resolveOcPixelToken } from '../../shared/ui/foundation'
 
@@ -194,6 +196,7 @@ const renameInputRefs = new Map<OcTreeKey, InstanceType<typeof OcFieldInput>>()
 const activeKey = ref<OcTreeKey | null>(null)
 const renamingKey = ref<OcTreeKey | null>(null)
 const renameDraft = ref('')
+const selectionAnchorKey = ref<OcTreeKey | null>(null)
 const pendingDrag = ref<{ key: OcTreeKey; startX: number; startY: number } | null>(null)
 const draggedKey = ref<OcTreeKey | null>(null)
 const dropTargetKey = ref<OcTreeKey | null>(null)
@@ -549,11 +552,34 @@ function handleIconClick(event: MouseEvent, key: OcTreeKey): void {
   toggleExpanded(key)
 }
 
-function emitSelectionIntent(key: OcTreeKey, toggle: boolean): void {
+function emitSelectionIntent(
+  key: OcTreeKey,
+  toggle: boolean,
+  input: OcTreeSelectionInput,
+  range: boolean,
+): void {
   if (props.selectionMode === 'none') return
-  const mode = props.selectionMode === 'multiple' && toggle ? 'toggle' : 'replace'
+  const canRangeSelect = props.selectionMode === 'multiple' && range
+  const mode = canRangeSelect
+    ? 'range'
+    : props.selectionMode === 'multiple' && toggle ? 'toggle' : 'replace'
   let selectedKeys: OcTreeKey[]
-  if (mode === 'toggle') {
+  if (mode === 'range') {
+    const anchorKey = selectionAnchorKey.value && visibleEntries.value.some(entry => entry.key === selectionAnchorKey.value)
+      ? selectionAnchorKey.value
+      : props.selectedKeys[0] ?? key
+    const anchorIndex = visibleEntries.value.findIndex(entry => entry.key === anchorKey)
+    const targetIndex = visibleEntries.value.findIndex(entry => entry.key === key)
+    const rangeKeys = anchorIndex < 0 || targetIndex < 0
+      ? [key]
+      : visibleEntries.value
+        .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+        .map(entry => entry.key)
+    const selectedSet = new Set(toggle ? [...props.selectedKeys, ...rangeKeys] : rangeKeys)
+    selectedKeys = visibleEntries.value
+      .filter(entry => selectedSet.has(entry.key))
+      .map(entry => entry.key)
+  } else if (mode === 'toggle') {
     selectedKeys = [...props.selectedKeys]
     const index = selectedKeys.indexOf(key)
     if (index >= 0) selectedKeys.splice(index, 1)
@@ -561,13 +587,20 @@ function emitSelectionIntent(key: OcTreeKey, toggle: boolean): void {
   } else {
     selectedKeys = [key]
   }
-  emit('intent', { type: 'selection.change', triggerKey: key, selectedKeys, mode })
+  if (input !== 'right' && mode !== 'range') selectionAnchorKey.value = key
+  emit('intent', { type: 'selection.change', triggerKey: key, selectedKeys, mode, input })
 }
 
 function handleRowClick(event: MouseEvent, key: OcTreeKey): void {
   if (props.data.items.get(key)?.disabled || suppressClick.value || renamingKey.value === key) return
-  emitSelectionIntent(key, event.ctrlKey || event.metaKey)
+  emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'left', event.shiftKey)
   if (props.activationMode === 'single-click') emit('intent', { type: 'node.activate', key })
+}
+
+function handleRowAuxClick(event: MouseEvent, key: OcTreeKey): void {
+  if (event.button !== 1 || props.data.items.get(key)?.disabled) return
+  event.preventDefault()
+  emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'middle', event.shiftKey)
 }
 
 function handleRowDoubleClick(event: MouseEvent, key: OcTreeKey): void {
@@ -632,12 +665,12 @@ function openItemContextMenu(key: OcTreeKey, event?: MouseEvent): boolean {
   if (!item || item.disabled) return false
   const actions = resolveContextActions(key)
   if (actions.length === 0) return false
-  if (!isSelected(key)) emitSelectionIntent(key, false)
+  if (!isSelected(key)) emitSelectionIntent(key, false, 'right', false)
   return openContextMenu({
     event,
     anchor: event ? undefined : rowRefs.get(key),
     items: actions,
-    onSelect: actionKey => emitActionIntent(key, actionKey),
+    onSelect: actionKey => emitActionIntent(key, actionKey, 'context'),
   })
 }
 
@@ -645,10 +678,10 @@ function handleRowContextMenu(event: MouseEvent, key: OcTreeKey): void {
   openItemContextMenu(key, event)
 }
 
-function emitActionIntent(key: OcTreeKey, actionKey: string): void {
+function emitActionIntent(key: OcTreeKey, actionKey: string, source: 'inline' | 'context' = 'inline'): void {
   const disabledReason = props.data.items.get(key)?.disabledActions?.get(actionKey)
   if (disabledReason !== undefined) return
-  emit('intent', { type: 'action.invoke', key, actionKey })
+  emit('intent', { type: 'action.invoke', key, actionKey, source })
 }
 
 async function startRename(key: OcTreeKey): Promise<void> {
@@ -739,7 +772,7 @@ function handleRowKeydown(event: KeyboardEvent, key: OcTreeKey, index: number): 
     if (openItemContextMenu(key)) event.preventDefault()
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    emitSelectionIntent(key, event.ctrlKey || event.metaKey)
+    emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'keyboard', event.shiftKey)
     if (props.activationMode !== 'none') emit('intent', { type: 'node.activate', key })
   }
 }

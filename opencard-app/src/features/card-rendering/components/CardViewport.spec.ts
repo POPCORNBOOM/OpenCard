@@ -31,6 +31,20 @@ const layeredFace: RenderReadyCardFace = {
   }],
 }
 
+const snappingFace: RenderReadyCardFace = {
+  ...face,
+  children: [
+    {
+      block: parseRenderReadyBlockForTest(createTextBlock({ id: 'selected' })),
+      location: { id: 'selected-location', type: 'simple-container-location', anchor: 'lt', x: '50px', y: '50px' },
+    },
+    {
+      block: parseRenderReadyBlockForTest(createTextBlock({ id: 'sibling' })),
+      location: { id: 'sibling-location', type: 'simple-container-location', anchor: 'lt', x: '158px', y: '20px' },
+    },
+  ],
+}
+
 class ResizeObserverMock {
   constructor(private readonly callback: ResizeObserverCallback) {}
 
@@ -421,6 +435,172 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.emitted('resize-selection')?.[1]?.[0]).toEqual({
       blockId: 'selected',
       height: 100,
+    })
+  })
+
+  it('keeps a minimum-size resize handle pinned until the pointer catches up', async () => {
+    const SelectionRendererStub = defineComponent({
+      name: 'CardFaceRenderer',
+      setup() {
+        return () => h('div', { class: 'card-canvas' }, [
+          h('div', { 'data-block-id': 'selected' }),
+        ])
+      },
+    })
+    const wrapper = mount(CardViewport, {
+      props: {
+        face: snappingFace,
+        selectedBlockId: null,
+        selectedLocationType: 'simple-container-location',
+        selectedAnchor: 'lt',
+        alignmentSnappingEnabled: false,
+      },
+      global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
+    })
+    const viewport = wrapper.get<HTMLElement>('.card-viewport')
+    const parent = wrapper.get('.card-canvas')
+    const selected = wrapper.get('[data-block-id="selected"]')
+    Object.defineProperty(viewport.element, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800 }),
+    })
+    Object.defineProperty(parent.element, 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 100, width: 400, height: 300, right: 500, bottom: 400 }),
+    })
+    Object.defineProperty(selected.element, 'getBoundingClientRect', {
+      value: () => ({ left: 150, top: 150, width: 100, height: 80, right: 250, bottom: 230 }),
+    })
+
+    await wrapper.setProps({ selectedBlockId: 'selected' })
+    await nextTick()
+    await wrapper.get('.selection-handle-r').trigger('pointerdown')
+
+    const moveBy = async (movementX: number) => {
+      const move = new Event('pointermove')
+      Object.defineProperties(move, {
+        movementX: { value: movementX },
+        movementY: { value: 0 },
+      })
+      window.dispatchEvent(move)
+      await nextTick()
+    }
+
+    await moveBy(-100)
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('width: 24px')
+    await moveBy(-40)
+    await moveBy(20)
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('width: 24px')
+    await moveBy(45)
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('width: 25px')
+
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toEqual({
+      blockId: 'selected',
+      width: 25,
+      height: 80,
+      x: 50,
+      y: 50,
+    })
+  })
+
+  it('snaps absolute resize and move edges to a direct sibling with aligned previews', async () => {
+    const SelectionRendererStub = defineComponent({
+      name: 'CardFaceRenderer',
+      setup() {
+        return () => h('div', { class: 'card-canvas' }, [
+          h('div', { 'data-block-id': 'selected' }),
+          h('div', { 'data-block-id': 'sibling' }),
+        ])
+      },
+    })
+    const wrapper = mount(CardViewport, {
+      props: {
+        face: snappingFace,
+        selectedBlockId: null,
+        selectedLocationType: 'simple-container-location',
+        selectedAnchor: 'lt',
+      },
+      global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
+    })
+    const viewport = wrapper.get<HTMLElement>('.card-viewport')
+    const parent = wrapper.get('[class="card-canvas"]')
+    const selected = wrapper.get('[data-block-id="selected"]')
+    const sibling = wrapper.get('[data-block-id="sibling"]')
+    viewport.element.style.setProperty('--oc-viewport-alignment-snap-distance', '8px')
+    viewport.element.style.setProperty('--oc-viewport-alignment-snap-release-distance', '12px')
+    Object.defineProperty(viewport.element, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800 }),
+    })
+    Object.defineProperty(parent.element, 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 100, width: 400, height: 300, right: 500, bottom: 400 }),
+    })
+    Object.defineProperty(selected.element, 'getBoundingClientRect', {
+      value: () => ({ left: 150, top: 150, width: 100, height: 80, right: 250, bottom: 230 }),
+    })
+    Object.defineProperty(sibling.element, 'getBoundingClientRect', {
+      value: () => ({ left: 258, top: 120, width: 80, height: 60, right: 338, bottom: 180 }),
+    })
+
+    await wrapper.setProps({ selectedBlockId: 'selected' })
+    await nextTick()
+    await wrapper.get('.selection-handle-r').trigger('pointerdown')
+    const resizeMove = new Event('pointermove')
+    Object.defineProperties(resizeMove, {
+      movementX: { value: 5 },
+      movementY: { value: 0 },
+    })
+    window.dispatchEvent(resizeMove)
+    await nextTick()
+
+    const guide = wrapper.get('.selection-alignment-guides line')
+    expect(guide.attributes()).toMatchObject({ x1: '258', x2: '258', y1: '120', y2: '230' })
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('width: 108px')
+
+    window.dispatchEvent(new Event('pointerup'))
+    await nextTick()
+    expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toEqual({
+      blockId: 'selected',
+      width: 108,
+      height: 80,
+      x: 50,
+      y: 50,
+    })
+    expect(wrapper.find('.selection-alignment-guides').exists()).toBe(false)
+
+    await wrapper.get('.selection-frame').trigger('pointerdown')
+    const move = new Event('pointermove')
+    Object.defineProperties(move, {
+      movementX: { value: 5 },
+      movementY: { value: 0 },
+    })
+    window.dispatchEvent(move)
+    await nextTick()
+    expect(wrapper.get('.selection-alignment-guides line').attributes())
+      .toMatchObject({ x1: '258', x2: '258', y1: '120', y2: '230' })
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('left: 158px')
+
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('move-selection')?.[0]?.[0]).toEqual({
+      blockId: 'selected',
+      x: 58,
+      y: 50,
+    })
+
+    await wrapper.setProps({ alignmentSnappingEnabled: false })
+    await wrapper.get('.selection-frame').trigger('pointerdown')
+    const unsnappedMove = new Event('pointermove')
+    Object.defineProperties(unsnappedMove, {
+      movementX: { value: 5 },
+      movementY: { value: 0 },
+    })
+    window.dispatchEvent(unsnappedMove)
+    await nextTick()
+    expect(wrapper.find('.selection-alignment-guides').exists()).toBe(false)
+    expect(wrapper.get('.selection-frame').attributes('style')).toContain('left: 155px')
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('move-selection')?.[1]?.[0]).toEqual({
+      blockId: 'selected',
+      x: 55,
+      y: 50,
     })
   })
 

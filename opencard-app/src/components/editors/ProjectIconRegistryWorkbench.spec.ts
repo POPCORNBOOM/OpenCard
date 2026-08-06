@@ -60,7 +60,7 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.get('.project-config-section__heading').text()).toContain('Status icons')
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props()).toMatchObject({
       series: series[0],
-      selectedIconIndex: 0,
+      selectedIconIndexes: [0],
     })
     expect(wrapper.getComponent(ProjectIconCropEditor).props('runtime')).toMatchObject({
       key: 'status',
@@ -76,12 +76,12 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
   })
 
-  it('routes registration through the left title action', async () => {
+  it('routes pack creation through the left title action', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: baseProps,
     })
-    await wrapper.get('button[aria-label="projectConfig.icons.register"]').trigger('click')
-    expect(wrapper.emitted('register')).toEqual([[]])
+    await wrapper.get('button[aria-label="projectConfig.icons.createPack"]').trigger('click')
+    expect(wrapper.emitted('create-pack')).toEqual([[]])
   })
 
   it('adds and selects one crop beside the even-grid action', async () => {
@@ -99,7 +99,7 @@ describe('ProjectIconRegistryWorkbench', () => {
       name: 'projectConfig.icons.defaultIconName', x: 0, y: 0, width: 32, height: 16,
     })
     await wrapper.setProps({ series: updated })
-    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndex')).toBe(1)
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndexes')).toEqual([1])
   })
 
   it('replaces only the expanded series and selects the remaining set after deletion', async () => {
@@ -150,6 +150,6 @@ describe('ProjectIconRegistryWorkbench', () => {
     await wrapper.vm.$nextTick()
 
     expect(result).toBe(true)
-    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndex')).toBe(0)
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndexes')).toEqual([0])
   })
 })

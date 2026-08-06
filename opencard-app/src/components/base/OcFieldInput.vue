@@ -127,6 +127,10 @@ defineExpose({
   blur() {
     resolveNativeField()?.blur()
   },
+  select() {
+    const field = resolveNativeField()
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) field.select()
+  },
 })
 </script>
 

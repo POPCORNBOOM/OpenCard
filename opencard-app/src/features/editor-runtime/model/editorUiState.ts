@@ -25,5 +25,6 @@ export type CardDesignerMode = 'design' | 'data-table'
 export interface CardDesignerViewState {
   activeFace: CardFaceKey
   clipToFace: boolean
+  alignmentSnappingEnabled?: boolean
   selectedInstanceId: string | null
 }

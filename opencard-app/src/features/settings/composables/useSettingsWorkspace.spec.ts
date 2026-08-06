@@ -100,6 +100,7 @@ describe('useSettingsWorkspace', () => {
       'workspace.structureTreeScrollToSelection',
       'workspace.showSelectionPositionOnMove',
       'workspace.showSelectionSizeOnResize',
+      'workspace.alignmentSnappingEnabledByDefault',
       'workspace.defaultFontImportDirectory',
       'workspace.defaultIconImportDirectory',
       'project-workspace.reset',
@@ -123,6 +124,11 @@ describe('useSettingsWorkspace', () => {
       expect.objectContaining({
         type: 'switch',
         key: 'workspace.showSelectionSizeOnResize',
+        checked: true,
+      }),
+      expect.objectContaining({
+        type: 'switch',
+        key: 'workspace.alignmentSnappingEnabledByDefault',
         checked: true,
       }),
       expect.objectContaining({

@@ -245,12 +245,14 @@ describe('CardDesignEditor issue navigation', () => {
       triggerKey: 'instance-1',
       selectedKeys: ['instance-1'],
       mode: 'replace',
+      input: 'left',
     })
     structureTree.vm.$emit('intent', {
       type: 'selection.change',
       triggerKey: 'text-1',
       selectedKeys: ['text-1'],
       mode: 'replace',
+      input: 'left',
     })
     await nextTick()
 
@@ -492,6 +494,7 @@ describe('CardDesignEditor issue navigation', () => {
       props: {
         face: Object,
         clipToFace: Boolean,
+        alignmentSnappingEnabled: Boolean,
       },
       emits: ['face-dimension-change'],
       setup(_, { slots }) {
@@ -508,6 +511,7 @@ describe('CardDesignEditor issue navigation', () => {
           clipToFace: false,
           selectedInstanceId: null,
         },
+        alignmentSnappingEnabledByDefault: false,
       },
       global: {
         plugins: [i18n],
@@ -526,6 +530,7 @@ describe('CardDesignEditor issue navigation', () => {
     const viewport = wrapper.findComponent({ name: 'CardViewport' })
     expect(viewport.props('face')).toEqual(expect.objectContaining({ faceKey: 'back' }))
     expect(viewport.props('clipToFace')).toBe(false)
+    expect(viewport.props('alignmentSnappingEnabled')).toBe(false)
     expect(wrapper.find('.card-viewport-stub').text()).toContain('UNTITLED.ocdocument')
     expect(wrapper.find('.card-viewport-stub').text()).not.toContain('53e4786d-a867')
 
@@ -536,19 +541,31 @@ describe('CardDesignEditor issue navigation', () => {
     expect(viewportControls.element.parentElement).toBe(wrapper.get('.card-design-editor__face-tools').element)
     const faceAction = actions.find((action) => action.props('action').key === 'switch-face')
     const clipAction = actions.find((action) => action.props('action').key === 'toggle-face-clip')
+    const alignmentSnappingAction = actions.find(
+      action => action.props('action').key === 'toggle-alignment-snapping',
+    )
     expect(faceAction?.props('variant')).toBe('ghost')
     expect(faceAction?.props('action').icon).toBe('tool.flip-to-back')
     expect(clipAction?.props('variant')).toBe('ghost')
+    expect(clipAction?.props('action').icon).toBe('tool.box-cutter-off')
+    expect(alignmentSnappingAction?.props('variant')).toBe('ghost')
+    expect(alignmentSnappingAction?.props('action').icon).toBe('tool.snap-grid')
     faceAction?.vm.$emit('select', { key: 'switch-face' })
     clipAction?.vm.$emit('select', { key: 'toggle-face-clip' })
+    alignmentSnappingAction?.vm.$emit('select', { key: 'toggle-alignment-snapping' })
     await nextTick()
 
     expect(faceAction?.props('action').icon).toBe('tool.flip-to-front')
+    expect(clipAction?.props('action').icon).toBe('tool.box-cutter')
+    expect(alignmentSnappingAction?.props('variant')).toBe('soft')
+    expect(alignmentSnappingAction?.props('action').icon).toBe('tool.snap-grid-on')
+    expect(viewport.props('alignmentSnappingEnabled')).toBe(true)
 
     const viewUpdates = wrapper.emitted('update-card-designer-view') ?? []
     expect(viewUpdates[viewUpdates.length - 1]?.[0]).toEqual({
       activeFace: 'front',
       clipToFace: true,
+      alignmentSnappingEnabled: true,
       selectedInstanceId: null,
     })
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
@@ -1018,7 +1035,7 @@ describe('CardDesignEditor issue navigation', () => {
     expect(tools.classes()).toContain('is-right-sidebar-collapsed')
     const viewportControls = tools.findComponent({ name: 'OcViewportControls' })
     expect(viewportControls.exists()).toBe(true)
-    expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(2)
+    expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(3)
   })
 
   it('slides full-width sidebars through the stage edges and snaps symmetrically', async () => {

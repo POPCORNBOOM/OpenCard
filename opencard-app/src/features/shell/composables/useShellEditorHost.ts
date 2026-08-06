@@ -145,6 +145,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
             options.settings.value.workspace.showSelectionPositionOnMove,
           showSelectionSizeOnResize:
             options.settings.value.workspace.showSelectionSizeOnResize,
+          alignmentSnappingEnabledByDefault:
+            options.settings.value.workspace.alignmentSnappingEnabledByDefault,
         }
       }
 

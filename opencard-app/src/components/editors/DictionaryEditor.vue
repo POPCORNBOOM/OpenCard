@@ -41,9 +41,10 @@
                   @keydown="openColumnKeyboardMenu($event, column)">
                   <form v-if="editingLanguage === column.sourceKey" class="dictionary-editor__rename"
                     @submit.prevent="commitLanguageRename(column.sourceKey!)">
-                    <OcFieldInput :value="renameDraft" size="sm" mono full-width autofocus
+                    <OcFieldInput ref="renameInputRef" :value="renameDraft" size="sm" mono full-width
+                      :aria-invalid="!canUseLanguageKey(renameDraft, column.sourceKey!)"
                       @input="renameDraft = ($event.target as HTMLInputElement).value"
-                      @blur="commitLanguageRename(column.sourceKey!)"
+                      @blur="finishLanguageRename(column.sourceKey!)"
                       @keydown.esc.stop.prevent="cancelRename" />
                   </form>
                   <div v-else class="dictionary-editor__column-heading">
@@ -70,11 +71,12 @@
                 </th>
                 <th class="dictionary-editor__add-column oc-data-grid__tail" scope="col">
                   <form v-if="addingLanguage" class="dictionary-editor__inline-create" @submit.prevent="addLanguage">
-                    <OcFieldInput :value="newLanguageKey" size="sm" mono full-width autofocus
+                    <OcFieldInput ref="languageCreateInputRef" :value="newLanguageKey" size="sm" mono full-width
                       :placeholder="t('dictionaryEditor.placeholders.languageKey')"
                       :aria-label="t('dictionaryEditor.placeholders.languageKey')"
                       :aria-invalid="Boolean(newLanguageKey && !canUseLanguageKey(newLanguageKey))"
                       @input="newLanguageKey = ($event.target as HTMLInputElement).value"
+                      @blur="finishLanguageCreate"
                       @keydown.esc.stop.prevent="cancelLanguageCreate" />
                   </form>
                   <OcButton v-else icon-only size="sm" variant="ghost" icon="action.add"
@@ -95,9 +97,10 @@
                   @keydown="openRecordKeyboardMenu($event, row.key)">
                   <form v-if="editingRecord === row.key" class="dictionary-editor__rename"
                     @submit.prevent="commitRecordRename(row.key)">
-                    <OcFieldInput :value="renameDraft" size="sm" mono full-width autofocus
+                    <OcFieldInput ref="renameInputRef" :value="renameDraft" size="sm" mono full-width
+                      :aria-invalid="!canUseRecordKey(renameDraft, row.key)"
                       @input="renameDraft = ($event.target as HTMLInputElement).value"
-                      @blur="commitRecordRename(row.key)"
+                      @blur="finishRecordRename(row.key)"
                       @keydown.esc.stop.prevent="cancelRename" />
                   </form>
                   <div v-else class="dictionary-editor__record-heading">
@@ -129,11 +132,12 @@
               <tr class="dictionary-editor__add-row">
                 <th class="dictionary-editor__key-column oc-data-grid__sticky-column" scope="row">
                   <form v-if="addingRecord" class="dictionary-editor__inline-create" @submit.prevent="addRecord">
-                    <OcFieldInput :value="newRecordKey" size="sm" mono full-width autofocus
+                    <OcFieldInput ref="recordCreateInputRef" :value="newRecordKey" size="sm" mono full-width
                       :placeholder="t('dictionaryEditor.placeholders.recordKey')"
                       :aria-label="t('dictionaryEditor.placeholders.recordKey')"
                       :aria-invalid="Boolean(newRecordKey && !canUseRecordKey(newRecordKey))"
                       @input="newRecordKey = ($event.target as HTMLInputElement).value"
+                      @blur="finishRecordCreate"
                       @keydown.esc.stop.prevent="cancelRecordCreate" />
                   </form>
                   <OcButton v-else size="sm" variant="ghost" icon="action.add"
@@ -167,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
@@ -225,6 +229,12 @@ const addingLanguage = ref(false)
 const editingRecord = ref<string | null>(null)
 const editingLanguage = ref<string | null>(null)
 const renameDraft = ref('')
+type FieldInputHandle = InstanceType<typeof OcFieldInput>
+type FieldInputRef = Ref<FieldInputHandle | FieldInputHandle[] | null>
+
+const recordCreateInputRef = ref<FieldInputHandle | null>(null)
+const languageCreateInputRef = ref<FieldInputHandle | null>(null)
+const renameInputRef = ref<FieldInputHandle | FieldInputHandle[] | null>(null)
 const dictionaryWorkbookBusy = ref(false)
 const pendingWorkbookImport = shallowRef<ProjectDictionaryWorkbookImportResult | null>(null)
 const KEY_COLUMN_KEY = '$key'
@@ -285,8 +295,10 @@ function commit(next: ProjectDictionary) {
 }
 
 function beginRecordCreate(): void {
+  cancelRename()
   addingRecord.value = true
   addingLanguage.value = false
+  void focusInlineInput(recordCreateInputRef)
 }
 
 function cancelRecordCreate(): void {
@@ -300,9 +312,17 @@ function addRecord() {
   cancelRecordCreate()
 }
 
+function finishRecordCreate(): void {
+  if (!addingRecord.value) return
+  if (canUseRecordKey(newRecordKey.value)) addRecord()
+  else cancelRecordCreate()
+}
+
 function beginLanguageCreate(): void {
+  cancelRename()
   addingLanguage.value = true
   addingRecord.value = false
+  void focusInlineInput(languageCreateInputRef)
 }
 
 function cancelLanguageCreate(): void {
@@ -314,6 +334,12 @@ function addLanguage() {
   if (!dictionary.value || !canUseLanguageKey(newLanguageKey.value)) return
   commit(addDictionaryLanguage(dictionary.value, newLanguageKey.value))
   cancelLanguageCreate()
+}
+
+function finishLanguageCreate(): void {
+  if (!addingLanguage.value) return
+  if (canUseLanguageKey(newLanguageKey.value)) addLanguage()
+  else cancelLanguageCreate()
 }
 
 function updateCell(columnKey: string, recordKey: string, value: string) {
@@ -336,15 +362,21 @@ function setActiveLanguage(language: string | undefined) {
 }
 
 function beginRecordRename(recordKey: string) {
+  cancelRecordCreate()
+  cancelLanguageCreate()
   editingLanguage.value = null
   editingRecord.value = recordKey
   renameDraft.value = recordKey
+  void focusInlineInput(renameInputRef, true)
 }
 
 function beginLanguageRename(language: string) {
+  cancelRecordCreate()
+  cancelLanguageCreate()
   editingRecord.value = null
   editingLanguage.value = language
   renameDraft.value = language
+  void focusInlineInput(renameInputRef, true)
 }
 
 function cancelRename() {
@@ -365,6 +397,28 @@ function commitLanguageRename(language: string) {
   if (!canUseLanguageKey(renameDraft.value, language)) return
   commit(renameDictionaryLanguage(dictionary.value!, language, renameDraft.value))
   cancelRename()
+}
+
+function finishRecordRename(recordKey: string): void {
+  if (editingRecord.value !== recordKey) return
+  if (canUseRecordKey(renameDraft.value, recordKey)) commitRecordRename(recordKey)
+  else cancelRename()
+}
+
+function finishLanguageRename(language: string): void {
+  if (editingLanguage.value !== language) return
+  if (canUseLanguageKey(renameDraft.value, language)) commitLanguageRename(language)
+  else cancelRename()
+}
+
+async function focusInlineInput(
+  input: FieldInputRef,
+  select = false,
+): Promise<void> {
+  await nextTick()
+  const field = Array.isArray(input.value) ? input.value[input.value.length - 1] : input.value
+  field?.focus()
+  if (select) field?.select()
 }
 
 async function copyDictionaryKey(key: string, kind: 'record' | 'language'): Promise<void> {

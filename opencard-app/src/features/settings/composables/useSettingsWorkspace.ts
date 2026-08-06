@@ -354,6 +354,15 @@ export function useSettingsWorkspace(
           checked: settings.workspace.showSelectionSizeOnResize,
         },
         {
+          type: 'switch',
+          key: 'workspace.alignmentSnappingEnabledByDefault',
+          label: options.translate(
+            'settings.fields.alignmentSnappingEnabledByDefault',
+            'Enable alignment snapping by default',
+          ),
+          checked: settings.workspace.alignmentSnappingEnabledByDefault,
+        },
+        {
           type: 'text',
           key: 'workspace.defaultFontImportDirectory',
           label: options.translate('settings.fields.defaultFontImportDirectory', 'Default project font directory'),

@@ -12,8 +12,8 @@
           </div>
         </div>
         <div class="project-font-registry-workbench__title-actions">
-          <OcButton icon-only icon="action.add" variant="soft" :aria-label="addLabel"
-            :data-tooltip="addLabel" @click="addCurrentEntry" />
+          <OcButton icon="action.add" variant="soft" :aria-label="addLabel"
+            @click="addCurrentEntry">{{ addLabel }}</OcButton>
         </div>
       </header>
 

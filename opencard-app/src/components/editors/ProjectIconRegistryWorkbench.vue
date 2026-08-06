@@ -9,9 +9,16 @@
             <OcText tone="muted" size="sm">{{ description }}</OcText>
           </div>
         </div>
-        <OcButton icon-only icon="action.add" variant="soft"
-          :aria-label="t('projectConfig.icons.register')" :data-tooltip="t('projectConfig.icons.register')"
-          @click="emit('register')" />
+        <div class="project-icon-registry-workbench__title-actions">
+          <OcButton icon="action.add" variant="soft"
+            :aria-label="t('projectConfig.icons.createPack')" @click="emit('create-pack')">
+            {{ t('projectConfig.icons.createPack') }}
+          </OcButton>
+          <OcButton icon="action.import" variant="soft"
+            :aria-label="t('projectConfig.icons.importPack')" @click="emit('import-pack')">
+            {{ t('projectConfig.icons.importPack') }}
+          </OcButton>
+        </div>
       </header>
 
       <OcText v-if="error" class="project-icon-registry-workbench__error" tone="danger" size="sm">
@@ -31,6 +38,11 @@
             </OcText>
           </template>
           <template #actions>
+            <OcButton icon-only size="sm" icon="action.export" variant="ghost"
+              :disabled="selectedSeriesIndex !== index || !selectedRuntime"
+              :aria-label="t('projectConfig.icons.exportPack')"
+              :data-tooltip="t('projectConfig.icons.exportPack')"
+              @click.stop="exportIconPack(index)" />
             <OcButton icon-only size="sm" icon="action.image-plus" variant="ghost"
               :disabled="selectedSeriesIndex !== index || !selectedRuntime"
               :aria-label="t('projectConfig.icons.addSingleCrop')"
@@ -51,8 +63,8 @@
               @click.stop="removeSeries(index)" />
           </template>
           <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index" :ref="captureSetWorkspace"
-            :series="candidate" :runtime="selectedRuntime" :selected-icon-index="selectedIconIndex"
-            @update:series="updateSelectedSeries" @update:selected-icon-index="setSelectedIconIndex" />
+            :series="candidate" :runtime="selectedRuntime" :selected-icon-indexes="selectedIconIndexesForSeries"
+            @update:series="updateSelectedSeries" @update:selected-icon-indexes="setSelectedIconIndexes" />
         </ProjectConfigSection>
       </div>
     </section>
@@ -158,11 +170,13 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries[]]
   'key-conflicts': [conflicts: readonly ProjectIconKeyConflict[]]
-  register: []
+  'create-pack': []
+  'import-pack': []
+  'export-pack': [series: ProjectIconSeries]
 }>()
 const { t } = useI18n()
 const selectedSeriesKey = ref<string | null>(null)
-const selectedIconIndexes = ref<Record<string, number | null>>({})
+const selectedIconIndexes = ref<Record<string, number[]>>({})
 const settingsSeriesIndex = ref<number | null>(null)
 const gridDialogOpen = ref(false)
 const setWorkspaceRef = ref<InstanceType<typeof ProjectIconSetWorkspace> | null>(null)
@@ -184,9 +198,11 @@ const selectedRuntime = computed(() => selectedSeries.value
 const selectedIconIndex = computed(() => {
   const current = selectedSeries.value
   if (!current) return null
-  const index = selectedIconIndexes.value[current.key]
-  return index !== null && index !== undefined && current.icons[index] ? index : null
+  return selectedIconIndexes.value[current.key]?.find(index => current.icons[index]) ?? null
 })
+const selectedIconIndexesForSeries = computed(() => (
+  selectedSeries.value ? selectedIconIndexes.value[selectedSeries.value.key] ?? [] : []
+))
 const selectedIcon = computed(() => selectedIconIndex.value === null
   ? null : selectedSeries.value?.icons[selectedIconIndex.value] ?? null)
 const settingsSeries = computed(() => settingsSeriesIndex.value === null
@@ -223,11 +239,11 @@ watch(() => props.series, nextSeries => {
     && !nextSeries.some(candidate => candidate.key === selectedSeriesKey.value)) {
     selectedSeriesKey.value = nextSeries[0]?.key ?? null
   }
-  const nextSelections: Record<string, number | null> = {}
+  const nextSelections: Record<string, number[]> = {}
   for (const candidate of nextSeries) {
-    const selected = selectedIconIndexes.value[candidate.key]
-    nextSelections[candidate.key] = selected !== null && selected !== undefined && candidate.icons[selected]
-      ? selected : candidate.icons.length ? 0 : null
+    const selected = selectedIconIndexes.value[candidate.key] ?? []
+    const valid = selected.filter(index => candidate.icons[index])
+    nextSelections[candidate.key] = valid.length ? valid : candidate.icons.length ? [0] : []
   }
   selectedIconIndexes.value = nextSelections
 }, { immediate: true })
@@ -248,15 +264,15 @@ function selectSeriesByIndex(index: number): void {
   if (!candidate) return
   selectedSeriesKey.value = candidate.key
   if (selectedIconIndexes.value[candidate.key] == null && candidate.icons.length) {
-    selectedIconIndexes.value[candidate.key] = 0
+    selectedIconIndexes.value[candidate.key] = [0]
   }
 }
 function toggleSeries(index: number): void {
   if (selectedSeriesIndex.value === index) selectedSeriesKey.value = null
   else selectSeriesByIndex(index)
 }
-function setSelectedIconIndex(index: number | null): void {
-  if (selectedSeriesKey.value !== null) selectedIconIndexes.value[selectedSeriesKey.value] = index
+function setSelectedIconIndexes(indexes: number[]): void {
+  if (selectedSeriesKey.value !== null) selectedIconIndexes.value[selectedSeriesKey.value] = [...indexes]
 }
 function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
   const index = selectedSeriesIndex.value
@@ -308,7 +324,11 @@ function addSingleCrop(index: number): void {
   })
   if (!nextSeries) return
   updateSelectedSeries(nextSeries)
-  setSelectedIconIndex(series.icons.length)
+  setSelectedIconIndexes([series.icons.length])
+}
+function exportIconPack(index: number): void {
+  const candidate = props.series[index]
+  if (candidate) emit('export-pack', candidate)
 }
 function generateIcons(request: ProjectIconGridRequest): void {
   const series = selectedSeries.value
@@ -323,7 +343,7 @@ function generateIcons(request: ProjectIconGridRequest): void {
   if (!generated) return
   updateSelectedSeries({ ...generated, grid: { ...gridSettings.value, rows: request.rows,
     columns: request.columns, pixelated: request.pixelated } })
-  setSelectedIconIndex(generated.icons.length ? (mode === 'append' ? series.icons.length : 0) : null)
+  setSelectedIconIndexes(generated.icons.length ? [mode === 'append' ? series.icons.length : 0] : [])
   gridDialogOpen.value = false
 }
 function openSettingsDialog(index: number): void {
@@ -337,7 +357,7 @@ function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
   next[index] = { ...current, name: request.name, key: request.key }
   if (selectedSeriesKey.value === current.key) {
     selectedSeriesKey.value = request.key
-    selectedIconIndexes.value[request.key] = selectedIconIndexes.value[current.key] ?? null
+    selectedIconIndexes.value[request.key] = selectedIconIndexes.value[current.key] ?? []
     delete selectedIconIndexes.value[current.key]
   }
   settingsSeriesIndex.value = null
@@ -373,7 +393,7 @@ async function navigateToKeyConflict(conflict: ProjectIconKeyConflict): Promise<
     return true
   }
   if (!candidate.icons[conflict.iconIndex]) return false
-  setSelectedIconIndex(conflict.iconIndex)
+  setSelectedIconIndexes([conflict.iconIndex])
   await nextTick()
   return await setWorkspaceRef.value?.activateIconKey(conflict.iconIndex) ?? false
 }
@@ -409,6 +429,7 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 .project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
+.project-icon-registry-workbench__title-actions { display: flex; flex-wrap: wrap; gap: var(--oc-space-2); justify-content: flex-end; }
 .project-icon-registry-workbench__title > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
 .project-icon-registry-workbench h1 {
   margin: 0;

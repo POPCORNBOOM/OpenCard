@@ -51,6 +51,7 @@ describe('appSettings', () => {
         structureTreeScrollToSelection: true,
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
+        alignmentSnappingEnabledByDefault: true,
         defaultFontImportDirectory: 'assets/fonts',
         defaultIconImportDirectory: 'assets/icons',
       },

@@ -65,14 +65,14 @@ describe('useCdeTreeOps active face boundary', () => {
       iconTone: 'block-text',
     })
 
-    state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'hide-block' })
+    state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'hide-block', source: 'inline' })
     expect(document.faces.front.children[0]!.block.visible).toBe('false')
     expect(state.blockTreeData.value.items.get('front-text')).toMatchObject({
       actions: ['show-block', 'block-more'],
       iconTone: 'muted',
     })
 
-    state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'show-block' })
+    state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'show-block', source: 'inline' })
     expect(document.faces.front.children[0]!.block.visible).toBe('true')
     expect(markDocumentChanged).toHaveBeenCalledWith('action')
 

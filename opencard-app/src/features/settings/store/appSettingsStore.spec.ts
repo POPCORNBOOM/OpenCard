@@ -36,6 +36,7 @@ describe('appSettingsStore', () => {
     store.updateSetting('workspace.structureTreeScrollToSelection', false)
     store.updateSetting('workspace.showSelectionPositionOnMove', false)
     store.updateSetting('workspace.showSelectionSizeOnResize', false)
+    store.updateSetting('workspace.alignmentSnappingEnabledByDefault', false)
     store.updateProjectCreation({ lastParentPath: 'D:\\Cards' })
     await store.flush()
 
@@ -56,6 +57,7 @@ describe('appSettingsStore', () => {
         structureTreeScrollToSelection: false,
         showSelectionPositionOnMove: false,
         showSelectionSizeOnResize: false,
+        alignmentSnappingEnabledByDefault: false,
       },
       projectCreation: { lastParentPath: 'D:\\Cards' },
     })

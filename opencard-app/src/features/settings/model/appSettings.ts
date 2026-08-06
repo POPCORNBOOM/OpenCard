@@ -112,6 +112,7 @@ export type AppSettingKey =
   | 'workspace.structureTreeScrollToSelection'
   | 'workspace.showSelectionPositionOnMove'
   | 'workspace.showSelectionSizeOnResize'
+  | 'workspace.alignmentSnappingEnabledByDefault'
   | 'workspace.defaultFontImportDirectory'
   | 'workspace.defaultIconImportDirectory'
 
@@ -139,6 +140,7 @@ export interface AppSettings {
     structureTreeScrollToSelection: boolean
     showSelectionPositionOnMove: boolean
     showSelectionSizeOnResize: boolean
+    alignmentSnappingEnabledByDefault: boolean
     defaultFontImportDirectory: string
     defaultIconImportDirectory: string
   }
@@ -211,6 +213,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     structureTreeScrollToSelection: true,
     showSelectionPositionOnMove: true,
     showSelectionSizeOnResize: true,
+    alignmentSnappingEnabledByDefault: true,
     defaultFontImportDirectory: DEFAULT_PROJECT_FONT_DIRECTORY,
     defaultIconImportDirectory: DEFAULT_PROJECT_ICON_DIRECTORY,
   }),
@@ -558,6 +561,9 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       showSelectionSizeOnResize: typeof workspace.showSelectionSizeOnResize === 'boolean'
         ? workspace.showSelectionSizeOnResize
         : DEFAULT_APP_SETTINGS.workspace.showSelectionSizeOnResize,
+      alignmentSnappingEnabledByDefault: typeof workspace.alignmentSnappingEnabledByDefault === 'boolean'
+        ? workspace.alignmentSnappingEnabledByDefault
+        : DEFAULT_APP_SETTINGS.workspace.alignmentSnappingEnabledByDefault,
       defaultFontImportDirectory: typeof workspace.defaultFontImportDirectory === 'string'
         ? normalizeProjectFontDirectory(workspace.defaultFontImportDirectory) ?? DEFAULT_PROJECT_FONT_DIRECTORY
         : DEFAULT_PROJECT_FONT_DIRECTORY,
