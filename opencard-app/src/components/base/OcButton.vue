@@ -15,7 +15,7 @@
         class="oc-button__icon"
         :name="icon"
         :tone="iconTone"
-        :size="iconSize"
+        :size="resolvedIconSize"
       />
       <slot name="icon" />
       <span v-if="!isIconOnly" class="oc-button__label">
@@ -26,7 +26,7 @@
         class="oc-button__icon"
         :name="icon"
         :tone="iconTone"
-        :size="iconSize"
+        :size="resolvedIconSize"
       />
     </span>
   </button>
@@ -35,7 +35,7 @@
 <script setup lang="ts">
 import { computed, useAttrs, useSlots } from 'vue'
 import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
-import OcIcon from './OcIcon.vue'
+import OcIcon, { type OcIconSize } from './OcIcon.vue'
 
 /**
  * 按钮视觉变体。
@@ -76,6 +76,8 @@ interface OcButtonProps {
   icon?: IconToken
   /** 图标语义色调 */
   iconTone?: IconTone
+  /** 图标视觉尺寸；省略时沿用按钮尺寸映射 */
+  iconSize?: OcIconSize
   /** 图标位置。默认 'left' */
   iconSide?: 'left' | 'right'
   /** 是否纯图标模式。默认 false */
@@ -109,6 +111,7 @@ const props = withDefaults(defineProps<OcButtonProps>(), {
   radius: 'sm',
   icon: undefined,
   iconTone: 'default',
+  iconSize: undefined,
   iconSide: 'left',
   iconOnly: false,
   active: false,
@@ -129,7 +132,9 @@ const forwardedAttrs = computed(() => {
 const hasDefaultSlot = computed(() => Boolean(slots.default?.().length))
 const isIconOnly = computed(() => props.iconOnly || (!hasDefaultSlot.value && Boolean(props.icon)))
 
-const iconSize = computed(() => {
+const resolvedIconSize = computed<OcIconSize>(() => {
+  if (props.iconSize) return props.iconSize
+  if (isIconOnly.value) return 'action'
   const sizeMap: Record<ButtonSize, 'sm' | 'md' | 'lg'> = {
     sm: 'sm',
     md: 'md',

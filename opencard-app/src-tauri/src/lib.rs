@@ -8,12 +8,10 @@ use tauri::{Emitter, State};
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::UI::{
-    Shell::ShellExecuteW,
-    WindowsAndMessaging::SW_SHOWNORMAL,
-};
+use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
 
 mod external_open;
+mod icon_spritesheet;
 
 // 存储 watcher 的全局状态
 struct WatcherState {
@@ -188,7 +186,10 @@ fn open_with_default_app(target: &Path) -> Result<(), String> {
         )
     };
     if result as isize <= 32 {
-        return Err(format!("ShellExecuteW failed with code {}", result as isize));
+        return Err(format!(
+            "ShellExecuteW failed with code {}",
+            result as isize
+        ));
     }
     Ok(())
 }
@@ -232,7 +233,6 @@ mod tests {
         let arguments: Vec<_> = command.get_args().collect();
         assert_eq!(arguments, [r"/select,D:\My Cards\main.ocdocument"]);
     }
-
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -266,6 +266,7 @@ pub fn run() {
             reveal_path,
             open_path,
             external_open::take_external_open_requests,
+            icon_spritesheet::compose_project_icon_spritesheet,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

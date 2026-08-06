@@ -20,14 +20,25 @@
           <div class="create-project__details-heading">
             <OcIcon name="file.opencard" size="lg" />
             <div>
-              <strong>{{ selectedTemplate.name }}</strong>
-              <p>{{ selectedTemplate.description || t('projectTemplates.status.noDescription') }}</p>
+              <strong>{{ localizedTemplateName(selectedTemplate) }}</strong>
+              <p>{{ localizedTemplateDescription(selectedTemplate) || t('projectTemplates.status.noDescription') }}</p>
             </div>
           </div>
           <dl>
             <div>
               <dt>{{ t('projectTemplates.fields.entry') }}</dt>
               <dd><code>{{ selectedTemplateEntryName(selectedEntry) }}</code></dd>
+            </div>
+            <div>
+              <dt>{{ t('projectTemplates.fields.iconPacks') }}</dt>
+              <dd>
+                <ul v-if="selectedIconPacks.length" class="create-project__icon-pack-list">
+                  <li v-for="pack in selectedIconPacks" :key="pack.key">
+                    {{ localizedIconPackName(pack) }}
+                  </li>
+                </ul>
+                <span v-else>{{ t('projectTemplates.status.noIconPacksSelected') }}</span>
+              </dd>
             </div>
           </dl>
           <div v-if="selectedTemplate.source === 'user'" class="create-project__details-actions">
@@ -127,7 +138,7 @@
       <form class="create-project__form" @submit.prevent="createProject">
         <div class="create-project__form-heading">
           <span>{{ t('projectTemplates.formTitle') }}</span>
-          <strong>{{ selectedTemplate?.name ?? t('projectTemplates.status.selectTemplate') }}</strong>
+          <strong>{{ selectedTemplate ? localizedTemplateName(selectedTemplate) : t('projectTemplates.status.selectTemplate') }}</strong>
         </div>
 
         <label>
@@ -193,6 +204,8 @@ import OcIcon from '../../../components/base/OcIcon.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 import {
   TemplateServiceError,
+  resolveProjectTemplateDescription,
+  resolveProjectTemplateName,
   resolveTemplateEntries,
   validateProjectName,
   validateTemplateDescription,
@@ -202,16 +215,23 @@ import {
   type ProjectTemplateKey,
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
+import {
+  resolveProjectIconPackName,
+  type ProjectIconPackCatalogEntry,
+  type ProjectIconPackCatalogKey,
+} from '../../workspace/model/projectIconPackCatalog'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
+import { useProjectIconPackStore } from '../../workspace/store/projectIconPackStore'
 import { useProjectTemplateStore } from '../store/projectTemplateStore'
 
 defineOptions({ name: 'CreateProjectWorkspace' })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   selectedKey: ProjectTemplateKey | null
+  selectedIconPackKeys?: readonly string[]
   activationError?: string
   externalBusy?: boolean
-}>()
+}>(), { selectedIconPackKeys: () => [] })
 
 const emit = defineEmits<{
   created: [project: CreatedProject]
@@ -219,8 +239,9 @@ const emit = defineEmits<{
   'update:selectedKey': [key: ProjectTemplateKey | null]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const store = useProjectTemplateStore()
+const iconPackStore = useProjectIconPackStore()
 const appSettingsStore = useAppSettingsStore()
 
 const projectName = ref(t('projectTemplates.defaults.projectName'))
@@ -243,6 +264,9 @@ const coverSlideIndex = ref(0)
 let coverSlideTimer: ReturnType<typeof setInterval> | null = null
 
 const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(props.selectedKey) : null)
+const selectedIconPacks = computed(() => props.selectedIconPackKeys
+  .map((key) => iconPackStore.findPack(key as ProjectIconPackCatalogKey))
+  .filter((pack): pack is ProjectIconPackCatalogEntry => Boolean(pack)))
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
@@ -257,6 +281,15 @@ const templateEntryOptions = computed(() => templateInspection.value?.entries.ma
 
 function selectedTemplateEntryName(entry: string): string {
   return selectedTemplate.value?.entryNames?.[entry] ?? entry
+}
+function localizedTemplateName(template: ProjectTemplate): string {
+  return resolveProjectTemplateName(template, locale.value)
+}
+function localizedTemplateDescription(template: ProjectTemplate): string {
+  return resolveProjectTemplateDescription(template, locale.value)
+}
+function localizedIconPackName(pack: ProjectIconPackCatalogEntry): string {
+  return resolveProjectIconPackName(pack, locale.value)
 }
 const selectedCoverSources = computed(() => (
   selectedTemplate.value?.coverPaths.map((path) => convertFileSrc(path)) ?? []
@@ -318,7 +351,7 @@ watch(localBusy, (busy) => {
 
 onMounted(async () => {
   try {
-    await store.load()
+    await Promise.all([store.load(), iconPackStore.load()])
   } catch (cause) {
     operationError.value = resolveErrorMessage(cause)
   }
@@ -447,6 +480,7 @@ async function createProject(): Promise<void> {
       parentPath: parentPath.value,
       projectName: projectName.value,
       entry: selectedEntry.value,
+      iconPacks: selectedIconPacks.value,
     })
     emit('created', project)
   } catch (cause) {
@@ -476,6 +510,7 @@ function resolveErrorMessage(cause: unknown): string {
     'copy-failed': 'copyFailed',
     'invalid-package': 'invalidPackage',
     'archive-failed': 'archiveFailed',
+    'icon-pack-failed': 'iconPackFailed',
   }
   return t(`projectTemplates.errors.${keyByCode[cause.code]}`)
 }
@@ -630,6 +665,13 @@ function resolveErrorMessage(cause: unknown): string {
   color: var(--oc-fg-default);
   font-family: var(--oc-font-mono);
   font-size: var(--oc-text-sm);
+}
+
+.create-project__icon-pack-list {
+  display: grid;
+  gap: var(--oc-space-1);
+  margin: 0;
+  padding-left: var(--oc-space-4);
 }
 
 .create-project__details-actions,

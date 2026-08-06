@@ -15,12 +15,19 @@ const MAX_ICON_PACK_BYTES = 128 * 1024 * 1024
 const MAX_ICON_PACK_UNPACKED_BYTES = 256 * 1024 * 1024
 const SPRITESHEET_EXTENSION_PATTERN = /^(?:png|jpe?g|webp)$/i
 
+export type ProjectIconPackLocalizedText = Readonly<Record<string, string>>
+
+export type ProjectIconPackLocalization = {
+  name?: ProjectIconPackLocalizedText
+}
+
 export type ProjectIconPackManifest = {
   type: 'opencard-icon-pack'
   schemaVersion: typeof PROJECT_ICON_PACK_SCHEMA_VERSION
   name: string
   key: string
   spritesheet: string
+  i18n?: ProjectIconPackLocalization
   grid?: ProjectIconGridSettings
   icons: readonly ProjectIcon[]
 }
@@ -28,6 +35,20 @@ export type ProjectIconPackManifest = {
 export type ProjectIconPack = {
   manifest: ProjectIconPackManifest
   spritesheetBytes: Uint8Array
+}
+
+export function createProjectIconPackSpritesheetName(packName: string, originalFileName: string): string {
+  const sourceName = originalFileName.replace(/\\/g, '/').split('/').pop() ?? originalFileName
+  const extension = sourceName.slice(sourceName.lastIndexOf('.'))
+  const safeName = packName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '') || 'icon-pack'
+  return `${safeName}${extension}`
+}
+
+function parseLocalizedText(value: unknown): ProjectIconPackLocalizedText | null {
+  if (!isRecord(value)) return null
+  const entries = Object.entries(value)
+  if (entries.some(([locale, text]) => !locale || typeof text !== 'string' || !text.trim())) return null
+  return Object.fromEntries(entries.map(([locale, text]) => [locale, (text as string).trim()]))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,6 +101,13 @@ export function parseProjectIconPackManifest(value: unknown): ProjectIconPackMan
 
   const spritesheet = normalizeSpritesheetName(value.spritesheet)
   if (!spritesheet) return null
+  let i18n: ProjectIconPackLocalization | undefined
+  if (value.i18n !== undefined) {
+    if (!isRecord(value.i18n)) return null
+    const name = value.i18n.name === undefined ? undefined : parseLocalizedText(value.i18n.name)
+    if (value.i18n.name !== undefined && !name) return null
+    i18n = name ? { name } : {}
+  }
   const parsed = parseProjectIconSeries([{
     name: value.name,
     key: value.key,
@@ -95,6 +123,7 @@ export function parseProjectIconPackManifest(value: unknown): ProjectIconPackMan
     name: series.name,
     key: series.key,
     spritesheet,
+    ...(i18n && Object.keys(i18n).length > 0 ? { i18n } : {}),
     ...(series.grid ? { grid: series.grid } : {}),
     icons: series.icons,
   }

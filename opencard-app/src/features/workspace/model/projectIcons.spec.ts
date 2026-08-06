@@ -52,6 +52,12 @@ describe('projectIcons', () => {
 
   it('parses independent display names and ignores unknown persisted fields', () => {
     expect(parseProjectIconSeries([series])).toEqual([series])
+    expect(parseProjectIconSeries([{ ...series, icons: [{ ...series.icons[0]!, rotation: 270 }] }])
+      ?.[0]?.icons[0]?.rotation).toBe(270)
+    expect(parseProjectIconSeries([{ ...series, icons: [{ ...series.icons[0]!, rotation: 45 }] }])).toBeNull()
+    expect(parseProjectIconSeries([{ ...series, icons: [{ ...series.icons[0]!, atlasRotation: 90 }] }])
+      ?.[0]?.icons[0]?.atlasRotation).toBe(90)
+    expect(parseProjectIconSeries([{ ...series, icons: [{ ...series.icons[0]!, atlasRotation: 45 }] }])).toBeNull()
     expect(parseProjectIconSeries([{ ...series, width: 32 }])).toEqual([series])
     expect(parseProjectIconSeries([{ ...series, name: '  状态图标  ' }])?.[0]?.name).toBe('状态图标')
     expect(parseProjectIconSeries([{ key: series.key, source: series.source, icons: [] }])).toBeNull()

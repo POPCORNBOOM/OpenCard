@@ -5,12 +5,7 @@
       <div v-if="hasHeader" class="oc-card__header">
         <OcBar :icon="icon" :title="title">
           <template #append>
-            <OcActionButton
-              v-for="action in actions"
-              :key="action.key"
-              :action="action"
-              @select="handleActionSelect"
-            />
+            <OcActionRail :actions="actions" @select="handleActionSelect" />
           </template>
         </OcBar>
       </div>
@@ -43,7 +38,8 @@ export type OcCardAction = OcActionButtonAction
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
-import OcActionButton, { type OcActionButtonSelectPayload } from './OcActionButton.vue'
+import type { OcActionButtonSelectPayload } from './OcActionButton.vue'
+import OcActionRail from './OcActionRail.vue'
 import OcBar from './OcBar.vue'
 
 interface OcCardProps {

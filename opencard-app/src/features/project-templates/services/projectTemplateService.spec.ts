@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import type { FileSystemService } from '../../workspace/services/fileSystemService'
 import type { ProjectTemplate } from '../model/projectTemplate'
+import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
 import {
   ProjectTemplateService,
   type ProjectTemplatePathService,
@@ -643,6 +644,39 @@ describe('ProjectTemplateService project creation', () => {
     })).rejects.toMatchObject({ code: 'target-exists' })
 
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
+  })
+
+  it('registers selected icon packs while creating the project', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.ocproject', projectFile())
+    fs.putFile('/template/content/main.ocdocument', cardDocument())
+    fs.putFile('/packs/status.ociconpack', zipSync({
+      'iconpack.json': strToU8(JSON.stringify({
+        type: 'opencard-icon-pack', schemaVersion: '1', name: 'Status', key: 'status',
+        spritesheet: 'spritesheet.png', icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 8, height: 8 }],
+      })),
+      'spritesheet.png': new Uint8Array([7, 8, 9]),
+    }))
+    const pack: ProjectIconPackCatalogEntry = {
+      key: 'builtin:status', id: 'status', name: 'Status', packKey: 'status',
+      source: 'builtin', path: '/packs/status.ociconpack', iconCount: 1,
+    }
+
+    await createService(fs).createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Demo',
+      iconPacks: [pack],
+    })
+
+    expect(JSON.parse(fs.rawFile('/projects/Demo/.ocicons') as string)).toEqual({
+      iconSeries: [{
+        name: 'Status', key: 'status', source: 'assets/icons/Status.png',
+        icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 8, height: 8 }],
+      }],
+    })
+    expect(fs.rawFile('/projects/Demo/assets/icons/Status.png')).toEqual(new Uint8Array([7, 8, 9]))
   })
 
   it('returns a selected candidate entry without persisting it as project metadata', async () => {

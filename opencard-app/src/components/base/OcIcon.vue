@@ -13,6 +13,10 @@
   </svg>
 </template>
 
+<script lang="ts">
+export type OcIconSize = 'sm' | 'md' | 'lg' | 'action'
+</script>
+
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
 import { resolveIcon, type IconResolvable, type IconTone } from '../../shared/ui/icon/iconRegistry'
@@ -32,7 +36,7 @@ interface OcIconProps {
   /** 图标色调 */
   tone?: IconTone
   /** 图标尺寸 */
-  size?: 'sm' | 'md' | 'lg'
+  size?: OcIconSize
 }
 
 defineOptions({
@@ -119,5 +123,11 @@ const iconStyle = computed(() => ({
   font-size: var(--oc-icon-size-lg);
   width: var(--oc-icon-size-lg);
   height: var(--oc-icon-size-lg);
+}
+
+.oc-icon--action {
+  font-size: var(--oc-icon-size-action);
+  width: var(--oc-icon-size-action);
+  height: var(--oc-icon-size-action);
 }
 </style>

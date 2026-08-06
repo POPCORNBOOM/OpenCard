@@ -53,7 +53,9 @@ import {
   mdiEyeOutline,
   mdiFileCodeOutline,
   mdiFileCogOutline,
+  mdiExport,
   mdiFileImageOutline,
+  mdiImport,
   mdiFileKeyOutline,
   mdiFileMultipleOutline,
   mdiFileMinusOutline,
@@ -140,11 +142,9 @@ import {
   mdiSourceBranch,
   mdiSwapHorizontal,
   mdiTableLarge,
-  mdiTableArrowLeft,
-  mdiTableArrowRight,
   mdiToggleSwitchOutline,
   mdiTextBoxOutline,
-  mdiTrashCanOutline,
+  mdiDeleteVariant,
   mdiUndoVariant,
   mdiViewDashboard,
   mdiViewDashboardEditOutline,
@@ -161,27 +161,27 @@ import {
 import type { IconToken } from './iconTokens'
 import type { IconGlyph } from './icon.types'
 
-function glyph(path: string): IconGlyph {
-  return { path }
+function glyph(path: string, viewBox?: string): IconGlyph {
+  return { path, viewBox }
 }
 
 export const iconGlyphs = {
   'action.add': glyph(mdiPlus),
   'action.check': glyph(mdiCheck),
   'action.close': glyph(mdiClose),
-  'action.copy': glyph(mdiContentCopy),
-  'action.delete': glyph(mdiTrashCanOutline),
+  'action.copy': glyph(mdiContentCopy, '-1 -1 26 26'),
+  'action.delete': glyph(mdiDeleteVariant),
   'action.discard': glyph(mdiUndoVariant),
   'action.download': glyph(mdiDownload),
   'action.drag': glyph(mdiDragVariant),
   'action.edit': glyph(mdiPencilOutline),
-  'action.export': glyph(mdiTableArrowRight),
+  'action.export': glyph(mdiExport),
   'action.folder-plus': glyph(mdiFolderPlusOutline),
   'action.file-minus': glyph(mdiFileMinusOutline),
   'action.file-plus': glyph(mdiFilePlusOutline),
   'action.image-minus': glyph(mdiImageMinusOutline),
   'action.image-plus': glyph(mdiImagePlusOutline),
-  'action.import': glyph(mdiTableArrowLeft),
+  'action.import': glyph(mdiImport),
   'action.play': glyph(mdiPlayOutline),
   'action.search': glyph(mdiMagnify),
   'action.publish': glyph(mdiRocketLaunchOutline),

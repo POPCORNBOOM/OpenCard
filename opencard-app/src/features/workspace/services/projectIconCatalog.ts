@@ -121,27 +121,59 @@ export function findProjectIcon(
   return catalog?.entries.find(entry => projectIconIdentity(entry.seriesKey, entry.iconKey) === identity) ?? null
 }
 
-export function createProjectIconStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
-  const unit = entry.height
+function isQuarterTurn(rotation: number | undefined): boolean {
+  return rotation === 90 || rotation === 270
+}
+
+function displayDimensions(entry: ProjectIconCatalogEntry): { width: number; height: number } {
+  const atlasDimensions = isQuarterTurn(entry.atlasRotation)
+    ? { width: entry.height, height: entry.width }
+    : { width: entry.width, height: entry.height }
+  return isQuarterTurn(entry.rotation)
+    ? { width: atlasDimensions.height, height: atlasDimensions.width }
+    : atlasDimensions
+}
+
+function effectiveRotation(entry: ProjectIconCatalogEntry): number {
+  return ((entry.rotation ?? 0) - (entry.atlasRotation ?? 0) + 360) % 360
+}
+
+function createProjectIconRenderStyle(
+  entry: ProjectIconCatalogEntry,
+  unit: number,
+): Record<string, string> {
   return {
-    width: `${entry.width / unit}em`,
-    height: '1em',
-    backgroundImage: `url(${JSON.stringify(entry.src)})`,
+    backgroundImage: 'none',
     backgroundSize: `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
     backgroundPosition: `${-entry.x / unit}em ${-entry.y / unit}em`,
     imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
+    '--oc-project-icon-background-image': `url(${JSON.stringify(entry.src)})`,
+    '--oc-project-icon-background-size': `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
+    '--oc-project-icon-background-position': `${-entry.x / unit}em ${-entry.y / unit}em`,
+    '--oc-project-icon-source-width': `${entry.width / unit}em`,
+    '--oc-project-icon-source-height': `${entry.height / unit}em`,
+    '--oc-project-icon-image-rendering': entry.pixelated === true ? 'pixelated' : 'auto',
+    '--oc-project-icon-transform': `rotate(${effectiveRotation(entry)}deg)`,
+  }
+}
+
+export function createProjectIconStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
+  const dimensions = displayDimensions(entry)
+  const unit = dimensions.height
+  return {
+    width: `${dimensions.width / unit}em`,
+    height: '1em',
+    ...createProjectIconRenderStyle(entry, unit),
   }
 }
 
 export function createProjectIconPreviewStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
-  const unit = Math.max(entry.width, entry.height)
+  const dimensions = displayDimensions(entry)
+  const unit = Math.max(dimensions.width, dimensions.height)
   return {
-    width: `${entry.width / unit}em`,
-    height: `${entry.height / unit}em`,
-    backgroundImage: `url(${JSON.stringify(entry.src)})`,
-    backgroundSize: `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
-    backgroundPosition: `${-entry.x / unit}em ${-entry.y / unit}em`,
-    imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
+    width: `${dimensions.width / unit}em`,
+    height: `${dimensions.height / unit}em`,
+    ...createProjectIconRenderStyle(entry, unit),
   }
 }
 

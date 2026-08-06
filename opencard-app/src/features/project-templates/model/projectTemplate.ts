@@ -1,3 +1,5 @@
+import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+
 export const PROJECT_TEMPLATE_SCHEMA_VERSION = 1 as const
 export const PROJECT_TEMPLATE_NAME_MAX_LENGTH = 80
 export const PROJECT_TEMPLATE_DESCRIPTION_MAX_LENGTH = 200
@@ -7,6 +9,13 @@ export const PROJECT_TEMPLATE_PACKAGE_SUFFIX = `.${PROJECT_TEMPLATE_PACKAGE_EXTE
 export type ProjectTemplateSource = 'builtin' | 'user'
 export type ProjectTemplateKey = `${ProjectTemplateSource}:${string}`
 
+export type ProjectTemplateLocalizedText = Readonly<Record<string, string>>
+
+export interface ProjectTemplateLocalization {
+  name?: ProjectTemplateLocalizedText
+  description?: ProjectTemplateLocalizedText
+}
+
 export interface ProjectTemplateManifest {
   schemaVersion: typeof PROJECT_TEMPLATE_SCHEMA_VERSION
   id: string
@@ -15,6 +24,7 @@ export interface ProjectTemplateManifest {
   entry: string
   entries?: readonly string[]
   covers?: readonly string[]
+  i18n?: ProjectTemplateLocalization
 }
 
 export interface ProjectTemplate extends ProjectTemplateManifest {
@@ -63,6 +73,7 @@ export interface CreateProjectFromTemplateRequest {
   parentPath: string
   projectName: string
   entry?: string
+  iconPacks?: readonly ProjectIconPackCatalogEntry[]
 }
 
 export interface TemplateExportSelection {
@@ -95,6 +106,7 @@ export type TemplateServiceErrorCode =
   | 'copy-failed'
   | 'invalid-package'
   | 'archive-failed'
+  | 'icon-pack-failed'
 
 export class TemplateServiceError extends Error {
   readonly cause?: unknown
@@ -117,6 +129,25 @@ const SUPPORTED_COVER_IMAGE = /\.(?:avif|gif|jpe?g|png|webp)$/i
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseLocalizedText(value: unknown): ProjectTemplateLocalizedText | null {
+  if (!isRecord(value)) return null
+  const entries = Object.entries(value)
+  if (entries.some(([locale, text]) => !locale || typeof text !== 'string' || !text.trim())) return null
+  return Object.fromEntries(entries.map(([locale, text]) => [locale, (text as string).trim()]))
+}
+
+function parseLocalization(value: unknown): ProjectTemplateLocalization | null {
+  if (!isRecord(value)) return null
+  const name = value.name === undefined ? undefined : parseLocalizedText(value.name)
+  const description = value.description === undefined ? undefined : parseLocalizedText(value.description)
+  if (value.name !== undefined && !name) return null
+  if (value.description !== undefined && !description) return null
+  return {
+    ...(name ? { name } : {}),
+    ...(description ? { description } : {}),
+  }
 }
 
 function isSafeRelativePath(value: string): boolean {
@@ -151,6 +182,8 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
       && isProjectTemplateCoverPath(cover)
     ))
   )) return null
+  const i18n = value.i18n === undefined ? undefined : parseLocalization(value.i18n)
+  if (value.i18n !== undefined && !i18n) return null
 
   const covers = Array.isArray(value.covers)
     ? [...new Set(value.covers.map((cover) => cover.replace(/\\/g, '/').trim()))]
@@ -169,11 +202,37 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
     entry,
     ...(entries.length > 0 ? { entries } : {}),
     ...(covers.length > 0 ? { covers } : {}),
+    ...(i18n && Object.keys(i18n).length > 0 ? { i18n } : {}),
   }
 }
 
 export function resolveTemplateEntries(template: Pick<ProjectTemplateManifest, 'entry' | 'entries'>): string[] {
   return [...new Set([template.entry, ...(template.entries ?? [])])]
+}
+
+export function resolveProjectTemplateText(
+  localized: ProjectTemplateLocalizedText | undefined,
+  fallback: string,
+  locale: string,
+): string {
+  const candidates = [
+    locale,
+    locale.toLocaleLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US',
+    'en-US',
+  ]
+  for (const candidate of candidates) {
+    const value = localized?.[candidate]
+    if (value) return value
+  }
+  return Object.values(localized ?? {})[0] ?? fallback
+}
+
+export function resolveProjectTemplateName(template: ProjectTemplate, locale: string): string {
+  return resolveProjectTemplateText(template.i18n?.name, template.name, locale)
+}
+
+export function resolveProjectTemplateDescription(template: ProjectTemplate, locale: string): string {
+  return resolveProjectTemplateText(template.i18n?.description, template.description, locale)
 }
 
 export function isSafeProjectTemplateId(value: string): boolean {

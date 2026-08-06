@@ -189,9 +189,7 @@
     color 140ms ease;
 }
 
-.titlebar-icon,
-.workspace-action,
-.shell-sidebar-action {
+.titlebar-icon {
   width: var(--control-size);
   height: var(--control-size);
   display: inline-flex;
@@ -201,18 +199,6 @@
 
 .titlebar-app-action {
   position: relative;
-}
-
-.workspace-action,
-.shell-sidebar-action {
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--oc-fg-default);
-  transition:
-    background-color var(--oc-duration-fast, 100ms) var(--oc-ease, ease),
-    color var(--oc-duration-fast, 100ms) var(--oc-ease, ease),
-    opacity var(--oc-duration-fast, 100ms) var(--oc-ease, ease);
 }
 
 [data-tooltip] {
@@ -353,15 +339,7 @@
   color: var(--oc-fg-default);
 }
 
-.workspace-action:hover,
-.shell-sidebar-action:hover {
-  background: var(--oc-bg-hover);
-  color: var(--oc-fg-default);
-}
-
 .shell-sidebar-button:disabled,
-.shell-sidebar-action:disabled,
-.workspace-action:disabled,
 .titlebar-icon:disabled {
   cursor: default;
   opacity: 0.45;
@@ -510,11 +488,6 @@
   font-weight: var(--font-weight-ui-section);
 }
 
-.shell-sidebar-actions {
-  display: flex;
-  gap: 4px;
-}
-
 .shell-sidebar-list-toggle {
   min-height: 24px;
   padding: 0 6px;
@@ -565,11 +538,6 @@
   overflow: hidden;
   display: grid;
   gap: 2px;
-}
-
-.shell-sidebar-list-head .shell-sidebar-action {
-  width: 24px;
-  height: 24px;
 }
 
 .shell-sidebar-empty {
@@ -674,9 +642,6 @@
 
 .workspace-actions {
   min-width: calc(var(--control-size) * 2 + 6px);
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
 }
 
 .workspace-body {
@@ -788,4 +753,33 @@
 .app-select-option.selected {
   background: var(--oc-bg-hover);
   color: var(--oc-fg-default);
+}
+
+/* Project icon crops use a pseudo-element so atlas rotation and display rotation
+ * can be composed without clipping the source crop before it is transformed. */
+.project-icon-view,
+.oc-tree__thumbnail,
+.project-inline-icon {
+  position: relative;
+  isolation: isolate;
+  background-image: none;
+}
+
+.project-icon-view::before,
+.oc-tree__thumbnail::before,
+.project-inline-icon::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--oc-project-icon-source-width);
+  height: var(--oc-project-icon-source-height);
+  background-image: var(--oc-project-icon-background-image);
+  background-repeat: no-repeat;
+  background-size: var(--oc-project-icon-background-size);
+  background-position: var(--oc-project-icon-background-position);
+  image-rendering: var(--oc-project-icon-image-rendering);
+  pointer-events: none;
+  transform: translate(-50%, -50%) var(--oc-project-icon-transform);
+  transform-origin: center;
 }

@@ -4,6 +4,10 @@
   "name": "Tactical Showcase",
   "description": "Advanced tactical card showcase.",
   "entry": "tactical-showcase.ocdocument",
+  "i18n": {
+    "name": { "zh-CN": "战术展示", "en-US": "Tactical Showcase" },
+    "description": { "zh-CN": "高级战术卡牌展示项目。", "en-US": "Advanced tactical card showcase." }
+  },
   "covers": [
     "assets/portraits/sentinel.png",
     "assets/portraits/vanguard.png",

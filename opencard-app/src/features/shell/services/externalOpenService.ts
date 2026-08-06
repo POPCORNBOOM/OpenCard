@@ -6,11 +6,12 @@ import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../workspace/model/projectFo
 import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../workspace/model/projectIconRegistry'
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../workspace/model/projectDictionary'
 import { PROJECT_TEMPLATE_PACKAGE_SUFFIX } from '../../project-templates/model/projectTemplate'
+import { PROJECT_ICON_PACK_PACKAGE_SUFFIX } from '../../workspace/model/projectIconPackCatalog'
 
 const EXTERNAL_OPEN_EVENT = 'external-open-requested'
 const TAKE_EXTERNAL_OPEN_REQUESTS_COMMAND = 'take_external_open_requests'
 
-export type ExternalOpenPathKind = 'card' | 'project-resource' | 'template'
+export type ExternalOpenPathKind = 'card' | 'project-resource' | 'template' | 'icon-pack'
 
 export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | null {
   const normalizedPath = path.replace(/\\/g, '/')
@@ -24,6 +25,7 @@ export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | n
     PROJECT_DICTIONARY_FILE_NAME,
   ].includes(comparableFileName)) return 'project-resource'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_TEMPLATE_PACKAGE_SUFFIX)) return 'template'
+  if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_ICON_PACK_PACKAGE_SUFFIX)) return 'icon-pack'
   if (comparableFileName.toLocaleLowerCase().endsWith(CARD_DOCUMENT_SUFFIX)) return 'card'
   return null
 }

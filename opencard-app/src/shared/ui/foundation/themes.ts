@@ -16,6 +16,7 @@ const sharedThemeTokens = {
   '--oc-icon-size-sm': '12px',
   '--oc-icon-size-md': '16px',
   '--oc-icon-size-lg': '20px',
+  '--oc-icon-size-action': '16px',
   '--oc-field-affix-icon-offset-y': '-1px',
   '--oc-font-sans': '"Segoe UI Variable Text", "SF Pro Text", "Inter", "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif',
   '--oc-font-mono': '"Cascadia Code", "JetBrains Mono", "SF Mono", "Consolas", "Fira Code", monospace',

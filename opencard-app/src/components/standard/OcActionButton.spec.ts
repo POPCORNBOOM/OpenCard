@@ -36,8 +36,22 @@ describe('OcActionButton', () => {
     })
 
     expect(wrapper.find('.oc-button__icon').attributes('style')).toContain('var(--oc-icon-success)')
+    expect(wrapper.find('.oc-button__icon').classes()).toContain('oc-icon--action')
     expect(wrapper.get('button').attributes('data-tooltip')).toBe('Open')
     expect(wrapper.get('button').attributes('title')).toBeUndefined()
+  })
+
+  it('decouples the action icon size from the button target size', () => {
+    const wrapper = mount(OcActionButton, {
+      props: {
+        action: { key: 'zoom', icon: 'tool.zoom-in', title: 'Zoom in' },
+        size: 'md',
+        iconSize: 'action',
+      },
+    })
+
+    expect(wrapper.get('button').classes()).toContain('oc-button--size-md')
+    expect(wrapper.get('.oc-button__icon').classes()).toContain('oc-icon--action')
   })
 
   it('mounts floating behavior and the outside listener only when needed', async () => {

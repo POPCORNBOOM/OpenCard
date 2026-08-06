@@ -41,18 +41,46 @@ describe('projectIconCatalog', () => {
       name: 'Status icons', key: 'status', source: 'status.png',
       icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 24, height: 8, pixelated: true }],
     }], source => source, async () => ({ width: 64, height: 32 }))
-    expect(createProjectIconStyle(catalog.entries[0]!)).toEqual({
+    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
       width: '3em',
       height: '1em',
-      backgroundImage: 'url("status.png")',
+      backgroundImage: 'none',
       backgroundSize: '8em 4em',
       backgroundPosition: '-2em -1em',
       imageRendering: 'pixelated',
+      '--oc-project-icon-background-image': 'url("status.png")',
+      '--oc-project-icon-source-width': '3em',
+      '--oc-project-icon-source-height': '1em',
+      '--oc-project-icon-transform': 'rotate(0deg)',
     })
     expect(createProjectIconPreviewStyle(catalog.entries[0]!)).toMatchObject({
       width: '1em',
       height: `${1 / 3}em`,
       imageRendering: 'pixelated',
+    })
+  })
+
+  it('swaps displayed dimensions and rotates the crop for quarter turns', async () => {
+    const catalog = await buildProjectIconCatalog([{
+      name: 'Status icons', key: 'status', source: 'status.png',
+      icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 24, height: 8, rotation: 90 }],
+    }], source => source, async () => ({ width: 64, height: 32 }))
+    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
+      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
+    })
+    expect(createProjectIconPreviewStyle(catalog.entries[0]!)).toMatchObject({
+      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
+    })
+  })
+
+  it('composes atlas rotation with the user-facing display rotation', async () => {
+    const catalog = await buildProjectIconCatalog([{
+      name: 'Status icons', key: 'status', source: 'status.png',
+      icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 8, height: 24, atlasRotation: 90, rotation: 90 }],
+    }], source => source, async () => ({ width: 64, height: 32 }))
+    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
+      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(0deg)',
+      '--oc-project-icon-source-width': `${8 / 24}em`, '--oc-project-icon-source-height': '1em',
     })
   })
 })

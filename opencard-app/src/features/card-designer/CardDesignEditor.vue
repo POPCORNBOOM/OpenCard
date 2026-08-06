@@ -277,6 +277,8 @@
             class="card-design-editor__viewport-controls"
             orientation="vertical"
             embedded
+            button-size="sm"
+            icon-size="action"
             aria-label="卡牌画布缩放控制"
             :scale-label="viewportScaleLabel"
             @zoom-out="zoomViewportOut"
@@ -287,16 +289,24 @@
           <OcActionButton
             :action="alignmentSnappingAction"
             size="sm"
+            icon-size="action"
             :variant="alignmentSnappingEnabled ? 'soft' : 'ghost'"
             @select="toggleAlignmentSnapping"
           />
           <OcActionButton
             :action="clipAction"
             size="sm"
+            icon-size="action"
             :variant="clipToFace ? 'soft' : 'ghost'"
             @select="toggleFaceClip"
           />
-          <OcActionButton :action="faceSwitchAction" size="sm" variant="ghost" @select="toggleActiveFace" />
+          <OcActionButton
+            :action="faceSwitchAction"
+            size="sm"
+            icon-size="action"
+            variant="ghost"
+            @select="toggleActiveFace"
+          />
         </OcOverlayToolbar>
       </div>
         </div>

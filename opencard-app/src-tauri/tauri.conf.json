@@ -139,10 +139,27 @@
             "public.zip-archive"
           ]
         }
+      },
+      {
+        "ext": [
+          "ociconpack"
+        ],
+        "name": "OpenCard Icon Pack",
+        "description": "OpenCard icon pack",
+        "mimeType": "application/vnd.opencard.icon-pack+zip",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.icon-pack",
+          "conformsTo": [
+            "public.zip-archive"
+          ]
+        }
       }
     ],
-    "resources": {
-      "resources/templates/": "templates/"
+      "resources": {
+      "resources/templates/": "templates/",
+      "resources/icon-packs/": "icon-packs/"
     }
   },
   "plugins": {

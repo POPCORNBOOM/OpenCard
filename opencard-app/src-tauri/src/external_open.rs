@@ -92,7 +92,7 @@ fn is_supported_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            ["ocdocument", "octemplate"]
+            ["ocdocument", "octemplate", "ociconpack"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported))
         })
@@ -113,6 +113,7 @@ mod tests {
                 ".ocicons",
                 ".oclocale",
                 "template.octemplate",
+                "icons.ociconpack",
                 "notes.txt",
             ],
             Path::new("D:/Project"),
@@ -127,6 +128,7 @@ mod tests {
                 "D:/Project/.ocicons",
                 "D:/Project/.oclocale",
                 "D:/Project/template.octemplate",
+                "D:/Project/icons.ociconpack",
             ]
         );
     }

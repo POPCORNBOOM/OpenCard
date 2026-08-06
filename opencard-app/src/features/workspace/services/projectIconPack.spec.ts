@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createProjectIconPackSpritesheetName,
   exportProjectIconPack,
   parseProjectIconPackManifest,
   readProjectIconPack,
@@ -11,10 +12,15 @@ const series = {
   key: 'status',
   source: 'assets/icons/status.png',
   grid: { snapToGrid: true, rows: 2, columns: 4, pixelated: true },
-  icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16, pixelated: true }],
+  icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16, pixelated: true, rotation: 180 as const }],
 }
 
 describe('projectIconPack', () => {
+  it('names an imported spritesheet after the confirmed icon pack name', () => {
+    expect(createProjectIconPackSpritesheetName('Status / Compact', 'spritesheet.PNG')).toBe('Status _ Compact.PNG')
+    expect(createProjectIconPackSpritesheetName('', 'spritesheet.png')).toBe('icon-pack.png')
+  })
+
   it('exports exactly one manifest and one spritesheet and reads them back', async () => {
     const sourceBytes = new Uint8Array([137, 80, 78, 71])
     let archive: Uint8Array | undefined
@@ -61,5 +67,13 @@ describe('projectIconPack', () => {
     await expect(readProjectIconPack({ readBinaryFile: async () => archive }, 'pack.ociconpack'))
       .rejects.toThrow('one manifest and one spritesheet')
     expect(parseProjectIconPackManifest({ ...JSON.parse(manifest), key: 'Not Valid' })).toBeNull()
+  })
+
+  it('preserves localized display text in a built-in pack manifest', () => {
+    expect(parseProjectIconPackManifest({
+      type: 'opencard-icon-pack', schemaVersion: '1', name: 'Status', key: 'status',
+      spritesheet: 'spritesheet.png', icons: [],
+      i18n: { name: { 'zh-CN': '状态图标', 'en-US': 'Status' } },
+    })).toMatchObject({ i18n: { name: { 'zh-CN': '状态图标' } } })
   })
 })

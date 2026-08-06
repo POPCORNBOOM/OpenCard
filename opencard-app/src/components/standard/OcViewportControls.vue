@@ -10,16 +10,18 @@
   >
     <OcButton
       icon-only
-      size="sm"
+      :size="props.buttonSize"
       icon="tool.zoom-out"
+      :icon-size="props.iconSize"
       data-tooltip="缩小"
       aria-label="缩小"
       @click="emit('zoom-out')"
     />
     <OcButton
       icon-only
-      size="sm"
+      :size="props.buttonSize"
       icon="tool.fit-screen"
+      :icon-size="props.iconSize"
       data-tooltip="适应窗口"
       aria-label="适应窗口"
       @click="emit('reset')"
@@ -29,8 +31,9 @@
     </OcText>
     <OcButton
       icon-only
-      size="sm"
+      :size="props.buttonSize"
       icon="tool.zoom-in"
+      :icon-size="props.iconSize"
       data-tooltip="放大"
       aria-label="放大"
       @click="emit('zoom-in')"
@@ -40,6 +43,7 @@
 
 <script setup lang="ts">
 import OcButton from '../base/OcButton.vue'
+import type { OcIconSize } from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 
 const props = withDefaults(defineProps<{
@@ -47,10 +51,14 @@ const props = withDefaults(defineProps<{
   ariaLabel?: string
   orientation?: 'horizontal' | 'vertical'
   embedded?: boolean
+  buttonSize?: 'sm' | 'md' | 'lg'
+  iconSize?: OcIconSize
 }>(), {
   ariaLabel: '画布缩放控制',
   orientation: 'horizontal',
   embedded: false,
+  buttonSize: 'sm',
+  iconSize: undefined,
 })
 
 const emit = defineEmits<{
@@ -64,7 +72,7 @@ const emit = defineEmits<{
 .oc-viewport-controls {
   display: flex;
   align-items: center;
-  gap: var(--oc-space-1);
+  gap: var(--oc-overlay-toolbar-item-gap, var(--oc-space-1));
   min-height: var(--oc-size-md);
   padding: 3px;
   border: 1px solid var(--oc-border-muted);
@@ -86,12 +94,16 @@ const emit = defineEmits<{
 }
 
 .oc-viewport-controls--vertical .oc-viewport-controls__scale {
-  width: var(--oc-size-md);
+  flex: 0 0 auto;
+  width: var(--oc-size-sm);
   min-height: var(--oc-size-sm);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   font-size: var(--oc-text-xs);
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  text-orientation: sideways;
 }
 
 .oc-viewport-controls--embedded {

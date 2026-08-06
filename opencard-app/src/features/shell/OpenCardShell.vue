@@ -68,6 +68,28 @@
             @intent="handleTemplateTreeIntent"
           />
           <OcTree
+            v-else-if="list.key === BUILTIN_ICON_PACKS_LIST_KEY && builtinIconPackTreeData.rootKeys.length > 0"
+            class="open-card-shell__sidebar-tree"
+            :data="builtinIconPackTreeData"
+            :actions="iconPackActions"
+            :selected-keys="builtinSelectedIconPackKeys"
+            role="listbox"
+            selection-mode="multiple"
+            activation-mode="none"
+            @intent="handleIconPackTreeIntent"
+          />
+          <OcTree
+            v-else-if="list.key === USER_ICON_PACKS_LIST_KEY && userIconPackTreeData.rootKeys.length > 0"
+            class="open-card-shell__sidebar-tree"
+            :data="userIconPackTreeData"
+            :actions="iconPackActions"
+            :selected-keys="userSelectedIconPackKeys"
+            role="listbox"
+            selection-mode="multiple"
+            activation-mode="none"
+            @intent="handleIconPackTreeIntent"
+          />
+          <OcTree
             v-else-if="list.key === SETTINGS_CATEGORIES_LIST_KEY"
             class="open-card-shell__sidebar-tree"
             :data="settingsCategoryTreeData"
@@ -164,6 +186,7 @@
               :activation-error="projectActivationError"
               :external-busy="isActivatingProject"
               :selected-key="selectedTemplateKey"
+              :selected-icon-pack-keys="selectedIconPackKeys"
               @created="handleProjectCreated"
               @update:busy="isCreateProjectOperationBusy = $event"
               @update:selected-key="selectedTemplateKey = $event"
@@ -370,7 +393,14 @@ import type {
   ProjectTemplateKey,
   TemplateExportSelection,
 } from '../project-templates/model/projectTemplate'
+import { resolveProjectTemplateName } from '../project-templates/model/projectTemplate'
 import { useProjectTemplateStore } from '../project-templates/store/projectTemplateStore'
+import {
+  resolveProjectIconPackName,
+  type ProjectIconPackCatalogEntry,
+  type ProjectIconPackCatalogKey,
+} from '../workspace/model/projectIconPackCatalog'
+import { useProjectIconPackStore } from '../workspace/store/projectIconPackStore'
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
@@ -447,10 +477,14 @@ const CHANGES_LIST_KEY = 'changes'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const BUILTIN_TEMPLATES_LIST_KEY = 'builtin-templates'
 const USER_TEMPLATES_LIST_KEY = 'user-templates'
+const BUILTIN_ICON_PACKS_LIST_KEY = 'builtin-icon-packs'
+const USER_ICON_PACKS_LIST_KEY = 'user-icon-packs'
 const TEMPLATE_ENTRIES_LIST_KEY = 'template-entries'
 const TEMPLATE_COVERS_LIST_KEY = 'template-covers'
 const CREATE_TEMPLATE_ACTION_KEY = 'create-template'
 const IMPORT_TEMPLATE_ACTION_KEY = 'import-template'
+const IMPORT_ICON_PACK_ACTION_KEY = 'import-icon-pack'
+const REGISTER_ICON_PACK_ACTION_KEY = 'register-icon-pack'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
 const RECENT_PROJECT_RELOCATE_ACTION_KEY = 'recent-project.relocate'
 const RECENT_PROJECT_REMOVE_ACTION_KEY = 'recent-project.remove'
@@ -507,6 +541,7 @@ const {
 
 const settingsStore = useAppSettingsStore()
 const templateStore = useProjectTemplateStore()
+const iconPackStore = useProjectIconPackStore()
 const shellPage = ref<ShellPage>({ type: 'welcome' })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
@@ -526,6 +561,7 @@ function showPrimaryShellPage(page: PrimaryShellPage): void {
   shellPage.value = { type: page }
 }
 const selectedTemplateKey = ref<ProjectTemplateKey | null>(null)
+const selectedIconPackKeys = ref<ProjectIconPackCatalogKey[]>([])
 const createProjectWorkspaceRef = ref<InstanceType<typeof CreateProjectWorkspace> | null>(null)
 const exportTemplateWorkspaceRef = ref<InstanceType<typeof ExportTemplateWorkspace> | null>(null)
 const exportTemplateSelection = ref<TemplateExportSelection>({
@@ -535,6 +571,7 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
   covers: [],
 })
 const isCreateProjectOperationBusy = ref(false)
+const isImportingIconPack = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isExportPreparing = ref(false)
@@ -586,7 +623,7 @@ const {
 })
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
-  isActivatingProject.value || isCreateProjectOperationBusy.value
+  isActivatingProject.value || isCreateProjectOperationBusy.value || isImportingIconPack.value
 ))
 const settingsCategoryKey = computed<SettingsCategoryKey>(() =>
   shellPage.value.type === 'settings' ? shellPage.value.categoryKey : 'general'
@@ -884,7 +921,7 @@ const {
 function createTemplateTreeData(templates: readonly ProjectTemplate[]): OcTreeData {
   const items = new Map<string, OcTreeItem>()
   for (const template of templates) {
-    items.set(template.key, { label: template.name, icon: 'file.opencard' })
+    items.set(template.key, { label: resolveProjectTemplateName(template, locale.value), icon: 'file.opencard' })
   }
   return {
     rootKeys: templates.map((template) => template.key),
@@ -921,6 +958,8 @@ function createRecentProjectTreeData(
 
 const builtinTemplateTreeData = computed(() => createTemplateTreeData(templateStore.builtinTemplates.value))
 const userTemplateTreeData = computed(() => createTemplateTreeData(templateStore.userTemplates.value))
+const builtinIconPackTreeData = computed(() => createIconPackTreeData(iconPackStore.builtinPacks.value))
+const userIconPackTreeData = computed(() => createIconPackTreeData(iconPackStore.userPacks.value))
 const recentProjectAvailability = ref<ReadonlyMap<string, boolean>>(new Map())
 const recentProjectTreeData = computed(() => (
   createRecentProjectTreeData(
@@ -952,12 +991,21 @@ const builtinSelectedTemplateKeys = computed(() =>
 const userSelectedTemplateKeys = computed(() =>
   selectedTemplateKey.value?.startsWith('user:') ? [selectedTemplateKey.value] : [],
 )
+const builtinSelectedIconPackKeys = computed(() => selectedIconPackKeys.value.filter((key) => key.startsWith('builtin:')))
+const userSelectedIconPackKeys = computed(() => selectedIconPackKeys.value.filter((key) => key.startsWith('user:')))
 
 watch(
   () => templateStore.templates.value,
   (templates) => {
     if (selectedTemplateKey.value && templates.some((template) => template.key === selectedTemplateKey.value)) return
     selectedTemplateKey.value = templates[0]?.key ?? null
+  },
+  { immediate: true },
+)
+watch(
+  () => iconPackStore.packs.value,
+  (packs) => {
+    selectedIconPackKeys.value = selectedIconPackKeys.value.filter((key) => packs.some((pack) => pack.key === key))
   },
   { immediate: true },
 )
@@ -987,6 +1035,13 @@ const openedEditorActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
   [OPENED_EDITOR_CLOSE_ACTION_KEY, {
     title: t('sidebar.closeEditor', 'Close editor'),
     icon: 'action.close',
+  }],
+]))
+
+const iconPackActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [REGISTER_ICON_PACK_ACTION_KEY, {
+    title: t('projectTemplates.actions.registerIconPack'),
+    icon: 'action.add',
   }],
 ]))
 
@@ -1337,6 +1392,29 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
             icon: 'action.import',
             hoverTip: t('projectTemplates.actions.import'),
             disabled: isProjectTemplateBusy.value || templateStore.isLoading.value,
+          },
+        ],
+      },
+      {
+        key: BUILTIN_ICON_PACKS_LIST_KEY,
+        title: t('projectTemplates.sections.builtinIconPacks'),
+        placeholder: iconPackStore.isLoading.value
+          ? t('projectTemplates.status.loadingIconPacks')
+          : t('projectTemplates.status.noBuiltinIconPacks'),
+        actions: [],
+      },
+      {
+        key: USER_ICON_PACKS_LIST_KEY,
+        title: t('projectTemplates.sections.userIconPacks'),
+        placeholder: iconPackStore.isLoading.value
+          ? t('projectTemplates.status.loadingIconPacks')
+          : t('projectTemplates.status.noUserIconPacks'),
+        actions: [
+          {
+            key: IMPORT_ICON_PACK_ACTION_KEY,
+            icon: 'action.import',
+            hoverTip: t('projectTemplates.actions.importIconPack'),
+            disabled: isProjectTemplateBusy.value || iconPackStore.isLoading.value,
           },
         ],
       },
@@ -1697,6 +1775,19 @@ function handleTemplateTreeIntent(intent: OcTreeIntent): void {
   if (key && templateStore.findTemplate(key)) selectedTemplateKey.value = key
 }
 
+function handleIconPackTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'selection.change') {
+    selectedIconPackKeys.value = intent.selectedKeys.filter((key): key is ProjectIconPackCatalogKey => (
+      Boolean(iconPackStore.findPack(key as ProjectIconPackCatalogKey))
+    ))
+    return
+  }
+  if (intent.type !== 'action.invoke' || intent.actionKey !== REGISTER_ICON_PACK_ACTION_KEY) return
+  const key = intent.key as ProjectIconPackCatalogKey
+  if (!iconPackStore.findPack(key) || selectedIconPackKeys.value.includes(key)) return
+  selectedIconPackKeys.value = [...selectedIconPackKeys.value, key]
+}
+
 function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
     selectedRecentProjectKeys.value = intent.selectedKeys
@@ -1754,7 +1845,21 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
     }
   }
 
-  if (shellPage.value.type !== 'create-project' || listKey !== USER_TEMPLATES_LIST_KEY) return
+  if (shellPage.value.type !== 'create-project') return
+  if (listKey === USER_ICON_PACKS_LIST_KEY) {
+    if (actionKey !== IMPORT_ICON_PACK_ACTION_KEY || isProjectTemplateBusy.value || iconPackStore.isLoading.value) return
+    isImportingIconPack.value = true
+    try {
+      const sourcePath = await iconPackStore.pickUserIconPack(t('projectTemplates.dialogs.chooseIconPack'))
+      if (sourcePath) await iconPackStore.importUserIconPack(sourcePath)
+    } catch (error) {
+      reportAppError('OC-E3013', error)
+    } finally {
+      isImportingIconPack.value = false
+    }
+    return
+  }
+  if (listKey !== USER_TEMPLATES_LIST_KEY) return
   if (isProjectTemplateBusy.value || templateStore.isLoading.value) return
 
   if (actionKey === CREATE_TEMPLATE_ACTION_KEY) {
@@ -2103,6 +2208,13 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         const imported = await templateStore.importUserTemplate(normalizedPath)
         selectedTemplateKey.value = imported.key
         shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
+        continue
+      }
+
+      if (kind === 'icon-pack') {
+        const imported = await iconPackStore.importUserIconPack(normalizedPath)
+        if (imported) selectedIconPackKeys.value = [...selectedIconPackKeys.value, imported.key]
+        shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
       }
     } catch (error) {
       reportAppError('OC-E2002', { path: normalizedPath, error })
@@ -2287,6 +2399,22 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'export-card-documents' && projectPath.value) {
     await openProjectExportDialog()
+  }
+}
+
+function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): OcTreeData {
+  const items = new Map<string, OcTreeItem>()
+  for (const pack of packs) {
+    items.set(pack.key, {
+      label: resolveProjectIconPackName(pack, locale.value),
+      icon: 'file.package-variant',
+      actions: [REGISTER_ICON_PACK_ACTION_KEY],
+    })
+  }
+  return {
+    rootKeys: packs.map((pack) => pack.key),
+    items,
+    children: new Map(),
   }
 }
 
@@ -2508,6 +2636,7 @@ onMounted(() => {
   void startShellWindow()
   void startAppUpdater()
   void loadSystemFontFamilies()
+  void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
 })
 
 onUnmounted(() => {

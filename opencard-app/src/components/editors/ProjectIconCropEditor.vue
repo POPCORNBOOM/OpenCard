@@ -23,8 +23,8 @@
           @pointerdown="beginInteraction(handle, $event)" />
       </div>
     </div>
-    <OcOverlayToolbar v-if="runtime" class="project-icon-crop-editor__viewport-toolbar" orientation="vertical">
-      <OcViewportControls orientation="vertical" embedded :scale-label="scaleLabel"
+    <OcOverlayToolbar v-if="runtime" class="project-icon-crop-editor__viewport-toolbar">
+      <OcViewportControls embedded :scale-label="scaleLabel"
         @zoom-out="zoomOut" @reset="fitView" @zoom-in="zoomIn" />
       <OcButton icon-only size="sm" icon="tool.focus-selection"
         :disabled="!icon" :active="focusSelectionEnabled" :aria-pressed="focusSelectionEnabled"

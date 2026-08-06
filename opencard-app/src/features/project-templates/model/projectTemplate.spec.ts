@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   parseProjectTemplateManifest,
+  resolveProjectTemplateDescription,
+  resolveProjectTemplateName,
   validateProjectName,
   validateTemplateDescription,
   validateTemplateName,
@@ -25,6 +27,18 @@ describe('project template model', () => {
       entries: ['cards/main.ocdocument', 'cards/alternate.ocdocument'],
       covers: ['assets/cover.png', 'assets/second.webp'],
     })
+  })
+
+  it('keeps localized built-in display text while preserving stable manifest values', () => {
+    const template = parseProjectTemplateManifest({
+      schemaVersion: 1, id: 'blank', name: 'Blank', description: 'Fallback', entry: 'main.ocdocument',
+      i18n: {
+        name: { 'zh-CN': '空白项目', 'en-US': 'Blank Project' },
+        description: { 'zh-CN': '从空白开始。', 'en-US': 'Start blank.' },
+      },
+    })!
+    expect(resolveProjectTemplateName({ ...template, key: 'builtin:blank', source: 'builtin', rootPath: '', contentPath: '', coverPaths: [] }, 'zh-CN')).toBe('空白项目')
+    expect(resolveProjectTemplateDescription({ ...template, key: 'builtin:blank', source: 'builtin', rootPath: '', contentPath: '', coverPaths: [] }, 'en-US')).toBe('Start blank.')
   })
 
   it.each([

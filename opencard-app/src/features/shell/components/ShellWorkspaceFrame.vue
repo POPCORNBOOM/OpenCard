@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import OcActionButton from '../../../components/standard/OcActionButton.vue';
+import { computed } from 'vue'
+import OcActionRail from '../../../components/standard/OcActionRail.vue'
+import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import type { ShellAction } from '../shell.types';
 
-defineProps<{
+const props = defineProps<{
   title: string;
   actions: ShellAction[];
   lockBodyScroll?: boolean;
@@ -17,6 +19,14 @@ const emit = defineEmits<{
   action: [actionKey: string];
 }>();
 
+const actionDefinitions = computed<OcActionButtonAction[]>(() => props.actions.map(action => ({
+  key: action.key ?? action.icon,
+  title: action.hoverTip,
+  icon: action.icon,
+  disabled: action.disabled,
+  children: action.children,
+})))
+
 </script>
 
 <template>
@@ -25,23 +35,11 @@ const emit = defineEmits<{
       <div>
         <h1 class="workspace-title">{{ title }}</h1>
       </div>
-      <div class="workspace-actions" :class="{ empty: actions.length === 0 }">
-        <OcActionButton
-          v-for="action in actions"
-          :key="action.key ?? action.icon"
-          class="workspace-action"
-          :action="{
-            key: action.key ?? action.icon,
-            title: action.hoverTip,
-            icon: action.icon,
-            disabled: action.disabled,
-            children: action.children,
-          }"
-          size="sm"
-          variant="ghost"
-          @select="action.key && emit('action', $event.key)"
-        />
-      </div>
+      <OcActionRail
+        class="workspace-actions"
+        :actions="actionDefinitions"
+        @select="emit('action', $event.key)"
+      />
     </header>
 
     <div class="workspace-body" :class="{ locked: lockBodyScroll, flush: flushBody }">

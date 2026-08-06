@@ -150,8 +150,9 @@ describe('ProjectIconCropEditor', () => {
       },
     })
     expect(wrapper.get('.project-icon-crop-editor__media').classes()).toContain('is-pixelated')
-    expect(wrapper.get('.project-icon-crop-editor__viewport-toolbar').classes()).toContain('oc-overlay-toolbar--vertical')
+    expect(wrapper.get('.project-icon-crop-editor__viewport-toolbar').classes()).toContain('oc-overlay-toolbar--horizontal')
     const toggle = wrapper.get('.project-icon-crop-editor__viewport-toolbar button[aria-label="Pixelated"]')
+    expect(toggle.element.querySelector('.oc-icon')?.classList).toContain('oc-icon--action')
     expect(toggle.attributes('aria-pressed')).toBe('true')
     await toggle.trigger('click')
     expect(wrapper.emitted('update:pixelated')).toEqual([[false]])

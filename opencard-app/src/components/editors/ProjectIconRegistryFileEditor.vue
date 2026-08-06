@@ -45,6 +45,7 @@ import {
   type ProjectIconRegistryDocument,
 } from '../../features/workspace/model/projectIconRegistry'
 import {
+  DEFAULT_PROJECT_ICON_DIRECTORY,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   type ProjectIconKeyConflict,
   type ProjectIconSeries,
@@ -52,6 +53,7 @@ import {
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import {
+  createProjectIconPackSpritesheetName,
   exportProjectIconPack,
   readProjectIconPack,
 } from '../../features/workspace/services/projectIconPack'
@@ -184,17 +186,24 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
       importError.value = t('projectConfig.icons.iconSetKeyExists')
       return
     }
-    const imported = await projectStore.importProjectIconFile(
-      request.sourcePath,
-      request.targetDirectory,
-      request.conflictResolution,
-    )
+    const source = request.generatedSpritesheet
+      ? await copyPackSpritesheet(
+          request.generatedSpritesheet.bytes,
+          request.name,
+          request.generatedSpritesheet.fileName,
+          request.targetDirectory ?? DEFAULT_PROJECT_ICON_DIRECTORY,
+        )
+      : (await projectStore.importProjectIconFile(
+          request.sourcePath,
+          request.targetDirectory,
+          request.conflictResolution,
+        )).source
     iconSeries.push({
       name: request.name,
       key: request.key,
-      source: imported.source,
+      source,
       grid: { ...DEFAULT_PROJECT_ICON_GRID_SETTINGS },
-      icons: [],
+      icons: [...(request.generatedSpritesheet?.icons ?? [])],
     })
     updateIconSeries(iconSeries)
     await nextTick()
@@ -220,7 +229,12 @@ async function importIconPack(request: ProjectIconPackImportRequest): Promise<vo
       packImportError.value = t('projectConfig.icons.iconSetKeyExists')
       return
     }
-    const source = await copyPackSpritesheet(iconPack.spritesheetBytes, iconPack.manifest.spritesheet, request.targetDirectory)
+    const source = await copyPackSpritesheet(
+      iconPack.spritesheetBytes,
+      request.name,
+      iconPack.manifest.spritesheet,
+      request.targetDirectory,
+    )
     iconSeries.push({
       name: request.name,
       key: request.key,
@@ -262,9 +276,14 @@ async function exportIconPack(series: ProjectIconSeries): Promise<void> {
   }
 }
 
-async function copyPackSpritesheet(bytes: Uint8Array, fileName: string, targetDirectory: string): Promise<string> {
+async function copyPackSpritesheet(
+  bytes: Uint8Array,
+  packName: string,
+  originalFileName: string,
+  targetDirectory: string,
+): Promise<string> {
   const normalizedDirectory = targetDirectory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
-  const sourceName = fileName.replace(/\\/g, '/').split('/').pop() ?? fileName
+  const sourceName = createProjectIconPackSpritesheetName(packName, originalFileName)
   const directoryPath = projectStore.resolveProjectPath(normalizedDirectory)
   await fileSystemService.createDirectory(directoryPath)
   let candidateName = sourceName

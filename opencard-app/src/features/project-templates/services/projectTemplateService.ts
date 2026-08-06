@@ -7,8 +7,12 @@ import { fileSystemService, type FileSystemService } from '../../workspace/servi
 import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
-import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
+import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
+import {
+  createProjectIconPackSpritesheetName,
+  readProjectIconPack,
+} from '../../workspace/services/projectIconPack'
 import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
   PROJECT_TEMPLATE_PACKAGE_EXTENSION,
@@ -31,6 +35,7 @@ import {
   type TemplateCatalogSnapshot,
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
+import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
 
 const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
@@ -396,6 +401,7 @@ export class ProjectTemplateService {
     try {
       await this.fs.createDirectory(temporaryPath)
       await this.copyDirectory(request.template.contentPath, temporaryPath)
+      await this.registerIconPacks(temporaryPath, request.iconPacks ?? [])
       const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
       if (!await this.fs.fileExists(entryPath)) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
@@ -425,6 +431,61 @@ export class ProjectTemplateService {
         { cause: cleanupCause ? { operation: cause, cleanup: cleanupCause } : cause },
       )
     }
+  }
+
+  private async registerIconPacks(
+    projectPath: string,
+    packs: readonly ProjectIconPackCatalogEntry[],
+  ): Promise<void> {
+    if (packs.length === 0) return
+    const registryPath = await this.paths.join(projectPath, ICON_REGISTRY_FILE_NAME)
+    const existing = await this.fs.fileExists(registryPath)
+      ? parseProjectIconRegistryText(await this.fs.readFile(registryPath))
+      : {}
+    if (!existing) throw new TemplateServiceError('icon-pack-failed', 'The project icon registry is invalid')
+
+    const iconSeries = [...(existing.iconSeries ?? [])]
+    const iconDirectory = await this.paths.join(projectPath, 'assets', 'icons')
+    await this.fs.createDirectory(iconDirectory)
+
+    for (const pack of packs) {
+      try {
+        const iconPack = await readProjectIconPack(this.fs, pack.path)
+        if (iconSeries.some((series) => series.key.toLocaleLowerCase() === iconPack.manifest.key.toLocaleLowerCase())) {
+          throw new Error(`Icon pack Key already exists: ${iconPack.manifest.key}`)
+        }
+
+        const baseName = createProjectIconPackSpritesheetName(
+          iconPack.manifest.name,
+          iconPack.manifest.spritesheet,
+        )
+        let fileName = baseName
+        let sourcePath = await this.paths.join('assets', 'icons', fileName)
+        let absolutePath = await this.paths.join(iconDirectory, fileName)
+        let suffix = 2
+        while (await this.fs.fileExists(absolutePath)) {
+          const dotIndex = baseName.lastIndexOf('.')
+          const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName
+          const extension = dotIndex > 0 ? baseName.slice(dotIndex) : ''
+          fileName = `${stem} (${suffix})${extension}`
+          sourcePath = await this.paths.join('assets', 'icons', fileName)
+          absolutePath = await this.paths.join(iconDirectory, fileName)
+          suffix += 1
+        }
+        await this.fs.writeBinaryFile(absolutePath, iconPack.spritesheetBytes)
+        iconSeries.push({
+          name: iconPack.manifest.name,
+          key: iconPack.manifest.key,
+          source: sourcePath,
+          ...(iconPack.manifest.grid ? { grid: iconPack.manifest.grid } : {}),
+          icons: [...iconPack.manifest.icons],
+        })
+      } catch (cause) {
+        if (cause instanceof TemplateServiceError) throw cause
+        throw new TemplateServiceError('icon-pack-failed', `Could not register icon pack: ${pack.name}`, { cause })
+      }
+    }
+    await this.fs.writeFile(registryPath, serializeProjectIconRegistry({ iconSeries }))
   }
 
   private async readTemplateArchive(sourcePath: string): Promise<{

@@ -102,6 +102,14 @@ describe('ProjectIconSetWorkspace', () => {
     const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries
     expect(updated.icons[0]?.name).toBe('Alert')
     expect(series.icons[0]?.name).toBe('Warning')
+
+    wrapper.getComponent(PropertyEditor).vm.$emit('update-property', {
+      key: 'icon:0', fieldKey: 'rotation', value: '90°',
+    })
+    await wrapper.vm.$nextTick()
+    const rotatedUpdates = wrapper.emitted('update:series') ?? []
+    const rotated = rotatedUpdates[rotatedUpdates.length - 1]?.[0] as ProjectIconSeries
+    expect(rotated.icons[0]?.rotation).toBe(90)
   })
 
   it('uses the first selected icon for inspection and all selected icons for context moves and deletes', async () => {

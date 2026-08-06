@@ -3,6 +3,11 @@ import { createAvailableKey } from '../../../shared/model/keySlug'
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
 export const DEFAULT_PROJECT_ICON_DIRECTORY = 'assets/icons'
+export const PROJECT_ICON_ROTATIONS = [0, 90, 180, 270] as const
+export const PROJECT_ICON_ATLAS_ROTATIONS = [0, 90, 180, 270] as const
+
+export type ProjectIconRotation = typeof PROJECT_ICON_ROTATIONS[number]
+export type ProjectIconAtlasRotation = typeof PROJECT_ICON_ATLAS_ROTATIONS[number]
 
 export type ProjectIcon = {
   iconKey: string
@@ -12,6 +17,8 @@ export type ProjectIcon = {
   width: number
   height: number
   pixelated?: boolean
+  rotation?: ProjectIconRotation
+  atlasRotation?: ProjectIconAtlasRotation
 }
 
 export type ProjectIconGridSettings = {
@@ -64,6 +71,14 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
 }
 
+function isProjectIconRotation(value: unknown): value is ProjectIconRotation {
+  return PROJECT_ICON_ROTATIONS.includes(value as ProjectIconRotation)
+}
+
+function isProjectIconAtlasRotation(value: unknown): value is ProjectIconAtlasRotation {
+  return PROJECT_ICON_ATLAS_ROTATIONS.includes(value as ProjectIconAtlasRotation)
+}
+
 export function normalizeProjectIconSource(value: string): string | null {
   const source = value.trim().replace(/\\/g, '/')
   const segments = source.split('/')
@@ -105,7 +120,9 @@ export function parseProjectIconSeries(value: unknown): ProjectIconSeries[] | nu
       if (typeof icon.name !== 'string') return null
       if (!isNonNegativeInteger(icon.x) || !isNonNegativeInteger(icon.y)
         || !isPositiveInteger(icon.width) || !isPositiveInteger(icon.height)
-        || (icon.pixelated !== undefined && typeof icon.pixelated !== 'boolean')) return null
+        || (icon.pixelated !== undefined && typeof icon.pixelated !== 'boolean')
+        || (icon.rotation !== undefined && !isProjectIconRotation(icon.rotation))
+        || (icon.atlasRotation !== undefined && !isProjectIconAtlasRotation(icon.atlasRotation))) return null
       icons.push({
         iconKey: icon.iconKey,
         name: icon.name,
@@ -114,6 +131,8 @@ export function parseProjectIconSeries(value: unknown): ProjectIconSeries[] | nu
         width: icon.width,
         height: icon.height,
         ...(icon.pixelated !== undefined ? { pixelated: icon.pixelated } : {}),
+        ...(icon.rotation !== undefined ? { rotation: icon.rotation } : {}),
+        ...(icon.atlasRotation !== undefined ? { atlasRotation: icon.atlasRotation } : {}),
       })
     }
     result.push({ name: candidate.name.trim(), key: candidate.key, source, ...(grid ? { grid } : {}), icons })

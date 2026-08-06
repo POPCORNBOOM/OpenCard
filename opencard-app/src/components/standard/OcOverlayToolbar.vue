@@ -17,10 +17,11 @@ withDefaults(defineProps<{
 
 <style scoped>
 .oc-overlay-toolbar {
+  --oc-overlay-toolbar-item-gap: var(--oc-space-1);
+
   display: flex;
   align-items: center;
-  gap: var(--oc-space-1);
-  padding: var(--oc-space-1);
+  gap: var(--oc-overlay-toolbar-item-gap);
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-glass);
@@ -29,6 +30,15 @@ withDefaults(defineProps<{
   pointer-events: auto;
 }
 
-.oc-overlay-toolbar--horizontal { flex-direction: row; }
-.oc-overlay-toolbar--vertical { flex-direction: column; }
+.oc-overlay-toolbar--horizontal {
+  flex-direction: row;
+  padding-block: var(--oc-space-2);
+  padding-inline: var(--oc-space-1);
+}
+
+.oc-overlay-toolbar--vertical {
+  flex-direction: column;
+  padding-block: var(--oc-space-1);
+  padding-inline: var(--oc-space-2);
+}
 </style>

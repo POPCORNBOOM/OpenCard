@@ -32,7 +32,10 @@ describe('ShellSidebar list actions', () => {
       },
     })
 
-    await wrapper.get('button[aria-label="New File"]').trigger('click')
+    const action = wrapper.get('button[aria-label="New File"]')
+    expect(action.classes()).toContain('oc-button')
+    expect(action.element.parentElement?.classList).not.toContain('shell-sidebar-action')
+    await action.trigger('click')
     await flushPromises()
     document.body.querySelector<HTMLButtonElement>(
       '.oc-action-menu__button[data-tooltip="OpenCard (.ocdocument)"]',

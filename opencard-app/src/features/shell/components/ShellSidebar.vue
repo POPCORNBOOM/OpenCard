@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
-import OcActionButton from '../../../components/standard/OcActionButton.vue';
+import OcActionRail from '../../../components/standard/OcActionRail.vue';
+import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue';
 import type {
   ShellButton,
   ShellList,
@@ -89,6 +90,16 @@ function isListCollapsed(listKey: string): boolean {
   return collapsedLists.value[listKey] === true;
 }
 
+function toActionDefinitions(actions: ShellList['actions']): OcActionButtonAction[] {
+  return actions.map(action => ({
+    key: action.key ?? action.icon,
+    title: action.hoverTip,
+    icon: action.icon,
+    disabled: action.disabled,
+    children: action.children,
+  }))
+}
+
 function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'auto' } | undefined {
   if (list.maxHeight === undefined) return undefined;
   return {
@@ -131,23 +142,10 @@ function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'aut
               :class="{ collapsed: isListCollapsed(list.key) }" />
           </button>
 
-          <div class="shell-sidebar-actions">
-            <OcActionButton
-              v-for="action in list.actions"
-              :key="`${list.key}-${action.key ?? action.icon}`"
-              class="shell-sidebar-action"
-              :action="{
-                key: action.key ?? action.icon,
-                title: action.hoverTip,
-                icon: action.icon,
-                disabled: action.disabled,
-                children: action.children,
-              }"
-              size="sm"
-              variant="ghost"
-              @select="emit('list-button-clicked', list.key, $event.key)"
-            />
-          </div>
+          <OcActionRail
+            :actions="toActionDefinitions(list.actions)"
+            @select="emit('list-button-clicked', list.key, $event.key)"
+          />
         </div>
 
         <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }">

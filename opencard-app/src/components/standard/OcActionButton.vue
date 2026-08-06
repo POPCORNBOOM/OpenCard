@@ -16,6 +16,7 @@
     <OcButton
       :variant="variant"
       :size="size"
+      :icon-size="iconSize"
       icon-only
       :icon="action.icon"
       :icon-tone="action.iconTone"
@@ -55,11 +56,14 @@ export type {
   OcActionDefinition as OcActionButtonAction,
   OcActionSelectPayload as OcActionButtonSelectPayload,
 } from './OcActionMenu.vue'
+export type ActionButtonSize = 'sm' | 'md' | 'lg'
+export type ActionButtonVariant = 'solid' | 'soft' | 'ghost' | 'outline'
 </script>
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref, useId } from 'vue'
 import OcButton from '../base/OcButton.vue'
+import type { OcIconSize } from '../base/OcIcon.vue'
 import OcActionMenu, {
   type OcActionDefinition,
   type OcActionMenuEntry,
@@ -67,9 +71,6 @@ import OcActionMenu, {
   isActionMenuBranchEvent,
 } from './OcActionMenu.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
-
-type ActionButtonSize = 'sm' | 'md' | 'lg'
-type ActionButtonVariant = 'solid' | 'soft' | 'ghost' | 'outline'
 
 defineOptions({
   name: 'OcActionButton',
@@ -79,9 +80,11 @@ defineOptions({
 const props = withDefaults(defineProps<{
   action: OcActionDefinition
   size?: ActionButtonSize
+  iconSize?: OcIconSize
   variant?: ActionButtonVariant
 }>(), {
   size: 'md',
+  iconSize: 'action',
   variant: 'ghost',
 })
 

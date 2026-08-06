@@ -49,7 +49,9 @@ import { useI18n } from 'vue-i18n'
 import {
   duplicateProjectIcon,
   moveProjectIcon,
+  PROJECT_ICON_ROTATIONS,
   type ProjectIcon,
+  type ProjectIconRotation,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
 import {
@@ -176,6 +178,7 @@ const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
       width: String(icon.width),
       height: String(icon.height),
       pixelated: String(icon.pixelated ?? false),
+      rotation: `${icon.rotation ?? 0}°`,
     },
     fields: {
       iconKey: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 1, required: true, commitMode: 'blur' },
@@ -185,6 +188,10 @@ const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
       width: { title: t('projectConfig.icons.width'), fieldType: 'number', category: 'crop', order: 3, min: 1 },
       height: { title: t('projectConfig.icons.height'), fieldType: 'number', category: 'crop', order: 4, min: 1 },
       pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'appearance', order: 1 },
+      rotation: {
+        title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 2,
+        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
+      },
     },
   }]
 })
@@ -258,6 +265,11 @@ function updateIconProperty(mutation: PropertyEditorMutation): void {
     updateIcon(index, { [mutation.fieldKey]: String(mutation.value) })
   } else if (mutation.fieldKey === 'pixelated') {
     updateIcon(index, { pixelated: mutation.value === true || mutation.value === 'true' })
+  } else if (mutation.fieldKey === 'rotation') {
+    const value = Number(String(mutation.value).replace('°', ''))
+    if ((PROJECT_ICON_ROTATIONS as readonly number[]).includes(value)) {
+      updateIcon(index, { rotation: value as ProjectIconRotation })
+    }
   } else if (['x', 'y', 'width', 'height'].includes(mutation.fieldKey)) {
     updateIcon(index, { [mutation.fieldKey]: Number(mutation.value) })
   }

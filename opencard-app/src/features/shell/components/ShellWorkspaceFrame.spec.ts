@@ -33,6 +33,8 @@ describe('ShellWorkspaceFrame', () => {
     })
 
     const action = wrapper.get('button[aria-label="Switch to data table view"]')
+    expect(action.classes()).toContain('oc-button')
+    expect(action.element.parentElement?.classList).not.toContain('workspace-action')
     expect(action.attributes('data-tooltip')).toBe('Switch to data table view')
     await action.trigger('click')
     expect(wrapper.emitted('action')).toEqual([['card-designer.toggle-mode']])
