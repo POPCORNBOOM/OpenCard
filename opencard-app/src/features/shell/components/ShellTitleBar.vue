@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId, type ComponentPublicInstance } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
+import OcButton from '../../../components/base/OcButton.vue';
 import OcActionMenu, { isActionMenuBranchEvent } from '../../../components/standard/OcActionMenu.vue';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
@@ -24,6 +25,7 @@ const props = defineProps<{
   expandTooltip?: string;
   dragRegion?: boolean;
   nativeMacosControls?: boolean;
+  cancelTaskLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +33,7 @@ const emit = defineEmits<{
   'menu-action': [menuKey: string, actionKey: string];
   'app-action': [actionKey: string];
   'window-control': [actionKey: string];
+  'cancel-task': [taskKey: string];
 }>();
 
 const openMenu = ref<string | null>(null);
@@ -250,8 +253,13 @@ onBeforeUnmount(() => {
         <div v-for="task in props.tasks ?? []" :key="task.key" class="titlebar-task-row">
           <div class="titlebar-task-row__header">
             <span class="titlebar-task-row__title">{{ task.title }}</span>
-            <span class="titlebar-task-row__value">{{ taskProgressPercent(task) }}%</span>
+            <span class="titlebar-task-row__actions">
+              <span class="titlebar-task-row__value">{{ taskProgressPercent(task) }}%</span>
+              <OcButton v-if="task.cancellable" icon-only size="sm" variant="ghost" icon="action.close"
+                :aria-label="props.cancelTaskLabel || 'Cancel task'" @click="emit('cancel-task', task.key)" />
+            </span>
           </div>
+          <span v-if="task.detail" class="titlebar-task-row__detail">{{ task.detail }}</span>
           <div
             class="titlebar-task-row__track"
             role="progressbar"

@@ -47,7 +47,7 @@ export async function loadProjectImageDimensions(src: string): Promise<ProjectIm
       if (typeof image.decode === 'function') void image.decode().then(complete, reject)
       else complete()
     }
-    image.onerror = () => reject(new Error('Unable to load project icon series image'))
+    image.onerror = () => reject(new Error('Unable to load project icon image'))
     image.src = src
   })
 }

@@ -2,6 +2,8 @@
   <div v-if="definition.isReadonly" class="readonly-value" :data-tooltip="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
+  <OcEnumStepper v-else-if="definition.options?.length && definition.enumMode === 'stepper'"
+    :model-value="stringValue" :options="enumOptions" @update:model-value="emit('update:value', $event)" />
   <OcSelect v-else-if="definition.options?.length" :model-value="stringValue"
     :options="selectOptions" full-width @update:model-value="emit('update:value', $event)" />
   <OcFieldFrame v-else-if="definition.multiline" class="multiline-field" full-width>
@@ -36,6 +38,7 @@ import { computed, ref, watch } from 'vue'
 import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
 import OcSelect from '../../../../components/standard/OcSelect.vue'
+import OcEnumStepper from '../../../../components/standard/OcEnumStepper.vue'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
@@ -55,6 +58,9 @@ watch(stringValue, value => {
   draftValue.value = value
 })
 const selectOptions = computed(() => (
+  props.definition.options?.map(option => ({ value: option, label: option })) ?? []
+))
+const enumOptions = computed(() => (
   props.definition.options?.map(option => ({ value: option, label: option })) ?? []
 ))
 

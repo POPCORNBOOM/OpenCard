@@ -7,11 +7,22 @@ export type ProjectRemoteResourcePolicy =
   | { mode: 'allowlist'; allowedHosts: readonly string[] }
   | { mode: 'allow-all' }
 
+export type ProjectExportTask = {
+  documentPaths: readonly string[]
+  selectionMode: 'instances' | 'blueprint-and-instances' | 'blueprint'
+  scale: number
+  layoutMode: 'none' | 'layout'
+  outputDirectory: string
+  conflictMode: 'replace' | 'skip'
+  errorPolicy?: 'continue' | 'stop'
+}
+
 export type ProjectProfile = {
   name?: string
   description?: string
   version?: string
   remoteResources?: ProjectRemoteResourcePolicy
+  exportTask?: ProjectExportTask
 }
 
 export type ProjectInformation = {
@@ -57,6 +68,30 @@ function parseRemoteResourcePolicy(value: unknown): ProjectRemoteResourcePolicy 
   return { mode: 'allowlist', allowedHosts }
 }
 
+function parseProjectExportTask(value: unknown): ProjectExportTask | null {
+  if (!isRecord(value) || Object.keys(value).some(key => ![
+    'documentPaths', 'selectionMode', 'scale', 'layoutMode', 'outputDirectory', 'conflictMode', 'errorPolicy',
+  ].includes(key))) return null
+  if (!Array.isArray(value.documentPaths)
+    || value.documentPaths.some(path => typeof path !== 'string' || !path.trim())
+    || new Set(value.documentPaths.map(path => path.toLocaleLowerCase())).size !== value.documentPaths.length
+    || !['instances', 'blueprint-and-instances', 'blueprint'].includes(String(value.selectionMode))
+    || typeof value.scale !== 'number' || !Number.isFinite(value.scale) || value.scale < 0.1
+    || !['none', 'layout'].includes(String(value.layoutMode))
+    || typeof value.outputDirectory !== 'string'
+    || !['replace', 'skip'].includes(String(value.conflictMode))
+    || (value.errorPolicy !== undefined && !['continue', 'stop'].includes(String(value.errorPolicy)))) return null
+  return {
+    documentPaths: [...value.documentPaths],
+    selectionMode: value.selectionMode as ProjectExportTask['selectionMode'],
+    scale: value.scale,
+    layoutMode: value.layoutMode as ProjectExportTask['layoutMode'],
+    outputDirectory: value.outputDirectory,
+    conflictMode: value.conflictMode as ProjectExportTask['conflictMode'],
+    errorPolicy: value.errorPolicy === 'stop' ? 'stop' : 'continue',
+  }
+}
+
 export function parseProjectMetadata(value: unknown): ProjectProfile | null {
   if (!isRecord(value)) return null
 
@@ -70,6 +105,11 @@ export function parseProjectMetadata(value: unknown): ProjectProfile | null {
     const remoteResources = parseRemoteResourcePolicy(value.remoteResources)
     if (!remoteResources) return null
     profile.remoteResources = remoteResources
+  }
+  if (value.exportTask !== undefined) {
+    const exportTask = parseProjectExportTask(value.exportTask)
+    if (!exportTask) return null
+    profile.exportTask = exportTask
   }
   return profile
 }

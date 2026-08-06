@@ -38,6 +38,13 @@ export type IconTone =
   | 'config'
   | 'folder-default'
   | 'folder-open'
+  | 'block-text'
+  | 'block-markdown'
+  | 'block-image'
+  | 'block-qrcode'
+  | 'block-shape'
+  | 'block-simple-container'
+  | 'block-flow-container'
 
 export {
   iconTokens,

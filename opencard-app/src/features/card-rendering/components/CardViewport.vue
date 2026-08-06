@@ -100,7 +100,7 @@
         <Transition name="selection-info-fade">
         <aside v-if="selectionInfo && !isTransformingSelection" class="selection-block-info" @pointerdown.stop>
           <span class="selection-block-info__title">
-            <OcIcon :name="selectionInfo.icon" size="sm" />
+            <OcIcon :name="selectionInfo.icon" :tone="selectionInfo.iconTone" size="sm" />
             <span>{{ selectionInfo.name }}</span>
           </span>
           <span v-if="selectionInfo.notes" class="selection-block-info__notes">{{ selectionInfo.notes }}</span>
@@ -126,7 +126,7 @@
 </template>
 
 <script lang="ts">
-import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
 export type CardViewportSelectionAction =
   | { type: 'fill-parent'; blockId: string }
@@ -159,6 +159,7 @@ export type CardViewportSelectionActionLabels = {
 
 export type CardViewportSelectionInfo = {
   icon: IconToken
+  iconTone: IconTone
   name: string
   notes: string
 }

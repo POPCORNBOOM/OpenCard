@@ -43,4 +43,13 @@ describe('OcJsonEditor', () => {
     expect(wrapper.text()).toContain('Invalid JSON')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
+
+  it('uses semantic height modes', () => {
+    const wrapper = mount(OcJsonEditor, {
+      props: { modelValue: [], heightMode: 'array' },
+    })
+
+    expect(wrapper.get('textarea').classes()).toContain('oc-json-editor__input--array')
+    expect(wrapper.get('textarea').attributes('style')).toBeUndefined()
+  })
 })

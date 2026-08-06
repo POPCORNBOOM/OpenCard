@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import OcIcon from '../../../components/base/OcIcon.vue';
+import OcActionButton from '../../../components/standard/OcActionButton.vue';
 import type { ShellAction } from '../shell.types';
 
 defineProps<{
@@ -26,17 +26,21 @@ const emit = defineEmits<{
         <h1 class="workspace-title">{{ title }}</h1>
       </div>
       <div class="workspace-actions" :class="{ empty: actions.length === 0 }">
-        <button
+        <OcActionButton
           v-for="action in actions"
           :key="action.key ?? action.icon"
           class="workspace-action"
-          type="button"
-          :disabled="action.disabled"
-          :data-tooltip="action.hoverTip || null"
-          @click="action.key && emit('action', action.key)"
-        >
-          <OcIcon :name="action.icon" size="sm" />
-        </button>
+          :action="{
+            key: action.key ?? action.icon,
+            title: action.hoverTip,
+            icon: action.icon,
+            disabled: action.disabled,
+            children: action.children,
+          }"
+          size="sm"
+          variant="ghost"
+          @select="action.key && emit('action', $event.key)"
+        />
       </div>
     </header>
 

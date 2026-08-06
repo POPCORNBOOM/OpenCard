@@ -17,6 +17,7 @@
     <img
       v-if="imageSrc && !loadError"
       class="image-preview-editor__image"
+      :class="{ 'is-pixelated': pixelated }"
       :src="imageSrc"
       :alt="fileName"
       :style="imageStyle"
@@ -30,25 +31,44 @@
       <OcText tone="muted">{{ fileName }}</OcText>
     </div>
 
-    <OcViewportControls
+    <OcOverlayToolbar
       v-if="isImageReady"
       class="image-preview-editor__controls"
-      aria-label="图片缩放控制"
-      :scale-label="scaleLabel"
+      label="图片预览控制"
       @pointerdown.stop
       @dblclick.stop
-      @zoom-out="zoomBy(1 / ZOOM_STEP)"
-      @reset="resetView"
-      @zoom-in="zoomBy(ZOOM_STEP)"
-    />
+    >
+      <OcViewportControls
+        embedded
+        aria-label="图片缩放控制"
+        :scale-label="scaleLabel"
+        @zoom-out="zoomBy(1 / ZOOM_STEP)"
+        @reset="resetView"
+        @zoom-in="zoomBy(ZOOM_STEP)"
+      />
+      <OcButton
+        icon-only
+        size="sm"
+        icon="tool.pixelated"
+        :active="pixelated"
+        :aria-pressed="pixelated"
+        :variant="pixelated ? 'soft' : 'ghost'"
+        :aria-label="pixelatedLabel"
+        :data-tooltip="pixelatedLabel"
+        @click="emit('update:pixelated', !pixelated)"
+      />
+    </OcOverlayToolbar>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
+import OcButton from '../base/OcButton.vue'
 import OcText from '../base/OcText.vue'
+import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
 import OcViewportControls from '../standard/OcViewportControls.vue'
 
 type ViewportTransform = { x: number; y: number; scale: number }
@@ -67,6 +87,7 @@ const KEYBOARD_PAN_STEP = 32
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
+const { t } = useI18n()
 const { resolveAssetSrc } = useProjectStore()
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -111,6 +132,8 @@ const imageStyle = computed<CSSProperties>(() => ({
   transform: `translate(${baseOffsetX.value + panX.value}px, ${baseOffsetY.value + panY.value}px) scale(${renderedScale.value})`,
 }))
 const scaleLabel = computed(() => `${Math.round(renderedScale.value * 100)}%`)
+const pixelated = computed(() => props.pixelated ?? false)
+const pixelatedLabel = computed(() => t('projectConfig.icons.pixelated'))
 
 function normalizeTransform(value: ViewportTransform): ViewportTransform {
   return {
@@ -393,6 +416,10 @@ defineExpose({ save, resetView })
   transform-origin: 0 0;
   pointer-events: none;
   box-shadow: var(--oc-shadow-md);
+}
+
+.image-preview-editor__image.is-pixelated {
+  image-rendering: pixelated;
 }
 
 .image-preview-editor__empty {

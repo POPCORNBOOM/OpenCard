@@ -6,6 +6,29 @@ import { deriveAccentNeighborColor, getOcTheme, setOcTheme } from './theme'
 
 const srcRoot = join(process.cwd(), 'src')
 const sourceExtensions = new Set(['.css', '.ts', '.vue'])
+const fileIconColorTokens = [
+  '--oc-icon-file-opencard',
+  '--oc-icon-file-json',
+  '--oc-icon-file-markdown',
+  '--oc-icon-file-typescript',
+  '--oc-icon-file-javascript',
+  '--oc-icon-file-vue',
+  '--oc-icon-file-html',
+  '--oc-icon-file-css',
+  '--oc-icon-file-image',
+  '--oc-icon-file-config',
+  '--oc-icon-folder',
+  '--oc-icon-folder-open',
+] as const
+const blockIconColorTokens = [
+  '--oc-icon-block-text',
+  '--oc-icon-block-markdown',
+  '--oc-icon-block-image',
+  '--oc-icon-block-qrcode',
+  '--oc-icon-block-shape',
+  '--oc-icon-block-simple-container',
+  '--oc-icon-block-flow-container',
+] as const
 
 function readProductionSources(directory: string): string {
   return readdirSync(directory, { withFileTypes: true })
@@ -47,6 +70,17 @@ describe('OC theme runtime', () => {
       .toBe(OC_THEME_REGISTRY[themeId]['--oc-border-width'])
     expect(document.documentElement.style.getPropertyValue('--oc-viewport-dot-pattern'))
       .toBe(OC_THEME_REGISTRY[themeId]['--oc-viewport-dot-pattern'])
+  })
+
+  it.each(['dark', 'light'] as const)('uses distinct OKLCH file and Block icon colors in %s', (themeId) => {
+    const fileColors = fileIconColorTokens.map(token => OC_THEME_REGISTRY[themeId][token])
+    const blockColors = blockIconColorTokens.map(token => OC_THEME_REGISTRY[themeId][token])
+    const isOklchColor = (value: string) => /^oklch\([\d.]+% [\d.]+ [\d.]+\)$/.test(value)
+
+    expect(fileColors.every(isOklchColor)).toBe(true)
+    expect(blockColors.every(isOklchColor)).toBe(true)
+    expect(new Set(fileColors).size).toBe(fileColors.length)
+    expect(new Set(blockColors).size).toBe(blockColors.length)
   })
 
   it('falls back unknown themes to the default theme', () => {

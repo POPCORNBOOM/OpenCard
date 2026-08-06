@@ -19,7 +19,7 @@ describe('exportCardAsImage', () => {
   it('scales the output canvas without transforming the cloned card DOM', async () => {
     const element = document.createElement('div')
 
-    await expect(exportCardAsImage(element, { dpi: 192 })).resolves.toBe('png-data')
+    await expect(exportCardAsImage(element, { scale: 2 })).resolves.toBe('png-data')
     expect(mocks.toPng).toHaveBeenCalledWith(element, { scale: 2 })
   })
 
@@ -27,7 +27,7 @@ describe('exportCardAsImage', () => {
     const element = document.createElement('div')
 
     await expect(exportCardAsImage(element, {
-      dpi: 144,
+      scale: 1.5,
       format: 'jpeg',
       quality: 0.8,
     })).resolves.toBe('jpeg-data')

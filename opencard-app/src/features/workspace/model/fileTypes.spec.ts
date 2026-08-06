@@ -78,6 +78,41 @@ describe('workspace entry icon tokens', () => {
     })
   })
 
+  it('separates registered and unregistered project font files', () => {
+    const registeredSources = new Set(['assets/fonts/Brand.woff2'])
+
+    expect(resolveEntryIcon(
+      'D:/Cards/assets/fonts/Brand.woff2',
+      false,
+      false,
+      'D:/Cards',
+      registeredSources,
+    )).toEqual({
+      icon: 'file.font',
+      tone: 'active',
+    })
+    expect(resolveEntryIcon(
+      'D:/Cards/assets/fonts/Other.woff2',
+      false,
+      false,
+      'D:/Cards',
+      registeredSources,
+    )).toEqual({
+      icon: 'file.font',
+      tone: 'muted',
+    })
+    expect(resolveEntryIcon(
+      'd:/cards/assets/fonts/BRAND.WOFF2',
+      false,
+      false,
+      'D:/Cards',
+      registeredSources,
+    )).toEqual({
+      icon: 'file.font',
+      tone: 'active',
+    })
+  })
+
   it('keeps known text files editable and routes unknown extensions to the unsupported-file session', () => {
     expect(resolveFileType('D:/Cards/notes.txt')).toMatchObject({
       id: 'plaintext',

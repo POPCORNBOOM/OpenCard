@@ -23,12 +23,12 @@
     <OcFieldInput
       as="textarea"
       class="oc-json-editor__input"
+      :class="`oc-json-editor__input--${heightMode}`"
       full-width
       mono
       resize="vertical"
       :disabled="readonly"
       :readonly="readonly"
-      :style="{ minHeight: resolvedHeight }"
       :value="draft"
       @input="handleInput"
       @blur="formatDraft"
@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcPanel from '../base/OcPanel.vue'
@@ -55,10 +55,10 @@ defineOptions({ name: 'OcJsonEditor' })
 const props = withDefaults(defineProps<{
   modelValue: unknown
   readonly?: boolean
-  minHeight?: number | string
+  heightMode?: 'default' | 'array'
 }>(), {
   readonly: false,
-  minHeight: 180,
+  heightMode: 'default',
 })
 
 const emit = defineEmits<{
@@ -68,13 +68,6 @@ const emit = defineEmits<{
 const draft = ref(serializeJson(props.modelValue))
 const errorMessage = ref('')
 const lastCommitted = ref(draft.value)
-
-const resolvedHeight = computed(() => {
-  if (typeof props.minHeight === 'number') {
-    return `${props.minHeight}px`
-  }
-  return props.minHeight
-})
 
 watch(
   () => props.modelValue,
@@ -152,5 +145,13 @@ function tryParseJson(value: string): { ok: true; value: unknown } | { ok: false
   width: 100%;
   min-width: 0;
   line-height: 1.5;
+}
+
+.oc-json-editor__input--default {
+  min-height: var(--oc-json-editor-min-height);
+}
+
+.oc-json-editor__input--array {
+  min-height: var(--oc-json-editor-array-min-height);
 }
 </style>

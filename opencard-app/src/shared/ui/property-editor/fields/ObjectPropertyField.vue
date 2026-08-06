@@ -3,7 +3,7 @@
     class="object-property-field"
     :model-value="normalizedValue"
     :readonly="definition.isReadonly"
-    :min-height="definition.isArray ? 220 : 180"
+    :height-mode="definition.isArray ? 'array' : 'default'"
     @update:model-value="emit('update:value', $event)"
   />
 </template>

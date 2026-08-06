@@ -74,6 +74,13 @@ const iconColorMap: Record<IconTone, string> = {
   config: 'var(--oc-icon-file-config)',
   'folder-default': 'var(--oc-icon-folder)',
   'folder-open': 'var(--oc-icon-folder-open)',
+  'block-text': 'var(--oc-icon-block-text)',
+  'block-markdown': 'var(--oc-icon-block-markdown)',
+  'block-image': 'var(--oc-icon-block-image)',
+  'block-qrcode': 'var(--oc-icon-block-qrcode)',
+  'block-shape': 'var(--oc-icon-block-shape)',
+  'block-simple-container': 'var(--oc-icon-block-simple-container)',
+  'block-flow-container': 'var(--oc-icon-block-flow-container)',
 }
 
 const sizeClass = computed(() => `oc-icon--${props.size}`)

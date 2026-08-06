@@ -284,6 +284,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.titlebar-task-row__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-space-1);
+}
+
+.titlebar-task-row__detail {
+  overflow: hidden;
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .titlebar-task-row__track {
   height: 3px;
   overflow: hidden;

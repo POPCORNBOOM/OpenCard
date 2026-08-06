@@ -1,8 +1,9 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import OcSwitch from '../../../components/base/OcSwitch.vue'
 import OcSlider from '../../../components/standard/OcSlider.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
+import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 import FontFamilyAutocomplete from './FontFamilyAutocomplete.vue'
 import SettingsWorkspace from './SettingsWorkspace.vue'
@@ -196,7 +197,14 @@ describe('SettingsWorkspace', () => {
     ])
   })
 
-  it('renders the appearance preview when preview data is provided', () => {
+  it('renders the appearance preview and shrinks it between semantic height tiers', async () => {
+    const observe = vi.fn()
+    let resizeCallback: ResizeObserverCallback = () => undefined
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
+      observe = observe
+      disconnect = vi.fn()
+    })
     const wrapper = mount(SettingsWorkspace, {
       props: {
         viewModel: {
@@ -208,9 +216,15 @@ describe('SettingsWorkspace', () => {
       },
     })
 
-    expect(wrapper.find('.settings-workspace__preview-glass').exists()).toBe(false)
+    expect(wrapper.find('.settings-workspace__preview-glass').exists()).toBe(true)
     expect(wrapper.findAll('.settings-workspace__preview-editor > .settings-workspace__preview-panel')).toHaveLength(2)
     expect(wrapper.findAll('.settings-workspace__preview-window-dots i')).toHaveLength(3)
+    const sidebarLogo = wrapper.getComponent(OcPhaseImage)
+    expect(sidebarLogo.classes()).toContain('settings-workspace__preview-sidebar-logo')
+    expect(sidebarLogo.props('src')).toContain('opencard-logo-phase-map')
+    expect(sidebarLogo.props('durationMs')).toBe(12_000)
+    expect(sidebarLogo.props('direction')).toBe('reverse')
+    expect(sidebarLogo.element.closest('.settings-workspace__preview-sidebar')).not.toBeNull()
     expect(wrapper.findAll('.settings-workspace__preview-card-corner')).toHaveLength(2)
     expect(wrapper.findAll('.settings-workspace__preview-card-pips i')).toHaveLength(7)
     expect(wrapper.find('.settings-workspace__preview-document').text()).toContain('7')
@@ -220,5 +234,53 @@ describe('SettingsWorkspace', () => {
     expect(wrapper.find('.settings-workspace__preview-canvas .appearance-shader').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('sample.ocdocument')
     expect(wrapper.text()).not.toContain('属性')
+
+    const workspace = wrapper.get<HTMLElement>('.settings-workspace')
+    expect(observe).toHaveBeenCalledWith(workspace.element)
+    workspace.element.style.setProperty('--oc-settings-preview-height-lg', '360px')
+    workspace.element.style.setProperty('--oc-settings-preview-height-md', '240px')
+    workspace.element.style.setProperty('--oc-settings-preview-shrink-distance', '240px')
+    workspace.element.style.setProperty('--oc-settings-preview-glass-opacity-min', '0')
+    workspace.element.style.setProperty('--oc-settings-preview-glass-opacity-max', '1')
+    const preview = wrapper.get<HTMLElement>('.settings-workspace__preview')
+    const previewGlass = wrapper.get<HTMLElement>('.settings-workspace__preview-glass')
+    const previewSurface = wrapper.get<HTMLElement>('.settings-workspace__preview-surface')
+    const previewStage = wrapper.get<HTMLElement>('.settings-workspace__preview-stage')
+    const previewSpacer = wrapper.get<HTMLElement>('.settings-workspace__preview-spacer')
+    Object.defineProperty(preview.element, 'offsetHeight', { configurable: true, value: 360 })
+    resizeCallback([], {} as ResizeObserver)
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+    workspace.element.scrollTop = 0
+    await workspace.trigger('scroll')
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    expect(Number.parseFloat(preview.element.style.maxWidth)).toBeCloseTo(640)
+    expect(previewGlass.element.style.height).toBe('360px')
+    expect(previewSurface.element.style.height).toBe('360px')
+    expect(previewSpacer.element.style.height).toBe('360px')
+    expect(previewStage.element.style.height).toBe('')
+    expect(previewStage.element.style.getPropertyValue('--settings-preview-scale')).toBe('1')
+    expect(previewStage.element.style.getPropertyValue('--settings-preview-glass-opacity')).toBe('0')
+
+    workspace.element.scrollTop = 120
+    await workspace.trigger('scroll')
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    expect(previewSurface.element.style.height).toBe('360px')
+    expect(previewGlass.element.style.height).toBe('360px')
+    expect(previewSpacer.element.style.height).toBe('360px')
+    expect(Number.parseFloat(previewStage.element.style.getPropertyValue('--settings-preview-scale')))
+      .toBeCloseTo(5 / 6)
+    expect(previewStage.element.style.getPropertyValue('--settings-preview-glass-opacity')).toBe('0.5')
+
+    workspace.element.scrollTop = 480
+    await workspace.trigger('scroll')
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    expect(previewSurface.element.style.height).toBe('360px')
+    expect(previewGlass.element.style.height).toBe('360px')
+    expect(previewSpacer.element.style.height).toBe('360px')
+    expect(Number.parseFloat(preview.element.style.maxWidth)).toBeCloseTo(640)
+    expect(previewStage.element.style.getPropertyValue('--settings-preview-glass-opacity')).toBe('1')
+    wrapper.unmount()
+    vi.unstubAllGlobals()
   })
 })

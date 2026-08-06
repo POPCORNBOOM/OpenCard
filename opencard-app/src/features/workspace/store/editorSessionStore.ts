@@ -59,6 +59,7 @@ export type EditorSessionUiState = {
   }
   imagePreview?: {
     viewportTransform?: EditorViewportTransform
+    pixelated?: boolean
   }
 }
 

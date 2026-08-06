@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest'
 import StringPropertyField from './StringPropertyField.vue'
 
 describe('StringPropertyField static completion', () => {
+  it('steps through every string enum option in schema order', async () => {
+    const wrapper = mount(StringPropertyField, {
+      props: {
+        value: 'standard',
+        definition: {
+          title: 'Quality',
+          fieldType: 'string',
+          options: ['preview', 'standard', 'high', 'ultra', 'custom'],
+          enumMode: 'stepper',
+        },
+      },
+    })
+
+    const buttons = wrapper.findAll('button')
+    await buttons[0]!.trigger('click')
+    await buttons[1]!.trigger('click')
+    expect(wrapper.emitted('update:value')).toEqual([['preview'], ['high']])
+  })
+
   it('shows a prepared ghost suffix and accepts it with Tab', async () => {
     const wrapper = mount(StringPropertyField, {
       props: {

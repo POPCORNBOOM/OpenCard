@@ -54,6 +54,32 @@ describe('project profile metadata', () => {
     expect(JSON.parse(serializeProjectMetadata({ name: '', description: '', version: '' }))).toEqual({})
   })
 
+  it('round-trips the project export task configuration', () => {
+    const exportTask = {
+      documentPaths: ['cards/main.ocdocument'],
+      selectionMode: 'blueprint-and-instances' as const,
+      scale: 2,
+      layoutMode: 'none' as const,
+      outputDirectory: 'D:/exports',
+      conflictMode: 'replace' as const,
+      errorPolicy: 'continue' as const,
+    }
+    expect(parseProjectMetadata({ exportTask })).toEqual({ exportTask })
+    expect(JSON.parse(serializeProjectMetadata({ exportTask }))).toEqual({ exportTask })
+  })
+
+  it('rejects malformed export task configuration', () => {
+    expect(parseProjectMetadata({ exportTask: { documentPaths: [], scale: 0 } })).toBeNull()
+  })
+
+  it('normalizes an omitted export failure policy to continue', () => {
+    const exportTask = {
+      documentPaths: ['cards/main.ocdocument'], selectionMode: 'blueprint' as const, scale: 1,
+      layoutMode: 'none' as const, outputDirectory: 'D:/exports', conflictMode: 'skip' as const,
+    }
+    expect(parseProjectMetadata({ exportTask })?.exportTask?.errorPolicy).toBe('continue')
+  })
+
   it('creates a complete runtime snapshot', () => {
     expect(toProjectInformation({ name: 'Demo' })).toEqual({
       name: 'Demo',

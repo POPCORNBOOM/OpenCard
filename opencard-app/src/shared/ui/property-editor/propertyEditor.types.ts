@@ -50,6 +50,7 @@ export type PropertyFieldConstraintMap = {
     minLength?: number
     maxLength?: number
     options?: readonly string[]
+    enumMode?: 'select' | 'stepper'
     multiline?: boolean
     richText?: boolean
   }
@@ -66,6 +67,7 @@ export type PropertyFieldConstraintMap = {
   number: {
     min?: number
     max?: number
+    step?: number
     allowedValues?: readonly number[]
   }
   boolean: Record<never, never>

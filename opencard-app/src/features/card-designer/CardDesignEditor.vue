@@ -27,7 +27,7 @@
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="props.remoteResourcePolicy"
-          :project-icon-catalog="projectStore.projectIconCatalog.value"
+          :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -155,7 +155,7 @@
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
                         :remote-resource-policy="props.remoteResourcePolicy"
-                        :project-icon-catalog="projectStore.projectIconCatalog.value"
+                        :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -328,7 +328,7 @@ import {
   type CardFaceKey,
   type FlowDirection,
 } from '../../entities/card/model'
-import { getBlockTreeIcon } from './blockPresentation'
+import { getBlockPresentation } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
@@ -544,13 +544,13 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
     title: '添加子块',
     children: ['add-text-block', 'add-markdown-text-block', 'add-image-block', 'add-qrcode-block', 'add-shape-block', 'add-simple-container-block', 'add-flow-container-block'],
   }],
-  ['add-text-block', { icon: getBlockTreeIcon('text-block'), title: '文本块' }],
-  ['add-markdown-text-block', { icon: getBlockTreeIcon('markdown-text-block'), title: 'Markdown 文本块' }],
-  ['add-image-block', { icon: getBlockTreeIcon('image-block'), title: '图片块' }],
-  ['add-qrcode-block', { icon: getBlockTreeIcon('qrcode-block'), title: '二维码' }],
-  ['add-shape-block', { icon: getBlockTreeIcon('shape-block'), title: '形状' }],
-  ['add-simple-container-block', { icon: getBlockTreeIcon('simple-container-block'), title: '简单容器' }],
-  ['add-flow-container-block', { icon: getBlockTreeIcon('flow-container-block'), title: '流式容器' }],
+  ['add-text-block', { ...getBlockPresentation('text-block'), title: '文本块' }],
+  ['add-markdown-text-block', { ...getBlockPresentation('markdown-text-block'), title: 'Markdown 文本块' }],
+  ['add-image-block', { ...getBlockPresentation('image-block'), title: '图片块' }],
+  ['add-qrcode-block', { ...getBlockPresentation('qrcode-block'), title: '二维码' }],
+  ['add-shape-block', { ...getBlockPresentation('shape-block'), title: '形状' }],
+  ['add-simple-container-block', { ...getBlockPresentation('simple-container-block'), title: '简单容器' }],
+  ['add-flow-container-block', { ...getBlockPresentation('flow-container-block'), title: '流式容器' }],
   ['duplicate', { icon: 'action.copy', title: '复制' }],
   ['delete', { icon: 'action.delete', title: '删除' }],
   ['rename', { icon: 'action.edit', title: '重命名' }],
@@ -567,6 +567,7 @@ function toCardActionDefinition(actionKey: string, disabled = false): OcCardActi
   return {
     key: actionKey,
     icon: action.icon,
+    iconTone: action.iconTone,
     title: action.title,
     disabled,
     children: action.children
@@ -1185,8 +1186,7 @@ const renderTargetInstance = computed(() => (
 ))
 
 const renderContext = computed(() => ({
-  project: projectStore.resolvedProject.value,
-  dictionary: projectStore.resolvedDictionary.value,
+  ...projectStore.renderEnvironment.value,
 }))
 const {
   findViewBlock,
@@ -1283,8 +1283,10 @@ const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   if (!block || !face) return null
 
   const renderedBlock = findViewBlock(block.id)
+  const presentation = getBlockPresentation(block.type)
   return {
-    icon: getBlockTreeIcon(block.type),
+    icon: presentation.icon,
+    iconTone: presentation.iconTone,
     name: renderedBlock?.name.trim() || block.name?.trim() || block.id,
     notes: renderedBlock?.notes.trim() || '',
   }

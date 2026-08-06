@@ -55,6 +55,7 @@ type UseShellFileTreeOptions = {
   activateSession: (sessionId: string) => void
   openPreviewFile: (path: string) => Promise<unknown>
   translate: (key: string) => string
+  registeredFontSources?: Readonly<Ref<readonly string[]>>
 }
 
 function normalizeShellPath(path: string): string {
@@ -64,6 +65,7 @@ function normalizeShellPath(path: string): string {
 export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
+  const registeredFontSources = computed(() => new Set(options.registeredFontSources?.value ?? []))
 
   function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
     if (target.value.length === nextKeys.length
@@ -117,7 +119,13 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     const children = new Map<string, readonly string[]>()
 
     for (const entry of projectProjection.value.byKey.values()) {
-      const presentation = resolveEntryIcon(entry.key, entry.isDirectory, entry.isExpanded, options.projectPath.value)
+      const presentation = resolveEntryIcon(
+        entry.key,
+        entry.isDirectory,
+        entry.isExpanded,
+        options.projectPath.value,
+        registeredFontSources.value,
+      )
       items.set(entry.key, {
         label: entry.label,
         tail: entry.tail,

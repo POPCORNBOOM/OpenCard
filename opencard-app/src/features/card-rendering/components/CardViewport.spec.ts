@@ -219,6 +219,7 @@ describe('CardViewport wheel zoom API', () => {
         selectedParentBlockId: 'parent',
         selectionInfo: {
           icon: 'entity.block-text',
+          iconTone: 'block-text',
           name: 'Title',
           notes: 'Primary heading',
         },

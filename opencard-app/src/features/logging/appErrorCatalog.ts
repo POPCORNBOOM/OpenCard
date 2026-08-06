@@ -105,13 +105,13 @@ export const APP_ERROR_CATALOG = {
   },
   'OC-E3010': {
     area: '项目与资源',
-    meaning: { 'zh-CN': '无法加载项目图标套装', 'en-US': 'Could not load the project icon registry' },
+    meaning: { 'zh-CN': '无法加载项目图标', 'en-US': 'Could not load the project icon registry' },
     solution: '检查 .ocicons 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
   },
   'OC-E3011': {
     area: '项目与资源',
-    meaning: { 'zh-CN': '无法导入项目图标套装', 'en-US': 'Could not import the project icon set' },
-    solution: '确认所选图片是受支持且未损坏的图标套装，并检查项目目录写入权限。',
+    meaning: { 'zh-CN': '无法导入项目图标', 'en-US': 'Could not import the project icon' },
+    solution: '确认所选图片是受支持且未损坏的项目图标，并检查项目目录写入权限。',
   },
   'OC-E3012': {
     area: '项目与资源',

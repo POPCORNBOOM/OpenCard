@@ -10,7 +10,6 @@
       :readonly="definition.isReadonly"
       full-width
       @input="onInput"
-      @change="onCommit"
     />
     <template #suffix>
       <span class="number-field__steppers">
@@ -39,7 +38,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
-  (e: 'commit', value: string): void
 }>()
 
 const HOLD_DELAY_MS = 420
@@ -77,10 +75,6 @@ function onInput(event: Event) {
   emit('update:value', (event.target as HTMLInputElement).value)
 }
 
-function onCommit(event: Event) {
-  emit('commit', (event.target as HTMLInputElement).value)
-}
-
 function calculateNextValue(current: number, direction: -1 | 1, shiftKey: boolean): number {
   if (allowedValues.value.length) {
     const candidates = direction > 0
@@ -90,7 +84,8 @@ function calculateNextValue(current: number, direction: -1 | 1, shiftKey: boolea
   }
   const minimum = props.definition.min ?? -Infinity
   const maximum = props.definition.max ?? Infinity
-  const step = shiftKey ? SHIFT_STEP_MULTIPLIER : 1
+  const baseStep = props.definition.step ?? 1
+  const step = baseStep * (shiftKey ? SHIFT_STEP_MULTIPLIER : 1)
   return Math.min(maximum, Math.max(minimum, current + direction * step))
 }
 
@@ -189,14 +184,14 @@ onBeforeUnmount(stopStepHold)
 
 .number-field__steppers {
   display: grid;
-  flex: 0 0 20px;
+  flex: 0 0 var(--oc-icon-size-sm);
   height: 100%;
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  border-left: 1px solid var(--oc-border-muted);
+  border-left: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .number-field__stepper.oc-button {
-  width: 20px;
+  width: var(--oc-icon-size-sm);
   height: 100%;
   min-height: 0;
   padding: 0;
@@ -205,7 +200,7 @@ onBeforeUnmount(stopStepHold)
 }
 
 .number-field__stepper:first-child {
-  border-bottom: 1px solid var(--oc-border-muted);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .number-field__stepper:hover:not(:disabled),

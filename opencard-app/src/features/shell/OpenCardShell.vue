@@ -24,11 +24,13 @@
       :native-macos-controls="usesNativeMacosWindowControls"
       :collapse-tooltip="t('app.shell.collapseSidebar')"
       :expand-tooltip="t('app.shell.expandSidebar')"
+      :cancel-task-label="t('app.shell.cancelTask')"
       :drag-region="!isWindowFullscreen"
       @toggle-sidebar="toggleSidebarCollapsed"
       @menu-action="handleTitleBarMenuAction"
       @app-action="handleTitleBarAppAction"
       @window-control="handleWindowControl"
+      @cancel-task="cancelShellProgressTask"
     />
 
     <div class="shell-main" :class="{ 'shell-main-collapsed': effectiveSidebarCollapsed }" :style="shellMainStyle">
@@ -203,6 +205,7 @@
                 @save="handleEditorSave"
                 @open-file="handleOpenFile"
                 @update-viewport-transform="handleViewportTransformUpdate"
+                @update:pixelated="handleImagePreviewPixelatedUpdate"
                 @update:card-designer-mode="handleCardDesignerModeUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
                 @update-card-designer-view="handleCardDesignerViewUpdate"
@@ -257,11 +260,17 @@
         ref="exportRendererRef"
         :face="exportCardFace"
         :clip-to-face="true"
-        :resource-root-path="activeSessionResourceRootPath"
-        :remote-resource-policy="activeRemoteResourcePolicy"
-        :project-icon-catalog="projectIconCatalog"
+        :resource-root-path="exportResourceRootPath"
+        :remote-resource-policy="exportRemoteResourcePolicy"
+        :project-icon-catalog="exportProjectIconCatalog"
       />
     </div>
+
+    <ProjectExportDialog :open="projectExportDialogOpen" :model-value="projectExportDialogTask"
+      :documents="projectExportDocumentCandidates" :busy="isExportPreparing || isProjectExportRunning"
+      :preparation-issues="exportPreparationIssues"
+      @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
+      @submit="startProjectExport" />
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -351,6 +360,7 @@ import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
 import ReleaseNotesDialog from './components/ReleaseNotesDialog.vue'
 import FeedbackDialog from '../feedback/components/FeedbackDialog.vue'
 import FeedbackHistoryDialog from '../feedback/components/FeedbackHistoryDialog.vue'
+import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
 import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
 import { appConsoleEntries, clearAppConsoleEntries } from '../logging/appConsole'
@@ -377,7 +387,13 @@ import type {
   SessionIssueNavigationRequest,
 } from '../editor-runtime/model/editorIssue'
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
-import { useShellExport } from './composables/useShellExport'
+import { useProjectExport } from './composables/useProjectExport'
+import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
+import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
+import {
+  createDefaultProjectExportTask,
+  type ExportTaskValidationIssue,
+} from '../exporting/exportTask'
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellProgressTasks } from './composables/useShellProgressTasks'
 import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
@@ -468,14 +484,16 @@ const {
   projectPath,
   projectProfile,
   projectInformation,
-  projectIconCatalog,
-  resolvedDictionary,
+  projectFontFiles,
+  renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
   isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
   readDirectoryEntries,
+  readFile: readProjectFile,
+  resolveProjectPath,
   setDirectoryExpanded,
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
@@ -519,6 +537,11 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
 const isCreateProjectOperationBusy = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
+const isExportPreparing = ref(false)
+const exportPreparationIssues = ref<readonly ExportTaskValidationIssue[]>([])
+const projectExportDialogOpen = ref(false)
+const projectExportDialogTask = ref<ProjectExportTask>(createDefaultProjectExportTask())
+const projectExportDocumentCandidates = ref<readonly ExportDocumentCandidate[]>([])
 const developerMode = ref(false)
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
@@ -638,6 +661,7 @@ const {
   tasks: titleBarTasks,
   setTask: setShellProgressTask,
   removeTask: removeShellProgressTask,
+  cancelTask: cancelShellProgressTask,
 } = useShellProgressTasks()
 const UPDATE_PROGRESS_TASK_KEY = 'app-update'
 const titleBarBrandLabel = computed(() => {
@@ -666,18 +690,11 @@ const {
   remapSessionPaths,
 } = useEditorSessionStore()
 
-const activeRemoteResourcePolicy = computed(() => (
-  activeSession.value?.resourceKind === 'workspace'
-    ? projectProfile.value?.remoteResources
-    : undefined
-))
-
 const {
   editorRef: currentEditorRef,
   component: currentEditorComponent,
   key: currentEditorKey,
   props: currentEditorProps,
-  resourceRootPath: activeSessionResourceRootPath,
   isCardDesigner: isActiveCardDesignerEditor,
   isDictionaryEditor: isActiveDictionaryEditor,
   cardDesignerMode: activeCardDesignerMode,
@@ -686,6 +703,7 @@ const {
   importDataTableWorkbook,
   exportDataTableWorkbook,
   handleViewportTransform: handleViewportTransformUpdate,
+  handleImagePreviewPixelated: handleImagePreviewPixelatedUpdate,
   handleCardDesignerMode: handleCardDesignerModeUpdate,
   handleCardDesignerLayout: handleCardDesignerLayoutUpdate,
   handleCardDesignerView: handleCardDesignerViewUpdate,
@@ -823,16 +841,22 @@ watch(projectPath, (nextPath, previousPath) => {
 })
 
 const {
-  canExportActiveCard,
   showExportRenderer,
   exportCardFace,
-  exportActiveCard2x,
-  exportAllCardViews,
-} = useShellExport({
-  activeSession,
+  exportResourceRootPath,
+  exportRemoteResourcePolicy,
+  exportProjectIconCatalog,
+  isRunning: isProjectExportRunning,
+  loadDocumentSnapshot,
+  prepare: prepareProjectExport,
+  run: runProjectExport,
+} = useProjectExport({
+  sessions,
   exportRendererRef,
-  projectInformation,
-  resolvedDictionary,
+  renderEnvironment: projectRenderEnvironment,
+  readProjectFile,
+  resolveProjectPath,
+  getRelativeProjectPath,
   translate: t,
 })
 
@@ -854,6 +878,7 @@ const {
   activateSession,
   openPreviewFile,
   translate: t,
+  registeredFontSources: computed(() => projectFontFiles.value.map(font => font.source)),
 })
 
 function createTemplateTreeData(templates: readonly ProjectTemplate[]): OcTreeData {
@@ -1476,16 +1501,10 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         disabled: !projectPath.value,
       },
       {
-        key: 'export-active-card-2x',
-        title: t('app.menu.export2x'),
+        key: 'export-card-documents',
+        title: t('app.menu.exportCardDocuments'),
         icon: 'action.export',
-        disabled: !canExportActiveCard.value,
-      },
-      {
-        key: 'export-all-card-views',
-        title: t('app.menu.exportAll'),
-        icon: 'action.export',
-        disabled: !canExportActiveCard.value,
+        disabled: !projectPath.value,
       },
     ],
   },
@@ -2266,16 +2285,58 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
-  if (actionKey === 'export-active-card-2x') {
-    if (canExportActiveCard.value) {
-      await exportActiveCard2x()
-    }
-    return
+  if (actionKey === 'export-card-documents' && projectPath.value) {
+    await openProjectExportDialog()
   }
+}
 
-  if (actionKey === 'export-all-card-views' && canExportActiveCard.value) {
-    await exportAllCardViews()
+function copyProjectExportTask(task: ProjectExportTask): ProjectExportTask {
+  return { ...task, documentPaths: [...task.documentPaths] }
+}
+
+async function openProjectExportDialog(): Promise<void> {
+  exportPreparationIssues.value = []
+  projectExportDialogTask.value = copyProjectExportTask(
+    projectProfile.value?.exportTask ?? createDefaultProjectExportTask(),
+  )
+  const paths = indexedEntries.value
+    .filter(entry => !entry.isDirectory && entry.name.toLocaleLowerCase().endsWith('.ocdocument'))
+    .map(entry => entry.name.replace(/\\/g, '/'))
+  projectExportDocumentCandidates.value = paths.map(path => ({ path }))
+  projectExportDialogOpen.value = true
+  projectExportDocumentCandidates.value = await Promise.all(paths.map(async path => {
+    try {
+      const document = (await loadDocumentSnapshot(path)).document
+      const width = Number(document.width)
+      const height = Number(document.height)
+      return {
+        path,
+        ...(Number.isFinite(width) && Number.isFinite(height) ? { width, height } : {}),
+      }
+    } catch {
+      return { path }
+    }
+  }))
+}
+
+function closeProjectExportDialog(): void {
+  if (!isExportPreparing.value && !isProjectExportRunning.value) projectExportDialogOpen.value = false
+}
+
+async function startProjectExport(): Promise<boolean> {
+  if (isExportPreparing.value || isProjectExportRunning.value) return false
+  isExportPreparing.value = true
+  exportPreparationIssues.value = []
+  const prepared = await prepareProjectExport(projectExportDialogTask.value)
+  if (!prepared.ok) {
+    exportPreparationIssues.value = prepared.issues
+    isExportPreparing.value = false
+    return false
   }
+  projectExportDialogOpen.value = false
+  isExportPreparing.value = false
+  void runProjectExport(prepared.plan)
+  return true
 }
 
 async function handleTitleBarMenuAction(_menuKey: string, actionKey: string) {

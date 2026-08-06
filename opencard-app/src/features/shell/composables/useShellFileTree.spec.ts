@@ -196,4 +196,31 @@ describe('useShellFileTree opened editors', () => {
     expect(result.selectedFileKeys.value).toEqual([path])
     expect(openPreviewFile).toHaveBeenCalledWith(path)
   })
+
+  it('separates registered font files from unregistered files in the project tree', () => {
+    const projectPath = 'D:/project'
+    const result = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([
+        { name: 'assets/fonts/Brand.otf', isDirectory: false },
+        { name: 'assets/fonts/Other.otf', isDirectory: false },
+      ]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      registeredFontSources: ref(['assets/fonts/Brand.otf']),
+      translate: key => key,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+
+    expect(result.projectTreeData.value.items.get(`${projectPath}/assets/fonts/Brand.otf`)).toMatchObject({
+      icon: 'file.font',
+      iconTone: 'active',
+    })
+    expect(result.projectTreeData.value.items.get(`${projectPath}/assets/fonts/Other.otf`)).toMatchObject({
+      icon: 'file.font',
+      iconTone: 'muted',
+    })
+  })
 })

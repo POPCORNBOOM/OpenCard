@@ -43,6 +43,8 @@ export interface ShellProgressTask {
   title: string;
   progress: number;
   weight?: number;
+  detail?: string;
+  cancellable?: boolean;
 }
 
 export interface ShellTitleBarWindowControl extends ShellTitleBarAppAction {

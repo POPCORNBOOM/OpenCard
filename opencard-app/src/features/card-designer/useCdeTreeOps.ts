@@ -16,7 +16,7 @@ import {
   type ParentLookup,
 } from '../../entities/card/tree'
 import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
-import { getBlockTreeIcon } from './blockPresentation'
+import { getBlockPresentation } from './blockPresentation'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
 type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
@@ -60,10 +60,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     function visit(block: CardBlock): void {
       const childKeys = isBlockContainer(block) ? block.children.map((child) => child.block.id) : []
       const visibility = block.visible === 'false' ? 'hidden' : 'visible'
+      const presentation = getBlockPresentation(block.type)
       items.set(block.id, {
         label: block.name?.trim() || block.id,
-        icon: getBlockTreeIcon(block.type),
-        iconTone: visibility === 'hidden' ? 'muted' : undefined,
+        icon: presentation.icon,
+        iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         renamable: true,
         draggable: true,
         actions: [

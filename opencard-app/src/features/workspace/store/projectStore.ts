@@ -55,6 +55,7 @@ import {
   type ProjectIconCatalog,
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
+import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
 import {
   DEFAULT_PROJECT_ICON_DIRECTORY,
   findProjectIconKeyConflicts,
@@ -123,6 +124,12 @@ const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const settingsStore = useAppSettingsStore()
+const renderEnvironment = computed<CardRenderEnvironment>(() => ({
+  project: resolvedProject.value,
+  dictionary: resolvedDictionary.value,
+  remoteResourcePolicy: projectProfile.value?.remoteResources,
+  projectIconCatalog: projectIconCatalog.value,
+}))
 
 let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
@@ -752,7 +759,7 @@ async function importProjectIconFile(
     sourcePath,
     targetDirectory,
     PROJECT_ICON_EXTENSIONS,
-    'Unsupported project icon series image',
+    'Unsupported project icon image',
     conflictResolution,
   )
 }
@@ -767,7 +774,7 @@ async function getProjectIconImportConflict(
     sourcePath,
     targetDirectory,
     PROJECT_ICON_EXTENSIONS,
-    'Unsupported project icon series image',
+    'Unsupported project icon image',
   )
 }
 
@@ -1080,6 +1087,7 @@ export function useProjectStore() {
     projectIconSeries: readonly(projectIconSeries),
     iconRegistryError: readonly(iconRegistryError),
     projectIconCatalog: readonly(projectIconCatalog),
+    renderEnvironment: readonly(renderEnvironment),
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
     resolvedDictionary: readonly(resolvedDictionary),

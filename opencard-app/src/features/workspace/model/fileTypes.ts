@@ -299,6 +299,33 @@ function isProjectRootFile(path: string, projectRoot: string): boolean {
     : parentPath === normalizedRoot
 }
 
+function isRegisteredFontSource(
+  path: string,
+  projectRoot: string | undefined,
+  registeredFontSources: ReadonlySet<string> | undefined,
+): boolean {
+  if (!projectRoot || !registeredFontSources) return false
+
+  const normalizedPath = path.replace(/\\/g, '/')
+  const normalizedRoot = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+  const prefix = `${normalizedRoot}/`
+  const relativePath = isWindowsLikePath(projectRoot)
+    ? normalizedPath.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())
+      ? normalizedPath.slice(prefix.length)
+      : null
+    : normalizedPath.startsWith(prefix)
+      ? normalizedPath.slice(prefix.length)
+      : null
+  if (!relativePath) return false
+
+  return [...registeredFontSources].some((source) => {
+    const normalizedSource = source.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+    return isWindowsLikePath(projectRoot)
+      ? normalizedSource.toLocaleLowerCase() === relativePath.toLocaleLowerCase()
+      : normalizedSource === relativePath
+  })
+}
+
 export function resolveFileType(path: string, projectRoot?: string): FileTypeDefinition {
   const baseName = normalizeSegment(getBaseName(path))
 
@@ -373,12 +400,22 @@ export function resolveEntryIcon(
   isDirectory: boolean,
   isExpanded = false,
   projectRoot?: string,
+  registeredFontSources?: ReadonlySet<string>,
 ): EntryIconPresentation {
   if (isDirectory) {
     return resolveDirectoryIcon(path, isExpanded)
   }
 
   const fileType = resolveFileType(path, projectRoot)
+  if (fileType.id === 'font'
+    && projectRoot
+    && registeredFontSources
+    && !isRegisteredFontSource(path, projectRoot, registeredFontSources)) {
+    return {
+      icon: 'file.font',
+      tone: 'muted',
+    }
+  }
   return {
     icon: fileType.icon,
     tone: fileType.iconTone,

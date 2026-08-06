@@ -5,6 +5,8 @@ import { parseRenderDocument } from './renderParser'
 import type { RenderReadyCardDocument } from './render.types'
 import { resolveReferences } from './resolveCardBindings'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
+import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
+import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
@@ -14,6 +16,11 @@ export type RenderPipelineResult = {
 export type RenderPipelineContext = {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
+}
+
+export type CardRenderEnvironment = RenderPipelineContext & {
+  remoteResourcePolicy?: ProjectRemoteResourcePolicy
+  projectIconCatalog: ProjectIconCatalog
 }
 
 export function runRenderPipeline(

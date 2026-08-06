@@ -87,10 +87,11 @@
             <tr class="card-data-table__block-row">
               <th class="oc-data-grid__sticky-column" scope="rowgroup">
                 <span class="card-data-table__block-heading" tabindex="0"
-                  :style="{ paddingInlineStart: `calc(var(--oc-tree-indent) * ${block.depth + 1})` }"
+                  :style="{ paddingInlineStart: 'var(--oc-tree-indent)' }"
                   @contextmenu="openBlockContextMenu($event, block)"
                   @keydown="openBlockKeyboardMenu($event, block)">
-                  <OcIcon :name="getBlockTreeIcon(block.type)" size="md" tone="muted" />
+                  <OcIcon :name="getBlockPresentation(block.type).icon" size="md"
+                    :tone="getBlockPresentation(block.type).iconTone" />
                   <span>{{ block.title }}</span>
                   <OcActionButton :action="blockFieldAction(block)" size="sm" variant="ghost"
                     @select="handleBlockAction(block.key, $event.key)" />
@@ -105,7 +106,7 @@
               :data-block-id="block.key" :data-field-key="field.key">
               <th class="oc-data-grid__sticky-column" scope="row">
                 <span class="card-data-table__field-heading" tabindex="0"
-                  :style="{ paddingInlineStart: `calc(var(--oc-tree-indent) * ${block.depth + 2})` }"
+                  :style="{ paddingInlineStart: 'calc(var(--oc-tree-indent) * 2)' }"
                   @contextmenu="openFieldContextMenu($event, block, field)"
                   @keydown="openFieldKeyboardMenu($event, block, field)">
                   <OcIcon :name="getPropertyFieldIcon(field.definition.fieldType)" size="sm" tone="muted" />
@@ -173,7 +174,7 @@ import {
   usePropertyFieldEditorModes,
 } from '../../shared/ui/property-editor/propertyFieldEditorMode'
 import { getPropertyFieldIcon } from '../../shared/ui/property-editor/propertyFieldRegistry'
-import { getBlockTreeIcon } from './blockPresentation'
+import { getBlockPresentation } from './blockPresentation'
 import type {
   CdeDataTableCell,
   CdeDataTableColumn,
@@ -368,7 +369,7 @@ function faceCommands(face: CdeDataTableFaceGroup): OcActionButtonAction[] {
   const availableBlocks = catalog.blocks.filter(block => !selectedBlockIds.has(block.key))
   return availableBlocks.map(block => ({
     key: block.key,
-    icon: getBlockTreeIcon(block.type),
+    ...getBlockPresentation(block.type),
     title: block.title,
   }))
 }

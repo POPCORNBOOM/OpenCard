@@ -31,6 +31,7 @@ export type PropertyConstraintMap = {
         minLength?: number
         maxLength?: number
         options?: readonly string[]
+        enumMode?: 'select' | 'stepper'
         autocomplete?: readonly string[]
         multiline?: boolean
         richText?: boolean
@@ -47,6 +48,7 @@ export type PropertyConstraintMap = {
     number: {
         min?: number
         max?: number
+        step?: number
     }
     boolean: {}
     color: {}

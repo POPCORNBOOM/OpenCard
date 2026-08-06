@@ -15,15 +15,15 @@
     </svg>
 
     <div class="project-icon-grid-dialog__dimensions">
-      <label class="project-icon-grid-dialog__field">
+      <label class="project-icon-grid-dialog__field" @focusout="commitDimension('rows', rows)">
         <OcText as="span" size="sm">{{ t('projectConfig.icons.rows') }}</OcText>
         <NumberPropertyField :definition="rowDefinition" :value="rows"
-          @update:value="updateDimension('rows', $event)" @commit="commitDimension('rows', $event)" />
+          @update:value="updateDimension('rows', $event)" />
       </label>
-      <label class="project-icon-grid-dialog__field">
+      <label class="project-icon-grid-dialog__field" @focusout="commitDimension('columns', columns)">
         <OcText as="span" size="sm">{{ t('projectConfig.icons.columns') }}</OcText>
         <NumberPropertyField :definition="columnDefinition" :value="columns"
-          @update:value="updateDimension('columns', $event)" @commit="commitDimension('columns', $event)" />
+          @update:value="updateDimension('columns', $event)" />
       </label>
     </div>
 

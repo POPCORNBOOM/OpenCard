@@ -364,7 +364,7 @@ export function useSettingsWorkspace(
         {
           type: 'text',
           key: 'workspace.defaultIconImportDirectory',
-          label: options.translate('settings.fields.defaultIconImportDirectory', 'Default project icon set directory'),
+          label: options.translate('settings.fields.defaultIconImportDirectory', 'Default project icon directory'),
           value: settings.workspace.defaultIconImportDirectory,
           placeholder: 'assets/icons',
           mono: true,

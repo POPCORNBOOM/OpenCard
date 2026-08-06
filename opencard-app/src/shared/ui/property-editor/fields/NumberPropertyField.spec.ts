@@ -54,7 +54,20 @@ describe('NumberPropertyField', () => {
     expect(wrapper.emitted('update:value')).toEqual([['6']])
   })
 
-  it('steps between allowed values and exposes raw commits to its parent', async () => {
+  it('uses the schema decimal step', async () => {
+    const wrapper = mount(NumberPropertyField, {
+      props: {
+        definition: { title: 'Scale', fieldType: 'number', min: 0.1, step: 0.1 },
+        value: '1',
+      },
+    })
+
+    await wrapper.findAll('.number-field__stepper')[0]!.trigger('click')
+    await wrapper.findAll('.number-field__stepper')[1]!.trigger('click')
+    expect(wrapper.emitted('update:value')).toEqual([['1.1'], ['0.9']])
+  })
+
+  it('steps between allowed values', async () => {
     const wrapper = mount(NumberPropertyField, {
       props: {
         definition: { title: 'Factor', fieldType: 'number', min: 1, max: 12, allowedValues: [1, 2, 3, 4, 6, 12] },
@@ -65,9 +78,6 @@ describe('NumberPropertyField', () => {
     await wrapper.findAll('.number-field__stepper')[0]!.trigger('click')
     await wrapper.findAll('.number-field__stepper')[1]!.trigger('click')
     expect(wrapper.emitted('update:value')).toEqual([['6'], ['3']])
-
-    await wrapper.get('input').setValue('5')
-    expect(wrapper.emitted('commit')).toEqual([['5']])
   })
 
   it('accelerates repeated steps while held and stops on release', async () => {

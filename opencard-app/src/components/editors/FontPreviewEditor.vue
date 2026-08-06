@@ -136,20 +136,23 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--oc-space-3);
-  padding: var(--oc-space-3) var(--oc-space-4);
+  padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-raised);
+  background: var(--oc-bg-base);
 }
 
 .font-preview-editor__identity {
+  display: grid;
   min-width: 0;
+  gap: var(--oc-space-1);
 }
 
 .font-preview-editor__identity h1 {
-  margin: 0 0 var(--oc-space-1);
+  margin: 0;
   overflow: hidden;
   font-size: var(--oc-text-lg);
   font-weight: var(--font-weight-ui-title);
+  letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

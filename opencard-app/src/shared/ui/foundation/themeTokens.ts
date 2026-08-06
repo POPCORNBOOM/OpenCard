@@ -94,6 +94,15 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-folder',
   '--oc-icon-folder-open',
 
+  // 块类型图标色
+  '--oc-icon-block-text',
+  '--oc-icon-block-markdown',
+  '--oc-icon-block-image',
+  '--oc-icon-block-qrcode',
+  '--oc-icon-block-shape',
+  '--oc-icon-block-simple-container',
+  '--oc-icon-block-flow-container',
+
   // 字体
   '--oc-font-sans',
   '--oc-font-mono',
@@ -138,6 +147,13 @@ export const OC_THEME_TOKEN_KEYS = [
 
   // 页面内容宽度
   '--oc-content-width-md',
+  '--oc-settings-preview-height-lg',
+  '--oc-settings-preview-height-md',
+  '--oc-settings-preview-shrink-distance',
+  '--oc-settings-preview-sticky-offset',
+  '--oc-settings-preview-glass-opacity-min',
+  '--oc-settings-preview-glass-opacity-max',
+  '--oc-z-settings-preview',
   '--oc-project-outline-width',
   '--oc-project-font-list-min-width',
   '--oc-project-font-list-width',
@@ -151,6 +167,8 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-overlay-toolbar-field-min-width',
   '--oc-overlay-toolbar-field-max-width',
   '--oc-autocomplete-popover-min-width',
+  '--oc-json-editor-min-height',
+  '--oc-json-editor-array-min-height',
   '--oc-dialog-width-sm',
   '--oc-dialog-width-md',
   '--oc-dialog-width-lg',

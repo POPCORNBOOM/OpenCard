@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
+import ProjectExportTaskEditor from './ProjectExportTaskEditor.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcButton from '../base/OcButton.vue'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
@@ -92,15 +93,36 @@ describe('ProjectConfigEditor', () => {
     expect(wrapper.find('.project-profile-editor__host-list').exists()).toBe(false)
   })
 
+  it('stores export fields only as the default export configuration', async () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+    })
+    const task = {
+      documentPaths: ['cards/main.ocdocument'],
+      selectionMode: 'blueprint',
+      scale: 1,
+      layoutMode: 'none',
+      outputDirectory: 'D:/exports',
+      conflictMode: 'replace',
+      errorPolicy: 'continue',
+    } as const
+
+    wrapper.getComponent(ProjectExportTaskEditor).vm.$emit('update:modelValue', task)
+    await wrapper.vm.$nextTick()
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string).exportTask).toEqual(task)
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
+  })
+
   it('persists collapsed project-profile sections and exposes them in the outline', async () => {
     const wrapper = mount(ProjectConfigEditor, {
       props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
     })
 
-    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(5)
-    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(5)
+    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(6)
+    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(6)
     expect(wrapper.findAllComponents(ProjectConfigSection).map(section => section.props('contentIndent')))
-      .toEqual(['single', 'single', 'single', 'single', 'single'])
+      .toEqual(['single', 'single', 'single', 'single', 'single', 'single'])
     expect(wrapper.find('.project-profile-editor__outline').text()).not.toContain('projectConfig.outline.title')
     expect(wrapper.getComponent(ProjectConfigSection).getComponent(OcButton).props('icon')).toBe('tree.chevron-right')
     await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')

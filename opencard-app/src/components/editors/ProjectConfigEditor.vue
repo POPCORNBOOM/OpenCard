@@ -1,6 +1,6 @@
 <template>
   <section ref="editorRoot" class="project-profile-editor" :aria-label="t('projectConfig.title')"
-    @scroll.passive="updateActiveSection" @keydown.ctrl.s.prevent="save">
+    @keydown.ctrl.s.prevent="save">
     <div class="project-profile-editor__layout" :class="{ 'project-profile-editor__layout--single': !profile }">
       <main class="project-profile-editor__content">
         <header class="project-profile-editor__header">
@@ -75,6 +75,16 @@
               </OcButton>
             </div>
           </div>
+        </ProjectConfigSection>
+
+        <ProjectConfigSection section-id="project-profile-section-export"
+          content-indent="single"
+          :heading="t('projectConfig.export.title')" :description="t('projectConfig.export.description')"
+          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.export.title') })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.export.title') })"
+          :collapsed="isProjectSectionCollapsed('export')" @toggle="toggleProjectSection('export')">
+          <ProjectExportTaskEditor :model-value="defaultExportTask" :documents="exportDocumentCandidates"
+            @update:model-value="updateDefaultExportTask" />
         </ProjectConfigSection>
 
         <ProjectConfigSection section-id="project-profile-section-dictionary"
@@ -168,10 +178,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import type { ProjectWorkspaceState } from '../../features/settings/model/appSettings'
@@ -181,7 +192,10 @@ import {
   PROJECT_PROFILE_FILE_NAME,
   serializeProjectMetadata,
   type ProjectProfile,
+  type ProjectExportTask,
 } from '../../features/workspace/model/projectMetadata'
+import { createDefaultProjectExportTask } from '../../features/exporting/exportTask'
+import { parseCardDocument } from '../../entities/card/storage'
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../features/workspace/model/projectDictionary'
 import {
   PROJECT_FONT_REGISTRY_FILE_NAME,
@@ -192,6 +206,7 @@ import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
+import ProjectExportTaskEditor, { type ExportDocumentCandidate } from './ProjectExportTaskEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -207,14 +222,17 @@ const dictionaryExists = ref(false)
 const fontRegistryExists = ref(false)
 const iconRegistryExists = ref(false)
 const remoteHostDrafts = ref<string[]>([])
+const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
+let sectionObserver: IntersectionObserver | null = null
 
-type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'dictionary' | 'fonts' | 'icons'
+type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons'
 
 const projectProfileSections = [
   { key: 'information', labelKey: 'projectConfig.sections.information' },
   { key: 'remote-resources', labelKey: 'projectConfig.remoteResources.title' },
+  { key: 'export', labelKey: 'projectConfig.export.title' },
   { key: 'dictionary', labelKey: 'projectConfig.dictionary.title' },
   { key: 'fonts', labelKey: 'projectConfig.fonts.title' },
   { key: 'icons', labelKey: 'projectConfig.icons.title' },
@@ -242,13 +260,14 @@ const remoteResourceModeOptions = computed<readonly OcOption[]>(() => [
 ])
 const hasInvalidRemoteHostDraft = computed(() => remoteResourceMode.value === 'allowlist'
   && remoteHostDrafts.value.some(host => !isRemoteHostValid(host)))
+const defaultExportTask = computed(() => profile.value?.exportTask ?? createDefaultProjectExportTask())
 watch(() => props.modelValue, content => {
   const nextProfile = parseProjectMetadataText(content ?? '')
   profile.value = nextProfile
   remoteHostDrafts.value = nextProfile?.remoteResources?.mode === 'allowlist'
     ? [...nextProfile.remoteResources.allowedHosts]
     : []
-  void nextTick(updateActiveSection)
+  void nextTick(connectSectionObserver)
 }, { immediate: true })
 
 watch(() => projectStore.indexedEntries.value, () => {
@@ -262,6 +281,25 @@ watch(() => projectStore.indexedEntries.value, () => {
   dictionaryExists.value = fileTypeIds.has('opencard-dictionary')
   fontRegistryExists.value = fileTypeIds.has('opencard-font-registry')
   iconRegistryExists.value = fileTypeIds.has('opencard-icon-registry')
+}, { immediate: true })
+
+watch(() => projectStore.indexedEntries.value, async entries => {
+  const paths = entries
+    .filter(entry => !entry.isDirectory && entry.name.toLocaleLowerCase().endsWith('.ocdocument'))
+    .map(entry => entry.name.replace(/\\/g, '/'))
+  exportDocumentCandidates.value = await Promise.all(paths.map(async path => {
+    try {
+      const document = parseCardDocument(JSON.parse(await projectStore.readFile(path)) as unknown)
+      const width = Number(document.width)
+      const height = Number(document.height)
+      return {
+        path,
+        ...(Number.isFinite(width) && Number.isFinite(height) ? { width, height } : {}),
+      }
+    } catch {
+      return { path }
+    }
+  }))
 }, { immediate: true })
 
 function updateProfileField(fieldKey: 'name' | 'description' | 'version', event: Event) {
@@ -324,6 +362,11 @@ function updateProfile(next: ProjectProfile) {
   }
 }
 
+function updateDefaultExportTask(task: ProjectExportTask): void {
+  if (!profile.value) return
+  updateProfile({ ...profile.value, exportTask: task })
+}
+
 function isProjectSectionCollapsed(sectionKey: ProjectProfileSectionKey): boolean {
   return projectWorkspaceState.value?.projectProfile?.collapsedSections.includes(sectionKey) ?? false
 }
@@ -378,17 +421,41 @@ async function navigateToProjectSection(sectionKey: ProjectProfileSectionKey): P
   activeSection.value = sectionKey
 }
 
-function updateActiveSection(): void {
+async function navigate(token: SessionNavigationToken): Promise<EditorNavigationResult> {
+  if (!token || typeof token !== 'object' || Array.isArray(token)) return 'invalid-token'
+  const candidate = token as Record<string, unknown>
+  if (candidate.kind !== 'project-section' || typeof candidate.section !== 'string') return 'invalid-token'
+  if (!projectProfileSections.some(section => section.key === candidate.section)) return 'not-found'
+  await navigateToProjectSection(candidate.section as ProjectProfileSectionKey)
+  return 'success'
+}
+
+function connectSectionObserver(): void {
+  sectionObserver?.disconnect()
+  sectionObserver = null
   const root = editorRoot.value
-  if (!root || !profile.value) return
-  const rootTop = root.getBoundingClientRect().top
-  let nextActive: ProjectProfileSectionKey = projectProfileSections[0].key
+  if (!root || !profile.value || typeof IntersectionObserver === 'undefined') return
+  sectionObserver = new IntersectionObserver(entries => {
+    const visible = entries
+      .filter(entry => entry.isIntersecting)
+      .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0]
+    const sectionKey = visible?.target.id.replace('project-profile-section-', '') as ProjectProfileSectionKey | undefined
+    if (sectionKey && activeSection.value !== sectionKey) activeSection.value = sectionKey
+  }, {
+    root,
+    rootMargin: '0px 0px -70% 0px',
+    threshold: 0,
+  })
   for (const section of projectProfileSections) {
     const element = document.getElementById(projectSectionElementId(section.key))
-    if (element && element.getBoundingClientRect().top <= rootTop) nextActive = section.key
+    if (element) sectionObserver.observe(element)
   }
-  activeSection.value = nextActive
 }
+
+onMounted(connectSectionObserver)
+onBeforeUnmount(() => {
+  sectionObserver?.disconnect()
+})
 
 function updateRawSource(content: string) {
   emit('update:modelValue', content)
@@ -444,7 +511,7 @@ function save() {
   if (profile.value && !hasInvalidRemoteHostDraft.value) emit('save')
 }
 
-defineExpose({ save })
+defineExpose({ save, navigate })
 </script>
 
 <style scoped>

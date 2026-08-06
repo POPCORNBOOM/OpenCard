@@ -1,21 +1,21 @@
 import type { CardBlock } from '../../entities/card/model'
-import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
 
-export function getBlockTreeIcon(type: CardBlock['type']): IconToken {
-  switch (type) {
-    case 'text-block':
-      return 'entity.block-text'
-    case 'markdown-text-block':
-      return 'entity.block-markdown'
-    case 'image-block':
-      return 'entity.block-image'
-    case 'qrcode-block':
-      return 'entity.block-qrcode'
-    case 'shape-block':
-      return 'entity.block-shape'
-    case 'simple-container-block':
-      return 'entity.block-simple-container'
-    case 'flow-container-block':
-      return 'entity.block-flow-container'
-  }
+export type BlockPresentation = {
+  icon: IconToken
+  iconTone: IconTone
+}
+
+const blockPresentations = {
+  'text-block': { icon: 'entity.block-text', iconTone: 'block-text' },
+  'markdown-text-block': { icon: 'entity.block-markdown', iconTone: 'block-markdown' },
+  'image-block': { icon: 'entity.block-image', iconTone: 'block-image' },
+  'qrcode-block': { icon: 'entity.block-qrcode', iconTone: 'block-qrcode' },
+  'shape-block': { icon: 'entity.block-shape', iconTone: 'block-shape' },
+  'simple-container-block': { icon: 'entity.block-simple-container', iconTone: 'block-simple-container' },
+  'flow-container-block': { icon: 'entity.block-flow-container', iconTone: 'block-flow-container' },
+} as const satisfies Record<CardBlock['type'], BlockPresentation>
+
+export function getBlockPresentation(type: CardBlock['type']): BlockPresentation {
+  return blockPresentations[type]
 }

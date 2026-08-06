@@ -44,6 +44,28 @@ describe('ShellTitleBar', () => {
     wrapper.unmount()
   })
 
+  it('shows task detail and emits cancellation by stable task key', async () => {
+    const wrapper = mount(ShellTitleBar, {
+      attachTo: document.body,
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [],
+        cancelTaskLabel: 'Cancel task',
+        tasks: [{
+          key: 'export', title: 'Exporting cards', progress: 0.25,
+          detail: 'Rendering cards/main.ocdocument', cancellable: true,
+        }],
+      },
+    })
+    await wrapper.get('.titlebar-brand-lockup').trigger('pointerenter')
+    expect(document.body.querySelector('.titlebar-task-row__detail')?.textContent)
+      .toBe('Rendering cards/main.ocdocument')
+    document.body.querySelector<HTMLButtonElement>('button[aria-label="Cancel task"]')?.click()
+    expect(wrapper.emitted('cancel-task')).toEqual([['export']])
+    wrapper.unmount()
+  })
+
   it('does not emit disabled menu actions', async () => {
     const wrapper = mount(ShellTitleBar, {
       attachTo: document.body,

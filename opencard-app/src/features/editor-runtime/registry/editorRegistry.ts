@@ -23,6 +23,7 @@ export interface EditorProps {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   modelValue?: string
   viewportTransform?: EditorViewportTransform
+  pixelated?: boolean
   cardDesignerMode?: CardDesignerMode
   cardDesignerLayout?: CardDesignerLayoutState
   cardDesignerView?: CardDesignerViewState
@@ -39,6 +40,7 @@ export interface EditorEmits {
   (e: 'modified', isModified: boolean): void
   (e: 'update:modelValue', value: string): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
+  (e: 'update:pixelated', value: boolean): void
   (e: 'update:card-designer-mode', value: CardDesignerMode): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
   (e: 'update-card-designer-view', value: CardDesignerViewState): void

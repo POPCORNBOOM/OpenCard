@@ -1,8 +1,12 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
 import ShellWorkspaceFrame from './ShellWorkspaceFrame.vue'
 
 describe('ShellWorkspaceFrame', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   it('renders only the controlled workspace content', () => {
     const wrapper = mount(ShellWorkspaceFrame, {
       props: {
@@ -28,9 +32,57 @@ describe('ShellWorkspaceFrame', () => {
       },
     })
 
-    const action = wrapper.get('.workspace-action')
+    const action = wrapper.get('button[aria-label="Switch to data table view"]')
     expect(action.attributes('data-tooltip')).toBe('Switch to data table view')
     await action.trigger('click')
     expect(wrapper.emitted('action')).toEqual([['card-designer.toggle-mode']])
+  })
+
+  it('does not emit disabled workspace actions', async () => {
+    const wrapper = mount(ShellWorkspaceFrame, {
+      props: {
+        title: 'Dictionary',
+        actions: [{
+          key: 'dictionary.workbook.export',
+          icon: 'action.export',
+          hoverTip: 'Export workbook',
+          disabled: true,
+        }],
+      },
+    })
+
+    const action = wrapper.get('button[aria-label="Export workbook"]')
+    expect(action.attributes('disabled')).toBeDefined()
+    await action.trigger('click')
+    expect(wrapper.emitted('action')).toBeUndefined()
+  })
+
+  it('emits the selected child key from a workspace action submenu', async () => {
+    const wrapper = mount(ShellWorkspaceFrame, {
+      attachTo: document.body,
+      props: {
+        title: 'Card',
+        actions: [{
+          key: 'card.export',
+          icon: 'action.export',
+          hoverTip: 'Export card',
+          children: [
+            { key: 'card.export.current', title: 'Export current card' },
+            { key: 'card.export.all', title: 'Export all cards' },
+          ],
+        }],
+      },
+    })
+
+    const action = wrapper.get('button[aria-label="Export card"]')
+    expect(action.attributes('aria-haspopup')).toBe('menu')
+    await action.trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLButtonElement>(
+      '.oc-action-menu__button[data-tooltip="Export current card"]',
+    )?.click()
+    await flushPromises()
+
+    expect(wrapper.emitted('action')).toEqual([['card.export.current']])
   })
 })

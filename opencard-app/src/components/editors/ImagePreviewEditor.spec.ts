@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { createI18n } from 'vue-i18n'
+import enUS from '../../locales/en-US'
 import ImagePreviewEditor from './ImagePreviewEditor.vue'
 
 vi.mock('../../features/workspace/store/projectStore', () => ({
@@ -47,6 +49,9 @@ describe('ImagePreviewEditor', () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     const wrapper = mount(ImagePreviewEditor, {
       props: { filePath: 'assets/example.png' },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
     })
     const image = wrapper.get('img').element as HTMLImageElement
     Object.defineProperty(image, 'naturalWidth', { value: 1000 })
@@ -54,6 +59,16 @@ describe('ImagePreviewEditor', () => {
     await wrapper.get('img').trigger('load')
 
     expect(wrapper.get('.oc-viewport-controls__scale').text()).toBe('77%')
+    expect(wrapper.get('.image-preview-editor__image').classes()).not.toContain('is-pixelated')
+
+    const pixelatedToggle = wrapper.get('button[aria-label="Pixelated"]')
+    expect(pixelatedToggle.attributes('aria-pressed')).toBe('false')
+    await pixelatedToggle.trigger('click')
+    expect(wrapper.emitted('update:pixelated')).toEqual([[true]])
+
+    await wrapper.setProps({ pixelated: true })
+    expect(wrapper.get('.image-preview-editor__image').classes()).toContain('is-pixelated')
+    expect(pixelatedToggle.attributes('aria-pressed')).toBe('true')
 
     await wrapper.get('.image-preview-editor').trigger('keydown', { key: 'ArrowLeft' })
     const panEmits = wrapper.emitted('update-viewport-transform') ?? []

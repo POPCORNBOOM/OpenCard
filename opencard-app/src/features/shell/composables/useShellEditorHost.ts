@@ -152,6 +152,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
         return {
           ...baseProps,
           viewportTransform: session.uiState?.imagePreview?.viewportTransform,
+          pixelated: session.uiState?.imagePreview?.pixelated ?? false,
         }
       }
 
@@ -242,6 +243,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     options.sessionActions.updateSessionUiState(session.id, { cardDesigner: { view: value } })
   }
 
+  function handleImagePreviewPixelated(value: boolean): void {
+    const session = options.activeSession.value
+    if (!session || session.editorId !== 'image-preview') return
+    options.sessionActions.updateSessionUiState(session.id, { imagePreview: { pixelated: value } })
+  }
+
   function handleModified(modified: boolean): void {
     const session = options.activeSession.value
     if (session) options.sessionActions.setSessionDirtyState(session.id, modified)
@@ -318,6 +325,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     handleCardDesignerMode,
     handleCardDesignerLayout,
     handleCardDesignerView,
+    handleImagePreviewPixelated,
     handleModified,
     handleSaveEvent,
     save,

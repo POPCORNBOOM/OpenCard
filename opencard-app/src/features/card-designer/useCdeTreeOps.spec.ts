@@ -62,6 +62,7 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(state.blockTreeData.value.rootKeys).toEqual(['front-text'])
     expect(state.blockTreeData.value.items.get('front-text')).toMatchObject({
       actions: ['hide-block', 'block-more'],
+      iconTone: 'block-text',
     })
 
     state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'hide-block' })

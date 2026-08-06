@@ -46,7 +46,7 @@
   z-index: var(--oc-data-grid-z-sticky-column);
 }
 
-.oc-data-grid__corner {
+.oc-data-grid__table thead th.oc-data-grid__corner {
   z-index: var(--oc-data-grid-z-corner);
 }
 

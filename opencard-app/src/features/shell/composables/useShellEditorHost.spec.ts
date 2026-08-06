@@ -208,6 +208,22 @@ describe('useShellEditorHost', () => {
     })
   })
 
+  it('defaults image pixel mode off and stores changes in the active image session', () => {
+    const { host, updateSessionUiState } = createHost(createSession({
+      fileTypeId: 'image',
+      editorId: 'image-preview',
+      name: 'cover.png',
+    }))
+
+    expect(host.props.value.pixelated).toBe(false)
+    host.handleImagePreviewPixelated(true)
+
+    expect(updateSessionUiState).toHaveBeenCalledWith('session-a', {
+      imagePreview: { pixelated: true },
+    })
+    host.dispose()
+  })
+
   it('routes Card Designer mode, layout and view state to the active session', () => {
     const { host, updateSessionUiState } = createHost()
     const layout = {

@@ -14,33 +14,42 @@
 
     <div class="project-font-set-dialog__members">
       <OcText as="strong" size="sm">{{ t('projectConfig.fonts.members') }}</OcText>
+      <div ref="memberPickerRef" class="project-font-set-dialog__member-add">
+        <OcFieldInput full-width :value="memberQuery" :placeholder="t('projectConfig.fonts.searchMembers')"
+          autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list"
+          :aria-label="t('projectConfig.fonts.searchMembers')" :aria-expanded="memberMenuOpen"
+          :aria-controls="memberAutocompleteId" :aria-activedescendant="activeMemberOptionId"
+          @focus="openMemberMenu" @input="updateMemberQuery" @blur="closeMemberMenu"
+          @keydown="handleMemberKeydown" />
+        <OcButton type="button" icon-only variant="soft" icon="action.add" :disabled="!candidateMemberKey"
+          :aria-label="t('projectConfig.fonts.addMember')" :data-tooltip="t('projectConfig.fonts.addMember')"
+          @click="addCandidateMember" />
+      </div>
+      <OcAutocompletePopover :id="memberAutocompleteId" :open="memberMenuOpen" :anchor="memberPickerRef"
+        :items="memberSuggestions" :active-key="activeMemberKey" @select="selectMemberSuggestion" />
       <div v-if="selectedMembers.length" class="project-font-set-dialog__selected">
         <div v-for="(memberKey, index) in selectedMembers" :key="`${memberKey}:${index}`"
           class="project-font-set-dialog__member-row">
           <span><OcIcon :name="entryIcon(memberKey)" size="sm" />{{ entryLabel(memberKey) }}</span>
           <span>
-            <OcButton icon-only size="sm" variant="ghost" icon="nav.arrow-up" :disabled="index === 0"
+            <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-top"
+              :disabled="index === 0" :aria-label="t('projectConfig.fonts.moveMemberToTop')"
+              @click="moveMember(index, 0)" />
+            <OcButton type="button" icon-only size="sm" variant="ghost" icon="nav.arrow-up" :disabled="index === 0"
               :aria-label="t('propertyEditor.arrays.moveUp')" @click="moveMember(index, index - 1)" />
-            <OcButton icon-only size="sm" variant="ghost" icon="nav.arrow-down"
+            <OcButton type="button" icon-only size="sm" variant="ghost" icon="nav.arrow-down"
               :disabled="index === selectedMembers.length - 1" :aria-label="t('propertyEditor.arrays.moveDown')"
               @click="moveMember(index, index + 1)" />
-            <OcButton icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
+            <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-bottom"
+              :disabled="index === selectedMembers.length - 1"
+              :aria-label="t('projectConfig.fonts.moveMemberToBottom')"
+              @click="moveMember(index, selectedMembers.length - 1)" />
+            <OcButton type="button" icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
               :aria-label="t('projectConfig.fonts.removeMember')" @click="removeMember(index)" />
           </span>
         </div>
       </div>
       <OcText v-else tone="muted" size="sm">{{ t('projectConfig.fonts.noMembers') }}</OcText>
-
-      <div class="project-font-set-dialog__choices">
-        <OcCheckbox v-for="entry in availableEntries" :key="entry.key"
-          :checked="selectedMembers.includes(entry.key)" :disabled="entry.disabled"
-          @update:checked="toggleMember(entry.key, $event)">
-          <span class="project-font-set-dialog__choice">
-            <OcIcon :name="entry.kind === 'font' ? 'file.font' : 'data.layers'" size="sm" />
-            <span>{{ entry.name }}</span><code>font:{{ entry.key }}</code>
-          </span>
-        </OcCheckbox>
-      </div>
     </div>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">{{ validationMessage }}</OcText>
@@ -52,17 +61,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ProjectFont, ProjectFontSet } from '../../features/workspace/model/projectFontRegistry'
 import { projectFontIdPattern } from '../../features/workspace/model/projectFonts'
 import { createAvailableKey } from '../../shared/model/keySlug'
 import type { IconResolvable } from '../../shared/ui/icon/iconRegistry'
 import OcButton from '../base/OcButton.vue'
-import OcCheckbox from '../base/OcCheckbox.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import OcAutocompletePopover from '../standard/OcAutocompletePopover.vue'
 import OcDialog from '../standard/OcDialog.vue'
 
 export type ProjectFontSetRequest = {
@@ -83,6 +92,13 @@ const { t } = useI18n()
 const name = ref('')
 const key = ref('')
 const selectedMembers = ref<string[]>([])
+const memberQuery = ref('')
+const selectedCandidateKey = ref<string | null>(null)
+const memberPickerRef = ref<HTMLElement | null>(null)
+const activeMemberInput = ref<HTMLInputElement | null>(null)
+const memberMenuOpen = ref(false)
+const activeMemberKey = ref<string | null>(null)
+const memberAutocompleteId = useId()
 const editing = computed(() => Boolean(props.originalKey))
 const usedKeys = computed(() => [...props.fonts, ...props.fontSets]
   .map(entry => entry.key)
@@ -103,6 +119,31 @@ const availableEntries = computed(() => [
       disabled: setReaches(fontSet.key, props.originalKey ?? effectiveKey.value),
     })),
 ])
+const selectableEntries = computed(() => availableEntries.value.filter(entry => (
+  !entry.disabled && !selectedMembers.value.includes(entry.key)
+)))
+const memberSuggestions = computed(() => {
+  const query = memberQuery.value.trim().toLocaleLowerCase()
+  return selectableEntries.value
+    .filter(entry => !query || entry.name.toLocaleLowerCase().includes(query)
+      || entry.key.toLocaleLowerCase().includes(query))
+    .map(entry => ({
+      key: entry.key,
+      label: entry.name,
+      detail: `font:${entry.key}`,
+      icon: entry.kind === 'font' ? 'file.font' as const : 'data.layers' as const,
+    }))
+})
+const candidateMemberKey = computed(() => {
+  if (selectedCandidateKey.value
+    && selectableEntries.value.some(entry => entry.key === selectedCandidateKey.value)) {
+    return selectedCandidateKey.value
+  }
+  return memberQuery.value.trim() ? activeMemberKey.value : null
+})
+const activeMemberOptionId = computed(() => activeMemberKey.value
+  ? `${memberAutocompleteId}-option-${activeMemberKey.value.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  : undefined)
 const canSubmit = computed(() => Boolean(
   name.value.trim() && validKey.value && uniqueKey.value && (editing.value || selectedMembers.value.length > 0),
 ))
@@ -122,7 +163,14 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   name.value = fontSet?.name ?? createDefaultSetName()
   key.value = fontSet?.key ?? ''
   selectedMembers.value = [...(fontSet?.fontKeys ?? [])]
+  resetMemberPicker()
 }, { immediate: true })
+
+watch(memberSuggestions, suggestions => {
+  activeMemberKey.value = suggestions.some(entry => entry.key === activeMemberKey.value)
+    ? activeMemberKey.value
+    : (suggestions[0]?.key ?? null)
+})
 
 function createDefaultSetName(): string {
   const existingNames = new Set(props.fontSets.map(fontSet => fontSet.name.toLocaleLowerCase()))
@@ -136,9 +184,60 @@ function updateText(field: 'name' | 'key', event: Event): void {
   if (field === 'name') name.value = event.target.value
   else key.value = event.target.value
 }
-function toggleMember(memberKey: string, checked: boolean): void {
-  if (checked && !selectedMembers.value.includes(memberKey)) selectedMembers.value.push(memberKey)
-  else if (!checked) selectedMembers.value = selectedMembers.value.filter(candidate => candidate !== memberKey)
+function openMemberMenu(event: FocusEvent): void {
+  activeMemberInput.value = event.target as HTMLInputElement
+  memberMenuOpen.value = memberSuggestions.value.length > 0
+}
+function updateMemberQuery(event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  activeMemberInput.value = event.target
+  memberQuery.value = event.target.value
+  selectedCandidateKey.value = null
+  memberMenuOpen.value = memberSuggestions.value.length > 0
+}
+function closeMemberMenu(): void {
+  window.setTimeout(() => { memberMenuOpen.value = false }, 0)
+}
+function selectMemberSuggestion(memberKey: string): void {
+  const entry = selectableEntries.value.find(candidate => candidate.key === memberKey)
+  if (!entry) return
+  memberQuery.value = entry.name
+  selectedCandidateKey.value = entry.key
+  activeMemberKey.value = entry.key
+  memberMenuOpen.value = false
+  void nextTick(() => activeMemberInput.value?.focus())
+}
+function addCandidateMember(): void {
+  const memberKey = candidateMemberKey.value
+  if (!memberKey || selectedMembers.value.includes(memberKey)) return
+  selectedMembers.value.push(memberKey)
+  resetMemberPicker()
+  void nextTick(() => activeMemberInput.value?.focus())
+}
+function moveActiveMember(offset: 1 | -1): void {
+  if (!memberSuggestions.value.length) return
+  const current = Math.max(0, memberSuggestions.value.findIndex(entry => entry.key === activeMemberKey.value))
+  activeMemberKey.value = memberSuggestions.value[
+    (current + offset + memberSuggestions.value.length) % memberSuggestions.value.length
+  ]?.key ?? null
+}
+function handleMemberKeydown(event: KeyboardEvent): void {
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    memberMenuOpen.value = memberSuggestions.value.length > 0
+    moveActiveMember(event.key === 'ArrowDown' ? 1 : -1)
+  } else if (event.key === 'Enter' && candidateMemberKey.value) {
+    event.preventDefault()
+    addCandidateMember()
+  } else if (event.key === 'Escape') {
+    memberMenuOpen.value = false
+  }
+}
+function resetMemberPicker(): void {
+  memberQuery.value = ''
+  selectedCandidateKey.value = null
+  memberMenuOpen.value = false
+  activeMemberKey.value = memberSuggestions.value[0]?.key ?? null
 }
 function moveMember(from: number, to: number): void {
   if (to < 0 || to >= selectedMembers.value.length) return
@@ -179,15 +278,13 @@ function submit(): void {
 <style scoped>
 .project-font-set-dialog__field,
 .project-font-set-dialog__members,
-.project-font-set-dialog__selected,
-.project-font-set-dialog__choices { display: grid; min-width: 0; gap: var(--oc-space-2); }
+.project-font-set-dialog__selected { display: grid; min-width: 0; gap: var(--oc-space-2); }
 .project-font-set-dialog__field { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
+.project-font-set-dialog__member-add,
 .project-font-set-dialog__member-row,
-.project-font-set-dialog__member-row > span,
-.project-font-set-dialog__choice { display: flex; align-items: center; min-width: 0; gap: var(--oc-space-2); }
+.project-font-set-dialog__member-row > span { display: flex; align-items: center; min-width: 0; gap: var(--oc-space-2); }
 .project-font-set-dialog__member-row { justify-content: space-between; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .project-font-set-dialog__member-row > :first-child { flex: 1; }
-.project-font-set-dialog__choices { overflow: auto; }
-.project-font-set-dialog__choice span { flex: 1; }
-.project-font-set-dialog__choice code { color: var(--oc-fg-muted); font-size: var(--oc-text-xs); }
+.project-font-set-dialog__member-add > :first-child { flex: 1; }
+.project-font-set-dialog__selected { max-height: var(--oc-list-max-height-sm); overflow-y: auto; }
 </style>

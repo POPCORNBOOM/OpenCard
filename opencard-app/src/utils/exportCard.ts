@@ -1,7 +1,7 @@
 import domtoimage from 'dom-to-image-more'
 
 export interface ExportOptions {
-  dpi?: number // 默认 300
+  scale?: number
   format?: 'png' | 'jpeg' // 默认 png
   quality?: number // JPEG 质量 0-1，默认 0.92
 }
@@ -16,10 +16,7 @@ export async function exportCardAsImage(
   element: HTMLElement,
   options: ExportOptions = {}
 ): Promise<string> {
-  const { dpi = 300, format = 'png', quality = 0.92 } = options
-
-  // 计算缩放比例（屏幕通常是 96 DPI）
-  const scale = dpi / 96
+  const { scale = 1, format = 'png', quality = 0.92 } = options
 
   if (format === 'jpeg') {
     return await domtoimage.toJpeg(element, {
