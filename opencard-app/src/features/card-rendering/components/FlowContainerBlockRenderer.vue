@@ -54,6 +54,7 @@ function getChildStyle(child: RenderReadyFlowContainerBlock['children'][number])
         `order: ${child.location.index}`,
         `width: ${child.block.width}`,
         `height: ${child.block.height}`,
+        'flex-shrink: 0',
         `align-self: ${alignMap[child.location.align]}`,
         `z-index: ${child.block.zIndex}`,
     ].join('; ')

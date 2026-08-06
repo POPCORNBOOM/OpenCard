@@ -136,6 +136,9 @@ describe('useCdeSelectionCommands', () => {
     })).toBe(true)
     expect(flow.children[0]!.block).toMatchObject({ width: '120px', height: '60px' })
     expect(flow.children[0]!.location).not.toHaveProperty('x')
+    expect(commands.resizeSelection({ blockId: 'flow-child', height: 75 })).toBe(true)
+    expect(flow.children[0]!.block).toMatchObject({ width: '120px', height: '75px' })
+    expect(commands.resizeSelection({ blockId: 'flow-child' })).toBe(false)
     expect(commands.moveSelection({ blockId: 'flow-child', x: 1, y: 2 })).toBe(false)
   })
 

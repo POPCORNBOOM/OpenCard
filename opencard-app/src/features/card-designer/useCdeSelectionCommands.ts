@@ -8,8 +8,8 @@ import type { ParentLookup } from '../../entities/card/tree'
 
 export type CdeSelectionResizeIntent = {
   blockId: string
-  width: number
-  height: number
+  width?: number
+  height?: number
   x?: number
   y?: number
 }
@@ -59,8 +59,9 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
-    target.block.width = formatCssPixels(intent.width)
-    target.block.height = formatCssPixels(intent.height)
+    if (intent.width === undefined && intent.height === undefined) return false
+    if (intent.width !== undefined) target.block.width = formatCssPixels(intent.width)
+    if (intent.height !== undefined) target.block.height = formatCssPixels(intent.height)
     if (target.location.type === 'simple-container-location') {
       target.location.x = formatCssPixels(intent.x ?? 0)
       target.location.y = formatCssPixels(intent.y ?? 0)

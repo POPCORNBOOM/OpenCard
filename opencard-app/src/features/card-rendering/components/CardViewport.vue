@@ -203,11 +203,12 @@ type SelectionMeasurement = {
   parentWorldHeight: number
 }
 type ResizePayload = {
-  width: number
-  height: number
+  width?: number
+  height?: number
   x?: number
   y?: number
 }
+type AbsoluteResizePayload = Required<ResizePayload>
 type MovePayload = {
   x: number
   y: number
@@ -244,6 +245,7 @@ const props = withDefaults(defineProps<{
   selectedAnchor?: AnchorPosition | null
   selectedParentBlockId?: string | null
   selectedParentFlowDirection?: FlowDirection | null
+  selectedFlowAlign?: 'start' | 'center' | 'end' | 'justify' | null
   selectionInfo?: CardViewportSelectionInfo | null
   selectionActionLabels?: CardViewportSelectionActionLabels
   selectionCommandActions?: readonly OcActionButtonAction[]
@@ -270,6 +272,7 @@ const props = withDefaults(defineProps<{
   selectedAnchor: null,
   selectedParentBlockId: null,
   selectedParentFlowDirection: null,
+  selectedFlowAlign: null,
   selectionInfo: null,
   selectionCommandActions: () => [],
   selectionActionLabels: () => ({
@@ -407,7 +410,22 @@ const resizeMode = computed<ResizeMode>(() => {
 })
 const activeHandles = computed<ResizeHandle[]>(() => {
   if (resizeMode.value === 'flow') {
-    return ['l', 't', 'r', 'b', 'rb']
+    const horizontal = props.selectedParentFlowDirection === 'lr'
+      || props.selectedParentFlowDirection === 'rl'
+    const mainHandle: ResizeHandle = props.selectedParentFlowDirection === 'rl'
+      ? 'l'
+      : props.selectedParentFlowDirection === 'bt'
+        ? 't'
+        : horizontal ? 'r' : 'b'
+    if (props.selectedFlowAlign === 'justify') return [mainHandle]
+    if (horizontal) {
+      if (props.selectedFlowAlign === 'end') return [mainHandle, 't']
+      if (props.selectedFlowAlign === 'center') return [mainHandle, 't', 'b']
+      return [mainHandle, 'b']
+    }
+    if (props.selectedFlowAlign === 'end') return [mainHandle, 'l']
+    if (props.selectedFlowAlign === 'center') return [mainHandle, 'l', 'r']
+    return [mainHandle, 'r']
   }
   if (resizeMode.value === 'absolute') {
     return ['lt', 't', 'rt', 'l', 'r', 'lb', 'b', 'rb']
@@ -1066,8 +1084,9 @@ function handleTransformMove(event: PointerEvent) {
     preview.top += deltaY
   } else if (activeHandle.value) {
     const minSize = 24
-    const isFlowResize = resizeMode.value === 'flow'
-
+    const flowHorizontal = resizeMode.value === 'flow'
+      && (props.selectedParentFlowDirection === 'lr' || props.selectedParentFlowDirection === 'rl')
+    const centeredFlowCrossAxis = resizeMode.value === 'flow' && props.selectedFlowAlign === 'center'
     switch (activeHandle.value) {
       case 'lt':
         preview.left += deltaX
@@ -1090,34 +1109,36 @@ function handleTransformMove(event: PointerEvent) {
         preview.height += deltaY
         break
       case 'l':
-        if (!isFlowResize) {
-          preview.left += deltaX
-        }
-        preview.width -= deltaX
+        preview.left += deltaX
+        preview.width -= centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
         break
       case 'r':
-        preview.width += deltaX
+        if (centeredFlowCrossAxis && !flowHorizontal) preview.left -= deltaX
+        preview.width += centeredFlowCrossAxis && !flowHorizontal ? deltaX * 2 : deltaX
         break
       case 't':
-        if (!isFlowResize) {
-          preview.top += deltaY
-        }
-        preview.height -= deltaY
+        preview.top += deltaY
+        preview.height -= centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
         break
       case 'b':
-        preview.height += deltaY
+        if (centeredFlowCrossAxis && flowHorizontal) preview.top -= deltaY
+        preview.height += centeredFlowCrossAxis && flowHorizontal ? deltaY * 2 : deltaY
         break
     }
 
     if (preview.width < minSize) {
-      if (!isFlowResize && (activeHandle.value === 'lt' || activeHandle.value === 'lb' || activeHandle.value === 'l')) {
+      if (centeredFlowCrossAxis && !flowHorizontal) {
+        preview.left += (preview.width - minSize) / 2
+      } else if (activeHandle.value === 'lt' || activeHandle.value === 'lb' || activeHandle.value === 'l') {
         preview.left -= minSize - preview.width
       }
       preview.width = minSize
     }
 
     if (preview.height < minSize) {
-      if (!isFlowResize && (activeHandle.value === 'lt' || activeHandle.value === 'rt' || activeHandle.value === 't')) {
+      if (centeredFlowCrossAxis && flowHorizontal) {
+        preview.top += (preview.height - minSize) / 2
+      } else if (activeHandle.value === 'lt' || activeHandle.value === 'rt' || activeHandle.value === 't') {
         preview.top -= minSize - preview.height
       }
       preview.height = minSize
@@ -1132,7 +1153,7 @@ function handleTransformMove(event: PointerEvent) {
   }
 }
 
-function buildAbsoluteResizePayload(preview: SelectionFrame, measurement: SelectionMeasurement): ResizePayload {
+function buildAbsoluteResizePayload(preview: SelectionFrame, measurement: SelectionMeasurement): AbsoluteResizePayload {
   const anchor = props.selectedAnchor ?? 'lt'
   const horizontalAnchor = anchor[0]
   const verticalAnchor = anchor[1]
@@ -1197,7 +1218,7 @@ function stopTransform() {
   if (measurement && preview && blockId) {
     if (activeHandle.value && hasMeaningfulResizeChange(preview, measurement)) {
       const payload = resizeMode.value === 'flow'
-        ? { width: preview.width, height: preview.height }
+        ? buildFlowResizePayload(preview, activeHandle.value)
         : buildAbsoluteResizePayload(preview, measurement)
       //console.log(payload)
       emit('resize-selection', { blockId, ...payload })
@@ -1215,6 +1236,15 @@ function stopTransform() {
   window.removeEventListener('pointerup', stopTransform)
   window.removeEventListener('pointercancel', stopTransform)
   void syncSelectionFrame()
+}
+
+function buildFlowResizePayload(preview: SelectionFrame, handle: ResizeHandle): ResizePayload {
+  const changesWidth = handle === 'l' || handle === 'r'
+  const changesHeight = handle === 't' || handle === 'b'
+  return {
+    ...(changesWidth ? { width: preview.width } : {}),
+    ...(changesHeight ? { height: preview.height } : {}),
+  }
 }
 
 function updateViewportSize() {

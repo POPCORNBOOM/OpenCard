@@ -32,6 +32,7 @@
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :selected-parent-flow-direction="selectedParentFlowDirection"
+          :selected-flow-align="selectedFlowAlign"
           :selection-info="selectionInfo"
           :selection-action-labels="selectionActionLabels"
           :selection-command-actions="selectionCommandActions"
@@ -1049,6 +1050,9 @@ const selectedParentFlowDirection = computed(() => {
   const parent = parentLookup.value.get(block.id)
   return parent?.type === 'flow-container-block' ? parent.direction : null
 })
+const selectedFlowAlign = computed(() => (
+  selectedLocation.value?.type === 'flow-container-location' ? selectedLocation.value.align : null
+))
 function withShortcut(label: string, shortcut: string): string {
   return `${label} (${shortcut})`
 }

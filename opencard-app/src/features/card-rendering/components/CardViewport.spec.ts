@@ -350,6 +350,80 @@ describe('CardViewport wheel zoom API', () => {
     window.dispatchEvent(new Event('pointercancel'))
   })
 
+  it('uses direction-aware flow handles and emits only the resized axis', async () => {
+    const SelectionRendererStub = defineComponent({
+      name: 'CardFaceRenderer',
+      setup() {
+        return () => h('div', { 'data-block-id': 'parent' }, [
+          h('div', { 'data-block-id': 'selected' }),
+        ])
+      },
+    })
+    const wrapper = mount(CardViewport, {
+      props: {
+        face,
+        selectedBlockId: null,
+        selectedLocationType: 'flow-container-location',
+        selectedParentBlockId: 'parent',
+        selectedParentFlowDirection: 'lr',
+        selectedFlowAlign: 'start',
+      },
+      global: { stubs: { CardFaceRenderer: SelectionRendererStub } },
+    })
+    const viewport = wrapper.get('.card-viewport').element
+    const parent = wrapper.get('[data-block-id="parent"]').element
+    const selected = wrapper.get('[data-block-id="selected"]').element
+    Object.defineProperty(viewport, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 1000, height: 800, right: 1000, bottom: 800 }),
+    })
+    Object.defineProperty(parent, 'getBoundingClientRect', {
+      value: () => ({ left: 100, top: 100, width: 400, height: 300, right: 500, bottom: 400 }),
+    })
+    Object.defineProperty(selected, 'getBoundingClientRect', {
+      value: () => ({ left: 150, top: 150, width: 225, height: 80, right: 375, bottom: 230 }),
+    })
+
+    await wrapper.setProps({ selectedBlockId: 'selected' })
+    await nextTick()
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-r', 'selection-handle-b'])
+
+    await wrapper.get('.selection-handle-b').trigger('pointerdown')
+    const crossAxisMove = new Event('pointermove')
+    Object.defineProperties(crossAxisMove, {
+      movementX: { value: 0 },
+      movementY: { value: 20 },
+    })
+    window.dispatchEvent(crossAxisMove)
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toEqual({
+      blockId: 'selected',
+      height: 100,
+    })
+
+    await wrapper.setProps({ selectedParentFlowDirection: 'rl', selectedFlowAlign: 'end' })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-l', 'selection-handle-t'])
+    await wrapper.setProps({ selectedFlowAlign: 'justify' })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-l'])
+    await wrapper.setProps({ selectedParentFlowDirection: 'lr', selectedFlowAlign: 'center' })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-r', 'selection-handle-t', 'selection-handle-b'])
+    await wrapper.get('.selection-handle-b').trigger('pointerdown')
+    const centeredCrossAxisMove = new Event('pointermove')
+    Object.defineProperties(centeredCrossAxisMove, {
+      movementX: { value: 0 },
+      movementY: { value: 10 },
+    })
+    window.dispatchEvent(centeredCrossAxisMove)
+    window.dispatchEvent(new Event('pointerup'))
+    expect(wrapper.emitted('resize-selection')?.[1]?.[0]).toEqual({
+      blockId: 'selected',
+      height: 100,
+    })
+  })
+
   it('drags dimensions by axis, changes cursors, and snaps to tens with Shift', async () => {
     const wrapper = mount(CardViewport, {
       props: { face },
