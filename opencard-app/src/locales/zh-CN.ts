@@ -974,6 +974,8 @@ export default {
     opencardFontRegistry: '项目字体注册表',
     opencardIconRegistry: '项目图标注册表',
     opencardDictionary: '项目全局字典',
+    opencardCustomBlockRegistry: '自定义 Block 注册表',
+    opencardCustomBlock: 'OpenCard 自定义 Block',
     json: 'JSON',
     markdown: 'Markdown',
     typescript: 'TypeScript',

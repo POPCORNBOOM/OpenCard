@@ -975,6 +975,8 @@ export default {
     opencardFontRegistry: 'Project Font Registry',
     opencardIconRegistry: 'Project Icon Registry',
     opencardDictionary: 'Project Global Dictionary',
+    opencardCustomBlockRegistry: 'Custom Block Registry',
+    opencardCustomBlock: 'OpenCard Custom Block',
     json: 'JSON',
     markdown: 'Markdown',
     typescript: 'TypeScript',

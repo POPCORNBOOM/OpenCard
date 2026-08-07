@@ -112,6 +112,25 @@ const fileTypes: FileTypeDefinition[] = [
     projectTreePriority: 3,
   },
   {
+    id: 'opencard-custom-block-registry',
+    labelKey: 'fileTypes.opencardCustomBlockRegistry',
+    fileNames: ['.ocblocks'],
+    icon: 'file.package-variant',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'monaco',
+    previewable: true,
+    projectTreePriority: 4,
+  },
+  {
+    id: 'opencard-custom-block',
+    labelKey: 'fileTypes.opencardCustomBlock',
+    extensions: ['ocblock'],
+    icon: 'file.package-variant',
+    iconTone: iconTone.opencard,
+    editorId: 'unsupported-file',
+  },
+  {
     id: 'opencard',
     labelKey: 'fileTypes.opencard',
     extensions: [CARD_DOCUMENT_EXTENSION],
@@ -334,6 +353,7 @@ export function resolveFileType(path: string, projectRoot?: string): FileTypeDef
       || definition.id === 'opencard-font-registry'
       || definition.id === 'opencard-icon-registry'
       || definition.id === 'opencard-dictionary'
+      || definition.id === 'opencard-custom-block-registry'
     const compareCaseInsensitive = !isProjectMetadata
       || isWindowsLikePath(projectRoot ?? path)
     const fileNameMatches = definition.fileNames?.some((fileName) => (
