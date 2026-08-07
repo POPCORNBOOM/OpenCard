@@ -26,7 +26,7 @@ describe('collectProjectCustomBlockResources', () => {
     expect(result.index.fonts).toHaveLength(1)
     rewriteProjectCustomBlockResourceReferences(root, 'square', result)
     expect(root.children[0].block.type === 'image-block' && root.children[0].block.image).toMatch(/^ocblock:square\//)
-    expect(root.children[1].block.type === 'text-block' && root.children[1].block.fontFamily).toContain('ocblock-font:square/body')
+    expect(root.children[1].block.type === 'text-block' && root.children[1].block.fontFamily).toContain('OpenCardCustomBlock-square-body')
   })
 
   it('rejects missing project fonts', async () => {

@@ -74,6 +74,7 @@ import {
   type ProjectCustomBlockCatalogEntry,
 } from '../model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
+import { clearProjectCustomBlockFonts, syncProjectCustomBlockFonts } from '../services/projectCustomBlockFontLoader'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -325,6 +326,7 @@ function clearProjectDictionary() {
 function clearProjectCustomBlocks() {
   projectCustomBlockCatalog.value = new Map()
   customBlockRegistryError.value = null
+  clearProjectCustomBlockFonts()
 }
 
 async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
@@ -345,6 +347,7 @@ async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
       catalog.set(key, { ...entry, archivePath: relativePath })
     }
     projectCustomBlockCatalog.value = catalog
+    syncProjectCustomBlockFonts(catalog)
     customBlockRegistryError.value = null
     return true
   } catch (error) {

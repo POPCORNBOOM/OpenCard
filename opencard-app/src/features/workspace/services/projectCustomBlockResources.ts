@@ -12,6 +12,10 @@ export type CollectedCustomBlockResources = {
   fontSources: ReadonlyMap<string, string>
 }
 
+export function createProjectCustomBlockFontFamily(packageKey: string, fontKey: string): string {
+  return `OpenCardCustomBlock-${packageKey}-${fontKey}`
+}
+
 function visitBlocks(root: CardBlock, visit: (block: CardBlock) => void): void {
   visit(root)
   if (root.type !== 'simple-container-block' && root.type !== 'flow-container-block') return
@@ -129,7 +133,7 @@ export function rewriteProjectCustomBlockResourceReferences(
         const value = entry.trim()
         if (!value.toLocaleLowerCase().startsWith('font:')) return value
         const key = value.slice(5).toLocaleLowerCase()
-        return resources.fontSources.has(key) ? `ocblock-font:${packageKey}/${key}` : value
+        return resources.fontSources.has(key) ? createProjectCustomBlockFontFamily(packageKey, key) : value
       }).join('; ')
     }
   })
