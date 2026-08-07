@@ -111,7 +111,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function resolveVisibleBlockKey(blockId: string): string | null {
-    let current = blockIndex.value.get(blockId)?.block ?? null
+    const customHostId = blockId.includes('::block:') ? blockId.slice(0, blockId.indexOf('::block:')) : blockId
+    let current = blockIndex.value.get(customHostId)?.block ?? null
     if (!current) return null
 
     let visibleKey = current.id

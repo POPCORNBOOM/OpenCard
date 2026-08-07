@@ -2,6 +2,7 @@ import { computed, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createFlowContainerBlock,
+  createCustomBlock,
   createSimpleContainerBlock,
   createTextBlock,
   type CardDocument,
@@ -44,6 +45,27 @@ function createDocument(): CardDocument {
 }
 
 describe('useCdeTreeOps active face boundary', () => {
+  it('maps namespaced custom block descendants back to their host', () => {
+    const document = createDocument()
+    const host = createCustomBlock({ id: 'custom-host', source: 'block:item', interfaceHash: 'hash' })
+    document.faces.front.children = [{
+      block: host,
+      location: { type: 'simple-container-location', id: 'custom-location', anchor: 'lt' },
+    }]
+    const selectedBlockKeys = ref<string[]>([])
+    const state = useCdeTreeOps({
+      activeFace: computed(() => document.faces.front),
+      documentRevision: ref(0),
+      parentLookup: ref(buildParentLookup(document)),
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+    })
+    state.handleViewportBlockClick('custom-host::block:internal-label')
+    expect(selectedBlockKeys.value).toEqual(['custom-host'])
+  })
+
   it('projects and mutates only the active face', async () => {
     const document = createDocument()
     const activeFaceKey = ref<CardFaceKey>('front')
@@ -145,7 +167,7 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(state.blockTreeData.value.items.get('outer')).toMatchObject({
       icon: 'entity.block-package',
       actions: ['hide-block', 'packaged-container-more'],
-      contextActions: ['hide-block', 'rename', 'unpackage', 'duplicate', 'delete'],
+      contextActions: ['hide-block', 'rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
     })
 
     state.handleViewportBlockClick('inner-text')
