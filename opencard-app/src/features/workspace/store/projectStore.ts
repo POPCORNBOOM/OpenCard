@@ -139,6 +139,7 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
   projectIconCatalog: projectIconCatalog.value,
+  customBlockCatalog: projectCustomBlockCatalog.value,
 }) as CardRenderEnvironment)
 
 let unlistenFn: UnlistenFn | null = null

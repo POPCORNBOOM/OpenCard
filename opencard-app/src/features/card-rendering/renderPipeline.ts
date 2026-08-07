@@ -7,6 +7,7 @@ import { resolveReferences } from './resolveCardBindings'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import { expandCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
@@ -16,6 +17,7 @@ export type RenderPipelineResult = {
 export type RenderPipelineContext = {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
+  customBlockCatalog?: CustomBlockRuntimeCatalog
 }
 
 export type CardRenderEnvironment = RenderPipelineContext & {
@@ -29,7 +31,8 @@ export function runRenderPipeline(
   context: RenderPipelineContext = {},
 ): RenderPipelineResult {
   const projected = applyInstance(document, instance)
-  const resolved = resolveReferences(projected, {
+  const expanded = expandCustomBlocks(projected, context.customBlockCatalog)
+  const resolved = resolveReferences(expanded.document, {
     currentCard: instance,
     project: context.project,
     dictionary: context.dictionary,
