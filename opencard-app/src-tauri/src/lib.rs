@@ -12,6 +12,7 @@ use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWN
 
 mod external_open;
 mod icon_spritesheet;
+mod version_history;
 
 // 存储 watcher 的全局状态
 struct WatcherState {
@@ -257,6 +258,7 @@ pub fn run() {
         .manage(WatcherState {
             watcher: Mutex::new(None),
         })
+        .manage(version_history::VersionHistoryState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             list_system_font_families,
@@ -267,6 +269,7 @@ pub fn run() {
             open_path,
             external_open::take_external_open_requests,
             icon_spritesheet::compose_project_icon_spritesheet,
+            version_history::version_prepare_project,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
