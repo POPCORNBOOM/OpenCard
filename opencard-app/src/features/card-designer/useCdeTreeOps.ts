@@ -332,6 +332,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function createBlockAt(container: BlockContainer, type: CardBlock['type']): void {
     if (isBlockPackaged(container)) return
+    if (type === 'custom-block') return
     const name = options.getDefaultBlockName(type).trim() || undefined
     let block: CardBlock
     switch (type) {

@@ -116,6 +116,14 @@ export type RenderReadyFlowContainerBlock = RenderReadyBaseBlock & {
   children: RenderReadyFlowContainerChild[]
 }
 
+export type RenderReadyCustomBlock = RenderReadyBaseBlock & {
+  type: 'custom-block'
+  source: string
+  interfaceHash: string
+  content: RenderReadyCardBlock | null
+  error?: string
+}
+
 export type RenderReadyCardBlock =
   | RenderReadyTextBlock
   | RenderReadyMarkdownTextBlock
@@ -124,6 +132,7 @@ export type RenderReadyCardBlock =
   | RenderReadyShapeBlock
   | RenderReadySimpleContainerBlock
   | RenderReadyFlowContainerBlock
+  | RenderReadyCustomBlock
 
 export type RenderReadyCardFace = {
   type: 'card-face'

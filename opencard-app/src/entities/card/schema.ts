@@ -322,6 +322,11 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         gap: { fieldType: 'string', required: true, autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         children: { fieldType: 'object', objectType: 'CardBlock', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
+    'custom-block': {
+        ...createBaseBlockPropertyEditorSchema(),
+        source: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+        interfaceHash: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
+    },
     'simple-container-location': {
         id: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },
@@ -571,6 +576,15 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         id: '',
         background: '#FFFFFF',
         children: [],
+    },
+    'custom-block': {
+        id: '',
+        name: '',
+        notes: '',
+        visible: 'true',
+        type: 'custom-block',
+        source: '',
+        interfaceHash: '',
     },
     'card-instance': {
         type: 'card-instance',

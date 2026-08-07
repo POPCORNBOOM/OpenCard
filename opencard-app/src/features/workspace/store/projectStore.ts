@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只管理文件系统真相 不管理编辑草稿与会话状态
  */
-import { computed, readonly, ref } from 'vue'
+import { computed, readonly, ref, shallowRef } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
@@ -66,6 +66,14 @@ import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
   normalizeProjectFontDirectory,
 } from '../model/projectFonts'
+import {
+  parseProjectCustomBlockRegistryText,
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+  serializeProjectCustomBlockRegistry,
+  type ProjectCustomBlockCatalog,
+  type ProjectCustomBlockCatalogEntry,
+} from '../model/projectCustomBlocks'
+import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -123,13 +131,15 @@ const projectIconLoadErrors = ref<readonly ProjectIconLoadError[]>([])
 const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
+const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
+const customBlockRegistryError = ref<string | null>(null)
 const settingsStore = useAppSettingsStore()
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
   projectIconCatalog: projectIconCatalog.value,
-}))
+}) as CardRenderEnvironment)
 
 let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
@@ -252,6 +262,20 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
   return canonicalContent
 }
 
+async function saveProjectCustomBlockRegistry(path: string, content: string): Promise<string> {
+  const document = JSON.parse(content) as unknown
+  const normalized = parseProjectCustomBlockRegistryText(JSON.stringify(document))
+  if (!normalized) throw new Error('Invalid .ocblocks content')
+  const resolvedPath = resolveProjectPath(path)
+  if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))) {
+    throw new Error('Custom block registry must be stored at the project root')
+  }
+  const canonicalContent = serializeProjectCustomBlockRegistry(normalized)
+  await fileSystemService.writeFile(resolvedPath, canonicalContent)
+  await reloadProjectCustomBlockRegistry()
+  return canonicalContent
+}
+
 function clearProjectProfile() {
   projectProfile.value = null
   resolvedProject.value = null
@@ -295,6 +319,39 @@ function clearProjectDictionary() {
   projectDictionary.value = null
   resolvedDictionary.value = null
   dictionaryError.value = null
+}
+
+function clearProjectCustomBlocks() {
+  projectCustomBlockCatalog.value = new Map()
+  customBlockRegistryError.value = null
+}
+
+async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
+  if (!projectPath.value) return false
+  const registryPath = resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+  if (!await fileSystemService.fileExists(registryPath)) {
+    clearProjectCustomBlocks()
+    return false
+  }
+  try {
+    const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+    if (!registry) throw new Error('Invalid .ocblocks registry')
+    const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
+    for (const relativePath of registry.blocks ?? []) {
+      const entry = await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(relativePath))
+      const key = entry.manifest.key.toLocaleLowerCase()
+      if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
+      catalog.set(key, { ...entry, archivePath: relativePath })
+    }
+    projectCustomBlockCatalog.value = catalog
+    customBlockRegistryError.value = null
+    return true
+  } catch (error) {
+    clearProjectCustomBlocks()
+    customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
+    reportAppError('OC-E3011', { path: registryPath, error })
+    return false
+  }
 }
 
 async function reloadProjectProfile(): Promise<boolean> {
@@ -527,6 +584,10 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
+      if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
+        || path.toLocaleLowerCase().endsWith('.ocblock'))) {
+        void reloadProjectCustomBlockRegistry()
+      }
       const fontSources = projectFontFiles.value
         .map(font => resolveProjectPath(font.source))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
@@ -577,6 +638,7 @@ async function setProjectPath(path: string) {
     clearProjectFontRegistry()
     clearProjectIconRegistry()
     clearProjectDictionary()
+    clearProjectCustomBlocks()
 
   if (!projectPath.value) {
     return
@@ -589,6 +651,7 @@ async function setProjectPath(path: string) {
     reloadProjectFontRegistry(),
     reloadProjectIconRegistry(),
     reloadProjectDictionary(),
+    reloadProjectCustomBlockRegistry(),
   ])
   await startWatching()
   scheduleProjectMetadataSave()
@@ -1090,6 +1153,8 @@ export function useProjectStore() {
     renderEnvironment: readonly(renderEnvironment),
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
+    projectCustomBlockCatalog: readonly(projectCustomBlockCatalog),
+    customBlockRegistryError: readonly(customBlockRegistryError),
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),
     projectName: computed(() => {
@@ -1107,14 +1172,17 @@ export function useProjectStore() {
     saveProjectFontRegistry,
     saveProjectIconRegistry,
     saveProjectDictionary,
+    saveProjectCustomBlockRegistry,
     reloadProjectProfile,
     reloadProjectFontRegistry,
     reloadProjectIconRegistry,
     reloadProjectDictionary,
+    reloadProjectCustomBlockRegistry,
     clearProjectProfile,
     clearProjectFontRegistry,
     clearProjectIconRegistry,
     clearProjectDictionary,
+    clearProjectCustomBlocks,
     setProjectPath,
     loadFiles,
     readDirectoryEntries,

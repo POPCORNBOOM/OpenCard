@@ -292,6 +292,7 @@ export const iconGlyphs = {
   'format.anchor-bottom-right': glyph(mdiArrowBottomRightThin),
 
   'entity.block-flow-container': glyph(mdiViewSequentialOutline),
+  'entity.block-custom': glyph(mdiPackageVariantClosed),
   'entity.block-image': glyph(mdiImageOutline),
   'entity.block-markdown': glyph(mdiLanguageMarkdownOutline),
   'entity.block-package': glyph(mdiPackageVariantClosed),

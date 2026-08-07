@@ -131,6 +131,7 @@ export const iconTokens = {
   'format.anchor-bottom-right': true,
 
   'entity.block-flow-container': true,
+  'entity.block-custom': true,
   'entity.block-image': true,
   'entity.block-markdown': true,
   'entity.block-package': true,

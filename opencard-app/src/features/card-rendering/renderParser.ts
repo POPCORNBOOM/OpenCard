@@ -253,6 +253,14 @@ function parseBlock(
           }
         }),
       }
+    case 'custom-block':
+      return {
+        ...base,
+        type,
+        source: fields.string('source'),
+        interfaceHash: fields.string('interfaceHash'),
+        content: null,
+      }
   }
 }
 

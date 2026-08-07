@@ -14,6 +14,7 @@
     :block="block"
     :layout-mode="layoutMode"
   />
+  <CustomBlockRenderer v-else-if="block.type === 'custom-block'" :block="block" :layout-mode="layoutMode" />
 </template>
 
 <script setup lang="ts">
@@ -25,6 +26,7 @@ import QrCodeBlockRenderer from './QrCodeBlockRenderer.vue'
 import ShapeBlockRenderer from './ShapeBlockRenderer.vue'
 import SimpleContainerBlockRenderer from './SimpleContainerBlockRenderer.vue'
 import TextBlockRenderer from './TextBlockRenderer.vue'
+import CustomBlockRenderer from './CustomBlockRenderer.vue'
 
 withDefaults(defineProps<{
   block: RenderReadyCardBlock
