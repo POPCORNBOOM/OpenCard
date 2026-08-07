@@ -431,6 +431,7 @@ import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
 import { useShellWindow } from './composables/useShellWindow'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
+import { useVersioning } from '../versioning/composables/useVersioning'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
@@ -543,6 +544,9 @@ const settingsStore = useAppSettingsStore()
 const templateStore = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
 const shellPage = ref<ShellPage>({ type: 'welcome' })
+const {
+  dispose: disposeVersioning,
+} = useVersioning({ projectPath })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
 const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
@@ -2642,6 +2646,7 @@ onMounted(() => {
 onUnmounted(() => {
   removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
   disposeEditorHost()
+  disposeVersioning()
   window.removeEventListener('keydown', handleGlobalKeydown)
   disposeShellWindow()
   disposeAppUpdater()

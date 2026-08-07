@@ -193,6 +193,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法安装应用更新', 'en-US': 'Could not install the application update' },
     solution: '确认网络与磁盘空间正常，退出可能占用 OpenCard 文件的进程后重新检查更新。',
   },
+  'OC-E7001': {
+    area: '版本管理',
+    meaning: { 'zh-CN': '无法准备项目版本历史', 'en-US': 'Could not prepare project version history' },
+    solution: '普通编辑与保存仍可继续；确认项目目录和用户数据目录可访问，然后重新打开项目。',
+  },
 } as const satisfies Record<string, AppErrorDefinition>
 
 export type AppErrorCode = keyof typeof APP_ERROR_CATALOG
