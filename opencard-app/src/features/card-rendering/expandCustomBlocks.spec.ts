@@ -3,6 +3,24 @@ import { createBlock, type CardDocument } from '../../entities/card/model'
 import { expandCustomBlocks } from './expandCustomBlocks'
 
 describe('expandCustomBlocks', () => {
+  it('resolves packaged image bytes to a renderable data URL', () => {
+    const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/a.png' })
+    const host = createBlock('custom-block', { source: 'block:picture', interfaceHash: 'hash' })
+    const document: CardDocument = {
+      type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '100', height: '100', instances: [],
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '', children: [{ block: host, location: { id: 'loc', type: 'simple-container-location', anchor: 'lt' } }] },
+        back: { type: 'card-face', id: 'back', background: '', children: [] },
+      },
+    }
+    const result = expandCustomBlocks(document, new Map([['picture', {
+      manifest: { key: 'picture', interfaceHash: 'hash', root, publicFields: [], resize: { widthLocked: false, heightLocked: false } },
+      files: new Map([['resources/images/a.png', new Uint8Array([1, 2, 3])]]),
+    }]]))
+    const expanded = result.document.faces.front.children[0].block
+    expect(expanded.type === 'image-block' && expanded.image).toBe('data:image/png;base64,AQID')
+  })
+
   it('reports missing packages without removing the host block', () => {
     const host = createBlock('custom-block', { source: 'block:missing', interfaceHash: 'hash' })
     const document: CardDocument = {

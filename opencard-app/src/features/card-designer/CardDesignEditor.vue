@@ -413,6 +413,10 @@ import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '
 import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
 import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
+import {
+  collectProjectCustomBlockResources,
+  rewriteProjectCustomBlockResourceReferences,
+} from '../workspace/services/projectCustomBlockResources'
 import { registerProjectCustomBlockPath } from '../workspace/services/projectCustomBlockRegistry'
 import {
   parseProjectCustomBlockRegistryText,
@@ -1023,13 +1027,23 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
     name: payload.name,
     exposedFieldKeys: payload.exposedFieldKeys,
   })
+  const resources = await collectProjectCustomBlockResources({
+    root,
+    projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
+    projectFonts: projectStore.projectFonts.value,
+    remoteResourcePolicy: props.remoteResourcePolicy,
+    fs: fileSystemService,
+    fetchBytes: async url => new Uint8Array(await (await fetch(url)).arrayBuffer()),
+  })
+  if (Object.keys(resources.index).length) manifest.resources = resources.index
+  rewriteProjectCustomBlockResourceReferences(manifest.root, manifest.key, resources)
   const outputPath = await fileSystemService.pickSavePath({
     defaultPath: `${payload.key}.ocblock`,
     fileTypeName: 'OpenCard custom block',
     extensions: ['ocblock'],
   })
   if (!outputPath) return
-  await exportProjectCustomBlockPackage({ fs: fileSystemService, manifest, outputPath })
+  await exportProjectCustomBlockPackage({ fs: fileSystemService, manifest, files: resources.files, outputPath })
   customBlockExportDialogOpen.value = false
   const projectPath = projectStore.projectPath.value.replace(/\\/g, '/').replace(/\/$/, '')
   const normalizedOutputPath = outputPath.replace(/\\/g, '/')

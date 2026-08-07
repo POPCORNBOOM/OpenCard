@@ -10,6 +10,7 @@ export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
     readonly publicFields: readonly ProjectCustomBlockPublicField[]
     readonly resize: Readonly<ProjectCustomBlockResizePolicy>
   }
+  readonly files?: ReadonlyMap<string, Uint8Array>
 }>
 
 export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
@@ -23,21 +24,52 @@ function clone<T>(value: T): T {
   }
 }
 
+function mimeForPath(path: string): string {
+  if (/\.png$/i.test(path)) return 'image/png'
+  if (/\.jpe?g$/i.test(path)) return 'image/jpeg'
+  if (/\.webp$/i.test(path)) return 'image/webp'
+  if (/\.gif$/i.test(path)) return 'image/gif'
+  return 'application/octet-stream'
+}
+
+function bytesToDataUrl(path: string, bytes: Uint8Array): string {
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+  }
+  return `data:${mimeForPath(path)};base64,${btoa(binary)}`
+}
+
+function resolveBundledResources(block: CardBlock, packageKey: string, files?: ReadonlyMap<string, Uint8Array>): void {
+  if (block.type === 'image-block' && block.image.startsWith(`ocblock:${packageKey}/`)) {
+    const archivePath = block.image.slice(`ocblock:${packageKey}/`.length)
+    const bytes = files?.get(archivePath)
+    if (bytes) block.image = bytesToDataUrl(archivePath, bytes)
+  }
+  if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
+  for (const child of block.children) resolveBundledResources(child.block, packageKey, files)
+}
+
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
 ): { document: CardDocument; issues: CustomBlockExpansionIssue[] } {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
-  const next = clone(document)
   const issues: CustomBlockExpansionIssue[] = []
 
   function expand(block: CardBlock, ancestors: Set<string>, faceKey: CardFaceKey): CardBlock {
     if (block.type !== 'custom-block') {
       if (block.type === 'simple-container-block') {
-        block.children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
+        const children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
+        return children.some((child, index) => child.block !== block.children[index].block)
+          ? { ...block, children }
+          : block
       }
       if (block.type === 'flow-container-block') {
-        block.children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
+        const children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
+        return children.some((child, index) => child.block !== block.children[index].block)
+          ? { ...block, children }
+          : block
       }
       return block
     }
@@ -56,6 +88,7 @@ export function expandCustomBlocks(
       return block
     }
     const root = clone(entry.manifest.root) as CardBlock
+    resolveBundledResources(root, entry.manifest.key, entry.files)
     root.id = block.id
     root.name = block.name
     root.notes = block.notes
@@ -73,8 +106,10 @@ export function expandCustomBlocks(
     return expand(root, nextAncestors, faceKey)
   }
 
-  for (const [faceKey, face] of Object.entries(next.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][]) {
-    face.children = face.children.map(child => ({ ...child, block: expand(child.block, new Set(), faceKey) }))
-  }
-  return { document: next, issues }
+  const faces = Object.fromEntries((Object.entries(document.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][])
+    .map(([faceKey, face]) => [faceKey, {
+      ...face,
+      children: face.children.map(child => ({ ...child, block: expand(child.block, new Set(), faceKey) })),
+    }])) as CardDocument['faces']
+  return { document: { ...document, faces }, issues }
 }
