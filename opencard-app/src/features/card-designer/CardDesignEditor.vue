@@ -1366,6 +1366,13 @@ const {
   availableLayerZIndices,
   refreshDocumentState,
   markDocumentChanged,
+  isResizeAxisLocked: (blockId: string, axis: 'width' | 'height') => {
+    const block = getBlockById(blockId)
+    if (!block || block.type !== 'custom-block') return false
+    const key = block.source.startsWith('block:') ? block.source.slice(6).toLocaleLowerCase() : ''
+    const policy = projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
+    return axis === 'width' ? Boolean(policy?.widthLocked) : Boolean(policy?.heightLocked)
+  },
 })
 
 const interactionSelectedBlockId = computed(() => selectedBlock.value?.id ?? null)

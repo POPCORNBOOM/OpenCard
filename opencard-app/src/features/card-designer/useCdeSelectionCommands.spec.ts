@@ -72,7 +72,7 @@ function createDocument(): CardDocument {
   }
 }
 
-function createHarness() {
+function createHarness(isResizeAxisLocked?: (blockId: string, axis: 'width' | 'height') => boolean) {
   const document = createDocument()
   const cardDoc = ref<CardDocument | null>(document)
   const parentLookup = ref(buildParentLookup(document))
@@ -85,6 +85,7 @@ function createHarness() {
     availableLayerZIndices,
     refreshDocumentState,
     markDocumentChanged,
+    isResizeAxisLocked,
   })
   const simple = document.faces.front.children[0]!.block
   const flow = document.faces.front.children[1]!.block
@@ -104,6 +105,16 @@ function createHarness() {
 }
 
 describe('useCdeSelectionCommands', () => {
+  it('rejects writes to locked resize axes', () => {
+    const { commands, simple } = createHarness((_blockId, axis) => axis === 'width')
+    const child = simple.children[0].block
+    expect(commands.resizeSelection({ blockId: child.id, width: 99 })).toBe(false)
+    expect(child.width).toBe('20px')
+    expect(commands.resizeSelection({ blockId: child.id, width: 99, height: 44 })).toBe(true)
+    expect(child.width).toBe('20px')
+    expect(child.height).toBe('44px')
+  })
+
   it('resizes and moves a simple child with normalized CSS pixels', () => {
     const { commands, markDocumentChanged, refreshDocumentState, simple } = createHarness()
 

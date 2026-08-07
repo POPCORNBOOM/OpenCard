@@ -52,6 +52,7 @@ type UseCdeSelectionCommandsOptions = {
   availableLayerZIndices: Readonly<Ref<readonly number[]>>
   refreshDocumentState: () => void
   markDocumentChanged: (mode: 'typing' | 'action') => void
+  isResizeAxisLocked?: (blockId: string, axis: 'width' | 'height') => boolean
 }
 
 export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions) {
@@ -60,8 +61,12 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
     if (!target) return false
 
     if (intent.width === undefined && intent.height === undefined) return false
-    if (intent.width !== undefined) target.block.width = formatCssPixels(intent.width)
-    if (intent.height !== undefined) target.block.height = formatCssPixels(intent.height)
+    if (intent.width !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'width')) target.block.width = formatCssPixels(intent.width)
+    if (intent.height !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'height')) target.block.height = formatCssPixels(intent.height)
+    if (intent.width !== undefined && options.isResizeAxisLocked?.(intent.blockId, 'width')
+      && intent.height === undefined) return false
+    if (intent.height !== undefined && options.isResizeAxisLocked?.(intent.blockId, 'height')
+      && intent.width === undefined) return false
     if (target.location.type === 'simple-container-location') {
       target.location.x = formatCssPixels(intent.x ?? 0)
       target.location.y = formatCssPixels(intent.y ?? 0)
