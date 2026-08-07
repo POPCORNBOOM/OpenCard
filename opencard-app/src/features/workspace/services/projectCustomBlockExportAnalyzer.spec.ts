@@ -15,7 +15,7 @@ describe('analyzeProjectCustomBlockExport', () => {
     const root = createBlock('simple-container-block')
     root.additionalFieldDefinition = { size: { fieldType: 'number' } }
     const child = createBlock('text-block', { width: '{{parent.size}}' })
-    root.children.push({ block: child, location: { x: '{{parent.size}}' } })
+    root.children.push({ block: child, location: { id: 'loc-1', type: 'simple-container-location', anchor: 'lt', x: '{{parent.size}}' } })
     expect(analyzeProjectCustomBlockExport(root).fields[0].referenceCount).toBe(2)
   })
 })

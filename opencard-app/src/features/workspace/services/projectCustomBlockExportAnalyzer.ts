@@ -25,7 +25,7 @@ function scanValue(value: unknown, rootFields: ReadonlySet<string>): Map<string,
     const expression = match[1].trim()
     const normalizedExpression = expression.replace(/:/g, '.')
     const parts = normalizedExpression.split('.').map(part => part.trim())
-    const field = parts.at(-1)
+    const field = parts[parts.length - 1]
     if (!field || !rootFields.has(field)) continue
     if (parts.length === 1 || parts[0] === 'self') {
       counts.set(field, (counts.get(field) ?? 0) + 1)
