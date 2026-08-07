@@ -1,6 +1,6 @@
 import type { CardBlock } from '../../../entities/card/model'
 import { additionalFieldTypes, type PropertyFieldType } from '../../../entities/card/schema'
-import type { ProjectIconSeries } from './projectIcons'
+import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 
 export const PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME = '.ocblocks'
 export const PROJECT_CUSTOM_BLOCK_EXTENSION = 'ocblock'
@@ -124,11 +124,12 @@ function parseResources(value: unknown): ProjectCustomBlockResourceIndex | null 
   const fonts = parseList<ProjectCustomBlockFontResource>(value.fonts, item => typeof item.name === 'string' && typeof item.source === 'string')
   const images = parseList<ProjectCustomBlockImageResource>(value.images, item => typeof item.source === 'string')
   if (fonts === null || images === null) return null
-  if (value.iconSeries !== undefined && !Array.isArray(value.iconSeries)) return null
+  const iconSeries = value.iconSeries === undefined ? undefined : parseProjectIconSeries(value.iconSeries)
+  if (value.iconSeries !== undefined && !iconSeries) return null
   return {
     ...(fonts ? { fonts } : {}),
     ...(images ? { images } : {}),
-    ...(value.iconSeries ? { iconSeries: value.iconSeries as ProjectIconSeries[] } : {}),
+    ...(iconSeries ? { iconSeries } : {}),
   }
 }
 

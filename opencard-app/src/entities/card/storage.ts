@@ -89,6 +89,11 @@ export function serializeCardDocument(document: CardDocument): string {
   return JSON.stringify(parseCardDocument(document), null, 2)
 }
 
+export function parseStoredCardBlock(value: unknown): CardBlock {
+  assertBlock(value, '$')
+  return value
+}
+
 function assertRootChild(value: unknown, path: string): asserts value is RootChild {
   assertStoredObject(value, path)
   assertBlock(value.block, `${path}.block`)
