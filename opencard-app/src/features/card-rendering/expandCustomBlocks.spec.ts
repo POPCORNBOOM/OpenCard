@@ -5,7 +5,8 @@ import { expandCustomBlocks } from './expandCustomBlocks'
 describe('expandCustomBlocks', () => {
   it('injects public values and preserves the host id', () => {
     const root = createBlock('text-block', { content: '{{self:size}}' })
-    const host = createBlock('custom-block', { source: 'block:square', interfaceHash: 'hash', size: '80' })
+    const host = createBlock('custom-block', { source: 'block:square', interfaceHash: 'hash' })
+    ;(host as Record<string, unknown>).size = '80'
     const document: CardDocument = {
       type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '100', height: '100', instances: [],
       faces: {
@@ -25,6 +26,6 @@ describe('expandCustomBlocks', () => {
     const expanded = result.document.faces.front.children[0].block
     expect(expanded.id).toBe(host.id)
     expect(expanded.type).toBe('text-block')
-    expect((expanded as typeof root).content).toBe('{{self:size}}')
+    expect((expanded as { content: string }).content).toBe('{{self:size}}')
   })
 })

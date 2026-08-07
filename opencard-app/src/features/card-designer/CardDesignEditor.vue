@@ -34,6 +34,8 @@
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selected-flow-align="selectedFlowAlign"
           :selection-info="selectionInfo"
+          :width-locked="selectedCustomBlockResize.widthLocked"
+          :height-locked="selectedCustomBlockResize.heightLocked"
           :selection-action-labels="selectionActionLabels"
           :selection-command-actions="selectionCommandActions"
           :layer-view-active="layerViewActive"
@@ -1280,6 +1282,13 @@ const transformDisabledBlockIds = computed(() => {
     current = parent
   }
   return ids
+})
+const selectedCustomBlockResize = computed(() => {
+  const block = selectedBlock.value
+  if (!block || block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
+  const key = block.source.startsWith('block:') ? block.source.slice(6).toLocaleLowerCase() : ''
+  return projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
+    ?? { widthLocked: false, heightLocked: false }
 })
 
 const renderTargetInstance = computed(() => (

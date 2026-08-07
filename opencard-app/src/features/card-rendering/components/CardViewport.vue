@@ -285,6 +285,8 @@ const props = withDefaults(defineProps<{
   }>
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
+  widthLocked?: boolean
+  heightLocked?: boolean
   resourceRootPath?: string | null
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   projectIconCatalog?: ProjectIconCatalog
@@ -318,6 +320,8 @@ const props = withDefaults(defineProps<{
   layerViewShortcutHints: () => [],
   transform: undefined,
   transformDisabledBlockIds: () => [],
+  widthLocked: false,
+  heightLocked: false,
   clipToFace: false,
   resourceRootPath: null,
   remoteResourcePolicy: undefined,
@@ -456,7 +460,12 @@ const activeHandles = computed<ResizeHandle[]>(() => {
     return [mainHandle, 'r']
   }
   if (resizeMode.value === 'absolute') {
-    return ['lt', 't', 'rt', 'l', 'r', 'lb', 'b', 'rb']
+    const handles: ResizeHandle[] = ['lt', 't', 'rt', 'l', 'r', 'lb', 'b', 'rb']
+    return handles.filter(handle => {
+      const horizontal = handle.includes('l') || handle.includes('r')
+      const vertical = handle.includes('t') || handle.includes('b')
+      return (!horizontal || !props.widthLocked) && (!vertical || !props.heightLocked)
+    })
   }
   return []
 })
