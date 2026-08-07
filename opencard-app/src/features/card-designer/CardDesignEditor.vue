@@ -332,6 +332,23 @@
       @cancel="cancelDataTableWorkbookImport"
       @confirm="confirmDataTableWorkbookImport"
     />
+    <CustomBlockExportDialog
+      :open="customBlockExportDialogOpen"
+      title="导出自定义 Block"
+      :fields="customBlockExportFields"
+      :default-name="customBlockExportBlock?.name ?? ''"
+      :default-key="customBlockExportBlock?.name ?? ''"
+      name-label="名称"
+      key-label="Key"
+      cancel-label="取消"
+      export-label="导出"
+      exposed-label="使用者可用"
+      private-label="不暴露给使用者"
+      move-to-exposed-label="移到使用者可用"
+      move-to-private-label="移到不暴露给使用者"
+      @close="customBlockExportDialogOpen = false"
+      @submit="handleCustomBlockExport"
+    />
   </div>
 </template>
 
@@ -375,6 +392,10 @@ import {
 import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
+import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDialog.vue'
+import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
+import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
+import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -909,6 +930,7 @@ const {
   handleViewportBlockClick: selectViewportBlock,
   resolveVisibleBlockKey,
   clearSelection,
+  getBlockById,
 } = useCdeTreeOps({
   activeFace,
   documentRevision,
@@ -919,6 +941,11 @@ const {
   markDocumentChanged,
 })
 const expandedBlockKeys = ref<string[]>([])
+const customBlockExportDialogOpen = ref(false)
+const customBlockExportBlock = ref<CardBlock | null>(null)
+const customBlockExportFields = computed<readonly CustomBlockFieldAnalysis[]>(() =>
+  customBlockExportBlock.value ? analyzeProjectCustomBlockExport(customBlockExportBlock.value).fields : [],
+)
 
 function handleStructureTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'expansion.sync') {
@@ -950,7 +977,8 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
-    emit('export-custom-block', intent.key)
+    customBlockExportBlock.value = getBlockById(intent.key)
+    customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {
@@ -959,6 +987,25 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     expandedBlockKeys.value = [...nextKeys]
   }
   handleTreeIntent(intent)
+}
+
+async function handleCustomBlockExport(payload: { name: string; key: string; exposedFieldKeys: string[] }): Promise<void> {
+  const root = customBlockExportBlock.value
+  if (!root) return
+  const manifest = await buildProjectCustomBlockManifest({
+    root,
+    key: payload.key,
+    name: payload.name,
+    exposedFieldKeys: payload.exposedFieldKeys,
+  })
+  const outputPath = await fileSystemService.pickSavePath({
+    defaultPath: `${payload.key}.ocblock`,
+    fileTypeName: 'OpenCard custom block',
+    extensions: ['ocblock'],
+  })
+  if (!outputPath) return
+  await exportProjectCustomBlockPackage({ fs: fileSystemService, manifest, outputPath })
+  customBlockExportDialogOpen.value = false
 }
 
 const structureTreeCardActions = computed<OcCardAction[]>(() =>

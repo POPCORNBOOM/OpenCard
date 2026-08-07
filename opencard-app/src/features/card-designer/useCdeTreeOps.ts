@@ -106,6 +106,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   const selectedBlock = computed(() => selectedEntry.value?.block ?? null)
   const selectedLocation = computed(() => selectedEntry.value?.location ?? null)
 
+  function getBlockById(blockId: string): CardBlock | null {
+    return blockIndex.value.get(blockId)?.block ?? null
+  }
+
   function resolveVisibleBlockKey(blockId: string): string | null {
     let current = blockIndex.value.get(blockId)?.block ?? null
     if (!current) return null
@@ -437,6 +441,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     blockTreeData,
     selectedBlock,
     selectedLocation,
+    getBlockById,
     handleTreeIntent,
     handleRootAction,
     handleViewportBlockClick,
