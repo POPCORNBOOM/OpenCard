@@ -1,8 +1,17 @@
 import { createCustomBlock, type CustomBlock } from '../../../entities/card/model'
-import type { ProjectCustomBlockCatalogEntry } from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockPublicField } from '../model/projectCustomBlocks'
+
+type CustomBlockInstanceSource = {
+  readonly manifest: {
+    readonly key: string
+    readonly name: string
+    readonly interfaceHash: string
+    readonly publicFields: readonly ProjectCustomBlockPublicField[]
+  }
+}
 
 export function createProjectCustomBlockInstance(
-  entry: ProjectCustomBlockCatalogEntry,
+  entry: CustomBlockInstanceSource,
   init: Partial<Pick<CustomBlock, 'id' | 'name'>> = {},
 ): CustomBlock {
   const definitions = Object.fromEntries(entry.manifest.publicFields.map(field => [field.key, {

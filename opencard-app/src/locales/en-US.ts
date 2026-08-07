@@ -713,6 +713,7 @@ export default {
       package: 'Package',
       unpackage: 'Unpackage',
       exportCustomBlock: 'Export custom block',
+      addCustomBlock: 'Custom blocks',
     },
     blockNames: {
       'text-block': 'Text Block',

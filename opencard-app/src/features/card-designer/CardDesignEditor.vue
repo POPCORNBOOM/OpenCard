@@ -398,6 +398,7 @@ import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDi
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
+import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -933,6 +934,7 @@ const {
   resolveVisibleBlockKey,
   clearSelection,
   getBlockById,
+  insertBlockAtRoot,
 } = useCdeTreeOps({
   activeFace,
   documentRevision,
@@ -1018,11 +1020,27 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
         return toCardActionDefinition(actionKey, selectionDependent && !selectedBlock.value)
       })
       .filter((action): action is OcCardAction => action !== null),
+    ...(projectStore.projectCustomBlockCatalog.value.size > 0 ? [{
+      key: 'add-custom-block-menu',
+      icon: 'entity.block-custom' as const,
+      title: t('cardDesigner.treeActions.addCustomBlock'),
+      children: [...projectStore.projectCustomBlockCatalog.value.entries()].map(([key, entry]) => ({
+        key: `add-custom-block:${key}`,
+        icon: 'entity.block-custom' as const,
+        title: entry.manifest.name,
+      })),
+    }] : []),
     createPanelToggleAction('toggle-structure-tree-panel', isStructureTreePanelExpanded.value),
   ],
 )
 
 function handleStructureTreeCardAction(payload: { key: string }) {
+  if (payload.key.startsWith('add-custom-block:')) {
+    const key = payload.key.slice('add-custom-block:'.length).toLocaleLowerCase()
+    const entry = projectStore.projectCustomBlockCatalog.value.get(key)
+    if (entry) insertBlockAtRoot(createProjectCustomBlockInstance(entry))
+    return
+  }
   if (payload.key === 'toggle-structure-tree-panel') {
     togglePanel('structure')
     return

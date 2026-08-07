@@ -369,6 +369,16 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     options.markDocumentChanged('action')
   }
 
+  function insertBlockAtRoot(block: CardBlock): boolean {
+    const face = options.activeFace.value
+    if (!face) return false
+    addBlockToContainer(face, block, options.parentLookup.value)
+    options.refreshDocumentState()
+    options.selectedBlockKeys.value = [block.id]
+    options.markDocumentChanged('action')
+    return true
+  }
+
   function deleteBlock(block: CardBlock): void {
     const container = options.parentLookup.value.get(block.id)
     if (!container || !removeBlockFromContainer(container, block.id, options.parentLookup.value)) return
@@ -442,6 +452,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     selectedBlock,
     selectedLocation,
     getBlockById,
+    insertBlockAtRoot,
     handleTreeIntent,
     handleRootAction,
     handleViewportBlockClick,
