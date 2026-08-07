@@ -709,6 +709,12 @@ export default {
     watching: 'Watching',
   },
   cardDesigner: {
+    customBlock: {
+      registerTitle: 'Register custom block',
+      registerDescription: 'Add this package to the current project custom block registry?',
+      skipRegistration: 'Not now',
+      register: 'Register',
+    },
     treeActions: {
       package: 'Package',
       unpackage: 'Unpackage',

@@ -351,6 +351,19 @@
       @close="customBlockExportDialogOpen = false"
       @submit="handleCustomBlockExport"
     />
+    <OcDialog :open="Boolean(pendingCustomBlockRegistrationPath)"
+      :title="t('cardDesigner.customBlock.registerTitle')"
+      :description="t('cardDesigner.customBlock.registerDescription')"
+      size="sm" @request-close="pendingCustomBlockRegistrationPath = null">
+      <template #footer>
+        <button type="button" @click="pendingCustomBlockRegistrationPath = null">
+          {{ t('cardDesigner.customBlock.skipRegistration') }}
+        </button>
+        <button type="button" @click="confirmCustomBlockRegistration">
+          {{ t('cardDesigner.customBlock.register') }}
+        </button>
+      </template>
+    </OcDialog>
   </div>
 </template>
 
@@ -395,10 +408,17 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
 import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDialog.vue'
+import OcDialog from '../../components/standard/OcDialog.vue'
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
 import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
+import { registerProjectCustomBlockPath } from '../workspace/services/projectCustomBlockRegistry'
+import {
+  parseProjectCustomBlockRegistryText,
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+  serializeProjectCustomBlockRegistry,
+} from '../workspace/model/projectCustomBlocks'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -947,6 +967,7 @@ const {
 const expandedBlockKeys = ref<string[]>([])
 const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
+const pendingCustomBlockRegistrationPath = ref<string | null>(null)
 const customBlockExportFields = computed<readonly CustomBlockFieldAnalysis[]>(() =>
   customBlockExportBlock.value ? analyzeProjectCustomBlockExport(customBlockExportBlock.value).fields : [],
 )
@@ -1010,6 +1031,27 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
   if (!outputPath) return
   await exportProjectCustomBlockPackage({ fs: fileSystemService, manifest, outputPath })
   customBlockExportDialogOpen.value = false
+  const projectPath = projectStore.projectPath.value.replace(/\\/g, '/').replace(/\/$/, '')
+  const normalizedOutputPath = outputPath.replace(/\\/g, '/')
+  if (projectPath && normalizedOutputPath.toLocaleLowerCase().startsWith(`${projectPath.toLocaleLowerCase()}/`)) {
+    pendingCustomBlockRegistrationPath.value = normalizedOutputPath.slice(projectPath.length + 1)
+  }
+}
+
+async function confirmCustomBlockRegistration(): Promise<void> {
+  const archivePath = pendingCustomBlockRegistrationPath.value
+  if (!archivePath) return
+  const registryPath = `${projectStore.projectPath.value}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
+  const existing = await fileSystemService.fileExists(registryPath)
+    ? parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+    : {}
+  if (!existing) throw new Error('Invalid .ocblocks registry')
+  const updated = registerProjectCustomBlockPath(existing, archivePath)
+  await projectStore.saveProjectCustomBlockRegistry(
+    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+    serializeProjectCustomBlockRegistry(updated),
+  )
+  pendingCustomBlockRegistrationPath.value = null
 }
 
 const structureTreeCardActions = computed<OcCardAction[]>(() =>

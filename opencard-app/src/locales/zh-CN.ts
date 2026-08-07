@@ -708,6 +708,12 @@ export default {
     watching: '监听中',
   },
   cardDesigner: {
+    customBlock: {
+      registerTitle: '注册自定义 Block',
+      registerDescription: '是否将这个包加入当前项目的自定义 Block 注册表？',
+      skipRegistration: '暂不注册',
+      register: '注册',
+    },
     treeActions: {
       package: '打包',
       unpackage: '解包',
