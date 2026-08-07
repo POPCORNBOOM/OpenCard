@@ -725,6 +725,7 @@ export default {
       moveToExposed: 'Move to available fields',
       moveToPrivate: 'Move to private fields',
       unavailable: 'Custom block unavailable',
+      exportBindingError: 'Cannot export: {location}, field {field}, reference {token} could not be materialized.',
     },
     treeActions: {
       package: 'Package',

@@ -20,6 +20,7 @@
             @input="key = ($event.target as HTMLInputElement).value" />
         </label>
       </div>
+      <OcText v-if="errorText" as="p" size="sm" tone="danger">{{ errorText }}</OcText>
     </div>
     <template #footer>
       <OcButton type="button" @click="emit('close')">{{ cancelLabel }}</OcButton>
@@ -55,7 +56,8 @@ const props = withDefaults(defineProps<{
   privateLabel: string
   moveToExposedLabel: string
   moveToPrivateLabel: string
-}>(), { defaultName: '', defaultKey: '' })
+  errorText?: string
+}>(), { defaultName: '', defaultKey: '', errorText: '' })
 
 const emit = defineEmits<{
   close: []

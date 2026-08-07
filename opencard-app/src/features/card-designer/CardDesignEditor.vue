@@ -349,6 +349,7 @@
       :private-label="t('cardDesigner.customBlock.private')"
       :move-to-exposed-label="t('cardDesigner.customBlock.moveToExposed')"
       :move-to-private-label="t('cardDesigner.customBlock.moveToPrivate')"
+      :error-text="customBlockExportErrorText"
       @close="customBlockExportDialogOpen = false"
       @submit="handleCustomBlockExport"
     />
@@ -357,12 +358,12 @@
       :description="t('cardDesigner.customBlock.registerDescription')"
       size="sm" @request-close="pendingCustomBlockRegistrationPath = null">
       <template #footer>
-        <button type="button" @click="pendingCustomBlockRegistrationPath = null">
+        <OcButton type="button" @click="pendingCustomBlockRegistrationPath = null">
           {{ t('cardDesigner.customBlock.skipRegistration') }}
-        </button>
-        <button type="button" @click="confirmCustomBlockRegistration">
+        </OcButton>
+        <OcButton type="button" variant="solid" @click="confirmCustomBlockRegistration">
           {{ t('cardDesigner.customBlock.register') }}
-        </button>
+        </OcButton>
       </template>
     </OcDialog>
   </div>
@@ -410,6 +411,7 @@ import CardDataTable from './CardDataTable.vue'
 import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
 import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDialog.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
+import OcButton from '../../components/base/OcButton.vue'
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
@@ -419,6 +421,7 @@ import {
   rewriteProjectCustomBlockResourceReferences,
 } from '../workspace/services/projectCustomBlockResources'
 import { registerProjectCustomBlockPath } from '../workspace/services/projectCustomBlockRegistry'
+import { materializeProjectCustomBlockExport } from '../workspace/services/materializeProjectCustomBlockExport'
 import {
   parseProjectCustomBlockRegistryText,
   PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
@@ -972,6 +975,7 @@ const {
 const expandedBlockKeys = ref<string[]>([])
 const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
+const customBlockExportErrorText = ref('')
 const pendingCustomBlockRegistrationPath = ref<string | null>(null)
 const customBlockExportFields = computed<readonly CustomBlockFieldAnalysis[]>(() =>
   customBlockExportBlock.value ? analyzeProjectCustomBlockExport(customBlockExportBlock.value).fields : [],
@@ -1008,6 +1012,7 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
   }
   if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
     customBlockExportBlock.value = getBlockById(intent.key)
+    customBlockExportErrorText.value = ''
     customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
     return
   }
@@ -1021,15 +1026,34 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
 
 async function handleCustomBlockExport(payload: { name: string; key: string; exposedFieldKeys: string[] }): Promise<void> {
   const root = customBlockExportBlock.value
-  if (!root) return
+  const document = cardDoc.value
+  if (!root || !document) return
+  customBlockExportErrorText.value = ''
+  const materialized = materializeProjectCustomBlockExport({
+    document,
+    rootBlockId: root.id,
+    environment: {
+      project: projectStore.resolvedProject.value,
+      dictionary: projectStore.resolvedDictionary.value,
+    },
+  })
+  const firstIssue = materialized.issues[0]
+  if (firstIssue) {
+    customBlockExportErrorText.value = t('cardDesigner.customBlock.exportBindingError', {
+      location: firstIssue.location.blockPath || firstIssue.location.owner.id,
+      field: firstIssue.location.fieldKey,
+      token: firstIssue.token || '',
+    })
+    return
+  }
   const manifest = await buildProjectCustomBlockManifest({
-    root,
+    root: materialized.root,
     key: payload.key,
     name: payload.name,
     exposedFieldKeys: payload.exposedFieldKeys,
   })
   const resources = await collectProjectCustomBlockResources({
-    root,
+    root: materialized.root,
     projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
     projectFonts: projectStore.projectFonts.value,
     remoteResourcePolicy: props.remoteResourcePolicy,
