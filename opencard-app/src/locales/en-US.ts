@@ -726,6 +726,7 @@ export default {
       moveToPrivate: 'Move to private fields',
       unavailable: 'Custom block unavailable',
       exportBindingError: 'Cannot export: {location}, field {field}, reference {token} could not be materialized.',
+      exportPackageError: 'Cannot export: block {block} cannot expand {source} ({reason}).',
     },
     treeActions: {
       package: 'Package',

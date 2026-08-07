@@ -725,6 +725,7 @@ export default {
       moveToPrivate: '移到不暴露给使用者',
       unavailable: '自定义 Block 不可用',
       exportBindingError: '无法导出：{location} 的字段 {field} 中，引用 {token} 无法实体化。',
+      exportPackageError: '无法导出：块 {block} 无法展开 {source}（{reason}）。',
     },
     treeActions: {
       package: '打包',

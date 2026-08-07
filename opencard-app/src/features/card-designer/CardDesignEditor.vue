@@ -1036,7 +1036,17 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
       project: projectStore.resolvedProject.value,
       dictionary: projectStore.resolvedDictionary.value,
     },
+    customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
   })
+  const firstExpansionIssue = materialized.expansionIssues[0]
+  if (firstExpansionIssue) {
+    customBlockExportErrorText.value = t('cardDesigner.customBlock.exportPackageError', {
+      block: firstExpansionIssue.blockId,
+      source: firstExpansionIssue.source,
+      reason: firstExpansionIssue.reason,
+    })
+    return
+  }
   const firstIssue = materialized.issues[0]
   if (firstIssue) {
     customBlockExportErrorText.value = t('cardDesigner.customBlock.exportBindingError', {
