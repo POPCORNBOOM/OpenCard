@@ -2,6 +2,7 @@ use super::*;
 use git2::{Commit, ObjectType, Repository, Tree};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +11,29 @@ pub struct VersionProjectRequest {
     project_root: String,
     project_id: String,
     generation: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateVersionRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    expected_head_commit_id: Option<String>,
+    expected_snapshot_id: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListVersionsRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    cursor: Option<String>,
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -67,6 +91,21 @@ pub struct VersionStatusDto {
     expected_head_commit_id: Option<String>,
     change_summary: ChangeSummaryDto,
     has_managed_content: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateVersionResponse {
+    version: VersionRecordDto,
+    change_summary: ChangeSummaryDto,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionListResponse {
+    project_id: String,
+    items: Vec<VersionRecordDto>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -132,6 +171,484 @@ pub async fn version_get_status(
         )
     })?;
     result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
+pub async fn version_create(
+    request: CreateVersionRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<CreateVersionResponse, VersionErrorDto> {
+    let operation = "version_create";
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+        || request.expected_snapshot_id.trim().is_empty()
+    {
+        return Err(to_error_dto(
+            operation,
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-request",
+                "missing version request field",
+            ),
+        ));
+    }
+    validate_description(&request.description).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        create_version(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
+pub async fn version_list(
+    request: ListVersionsRequest,
+    app_handle: tauri::AppHandle,
+) -> Result<VersionListResponse, VersionErrorDto> {
+    let operation = "version_list";
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+    {
+        return Err(to_error_dto(
+            operation,
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-request",
+                "missing version list request field",
+            ),
+        ));
+    }
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        list_versions(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+fn list_versions(
+    context: &ProjectHistoryContext,
+    request: ListVersionsRequest,
+) -> Result<VersionListResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let repository = open_repository(context)?;
+    let limit = request.limit.unwrap_or(50).clamp(1, 100);
+    let mut commit = match request.cursor {
+        Some(cursor) => {
+            let cursor_id = Oid::from_str(&cursor).map_err(|error| {
+                HistoryFailure::new("invalid-request", "parse-cursor", error.to_string())
+            })?;
+            let cursor_commit = repository.find_commit(cursor_id).map_err(|_| {
+                HistoryFailure::new("invalid-request", "parse-cursor", "unknown version cursor")
+            })?;
+            if cursor_commit.parent_count() == 0 {
+                None
+            } else if cursor_commit.parent_count() == 1 {
+                Some(
+                    cursor_commit
+                        .parent(0)
+                        .map_err(repository_error("read-version-parent"))?,
+                )
+            } else {
+                return Err(HistoryFailure::new(
+                    "history-corrupt",
+                    "read-version-parent",
+                    "version history is not linear",
+                ));
+            }
+        }
+        None => head_commit(&repository)?,
+    };
+    let mut items = Vec::new();
+    while let Some(current) = commit {
+        if items.len() == limit {
+            return Ok(VersionListResponse {
+                project_id: context.project_id.clone(),
+                next_cursor: items
+                    .last()
+                    .map(|item: &VersionRecordDto| item.commit_id.clone()),
+                items,
+            });
+        }
+        let next = if current.parent_count() == 0 {
+            None
+        } else if current.parent_count() == 1 {
+            Some(
+                current
+                    .parent(0)
+                    .map_err(repository_error("read-version-parent"))?,
+            )
+        } else {
+            return Err(HistoryFailure::new(
+                "history-corrupt",
+                "read-version-parent",
+                "version history is not linear",
+            ));
+        };
+        items.push(version_record(&repository, &current)?);
+        commit = next;
+    }
+    Ok(VersionListResponse {
+        project_id: context.project_id.clone(),
+        items,
+        next_cursor: None,
+    })
+}
+
+fn create_version(
+    context: &ProjectHistoryContext,
+    request: CreateVersionRequest,
+) -> Result<CreateVersionResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let repository = open_repository(context)?;
+    let current_entries = current_snapshot_entries(context)?;
+    let current_snapshot_id = snapshot_id(&current_entries)?;
+    if current_snapshot_id != request.expected_snapshot_id {
+        return Err(HistoryFailure::new(
+            "stale-state",
+            "compare-snapshot",
+            "project content changed during confirmation",
+        )
+        .project_id(&context.project_id)
+        .retryable());
+    }
+    let current_head = head_commit(&repository)?;
+    let actual_head_id = current_head.as_ref().map(|commit| commit.id().to_string());
+    if actual_head_id != request.expected_head_commit_id {
+        return Err(HistoryFailure::new(
+            "version-conflict",
+            "compare-head",
+            "project version head changed",
+        )
+        .project_id(&context.project_id)
+        .retryable());
+    }
+    if current_entries.is_empty() {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "create-version",
+            "there is no managed project content",
+        ));
+    }
+    let head_entries = match &current_head {
+        Some(commit) => tree_entries(
+            &repository,
+            &commit.tree().map_err(repository_error("read-head-tree"))?,
+        )?,
+        None => BTreeMap::new(),
+    };
+    let changed_files = compare_entries(&head_entries, &current_entries);
+    if changed_files.is_empty() {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "create-version",
+            "there are no saved content changes",
+        ));
+    }
+    let current_record = current_head
+        .as_ref()
+        .map(|commit| version_record(&repository, commit))
+        .transpose()?;
+    let version = next_version(context, current_record.as_ref())?;
+    ensure_version_not_used(&repository, &version)?;
+    let saved_at_unix_ms = unix_time_ms();
+    let projection = prepare_profile_projection(context, &version)?;
+    let tree_id = build_tree(&repository, context, projection.as_ref())?;
+    let tree = repository
+        .find_tree(tree_id)
+        .map_err(repository_error("read-created-tree"))?;
+    let metadata = VersionCommitMetadata {
+        schema_version: SCHEMA_VERSION,
+        whitelist_version: WHITELIST_VERSION,
+        kind: "saved".to_owned(),
+        version: version.clone(),
+        description: request.description.trim().to_owned(),
+        saved_at_unix_ms,
+        restored_from: None,
+    };
+    let message = serde_json::to_vec(&metadata).map_err(|error| {
+        HistoryFailure::new("history-io", "serialize-version", error.to_string())
+    })?;
+    let signature = git_signature(saved_at_unix_ms)?;
+    let parents = current_head.iter().collect::<Vec<_>>();
+    let commit_id = repository
+        .commit(
+            Some("refs/heads/main"),
+            &signature,
+            &signature,
+            std::str::from_utf8(&message).map_err(|error| {
+                HistoryFailure::new("history-io", "serialize-version", error.to_string())
+            })?,
+            &tree,
+            &parents,
+        )
+        .map_err(repository_error("create-version"))?;
+    if let Some(projection) = projection {
+        if let Err(error) = write_file_atomically(&projection.path, &projection.content) {
+            rollback_head(&repository, current_head.as_ref().map(|commit| commit.id()))?;
+            return Err(HistoryFailure::new(
+                "history-io",
+                "write-profile-version",
+                error.to_string(),
+            )
+            .project_id(&context.project_id)
+            .retryable());
+        }
+    }
+    let commit = repository
+        .find_commit(commit_id)
+        .map_err(repository_error("read-created-version"))?;
+    Ok(CreateVersionResponse {
+        version: version_record(&repository, &commit)?,
+        change_summary: summarize_changes(changed_files, current_snapshot_id),
+    })
+}
+
+fn validate_description(description: &str) -> Result<(), HistoryFailure> {
+    let trimmed = description.trim();
+    let length = trimmed.chars().count();
+    if !(1..=500).contains(&length) {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-description",
+            "version description must contain 1 to 500 Unicode scalar values",
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_version_not_used(repository: &Repository, version: &str) -> Result<(), HistoryFailure> {
+    let reference = match repository.find_reference("refs/heads/main") {
+        Ok(reference) => reference,
+        Err(error) if error.code() == git2::ErrorCode::NotFound => return Ok(()),
+        Err(error) => return Err(repository_error("read-versions")(error)),
+    };
+    if reference.target().is_none() {
+        return Ok(());
+    }
+    let mut revisions = repository
+        .revwalk()
+        .map_err(repository_error("read-versions"))?;
+    revisions
+        .set_sorting(git2::Sort::TIME | git2::Sort::REVERSE)
+        .map_err(repository_error("read-versions"))?;
+    revisions
+        .push(reference.target().unwrap())
+        .map_err(repository_error("read-versions"))?;
+    for revision in revisions {
+        let commit_id = revision.map_err(repository_error("read-versions"))?;
+        let commit = repository
+            .find_commit(commit_id)
+            .map_err(repository_error("read-versions"))?;
+        let metadata = parse_commit_metadata(&commit)?;
+        if metadata.version == version {
+            return Err(HistoryFailure::new(
+                "version-conflict",
+                "validate-version",
+                "version already exists in project history",
+            ));
+        }
+    }
+    Ok(())
+}
+
+struct ProfileProjection {
+    path: PathBuf,
+    content: Vec<u8>,
+}
+
+fn prepare_profile_projection(
+    context: &ProjectHistoryContext,
+    version: &str,
+) -> Result<Option<ProfileProjection>, HistoryFailure> {
+    let path = context.canonical_root.join(".ocproject");
+    let Ok(bytes) = fs::read(&path) else {
+        return Ok(None);
+    };
+    let mut profile = serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|error| {
+        HistoryFailure::new(
+            "invalid-request",
+            "prepare-profile-version",
+            error.to_string(),
+        )
+        .relative_path(".ocproject")
+    })?;
+    let Some(profile) = profile.as_object_mut() else {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "prepare-profile-version",
+            "project profile is not an object",
+        )
+        .relative_path(".ocproject"));
+    };
+    profile.insert(
+        "version".to_owned(),
+        serde_json::Value::String(version.to_owned()),
+    );
+    let content = serde_json::to_vec_pretty(profile).map_err(|error| {
+        HistoryFailure::new("history-io", "serialize-profile-version", error.to_string())
+    })?;
+    if content == bytes {
+        return Ok(None);
+    }
+    Ok(Some(ProfileProjection { path, content }))
+}
+
+#[derive(Default)]
+struct TreeNode {
+    files: BTreeMap<String, (Oid, i32)>,
+    directories: BTreeMap<String, TreeNode>,
+}
+
+fn build_tree(
+    repository: &Repository,
+    context: &ProjectHistoryContext,
+    projection: Option<&ProfileProjection>,
+) -> Result<Oid, HistoryFailure> {
+    let paths = scan_managed_files(&context.canonical_root, &context.template_managed_paths)?;
+    let mut root = TreeNode::default();
+    for relative_path in paths {
+        let absolute_path = context.canonical_root.join(Path::new(&relative_path));
+        let oid = if relative_path == ".ocproject" {
+            if let Some(projection) = projection {
+                repository.blob(&projection.content)
+            } else {
+                repository.blob_path(&absolute_path)
+            }
+        } else {
+            repository.blob_path(&absolute_path)
+        }
+        .map_err(|error| {
+            HistoryFailure::new("history-io", "create-blob", error.to_string())
+                .relative_path(&relative_path)
+                .retryable()
+        })?;
+        let mode = file_mode(&absolute_path)?;
+        insert_tree_entry(&mut root, &relative_path, oid, mode)?;
+    }
+    write_tree(repository, &root)
+}
+
+fn insert_tree_entry(
+    root: &mut TreeNode,
+    relative_path: &str,
+    oid: Oid,
+    mode: i32,
+) -> Result<(), HistoryFailure> {
+    let mut components = relative_path.split('/').peekable();
+    let mut node = root;
+    while let Some(component) = components.next() {
+        if components.peek().is_none() {
+            node.files.insert(component.to_owned(), (oid, mode));
+            return Ok(());
+        }
+        node = node.directories.entry(component.to_owned()).or_default();
+    }
+    Err(HistoryFailure::new(
+        "history-io",
+        "create-tree",
+        "managed path has no file name",
+    ))
+}
+
+fn write_tree(repository: &Repository, node: &TreeNode) -> Result<Oid, HistoryFailure> {
+    let mut builder = repository
+        .treebuilder(None)
+        .map_err(repository_error("create-tree"))?;
+    for (name, (oid, mode)) in &node.files {
+        builder
+            .insert(name, *oid, *mode)
+            .map_err(repository_error("create-tree"))?;
+    }
+    for (name, child) in &node.directories {
+        let child_id = write_tree(repository, child)?;
+        builder
+            .insert(name, child_id, 0o040000)
+            .map_err(repository_error("create-tree"))?;
+    }
+    builder.write().map_err(repository_error("create-tree"))
+}
+
+fn git_signature(saved_at_unix_ms: u64) -> Result<git2::Signature<'static>, HistoryFailure> {
+    git2::Signature::new(
+        "OpenCard",
+        "history@opencard.invalid",
+        &git2::Time::new((saved_at_unix_ms / 1000) as i64, 0),
+    )
+    .map_err(repository_error("create-signature"))
+}
+
+fn rollback_head(repository: &Repository, old_head: Option<Oid>) -> Result<(), HistoryFailure> {
+    match old_head {
+        Some(oid) => repository
+            .reference("refs/heads/main", oid, true, "rollback failed version")
+            .map(|_| ())
+            .map_err(repository_error("rollback-version")),
+        None => match repository.find_reference("refs/heads/main") {
+            Ok(mut reference) => reference
+                .delete()
+                .map_err(repository_error("rollback-version")),
+            Err(error) if error.code() == git2::ErrorCode::NotFound => Ok(()),
+            Err(error) => Err(repository_error("rollback-version")(error)),
+        },
+    }
+}
+
+fn write_file_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    let temporary_path =
+        path.with_extension(format!("tmp-{}-{}", std::process::id(), unix_time_ms()));
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary_path)?;
+    if let Err(error) = file.write_all(content).and_then(|_| file.sync_all()) {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+    match fs::rename(&temporary_path, path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = fs::remove_file(&temporary_path);
+            Err(error)
+        }
+    }
 }
 
 fn get_status(
@@ -624,5 +1141,138 @@ mod tests {
         for version in ["1.2", "01.2.3", "1.2.3-beta", "1.2.3+build", "-1.2.3"] {
             assert_eq!(parse_version(version), None);
         }
+    }
+
+    #[test]
+    fn create_version_commits_whitelisted_tree_and_projects_profile_version() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(
+            project.path().join(".ocproject"),
+            br#"{"name":"Fixture","version":"v0.2.4","unknown":{"kept":true}}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(project.path().join("cards")).unwrap();
+        fs::write(project.path().join("cards/main.ocdocument"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let before = get_status(&context, 1).unwrap();
+        let first = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "create-first".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: prepared.identity.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: before.expected_head_commit_id.clone(),
+                expected_snapshot_id: before.change_summary.snapshot_id.clone(),
+                description: "Initial card set".to_owned(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(first.version.version, "0.2.4");
+        assert_eq!(first.version.parent_commit_id, None);
+        assert_eq!(first.change_summary.added, 2);
+        let profile: serde_json::Value =
+            serde_json::from_slice(&fs::read(project.path().join(".ocproject")).unwrap()).unwrap();
+        assert_eq!(profile["version"], "0.2.4");
+        assert_eq!(profile["unknown"]["kept"], true);
+
+        let after_first = get_status(&context, 1).unwrap();
+        assert_eq!(after_first.current.as_ref().unwrap().version, "0.2.4");
+        assert_eq!(after_first.next_version, "0.2.5");
+        assert_eq!(after_first.change_summary.files.len(), 0);
+
+        fs::write(project.path().join("cards/main.ocdocument"), b"second").unwrap();
+        let before_second = get_status(&context, 1).unwrap();
+        let second = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "create-second".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: prepared.identity.project_id,
+                generation: 1,
+                expected_head_commit_id: before_second.expected_head_commit_id,
+                expected_snapshot_id: before_second.change_summary.snapshot_id,
+                description: "Update card set".to_owned(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(second.version.version, "0.2.5");
+        assert_eq!(
+            second.version.parent_commit_id,
+            Some(first.version.commit_id)
+        );
+        assert_eq!(second.change_summary.modified, 1);
+
+        let first_page = list_versions(
+            &context,
+            ListVersionsRequest {
+                operation_id: "list-first".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                cursor: None,
+                limit: Some(1),
+            },
+        )
+        .unwrap();
+        assert_eq!(first_page.items.len(), 1);
+        assert_eq!(first_page.items[0].version, "0.2.5");
+        let second_page = list_versions(
+            &context,
+            ListVersionsRequest {
+                operation_id: "list-second".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                cursor: first_page.next_cursor,
+                limit: Some(1),
+            },
+        )
+        .unwrap();
+        assert_eq!(second_page.items.len(), 1);
+        assert_eq!(second_page.items[0].version, "0.2.4");
+        assert!(second_page.next_cursor.is_none());
+    }
+
+    #[test]
+    fn create_version_rejects_stale_snapshot_without_moving_head() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("notes.txt"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+        fs::write(project.path().join("notes.txt"), b"changed").unwrap();
+
+        let error = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "stale".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: prepared.identity.project_id,
+                generation: 1,
+                expected_head_commit_id: status.expected_head_commit_id,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "Stale".to_owned(),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, "stale-state");
+        assert!(get_status(&context, 1).unwrap().current.is_none());
     }
 }

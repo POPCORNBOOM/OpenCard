@@ -271,6 +271,8 @@ pub fn run() {
             icon_spritesheet::compose_project_icon_spritesheet,
             version_history::version_prepare_project,
             version_history::repository::version_get_status,
+            version_history::repository::version_create,
+            version_history::repository::version_list,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

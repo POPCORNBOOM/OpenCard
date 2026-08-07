@@ -30,6 +30,12 @@ describe('useVersioning project preparation', () => {
         changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
         hasManagedContent: false,
       })),
+      createVersion: vi.fn(),
+      listVersions: vi.fn(async request => ({
+        projectId: request.projectId,
+        items: [],
+        nextCursor: null,
+      })),
     }
     const versioning = useVersioning({ projectPath, service })
 
@@ -70,6 +76,12 @@ describe('useVersioning project preparation', () => {
         changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: request.projectId },
         hasManagedContent: false,
       })),
+      createVersion: vi.fn(),
+      listVersions: vi.fn(async request => ({
+        projectId: request.projectId,
+        items: [],
+        nextCursor: null,
+      })),
     }
     const versioning = useVersioning({ projectPath, service })
     projectPath.value = 'D:/second'
@@ -92,6 +104,8 @@ describe('useVersioning project preparation', () => {
         throw { code: 'history-corrupt', projectId: 'project-id' }
       }),
       getStatus: vi.fn(),
+      createVersion: vi.fn(),
+      listVersions: vi.fn(),
     }
     const versioning = useVersioning({ projectPath, service })
 

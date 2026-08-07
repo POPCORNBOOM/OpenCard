@@ -5,6 +5,8 @@ import type {
   VersionErrorDto,
   VersionReadiness,
   VersionStatusDto,
+  VersionRecordDto,
+  VersionWriteState,
 } from '../model/versioning'
 import {
   versioningService,
@@ -29,12 +31,17 @@ export function useVersioning(options: UseVersioningOptions) {
   const readiness = ref<VersionReadiness>({ status: 'not-prepared' })
   const identity = ref<ProjectIdentityDto | null>(null)
   const status = ref<VersionStatusDto | null>(null)
+  const versions = ref<VersionRecordDto[]>([])
+  const nextVersionCursor = ref<string | null>(null)
+  const writeState = ref<VersionWriteState>({ status: 'idle' })
   let generation = 0
 
   async function prepare(projectRoot: string): Promise<void> {
     const requestGeneration = ++generation
     identity.value = null
     status.value = null
+    versions.value = []
+    nextVersionCursor.value = null
     if (!projectRoot) {
       readiness.value = { status: 'not-prepared' }
       return
@@ -57,6 +64,17 @@ export function useVersioning(options: UseVersioningOptions) {
       })
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
       status.value = projectStatus
+      const page = await service.listVersions({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: response.identity.projectId,
+        generation: requestGeneration,
+        cursor: null,
+        limit: 50,
+      })
+      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      versions.value = page.items
+      nextVersionCursor.value = page.nextCursor
       readiness.value = { status: 'ready', projectId: response.identity.projectId }
     } catch (error) {
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
@@ -67,6 +85,33 @@ export function useVersioning(options: UseVersioningOptions) {
         reason: resolveDegradedReason(error),
       }
       reportAppError('OC-E7001', error)
+    }
+  }
+
+  async function createVersion(description: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectStatus = status.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || !projectStatus || readiness.value.status !== 'ready') return
+
+    const operationId = crypto.randomUUID()
+    writeState.value = { status: 'running', operation: 'save', operationId }
+    try {
+      await service.createVersion({
+        operationId,
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        expectedHeadCommitId: projectStatus.expectedHeadCommitId,
+        expectedSnapshotId: projectStatus.changeSummary.snapshotId,
+        description,
+      })
+      await prepare(projectRoot)
+    } catch (error) {
+      reportAppError('OC-E7001', error)
+      throw error
+    } finally {
+      writeState.value = { status: 'idle' }
     }
   }
 
@@ -85,7 +130,11 @@ export function useVersioning(options: UseVersioningOptions) {
     readiness: readonly(readiness),
     identity: readonly(identity),
     status: readonly(status),
+    versions: readonly(versions),
+    nextVersionCursor: readonly(nextVersionCursor),
+    writeState: readonly(writeState),
     prepare,
+    createVersion,
     dispose,
   }
 }

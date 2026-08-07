@@ -82,3 +82,29 @@ export type VersionProjectRequest = {
   projectId: string
   generation: number
 }
+
+export type CreateVersionRequest = VersionProjectRequest & {
+  expectedHeadCommitId: string | null
+  expectedSnapshotId: string
+  description: string
+}
+
+export type CreateVersionResponse = {
+  version: VersionRecordDto
+  changeSummary: ChangeSummaryDto
+}
+
+export type ListVersionsRequest = VersionProjectRequest & {
+  cursor?: string | null
+  limit?: number
+}
+
+export type VersionListResponse = {
+  projectId: string
+  items: VersionRecordDto[]
+  nextCursor: string | null
+}
+
+export type VersionWriteState =
+  | { status: 'idle' }
+  | { status: 'running'; operation: 'save'; operationId: string }
