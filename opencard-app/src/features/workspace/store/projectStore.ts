@@ -75,6 +75,11 @@ import {
 } from '../model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
 import { clearProjectCustomBlockFonts, syncProjectCustomBlockFonts } from '../services/projectCustomBlockFontLoader'
+import {
+  clearProjectCustomBlockAssets,
+  syncProjectCustomBlockAssets,
+} from '../services/projectCustomBlockAssetLoader'
+import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -133,14 +138,21 @@ const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
+const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
+const projectCustomBlockIconCatalog = shallowRef<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
 const customBlockRegistryError = ref<string | null>(null)
 const settingsStore = useAppSettingsStore()
+const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
+  series: [...projectIconCatalog.value.series, ...projectCustomBlockIconCatalog.value.series],
+  entries: [...projectIconCatalog.value.entries, ...projectCustomBlockIconCatalog.value.entries],
+  errors: [...projectIconCatalog.value.errors, ...projectCustomBlockIconCatalog.value.errors],
+}))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
-  projectIconCatalog: projectIconCatalog.value,
-  customBlockCatalog: projectCustomBlockCatalog.value,
+  projectIconCatalog: runtimeProjectIconCatalog.value,
+  customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
 }) as CardRenderEnvironment)
 
 let unlistenFn: UnlistenFn | null = null
@@ -325,8 +337,11 @@ function clearProjectDictionary() {
 
 function clearProjectCustomBlocks() {
   projectCustomBlockCatalog.value = new Map()
+  projectCustomBlockRuntimeCatalog.value = new Map()
+  projectCustomBlockIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
   customBlockRegistryError.value = null
   clearProjectCustomBlockFonts()
+  clearProjectCustomBlockAssets()
 }
 
 async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
@@ -346,8 +361,11 @@ async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
       if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
       catalog.set(key, { ...entry, archivePath: relativePath })
     }
+    const runtimeAssets = await syncProjectCustomBlockAssets(catalog)
+    await syncProjectCustomBlockFonts(catalog)
     projectCustomBlockCatalog.value = catalog
-    syncProjectCustomBlockFonts(catalog)
+    projectCustomBlockRuntimeCatalog.value = runtimeAssets.customBlockCatalog
+    projectCustomBlockIconCatalog.value = runtimeAssets.iconCatalog
     customBlockRegistryError.value = null
     return true
   } catch (error) {

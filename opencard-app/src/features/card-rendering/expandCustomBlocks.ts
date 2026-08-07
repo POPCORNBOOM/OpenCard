@@ -11,6 +11,7 @@ export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
     readonly resize: Readonly<ProjectCustomBlockResizePolicy>
   }
   readonly files?: ReadonlyMap<string, Uint8Array>
+  readonly resourceUrls?: ReadonlyMap<string, string>
 }>
 
 export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
@@ -24,30 +25,14 @@ function clone<T>(value: T): T {
   }
 }
 
-function mimeForPath(path: string): string {
-  if (/\.png$/i.test(path)) return 'image/png'
-  if (/\.jpe?g$/i.test(path)) return 'image/jpeg'
-  if (/\.webp$/i.test(path)) return 'image/webp'
-  if (/\.gif$/i.test(path)) return 'image/gif'
-  return 'application/octet-stream'
-}
-
-function bytesToDataUrl(path: string, bytes: Uint8Array): string {
-  let binary = ''
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
-  }
-  return `data:${mimeForPath(path)};base64,${btoa(binary)}`
-}
-
-function resolveBundledResources(block: CardBlock, packageKey: string, files?: ReadonlyMap<string, Uint8Array>): void {
+function resolveBundledResources(block: CardBlock, packageKey: string, resourceUrls?: ReadonlyMap<string, string>): void {
   if (block.type === 'image-block' && block.image.startsWith(`ocblock:${packageKey}/`)) {
     const archivePath = block.image.slice(`ocblock:${packageKey}/`.length)
-    const bytes = files?.get(archivePath)
-    if (bytes) block.image = bytesToDataUrl(archivePath, bytes)
+    const url = resourceUrls?.get(archivePath)
+    if (url) block.image = url
   }
   if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
-  for (const child of block.children) resolveBundledResources(child.block, packageKey, files)
+  for (const child of block.children) resolveBundledResources(child.block, packageKey, resourceUrls)
 }
 
 function namespaceDescendantIds(block: CardBlock, instanceId: string, root = true): void {
@@ -98,7 +83,7 @@ export function expandCustomBlocks(
       return block
     }
     const root = clone(entry.manifest.root) as CardBlock
-    resolveBundledResources(root, entry.manifest.key, entry.files)
+    resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
     namespaceDescendantIds(root, block.id)
     root.name = block.name
     root.notes = block.notes

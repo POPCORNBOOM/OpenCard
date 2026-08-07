@@ -1036,7 +1036,7 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
       project: projectStore.resolvedProject.value,
       dictionary: projectStore.resolvedDictionary.value,
     },
-    customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
+    customBlockCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
   })
   const firstExpansionIssue = materialized.expansionIssues[0]
   if (firstExpansionIssue) {
@@ -1064,8 +1064,11 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
   })
   const resources = await collectProjectCustomBlockResources({
     root: materialized.root,
+    packageKey: manifest.key,
     projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
     projectFonts: projectStore.projectFonts.value,
+    projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
+    customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
     remoteResourcePolicy: props.remoteResourcePolicy,
     fs: fileSystemService,
     fetchBytes: async url => new Uint8Array(await (await fetch(url)).arrayBuffer()),

@@ -30,7 +30,7 @@ describe('expandCustomBlocks', () => {
     expect(a.type === 'simple-container-block' && a.children[0].location.id).toBe('first::location:label-location')
   })
 
-  it('resolves packaged image bytes to a renderable data URL', () => {
+  it('resolves packaged images through their controlled runtime URL', () => {
     const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/a.png' })
     const host = createBlock('custom-block', { source: 'block:picture', interfaceHash: 'hash' })
     const document: CardDocument = {
@@ -42,10 +42,10 @@ describe('expandCustomBlocks', () => {
     }
     const result = expandCustomBlocks(document, new Map([['picture', {
       manifest: { key: 'picture', interfaceHash: 'hash', root, publicFields: [], resize: { widthLocked: false, heightLocked: false } },
-      files: new Map([['resources/images/a.png', new Uint8Array([1, 2, 3])]]),
+      resourceUrls: new Map([['resources/images/a.png', 'blob:picture']]),
     }]]))
     const expanded = result.document.faces.front.children[0].block
-    expect(expanded.type === 'image-block' && expanded.image).toBe('data:image/png;base64,AQID')
+    expect(expanded.type === 'image-block' && expanded.image).toBe('blob:picture')
   })
 
   it('reports missing packages without removing the host block', () => {
