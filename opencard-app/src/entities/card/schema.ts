@@ -240,6 +240,33 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
     }
 }
 
+function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
+    const base = createBaseBlockPropertyEditorSchema()
+    const visibleKeys = new Set(['name', 'notes', 'visible'])
+    return {
+        ...Object.fromEntries(Object.entries(base).map(([key, definition]) => [
+            key,
+            visibleKeys.has(key) ? definition : { ...definition, isHidden: true },
+        ])),
+        source: {
+            fieldType: 'string',
+            required: true,
+            isReadonly: true,
+            categoryId: 'identity',
+            acceptsBinding: false,
+            exposesReference: false,
+        },
+        interfaceHash: {
+            fieldType: 'string',
+            required: true,
+            isReadonly: true,
+            isHidden: true,
+            acceptsBinding: false,
+            exposesReference: false,
+        },
+    }
+}
+
 function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<string, EditorPropertyDefinition> {
     return {
         ...createBaseBlockPropertyEditorSchema(),
@@ -322,11 +349,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         gap: { fieldType: 'string', required: true, autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         children: { fieldType: 'object', objectType: 'CardBlock', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
-    'custom-block': {
-        ...createBaseBlockPropertyEditorSchema(),
-        source: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
-        interfaceHash: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
-    },
+    'custom-block': createCustomBlockPropertyEditorSchema(),
     'simple-container-location': {
         id: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'identity', acceptsBinding: false, exposesReference: false },

@@ -98,6 +98,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   })
   const canCreateAdditionalField = computed(() => Boolean(
     options.selectedBlock.value
+    && options.selectedBlock.value.type !== 'custom-block'
     && options.selectedCardId.value === options.blueprintCardId,
   ))
   const additionalFieldCreateError = computed<AdditionalFieldKeyError | 'invalid-target' | null>(() => {
@@ -599,6 +600,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
 
     if (block?.id === key) {
+      if (block.type === 'custom-block' && block.additionalFieldDefinition?.[fieldKey]) return false
       return blockFieldCommands.deleteField({
         cardId: options.blueprintCardId,
         blockId: key,
