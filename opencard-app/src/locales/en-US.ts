@@ -724,6 +724,7 @@ export default {
       private: 'Not exposed to users',
       moveToExposed: 'Move to available fields',
       moveToPrivate: 'Move to private fields',
+      unavailable: 'Custom block unavailable',
     },
     treeActions: {
       package: 'Package',

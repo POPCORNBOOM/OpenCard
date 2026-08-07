@@ -254,12 +254,14 @@ function parseBlock(
         }),
       }
     case 'custom-block':
+      const source = fields.string('source')
       return {
         ...base,
         type,
-        source: fields.string('source'),
+        source,
         interfaceHash: fields.string('interfaceHash'),
         content: null,
+        error: source || 'custom-block',
       }
   }
 }

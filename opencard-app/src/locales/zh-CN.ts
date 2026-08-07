@@ -723,6 +723,7 @@ export default {
       private: '不暴露给使用者',
       moveToExposed: '移到使用者可用',
       moveToPrivate: '移到不暴露给使用者',
+      unavailable: '自定义 Block 不可用',
     },
     treeActions: {
       package: '打包',
