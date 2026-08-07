@@ -50,6 +50,16 @@ function resolveBundledResources(block: CardBlock, packageKey: string, files?: R
   for (const child of block.children) resolveBundledResources(child.block, packageKey, files)
 }
 
+function namespaceDescendantIds(block: CardBlock, instanceId: string, root = true): void {
+  if (root) block.id = instanceId
+  else block.id = `${instanceId}::block:${block.id}`
+  if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
+  for (const child of block.children) {
+    child.location.id = `${instanceId}::location:${child.location.id}`
+    namespaceDescendantIds(child.block, instanceId, false)
+  }
+}
+
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
@@ -89,7 +99,7 @@ export function expandCustomBlocks(
     }
     const root = clone(entry.manifest.root) as CardBlock
     resolveBundledResources(root, entry.manifest.key, entry.files)
-    root.id = block.id
+    namespaceDescendantIds(root, block.id)
     root.name = block.name
     root.notes = block.notes
     for (const field of entry.manifest.publicFields) {
