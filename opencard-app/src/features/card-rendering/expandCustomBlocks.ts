@@ -1,4 +1,5 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
+import { toRaw } from 'vue'
 import type { ProjectCustomBlockPublicField, ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
 
 export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
@@ -14,7 +15,12 @@ export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
 export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
 
 function clone<T>(value: T): T {
-  return structuredClone(value)
+  const raw = value && typeof value === 'object' ? toRaw(value as object) : value
+  try {
+    return structuredClone(raw) as T
+  } catch {
+    return JSON.parse(JSON.stringify(raw)) as T
+  }
 }
 
 export function expandCustomBlocks(
