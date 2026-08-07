@@ -1,6 +1,12 @@
 import { computed, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createTextBlock, type CardDocument, type CardFaceKey } from '../../entities/card/model'
+import {
+  createFlowContainerBlock,
+  createSimpleContainerBlock,
+  createTextBlock,
+  type CardDocument,
+  type CardFaceKey,
+} from '../../entities/card/model'
 import { buildParentLookup } from '../../entities/card/tree'
 import { useCdeTreeOps } from './useCdeTreeOps'
 
@@ -91,5 +97,109 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(document.faces.back.children).toHaveLength(3)
     expect(document.faces.back.children[2]?.block.type).toBe('markdown-text-block')
     expect(document.faces.back.children[2]?.block.name).toBe('Localized markdown-text-block')
+  })
+
+  it('projects packaged containers as atomic tree nodes and preserves nested package boundaries', () => {
+    const document = createDocument()
+    const inner = createFlowContainerBlock({
+      id: 'inner',
+      packaged: 'true',
+      children: [{
+        block: createTextBlock({ id: 'inner-text' }),
+        location: { id: 'inner-text-location', type: 'flow-container-location', index: '0' },
+      }],
+    })
+    const outer = createSimpleContainerBlock({
+      id: 'outer',
+      packaged: 'true',
+      children: [{
+        block: inner,
+        location: { id: 'inner-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    const sibling = createTextBlock({ id: 'sibling' })
+    document.faces.front.children = [
+      { block: outer, location: { id: 'outer-location', type: 'simple-container-location', anchor: 'lt' } },
+      { block: sibling, location: { id: 'sibling-location', type: 'simple-container-location', anchor: 'lt' } },
+    ]
+
+    const activeFace = ref(document.faces.front)
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const selectedBlockKeys = ref<string[]>([])
+    const state = useCdeTreeOps({
+      activeFace,
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState: () => {
+        documentRevision.value += 1
+        parentLookup.value = buildParentLookup(document)
+      },
+      markDocumentChanged: vi.fn(),
+    })
+
+    expect([...state.blockTreeData.value.items.keys()]).toEqual(['outer', 'sibling'])
+    expect(state.blockTreeData.value.children.has('outer')).toBe(false)
+    expect(state.blockTreeData.value.items.get('outer')).toMatchObject({
+      icon: 'entity.block-package',
+      actions: ['hide-block', 'packaged-container-more'],
+      contextActions: ['hide-block', 'rename', 'unpackage', 'duplicate', 'delete'],
+    })
+
+    state.handleViewportBlockClick('inner-text')
+    expect(selectedBlockKeys.value).toEqual(['outer'])
+
+    state.handleTreeIntent({ type: 'action.invoke', key: 'outer', actionKey: 'unpackage', source: 'context' })
+    expect(outer.packaged).toBeUndefined()
+    expect(state.blockTreeData.value.children.get('outer')).toEqual(['inner'])
+    expect(state.blockTreeData.value.items.get('inner')).toMatchObject({ icon: 'entity.block-package' })
+    expect(state.blockTreeData.value.items.has('inner-text')).toBe(false)
+
+    state.handleViewportBlockClick('inner-text')
+    expect(selectedBlockKeys.value).toEqual(['inner'])
+
+    state.handleTreeIntent({ type: 'action.invoke', key: 'outer', actionKey: 'package', source: 'context' })
+    expect(outer.packaged).toBe('true')
+    expect(inner.packaged).toBe('true')
+  })
+
+  it('rejects internal mutations while allowing packaged containers to move and duplicate as a whole', () => {
+    const document = createDocument()
+    const packaged = createSimpleContainerBlock({ id: 'package', packaged: 'true' })
+    const sibling = createTextBlock({ id: 'sibling' })
+    document.faces.front.children = [
+      { block: packaged, location: { id: 'package-location', type: 'simple-container-location', anchor: 'lt' } },
+      { block: sibling, location: { id: 'sibling-location', type: 'simple-container-location', anchor: 'lt' } },
+    ]
+
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys: ref<string[]>([]),
+      getDefaultBlockName: type => type,
+      refreshDocumentState: () => {
+        documentRevision.value += 1
+        parentLookup.value = buildParentLookup(document)
+      },
+      markDocumentChanged: vi.fn(),
+    })
+
+    state.handleTreeIntent({ type: 'action.invoke', key: 'package', actionKey: 'add-text-block', source: 'context' })
+    expect(packaged.children).toEqual([])
+
+    state.handleTreeIntent({ type: 'move.request', key: 'sibling', targetKey: 'package', position: 'inside' })
+    expect(parentLookup.value.get('sibling')).toMatchObject({ type: 'card-face', id: 'front' })
+
+    state.handleTreeIntent({ type: 'move.request', key: 'sibling', targetKey: 'package', position: 'before' })
+    expect(document.faces.front.children.map(child => child.block.id)).toEqual(['sibling', 'package'])
+
+    state.handleTreeIntent({ type: 'action.invoke', key: 'package', actionKey: 'duplicate', source: 'context' })
+    const duplicate = document.faces.front.children[2]?.block
+    expect(duplicate).toMatchObject({ type: 'simple-container-block', packaged: 'true' })
   })
 })

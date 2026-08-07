@@ -52,9 +52,10 @@ function createHarness() {
     child: ['name', 'content', 'score', 'legacy'],
     'back-text': ['content'],
   })
+  const documentRevision = ref(0)
   const model = useCdeDataTableModel({
     cardDoc: ref(document),
-    documentRevision: ref(0),
+    documentRevision,
     fieldSelection: selection,
     blueprintCardId: '__blueprint__',
     blueprintTitle: () => 'Blueprint',
@@ -62,7 +63,7 @@ function createHarness() {
     translate: key => key,
     hasMessage: () => false,
   })
-  return { model, selection }
+  return { container, documentRevision, model, selection }
 }
 
 describe('useCdeDataTableModel', () => {
@@ -109,5 +110,20 @@ describe('useCdeDataTableModel', () => {
     expect(model.faceGroups.value[0]?.blocks[0]?.fields.map(field => field.key)).toEqual(['content'])
     expect(model.faceGroups.value[1]?.blocks).toEqual([])
     expect(model.catalogFaceGroups.value[1]?.blocks.map(block => block.key)).toEqual(['back-text'])
+  })
+
+  it('hides packaged-container descendants while preserving their field selection for unpacking', () => {
+    const { container, documentRevision, model, selection } = createHarness()
+    container.packaged = 'true'
+    documentRevision.value += 1
+
+    expect(model.catalogFaceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container'])
+    expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container'])
+    expect(selection.value.child).toEqual(['name', 'content', 'score', 'legacy'])
+
+    delete container.packaged
+    documentRevision.value += 1
+    expect(model.catalogFaceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
+    expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
   })
 })

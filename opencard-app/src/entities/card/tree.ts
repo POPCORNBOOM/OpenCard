@@ -84,6 +84,12 @@ export function isBlockContainer(target: CardBlock | CardFace): target is BlockC
         || target.type === 'card-face'
 }
 
+export function isBlockPackaged(target: CardBlock | CardFace): boolean {
+    return target.type !== 'card-face'
+        && isBlockContainer(target)
+        && target.packaged === 'true'
+}
+
 function registerBlockSubtree(
     block: CardBlock,
     parentContainer: BlockContainer,

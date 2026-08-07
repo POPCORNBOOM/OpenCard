@@ -708,6 +708,10 @@ export default {
     watching: '监听中',
   },
   cardDesigner: {
+    treeActions: {
+      package: '打包',
+      unpackage: '解包',
+    },
     blockNames: {
       'text-block': '文本块',
       'markdown-text-block': 'Markdown 文本块',

@@ -133,6 +133,7 @@ export const iconTokens = {
   'entity.block-flow-container': true,
   'entity.block-image': true,
   'entity.block-markdown': true,
+  'entity.block-package': true,
   'entity.block-qrcode': true,
   'entity.block-shape': true,
   'entity.block-simple-container': true,

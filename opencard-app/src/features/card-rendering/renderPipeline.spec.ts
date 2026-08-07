@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
+import {
+  createSimpleContainerBlock,
+  createTextBlock,
+  type CardBlock,
+  type CardDocument,
+  type CardInstanceRecord,
+} from '../../entities/card/model'
 import { runRenderPipeline } from './renderPipeline'
 import {
   createDefaultProjectInformation,
 } from '../workspace/model/projectMetadata'
 
-function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
+function createDocument(
+  block: CardBlock = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' }),
+): CardDocument {
   return {
     type: 'card-document',
     schemaVersion: '2',
@@ -26,6 +34,23 @@ function createDocument(block = createTextBlock({ id: 'text', name: 'Title', con
 }
 
 describe('renderPipeline', () => {
+  it('renders packaged and unpackaged containers identically', () => {
+    const createContainer = (packaged?: string) => createSimpleContainerBlock({
+      id: 'container',
+      packaged,
+      children: [{
+        block: createTextBlock({ id: 'child', content: 'Visible content' }),
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+
+    const unpackaged = runRenderPipeline(createDocument(createContainer()), null)
+    const packaged = runRenderPipeline(createDocument(createContainer('true')), null)
+
+    expect(packaged.document).toEqual(unpackaged.document)
+    expect(packaged.issues).toEqual(unpackaged.issues)
+  })
+
   it('applies the instance before expanding bindings and parsing render data', () => {
     const document = createDocument()
     const instance: CardInstanceRecord = {

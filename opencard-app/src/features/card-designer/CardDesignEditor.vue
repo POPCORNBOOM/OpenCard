@@ -568,7 +568,12 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['container-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'add', 'duplicate', 'delete'],
+    children: ['rename', 'add', 'package', 'duplicate', 'delete'],
+  }],
+  ['packaged-container-more', {
+    icon: 'nav.more',
+    title: '更多操作',
+    children: ['rename', 'unpackage', 'duplicate', 'delete'],
   }],
   ['add-root', {
     icon: 'action.add',
@@ -592,6 +597,8 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['duplicate', { icon: 'action.copy', title: '复制' }],
   ['delete', { icon: 'action.delete', title: '删除' }],
   ['rename', { icon: 'action.edit', title: '重命名' }],
+  ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
+  ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
   ['hide-block', { icon: 'status.eye', title: '隐藏' }],
   ['show-block', { icon: 'status.eye-off', title: '显示' }],
   ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
@@ -899,6 +906,7 @@ const {
   handleTreeIntent,
   handleRootAction,
   handleViewportBlockClick: selectViewportBlock,
+  resolveVisibleBlockKey,
   clearSelection,
 } = useCdeTreeOps({
   activeFace,
@@ -1531,7 +1539,10 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
     activeFaceKey.value = target.faceKey
   }
 
-  if (workspaceMode.value === 'data-table' && target.owner === 'block') {
+  const visibleBlockId = target.blockId ? resolveVisibleBlockKey(target.blockId) : null
+  const blockedByPackage = !!target.blockId && visibleBlockId !== target.blockId
+
+  if (workspaceMode.value === 'data-table' && target.owner === 'block' && !blockedByPackage) {
     if (!target.blockId) return 'not-found'
     if (dataTableFields.value[target.blockId]?.includes(target.fieldKey)) {
       await nextTick()
@@ -1554,7 +1565,7 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
   }
   if (target.owner === 'block' || target.owner === 'location') {
     forceStructureTreeReveal.value = true
-    selectedBlockKeys.value = target.blockId ? [target.blockId] : []
+    selectedBlockKeys.value = visibleBlockId ? [visibleBlockId] : []
   } else {
     clearSelection()
   }
@@ -1564,6 +1575,10 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
 
   await nextTick()
   await nextTick()
+  if (blockedByPackage) {
+    forceStructureTreeReveal.value = false
+    return 'not-found'
+  }
   const inputKey = resolveNavigationInputKey(target)
   forceStructureTreeReveal.value = false
   if (!inputKey || !propertyEditorRef.value) return 'not-found'

@@ -709,6 +709,10 @@ export default {
     watching: 'Watching',
   },
   cardDesigner: {
+    treeActions: {
+      package: 'Package',
+      unpackage: 'Unpackage',
+    },
     blockNames: {
       'text-block': 'Text Block',
       'markdown-text-block': 'Markdown Text Block',

@@ -312,10 +312,12 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     },
     'simple-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
+        packaged: { fieldType: 'boolean', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         children: { fieldType: 'object', objectType: 'CardBlock', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
     'flow-container-block': {
         ...createBaseBlockPropertyEditorSchema(),
+        packaged: { fieldType: 'boolean', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         direction: { fieldType: 'flowDirection', required: true, categoryId: 'layout' },
         gap: { fieldType: 'string', required: true, autocomplete: cssLengthAutocomplete, categoryId: 'layout' },
         children: { fieldType: 'object', objectType: 'CardBlock', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
@@ -508,6 +510,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
+        packaged: 'false',
         children: [],
     },
     'flow-container-block': {
@@ -532,6 +535,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
+        packaged: 'false',
         direction: 'lr',
         gap: '10px',
         children: [],

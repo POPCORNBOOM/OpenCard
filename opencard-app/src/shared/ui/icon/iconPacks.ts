@@ -294,6 +294,7 @@ export const iconGlyphs = {
   'entity.block-flow-container': glyph(mdiViewSequentialOutline),
   'entity.block-image': glyph(mdiImageOutline),
   'entity.block-markdown': glyph(mdiLanguageMarkdownOutline),
+  'entity.block-package': glyph(mdiPackageVariantClosed),
   'entity.block-qrcode': glyph(mdiQrcodeScan),
   'entity.block-shape': glyph(mdiShapeOutline),
   'entity.block-simple-container': glyph(mdiViewGridOutline),

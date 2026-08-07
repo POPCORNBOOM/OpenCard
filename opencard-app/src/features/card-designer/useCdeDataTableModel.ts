@@ -6,7 +6,7 @@ import {
   type CardFaceKey,
 } from '../../entities/card/model'
 import type { EditorPropertyDefinition } from '../../entities/card/schema'
-import { isBlockContainer } from '../../entities/card/tree'
+import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
 import { resolveCdePropertyFields } from './cdePropertyFieldDefinitions'
@@ -151,7 +151,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
         depth,
         fields: projectFieldCatalog(document, block),
       })
-      if (isBlockContainer(block)) {
+      if (isBlockContainer(block) && !isBlockPackaged(block)) {
         for (const child of block.children) visit(child.block, depth + 1)
       }
     }

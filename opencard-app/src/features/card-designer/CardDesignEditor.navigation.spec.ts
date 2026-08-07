@@ -201,6 +201,72 @@ describe('CardDesignEditor issue navigation', () => {
     expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
   })
 
+  it('stops issue navigation at the outermost packaged container', async () => {
+    const document = createDocument()
+    const container = document.faces.front.children[0]!.block
+    if (container.type !== 'simple-container-block') throw new Error('Expected simple container')
+    container.packaged = 'true'
+
+    const revealField = vi.fn().mockResolvedValue(true)
+    const PropertyEditorStub = defineComponent({
+      name: 'PropertyEditor',
+      setup(_, { expose }) {
+        expose({ revealField })
+        return () => h('div')
+      },
+    })
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: {
+        role: String,
+        selectedKeys: Array,
+        scrollToSelection: Boolean,
+      },
+      template: '<div />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.ocdocument',
+        modelValue: JSON.stringify(document),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          PropertyEditor: PropertyEditorStub,
+          OcTree: OcTreeStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+    await nextTick()
+
+    const result = (wrapper.vm as unknown as {
+      navigate: (value: SessionNavigationToken) => Promise<string>
+    }).navigate({
+      protocol: 'card-designer',
+      version: 2,
+      target: {
+        kind: 'property',
+        instanceId: null,
+        faceKey: 'front',
+        blockId: 'text-1',
+        owner: 'block',
+        fieldKey: 'content',
+      },
+    })
+
+    await expect(result).resolves.toBe('not-found')
+    await nextTick()
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')
+    expect(structureTree?.props('selectedKeys')).toEqual(['container-1'])
+    expect(revealField).not.toHaveBeenCalled()
+  })
+
   it('shows reset after an instance Block field is overridden', async () => {
     const PropertyEditorStub = defineComponent({
       name: 'PropertyEditor',
