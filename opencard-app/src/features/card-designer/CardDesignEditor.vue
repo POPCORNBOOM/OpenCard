@@ -599,6 +599,7 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['rename', { icon: 'action.edit', title: '重命名' }],
   ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
   ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
+  ['export-custom-block', { icon: 'action.download', title: t('cardDesigner.treeActions.exportCustomBlock') }],
   ['hide-block', { icon: 'status.eye', title: '隐藏' }],
   ['show-block', { icon: 'status.eye-off', title: '显示' }],
   ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
@@ -946,6 +947,10 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'action.invoke' && intent.actionKey === 'rename') {
     handleTreeIntent(intent)
     void structureTreeRef.value?.beginRename(intent.key)
+    return
+  }
+  if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
+    emit('export-custom-block', intent.key)
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {
@@ -1538,7 +1543,6 @@ async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavi
   if (target.faceKey) {
     activeFaceKey.value = target.faceKey
   }
-
   const visibleBlockId = target.blockId ? resolveVisibleBlockKey(target.blockId) : null
   const blockedByPackage = !!target.blockId && visibleBlockId !== target.blockId
 

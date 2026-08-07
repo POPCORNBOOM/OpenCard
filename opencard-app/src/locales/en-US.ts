@@ -712,6 +712,7 @@ export default {
     treeActions: {
       package: 'Package',
       unpackage: 'Unpackage',
+      exportCustomBlock: 'Export custom block',
     },
     blockNames: {
       'text-block': 'Text Block',

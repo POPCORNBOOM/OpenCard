@@ -47,6 +47,7 @@ export interface EditorEmits {
   (e: 'update-card-designer-view', value: CardDesignerViewState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
   (e: 'open-file', path: string): void
+  (e: 'export-custom-block', blockId: string): void
 }
 
 // 编辑器接口定义

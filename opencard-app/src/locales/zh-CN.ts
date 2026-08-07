@@ -711,6 +711,7 @@ export default {
     treeActions: {
       package: '打包',
       unpackage: '解包',
+      exportCustomBlock: '导出自定义 Block',
     },
     blockNames: {
       'text-block': '文本块',

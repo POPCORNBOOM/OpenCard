@@ -80,6 +80,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         contextActions: [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
           'rename',
+          'export-custom-block',
           ...(isBlockContainer(block) ? (packaged ? ['unpackage'] : ['add', 'package']) : []),
           'duplicate',
           'delete',
