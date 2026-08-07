@@ -8,6 +8,7 @@ import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
 import { expandCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
+import { createCardPipelineIssue } from './cardPipelineIssue'
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
@@ -43,6 +44,21 @@ export function runRenderPipeline(
 
   return {
     document: parsed.document,
-    issues: [...resolved.issues, ...parsed.issues],
+    issues: [
+      ...expanded.issues.map(issue => createCardPipelineIssue({
+        type: 'card-designer.render-parse.conversion-failed',
+        location: {
+          documentId: projected.id,
+          instanceId: instance?.id ?? null,
+          faceKey: issue.faceKey,
+          owner: { kind: 'block', id: issue.blockId },
+          blockId: issue.blockId,
+          fieldKey: 'source',
+        },
+        parameters: { value: `${issue.reason}:${issue.source}` },
+      })),
+      ...resolved.issues,
+      ...parsed.issues,
+    ],
   }
 }
