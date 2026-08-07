@@ -2,7 +2,7 @@
 import type { Ref } from 'vue'
 import type {
   EditorSession,
-  SessionSaveResult,
+  SessionSaveReceipt,
 } from '../../workspace/store/editorSessionStore'
 import type { ProjectCloseDestination } from '../shellPage'
 import {
@@ -24,7 +24,7 @@ type UseShellCloseCoordinatorOptions = {
   flushAffectedSessions: (sessionIds: readonly string[]) => Promise<void>
   pickDraftDirectory: () => Promise<string | null>
   fileExists: (path: string) => Promise<boolean>
-  saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveResult>
+  saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveReceipt>
   completions: ShellCloseCompletions
 }
 

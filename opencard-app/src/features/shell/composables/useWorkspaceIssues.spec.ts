@@ -17,6 +17,7 @@ function createSession(id: string, name: string): EditorSession {
     editorId: 'card-designer',
     savedContent: '',
     draftContent: '',
+    contentRevision: 0,
     isDirty: false,
     isPreview: false,
   }

@@ -26,7 +26,28 @@ const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosav
 const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
-export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
+export type SessionSaveReceipt =
+  | {
+    status: 'saved'
+    sessionId: string
+    resourceKind: Exclude<SessionResourceKind, 'draft'>
+    path: string
+    relativePath: string | null
+    startedRevision: number
+    persistedRevision: number
+    currentRevision: number
+    persistedContent: string
+    sessionStillDirty: boolean
+  }
+  | {
+    status: 'cancelled'
+    sessionId: string
+  }
+  | {
+    status: 'skipped'
+    sessionId: string
+    reason: 'missing' | 'contentless' | 'clean'
+  }
 
 export type EditorSession = {
   id: string
@@ -37,6 +58,7 @@ export type EditorSession = {
   editorId: string
   savedContent: string
   draftContent: string
+  contentRevision: number
   isDirty: boolean
   isPreview: boolean
   uiState?: EditorSessionUiState
@@ -120,6 +142,18 @@ function resolveOpenCardDraftName(content: string, fallback: string): string {
 function isAbsolutePath(path: string): boolean {
   const normalizedPath = normalizePath(path)
   return /^[a-z]:\//i.test(normalizedPath) || normalizedPath.startsWith('/')
+}
+
+function resolveProjectRelativePath(path: string, resourceKind: SessionResourceKind, rootPath: string): string | null {
+  if (resourceKind !== 'workspace' || !rootPath) {
+    return null
+  }
+
+  const normalizedPath = normalizePath(path)
+  const normalizedRoot = normalizePath(rootPath)
+  return isSameOrDescendantPath(normalizedPath, normalizedRoot)
+    ? normalizedPath.slice(normalizedRoot.length).replace(/^\/+/, '')
+    : normalizedPath
 }
 
 function projectConfigurationAutosaveKey(sessionId: string): string {
@@ -282,6 +316,7 @@ export function useEditorSessionStore() {
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
+      contentRevision: 0,
       isDirty: false,
       isPreview: preview,
     }
@@ -321,6 +356,7 @@ export function useEditorSessionStore() {
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
+      contentRevision: 0,
       isDirty: false,
       isPreview: false,
     }
@@ -350,6 +386,10 @@ export function useEditorSessionStore() {
         return session
       }
 
+      if (content === session.draftContent) {
+        return session
+      }
+
       const isDirty = content !== session.savedContent
       return {
         ...session,
@@ -357,6 +397,7 @@ export function useEditorSessionStore() {
           ? resolveOpenCardDraftName(content, session.name)
           : session.name,
         draftContent: content,
+        contentRevision: session.contentRevision + 1,
         isDirty,
         isPreview: isDirty ? false : session.isPreview,
       }
@@ -371,14 +412,15 @@ export function useEditorSessionStore() {
         return session
       }
 
-      if (session.isDirty === isDirty) {
+      const nextDirty = isDirty || session.draftContent !== session.savedContent
+      if (session.isDirty === nextDirty) {
         return session
       }
 
       return {
         ...session,
-        isDirty,
-        isPreview: isDirty ? false : session.isPreview,
+        isDirty: nextDirty,
+        isPreview: nextDirty ? false : session.isPreview,
       }
     })
   }
@@ -496,16 +538,23 @@ export function useEditorSessionStore() {
     await fileSystemService.writeFile(path, content)
   }
 
-  async function saveSession(sessionId: string, targetPath?: string): Promise<SessionSaveResult> {
+  async function saveSession(sessionId: string, targetPath?: string): Promise<SessionSaveReceipt> {
     taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
-      return 'skipped'
+      return { status: 'skipped', sessionId, reason: 'missing' }
     }
 
     if (CONTENTLESS_EDITOR_IDS.has(session.editorId)) {
-      return 'skipped'
+      return { status: 'skipped', sessionId, reason: 'contentless' }
     }
+
+    if (session.path && session.resourceKind !== 'draft' && !session.isDirty && !targetPath) {
+      return { status: 'skipped', sessionId, reason: 'clean' }
+    }
+
+    const startedRevision = session.contentRevision
+    const contentAtStart = session.draftContent
 
     const normalizedTargetPath = targetPath ? normalizePath(targetPath) : null
     let nextPath = normalizedTargetPath ?? session.path
@@ -523,7 +572,7 @@ export function useEditorSessionStore() {
       })
 
       if (!selectedPath) {
-        return 'cancelled'
+        return { status: 'cancelled', sessionId }
       }
 
       nextPath = normalizePath(selectedPath)
@@ -548,8 +597,8 @@ export function useEditorSessionStore() {
       ? structuredProjectSavers[nextFileType.id as keyof typeof structuredProjectSavers]
       : undefined
     const savedContent = structuredSaver
-      ? await structuredSaver(nextPath, session.draftContent)
-      : session.draftContent
+      ? await structuredSaver(nextPath, contentAtStart)
+      : contentAtStart
 
     if (!structuredSaver) {
       await writeContentByResourceKind(nextResourceKind, nextPath, savedContent)
@@ -562,7 +611,7 @@ export function useEditorSessionStore() {
     sessions.value = sessions.value.map((candidate) =>
       candidate.id === sessionId
         ? (() => {
-          const hasNewerDraft = candidate.draftContent !== session.draftContent
+          const hasNewerDraft = candidate.contentRevision !== startedRevision
           const draftContent = hasNewerDraft ? candidate.draftContent : savedContent
           return {
             ...candidate,
@@ -579,12 +628,26 @@ export function useEditorSessionStore() {
         : candidate
     )
 
-    return 'saved'
+    const currentSession = sessions.value.find((candidate) => candidate.id === sessionId)
+    const currentRevision = currentSession?.contentRevision ?? startedRevision
+    const sessionStillDirty = currentSession?.isDirty ?? false
+    return {
+      status: 'saved',
+      sessionId,
+      resourceKind: nextResourceKind as Exclude<SessionResourceKind, 'draft'>,
+      path: nextPath,
+      relativePath: resolveProjectRelativePath(nextPath, nextResourceKind, projectPath.value),
+      startedRevision,
+      persistedRevision: startedRevision,
+      currentRevision,
+      persistedContent: savedContent,
+      sessionStillDirty,
+    }
   }
 
-  async function saveActiveSession(): Promise<SessionSaveResult> {
+  async function saveActiveSession(): Promise<SessionSaveReceipt> {
     if (!activeSessionId.value) {
-      return 'skipped'
+      return { status: 'skipped', sessionId: '', reason: 'missing' }
     }
 
     return await saveSession(activeSessionId.value)
@@ -610,6 +673,7 @@ export function useEditorSessionStore() {
           ...candidate,
           savedContent: content,
           draftContent: content,
+          contentRevision: candidate.contentRevision + 1,
           isDirty: false,
         }
         : candidate

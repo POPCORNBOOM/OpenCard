@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   EditorSession,
-  SessionSaveResult,
+  SessionSaveReceipt,
 } from '../../workspace/store/editorSessionStore'
 import { useUnsavedSessionGuard } from './useUnsavedSessionGuard'
 
@@ -19,6 +19,7 @@ function createSession(
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
+    contentRevision: 0,
     isDirty: false,
     isPreview: false,
     ...patch,
@@ -30,7 +31,18 @@ function createGuard(sessions: EditorSession[]) {
   const saveSession = vi.fn<(
     sessionId: string,
     targetPath?: string,
-  ) => Promise<SessionSaveResult>>(async () => 'saved')
+  ) => Promise<SessionSaveReceipt>>(async (sessionId) => ({
+    status: 'saved',
+    sessionId,
+    resourceKind: 'workspace',
+    path: `${sessionId}.ocdocument`,
+    relativePath: `${sessionId}.ocdocument`,
+    startedRevision: 0,
+    persistedRevision: 0,
+    currentRevision: 0,
+    persistedContent: '{}',
+    sessionStillDirty: false,
+  }))
   const pickDraftDirectory = vi.fn<() => Promise<string | null>>(async () => 'D:/drafts')
   const fileExists = vi.fn<(path: string) => Promise<boolean>>(async () => false)
   const guard = useUnsavedSessionGuard({
@@ -178,7 +190,7 @@ describe('useUnsavedSessionGuard', () => {
   it('keeps the close blocked when any save fails', async () => {
     const session = createSession('failed', { isDirty: true })
     const { guard, saveSession, completeClose } = createGuard([session])
-    saveSession.mockResolvedValueOnce('skipped')
+    saveSession.mockResolvedValueOnce({ status: 'skipped', sessionId: session.id, reason: 'clean' })
     await guard.requestClose({ type: 'app', sessionIds: [session.id] })
     await guard.markSelectedSave()
 

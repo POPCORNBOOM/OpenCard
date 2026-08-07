@@ -19,6 +19,10 @@ import { useEditorSessionStore } from './editorSessionStore'
 
 describe('editorSessionStore project profile manual save', () => {
   beforeEach(() => {
+    const store = useEditorSessionStore()
+    for (const session of store.sessions.value) {
+      store.closeSession(session.id)
+    }
     vi.clearAllMocks()
     mocks.readFile.mockResolvedValue('{}')
     mocks.saveProjectConfiguration.mockImplementation(async (_path: string, content: string) => content)
@@ -45,10 +49,31 @@ describe('editorSessionStore project profile manual save', () => {
     const saving = store.saveSession(session.id)
     store.updateDraftContent(session.id, '{"name":"Second"}')
     finishSave?.('{"name":"First"}')
-    await saving
+    await expect(saving).resolves.toMatchObject({
+      status: 'saved',
+      startedRevision: 1,
+      persistedRevision: 1,
+      currentRevision: 2,
+      persistedContent: '{"name":"First"}',
+      sessionStillDirty: true,
+    })
     expect(store.sessions.value.find(candidate => candidate.id === session.id)).toMatchObject({
       savedContent: '{"name":"First"}',
       draftContent: '{"name":"Second"}',
+      isDirty: true,
+    })
+  })
+
+  it('does not let an editor clear dirty state before persistence succeeds', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('.ocproject')
+    store.updateDraftContent(session.id, '{"name":"Pending"}')
+
+    store.setSessionDirtyState(session.id, false)
+
+    expect(store.sessions.value.find(candidate => candidate.id === session.id)).toMatchObject({
+      draftContent: '{"name":"Pending"}',
+      contentRevision: 1,
       isDirty: true,
     })
   })

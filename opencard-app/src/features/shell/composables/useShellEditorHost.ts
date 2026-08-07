@@ -18,7 +18,7 @@ import { resolveFileType, resolveFileTypeById } from '../../workspace/model/file
 import type {
   EditorSession,
   EditorSessionUiState,
-  SessionSaveResult,
+  SessionSaveReceipt,
 } from '../../workspace/store/editorSessionStore'
 import type { ProjectProfile } from '../../workspace/model/projectMetadata'
 import { reportAppError } from '../../logging/appErrorCatalog'
@@ -27,6 +27,7 @@ const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
 export type ShellEditorRef = {
   save?: () => Promise<void> | void
+  markSaved?: (content: string) => Promise<void> | void
   flush?: () => Promise<void> | void
   undo?: () => Promise<void> | void
   redo?: () => Promise<void> | void
@@ -43,7 +44,7 @@ type SessionActions = {
   updateDraftContent: (sessionId: string, content: string) => void
   setSessionDirtyState: (sessionId: string, isDirty: boolean) => void
   updateSessionUiState: (sessionId: string, patch: EditorSessionUiState) => void
-  saveActiveSession: () => Promise<SessionSaveResult>
+  saveActiveSession: () => Promise<SessionSaveReceipt>
 }
 
 type UseShellEditorHostOptions = {
@@ -257,9 +258,13 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   }
 
   async function handleSaveEvent(): Promise<void> {
-    if (!options.activeSession.value) return
+    const sessionId = options.activeSession.value?.id
+    if (!sessionId) return
     try {
-      await options.sessionActions.saveActiveSession()
+      const result = await options.sessionActions.saveActiveSession()
+      if (result.status === 'saved' && options.activeSession.value?.id === sessionId) {
+        await editorRef.value?.markSaved?.(result.persistedContent)
+      }
     } catch (error) {
       reportAppError('OC-E4002', error)
     }

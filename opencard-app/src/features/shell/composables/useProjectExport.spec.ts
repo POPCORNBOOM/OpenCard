@@ -39,7 +39,8 @@ describe('useProjectExport document source', () => {
     const session: EditorSession = {
       id: 'session', resourceKind: 'workspace', path: 'D:/project/cards/main.ocdocument',
       fileTypeId: 'opencard', editorId: 'card-designer', name: 'main.ocdocument',
-      savedContent: content('540'), draftContent: content('1080'), isDirty: true, isPreview: false,
+      savedContent: content('540'), draftContent: content('1080'), contentRevision: 1,
+      isDirty: true, isPreview: false,
     }
     const { adapter, readProjectFile } = createAdapter([session])
     const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')

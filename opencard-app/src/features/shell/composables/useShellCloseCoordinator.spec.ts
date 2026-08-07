@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   EditorSession,
-  SessionSaveResult,
+  SessionSaveReceipt,
 } from '../../workspace/store/editorSessionStore'
 import { useShellCloseCoordinator } from './useShellCloseCoordinator'
 
@@ -16,6 +16,7 @@ function createSession(id: string, patch: Partial<EditorSession> = {}): EditorSe
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
+    contentRevision: 0,
     isDirty: false,
     isPreview: false,
     ...patch,
@@ -28,7 +29,18 @@ function createCoordinator(initialSessions: EditorSession[]) {
   const saveSession = vi.fn<(
     sessionId: string,
     targetPath?: string,
-  ) => Promise<SessionSaveResult>>(async () => 'saved')
+  ) => Promise<SessionSaveReceipt>>(async (sessionId) => ({
+    status: 'saved',
+    sessionId,
+    resourceKind: 'workspace',
+    path: `D:/project/${sessionId}.ocdocument`,
+    relativePath: `${sessionId}.ocdocument`,
+    startedRevision: 0,
+    persistedRevision: 0,
+    currentRevision: 0,
+    persistedContent: '{}',
+    sessionStillDirty: false,
+  }))
   const completions = {
     sessions: vi.fn(async () => undefined),
     project: vi.fn(async () => undefined),
@@ -138,7 +150,7 @@ describe('useShellCloseCoordinator', () => {
     expect(completions.project).not.toHaveBeenCalled()
 
     await coordinator.requestProjectClose('welcome')
-    saveSession.mockResolvedValueOnce('skipped')
+    saveSession.mockResolvedValueOnce({ status: 'skipped', sessionId: session.id, reason: 'clean' })
     await coordinator.markSelectedSave()
     await expect(coordinator.confirm()).resolves.toBe(false)
 

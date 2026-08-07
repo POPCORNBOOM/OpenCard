@@ -47,4 +47,32 @@ describe('useCdeDocumentState lifecycle', () => {
     })
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('keeps the dirty baseline until the host confirms persistence', async () => {
+    const emitModified = vi.fn()
+    const emitModelValueUpdate = vi.fn()
+    const state = useCdeDocumentState({
+      emitModelValueUpdate,
+      emitModified,
+      emitSave: vi.fn(),
+      resetSelection: vi.fn(),
+    })
+    const content = serializeCardDocument(createDocument())
+    state.loadRawDoc(content)
+
+    state.cardDoc.value!.name = 'Unsaved document'
+    state.markDocumentChanged()
+    await state.saveFile()
+
+    expect(state.isModified.value).toBe(true)
+    const persistedContent = emitModelValueUpdate.mock.lastCall?.[0] as string
+    state.markSaved(persistedContent)
+    expect(state.isModified.value).toBe(false)
+    expect(emitModified).toHaveBeenLastCalledWith(false)
+
+    state.cardDoc.value!.name = 'Newer draft'
+    state.markDocumentChanged()
+    state.markSaved(persistedContent)
+    expect(state.isModified.value).toBe(true)
+  })
 })

@@ -21,6 +21,7 @@ function createSession(patch: Partial<EditorSession> = {}): EditorSession {
     editorId: 'card-designer',
     savedContent: '{}',
     draftContent: '{}',
+    contentRevision: 0,
     isDirty: false,
     isPreview: false,
     ...patch,
@@ -32,7 +33,18 @@ function createHost(session = createSession()) {
   const updateDraftContent = vi.fn()
   const setSessionDirtyState = vi.fn()
   const updateSessionUiState = vi.fn()
-  const saveActiveSession = vi.fn(async () => 'saved' as const)
+  const saveActiveSession = vi.fn(async () => ({
+    status: 'saved' as const,
+    sessionId: 'session-a',
+    resourceKind: 'workspace' as const,
+    path: 'D:/project/card.ocdocument',
+    relativePath: 'card.ocdocument',
+    startedRevision: 0,
+    persistedRevision: 0,
+    currentRevision: 0,
+    persistedContent: '{}',
+    sessionStillDirty: false,
+  }))
   const host = useShellEditorHost({
     activeSession,
     projectPath: ref('D:/project'),
@@ -323,6 +335,47 @@ describe('useShellEditorHost', () => {
     await host.save()
 
     expect(saveActiveSession).toHaveBeenCalledTimes(1)
+    host.dispose()
+  })
+
+  it('updates an editor save baseline only after persistence succeeds', async () => {
+    const { host, saveActiveSession } = createHost()
+    const markSaved = vi.fn()
+    host.editorRef.value = { markSaved }
+
+    await host.handleSaveEvent()
+
+    expect(saveActiveSession).toHaveBeenCalledTimes(1)
+    expect(markSaved).toHaveBeenCalledWith('{}')
+    host.dispose()
+  })
+
+  it('does not apply a completed save to an editor opened during the write', async () => {
+    let finishSave: (() => void) | undefined
+    const { host, activeSession, saveActiveSession } = createHost()
+    saveActiveSession.mockImplementationOnce(async () => {
+      await new Promise<void>(resolve => { finishSave = resolve })
+      return {
+        status: 'saved',
+        sessionId: 'session-a',
+        resourceKind: 'workspace',
+        path: 'D:/project/card.ocdocument',
+        relativePath: 'card.ocdocument',
+        startedRevision: 1,
+        persistedRevision: 1,
+        currentRevision: 1,
+        persistedContent: '{}',
+        sessionStillDirty: false,
+      }
+    })
+    const saving = host.handleSaveEvent()
+    activeSession.value = createSession({ id: 'session-b' })
+    const markSaved = vi.fn()
+    host.editorRef.value = { markSaved }
+    finishSave?.()
+    await saving
+
+    expect(markSaved).not.toHaveBeenCalled()
     host.dispose()
   })
 })

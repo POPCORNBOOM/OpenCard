@@ -645,6 +645,7 @@ const {
   redo: redoDocumentState,
   loadRawDoc,
   saveFile: saveDocumentFile,
+  markSaved: markSavedDocument,
   dispose: disposeDocumentState,
 } = useCdeDocumentState({
   emitModelValueUpdate: (content) => emit('update:modelValue', content),
@@ -1634,6 +1635,7 @@ watch(
 
 defineExpose({
   save: saveFile,
+  markSaved: markSavedDocument,
   flush: flushPendingChanges,
   undo: undoFile,
   redo: redoFile,

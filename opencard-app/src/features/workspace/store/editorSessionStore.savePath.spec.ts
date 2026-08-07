@@ -37,7 +37,15 @@ describe('editorSessionStore explicit save path', () => {
       content: '{"draft":true}',
     })
 
-    await store.saveSession(session.id, 'D:/exports/Draft.ocdocument')
+    await expect(store.saveSession(session.id, 'D:/exports/Draft.ocdocument')).resolves.toMatchObject({
+      status: 'saved',
+      sessionId: session.id,
+      resourceKind: 'external',
+      path: 'D:/exports/Draft.ocdocument',
+      persistedRevision: 0,
+      currentRevision: 0,
+      sessionStillDirty: false,
+    })
 
     expect(mocks.pickSavePath).not.toHaveBeenCalled()
     expect(mocks.writeFile).toHaveBeenCalledWith('D:/exports/Draft.ocdocument', '{"draft":true}')
@@ -64,7 +72,10 @@ describe('editorSessionStore explicit save path', () => {
     expect(store.openedEditorItems.value.find(item => item.key === session.id)?.label)
       .toBe('Current Card.ocdocument')
 
-    await expect(store.saveSession(session.id)).resolves.toBe('cancelled')
+    await expect(store.saveSession(session.id)).resolves.toMatchObject({
+      status: 'cancelled',
+      sessionId: session.id,
+    })
     expect(mocks.pickSavePath).toHaveBeenCalledWith(expect.objectContaining({
       defaultPath: 'Current Card.ocdocument',
     }))

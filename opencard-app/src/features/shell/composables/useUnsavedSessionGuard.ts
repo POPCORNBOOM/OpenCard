@@ -1,7 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
 import {
   type EditorSession,
-  type SessionSaveResult,
+  type SessionSaveReceipt,
 } from '../../workspace/store/editorSessionStore'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { ProjectCloseDestination } from '../shellPage'
@@ -31,7 +31,7 @@ type UseUnsavedSessionGuardOptions = {
   sessions: Readonly<Ref<readonly EditorSession[]>>
   pickDraftDirectory: () => Promise<string | null>
   fileExists: (path: string) => Promise<boolean>
-  saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveResult>
+  saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveReceipt>
   completeClose: (intent: UnsavedCloseIntent) => Promise<void>
 }
 
@@ -221,8 +221,8 @@ export function useUnsavedSessionGuard(options: UseUnsavedSessionGuardOptions) {
           row.sessionId,
           row.resourceKind === 'draft' ? row.savePath ?? undefined : undefined,
         )
-        if (result !== 'saved') {
-          updateRowError(row.sessionId, result === 'cancelled' ? 'cancelled' : 'save-failed')
+        if (result.status !== 'saved') {
+          updateRowError(row.sessionId, result.status === 'cancelled' ? 'cancelled' : 'save-failed')
           isBusy.value = false
           return false
         }

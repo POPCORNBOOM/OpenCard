@@ -182,7 +182,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
   function setSavedContent(content: string) {
     savedContent.value = content
-    updateModifiedState(content)
+    updateModifiedState(rawContent.value)
   }
 
   function loadRawDoc(content: string) {
@@ -238,7 +238,6 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       await flushPendingChanges()
       const content = serializeCardDocument(cardDoc.value)
       rawContent.value = content
-      setSavedContent(content)
       options.emitModelValueUpdate(content)
       options.emitSave()
     } catch (e) {
@@ -267,6 +266,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     redo,
     loadRawDoc,
     saveFile,
+    markSaved: setSavedContent,
     dispose,
   }
 }
