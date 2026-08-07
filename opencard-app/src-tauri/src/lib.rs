@@ -270,6 +270,7 @@ pub fn run() {
             external_open::take_external_open_requests,
             icon_spritesheet::compose_project_icon_spritesheet,
             version_history::version_prepare_project,
+            version_history::repository::version_get_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

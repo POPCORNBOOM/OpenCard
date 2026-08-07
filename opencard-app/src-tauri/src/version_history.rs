@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 
+#[path = "version-history/repository.rs"]
+pub(crate) mod repository;
+
 const IDENTITY_PREFIX: &[u8] = b"opencard-project-v1\0";
 const IDENTITY_KIND: &str = "canonical-path-v1";
 const SCHEMA_VERSION: u32 = 1;
@@ -111,6 +114,15 @@ struct VersionHistoryIdentity {
 }
 
 #[derive(Debug)]
+struct ProjectHistoryContext {
+    canonical_root: PathBuf,
+    canonical_root_text: String,
+    project_id: String,
+    project_history_root: PathBuf,
+    template_managed_paths: Vec<String>,
+}
+
+#[derive(Debug)]
 struct HistoryFailure {
     code: &'static str,
     phase: &'static str,
@@ -166,16 +178,8 @@ pub async fn version_prepare_project(
         ));
     }
 
-    let storage_root = app_handle
-        .path()
-        .home_dir()
-        .map(|path| path.join(".opencard"))
-        .map_err(|error| {
-            to_error_dto(
-                operation,
-                HistoryFailure::new("history-io", "resolve-storage", error.to_string()).retryable(),
-            )
-        })?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
     let write_lock = Arc::clone(&state.write_lock);
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _guard = write_lock.lock().map_err(|_| {
@@ -262,6 +266,61 @@ fn prepare_project(
             canonical_root: canonical_root_text,
             generation,
         },
+    })
+}
+
+fn resolve_storage_root(app_handle: &tauri::AppHandle) -> Result<PathBuf, HistoryFailure> {
+    app_handle
+        .path()
+        .home_dir()
+        .map(|path| path.join(".opencard"))
+        .map_err(|error| {
+            HistoryFailure::new("history-io", "resolve-storage", error.to_string()).retryable()
+        })
+}
+
+fn load_project_context(
+    project_root: &Path,
+    storage_root: &Path,
+    expected_project_id: &str,
+) -> Result<ProjectHistoryContext, HistoryFailure> {
+    let canonical_root = canonicalize_project_root(project_root)?;
+    let canonical_root_text = display_path(&canonical_root);
+    let project_id = project_id(&canonical_root_text)?;
+    if expected_project_id != project_id {
+        return Err(HistoryFailure::new(
+            "identity-mismatch",
+            "validate-request",
+            "project identity does not match",
+        )
+        .project_id(&project_id));
+    }
+    let project_history_root = storage_root
+        .join("version-history")
+        .join("v1")
+        .join(format!("p1-{project_id}"));
+    let identity_path = project_history_root.join("identity.json");
+    let bytes = fs::read(&identity_path).map_err(|error| {
+        HistoryFailure::new("history-io", "read-identity", error.to_string())
+            .project_id(&project_id)
+            .retryable()
+    })?;
+    let identity: VersionHistoryIdentity = serde_json::from_slice(&bytes).map_err(|error| {
+        HistoryFailure::new("history-corrupt", "parse-identity", error.to_string())
+            .project_id(&project_id)
+    })?;
+    validate_identity(
+        &identity_path,
+        &project_id,
+        &canonical_root_text,
+        &identity.template_managed_paths,
+    )?;
+    Ok(ProjectHistoryContext {
+        canonical_root,
+        canonical_root_text,
+        project_id,
+        project_history_root,
+        template_managed_paths: identity.template_managed_paths,
     })
 }
 

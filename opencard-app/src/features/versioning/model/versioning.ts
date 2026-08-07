@@ -34,3 +34,51 @@ export type PrepareProjectRequest = {
 export type PrepareProjectResponse = {
   identity: ProjectIdentityDto
 }
+
+export type ChangeStatus = 'added' | 'modified' | 'deleted'
+
+export type FileChangeDto = {
+  path: string
+  status: ChangeStatus
+}
+
+export type ChangeSummaryDto = {
+  added: number
+  modified: number
+  deleted: number
+  files: FileChangeDto[]
+  snapshotId: string
+}
+
+export type ReleaseDto = {
+  publishedAtUnixMs: number
+  description: string
+}
+
+export type VersionRecordDto = {
+  commitId: string
+  parentCommitId: string | null
+  version: string
+  kind: 'saved' | 'restored'
+  description: string
+  savedAtUnixMs: number
+  restoredFrom: string | null
+  release: ReleaseDto | null
+  changes: Pick<ChangeSummaryDto, 'added' | 'modified' | 'deleted'>
+}
+
+export type VersionStatusDto = {
+  identity: ProjectIdentityDto
+  current: VersionRecordDto | null
+  nextVersion: string
+  expectedHeadCommitId: string | null
+  changeSummary: ChangeSummaryDto
+  hasManagedContent: boolean
+}
+
+export type VersionProjectRequest = {
+  operationId: string
+  projectRoot: string
+  projectId: string
+  generation: number
+}

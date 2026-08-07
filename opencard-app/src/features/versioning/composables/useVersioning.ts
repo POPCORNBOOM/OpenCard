@@ -4,6 +4,7 @@ import type {
   ProjectIdentityDto,
   VersionErrorDto,
   VersionReadiness,
+  VersionStatusDto,
 } from '../model/versioning'
 import {
   versioningService,
@@ -27,11 +28,13 @@ export function useVersioning(options: UseVersioningOptions) {
   const service = options.service ?? versioningService
   const readiness = ref<VersionReadiness>({ status: 'not-prepared' })
   const identity = ref<ProjectIdentityDto | null>(null)
+  const status = ref<VersionStatusDto | null>(null)
   let generation = 0
 
   async function prepare(projectRoot: string): Promise<void> {
     const requestGeneration = ++generation
     identity.value = null
+    status.value = null
     if (!projectRoot) {
       readiness.value = { status: 'not-prepared' }
       return
@@ -46,6 +49,14 @@ export function useVersioning(options: UseVersioningOptions) {
       })
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
       identity.value = response.identity
+      const projectStatus = await service.getStatus({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: response.identity.projectId,
+        generation: requestGeneration,
+      })
+      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      status.value = projectStatus
       readiness.value = { status: 'ready', projectId: response.identity.projectId }
     } catch (error) {
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
@@ -73,6 +84,7 @@ export function useVersioning(options: UseVersioningOptions) {
   return {
     readiness: readonly(readiness),
     identity: readonly(identity),
+    status: readonly(status),
     prepare,
     dispose,
   }
