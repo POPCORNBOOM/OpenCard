@@ -175,4 +175,26 @@ describe('renderPipeline', () => {
       }),
     }))
   })
+
+  it('wraps an expanded custom block around its resolved native content', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
+    root.additionalFieldDefinition = { label: { fieldType: 'string' } }
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root,
+          publicFields: [{ key: 'label', fieldType: 'string', defaultValue: 'Ready' }],
+          resize: { widthLocked: false, heightLocked: false },
+        },
+      }]]),
+    })
+    const rendered = result.document.faces.front.children[0]!.block
+
+    expect(rendered).toMatchObject({
+      type: 'custom-block', id: 'host', source: 'block:label',
+      content: { type: 'text-block', id: 'host', content: 'Ready' },
+    })
+  })
 })

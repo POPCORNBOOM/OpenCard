@@ -1,6 +1,7 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import { toRaw } from 'vue'
 import type { ProjectCustomBlockPublicField, ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
+import type { RenderReadyCardBlock, RenderReadyCardDocument, RenderReadyCustomBlock } from './render.types'
 
 export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
   readonly manifest: {
@@ -15,6 +16,7 @@ export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
 }>
 
 export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
+export type CustomBlockExpansionHost = { source: string; interfaceHash: string }
 
 function clone<T>(value: T): T {
   const raw = value && typeof value === 'object' ? toRaw(value as object) : value
@@ -48,9 +50,10 @@ function namespaceDescendantIds(block: CardBlock, instanceId: string, root = tru
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
-): { document: CardDocument; issues: CustomBlockExpansionIssue[] } {
+): { document: CardDocument; issues: CustomBlockExpansionIssue[]; hosts: ReadonlyMap<string, CustomBlockExpansionHost> } {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
   const issues: CustomBlockExpansionIssue[] = []
+  const hosts = new Map<string, CustomBlockExpansionHost>()
 
   function expand(block: CardBlock, ancestors: Set<string>, faceKey: CardFaceKey): CardBlock {
     if (block.type !== 'custom-block') {
@@ -82,6 +85,7 @@ export function expandCustomBlocks(
       issues.push({ blockId: block.id, faceKey, reason: 'interface-mismatch', source: block.source })
       return block
     }
+    hosts.set(block.id, { source: block.source, interfaceHash: block.interfaceHash })
     const root = clone(entry.manifest.root) as CardBlock
     resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
     namespaceDescendantIds(root, block.id)
@@ -106,5 +110,42 @@ export function expandCustomBlocks(
       ...face,
       children: face.children.map(child => ({ ...child, block: expand(child.block, new Set(), faceKey) })),
     }])) as CardDocument['faces']
-  return { document: { ...document, faces }, issues }
+  return { document: { ...document, faces }, issues, hosts }
+}
+
+export function wrapExpandedCustomBlocks(
+  document: RenderReadyCardDocument,
+  hosts: ReadonlyMap<string, CustomBlockExpansionHost>,
+): RenderReadyCardDocument {
+  const wrap = (block: RenderReadyCardBlock): RenderReadyCardBlock => {
+    let content = block
+    if (block.type === 'simple-container-block') {
+      content = {
+        ...block,
+        children: block.children.map(child => ({ ...child, block: wrap(child.block) })),
+      }
+    } else if (block.type === 'flow-container-block') {
+      content = {
+        ...block,
+        children: block.children.map(child => ({ ...child, block: wrap(child.block) })),
+      }
+    }
+    const host = hosts.get(block.id)
+    if (!host) return content
+    return {
+      ...content,
+      type: 'custom-block',
+      source: host.source,
+      interfaceHash: host.interfaceHash,
+      content,
+    } satisfies RenderReadyCustomBlock
+  }
+  return {
+    ...document,
+    faces: Object.fromEntries((Object.entries(document.faces) as [CardFaceKey, RenderReadyCardDocument['faces'][CardFaceKey]][])
+      .map(([faceKey, face]) => [faceKey, {
+        ...face,
+        children: face.children.map(child => ({ ...child, block: wrap(child.block) })),
+      }])) as RenderReadyCardDocument['faces'],
+  }
 }

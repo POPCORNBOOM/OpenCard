@@ -7,7 +7,7 @@ import { resolveReferences } from './resolveCardBindings'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
-import { expandCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
+import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { createCardPipelineIssue } from './cardPipelineIssue'
 
 export type RenderPipelineResult = {
@@ -43,7 +43,7 @@ export function runRenderPipeline(
   })
 
   return {
-    document: parsed.document,
+    document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
     issues: [
       ...expanded.issues.map(issue => createCardPipelineIssue({
         type: 'card-designer.render-parse.conversion-failed',
