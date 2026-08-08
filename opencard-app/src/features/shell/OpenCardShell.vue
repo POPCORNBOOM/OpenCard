@@ -156,6 +156,14 @@
             :activation-mode="isExportTemplateMode ? 'none' : 'double-click'"
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
+          <ChangeHistoryList
+            v-else-if="list.key === CHANGES_LIST_KEY"
+            :versions="fileVersions"
+            :local-history="localHistoryEntries"
+            :empty-label="changeHistoryEmptyLabel"
+            :locale="locale"
+            @select="handleChangeHistorySelect"
+          />
           <OcTree
             v-else-if="list.key === VERSION_LIST_KEY && versionTreeData.rootKeys.length > 0"
             class="open-card-shell__sidebar-tree"
@@ -439,6 +447,7 @@ import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTy
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
+import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -791,6 +800,9 @@ const {
   readiness: versionReadiness,
   status: versionStatus,
   versions: projectVersions,
+  fileVersions,
+  localHistory: localHistoryEntries,
+  loadFileHistory,
   writeState: versionWriteState,
   saveVersionConfirmation,
   lastError: versioningError,
@@ -808,6 +820,24 @@ const {
   saveSession,
 })
 setLocalHistoryRecorder(recordLocalHistory)
+
+const changeHistoryEmptyLabel = computed(() => {
+  if (!activeSession.value || activeSession.value.resourceKind !== 'workspace') {
+    return t('versioning.history.selectProjectFile')
+  }
+  return t('versioning.history.empty')
+})
+
+watch(
+  () => activeSession.value?.path,
+  path => {
+    const relativePath = path && projectPath.value
+      ? getRelativeProjectPath(path)
+      : null
+    void loadFileHistory(relativePath ?? '')
+  },
+  { immediate: true },
+)
 
 const versioningErrorMessage = computed(() => (
   versioningError.value
@@ -1941,6 +1971,10 @@ function handleVersionTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type === 'node.activate') selectedVersionKeys.value = [intent.key]
+}
+
+function handleChangeHistorySelect(_source: 'version' | 'local-history', _id: string): void {
+  // The list owns selection now; the next slice opens the existing editor as a read-only comparison.
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {

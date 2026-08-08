@@ -650,6 +650,19 @@ export default {
       unavailable: 'Version history unavailable',
     },
     errors: { saveFailed: 'Saving the version failed. Your changes are kept; check and retry ({code}).' },
+    history: {
+      empty: 'No history for the current file',
+      selectProjectFile: 'Select a project file to view history',
+      sources: {
+        'manual-save': 'Manual save',
+        'close-guard-save': 'Save before close',
+        'save-version': 'Save version',
+        'save-and-publish': 'Save and publish',
+        'file-restored': 'File restored',
+        'file-renamed': 'File renamed',
+        'file-moved': 'File moved',
+      },
+    },
   },
   settings: {
     title: 'Settings',

@@ -649,6 +649,19 @@ export default {
       unavailable: '版本历史不可用',
     },
     errors: { saveFailed: '保存版本失败，当前修改仍保留，可检查后重试（{code}）。' },
+    history: {
+      empty: '当前文件暂无历史记录',
+      selectProjectFile: '选择项目文件以查看历史',
+      sources: {
+        'manual-save': '手动保存',
+        'close-guard-save': '关闭前保存',
+        'save-version': '保存版本',
+        'save-and-publish': '保存并发布',
+        'file-restored': '恢复文件',
+        'file-renamed': '重命名文件',
+        'file-moved': '移动文件',
+      },
+    },
   },
   settings: {
     title: '设置',

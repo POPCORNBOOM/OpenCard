@@ -14,6 +14,7 @@ import type {
   VersionReadiness,
   VersionStatusDto,
   VersionRecordDto,
+  LocalHistoryEntryDto,
   VersionWriteState,
   SaveVersionConfirmation,
 } from '../model/versioning'
@@ -45,6 +46,9 @@ export function useVersioning(options: UseVersioningOptions) {
   const identity = ref<ProjectIdentityDto | null>(null)
   const status = ref<VersionStatusDto | null>(null)
   const versions = ref<VersionRecordDto[]>([])
+  const fileVersions = ref<VersionRecordDto[]>([])
+  const localHistory = ref<LocalHistoryEntryDto[]>([])
+  const historyPath = ref<string | null>(null)
   const nextVersionCursor = ref<string | null>(null)
   const writeState = ref<VersionWriteState>({ status: 'idle' })
   const saveVersionConfirmation = ref<SaveVersionConfirmation | null>(null)
@@ -56,6 +60,9 @@ export function useVersioning(options: UseVersioningOptions) {
     identity.value = null
     status.value = null
     versions.value = []
+    fileVersions.value = []
+    localHistory.value = []
+    historyPath.value = null
     nextVersionCursor.value = null
     saveVersionConfirmation.value = null
     lastError.value = null
@@ -242,11 +249,52 @@ export function useVersioning(options: UseVersioningOptions) {
         source: input.source,
         content: Array.from(new TextEncoder().encode(input.content)),
       })
+      if (historyPath.value === input.relativePath) await loadFileHistory(input.relativePath)
       if (response.warnings.length > 0) reportAppError('OC-E7002', response.warnings)
       return response.result
     } catch (error) {
       reportAppError('OC-E7002', error)
       return 'failed'
+    }
+  }
+
+  async function loadFileHistory(relativePath: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || !relativePath) {
+      historyPath.value = null
+      fileVersions.value = []
+      localHistory.value = []
+      return
+    }
+    const requestGeneration = generation
+    try {
+      const [versionResponse, localResponse] = await Promise.all([
+        service.listFileHistory({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: projectIdentity.projectId,
+          generation: projectIdentity.generation,
+          relativePath,
+        }),
+        service.listLocalHistory({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: projectIdentity.projectId,
+          generation: projectIdentity.generation,
+          relativePath,
+        }),
+      ])
+      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      historyPath.value = relativePath
+      fileVersions.value = versionResponse.items
+      localHistory.value = localResponse.items
+      if (localResponse.warnings.length > 0) reportAppError('OC-E7002', localResponse.warnings)
+    } catch (error) {
+      historyPath.value = relativePath
+      fileVersions.value = []
+      localHistory.value = []
+      reportAppError('OC-E7001', error)
     }
   }
 
@@ -301,6 +349,9 @@ export function useVersioning(options: UseVersioningOptions) {
     identity: readonly(identity),
     status: readonly(status),
     versions: readonly(versions),
+    fileVersions: readonly(fileVersions),
+    localHistory: readonly(localHistory),
+    historyPath: readonly(historyPath),
     nextVersionCursor: readonly(nextVersionCursor),
     writeState: readonly(writeState),
     saveVersionConfirmation: readonly(saveVersionConfirmation),
@@ -311,6 +362,7 @@ export function useVersioning(options: UseVersioningOptions) {
     cancelSaveVersion,
     confirmSaveVersion,
     recordLocalHistory,
+    loadFileHistory,
     dispose,
   }
 }
