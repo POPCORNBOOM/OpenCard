@@ -81,6 +81,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
 
   function includeField(blockId: string, fieldKey: string): boolean {
     if (!blockId || !fieldKey) return false
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, blockId, fieldKey)) return false
     const current = fieldSelection.value[blockId] ?? []
     if (current.includes(fieldKey)) return false
     return commitFieldSelection({
@@ -99,6 +100,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function updateCell(payload: BlockFieldTarget & { value: unknown }): boolean {
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, payload.blockId, payload.fieldKey)) return false
     return options.updateBlockField(payload, payload.value, 'typing')
   }
 
@@ -120,6 +122,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function resetCell(payload: BlockFieldTarget): boolean {
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, payload.blockId, payload.fieldKey)) return false
     return options.resetBlockField(payload)
   }
 
@@ -181,6 +184,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     for (const update of updates) {
       const block = blockLookup.get(update.blockId)
       if (!block) continue
+      if (block.type === 'custom-block' && !block.additionalFieldDefinition?.[update.fieldKey]) continue
       if (update.cardId === options.blueprintCardId) {
         if (update.reset || update.value === undefined) continue
         const record = block as unknown as Record<string, unknown>
@@ -211,6 +215,8 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     payload: CdeDataTableFieldCreatePayload,
   ): AdditionalFieldKeyError | 'invalid-target' | null {
     const previous = fieldSelection.value
+    const block = options.cardDoc.value ? createBlockLookup(options.cardDoc.value).get(payload.blockId) : null
+    if (block?.type === 'custom-block') return 'invalid-target'
     if (payload.blockId && payload.fieldKey) {
       const current = previous[payload.blockId] ?? []
       writeFieldSelection({
@@ -232,6 +238,8 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function deleteField(blockId: string, fieldKey: string): boolean {
+    const block = options.cardDoc.value ? createBlockLookup(options.cardDoc.value).get(blockId) : null
+    if (block?.type === 'custom-block') return false
     const previous = fieldSelection.value
     const current = previous[blockId]
     if (current?.includes(fieldKey)) {
@@ -287,6 +295,16 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     setInstanceExported,
     updateCell,
   }
+}
+
+function isCustomBlockFieldAllowed(
+  document: CardDocument | null,
+  blockId: string,
+  fieldKey: string,
+): boolean {
+  if (!document) return false
+  const block = createBlockLookup(document).get(blockId)
+  return block?.type !== 'custom-block' || Boolean(block.additionalFieldDefinition?.[fieldKey])
 }
 
 function createBlockLookup(document: CardDocument): Map<string, CardBlock> {

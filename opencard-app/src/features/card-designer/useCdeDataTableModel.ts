@@ -193,12 +193,13 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     return Object.entries(definitions)
       .filter(([fieldKey, definition]) => (
         fieldKey !== 'name' && !definition.isHidden && !definition.isReadonly
+        && (block.type !== 'custom-block' || hasOwn(block.additionalFieldDefinition ?? {}, fieldKey))
       ))
       .map(([fieldKey, definition]) => ({
         key: fieldKey,
         title: definition.title,
         definition,
-        deletable: hasOwn(blockRecord, fieldKey) && definition.deletable === true,
+        deletable: block.type !== 'custom-block' && hasOwn(blockRecord, fieldKey) && definition.deletable === true,
       }))
   }
 

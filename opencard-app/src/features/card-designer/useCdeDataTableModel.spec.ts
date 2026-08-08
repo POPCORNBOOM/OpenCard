@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import {
+  createBlock,
   createSimpleContainerBlock,
   createTextBlock,
   type CardDocument,
@@ -63,7 +64,7 @@ function createHarness() {
     translate: key => key,
     hasMessage: () => false,
   })
-  return { container, documentRevision, model, selection }
+  return { container, document, documentRevision, model, selection }
 }
 
 describe('useCdeDataTableModel', () => {
@@ -125,5 +126,24 @@ describe('useCdeDataTableModel', () => {
     documentRevision.value += 1
     expect(model.catalogFaceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
     expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
+  })
+
+  it('exposes only public custom-block fields as non-deletable data rows', () => {
+    const { document, model, documentRevision } = createHarness()
+    const custom = createBlock('custom-block', {
+      id: 'custom', source: 'block:square', interfaceHash: 'hash', notes: 'Internal', visible: 'true',
+    })
+    custom.additionalFieldDefinition = { size: { fieldType: 'number', title: 'Size' } }
+    ;(custom as unknown as Record<string, unknown>).size = '120'
+    document.faces.back.children.push({
+      block: custom,
+      location: { id: 'custom-location', type: 'simple-container-location', anchor: 'lt' },
+    })
+    documentRevision.value += 1
+
+    const customCatalog = model.catalogFaceGroups.value[1]?.blocks.find(block => block.key === custom.id)
+    expect(customCatalog?.fields).toEqual([
+      expect.objectContaining({ key: 'size', title: 'Size', deletable: false }),
+    ])
   })
 })

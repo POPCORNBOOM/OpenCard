@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import type { AdditionalFieldKeyError, CardDocument } from '../../entities/card/model'
+import { createBlock, type AdditionalFieldKeyError, type CardDocument } from '../../entities/card/model'
 import type { PropertyFieldType } from '../../entities/card/schema'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 
@@ -237,5 +237,28 @@ describe('useCdeDataTableCommands', () => {
     expect(failure.state.deleteField('text', 'content')).toBe(false)
     expect(failure.cardDoc.value?.dataTable?.blocks).toEqual({ text: ['content'] })
     expect(failure.refreshDocumentState).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows custom-block public values but protects its interface definition', () => {
+    const { cardDoc, createBlockField, deleteBlockField, state, updateBlockField } = createHarness()
+    const custom = createBlock('custom-block', {
+      id: 'custom', source: 'block:square', interfaceHash: 'hash', notes: 'Protected',
+    })
+    custom.additionalFieldDefinition = { size: { fieldType: 'number' } }
+    ;(custom as unknown as Record<string, unknown>).size = '120'
+    cardDoc.value!.faces.front.children = [{
+      block: custom,
+      location: { id: 'custom-location', type: 'simple-container-location', anchor: 'lt' },
+    }]
+
+    expect(state.includeField(custom.id, 'size')).toBe(true)
+    expect(state.includeField(custom.id, 'notes')).toBe(false)
+    expect(state.updateCell({ cardId: '__blueprint__', blockId: custom.id, fieldKey: 'size', value: '160' })).toBe(true)
+    expect(state.updateCell({ cardId: '__blueprint__', blockId: custom.id, fieldKey: 'notes', value: 'Changed' })).toBe(false)
+    expect(updateBlockField).toHaveBeenCalledTimes(1)
+    expect(state.createField({ blockId: custom.id, fieldKey: 'other', fieldType: 'string' })).toBe('invalid-target')
+    expect(state.deleteField(custom.id, 'size')).toBe(false)
+    expect(createBlockField).not.toHaveBeenCalled()
+    expect(deleteBlockField).not.toHaveBeenCalled()
   })
 })
