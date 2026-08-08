@@ -336,7 +336,7 @@
     />
     <CustomBlockExportDialog
       :open="customBlockExportDialogOpen"
-      :title="t('cardDesigner.customBlock.exportTitle')"
+      :dialog-title="t('cardDesigner.customBlock.exportTitle')"
       :fields="customBlockExportFields"
       :default-name="customBlockExportBlock?.name ?? ''"
       :default-key="customBlockExportBlock?.name ?? ''"

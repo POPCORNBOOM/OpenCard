@@ -5,6 +5,7 @@ import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 export const PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME = '.ocblocks'
 export const PROJECT_CUSTOM_BLOCK_EXTENSION = 'ocblock'
 export const PROJECT_CUSTOM_BLOCK_SUFFIX = `.${PROJECT_CUSTOM_BLOCK_EXTENSION}`
+export const DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY = 'assets/blocks'
 export const PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME = 'block.json'
 export const PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION = '1'
 

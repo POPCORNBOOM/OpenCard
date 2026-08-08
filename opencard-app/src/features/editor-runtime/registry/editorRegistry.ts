@@ -91,6 +91,7 @@ import ProjectIconRegistryFileEditor from '../../../components/editors/ProjectIc
 import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
+import ProjectCustomBlockRegistryEditor from '../../../components/editors/ProjectCustomBlockRegistryEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -149,6 +150,13 @@ editorRegistry.register({
   id: 'unsupported-file',
   name: 'Unsupported File',
   component: UnsupportedFileEditor,
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'custom-block-registry',
+  name: 'Custom Block Registry',
+  component: ProjectCustomBlockRegistryEditor,
   hasPreview: false,
 })
 

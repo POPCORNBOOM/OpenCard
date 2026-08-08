@@ -1,4 +1,14 @@
 export default {
+  customBlockRegistry: {
+    title: 'Custom Blocks',
+    description: 'Only explicitly registered custom block package paths are loaded for this project.',
+    add: 'Register package',
+    remove: 'Remove registration',
+    empty: 'No custom blocks are registered.',
+    choose: 'Choose a custom block package',
+    invalid: 'Invalid custom block registry',
+    repair: 'Repair the registry JSON to continue.',
+  },
   app: {
     shell: {
       expandSidebar: 'Expand sidebar',

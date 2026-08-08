@@ -1,4 +1,14 @@
 export default {
+  customBlockRegistry: {
+    title: '自定义 Block',
+    description: '项目只会加载在此明确登记路径的自定义 Block 包。',
+    add: '注册包',
+    remove: '移除登记',
+    empty: '尚未注册自定义 Block。',
+    choose: '选择自定义 Block 包',
+    invalid: '自定义 Block 注册表无效',
+    repair: '请修复注册表 JSON 后继续。',
+  },
   app: {
     shell: {
       expandSidebar: '展开侧边栏',

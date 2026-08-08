@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   trashFile: vi.fn(),
   startWatching: vi.fn(),
   stopWatching: vi.fn(),
+  readProjectCustomBlockPackage: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: vi.fn(), isTauri: () => false }))
@@ -46,6 +47,9 @@ vi.mock('../services/projectIconCatalog', async (importOriginal) => {
     buildProjectIconCatalog: vi.fn(async () => ({ series: [], entries: [], errors: [] })),
   }
 })
+vi.mock('../services/projectCustomBlock', () => ({
+  readProjectCustomBlockPackage: mocks.readProjectCustomBlockPackage,
+}))
 
 import { useProjectStore } from './projectStore'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
@@ -64,6 +68,20 @@ describe('projectStore settings actions', () => {
     mocks.trashFile.mockResolvedValue(undefined)
     mocks.startWatching.mockResolvedValue(undefined)
     mocks.stopWatching.mockResolvedValue(undefined)
+    mocks.readProjectCustomBlockPackage.mockResolvedValue({
+      manifest: {
+        type: 'opencard-custom-block',
+        schemaVersion: '1',
+        key: 'square',
+        name: 'Square',
+        interfaceHash: 'same-interface',
+        root: { type: 'text', id: 'root', name: 'Square' },
+        publicFields: [],
+        resize: { widthLocked: false, heightLocked: false },
+      },
+      archivePath: '',
+      files: new Map(),
+    })
     useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
 
@@ -325,6 +343,61 @@ describe('projectStore settings actions', () => {
       'D:/Downloads/Brand.woff2',
       'D:/project/assets/fonts/Brand (11).woff2',
     )
+
+    await store.setProjectPath('')
+  })
+
+  it('keeps project custom block packages in place and copies external packages to assets/blocks', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    await expect(store.importProjectCustomBlockFile(
+      'D:/project/library/square.ocblock',
+    )).resolves.toEqual({ source: 'library/square.ocblock', copied: false })
+    await expect(store.importProjectCustomBlockFile(
+      'D:/Downloads/square.ocblock',
+    )).resolves.toEqual({ source: 'assets/blocks/square.ocblock', copied: true })
+    expect(mocks.copyFile).toHaveBeenCalledWith(
+      'D:/Downloads/square.ocblock',
+      'D:/project/assets/blocks/square.ocblock',
+    )
+
+    await store.setProjectPath('')
+  })
+
+  it('replaces a compatible same-key registration and rejects an incompatible package before copying', async () => {
+    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocblocks'))
+    mocks.readFile.mockResolvedValue('{"blocks":["library/old-square.ocblock"]}')
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    await expect(store.importProjectCustomBlockFile(
+      'D:/Downloads/new-square.ocblock',
+    )).resolves.toEqual({
+      source: 'assets/blocks/new-square.ocblock',
+      copied: true,
+      replacedSource: 'library/old-square.ocblock',
+    })
+
+    mocks.copyFile.mockClear()
+    mocks.readProjectCustomBlockPackage.mockResolvedValueOnce({
+      manifest: {
+        type: 'opencard-custom-block',
+        schemaVersion: '1',
+        key: 'square',
+        name: 'Square v2',
+        interfaceHash: 'different-interface',
+        root: { type: 'text', id: 'root', name: 'Square' },
+        publicFields: [],
+        resize: { widthLocked: false, heightLocked: false },
+      },
+      archivePath: '',
+      files: new Map(),
+    })
+    await expect(store.importProjectCustomBlockFile(
+      'D:/Downloads/incompatible.ocblock',
+    )).rejects.toThrow('Custom block interface mismatch: square')
+    expect(mocks.copyFile).not.toHaveBeenCalled()
 
     await store.setProjectPath('')
   })

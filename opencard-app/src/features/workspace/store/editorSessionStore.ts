@@ -195,6 +195,7 @@ export function useEditorSessionStore() {
     saveProjectFontRegistry,
     saveProjectIconRegistry,
     saveProjectDictionary,
+    saveProjectCustomBlockRegistry,
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
@@ -543,6 +544,7 @@ export function useEditorSessionStore() {
       'opencard-font-registry': saveProjectFontRegistry,
       'opencard-icon-registry': saveProjectIconRegistry,
       'opencard-dictionary': saveProjectDictionary,
+      'opencard-custom-block-registry': saveProjectCustomBlockRegistry,
     } as const
     const structuredSaver = nextResourceKind === 'workspace'
       ? structuredProjectSavers[nextFileType.id as keyof typeof structuredProjectSavers]

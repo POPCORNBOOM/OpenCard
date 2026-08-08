@@ -118,7 +118,7 @@ const fileTypes: FileTypeDefinition[] = [
     icon: 'file.package-variant',
     iconTone: iconTone.config,
     language: 'json',
-    editorId: 'monaco',
+    editorId: 'custom-block-registry',
     previewable: true,
     projectTreePriority: 4,
   },

@@ -7,7 +7,10 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/.oclocale').id).toBe('opencard-dictionary')
     expect(resolveFileType('D:/Cards/.ocfonts').id).toBe('opencard-font-registry')
     expect(resolveFileType('D:/Cards/.ocicons').id).toBe('opencard-icon-registry')
-    expect(resolveFileType('D:/Cards/.ocblocks').id).toBe('opencard-custom-block-registry')
+    expect(resolveFileType('D:/Cards/.ocblocks')).toMatchObject({
+      id: 'opencard-custom-block-registry',
+      editorId: 'custom-block-registry',
+    })
     expect(resolveFileType('D:/Cards/assets/square.ocblock').id).toBe('opencard-custom-block')
     expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')

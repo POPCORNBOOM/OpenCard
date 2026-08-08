@@ -68,6 +68,7 @@ import {
 } from '../model/projectFonts'
 import {
   parseProjectCustomBlockRegistryText,
+  DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
   PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   serializeProjectCustomBlockRegistry,
   type ProjectCustomBlockCatalog,
@@ -86,12 +87,16 @@ const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
 const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
 const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf'])
 const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp'])
+const PROJECT_CUSTOM_BLOCK_EXTENSIONS = new Set(['ocblock'])
 
 export type ImportedProjectFontFile = {
   source: string
   copied: boolean
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
+export type ImportedProjectCustomBlockFile = ImportedProjectFontFile & {
+  replacedSource?: string
+}
 export type ProjectAssetImportConflict = {
   existingSource: string
   availableCopySource: string
@@ -849,6 +854,30 @@ async function importProjectIconFile(
   )
 }
 
+async function importProjectCustomBlockFile(
+  sourcePath: string,
+  conflictResolution?: ProjectAssetImportResolution,
+): Promise<ImportedProjectCustomBlockFile> {
+  const sourcePackage = await readProjectCustomBlockPackage(fileSystemService, normalizePath(sourcePath))
+  const existing = projectCustomBlockCatalog.value.get(sourcePackage.manifest.key.toLocaleLowerCase())
+  if (existing && existing.manifest.interfaceHash !== sourcePackage.manifest.interfaceHash) {
+    throw new Error(`Custom block interface mismatch: ${sourcePackage.manifest.key}`)
+  }
+  const imported = await importProjectAssetFile(
+    sourcePath,
+    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
+    'Unsupported custom block file',
+    conflictResolution,
+  )
+  return {
+    ...imported,
+    ...(existing && pathIdentity(existing.archivePath) !== pathIdentity(imported.source)
+      ? { replacedSource: existing.archivePath }
+      : {}),
+  }
+}
+
 async function getProjectIconImportConflict(
   sourcePath: string,
   targetDirectoryPath = DEFAULT_PROJECT_ICON_DIRECTORY,
@@ -1221,6 +1250,7 @@ export function useProjectStore() {
     getProjectFontImportConflict,
     importProjectIconFile,
     getProjectIconImportConflict,
+    importProjectCustomBlockFile,
     createEntryWithAvailableName,
     trashFile,
     revealEntryInFileManager,

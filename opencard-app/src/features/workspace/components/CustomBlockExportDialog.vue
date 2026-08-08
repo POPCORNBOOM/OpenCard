@@ -1,5 +1,5 @@
 <template>
-  <OcDialog :open="open" :title="title" as="form" size="lg" min-height="md" max-height="viewport"
+  <OcDialog :open="open" :title="dialogTitle" as="form" size="lg" min-height="md" max-height="viewport"
     close-on-backdrop @request-close="emit('close')" @submit="submit">
     <div class="custom-block-export-dialog">
       <OcText as="h3" size="sm">{{ fieldsLabel }}</OcText>
@@ -43,7 +43,7 @@ import { normalizeProjectCustomBlockKey } from '../model/projectCustomBlocks'
 
 const props = withDefaults(defineProps<{
   open: boolean
-  title: string
+  dialogTitle: string
   fields: readonly CustomBlockFieldAnalysis[]
   defaultName?: string
   defaultKey?: string
