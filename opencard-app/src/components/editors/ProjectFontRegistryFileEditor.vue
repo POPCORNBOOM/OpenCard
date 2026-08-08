@@ -4,9 +4,12 @@
     @keydown.ctrl.s.prevent="save">
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
       :description="t('fontRegistry.description')" :fonts="document.fonts ?? []" :font-sets="document.fontSets ?? []"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :read-font-bytes="readFontBytes"
+      :resolve-asset-src="resolveAssetSrc" :read-font-bytes="readFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
+      :read-only="isObserveOnly"
+      :preview-text="props.fontPreviewText"
       :error="importError" @update:fonts="updateFonts" @update:font-sets="updateFontSets"
+      @update:preview-text="emit('update-font-preview-text', $event)"
       @register-font="openRegistrationDialog()" @configure-font="openRegistrationDialog"
       @register-font-set="openFontSetDialog()" @configure-font-set="openFontSetDialog" />
 
@@ -29,6 +32,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
@@ -70,6 +74,7 @@ const workbenchRef = ref<InstanceType<typeof ProjectFontRegistryEditor> | null>(
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
+const isObserveOnly = computed(() => props.access === 'observe-only')
 const flatFonts = computed(() => flattenProjectFonts(document.value?.fonts))
 const projectDirectory = computed(() => {
   const source = projectStore.projectPath.value || props.filePath
@@ -78,7 +83,15 @@ const projectDirectory = computed(() => {
     ? normalized.slice(0, -PROJECT_FONT_REGISTRY_FILE_NAME.length - 1)
     : normalized
 })
-const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectPath(source))
+const readFontBytes = (source: string) => fileSystemService.readBinaryFile(resolveSnapshotPath(source))
+const resolveAssetSrc = (source: string) => {
+  if (!isObserveOnly.value) return projectStore.resolveAssetSrc(source)
+  return convertFileSrc(resolveSnapshotPath(source))
+}
+function resolveSnapshotPath(source: string): string {
+  const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
+  return root ? `${root}/${source.replace(/^[/\\]+/, '')}` : projectStore.resolveProjectPath(source)
+}
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const fontSets = document.value?.fontSets ?? []
   const registryIssues: EditorIssue[] = document.value
@@ -112,6 +125,7 @@ watch(() => props.modelValue, content => {
 watch(issueSnapshot, snapshot => emit('issue-snapshot', snapshot), { immediate: true })
 
 function commit(next: ProjectFontRegistryDocument): void {
+  if (isObserveOnly.value) return
   try {
     const content = serializeProjectFontRegistry(next)
     document.value = parseProjectFontRegistryText(content)
@@ -130,6 +144,7 @@ function updateFontSets(fontSets: readonly ProjectFontSet[]): void {
 }
 
 function openRegistrationDialog(originalKey?: string): void {
+  if (isObserveOnly.value) return
   if (!document.value || importBusy.value) return
   if (originalKey && !document.value.fonts?.some(font => font.key === originalKey)) return
   importError.value = ''
@@ -145,6 +160,7 @@ function closeRegistrationDialog(): void {
 }
 
 function openFontSetDialog(originalKey?: string): void {
+  if (isObserveOnly.value) return
   if (!document.value) return
   if (originalKey && !document.value.fontSets?.some(fontSet => fontSet.key === originalKey)) return
   fontSetOriginalKey.value = originalKey
@@ -224,11 +240,12 @@ function saveFontSet(request: ProjectFontSetRequest): void {
 }
 
 function updateRawSource(content: string): void {
+  if (isObserveOnly.value) return
   emit('update:modelValue', content)
 }
 
 function save(): void {
-  if (document.value) emit('save')
+  if (document.value && !isObserveOnly.value) emit('save')
 }
 
 function isNavigationToken(token: SessionNavigationToken): token is {

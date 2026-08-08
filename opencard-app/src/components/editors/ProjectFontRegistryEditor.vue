@@ -11,7 +11,7 @@
             <OcText tone="muted" size="sm">{{ description }}</OcText>
           </div>
         </div>
-        <div class="project-font-registry-workbench__title-actions">
+        <div v-if="!readOnly" class="project-font-registry-workbench__title-actions">
           <OcButton icon="action.add" variant="soft" :aria-label="addLabel"
             @click="addCurrentEntry">{{ addLabel }}</OcButton>
         </div>
@@ -28,7 +28,7 @@
 
       <div class="project-font-registry-workbench__list">
         <OcTree v-if="currentEntries.length" fill role="listbox" selection-mode="single"
-          activation-mode="double-click" scroll-to-selection :data="treeData" :actions="treeActions"
+          :activation-mode="readOnly ? 'none' : 'double-click'" scroll-to-selection :data="treeData" :actions="treeActions"
           :selected-keys="selectedTreeKeys" :action-overflow-title="t('projectConfig.fonts.entryActions')"
           @intent="handleTreeIntent" />
         <OcEmpty v-else tone="muted">
@@ -40,7 +40,7 @@
     <section class="project-font-registry-workbench__right">
       <template v-if="selectedEntry">
         <header class="project-font-registry-workbench__preview-toolbar">
-          <OcFieldInput full-width :value="previewText" :aria-label="t('projectConfig.fonts.previewText')"
+          <OcFieldInput full-width :value="effectivePreviewText" :aria-label="t('projectConfig.fonts.previewText')"
             @input="updatePreviewText" />
         </header>
         <div class="project-font-registry-workbench__preview" :style="previewStyle">
@@ -124,7 +124,9 @@ const props = withDefaults(defineProps<{
   readFontBytes: (source: string) => Promise<Uint8Array>
   error?: string
   loadErrors?: readonly ProjectFontLoadError[]
-}>(), { fontSets: () => [], error: '', loadErrors: () => [] })
+  readOnly?: boolean
+  previewText?: string
+}>(), { fontSets: () => [], error: '', loadErrors: () => [], readOnly: false })
 const emit = defineEmits<{
   'update:fonts': [fonts: ProjectFont[]]
   'update:fontSets': [fontSets: ProjectFontSet[]]
@@ -132,12 +134,14 @@ const emit = defineEmits<{
   'configure-font': [fontKey: string]
   'register-font-set': []
   'configure-font-set': [fontSetKey: string]
+  'update:previewText': [value: string]
 }>()
 const { t } = useI18n()
 const activePage = ref<'fonts' | 'sets'>('fonts')
 const selectedFontKey = ref<string | null>(null)
 const selectedFontSetKey = ref<string | null>(null)
 const previewText = ref(t('projectConfig.fonts.previewSample'))
+const effectivePreviewText = computed(() => props.previewText ?? previewText.value)
 const characterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
 const failedCoverageKeys = ref<ReadonlySet<string>>(new Set())
 const hoveredFontKey = ref<string | null>(null)
@@ -178,8 +182,8 @@ const treeData = computed<OcTreeData>(() => {
     items: new Map(entries.map(entry => [treeKey(activePage.value, entry.key), {
       label: entry.name,
       icon: activePage.value === 'fonts' ? 'file.font' as const : 'data.layers' as const,
-      actions: ['configure', 'delete'],
-      contextActions: ['configure', 'delete'],
+      actions: props.readOnly ? [] : ['configure', 'delete'],
+      contextActions: props.readOnly ? [] : ['configure', 'delete'],
     }])),
     children: new Map(),
   }
@@ -199,7 +203,7 @@ const previewFonts = computed(() => activePage.value === 'fonts'
       .map(key => props.fonts.find(font => font.key.toLocaleLowerCase() === key.toLocaleLowerCase()))
       .filter((font): font is ProjectFont => Boolean(font)))
 const previewRuns = computed(() => createProjectFontPreviewRuns(
-  previewText.value,
+  effectivePreviewText.value,
   previewFonts.value.map(font => font.key),
   characterSets.value,
 ))
@@ -239,14 +243,17 @@ function treeKey(page: 'fonts' | 'sets', key: string): string { return `${page}:
 function entryKey(key: string): string { return key.slice(key.indexOf(':') + 1) }
 function selectPage(value: string): void { if (value === 'fonts' || value === 'sets') activePage.value = value }
 function addCurrentEntry(): void {
+  if (props.readOnly) return
   if (activePage.value === 'fonts') emit('register-font')
   else emit('register-font-set')
 }
 function configureEntry(key: string): void {
+  if (props.readOnly) return
   if (activePage.value === 'fonts') emit('configure-font', key)
   else emit('configure-font-set', key)
 }
 function removeEntry(key: string): void {
+  if (props.readOnly) return
   if (activePage.value === 'fonts') removeFont(props.fonts.findIndex(font => font.key === key))
   else removeFontSet(props.fontSets.findIndex(fontSet => fontSet.key === key))
 }
@@ -258,10 +265,12 @@ function handleTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type === 'node.activate') {
+    if (props.readOnly) return
     configureEntry(entryKey(intent.key))
     return
   }
   if (intent.type !== 'action.invoke') return
+  if (props.readOnly) return
   const key = entryKey(intent.key)
   if (intent.actionKey === 'configure') configureEntry(key)
   else if (intent.actionKey === 'delete') removeEntry(key)
@@ -278,7 +287,11 @@ function removeFontSet(index: number): void {
   if (props.fontSets[index]?.key === selectedFontSetKey.value) selectedFontSetKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
   emit('update:fontSets', next)
 }
-function updatePreviewText(event: Event): void { if (event.target instanceof HTMLInputElement) previewText.value = event.target.value }
+function updatePreviewText(event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  previewText.value = event.target.value
+  emit('update:previewText', event.target.value)
+}
 function runStyle(fontKey: string | null): CSSProperties | undefined {
   return fontKey ? { fontFamily: JSON.stringify(createProjectFontCssFamily(fontKey)) } : undefined
 }
