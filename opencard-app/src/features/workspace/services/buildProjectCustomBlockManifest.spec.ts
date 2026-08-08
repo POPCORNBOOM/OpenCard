@@ -30,4 +30,18 @@ describe('buildProjectCustomBlockManifest', () => {
     expect(manifest.root.children).toHaveLength(1)
     expect(manifest.root.children[0]!.block).not.toHaveProperty('packaged')
   })
+
+  it('normalizes exported field definitions to the portable contract', async () => {
+    const root = createBlock('text-block')
+    ;(root as unknown as Record<string, unknown>).additionalFieldDefinition = {
+      size: { fieldType: 'number', title: 'Size', editorOnly: false },
+      invalid: false,
+    }
+
+    const manifest = await buildProjectCustomBlockManifest({ root, key: 'normalized' })
+
+    expect(manifest.root.additionalFieldDefinition).toEqual({
+      size: { fieldType: 'number', title: 'Size' },
+    })
+  })
 })
