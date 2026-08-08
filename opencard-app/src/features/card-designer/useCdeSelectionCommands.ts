@@ -21,17 +21,17 @@ export type CdeSelectionMoveIntent = {
 }
 
 export type CdeSelectionLayoutIntent =
-  | { type: 'fill-parent'; blockId: string }
+  | { type: 'fill-parent'; blockId: string; width: boolean; height: boolean }
   | { type: 'fill-cross-axis'; blockId: string }
   | { type: 'center-cross-axis'; blockId: string }
   | {
       type: 'geometry.apply'
       operation: 'center' | 'inset' | 'outset'
       blockId: string
-      width: number
-      height: number
-      x: number
-      y: number
+      width?: number
+      height?: number
+      x?: number
+      y?: number
     }
 
 export type CdeFaceDimensionIntent = {
@@ -91,15 +91,42 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
 
     if (intent.type === 'geometry.apply') {
       if (target.location.type !== 'simple-container-location') return false
-      return resizeSelection(intent)
+      let changed = false
+      if (intent.width !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'width')) {
+        target.block.width = formatCssPixels(intent.width)
+        if (intent.x !== undefined) target.location.x = formatCssPixels(intent.x)
+        changed = true
+      } else if (intent.operation === 'center' && intent.x !== undefined) {
+        target.location.x = formatCssPixels(intent.x)
+        changed = true
+      }
+      if (intent.height !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'height')) {
+        target.block.height = formatCssPixels(intent.height)
+        if (intent.y !== undefined) target.location.y = formatCssPixels(intent.y)
+        changed = true
+      } else if (intent.operation === 'center' && intent.y !== undefined) {
+        target.location.y = formatCssPixels(intent.y)
+        changed = true
+      }
+      if (!changed) return false
+      commitAction()
+      return true
     }
 
     if (intent.type === 'fill-parent') {
       if (target.location.type !== 'simple-container-location') return false
-      target.block.width = '100%'
-      target.block.height = '100%'
-      target.location.x = '0px'
-      target.location.y = '0px'
+      let changed = false
+      if (intent.width && !options.isResizeAxisLocked?.(intent.blockId, 'width')) {
+        target.block.width = '100%'
+        target.location.x = '0px'
+        changed = true
+      }
+      if (intent.height && !options.isResizeAxisLocked?.(intent.blockId, 'height')) {
+        target.block.height = '100%'
+        target.location.y = '0px'
+        changed = true
+      }
+      if (!changed) return false
     } else {
       if (
         target.location.type !== 'flow-container-location'
@@ -108,8 +135,10 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
 
       if (intent.type === 'fill-cross-axis') {
         if (target.parent.direction === 'lr' || target.parent.direction === 'rl') {
+          if (options.isResizeAxisLocked?.(intent.blockId, 'height')) return false
           target.block.height = '100%'
         } else {
+          if (options.isResizeAxisLocked?.(intent.blockId, 'width')) return false
           target.block.width = '100%'
         }
         target.location.align = 'justify'

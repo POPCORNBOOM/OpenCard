@@ -133,17 +133,17 @@
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 
 export type CardViewportSelectionAction =
-  | { type: 'fill-parent'; blockId: string }
+  | { type: 'fill-parent'; blockId: string; width: boolean; height: boolean }
   | { type: 'fill-cross-axis'; blockId: string }
   | { type: 'center-cross-axis'; blockId: string }
   | {
       type: 'geometry.apply'
       operation: 'center' | 'inset' | 'outset'
       blockId: string
-      width: number
-      height: number
-      x: number
-      y: number
+      width?: number
+      height?: number
+      x?: number
+      y?: number
     }
 
 export type CardViewportSelectionCommand = {
@@ -449,15 +449,18 @@ const activeHandles = computed<ResizeHandle[]>(() => {
       : props.selectedParentFlowDirection === 'bt'
         ? 't'
         : horizontal ? 'r' : 'b'
-    if (props.selectedFlowAlign === 'justify') return [mainHandle]
+    const filterLocked = (handles: ResizeHandle[]) => handles.filter(handle => (
+      handle === 'l' || handle === 'r' ? !props.widthLocked : !props.heightLocked
+    ))
+    if (props.selectedFlowAlign === 'justify') return filterLocked([mainHandle])
     if (horizontal) {
-      if (props.selectedFlowAlign === 'end') return [mainHandle, 't']
-      if (props.selectedFlowAlign === 'center') return [mainHandle, 't', 'b']
-      return [mainHandle, 'b']
+      if (props.selectedFlowAlign === 'end') return filterLocked([mainHandle, 't'])
+      if (props.selectedFlowAlign === 'center') return filterLocked([mainHandle, 't', 'b'])
+      return filterLocked([mainHandle, 'b'])
     }
-    if (props.selectedFlowAlign === 'end') return [mainHandle, 'l']
-    if (props.selectedFlowAlign === 'center') return [mainHandle, 'l', 'r']
-    return [mainHandle, 'r']
+    if (props.selectedFlowAlign === 'end') return filterLocked([mainHandle, 'l'])
+    if (props.selectedFlowAlign === 'center') return filterLocked([mainHandle, 'l', 'r'])
+    return filterLocked([mainHandle, 'r'])
   }
   if (resizeMode.value === 'absolute') {
     const handles: ResizeHandle[] = ['lt', 't', 'rt', 'l', 'r', 'lb', 'b', 'rb']
@@ -475,17 +478,17 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
   if (resizeMode.value === 'absolute') {
     return [
       ...props.selectionCommandActions,
-      {
+      ...(!props.widthLocked || !props.heightLocked ? [{
         key: 'fill-parent',
         title: props.selectionActionLabels.fillParent,
         icon: 'layout.fill',
-      },
+      } as OcActionButtonAction] : []),
       {
         key: 'center',
         title: props.selectionActionLabels.centerInParent,
         icon: 'layout.center',
       },
-      {
+      ...(!props.widthLocked || !props.heightLocked ? [{
         key: 'inset',
         title: props.selectionActionLabels.inset,
         icon: 'layout.inset',
@@ -494,7 +497,7 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
         key: 'outset',
         title: props.selectionActionLabels.outset,
         icon: 'layout.outset',
-      },
+      }] as OcActionButtonAction[] : []),
     ]
   }
   if (resizeMode.value === 'flow') {
@@ -502,11 +505,11 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
       || props.selectedParentFlowDirection === 'rl'
     return [
       ...props.selectionCommandActions,
-      {
+      ...(!(horizontalFlow ? props.heightLocked : props.widthLocked) ? [{
         key: 'fill-cross-axis',
         title: props.selectionActionLabels.fillCrossAxis,
         icon: horizontalFlow ? 'layout.fill-vertical' : 'layout.fill-horizontal',
-      },
+      } as OcActionButtonAction] : []),
       {
         key: 'center-cross-axis',
         title: props.selectionActionLabels.centerCrossAxis,
@@ -655,7 +658,12 @@ function handleSelectionQuickAction(actionKey: string): void {
   if (!blockId) return
 
   if (actionKey === 'fill-parent') {
-    emit('selection-action', { type: 'fill-parent', blockId })
+    if (props.widthLocked && props.heightLocked) return
+    emit('selection-action', {
+      type: 'fill-parent', blockId,
+      width: !props.widthLocked,
+      height: !props.heightLocked,
+    })
     return
   }
   if (actionKey === 'fill-cross-axis') {
@@ -677,14 +685,14 @@ function handleSelectionQuickAction(actionKey: string): void {
   const nextRect = buildQuickActionRect(actionKey, measurement)
   if (!nextRect) return
   const geometry = buildAbsoluteResizePayload(nextRect, measurement)
+  const isCenter = actionKey === 'center'
   emit('selection-action', {
     type: 'geometry.apply',
     operation: actionKey,
     blockId,
-    width: geometry.width,
-    height: geometry.height,
-    x: geometry.x ?? 0,
-    y: geometry.y ?? 0,
+    ...(!isCenter && !props.widthLocked ? { width: geometry.width, x: geometry.x ?? 0 } : {}),
+    ...(!isCenter && !props.heightLocked ? { height: geometry.height, y: geometry.y ?? 0 } : {}),
+    ...(isCenter ? { x: geometry.x ?? 0, y: geometry.y ?? 0 } : {}),
   })
 }
 

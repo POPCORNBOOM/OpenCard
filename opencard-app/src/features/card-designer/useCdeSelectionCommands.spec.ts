@@ -168,7 +168,9 @@ describe('useCdeSelectionCommands', () => {
     expect(simple.children[0]!.block).toMatchObject({ width: '100.56px', height: '80.44px' })
     expect(simple.children[0]!.location).toMatchObject({ anchor: 'rb', x: '10px', y: '12px' })
 
-    expect(commands.applySelectionLayout({ type: 'fill-parent', blockId: 'simple-child' })).toBe(true)
+    expect(commands.applySelectionLayout({
+      type: 'fill-parent', blockId: 'simple-child', width: true, height: true,
+    })).toBe(true)
     expect(simple.children[0]!.block).toMatchObject({ width: '100%', height: '100%' })
     expect(simple.children[0]!.location).toMatchObject({ anchor: 'rb', x: '0px', y: '0px' })
   })
@@ -186,6 +188,23 @@ describe('useCdeSelectionCommands', () => {
     expect(flow.children[0]!.block.width).toBe('100%')
     expect(commands.applySelectionLayout({ type: 'center-cross-axis', blockId: 'flow-child' })).toBe(true)
     expect(flow.children[0]!.location.align).toBe('center')
+  })
+
+  it('filters layout writes on locked custom-block axes', () => {
+    const { commands, simple } = createHarness((_blockId, axis) => axis === 'width')
+    const child = simple.children[0]!
+
+    expect(commands.applySelectionLayout({
+      type: 'geometry.apply', operation: 'inset', blockId: child.block.id,
+      width: 80, height: 30, x: 5, y: 6,
+    })).toBe(true)
+    expect(child.block).toMatchObject({ width: '20px', height: '30px' })
+    expect(child.location).toMatchObject({ x: '1px', y: '6px' })
+    expect(commands.applySelectionLayout({
+      type: 'fill-parent', blockId: child.block.id, width: true, height: true,
+    })).toBe(true)
+    expect(child.block).toMatchObject({ width: '20px', height: '100%' })
+    expect(child.location).toMatchObject({ x: '1px', y: '0px' })
   })
 
   it('finishes face dimension typing even when the final value is unchanged', () => {

@@ -685,7 +685,9 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     expect(viewport.props('selectedBlockId')).toBe('text-1')
 
-    viewport.vm.$emit('selection-action', { type: 'fill-parent', blockId: 'text-1' })
+    viewport.vm.$emit('selection-action', {
+      type: 'fill-parent', blockId: 'text-1', width: true, height: true,
+    })
     await nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []

@@ -284,13 +284,11 @@ describe('CardViewport wheel zoom API', () => {
       ?.vm.$emit('select', { key: 'content.edit-rich-text' })
 
     expect(wrapper.emitted('selection-action')).toEqual([
-      [{ type: 'fill-parent', blockId: 'selected' }],
+      [{ type: 'fill-parent', blockId: 'selected', width: true, height: true }],
       [{
         type: 'geometry.apply',
         operation: 'center',
         blockId: 'selected',
-        width: 100,
-        height: 80,
         x: 150,
         y: 110,
       }],
@@ -324,7 +322,7 @@ describe('CardViewport wheel zoom API', () => {
     menu.selectMenuItem('fill-parent')
     const contextSelectionActions = wrapper.emitted('selection-action') ?? []
     expect(contextSelectionActions[contextSelectionActions.length - 1]).toEqual([
-      { type: 'fill-parent', blockId: 'selected' },
+      { type: 'fill-parent', blockId: 'selected', width: true, height: true },
     ])
 
     await wrapper.get('.selection-handle-t').trigger('pointerdown')
@@ -362,6 +360,20 @@ describe('CardViewport wheel zoom API', () => {
     await wrapper.get('.selection-frame').trigger('pointerdown')
     expect(wrapper.find('.selection-anchor-guide').exists()).toBe(false)
     window.dispatchEvent(new Event('pointercancel'))
+
+    await wrapper.setProps({ widthLocked: true, heightLocked: false })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-t', 'selection-handle-b'])
+    expect(wrapper.vm.runSelectionQuickAction('outset')).toBe(true)
+    const lockedActions = wrapper.emitted('selection-action') ?? []
+    expect(lockedActions[lockedActions.length - 1]).toEqual([{
+      type: 'geometry.apply', operation: 'outset', blockId: 'selected',
+      height: 100, y: 160,
+    }])
+    await wrapper.setProps({ heightLocked: true })
+    expect(wrapper.findAll('.selection-handle')).toHaveLength(0)
+    expect(wrapper.findAllComponents({ name: 'OcActionButton' }).map(action => action.props('action').key))
+      .toEqual(['content.edit-rich-text', 'center'])
   })
 
   it('uses direction-aware flow handles and emits only the resized axis', async () => {
@@ -436,6 +448,14 @@ describe('CardViewport wheel zoom API', () => {
       blockId: 'selected',
       height: 100,
     })
+    await wrapper.setProps({ widthLocked: true, heightLocked: false })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-t', 'selection-handle-b'])
+    await wrapper.setProps({ widthLocked: false, heightLocked: true })
+    expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
+      .toEqual(['selection-handle-r'])
+    expect(wrapper.findAllComponents({ name: 'OcActionButton' }).map(action => action.props('action').key))
+      .not.toContain('fill-cross-axis')
   })
 
   it('keeps a minimum-size resize handle pinned until the pointer catches up', async () => {
