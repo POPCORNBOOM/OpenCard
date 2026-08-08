@@ -38,29 +38,29 @@
             </OcText>
           </template>
           <template #actions>
-            <OcButton icon-only size="sm" icon="action.export" variant="ghost"
+          <OcButton v-if="!readOnly" icon-only size="sm" icon="action.export" variant="ghost"
               :disabled="selectedSeriesIndex !== index || !selectedRuntime"
               :aria-label="t('projectConfig.icons.exportPack')"
               :data-tooltip="t('projectConfig.icons.exportPack')"
               @click.stop="exportIconPack(index)" />
-            <OcButton icon-only size="sm" icon="action.image-plus" variant="ghost"
+          <OcButton v-if="!readOnly" icon-only size="sm" icon="action.image-plus" variant="ghost"
               :disabled="selectedSeriesIndex !== index || !selectedRuntime"
               :aria-label="t('projectConfig.icons.addSingleCrop')"
               :data-tooltip="t('projectConfig.icons.addSingleCrop')"
               @click.stop="addSingleCrop(index)" />
-            <OcButton icon-only size="sm" icon="tool.grid" variant="ghost"
+          <OcButton v-if="!readOnly" icon-only size="sm" icon="tool.grid" variant="ghost"
               :disabled="selectedSeriesIndex !== index || !selectedRuntime"
               :aria-label="t('projectConfig.icons.generateIcons')"
               :data-tooltip="t('projectConfig.icons.generateIcons')"
               @click.stop="openGridDialog(index)" />
-            <OcButton icon-only size="sm" icon="tool.settings" variant="ghost"
+          <OcButton v-if="!readOnly" icon-only size="sm" icon="tool.settings" variant="ghost"
               :aria-label="t('projectConfig.icons.configureIconSet')"
               :data-tooltip="t('projectConfig.icons.configureIconSet')"
               @click.stop="openSettingsDialog(index)" />
-            <OcButton icon-only size="sm" icon="action.delete" icon-tone="danger" variant="ghost"
+          <OcButton v-if="!readOnly" icon-only size="sm" icon="action.delete" icon-tone="danger" variant="ghost"
               :aria-label="t('projectConfig.icons.removeSeries')"
               :data-tooltip="t('projectConfig.icons.removeSeries')"
-              @click.stop="removeSeries(index)" />
+            @click.stop="removeSeries(index)" />
           </template>
           <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index" :ref="captureSetWorkspace"
             :series="candidate" :runtime="selectedRuntime" :selected-icon-indexes="selectedIconIndexesForSeries"
@@ -80,20 +80,21 @@
             :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
             :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
             :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
+            :read-only="readOnly"
             @update:icon="updateSelectedIcon" @update:pixelated="updateGridSettings({ pixelated: $event })" />
           <OcOverlayToolbar class="project-icon-registry-workbench__grid-toolbar"
             :label="t('projectConfig.icons.gridSettings')">
-            <OcButton icon-only size="sm" icon="tool.snap-grid" :active="gridSettings.snapToGrid"
+            <OcButton v-if="!readOnly" icon-only size="sm" icon="tool.snap-grid" :active="gridSettings.snapToGrid"
               :aria-pressed="gridSettings.snapToGrid" :variant="gridSettings.snapToGrid ? 'soft' : 'ghost'"
               :aria-label="t('projectConfig.icons.snapToGrid')"
               :data-tooltip="t('projectConfig.icons.snapToGrid')" @click="toggleGridSnapping" />
-            <OcFieldFrame class="project-icon-registry-workbench__grid-field" size="sm">
+            <OcFieldFrame v-if="!readOnly" class="project-icon-registry-workbench__grid-field" size="sm">
               <template #prefix><OcIcon name="layout.rows" size="sm" tone="muted" /></template>
               <OcFieldInput variant="plain" size="sm" type="number" min="1" step="1"
                 :value="gridSettings.rows" :aria-label="t('projectConfig.icons.rows')"
                 @change="updateGridDimension('rows', $event)" />
             </OcFieldFrame>
-            <OcFieldFrame class="project-icon-registry-workbench__grid-field" size="sm">
+            <OcFieldFrame v-if="!readOnly" class="project-icon-registry-workbench__grid-field" size="sm">
               <template #prefix><OcIcon name="layout.columns" size="sm" tone="muted" /></template>
               <OcFieldInput variant="plain" size="sm" type="number" min="1" step="1"
                 :value="gridSettings.columns" :aria-label="t('projectConfig.icons.columns')"
@@ -166,7 +167,8 @@ const props = withDefaults(defineProps<{
   resolveAssetSrc: (source: string) => string
   projectIconCatalog?: ProjectIconCatalog
   error?: string
-}>(), { series: () => [], error: '' })
+  readOnly?: boolean
+}>(), { series: () => [], error: '', readOnly: false })
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries[]]
   'key-conflicts': [conflicts: readonly ProjectIconKeyConflict[]]
@@ -275,6 +277,7 @@ function setSelectedIconIndexes(indexes: number[]): void {
   if (selectedSeriesKey.value !== null) selectedIconIndexes.value[selectedSeriesKey.value] = [...indexes]
 }
 function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
+  if (props.readOnly) return
   const index = selectedSeriesIndex.value
   if (index === null) return
   const next = [...props.series]
@@ -282,6 +285,7 @@ function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
   emit('update:series', next)
 }
 function updateSelectedIcon(icon: ProjectIcon): void {
+  if (props.readOnly) return
   const series = selectedSeries.value
   const index = selectedIconIndex.value
   if (!series || index === null) return
@@ -290,6 +294,7 @@ function updateSelectedIcon(icon: ProjectIcon): void {
   updateSelectedSeries({ ...series, icons })
 }
 function updateGridSettings(patch: Partial<ProjectIconGridSettings>): void {
+  if (props.readOnly) return
   if (selectedSeries.value) updateSelectedSeries({
     ...selectedSeries.value,
     grid: { ...gridSettings.value, ...patch },

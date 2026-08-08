@@ -4,7 +4,8 @@
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
       :description="t('iconRegistry.description')" :series="document.iconSeries"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :project-icon-catalog="projectStore.projectIconCatalog.value"
+      :resolve-asset-src="resolveAssetSrc" :project-icon-catalog="isObserveOnly ? undefined : projectStore.projectIconCatalog.value"
+      :read-only="isObserveOnly"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
       @create-pack="openCreatePackDialog" @import-pack="openImportPackDialog" @export-pack="exportIconPack" />
@@ -28,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type {
@@ -84,6 +86,12 @@ const workbenchRef = ref<InstanceType<typeof ProjectIconRegistryWorkbench> | nul
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
+const isObserveOnly = computed(() => props.access === 'observe-only')
+const resolveAssetSrc = (source: string): string => {
+  if (!isObserveOnly.value) return projectStore.resolveAssetSrc(source)
+  const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
+  return convertFileSrc(root ? `${root}/${source.replace(/^[/\\]+/, '')}` : projectStore.resolveProjectPath(source))
+}
 const projectDirectory = computed(() => {
   const source = projectStore.projectPath.value || props.filePath
   const normalized = source.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -135,6 +143,7 @@ watch(() => props.modelValue, content => {
 watch(issueSnapshot, snapshot => emit('issue-snapshot', snapshot), { immediate: true })
 
 function commit(next: ProjectIconRegistryDocument): void {
+  if (isObserveOnly.value) return
   try {
     const content = serializeProjectIconRegistry(next)
     document.value = parseProjectIconRegistryText(content)
@@ -306,11 +315,12 @@ function safeFileName(value: string): string {
 }
 
 function updateRawSource(content: string): void {
+  if (isObserveOnly.value) return
   emit('update:modelValue', content)
 }
 
 function save(): void {
-  if (document.value && keyConflicts.value.length === 0) emit('save')
+  if (document.value && !isObserveOnly.value && keyConflicts.value.length === 0) emit('save')
 }
 
 function isNavigationToken(token: SessionNavigationToken): token is {

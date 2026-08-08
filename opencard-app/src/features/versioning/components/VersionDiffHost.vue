@@ -23,7 +23,7 @@
       {{ t('versioning.diff.loadFailed') }}
     </div>
     <MonacoEditor
-      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback)"
+      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback || iconRegistryFallback)"
       class="version-diff-host__editor"
       model-value=""
       :language="language"
@@ -62,6 +62,15 @@
       :theme-id="themeId"
       :theme-overrides="themeOverrides"
     />
+    <SnapshotIconRegistryDiffEditor
+      v-else-if="comparison && fileType.editorId === 'icon-registry'"
+      :historical="session.historical"
+      :current="session.current"
+      :comparison="comparison"
+      :file-name="fileName"
+      :theme-id="themeId"
+      :theme-overrides="themeOverrides"
+    />
     <SnapshotResourceDiffEditor
       v-else-if="loaded && resourceKind"
       :historical="session.historical"
@@ -92,6 +101,7 @@ import SnapshotResourceDiffEditor from './SnapshotResourceDiffEditor.vue'
 import DictionaryDiffEditor from './DictionaryDiffEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 import SnapshotFontRegistryDiffEditor from './SnapshotFontRegistryDiffEditor.vue'
+import SnapshotIconRegistryDiffEditor from './SnapshotIconRegistryDiffEditor.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
@@ -100,6 +110,7 @@ import { resolveFileType } from '../../workspace/model/fileTypes'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import { parseProjectMetadataText } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
+import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
 
 const props = defineProps<{
   session: CompareSession
@@ -143,6 +154,12 @@ const fontRegistryFallback = computed(() => (
   && (!parseProjectFontRegistryText(comparison.value!.historicalContent)
     || !parseProjectFontRegistryText(comparison.value!.currentContent))
 ))
+const iconRegistryFallback = computed(() => (
+  fileType.value.editorId === 'icon-registry'
+  && Boolean(comparison.value)
+  && (!parseProjectIconRegistryText(comparison.value!.historicalContent)
+    || !parseProjectIconRegistryText(comparison.value!.currentContent))
+))
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   const separator = snapshot.rootPath.includes('\\') ? '\\' : '/'
@@ -167,7 +184,7 @@ async function loadComparison(): Promise<void> {
   loaded.value = false
   comparison.value = null
   try {
-    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry'].includes(fileType.value.editorId)) {
+    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry', 'icon-registry'].includes(fileType.value.editorId)) {
       loaded.value = true
       return
     }

@@ -17,7 +17,7 @@
       <div v-if="icon" class="project-icon-crop-editor__selection"
         :class="{ 'is-interacting': interaction }" :style="selectionStyle"
         :aria-label="moveLabel" @pointerdown="beginInteraction('move', $event)">
-        <button v-for="handle in handles" :key="handle" type="button"
+        <button v-if="!readOnly" v-for="handle in handles" :key="handle" type="button"
           class="project-icon-crop-editor__handle" :class="`project-icon-crop-editor__handle--${handle}`"
           :aria-label="handleLabels[handle]" :data-tooltip="handleLabels[handle]"
           @pointerdown="beginInteraction(handle, $event)" />
@@ -79,6 +79,7 @@ const props = withDefaults(defineProps<{
   gridColumns?: number
   pixelated?: boolean
   fill?: boolean
+  readOnly?: boolean
   pixelatedLabel: string
   gridLabel: string
   focusSelectedLabel: string
@@ -90,6 +91,7 @@ const props = withDefaults(defineProps<{
   gridColumns: 1,
   pixelated: false,
   fill: false,
+  readOnly: false,
 })
 const emit = defineEmits<{
   'update:icon': [icon: ProjectIcon]
@@ -352,7 +354,7 @@ function snapCoordinate(
 }
 
 function beginInteraction(handle: InteractionHandle, event: PointerEvent): void {
-  if (event.button !== 0 || !props.icon || !props.runtime || !media.value) return
+  if (props.readOnly || event.button !== 0 || !props.icon || !props.runtime || !media.value) return
   event.preventDefault()
   event.stopPropagation()
   interaction.value = { handle, startX: event.clientX, startY: event.clientY, icon: { ...props.icon } }
