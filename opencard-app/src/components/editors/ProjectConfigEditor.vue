@@ -31,7 +31,8 @@
             </label>
             <label class="project-profile-editor__field" data-field-key="version">
               <OcText as="span" size="sm">{{ t('projectConfig.fields.version') }}</OcText>
-              <OcFieldInput full-width :value="profile.version ?? ''" @input="updateProfileField('version', $event)" />
+              <OcFieldInput full-width :value="props.projectVersion ?? profile.version ?? ''"
+                :disabled="props.projectVersionManaged" @input="updateProfileField('version', $event)" />
             </label>
           </div>
         </ProjectConfigSection>

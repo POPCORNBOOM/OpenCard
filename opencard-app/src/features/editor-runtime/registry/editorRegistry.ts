@@ -34,6 +34,8 @@ export interface EditorProps {
   alignmentSnappingEnabledByDefault?: boolean
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
+  projectVersionManaged?: boolean
+  projectVersion?: string
 }
 
 export interface EditorEmits {

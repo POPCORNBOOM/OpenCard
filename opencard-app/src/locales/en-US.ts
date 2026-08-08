@@ -651,10 +651,13 @@ export default {
     save: {
       title: 'Save Version',
       description: 'Create a restorable saved version of the current project.',
+      publishTitle: 'Save and Publish',
+      publishDescription: 'Save the current project and mark the same version as an official release.',
       defaultDescription: 'Update card package',
       changedFiles: 'View changed files ({count})',
       saving: 'Saving version…',
       submit: 'Save Version',
+      publishSubmit: 'Save and publish',
     },
     list: {
       title: 'Versions',

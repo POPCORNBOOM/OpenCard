@@ -333,7 +333,10 @@ describe('useVersioning project preparation', () => {
       editReleaseDescription: vi.fn(),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
-      createVersion: vi.fn(async () => ({ version: savedVersion, changeSummary })),
+      createVersion: vi.fn(async request => ({
+        version: { ...savedVersion, version: request.requestedVersion ?? savedVersion.version },
+        changeSummary,
+      })),
       listVersions: vi.fn(async request => ({
         projectId: request.projectId,
         items: [],
@@ -390,6 +393,17 @@ describe('useVersioning project preparation', () => {
       description: 'Update card package',
     }))
     expect(versioning.writeState.value).toEqual({ status: 'idle' })
+
+    await versioning.openSaveVersion(true)
+    expect(versioning.saveVersionConfirmation.value?.publish).toBe(true)
+    await versioning.confirmSaveVersion('Release card package', '1.0.0')
+
+    expect(saveSession).toHaveBeenLastCalledWith('session-1', undefined, 'save-and-publish')
+    expect(service.publishVersion).toHaveBeenCalledWith(expect.objectContaining({
+      commitId: savedVersion.commitId,
+      version: '1.0.0',
+      description: 'Release card package',
+    }))
     versioning.dispose()
   })
 })

@@ -249,7 +249,7 @@
                     :is="currentEditorComponent"
                     :key="currentEditorKey"
                     ref="currentEditorRef"
-                    v-bind="currentEditorProps"
+                    v-bind="editorPropsWithVersioning"
                     @modified="handleEditorModified"
                     @save="handleEditorSave"
                     @open-file="handleOpenFile"
@@ -921,6 +921,7 @@ const {
   compareSession,
   writeState: versionWriteState,
   saveVersionConfirmation,
+  pendingPublishVersion,
   lastError: versioningError,
   openSaveVersion,
   cancelSaveVersion,
@@ -955,6 +956,17 @@ const currentDiffLanguage = computed(() => (
     ? resolveFileType(activeSession.value.path).language ?? 'plaintext'
     : 'plaintext'
 ))
+
+const editorPropsWithVersioning = computed(() => ({
+  ...currentEditorProps.value,
+  ...(activeSession.value?.editorId === 'project-config'
+    ? {
+        projectVersionManaged: versionReadiness.value.status === 'ready'
+          && Boolean(versionStatus.value?.current),
+        projectVersion: versionStatus.value?.current?.version,
+      }
+    : {}),
+}))
 
 watch(
   () => activeSession.value?.path,
@@ -1631,9 +1643,9 @@ const sidebarHeadButtons = computed<ShellButton[]>(() => {
       key: 'publish-version',
       icon: 'action.publish',
       title: t('app.menu.publishVersion'),
-      disabled: !versionStatus.value?.current
-        || Boolean(versionStatus.value.current.release)
-        || hasWorkspaceVersionChanges.value
+      disabled: !versionStatus.value?.hasManagedContent
+        || (!versionStatus.value.current && !hasWorkspaceVersionChanges.value)
+        || (!hasWorkspaceVersionChanges.value && Boolean(versionStatus.value.current?.release))
         || versionReadiness.value.status !== 'ready'
         || versionWriteState.value.status !== 'idle'
         || Boolean(compareSession.value),
@@ -2203,6 +2215,7 @@ async function handlePublishVersionConfirm(version: string, description: string)
     } else {
       await publishVersion(target.commitId, version, description)
     }
+    await Promise.all([reloadProjectProfile(), reconcileWorkspaceSessionsFromDisk()])
     publishVersionTargetCommitId.value = null
     selectedVersionInfoCommitId.value = null
     editReleaseMode.value = false
@@ -2758,6 +2771,10 @@ async function runShellCommand(actionKey: string) {
   }
 
   if (actionKey === 'publish-version') {
+    if (hasWorkspaceVersionChanges.value) {
+      await openSaveVersion(true)
+      return
+    }
     selectedVersionInfoCommitId.value = versionStatus.value?.current?.commitId ?? null
     openPublishDialog(false)
     return
@@ -2847,10 +2864,20 @@ async function runShellCommand(actionKey: string) {
   }
 }
 
-async function handleSaveVersionConfirm(description: string): Promise<void> {
+async function handleSaveVersionConfirm(
+  description: string,
+  version?: string,
+  releaseDescription?: string,
+): Promise<void> {
   try {
-    await confirmSaveVersion(description)
+    await confirmSaveVersion(description, version, releaseDescription)
+    await Promise.all([reloadProjectProfile(), reconcileWorkspaceSessionsFromDisk()])
   } catch {
+    if (pendingPublishVersion.value) {
+      await Promise.all([reloadProjectProfile(), reconcileWorkspaceSessionsFromDisk()])
+      publishVersionTargetCommitId.value = pendingPublishVersion.value.commitId
+      editReleaseMode.value = false
+    }
     // The versioning flow reports the stable application error and keeps the dialog open.
   }
 }

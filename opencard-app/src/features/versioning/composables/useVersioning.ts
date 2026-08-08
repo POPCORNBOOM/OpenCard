@@ -54,6 +54,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const nextVersionCursor = ref<string | null>(null)
   const writeState = ref<VersionWriteState>({ status: 'idle' })
   const saveVersionConfirmation = ref<SaveVersionConfirmation | null>(null)
+  const pendingPublishVersion = ref<VersionRecordDto | null>(null)
   const lastError = ref<VersionErrorDto | null>(null)
   let generation = 0
 
@@ -68,6 +69,7 @@ export function useVersioning(options: UseVersioningOptions) {
     historyPath.value = null
     nextVersionCursor.value = null
     saveVersionConfirmation.value = null
+    pendingPublishVersion.value = null
     lastError.value = null
     if (!projectRoot) {
       readiness.value = { status: 'not-prepared' }
@@ -115,7 +117,7 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
-  async function openSaveVersion(): Promise<void> {
+  async function openSaveVersion(publish = false): Promise<void> {
     const projectIdentity = identity.value
     const projectStatus = status.value
     const projectRoot = options.projectPath.value
@@ -159,6 +161,7 @@ export function useVersioning(options: UseVersioningOptions) {
         expectedSnapshotId: preview.changeSummary.snapshotId,
         changeSummary: preview.changeSummary,
         sessionRevisions: preview.overlayRevisions,
+        publish,
       }
       writeState.value = { status: 'confirming', operation: 'save' }
     } catch (error) {
@@ -175,7 +178,11 @@ export function useVersioning(options: UseVersioningOptions) {
     writeState.value = { status: 'idle' }
   }
 
-  async function confirmSaveVersion(description: string): Promise<void> {
+  async function confirmSaveVersion(
+    description: string,
+    requestedVersion?: string,
+    releaseDescription?: string,
+  ): Promise<void> {
     const confirmation = saveVersionConfirmation.value
     const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
@@ -183,7 +190,7 @@ export function useVersioning(options: UseVersioningOptions) {
     if (options.projectPath.value !== confirmation.projectRoot
       || projectIdentity.projectId !== confirmation.projectId
       || projectIdentity.generation !== confirmation.generation) {
-      await openSaveVersion()
+      await openSaveVersion(Boolean(confirmation.publish))
       return
     }
 
@@ -201,16 +208,21 @@ export function useVersioning(options: UseVersioningOptions) {
       && options.prepareSessionContent(session.id) !== null
     ))
     if (hasDrift) {
-      await openSaveVersion()
+      await openSaveVersion(Boolean(confirmation.publish))
       return
     }
 
     const operationId = crypto.randomUUID()
     lastError.value = null
     writeState.value = { status: 'running', operation: 'save', operationId }
+    let createdVersion: VersionRecordDto | null = null
     try {
       for (const revision of confirmation.sessionRevisions) {
-        const receipt = await options.saveSession(revision.sessionId, undefined, 'save-version')
+        const receipt = await options.saveSession(
+          revision.sessionId,
+          undefined,
+          confirmation.publish ? 'save-and-publish' : 'save-version',
+        )
         const currentSession = sessionsById.get(revision.sessionId)
         const cleanSkip = receipt.status === 'skipped'
           && receipt.reason === 'clean'
@@ -224,7 +236,7 @@ export function useVersioning(options: UseVersioningOptions) {
           throw new Error('A workspace session changed while saving the version')
         }
       }
-      await service.createVersion({
+      const created = await service.createVersion({
         operationId,
         projectRoot,
         projectId: projectIdentity.projectId,
@@ -232,13 +244,34 @@ export function useVersioning(options: UseVersioningOptions) {
         expectedHeadCommitId: confirmation.expectedHeadCommitId,
         expectedSnapshotId: confirmation.expectedSnapshotId,
         description,
+        requestedVersion: confirmation.publish ? requestedVersion?.trim() : undefined,
       })
+      createdVersion = created.version
+      if (confirmation.publish) {
+        await service.publishVersion({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: projectIdentity.projectId,
+          generation: projectIdentity.generation,
+          commitId: created.version.commitId,
+          version: created.version.version,
+          description: releaseDescription?.trim() || description,
+        })
+      }
       saveVersionConfirmation.value = null
       await prepare(projectRoot)
     } catch (error) {
       lastError.value = error as VersionErrorDto
-      reportAppError('OC-E7003', error)
-      writeState.value = { status: 'confirming', operation: 'save' }
+      reportAppError(createdVersion && confirmation.publish ? 'OC-E7004' : 'OC-E7003', error)
+      if (createdVersion) {
+        saveVersionConfirmation.value = null
+        await prepare(projectRoot)
+        pendingPublishVersion.value = confirmation.publish ? createdVersion : null
+        lastError.value = error as VersionErrorDto
+        writeState.value = { status: 'idle' }
+      } else {
+        writeState.value = { status: 'confirming', operation: 'save' }
+      }
       throw error
     }
     writeState.value = { status: 'idle' }
@@ -404,6 +437,7 @@ export function useVersioning(options: UseVersioningOptions) {
         version,
         description,
       })
+      pendingPublishVersion.value = null
       await prepare(projectRoot)
     } catch (error) {
       lastError.value = error as VersionErrorDto
@@ -554,6 +588,7 @@ export function useVersioning(options: UseVersioningOptions) {
     nextVersionCursor: readonly(nextVersionCursor),
     writeState: readonly(writeState),
     saveVersionConfirmation: readonly(saveVersionConfirmation),
+    pendingPublishVersion: readonly(pendingPublishVersion),
     lastError: readonly(lastError),
     prepare,
     refresh,

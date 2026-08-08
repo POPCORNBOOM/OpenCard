@@ -159,6 +159,7 @@ export type CreateVersionRequest = VersionProjectRequest & {
   expectedHeadCommitId: string | null
   expectedSnapshotId: string
   description: string
+  requestedVersion?: string
 }
 
 export type CreateVersionResponse = {
@@ -291,4 +292,5 @@ export type SaveVersionConfirmation = {
   expectedSnapshotId: string
   changeSummary: ChangeSummaryDto
   sessionRevisions: Array<Pick<DraftOverlayDto, 'sessionId' | 'relativePath' | 'contentRevision'>>
+  publish?: boolean
 }

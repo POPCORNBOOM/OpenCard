@@ -418,6 +418,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: status.change_summary.snapshot_id,
                 description: "Initial".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();

@@ -1,8 +1,8 @@
 <template>
   <OcDialog
     :open="Boolean(confirmation)"
-    :title="t('versioning.save.title')"
-    :description="t('versioning.save.description')"
+    :title="confirmation?.publish ? t('versioning.save.publishTitle') : t('versioning.save.title')"
+    :description="confirmation?.publish ? t('versioning.save.publishDescription') : t('versioning.save.description')"
     as="form"
     size="md"
     :dismissible="!busy"
@@ -30,6 +30,16 @@
         </div>
       </dl>
 
+      <label v-if="confirmation?.publish" class="save-version-dialog__field">
+        <span>{{ t('versioning.fields.version') }}</span>
+        <OcFieldInput
+          :value="version"
+          full-width
+          required
+          :disabled="busy"
+          @input="version = fieldValue($event)"
+        />
+      </label>
       <label class="save-version-dialog__field">
         <span>{{ t('versioning.fields.description') }}</span>
         <OcFieldInput
@@ -43,6 +53,20 @@
           autofocus
           :disabled="busy"
           @input="description = fieldValue($event)"
+        />
+      </label>
+      <label v-if="confirmation?.publish" class="save-version-dialog__field">
+        <span>{{ t('versioning.fields.releaseDescription') }}</span>
+        <OcFieldInput
+          as="textarea"
+          :value="releaseDescription"
+          full-width
+          resize="vertical"
+          rows="4"
+          maxlength="500"
+          required
+          :disabled="busy"
+          @input="releaseDescription = fieldValue($event)"
         />
       </label>
 
@@ -62,7 +86,9 @@
         {{ t('versioning.actions.cancel') }}
       </OcButton>
       <OcButton type="submit" variant="solid" :disabled="busy || !canSubmit">
-        {{ busy ? t('versioning.save.saving') : t('versioning.save.submit') }}
+        {{ busy
+          ? t('versioning.save.saving')
+          : confirmation?.publish ? t('versioning.save.publishSubmit') : t('versioning.save.submit') }}
       </OcButton>
     </template>
   </OcDialog>
@@ -86,20 +112,29 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   close: []
-  submit: [description: string]
+  submit: [description: string, version?: string, releaseDescription?: string]
 }>()
 const { t } = useI18n()
 const description = ref('')
+const version = ref('')
+const releaseDescription = ref('')
 const changeTotal = computed(() => props.confirmation?.changeSummary.files.length ?? 0)
 const canSubmit = computed(() => {
   const length = [...description.value.trim()].length
-  return length >= 1 && length <= 500 && changeTotal.value > 0
+  const validVersion = !props.confirmation?.publish || /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version.value.trim())
+  const releaseLength = [...releaseDescription.value.trim()].length
+  const validRelease = !props.confirmation?.publish || (releaseLength >= 1 && releaseLength <= 500)
+  return length >= 1 && length <= 500 && changeTotal.value > 0 && validVersion && validRelease
 })
 
 watch(
   () => props.confirmation,
   confirmation => {
-    if (confirmation) description.value = t('versioning.save.defaultDescription')
+    if (confirmation) {
+      description.value = t('versioning.save.defaultDescription')
+      version.value = confirmation.version
+      releaseDescription.value = description.value
+    }
   },
   { immediate: true },
 )
@@ -115,7 +150,11 @@ function changeSymbol(status: ChangeStatus): string {
 }
 
 function submit(): void {
-  if (canSubmit.value) emit('submit', description.value.trim())
+  if (!canSubmit.value) return
+  if (props.confirmation?.publish) {
+    emit('submit', description.value.trim(), version.value.trim(), releaseDescription.value.trim())
+  }
+  else emit('submit', description.value.trim())
 }
 </script>
 

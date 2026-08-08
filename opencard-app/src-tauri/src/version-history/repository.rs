@@ -23,6 +23,8 @@ pub struct CreateVersionRequest {
     pub(super) expected_head_commit_id: Option<String>,
     pub(super) expected_snapshot_id: String,
     pub(super) description: String,
+    #[serde(default)]
+    pub(super) requested_version: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -821,6 +823,7 @@ fn restore_project(
         expected_head_commit_id: request.expected_head_commit_id,
         expected_snapshot_id: restored_snapshot_id,
         description: request.description,
+        requested_version: None,
     };
     let created = match create_version_with_kind(
         context,
@@ -1466,7 +1469,33 @@ fn create_version_with_kind(
         .as_ref()
         .map(|commit| version_record(&repository, commit))
         .transpose()?;
-    let version = next_version(context, current_record.as_ref())?;
+    let version = match request.requested_version.as_deref() {
+        Some(version) => normalize_version(version)?,
+        None => next_version(context, current_record.as_ref())?,
+    };
+    if let Some(current) = &current_record {
+        let requested = parse_version(&version).ok_or_else(|| {
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-version",
+                "invalid semantic version",
+            )
+        })?;
+        let parent = parse_version(&current.version).ok_or_else(|| {
+            HistoryFailure::new(
+                "history-corrupt",
+                "validate-version",
+                "invalid parent version",
+            )
+        })?;
+        if requested <= parent {
+            return Err(HistoryFailure::new(
+                "version-conflict",
+                "validate-version",
+                "version must be greater than its parent",
+            ));
+        }
+    }
     ensure_version_not_used(&repository, &version)?;
     let saved_at_unix_ms = unix_time_ms();
     let projection = prepare_profile_projection(context, &version)?;
@@ -2596,6 +2625,55 @@ mod tests {
     }
 
     #[test]
+    fn requested_version_is_written_to_the_single_new_commit() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("README.md"), b"fixture").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+
+        let created = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "requested-version".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "Release candidate".to_owned(),
+                requested_version: Some("1.2.3".to_owned()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(created.version.version, "1.2.3");
+        assert_eq!(
+            list_versions(
+                &context,
+                ListVersionsRequest {
+                    operation_id: "list".to_owned(),
+                    project_root: display_path(project.path()),
+                    project_id: context.project_id.clone(),
+                    generation: 1,
+                    cursor: None,
+                    limit: Some(10),
+                },
+            )
+            .unwrap()
+            .items
+            .len(),
+            1
+        );
+    }
+
+    #[test]
     fn invalid_profile_bytes_remain_unchanged_when_saving_a_version() {
         let project = tempfile::tempdir().unwrap();
         let storage = tempfile::tempdir().unwrap();
@@ -2620,6 +2698,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: status.change_summary.snapshot_id,
                 description: "Keep source bytes".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2657,6 +2736,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: status.change_summary.snapshot_id,
                 description: "First".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2742,6 +2822,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: first_status.change_summary.snapshot_id,
                 description: "First".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2757,6 +2838,7 @@ mod tests {
                 expected_head_commit_id: second_status.expected_head_commit_id,
                 expected_snapshot_id: second_status.change_summary.snapshot_id,
                 description: "Second".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2848,6 +2930,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: first_status.change_summary.snapshot_id,
                 description: "First".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2864,6 +2947,7 @@ mod tests {
                 expected_head_commit_id: second_status.expected_head_commit_id,
                 expected_snapshot_id: second_status.change_summary.snapshot_id,
                 description: "Second".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2938,6 +3022,7 @@ mod tests {
                 expected_head_commit_id: None,
                 expected_snapshot_id: first_status.change_summary.snapshot_id,
                 description: "First".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -2953,6 +3038,7 @@ mod tests {
                 expected_head_commit_id: second_status.expected_head_commit_id,
                 expected_snapshot_id: second_status.change_summary.snapshot_id,
                 description: "Second".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -3052,6 +3138,7 @@ mod tests {
                 expected_head_commit_id: before.expected_head_commit_id.clone(),
                 expected_snapshot_id: before.change_summary.snapshot_id.clone(),
                 description: "Initial card set".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -3081,6 +3168,7 @@ mod tests {
                 expected_head_commit_id: before_second.expected_head_commit_id,
                 expected_snapshot_id: before_second.change_summary.snapshot_id,
                 description: "Update card set".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -3134,6 +3222,7 @@ mod tests {
                 expected_head_commit_id: before_third.expected_head_commit_id,
                 expected_snapshot_id: before_third.change_summary.snapshot_id,
                 description: "Add notes".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();
@@ -3183,6 +3272,7 @@ mod tests {
                 expected_head_commit_id: status.expected_head_commit_id,
                 expected_snapshot_id: status.change_summary.snapshot_id,
                 description: "Stale".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap_err();
@@ -3214,6 +3304,7 @@ mod tests {
                 expected_head_commit_id: status.expected_head_commit_id,
                 expected_snapshot_id: status.change_summary.snapshot_id,
                 description: "Initial".to_owned(),
+                requested_version: None,
             },
         )
         .unwrap();

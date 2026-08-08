@@ -46,4 +46,32 @@ describe('SaveVersionDialog', () => {
 
     expect(wrapper.emitted('submit')).toEqual([['Update card package']])
   })
+
+  it('shows the editable release version in save-and-publish mode', async () => {
+    const wrapper = mount(SaveVersionDialog, {
+      attachTo: document.body,
+      props: {
+        busy: false,
+        confirmation: {
+          projectRoot: 'D:/project', projectId: 'project-id', generation: 1,
+          version: '0.0.2', expectedHeadCommitId: null, expectedSnapshotId: 'snapshot-1',
+          publish: true,
+          changeSummary: {
+            added: 1, modified: 0, deleted: 0,
+            files: [{ path: 'cards/main.ocdocument', status: 'added' }], snapshotId: 'snapshot-1',
+          },
+          sessionRevisions: [],
+        },
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+        stubs: { transition: false },
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    const inputs = [...document.body.querySelectorAll<HTMLInputElement>('input')]
+    expect(document.body.textContent).toContain('Save and Publish')
+    expect(inputs.some(input => input.value === '0.0.2')).toBe(true)
+  })
 })

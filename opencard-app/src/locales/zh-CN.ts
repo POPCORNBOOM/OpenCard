@@ -650,10 +650,13 @@ export default {
     save: {
       title: '保存版本',
       description: '为当前项目创建一个可恢复的保存版本。',
+      publishTitle: '保存并发布',
+      publishDescription: '保存当前项目并将同一版本标记为正式发布版本。',
       defaultDescription: '更新卡组内容',
       changedFiles: '查看变化文件（{count}）',
       saving: '正在保存版本…',
       submit: '保存版本',
+      publishSubmit: '保存并发布',
     },
     list: {
       title: '版本',
