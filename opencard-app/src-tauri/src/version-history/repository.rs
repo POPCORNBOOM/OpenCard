@@ -2,7 +2,6 @@ use super::*;
 use git2::{Commit, ObjectType, Repository, Tree};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
 use std::path::Component;
 
 #[derive(Debug, Deserialize)]
@@ -1966,7 +1965,8 @@ pub(super) fn recover_pending_restore_transactions(
             )
             .project_id(&context.project_id));
         }
-        if matches!(journal.phase.as_str(), "backed-up" | "applied") {
+        let committed = journal.phase == "applied" && project_matches_head(context)?;
+        if journal.phase == "backed-up" || (journal.phase == "applied" && !committed) {
             let changed_paths = journal
                 .files
                 .iter()
@@ -1981,6 +1981,19 @@ pub(super) fn recover_pending_restore_transactions(
         })?;
     }
     Ok(())
+}
+
+fn project_matches_head(context: &ProjectHistoryContext) -> Result<bool, HistoryFailure> {
+    let repository = open_repository(context)?;
+    let Some(commit) = head_commit(&repository)? else {
+        return Ok(false);
+    };
+    let tree = commit.tree().map_err(repository_error("read-head-tree"))?;
+    Ok(compare_entries(
+        &tree_entries(&repository, &tree)?,
+        &current_snapshot_entries(context)?,
+    )
+    .is_empty())
 }
 
 fn recover_transaction(
@@ -2022,26 +2035,6 @@ fn recover_transaction(
         })?;
     }
     Ok(())
-}
-
-fn write_file_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
-    let temporary_path =
-        path.with_extension(format!("tmp-{}-{}", std::process::id(), unix_time_ms()));
-    let mut file = fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary_path)?;
-    if let Err(error) = file.write_all(content).and_then(|_| file.sync_all()) {
-        let _ = fs::remove_file(&temporary_path);
-        return Err(error);
-    }
-    match fs::rename(&temporary_path, path) {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let _ = fs::remove_file(&temporary_path);
-            Err(error)
-        }
-    }
 }
 
 pub(super) fn get_status(
@@ -2920,6 +2913,114 @@ mod tests {
         assert_eq!(versions.items.len(), 3);
         assert_eq!(versions.items[1].commit_id, second.version.commit_id);
         assert_eq!(versions.items[2].commit_id, first.version.commit_id);
+    }
+
+    #[test]
+    fn pending_restore_rolls_back_before_commit_and_keeps_committed_head() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("README.md"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let first_status = get_status(&context, 1).unwrap();
+        let first = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: first_status.change_summary.snapshot_id,
+                description: "First".to_owned(),
+            },
+        )
+        .unwrap();
+        fs::write(project.path().join("README.md"), b"second").unwrap();
+        let second_status = get_status(&context, 1).unwrap();
+        create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "second".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: second_status.expected_head_commit_id,
+                expected_snapshot_id: second_status.change_summary.snapshot_id,
+                description: "Second".to_owned(),
+            },
+        )
+        .unwrap();
+
+        let pending = context
+            .project_history_root
+            .join("restore-transactions/pending");
+        fs::create_dir_all(pending.join("before")).unwrap();
+        write_restore_file(&pending.join("before"), "README.md", b"second").unwrap();
+        write_restore_journal(
+            &pending,
+            &RestoreTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "applied".to_owned(),
+                files: vec![RestoreFileRecord {
+                    relative_path: "README.md".to_owned(),
+                    existed: true,
+                }],
+            },
+        )
+        .unwrap();
+        fs::write(project.path().join("README.md"), b"first").unwrap();
+
+        recover_pending_restore_transactions(&context).unwrap();
+        assert_eq!(
+            fs::read(project.path().join("README.md")).unwrap(),
+            b"second"
+        );
+
+        let restore_status = get_status(&context, 1).unwrap();
+        restore_project(
+            &context,
+            RestoreProjectRequest {
+                operation_id: "restore-first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                target_commit_id: first.version.commit_id,
+                expected_head_commit_id: restore_status.expected_head_commit_id,
+                expected_snapshot_id: restore_status.change_summary.snapshot_id,
+                description: "Restore first".to_owned(),
+            },
+        )
+        .unwrap();
+        let committed = context
+            .project_history_root
+            .join("restore-transactions/committed");
+        fs::create_dir_all(committed.join("before")).unwrap();
+        write_restore_file(&committed.join("before"), "README.md", b"second").unwrap();
+        write_restore_journal(
+            &committed,
+            &RestoreTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "applied".to_owned(),
+                files: vec![RestoreFileRecord {
+                    relative_path: "README.md".to_owned(),
+                    existed: true,
+                }],
+            },
+        )
+        .unwrap();
+
+        recover_pending_restore_transactions(&context).unwrap();
+        assert_eq!(
+            fs::read(project.path().join("README.md")).unwrap(),
+            b"first"
+        );
+        assert!(!committed.exists());
     }
 
     #[test]

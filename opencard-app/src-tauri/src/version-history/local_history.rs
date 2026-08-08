@@ -3,9 +3,7 @@ use git2::{ObjectType, Oid};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 const LOCAL_HISTORY_SCHEMA_VERSION: u32 = 1;
@@ -47,7 +45,6 @@ const LOCAL_HISTORY_SOURCES: &[&str] = &[
     "file-moved",
 ];
 const NON_MERGING_SOURCES: &[&str] = &["file-restored", "file-renamed", "file-moved"];
-static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -496,7 +493,7 @@ fn record_entry_internal(
     }
 
     let new_content_path = content_path(&resolved.history_directory, &entry.entry_id);
-    write_atomic(&new_content_path, &request.content).map_err(|error| {
+    write_file_atomically(&new_content_path, &request.content).map_err(|error| {
         HistoryFailure::new("history-io", "write-content", error.to_string())
             .project_id(&context.project_id)
             .relative_path(&resolved.relative_path)
@@ -644,7 +641,7 @@ fn restore_entry(
                 .retryable()
         })?;
     }
-    write_atomic(&target, &content).map_err(|error| {
+    write_file_atomically(&target, &content).map_err(|error| {
         HistoryFailure::new("history-io", "restore-entry", error.to_string())
             .project_id(&context.project_id)
             .relative_path(&resolved.relative_path)
@@ -1031,27 +1028,9 @@ fn write_manifest(
     let bytes = serde_json::to_vec_pretty(manifest).map_err(|error| {
         HistoryFailure::new("history-io", "serialize-metadata", error.to_string())
     })?;
-    write_atomic(&resolved.history_directory.join("entries.json"), &bytes).map_err(|error| {
-        HistoryFailure::new("history-io", "write-metadata", error.to_string()).retryable()
-    })
-}
-
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary_path = path.with_extension(format!("tmp-{}-{sequence}", std::process::id()));
-    let mut file = fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary_path)?;
-    if let Err(error) = file.write_all(bytes).and_then(|_| file.sync_all()) {
-        let _ = fs::remove_file(&temporary_path);
-        return Err(error);
-    }
-    if let Err(error) = fs::rename(&temporary_path, path) {
-        let _ = fs::remove_file(&temporary_path);
-        return Err(error);
-    }
-    Ok(())
+    write_file_atomically(&resolved.history_directory.join("entries.json"), &bytes).map_err(
+        |error| HistoryFailure::new("history-io", "write-metadata", error.to_string()).retryable(),
+    )
 }
 
 fn content_path(directory: &Path, entry_id: &str) -> PathBuf {

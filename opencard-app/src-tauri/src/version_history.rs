@@ -6,6 +6,7 @@ use std::io::Write;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
@@ -65,6 +66,7 @@ const MANAGED_EXTENSIONS: &[&str] = &[
     "ttf",
     "otf",
 ];
+static ATOMIC_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Default)]
 pub struct VersionHistoryState {
@@ -137,6 +139,60 @@ struct HistoryFailure {
     relative_path: Option<String>,
     retryable: bool,
     detail: String,
+}
+
+fn write_file_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    let sequence = ATOMIC_FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary_path = path.with_extension(format!("tmp-{}-{sequence}", std::process::id()));
+    let mut file = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary_path)?;
+    if let Err(error) = file.write_all(content).and_then(|_| file.sync_all()) {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+    drop(file);
+    if let Err(error) = replace_file(&temporary_path, path) {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn replace_file(source: &Path, target: &Path) -> std::io::Result<()> {
+    fs::rename(source, target)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_file(source: &Path, target: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let target = target
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        MoveFileExW(
+            source.as_ptr(),
+            target.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 impl HistoryFailure {
