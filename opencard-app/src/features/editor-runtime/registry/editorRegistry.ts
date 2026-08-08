@@ -41,6 +41,7 @@ export interface EditorProps {
   access?: EditorAccess
   comparisonContent?: string
   comparisonSide?: 'historical' | 'current'
+  comparisonResourceRootPath?: string | null
 }
 
 export interface EditorEmits {

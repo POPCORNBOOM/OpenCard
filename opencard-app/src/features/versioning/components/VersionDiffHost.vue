@@ -23,7 +23,7 @@
       {{ t('versioning.diff.loadFailed') }}
     </div>
     <MonacoEditor
-      v-else-if="comparison && (isTextComparison || dictionaryFallback)"
+      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback)"
       class="version-diff-host__editor"
       model-value=""
       :language="language"
@@ -40,6 +40,18 @@
       :file-name="fileName"
       :theme-id="themeId"
       :theme-overrides="themeOverrides"
+    />
+    <ProjectConfigEditor
+      v-else-if="comparison && fileType.editorId === 'project-config'"
+      :file-path="snapshotPath(session.current)"
+      :file-name="fileName"
+      :resource-root-path="session.current.rootPath"
+      :comparison-resource-root-path="session.historical.rootPath"
+      :model-value="comparison.currentContent"
+      :comparison-content="comparison.historicalContent"
+      :theme-id="themeId"
+      :theme-overrides="themeOverrides"
+      access="observe-only"
     />
     <SnapshotResourceDiffEditor
       v-else-if="loaded && resourceKind"
@@ -69,12 +81,14 @@ import OcIcon from '../../../components/base/OcIcon.vue'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import SnapshotResourceDiffEditor from './SnapshotResourceDiffEditor.vue'
 import DictionaryDiffEditor from './DictionaryDiffEditor.vue'
+import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
 import type { CompareSession, SnapshotDescriptorDto } from '../model/versioning'
 import { resolveFileType } from '../../workspace/model/fileTypes'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
+import { parseProjectMetadataText } from '../../workspace/model/projectMetadata'
 
 const props = defineProps<{
   session: CompareSession
@@ -106,6 +120,12 @@ const dictionaryFallback = computed(() => (
   && (!parseProjectDictionaryText(comparison.value!.historicalContent)
     || !parseProjectDictionaryText(comparison.value!.currentContent))
 ))
+const projectConfigFallback = computed(() => (
+  fileType.value.editorId === 'project-config'
+  && Boolean(comparison.value)
+  && (!parseProjectMetadataText(comparison.value!.historicalContent)
+    || !parseProjectMetadataText(comparison.value!.currentContent))
+))
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   const separator = snapshot.rootPath.includes('\\') ? '\\' : '/'
@@ -130,7 +150,7 @@ async function loadComparison(): Promise<void> {
   loaded.value = false
   comparison.value = null
   try {
-    if (!isTextComparison.value && fileType.value.editorId !== 'dictionary') {
+    if (!isTextComparison.value && !['dictionary', 'project-config'].includes(fileType.value.editorId)) {
       loaded.value = true
       return
     }

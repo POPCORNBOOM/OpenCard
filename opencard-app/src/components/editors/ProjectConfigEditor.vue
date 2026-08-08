@@ -1,7 +1,10 @@
 <template>
   <section ref="editorRoot" class="project-profile-editor" :aria-label="t('projectConfig.title')"
     @keydown.ctrl.s.prevent="save">
-    <div class="project-profile-editor__layout" :class="{ 'project-profile-editor__layout--single': !profile }">
+    <div class="project-profile-editor__layout" :class="{
+      'project-profile-editor__layout--single': !profile,
+      'is-comparison': isObserveOnly,
+    }">
       <main class="project-profile-editor__content">
         <header class="project-profile-editor__header">
           <OcIcon name="file.opencard-project" size="lg" />
@@ -19,7 +22,18 @@
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.sections.information') })"
           :collapsed="isProjectSectionCollapsed('information')"
           @toggle="toggleProjectSection('information')">
-          <div class="project-profile-editor__form">
+          <div v-if="isObserveOnly && comparisonProfile" class="project-profile-editor__form">
+            <ProjectConfigComparisonField :label="t('projectConfig.fields.name')"
+              :historical-value="comparisonProfile.name ?? ''" :current-value="profile.name ?? ''"
+              :paired="true" :changed="comparisonProfile.name !== profile.name" />
+            <ProjectConfigComparisonField :label="t('projectConfig.fields.description')" multiline
+              :historical-value="comparisonProfile.description ?? ''" :current-value="profile.description ?? ''"
+              :paired="true" :changed="comparisonProfile.description !== profile.description" />
+            <ProjectConfigComparisonField :label="t('projectConfig.fields.version')" mono
+              :historical-value="comparisonProfile.version ?? ''" :current-value="profile.version ?? ''"
+              :paired="true" :changed="false" />
+          </div>
+          <div v-else class="project-profile-editor__form">
             <label class="project-profile-editor__field" data-field-key="name">
               <OcText as="span" size="sm">{{ t('projectConfig.fields.name') }}</OcText>
               <OcFieldInput full-width :value="profile.name ?? ''" @input="updateProfileField('name', $event)" />
@@ -45,7 +59,17 @@
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.remoteResources.title') })"
           :collapsed="isProjectSectionCollapsed('remote-resources')"
           @toggle="toggleProjectSection('remote-resources')">
-          <div class="project-profile-editor__remote-resources">
+          <div v-if="isObserveOnly && comparisonProfile" class="project-profile-editor__remote-resources">
+            <ProjectConfigComparisonField :label="t('projectConfig.remoteResources.title')"
+              :historical-value="remoteResourceModeLabel(comparisonProfile)"
+              :current-value="remoteResourceModeLabel(profile)" :paired="true"
+              :changed="remoteResourceModeLabel(comparisonProfile) !== remoteResourceModeLabel(profile)" />
+            <ProjectConfigComparisonField :label="t('projectConfig.remoteResources.allowedHosts')" multiline mono
+              :historical-value="remoteResourceHosts(comparisonProfile)"
+              :current-value="remoteResourceHosts(profile)" :paired="true"
+              :changed="remoteResourceHosts(comparisonProfile) !== remoteResourceHosts(profile)" />
+          </div>
+          <div v-else class="project-profile-editor__remote-resources">
             <OcOptionGroup
               class="project-profile-editor__remote-mode"
               :model-value="remoteResourceMode"
@@ -84,7 +108,18 @@
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.export.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.export.title') })"
           :collapsed="isProjectSectionCollapsed('export')" @toggle="toggleProjectSection('export')">
-          <ProjectExportTaskEditor :model-value="defaultExportTask" :documents="exportDocumentCandidates"
+          <div v-if="isObserveOnly && comparisonProfile" class="project-profile-editor__comparison-pair">
+            <section class="project-profile-editor__comparison-side is-historical">
+              <strong>A · {{ t('versioning.diff.historical') }}</strong>
+              <ProjectExportTaskEditor :model-value="comparisonProfile.exportTask ?? createDefaultProjectExportTask()"
+                :documents="[]" busy />
+            </section>
+            <section class="project-profile-editor__comparison-side is-current">
+              <strong>B · {{ t('versioning.diff.current') }}</strong>
+              <ProjectExportTaskEditor :model-value="defaultExportTask" :documents="[]" busy />
+            </section>
+          </div>
+          <ProjectExportTaskEditor v-else :model-value="defaultExportTask" :documents="exportDocumentCandidates"
             @update:model-value="updateDefaultExportTask" />
         </ProjectConfigSection>
 
@@ -94,7 +129,13 @@
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.dictionary.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.dictionary.title') })"
           :collapsed="isProjectSectionCollapsed('dictionary')" @toggle="toggleProjectSection('dictionary')">
-          <div class="project-profile-editor__linked-file">
+          <div v-if="isObserveOnly" class="project-profile-editor__linked-file-comparison">
+            <ProjectConfigComparisonField :label="t('projectConfig.dictionary.title')"
+              :historical-value="linkedFileState(comparisonLinkedFiles.dictionary)"
+              :current-value="linkedFileState(currentLinkedFiles.dictionary)" :paired="true"
+              :changed="comparisonLinkedFiles.dictionary !== currentLinkedFiles.dictionary" />
+          </div>
+          <div v-else class="project-profile-editor__linked-file">
             <div>
               <OcText tone="muted" size="sm">{{ dictionaryExists
                 ? t('projectConfig.dictionary.available')
@@ -114,7 +155,13 @@
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.fonts.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.fonts.title') })"
           :collapsed="isProjectSectionCollapsed('fonts')" @toggle="toggleProjectSection('fonts')">
-          <div class="project-profile-editor__linked-file">
+          <div v-if="isObserveOnly" class="project-profile-editor__linked-file-comparison">
+            <ProjectConfigComparisonField :label="t('projectConfig.fonts.title')"
+              :historical-value="linkedFileState(comparisonLinkedFiles.fonts)"
+              :current-value="linkedFileState(currentLinkedFiles.fonts)" :paired="true"
+              :changed="comparisonLinkedFiles.fonts !== currentLinkedFiles.fonts" />
+          </div>
+          <div v-else class="project-profile-editor__linked-file">
             <OcText tone="muted" size="sm">{{ fontRegistryExists
               ? t('projectConfig.fonts.registryAvailable')
               : t('projectConfig.fonts.registryMissing') }}</OcText>
@@ -130,7 +177,13 @@
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.icons.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.icons.title') })"
           :collapsed="isProjectSectionCollapsed('icons')" @toggle="toggleProjectSection('icons')">
-          <div class="project-profile-editor__linked-file">
+          <div v-if="isObserveOnly" class="project-profile-editor__linked-file-comparison">
+            <ProjectConfigComparisonField :label="t('projectConfig.icons.title')"
+              :historical-value="linkedFileState(comparisonLinkedFiles.icons)"
+              :current-value="linkedFileState(currentLinkedFiles.icons)" :paired="true"
+              :changed="comparisonLinkedFiles.icons !== currentLinkedFiles.icons" />
+          </div>
+          <div v-else class="project-profile-editor__linked-file">
             <OcText tone="muted" size="sm">{{ iconRegistryExists
               ? t('projectConfig.icons.registryAvailable')
               : t('projectConfig.icons.registryMissing') }}</OcText>
@@ -156,6 +209,7 @@
             language="json"
             :theme-id="themeId"
             :theme-overrides="themeOverrides"
+            :read-only="isObserveOnly"
             @update:model-value="updateRawSource"
             @save="save"
           />
@@ -212,6 +266,8 @@ import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import ProjectConfigComparisonField from './ProjectConfigComparisonField.vue'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
@@ -219,6 +275,7 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const profile = ref<ProjectProfile | null>(null)
+const comparisonProfile = ref<ProjectProfile | null>(null)
 const dictionaryExists = ref(false)
 const fontRegistryExists = ref(false)
 const iconRegistryExists = ref(false)
@@ -226,6 +283,9 @@ const remoteHostDrafts = ref<string[]>([])
 const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
+const comparisonCollapsedSections = ref(new Set<ProjectProfileSectionKey>())
+const currentLinkedFiles = ref({ dictionary: false, fonts: false, icons: false })
+const comparisonLinkedFiles = ref({ dictionary: false, fonts: false, icons: false })
 let sectionObserver: IntersectionObserver | null = null
 
 type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons'
@@ -241,6 +301,7 @@ const projectProfileSections = [
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
+const isObserveOnly = computed(() => props.access === 'observe-only')
 const projectDirectoryKey = computed(() => {
   const source = projectStore.projectPath.value || props.filePath || ''
   const normalized = source.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -270,6 +331,14 @@ watch(() => props.modelValue, content => {
     : []
   void nextTick(connectSectionObserver)
 }, { immediate: true })
+watch(() => props.comparisonContent, content => {
+  comparisonProfile.value = content === undefined ? null : parseProjectMetadataText(content)
+}, { immediate: true })
+watch(
+  () => [props.resourceRootPath, props.comparisonResourceRootPath, isObserveOnly.value] as const,
+  () => void refreshComparisonLinkedFiles(),
+  { immediate: true },
+)
 
 watch(() => projectStore.indexedEntries.value, () => {
   const fileTypeIds = new Set(projectStore.indexedEntries.value.flatMap(entry => {
@@ -354,6 +423,7 @@ function removeRemoteHost(index: number) {
 }
 
 function updateProfile(next: ProjectProfile) {
+  if (isObserveOnly.value) return
   try {
     const serialized = serializeProjectMetadata(next)
     profile.value = next
@@ -369,10 +439,18 @@ function updateDefaultExportTask(task: ProjectExportTask): void {
 }
 
 function isProjectSectionCollapsed(sectionKey: ProjectProfileSectionKey): boolean {
+  if (isObserveOnly.value) return comparisonCollapsedSections.value.has(sectionKey)
   return projectWorkspaceState.value?.projectProfile?.collapsedSections.includes(sectionKey) ?? false
 }
 
 function setProjectSectionCollapsed(sectionKey: ProjectProfileSectionKey, collapsed: boolean): void {
+  if (isObserveOnly.value) {
+    const next = new Set(comparisonCollapsedSections.value)
+    if (collapsed) next.add(sectionKey)
+    else next.delete(sectionKey)
+    comparisonCollapsedSections.value = next
+    return
+  }
   const workspaceKey = projectDirectoryKey.value
   if (!workspaceKey) return
   const collapsedSections = new Set(projectWorkspaceState.value?.projectProfile?.collapsedSections
@@ -416,7 +494,7 @@ function projectSectionElementId(sectionKey: ProjectProfileSectionKey): string {
 async function navigateToProjectSection(sectionKey: ProjectProfileSectionKey): Promise<void> {
   if (isProjectSectionCollapsed(sectionKey)) setProjectSectionCollapsed(sectionKey, false)
   await nextTick()
-  const section = document.getElementById(projectSectionElementId(sectionKey))
+  const section = editorRoot.value?.querySelector<HTMLElement>(`#${projectSectionElementId(sectionKey)}`)
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
   section?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
   activeSection.value = sectionKey
@@ -448,7 +526,7 @@ function connectSectionObserver(): void {
     threshold: 0,
   })
   for (const section of projectProfileSections) {
-    const element = document.getElementById(projectSectionElementId(section.key))
+    const element = root.querySelector<HTMLElement>(`#${projectSectionElementId(section.key)}`)
     if (element) sectionObserver.observe(element)
   }
 }
@@ -459,10 +537,12 @@ onBeforeUnmount(() => {
 })
 
 function updateRawSource(content: string) {
+  if (isObserveOnly.value) return
   emit('update:modelValue', content)
 }
 
 async function openOrCreateDictionary() {
+  if (isObserveOnly.value) return
   await openOrCreateLinkedFile(
     PROJECT_DICTIONARY_FILE_NAME,
     dictionaryExists.value,
@@ -472,6 +552,7 @@ async function openOrCreateDictionary() {
 }
 
 async function openOrCreateFontRegistry() {
+  if (isObserveOnly.value) return
   const path = projectStore.resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME)
   if (fontRegistryExists.value) emit('open-file', path)
   else {
@@ -482,6 +563,7 @@ async function openOrCreateFontRegistry() {
 }
 
 async function openOrCreateIconRegistry() {
+  if (isObserveOnly.value) return
   await openOrCreateLinkedFile(
     PROJECT_ICON_REGISTRY_FILE_NAME,
     iconRegistryExists.value,
@@ -509,7 +591,49 @@ async function openOrCreateLinkedFile(
 }
 
 function save() {
-  if (profile.value && !hasInvalidRemoteHostDraft.value) emit('save')
+  if (profile.value && !isObserveOnly.value && !hasInvalidRemoteHostDraft.value) emit('save')
+}
+
+function remoteResourceModeLabel(value: ProjectProfile): string {
+  const mode = value.remoteResources?.mode ?? 'deny'
+  if (mode === 'allowlist') return t('projectConfig.remoteResources.allowlist')
+  if (mode === 'allow-all') return t('projectConfig.remoteResources.allowAll')
+  return t('projectConfig.remoteResources.deny')
+}
+
+function remoteResourceHosts(value: ProjectProfile): string {
+  return value.remoteResources?.mode === 'allowlist'
+    ? value.remoteResources.allowedHosts.join('\n')
+    : ''
+}
+
+function linkedFileState(exists: boolean): string {
+  return exists ? t('versioning.diff.available') : t('versioning.diff.missing')
+}
+
+function rootFilePath(root: string, fileName: string): string {
+  const separator = root.includes('\\') ? '\\' : '/'
+  return `${root.replace(/[\\/]+$/, '')}${separator}${fileName}`
+}
+
+async function linkedFilesAt(root: string | null | undefined): Promise<typeof currentLinkedFiles.value> {
+  if (!root) return { dictionary: false, fonts: false, icons: false }
+  const [dictionary, fonts, icons] = await Promise.all([
+    fileSystemService.fileExists(rootFilePath(root, PROJECT_DICTIONARY_FILE_NAME)),
+    fileSystemService.fileExists(rootFilePath(root, PROJECT_FONT_REGISTRY_FILE_NAME)),
+    fileSystemService.fileExists(rootFilePath(root, PROJECT_ICON_REGISTRY_FILE_NAME)),
+  ])
+  return { dictionary, fonts, icons }
+}
+
+async function refreshComparisonLinkedFiles(): Promise<void> {
+  if (!isObserveOnly.value) return
+  const [historical, current] = await Promise.all([
+    linkedFilesAt(props.comparisonResourceRootPath),
+    linkedFilesAt(props.resourceRootPath),
+  ])
+  comparisonLinkedFiles.value = historical
+  currentLinkedFiles.value = current
 }
 
 defineExpose({ save, navigate })
@@ -594,6 +718,36 @@ defineExpose({ save, navigate })
 
 .project-profile-editor__linked-file {
   justify-content: space-between;
+}
+
+.project-profile-editor__linked-file-comparison {
+  min-width: 0;
+}
+
+.project-profile-editor__comparison-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--oc-space-3);
+}
+
+.project-profile-editor__comparison-side {
+  display: grid;
+  gap: var(--oc-space-3);
+  min-width: 0;
+  padding: var(--oc-space-2);
+}
+
+.project-profile-editor__comparison-side > strong {
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-sm);
+}
+
+.project-profile-editor__comparison-side.is-historical {
+  border-left: var(--oc-border-width) solid var(--oc-fg-danger);
+}
+
+.project-profile-editor__comparison-side.is-current {
+  border-left: var(--oc-border-width) solid var(--oc-icon-success);
 }
 
 .project-profile-editor__remote-resources {
@@ -743,6 +897,10 @@ defineExpose({ save, navigate })
   .project-profile-editor__linked-file {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .project-profile-editor__comparison-pair {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

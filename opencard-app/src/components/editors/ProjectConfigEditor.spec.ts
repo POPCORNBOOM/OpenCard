@@ -7,6 +7,7 @@ import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcButton from '../base/OcButton.vue'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
@@ -205,6 +206,52 @@ describe('ProjectConfigEditor', () => {
     })
     await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
+  it('reuses every project section as an observe-only comparison', async () => {
+    vi.spyOn(fileSystemService, 'fileExists').mockImplementation(async path => (
+      path.includes('current') && path.endsWith('.ocfonts')
+    ))
+    const originalWorkspaceStates = useAppSettingsStore().settings.value.projectCreation.workspaceStates
+    const wrapper = mount(ProjectConfigEditor, {
+      props: {
+        filePath: 'D:/current/.ocproject',
+        resourceRootPath: 'D:/current',
+        comparisonResourceRootPath: 'D:/historical',
+        modelValue: JSON.stringify({
+          name: 'Current',
+          description: 'Current description',
+          version: '0.0.2',
+          remoteResources: { mode: 'allow-all' },
+        }),
+        comparisonContent: JSON.stringify({
+          name: 'Historical',
+          description: 'Historical description',
+          version: '0.0.1',
+          remoteResources: { mode: 'allowlist', allowedHosts: ['example.com'] },
+        }),
+        access: 'observe-only',
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(ProjectConfigSection)).toHaveLength(6)
+    expect(wrapper.findAll('.project-config-comparison-field__pair').length).toBeGreaterThanOrEqual(8)
+    expect(wrapper.findAllComponents(ProjectExportTaskEditor)).toHaveLength(2)
+    expect(wrapper.findAllComponents(ProjectExportTaskEditor).every(editor => editor.props('busy'))).toBe(true)
+    expect(wrapper.find('[data-field-key="name"]').exists()).toBe(false)
+    expect(wrapper.find('[data-linked-file]').exists()).toBe(false)
+    const comparisonValues = wrapper.findAll('.project-config-comparison-field input, .project-config-comparison-field textarea')
+      .map(field => (field.element as HTMLInputElement | HTMLTextAreaElement).value)
+    expect(comparisonValues).toContain('Historical')
+    expect(comparisonValues).toContain('Current')
+
+    await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
+    await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('open-file')).toBeUndefined()
+    expect(useAppSettingsStore().settings.value.projectCreation.workspaceStates).toEqual(originalWorkspaceStates)
   })
 
 })
