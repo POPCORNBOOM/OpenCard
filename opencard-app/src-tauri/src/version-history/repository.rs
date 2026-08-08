@@ -174,6 +174,16 @@ struct VersionCommitMetadata {
     restored_from: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VersionTransactionJournal {
+    schema_version: u32,
+    phase: String,
+    old_head_commit_id: Option<String>,
+    new_head_commit_id: String,
+    profile_existed: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ReleaseMetadata {
@@ -643,6 +653,16 @@ pub(super) fn create_version(
     let tree = repository
         .find_tree(tree_id)
         .map_err(repository_error("read-created-tree"))?;
+    let committed_snapshot_id = snapshot_id(&tree_entries(&repository, &tree)?)?;
+    if committed_snapshot_id != current_snapshot_id {
+        return Err(HistoryFailure::new(
+            "version-conflict",
+            "verify-created-tree",
+            "project files changed while creating the version tree",
+        )
+        .project_id(&context.project_id)
+        .retryable());
+    }
     let metadata = VersionCommitMetadata {
         schema_version: SCHEMA_VERSION,
         whitelist_version: WHITELIST_VERSION,
@@ -659,7 +679,7 @@ pub(super) fn create_version(
     let parents = current_head.iter().collect::<Vec<_>>();
     let commit_id = repository
         .commit(
-            Some("refs/heads/main"),
+            None,
             &signature,
             &signature,
             std::str::from_utf8(&message).map_err(|error| {
@@ -669,18 +689,14 @@ pub(super) fn create_version(
             &parents,
         )
         .map_err(repository_error("create-version"))?;
-    if let Some(projection) = projection {
-        if let Err(error) = write_file_atomically(&projection.path, &projection.content) {
-            rollback_head(&repository, current_head.as_ref().map(|commit| commit.id()))?;
-            return Err(HistoryFailure::new(
-                "history-io",
-                "write-profile-version",
-                error.to_string(),
-            )
-            .project_id(&context.project_id)
-            .retryable());
-        }
-    }
+    commit_version_transaction(
+        context,
+        &repository,
+        &request.operation_id,
+        current_head.as_ref().map(|commit| commit.id()),
+        commit_id,
+        projection.as_ref(),
+    )?;
     let commit = repository
         .find_commit(commit_id)
         .map_err(repository_error("read-created-version"))?;
@@ -751,21 +767,11 @@ fn prepare_profile_projection(
     let Ok(bytes) = fs::read(&path) else {
         return Ok(None);
     };
-    let mut profile = serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|error| {
-        HistoryFailure::new(
-            "invalid-request",
-            "prepare-profile-version",
-            error.to_string(),
-        )
-        .relative_path(".ocproject")
-    })?;
+    let Ok(mut profile) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return Ok(None);
+    };
     let Some(profile) = profile.as_object_mut() else {
-        return Err(HistoryFailure::new(
-            "invalid-request",
-            "prepare-profile-version",
-            "project profile is not an object",
-        )
-        .relative_path(".ocproject"));
+        return Ok(None);
     };
     profile.insert(
         "version".to_owned(),
@@ -864,20 +870,275 @@ fn git_signature(saved_at_unix_ms: u64) -> Result<git2::Signature<'static>, Hist
     .map_err(repository_error("create-signature"))
 }
 
-fn rollback_head(repository: &Repository, old_head: Option<Oid>) -> Result<(), HistoryFailure> {
+fn commit_version_transaction(
+    context: &ProjectHistoryContext,
+    repository: &Repository,
+    operation_id: &str,
+    old_head: Option<Oid>,
+    new_head: Oid,
+    projection: Option<&ProfileProjection>,
+) -> Result<(), HistoryFailure> {
+    let transaction_root = context
+        .project_history_root
+        .join("transactions")
+        .join(transaction_id(operation_id)?);
+    if let Some(projection) = projection {
+        fs::create_dir_all(&transaction_root).map_err(|error| {
+            HistoryFailure::new("history-io", "prepare-transaction", error.to_string())
+                .project_id(&context.project_id)
+                .retryable()
+        })?;
+        let before = fs::read(&projection.path).map_err(|error| {
+            HistoryFailure::new("history-io", "backup-profile", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(".ocproject")
+                .retryable()
+        })?;
+        write_file_atomically(&transaction_root.join("profile.before"), &before).map_err(
+            |error| {
+                HistoryFailure::new("history-io", "backup-profile", error.to_string())
+                    .project_id(&context.project_id)
+                    .relative_path(".ocproject")
+                    .retryable()
+            },
+        )?;
+        write_file_atomically(&transaction_root.join("profile.after"), &projection.content)
+            .map_err(|error| {
+                HistoryFailure::new("history-io", "backup-profile", error.to_string())
+                    .project_id(&context.project_id)
+                    .relative_path(".ocproject")
+                    .retryable()
+            })?;
+        write_transaction_journal(
+            &transaction_root,
+            &VersionTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "prepared".to_owned(),
+                old_head_commit_id: old_head.map(|oid| oid.to_string()),
+                new_head_commit_id: new_head.to_string(),
+                profile_existed: true,
+            },
+        )?;
+        if let Err(error) = write_file_atomically(&projection.path, &projection.content) {
+            let _ = fs::remove_dir_all(&transaction_root);
+            return Err(HistoryFailure::new(
+                "history-io",
+                "write-profile-version",
+                error.to_string(),
+            )
+            .project_id(&context.project_id)
+            .relative_path(".ocproject")
+            .retryable());
+        }
+        write_transaction_journal(
+            &transaction_root,
+            &VersionTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "profile-written".to_owned(),
+                old_head_commit_id: old_head.map(|oid| oid.to_string()),
+                new_head_commit_id: new_head.to_string(),
+                profile_existed: true,
+            },
+        )?;
+    }
+
+    if let Err(error) = move_head(repository, old_head, new_head) {
+        if projection.is_some() {
+            let before =
+                fs::read(transaction_root.join("profile.before")).map_err(|read_error| {
+                    HistoryFailure::new(
+                        "recovery-required",
+                        "rollback-profile",
+                        format!("{error:?}; {read_error}"),
+                    )
+                    .project_id(&context.project_id)
+                })?;
+            write_file_atomically(&context.canonical_root.join(".ocproject"), &before).map_err(
+                |write_error| {
+                    HistoryFailure::new(
+                        "recovery-required",
+                        "rollback-profile",
+                        format!("{error:?}; {write_error}"),
+                    )
+                    .project_id(&context.project_id)
+                },
+            )?;
+            let _ = fs::remove_dir_all(&transaction_root);
+        }
+        return Err(error);
+    }
+
+    if projection.is_some() {
+        if let Err(error) = write_transaction_journal(
+            &transaction_root,
+            &VersionTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "committed".to_owned(),
+                old_head_commit_id: old_head.map(|oid| oid.to_string()),
+                new_head_commit_id: new_head.to_string(),
+                profile_existed: true,
+            },
+        ) {
+            eprintln!(
+                "[OpenCard/version-history] committed transaction cleanup deferred: {}",
+                error.detail
+            );
+        } else if let Err(error) = fs::remove_dir_all(&transaction_root) {
+            eprintln!("[OpenCard/version-history] committed transaction cleanup deferred: {error}");
+        }
+    }
+    Ok(())
+}
+
+fn move_head(
+    repository: &Repository,
+    old_head: Option<Oid>,
+    new_head: Oid,
+) -> Result<(), HistoryFailure> {
     match old_head {
-        Some(oid) => repository
-            .reference("refs/heads/main", oid, true, "rollback failed version")
+        Some(old_head) => repository
+            .reference_matching(
+                "refs/heads/main",
+                new_head,
+                true,
+                old_head,
+                "save OpenCard version",
+            )
             .map(|_| ())
-            .map_err(repository_error("rollback-version")),
+            .map_err(repository_error("commit-version")),
         None => match repository.find_reference("refs/heads/main") {
             Ok(mut reference) => reference
-                .delete()
-                .map_err(repository_error("rollback-version")),
-            Err(error) if error.code() == git2::ErrorCode::NotFound => Ok(()),
-            Err(error) => Err(repository_error("rollback-version")(error)),
+                .set_target(new_head, "save first OpenCard version")
+                .map(|_| ())
+                .map_err(repository_error("commit-version")),
+            Err(error) if error.code() == git2::ErrorCode::NotFound => repository
+                .reference(
+                    "refs/heads/main",
+                    new_head,
+                    false,
+                    "save first OpenCard version",
+                )
+                .map(|_| ())
+                .map_err(repository_error("commit-version")),
+            Err(error) => Err(repository_error("commit-version")(error)),
         },
     }
+}
+
+fn transaction_id(operation_id: &str) -> Result<String, HistoryFailure> {
+    Oid::hash_object(ObjectType::Blob, operation_id.as_bytes())
+        .map(|oid| oid.to_string())
+        .map_err(|error| {
+            HistoryFailure::new("history-io", "prepare-transaction", error.to_string())
+        })
+}
+
+fn write_transaction_journal(
+    transaction_root: &Path,
+    journal: &VersionTransactionJournal,
+) -> Result<(), HistoryFailure> {
+    let content = serde_json::to_vec_pretty(journal).map_err(|error| {
+        HistoryFailure::new("history-io", "serialize-transaction", error.to_string())
+    })?;
+    write_file_atomically(&transaction_root.join("journal.json"), &content).map_err(|error| {
+        HistoryFailure::new("history-io", "write-transaction", error.to_string()).retryable()
+    })
+}
+
+pub(super) fn recover_pending_transactions(
+    context: &ProjectHistoryContext,
+) -> Result<(), HistoryFailure> {
+    let transactions_root = context.project_history_root.join("transactions");
+    let Ok(entries) = fs::read_dir(&transactions_root) else {
+        return Ok(());
+    };
+    let repository = open_repository(context)?;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            HistoryFailure::new("history-io", "read-transaction", error.to_string())
+                .project_id(&context.project_id)
+                .retryable()
+        })?;
+        let transaction_root = entry.path();
+        if !transaction_root.is_dir() {
+            continue;
+        }
+        let journal_path = transaction_root.join("journal.json");
+        if !journal_path.is_file() {
+            fs::remove_dir_all(&transaction_root).map_err(|error| {
+                HistoryFailure::new("history-io", "cleanup-transaction", error.to_string())
+                    .project_id(&context.project_id)
+                    .retryable()
+            })?;
+            continue;
+        }
+        let journal: VersionTransactionJournal =
+            serde_json::from_slice(&fs::read(&journal_path).map_err(|error| {
+                HistoryFailure::new("history-io", "read-transaction", error.to_string())
+                    .project_id(&context.project_id)
+                    .retryable()
+            })?)
+            .map_err(|error| {
+                HistoryFailure::new("history-corrupt", "parse-transaction", error.to_string())
+                    .project_id(&context.project_id)
+            })?;
+        if journal.schema_version != SCHEMA_VERSION {
+            return Err(HistoryFailure::new(
+                "history-incompatible",
+                "parse-transaction",
+                "unsupported transaction schema",
+            )
+            .project_id(&context.project_id));
+        }
+        recover_transaction(context, &repository, &transaction_root, &journal)?;
+        fs::remove_dir_all(&transaction_root).map_err(|error| {
+            HistoryFailure::new("history-io", "cleanup-transaction", error.to_string())
+                .project_id(&context.project_id)
+                .retryable()
+        })?;
+    }
+    Ok(())
+}
+
+fn recover_transaction(
+    context: &ProjectHistoryContext,
+    repository: &Repository,
+    transaction_root: &Path,
+    journal: &VersionTransactionJournal,
+) -> Result<(), HistoryFailure> {
+    let actual_head = head_commit(repository)?.map(|commit| commit.id().to_string());
+    let profile_path = context.canonical_root.join(".ocproject");
+    let source = if actual_head.as_deref() == Some(&journal.new_head_commit_id) {
+        transaction_root.join("profile.after")
+    } else if actual_head == journal.old_head_commit_id {
+        transaction_root.join("profile.before")
+    } else {
+        return Err(HistoryFailure::new(
+            "recovery-required",
+            "recover-transaction",
+            "version head does not match pending transaction",
+        )
+        .project_id(&context.project_id));
+    };
+    if journal.profile_existed {
+        let content = fs::read(&source).map_err(|error| {
+            HistoryFailure::new("recovery-required", "recover-profile", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(".ocproject")
+        })?;
+        write_file_atomically(&profile_path, &content).map_err(|error| {
+            HistoryFailure::new("recovery-required", "recover-profile", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(".ocproject")
+        })?;
+    } else if profile_path.exists() {
+        fs::remove_file(&profile_path).map_err(|error| {
+            HistoryFailure::new("recovery-required", "recover-profile", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(".ocproject")
+        })?;
+    }
+    Ok(())
 }
 
 fn write_file_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
@@ -1456,6 +1717,125 @@ mod tests {
         for version in ["1.2", "01.2.3", "1.2.3-beta", "1.2.3+build", "-1.2.3"] {
             assert_eq!(parse_version(version), None);
         }
+    }
+
+    #[test]
+    fn invalid_profile_bytes_remain_unchanged_when_saving_a_version() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join(".ocproject"), b"not-json").unwrap();
+        fs::write(project.path().join("README.md"), b"fixture").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+
+        create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "invalid-profile".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "Keep source bytes".to_owned(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read(project.path().join(".ocproject")).unwrap(),
+            b"not-json"
+        );
+    }
+
+    #[test]
+    fn pending_profile_transaction_recovers_before_or_after_head_commit() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(
+            project.path().join(".ocproject"),
+            br#"{"name":"Fixture","version":"0.0.0"}"#,
+        )
+        .unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+        let first = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "First".to_owned(),
+            },
+        )
+        .unwrap();
+        let repository = open_repository(&context).unwrap();
+        let old_head = repository
+            .find_commit(Oid::from_str(&first.version.commit_id).unwrap())
+            .unwrap();
+        let signature = git_signature(unix_time_ms()).unwrap();
+        let tree = old_head.tree().unwrap();
+        let new_head = repository
+            .commit(None, &signature, &signature, "pending", &tree, &[&old_head])
+            .unwrap();
+        let before = fs::read(project.path().join(".ocproject")).unwrap();
+        let after = br#"{"name":"Fixture","version":"0.0.2"}"#.to_vec();
+
+        let rollback_root = context.project_history_root.join("transactions/rollback");
+        fs::create_dir_all(&rollback_root).unwrap();
+        write_file_atomically(&rollback_root.join("profile.before"), &before).unwrap();
+        write_file_atomically(&rollback_root.join("profile.after"), &after).unwrap();
+        write_transaction_journal(
+            &rollback_root,
+            &VersionTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "profile-written".to_owned(),
+                old_head_commit_id: Some(old_head.id().to_string()),
+                new_head_commit_id: new_head.to_string(),
+                profile_existed: true,
+            },
+        )
+        .unwrap();
+        fs::write(project.path().join(".ocproject"), &after).unwrap();
+
+        recover_pending_transactions(&context).unwrap();
+        assert_eq!(fs::read(project.path().join(".ocproject")).unwrap(), before);
+
+        let replay_root = context.project_history_root.join("transactions/replay");
+        fs::create_dir_all(&replay_root).unwrap();
+        write_file_atomically(&replay_root.join("profile.before"), &before).unwrap();
+        write_file_atomically(&replay_root.join("profile.after"), &after).unwrap();
+        write_transaction_journal(
+            &replay_root,
+            &VersionTransactionJournal {
+                schema_version: SCHEMA_VERSION,
+                phase: "profile-written".to_owned(),
+                old_head_commit_id: Some(old_head.id().to_string()),
+                new_head_commit_id: new_head.to_string(),
+                profile_existed: true,
+            },
+        )
+        .unwrap();
+        move_head(&repository, Some(old_head.id()), new_head).unwrap();
+        fs::write(project.path().join(".ocproject"), &before).unwrap();
+
+        recover_pending_transactions(&context).unwrap();
+        assert_eq!(fs::read(project.path().join(".ocproject")).unwrap(), after);
     }
 
     #[test]

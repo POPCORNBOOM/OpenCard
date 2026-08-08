@@ -188,8 +188,17 @@ export function useVersioning(options: UseVersioningOptions) {
     }
 
     const sessionsById = new Map(options.sessions.value.map(session => [session.id, session]))
-    const hasDrift = confirmation.sessionRevisions.some(revision => (
-      sessionsById.get(revision.sessionId)?.contentRevision !== revision.contentRevision
+    const capturedSessionIds = new Set(confirmation.sessionRevisions.map(revision => revision.sessionId))
+    const hasDrift = confirmation.sessionRevisions.some(revision => {
+      const prepared = options.prepareSessionContent(revision.sessionId)
+      return !prepared
+        || prepared.relativePath !== revision.relativePath
+        || prepared.contentRevision !== revision.contentRevision
+    }) || options.sessions.value.some(session => (
+      session.resourceKind === 'workspace'
+      && session.isDirty
+      && !capturedSessionIds.has(session.id)
+      && options.prepareSessionContent(session.id) !== null
     ))
     if (hasDrift) {
       await openSaveVersion()

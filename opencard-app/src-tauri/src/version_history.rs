@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -283,6 +285,13 @@ fn prepare_project(
     }
 
     prepare_repository(&project_history_root.join("history.git"), &project_id)?;
+    repository::recover_pending_transactions(&ProjectHistoryContext {
+        canonical_root: canonical_root.clone(),
+        canonical_root_text: canonical_root_text.clone(),
+        project_id: project_id.clone(),
+        project_history_root: project_history_root.clone(),
+        template_managed_paths: template_managed_paths.clone(),
+    })?;
     fs::create_dir_all(project_history_root.join("local-history")).map_err(|error| {
         HistoryFailure::new("history-io", "create-local-history", error.to_string())
             .project_id(&project_id)
@@ -581,7 +590,7 @@ fn scan_directory(
                 .retryable()
         })?;
 
-        if metadata.file_type().is_symlink() {
+        if is_linked_entry(&metadata) {
             return Err(HistoryFailure::new(
                 "project-boundary-violation",
                 "scan-boundary",
@@ -630,6 +639,21 @@ fn scan_directory(
         files.push(relative_path);
     }
     Ok(())
+}
+
+fn is_linked_entry(metadata: &fs::Metadata) -> bool {
+    if metadata.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
 }
 
 fn is_managed_file(relative_path: &str, template_managed: bool) -> bool {
