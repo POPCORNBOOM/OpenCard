@@ -208,6 +208,22 @@ export type ReleaseCompareResponse = {
   released: boolean
 }
 
+export type PublishVersionRequest = VersionProjectRequest & {
+  commitId: string
+  version: string
+  description: string
+}
+
+export type PublishVersionResponse = {
+  version: VersionRecordDto
+  renumberedFrom: string | null
+}
+
+export type EditReleaseDescriptionRequest = VersionProjectRequest & {
+  commitId: string
+  description: string
+}
+
 export type CompareSession = PrepareCompareResponse & {
   id: string
   projectRoot: string
@@ -222,6 +238,7 @@ export type VersionWriteState =
   | { status: 'preparing'; operation: 'save' }
   | { status: 'confirming'; operation: 'save' }
   | { status: 'running'; operation: 'save'; operationId: string }
+  | { status: 'running'; operation: 'publish' | 'edit-release'; operationId: string }
 
 export type VersioningError = VersionErrorDto
 

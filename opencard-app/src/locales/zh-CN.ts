@@ -628,9 +628,24 @@ export default {
     },
   },
   versioning: {
-    actions: { cancel: '取消', refresh: '刷新' },
-    fields: { version: '版本', changes: '更改', description: '保存说明' },
+    actions: {
+      cancel: '取消',
+      close: '关闭',
+      refresh: '刷新',
+      publish: '发布',
+      editRelease: '编辑发布说明',
+    },
+    fields: {
+      version: '版本',
+      status: '状态',
+      changes: '更改',
+      description: '保存说明',
+      savedAt: '保存时间',
+      publishedAt: '发布时间',
+      releaseDescription: '发布说明',
+    },
     changeSummary: '{total} 个文件：+{added} / ~{modified} / -{deleted}',
+    changeCounts: '+{added} / ~{modified} / -{deleted}',
     save: {
       title: '保存版本',
       description: '为当前项目创建一个可恢复的保存版本。',
@@ -648,7 +663,19 @@ export default {
       loading: '正在准备版本历史…',
       unavailable: '版本历史不可用',
     },
-    errors: { saveFailed: '保存版本失败，当前修改仍保留，可检查后重试（{code}）。' },
+    info: { description: '项目保存版本信息。' },
+    publish: {
+      title: '发布版本',
+      description: '将这个保存版本标记为正式发布版本。',
+      editTitle: '编辑发布说明',
+      editDescription: '只更新发布说明，不改变版本内容和首次发布时间。',
+      publishing: '正在发布…',
+      saveDescription: '保存说明',
+    },
+    errors: {
+      saveFailed: '保存版本失败，当前修改仍保留，可检查后重试（{code}）。',
+      publishFailed: '发布版本失败，保存版本仍保留，可检查后重试（{code}）。',
+    },
     history: {
       empty: '当前文件暂无历史记录',
       selectProjectFile: '选择项目文件以查看历史',

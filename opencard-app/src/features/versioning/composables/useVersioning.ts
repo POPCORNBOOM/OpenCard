@@ -387,6 +387,59 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function publishVersion(commitId: string, version: string, description: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || writeState.value.status !== 'idle') return
+    const operationId = crypto.randomUUID()
+    writeState.value = { status: 'running', operation: 'publish', operationId }
+    lastError.value = null
+    try {
+      await service.publishVersion({
+        operationId,
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        commitId,
+        version,
+        description,
+      })
+      await prepare(projectRoot)
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7004', error)
+      writeState.value = { status: 'idle' }
+      throw error
+    }
+    writeState.value = { status: 'idle' }
+  }
+
+  async function editReleaseDescription(commitId: string, description: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || writeState.value.status !== 'idle') return
+    const operationId = crypto.randomUUID()
+    writeState.value = { status: 'running', operation: 'edit-release', operationId }
+    lastError.value = null
+    try {
+      await service.editReleaseDescription({
+        operationId,
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        commitId,
+        description,
+      })
+      await prepare(projectRoot)
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7004', error)
+      writeState.value = { status: 'idle' }
+      throw error
+    }
+    writeState.value = { status: 'idle' }
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -456,6 +509,8 @@ export function useVersioning(options: UseVersioningOptions) {
     loadFileHistory,
     openCompare,
     closeCompare,
+    publishVersion,
+    editReleaseDescription,
     dispose,
   }
 }

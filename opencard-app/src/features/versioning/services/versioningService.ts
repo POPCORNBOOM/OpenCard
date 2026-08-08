@@ -23,6 +23,10 @@ import type {
   PrepareCompareResponse,
   ReleaseCompareRequest,
   ReleaseCompareResponse,
+  PublishVersionRequest,
+  PublishVersionResponse,
+  EditReleaseDescriptionRequest,
+  VersionRecordDto,
 } from '../model/versioning'
 
 export interface VersioningService {
@@ -38,6 +42,8 @@ export interface VersioningService {
   deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse>
   prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse>
   releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse>
+  publishVersion(request: PublishVersionRequest): Promise<PublishVersionResponse>
+  editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto>
 }
 
 class VersioningServiceImpl implements VersioningService {
@@ -87,6 +93,14 @@ class VersioningServiceImpl implements VersioningService {
 
   async releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse> {
     return await invoke<ReleaseCompareResponse>('version_release_compare', { request })
+  }
+
+  async publishVersion(request: PublishVersionRequest): Promise<PublishVersionResponse> {
+    return await invoke<PublishVersionResponse>('version_publish', { request })
+  }
+
+  async editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto> {
+    return await invoke<VersionRecordDto>('version_edit_release_description', { request })
   }
 }
 

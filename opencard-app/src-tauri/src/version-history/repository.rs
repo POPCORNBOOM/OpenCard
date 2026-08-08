@@ -49,6 +49,29 @@ pub struct FileHistoryRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PublishVersionRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    commit_id: String,
+    version: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditReleaseDescriptionRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    commit_id: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DraftOverlayDto {
     session_id: String,
     relative_path: String,
@@ -148,6 +171,13 @@ pub struct FileHistoryResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PublishVersionResponse {
+    version: VersionRecordDto,
+    renumbered_from: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OverlayRevisionDto {
     session_id: String,
     relative_path: String,
@@ -184,7 +214,7 @@ struct VersionTransactionJournal {
     profile_existed: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReleaseMetadata {
     schema_version: u32,
@@ -369,6 +399,84 @@ pub async fn version_list_file_history(
 }
 
 #[tauri::command]
+pub async fn version_publish(
+    request: PublishVersionRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<PublishVersionResponse, VersionErrorDto> {
+    let operation = "version_publish";
+    validate_publish_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let compare_leases = Arc::clone(&state.compare_leases);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        ensure_project_not_compared(&compare_leases, &context.project_id)?;
+        publish_version(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
+pub async fn version_edit_release_description(
+    request: EditReleaseDescriptionRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<VersionRecordDto, VersionErrorDto> {
+    let operation = "version_edit_release_description";
+    validate_edit_release_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let compare_leases = Arc::clone(&state.compare_leases);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        ensure_project_not_compared(&compare_leases, &context.project_id)?;
+        edit_release_description(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
 pub async fn version_preview_changes(
     request: PreviewChangesRequest,
     app_handle: tauri::AppHandle,
@@ -438,6 +546,310 @@ fn preview_changes(
             })
             .collect(),
     })
+}
+
+fn validate_publish_request(request: &PublishVersionRequest) -> Result<(), HistoryFailure> {
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+        || request.commit_id.trim().is_empty()
+        || parse_version(request.version.trim()).is_none()
+    {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-request",
+            "invalid publish request",
+        ));
+    }
+    validate_description(&request.description)
+}
+
+fn validate_edit_release_request(
+    request: &EditReleaseDescriptionRequest,
+) -> Result<(), HistoryFailure> {
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+        || request.commit_id.trim().is_empty()
+    {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-request",
+            "invalid release description request",
+        ));
+    }
+    validate_description(&request.description)
+}
+
+fn publish_version(
+    context: &ProjectHistoryContext,
+    request: PublishVersionRequest,
+) -> Result<PublishVersionResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let repository = open_repository(context)?;
+    let mut commit = find_version_commit(&repository, &request.commit_id)?;
+    let mut metadata = parse_commit_metadata(&commit)?;
+    if release_for_version(&repository, commit.id(), &metadata.version)?.is_some() {
+        return Err(HistoryFailure::new(
+            "version-conflict",
+            "publish-version",
+            "version is already published",
+        ));
+    }
+
+    let requested_version = normalize_version(&request.version)?;
+    let renumbered_from = if requested_version != metadata.version {
+        let head = head_commit(&repository)?.ok_or_else(|| {
+            HistoryFailure::new(
+                "version-not-found",
+                "publish-version",
+                "project has no versions",
+            )
+        })?;
+        if head.id() != commit.id() {
+            return Err(HistoryFailure::new(
+                "invalid-request",
+                "publish-version",
+                "only the latest version can be renumbered",
+            ));
+        }
+        ensure_project_matches_commit(context, &repository, &commit)?;
+        ensure_version_follows_parent(&commit, &requested_version)?;
+        ensure_version_not_used(&repository, &requested_version)?;
+
+        let old_version = metadata.version.clone();
+        metadata.version = requested_version.clone();
+        let message = serde_json::to_vec(&metadata).map_err(|error| {
+            HistoryFailure::new("history-io", "serialize-version", error.to_string())
+        })?;
+        let signature = git_signature(metadata.saved_at_unix_ms)?;
+        let tree = commit
+            .tree()
+            .map_err(repository_error("read-version-tree"))?;
+        let parent = match commit.parent_count() {
+            0 => None,
+            1 => Some(
+                commit
+                    .parent(0)
+                    .map_err(repository_error("read-version-parent"))?,
+            ),
+            _ => {
+                return Err(HistoryFailure::new(
+                    "history-corrupt",
+                    "read-version-parent",
+                    "version history is not linear",
+                ))
+            }
+        };
+        let parents = parent.iter().collect::<Vec<_>>();
+        let replacement_id = repository
+            .commit(
+                None,
+                &signature,
+                &signature,
+                std::str::from_utf8(&message).map_err(|error| {
+                    HistoryFailure::new("history-io", "serialize-version", error.to_string())
+                })?,
+                &tree,
+                &parents,
+            )
+            .map_err(repository_error("renumber-version"))?;
+        let projection = prepare_profile_projection(context, &requested_version)?;
+        commit_version_transaction(
+            context,
+            &repository,
+            &request.operation_id,
+            Some(commit.id()),
+            replacement_id,
+            projection.as_ref(),
+        )?;
+        commit = repository
+            .find_commit(replacement_id)
+            .map_err(repository_error("read-renumbered-version"))?;
+        Some(old_version)
+    } else {
+        None
+    };
+
+    create_release_tag(
+        &repository,
+        &commit,
+        &requested_version,
+        request.description.trim(),
+        unix_time_ms(),
+        false,
+    )?;
+    Ok(PublishVersionResponse {
+        version: version_record(&repository, &commit)?,
+        renumbered_from,
+    })
+}
+
+fn edit_release_description(
+    context: &ProjectHistoryContext,
+    request: EditReleaseDescriptionRequest,
+) -> Result<VersionRecordDto, HistoryFailure> {
+    let _request_generation = request.generation;
+    let repository = open_repository(context)?;
+    let commit = find_version_commit(&repository, &request.commit_id)?;
+    let metadata = parse_commit_metadata(&commit)?;
+    let release =
+        release_for_version(&repository, commit.id(), &metadata.version)?.ok_or_else(|| {
+            HistoryFailure::new(
+                "version-not-found",
+                "edit-release",
+                "version has not been published",
+            )
+        })?;
+    create_release_tag(
+        &repository,
+        &commit,
+        &metadata.version,
+        request.description.trim(),
+        release.published_at_unix_ms,
+        true,
+    )?;
+    version_record(&repository, &commit)
+}
+
+fn find_version_commit<'repo>(
+    repository: &'repo Repository,
+    commit_id: &str,
+) -> Result<Commit<'repo>, HistoryFailure> {
+    let expected = Oid::from_str(commit_id).map_err(|error| {
+        HistoryFailure::new("invalid-request", "parse-version", error.to_string())
+    })?;
+    let mut commit = head_commit(repository)?;
+    while let Some(current) = commit {
+        if current.id() == expected {
+            return Ok(current);
+        }
+        commit = match current.parent_count() {
+            0 => None,
+            1 => Some(
+                current
+                    .parent(0)
+                    .map_err(repository_error("read-version-parent"))?,
+            ),
+            _ => {
+                return Err(HistoryFailure::new(
+                    "history-corrupt",
+                    "read-version-parent",
+                    "version history is not linear",
+                ))
+            }
+        };
+    }
+    Err(HistoryFailure::new(
+        "version-not-found",
+        "find-version",
+        "version is not in project history",
+    ))
+}
+
+fn ensure_project_matches_commit(
+    context: &ProjectHistoryContext,
+    repository: &Repository,
+    commit: &Commit<'_>,
+) -> Result<(), HistoryFailure> {
+    let current = current_snapshot_entries(context)?;
+    let version = tree_entries(
+        repository,
+        &commit
+            .tree()
+            .map_err(repository_error("read-version-tree"))?,
+    )?;
+    if compare_entries(&version, &current).is_empty() {
+        return Ok(());
+    }
+    Err(HistoryFailure::new(
+        "version-conflict",
+        "publish-version",
+        "project has saved content changes",
+    )
+    .project_id(&context.project_id)
+    .retryable())
+}
+
+fn ensure_version_follows_parent(commit: &Commit<'_>, version: &str) -> Result<(), HistoryFailure> {
+    let Some(requested) = parse_version(version) else {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-version",
+            "invalid semantic version",
+        ));
+    };
+    if commit.parent_count() == 0 {
+        return Ok(());
+    }
+    if commit.parent_count() != 1 {
+        return Err(HistoryFailure::new(
+            "history-corrupt",
+            "read-version-parent",
+            "version history is not linear",
+        ));
+    }
+    let parent = commit
+        .parent(0)
+        .map_err(repository_error("read-version-parent"))?;
+    let parent_version = parse_commit_metadata(&parent)?.version;
+    let parent_version = parse_version(&parent_version).ok_or_else(|| {
+        HistoryFailure::new(
+            "history-corrupt",
+            "validate-version",
+            "invalid parent version",
+        )
+    })?;
+    if requested > parent_version {
+        return Ok(());
+    }
+    Err(HistoryFailure::new(
+        "version-conflict",
+        "validate-version",
+        "version must be greater than its parent",
+    ))
+}
+
+fn normalize_version(version: &str) -> Result<String, HistoryFailure> {
+    let (major, minor, patch) = parse_version(version.trim()).ok_or_else(|| {
+        HistoryFailure::new(
+            "invalid-request",
+            "validate-version",
+            "invalid semantic version",
+        )
+    })?;
+    Ok(format!("{major}.{minor}.{patch}"))
+}
+
+fn create_release_tag(
+    repository: &Repository,
+    commit: &Commit<'_>,
+    version: &str,
+    description: &str,
+    published_at_unix_ms: u64,
+    force: bool,
+) -> Result<(), HistoryFailure> {
+    let metadata = ReleaseMetadata {
+        schema_version: SCHEMA_VERSION,
+        description: description.to_owned(),
+        published_at_unix_ms,
+    };
+    let message = serde_json::to_vec(&metadata).map_err(|error| {
+        HistoryFailure::new("history-io", "serialize-release", error.to_string())
+    })?;
+    let signature = git_signature(published_at_unix_ms)?;
+    repository
+        .tag(
+            &format!("v{version}"),
+            commit.as_object(),
+            &signature,
+            std::str::from_utf8(&message).map_err(|error| {
+                HistoryFailure::new("history-io", "serialize-release", error.to_string())
+            })?,
+            force,
+        )
+        .map(|_| ())
+        .map_err(repository_error("publish-version"))
 }
 
 fn list_versions(
@@ -1836,6 +2248,117 @@ mod tests {
 
         recover_pending_transactions(&context).unwrap();
         assert_eq!(fs::read(project.path().join(".ocproject")).unwrap(), after);
+    }
+
+    #[test]
+    fn publishing_tags_existing_versions_and_only_renumbers_the_clean_tip() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(
+            project.path().join(".ocproject"),
+            br#"{"name":"Fixture","version":"0.0.1"}"#,
+        )
+        .unwrap();
+        fs::write(project.path().join("README.md"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let first_status = get_status(&context, 1).unwrap();
+        let first = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: first_status.change_summary.snapshot_id,
+                description: "First".to_owned(),
+            },
+        )
+        .unwrap();
+        fs::write(project.path().join("README.md"), b"second").unwrap();
+        let second_status = get_status(&context, 1).unwrap();
+        let second = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "second".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: second_status.expected_head_commit_id,
+                expected_snapshot_id: second_status.change_summary.snapshot_id,
+                description: "Second".to_owned(),
+            },
+        )
+        .unwrap();
+
+        let historical = publish_version(
+            &context,
+            PublishVersionRequest {
+                operation_id: "publish-first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                commit_id: first.version.commit_id.clone(),
+                version: first.version.version.clone(),
+                description: "First release".to_owned(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            historical.version.release.unwrap().description,
+            "First release"
+        );
+        assert_eq!(
+            head_commit(&open_repository(&context).unwrap())
+                .unwrap()
+                .unwrap()
+                .id()
+                .to_string(),
+            second.version.commit_id
+        );
+
+        let current = publish_version(
+            &context,
+            PublishVersionRequest {
+                operation_id: "publish-second".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                commit_id: second.version.commit_id,
+                version: "1.0.0".to_owned(),
+                description: "Major release".to_owned(),
+            },
+        )
+        .unwrap();
+        assert_eq!(current.renumbered_from.as_deref(), Some("0.0.2"));
+        assert_eq!(current.version.version, "1.0.0");
+        assert_eq!(
+            current.version.release.as_ref().unwrap().description,
+            "Major release"
+        );
+        let profile: serde_json::Value =
+            serde_json::from_slice(&fs::read(project.path().join(".ocproject")).unwrap()).unwrap();
+        assert_eq!(profile["version"], "1.0.0");
+
+        let edited = edit_release_description(
+            &context,
+            EditReleaseDescriptionRequest {
+                operation_id: "edit-first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                commit_id: first.version.commit_id,
+                description: "Updated notes".to_owned(),
+            },
+        )
+        .unwrap();
+        assert_eq!(edited.release.unwrap().description, "Updated notes");
     }
 
     #[test]

@@ -337,6 +337,24 @@
       @close="cancelSaveVersion"
       @submit="handleSaveVersionConfirm"
     />
+    <VersionInfoDialog
+      :version="selectedVersionInfo"
+      :current-commit-id="versionStatus?.current?.commitId ?? null"
+      :busy="versionWriteState.status === 'running'"
+      :locale="locale"
+      @close="selectedVersionInfoCommitId = null"
+      @publish="openPublishDialog(false)"
+      @edit-release="openPublishDialog(true)"
+    />
+    <PublishVersionDialog
+      :version="publishVersionTarget"
+      :allow-renumber="canRenumberPublishTarget"
+      :edit-mode="editReleaseMode"
+      :busy="versionWriteState.status === 'running'"
+      :error="publishVersionErrorMessage"
+      @close="closePublishDialog"
+      @submit="handlePublishVersionConfirm"
+    />
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -466,6 +484,9 @@ import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue
 import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
 import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
 import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
+import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
+import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
+import type { VersionRecordDto } from '../versioning/model/versioning'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -834,6 +855,8 @@ const {
   recordLocalHistory,
   openCompare,
   closeCompare,
+  publishVersion,
+  editReleaseDescription,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -874,6 +897,24 @@ const versioningErrorMessage = computed(() => (
   versioningError.value
     ? t('versioning.errors.saveFailed', { code: versioningError.value.code })
     : null
+))
+const selectedVersionInfoCommitId = ref<string | null>(null)
+const publishVersionTargetCommitId = ref<string | null>(null)
+const editReleaseMode = ref(false)
+const selectedVersionInfo = computed<VersionRecordDto | null>(() => (
+  projectVersions.value.find(version => version.commitId === selectedVersionInfoCommitId.value) ?? null
+))
+const publishVersionTarget = computed<VersionRecordDto | null>(() => (
+  projectVersions.value.find(version => version.commitId === publishVersionTargetCommitId.value) ?? null
+))
+const canRenumberPublishTarget = computed(() => (
+  Boolean(publishVersionTarget.value)
+  && publishVersionTarget.value?.commitId === versionStatus.value?.current?.commitId
+  && !publishVersionTarget.value?.release
+  && !hasWorkspaceVersionChanges.value
+))
+const publishVersionErrorMessage = computed(() => (
+  versioningError.value ? t('versioning.errors.publishFailed', { code: versioningError.value.code }) : null
 ))
 
 const {
@@ -1503,7 +1544,12 @@ const sidebarHeadButtons = computed<ShellButton[]>(() => {
       key: 'publish-version',
       icon: 'action.publish',
       title: t('app.menu.publishVersion'),
-      disabled: true,
+      disabled: !versionStatus.value?.current
+        || Boolean(versionStatus.value.current.release)
+        || hasWorkspaceVersionChanges.value
+        || versionReadiness.value.status !== 'ready'
+        || versionWriteState.value.status !== 'idle'
+        || Boolean(compareSession.value),
     },
   ]
 })
@@ -2001,7 +2047,40 @@ function handleVersionTreeIntent(intent: OcTreeIntent): void {
     selectedVersionKeys.value = intent.selectedKeys
     return
   }
-  if (intent.type === 'node.activate') selectedVersionKeys.value = [intent.key]
+  if (intent.type === 'node.activate') {
+    selectedVersionKeys.value = [intent.key]
+    selectedVersionInfoCommitId.value = intent.key.replace(/^version:/, '')
+  }
+}
+
+function openPublishDialog(editRelease: boolean): void {
+  const target = selectedVersionInfo.value ?? versionStatus.value?.current ?? null
+  if (!target || (editRelease ? !target.release : Boolean(target.release))) return
+  publishVersionTargetCommitId.value = target.commitId
+  editReleaseMode.value = editRelease
+}
+
+function closePublishDialog(): void {
+  if (versionWriteState.value.status === 'running') return
+  publishVersionTargetCommitId.value = null
+  editReleaseMode.value = false
+}
+
+async function handlePublishVersionConfirm(version: string, description: string): Promise<void> {
+  const target = publishVersionTarget.value
+  if (!target) return
+  try {
+    if (editReleaseMode.value) {
+      await editReleaseDescription(target.commitId, description)
+    } else {
+      await publishVersion(target.commitId, version, description)
+    }
+    publishVersionTargetCommitId.value = null
+    selectedVersionInfoCommitId.value = null
+    editReleaseMode.value = false
+  } catch {
+    // The versioning flow reports a stable application error and keeps this dialog open.
+  }
 }
 
 function handleChangeHistorySelect(source: 'version' | 'local-history', id: string): void {
@@ -2525,6 +2604,12 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'save-version') {
     await openSaveVersion()
+    return
+  }
+
+  if (actionKey === 'publish-version') {
+    selectedVersionInfoCommitId.value = versionStatus.value?.current?.commitId ?? null
+    openPublishDialog(false)
     return
   }
 

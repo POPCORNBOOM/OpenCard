@@ -208,6 +208,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法保存项目版本', 'en-US': 'Could not save the project version' },
     solution: '当前编辑内容仍保留；检查项目文件和版本历史状态后重新确认保存版本。',
   },
+  'OC-E7004': {
+    area: '版本管理',
+    meaning: { 'zh-CN': '无法发布项目版本', 'en-US': 'Could not publish the project version' },
+    solution: '版本内容和已保存状态仍保留；刷新版本列表后重新发布。',
+  },
   'OC-E7005': {
     area: '版本管理',
     meaning: { 'zh-CN': '无法打开历史内容对比', 'en-US': 'Could not open the history comparison' },

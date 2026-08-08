@@ -629,9 +629,24 @@ export default {
     },
   },
   versioning: {
-    actions: { cancel: 'Cancel', refresh: 'Refresh' },
-    fields: { version: 'Version', changes: 'Changes', description: 'Save description' },
+    actions: {
+      cancel: 'Cancel',
+      close: 'Close',
+      refresh: 'Refresh',
+      publish: 'Publish',
+      editRelease: 'Edit release description',
+    },
+    fields: {
+      version: 'Version',
+      status: 'Status',
+      changes: 'Changes',
+      description: 'Save description',
+      savedAt: 'Saved at',
+      publishedAt: 'Published at',
+      releaseDescription: 'Release description',
+    },
     changeSummary: '{total} files: +{added} / ~{modified} / -{deleted}',
+    changeCounts: '+{added} / ~{modified} / -{deleted}',
     save: {
       title: 'Save Version',
       description: 'Create a restorable saved version of the current project.',
@@ -649,7 +664,19 @@ export default {
       loading: 'Preparing version history…',
       unavailable: 'Version history unavailable',
     },
-    errors: { saveFailed: 'Saving the version failed. Your changes are kept; check and retry ({code}).' },
+    info: { description: 'Saved project version information.' },
+    publish: {
+      title: 'Publish Version',
+      description: 'Mark this saved version as an official release.',
+      editTitle: 'Edit Release Description',
+      editDescription: 'Update the release description without changing its content or first publication time.',
+      publishing: 'Publishing…',
+      saveDescription: 'Save Description',
+    },
+    errors: {
+      saveFailed: 'Saving the version failed. Your changes are kept; check and retry ({code}).',
+      publishFailed: 'Publishing the version failed. The saved version is kept; check and retry ({code}).',
+    },
     history: {
       empty: 'No history for the current file',
       selectProjectFile: 'Select a project file to view history',

@@ -56,6 +56,8 @@ describe('useVersioning project preparation', () => {
         },
       })),
       releaseCompare: vi.fn(async () => ({ released: true })),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
     }
     const sessions = ref<EditorSession[]>([sourceSession])
     const versioning = useVersioning({
@@ -127,6 +129,8 @@ describe('useVersioning project preparation', () => {
       deleteLocalHistory: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -192,6 +196,8 @@ describe('useVersioning project preparation', () => {
       deleteLocalHistory: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -231,6 +237,8 @@ describe('useVersioning project preparation', () => {
       deleteLocalHistory: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -313,6 +321,8 @@ describe('useVersioning project preparation', () => {
       deleteLocalHistory: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
       createVersion: vi.fn(async () => ({ version: savedVersion, changeSummary })),
       listVersions: vi.fn(async request => ({
         projectId: request.projectId,
