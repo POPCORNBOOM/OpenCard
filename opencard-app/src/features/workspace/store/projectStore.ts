@@ -52,6 +52,7 @@ import {
 import {
   buildProjectIconCatalog,
   EMPTY_PROJECT_ICON_CATALOG,
+  projectIconIdentity,
   type ProjectIconCatalog,
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
@@ -153,7 +154,13 @@ const customBlockRegistryError = ref<string | null>(null)
 const settingsStore = useAppSettingsStore()
 const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
   series: [...projectCustomBlockIconCatalog.value.series, ...projectIconCatalog.value.series],
-  entries: [...projectCustomBlockIconCatalog.value.entries, ...projectIconCatalog.value.entries],
+  entries: [
+    ...projectCustomBlockIconCatalog.value.entries,
+    ...projectIconCatalog.value.entries.filter(entry => !projectCustomBlockIconCatalog.value.entries.some(
+      customEntry => projectIconIdentity(customEntry.seriesKey, customEntry.iconKey)
+        === projectIconIdentity(entry.seriesKey, entry.iconKey),
+    )),
+  ],
   errors: [...projectCustomBlockIconCatalog.value.errors, ...projectIconCatalog.value.errors],
 }))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
