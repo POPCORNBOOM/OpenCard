@@ -28,10 +28,12 @@ describe('externalOpenService', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.ocdocument')).toBe('card')
     expect(classifyExternalOpenPath('D:/Cards/.ocproject')).toBe('project-resource')
     expect(classifyExternalOpenPath('D:/Cards/.OCLOCALE')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.OCBLOCKS')).toBe('project-resource')
     expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeNull()
     expect(classifyExternalOpenPath('/cards/.OCLOCALE')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/demo.octemplate')).toBe('template')
     expect(classifyExternalOpenPath('D:/Packs/status.ociconpack')).toBe('icon-pack')
+    expect(classifyExternalOpenPath('D:/Blocks/square.ocblock')).toBe('custom-block')
     expect(classifyExternalOpenPath('D:/Cards/demo.zip')).toBeNull()
     expect(filterSupportedExternalOpenPaths([
       'D:/Cards/main.ocdocument',

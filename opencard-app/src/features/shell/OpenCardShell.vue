@@ -2198,7 +2198,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         continue
       }
 
-      if (kind === 'card') {
+      if (kind === 'card' || kind === 'custom-block') {
         await openEditorSession(normalizedPath)
         showPrimaryShellPage('workbench')
         continue

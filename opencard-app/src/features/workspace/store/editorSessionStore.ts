@@ -23,7 +23,7 @@ import type {
 import { taskScheduler } from '../../../utils/taskScheduler'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
-const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'unsupported-file'])
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'

@@ -1,5 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.package-variant" content-mode="workspace" header-mode="hidden"
+  <ProjectRegistryEditorShell icon="file.custom-block" content-mode="workspace" header-mode="hidden"
     :heading="t('customBlockRegistry.title')" :description="t('customBlockRegistry.description')"
     @keydown.ctrl.s.prevent="save">
     <div v-if="document" class="custom-block-registry-editor">
@@ -65,7 +65,7 @@ const treeData = computed<OcTreeData>(() => {
     items: new Map(paths.map(path => [path, {
       label: path.split('/').pop() ?? path,
       tail: path,
-      icon: 'file.package-variant',
+      icon: 'file.custom-block',
       actions: ['remove'],
       contextActions: ['remove'],
     }])),

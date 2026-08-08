@@ -151,6 +151,7 @@ export const iconTokens = {
   'status.warning': true,
 
   'file.css': true,
+  'file.custom-block': true,
   'file.env': true,
   'file.font': true,
   'file.generic': true,

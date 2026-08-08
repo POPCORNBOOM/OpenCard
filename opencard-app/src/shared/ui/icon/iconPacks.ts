@@ -312,6 +312,7 @@ export const iconGlyphs = {
   'status.warning': glyph(mdiAlertOutline),
 
   'file.css': glyph(mdiLanguageCss3),
+  'file.custom-block': glyph(mdiPackageVariantClosed),
   'file.env': glyph(mdiFileKeyOutline),
   'file.font': glyph(mdiFormatFont),
   'file.generic': glyph(mdiFileOutline),

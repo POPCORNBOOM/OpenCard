@@ -75,6 +75,10 @@ import {
   type ProjectCustomBlockCatalogEntry,
 } from '../model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
+import {
+  registerProjectCustomBlockPath,
+  unregisterProjectCustomBlockPath,
+} from '../services/projectCustomBlockRegistry'
 import { clearProjectCustomBlockFonts, syncProjectCustomBlockFonts } from '../services/projectCustomBlockFontLoader'
 import {
   clearProjectCustomBlockAssets,
@@ -859,10 +863,7 @@ async function importProjectCustomBlockFile(
   conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectCustomBlockFile> {
   const sourcePackage = await readProjectCustomBlockPackage(fileSystemService, normalizePath(sourcePath))
-  const existing = projectCustomBlockCatalog.value.get(sourcePackage.manifest.key.toLocaleLowerCase())
-  if (existing && existing.manifest.interfaceHash !== sourcePackage.manifest.interfaceHash) {
-    throw new Error(`Custom block interface mismatch: ${sourcePackage.manifest.key}`)
-  }
+  assertCompatibleProjectCustomBlock(sourcePackage.manifest.key, sourcePackage.manifest.interfaceHash)
   const imported = await importProjectAssetFile(
     sourcePath,
     DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
@@ -870,12 +871,57 @@ async function importProjectCustomBlockFile(
     'Unsupported custom block file',
     conflictResolution,
   )
+  const effectivePackage = conflictResolution === 'use-existing'
+    ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(imported.source))
+    : sourcePackage
+  const existing = assertCompatibleProjectCustomBlock(
+    effectivePackage.manifest.key,
+    effectivePackage.manifest.interfaceHash,
+  )
   return {
     ...imported,
     ...(existing && pathIdentity(existing.archivePath) !== pathIdentity(imported.source)
       ? { replacedSource: existing.archivePath }
       : {}),
   }
+}
+
+function assertCompatibleProjectCustomBlock(key: string, interfaceHash: string): ProjectCustomBlockCatalogEntry | undefined {
+  const existing = projectCustomBlockCatalog.value.get(key.toLocaleLowerCase())
+  if (existing && existing.manifest.interfaceHash !== interfaceHash) {
+    throw new Error(`Custom block interface mismatch: ${key}`)
+  }
+  return existing
+}
+
+async function getProjectCustomBlockImportConflict(sourcePath: string): Promise<ProjectAssetImportConflict | null> {
+  return await getProjectAssetImportConflict(
+    sourcePath,
+    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
+    'Unsupported custom block file',
+  )
+}
+
+async function registerProjectCustomBlockFile(
+  sourcePath: string,
+  conflictResolution?: ProjectAssetImportResolution,
+): Promise<ImportedProjectCustomBlockFile> {
+  const imported = await importProjectCustomBlockFile(sourcePath, conflictResolution)
+  const registryPath = resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+  const current = await fileSystemService.fileExists(registryPath)
+    ? parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+    : {}
+  if (!current) throw new Error('Invalid .ocblocks registry')
+  const withoutReplaced = imported.replacedSource
+    ? unregisterProjectCustomBlockPath(current, imported.replacedSource)
+    : current
+  const updated = registerProjectCustomBlockPath(withoutReplaced, imported.source)
+  await saveProjectCustomBlockRegistry(
+    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+    serializeProjectCustomBlockRegistry(updated),
+  )
+  return imported
 }
 
 async function getProjectIconImportConflict(
@@ -1251,6 +1297,8 @@ export function useProjectStore() {
     importProjectIconFile,
     getProjectIconImportConflict,
     importProjectCustomBlockFile,
+    getProjectCustomBlockImportConflict,
+    registerProjectCustomBlockFile,
     createEntryWithAvailableName,
     trashFile,
     revealEntryInFileManager,

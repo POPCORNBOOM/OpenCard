@@ -11,7 +11,10 @@ describe('project metadata file types', () => {
       id: 'opencard-custom-block-registry',
       editorId: 'custom-block-registry',
     })
-    expect(resolveFileType('D:/Cards/assets/square.ocblock').id).toBe('opencard-custom-block')
+    expect(resolveFileType('D:/Cards/assets/square.ocblock')).toMatchObject({
+      id: 'opencard-custom-block',
+      editorId: 'custom-block-package',
+    })
     expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })

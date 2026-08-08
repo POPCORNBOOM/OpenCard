@@ -146,17 +146,20 @@ describe('editorSessionStore project switching', () => {
     store.closeSession(session.id)
   })
 
-  it('opens font and unsupported sessions without reading binary or unknown content as text', async () => {
+  it('opens font, custom-block, and unsupported sessions without reading binary content as text', async () => {
     const store = useEditorSessionStore()
     const fontSession = await store.openFile('assets/Brand.woff2')
+    const customBlockSession = await store.openFile('assets/square.ocblock')
     const unsupportedSession = await store.openFile('assets/archive.bin')
 
     expect(fontSession).toMatchObject({ editorId: 'font-preview', draftContent: '' })
+    expect(customBlockSession).toMatchObject({ editorId: 'custom-block-package', draftContent: '' })
     expect(unsupportedSession).toMatchObject({ editorId: 'unsupported-file', draftContent: '' })
     expect(mocks.readFile).not.toHaveBeenCalled()
     expect(mocks.readExternalFile).not.toHaveBeenCalled()
 
     store.closeSession(fontSession.id)
+    store.closeSession(customBlockSession.id)
     store.closeSession(unsupportedSession.id)
   })
 })
