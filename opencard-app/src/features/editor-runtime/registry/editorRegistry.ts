@@ -36,6 +36,7 @@ export interface EditorProps {
   themeOverrides?: OcThemeColorOverrides
   projectVersionManaged?: boolean
   projectVersion?: string
+  fontPreviewText?: string
 }
 
 export interface EditorEmits {
@@ -49,6 +50,7 @@ export interface EditorEmits {
   (e: 'update-card-designer-view', value: CardDesignerViewState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
   (e: 'open-file', path: string): void
+  (e: 'update-font-preview-text', value: string): void
 }
 
 // 编辑器接口定义

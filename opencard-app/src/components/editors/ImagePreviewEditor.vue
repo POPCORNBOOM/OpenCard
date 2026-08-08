@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
@@ -113,7 +114,11 @@ let lastEmittedTransform: ViewportTransform | null = props.viewportTransform
   ? normalizeTransform(props.viewportTransform)
   : null
 
-const imageSrc = computed(() => resolveAssetSrc(props.filePath))
+const imageSrc = computed(() => {
+  if (isAbsolutePath(props.filePath)) return convertFileSrc(props.filePath)
+  const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
+  return root ? convertFileSrc(`${root}/${props.filePath}`) : resolveAssetSrc(props.filePath)
+})
 const fileName = computed(() => props.filePath.split(/[/\\]/).pop() || props.filePath)
 const loadError = computed(() => !imageSrc.value || loadFailed.value)
 const isImageReady = computed(() => naturalWidth.value > 0 && naturalHeight.value > 0 && !loadError.value)
@@ -134,6 +139,10 @@ const imageStyle = computed<CSSProperties>(() => ({
 const scaleLabel = computed(() => `${Math.round(renderedScale.value * 100)}%`)
 const pixelated = computed(() => props.pixelated ?? false)
 const pixelatedLabel = computed(() => t('projectConfig.icons.pixelated'))
+
+function isAbsolutePath(path: string): boolean {
+  return /^[a-z]:[/\\]/i.test(path) || path.startsWith('/') || path.startsWith('\\\\')
+}
 
 function normalizeTransform(value: ViewportTransform): ViewportTransform {
   return {

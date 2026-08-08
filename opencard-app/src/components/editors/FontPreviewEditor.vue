@@ -21,10 +21,10 @@
         class="font-preview-editor__input"
         as="textarea"
         full-width
-        :value="previewText"
+        :value="effectivePreviewText"
         :placeholder="t('fontPreview.tryPlaceholder')"
         :style="specimenStyle"
-        @input="previewText = ($event.target as HTMLTextAreaElement).value"
+        @input="updatePreviewText"
       />
     </main>
   </section>
@@ -54,6 +54,7 @@ let loadVersion = 0
 
 const displayName = computed(() => props.fileName || props.filePath.split(/[/\\]/).pop() || props.filePath)
 const specimenStyle = computed<CSSProperties>(() => ({ fontFamily: previewFamily }))
+const effectivePreviewText = computed(() => props.fontPreviewText ?? previewText.value)
 const absolutePath = computed(() => {
   if (/^[a-z]:[/\\]/i.test(props.filePath) || props.filePath.startsWith('/')) return props.filePath
   const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
@@ -109,6 +110,12 @@ function resolveFontMimeType(path: string): string {
   if (extension === 'woff') return 'font/woff'
   if (extension === 'otf') return 'font/otf'
   return 'font/ttf'
+}
+
+function updatePreviewText(event: Event): void {
+  if (!(event.target instanceof HTMLTextAreaElement)) return
+  previewText.value = event.target.value
+  emit('update-font-preview-text', event.target.value)
 }
 
 watch(() => props.filePath, () => void loadFont(), { immediate: true })

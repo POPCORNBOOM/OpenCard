@@ -5,6 +5,9 @@ import { createI18n } from 'vue-i18n'
 import enUS from '../../locales/en-US'
 import ImagePreviewEditor from './ImagePreviewEditor.vue'
 
+const convertFileSrc = vi.hoisted(() => vi.fn((path: string) => `asset://${path}`))
+vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc }))
+
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
     resolveAssetSrc: (path: string) => `asset://${path}`,
@@ -102,5 +105,21 @@ describe('ImagePreviewEditor', () => {
       y: 20,
       scale: 1,
     }])
+  })
+
+  it('loads comparison resources from an explicit snapshot root', () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    const wrapper = mount(ImagePreviewEditor, {
+      props: {
+        filePath: 'assets/example.png',
+        resourceRootPath: 'D:/snapshot',
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+
+    expect(convertFileSrc).toHaveBeenCalledWith('D:/snapshot/assets/example.png')
+    expect(wrapper.get('img').attributes('src')).toBe('asset://D:/snapshot/assets/example.png')
   })
 })
