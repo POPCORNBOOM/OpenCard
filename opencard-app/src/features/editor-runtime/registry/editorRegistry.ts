@@ -13,6 +13,7 @@ import type {
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
+import type { EditorAccess } from '../model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
@@ -37,6 +38,9 @@ export interface EditorProps {
   projectVersionManaged?: boolean
   projectVersion?: string
   fontPreviewText?: string
+  access?: EditorAccess
+  comparisonContent?: string
+  comparisonSide?: 'historical' | 'current'
 }
 
 export interface EditorEmits {

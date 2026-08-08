@@ -23,7 +23,7 @@
       {{ t('versioning.diff.loadFailed') }}
     </div>
     <MonacoEditor
-      v-else-if="comparison && isTextComparison"
+      v-else-if="comparison && (isTextComparison || dictionaryFallback)"
       class="version-diff-host__editor"
       model-value=""
       :language="language"
@@ -31,6 +31,15 @@
       :theme-overrides="themeOverrides"
       :comparison="comparison"
       read-only
+    />
+    <DictionaryDiffEditor
+      v-else-if="comparison && fileType.editorId === 'dictionary'"
+      :historical="session.historical"
+      :current="session.current"
+      :comparison="comparison"
+      :file-name="fileName"
+      :theme-id="themeId"
+      :theme-overrides="themeOverrides"
     />
     <SnapshotResourceDiffEditor
       v-else-if="loaded && resourceKind"
@@ -59,11 +68,13 @@ import OcButton from '../../../components/base/OcButton.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import SnapshotResourceDiffEditor from './SnapshotResourceDiffEditor.vue'
+import DictionaryDiffEditor from './DictionaryDiffEditor.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
 import type { CompareSession, SnapshotDescriptorDto } from '../model/versioning'
 import { resolveFileType } from '../../workspace/model/fileTypes'
+import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 
 const props = defineProps<{
   session: CompareSession
@@ -89,6 +100,12 @@ const resourceKind = computed<'image' | 'font' | null>(() => {
   if (fileType.value.editorId === 'font-preview') return 'font'
   return null
 })
+const dictionaryFallback = computed(() => (
+  fileType.value.editorId === 'dictionary'
+  && Boolean(comparison.value)
+  && (!parseProjectDictionaryText(comparison.value!.historicalContent)
+    || !parseProjectDictionaryText(comparison.value!.currentContent))
+))
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   const separator = snapshot.rootPath.includes('\\') ? '\\' : '/'
@@ -113,7 +130,7 @@ async function loadComparison(): Promise<void> {
   loaded.value = false
   comparison.value = null
   try {
-    if (!isTextComparison.value) {
+    if (!isTextComparison.value && fileType.value.editorId !== 'dictionary') {
       loaded.value = true
       return
     }

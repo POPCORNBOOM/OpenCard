@@ -1,5 +1,5 @@
 <template>
-  <section ref="rootRef" class="dictionary-editor" :aria-label="t('dictionaryEditor.title')"
+  <section ref="rootRef" class="dictionary-editor" :class="comparisonClass" :aria-label="t('dictionaryEditor.title')"
     @keydown="handleGridKeydown">
     <div class="dictionary-editor__content">
       <header class="dictionary-editor__header">
@@ -36,10 +36,12 @@
                     @resize-keydown="handleColumnResizeKeydown($event, KEY_COLUMN_KEY)" />
                 </th>
                 <th v-for="column in grid.columns" :key="column.key"
-                  class="dictionary-editor__data-column" scope="col" tabindex="0"
+                  class="dictionary-editor__data-column"
+                  :class="{ 'is-diff-changed': isLanguageChanged(column), 'is-diff-missing': isLanguageMissing(column) }"
+                  scope="col" tabindex="0"
                   @contextmenu="openColumnContextMenu($event, column)"
                   @keydown="openColumnKeyboardMenu($event, column)">
-                  <form v-if="editingLanguage === column.sourceKey" class="dictionary-editor__rename"
+                  <form v-if="!isObserveOnly && editingLanguage === column.sourceKey" class="dictionary-editor__rename"
                     @submit.prevent="commitLanguageRename(column.sourceKey!)">
                     <OcFieldInput ref="renameInputRef" :value="renameDraft" size="sm" mono full-width
                       :aria-invalid="!canUseLanguageKey(renameDraft, column.sourceKey!)"
@@ -49,7 +51,7 @@
                   </form>
                   <div v-else class="dictionary-editor__column-heading">
                     <span>{{ column.kind === 'base' ? t('dictionaryEditor.columns.base') : column.sourceKey }}</span>
-                    <span class="dictionary-editor__column-actions">
+                    <span v-if="!isObserveOnly" class="dictionary-editor__column-actions">
                       <OcButton icon-only size="sm" variant="ghost" icon="action.check"
                         :active="column.active"
                         :data-tooltip="column.kind === 'base'
@@ -62,6 +64,7 @@
                       <OcActionButton v-if="column.kind === 'language'" :action="languageAction()"
                         size="sm" variant="ghost" @select="handleLanguageAction(column.sourceKey!, $event.key)" />
                     </span>
+                    <OcIcon v-else-if="column.active" name="action.check" tone="success" size="sm" />
                   </div>
                   <OcDataGridColumnResizeHandle :minimum="minimumColumnWidth" :maximum="maximumColumnWidth"
                     :value="getColumnWidth(column.key)" :label="t('dictionaryEditor.actions.resizeColumn', {
@@ -70,7 +73,7 @@
                     @resize-keydown="handleColumnResizeKeydown($event, column.key)" />
                 </th>
                 <th class="dictionary-editor__add-column oc-data-grid__tail" scope="col">
-                  <form v-if="addingLanguage" class="dictionary-editor__inline-create" @submit.prevent="addLanguage">
+                  <form v-if="!isObserveOnly && addingLanguage" class="dictionary-editor__inline-create" @submit.prevent="addLanguage">
                     <OcFieldInput ref="languageCreateInputRef" :value="newLanguageKey" size="sm" mono full-width
                       :placeholder="t('dictionaryEditor.placeholders.languageKey')"
                       :aria-label="t('dictionaryEditor.placeholders.languageKey')"
@@ -79,7 +82,7 @@
                       @blur="finishLanguageCreate"
                       @keydown.esc.stop.prevent="cancelLanguageCreate" />
                   </form>
-                  <OcButton v-else icon-only size="sm" variant="ghost" icon="action.add"
+                  <OcButton v-else-if="!isObserveOnly" icon-only size="sm" variant="ghost" icon="action.add"
                     :data-tooltip="t('dictionaryEditor.actions.addLanguage')"
                     :aria-label="t('dictionaryEditor.actions.addLanguage')" @click="beginLanguageCreate" />
                 </th>
@@ -92,10 +95,12 @@
                 </td>
               </tr>
               <tr v-for="row in grid.rows" :key="row.key">
-                <th class="dictionary-editor__key-column oc-data-grid__sticky-column" scope="row" tabindex="0"
+                <th class="dictionary-editor__key-column oc-data-grid__sticky-column"
+                  :class="{ 'is-diff-changed': isRecordChanged(row.key), 'is-diff-missing': isRecordMissing(row.key) }"
+                  scope="row" tabindex="0"
                   @contextmenu="openRecordContextMenu($event, row.key)"
                   @keydown="openRecordKeyboardMenu($event, row.key)">
-                  <form v-if="editingRecord === row.key" class="dictionary-editor__rename"
+                  <form v-if="!isObserveOnly && editingRecord === row.key" class="dictionary-editor__rename"
                     @submit.prevent="commitRecordRename(row.key)">
                     <OcFieldInput ref="renameInputRef" :value="renameDraft" size="sm" mono full-width
                       :aria-invalid="!canUseRecordKey(renameDraft, row.key)"
@@ -105,16 +110,23 @@
                   </form>
                   <div v-else class="dictionary-editor__record-heading">
                     <code>{{ row.key }}</code>
-                    <OcActionButton :action="recordAction()" size="sm" variant="ghost"
+                    <OcActionButton v-if="!isObserveOnly" :action="recordAction()" size="sm" variant="ghost"
                       @select="handleRecordAction(row.key, $event.key)" />
                   </div>
                 </th>
                 <td v-for="cell in row.cells" :key="cell.columnKey"
                   class="dictionary-editor__cell oc-data-grid__cell"
-                  :class="{ 'is-inherited': cell.inherited }"
+                  :class="{
+                    'is-inherited': cell.inherited,
+                    'is-diff-changed': isCellChanged(cell.recordKey, cell.columnKey),
+                    'is-diff-missing': isCellMissing(cell.recordKey, cell.columnKey),
+                  }"
                   :data-grid-row="cell.recordKey" :data-grid-column="cell.columnKey"
                   :ref="element => setCellElement(cellIdentity(cell.recordKey, cell.columnKey), element)">
-                  <div v-if="shouldMountCell(cellIdentity(cell.recordKey, cell.columnKey))"
+                  <span v-if="isObserveOnly" class="oc-data-grid__cell-preview">
+                    {{ isCellMissing(cell.recordKey, cell.columnKey) ? '-' : cell.value }}
+                  </span>
+                  <div v-else-if="shouldMountCell(cellIdentity(cell.recordKey, cell.columnKey))"
                     class="oc-data-grid__cell-editor">
                     <PropertyFieldRenderer appearance="embedded" :definition="cellDefinition"
                       :value="cell.value" editor-id="field"
@@ -129,7 +141,7 @@
                 </td>
                 <td class="oc-data-grid__tail" />
               </tr>
-              <tr class="dictionary-editor__add-row">
+              <tr v-if="!isObserveOnly" class="dictionary-editor__add-row">
                 <th class="dictionary-editor__key-column oc-data-grid__sticky-column" scope="row">
                   <form v-if="addingRecord" class="dictionary-editor__inline-create" @submit.prevent="addRecord">
                     <OcFieldInput ref="recordCreateInputRef" :value="newRecordKey" size="sm" mono full-width
@@ -161,6 +173,7 @@
         <div class="dictionary-editor__source">
           <MonacoEditor :model-value="modelValue ?? ''" language="json" :theme-id="themeId"
             :theme-overrides="themeOverrides"
+            :read-only="isObserveOnly"
             @update:model-value="emit('update:modelValue', $event)" @save="save" />
         </div>
       </section>
@@ -205,6 +218,10 @@ import {
   type ProjectDictionaryWorkbookImportResult,
 } from '../../features/workspace/model/projectDictionaryWorkbook'
 import type { PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
+import {
+  dictionaryComparisonCellIdentity,
+  projectDictionaryComparison,
+} from '../../features/versioning/model/dictionaryComparison'
 import PropertyFieldActionRail from '../../shared/ui/property-editor/PropertyFieldActionRail.vue'
 import PropertyFieldRenderer from '../../shared/ui/property-editor/PropertyFieldRenderer.vue'
 import MonacoEditor from './MonacoEditor.vue'
@@ -220,6 +237,7 @@ const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const { openContextMenu } = useFloatingMenu()
 const dictionary = ref<ProjectDictionary | null>(null)
+const comparisonDictionary = ref<ProjectDictionary | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const newRecordKey = ref('')
@@ -242,7 +260,17 @@ const NEW_LANGUAGE_COLUMN_KEY = '$new-language'
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
-const grid = computed(() => projectDictionaryGrid(dictionary.value ?? {}))
+const isObserveOnly = computed(() => props.access === 'observe-only')
+const comparisonProjection = computed(() => {
+  if (!isObserveOnly.value || !dictionary.value || !comparisonDictionary.value || !props.comparisonSide) return null
+  return props.comparisonSide === 'historical'
+    ? projectDictionaryComparison(dictionary.value, comparisonDictionary.value, 'historical')
+    : projectDictionaryComparison(comparisonDictionary.value, dictionary.value, 'current')
+})
+const grid = computed(() => projectDictionaryGrid(comparisonProjection.value?.dictionary ?? dictionary.value ?? {}))
+const comparisonClass = computed(() => props.comparisonSide
+  ? `is-comparison-side-${props.comparisonSide}`
+  : undefined)
 const columnKeys = computed(() => grid.value.columns.map(column => column.key))
 const missingActiveLanguage = computed(() => Boolean(
   dictionary.value?.active
@@ -276,6 +304,9 @@ const { setCellElement, shouldMountCell } = useDataGridCellMounting({ scrollRoot
 watch(() => props.modelValue, content => {
   dictionary.value = parseProjectDictionaryText(content ?? '')
 }, { immediate: true })
+watch(() => props.comparisonContent, content => {
+  comparisonDictionary.value = content === undefined ? null : parseProjectDictionaryText(content)
+}, { immediate: true })
 
 function canUseRecordKey(candidate: string, current?: string) {
   return dictionary.value
@@ -290,6 +321,7 @@ function canUseLanguageKey(candidate: string, current?: string) {
 }
 
 function commit(next: ProjectDictionary) {
+  if (isObserveOnly.value) return
   dictionary.value = next
   emit('update:modelValue', serializeProjectDictionary(next))
 }
@@ -515,6 +547,7 @@ function openKeyboardContextMenu(
 }
 
 function openRecordContextMenu(event: MouseEvent, recordKey: string): void {
+  if (isObserveOnly.value) return
   openContextMenu({
     event,
     items: recordCommands(),
@@ -523,10 +556,12 @@ function openRecordContextMenu(event: MouseEvent, recordKey: string): void {
 }
 
 function openRecordKeyboardMenu(event: KeyboardEvent, recordKey: string): void {
+  if (isObserveOnly.value) return
   openKeyboardContextMenu(event, recordCommands(), key => handleRecordAction(recordKey, key))
 }
 
 function openColumnContextMenu(event: MouseEvent, column: DictionaryGridColumn): void {
+  if (isObserveOnly.value) return
   if (column.kind !== 'language') return
   openContextMenu({
     event,
@@ -536,6 +571,7 @@ function openColumnContextMenu(event: MouseEvent, column: DictionaryGridColumn):
 }
 
 function openColumnKeyboardMenu(event: KeyboardEvent, column: DictionaryGridColumn): void {
+  if (isObserveOnly.value) return
   if (column.kind !== 'language') return
   openKeyboardContextMenu(
     event,
@@ -549,6 +585,7 @@ function cellIdentity(recordKey: string, columnKey: string): string {
 }
 
 function handleGridKeydown(event: KeyboardEvent): void {
+  if (isObserveOnly.value) return
   if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
     event.preventDefault()
     save()
@@ -557,6 +594,7 @@ function handleGridKeydown(event: KeyboardEvent): void {
 }
 
 async function exportDictionaryWorkbook(): Promise<void> {
+  if (isObserveOnly.value) return
   if (!dictionary.value || !canExportDictionaryWorkbook.value || dictionaryWorkbookBusy.value) return
   const path = await fileSystemService.pickSavePath({
     defaultPath: `${dictionaryWorkbookFileName()}.xlsx`,
@@ -580,6 +618,7 @@ async function exportDictionaryWorkbook(): Promise<void> {
 }
 
 async function importDictionaryWorkbook(): Promise<void> {
+  if (isObserveOnly.value) return
   if (!dictionary.value || dictionaryWorkbookBusy.value) return
   const path = await fileSystemService.pickFile({
     title: t('dictionaryEditor.workbook.import'),
@@ -621,7 +660,46 @@ async function notifyWorkbookError(error: unknown, fallbackKey: string): Promise
 }
 
 function save() {
-  if (dictionary.value) emit('save')
+  if (dictionary.value && !isObserveOnly.value) emit('save')
+}
+
+function normalizedKey(value: string): string {
+  return value.toLocaleLowerCase()
+}
+
+function isRecordMissing(recordKey: string): boolean {
+  return comparisonProjection.value?.missingRecords.has(normalizedKey(recordKey)) ?? false
+}
+
+function isRecordChanged(recordKey: string): boolean {
+  return comparisonProjection.value?.changedRecordKeys.has(normalizedKey(recordKey)) ?? false
+}
+
+function isLanguageMissing(column: DictionaryGridColumn): boolean {
+  return Boolean(column.sourceKey
+    && comparisonProjection.value?.missingLanguages.has(normalizedKey(column.sourceKey)))
+}
+
+function isLanguageChanged(column: DictionaryGridColumn): boolean {
+  const columnIdentity = column.kind === 'base' ? '$base' : normalizedKey(column.sourceKey ?? '')
+  const selectedActive = dictionary.value?.active ? normalizedKey(dictionary.value.active) : '$base'
+  const otherActive = comparisonDictionary.value?.active
+    ? normalizedKey(comparisonDictionary.value.active)
+    : '$base'
+  const activeChanged = Boolean(comparisonProjection.value?.activeChanged
+    && (columnIdentity === selectedActive || columnIdentity === otherActive))
+  return activeChanged || Boolean(column.sourceKey
+    && comparisonProjection.value?.changedLanguageKeys.has(normalizedKey(column.sourceKey)))
+}
+
+function isCellMissing(recordKey: string, columnKey: string): boolean {
+  return isRecordMissing(recordKey)
+    || (columnKey !== DICTIONARY_BASE_COLUMN_KEY
+      && (comparisonProjection.value?.missingLanguages.has(normalizedKey(columnKey)) ?? false))
+}
+
+function isCellChanged(recordKey: string, columnKey: string): boolean {
+  return comparisonProjection.value?.changedCells.has(dictionaryComparisonCellIdentity(recordKey, columnKey)) ?? false
 }
 
 onBeforeUnmount(finishColumnResize)
@@ -756,6 +834,16 @@ defineExpose({
 .dictionary-editor__add-row th,
 .dictionary-editor__add-row td {
   background: var(--oc-bg-block);
+}
+
+.dictionary-editor.is-comparison-side-historical .is-diff-changed,
+.dictionary-editor.is-comparison-side-historical .is-diff-missing {
+  background: var(--oc-bg-danger-subtle);
+}
+
+.dictionary-editor.is-comparison-side-current .is-diff-changed,
+.dictionary-editor.is-comparison-side-current .is-diff-missing {
+  background: color-mix(in srgb, var(--oc-icon-success) 10%, transparent);
 }
 
 .dictionary-editor__repair {

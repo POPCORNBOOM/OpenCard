@@ -252,4 +252,35 @@ describe('DictionaryEditor', () => {
     expect(wrapper.find('.dictionary-editor__notice').exists()).toBe(true)
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
+
+  it('reuses the data grid as an observe-only comparison without mutation intents', async () => {
+    const wrapper = mount(DictionaryEditor, {
+      props: {
+        filePath: 'D:/historical/.oclocale',
+        modelValue: JSON.stringify({
+          active: 'en-US',
+          base: { title: 'Old', removed: 'Removed' },
+          languages: { 'en-US': { title: 'Old English' } },
+        }),
+        comparisonContent: JSON.stringify({
+          active: 'fr',
+          base: { title: 'New', added: 'Added' },
+          languages: { 'en-us': { title: 'New English' }, fr: {} },
+        }),
+        comparisonSide: 'historical',
+        access: 'observe-only',
+      },
+    })
+
+    expect(wrapper.find('.dictionary-editor').classes()).toContain('is-comparison-side-historical')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+    expect(wrapper.findAll('input')).toHaveLength(0)
+    expect(wrapper.findAll('button')).toHaveLength(0)
+    expect(wrapper.findAll('.is-diff-changed').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.is-diff-missing').length).toBeGreaterThan(0)
+
+    await wrapper.get('.dictionary-editor').trigger('keydown', { key: 's', ctrlKey: true })
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
 })
