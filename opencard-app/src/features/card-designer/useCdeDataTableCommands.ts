@@ -50,6 +50,7 @@ type UseCdeDataTableCommandsOptions = {
     target: BlockFieldCreateTarget,
   ) => AdditionalFieldKeyError | 'invalid-target' | null
   deleteBlockField: (target: BlockFieldTarget) => boolean
+  readOnly?: Readonly<Ref<boolean>>
 }
 
 export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions) {
@@ -68,11 +69,13 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   })
 
   function includeBlock(blockId: string): boolean {
+    if (options.readOnly?.value) return false
     if (!blockId || hasOwn(fieldSelection.value, blockId)) return false
     return commitFieldSelection({ ...fieldSelection.value, [blockId]: [] })
   }
 
   function removeBlock(blockId: string): boolean {
+    if (options.readOnly?.value) return false
     if (!hasOwn(fieldSelection.value, blockId)) return false
     const next = { ...fieldSelection.value }
     delete next[blockId]
@@ -80,6 +83,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function includeField(blockId: string, fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     if (!blockId || !fieldKey) return false
     const current = fieldSelection.value[blockId] ?? []
     if (current.includes(fieldKey)) return false
@@ -90,6 +94,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function excludeField(blockId: string, fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const current = fieldSelection.value[blockId]
     if (!current?.includes(fieldKey)) return false
     return commitFieldSelection({
@@ -103,6 +108,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function setInstanceExported(instanceId: string, exported: boolean): boolean {
+    if (options.readOnly?.value) return false
     const document = options.cardDoc.value
     if (!document?.instances.some(instance => instance.id === instanceId)) return false
     const current = new Set(exportInstanceIds.value)
@@ -124,6 +130,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function applyWorkbookUpdates(updates: readonly CardDataWorkbookUpdate[]): boolean {
+    if (options.readOnly?.value) return false
     const document = options.cardDoc.value
     if (!document || updates.length === 0) return false
     const changed = applyWorkbookUpdatesWithoutCommit(updates, document)
@@ -134,6 +141,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function applyWorkbookImport(result: CardDataWorkbookImportResult): boolean {
+    if (options.readOnly?.value) return false
     const document = options.cardDoc.value
     if (!document) return false
     const blockLookup = createBlockLookup(document)
@@ -210,6 +218,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   function createField(
     payload: CdeDataTableFieldCreatePayload,
   ): AdditionalFieldKeyError | 'invalid-target' | null {
+    if (options.readOnly?.value) return 'invalid-target'
     const previous = fieldSelection.value
     if (payload.blockId && payload.fieldKey) {
       const current = previous[payload.blockId] ?? []
@@ -232,6 +241,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function deleteField(blockId: string, fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const previous = fieldSelection.value
     const current = previous[blockId]
     if (current?.includes(fieldKey)) {

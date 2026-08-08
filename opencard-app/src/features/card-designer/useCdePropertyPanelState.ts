@@ -83,6 +83,7 @@ type UseCdePropertyPanelStateOptions = {
   blueprintCardId: string
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  readOnly?: Readonly<Ref<boolean>>
   translate: (messageKey: string) => string
   hasMessage: (messageKey: string) => boolean
 }
@@ -327,6 +328,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function updateLayoutField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    if (options.readOnly?.value) return false
     const layout = selectedLayout.value
     if (!layout || !isCardStoredValue(value)) {
       return false
@@ -339,6 +341,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function updateDocumentField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    if (options.readOnly?.value) return false
     const cardDoc = options.cardDoc.value
     if (!cardDoc || !isCardStoredValue(value)) {
       return false
@@ -351,6 +354,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function updateInstanceField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    if (options.readOnly?.value) return false
     const selectedCard = options.selectedCard.value
     if (!selectedCard || options.selectedCardId.value === options.blueprintCardId || !isCardStoredValue(value)) {
       return false
@@ -363,6 +367,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function updateFaceField(fieldKey: string, value: unknown, mode: CdeDocumentChangeMode): boolean {
+    if (options.readOnly?.value) return false
     const face = options.activeFace.value
     if (!face || !isCardStoredValue(value)) return false
     ;(face as unknown as Record<string, unknown>)[fieldKey] = value
@@ -376,6 +381,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     fieldKey,
     value,
   }: CdePropertyMutation) {
+    if (options.readOnly?.value) return
     if (isSelectedLayoutKey(key)) {
       updateLayoutField(fieldKey, value, 'typing')
       return
@@ -411,6 +417,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     fieldKey,
     value,
   }: CdePropertyMutation) {
+    if (options.readOnly?.value) return
     if (isSelectedLayoutKey(key)) {
       updateLayoutField(fieldKey, value, 'action')
       return
@@ -442,6 +449,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function resetLayoutField(fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const layout = selectedLayout.value
     if (!layout) {
       return false
@@ -461,6 +469,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function resetDocumentField(fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const cardDoc = options.cardDoc.value
     if (!cardDoc) {
       return false
@@ -479,6 +488,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function resetInstanceField(fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const selectedCard = options.selectedCard.value
     if (!selectedCard || options.selectedCardId.value === options.blueprintCardId) {
       return false
@@ -497,6 +507,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function resetFaceField(fieldKey: string): boolean {
+    if (options.readOnly?.value) return false
     const face = options.activeFace.value
     if (!face) return false
     const defaultValue = getDefault('card-face', fieldKey)
@@ -514,6 +525,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     key,
     fieldKey,
   }: CdePropertyResetMutation) {
+    if (options.readOnly?.value) return
     if (isSelectedLayoutKey(key)) {
       resetLayoutField(fieldKey)
       return
@@ -544,6 +556,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function createAdditionalField({ key, fieldKey, title, fieldType }: CdeAdditionalFieldCreateMutation) {
+    if (options.readOnly?.value) return 'invalid-target' as const
     return blockFieldCommands.createField({
       cardId: options.blueprintCardId,
       blockId: key,
@@ -557,6 +570,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     blockId: string | null = options.selectedBlock.value?.id ?? null,
     cardId: string | null = options.selectedCardId.value,
   ): boolean {
+    if (options.readOnly?.value) return false
     if (!blockId || cardId !== options.blueprintCardId || !options.cardDoc.value
       || !findCdeBlock(options.cardDoc.value, blockId)) return false
     additionalFieldTargetBlockId.value = blockId
@@ -575,6 +589,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function submitAdditionalFieldCreate(): AdditionalFieldKeyError | 'invalid-target' | null {
+    if (options.readOnly?.value) return 'invalid-target'
     const document = options.cardDoc.value
     const block = document && additionalFieldTargetBlockId.value
       ? findCdeBlock(document, additionalFieldTargetBlockId.value)
@@ -592,6 +607,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   }
 
   function deleteProperty({ key, fieldKey }: CdePropertyDeleteMutation): boolean {
+    if (options.readOnly?.value) return false
     const document = options.cardDoc.value
     const block = options.selectedBlock.value
     if (!document || options.selectedCardId.value !== options.blueprintCardId) {

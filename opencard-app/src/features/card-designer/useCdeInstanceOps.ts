@@ -12,6 +12,7 @@ type UseCdeInstanceOpsOptions = {
   selectedCardKeys: Ref<string[]>
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  readOnly?: Readonly<Ref<boolean>>
 }
 
 export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
@@ -64,13 +65,16 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         return
       case 'action.invoke':
         selectInstance([intent.key])
+        if (options.readOnly?.value) return
         if (intent.actionKey === 'duplicate-instance') duplicateInstance(intent.key)
         else if (intent.actionKey === 'delete-instance') deleteInstance(intent.key)
         return
       case 'rename.commit':
+        if (options.readOnly?.value) return
         renameInstance(intent.key, intent.name)
         return
       case 'move.request':
+        if (options.readOnly?.value) return
         moveInstance(intent.key, intent.targetKey, intent.position)
         return
       default:
@@ -79,6 +83,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   }
 
   function renameInstance(instanceId: string, name: string): void {
+    if (options.readOnly?.value) return
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
     const nextName = name.trim()
     if (!nextName) return
@@ -94,6 +99,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     targetKey: string | null,
     position: 'before' | 'inside' | 'after',
   ): void {
+    if (options.readOnly?.value) return
     if (!options.cardDoc.value?.instances || draggedKey === options.blueprintCardId) return
     if (targetKey === draggedKey || position === 'inside' && targetKey !== null) return
     if (targetKey === options.blueprintCardId && position !== 'after') return
@@ -122,6 +128,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   }
 
   function createInstance(): void {
+    if (options.readOnly?.value) return
     if (!options.cardDoc.value) return
     const nextIndex = (options.cardDoc.value.instances?.length ?? 0) + 1
     const nextInstance: CardInstanceRecord = {
@@ -140,6 +147,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   }
 
   function duplicateInstance(instanceId: string): void {
+    if (options.readOnly?.value) return
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
     const source = options.cardDoc.value.instances.find((item) => item.id === instanceId)
     if (!source) return
@@ -161,6 +169,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   }
 
   function deleteInstance(instanceId: string): void {
+    if (options.readOnly?.value) return
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
     if (!options.cardDoc.value.instances.some((item) => item.id === instanceId)) return
     options.cardDoc.value.instances = options.cardDoc.value.instances.filter((item) => item.id !== instanceId)

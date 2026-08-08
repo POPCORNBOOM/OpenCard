@@ -1455,4 +1455,77 @@ describe('CardDesignEditor issue navigation', () => {
     expect(readDirectoryEntries).toHaveBeenCalledWith('D:/Project', 1, '')
     readDirectoryEntries.mockRestore()
   })
+
+  it('keeps tree and property mutations inert in observe-only mode', async () => {
+    const OcCardStub = defineComponent({
+      name: 'OcCard',
+      props: { title: String, actions: Array },
+      template: '<div><slot /></div>',
+    })
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: { role: String },
+      emits: ['intent'],
+      template: '<div />',
+    })
+    const PropertyEditorStub = defineComponent({
+      name: 'PropertyEditor',
+      emits: ['update-property'],
+      setup(_, { expose }) {
+        expose({ revealField: vi.fn().mockResolvedValue(true) })
+        return () => h('div')
+      },
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const initial = JSON.stringify(createDocument())
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.ocdocument',
+        modelValue: initial,
+        access: 'observe-only',
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          PropertyEditor: PropertyEditorStub,
+          OcTree: OcTreeStub,
+          OcCard: OcCardStub,
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+
+    const instanceTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') === 'listbox')!
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')!
+    instanceTree.vm.$emit('intent', {
+      type: 'action.invoke',
+      key: 'instance-1',
+      actionKey: 'delete-instance',
+    })
+    structureTree.vm.$emit('intent', {
+      type: 'rename.commit',
+      key: 'text-1',
+      name: 'Changed in compare',
+    })
+    wrapper.findComponent(PropertyEditorStub).vm.$emit('update-property', {
+      key: 'text-1',
+      fieldKey: 'content',
+      value: 'Changed in compare',
+    })
+    await nextTick()
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('modified')).toBeUndefined()
+    const actionsByTitle = new Map(wrapper.findAllComponents(OcCardStub)
+      .map(card => [card.props('title'), card.props('actions')]))
+    expect(actionsByTitle.get('卡牌树')).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'add-instance' }),
+    ]))
+    expect(actionsByTitle.get('属性')).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'toggle-property-delete-mode' }),
+    ]))
+  })
 })

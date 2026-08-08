@@ -34,6 +34,7 @@ type UseCdeTreeOpsOptions = {
   getDefaultBlockName: (type: CardBlock['type']) => string
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  readOnly?: Readonly<Ref<boolean>>
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
@@ -130,12 +131,15 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         return
       case 'action.invoke':
         selectKeys([intent.key])
+        if (options.readOnly?.value) return
         executeBlockAction(intent.actionKey, blockIndex.value.get(intent.key)?.block ?? null)
         return
       case 'rename.commit':
+        if (options.readOnly?.value) return
         renameBlock(intent.key, intent.name)
         return
       case 'move.request':
+        if (options.readOnly?.value) return
         moveBlock(intent.key, intent.targetKey, intent.position)
         return
       default:
@@ -144,6 +148,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function handleRootAction(actionKey: string): void {
+    if (options.readOnly?.value) return
     const target = actionKey.endsWith('-selected') ? selectedBlock.value : null
     executeBlockAction(actionKey, target)
   }

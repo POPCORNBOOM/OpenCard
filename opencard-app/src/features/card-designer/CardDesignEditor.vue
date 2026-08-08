@@ -667,6 +667,7 @@ const blockFieldCommands = useCdeBlockFieldCommands({
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
   markDocumentChanged,
+  readOnly: isObserveOnly,
 })
 
 const {
@@ -692,6 +693,7 @@ const {
   resetBlockField: blockFieldCommands.resetField,
   createBlockField: blockFieldCommands.createField,
   deleteBlockField: blockFieldCommands.deleteField,
+  readOnly: isObserveOnly,
 })
 
 const {
@@ -745,6 +747,7 @@ const {
   documentRevision,
   refreshDocumentState,
   markDocumentChanged,
+  readOnly: isObserveOnly,
 })
 
 function duplicateDataTableCard(cardId: string): void {
@@ -786,6 +789,7 @@ const canMutateSelectedInstance = computed(() =>
 
 function handleInstanceTreeIntent(intent: OcTreeIntent): void {
   handleInstanceModelTreeIntent(intent)
+  if (isObserveOnly.value) return
   if (intent.type === 'rename.request'
     || (intent.type === 'action.invoke' && intent.actionKey === 'rename')) {
     void instanceTreeRef.value?.beginRename(intent.key)
@@ -793,23 +797,25 @@ function handleInstanceTreeIntent(intent: OcTreeIntent): void {
 }
 
 const instanceCardActions = computed<OcCardAction[]>(() => [
-  {
-    key: 'add-instance',
-    icon: 'action.add',
-    title: '新建实例',
-  },
-  {
-    key: 'duplicate-instance',
-    icon: 'action.copy',
-    title: '复制实例',
-    disabled: !canMutateSelectedInstance.value,
-  },
-  {
-    key: 'delete-instance',
-    icon: 'action.delete',
-    title: '删除实例',
-    disabled: !canMutateSelectedInstance.value,
-  },
+  ...(!isObserveOnly.value ? [
+    {
+      key: 'add-instance',
+      icon: 'action.add' as const,
+      title: '新建实例',
+    },
+    {
+      key: 'duplicate-instance',
+      icon: 'action.copy' as const,
+      title: '复制实例',
+      disabled: !canMutateSelectedInstance.value,
+    },
+    {
+      key: 'delete-instance',
+      icon: 'action.delete' as const,
+      title: '删除实例',
+      disabled: !canMutateSelectedInstance.value,
+    },
+  ] : []),
   createPanelToggleAction('toggle-instance-panel', isInstancePanelExpanded.value),
 ])
 
@@ -818,19 +824,19 @@ const previewCardActions = computed<OcCardAction[]>(() => [
 ])
 
 const propertyCardActions = computed<OcCardAction[]>(() => [
-  ...(canCreateAdditionalField.value
+  ...(!isObserveOnly.value && canCreateAdditionalField.value
     ? [{
         key: 'additional-field.create',
         icon: 'action.add' as const,
         title: t('propertyEditor.customFields.create'),
       }]
     : []),
-  {
-    key: 'toggle-property-delete-mode',
-    icon: 'action.delete',
-    iconTone: propertyDeleteMode.value ? 'danger' : 'default',
+  ...(!isObserveOnly.value ? [{
+    key: 'toggle-property-delete-mode' as const,
+    icon: 'action.delete' as const,
+    iconTone: propertyDeleteMode.value ? 'danger' as const : 'default' as const,
     title: t('propertyEditor.actions.delete'),
-  },
+  }] : []),
   {
     key: 'toggle-property-sort',
     icon: propertySortMode.value === 'category'
@@ -856,7 +862,7 @@ function handleInstanceCardAction(payload: { key: string }) {
     return
   }
 
-  if (
+  if (isObserveOnly.value ||
     payload.key !== 'add-instance' &&
     payload.key !== 'duplicate-instance' &&
     payload.key !== 'delete-instance'
@@ -874,6 +880,7 @@ function handlePreviewCardAction(payload: { key: string }) {
 }
 
 function handlePropertyCardAction(payload: { key: string }) {
+  if (isObserveOnly.value && payload.key !== 'toggle-property-panel' && payload.key !== 'toggle-property-sort') return
   if (payload.key === 'additional-field.create') {
     openAdditionalFieldCreateDialog()
     return
@@ -911,6 +918,7 @@ const {
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
   refreshDocumentState,
   markDocumentChanged,
+  readOnly: isObserveOnly,
 })
 const expandedBlockKeys = ref<string[]>([])
 
@@ -935,10 +943,12 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type === 'rename.request') {
+    if (isObserveOnly.value) return
     void structureTreeRef.value?.beginRename(intent.key)
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey === 'rename') {
+    if (isObserveOnly.value) return
     handleTreeIntent(intent)
     void structureTreeRef.value?.beginRename(intent.key)
     return
@@ -999,6 +1009,7 @@ const {
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
   markDocumentChanged,
+  readOnly: isObserveOnly,
   translate: (messageKey) => t(messageKey),
   hasMessage: (messageKey) => te(messageKey),
 })
@@ -1300,6 +1311,7 @@ const {
   availableLayerZIndices,
   refreshDocumentState,
   markDocumentChanged,
+  readOnly: isObserveOnly,
 })
 
 const interactionSelectedBlockId = computed(() => selectedBlock.value?.id ?? null)

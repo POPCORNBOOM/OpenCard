@@ -34,6 +34,7 @@ type UseCdeBlockFieldCommandsOptions = {
   blueprintCardId: string
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  readOnly?: Readonly<Ref<boolean>>
 }
 
 export function findCdeBlock(document: CardDocument, blockId: string): CardBlock | null {
@@ -71,6 +72,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
     value: unknown,
     mode: CdeDocumentChangeMode = 'typing',
   ): boolean {
+    if (options.readOnly?.value) return false
     const { block, instance } = resolveTarget(target)
     if (!block || !isCardStoredValue(value)) return false
 
@@ -90,6 +92,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
   }
 
   function resetField(target: CdeBlockFieldTarget): boolean {
+    if (options.readOnly?.value) return false
     const { block, instance } = resolveTarget(target)
     if (!block) return false
 
@@ -109,6 +112,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
   }
 
   function createField(target: CdeBlockFieldCreateTarget): AdditionalFieldKeyError | 'invalid-target' | null {
+    if (options.readOnly?.value) return 'invalid-target'
     if (target.cardId !== options.blueprintCardId) return 'invalid-target'
     const { block } = resolveTarget(target)
     if (!block) return 'invalid-target'
@@ -120,6 +124,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
   }
 
   function deleteField(target: CdeBlockFieldTarget): boolean {
+    if (options.readOnly?.value) return false
     if (target.cardId !== options.blueprintCardId) return false
     const { document, block } = resolveTarget(target)
     if (!document || !block) return false

@@ -52,10 +52,12 @@ type UseCdeSelectionCommandsOptions = {
   availableLayerZIndices: Readonly<Ref<readonly number[]>>
   refreshDocumentState: () => void
   markDocumentChanged: (mode: 'typing' | 'action') => void
+  readOnly?: Readonly<Ref<boolean>>
 }
 
 export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions) {
   function resizeSelection(intent: CdeSelectionResizeIntent): boolean {
+    if (options.readOnly?.value) return false
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
@@ -71,6 +73,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
   }
 
   function moveSelection(intent: CdeSelectionMoveIntent): boolean {
+    if (options.readOnly?.value) return false
     const target = resolveTarget(intent.blockId)
     if (!target || target.location.type !== 'simple-container-location') return false
 
@@ -81,6 +84,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
   }
 
   function applySelectionLayout(intent: CdeSelectionLayoutIntent): boolean {
+    if (options.readOnly?.value) return false
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
@@ -118,6 +122,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
   }
 
   function changeFaceDimension(intent: CdeFaceDimensionIntent): boolean {
+    if (options.readOnly?.value) return false
     const document = options.cardDoc.value
     if (!document) return false
 
@@ -131,6 +136,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
   }
 
   function changeSelectionZIndex(intent: CdeSelectionZIndexIntent): boolean {
+    if (options.readOnly?.value) return false
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
