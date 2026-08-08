@@ -15,6 +15,7 @@ type UseCdeDocumentStateOptions = {
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
+  readOnly?: boolean
 }
 
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
@@ -153,6 +154,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   }
 
   function markDocumentChanged(mode: CdeDocumentChangeMode = 'action') {
+    if (options.readOnly) return
     if (!hasDocument.value) {
       return
     }
@@ -209,6 +211,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   }
 
   async function undo() {
+    if (options.readOnly) return
     await flushPendingChanges()
     if (!canUndo.value) {
       return
@@ -221,6 +224,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   }
 
   async function redo() {
+    if (options.readOnly) return
     await flushPendingChanges()
     if (!canRedo.value) {
       return
@@ -233,6 +237,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   }
 
   async function saveFile() {
+    if (options.readOnly) return
     if (!cardDoc.value) return
     try {
       await flushPendingChanges()

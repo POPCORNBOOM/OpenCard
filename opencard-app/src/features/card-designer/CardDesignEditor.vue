@@ -27,7 +27,7 @@
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="props.remoteResourcePolicy"
-          :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
+          :project-icon-catalog="isObserveOnly ? undefined : projectStore.renderEnvironment.value.projectIconCatalog"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -157,7 +157,7 @@
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
                         :remote-resource-policy="props.remoteResourcePolicy"
-                        :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
+                        :project-icon-catalog="isObserveOnly ? undefined : projectStore.renderEnvironment.value.projectIconCatalog"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -431,6 +431,7 @@ const emit = defineEmits<EditorEmits>()
 const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
+const isObserveOnly = computed(() => props.access === 'observe-only')
 
 const editorRootRef = ref<HTMLElement | null>(null)
 const {
@@ -656,6 +657,7 @@ const {
     selectedCardKeys.value = []
     selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
+  readOnly: isObserveOnly.value,
 })
 
 const activeFace = computed(() => cardDoc.value?.faces[activeFaceKey.value] ?? null)

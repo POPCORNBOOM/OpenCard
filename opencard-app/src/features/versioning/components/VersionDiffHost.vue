@@ -23,7 +23,7 @@
       {{ t('versioning.diff.loadFailed') }}
     </div>
     <MonacoEditor
-      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback || iconRegistryFallback)"
+      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback || iconRegistryFallback || cardFallback)"
       class="version-diff-host__editor"
       model-value=""
       :language="language"
@@ -71,6 +71,15 @@
       :theme-id="themeId"
       :theme-overrides="themeOverrides"
     />
+    <SnapshotCardDiffEditor
+      v-else-if="comparison && fileType.editorId === 'card-designer'"
+      :historical="session.historical"
+      :current="session.current"
+      :comparison="comparison"
+      :file-name="fileName"
+      :theme-id="themeId"
+      :theme-overrides="themeOverrides"
+    />
     <SnapshotResourceDiffEditor
       v-else-if="loaded && resourceKind"
       :historical="session.historical"
@@ -102,6 +111,7 @@ import DictionaryDiffEditor from './DictionaryDiffEditor.vue'
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 import SnapshotFontRegistryDiffEditor from './SnapshotFontRegistryDiffEditor.vue'
 import SnapshotIconRegistryDiffEditor from './SnapshotIconRegistryDiffEditor.vue'
+import SnapshotCardDiffEditor from './SnapshotCardDiffEditor.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
@@ -111,6 +121,7 @@ import { parseProjectDictionaryText } from '../../workspace/model/projectDiction
 import { parseProjectMetadataText } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
+import { parseCardDocument } from '../../../entities/card/storage'
 
 const props = defineProps<{
   session: CompareSession
@@ -160,6 +171,20 @@ const iconRegistryFallback = computed(() => (
   && (!parseProjectIconRegistryText(comparison.value!.historicalContent)
     || !parseProjectIconRegistryText(comparison.value!.currentContent))
 ))
+const cardFallback = computed(() => (
+  fileType.value.editorId === 'card-designer'
+  && Boolean(comparison.value)
+  && (!isValidCardContent(comparison.value!.historicalContent)
+    || !isValidCardContent(comparison.value!.currentContent))
+))
+
+function isValidCardContent(content: string): boolean {
+  try {
+    return Boolean(parseCardDocument(JSON.parse(content) as unknown))
+  } catch {
+    return false
+  }
+}
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   const separator = snapshot.rootPath.includes('\\') ? '\\' : '/'
@@ -184,7 +209,7 @@ async function loadComparison(): Promise<void> {
   loaded.value = false
   comparison.value = null
   try {
-    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry', 'icon-registry'].includes(fileType.value.editorId)) {
+    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry', 'icon-registry', 'card-designer'].includes(fileType.value.editorId)) {
       loaded.value = true
       return
     }

@@ -75,4 +75,27 @@ describe('useCdeDocumentState lifecycle', () => {
     state.markSaved(persistedContent)
     expect(state.isModified.value).toBe(true)
   })
+
+  it('does not emit persistence intents in read-only mode', async () => {
+    const emitModelValueUpdate = vi.fn()
+    const emitModified = vi.fn()
+    const emitSave = vi.fn()
+    const state = useCdeDocumentState({
+      emitModelValueUpdate,
+      emitModified,
+      emitSave,
+      resetSelection: vi.fn(),
+      readOnly: true,
+    })
+    state.loadRawDoc(serializeCardDocument(createDocument()))
+    state.cardDoc.value!.name = 'Observed mutation'
+    state.markDocumentChanged()
+    await state.saveFile()
+    await state.undo()
+    await state.redo()
+
+    expect(emitModelValueUpdate).not.toHaveBeenCalled()
+    expect(emitModified).not.toHaveBeenCalled()
+    expect(emitSave).not.toHaveBeenCalled()
+  })
 })
