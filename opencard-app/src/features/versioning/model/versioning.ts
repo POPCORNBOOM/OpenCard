@@ -176,6 +176,47 @@ export type FileHistoryResponse = {
   items: VersionRecordDto[]
 }
 
+export type CompareSourceRequest =
+  | { kind: 'version'; commitId: string }
+  | { kind: 'local-history'; entryId: string }
+
+export type SnapshotDescriptorDto = {
+  rootPath: string
+  relativePath: string
+  completeness: 'project' | 'single-file'
+  exists: boolean
+}
+
+export type PrepareCompareRequest = VersionProjectRequest & {
+  relativePath: string
+  source: CompareSourceRequest
+}
+
+export type PrepareCompareResponse = {
+  projectId: string
+  generation: number
+  leaseId: string
+  historical: SnapshotDescriptorDto
+  current: SnapshotDescriptorDto
+}
+
+export type ReleaseCompareRequest = VersionProjectRequest & {
+  leaseId: string
+}
+
+export type ReleaseCompareResponse = {
+  released: boolean
+}
+
+export type CompareSession = PrepareCompareResponse & {
+  id: string
+  projectRoot: string
+  sourceSessionId: string
+  sourcePath: string
+  editorId: string
+  openedFromHistoryItemId: string
+}
+
 export type VersionWriteState =
   | { status: 'idle' }
   | { status: 'preparing'; operation: 'save' }

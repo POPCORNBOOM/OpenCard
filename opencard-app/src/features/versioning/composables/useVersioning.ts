@@ -15,6 +15,7 @@ import type {
   VersionStatusDto,
   VersionRecordDto,
   LocalHistoryEntryDto,
+  CompareSession,
   VersionWriteState,
   SaveVersionConfirmation,
 } from '../model/versioning'
@@ -49,6 +50,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const fileVersions = ref<VersionRecordDto[]>([])
   const localHistory = ref<LocalHistoryEntryDto[]>([])
   const historyPath = ref<string | null>(null)
+  const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
   const writeState = ref<VersionWriteState>({ status: 'idle' })
   const saveVersionConfirmation = ref<SaveVersionConfirmation | null>(null)
@@ -56,6 +58,7 @@ export function useVersioning(options: UseVersioningOptions) {
   let generation = 0
 
   async function prepare(projectRoot: string): Promise<void> {
+    if (compareSession.value) await closeCompare()
     const requestGeneration = ++generation
     identity.value = null
     status.value = null
@@ -298,6 +301,83 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function openCompare(
+    source: 'version' | 'local-history',
+    historyItemId: string,
+    sourceSession: EditorSession,
+    relativePath: string,
+  ): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity
+      || readiness.value.status !== 'ready'
+      || writeState.value.status !== 'idle'
+      || sourceSession.resourceKind !== 'workspace'
+      || !sourceSession.path
+      || !relativePath) return
+
+    await closeCompare()
+    const requestGeneration = generation
+    lastError.value = null
+    try {
+      const response = await service.prepareCompare({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        relativePath,
+        source: source === 'version'
+          ? { kind: 'version', commitId: historyItemId }
+          : { kind: 'local-history', entryId: historyItemId },
+      })
+      const sourceStillExists = options.sessions.value.some(session => (
+        session.id === sourceSession.id && session.path === sourceSession.path
+      ))
+      if (requestGeneration !== generation
+        || options.projectPath.value !== projectRoot
+        || identity.value?.projectId !== projectIdentity.projectId
+        || !sourceStillExists) {
+        await service.releaseCompare({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: response.projectId,
+          generation: response.generation,
+          leaseId: response.leaseId,
+        })
+        return
+      }
+      compareSession.value = {
+        ...response,
+        id: crypto.randomUUID(),
+        projectRoot,
+        sourceSessionId: sourceSession.id,
+        sourcePath: sourceSession.path,
+        editorId: sourceSession.editorId,
+        openedFromHistoryItemId: historyItemId,
+      }
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7005', error)
+    }
+  }
+
+  async function closeCompare(): Promise<void> {
+    const session = compareSession.value
+    if (!session) return
+    compareSession.value = null
+    try {
+      await service.releaseCompare({
+        operationId: crypto.randomUUID(),
+        projectRoot: session.projectRoot,
+        projectId: session.projectId,
+        generation: session.generation,
+        leaseId: session.leaseId,
+      })
+    } catch (error) {
+      reportAppError('OC-E7005', error)
+    }
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -339,6 +419,7 @@ export function useVersioning(options: UseVersioningOptions) {
   }
 
   function dispose(): void {
+    void closeCompare()
     generation += 1
     stopProjectWatch()
     stopSessionWatch()
@@ -352,6 +433,7 @@ export function useVersioning(options: UseVersioningOptions) {
     fileVersions: readonly(fileVersions),
     localHistory: readonly(localHistory),
     historyPath: readonly(historyPath),
+    compareSession: readonly(compareSession),
     nextVersionCursor: readonly(nextVersionCursor),
     writeState: readonly(writeState),
     saveVersionConfirmation: readonly(saveVersionConfirmation),
@@ -363,6 +445,8 @@ export function useVersioning(options: UseVersioningOptions) {
     confirmSaveVersion,
     recordLocalHistory,
     loadFileHistory,
+    openCompare,
+    closeCompare,
     dispose,
   }
 }

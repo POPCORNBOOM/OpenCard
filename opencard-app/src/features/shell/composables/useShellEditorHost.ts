@@ -322,6 +322,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     component,
     key,
     props,
+    themeId,
+    themeOverrides,
     resourceRootPath,
     isCardDesigner,
     isDictionaryEditor,

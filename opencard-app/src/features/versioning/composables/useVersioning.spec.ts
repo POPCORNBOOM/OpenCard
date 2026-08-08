@@ -9,6 +9,84 @@ afterEach(() => {
 })
 
 describe('useVersioning project preparation', () => {
+  it('opens and releases a comparison without replacing the source session', async () => {
+    const projectPath = ref('D:/project')
+    const sourceSession: EditorSession = {
+      id: 'session-1',
+      resourceKind: 'workspace',
+      path: 'D:/project/cards/main.json',
+      fileTypeId: 'json',
+      name: 'main.json',
+      editorId: 'monaco',
+      savedContent: '{"value":2}',
+      draftContent: '{"value":3}',
+      contentRevision: 1,
+      isDirty: true,
+      isPreview: false,
+    }
+    const service: VersioningService = {
+      prepareProject: vi.fn(async request => ({
+        identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+      })),
+      getStatus: vi.fn(async request => ({
+        identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+        current: null,
+        nextVersion: '0.0.1',
+        expectedHeadCommitId: null,
+        changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
+        hasManagedContent: true,
+      })),
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [], nextCursor: null })),
+      createVersion: vi.fn(),
+      listFileHistory: vi.fn(),
+      previewChanges: vi.fn(),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(async request => ({
+        projectId: request.projectId,
+        generation: request.generation,
+        leaseId: 'a'.repeat(40),
+        historical: {
+          rootPath: 'D:/history', relativePath: request.relativePath, completeness: 'project' as const, exists: true,
+        },
+        current: {
+          rootPath: 'D:/current', relativePath: request.relativePath, completeness: 'project' as const, exists: true,
+        },
+      })),
+      releaseCompare: vi.fn(async () => ({ released: true })),
+    }
+    const sessions = ref<EditorSession[]>([sourceSession])
+    const versioning = useVersioning({
+      projectPath,
+      sessions,
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+
+    await versioning.openCompare('version', 'commit-1', sourceSession, 'cards/main.json')
+
+    expect(versioning.compareSession.value).toMatchObject({
+      sourceSessionId: 'session-1',
+      sourcePath: 'D:/project/cards/main.json',
+      openedFromHistoryItemId: 'commit-1',
+    })
+    expect(sessions.value[0]).toMatchObject({
+      id: 'session-1',
+      draftContent: '{"value":3}',
+      isDirty: true,
+    })
+
+    await versioning.closeCompare()
+    expect(versioning.compareSession.value).toBeNull()
+    expect(service.releaseCompare).toHaveBeenCalledWith(expect.objectContaining({ leaseId: 'a'.repeat(40) }))
+    versioning.dispose()
+  })
+
   it('prepares the active project without blocking its lifecycle', async () => {
     const projectPath = ref('D:/project')
     const service: VersioningService = {
@@ -47,6 +125,8 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(),
+      releaseCompare: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -110,6 +190,8 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(),
+      releaseCompare: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -147,6 +229,8 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(),
+      releaseCompare: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -227,6 +311,8 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(),
+      releaseCompare: vi.fn(),
       createVersion: vi.fn(async () => ({ version: savedVersion, changeSummary })),
       listVersions: vi.fn(async request => ({
         projectId: request.projectId,

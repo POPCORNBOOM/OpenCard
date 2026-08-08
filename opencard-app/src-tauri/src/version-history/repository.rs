@@ -17,13 +17,13 @@ pub struct VersionProjectRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateVersionRequest {
-    operation_id: String,
-    project_root: String,
-    project_id: String,
-    generation: u64,
-    expected_head_commit_id: Option<String>,
-    expected_snapshot_id: String,
-    description: String,
+    pub(super) operation_id: String,
+    pub(super) project_root: String,
+    pub(super) project_id: String,
+    pub(super) generation: u64,
+    pub(super) expected_head_commit_id: Option<String>,
+    pub(super) expected_snapshot_id: String,
+    pub(super) description: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,7 +80,7 @@ pub struct ChangeSummaryDto {
     modified: usize,
     deleted: usize,
     files: Vec<FileChangeDto>,
-    snapshot_id: String,
+    pub(super) snapshot_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,7 +101,7 @@ pub struct VersionChangeCountsDto {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionRecordDto {
-    commit_id: String,
+    pub(super) commit_id: String,
     parent_commit_id: Option<String>,
     version: String,
     kind: String,
@@ -119,14 +119,14 @@ pub struct VersionStatusDto {
     current: Option<VersionRecordDto>,
     next_version: String,
     expected_head_commit_id: Option<String>,
-    change_summary: ChangeSummaryDto,
+    pub(super) change_summary: ChangeSummaryDto,
     has_managed_content: bool,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateVersionResponse {
-    version: VersionRecordDto,
+    pub(super) version: VersionRecordDto,
     change_summary: ChangeSummaryDto,
 }
 
@@ -252,6 +252,7 @@ pub async fn version_create(
     let storage_root =
         resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
     let write_lock = Arc::clone(&state.write_lock);
+    let compare_leases = Arc::clone(&state.compare_leases);
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _guard = write_lock.lock().map_err(|_| {
             HistoryFailure::new(
@@ -266,6 +267,7 @@ pub async fn version_create(
             &storage_root,
             &request.project_id,
         )?;
+        ensure_project_not_compared(&compare_leases, &context.project_id)?;
         create_version(&context, request)
     })
     .await
@@ -552,7 +554,7 @@ fn list_file_history(
     })
 }
 
-fn normalize_history_path(
+pub(super) fn normalize_history_path(
     context: &ProjectHistoryContext,
     relative_path: &str,
 ) -> Result<String, HistoryFailure> {
@@ -579,7 +581,7 @@ fn normalize_history_path(
     Ok(normalized)
 }
 
-fn create_version(
+pub(super) fn create_version(
     context: &ProjectHistoryContext,
     request: CreateVersionRequest,
 ) -> Result<CreateVersionResponse, HistoryFailure> {
@@ -898,7 +900,7 @@ fn write_file_atomically(path: &Path, content: &[u8]) -> std::io::Result<()> {
     }
 }
 
-fn get_status(
+pub(super) fn get_status(
     context: &ProjectHistoryContext,
     generation: u64,
 ) -> Result<VersionStatusDto, HistoryFailure> {
@@ -935,14 +937,16 @@ fn get_status(
     })
 }
 
-fn open_repository(context: &ProjectHistoryContext) -> Result<Repository, HistoryFailure> {
+pub(super) fn open_repository(
+    context: &ProjectHistoryContext,
+) -> Result<Repository, HistoryFailure> {
     Repository::open_bare(context.project_history_root.join("history.git")).map_err(|error| {
         HistoryFailure::new("history-corrupt", "open-repository", error.to_string())
             .project_id(&context.project_id)
     })
 }
 
-fn head_commit(repository: &Repository) -> Result<Option<Commit<'_>>, HistoryFailure> {
+pub(super) fn head_commit(repository: &Repository) -> Result<Option<Commit<'_>>, HistoryFailure> {
     match repository.find_reference("refs/heads/main") {
         Ok(reference) => {
             let oid = reference.target().ok_or_else(|| {

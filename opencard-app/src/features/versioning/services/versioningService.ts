@@ -19,6 +19,10 @@ import type {
   LocalHistoryEntryRequest,
   LocalHistoryReadResponse,
   LocalHistoryDeleteResponse,
+  PrepareCompareRequest,
+  PrepareCompareResponse,
+  ReleaseCompareRequest,
+  ReleaseCompareResponse,
 } from '../model/versioning'
 
 export interface VersioningService {
@@ -32,6 +36,8 @@ export interface VersioningService {
   listLocalHistory(request: LocalHistoryPathRequest): Promise<LocalHistoryListResponse>
   readLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryReadResponse>
   deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse>
+  prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse>
+  releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse>
 }
 
 class VersioningServiceImpl implements VersioningService {
@@ -73,6 +79,14 @@ class VersioningServiceImpl implements VersioningService {
 
   async deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse> {
     return await invoke<LocalHistoryDeleteResponse>('local_history_delete', { request })
+  }
+
+  async prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse> {
+    return await invoke<PrepareCompareResponse>('version_prepare_compare', { request })
+  }
+
+  async releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse> {
+    return await invoke<ReleaseCompareResponse>('version_release_compare', { request })
   }
 }
 

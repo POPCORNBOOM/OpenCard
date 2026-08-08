@@ -1,6 +1,6 @@
 use git2::{ObjectType, Oid, Repository};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 
+#[path = "version-history/compare.rs"]
+pub(crate) mod compare;
 #[path = "version-history/local_history.rs"]
 pub(crate) mod local_history;
 #[path = "version-history/repository.rs"]
@@ -65,6 +67,7 @@ const MANAGED_EXTENSIONS: &[&str] = &[
 #[derive(Clone, Default)]
 pub struct VersionHistoryState {
     write_lock: Arc<Mutex<()>>,
+    compare_leases: Arc<Mutex<BTreeMap<String, String>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,6 +163,30 @@ impl HistoryFailure {
         self.retryable = true;
         self
     }
+}
+
+fn ensure_project_not_compared(
+    compare_leases: &Mutex<BTreeMap<String, String>>,
+    project_id: &str,
+) -> Result<(), HistoryFailure> {
+    let leases = compare_leases.lock().map_err(|_| {
+        HistoryFailure::new(
+            "history-busy",
+            "acquire-lock",
+            "compare lease lock is poisoned",
+        )
+        .retryable()
+    })?;
+    if leases.values().any(|candidate| candidate == project_id) {
+        return Err(HistoryFailure::new(
+            "history-busy",
+            "validate-write",
+            "project has an active comparison",
+        )
+        .project_id(project_id)
+        .retryable());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -818,5 +845,21 @@ mod tests {
             let error = normalize_template_managed_paths(vec![path.to_owned()]).unwrap_err();
             assert_eq!(error.code, "unsupported-entry");
         }
+    }
+
+    #[test]
+    fn active_compare_lease_blocks_project_history_writes() {
+        let leases = Mutex::new(BTreeMap::from([(
+            "lease".to_owned(),
+            "project-id".to_owned(),
+        )]));
+
+        assert_eq!(
+            ensure_project_not_compared(&leases, "project-id")
+                .unwrap_err()
+                .code,
+            "history-busy"
+        );
+        ensure_project_not_compared(&leases, "other-project").unwrap();
     }
 }

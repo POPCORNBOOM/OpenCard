@@ -662,6 +662,14 @@ export default {
         'file-moved': '移动文件',
       },
     },
+    diff: {
+      title: '{file} · 更改',
+      historical: '历史',
+      current: '当前已保存文件',
+      close: '关闭对比',
+      loading: '正在加载对比…',
+      loadFailed: '历史内容加载失败。',
+    },
   },
   settings: {
     title: '设置',

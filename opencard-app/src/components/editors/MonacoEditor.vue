@@ -1,5 +1,5 @@
 <template>
-  <div class="monaco-editor-shell">
+  <div class="monaco-editor-shell" :class="{ 'is-comparison': Boolean(comparison) }">
     <div ref="editorContainer" class="monaco-editor-host"></div>
   </div>
 </template>
@@ -9,6 +9,7 @@ import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as monaco from 'monaco-editor'
 import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundation'
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
+import type { TextEditorComparison } from '../../features/editor-runtime/model/editorComparison'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
   readOnly?: boolean
+  comparison?: TextEditorComparison
 }>(), {
   language: 'plaintext',
   themeId: 'dark',
@@ -28,14 +30,12 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>()
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
+let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null
+let historicalModel: monaco.editor.ITextModel | null = null
+let currentModel: monaco.editor.ITextModel | null = null
 
-onMounted(() => {
-  if (!editorContainer.value) return
-
-  const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
-  editor = monaco.editor.create(editorContainer.value, {
-    value: props.modelValue,
-    language: props.language,
+function editorOptions(appearance: ReturnType<typeof registerOcMonacoTheme>) {
+  return {
     theme: appearance.themeName,
     automaticLayout: true,
     fontFamily: appearance.fontFamily,
@@ -45,15 +45,40 @@ onMounted(() => {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     overviewRulerBorder: false,
-    renderLineHighlight: 'all',
+    renderLineHighlight: 'all' as const,
     roundedSelection: false,
     smoothScrolling: true,
-    readOnly: props.readOnly,
-    cursorSmoothCaretAnimation: 'on',
+    cursorSmoothCaretAnimation: 'on' as const,
     scrollbar: {
       verticalScrollbarSize: 8,
       horizontalScrollbarSize: 8,
     },
+  }
+}
+
+onMounted(() => {
+  if (!editorContainer.value) return
+
+  const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
+  const options = editorOptions(appearance)
+  if (props.comparison) {
+    historicalModel = monaco.editor.createModel(props.comparison.historicalContent, props.language)
+    currentModel = monaco.editor.createModel(props.comparison.currentContent, props.language)
+    diffEditor = monaco.editor.createDiffEditor(editorContainer.value, {
+      ...options,
+      readOnly: true,
+      originalEditable: false,
+      renderSideBySide: true,
+      hideUnchangedRegions: { enabled: false },
+    })
+    diffEditor.setModel({ original: historicalModel, modified: currentModel })
+    return
+  }
+  editor = monaco.editor.create(editorContainer.value, {
+    value: props.modelValue,
+    language: props.language,
+    ...options,
+    readOnly: props.readOnly,
   })
 
   // 监听内容变化
@@ -69,12 +94,11 @@ onMounted(() => {
 
 // 监听语言变化
 watch(() => props.language, (newLang) => {
-  if (editor && newLang) {
-    const model = editor.getModel()
-    if (model) {
-      monaco.editor.setModelLanguage(model, newLang)
-    }
-  }
+  if (!newLang) return
+  const model = editor?.getModel()
+  if (model) monaco.editor.setModelLanguage(model, newLang)
+  if (historicalModel) monaco.editor.setModelLanguage(historicalModel, newLang)
+  if (currentModel) monaco.editor.setModelLanguage(currentModel, newLang)
 })
 
 watch(() => props.readOnly, (readOnly) => {
@@ -85,7 +109,18 @@ watch(() => [props.themeId, props.themeOverrides] as const, ([themeId, themeOver
   const appearance = registerOcMonacoTheme(monaco, themeId, themeOverrides)
   monaco.editor.setTheme(appearance.themeName)
   editor?.updateOptions({ fontFamily: appearance.fontFamily })
+  diffEditor?.updateOptions({ fontFamily: appearance.fontFamily })
 })
+
+watch(() => props.comparison, (comparison) => {
+  if (!comparison) return
+  if (historicalModel?.getValue() !== comparison.historicalContent) {
+    historicalModel?.setValue(comparison.historicalContent)
+  }
+  if (currentModel?.getValue() !== comparison.currentContent) {
+    currentModel?.setValue(comparison.currentContent)
+  }
+}, { deep: true })
 
 // 监听外部内容变化
 watch(() => props.modelValue, (newValue) => {
@@ -98,6 +133,9 @@ onUnmounted(() => {
   const model = editor?.getModel()
   editor?.dispose()
   model?.dispose()
+  diffEditor?.dispose()
+  historicalModel?.dispose()
+  currentModel?.dispose()
 })
 </script>
 

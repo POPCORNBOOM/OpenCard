@@ -663,6 +663,14 @@ export default {
         'file-moved': 'File moved',
       },
     },
+    diff: {
+      title: '{file} · Changes',
+      historical: 'History',
+      current: 'Current saved file',
+      close: 'Close comparison',
+      loading: 'Loading comparison…',
+      loadFailed: 'The historical content could not be loaded.',
+    },
   },
   settings: {
     title: 'Settings',

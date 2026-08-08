@@ -208,6 +208,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法保存项目版本', 'en-US': 'Could not save the project version' },
     solution: '当前编辑内容仍保留；检查项目文件和版本历史状态后重新确认保存版本。',
   },
+  'OC-E7005': {
+    area: '版本管理',
+    meaning: { 'zh-CN': '无法打开历史内容对比', 'en-US': 'Could not open the history comparison' },
+    solution: '来源文件和当前编辑内容保持不变；刷新“更改”后重新打开该历史记录。',
+  },
 } as const satisfies Record<string, AppErrorDefinition>
 
 export type AppErrorCode = keyof typeof APP_ERROR_CATALOG

@@ -236,22 +236,39 @@
               @open-project="openProject"
             />
             <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession)">
-              <component
-                v-if="activeSession"
-                :is="currentEditorComponent"
-                :key="currentEditorKey"
-                ref="currentEditorRef"
-                v-bind="currentEditorProps"
-                @modified="handleEditorModified"
-                @save="handleEditorSave"
-                @open-file="handleOpenFile"
-                @update-viewport-transform="handleViewportTransformUpdate"
-                @update:pixelated="handleImagePreviewPixelatedUpdate"
-                @update:card-designer-mode="handleCardDesignerModeUpdate"
-                @update-card-designer-layout="handleCardDesignerLayoutUpdate"
-                @update-card-designer-view="handleCardDesignerViewUpdate"
-                @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
-              />
+              <div v-if="activeSession" class="open-card-shell__editor-stack">
+                <div
+                  class="open-card-shell__source-editor"
+                  :class="{ 'is-comparing': Boolean(compareSession) }"
+                  :inert="Boolean(compareSession)"
+                  :aria-hidden="compareSession ? 'true' : undefined"
+                >
+                  <component
+                    :is="currentEditorComponent"
+                    :key="currentEditorKey"
+                    ref="currentEditorRef"
+                    v-bind="currentEditorProps"
+                    @modified="handleEditorModified"
+                    @save="handleEditorSave"
+                    @open-file="handleOpenFile"
+                    @update-viewport-transform="handleViewportTransformUpdate"
+                    @update:pixelated="handleImagePreviewPixelatedUpdate"
+                    @update:card-designer-mode="handleCardDesignerModeUpdate"
+                    @update-card-designer-layout="handleCardDesignerLayoutUpdate"
+                    @update-card-designer-view="handleCardDesignerViewUpdate"
+                    @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
+                  />
+                </div>
+                <VersionDiffHost
+                  v-if="compareSession"
+                  class="open-card-shell__compare-editor"
+                  :session="compareSession"
+                  :language="currentDiffLanguage"
+                  :theme-id="currentEditorThemeId"
+                  :theme-overrides="currentEditorThemeOverrides"
+                  @close="closeCompare"
+                />
+              </div>
             </WorkbenchWorkspace>
           </div>
 
@@ -448,6 +465,7 @@ import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
 import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
+import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -764,6 +782,8 @@ const {
   component: currentEditorComponent,
   key: currentEditorKey,
   props: currentEditorProps,
+  themeId: currentEditorThemeId,
+  themeOverrides: currentEditorThemeOverrides,
   isCardDesigner: isActiveCardDesignerEditor,
   isDictionaryEditor: isActiveDictionaryEditor,
   cardDesignerMode: activeCardDesignerMode,
@@ -802,7 +822,9 @@ const {
   versions: projectVersions,
   fileVersions,
   localHistory: localHistoryEntries,
+  historyPath,
   loadFileHistory,
+  compareSession,
   writeState: versionWriteState,
   saveVersionConfirmation,
   lastError: versioningError,
@@ -810,6 +832,8 @@ const {
   cancelSaveVersion,
   confirmSaveVersion,
   recordLocalHistory,
+  openCompare,
+  closeCompare,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -828,9 +852,16 @@ const changeHistoryEmptyLabel = computed(() => {
   return t('versioning.history.empty')
 })
 
+const currentDiffLanguage = computed(() => (
+  activeSession.value?.path
+    ? resolveFileType(activeSession.value.path).language ?? 'plaintext'
+    : 'plaintext'
+))
+
 watch(
   () => activeSession.value?.path,
   path => {
+    if (compareSession.value && compareSession.value.sourcePath !== path) void closeCompare()
     const relativePath = path && projectPath.value
       ? getRelativeProjectPath(path)
       : null
@@ -1717,7 +1748,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         title: t('app.menu.save'),
         icon: 'action.save',
         shortcut: shellShortcutParts.save,
-        disabled: !activeSession.value,
+        disabled: !activeSession.value || Boolean(compareSession.value),
       },
       { type: 'divider', key: 'file-export-divider' },
       {
@@ -1973,8 +2004,11 @@ function handleVersionTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'node.activate') selectedVersionKeys.value = [intent.key]
 }
 
-function handleChangeHistorySelect(_source: 'version' | 'local-history', _id: string): void {
-  // The list owns selection now; the next slice opens the existing editor as a read-only comparison.
+function handleChangeHistorySelect(source: 'version' | 'local-history', id: string): void {
+  const session = activeSession.value
+  const relativePath = historyPath.value
+  if (!session || !relativePath) return
+  void openCompare(source, id, session, relativePath)
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
@@ -2439,6 +2473,12 @@ function createUntitledOpenCard() {
 
 async function runShellCommand(actionKey: string) {
   if ((isCreateProjectMode.value && isProjectTemplateBusy.value) || isExportTemplateBusy.value) return
+  if (compareSession.value && [
+    'save-active-editor',
+    'save-version',
+    'undo-active-editor',
+    'redo-active-editor',
+  ].includes(actionKey)) return
 
   if (actionKey === 'open-settings') {
     shellPage.value = {
@@ -2759,6 +2799,14 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   const key = event.key.toLowerCase()
+  if (compareSession.value && ([
+    SHELL_SHORTCUT_KEYS.save,
+    SHELL_SHORTCUT_KEYS.undo,
+    SHELL_SHORTCUT_KEYS.redo,
+  ] as string[]).includes(key)) {
+    event.preventDefault()
+    return
+  }
   if (key === SHELL_SHORTCUT_KEYS.newOpenCard && event.shiftKey) {
     event.preventDefault()
     createUntitledOpenCard()
@@ -2863,6 +2911,31 @@ onUnmounted(() => {
 .open-card-shell__sidebar-tree {
   width: 100%;
   min-width: 0;
+}
+
+.open-card-shell__editor-stack,
+.open-card-shell__source-editor,
+.open-card-shell__compare-editor {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.open-card-shell__editor-stack {
+  position: relative;
+  overflow: hidden;
+}
+
+.open-card-shell__source-editor,
+.open-card-shell__compare-editor {
+  position: absolute;
+  inset: 0;
+}
+
+.open-card-shell__source-editor.is-comparing {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .shell-file-drop-overlay {

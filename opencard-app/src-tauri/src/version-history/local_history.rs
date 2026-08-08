@@ -510,6 +510,14 @@ fn read_entry(
     })
 }
 
+pub(super) fn read_entry_content(
+    context: &ProjectHistoryContext,
+    relative_path: &str,
+    entry_id: &str,
+) -> Result<Vec<u8>, HistoryFailure> {
+    Ok(read_entry(context, relative_path, entry_id)?.content)
+}
+
 fn delete_entry(
     context: &ProjectHistoryContext,
     relative_path: &str,
