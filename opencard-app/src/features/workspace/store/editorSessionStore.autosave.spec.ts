@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   saveProjectConfiguration: vi.fn(),
   saveProjectDictionary: vi.fn(),
+  prepareProjectConfigurationContent: vi.fn(),
+  prepareProjectDictionaryContent: vi.fn(),
 }))
 vi.mock('./projectStore', () => ({
   useProjectStore: () => ({
@@ -12,6 +14,8 @@ vi.mock('./projectStore', () => ({
     saveFile: vi.fn(),
     saveProjectConfiguration: mocks.saveProjectConfiguration,
     saveProjectDictionary: mocks.saveProjectDictionary,
+    prepareProjectConfigurationContent: mocks.prepareProjectConfigurationContent,
+    prepareProjectDictionaryContent: mocks.prepareProjectDictionaryContent,
   }),
 }))
 
@@ -27,6 +31,8 @@ describe('editorSessionStore project profile manual save', () => {
     mocks.readFile.mockResolvedValue('{}')
     mocks.saveProjectConfiguration.mockImplementation(async (_path: string, content: string) => content)
     mocks.saveProjectDictionary.mockImplementation(async (_path: string, content: string) => content)
+    mocks.prepareProjectConfigurationContent.mockImplementation((_path: string, content: string) => content)
+    mocks.prepareProjectDictionaryContent.mockImplementation((_path: string, content: string) => content)
   })
 
   it('keeps profile edits dirty until explicitly saved', async () => {
@@ -76,6 +82,21 @@ describe('editorSessionStore project profile manual save', () => {
       contentRevision: 1,
       isDirty: true,
     })
+  })
+
+  it('prepares the same canonical structured content without writing it', async () => {
+    mocks.prepareProjectConfigurationContent.mockReturnValueOnce('{"name":"Canonical"}')
+    const store = useEditorSessionStore()
+    const session = await store.openFile('.ocproject')
+    store.updateDraftContent(session.id, '{"name":"Draft"}')
+
+    expect(store.prepareSessionContent(session.id)).toEqual({
+      sessionId: session.id,
+      relativePath: '.ocproject',
+      content: '{"name":"Canonical"}',
+      contentRevision: 1,
+    })
+    expect(mocks.saveProjectConfiguration).not.toHaveBeenCalled()
   })
 
   it('keeps dictionary edits isolated until explicit save', async () => {

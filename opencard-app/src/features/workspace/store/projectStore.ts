@@ -198,33 +198,43 @@ async function saveProjectWorkspaceState() {
   settingsStore.updateProjectCreation({ workspaceStates })
 }
 
-async function saveProjectConfiguration(path: string, content: string): Promise<string> {
+function prepareProjectConfigurationContent(path: string, content: string): string {
   const profile = parseProjectMetadataText(content)
   if (!profile) throw new Error('Invalid .ocproject content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME))) {
     throw new Error('Project profile must be stored at the project root')
   }
-  const canonicalContent = serializeProjectMetadata(profile)
+  return serializeProjectMetadata(profile)
+}
+
+async function saveProjectConfiguration(path: string, content: string): Promise<string> {
+  const canonicalContent = prepareProjectConfigurationContent(path, content)
+  const resolvedPath = resolveProjectPath(path)
   await fileSystemService.writeFile(resolvedPath, canonicalContent)
   await reloadProjectProfile()
   return canonicalContent
 }
 
-async function saveProjectFontRegistry(path: string, content: string): Promise<string> {
+function prepareProjectFontRegistryContent(path: string, content: string): string {
   const document = parseProjectFontRegistryText(content)
   if (!document) throw new Error('Invalid .ocfonts content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME))) {
     throw new Error('Project font registry must be stored at the project root')
   }
-  const canonicalContent = serializeProjectFontRegistry(document)
+  return serializeProjectFontRegistry(document)
+}
+
+async function saveProjectFontRegistry(path: string, content: string): Promise<string> {
+  const canonicalContent = prepareProjectFontRegistryContent(path, content)
+  const resolvedPath = resolveProjectPath(path)
   await fileSystemService.writeFile(resolvedPath, canonicalContent)
   await reloadProjectFontRegistry()
   return canonicalContent
 }
 
-async function saveProjectIconRegistry(path: string, content: string): Promise<string> {
+function prepareProjectIconRegistryContent(path: string, content: string): string {
   const document = parseProjectIconRegistryText(content)
   if (!document || findProjectIconKeyConflicts(document.iconSeries).length > 0) {
     throw new Error('Invalid .ocicons content')
@@ -233,20 +243,30 @@ async function saveProjectIconRegistry(path: string, content: string): Promise<s
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME))) {
     throw new Error('Project icon registry must be stored at the project root')
   }
-  const canonicalContent = serializeProjectIconRegistry(document)
+  return serializeProjectIconRegistry(document)
+}
+
+async function saveProjectIconRegistry(path: string, content: string): Promise<string> {
+  const canonicalContent = prepareProjectIconRegistryContent(path, content)
+  const resolvedPath = resolveProjectPath(path)
   await fileSystemService.writeFile(resolvedPath, canonicalContent)
   await reloadProjectIconRegistry()
   return canonicalContent
 }
 
-async function saveProjectDictionary(path: string, content: string): Promise<string> {
+function prepareProjectDictionaryContent(path: string, content: string): string {
   const dictionary = parseProjectDictionaryText(content)
   if (!dictionary) throw new Error('Invalid .oclocale content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME))) {
     throw new Error('Project dictionary must be stored at the project root')
   }
-  const canonicalContent = serializeProjectDictionary(dictionary)
+  return serializeProjectDictionary(dictionary)
+}
+
+async function saveProjectDictionary(path: string, content: string): Promise<string> {
+  const canonicalContent = prepareProjectDictionaryContent(path, content)
+  const resolvedPath = resolveProjectPath(path)
   await fileSystemService.writeFile(resolvedPath, canonicalContent)
   await reloadProjectDictionary()
   return canonicalContent
@@ -1104,9 +1124,13 @@ export function useProjectStore() {
     openProject,
     resetProjectWorkspaceState,
     saveProjectConfiguration,
+    prepareProjectConfigurationContent,
     saveProjectFontRegistry,
+    prepareProjectFontRegistryContent,
     saveProjectIconRegistry,
+    prepareProjectIconRegistryContent,
     saveProjectDictionary,
+    prepareProjectDictionaryContent,
     reloadProjectProfile,
     reloadProjectFontRegistry,
     reloadProjectIconRegistry,

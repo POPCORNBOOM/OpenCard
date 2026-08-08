@@ -144,6 +144,13 @@ function isAbsolutePath(path: string): boolean {
   return /^[a-z]:\//i.test(normalizedPath) || normalizedPath.startsWith('/')
 }
 
+export type PreparedSessionContent = {
+  sessionId: string
+  relativePath: string
+  content: string
+  contentRevision: number
+}
+
 function resolveProjectRelativePath(path: string, resourceKind: SessionResourceKind, rootPath: string): string | null {
   if (resourceKind !== 'workspace' || !rootPath) {
     return null
@@ -226,9 +233,13 @@ export function useEditorSessionStore() {
     readFile,
     saveFile,
     saveProjectConfiguration,
+    prepareProjectConfigurationContent,
     saveProjectFontRegistry,
+    prepareProjectFontRegistryContent,
     saveProjectIconRegistry,
+    prepareProjectIconRegistryContent,
     saveProjectDictionary,
+    prepareProjectDictionaryContent,
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
@@ -538,6 +549,31 @@ export function useEditorSessionStore() {
     await fileSystemService.writeFile(path, content)
   }
 
+  function prepareSessionContent(sessionId: string): PreparedSessionContent | null {
+    const session = sessions.value.find(candidate => candidate.id === sessionId)
+    if (!session?.path || session.resourceKind !== 'workspace' || CONTENTLESS_EDITOR_IDS.has(session.editorId)) {
+      return null
+    }
+    const fileType = resolveFileType(session.path, projectPath.value)
+    const structuredPreparers = {
+      'opencard-project-profile': prepareProjectConfigurationContent,
+      'opencard-font-registry': prepareProjectFontRegistryContent,
+      'opencard-icon-registry': prepareProjectIconRegistryContent,
+      'opencard-dictionary': prepareProjectDictionaryContent,
+    } as const
+    const prepareContent = structuredPreparers[fileType.id as keyof typeof structuredPreparers]
+    const relativePath = resolveProjectRelativePath(session.path, session.resourceKind, projectPath.value)
+    if (!relativePath) return null
+    return {
+      sessionId,
+      relativePath,
+      content: prepareContent
+        ? prepareContent(session.path, session.draftContent)
+        : session.draftContent,
+      contentRevision: session.contentRevision,
+    }
+  }
+
   async function saveSession(sessionId: string, targetPath?: string): Promise<SessionSaveReceipt> {
     taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
@@ -732,6 +768,7 @@ export function useEditorSessionStore() {
     closeSessionsByPath,
     saveSession,
     saveActiveSession,
+    prepareSessionContent,
     refreshSessionFromDisk,
     refreshActiveSessionFromDisk,
     remapSessionPaths,

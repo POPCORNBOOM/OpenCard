@@ -107,4 +107,31 @@ export type VersionListResponse = {
 
 export type VersionWriteState =
   | { status: 'idle' }
+  | { status: 'preparing'; operation: 'save' }
+  | { status: 'confirming'; operation: 'save' }
   | { status: 'running'; operation: 'save'; operationId: string }
+
+export type DraftOverlayDto = {
+  sessionId: string
+  relativePath: string
+  content: string
+  contentRevision: number
+}
+
+export type PreviewChangesRequest = VersionProjectRequest & {
+  overlays: DraftOverlayDto[]
+}
+
+export type PreviewChangesResponse = {
+  projectId: string
+  changeSummary: ChangeSummaryDto
+  overlayRevisions: Array<Pick<DraftOverlayDto, 'sessionId' | 'relativePath' | 'contentRevision'>>
+}
+
+export type SaveVersionConfirmation = {
+  version: string
+  expectedHeadCommitId: string | null
+  expectedSnapshotId: string
+  changeSummary: ChangeSummaryDto
+  sessionRevisions: Array<Pick<DraftOverlayDto, 'sessionId' | 'relativePath' | 'contentRevision'>>
+}

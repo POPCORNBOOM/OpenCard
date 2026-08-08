@@ -3,6 +3,8 @@ import type {
   CreateVersionRequest,
   CreateVersionResponse,
   ListVersionsRequest,
+  PreviewChangesRequest,
+  PreviewChangesResponse,
   PrepareProjectRequest,
   PrepareProjectResponse,
   VersionProjectRequest,
@@ -15,6 +17,7 @@ export interface VersioningService {
   getStatus(request: VersionProjectRequest): Promise<VersionStatusDto>
   createVersion(request: CreateVersionRequest): Promise<CreateVersionResponse>
   listVersions(request: ListVersionsRequest): Promise<VersionListResponse>
+  previewChanges(request: PreviewChangesRequest): Promise<PreviewChangesResponse>
 }
 
 class VersioningServiceImpl implements VersioningService {
@@ -32,6 +35,10 @@ class VersioningServiceImpl implements VersioningService {
 
   async listVersions(request: ListVersionsRequest): Promise<VersionListResponse> {
     return await invoke<VersionListResponse>('version_list', { request })
+  }
+
+  async previewChanges(request: PreviewChangesRequest): Promise<PreviewChangesResponse> {
+    return await invoke<PreviewChangesResponse>('version_preview_changes', { request })
   }
 }
 

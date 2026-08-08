@@ -37,7 +37,7 @@
       <div
         :ref="(element) => setRowRef(entry.key, element)"
         class="oc-tree__row"
-        :class="{ 'is-disabled': entry.item.disabled }"
+        :class="{ 'is-disabled': entry.item.disabled, 'has-description': entry.item.description }"
         :data-actions-overflowed="collapsedActionKeys.has(entry.key) || undefined"
         :data-tooltip="entry.item.disabledReason"
         :role="rowRole"
@@ -97,9 +97,14 @@
           @keydown.stop="handleRenameKeydown($event, entry.key)"
           @blur="commitRename(entry.key)"
         />
-        <OcText v-else class="oc-tree__label" :truncate="true">
-          {{ entry.item.label }}
-        </OcText>
+        <span v-else class="oc-tree__text">
+          <OcText class="oc-tree__label" :truncate="true">
+            {{ entry.item.label }}
+          </OcText>
+          <OcText v-if="entry.item.description" class="oc-tree__description" tone="muted" size="xs" :truncate="true">
+            {{ entry.item.description }}
+          </OcText>
+        </span>
 
         <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
           {{ entry.item.tail }}
@@ -977,6 +982,12 @@ onBeforeUnmount(() => {
   transition: background-color var(--oc-duration-fast) var(--oc-ease);
 }
 
+.oc-tree__row.has-description {
+  height: auto;
+  min-height: var(--oc-size-md);
+  padding-block: var(--oc-space-1);
+}
+
 .oc-tree__row:hover:not(.is-disabled),
 .oc-tree__row:focus-visible {
   background: var(--oc-bg-hover);
@@ -1049,9 +1060,14 @@ onBeforeUnmount(() => {
   color: var(--oc-fg-accent);
 }
 
-.oc-tree__label {
+.oc-tree__text {
+  display: grid;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.oc-tree__description {
+  line-height: 1.2;
 }
 
 .oc-tree__tail {

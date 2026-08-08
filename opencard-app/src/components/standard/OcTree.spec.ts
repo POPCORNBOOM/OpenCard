@@ -64,6 +64,19 @@ describe('OcTree', () => {
     }])
   })
 
+  it('renders optional secondary text without changing the row label', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'v0.0.1', description: 'Update card package' }]],
+        }),
+      },
+    })
+
+    expect(wrapper.get('.oc-tree__label').text()).toBe('v0.0.1')
+    expect(wrapper.get('.oc-tree__description').text()).toBe('Update card package')
+  })
+
   it.each([
     ['expand', ['open', 'parent', 'root']],
     ['expand-exclusive', ['parent', 'root']],

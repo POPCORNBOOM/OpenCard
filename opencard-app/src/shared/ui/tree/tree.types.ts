@@ -15,6 +15,7 @@ export interface OcTreeData {
 
 export interface OcTreeItem {
   label: string
+  description?: string
   tail?: string
   icon?: IconToken
   iconTone?: IconTone

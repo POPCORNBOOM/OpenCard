@@ -156,6 +156,16 @@
             :activation-mode="isExportTemplateMode ? 'none' : 'double-click'"
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
+          <OcTree
+            v-else-if="list.key === VERSION_LIST_KEY && versionTreeData.rootKeys.length > 0"
+            class="open-card-shell__sidebar-tree"
+            :data="versionTreeData"
+            :selected-keys="selectedVersionKeys"
+            role="listbox"
+            selection-mode="single"
+            activation-mode="single-click"
+            @intent="handleVersionTreeIntent"
+          />
           <div v-else class="shell-sidebar-empty">
             <OcButton
               v-if="list.key === PROJECT_FILES_LIST_KEY && !projectPath && !effectiveSidebarCollapsed"
@@ -295,6 +305,13 @@
       @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
       @submit="startProjectExport" />
 
+    <SaveVersionDialog
+      :confirmation="saveVersionConfirmation"
+      :busy="versionWriteState.status === 'running'"
+      @close="cancelSaveVersion"
+      @submit="handleSaveVersionConfirm"
+    />
+
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
       <span>{{ t('app.shell.dropFilesToOpen') }}</span>
@@ -419,6 +436,7 @@ import type {
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
+import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -475,6 +493,7 @@ const PROJECT_FILES_LIST_KEY = 'project-files'
 const OPENED_EDITORS_LIST_KEY = 'opened-editors'
 const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
 const CHANGES_LIST_KEY = 'changes'
+const VERSION_LIST_KEY = 'versions'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const BUILTIN_TEMPLATES_LIST_KEY = 'builtin-templates'
 const USER_TEMPLATES_LIST_KEY = 'user-templates'
@@ -544,9 +563,6 @@ const settingsStore = useAppSettingsStore()
 const templateStore = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
 const shellPage = ref<ShellPage>({ type: 'welcome' })
-const {
-  dispose: disposeVersioning,
-} = useVersioning({ projectPath })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
 const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
@@ -728,6 +744,7 @@ const {
   closeSessionsByPath,
   saveSession,
   saveActiveSession,
+  prepareSessionContent,
   remapSessionPaths,
 } = useEditorSessionStore()
 
@@ -766,6 +783,25 @@ const {
     updateSessionUiState,
     saveActiveSession,
   },
+})
+
+const {
+  readiness: versionReadiness,
+  status: versionStatus,
+  versions: projectVersions,
+  writeState: versionWriteState,
+  saveVersionConfirmation,
+  openSaveVersion,
+  cancelSaveVersion,
+  confirmSaveVersion,
+  prepare: prepareVersioning,
+  dispose: disposeVersioning,
+} = useVersioning({
+  projectPath,
+  sessions,
+  flushAffectedSessions: flushActiveEditorForClose,
+  prepareSessionContent,
+  saveSession,
 })
 
 const {
@@ -971,9 +1007,31 @@ const recentProjectTreeData = computed(() => (
     recentProjectAvailability.value,
   )
 ))
+const versionTreeData = computed<OcTreeData>(() => {
+  const items = new Map<string, OcTreeItem>()
+  const rootKeys = projectVersions.value.map(version => {
+    const key = `version:${version.commitId}`
+    const isCurrent = versionStatus.value?.current?.commitId === version.commitId
+    const labels = [
+      isCurrent ? t('versioning.list.current') : undefined,
+      version.release ? t('versioning.list.published') : t('versioning.list.saved'),
+    ].filter((value): value is string => Boolean(value))
+    items.set(key, {
+      label: `v${version.version}`,
+      description: version.description,
+      tail: labels.join(' · '),
+      icon: 'data.version',
+      iconTone: isCurrent ? 'primary' : version.release ? 'success' : undefined,
+    })
+    return key
+  })
+  return { rootKeys, items, children: new Map() }
+})
 const selectedRecentProjectKeys = ref<string[]>([])
+const selectedVersionKeys = ref<string[]>([])
 watch(projectPath, () => {
   selectedRecentProjectKeys.value = []
+  selectedVersionKeys.value = []
 }, { flush: 'sync' })
 
 let recentProjectProbeRevision = 0
@@ -1316,6 +1374,11 @@ const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
   ] satisfies ShellTitleBarWindowControl[] : []),
 ])
 
+const hasWorkspaceVersionChanges = computed(() => (
+  (versionStatus.value?.changeSummary.files.length ?? 0) > 0
+  || sessions.value.some(session => session.resourceKind === 'workspace' && session.isDirty)
+))
+
 const sidebarHeadButtons = computed<ShellButton[]>(() => {
   if (isCreateProjectMode.value || isExportTemplateMode.value) {
     return [{
@@ -1339,6 +1402,15 @@ const sidebarHeadButtons = computed<ShellButton[]>(() => {
   }
   return [
     { key: 'new-open-card', icon: 'action.file-plus', title: t('app.menu.newOpenCard') },
+    {
+      key: 'save-version',
+      icon: 'action.save',
+      title: t('versioning.save.title'),
+      disabled: !projectPath.value
+        || versionReadiness.value.status !== 'ready'
+        || versionWriteState.value.status !== 'idle'
+        || !hasWorkspaceVersionChanges.value,
+    },
     {
       key: 'publish-version',
       icon: 'action.publish',
@@ -1520,6 +1592,21 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('sidebar.changes'),
       placeholder: t('sidebar.comingSoon'),
       actions: [],
+    },
+    {
+      key: VERSION_LIST_KEY,
+      title: t('sidebar.versions'),
+      placeholder: versionReadiness.value.status === 'preparing'
+        ? t('versioning.list.loading')
+        : versionReadiness.value.status === 'degraded'
+          ? t('versioning.list.unavailable')
+          : t('versioning.list.empty'),
+      actions: [{
+        key: 'version-history.refresh',
+        icon: 'action.refresh',
+        hoverTip: t('versioning.actions.refresh'),
+        disabled: !projectPath.value || versionReadiness.value.status === 'preparing',
+      }],
     },
   ]
 })
@@ -1821,7 +1908,20 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
   if (shouldOpen) void openRecentProject(path)
 }
 
+function handleVersionTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'selection.change') {
+    selectedVersionKeys.value = intent.selectedKeys
+    return
+  }
+  if (intent.type === 'node.activate') selectedVersionKeys.value = [intent.key]
+}
+
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
+  if (listKey === VERSION_LIST_KEY && actionKey === 'version-history.refresh') {
+    await prepareVersioning(projectPath.value)
+    return
+  }
+
   if (shellPage.value.type === 'workbench' && listKey === PROJECT_FILES_LIST_KEY) {
     if (actionKey === PROJECT_NEW_OPENCARD_ACTION_KEY) {
       await createProjectEntry('opencard')
@@ -2322,6 +2422,11 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'save-version') {
+    await openSaveVersion()
+    return
+  }
+
   if (actionKey === 'undo-active-editor') {
     await triggerCurrentEditorUndo()
     return
@@ -2403,6 +2508,14 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'export-card-documents' && projectPath.value) {
     await openProjectExportDialog()
+  }
+}
+
+async function handleSaveVersionConfirm(description: string): Promise<void> {
+  try {
+    await confirmSaveVersion(description)
+  } catch {
+    // The versioning flow reports the stable application error and keeps the dialog open.
   }
 }
 

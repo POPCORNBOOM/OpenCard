@@ -93,6 +93,7 @@ export const iconTokens = {
   'data.list-selection': true,
   'data.list-tree': true,
   'data.table': true,
+  'data.version': true,
   'data.symbol-boolean': true,
   'data.symbol-class': true,
   'data.symbol-color': true,

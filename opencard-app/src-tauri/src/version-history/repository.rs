@@ -3,6 +3,7 @@ use git2::{Commit, ObjectType, Repository, Tree};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
+use std::path::Component;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +35,25 @@ pub struct ListVersionsRequest {
     generation: u64,
     cursor: Option<String>,
     limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftOverlayDto {
+    session_id: String,
+    relative_path: String,
+    content: String,
+    content_revision: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewChangesRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    overlays: Vec<DraftOverlayDto>,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +126,22 @@ pub struct VersionListResponse {
     project_id: String,
     items: Vec<VersionRecordDto>,
     next_cursor: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayRevisionDto {
+    session_id: String,
+    relative_path: String,
+    content_revision: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewChangesResponse {
+    project_id: String,
+    change_summary: ChangeSummaryDto,
+    overlay_revisions: Vec<OverlayRevisionDto>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -261,6 +297,78 @@ pub async fn version_list(
         )
     })?;
     result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
+pub async fn version_preview_changes(
+    request: PreviewChangesRequest,
+    app_handle: tauri::AppHandle,
+) -> Result<PreviewChangesResponse, VersionErrorDto> {
+    let operation = "version_preview_changes";
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+    {
+        return Err(to_error_dto(
+            operation,
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-request",
+                "missing preview request field",
+            ),
+        ));
+    }
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        preview_changes(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+fn preview_changes(
+    context: &ProjectHistoryContext,
+    request: PreviewChangesRequest,
+) -> Result<PreviewChangesResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let repository = open_repository(context)?;
+    let current_entries = snapshot_entries(context, &request.overlays)?;
+    let head_entries = match head_commit(&repository)? {
+        Some(commit) => tree_entries(
+            &repository,
+            &commit.tree().map_err(repository_error("read-head-tree"))?,
+        )?,
+        None => BTreeMap::new(),
+    };
+    let snapshot_id = snapshot_id(&current_entries)?;
+    Ok(PreviewChangesResponse {
+        project_id: context.project_id.clone(),
+        change_summary: summarize_changes(
+            compare_entries(&head_entries, &current_entries),
+            snapshot_id,
+        ),
+        overlay_revisions: request
+            .overlays
+            .into_iter()
+            .map(|overlay| OverlayRevisionDto {
+                session_id: overlay.session_id,
+                relative_path: overlay.relative_path,
+                content_revision: overlay.content_revision,
+            })
+            .collect(),
+    })
 }
 
 fn list_versions(
@@ -718,6 +826,13 @@ fn head_commit(repository: &Repository) -> Result<Option<Commit<'_>>, HistoryFai
 fn current_snapshot_entries(
     context: &ProjectHistoryContext,
 ) -> Result<BTreeMap<String, SnapshotEntry>, HistoryFailure> {
+    snapshot_entries(context, &[])
+}
+
+fn snapshot_entries(
+    context: &ProjectHistoryContext,
+    overlays: &[DraftOverlayDto],
+) -> Result<BTreeMap<String, SnapshotEntry>, HistoryFailure> {
     let paths = scan_managed_files(&context.canonical_root, &context.template_managed_paths)?;
     let mut entries = BTreeMap::new();
     for relative_path in paths {
@@ -733,6 +848,63 @@ fn current_snapshot_entries(
             SnapshotEntry {
                 comparison_oid: comparison_oid_for_file(&absolute_path, &relative_path, oid)?,
                 mode: file_mode(&absolute_path)?,
+            },
+        );
+    }
+    let mut overlay_paths = BTreeSet::new();
+    for overlay in overlays {
+        let relative_path = overlay.relative_path.replace('\\', "/");
+        let path = Path::new(&relative_path);
+        let valid_path = !relative_path.is_empty()
+            && !path.is_absolute()
+            && path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)));
+        let template_managed = context
+            .template_managed_paths
+            .iter()
+            .any(|candidate| candidate == &relative_path);
+        if !valid_path || !is_managed_file(&relative_path, template_managed) {
+            return Err(HistoryFailure::new(
+                "unsupported-entry",
+                "validate-overlay",
+                "overlay path is not managed",
+            )
+            .relative_path(&relative_path));
+        }
+        if !overlay_paths.insert(relative_path.clone()) {
+            return Err(HistoryFailure::new(
+                "invalid-request",
+                "validate-overlay",
+                "duplicate overlay path",
+            )
+            .relative_path(&relative_path));
+        }
+        if overlay.content.len() as u64 > MAX_FILE_SIZE {
+            return Err(HistoryFailure::new(
+                "snapshot-limit",
+                "validate-overlay",
+                "overlay exceeds size limit",
+            )
+            .relative_path(&relative_path));
+        }
+        let content_oid = Oid::hash_object(ObjectType::Blob, overlay.content.as_bytes())
+            .map_err(repository_error("hash-overlay"))?;
+        let absolute_path = context.canonical_root.join(&relative_path);
+        let mode = if absolute_path.is_file() {
+            file_mode(&absolute_path)?
+        } else {
+            0o100644
+        };
+        entries.insert(
+            relative_path.clone(),
+            SnapshotEntry {
+                comparison_oid: if relative_path == ".ocproject" {
+                    comparison_oid_for_profile(overlay.content.as_bytes(), content_oid)?
+                } else {
+                    content_oid
+                },
+                mode,
             },
         );
     }
@@ -1274,5 +1446,58 @@ mod tests {
 
         assert_eq!(error.code, "stale-state");
         assert!(get_status(&context, 1).unwrap().current.is_none());
+    }
+
+    #[test]
+    fn preview_changes_applies_dirty_overlay_without_writing_project_file() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("notes.txt"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+        create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "initial".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: status.expected_head_commit_id,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "Initial".to_owned(),
+            },
+        )
+        .unwrap();
+
+        let preview = preview_changes(
+            &context,
+            PreviewChangesRequest {
+                operation_id: "preview".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                overlays: vec![DraftOverlayDto {
+                    session_id: "session".to_owned(),
+                    relative_path: "notes.txt".to_owned(),
+                    content: "second".to_owned(),
+                    content_revision: 3,
+                }],
+            },
+        )
+        .unwrap();
+
+        assert_eq!(preview.change_summary.modified, 1);
+        assert_eq!(preview.overlay_revisions[0].content_revision, 3);
+        assert_eq!(
+            fs::read(project.path().join("notes.txt")).unwrap(),
+            b"first"
+        );
+        assert_eq!(get_status(&context, 1).unwrap().change_summary.modified, 0);
     }
 }
