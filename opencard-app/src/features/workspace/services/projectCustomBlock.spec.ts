@@ -46,6 +46,22 @@ describe('project custom block package', () => {
     expect(() => createProjectCustomBlockArchive({ ...manifest, root: nested })).toThrow('packaging state')
   })
 
+  it('normalizes descendant custom field definitions before archive validation', async () => {
+    const manifest = await createManifest()
+    const root = createBlock('simple-container-block', { id: 'container' })
+    const child = createBlock('text-block', { id: 'child' })
+    ;(child as unknown as Record<string, unknown>).additionalFieldDefinition = {
+      label: { fieldType: 'string', title: 'Label', editorOnly: false },
+      invalid: false,
+    }
+    root.children.push({
+      block: child,
+      location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+    })
+
+    expect(() => createProjectCustomBlockArchive({ ...manifest, root, publicFields: [] })).not.toThrow()
+  })
+
   it('rejects missing, unlisted, case-duplicate, traversal, and corrupt files', async () => {
     const manifest = await createManifest()
     manifest.resources = { images: [{ key: 'image', source: 'resources/images/a.png' }] }

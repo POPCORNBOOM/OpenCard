@@ -27,8 +27,25 @@ function normalizeArchivePath(value: string): string | null {
   return path
 }
 
+function normalizeAdditionalFieldDefinitions(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeAdditionalFieldDefinitions)
+  if (!value || typeof value !== 'object') return value
+
+  const source = value as Record<string, unknown>
+  const normalized: Record<string, unknown> = {}
+  for (const [key, fieldValue] of Object.entries(source)) {
+    if (key === 'additionalFieldDefinition') {
+      const definitions = parseAdditionalFieldDefinitions(fieldValue)
+      if (Object.keys(definitions).length > 0) normalized[key] = definitions
+      continue
+    }
+    normalized[key] = normalizeAdditionalFieldDefinitions(fieldValue)
+  }
+  return normalized
+}
+
 function validateNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest): CardBlock {
-  const block = parseStoredCardBlock(root)
+  const block = parseStoredCardBlock(normalizeAdditionalFieldDefinitions(root))
   const ids = new Set<string>()
   const visit = (candidate: CardBlock): void => {
     if (!candidate.id.trim() || ids.has(candidate.id)) throw new Error('Custom block tree contains an invalid or duplicate ID')
