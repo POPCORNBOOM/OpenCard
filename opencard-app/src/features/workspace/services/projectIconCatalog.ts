@@ -36,7 +36,7 @@ export type ProjectImageDimensionLoader = (src: string) => Promise<ProjectImageD
 export const EMPTY_PROJECT_ICON_CATALOG: ProjectIconCatalog = { series: [], entries: [], errors: [] }
 
 export function projectIconIdentity(seriesKey: string, iconKey: string): string {
-  return `${seriesKey.toLocaleLowerCase()}\u0000${iconKey.toLocaleLowerCase()}`
+  return `${seriesKey.toLowerCase()}\u0000${iconKey.toLowerCase()}`
 }
 
 export async function loadProjectImageDimensions(src: string): Promise<ProjectImageDimensions> {
@@ -109,7 +109,7 @@ export function findProjectIconSeries(
   catalog: ProjectIconCatalog | null | undefined,
   seriesKey: string,
 ): ProjectIconSeriesRuntime | null {
-  return catalog?.series.find(series => series.key.toLocaleLowerCase() === seriesKey.toLocaleLowerCase()) ?? null
+  return catalog?.series.find(series => series.key.toLowerCase() === seriesKey.toLowerCase()) ?? null
 }
 
 export function findProjectIcon(

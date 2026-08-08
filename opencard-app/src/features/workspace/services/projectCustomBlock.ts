@@ -14,6 +14,10 @@ import {
 
 const MAX_CUSTOM_BLOCK_BYTES = 128 * 1024 * 1024
 const MAX_CUSTOM_BLOCK_UNPACKED_BYTES = 512 * 1024 * 1024
+const MAX_CUSTOM_BLOCK_ENTRIES = 256
+const MAX_CUSTOM_BLOCK_ENTRY_BYTES = 256 * 1024 * 1024
+const ZIP_END_OF_CENTRAL_DIRECTORY = 0x06054b50
+const ZIP_CENTRAL_DIRECTORY_ENTRY = 0x02014b50
 
 export type ProjectCustomBlockPackage = {
   manifest: ProjectCustomBlockManifest
@@ -42,6 +46,50 @@ function normalizeAdditionalFieldDefinitions(value: unknown): unknown {
     normalized[key] = normalizeAdditionalFieldDefinitions(fieldValue)
   }
   return normalized
+}
+
+function preflightZipArchive(bytes: Uint8Array): void {
+  if (bytes.byteLength < 22) throw new Error('Custom block archive is invalid')
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const searchStart = Math.max(0, bytes.byteLength - 0xffff - 22)
+  let endOffset = -1
+  for (let offset = bytes.byteLength - 22; offset >= searchStart; offset -= 1) {
+    if (view.getUint32(offset, true) === ZIP_END_OF_CENTRAL_DIRECTORY) {
+      endOffset = offset
+      break
+    }
+  }
+  if (endOffset < 0) throw new Error('Custom block archive is invalid')
+
+  const entryCount = view.getUint16(endOffset + 10, true)
+  const directorySize = view.getUint32(endOffset + 12, true)
+  const directoryOffset = view.getUint32(endOffset + 16, true)
+  if (entryCount === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff
+    || entryCount > MAX_CUSTOM_BLOCK_ENTRIES || directoryOffset + directorySize > endOffset) {
+    throw new Error('Custom block archive exceeds limits')
+  }
+
+  let cursor = directoryOffset
+  let unpackedBytes = 0
+  for (let index = 0; index < entryCount; index += 1) {
+    if (cursor + 46 > directoryOffset + directorySize
+      || view.getUint32(cursor, true) !== ZIP_CENTRAL_DIRECTORY_ENTRY) {
+      throw new Error('Custom block archive is invalid')
+    }
+    const uncompressedSize = view.getUint32(cursor + 24, true)
+    const nameLength = view.getUint16(cursor + 28, true)
+    const extraLength = view.getUint16(cursor + 30, true)
+    const commentLength = view.getUint16(cursor + 32, true)
+    if (uncompressedSize > MAX_CUSTOM_BLOCK_ENTRY_BYTES) {
+      throw new Error('Custom block archive exceeds limits')
+    }
+    unpackedBytes += uncompressedSize
+    if (unpackedBytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) {
+      throw new Error('Custom block archive exceeds limits')
+    }
+    cursor += 46 + nameLength + extraLength + commentLength
+  }
+  if (cursor !== directoryOffset + directorySize) throw new Error('Custom block archive is invalid')
 }
 
 function validateNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest): CardBlock {
@@ -98,8 +146,8 @@ function indexedResourcePaths(manifest: ProjectCustomBlockManifest): string[] {
   for (const group of groups) {
     for (const rawPath of group.paths) {
       const path = normalizeArchivePath(rawPath)
-      const identity = path?.toLocaleLowerCase()
-      if (!path || !path.toLocaleLowerCase().startsWith(group.prefix) || identities.has(identity!)) {
+      const identity = path?.toLowerCase()
+      if (!path || !path.toLowerCase().startsWith(group.prefix) || identities.has(identity!)) {
         throw new Error('Custom block resource index is invalid')
       }
       identities.add(identity!)
@@ -114,10 +162,43 @@ function validatePackageFiles(manifest: ProjectCustomBlockManifest, files: Reado
   for (const path of indexed) {
     if (!files.has(path)) throw new Error('Custom block resource is missing')
   }
-  const allowed = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, ...indexed].map(path => path.toLocaleLowerCase()))
+  const allowed = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, ...indexed].map(path => path.toLowerCase()))
   for (const path of files.keys()) {
-    if (!allowed.has(path.toLocaleLowerCase())) throw new Error('Custom block package contains an unlisted file')
+    if (!allowed.has(path.toLowerCase())) throw new Error('Custom block package contains an unlisted file')
   }
+}
+
+function validateResourceReferences(manifest: ProjectCustomBlockManifest, root: CardBlock): void {
+  const imagePaths = new Set((manifest.resources?.images ?? []).map(resource => resource.source))
+  const iconSeries = new Map((manifest.resources?.iconSeries ?? []).map(series => [series.key, new Set(series.icons.map(icon => icon.iconKey))]))
+  const iconTokenPattern = /\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]/gi
+  const richIconTagPattern = /<[^>]*data-oc-icon-series\s*=\s*(["'])([^"']+)\1[^>]*data-oc-icon-key\s*=\s*(["'])([^"']+)\3[^>]*>/gi
+  const validateIconReference = (seriesKey: string, iconKey: string): void => {
+    const icons = iconSeries.get(seriesKey)
+    if (seriesKey.toLowerCase().startsWith('ocblock-') && (!icons || !icons.has(iconKey))) {
+      throw new Error('Custom block icon reference is not indexed')
+    }
+  }
+  const visit = (block: CardBlock): void => {
+    if (block.type === 'image-block' && block.image.toLowerCase().startsWith('ocblock:')) {
+      const prefix = `ocblock:${manifest.key}/`
+      if (!block.image.startsWith(prefix) || !imagePaths.has(block.image.slice(prefix.length))) {
+        throw new Error('Custom block image reference is not indexed')
+      }
+    }
+    for (const value of Object.values(block)) {
+      if (typeof value !== 'string') continue
+      for (const match of value.matchAll(iconTokenPattern)) {
+        validateIconReference(match[1]!, match[2]!)
+      }
+      for (const match of value.matchAll(richIconTagPattern)) {
+        validateIconReference(match[2]!, match[4]!)
+      }
+    }
+    if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
+    for (const child of block.children) visit(child.block)
+  }
+  visit(root)
 }
 
 export function createProjectCustomBlockArchive(
@@ -133,19 +214,21 @@ export function createProjectCustomBlockArchive(
     archive[path] = bytes
   }
   validateNativeRoot(manifest.root, manifest)
+  validateResourceReferences(manifest, manifest.root)
   validatePackageFiles(manifest, new Map(Object.entries(archive)))
   return zipSync(archive, { level: 9 })
 }
 
 export async function readProjectCustomBlockPackageFromBytes(bytes: Uint8Array): Promise<ProjectCustomBlockPackage> {
   if (bytes.byteLength > MAX_CUSTOM_BLOCK_BYTES) throw new Error('Custom block package is too large')
+  preflightZipArchive(bytes)
   const unpacked = unzipSync(bytes)
   const files = new Map<string, Uint8Array>()
   const pathIdentities = new Set<string>()
   let unpackedBytes = 0
   for (const [rawPath, content] of Object.entries(unpacked)) {
     const path = normalizeArchivePath(rawPath)
-    const identity = path?.toLocaleLowerCase()
+    const identity = path?.toLowerCase()
     if (!path || pathIdentities.has(identity!)) throw new Error('Invalid custom block archive path')
     pathIdentities.add(identity!)
     unpackedBytes += content.byteLength
@@ -164,7 +247,8 @@ export async function readProjectCustomBlockPackageFromBytes(bytes: Uint8Array):
   if (!manifest || manifest.schemaVersion !== PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION) {
     throw new Error('Custom block manifest is invalid')
   }
-  validateNativeRoot(manifest.root, manifest)
+  const root = validateNativeRoot(manifest.root, manifest)
+  validateResourceReferences(manifest, root)
   validatePackageFiles(manifest, files)
   const interfaceHash = await computeProjectCustomBlockInterfaceHash(manifest.publicFields, manifest.resize)
   if (interfaceHash !== manifest.interfaceHash) throw new Error('Custom block interface hash does not match')
@@ -184,7 +268,7 @@ export async function exportProjectCustomBlockPackage(options: {
   files?: ReadonlyMap<string, Uint8Array>
   outputPath: string
 }): Promise<string> {
-  const outputPath = options.outputPath.toLocaleLowerCase().endsWith('.ocblock')
+  const outputPath = options.outputPath.toLowerCase().endsWith('.ocblock')
     ? options.outputPath
     : `${options.outputPath}.ocblock`
   await options.fs.writeBinaryFile(outputPath, createProjectCustomBlockArchive(options.manifest, options.files))

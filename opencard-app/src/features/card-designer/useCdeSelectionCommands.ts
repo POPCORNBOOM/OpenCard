@@ -60,17 +60,28 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
-    if (intent.width === undefined && intent.height === undefined) return false
-    if (intent.width !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'width')) target.block.width = formatCssPixels(intent.width)
-    if (intent.height !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'height')) target.block.height = formatCssPixels(intent.height)
-    if (intent.width !== undefined && options.isResizeAxisLocked?.(intent.blockId, 'width')
-      && intent.height === undefined) return false
-    if (intent.height !== undefined && options.isResizeAxisLocked?.(intent.blockId, 'height')
-      && intent.width === undefined) return false
-    if (target.location.type === 'simple-container-location') {
-      target.location.x = formatCssPixels(intent.x ?? 0)
-      target.location.y = formatCssPixels(intent.y ?? 0)
+    const widthLocked = options.isResizeAxisLocked?.(intent.blockId, 'width') === true
+    const heightLocked = options.isResizeAxisLocked?.(intent.blockId, 'height') === true
+    let changed = false
+    if (intent.width !== undefined && !widthLocked) {
+      target.block.width = formatCssPixels(intent.width)
+      changed = true
     }
+    if (intent.height !== undefined && !heightLocked) {
+      target.block.height = formatCssPixels(intent.height)
+      changed = true
+    }
+    if (target.location.type === 'simple-container-location') {
+      if (intent.x !== undefined && !widthLocked) {
+        target.location.x = formatCssPixels(intent.x)
+        changed = true
+      }
+      if (intent.y !== undefined && !heightLocked) {
+        target.location.y = formatCssPixels(intent.y)
+        changed = true
+      }
+    }
+    if (!changed) return false
     commitAction()
     return true
   }

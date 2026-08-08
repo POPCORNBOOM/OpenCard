@@ -63,7 +63,9 @@ export function materializeProjectCustomBlockExport(options: {
   const located = locateBlock(options.document, options.rootBlockId)
   if (!located) throw new Error(`Custom block export root not found: ${options.rootBlockId}`)
   const sourceSubtreeIds = new Set(collectSubtreeDepths(located.block).keys())
-  const expanded = expandCustomBlocks(options.document, options.customBlockCatalog)
+  const expanded = expandCustomBlocks(options.document, options.customBlockCatalog, {
+    resolveRuntimeResources: false,
+  })
   const expandedRoot = locateBlock(expanded.document, options.rootBlockId)
   if (!expandedRoot) throw new Error(`Expanded custom block export root not found: ${options.rootBlockId}`)
   const subtreeDepths = collectSubtreeDepths(expandedRoot.block)

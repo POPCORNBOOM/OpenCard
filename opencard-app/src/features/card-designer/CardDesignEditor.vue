@@ -1000,7 +1000,7 @@ const {
   selectedBlockKeys,
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
   createCustomBlock: key => {
-    const entry = projectStore.projectCustomBlockCatalog.value.get(key.toLocaleLowerCase())
+    const entry = projectStore.projectCustomBlockCatalog.value.get(key.toLowerCase())
     return entry ? createProjectCustomBlockInstance(entry) : null
   },
   refreshDocumentState,
@@ -1103,7 +1103,7 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
     name: payload.name,
     exposedFieldKeys: payload.exposedFieldKeys,
   })
-  const registeredEntry = projectStore.projectCustomBlockCatalog.value.get(manifest.key.toLocaleLowerCase())
+  const registeredEntry = projectStore.projectCustomBlockCatalog.value.get(manifest.key.toLowerCase())
   if (registeredEntry && registeredEntry.manifest.interfaceHash !== manifest.interfaceHash) {
     customBlockExportErrorText.value = t('cardDesigner.customBlock.interfaceMismatch', { key: manifest.key })
     return
@@ -1117,7 +1117,11 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
     customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
     remoteResourcePolicy: props.remoteResourcePolicy,
     fs: fileSystemService,
-    fetchBytes: async url => new Uint8Array(await (await fetch(url)).arrayBuffer()),
+    fetchBytes: async url => {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Custom block image download failed: ${response.status} ${response.statusText}`)
+      return new Uint8Array(await response.arrayBuffer())
+    },
   })
   if (Object.keys(resources.index).length) manifest.resources = resources.index
   rewriteProjectCustomBlockResourceReferences(manifest.root, manifest.key, resources)
@@ -1178,7 +1182,7 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
 
 function handleStructureTreeCardAction(payload: { key: string }) {
   if (payload.key.startsWith('add-custom-block:')) {
-    const key = payload.key.slice('add-custom-block:'.length).toLocaleLowerCase()
+    const key = payload.key.slice('add-custom-block:'.length).toLowerCase()
     const entry = projectStore.projectCustomBlockCatalog.value.get(key)
     if (entry) insertBlockAtRoot(createProjectCustomBlockInstance(entry))
     return
@@ -1446,7 +1450,7 @@ const transformDisabledBlockIds = computed(() => {
 const selectedCustomBlockResize = computed(() => {
   const block = selectedBlock.value
   if (!block || block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
-  const key = block.source.startsWith('block:') ? block.source.slice(6).toLocaleLowerCase() : ''
+  const key = block.source.startsWith('block:') ? block.source.slice(6).toLowerCase() : ''
   return projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
     ?? { widthLocked: false, heightLocked: false }
 })
@@ -1529,7 +1533,7 @@ const {
   isResizeAxisLocked: (blockId: string, axis: 'width' | 'height') => {
     const block = getBlockById(blockId)
     if (!block || block.type !== 'custom-block') return false
-    const key = block.source.startsWith('block:') ? block.source.slice(6).toLocaleLowerCase() : ''
+    const key = block.source.startsWith('block:') ? block.source.slice(6).toLowerCase() : ''
     const policy = projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
     return axis === 'width' ? Boolean(policy?.widthLocked) : Boolean(policy?.heightLocked)
   },

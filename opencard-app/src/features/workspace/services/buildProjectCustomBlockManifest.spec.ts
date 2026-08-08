@@ -44,4 +44,12 @@ describe('buildProjectCustomBlockManifest', () => {
       size: { fieldType: 'number', title: 'Size' },
     })
   })
+
+  it('rejects an exposed field that cannot be normalized', async () => {
+    const root = createBlock('text-block')
+    ;(root as unknown as Record<string, unknown>).additionalFieldDefinition = { broken: false }
+
+    await expect(buildProjectCustomBlockManifest({ root, key: 'invalid', exposedFieldKeys: ['broken'] }))
+      .rejects.toThrow('not defined on the root')
+  })
 })

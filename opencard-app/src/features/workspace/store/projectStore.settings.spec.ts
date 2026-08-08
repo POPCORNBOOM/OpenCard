@@ -421,6 +421,33 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('does not let an older custom block reload overwrite a newer catalog', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    mocks.fileExists.mockImplementation(async path => path.endsWith('.ocblocks'))
+    let resolveOld: (value: ReturnType<typeof packageResultForTest>) => void = () => undefined
+    const oldPackage = new Promise<ReturnType<typeof packageResultForTest>>(resolve => { resolveOld = resolve })
+    mocks.readFile.mockImplementation(async () => '{"blocks":["old.ocblock"]}')
+    mocks.readProjectCustomBlockPackage.mockImplementationOnce(async () => await oldPackage)
+
+    const oldReload = store.reloadProjectCustomBlockRegistry()
+    await Promise.resolve()
+    mocks.readFile.mockImplementation(async () => '{"blocks":["new.ocblock"]}')
+    mocks.readProjectCustomBlockPackage.mockImplementationOnce(async () => ({
+      ...packageResultForTest('same-interface'),
+      manifest: { ...packageResultForTest('same-interface').manifest, key: 'new' },
+    }))
+    const newReload = store.reloadProjectCustomBlockRegistry()
+    resolveOld({
+      ...packageResultForTest('same-interface'),
+      manifest: { ...packageResultForTest('same-interface').manifest, key: 'old' },
+    })
+
+    await Promise.all([oldReload, newReload])
+    expect([...store.projectCustomBlockCatalog.value.keys()]).toEqual(['new'])
+    await store.setProjectPath('')
+  })
+
   it('validates the actual project package selected by use-existing', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => (
       path.endsWith('.ocblocks') || path.endsWith('/assets/blocks/square.ocblock')

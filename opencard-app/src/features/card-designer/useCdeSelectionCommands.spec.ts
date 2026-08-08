@@ -113,6 +113,18 @@ describe('useCdeSelectionCommands', () => {
     expect(commands.resizeSelection({ blockId: child.id, width: 99, height: 44 })).toBe(true)
     expect(child.width).toBe('20px')
     expect(child.height).toBe('44px')
+    expect(commands.resizeSelection({ blockId: child.id, x: 99 })).toBe(false)
+    expect(simple.children[0]!.location.x).toBe('1px')
+  })
+
+  it('rejects fully locked resize intents without committing position changes', () => {
+    const { commands, simple, markDocumentChanged } = createHarness(() => true)
+    const child = simple.children[0]!
+
+    expect(commands.resizeSelection({ blockId: child.block.id, width: 99, height: 44, x: 10, y: 12 })).toBe(false)
+    expect(child.block).toMatchObject({ width: '20px', height: '30px' })
+    expect(child.location).toMatchObject({ x: '1px', y: '2px' })
+    expect(markDocumentChanged).not.toHaveBeenCalled()
   })
 
   it('resizes and moves a simple child with normalized CSS pixels', () => {

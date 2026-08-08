@@ -48,6 +48,25 @@ describe('expandCustomBlocks', () => {
     expect(expanded.type === 'image-block' && expanded.image).toBe('blob:picture')
   })
 
+  it('keeps package resource identities when expanding for export', () => {
+    const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/a.png' })
+    const host = createBlock('custom-block', { source: 'block:picture', interfaceHash: 'hash' })
+    const document: CardDocument = {
+      type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '100', height: '100', instances: [],
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '', children: [{ block: host, location: { id: 'loc', type: 'simple-container-location', anchor: 'lt' } }] },
+        back: { type: 'card-face', id: 'back', background: '', children: [] },
+      },
+    }
+    const result = expandCustomBlocks(document, new Map([['picture', {
+      manifest: { key: 'picture', interfaceHash: 'hash', root, publicFields: [], resize: { widthLocked: false, heightLocked: false } },
+      resourceUrls: new Map([['resources/images/a.png', 'blob:picture']]),
+    }]]), { resolveRuntimeResources: false })
+
+    const expanded = result.document.faces.front.children[0].block
+    expect(expanded.type === 'image-block' && expanded.image).toBe('ocblock:picture/resources/images/a.png')
+  })
+
   it('reports missing packages without removing the host block', () => {
     const host = createBlock('custom-block', { source: 'block:missing', interfaceHash: 'hash' })
     const document: CardDocument = {

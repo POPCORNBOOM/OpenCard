@@ -86,4 +86,30 @@ describe('project custom block package', () => {
     await expect(readProjectCustomBlockPackageFromBytes(new Uint8Array([1, 2, 3])))
       .rejects.toThrow()
   })
+
+  it('rejects archives with too many entries before unpacking', async () => {
+    const entries = Object.fromEntries(Array.from({ length: 257 }, (_, index) => [
+      `resources/images/${index}.png`, new Uint8Array([index]),
+    ]))
+    await expect(readProjectCustomBlockPackageFromBytes(zipSync(entries))).rejects.toThrow('exceeds limits')
+  })
+
+  it('rejects package resource references that are absent from the manifest index', async () => {
+    const manifest = await createManifest()
+    manifest.root = createBlock('image-block', { id: 'root', image: 'ocblock:label/resources/images/missing.png' })
+    manifest.publicFields = []
+
+    expect(() => createProjectCustomBlockArchive(manifest)).toThrow('image reference is not indexed')
+  })
+
+  it('rejects rich-text icon references that are absent from the manifest index', async () => {
+    const manifest = await createManifest()
+    manifest.root = createBlock('text-block', {
+      id: 'root',
+      content: '<span data-oc-icon-series="ocblock-label" data-oc-icon-key="missing"></span>',
+    })
+    manifest.publicFields = []
+
+    expect(() => createProjectCustomBlockArchive(manifest)).toThrow('icon reference is not indexed')
+  })
 })

@@ -80,7 +80,7 @@ export function normalizeProjectCustomBlockArchivePath(value: string): string | 
   const path = value.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
   if (!path || path.startsWith('/') || /^[a-z]:\//i.test(path)
     || path.split('/').some(segment => !segment || segment === '.' || segment === '..')
-    || !path.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)) return null
+    || !path.toLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)) return null
   return path
 }
 
@@ -90,13 +90,13 @@ function parsePublicFields(value: unknown): ProjectCustomBlockPublicField[] | nu
   const keys = new Set<string>()
   for (const candidate of value) {
     if (!isRecord(candidate) || typeof candidate.key !== 'string'
-      || typeof candidate.fieldType !== 'string' || keys.has(candidate.key.toLocaleLowerCase())) return null
+      || typeof candidate.fieldType !== 'string' || keys.has(candidate.key.toLowerCase())) return null
     const key = candidate.key.trim()
-    if (!key || keys.has(key.toLocaleLowerCase())) return null
+    if (!key || keys.has(key.toLowerCase())) return null
     if (candidate.title !== undefined && typeof candidate.title !== 'string') return null
     if (candidate.defaultValue !== undefined && typeof candidate.defaultValue !== 'string') return null
     if (!additionalFieldTypeSet.has(candidate.fieldType)) return null
-    keys.add(key.toLocaleLowerCase())
+    keys.add(key.toLowerCase())
     fields.push({
       key,
       fieldType: candidate.fieldType as PropertyFieldType,
@@ -116,8 +116,8 @@ function parseResources(value: unknown): ProjectCustomBlockResourceIndex | null 
     const seen = new Set<string>()
     const result: T[] = []
     for (const item of candidate) {
-      if (!isRecord(item) || typeof item.key !== 'string' || !item.key.trim() || seen.has(item.key.toLocaleLowerCase()) || !extra(item)) return null
-      seen.add(item.key.toLocaleLowerCase())
+      if (!isRecord(item) || typeof item.key !== 'string' || !item.key.trim() || seen.has(item.key.toLowerCase()) || !extra(item)) return null
+      seen.add(item.key.toLowerCase())
       result.push(item as T)
     }
     return result
@@ -173,7 +173,9 @@ export async function computeProjectCustomBlockInterfaceHash(
   resize: ProjectCustomBlockResizePolicy,
 ): Promise<string> {
   const canonical = JSON.stringify({
-    fields: [...fields].map(field => ({ key: field.key, fieldType: field.fieldType })).sort((a, b) => a.key.localeCompare(b.key)),
+    fields: [...fields].map(field => ({ key: field.key, fieldType: field.fieldType })).sort((a, b) => (
+      a.key < b.key ? -1 : a.key > b.key ? 1 : 0
+    )),
     resize,
   })
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical))
@@ -195,8 +197,8 @@ export function parseProjectCustomBlockRegistry(value: unknown): ProjectCustomBl
   for (const candidate of value.blocks) {
     if (typeof candidate !== 'string') return null
     const path = normalizeProjectCustomBlockArchivePath(candidate)
-    if (!path || seen.has(path.toLocaleLowerCase())) return null
-    seen.add(path.toLocaleLowerCase())
+    if (!path || seen.has(path.toLowerCase())) return null
+    seen.add(path.toLowerCase())
     blocks.push(path)
   }
   return { blocks }

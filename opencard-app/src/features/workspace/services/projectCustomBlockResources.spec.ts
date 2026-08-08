@@ -41,6 +41,46 @@ describe('collectProjectCustomBlockResources', () => {
     })).rejects.toThrow('font:missing')
   })
 
+  it('uses one resource index entry for images with identical bytes', async () => {
+    const root = createBlock('simple-container-block')
+    root.children.push({
+      block: createBlock('image-block', { image: 'assets/first.png' }),
+      location: { id: 'first', type: 'simple-container-location', anchor: 'lt' },
+    }, {
+      block: createBlock('image-block', { image: 'assets/second.jpg' }),
+      location: { id: 'second', type: 'simple-container-location', anchor: 'lt' },
+    })
+
+    const result = await collectProjectCustomBlockResources({
+      root,
+      packageKey: 'images',
+      projectRootPath: 'D:/Cards',
+      fs: { readBinaryFile: vi.fn(async () => new Uint8Array([4, 5, 6])) },
+    })
+
+    expect(result.index.images).toHaveLength(1)
+    expect(result.files.size).toBe(1)
+    expect(result.imageSources.get('assets/first.png')).toBe(result.imageSources.get('assets/second.jpg'))
+  })
+
+  it('repackages image bytes from an expanded custom block catalog entry', async () => {
+    const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/image.png' })
+    const bytes = new Uint8Array([7, 8, 9])
+    const result = await collectProjectCustomBlockResources({
+      root,
+      packageKey: 'outer',
+      projectRootPath: 'D:/Cards',
+      fs: { readBinaryFile: vi.fn() },
+      customBlockCatalog: new Map([['picture', {
+        manifest: { key: 'picture', resources: { images: [{ key: 'image', source: 'resources/images/image.png' }] } },
+        files: new Map([['resources/images/image.png', bytes]]),
+      }]]),
+    })
+
+    expect(result.files.size).toBe(1)
+    expect(result.index.images).toHaveLength(1)
+  })
+
   it('packs only referenced icon crops and rewrites rich-text icon identities', async () => {
     const root = createBlock('text-block', {
       content: '<p><span data-oc-icon-series="items" data-oc-icon-key="sword">[[icon:items/sword]]</span></p>',

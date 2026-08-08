@@ -14,8 +14,8 @@ describe('analyzeProjectCustomBlockExport', () => {
   it('counts descendant parent references and locations', () => {
     const root = createBlock('simple-container-block')
     root.additionalFieldDefinition = { size: { fieldType: 'number' } }
-    const child = createBlock('text-block', { width: '{{parent.size}}' })
-    root.children.push({ block: child, location: { id: 'loc-1', type: 'simple-container-location', anchor: 'lt', x: '{{parent.size}}' } })
+    const child = createBlock('text-block', { width: '{{parent:size}}' })
+    root.children.push({ block: child, location: { id: 'loc-1', type: 'simple-container-location', anchor: 'lt', x: '{{parent:size}}' } })
     expect(analyzeProjectCustomBlockExport(root).fields[0].referenceCount).toBe(2)
   })
 
@@ -32,5 +32,17 @@ describe('analyzeProjectCustomBlockExport', () => {
       location: { id: 'nested-location', type: 'simple-container-location', anchor: 'lt' },
     })
     expect(analyzeProjectCustomBlockExport(root).fields[0].referenceCount).toBe(1)
+  })
+
+  it('follows binding syntax for invalid, case-insensitive, and escaped references', () => {
+    const root = createBlock('text-block', {
+      width: '{{SELF:size}} {{self.size}} \\{{self:size}} \\\\{{self:size}}',
+    })
+    root.additionalFieldDefinition = { size: { fieldType: 'number' } }
+
+    const result = analyzeProjectCustomBlockExport(root)
+
+    expect(result.fields[0]?.referenceCount).toBe(2)
+    expect(result.resize.widthLocked).toBe(true)
   })
 })

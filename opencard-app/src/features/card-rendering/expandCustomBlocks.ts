@@ -50,6 +50,7 @@ function namespaceDescendantIds(block: CardBlock, instanceId: string, root = tru
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
+  options: { resolveRuntimeResources?: boolean } = {},
 ): { document: CardDocument; issues: CustomBlockExpansionIssue[]; hosts: ReadonlyMap<string, CustomBlockExpansionHost> } {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
   const issues: CustomBlockExpansionIssue[] = []
@@ -72,12 +73,12 @@ export function expandCustomBlocks(
       return block
     }
     const key = block.source.startsWith('block:') ? block.source.slice(6) : ''
-    const entry = activeCatalog.get(key.toLocaleLowerCase())
+    const entry = activeCatalog.get(key.toLowerCase())
     if (!entry) {
       issues.push({ blockId: block.id, faceKey, reason: 'missing', source: block.source })
       return block
     }
-    if (ancestors.has(key.toLocaleLowerCase())) {
+    if (ancestors.has(key.toLowerCase())) {
       issues.push({ blockId: block.id, faceKey, reason: 'cycle', source: block.source })
       return block
     }
@@ -87,7 +88,9 @@ export function expandCustomBlocks(
     }
     hosts.set(block.id, { source: block.source, interfaceHash: block.interfaceHash })
     const root = clone(entry.manifest.root) as CardBlock
-    resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
+    if (options.resolveRuntimeResources !== false) {
+      resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
+    }
     namespaceDescendantIds(root, block.id)
     root.name = block.name
     root.notes = block.notes
@@ -102,7 +105,7 @@ export function expandCustomBlocks(
     if (!entry.manifest.resize.widthLocked && block.width !== undefined) root.width = block.width
     if (!entry.manifest.resize.heightLocked && block.height !== undefined) root.height = block.height
     const nextAncestors = new Set(ancestors)
-    nextAncestors.add(key.toLocaleLowerCase())
+    nextAncestors.add(key.toLowerCase())
     return expand(root, nextAncestors, faceKey)
   }
 

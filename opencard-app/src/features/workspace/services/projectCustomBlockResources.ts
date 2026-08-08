@@ -62,7 +62,7 @@ function decodeDataUrl(source: string): { bytes: Uint8Array; extension: string }
 
 function extensionOf(source: string, fallback: string): string {
   const path = source.split(/[?#]/, 1)[0]
-  return /\.([a-z0-9]+)$/i.exec(path)?.[1].toLocaleLowerCase() ?? fallback
+  return /\.([a-z0-9]+)$/i.exec(path)?.[1].toLowerCase() ?? fallback
 }
 
 export async function collectProjectCustomBlockResources(options: {
@@ -86,8 +86,8 @@ export async function collectProjectCustomBlockResources(options: {
     const fontFamily = 'fontFamily' in block ? block.fontFamily : undefined
     for (const entry of fontFamily?.split(';') ?? []) {
       const value = entry.trim()
-      if (value.toLocaleLowerCase().startsWith('font:')) fontKeys.add(value.slice(5).toLocaleLowerCase())
-      else if (value.toLocaleLowerCase().startsWith('opencardcustomblock-')) packagedFontFamilies.add(value.toLocaleLowerCase())
+      if (value.toLowerCase().startsWith('font:')) fontKeys.add(value.slice(5).toLowerCase())
+      else if (value.toLowerCase().startsWith('opencardcustomblock-')) packagedFontFamilies.add(value.toLowerCase())
     }
     for (const value of Object.values(block)) {
       if (typeof value !== 'string') continue
@@ -106,6 +106,7 @@ export async function collectProjectCustomBlockResources(options: {
 
   const files = new Map<string, Uint8Array>()
   const images: { key: string; source: string }[] = []
+  const imageArchivePaths = new Map<string, string>()
   const fonts: { key: string; name: string; source: string }[] = []
   const imageSourceMap = new Map<string, string>()
   const fontSourceMap = new Map<string, string>()
@@ -126,20 +127,31 @@ export async function collectProjectCustomBlockResources(options: {
         throw new Error(`Custom block image cannot be downloaded: ${source}`)
       }
       bytes = await options.fetchBytes(source)
+    } else if (source.toLowerCase().startsWith('ocblock:')) {
+      const match = /^ocblock:([^/]+)\/(.+)$/i.exec(source)
+      const packageKey = match?.[1]?.toLowerCase()
+      const resourcePath = match?.[2]
+      const entry = packageKey ? options.customBlockCatalog?.get(packageKey) : undefined
+      if (!entry || !resourcePath || !entry.files.has(resourcePath)) {
+        throw new Error(`Custom block image resource is missing: ${source}`)
+      }
+      bytes = entry.files.get(resourcePath)!
+      extension = extensionOf(resourcePath, 'bin')
     } else {
       const relative = source.replace(/\\/g, '/').replace(/^\/+/, '')
       if (relative.split('/').includes('..')) throw new Error(`Invalid custom block image path: ${source}`)
       bytes = await options.fs.readBinaryFile(`${root}/${relative}`)
     }
     const hash = await sha256(bytes)
-    const archivePath = `resources/images/${hash}.${extension}`
+    const archivePath = imageArchivePaths.get(hash) ?? `resources/images/${hash}.${extension}`
+    imageArchivePaths.set(hash, archivePath)
     if (!files.has(archivePath)) files.set(archivePath, bytes)
-    images.push({ key: hash, source: archivePath })
+    if (!images.some(image => image.key === hash)) images.push({ key: hash, source: archivePath })
     imageSourceMap.set(source, archivePath)
   }
 
   for (const key of fontKeys) {
-    const font = Object.entries(options.projectFonts ?? {}).find(([candidate]) => candidate.toLocaleLowerCase() === key)?.[1]
+    const font = Object.entries(options.projectFonts ?? {}).find(([candidate]) => candidate.toLowerCase() === key)?.[1]
     if (!font) throw new Error(`Custom block font is missing: font:${key}`)
     const bytes = await options.fs.readBinaryFile(`${root}/${font.source.replace(/\\/g, '/')}`)
     const hash = await sha256(bytes)
@@ -153,7 +165,7 @@ export async function collectProjectCustomBlockResources(options: {
     let match: { bytes: Uint8Array; name: string; source: string } | null = null
     for (const entry of options.customBlockCatalog?.values() ?? []) {
       for (const font of entry.manifest.resources?.fonts ?? []) {
-        if (createProjectCustomBlockFontFamily(entry.manifest.key, font.key).toLocaleLowerCase() !== family) continue
+        if (createProjectCustomBlockFontFamily(entry.manifest.key, font.key).toLowerCase() !== family) continue
         const bytes = entry.files.get(font.source)
         if (!bytes) throw new Error(`Custom block font resource is missing: ${font.source}`)
         match = { bytes, name: font.name, source: font.source }
@@ -212,10 +224,10 @@ export function rewriteProjectCustomBlockResourceReferences(
     if ('fontFamily' in block && block.fontFamily) {
       block.fontFamily = block.fontFamily.split(';').map(entry => {
         const value = entry.trim()
-        const packagedReplacement = resources.fontFamilyReplacements.get(value.toLocaleLowerCase())
+        const packagedReplacement = resources.fontFamilyReplacements.get(value.toLowerCase())
         if (packagedReplacement) return packagedReplacement
-        if (!value.toLocaleLowerCase().startsWith('font:')) return value
-        const key = value.slice(5).toLocaleLowerCase()
+        if (!value.toLowerCase().startsWith('font:')) return value
+        const key = value.slice(5).toLowerCase()
         return resources.fontSources.has(key) ? createProjectCustomBlockFontFamily(packageKey, key) : value
       }).join('; ')
     }

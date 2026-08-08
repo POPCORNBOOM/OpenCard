@@ -1,4 +1,6 @@
 import type { CardBlock, FlowContainerBlock, SimpleContainerBlock } from '../../../entities/card/model'
+import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import { isBindingStartEscaped, parseFieldReference } from '../../editor-runtime/model/bindingExpression'
 import type { ProjectCustomBlockPublicField, ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
 
 export type CustomBlockFieldAnalysis = ProjectCustomBlockPublicField & {
@@ -22,20 +24,15 @@ function scanValue(value: unknown, rootFields: ReadonlySet<string>, depth: numbe
   if (typeof value !== 'string') return new Map()
   const counts = new Map<string, number>()
   for (const match of value.matchAll(bindingTokenPattern)) {
-    if (match.index !== undefined && value[match.index - 1] === '\\') continue
-    const expression = match[1].trim()
-    const normalizedExpression = expression.replace(/:/g, '.')
-    const parts = normalizedExpression.split('.').map(part => part.trim())
-    const field = parts[parts.length - 1]
-    if (!field || !rootFields.has(field)) continue
-    if (depth === 0 && (parts.length === 1 || (parts.length === 2 && parts[0] === 'self'))) {
-      counts.set(field, (counts.get(field) ?? 0) + 1)
+    if (match.index !== undefined && isBindingStartEscaped(value, match.index)) continue
+    const reference = parseFieldReference(match[1])
+    if (!reference || !rootFields.has(reference.fieldKey)) continue
+    if (depth === 0 && reference.kind === 'current-block') {
+      counts.set(reference.fieldKey, (counts.get(reference.fieldKey) ?? 0) + 1)
       continue
     }
-    const parentDepth = parts.slice(0, -1).filter(part => part === 'parent').length
-    if (depth > 0 && parentDepth === depth && parts.length === depth + 1
-      && parts.slice(0, -1).every(part => part === 'parent')) {
-      counts.set(field, (counts.get(field) ?? 0) + 1)
+    if (depth > 0 && reference.kind === 'parent' && reference.parentDepth === depth) {
+      counts.set(reference.fieldKey, (counts.get(reference.fieldKey) ?? 0) + 1)
     }
   }
   return counts
@@ -56,7 +53,7 @@ function scanRecord(value: unknown, rootFields: ReadonlySet<string>, depth: numb
 }
 
 export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExportAnalysis {
-  const definitions = Object.entries(root.additionalFieldDefinition ?? {})
+  const definitions = Object.entries(parseAdditionalFieldDefinitions(root.additionalFieldDefinition))
   const keys = new Set(definitions.map(([key]) => key))
   const counts = new Map<string, number>(definitions.map(([key]) => [key, 0]))
   const seen = new Set<object>()

@@ -33,6 +33,10 @@ export async function buildProjectCustomBlockManifest(options: {
 }): Promise<ProjectCustomBlockManifest> {
   const analysis = analyzeProjectCustomBlockExport(options.root)
   const exposed = new Set(options.exposedFieldKeys ?? [])
+  const rootDefinitions = parseAdditionalFieldDefinitions(options.root.additionalFieldDefinition)
+  for (const fieldKey of exposed) {
+    if (!rootDefinitions[fieldKey]) throw new Error(`Custom block public field is not defined on the root: ${fieldKey}`)
+  }
   const publicFields: ProjectCustomBlockPublicField[] = analysis.fields
     .filter(field => exposed.has(field.key))
     .map(({ key, fieldType, title }) => ({

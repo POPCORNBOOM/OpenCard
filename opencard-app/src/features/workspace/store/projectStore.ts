@@ -152,9 +152,9 @@ const projectCustomBlockIconCatalog = shallowRef<ProjectIconCatalog>(EMPTY_PROJE
 const customBlockRegistryError = ref<string | null>(null)
 const settingsStore = useAppSettingsStore()
 const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
-  series: [...projectIconCatalog.value.series, ...projectCustomBlockIconCatalog.value.series],
-  entries: [...projectIconCatalog.value.entries, ...projectCustomBlockIconCatalog.value.entries],
-  errors: [...projectIconCatalog.value.errors, ...projectCustomBlockIconCatalog.value.errors],
+  series: [...projectCustomBlockIconCatalog.value.series, ...projectIconCatalog.value.series],
+  entries: [...projectCustomBlockIconCatalog.value.entries, ...projectIconCatalog.value.entries],
+  errors: [...projectCustomBlockIconCatalog.value.errors, ...projectIconCatalog.value.errors],
 }))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
@@ -166,6 +166,8 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
 
 let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
+let customBlockReloadVersion = 0
+let customBlockReloadQueue: Promise<boolean> = Promise.resolve(false)
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -174,7 +176,7 @@ function normalizePath(path: string): string {
 function pathIdentity(path: string): string {
   const normalized = normalizePath(path)
   return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')
-    ? normalized.toLocaleLowerCase()
+    ? normalized.toLowerCase()
     : normalized
 }
 
@@ -353,36 +355,56 @@ function clearProjectCustomBlocks() {
   clearProjectCustomBlockAssets()
 }
 
-async function reloadProjectCustomBlockRegistry(): Promise<boolean> {
-  if (!projectPath.value) return false
-  const registryPath = resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
-  if (!await fileSystemService.fileExists(registryPath)) {
-    clearProjectCustomBlocks()
-    return false
-  }
-  try {
-    const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
-    if (!registry) throw new Error('Invalid .ocblocks registry')
-    const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
-    for (const relativePath of registry.blocks ?? []) {
-      const entry = await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(relativePath))
-      const key = entry.manifest.key.toLocaleLowerCase()
-      if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
-      catalog.set(key, { ...entry, archivePath: relativePath })
+function reloadProjectCustomBlockRegistry(): Promise<boolean> {
+  const expectedVersion = ++customBlockReloadVersion
+  const expectedProjectPath = projectPath.value
+  const reload = async (): Promise<boolean> => {
+    const isCurrent = () => expectedVersion === customBlockReloadVersion
+      && expectedProjectPath === projectPath.value
+    if (!expectedProjectPath || !isCurrent()) return false
+
+    const registryPath = `${expectedProjectPath}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
+    try {
+      if (!await fileSystemService.fileExists(registryPath)) {
+        if (isCurrent()) clearProjectCustomBlocks()
+        return false
+      }
+      const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+      if (!registry) throw new Error('Invalid .ocblocks registry')
+      const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
+      for (const relativePath of registry.blocks ?? []) {
+        const entry = await readProjectCustomBlockPackage(fileSystemService, `${expectedProjectPath}/${relativePath}`)
+        const key = entry.manifest.key.toLowerCase()
+        if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
+        catalog.set(key, { ...entry, archivePath: relativePath })
+      }
+      if (!isCurrent()) return false
+      const runtimeAssets = await syncProjectCustomBlockAssets(catalog)
+      if (!isCurrent()) {
+        clearProjectCustomBlockAssets()
+        return false
+      }
+      await syncProjectCustomBlockFonts(catalog)
+      if (!isCurrent()) {
+        clearProjectCustomBlockFonts()
+        clearProjectCustomBlockAssets()
+        return false
+      }
+      projectCustomBlockCatalog.value = catalog
+      projectCustomBlockRuntimeCatalog.value = runtimeAssets.customBlockCatalog
+      projectCustomBlockIconCatalog.value = runtimeAssets.iconCatalog
+      customBlockRegistryError.value = null
+      return true
+    } catch (error) {
+      if (!isCurrent()) return false
+      clearProjectCustomBlocks()
+      customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
+      reportAppError('OC-E3011', { path: registryPath, error })
+      return false
     }
-    const runtimeAssets = await syncProjectCustomBlockAssets(catalog)
-    await syncProjectCustomBlockFonts(catalog)
-    projectCustomBlockCatalog.value = catalog
-    projectCustomBlockRuntimeCatalog.value = runtimeAssets.customBlockCatalog
-    projectCustomBlockIconCatalog.value = runtimeAssets.iconCatalog
-    customBlockRegistryError.value = null
-    return true
-  } catch (error) {
-    clearProjectCustomBlocks()
-    customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
-    reportAppError('OC-E3011', { path: registryPath, error })
-    return false
   }
+  customBlockReloadQueue = customBlockReloadQueue.then(reload, reload)
+  return customBlockReloadQueue
 }
 
 async function reloadProjectProfile(): Promise<boolean> {
@@ -616,7 +638,7 @@ async function startWatching() {
         void reloadProjectDictionary()
       }
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
-        || path.toLocaleLowerCase().endsWith('.ocblock'))) {
+        || path.toLowerCase().endsWith('.ocblock'))) {
         void reloadProjectCustomBlockRegistry()
       }
       const fontSources = projectFontFiles.value
@@ -661,6 +683,7 @@ async function setProjectPath(path: string) {
     await stopWatching()
   }
 
+  customBlockReloadVersion += 1
   projectPath.value = normalizedPath
   indexedEntries.value = []
   registeredDirectories.value = new Map()
@@ -887,7 +910,7 @@ async function importProjectCustomBlockFile(
 }
 
 function assertCompatibleProjectCustomBlock(key: string, interfaceHash: string): ProjectCustomBlockCatalogEntry | undefined {
-  const existing = projectCustomBlockCatalog.value.get(key.toLocaleLowerCase())
+  const existing = projectCustomBlockCatalog.value.get(key.toLowerCase())
   if (existing && existing.manifest.interfaceHash !== interfaceHash) {
     throw new Error(`Custom block interface mismatch: ${key}`)
   }
