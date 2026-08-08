@@ -28,5 +28,5 @@ export function unregisterProjectCustomBlockPath(
   const current = parseProjectCustomBlockRegistry(document)
   if (!current) throw new Error('Invalid custom block registry')
   const blocks = (current.blocks ?? []).filter(path => path.toLocaleLowerCase() !== normalized.toLocaleLowerCase())
-  return blocks.length ? { blocks } : {}
+  return { blocks }
 }

@@ -119,10 +119,10 @@ describe('ProjectConfigEditor', () => {
       props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
     })
 
-    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(6)
-    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(6)
+    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(7)
+    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(7)
     expect(wrapper.findAllComponents(ProjectConfigSection).map(section => section.props('contentIndent')))
-      .toEqual(['single', 'single', 'single', 'single', 'single', 'single'])
+      .toEqual(['single', 'single', 'single', 'single', 'single', 'single', 'single'])
     expect(wrapper.find('.project-profile-editor__outline').text()).not.toContain('projectConfig.outline.title')
     expect(wrapper.getComponent(ProjectConfigSection).getComponent(OcButton).props('icon')).toBe('tree.chevron-right')
     await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')
@@ -162,6 +162,24 @@ describe('ProjectConfigEditor', () => {
     await flushPromises()
     expect(createFile).toHaveBeenCalledTimes(2)
     expect(wrapper.emitted('open-file')).toHaveLength(4)
+  })
+
+  it('creates and opens an empty custom block registry directly', async () => {
+    const projectStore = useProjectStore()
+    const createFile = vi.spyOn(projectStore, 'createFile').mockResolvedValue(undefined)
+    vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+    })
+
+    await wrapper.get('[data-linked-file="custom-blocks"]').trigger('click')
+    await flushPromises()
+
+    expect(createFile).toHaveBeenCalledWith('.ocblocks', expect.stringContaining('"blocks": []'))
+    const openedFiles = wrapper.emitted('open-file') ?? []
+    expect(openedFiles[openedFiles.length - 1]?.[0]).toBe('D:/Demo/.ocblocks')
+    expect(wrapper.get('[data-linked-file="custom-blocks"]').text())
+      .toBe('projectConfig.customBlocks.openRegistry')
   })
 
   it('expands a collapsed section when navigating from the outline', async () => {

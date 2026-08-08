@@ -399,6 +399,14 @@ export default {
       available: 'The project dictionary is ready to edit.',
       missing: 'This project does not have a dictionary file yet.',
     },
+    customBlocks: {
+      title: 'Custom Blocks',
+      description: 'Register .ocblock files that can be inserted and reused in this project.',
+      createRegistry: 'Create .ocblocks',
+      openRegistry: 'Open Custom Block Registry',
+      registryAvailable: 'The custom block registry is ready to edit.',
+      registryMissing: 'This project does not have a custom block registry yet.',
+    },
     icons: {
       title: 'Project Icons',
       description: 'Register project icons and define cropped icons for card content.',
@@ -650,6 +658,7 @@ export default {
       newProjectProfile: 'Project Configuration (.ocproject)',
       newFontRegistry: 'Project Font Registry (.ocfonts)',
       newIconRegistry: 'Project Icon Registry (.ocicons)',
+      newCustomBlockRegistry: 'Custom Block Registry (.ocblocks)',
       newDictionary: 'Project Global Dictionary (.oclocale)',
       newFolder: 'New Folder',
       newFileName: 'New File',

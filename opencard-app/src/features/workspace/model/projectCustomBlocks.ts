@@ -199,7 +199,7 @@ export function parseProjectCustomBlockRegistry(value: unknown): ProjectCustomBl
     seen.add(path.toLocaleLowerCase())
     blocks.push(path)
   }
-  return blocks.length > 0 ? { blocks } : {}
+  return { blocks }
 }
 
 export function parseProjectCustomBlockRegistryText(content: string): ProjectCustomBlockRegistryDocument | null {

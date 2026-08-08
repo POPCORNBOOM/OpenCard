@@ -399,6 +399,14 @@ export default {
       available: '项目字典已经创建，可以继续编辑。',
       missing: '项目尚未创建字典文件。',
     },
+    customBlocks: {
+      title: '自定义 Block',
+      description: '登记可在项目内插入和复用的 .ocblock 文件。',
+      createRegistry: '创建 .ocblocks',
+      openRegistry: '打开自定义 Block 注册表',
+      registryAvailable: '自定义 Block 注册表已经创建，可以继续编辑。',
+      registryMissing: '项目尚未创建自定义 Block 注册表。',
+    },
     icons: {
       title: '项目图标',
       description: '注册项目图标，并为卡牌内容定义可引用的裁切图标。',
@@ -649,6 +657,7 @@ export default {
       newProjectProfile: '项目配置 (.ocproject)',
       newFontRegistry: '项目字体注册表 (.ocfonts)',
       newIconRegistry: '项目图标注册表 (.ocicons)',
+      newCustomBlockRegistry: '自定义 Block 注册表 (.ocblocks)',
       newDictionary: '项目全局字典 (.oclocale)',
       newFolder: '新建文件夹',
       newFileName: '新建文件',

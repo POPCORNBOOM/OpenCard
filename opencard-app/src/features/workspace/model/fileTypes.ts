@@ -247,6 +247,7 @@ const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.ocproject': { icon: 'file.opencard-project', tone: iconTone.config },
   '.ocfonts': { icon: 'file.font', tone: iconTone.config },
   '.ocicons': { icon: 'file.package-variant', tone: iconTone.config },
+  '.ocblocks': { icon: 'file.custom-block', tone: iconTone.config },
   '.oclocale': { icon: 'data.collection', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },

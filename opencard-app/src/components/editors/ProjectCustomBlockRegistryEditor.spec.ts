@@ -67,7 +67,7 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     await flushPromises()
 
     const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({})
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({ blocks: [] })
     expect(wrapper.emitted('save')).toHaveLength(1)
   })
 

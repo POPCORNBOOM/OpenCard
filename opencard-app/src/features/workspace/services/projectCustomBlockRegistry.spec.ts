@@ -8,7 +8,7 @@ describe('project custom block registry operations', () => {
     expect(twice.blocks).toEqual(['ASSETS/BLOCKS/SQUARE.OCBLOCK'])
   })
 
-  it('unregisters a path and removes the optional document when empty', () => {
-    expect(unregisterProjectCustomBlockPath({ blocks: ['a.ocblock'] }, 'A.OCBLOCK')).toEqual({})
+  it('unregisters a path and preserves the empty registry shape', () => {
+    expect(unregisterProjectCustomBlockPath({ blocks: ['a.ocblock'] }, 'A.OCBLOCK')).toEqual({ blocks: [] })
   })
 })

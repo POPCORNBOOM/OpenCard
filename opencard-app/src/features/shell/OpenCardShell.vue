@@ -501,6 +501,7 @@ const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
 const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.ocproject'
 const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.ocfonts'
 const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.ocicons'
+const PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY = 'project.new-file.ocblocks'
 const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.oclocale'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
@@ -1165,6 +1166,7 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
       '.ocproject',
       '.ocfonts',
       '.ocicons',
+      '.ocblocks',
       '.oclocale',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
@@ -1495,6 +1497,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
               key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newIconRegistry'),
               icon: 'file.package-variant' as const,
+            }] : []),
+            ...(!hasRootProjectFile('.ocblocks') ? [{
+              key: PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY,
+              title: t('sidebar.fileActions.newCustomBlockRegistry'),
+              icon: 'file.custom-block' as const,
             }] : []),
             ...(!hasRootProjectFile('.oclocale') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
@@ -1835,6 +1842,10 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       await createProjectSpecialFile('.ocicons')
       return
     }
+    if (actionKey === PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY) {
+      await createProjectSpecialFile('.ocblocks')
+      return
+    }
     if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
       await createProjectSpecialFile('.oclocale')
       return
@@ -1883,10 +1894,11 @@ function getProjectEntryParentPath(): string {
 }
 
 async function createProjectSpecialFile(
-  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.oclocale',
+  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.ocblocks' | '.oclocale',
 ): Promise<void> {
   if (!projectPath.value || hasRootProjectFile(fileName)) return
-  await createFile(fileName, '{}')
+  const content = fileName === '.ocblocks' ? '{\n  "blocks": []\n}\n' : '{}'
+  await createFile(fileName, content)
   const path = `${projectPath.value}/${fileName}`
   selectedFileKeys.value = [path]
   await openEditorSession(path)
