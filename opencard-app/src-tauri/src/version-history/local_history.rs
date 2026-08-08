@@ -83,6 +83,18 @@ pub struct LocalHistoryEntryRequest {
     pub entry_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryRestoreRequest {
+    pub operation_id: String,
+    pub project_root: String,
+    pub project_id: String,
+    pub generation: u64,
+    pub relative_path: String,
+    pub entry_id: String,
+    pub expected_content_oid: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalHistoryEntryDto {
@@ -135,6 +147,15 @@ pub struct LocalHistoryDeleteResponse {
     pub project_id: String,
     pub deleted: bool,
     pub warnings: Vec<LocalHistoryWarningDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryRestoreResponse {
+    pub project_id: String,
+    pub relative_path: String,
+    pub restored: bool,
+    pub warning: Option<LocalHistoryWarningDto>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -285,6 +306,43 @@ pub async fn local_history_delete(
     result.map_err(|error| to_error_dto(operation, error))
 }
 
+#[tauri::command]
+pub async fn local_history_restore(
+    request: LocalHistoryRestoreRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<LocalHistoryRestoreResponse, VersionErrorDto> {
+    let operation = "local_history_restore";
+    validate_restore_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        restore_entry(&context, &request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
 fn validate_record_request(request: &LocalHistoryRecordRequest) -> Result<(), HistoryFailure> {
     let _request_generation = request.generation;
     validate_common_request(
@@ -328,6 +386,22 @@ fn validate_entry_request(request: &LocalHistoryEntryRequest) -> Result<(), Hist
     Ok(())
 }
 
+fn validate_restore_request(request: &LocalHistoryRestoreRequest) -> Result<(), HistoryFailure> {
+    validate_common_request(
+        &request.operation_id,
+        &request.project_root,
+        &request.project_id,
+    )?;
+    if !is_safe_entry_id(&request.entry_id) {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-entry",
+            "invalid Local History entry id",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_common_request(
     operation_id: &str,
     project_root: &str,
@@ -350,6 +424,14 @@ fn record_entry(
     context: &ProjectHistoryContext,
     request: LocalHistoryRecordRequest,
 ) -> Result<LocalHistoryRecordResponse, HistoryFailure> {
+    record_entry_internal(context, request, false)
+}
+
+fn record_entry_internal(
+    context: &ProjectHistoryContext,
+    request: LocalHistoryRecordRequest,
+    force: bool,
+) -> Result<LocalHistoryRecordResponse, HistoryFailure> {
     let resolved = resolve_history_path(context, &request.relative_path, true)?;
     ensure_local_history_admission(context, &resolved.relative_path, &request.content)?;
     fs::create_dir_all(&resolved.history_directory).map_err(|error| {
@@ -361,17 +443,19 @@ fn record_entry(
     let loaded = load_entries(&resolved)?;
     let mut warnings = loaded.warnings;
     let content_oid = content_oid(&request.content)?;
-    if let Some(previous) = loaded
-        .entries
-        .first()
-        .filter(|entry| entry.content_oid == content_oid.to_string())
-    {
-        return Ok(LocalHistoryRecordResponse {
-            project_id: context.project_id.clone(),
-            entry: previous.clone(),
-            result: "unchanged".to_owned(),
-            warnings,
-        });
+    if !force {
+        if let Some(previous) = loaded
+            .entries
+            .first()
+            .filter(|entry| entry.content_oid == content_oid.to_string())
+        {
+            return Ok(LocalHistoryRecordResponse {
+                project_id: context.project_id.clone(),
+                entry: previous.clone(),
+                result: "unchanged".to_owned(),
+                warnings,
+            });
+        }
     }
 
     let now = unix_time_ms();
@@ -507,6 +591,89 @@ fn read_entry(
         project_id: context.project_id.clone(),
         entry,
         content,
+    })
+}
+
+fn restore_entry(
+    context: &ProjectHistoryContext,
+    request: &LocalHistoryRestoreRequest,
+) -> Result<LocalHistoryRestoreResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let resolved = resolve_history_path(context, &request.relative_path, false)?;
+    let loaded = load_entries(&resolved)?;
+    let entry = loaded
+        .entries
+        .into_iter()
+        .find(|candidate| candidate.entry_id == request.entry_id)
+        .ok_or_else(|| {
+            HistoryFailure::new(
+                "version-not-found",
+                "restore-entry",
+                "Local History entry not found",
+            )
+            .project_id(&context.project_id)
+            .relative_path(&resolved.relative_path)
+        })?;
+    if let Some(expected) = request.expected_content_oid.as_deref() {
+        if expected != entry.content_oid {
+            return Err(HistoryFailure::new(
+                "version-conflict",
+                "restore-entry",
+                "Local History entry changed",
+            )
+            .project_id(&context.project_id)
+            .relative_path(&resolved.relative_path)
+            .retryable());
+        }
+    }
+    let content_path = content_path(&resolved.history_directory, &entry.entry_id);
+    let content = fs::read(&content_path).map_err(|error| {
+        HistoryFailure::new("history-corrupt", "read-content", error.to_string())
+            .project_id(&context.project_id)
+            .relative_path(&resolved.relative_path)
+    })?;
+    verify_content(&entry, &content)?;
+    let target = context
+        .canonical_root
+        .join(Path::new(&resolved.relative_path));
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            HistoryFailure::new("history-io", "restore-entry", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(&resolved.relative_path)
+                .retryable()
+        })?;
+    }
+    write_atomic(&target, &content).map_err(|error| {
+        HistoryFailure::new("history-io", "restore-entry", error.to_string())
+            .project_id(&context.project_id)
+            .relative_path(&resolved.relative_path)
+            .retryable()
+    })?;
+    let record_warning = record_entry_internal(
+        context,
+        LocalHistoryRecordRequest {
+            operation_id: request.operation_id.clone(),
+            project_root: request.project_root.clone(),
+            project_id: request.project_id.clone(),
+            generation: request.generation,
+            relative_path: resolved.relative_path.clone(),
+            source: "file-restored".to_owned(),
+            source_description: None,
+            content: content.clone(),
+        },
+        true,
+    )
+    .err()
+    .map(|_| LocalHistoryWarningDto {
+        code: "restore-history-failed".to_owned(),
+        entry_id: Some(entry.entry_id.clone()),
+    });
+    Ok(LocalHistoryRestoreResponse {
+        project_id: context.project_id.clone(),
+        relative_path: resolved.relative_path,
+        restored: true,
+        warning: record_warning,
     })
 }
 
@@ -1096,6 +1263,45 @@ mod tests {
         assert!(ensure_local_history_admission(&context, "custom.fixture", b"text").is_ok());
         assert!(resolve_history_path(&context, "../outside.txt", false).is_err());
         assert!(resolve_history_path(&context, "D:/outside.txt", false).is_err());
+    }
+
+    #[test]
+    fn restoring_an_entry_replaces_only_the_target_file() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("notes.md"), b"before").unwrap();
+        let context = context(project.path(), storage.path());
+        let recorded = record(&context, "notes.md", "manual-save", b"before");
+        fs::write(project.path().join("notes.md"), b"current").unwrap();
+        fs::write(project.path().join("other.md"), b"untouched").unwrap();
+
+        let restored = restore_entry(
+            &context,
+            &LocalHistoryRestoreRequest {
+                operation_id: "restore".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                relative_path: "notes.md".to_owned(),
+                entry_id: recorded.entry.entry_id,
+                expected_content_oid: Some(recorded.entry.content_oid),
+            },
+        )
+        .unwrap();
+
+        assert!(restored.restored);
+        assert_eq!(
+            fs::read(project.path().join("notes.md")).unwrap(),
+            b"before"
+        );
+        assert_eq!(
+            fs::read(project.path().join("other.md")).unwrap(),
+            b"untouched"
+        );
+        assert_eq!(
+            list_entries(&context, "notes.md").unwrap().items[0].source,
+            "file-restored"
+        );
     }
 
     #[test]

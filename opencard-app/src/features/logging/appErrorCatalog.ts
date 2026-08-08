@@ -218,6 +218,16 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法打开历史内容对比', 'en-US': 'Could not open the history comparison' },
     solution: '来源文件和当前编辑内容保持不变；刷新“更改”后重新打开该历史记录。',
   },
+  'OC-E7006': {
+    area: '版本管理',
+    meaning: { 'zh-CN': '无法恢复文件历史', 'en-US': 'Could not restore the file history entry' },
+    solution: '目标文件和历史记录仍保留；刷新“更改”后重新恢复。',
+  },
+  'OC-E7007': {
+    area: '版本管理',
+    meaning: { 'zh-CN': '无法恢复项目版本', 'en-US': 'Could not restore the project version' },
+    solution: '项目已回滚到恢复前内容或将在下次打开时继续恢复；刷新版本状态后重试。',
+  },
 } as const satisfies Record<string, AppErrorDefinition>
 
 export type AppErrorCode = keyof typeof APP_ERROR_CATALOG

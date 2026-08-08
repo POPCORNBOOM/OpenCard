@@ -162,7 +162,9 @@
             :local-history="localHistoryEntries"
             :empty-label="changeHistoryEmptyLabel"
             :locale="locale"
+            :can-restore="!activeSession?.isDirty"
             @select="handleChangeHistorySelect"
+            @restore="openLocalHistoryRestoreDialog"
           />
           <OcTree
             v-else-if="list.key === VERSION_LIST_KEY && versionTreeData.rootKeys.length > 0"
@@ -342,9 +344,11 @@
       :current-commit-id="versionStatus?.current?.commitId ?? null"
       :busy="versionWriteState.status === 'running'"
       :locale="locale"
+      :can-restore="!hasWorkspaceVersionChanges"
       @close="selectedVersionInfoCommitId = null"
       @publish="openPublishDialog(false)"
       @edit-release="openPublishDialog(true)"
+      @restore="openRestoreDialog"
     />
     <PublishVersionDialog
       :version="publishVersionTarget"
@@ -355,6 +359,66 @@
       @close="closePublishDialog"
       @submit="handlePublishVersionConfirm"
     />
+    <OcDialog
+      :open="Boolean(localHistoryRestoreTarget)"
+      :title="t('versioning.history.restoreTitle')"
+      :description="t('versioning.history.restoreDescription')"
+      size="sm"
+      :dismissible="true"
+      close-on-backdrop
+      @request-close="closeLocalHistoryRestoreDialog"
+    >
+      <p v-if="localHistoryRestoreTarget" class="open-card-shell__restore-dialog">
+        {{ t('versioning.history.restoreTarget', { path: localHistoryRestoreTarget.relativePath }) }}
+      </p>
+      <template #footer>
+        <OcButton type="button" variant="ghost" @click="closeLocalHistoryRestoreDialog">
+          {{ t('versioning.actions.cancel') }}
+        </OcButton>
+        <OcButton type="button" variant="solid" @click="handleLocalHistoryRestoreConfirm">
+          {{ t('versioning.actions.restore') }}
+        </OcButton>
+      </template>
+    </OcDialog>
+    <OcDialog
+      :open="Boolean(restoreVersionTarget)"
+      :title="t('versioning.restore.title')"
+      :description="t('versioning.restore.description')"
+      as="form"
+      size="md"
+      :dismissible="versionWriteState.status !== 'running'"
+      close-on-backdrop
+      @request-close="closeRestoreDialog"
+      @submit="handleRestoreConfirm"
+    >
+      <div v-if="restoreVersionTarget" class="open-card-shell__restore-dialog">
+        <p v-if="restoreVersionErrorMessage" class="open-card-shell__restore-error" role="alert">
+          {{ restoreVersionErrorMessage }}
+        </p>
+        <p>{{ t('versioning.restore.target', { version: `v${restoreVersionTarget.version}` }) }}</p>
+        <label>
+          <span>{{ t('versioning.fields.description') }}</span>
+          <OcFieldInput
+            as="textarea"
+            :value="restoreDescription"
+            rows="4"
+            maxlength="500"
+            required
+            autofocus
+            :disabled="versionWriteState.status === 'running'"
+            @input="restoreDescription = ($event.target as HTMLTextAreaElement).value"
+          />
+        </label>
+      </div>
+      <template #footer>
+        <OcButton type="button" variant="ghost" :disabled="versionWriteState.status === 'running'" @click="closeRestoreDialog">
+          {{ t('versioning.actions.cancel') }}
+        </OcButton>
+        <OcButton type="submit" variant="solid" :disabled="versionWriteState.status === 'running' || restoreDescription.trim().length === 0">
+          {{ versionWriteState.status === 'running' ? t('versioning.restore.restoring') : t('versioning.actions.restore') }}
+        </OcButton>
+      </template>
+    </OcDialog>
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -486,6 +550,8 @@ import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
 import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
 import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
 import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
+import OcDialog from '../../components/standard/OcDialog.vue'
+import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import type { VersionRecordDto } from '../versioning/model/versioning'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
@@ -607,6 +673,11 @@ const {
   getRelativeProjectPath,
   moveEntryByDrop,
   renameEntry,
+  loadFiles,
+  reloadProjectProfile,
+  reloadProjectFontRegistry,
+  reloadProjectIconRegistry,
+  reloadProjectDictionary,
 } = projectStore
 
 const settingsStore = useAppSettingsStore()
@@ -796,6 +867,8 @@ const {
   saveActiveSession,
   prepareSessionContent,
   remapSessionPaths,
+  refreshSessionFromDisk,
+  reconcileWorkspaceSessionsFromDisk,
 } = useEditorSessionStore()
 
 const {
@@ -857,6 +930,8 @@ const {
   closeCompare,
   publishVersion,
   editReleaseDescription,
+  restoreProject,
+  restoreLocalHistory,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -916,6 +991,18 @@ const canRenumberPublishTarget = computed(() => (
 const publishVersionErrorMessage = computed(() => (
   versioningError.value ? t('versioning.errors.publishFailed', { code: versioningError.value.code }) : null
 ))
+const restoreVersionTargetCommitId = ref<string | null>(null)
+const restoreDescription = ref('')
+const restoreVersionTarget = computed<VersionRecordDto | null>(() => (
+  projectVersions.value.find(version => version.commitId === restoreVersionTargetCommitId.value) ?? null
+))
+const restoreVersionErrorMessage = computed(() => (
+  versioningError.value ? t('versioning.errors.restoreFailed', { code: versioningError.value.code }) : null
+))
+const localHistoryRestoreEntryId = ref<string | null>(null)
+const localHistoryRestoreTarget = computed(() => localHistoryEntries.value.find(entry => (
+  entry.entryId === localHistoryRestoreEntryId.value
+)) ?? null)
 
 const {
   isActivating: isActivatingProject,
@@ -2060,6 +2147,47 @@ function openPublishDialog(editRelease: boolean): void {
   editReleaseMode.value = editRelease
 }
 
+function openRestoreDialog(): void {
+  const target = selectedVersionInfo.value
+  if (!target || hasWorkspaceVersionChanges.value
+    || target.commitId === versionStatus.value?.current?.commitId) return
+  restoreVersionTargetCommitId.value = target.commitId
+  restoreDescription.value = t('versioning.restore.defaultDescription', { version: `v${target.version}` })
+}
+
+function closeRestoreDialog(): void {
+  if (versionWriteState.value.status === 'running') return
+  restoreVersionTargetCommitId.value = null
+  restoreDescription.value = ''
+}
+
+async function handleRestoreConfirm(): Promise<void> {
+  const target = restoreVersionTarget.value
+  const currentStatus = versionStatus.value
+  if (!target || !currentStatus || restoreDescription.value.trim().length === 0) return
+  try {
+    await restoreProject(
+      target.commitId,
+      currentStatus.expectedHeadCommitId,
+      currentStatus.changeSummary.snapshotId,
+      restoreDescription.value.trim(),
+    )
+    await Promise.all([
+      loadFiles(),
+      reloadProjectProfile(),
+      reloadProjectFontRegistry(),
+      reloadProjectIconRegistry(),
+      reloadProjectDictionary(),
+    ])
+    await reconcileWorkspaceSessionsFromDisk()
+    await prepareVersioning(projectPath.value)
+    closeRestoreDialog()
+    selectedVersionInfoCommitId.value = null
+  } catch {
+    // Keep the confirmation open so the user can retry without losing the draft description.
+  }
+}
+
 function closePublishDialog(): void {
   if (versionWriteState.value.status === 'running') return
   publishVersionTargetCommitId.value = null
@@ -2088,6 +2216,28 @@ function handleChangeHistorySelect(source: 'version' | 'local-history', id: stri
   const relativePath = historyPath.value
   if (!session || !relativePath) return
   void openCompare(source, id, session, relativePath)
+}
+
+function openLocalHistoryRestoreDialog(entryId: string): void {
+  if (!historyPath.value || activeSession.value?.isDirty) return
+  localHistoryRestoreEntryId.value = entryId
+}
+
+function closeLocalHistoryRestoreDialog(): void {
+  localHistoryRestoreEntryId.value = null
+}
+
+async function handleLocalHistoryRestoreConfirm(): Promise<void> {
+  const entry = localHistoryRestoreTarget.value
+  const relativePath = historyPath.value
+  if (!entry || !relativePath) return
+  try {
+    await restoreLocalHistory(relativePath, entry.entryId, entry.contentOid)
+    closeLocalHistoryRestoreDialog()
+    await refreshSessionFromDisk(activeSession.value?.id ?? '')
+  } catch {
+    // The versioning flow reports the stable error and leaves the target file unchanged.
+  }
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
@@ -3021,6 +3171,24 @@ onUnmounted(() => {
 .open-card-shell__source-editor.is-comparing {
   visibility: hidden;
   pointer-events: none;
+}
+
+.open-card-shell__restore-dialog {
+  display: grid;
+  gap: var(--oc-space-4);
+}
+
+.open-card-shell__restore-dialog p {
+  margin: 0;
+}
+
+.open-card-shell__restore-dialog label {
+  display: grid;
+  gap: var(--oc-space-2);
+}
+
+.open-card-shell__restore-error {
+  color: var(--oc-fg-danger);
 }
 
 .shell-file-drop-overlay {

@@ -19,6 +19,8 @@ import type {
   LocalHistoryEntryRequest,
   LocalHistoryReadResponse,
   LocalHistoryDeleteResponse,
+  LocalHistoryRestoreRequest,
+  LocalHistoryRestoreResponse,
   PrepareCompareRequest,
   PrepareCompareResponse,
   ReleaseCompareRequest,
@@ -27,6 +29,8 @@ import type {
   PublishVersionResponse,
   EditReleaseDescriptionRequest,
   VersionRecordDto,
+  RestoreProjectRequest,
+  RestoreProjectResponse,
 } from '../model/versioning'
 
 export interface VersioningService {
@@ -40,10 +44,12 @@ export interface VersioningService {
   listLocalHistory(request: LocalHistoryPathRequest): Promise<LocalHistoryListResponse>
   readLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryReadResponse>
   deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse>
+  restoreLocalHistory(request: LocalHistoryRestoreRequest): Promise<LocalHistoryRestoreResponse>
   prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse>
   releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse>
   publishVersion(request: PublishVersionRequest): Promise<PublishVersionResponse>
   editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto>
+  restoreProject(request: RestoreProjectRequest): Promise<RestoreProjectResponse>
 }
 
 class VersioningServiceImpl implements VersioningService {
@@ -87,6 +93,10 @@ class VersioningServiceImpl implements VersioningService {
     return await invoke<LocalHistoryDeleteResponse>('local_history_delete', { request })
   }
 
+  async restoreLocalHistory(request: LocalHistoryRestoreRequest): Promise<LocalHistoryRestoreResponse> {
+    return await invoke<LocalHistoryRestoreResponse>('local_history_restore', { request })
+  }
+
   async prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse> {
     return await invoke<PrepareCompareResponse>('version_prepare_compare', { request })
   }
@@ -101,6 +111,10 @@ class VersioningServiceImpl implements VersioningService {
 
   async editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto> {
     return await invoke<VersionRecordDto>('version_edit_release_description', { request })
+  }
+
+  async restoreProject(request: RestoreProjectRequest): Promise<RestoreProjectResponse> {
+    return await invoke<RestoreProjectResponse>('version_restore_project', { request })
   }
 }
 

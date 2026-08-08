@@ -769,6 +769,14 @@ export function useEditorSessionStore() {
     await refreshSessionFromDisk(activeSessionId.value)
   }
 
+  async function reconcileWorkspaceSessionsFromDisk(): Promise<void> {
+    for (const session of [...sessions.value]) {
+      if (session.resourceKind === 'workspace' && session.path) {
+        await refreshSessionFromDisk(session.id)
+      }
+    }
+  }
+
   function remapSessionPaths(oldPath: string, newPath: string) {
     const normalizedOldPath = normalizePath(oldPath)
     const normalizedNewPath = normalizePath(newPath)
@@ -816,6 +824,7 @@ export function useEditorSessionStore() {
     prepareSessionContent,
     refreshSessionFromDisk,
     refreshActiveSessionFromDisk,
+    reconcileWorkspaceSessionsFromDisk,
     remapSessionPaths,
   }
 }

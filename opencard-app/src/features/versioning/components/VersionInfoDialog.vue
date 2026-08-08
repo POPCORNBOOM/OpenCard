@@ -51,7 +51,16 @@
         {{ t('versioning.actions.editRelease') }}
       </OcButton>
       <OcButton
-        v-else-if="version"
+        v-if="version && version.commitId !== currentCommitId"
+        type="button"
+        variant="outline"
+        :disabled="busy || !canRestore"
+        @click="emit('restore')"
+      >
+        {{ t('versioning.actions.restore') }}
+      </OcButton>
+      <OcButton
+        v-if="version && !version.release"
         type="button"
         variant="solid"
         :disabled="busy"
@@ -75,11 +84,13 @@ const props = defineProps<{
   currentCommitId: string | null
   busy: boolean
   locale: string
+  canRestore?: boolean
 }>()
 const emit = defineEmits<{
   close: []
   publish: []
   'edit-release': []
+  restore: []
 }>()
 const { t } = useI18n()
 const statusLabel = computed(() => {

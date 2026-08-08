@@ -440,6 +440,61 @@ export function useVersioning(options: UseVersioningOptions) {
     writeState.value = { status: 'idle' }
   }
 
+  async function restoreProject(
+    targetCommitId: string,
+    expectedHeadCommitId: string | null,
+    expectedSnapshotId: string,
+    description: string,
+  ): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || writeState.value.status !== 'idle') return
+    const operationId = crypto.randomUUID()
+    writeState.value = { status: 'running', operation: 'restore', operationId }
+    lastError.value = null
+    try {
+      await service.restoreProject({
+        operationId,
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        targetCommitId,
+        expectedHeadCommitId,
+        expectedSnapshotId,
+        description,
+      })
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7007', error)
+      writeState.value = { status: 'idle' }
+      throw error
+    }
+    writeState.value = { status: 'idle' }
+  }
+
+  async function restoreLocalHistory(relativePath: string, entryId: string, expectedContentOid: string | null): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready') return
+    try {
+      const response = await service.restoreLocalHistory({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        relativePath,
+        entryId,
+        expectedContentOid,
+      })
+      if (response.warning) reportAppError('OC-E7002', response.warning)
+      await loadFileHistory(relativePath)
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7006', error)
+      throw error
+    }
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -511,6 +566,8 @@ export function useVersioning(options: UseVersioningOptions) {
     closeCompare,
     publishVersion,
     editReleaseDescription,
+    restoreProject,
+    restoreLocalHistory,
     dispose,
   }
 }

@@ -144,6 +144,17 @@ export type LocalHistoryDeleteResponse = {
   warnings: Array<{ code: string; entryId: string | null }>
 }
 
+export type LocalHistoryRestoreRequest = LocalHistoryEntryRequest & {
+  expectedContentOid: string | null
+}
+
+export type LocalHistoryRestoreResponse = {
+  projectId: string
+  relativePath: string
+  restored: boolean
+  warning: { code: string; entryId: string | null } | null
+}
+
 export type CreateVersionRequest = VersionProjectRequest & {
   expectedHeadCommitId: string | null
   expectedSnapshotId: string
@@ -224,6 +235,17 @@ export type EditReleaseDescriptionRequest = VersionProjectRequest & {
   description: string
 }
 
+export type RestoreProjectRequest = VersionProjectRequest & {
+  targetCommitId: string
+  expectedHeadCommitId: string | null
+  expectedSnapshotId: string
+  description: string
+}
+
+export type RestoreProjectResponse = {
+  version: VersionRecordDto
+}
+
 export type CompareSession = PrepareCompareResponse & {
   id: string
   projectRoot: string
@@ -239,6 +261,7 @@ export type VersionWriteState =
   | { status: 'confirming'; operation: 'save' }
   | { status: 'running'; operation: 'save'; operationId: string }
   | { status: 'running'; operation: 'publish' | 'edit-release'; operationId: string }
+  | { status: 'running'; operation: 'restore'; operationId: string }
 
 export type VersioningError = VersionErrorDto
 

@@ -634,6 +634,7 @@ export default {
       refresh: '刷新',
       publish: '发布',
       editRelease: '编辑发布说明',
+      restore: '恢复到此版本',
     },
     fields: {
       version: '版本',
@@ -675,10 +676,22 @@ export default {
     errors: {
       saveFailed: '保存版本失败，当前修改仍保留，可检查后重试（{code}）。',
       publishFailed: '发布版本失败，保存版本仍保留，可检查后重试（{code}）。',
+      restoreFailed: '恢复版本失败，文件和历史仍保留，可检查后重试（{code}）。',
+    },
+    restore: {
+      title: '恢复项目版本',
+      description: '恢复项目内容，同时保留现有历史。',
+      target: '将以 {version} 的内容创建一个新的恢复版本。',
+      defaultDescription: '恢复到 {version}',
+      restoring: '正在恢复…',
     },
     history: {
       empty: '当前文件暂无历史记录',
       selectProjectFile: '选择项目文件以查看历史',
+      restoreTitle: '恢复文件历史',
+      restoreDescription: '使用这条 Local History 内容替换当前文件。',
+      restoreTarget: '恢复 {path}？当前文件内容将被替换。',
+      saveBeforeRestore: '请先保存或丢弃当前文件修改',
       sources: {
         'manual-save': '手动保存',
         'close-guard-save': '关闭前保存',

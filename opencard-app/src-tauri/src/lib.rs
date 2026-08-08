@@ -276,6 +276,7 @@ pub fn run() {
             version_history::repository::version_list_file_history,
             version_history::repository::version_publish,
             version_history::repository::version_edit_release_description,
+            version_history::repository::version_restore_project,
             version_history::compare::version_prepare_compare,
             version_history::compare::version_release_compare,
             version_history::repository::version_preview_changes,
@@ -283,6 +284,7 @@ pub fn run() {
             version_history::local_history::local_history_list,
             version_history::local_history::local_history_read,
             version_history::local_history::local_history_delete,
+            version_history::local_history::local_history_restore,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

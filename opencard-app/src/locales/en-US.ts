@@ -635,6 +635,7 @@ export default {
       refresh: 'Refresh',
       publish: 'Publish',
       editRelease: 'Edit release description',
+      restore: 'Restore to this version',
     },
     fields: {
       version: 'Version',
@@ -676,10 +677,22 @@ export default {
     errors: {
       saveFailed: 'Saving the version failed. Your changes are kept; check and retry ({code}).',
       publishFailed: 'Publishing the version failed. The saved version is kept; check and retry ({code}).',
+      restoreFailed: 'Restoring the version failed. Your files and history are kept; check and retry ({code}).',
+    },
+    restore: {
+      title: 'Restore Project Version',
+      description: 'Restore the project content while preserving the existing history.',
+      target: 'A new restore version will be created from {version}.',
+      defaultDescription: 'Restore to {version}',
+      restoring: 'Restoring…',
     },
     history: {
       empty: 'No history for the current file',
       selectProjectFile: 'Select a project file to view history',
+      restoreTitle: 'Restore File History',
+      restoreDescription: 'Replace the current file with this saved Local History content.',
+      restoreTarget: 'Restore {path}? The current file will be replaced.',
+      saveBeforeRestore: 'Save or discard the current file changes before restoring',
       sources: {
         'manual-save': 'Manual save',
         'close-guard-save': 'Save before close',

@@ -292,6 +292,13 @@ fn prepare_project(
         project_history_root: project_history_root.clone(),
         template_managed_paths: template_managed_paths.clone(),
     })?;
+    repository::recover_pending_restore_transactions(&ProjectHistoryContext {
+        canonical_root: canonical_root.clone(),
+        canonical_root_text: canonical_root_text.clone(),
+        project_id: project_id.clone(),
+        project_history_root: project_history_root.clone(),
+        template_managed_paths: template_managed_paths.clone(),
+    })?;
     fs::create_dir_all(project_history_root.join("local-history")).map_err(|error| {
         HistoryFailure::new("history-io", "create-local-history", error.to_string())
             .project_id(&project_id)

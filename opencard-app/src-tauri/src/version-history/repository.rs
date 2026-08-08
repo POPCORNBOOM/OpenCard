@@ -72,6 +72,19 @@ pub struct EditReleaseDescriptionRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RestoreProjectRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    target_commit_id: String,
+    expected_head_commit_id: Option<String>,
+    expected_snapshot_id: String,
+    description: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DraftOverlayDto {
     session_id: String,
     relative_path: String,
@@ -178,6 +191,12 @@ pub struct PublishVersionResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RestoreProjectResponse {
+    version: VersionRecordDto,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OverlayRevisionDto {
     session_id: String,
     relative_path: String,
@@ -212,6 +231,21 @@ struct VersionTransactionJournal {
     old_head_commit_id: Option<String>,
     new_head_commit_id: String,
     profile_existed: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreTransactionJournal {
+    schema_version: u32,
+    phase: String,
+    files: Vec<RestoreFileRecord>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreFileRecord {
+    relative_path: String,
+    existed: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -477,6 +511,45 @@ pub async fn version_edit_release_description(
 }
 
 #[tauri::command]
+pub async fn version_restore_project(
+    request: RestoreProjectRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<RestoreProjectResponse, VersionErrorDto> {
+    let operation = "version_restore_project";
+    validate_restore_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let compare_leases = Arc::clone(&state.compare_leases);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        ensure_project_not_compared(&compare_leases, &context.project_id)?;
+        restore_project(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
 pub async fn version_preview_changes(
     request: PreviewChangesRequest,
     app_handle: tauri::AppHandle,
@@ -579,6 +652,334 @@ fn validate_edit_release_request(
         ));
     }
     validate_description(&request.description)
+}
+
+fn validate_restore_request(request: &RestoreProjectRequest) -> Result<(), HistoryFailure> {
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+        || request.target_commit_id.trim().is_empty()
+        || request.expected_snapshot_id.trim().is_empty()
+    {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-request",
+            "invalid restore request",
+        ));
+    }
+    validate_description(&request.description)
+}
+
+fn restore_project(
+    context: &ProjectHistoryContext,
+    request: RestoreProjectRequest,
+) -> Result<RestoreProjectResponse, HistoryFailure> {
+    let repository = open_repository(context)?;
+    let current_head = head_commit(&repository)?;
+    let current_head_id = current_head.as_ref().map(|commit| commit.id().to_string());
+    if current_head_id != request.expected_head_commit_id {
+        return Err(HistoryFailure::new(
+            "version-conflict",
+            "compare-head",
+            "project version head changed",
+        )
+        .project_id(&context.project_id)
+        .retryable());
+    }
+    let current_entries = current_snapshot_entries(context)?;
+    let current_snapshot_id = snapshot_id(&current_entries)?;
+    if current_snapshot_id != request.expected_snapshot_id {
+        return Err(HistoryFailure::new(
+            "version-conflict",
+            "compare-snapshot",
+            "project content changed before restore",
+        )
+        .project_id(&context.project_id)
+        .retryable());
+    }
+    let target = find_version_commit(&repository, &request.target_commit_id)?;
+    let target_tree = target
+        .tree()
+        .map_err(repository_error("read-restore-tree"))?;
+    let target_entries = tree_entries(&repository, &target_tree)?;
+    let changed_paths = current_entries
+        .keys()
+        .chain(target_entries.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if compare_entries(&current_entries, &target_entries).is_empty() {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "restore-project",
+            "target content is already current",
+        ));
+    }
+    for path in &target_entries {
+        if !is_managed_file(
+            path.0,
+            context
+                .template_managed_paths
+                .iter()
+                .any(|item| item == path.0),
+        ) {
+            return Err(HistoryFailure::new(
+                "history-corrupt",
+                "validate-restore-tree",
+                "target version contains an unmanaged path",
+            )
+            .relative_path(path.0));
+        }
+    }
+
+    let restore_root = context
+        .project_history_root
+        .join("restore-transactions")
+        .join(transaction_id(&request.operation_id)?);
+    let backup_root = restore_root.join("before");
+    fs::create_dir_all(&backup_root).map_err(|error| {
+        HistoryFailure::new("history-io", "prepare-restore", error.to_string())
+            .project_id(&context.project_id)
+            .retryable()
+    })?;
+    let records = changed_paths
+        .iter()
+        .map(|relative_path| RestoreFileRecord {
+            relative_path: relative_path.clone(),
+            existed: current_entries.contains_key(relative_path),
+        })
+        .collect::<Vec<_>>();
+    write_restore_journal(
+        &restore_root,
+        &RestoreTransactionJournal {
+            schema_version: SCHEMA_VERSION,
+            phase: "backing-up".to_owned(),
+            files: records,
+        },
+    )?;
+    if let Err(error) = backup_restore_files(context, &backup_root, &changed_paths) {
+        let _ = fs::remove_dir_all(&restore_root);
+        return Err(error);
+    }
+    write_restore_journal(
+        &restore_root,
+        &RestoreTransactionJournal {
+            schema_version: SCHEMA_VERSION,
+            phase: "backed-up".to_owned(),
+            files: changed_paths
+                .iter()
+                .map(|relative_path| RestoreFileRecord {
+                    relative_path: relative_path.clone(),
+                    existed: current_entries.contains_key(relative_path),
+                })
+                .collect(),
+        },
+    )?;
+    let apply_result = apply_restore_tree(
+        context,
+        &repository,
+        &target_tree,
+        &target_entries,
+        &changed_paths,
+    );
+    if let Err(error) = apply_result {
+        let rollback = rollback_restore_files(context, &backup_root, &changed_paths);
+        let _ = fs::remove_dir_all(&restore_root);
+        return Err(rollback.err().unwrap_or(error));
+    }
+    if let Err(error) = write_restore_journal(
+        &restore_root,
+        &RestoreTransactionJournal {
+            schema_version: SCHEMA_VERSION,
+            phase: "applied".to_owned(),
+            files: changed_paths
+                .iter()
+                .map(|relative_path| RestoreFileRecord {
+                    relative_path: relative_path.clone(),
+                    existed: current_entries.contains_key(relative_path),
+                })
+                .collect(),
+        },
+    ) {
+        let rollback = rollback_restore_files(context, &backup_root, &changed_paths);
+        let _ = fs::remove_dir_all(&restore_root);
+        return Err(rollback.err().unwrap_or(error));
+    }
+
+    let restored_snapshot_id =
+        match current_snapshot_entries(context).and_then(|entries| snapshot_id(&entries)) {
+            Ok(snapshot_id) => snapshot_id,
+            Err(error) => {
+                let rollback = rollback_restore_files(context, &backup_root, &changed_paths);
+                let _ = fs::remove_dir_all(&restore_root);
+                return Err(rollback.err().unwrap_or(error));
+            }
+        };
+    let create_request = CreateVersionRequest {
+        operation_id: request.operation_id.clone(),
+        project_root: request.project_root,
+        project_id: request.project_id,
+        generation: request.generation,
+        expected_head_commit_id: request.expected_head_commit_id,
+        expected_snapshot_id: restored_snapshot_id,
+        description: request.description,
+    };
+    let created = match create_version_with_kind(
+        context,
+        create_request,
+        "restored",
+        Some(&target.id().to_string()),
+    ) {
+        Ok(created) => created,
+        Err(error) => {
+            let rollback = rollback_restore_files(context, &backup_root, &changed_paths);
+            let _ = fs::remove_dir_all(&restore_root);
+            return Err(rollback.err().unwrap_or(error));
+        }
+    };
+    if let Err(error) = write_restore_journal(
+        &restore_root,
+        &RestoreTransactionJournal {
+            schema_version: SCHEMA_VERSION,
+            phase: "committed".to_owned(),
+            files: changed_paths
+                .iter()
+                .map(|relative_path| RestoreFileRecord {
+                    relative_path: relative_path.clone(),
+                    existed: current_entries.contains_key(relative_path),
+                })
+                .collect(),
+        },
+    ) {
+        eprintln!(
+            "[OpenCard/version-history] committed restore cleanup deferred: {}",
+            error.detail
+        );
+    }
+    if let Err(error) = fs::remove_dir_all(&restore_root) {
+        eprintln!("[OpenCard/version-history] committed restore cleanup deferred: {error}");
+    }
+    Ok(RestoreProjectResponse {
+        version: created.version,
+    })
+}
+
+fn backup_restore_files(
+    context: &ProjectHistoryContext,
+    backup_root: &Path,
+    changed_paths: &BTreeSet<String>,
+) -> Result<(), HistoryFailure> {
+    for relative_path in changed_paths {
+        let source = context.canonical_root.join(Path::new(relative_path));
+        if !source.is_file() {
+            continue;
+        }
+        let content = fs::read(&source).map_err(|error| {
+            HistoryFailure::new("history-io", "backup-restore", error.to_string())
+                .relative_path(relative_path)
+                .retryable()
+        })?;
+        write_restore_file(backup_root, relative_path, &content)
+            .map_err(|error| error.relative_path(relative_path))?;
+    }
+    Ok(())
+}
+
+fn apply_restore_tree(
+    context: &ProjectHistoryContext,
+    repository: &Repository,
+    target_tree: &Tree<'_>,
+    target_entries: &BTreeMap<String, SnapshotEntry>,
+    changed_paths: &BTreeSet<String>,
+) -> Result<(), HistoryFailure> {
+    for relative_path in changed_paths {
+        let path = context.canonical_root.join(Path::new(relative_path));
+        if target_entries.contains_key(relative_path) {
+            let entry = target_tree
+                .get_path(Path::new(relative_path))
+                .map_err(repository_error("read-restore-entry"))?;
+            let blob = repository
+                .find_blob(entry.id())
+                .map_err(repository_error("read-restore-blob"))?;
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    HistoryFailure::new("history-io", "apply-restore", error.to_string())
+                        .relative_path(relative_path)
+                        .retryable()
+                })?;
+            }
+            write_file_atomically(&path, blob.content()).map_err(|error| {
+                HistoryFailure::new("history-io", "apply-restore", error.to_string())
+                    .relative_path(relative_path)
+                    .retryable()
+            })?;
+        } else if path.exists() {
+            fs::remove_file(&path).map_err(|error| {
+                HistoryFailure::new("history-io", "apply-restore", error.to_string())
+                    .relative_path(relative_path)
+                    .retryable()
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn rollback_restore_files(
+    context: &ProjectHistoryContext,
+    backup_root: &Path,
+    changed_paths: &BTreeSet<String>,
+) -> Result<(), HistoryFailure> {
+    for relative_path in changed_paths {
+        let destination = context.canonical_root.join(Path::new(relative_path));
+        let backup = backup_root.join(Path::new(relative_path));
+        if backup.is_file() {
+            let content = fs::read(&backup).map_err(|error| {
+                HistoryFailure::new("recovery-required", "rollback-restore", error.to_string())
+                    .relative_path(relative_path)
+            })?;
+            write_file_atomically(&destination, &content).map_err(|error| {
+                HistoryFailure::new("recovery-required", "rollback-restore", error.to_string())
+                    .relative_path(relative_path)
+            })?;
+        } else if destination.exists() {
+            fs::remove_file(&destination).map_err(|error| {
+                HistoryFailure::new("recovery-required", "rollback-restore", error.to_string())
+                    .relative_path(relative_path)
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn write_restore_journal(
+    restore_root: &Path,
+    journal: &RestoreTransactionJournal,
+) -> Result<(), HistoryFailure> {
+    let content = serde_json::to_vec_pretty(journal).map_err(|error| {
+        HistoryFailure::new("history-io", "serialize-restore", error.to_string())
+    })?;
+    write_file_atomically(&restore_root.join("journal.json"), &content).map_err(|error| {
+        HistoryFailure::new("history-io", "write-restore", error.to_string()).retryable()
+    })
+}
+
+fn write_restore_file(
+    root: &Path,
+    relative_path: &str,
+    content: &[u8],
+) -> Result<(), HistoryFailure> {
+    let path = root.join(Path::new(relative_path));
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            HistoryFailure::new("history-io", "prepare-restore", error.to_string())
+                .relative_path(relative_path)
+                .retryable()
+        })?;
+    }
+    write_file_atomically(&path, content).map_err(|error| {
+        HistoryFailure::new("history-io", "write-restore", error.to_string())
+            .relative_path(relative_path)
+            .retryable()
+    })
 }
 
 fn publish_version(
@@ -1007,6 +1408,15 @@ pub(super) fn create_version(
     context: &ProjectHistoryContext,
     request: CreateVersionRequest,
 ) -> Result<CreateVersionResponse, HistoryFailure> {
+    create_version_with_kind(context, request, "saved", None)
+}
+
+fn create_version_with_kind(
+    context: &ProjectHistoryContext,
+    request: CreateVersionRequest,
+    kind: &str,
+    restored_from: Option<&str>,
+) -> Result<CreateVersionResponse, HistoryFailure> {
     let _request_generation = request.generation;
     let repository = open_repository(context)?;
     let current_entries = current_snapshot_entries(context)?;
@@ -1078,11 +1488,11 @@ pub(super) fn create_version(
     let metadata = VersionCommitMetadata {
         schema_version: SCHEMA_VERSION,
         whitelist_version: WHITELIST_VERSION,
-        kind: "saved".to_owned(),
+        kind: kind.to_owned(),
         version: version.clone(),
         description: request.description.trim().to_owned(),
         saved_at_unix_ms,
-        restored_from: None,
+        restored_from: restored_from.map(str::to_owned),
     };
     let message = serde_json::to_vec(&metadata).map_err(|error| {
         HistoryFailure::new("history-io", "serialize-version", error.to_string())
@@ -1505,6 +1915,67 @@ pub(super) fn recover_pending_transactions(
         recover_transaction(context, &repository, &transaction_root, &journal)?;
         fs::remove_dir_all(&transaction_root).map_err(|error| {
             HistoryFailure::new("history-io", "cleanup-transaction", error.to_string())
+                .project_id(&context.project_id)
+                .retryable()
+        })?;
+    }
+    Ok(())
+}
+
+pub(super) fn recover_pending_restore_transactions(
+    context: &ProjectHistoryContext,
+) -> Result<(), HistoryFailure> {
+    let root = context.project_history_root.join("restore-transactions");
+    let Ok(entries) = fs::read_dir(&root) else {
+        return Ok(());
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            HistoryFailure::new("history-io", "read-restore", error.to_string())
+                .project_id(&context.project_id)
+                .retryable()
+        })?;
+        let transaction_root = entry.path();
+        if !transaction_root.is_dir() {
+            continue;
+        }
+        let journal_path = transaction_root.join("journal.json");
+        if !journal_path.is_file() {
+            fs::remove_dir_all(&transaction_root).map_err(|error| {
+                HistoryFailure::new("history-io", "cleanup-restore", error.to_string())
+                    .project_id(&context.project_id)
+                    .retryable()
+            })?;
+            continue;
+        }
+        let journal: RestoreTransactionJournal =
+            serde_json::from_slice(&fs::read(&journal_path).map_err(|error| {
+                HistoryFailure::new("history-io", "read-restore", error.to_string())
+                    .project_id(&context.project_id)
+                    .retryable()
+            })?)
+            .map_err(|error| {
+                HistoryFailure::new("history-corrupt", "parse-restore", error.to_string())
+                    .project_id(&context.project_id)
+            })?;
+        if journal.schema_version != SCHEMA_VERSION {
+            return Err(HistoryFailure::new(
+                "history-incompatible",
+                "parse-restore",
+                "unsupported restore transaction schema",
+            )
+            .project_id(&context.project_id));
+        }
+        if matches!(journal.phase.as_str(), "backed-up" | "applied") {
+            let changed_paths = journal
+                .files
+                .iter()
+                .map(|file| file.relative_path.clone())
+                .collect::<BTreeSet<_>>();
+            rollback_restore_files(context, &transaction_root.join("before"), &changed_paths)?;
+        }
+        fs::remove_dir_all(&transaction_root).map_err(|error| {
+            HistoryFailure::new("history-io", "cleanup-restore", error.to_string())
                 .project_id(&context.project_id)
                 .retryable()
         })?;
@@ -2359,6 +2830,96 @@ mod tests {
         )
         .unwrap();
         assert_eq!(edited.release.unwrap().description, "Updated notes");
+    }
+
+    #[test]
+    fn restore_appends_a_new_tip_and_preserves_later_versions() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("README.md"), b"first").unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let first_status = get_status(&context, 1).unwrap();
+        let first = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: first_status.change_summary.snapshot_id,
+                description: "First".to_owned(),
+            },
+        )
+        .unwrap();
+        fs::write(project.path().join("README.md"), b"second").unwrap();
+        fs::write(project.path().join("extra.json"), b"{}").unwrap();
+        let second_status = get_status(&context, 1).unwrap();
+        let second = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "second".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: second_status.expected_head_commit_id,
+                expected_snapshot_id: second_status.change_summary.snapshot_id,
+                description: "Second".to_owned(),
+            },
+        )
+        .unwrap();
+        let restore_status = get_status(&context, 1).unwrap();
+
+        let restored = restore_project(
+            &context,
+            RestoreProjectRequest {
+                operation_id: "restore-first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                target_commit_id: first.version.commit_id.clone(),
+                expected_head_commit_id: restore_status.expected_head_commit_id,
+                expected_snapshot_id: restore_status.change_summary.snapshot_id,
+                description: "Restore first".to_owned(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read(project.path().join("README.md")).unwrap(),
+            b"first"
+        );
+        assert!(!project.path().join("extra.json").exists());
+        assert_eq!(restored.version.kind, "restored");
+        assert_eq!(
+            restored.version.restored_from.as_deref(),
+            Some(first.version.commit_id.as_str())
+        );
+        assert_eq!(
+            restored.version.parent_commit_id.as_deref(),
+            Some(second.version.commit_id.as_str())
+        );
+        let versions = list_versions(
+            &context,
+            ListVersionsRequest {
+                operation_id: "list".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                cursor: None,
+                limit: Some(10),
+            },
+        )
+        .unwrap();
+        assert_eq!(versions.items.len(), 3);
+        assert_eq!(versions.items[1].commit_id, second.version.commit_id);
+        assert_eq!(versions.items[2].commit_id, first.version.commit_id);
     }
 
     #[test]

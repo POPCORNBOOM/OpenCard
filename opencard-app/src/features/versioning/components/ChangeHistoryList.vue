@@ -2,6 +2,7 @@
   <div v-if="treeData.rootKeys.length > 0" class="change-history-list">
     <OcTree
       :data="treeData"
+      :actions="actions"
       :selected-keys="selectedKeys"
       role="listbox"
       selection-mode="single"
@@ -26,12 +27,20 @@ const props = defineProps<{
   localHistory: readonly LocalHistoryEntryDto[]
   emptyLabel: string
   locale: string
+  canRestore: boolean
 }>()
 const emit = defineEmits<{
   select: [source: 'version' | 'local-history', id: string]
+  restore: [entryId: string]
 }>()
 const { t } = useI18n()
 const selectedKeys = ref<string[]>([])
+const actions = computed(() => new Map([
+  ['local-history.restore', {
+    title: t('versioning.actions.restore'),
+    icon: 'action.undo' as const,
+  }],
+]))
 
 function relativeTime(timestamp: number): string {
   const deltaSeconds = Math.round((timestamp - Date.now()) / 1000)
@@ -68,6 +77,10 @@ const treeData = computed<OcTreeData>(() => {
       tail: relativeTime(entry.createdAtUnixMs),
       icon: 'action.save' as const,
       iconTone: undefined,
+      actions: ['local-history.restore'],
+      disabledActions: props.canRestore
+        ? undefined
+        : new Map([['local-history.restore', t('versioning.history.saveBeforeRestore')]]),
     })),
   ]
   for (const row of rows) items.set(row.key, row)
@@ -79,6 +92,10 @@ watch(treeData, data => {
 })
 
 function handleIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'action.invoke' && intent.actionKey === 'local-history.restore') {
+    emit('restore', intent.key.slice('local-history:'.length))
+    return
+  }
   if (intent.type === 'selection.change') {
     selectedKeys.value = intent.selectedKeys
     return

@@ -31,6 +31,7 @@ describe('ChangeHistoryList', () => {
         }],
         emptyLabel: 'No history',
         locale: 'en-US',
+        canRestore: true,
       },
       global: {
         plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
