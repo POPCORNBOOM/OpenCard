@@ -224,4 +224,51 @@ describe('useCdeTreeOps active face boundary', () => {
     const duplicate = document.faces.front.children[2]?.block
     expect(duplicate).toMatchObject({ type: 'simple-container-block', packaged: 'true' })
   })
+
+  it('inserts catalog custom blocks at the root or inside unpackaged containers only', () => {
+    const document = createDocument()
+    const openContainer = createSimpleContainerBlock({ id: 'open-container' })
+    const packagedContainer = createSimpleContainerBlock({ id: 'packaged-container', packaged: 'true' })
+    document.faces.front.children = [
+      { block: openContainer, location: { id: 'open-location', type: 'simple-container-location', anchor: 'lt' } },
+      { block: packagedContainer, location: { id: 'packaged-location', type: 'simple-container-location', anchor: 'lt' } },
+    ]
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys: ref([]),
+      getDefaultBlockName: type => type,
+      createCustomBlock: key => createCustomBlock({ source: `block:${key}`, interfaceHash: 'hash' }),
+      refreshDocumentState: () => {
+        documentRevision.value += 1
+        parentLookup.value = buildParentLookup(document)
+      },
+      markDocumentChanged: vi.fn(),
+    })
+
+    state.handleRootAction('add-custom-block:square')
+    expect(document.faces.front.children[2]?.block).toMatchObject({
+      type: 'custom-block',
+      source: 'block:square',
+    })
+
+    state.handleTreeIntent({
+      type: 'action.invoke',
+      key: 'open-container',
+      actionKey: 'add-custom-block:square',
+      source: 'context',
+    })
+    expect(openContainer.children[0]?.block.type).toBe('custom-block')
+
+    state.handleTreeIntent({
+      type: 'action.invoke',
+      key: 'packaged-container',
+      actionKey: 'add-custom-block:square',
+      source: 'context',
+    })
+    expect(packagedContainer.children).toHaveLength(0)
+  })
 })

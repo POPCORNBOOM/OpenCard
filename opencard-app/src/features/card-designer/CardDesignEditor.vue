@@ -339,7 +339,7 @@
       :dialog-title="t('cardDesigner.customBlock.exportTitle')"
       :fields="customBlockExportFields"
       :default-name="customBlockExportBlock?.name ?? ''"
-      :default-key="customBlockExportBlock?.name ?? ''"
+      :default-key="customBlockExportDefaultKey"
       :name-label="t('cardDesigner.customBlock.name')"
       :key-label="t('cardDesigner.customBlock.key')"
       :cancel-label="t('cardDesigner.customBlock.cancel')"
@@ -356,12 +356,17 @@
     <OcDialog :open="Boolean(pendingCustomBlockRegistrationPath)"
       :title="t('cardDesigner.customBlock.registerTitle')"
       :description="t('cardDesigner.customBlock.registerDescription')"
-      size="sm" @request-close="pendingCustomBlockRegistrationPath = null">
+      size="sm" :dismissible="!customBlockRegistrationBusy"
+      @request-close="closeCustomBlockRegistration">
+      <OcText v-if="customBlockRegistrationError" tone="danger" size="sm" role="alert">
+        {{ customBlockRegistrationError }}
+      </OcText>
       <template #footer>
-        <OcButton type="button" @click="pendingCustomBlockRegistrationPath = null">
+        <OcButton type="button" :disabled="customBlockRegistrationBusy" @click="closeCustomBlockRegistration">
           {{ t('cardDesigner.customBlock.skipRegistration') }}
         </OcButton>
-        <OcButton type="button" variant="solid" @click="confirmCustomBlockRegistration">
+        <OcButton type="button" variant="solid" :disabled="customBlockRegistrationBusy"
+          @click="confirmCustomBlockRegistration">
           {{ t('cardDesigner.customBlock.register') }}
         </OcButton>
       </template>
@@ -412,6 +417,8 @@ import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
 import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDialog.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
 import OcButton from '../../components/base/OcButton.vue'
+import OcText from '../../components/base/OcText.vue'
+import { toKeySlug } from '../../shared/model/keySlug'
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { buildProjectCustomBlockManifest } from '../workspace/services/buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
@@ -420,13 +427,7 @@ import {
   collectProjectCustomBlockResources,
   rewriteProjectCustomBlockResourceReferences,
 } from '../workspace/services/projectCustomBlockResources'
-import { registerProjectCustomBlockPath } from '../workspace/services/projectCustomBlockRegistry'
 import { materializeProjectCustomBlockExport } from '../workspace/services/materializeProjectCustomBlockExport'
-import {
-  parseProjectCustomBlockRegistryText,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  serializeProjectCustomBlockRegistry,
-} from '../workspace/model/projectCustomBlocks'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -605,8 +606,27 @@ const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | nu
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const loadedFilePath = ref<string | null>(null)
 
+const nativeAddActionKeys = [
+  'add-text-block',
+  'add-markdown-text-block',
+  'add-image-block',
+  'add-qrcode-block',
+  'add-shape-block',
+  'add-simple-container-block',
+  'add-flow-container-block',
+]
+
 // 结构树操作定义
-const treeActions = new Map<string, OcTreeActionDefinition>([
+const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
+  const customBlockActions = [...projectStore.projectCustomBlockCatalog.value.entries()].map(([key, entry]) => ([
+    `add-custom-block:${key}`,
+    { icon: 'entity.block-custom', title: entry.manifest.name },
+  ] as const))
+  const addChildren = [
+    ...nativeAddActionKeys,
+    ...(customBlockActions.length ? ['add-custom-block-menu'] : []),
+  ]
+  return new Map<string, OcTreeActionDefinition>([
   ['instance-more', {
     icon: 'nav.more',
     title: '更多操作',
@@ -615,29 +635,29 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['block-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'duplicate', 'delete'],
+    children: ['rename', 'export-custom-block', 'duplicate', 'delete'],
   }],
   ['container-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'add', 'package', 'duplicate', 'delete'],
+    children: ['rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete'],
   }],
   ['packaged-container-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'unpackage', 'duplicate', 'delete'],
+    children: ['rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
   }],
   ['add-root', {
     icon: 'action.add',
     title: '添加',
-    children: ['add-text-block', 'add-markdown-text-block', 'add-image-block', 'add-qrcode-block', 'add-shape-block', 'add-simple-container-block', 'add-flow-container-block'],
+    children: addChildren,
   }],
   ['duplicate-selected', { icon: 'action.copy', title: '复制选中' }],
   ['delete-selected', { icon: 'action.delete', title: '删除选中' }],
   ['add', {
     icon: 'action.add',
     title: '添加子块',
-    children: ['add-text-block', 'add-markdown-text-block', 'add-image-block', 'add-qrcode-block', 'add-shape-block', 'add-simple-container-block', 'add-flow-container-block'],
+    children: addChildren,
   }],
   ['add-text-block', { ...getBlockPresentation('text-block'), title: '文本块' }],
   ['add-markdown-text-block', { ...getBlockPresentation('markdown-text-block'), title: 'Markdown 文本块' }],
@@ -656,11 +676,21 @@ const treeActions = new Map<string, OcTreeActionDefinition>([
   ['show-block', { icon: 'status.eye-off', title: '显示' }],
   ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
   ['delete-instance', { icon: 'action.delete', title: '删除实例' }],
-])
+  ...(customBlockActions.length ? [[
+    'add-custom-block-menu',
+    {
+      icon: 'entity.block-custom',
+      title: t('cardDesigner.treeActions.addCustomBlock'),
+      children: customBlockActions.map(([key]) => key),
+    },
+  ] as const] : []),
+  ...customBlockActions,
+  ])
+})
 const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
 
 function toCardActionDefinition(actionKey: string, disabled = false): OcCardAction | null {
-  const action = treeActions.get(actionKey)
+  const action = treeActions.value.get(actionKey)
   if (!action) return null
   return {
     key: actionKey,
@@ -969,6 +999,10 @@ const {
   parentLookup,
   selectedBlockKeys,
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
+  createCustomBlock: key => {
+    const entry = projectStore.projectCustomBlockCatalog.value.get(key.toLocaleLowerCase())
+    return entry ? createProjectCustomBlockInstance(entry) : null
+  },
   refreshDocumentState,
   markDocumentChanged,
 })
@@ -977,9 +1011,15 @@ const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
 const customBlockExportErrorText = ref('')
 const pendingCustomBlockRegistrationPath = ref<string | null>(null)
+const customBlockRegistrationBusy = ref(false)
+const customBlockRegistrationError = ref('')
 const customBlockExportFields = computed<readonly CustomBlockFieldAnalysis[]>(() =>
   customBlockExportBlock.value ? analyzeProjectCustomBlockExport(customBlockExportBlock.value).fields : [],
 )
+const customBlockExportDefaultKey = computed(() => toKeySlug(
+  customBlockExportBlock.value?.name ?? '',
+  'custom-block',
+))
 
 function handleStructureTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'expansion.sync') {
@@ -1029,6 +1069,7 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
   const document = cardDoc.value
   if (!root || !document) return
   customBlockExportErrorText.value = ''
+  try {
   const materialized = materializeProjectCustomBlockExport({
     document,
     rootBlockId: root.id,
@@ -1062,6 +1103,11 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
     name: payload.name,
     exposedFieldKeys: payload.exposedFieldKeys,
   })
+  const registeredEntry = projectStore.projectCustomBlockCatalog.value.get(manifest.key.toLocaleLowerCase())
+  if (registeredEntry && registeredEntry.manifest.interfaceHash !== manifest.interfaceHash) {
+    customBlockExportErrorText.value = t('cardDesigner.customBlock.interfaceMismatch', { key: manifest.key })
+    return
+  }
   const resources = await collectProjectCustomBlockResources({
     root: materialized.root,
     packageKey: manifest.key,
@@ -1086,24 +1132,36 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
   const projectPath = projectStore.projectPath.value.replace(/\\/g, '/').replace(/\/$/, '')
   const normalizedOutputPath = outputPath.replace(/\\/g, '/')
   if (projectPath && normalizedOutputPath.toLocaleLowerCase().startsWith(`${projectPath.toLocaleLowerCase()}/`)) {
+    customBlockRegistrationError.value = ''
     pendingCustomBlockRegistrationPath.value = normalizedOutputPath.slice(projectPath.length + 1)
+  }
+  } catch (cause) {
+    customBlockExportErrorText.value = t('cardDesigner.customBlock.exportFailed', {
+      reason: cause instanceof Error ? cause.message : String(cause),
+    })
   }
 }
 
 async function confirmCustomBlockRegistration(): Promise<void> {
   const archivePath = pendingCustomBlockRegistrationPath.value
-  if (!archivePath) return
-  const registryPath = `${projectStore.projectPath.value}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
-  const existing = await fileSystemService.fileExists(registryPath)
-    ? parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
-    : {}
-  if (!existing) throw new Error('Invalid .ocblocks registry')
-  const updated = registerProjectCustomBlockPath(existing, archivePath)
-  await projectStore.saveProjectCustomBlockRegistry(
-    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-    serializeProjectCustomBlockRegistry(updated),
-  )
+  const projectPath = projectStore.projectPath.value.replace(/[/\\]+$/, '')
+  if (!archivePath || !projectPath || customBlockRegistrationBusy.value) return
+  customBlockRegistrationBusy.value = true
+  customBlockRegistrationError.value = ''
+  try {
+    await projectStore.registerProjectCustomBlockFile(`${projectPath}/${archivePath}`)
+    pendingCustomBlockRegistrationPath.value = null
+  } catch (cause) {
+    customBlockRegistrationError.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    customBlockRegistrationBusy.value = false
+  }
+}
+
+function closeCustomBlockRegistration(): void {
+  if (customBlockRegistrationBusy.value) return
   pendingCustomBlockRegistrationPath.value = null
+  customBlockRegistrationError.value = ''
 }
 
 const structureTreeCardActions = computed<OcCardAction[]>(() =>
@@ -1114,16 +1172,6 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
         return toCardActionDefinition(actionKey, selectionDependent && !selectedBlock.value)
       })
       .filter((action): action is OcCardAction => action !== null),
-    ...(projectStore.projectCustomBlockCatalog.value.size > 0 ? [{
-      key: 'add-custom-block-menu',
-      icon: 'entity.block-custom' as const,
-      title: t('cardDesigner.treeActions.addCustomBlock'),
-      children: [...projectStore.projectCustomBlockCatalog.value.entries()].map(([key, entry]) => ({
-        key: `add-custom-block:${key}`,
-        icon: 'entity.block-custom' as const,
-        title: entry.manifest.name,
-      })),
-    }] : []),
     createPanelToggleAction('toggle-structure-tree-panel', isStructureTreePanelExpanded.value),
   ],
 )

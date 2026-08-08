@@ -756,6 +756,8 @@ export default {
       unavailable: '自定义 Block 不可用',
       exportBindingError: '无法导出：{location} 的字段 {field} 中，引用 {token} 无法实体化。',
       exportPackageError: '无法导出：块 {block} 无法展开 {source}（{reason}）。',
+      interfaceMismatch: '无法导出：“{key}”已使用不同的公开接口注册，请改用新的 Key。',
+      exportFailed: '无法导出自定义 Block：{reason}',
     },
     treeActions: {
       package: '打包',

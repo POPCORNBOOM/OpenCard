@@ -33,6 +33,7 @@ type UseCdeTreeOpsOptions = {
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
   getDefaultBlockName: (type: CardBlock['type']) => string
+  createCustomBlock?: (key: string) => CardBlock | null
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
 }
@@ -180,6 +181,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const targetContainer: BlockContainer | null = target && isBlockContainer(target) && !isBlockPackaged(target)
       ? target
       : target ? null : options.activeFace.value
+    if (actionKey.startsWith('add-custom-block:')) {
+      const block = options.createCustomBlock?.(actionKey.slice('add-custom-block:'.length)) ?? null
+      if (targetContainer && block) insertBlockAt(targetContainer, block)
+      return
+    }
     switch (actionKey) {
       case 'add-text-block':
         if (targetContainer) createBlockAt(targetContainer, 'text-block')
@@ -364,6 +370,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         block = createBlock('flow-container-block', { name })
         break
     }
+    insertBlockAt(container, block)
+  }
+
+  function insertBlockAt(container: BlockContainer, block: CardBlock): void {
+    if (isBlockPackaged(container)) return
     addBlockToContainer(container, block, options.parentLookup.value)
     options.refreshDocumentState()
     options.selectedBlockKeys.value = [block.id]

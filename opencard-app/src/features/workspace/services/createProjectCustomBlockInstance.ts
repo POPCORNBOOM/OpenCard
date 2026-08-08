@@ -21,12 +21,13 @@ export function createProjectCustomBlockInstance(
   const values = Object.fromEntries(entry.manifest.publicFields
     .filter(field => field.defaultValue !== undefined)
     .map(field => [field.key, field.defaultValue]))
-  return createCustomBlock({
+  const block = createCustomBlock({
     id: init.id,
     name: init.name ?? entry.manifest.name,
     source: `block:${entry.manifest.key}`,
     interfaceHash: entry.manifest.interfaceHash,
     additionalFieldDefinition: definitions,
-    ...values,
   })
+  Object.assign(block, values)
+  return block
 }

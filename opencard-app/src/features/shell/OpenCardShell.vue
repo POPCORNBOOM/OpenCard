@@ -358,7 +358,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import {
   createDefaultOpenCardContent,
@@ -2635,8 +2635,10 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
   void startAppUpdater()
-  void loadSystemFontFamilies()
-  void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
+  if (isTauri()) {
+    void loadSystemFontFamilies()
+    void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
+  }
 })
 
 onUnmounted(() => {

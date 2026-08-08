@@ -91,6 +91,7 @@ export function expandCustomBlocks(
     namespaceDescendantIds(root, block.id)
     root.name = block.name
     root.notes = block.notes
+    if (block.visible !== undefined) root.visible = block.visible
     for (const field of entry.manifest.publicFields) {
       if (Object.prototype.hasOwnProperty.call(block, field.key)) {
         ;(root as Record<string, unknown>)[field.key] = (block as Record<string, unknown>)[field.key]

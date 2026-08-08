@@ -757,6 +757,8 @@ export default {
       unavailable: 'Custom block unavailable',
       exportBindingError: 'Cannot export: {location}, field {field}, reference {token} could not be materialized.',
       exportPackageError: 'Cannot export: block {block} cannot expand {source} ({reason}).',
+      interfaceMismatch: 'Cannot export: “{key}” is already registered with a different public interface. Use a new Key.',
+      exportFailed: 'Cannot export the custom Block: {reason}',
     },
     treeActions: {
       package: 'Package',

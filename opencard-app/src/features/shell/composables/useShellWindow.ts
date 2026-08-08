@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue'
 import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window'
+import { isTauri } from '@tauri-apps/api/core'
 import type { Event as TauriEvent, UnlistenFn } from '@tauri-apps/api/event'
 import {
   filterSupportedExternalOpenPaths,
@@ -12,7 +13,7 @@ type ShellWindowOptions = {
 }
 
 export function useShellWindow(options: ShellWindowOptions) {
-  const appWindow = getCurrentWindow()
+  const appWindow = isTauri() ? getCurrentWindow() : null
   const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
   const isFullscreen = ref(false)
   const isMaximized = ref(false)
@@ -34,6 +35,11 @@ export function useShellWindow(options: ShellWindowOptions) {
   }
 
   async function syncWindowState(expectedGeneration?: number): Promise<void> {
+    if (!appWindow) {
+      isFullscreen.value = false
+      isMaximized.value = false
+      return
+    }
     try {
       const [fullscreen, maximized] = await Promise.all([
         appWindow.isFullscreen(),
@@ -50,7 +56,7 @@ export function useShellWindow(options: ShellWindowOptions) {
   }
 
   async function toggleFullscreen(): Promise<void> {
-    if (isFullscreenTransitioning) return
+    if (!appWindow || isFullscreenTransitioning) return
 
     isFullscreenTransitioning = true
     try {
@@ -83,10 +89,11 @@ export function useShellWindow(options: ShellWindowOptions) {
   }
 
   async function minimize(): Promise<void> {
-    await appWindow.minimize()
+    await appWindow?.minimize()
   }
 
   async function toggleMaximize(): Promise<void> {
+    if (!appWindow) return
     if (await appWindow.isFullscreen()) return
     await appWindow.toggleMaximize()
     isMaximized.value = await appWindow.isMaximized()
@@ -97,7 +104,7 @@ export function useShellWindow(options: ShellWindowOptions) {
   }
 
   async function destroy(): Promise<void> {
-    await appWindow.destroy()
+    await appWindow?.destroy()
   }
 
   function handleViewportResize(expectedGeneration: number): void {
@@ -153,14 +160,14 @@ export function useShellWindow(options: ShellWindowOptions) {
 
     const pendingStart = Promise.all([
       syncWindowState(expectedGeneration),
-      retainUnlisten(
+      appWindow ? retainUnlisten(
         appWindow.onResized(() => {
           if (isActive(expectedGeneration)) void syncWindowState(expectedGeneration)
         }),
         expectedGeneration,
         unlisten => { unlistenWindowResize = unlisten },
-      ),
-      retainUnlisten(
+      ) : Promise.resolve(),
+      appWindow ? retainUnlisten(
         appWindow.onCloseRequested((event) => {
           if (!isActive(expectedGeneration)) return
           event.preventDefault()
@@ -168,19 +175,19 @@ export function useShellWindow(options: ShellWindowOptions) {
         }),
         expectedGeneration,
         unlisten => { unlistenWindowClose = unlisten },
-      ),
-      retainUnlisten(
+      ) : Promise.resolve(),
+      isTauri() ? retainUnlisten(
         listenForExternalOpenRequests((paths) => {
           if (isActive(expectedGeneration)) return options.handleExternalOpenPaths(paths)
         }),
         expectedGeneration,
         unlisten => { unlistenExternalOpen = unlisten },
-      ),
-      retainUnlisten(
+      ) : Promise.resolve(),
+      appWindow ? retainUnlisten(
         appWindow.onDragDropEvent(event => handleFileDropEvent(event, expectedGeneration)),
         expectedGeneration,
         unlisten => { unlistenFileDrop = unlisten },
-      ),
+      ) : Promise.resolve(),
     ]).then(() => undefined)
 
     startPromise = pendingStart.finally(() => {

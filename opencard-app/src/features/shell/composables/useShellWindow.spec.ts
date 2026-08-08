@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   externalHandler: null as ((paths: readonly string[]) => Promise<void> | void) | null,
 }))
 
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
+
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     isFullscreen: mocks.isFullscreen,

@@ -123,6 +123,10 @@ function handleTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'move.request' && intent.key.startsWith('field:')) {
     if (intent.targetKey === 'group:exposed') move(intent.key.slice(6), 'exposed')
     if (intent.targetKey === 'group:private') move(intent.key.slice(6), 'private')
+    if (intent.targetKey?.startsWith('field:')) {
+      const targetFieldKey = intent.targetKey.slice(6)
+      move(intent.key.slice(6), exposed.value.has(targetFieldKey) ? 'exposed' : 'private')
+    }
   }
 }
 
