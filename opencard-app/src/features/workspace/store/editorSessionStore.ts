@@ -26,17 +26,38 @@ const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosav
 const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
+export type LocalHistorySource =
+  | 'manual-save'
+  | 'close-guard-save'
+  | 'save-version'
+  | 'save-and-publish'
+  | 'file-restored'
+  | 'file-renamed'
+  | 'file-moved'
+export type LocalHistoryResult = 'recorded' | 'merged' | 'unchanged' | 'not-applicable' | 'failed'
+
+export type LocalHistoryRecordInput = {
+  projectRoot: string
+  relativePath: string
+  content: string
+  source: LocalHistorySource
+}
+type LocalHistoryRecorder = (input: LocalHistoryRecordInput) => Promise<LocalHistoryResult>
+let localHistoryRecorder: LocalHistoryRecorder | null = null
+
 export type SessionSaveReceipt =
   | {
     status: 'saved'
     sessionId: string
     resourceKind: Exclude<SessionResourceKind, 'draft'>
+    source: LocalHistorySource
     path: string
     relativePath: string | null
     startedRevision: number
     persistedRevision: number
     currentRevision: number
     persistedContent: string
+    localHistory: LocalHistoryResult
     sessionStillDirty: boolean
   }
   | {
@@ -96,6 +117,10 @@ const activeSessionId = ref<string>('')
 
 function normalizePath(path: string) {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+export function setLocalHistoryRecorder(recorder: LocalHistoryRecorder | null): void {
+  localHistoryRecorder = recorder
 }
 
 function getPathBasename(path: string) {
@@ -574,7 +599,11 @@ export function useEditorSessionStore() {
     }
   }
 
-  async function saveSession(sessionId: string, targetPath?: string): Promise<SessionSaveReceipt> {
+  async function saveSession(
+    sessionId: string,
+    targetPath?: string,
+    source: LocalHistorySource = 'manual-save',
+  ): Promise<SessionSaveReceipt> {
     taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session) {
@@ -667,26 +696,42 @@ export function useEditorSessionStore() {
     const currentSession = sessions.value.find((candidate) => candidate.id === sessionId)
     const currentRevision = currentSession?.contentRevision ?? startedRevision
     const sessionStillDirty = currentSession?.isDirty ?? false
+    const relativePath = resolveProjectRelativePath(nextPath, nextResourceKind, projectPath.value)
+    let localHistory: LocalHistoryResult = 'not-applicable'
+    if (nextResourceKind === 'workspace' && relativePath && localHistoryRecorder) {
+      try {
+        localHistory = await localHistoryRecorder({
+          projectRoot: projectPath.value,
+          relativePath,
+          content: savedContent,
+          source,
+        })
+      } catch {
+        localHistory = 'failed'
+      }
+    }
     return {
       status: 'saved',
       sessionId,
       resourceKind: nextResourceKind as Exclude<SessionResourceKind, 'draft'>,
+      source,
       path: nextPath,
-      relativePath: resolveProjectRelativePath(nextPath, nextResourceKind, projectPath.value),
+      relativePath,
       startedRevision,
       persistedRevision: startedRevision,
       currentRevision,
       persistedContent: savedContent,
       sessionStillDirty,
+      localHistory,
     }
   }
 
-  async function saveActiveSession(): Promise<SessionSaveReceipt> {
+  async function saveActiveSession(source: LocalHistorySource = 'manual-save'): Promise<SessionSaveReceipt> {
     if (!activeSessionId.value) {
       return { status: 'skipped', sessionId: '', reason: 'missing' }
     }
 
-    return await saveSession(activeSessionId.value)
+    return await saveSession(activeSessionId.value, undefined, source)
   }
 
   async function refreshSessionFromDisk(sessionId: string) {

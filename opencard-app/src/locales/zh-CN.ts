@@ -648,6 +648,7 @@ export default {
       loading: '正在准备版本历史…',
       unavailable: '版本历史不可用',
     },
+    errors: { saveFailed: '保存版本失败，当前修改仍保留，可检查后重试（{code}）。' },
   },
   settings: {
     title: '设置',

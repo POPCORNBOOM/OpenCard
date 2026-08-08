@@ -35,6 +35,7 @@ function createGuard(sessions: EditorSession[]) {
     status: 'saved',
     sessionId,
     resourceKind: 'workspace',
+    source: 'manual-save',
     path: `${sessionId}.ocdocument`,
     relativePath: `${sessionId}.ocdocument`,
     startedRevision: 0,
@@ -42,6 +43,7 @@ function createGuard(sessions: EditorSession[]) {
     currentRevision: 0,
     persistedContent: '{}',
     sessionStillDirty: false,
+    localHistory: 'not-applicable',
   }))
   const pickDraftDirectory = vi.fn<() => Promise<string | null>>(async () => 'D:/drafts')
   const fileExists = vi.fn<(path: string) => Promise<boolean>>(async () => false)

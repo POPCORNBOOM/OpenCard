@@ -308,6 +308,7 @@
     <SaveVersionDialog
       :confirmation="saveVersionConfirmation"
       :busy="versionWriteState.status === 'running'"
+      :error="versioningErrorMessage"
       @close="cancelSaveVersion"
       @submit="handleSaveVersionConfirm"
     />
@@ -379,6 +380,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import {
   createDefaultOpenCardContent,
+  setLocalHistoryRecorder,
   useEditorSessionStore,
 } from '../workspace/store/editorSessionStore'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
@@ -791,9 +793,11 @@ const {
   versions: projectVersions,
   writeState: versionWriteState,
   saveVersionConfirmation,
+  lastError: versioningError,
   openSaveVersion,
   cancelSaveVersion,
   confirmSaveVersion,
+  recordLocalHistory,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -803,6 +807,13 @@ const {
   prepareSessionContent,
   saveSession,
 })
+setLocalHistoryRecorder(recordLocalHistory)
+
+const versioningErrorMessage = computed(() => (
+  versioningError.value
+    ? t('versioning.errors.saveFailed', { code: versioningError.value.code })
+    : null
+))
 
 const {
   isActivating: isActivatingProject,
@@ -1007,6 +1018,22 @@ const recentProjectTreeData = computed(() => (
     recentProjectAvailability.value,
   )
 ))
+
+function formatVersionTime(timestamp: number): string {
+  const deltaSeconds = Math.round((timestamp - Date.now()) / 1000)
+  const absoluteSeconds = Math.abs(deltaSeconds)
+  const [value, unit] = absoluteSeconds < 60
+    ? [deltaSeconds, 'second'] as const
+    : absoluteSeconds < 3600
+      ? [Math.round(deltaSeconds / 60), 'minute'] as const
+      : absoluteSeconds < 86400
+        ? [Math.round(deltaSeconds / 3600), 'hour'] as const
+        : absoluteSeconds < 2592000
+          ? [Math.round(deltaSeconds / 86400), 'day'] as const
+          : [Math.round(deltaSeconds / 2592000), 'month'] as const
+  return new Intl.RelativeTimeFormat(locale.value, { numeric: 'auto' }).format(value, unit)
+}
+
 const versionTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeItem>()
   const rootKeys = projectVersions.value.map(version => {
@@ -1019,7 +1046,7 @@ const versionTreeData = computed<OcTreeData>(() => {
     items.set(key, {
       label: `v${version.version}`,
       description: version.description,
-      tail: labels.join(' · '),
+      tail: [...labels, formatVersionTime(version.savedAtUnixMs)].join(' · '),
       icon: 'data.version',
       iconTone: isCurrent ? 'primary' : version.release ? 'success' : undefined,
     })
@@ -2675,6 +2702,12 @@ async function handleOpenFile(path: string) {
 }
 
 async function handleGlobalKeydown(event: KeyboardEvent) {
+  if (saveVersionConfirmation.value && (event.ctrlKey || event.metaKey)
+    && event.key.toLowerCase() === SHELL_SHORTCUT_KEYS.save) {
+    event.preventDefault()
+    return
+  }
+
   if (event.key === SHELL_SHORTCUT_KEYS.fullscreen) {
     event.preventDefault()
     if (!event.repeat) {
@@ -2758,6 +2791,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
+  setLocalHistoryRecorder(null)
   disposeEditorHost()
   disposeVersioning()
   window.removeEventListener('keydown', handleGlobalKeydown)

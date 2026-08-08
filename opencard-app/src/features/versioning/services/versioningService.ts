@@ -10,6 +10,15 @@ import type {
   VersionProjectRequest,
   VersionStatusDto,
   VersionListResponse,
+  FileHistoryRequest,
+  FileHistoryResponse,
+  LocalHistoryRecordRequest,
+  LocalHistoryRecordResponse,
+  LocalHistoryPathRequest,
+  LocalHistoryListResponse,
+  LocalHistoryEntryRequest,
+  LocalHistoryReadResponse,
+  LocalHistoryDeleteResponse,
 } from '../model/versioning'
 
 export interface VersioningService {
@@ -17,7 +26,12 @@ export interface VersioningService {
   getStatus(request: VersionProjectRequest): Promise<VersionStatusDto>
   createVersion(request: CreateVersionRequest): Promise<CreateVersionResponse>
   listVersions(request: ListVersionsRequest): Promise<VersionListResponse>
+  listFileHistory(request: FileHistoryRequest): Promise<FileHistoryResponse>
   previewChanges(request: PreviewChangesRequest): Promise<PreviewChangesResponse>
+  recordLocalHistory(request: LocalHistoryRecordRequest): Promise<LocalHistoryRecordResponse>
+  listLocalHistory(request: LocalHistoryPathRequest): Promise<LocalHistoryListResponse>
+  readLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryReadResponse>
+  deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse>
 }
 
 class VersioningServiceImpl implements VersioningService {
@@ -37,8 +51,28 @@ class VersioningServiceImpl implements VersioningService {
     return await invoke<VersionListResponse>('version_list', { request })
   }
 
+  async listFileHistory(request: FileHistoryRequest): Promise<FileHistoryResponse> {
+    return await invoke<FileHistoryResponse>('version_list_file_history', { request })
+  }
+
   async previewChanges(request: PreviewChangesRequest): Promise<PreviewChangesResponse> {
     return await invoke<PreviewChangesResponse>('version_preview_changes', { request })
+  }
+
+  async recordLocalHistory(request: LocalHistoryRecordRequest): Promise<LocalHistoryRecordResponse> {
+    return await invoke<LocalHistoryRecordResponse>('local_history_record', { request })
+  }
+
+  async listLocalHistory(request: LocalHistoryPathRequest): Promise<LocalHistoryListResponse> {
+    return await invoke<LocalHistoryListResponse>('local_history_list', { request })
+  }
+
+  async readLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryReadResponse> {
+    return await invoke<LocalHistoryReadResponse>('local_history_read', { request })
+  }
+
+  async deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse> {
+    return await invoke<LocalHistoryDeleteResponse>('local_history_delete', { request })
   }
 }
 

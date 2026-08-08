@@ -37,6 +37,7 @@ function createHost(session = createSession()) {
     status: 'saved' as const,
     sessionId: 'session-a',
     resourceKind: 'workspace' as const,
+    source: 'manual-save' as const,
     path: 'D:/project/card.ocdocument',
     relativePath: 'card.ocdocument',
     startedRevision: 0,
@@ -44,6 +45,7 @@ function createHost(session = createSession()) {
     currentRevision: 0,
     persistedContent: '{}',
     sessionStillDirty: false,
+    localHistory: 'not-applicable' as const,
   }))
   const host = useShellEditorHost({
     activeSession,
@@ -359,6 +361,7 @@ describe('useShellEditorHost', () => {
         status: 'saved',
         sessionId: 'session-a',
         resourceKind: 'workspace',
+        source: 'manual-save',
         path: 'D:/project/card.ocdocument',
         relativePath: 'card.ocdocument',
         startedRevision: 1,
@@ -366,6 +369,7 @@ describe('useShellEditorHost', () => {
         currentRevision: 1,
         persistedContent: '{}',
         sessionStillDirty: false,
+        localHistory: 'not-applicable',
       }
     })
     const saving = host.handleSaveEvent()

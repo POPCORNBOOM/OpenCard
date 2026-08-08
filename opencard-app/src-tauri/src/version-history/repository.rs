@@ -39,6 +39,16 @@ pub struct ListVersionsRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FileHistoryRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DraftOverlayDto {
     session_id: String,
     relative_path: String,
@@ -126,6 +136,14 @@ pub struct VersionListResponse {
     project_id: String,
     items: Vec<VersionRecordDto>,
     next_cursor: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileHistoryResponse {
+    project_id: String,
+    relative_path: String,
+    items: Vec<VersionRecordDto>,
 }
 
 #[derive(Debug, Serialize)]
@@ -300,6 +318,45 @@ pub async fn version_list(
 }
 
 #[tauri::command]
+pub async fn version_list_file_history(
+    request: FileHistoryRequest,
+    app_handle: tauri::AppHandle,
+) -> Result<FileHistoryResponse, VersionErrorDto> {
+    let operation = "version_list_file_history";
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+    {
+        return Err(to_error_dto(
+            operation,
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-request",
+                "missing file history request field",
+            ),
+        ));
+    }
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        list_file_history(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
 pub async fn version_preview_changes(
     request: PreviewChangesRequest,
     app_handle: tauri::AppHandle,
@@ -438,6 +495,88 @@ fn list_versions(
         items,
         next_cursor: None,
     })
+}
+
+fn list_file_history(
+    context: &ProjectHistoryContext,
+    request: FileHistoryRequest,
+) -> Result<FileHistoryResponse, HistoryFailure> {
+    let _request_generation = request.generation;
+    let relative_path = normalize_history_path(context, &request.relative_path)?;
+    let repository = open_repository(context)?;
+    let mut commit = head_commit(&repository)?;
+    let mut items = Vec::new();
+    while let Some(current) = commit {
+        let current_entries = tree_entries(
+            &repository,
+            &current
+                .tree()
+                .map_err(repository_error("read-version-tree"))?,
+        )?;
+        let parent_entries = if current.parent_count() == 0 {
+            BTreeMap::new()
+        } else if current.parent_count() == 1 {
+            let parent = current
+                .parent(0)
+                .map_err(repository_error("read-version-parent"))?;
+            tree_entries(
+                &repository,
+                &parent
+                    .tree()
+                    .map_err(repository_error("read-version-tree"))?,
+            )?
+        } else {
+            return Err(HistoryFailure::new(
+                "history-corrupt",
+                "read-version-parent",
+                "version history is not linear",
+            ));
+        };
+        if current_entries.get(&relative_path) != parent_entries.get(&relative_path) {
+            items.push(version_record(&repository, &current)?);
+        }
+        commit = if current.parent_count() == 0 {
+            None
+        } else {
+            Some(
+                current
+                    .parent(0)
+                    .map_err(repository_error("read-version-parent"))?,
+            )
+        };
+    }
+    Ok(FileHistoryResponse {
+        project_id: context.project_id.clone(),
+        relative_path,
+        items,
+    })
+}
+
+fn normalize_history_path(
+    context: &ProjectHistoryContext,
+    relative_path: &str,
+) -> Result<String, HistoryFailure> {
+    let normalized = relative_path.replace('\\', "/");
+    let path = Path::new(&normalized);
+    let valid = !normalized.is_empty()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        && !is_excluded_path(&normalized);
+    let template_managed = context
+        .template_managed_paths
+        .iter()
+        .any(|candidate| candidate == &normalized);
+    if !valid || !is_managed_file(&normalized, template_managed) {
+        return Err(HistoryFailure::new(
+            "unsupported-entry",
+            "validate-path",
+            "file history path is not managed",
+        )
+        .project_id(&context.project_id)
+        .relative_path(&normalized));
+    }
+    Ok(normalized)
 }
 
 fn create_version(
@@ -1413,6 +1552,41 @@ mod tests {
         assert_eq!(second_page.items.len(), 1);
         assert_eq!(second_page.items[0].version, "0.2.4");
         assert!(second_page.next_cursor.is_none());
+
+        fs::write(project.path().join("notes.txt"), b"unrelated").unwrap();
+        let before_third = get_status(&context, 1).unwrap();
+        create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "create-third".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: before_third.expected_head_commit_id,
+                expected_snapshot_id: before_third.change_summary.snapshot_id,
+                description: "Add notes".to_owned(),
+            },
+        )
+        .unwrap();
+        let history = list_file_history(
+            &context,
+            FileHistoryRequest {
+                operation_id: "file-history".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                relative_path: "cards/main.ocdocument".to_owned(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            history
+                .items
+                .iter()
+                .map(|item| item.version.as_str())
+                .collect::<Vec<_>>(),
+            ["0.2.5", "0.2.4"]
+        );
     }
 
     #[test]

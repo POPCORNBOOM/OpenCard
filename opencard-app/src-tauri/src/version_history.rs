@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State};
 
+#[path = "version-history/local_history.rs"]
+pub(crate) mod local_history;
 #[path = "version-history/repository.rs"]
 pub(crate) mod repository;
 

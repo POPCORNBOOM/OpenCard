@@ -83,6 +83,67 @@ export type VersionProjectRequest = {
   generation: number
 }
 
+export type LocalHistorySource =
+  | 'manual-save'
+  | 'close-guard-save'
+  | 'save-version'
+  | 'save-and-publish'
+  | 'file-restored'
+  | 'file-renamed'
+  | 'file-moved'
+
+export type LocalHistoryEntryDto = {
+  schemaVersion: number
+  entryId: string
+  relativePath: string
+  createdAtUnixMs: number
+  source: LocalHistorySource
+  sourceDescription: string | null
+  contentOid: string
+  size: number
+}
+
+export type LocalHistoryRecordRequest = VersionProjectRequest & {
+  relativePath: string
+  source: LocalHistorySource
+  sourceDescription?: string
+  content: number[]
+}
+
+export type LocalHistoryRecordResponse = {
+  projectId: string
+  entry: LocalHistoryEntryDto
+  result: 'recorded' | 'merged' | 'unchanged'
+  warnings: Array<{ code: string; entryId: string | null }>
+}
+
+export type LocalHistoryPathRequest = VersionProjectRequest & {
+  relativePath: string
+}
+
+export type LocalHistoryListResponse = {
+  projectId: string
+  relativePath: string
+  items: LocalHistoryEntryDto[]
+  warnings: Array<{ code: string; entryId: string | null }>
+}
+
+export type LocalHistoryEntryRequest = LocalHistoryPathRequest & {
+  entryId: string
+}
+
+export type LocalHistoryReadResponse = {
+  projectId: string
+  entry: LocalHistoryEntryDto
+  content: number[]
+}
+
+export type LocalHistoryDeleteResponse = {
+  projectId: string
+  deleted: boolean
+  warnings: Array<{ code: string; entryId: string | null }>
+}
+
 export type CreateVersionRequest = VersionProjectRequest & {
   expectedHeadCommitId: string | null
   expectedSnapshotId: string
@@ -105,11 +166,23 @@ export type VersionListResponse = {
   nextCursor: string | null
 }
 
+export type FileHistoryRequest = VersionProjectRequest & {
+  relativePath: string
+}
+
+export type FileHistoryResponse = {
+  projectId: string
+  relativePath: string
+  items: VersionRecordDto[]
+}
+
 export type VersionWriteState =
   | { status: 'idle' }
   | { status: 'preparing'; operation: 'save' }
   | { status: 'confirming'; operation: 'save' }
   | { status: 'running'; operation: 'save'; operationId: string }
+
+export type VersioningError = VersionErrorDto
 
 export type DraftOverlayDto = {
   sessionId: string
@@ -129,6 +202,9 @@ export type PreviewChangesResponse = {
 }
 
 export type SaveVersionConfirmation = {
+  projectRoot: string
+  projectId: string
+  generation: number
   version: string
   expectedHeadCommitId: string | null
   expectedSnapshotId: string

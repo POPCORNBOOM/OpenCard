@@ -37,11 +37,16 @@ describe('useVersioning project preparation', () => {
         items: [],
         nextCursor: null,
       })),
+      listFileHistory: vi.fn(),
       previewChanges: vi.fn(async request => ({
         projectId: request.projectId,
         changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
         overlayRevisions: request.overlays,
       })),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -95,11 +100,16 @@ describe('useVersioning project preparation', () => {
         items: [],
         nextCursor: null,
       })),
+      listFileHistory: vi.fn(),
       previewChanges: vi.fn(async request => ({
         projectId: request.projectId,
         changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: request.projectId },
         overlayRevisions: request.overlays,
       })),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -131,7 +141,12 @@ describe('useVersioning project preparation', () => {
       getStatus: vi.fn(),
       createVersion: vi.fn(),
       listVersions: vi.fn(),
+      listFileHistory: vi.fn(),
       previewChanges: vi.fn(),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
     }
     const versioning = useVersioning({
       projectPath,
@@ -208,12 +223,17 @@ describe('useVersioning project preparation', () => {
         changeSummary,
         overlayRevisions: request.overlays,
       })),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
       createVersion: vi.fn(async () => ({ version: savedVersion, changeSummary })),
       listVersions: vi.fn(async request => ({
         projectId: request.projectId,
         items: [],
         nextCursor: null,
       })),
+      listFileHistory: vi.fn(),
     }
     const flushAffectedSessions = vi.fn(async () => undefined)
     const prepareSessionContent = vi.fn(() => ({
@@ -226,6 +246,7 @@ describe('useVersioning project preparation', () => {
       status: 'saved' as const,
       sessionId: 'session-1',
       resourceKind: 'workspace' as const,
+      source: 'save-version' as const,
       path: 'D:/project/cards/main.ocdocument',
       relativePath: 'cards/main.ocdocument',
       startedRevision: 3,
@@ -233,6 +254,7 @@ describe('useVersioning project preparation', () => {
       currentRevision: 3,
       persistedContent: '{"name":"new"}',
       sessionStillDirty: false,
+      localHistory: 'recorded' as const,
     }))
     const versioning = useVersioning({
       projectPath,
@@ -255,7 +277,7 @@ describe('useVersioning project preparation', () => {
 
     await versioning.confirmSaveVersion('Update card package')
 
-    expect(saveSession).toHaveBeenCalledWith('session-1')
+    expect(saveSession).toHaveBeenCalledWith('session-1', undefined, 'save-version')
     expect(service.createVersion).toHaveBeenCalledWith(expect.objectContaining({
       projectId: 'project-id',
       expectedSnapshotId: 'preview-snapshot',

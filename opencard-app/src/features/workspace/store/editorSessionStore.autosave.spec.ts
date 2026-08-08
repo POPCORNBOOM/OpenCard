@@ -19,10 +19,11 @@ vi.mock('./projectStore', () => ({
   }),
 }))
 
-import { useEditorSessionStore } from './editorSessionStore'
+import { setLocalHistoryRecorder, useEditorSessionStore } from './editorSessionStore'
 
 describe('editorSessionStore project profile manual save', () => {
   beforeEach(() => {
+    setLocalHistoryRecorder(null)
     const store = useEditorSessionStore()
     for (const session of store.sessions.value) {
       store.closeSession(session.id)
@@ -110,5 +111,23 @@ describe('editorSessionStore project profile manual save', () => {
       '.oclocale',
       '{"base":{"title":"Hello"}}',
     )
+  })
+
+  it('records the exact persisted content after an explicit save', async () => {
+    const recordLocalHistory = vi.fn(async () => 'recorded' as const)
+    setLocalHistoryRecorder(recordLocalHistory)
+    const store = useEditorSessionStore()
+    const session = await store.openFile('notes.txt')
+    store.updateDraftContent(session.id, 'saved text')
+
+    const receipt = await store.saveSession(session.id, undefined, 'manual-save')
+
+    expect(recordLocalHistory).toHaveBeenCalledWith({
+      projectRoot: 'D:/project',
+      relativePath: 'notes.txt',
+      content: 'saved text',
+      source: 'manual-save',
+    })
+    expect(receipt).toMatchObject({ status: 'saved', localHistory: 'recorded' })
   })
 })

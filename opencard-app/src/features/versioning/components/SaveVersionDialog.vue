@@ -11,6 +11,7 @@
     @submit="submit"
   >
     <div v-if="confirmation" class="save-version-dialog__body">
+      <p v-if="error" class="save-version-dialog__error" role="alert">{{ error }}</p>
       <dl class="save-version-dialog__summary">
         <div>
           <dt>{{ t('versioning.fields.version') }}</dt>
@@ -81,6 +82,7 @@ import type {
 const props = defineProps<{
   confirmation: DeepReadonly<SaveVersionConfirmation> | null
   busy: boolean
+  error?: string | null
 }>()
 const emit = defineEmits<{
   close: []
@@ -121,6 +123,11 @@ function submit(): void {
 .save-version-dialog__body {
   display: grid;
   gap: var(--oc-space-5);
+}
+
+.save-version-dialog__error {
+  margin: 0;
+  color: var(--oc-fg-danger);
 }
 
 .save-version-dialog__summary {

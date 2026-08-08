@@ -649,6 +649,7 @@ export default {
       loading: 'Preparing version history…',
       unavailable: 'Version history unavailable',
     },
+    errors: { saveFailed: 'Saving the version failed. Your changes are kept; check and retry ({code}).' },
   },
   settings: {
     title: 'Settings',

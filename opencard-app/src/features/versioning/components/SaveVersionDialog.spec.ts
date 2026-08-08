@@ -15,6 +15,9 @@ describe('SaveVersionDialog', () => {
       props: {
         busy: false,
         confirmation: {
+          projectRoot: 'D:/project',
+          projectId: 'project-id',
+          generation: 1,
           version: '0.0.1',
           expectedHeadCommitId: null,
           expectedSnapshotId: 'snapshot-1',

@@ -33,6 +33,7 @@ function createCoordinator(initialSessions: EditorSession[]) {
     status: 'saved',
     sessionId,
     resourceKind: 'workspace',
+    source: 'manual-save',
     path: `D:/project/${sessionId}.ocdocument`,
     relativePath: `${sessionId}.ocdocument`,
     startedRevision: 0,
@@ -40,6 +41,7 @@ function createCoordinator(initialSessions: EditorSession[]) {
     currentRevision: 0,
     persistedContent: '{}',
     sessionStillDirty: false,
+    localHistory: 'not-applicable',
   }))
   const completions = {
     sessions: vi.fn(async () => undefined),
