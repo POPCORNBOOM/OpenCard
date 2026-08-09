@@ -65,6 +65,7 @@ const MANAGED_EXTENSIONS: &[&str] = &[
     "woff2",
     "ttf",
     "otf",
+    "ocblock",
 ];
 static ATOMIC_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -738,6 +739,7 @@ fn is_managed_file(relative_path: &str, template_managed: bool) -> bool {
             ".oclocale",
             ".ocfonts",
             ".ocicons",
+            ".ocblocks",
             ".gitignore",
             ".gitattributes",
         ]
@@ -873,11 +875,13 @@ mod tests {
         let project = tempfile::tempdir().unwrap();
         for relative_path in [
             ".ocproject",
+            ".ocblocks",
             ".gitignore",
             "cards/main.ocdocument",
             "notes/README.md",
             "assets/card.png",
             "assets/Brand.woff2",
+            "assets/blocks/example.ocblock",
             "custom.fixture",
             ".env.local",
             "exports/cards.xlsx",
@@ -896,8 +900,10 @@ mod tests {
             paths,
             [
                 ".gitignore",
+                ".ocblocks",
                 ".ocproject",
                 "assets/Brand.woff2",
+                "assets/blocks/example.ocblock",
                 "assets/card.png",
                 "cards/main.ocdocument",
                 "custom.fixture",

@@ -265,6 +265,7 @@ export function useEditorSessionStore() {
     prepareProjectIconRegistryContent,
     saveProjectDictionary,
     prepareProjectDictionaryContent,
+    prepareProjectCustomBlockRegistryContent,
     saveProjectCustomBlockRegistry,
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
@@ -586,6 +587,7 @@ export function useEditorSessionStore() {
       'opencard-font-registry': prepareProjectFontRegistryContent,
       'opencard-icon-registry': prepareProjectIconRegistryContent,
       'opencard-dictionary': prepareProjectDictionaryContent,
+      'opencard-custom-block-registry': prepareProjectCustomBlockRegistryContent,
     } as const
     const prepareContent = structuredPreparers[fileType.id as keyof typeof structuredPreparers]
     const relativePath = resolveProjectRelativePath(session.path, session.resourceKind, projectPath.value)

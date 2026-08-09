@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   saveProjectDictionary: vi.fn(),
   prepareProjectConfigurationContent: vi.fn(),
   prepareProjectDictionaryContent: vi.fn(),
+  prepareProjectCustomBlockRegistryContent: vi.fn(),
   saveProjectCustomBlockRegistry: vi.fn(),
 }))
 vi.mock('./projectStore', () => ({
@@ -17,6 +18,7 @@ vi.mock('./projectStore', () => ({
     saveProjectDictionary: mocks.saveProjectDictionary,
     prepareProjectConfigurationContent: mocks.prepareProjectConfigurationContent,
     prepareProjectDictionaryContent: mocks.prepareProjectDictionaryContent,
+    prepareProjectCustomBlockRegistryContent: mocks.prepareProjectCustomBlockRegistryContent,
     saveProjectCustomBlockRegistry: mocks.saveProjectCustomBlockRegistry,
   }),
 }))
@@ -36,6 +38,7 @@ describe('editorSessionStore project profile manual save', () => {
     mocks.saveProjectDictionary.mockImplementation(async (_path: string, content: string) => content)
     mocks.prepareProjectConfigurationContent.mockImplementation((_path: string, content: string) => content)
     mocks.prepareProjectDictionaryContent.mockImplementation((_path: string, content: string) => content)
+    mocks.prepareProjectCustomBlockRegistryContent.mockImplementation((_path: string, content: string) => content)
     mocks.saveProjectCustomBlockRegistry.mockImplementation(async (_path: string, content: string) => content)
   })
 
@@ -145,5 +148,19 @@ describe('editorSessionStore project profile manual save', () => {
       '.ocblocks',
       '{"blocks":["assets/blocks/square.ocblock"]}',
     )
+  })
+
+  it('prepares the custom block registry without writing it', async () => {
+    mocks.prepareProjectCustomBlockRegistryContent.mockReturnValueOnce('{"blocks":[]}')
+    const store = useEditorSessionStore()
+    const session = await store.openFile('.ocblocks')
+    store.updateDraftContent(session.id, '{"blocks":["draft.ocblock"]}')
+
+    expect(store.prepareSessionContent(session.id)).toMatchObject({
+      sessionId: session.id,
+      relativePath: '.ocblocks',
+      content: '{"blocks":[]}',
+    })
+    expect(mocks.saveProjectCustomBlockRegistry).not.toHaveBeenCalled()
   })
 })

@@ -32,6 +32,7 @@ const LOCAL_HISTORY_ROOT_FILES: &[&str] = &[
     ".oclocale",
     ".ocfonts",
     ".ocicons",
+    ".ocblocks",
     ".gitignore",
     ".gitattributes",
 ];
@@ -1222,6 +1223,7 @@ mod tests {
         for path in [
             "notes.txt",
             ".ocproject",
+            ".ocblocks",
             "assets/image.png",
             ".env.local",
             "custom.fixture",
@@ -1237,6 +1239,7 @@ mod tests {
         assert!(ensure_local_history_admission(&context, "notes.txt", b"").is_ok());
         assert!(ensure_local_history_admission(&context, "notes.txt", &[0xff]).is_err());
         assert!(ensure_local_history_admission(&context, ".ocproject", b"{}\n").is_ok());
+        assert!(ensure_local_history_admission(&context, ".ocblocks", b"{\"blocks\":[]}\n").is_ok());
         assert!(ensure_local_history_admission(&context, "assets/image.png", b"bytes").is_err());
         assert!(ensure_local_history_admission(&context, ".env.local", b"TOKEN=x").is_err());
         assert!(ensure_local_history_admission(&context, "custom.fixture", b"text").is_ok());

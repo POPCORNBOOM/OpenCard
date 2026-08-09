@@ -321,15 +321,19 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
   return canonicalContent
 }
 
-async function saveProjectCustomBlockRegistry(path: string, content: string): Promise<string> {
-  const document = JSON.parse(content) as unknown
-  const normalized = parseProjectCustomBlockRegistryText(JSON.stringify(document))
-  if (!normalized) throw new Error('Invalid .ocblocks content')
+function prepareProjectCustomBlockRegistryContent(path: string, content: string): string {
+  const document = parseProjectCustomBlockRegistryText(content)
+  if (!document) throw new Error('Invalid .ocblocks content')
   const resolvedPath = resolveProjectPath(path)
   if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))) {
     throw new Error('Custom block registry must be stored at the project root')
   }
-  const canonicalContent = serializeProjectCustomBlockRegistry(normalized)
+  return serializeProjectCustomBlockRegistry(document)
+}
+
+async function saveProjectCustomBlockRegistry(path: string, content: string): Promise<string> {
+  const canonicalContent = prepareProjectCustomBlockRegistryContent(path, content)
+  const resolvedPath = resolveProjectPath(path)
   await fileSystemService.writeFile(resolvedPath, canonicalContent)
   await reloadProjectCustomBlockRegistry()
   return canonicalContent
@@ -1354,6 +1358,7 @@ export function useProjectStore() {
     prepareProjectIconRegistryContent,
     saveProjectDictionary,
     prepareProjectDictionaryContent,
+    prepareProjectCustomBlockRegistryContent,
     saveProjectCustomBlockRegistry,
     reloadProjectProfile,
     reloadProjectFontRegistry,
