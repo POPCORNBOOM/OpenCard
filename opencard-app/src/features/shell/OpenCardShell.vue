@@ -1070,7 +1070,7 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     const deleteActionKey = projectEntryDeleteActionKey(entryKey)
     const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
     const children = [
-      PROJECT_ENTRY_RENAME_ACTION_KEY,
+      ...(item.renamable === false ? [] : [PROJECT_ENTRY_RENAME_ACTION_KEY]),
       deleteActionKey,
       PROJECT_ENTRY_REVEAL_ACTION_KEY,
       PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
@@ -1087,7 +1087,9 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
       children: [confirmDeleteActionKey],
     })
     actions.set(confirmDeleteActionKey, {
-      title: t('sidebar.fileActions.confirmDeleteFile', { fileName: item.label }),
+      title: t('sidebar.fileActions.confirmDeleteFile', {
+        fileName: entryKey.split(/[\\/]/).pop() ?? item.label,
+      }),
       icon: 'action.delete',
       iconTone: 'danger',
     })

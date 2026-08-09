@@ -79,4 +79,40 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
     expect(wrapper.findComponent(OcTree).exists()).toBe(false)
   })
+
+  it('announces a sanitized import failure and clears it after a successful retry', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Downloads/square.ocblock')
+    mocks.importProjectCustomBlockFile.mockRejectedValueOnce(new Error('D:/private/package.ocblock is corrupt'))
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: { filePath: 'D:/Demo/.ocblocks', modelValue: '{"blocks":[]}' },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toBe('customBlockRegistry.importFailed')
+    expect(wrapper.text()).not.toContain('D:/private/package.ocblock')
+
+    mocks.importProjectCustomBlockFile.mockResolvedValueOnce({
+      source: 'assets/blocks/square.ocblock',
+      copied: true,
+    })
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.emitted('save')).toHaveLength(1)
+  })
+
+  it('does not report cancellation as an import error', async () => {
+    mocks.pickFile.mockResolvedValue(null)
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: { filePath: 'D:/Demo/.ocblocks', modelValue: '{"blocks":[]}' },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(mocks.importProjectCustomBlockFile).not.toHaveBeenCalled()
+  })
 })

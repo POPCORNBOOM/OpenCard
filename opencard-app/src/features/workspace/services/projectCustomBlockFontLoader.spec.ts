@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
 import {
-  clearProjectCustomBlockFonts,
-  syncProjectCustomBlockFonts,
+  createProjectCustomBlockFontSession,
   type ProjectCustomBlockFontRuntime,
 } from './projectCustomBlockFontLoader'
 
@@ -31,19 +30,35 @@ function createRuntime() {
   return { runtime, face }
 }
 
-afterEach(() => clearProjectCustomBlockFonts(null))
-
 describe('project custom block font loader', () => {
   it('loads hidden FontFace resources and releases them on clear', async () => {
     const { runtime, face } = createRuntime()
-    await syncProjectCustomBlockFonts(createCatalog(), runtime)
+    const session = await createProjectCustomBlockFontSession(createCatalog(), runtime)
 
+    expect(runtime.createObjectUrl).toHaveBeenCalledWith(expect.objectContaining({ type: 'font/woff2' }))
     expect(runtime.createFontFace).toHaveBeenCalledWith('OpenCardCustomBlock-square-body', 'url("blob:font")')
     expect(face.load).toHaveBeenCalled()
     expect(runtime.addFont).toHaveBeenCalledWith(face)
 
-    clearProjectCustomBlockFonts(runtime)
+    session.release()
+    session.release()
     expect(runtime.deleteFont).toHaveBeenCalledWith(face)
     expect(runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
+  })
+
+  it('isolates generations and degrades when one font cannot be decoded', async () => {
+    const firstRuntime = createRuntime()
+    const first = await createProjectCustomBlockFontSession(createCatalog(), firstRuntime.runtime)
+    const failedRuntime = createRuntime()
+    vi.mocked(failedRuntime.face.load).mockRejectedValueOnce(new Error('invalid font'))
+    const failed = await createProjectCustomBlockFontSession(createCatalog(), failedRuntime.runtime)
+
+    expect(firstRuntime.runtime.revokeObjectUrl).not.toHaveBeenCalled()
+    expect(failed.errors).toEqual([expect.objectContaining({
+      packageKey: 'square', fontKey: 'body', reason: 'load-failed',
+    })])
+    expect(failedRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
+    first.release()
+    expect(firstRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
   })
 })

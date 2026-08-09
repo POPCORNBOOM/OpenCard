@@ -40,7 +40,8 @@
             class="oc-rich-text-editor__recent-icon" :data-tooltip="`${entry.name} · ${entry.seriesKey}`"
             :aria-label="`插入最近图标：${entry.name}`" @mousedown.prevent @click="insertRecentProjectIcon(entry)">
             <template #icon>
-              <span class="oc-rich-text-editor__recent-icon-image" :style="createProjectIconPreviewStyle(entry)" aria-hidden="true" />
+              <span class="oc-rich-text-editor__recent-icon-image oc-project-icon"
+                :style="createProjectIconPreviewStyle(entry)" aria-hidden="true" />
             </template>
           </OcButton>
         </div>

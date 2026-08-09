@@ -1,9 +1,11 @@
 import type { CardBlock } from '../../../entities/card/model'
+import { visitCardBlockTree } from '../../../entities/card/tree'
 import type { ProjectFontRegistry } from '../model/projectFontRegistry'
 import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
 import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import type { FileSystemService } from './fileSystemService'
 import type { ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
+import { findProjectCustomBlockFile } from './projectCustomBlock'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import { findProjectIcon, projectIconIdentity, type ProjectIconCatalog, type ProjectIconCatalogEntry } from './projectIconCatalog'
 import {
@@ -11,6 +13,10 @@ import {
   createProjectCustomBlockIconSeries,
   type ProjectCustomBlockIconAtlas,
 } from './projectCustomBlockIconAtlas'
+import {
+  collectProjectIconReferences,
+  rewriteProjectIconReferences,
+} from '../../../shared/rich-text/projectIconReference'
 
 export type CollectedCustomBlockResources = {
   files: ReadonlyMap<string, Uint8Array>
@@ -29,16 +35,8 @@ type CustomBlockResourceCatalog = ReadonlyMap<string, {
   readonly files: ReadonlyMap<string, Uint8Array>
 }>
 
-const iconTokenPattern = /\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]/gi
-
 export function createProjectCustomBlockFontFamily(packageKey: string, fontKey: string): string {
   return `OpenCardCustomBlock-${packageKey}-${fontKey}`
-}
-
-function visitBlocks(root: CardBlock, visit: (block: CardBlock) => void): void {
-  visit(root)
-  if (root.type !== 'simple-container-block' && root.type !== 'flow-container-block') return
-  for (const child of root.children) visitBlocks(child.block, visit)
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {
@@ -75,13 +73,16 @@ export async function collectProjectCustomBlockResources(options: {
   packageKey: string
   projectIconCatalog?: ProjectIconCatalog
   customBlockCatalog?: CustomBlockResourceCatalog
-  composeIconAtlas?: (entries: readonly ProjectIconCatalogEntry[]) => Promise<ProjectCustomBlockIconAtlas>
+  composeIconAtlas?: (
+    entries: readonly ProjectIconCatalogEntry[],
+    loadSourceBytes: (entry: ProjectIconCatalogEntry) => Promise<Uint8Array>,
+  ) => Promise<ProjectCustomBlockIconAtlas>
 }): Promise<CollectedCustomBlockResources> {
   const imageSources = new Set<string>()
   const fontKeys = new Set<string>()
   const iconIdentities = new Map<string, { seriesKey: string; iconKey: string }>()
   const packagedFontFamilies = new Set<string>()
-  visitBlocks(options.root, block => {
+  visitCardBlockTree(options.root, block => {
     if (block.type === 'image-block' && block.image?.trim()) imageSources.add(block.image.trim())
     const fontFamily = 'fontFamily' in block ? block.fontFamily : undefined
     for (const entry of fontFamily?.split(';') ?? []) {
@@ -91,15 +92,8 @@ export async function collectProjectCustomBlockResources(options: {
     }
     for (const value of Object.values(block)) {
       if (typeof value !== 'string') continue
-      for (const match of value.matchAll(iconTokenPattern)) {
-        iconIdentities.set(projectIconIdentity(match[1]!, match[2]!), { seriesKey: match[1]!, iconKey: match[2]! })
-      }
-      if (!value.includes('data-oc-icon-series')) continue
-      const documentNode = new DOMParser().parseFromString(value, 'text/html')
-      for (const element of Array.from(documentNode.body.querySelectorAll('[data-oc-icon-series][data-oc-icon-key]'))) {
-        const seriesKey = element.getAttribute('data-oc-icon-series') ?? ''
-        const iconKey = element.getAttribute('data-oc-icon-key') ?? ''
-        if (seriesKey && iconKey) iconIdentities.set(projectIconIdentity(seriesKey, iconKey), { seriesKey, iconKey })
+      for (const reference of collectProjectIconReferences(value)) {
+        iconIdentities.set(projectIconIdentity(reference.seriesKey, reference.iconKey), reference)
       }
     }
   })
@@ -132,11 +126,14 @@ export async function collectProjectCustomBlockResources(options: {
       const packageKey = match?.[1]?.toLowerCase()
       const resourcePath = match?.[2]
       const entry = packageKey ? options.customBlockCatalog?.get(packageKey) : undefined
-      if (!entry || !resourcePath || !entry.files.has(resourcePath)) {
+      const resourceBytes = entry && resourcePath
+        ? findProjectCustomBlockFile(entry.files, resourcePath)
+        : undefined
+      if (!resourceBytes) {
         throw new Error(`Custom block image resource is missing: ${source}`)
       }
-      bytes = entry.files.get(resourcePath)!
-      extension = extensionOf(resourcePath, 'bin')
+      bytes = resourceBytes
+      extension = extensionOf(resourcePath!, 'bin')
     } else {
       const relative = source.replace(/\\/g, '/').replace(/^\/+/, '')
       if (relative.split('/').includes('..')) throw new Error(`Invalid custom block image path: ${source}`)
@@ -166,7 +163,7 @@ export async function collectProjectCustomBlockResources(options: {
     for (const entry of options.customBlockCatalog?.values() ?? []) {
       for (const font of entry.manifest.resources?.fonts ?? []) {
         if (createProjectCustomBlockFontFamily(entry.manifest.key, font.key).toLowerCase() !== family) continue
-        const bytes = entry.files.get(font.source)
+        const bytes = findProjectCustomBlockFile(entry.files, font.source)
         if (!bytes) throw new Error(`Custom block font resource is missing: ${font.source}`)
         match = { bytes, name: font.name, source: font.source }
       }
@@ -186,7 +183,23 @@ export async function collectProjectCustomBlockResources(options: {
       if (!entry) throw new Error(`Custom block icon is missing: ${reference.seriesKey}/${reference.iconKey}`)
       return entry
     })
-    const atlas = await (options.composeIconAtlas ?? composeProjectCustomBlockIconAtlas)(entries)
+    const loadIconSourceBytes = async (icon: ProjectIconCatalogEntry): Promise<Uint8Array> => {
+      for (const customBlock of options.customBlockCatalog?.values() ?? []) {
+        const series = customBlock.manifest.resources?.iconSeries?.find(candidate => (
+          candidate.key.toLowerCase() === icon.seriesKey.toLowerCase()
+        ))
+        if (!series) continue
+        const bytes = findProjectCustomBlockFile(customBlock.files, series.source)
+        if (!bytes) throw new Error(`Custom block icon resource is missing: ${series.source}`)
+        return bytes
+      }
+      const relative = icon.source.replace(/\\/g, '/').replace(/^\/+/, '')
+      if (!relative || relative.split('/').includes('..')) {
+        throw new Error(`Invalid project icon path: ${icon.source}`)
+      }
+      return await options.fs.readBinaryFile(`${root}/${relative}`)
+    }
+    const atlas = await (options.composeIconAtlas ?? composeProjectCustomBlockIconAtlas)(entries, loadIconSourceBytes)
     const hash = await sha256(atlas.bytes)
     const archivePath = `resources/icons/${hash}.png`
     files.set(archivePath, atlas.bytes)
@@ -216,7 +229,7 @@ export function rewriteProjectCustomBlockResourceReferences(
   packageKey: string,
   resources: CollectedCustomBlockResources,
 ): void {
-  visitBlocks(root, block => {
+  visitCardBlockTree(root, block => {
     if (block.type === 'image-block') {
       const archivePath = resources.imageSources.get(block.image)
       if (archivePath) block.image = `ocblock:${packageKey}/${archivePath}`
@@ -233,27 +246,9 @@ export function rewriteProjectCustomBlockResourceReferences(
     }
     for (const [fieldKey, fieldValue] of Object.entries(block)) {
       if (typeof fieldValue !== 'string') continue
-      let rewritten = fieldValue.replace(iconTokenPattern, (token, seriesKey: string, iconKey: string) => {
-        const replacement = resources.iconReplacements.get(projectIconIdentity(seriesKey, iconKey))
-        return replacement ? `[[icon:${replacement.seriesKey}/${replacement.iconKey}]]` : token
-      })
-      if (rewritten.includes('data-oc-icon-series')) {
-        const documentNode = new DOMParser().parseFromString(rewritten, 'text/html')
-        let changed = false
-        for (const element of Array.from(documentNode.body.querySelectorAll('[data-oc-icon-series][data-oc-icon-key]'))) {
-          const identity = projectIconIdentity(
-            element.getAttribute('data-oc-icon-series') ?? '',
-            element.getAttribute('data-oc-icon-key') ?? '',
-          )
-          const replacement = resources.iconReplacements.get(identity)
-          if (!replacement) continue
-          element.setAttribute('data-oc-icon-series', replacement.seriesKey)
-          element.setAttribute('data-oc-icon-key', replacement.iconKey)
-          element.textContent = `[[icon:${replacement.seriesKey}/${replacement.iconKey}]]`
-          changed = true
-        }
-        if (changed) rewritten = documentNode.body.innerHTML
-      }
+      const rewritten = rewriteProjectIconReferences(fieldValue, reference => (
+        resources.iconReplacements.get(projectIconIdentity(reference.seriesKey, reference.iconKey)) ?? reference
+      ))
       if (rewritten !== fieldValue) (block as unknown as Record<string, unknown>)[fieldKey] = rewritten
     }
   })

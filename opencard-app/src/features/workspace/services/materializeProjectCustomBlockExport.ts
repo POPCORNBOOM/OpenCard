@@ -1,5 +1,5 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../../entities/card/model'
-import { isBlockContainer } from '../../../entities/card/tree'
+import { findCardBlockInDocument, visitCardBlockTree } from '../../../entities/card/tree'
 import {
   resolveReferences,
   type ResolveReferencesOptions,
@@ -18,39 +18,9 @@ export type MaterializeProjectCustomBlockExportResult = {
   expansionIssues: readonly CustomBlockExpansionIssue[]
 }
 
-type LocatedRoot = {
-  block: CardBlock
-  faceKey: CardFaceKey
-}
-
-function locateBlock(document: CardDocument, blockId: string): LocatedRoot | null {
-  const visit = (block: CardBlock, faceKey: CardFaceKey): LocatedRoot | null => {
-    if (block.id === blockId) return { block, faceKey }
-    if (!isBlockContainer(block)) return null
-    for (const child of block.children) {
-      const found = visit(child.block, faceKey)
-      if (found) return found
-    }
-    return null
-  }
-
-  for (const [faceKey, face] of Object.entries(document.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][]) {
-    for (const child of face.children) {
-      const found = visit(child.block, faceKey)
-      if (found) return found
-    }
-  }
-  return null
-}
-
 function collectSubtreeDepths(root: CardBlock): Map<string, number> {
   const depths = new Map<string, number>()
-  const visit = (block: CardBlock, depth: number): void => {
-    depths.set(block.id, depth)
-    if (!isBlockContainer(block)) return
-    for (const child of block.children) visit(child.block, depth + 1)
-  }
-  visit(root, 0)
+  visitCardBlockTree(root, (block, depth) => depths.set(block.id, depth))
   return depths
 }
 
@@ -60,13 +30,13 @@ export function materializeProjectCustomBlockExport(options: {
   environment?: Pick<ResolveReferencesOptions, 'project' | 'dictionary'>
   customBlockCatalog?: CustomBlockRuntimeCatalog
 }): MaterializeProjectCustomBlockExportResult {
-  const located = locateBlock(options.document, options.rootBlockId)
+  const located = findCardBlockInDocument(options.document, options.rootBlockId)
   if (!located) throw new Error(`Custom block export root not found: ${options.rootBlockId}`)
   const sourceSubtreeIds = new Set(collectSubtreeDepths(located.block).keys())
   const expanded = expandCustomBlocks(options.document, options.customBlockCatalog, {
     resolveRuntimeResources: false,
   })
-  const expandedRoot = locateBlock(expanded.document, options.rootBlockId)
+  const expandedRoot = findCardBlockInDocument(expanded.document, options.rootBlockId)
   if (!expandedRoot) throw new Error(`Expanded custom block export root not found: ${options.rootBlockId}`)
   const subtreeDepths = collectSubtreeDepths(expandedRoot.block)
   const shouldResolveOwner: NonNullable<ResolveReferencesOptions['shouldResolveOwner']> = owner =>
@@ -86,7 +56,7 @@ export function materializeProjectCustomBlockExport(options: {
       return reference.kind === 'parent' && reference.parentDepth <= depth
     },
   })
-  const resolvedRoot = locateBlock(materialized.document, options.rootBlockId)
+  const resolvedRoot = findCardBlockInDocument(materialized.document, options.rootBlockId)
   if (!resolvedRoot) throw new Error(`Materialized custom block export root not found: ${options.rootBlockId}`)
   return {
     root: resolvedRoot.block,

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  PROJECT_ENTRY_RENAME_ACTION_KEY,
   projectEntryDeleteActionKey,
   projectEntryMoreActionKey,
   useShellFileTree,
@@ -47,6 +48,7 @@ describe('useShellFileTree opened editors', () => {
       renamable: true,
       draggable: true,
       actions: [projectEntryMoreActionKey('D:/project/cards/main.ocdocument')],
+      renameSelection: { start: 0, end: 4 },
     })
   })
 
@@ -89,7 +91,7 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
   })
 
-  it('pins root project files by filename and moves their localized annotation to the tail', () => {
+  it('pins root project files with localized titles and filename tails', () => {
     const projectPath = 'D:/project'
     const labels: Record<string, string> = {
       'fileTypes.opencardProjectProfile': 'Project profile',
@@ -125,8 +127,10 @@ describe('useShellFileTree opened editors', () => {
       `${projectPath}/notes.txt`,
     ])
     expect(projectTreeData.value.items.get(`${projectPath}/.ocicons`)).toMatchObject({
-      label: '.ocicons',
-      tail: 'Icon registry',
+      label: 'Icon registry',
+      tail: '.ocicons',
+      renamable: false,
+      contextActions: expect.not.arrayContaining([PROJECT_ENTRY_RENAME_ACTION_KEY]),
     })
     expect(projectTreeData.value.items.get(`${projectPath}/cards/.oclocale`)).toMatchObject({
       label: '.oclocale',

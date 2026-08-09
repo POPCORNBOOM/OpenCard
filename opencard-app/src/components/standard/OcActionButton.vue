@@ -17,6 +17,7 @@
       :variant="variant"
       :size="size"
       :icon-size="iconSize"
+      :active="active"
       icon-only
       :icon="action.icon"
       :icon-tone="action.iconTone"
@@ -82,10 +83,12 @@ const props = withDefaults(defineProps<{
   size?: ActionButtonSize
   iconSize?: OcIconSize
   variant?: ActionButtonVariant
+  active?: boolean
 }>(), {
   size: 'md',
   iconSize: 'action',
   variant: 'ghost',
+  active: false,
 })
 
 const emit = defineEmits<{

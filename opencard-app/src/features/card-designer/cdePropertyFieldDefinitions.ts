@@ -51,7 +51,7 @@ export function resolveCdePropertyFields(
       ...definition,
       defaultValue: createPropertyDefaultValue(definition),
       title,
-      category: options.customKeys?.has(fieldKey) ? 'custom' : definition.categoryId,
+      category: options.customKeys?.has(fieldKey) ? 'customFields' : definition.categoryId,
       order,
       deletable: options.allowDelete
         && definition.isReadonly !== true

@@ -37,7 +37,7 @@ describe('collectProjectCustomBlockResources', () => {
       root,
       packageKey: 'missing-font',
       projectRootPath: 'D:/Cards',
-      fs: { readBinaryFile: vi.fn() },
+      fs: { readBinaryFile: vi.fn(async () => new Uint8Array([1, 2, 3])) },
     })).rejects.toThrow('font:missing')
   })
 
@@ -90,7 +90,7 @@ describe('collectProjectCustomBlockResources', () => {
       root,
       packageKey: 'weapon',
       projectRootPath: 'D:/Cards',
-      fs: { readBinaryFile: vi.fn() },
+      fs: { readBinaryFile: vi.fn(async () => new Uint8Array([1, 2, 3])) },
       projectIconCatalog: {
         series: [], errors: [], entries: [{
           seriesKey: 'items', source: 'assets/icons.png', src: 'asset://icons',

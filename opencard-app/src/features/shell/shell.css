@@ -754,32 +754,3 @@
   background: var(--oc-bg-hover);
   color: var(--oc-fg-default);
 }
-
-/* Project icon crops use a pseudo-element so atlas rotation and display rotation
- * can be composed without clipping the source crop before it is transformed. */
-.project-icon-view,
-.oc-tree__thumbnail,
-.project-inline-icon {
-  position: relative;
-  isolation: isolate;
-  background-image: none;
-}
-
-.project-icon-view::before,
-.oc-tree__thumbnail::before,
-.project-inline-icon::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: var(--oc-project-icon-source-width);
-  height: var(--oc-project-icon-source-height);
-  background-image: var(--oc-project-icon-background-image);
-  background-repeat: no-repeat;
-  background-size: var(--oc-project-icon-background-size);
-  background-position: var(--oc-project-icon-background-position);
-  image-rendering: var(--oc-project-icon-image-rendering);
-  pointer-events: none;
-  transform: translate(-50%, -50%) var(--oc-project-icon-transform);
-  transform-origin: center;
-}

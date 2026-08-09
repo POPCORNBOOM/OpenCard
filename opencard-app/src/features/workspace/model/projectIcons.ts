@@ -1,4 +1,10 @@
 import { createAvailableKey } from '../../../shared/model/keySlug'
+import {
+  formatProjectIconToken,
+  parseProjectIconToken,
+} from '../../../shared/rich-text/projectIconReference'
+
+export { formatProjectIconToken, parseProjectIconToken }
 
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
@@ -274,13 +280,4 @@ export function moveProjectIcon(
   const [moved] = icons.splice(fromIndex, 1)
   icons.splice(toIndex, 0, moved!)
   return { ...series, icons }
-}
-
-export function formatProjectIconToken(seriesKey: string, iconKey: string): string {
-  return `[[icon:${seriesKey}/${iconKey}]]`
-}
-
-export function parseProjectIconToken(value: string): { seriesKey: string; iconKey: string } | null {
-  const match = /^\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]$/.exec(value)
-  return match ? { seriesKey: match[1]!, iconKey: match[2]! } : null
 }

@@ -2,6 +2,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import type { FileSystemService } from './fileSystemService'
 import { parseStoredCardBlock } from '../../../entities/card/storage'
 import type { CardBlock } from '../../../entities/card/model'
+import { visitCardBlockTree } from '../../../entities/card/tree'
+import { collectProjectIconReferences } from '../../../shared/rich-text/projectIconReference'
 import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
 import {
   parseProjectCustomBlockManifest,
@@ -22,6 +24,17 @@ const ZIP_CENTRAL_DIRECTORY_ENTRY = 0x02014b50
 export type ProjectCustomBlockPackage = {
   manifest: ProjectCustomBlockManifest
   files: ReadonlyMap<string, Uint8Array>
+}
+
+export function findProjectCustomBlockFile(
+  files: ReadonlyMap<string, Uint8Array>,
+  path: string,
+): Uint8Array | undefined {
+  const identity = path.toLowerCase()
+  for (const [candidate, bytes] of files) {
+    if (candidate.toLowerCase() === identity) return bytes
+  }
+  return undefined
 }
 
 function normalizeArchivePath(value: string): string | null {
@@ -95,9 +108,15 @@ function preflightZipArchive(bytes: Uint8Array): void {
 function validateNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest): CardBlock {
   const block = parseStoredCardBlock(normalizeAdditionalFieldDefinitions(root))
   const ids = new Set<string>()
-  const visit = (candidate: CardBlock): void => {
+  visitCardBlockTree(block, (candidate, _depth, location) => {
     if (!candidate.id.trim() || ids.has(candidate.id)) throw new Error('Custom block tree contains an invalid or duplicate ID')
     ids.add(candidate.id)
+    if (location) {
+      if (!location.id.trim() || ids.has(location.id)) {
+        throw new Error('Custom block tree contains an invalid or duplicate ID')
+      }
+      ids.add(location.id)
+    }
     if (candidate.type === 'custom-block') throw new Error('Custom block package contains an unresolved custom block')
     if ((candidate.type === 'simple-container-block' || candidate.type === 'flow-container-block')
       && Object.prototype.hasOwnProperty.call(candidate, 'packaged')) {
@@ -110,16 +129,7 @@ function validateNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest)
         || Object.keys(parsedDefinitions).length !== Object.keys(rawDefinitions).length)) {
       throw new Error('Custom block tree contains invalid additional field definitions')
     }
-    if (candidate.type !== 'simple-container-block' && candidate.type !== 'flow-container-block') return
-    for (const child of candidate.children) {
-      if (!child.location.id.trim() || ids.has(child.location.id)) {
-        throw new Error('Custom block tree contains an invalid or duplicate ID')
-      }
-      ids.add(child.location.id)
-      visit(child.block)
-    }
-  }
-  visit(block)
+  })
   const rootDefinitions = parseAdditionalFieldDefinitions(block.additionalFieldDefinition)
   for (const field of manifest.publicFields) {
     const definition = rootDefinitions[field.key]
@@ -160,7 +170,7 @@ function indexedResourcePaths(manifest: ProjectCustomBlockManifest): string[] {
 function validatePackageFiles(manifest: ProjectCustomBlockManifest, files: ReadonlyMap<string, Uint8Array>): void {
   const indexed = indexedResourcePaths(manifest)
   for (const path of indexed) {
-    if (!files.has(path)) throw new Error('Custom block resource is missing')
+    if (!findProjectCustomBlockFile(files, path)) throw new Error('Custom block resource is missing')
   }
   const allowed = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, ...indexed].map(path => path.toLowerCase()))
   for (const path of files.keys()) {
@@ -169,36 +179,32 @@ function validatePackageFiles(manifest: ProjectCustomBlockManifest, files: Reado
 }
 
 function validateResourceReferences(manifest: ProjectCustomBlockManifest, root: CardBlock): void {
-  const imagePaths = new Set((manifest.resources?.images ?? []).map(resource => resource.source))
-  const iconSeries = new Map((manifest.resources?.iconSeries ?? []).map(series => [series.key, new Set(series.icons.map(icon => icon.iconKey))]))
-  const iconTokenPattern = /\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]/gi
-  const richIconTagPattern = /<[^>]*data-oc-icon-series\s*=\s*(["'])([^"']+)\1[^>]*data-oc-icon-key\s*=\s*(["'])([^"']+)\3[^>]*>/gi
+  const imagePaths = new Set((manifest.resources?.images ?? []).map(resource => resource.source.toLowerCase()))
+  const iconSeries = new Map((manifest.resources?.iconSeries ?? []).map(series => [
+    series.key.toLowerCase(),
+    new Set(series.icons.map(icon => icon.iconKey.toLowerCase())),
+  ]))
   const validateIconReference = (seriesKey: string, iconKey: string): void => {
-    const icons = iconSeries.get(seriesKey)
-    if (seriesKey.toLowerCase().startsWith('ocblock-') && (!icons || !icons.has(iconKey))) {
+    const icons = iconSeries.get(seriesKey.toLowerCase())
+    if (seriesKey.toLowerCase().startsWith('ocblock-') && (!icons || !icons.has(iconKey.toLowerCase()))) {
       throw new Error('Custom block icon reference is not indexed')
     }
   }
-  const visit = (block: CardBlock): void => {
+  visitCardBlockTree(root, block => {
     if (block.type === 'image-block' && block.image.toLowerCase().startsWith('ocblock:')) {
       const prefix = `ocblock:${manifest.key}/`
-      if (!block.image.startsWith(prefix) || !imagePaths.has(block.image.slice(prefix.length))) {
+      if (!block.image.toLowerCase().startsWith(prefix.toLowerCase())
+        || !imagePaths.has(block.image.slice(prefix.length).toLowerCase())) {
         throw new Error('Custom block image reference is not indexed')
       }
     }
     for (const value of Object.values(block)) {
       if (typeof value !== 'string') continue
-      for (const match of value.matchAll(iconTokenPattern)) {
-        validateIconReference(match[1]!, match[2]!)
-      }
-      for (const match of value.matchAll(richIconTagPattern)) {
-        validateIconReference(match[2]!, match[4]!)
+      for (const reference of collectProjectIconReferences(value)) {
+        validateIconReference(reference.seriesKey, reference.iconKey)
       }
     }
-    if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
-    for (const child of block.children) visit(child.block)
-  }
-  visit(root)
+  })
 }
 
 export function createProjectCustomBlockArchive(
@@ -208,9 +214,12 @@ export function createProjectCustomBlockArchive(
   const archive: Record<string, Uint8Array> = {
     [PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME]: strToU8(serializeProjectCustomBlockManifest(manifest)),
   }
+  const pathIdentities = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME.toLowerCase()])
   for (const [rawPath, bytes] of files) {
     const path = normalizeArchivePath(rawPath)
-    if (!path || path === PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME) throw new Error('Invalid custom block archive path')
+    const identity = path?.toLowerCase()
+    if (!path || pathIdentities.has(identity!)) throw new Error('Invalid custom block archive path')
+    pathIdentities.add(identity!)
     archive[path] = bytes
   }
   validateNativeRoot(manifest.root, manifest)
@@ -235,7 +244,7 @@ export async function readProjectCustomBlockPackageFromBytes(bytes: Uint8Array):
     if (unpackedBytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) throw new Error('Unpacked custom block package is too large')
     files.set(path, content)
   }
-  const manifestBytes = files.get(PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME)
+  const manifestBytes = findProjectCustomBlockFile(files, PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME)
   if (!manifestBytes) throw new Error('Custom block manifest is missing')
   let parsed: unknown
   try {
@@ -271,6 +280,8 @@ export async function exportProjectCustomBlockPackage(options: {
   const outputPath = options.outputPath.toLowerCase().endsWith('.ocblock')
     ? options.outputPath
     : `${options.outputPath}.ocblock`
-  await options.fs.writeBinaryFile(outputPath, createProjectCustomBlockArchive(options.manifest, options.files))
+  const archive = createProjectCustomBlockArchive(options.manifest, options.files)
+  await readProjectCustomBlockPackageFromBytes(archive)
+  await options.fs.writeBinaryFile(outputPath, archive)
   return outputPath
 }

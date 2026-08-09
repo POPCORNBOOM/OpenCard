@@ -31,7 +31,7 @@ describe('expandCustomBlocks', () => {
   })
 
   it('resolves packaged images through their controlled runtime URL', () => {
-    const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/a.png' })
+    const root = createBlock('image-block', { image: 'ocblock:PICTURE/RESOURCES/IMAGES/A.PNG' })
     const host = createBlock('custom-block', { source: 'block:picture', interfaceHash: 'hash' })
     const document: CardDocument = {
       type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '100', height: '100', instances: [],

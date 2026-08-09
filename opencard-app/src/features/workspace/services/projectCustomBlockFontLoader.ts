@@ -1,8 +1,20 @@
 import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
 import { createProjectCustomBlockFontFamily } from './projectCustomBlockResources'
+import { findProjectCustomBlockFile } from './projectCustomBlock'
 
 type LoadedFont = { face: FontFace; url: string }
-let loadedFonts: LoadedFont[] = []
+
+export type ProjectCustomBlockFontLoadError = {
+  packageKey: string
+  fontKey: string
+  source: string
+  reason: 'load-failed'
+}
+
+export type ProjectCustomBlockFontSession = {
+  errors: readonly ProjectCustomBlockFontLoadError[]
+  release: () => void
+}
 
 export type ProjectCustomBlockFontRuntime = {
   createObjectUrl: (blob: Blob) => string
@@ -23,42 +35,56 @@ function defaultRuntime(): ProjectCustomBlockFontRuntime | null {
   }
 }
 
-export function clearProjectCustomBlockFonts(runtime = defaultRuntime()): void {
-  if (runtime) {
-    for (const loaded of loadedFonts) {
-      runtime.deleteFont(loaded.face)
-      runtime.revokeObjectUrl(loaded.url)
-    }
-  }
-  loadedFonts = []
+function fontMimeForPath(path: string): string {
+  if (/\.woff2$/i.test(path)) return 'font/woff2'
+  if (/\.woff$/i.test(path)) return 'font/woff'
+  if (/\.otf$/i.test(path)) return 'font/otf'
+  if (/\.ttf$/i.test(path)) return 'font/ttf'
+  return 'application/octet-stream'
 }
 
-export async function syncProjectCustomBlockFonts(
+export async function createProjectCustomBlockFontSession(
   catalog: ProjectCustomBlockCatalog,
   runtime = defaultRuntime(),
-): Promise<void> {
-  clearProjectCustomBlockFonts(runtime)
-  if (!runtime) return
+): Promise<ProjectCustomBlockFontSession> {
+  if (!runtime) return { errors: [], release: () => undefined }
   const next: LoadedFont[] = []
-  try {
-    for (const entry of catalog.values()) {
-      for (const font of entry.manifest.resources?.fonts ?? []) {
-        const bytes = entry.files.get(font.source)
+  const errors: ProjectCustomBlockFontLoadError[] = []
+  for (const entry of catalog.values()) {
+    for (const font of entry.manifest.resources?.fonts ?? []) {
+      let url: string | null = null
+      let face: FontFace | null = null
+      try {
+        const bytes = findProjectCustomBlockFile(entry.files, font.source)
         if (!bytes) throw new Error(`Custom block font resource is missing: ${font.source}`)
-        const url = runtime.createObjectUrl(new Blob([bytes]))
+        url = runtime.createObjectUrl(new Blob([bytes.slice().buffer], { type: fontMimeForPath(font.source) }))
         const family = createProjectCustomBlockFontFamily(entry.manifest.key, font.key)
-        const face = runtime.createFontFace(family, `url(${JSON.stringify(url)})`)
+        face = runtime.createFontFace(family, `url(${JSON.stringify(url)})`)
         await face.load()
         runtime.addFont(face)
         next.push({ face, url })
+      } catch {
+        if (face) runtime.deleteFont(face)
+        if (url) runtime.revokeObjectUrl(url)
+        errors.push({
+          packageKey: entry.manifest.key,
+          fontKey: font.key,
+          source: font.source,
+          reason: 'load-failed',
+        })
       }
     }
-    loadedFonts = next
-  } catch (error) {
-    for (const loaded of next) {
-      runtime.deleteFont(loaded.face)
-      runtime.revokeObjectUrl(loaded.url)
-    }
-    throw error
+  }
+  let released = false
+  return {
+    errors,
+    release: () => {
+      if (released) return
+      released = true
+      for (const loaded of next) {
+        runtime.deleteFont(loaded.face)
+        runtime.revokeObjectUrl(loaded.url)
+      }
+    },
   }
 }

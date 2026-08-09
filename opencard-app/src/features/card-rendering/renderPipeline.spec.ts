@@ -197,4 +197,77 @@ describe('renderPipeline', () => {
       content: { type: 'text-block', id: 'host', content: 'Ready' },
     })
   })
+
+  it('reports packaged resource degradation on the host without exposing resource identity', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root: createTextBlock({ id: 'root', content: 'Fallback' }),
+          publicFields: [], resize: { widthLocked: false, heightLocked: false },
+        },
+        hasResourceErrors: true,
+      }]]),
+    })
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.resource-error',
+        location: expect.objectContaining({ owner: { kind: 'block', id: 'host' } }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('label')
+    expect(JSON.stringify(result.issues)).not.toContain('hash')
+  })
+
+  it('collapses internal custom block issues onto the opaque host', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const root = createSimpleContainerBlock({
+      id: 'root',
+      children: [{
+        block: createTextBlock({ id: 'internal', name: 'Private label', content: '{{self:missing}}' }),
+        location: { id: 'internal-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root, publicFields: [],
+          resize: { widthLocked: false, heightLocked: false },
+        },
+      }]]),
+    })
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.content-error',
+        location: expect.objectContaining({
+          owner: { kind: 'block', id: 'host' },
+          blockId: 'host',
+          fieldKey: 'content',
+        }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('Private label')
+    expect(JSON.stringify(result.issues)).not.toContain('internal')
+    expect(JSON.stringify(result.issues)).not.toContain('missing')
+  })
+
+  it('reports an unavailable custom block without exposing its source', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:private-package', interfaceHash: 'secret-hash' })
+    const result = runRenderPipeline(createDocument(host), null)
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.unavailable',
+        location: expect.objectContaining({ owner: { kind: 'block', id: 'host' } }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('private-package')
+    expect(JSON.stringify(result.issues)).not.toContain('secret-hash')
+  })
 })

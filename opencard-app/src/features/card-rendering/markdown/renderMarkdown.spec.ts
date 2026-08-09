@@ -11,12 +11,18 @@ const catalog: ProjectIconCatalog = {
 describe('renderMarkdown project icons', () => {
   it('renders a valid project icon at its original crop ratio', () => {
     const html = renderMarkdown('A [[icon:status/wide]] B', { projectIconCatalog: catalog })
-    expect(html).toContain('class="project-inline-icon"')
+    expect(html).toContain('project-inline-icon oc-project-icon')
     expect(html).toContain('width:2em')
   })
 
-  it('keeps missing references and ignores inline code and escaped syntax', () => {
-    expect(renderMarkdown('[[icon:status/missing]]', { projectIconCatalog: catalog })).toContain('[[icon:status/missing]]')
+  it('renders missing references as a stable placeholder and ignores inline code and escaped syntax', () => {
+    const missing = renderMarkdown('[[icon:status/missing]]', {
+      projectIconCatalog: catalog,
+      missingProjectIconLabel: 'Unavailable icon',
+    })
+    expect(missing).toContain('project-inline-icon--missing')
+    expect(missing).toContain('aria-label="Unavailable icon"')
+    expect(missing).not.toContain('[[icon:status/missing]]')
     expect(renderMarkdown('`[[icon:status/wide]]`', { projectIconCatalog: catalog })).not.toContain('project-inline-icon')
     expect(renderMarkdown('\\[[icon:status/wide]]', { projectIconCatalog: catalog })).not.toContain('project-inline-icon')
   })

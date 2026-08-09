@@ -129,6 +129,7 @@ export type ContainerPackaging = {
 
 export type SimpleContainerBlock = BaseBlock & ContainerPackaging & {
     type: "simple-container-block"
+    clip: string
     children: {
         block: CardBlock
         location: SimpleContainerLocationInfo
@@ -146,6 +147,7 @@ export type FlowDirection = 'lr' | 'rl' | 'tb' | 'bt'
 
 export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
     type: "flow-container-block"
+    clip: string
     direction: FlowDirection
     gap: CssValue
     children: {
@@ -537,6 +539,7 @@ export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}):
         }),
         type: 'simple-container-block',
         ...(init.packaged !== undefined ? { packaged: init.packaged } : {}),
+        clip: init.clip ?? 'false',
         children: init.children ? [...init.children] : [],
     }
 
@@ -552,6 +555,7 @@ export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): Flo
         }),
         type: 'flow-container-block',
         ...(init.packaged !== undefined ? { packaged: init.packaged } : {}),
+        clip: init.clip ?? 'false',
         direction: init.direction ?? 'lr',
         gap: init.gap ?? '10px',
         children: init.children ? [...init.children] : [],

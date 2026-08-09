@@ -19,6 +19,9 @@ const issueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.render-parse.conversion-failed': 'app.problems.renderCodes.CONVERSION_FAILED',
   'card-designer.render-parse.invalid-option': 'app.problems.renderCodes.INVALID_OPTION',
   'card-designer.render-parse.out-of-range': 'app.problems.renderCodes.OUT_OF_RANGE',
+  'card-designer.custom-block.unavailable': 'app.problems.customBlockCodes.UNAVAILABLE',
+  'card-designer.custom-block.content-error': 'app.problems.customBlockCodes.CONTENT_ERROR',
+  'card-designer.custom-block.resource-error': 'app.problems.customBlockCodes.RESOURCE_ERROR',
 }
 
 const valueKindMessageKeys: Readonly<Record<string, string>> = {

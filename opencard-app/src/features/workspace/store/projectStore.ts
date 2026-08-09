@@ -80,10 +80,14 @@ import {
   registerProjectCustomBlockPath,
   unregisterProjectCustomBlockPath,
 } from '../services/projectCustomBlockRegistry'
-import { clearProjectCustomBlockFonts, syncProjectCustomBlockFonts } from '../services/projectCustomBlockFontLoader'
 import {
-  clearProjectCustomBlockAssets,
-  syncProjectCustomBlockAssets,
+  createProjectCustomBlockFontSession,
+  type ProjectCustomBlockFontLoadError,
+  type ProjectCustomBlockFontSession,
+} from '../services/projectCustomBlockFontLoader'
+import {
+  createProjectCustomBlockAssetSession,
+  type ProjectCustomBlockAssetSession,
 } from '../services/projectCustomBlockAssetLoader'
 import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 
@@ -151,6 +155,7 @@ const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map(
 const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
 const projectCustomBlockIconCatalog = shallowRef<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
 const customBlockRegistryError = ref<string | null>(null)
+const customBlockFontLoadErrors = ref<readonly ProjectCustomBlockFontLoadError[]>([])
 const settingsStore = useAppSettingsStore()
 const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
   series: [...projectCustomBlockIconCatalog.value.series, ...projectIconCatalog.value.series],
@@ -175,6 +180,8 @@ let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
 let customBlockReloadVersion = 0
 let customBlockReloadQueue: Promise<boolean> = Promise.resolve(false)
+let customBlockAssetSession: ProjectCustomBlockAssetSession | null = null
+let customBlockFontSession: ProjectCustomBlockFontSession | null = null
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -354,12 +361,15 @@ function clearProjectDictionary() {
 }
 
 function clearProjectCustomBlocks() {
+  customBlockFontSession?.release()
+  customBlockAssetSession?.release()
+  customBlockFontSession = null
+  customBlockAssetSession = null
   projectCustomBlockCatalog.value = new Map()
   projectCustomBlockRuntimeCatalog.value = new Map()
   projectCustomBlockIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
   customBlockRegistryError.value = null
-  clearProjectCustomBlockFonts()
-  clearProjectCustomBlockAssets()
+  customBlockFontLoadErrors.value = []
 }
 
 function reloadProjectCustomBlockRegistry(): Promise<boolean> {
@@ -371,6 +381,8 @@ function reloadProjectCustomBlockRegistry(): Promise<boolean> {
     if (!expectedProjectPath || !isCurrent()) return false
 
     const registryPath = `${expectedProjectPath}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
+    let nextAssetSession: ProjectCustomBlockAssetSession | null = null
+    let nextFontSession: ProjectCustomBlockFontSession | null = null
     try {
       if (!await fileSystemService.fileExists(registryPath)) {
         if (isCurrent()) clearProjectCustomBlocks()
@@ -386,25 +398,43 @@ function reloadProjectCustomBlockRegistry(): Promise<boolean> {
         catalog.set(key, { ...entry, archivePath: relativePath })
       }
       if (!isCurrent()) return false
-      const runtimeAssets = await syncProjectCustomBlockAssets(catalog)
+      nextAssetSession = await createProjectCustomBlockAssetSession(catalog)
       if (!isCurrent()) {
-        clearProjectCustomBlockAssets()
+        nextAssetSession.release()
         return false
       }
-      await syncProjectCustomBlockFonts(catalog)
+      nextFontSession = await createProjectCustomBlockFontSession(catalog)
       if (!isCurrent()) {
-        clearProjectCustomBlockFonts()
-        clearProjectCustomBlockAssets()
+        nextFontSession.release()
+        nextAssetSession.release()
         return false
       }
+      const previousFontSession = customBlockFontSession
+      const previousAssetSession = customBlockAssetSession
+      const runtimeCatalog = new Map(nextAssetSession.customBlockCatalog)
+      for (const [key, runtimeEntry] of runtimeCatalog) {
+        const packageEntry = catalog.get(key)
+        const packageSeriesKeys = new Set(
+          (packageEntry?.manifest.resources?.iconSeries ?? []).map(series => series.key.toLowerCase()),
+        )
+        const hasResourceErrors = nextFontSession.errors.some(error => error.packageKey.toLowerCase() === key)
+          || nextAssetSession.iconCatalog.errors.some(error => packageSeriesKeys.has(error.seriesKey.toLowerCase()))
+        if (hasResourceErrors) runtimeCatalog.set(key, { ...runtimeEntry, hasResourceErrors: true })
+      }
+      customBlockFontSession = nextFontSession
+      customBlockAssetSession = nextAssetSession
       projectCustomBlockCatalog.value = catalog
-      projectCustomBlockRuntimeCatalog.value = runtimeAssets.customBlockCatalog
-      projectCustomBlockIconCatalog.value = runtimeAssets.iconCatalog
+      projectCustomBlockRuntimeCatalog.value = runtimeCatalog
+      projectCustomBlockIconCatalog.value = nextAssetSession.iconCatalog
+      customBlockFontLoadErrors.value = nextFontSession.errors
       customBlockRegistryError.value = null
+      previousFontSession?.release()
+      previousAssetSession?.release()
       return true
     } catch (error) {
+      nextFontSession?.release()
+      nextAssetSession?.release()
       if (!isCurrent()) return false
-      clearProjectCustomBlocks()
       customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
       reportAppError('OC-E3011', { path: registryPath, error })
       return false
@@ -1282,6 +1312,7 @@ export function useProjectStore() {
     projectDictionary: readonly(projectDictionary),
     projectCustomBlockCatalog: readonly(projectCustomBlockCatalog),
     customBlockRegistryError: readonly(customBlockRegistryError),
+    customBlockFontLoadErrors: readonly(customBlockFontLoadErrors),
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),
     projectName: computed(() => {

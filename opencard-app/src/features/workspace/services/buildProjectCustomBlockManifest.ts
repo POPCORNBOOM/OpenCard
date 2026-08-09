@@ -1,4 +1,5 @@
 import type { CardBlock } from '../../../entities/card/model'
+import { visitCardBlockTree } from '../../../entities/card/tree'
 import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
 import {
   computeProjectCustomBlockInterfaceHash,
@@ -9,18 +10,15 @@ import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnaly
 
 function cloneExportRoot(root: CardBlock): CardBlock {
   const cloned = structuredClone(root)
-  const visit = (block: CardBlock): void => {
+  visitCardBlockTree(cloned, block => {
     const rawDefinitions = block.additionalFieldDefinition
     if (rawDefinitions !== undefined) {
       const definitions = parseAdditionalFieldDefinitions(rawDefinitions)
       if (Object.keys(definitions).length > 0) block.additionalFieldDefinition = definitions
       else delete block.additionalFieldDefinition
     }
-    if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
-    delete block.packaged
-    for (const child of block.children) visit(child.block)
-  }
-  visit(cloned)
+    if (block.type === 'simple-container-block' || block.type === 'flow-container-block') delete block.packaged
+  })
   return cloned
 }
 

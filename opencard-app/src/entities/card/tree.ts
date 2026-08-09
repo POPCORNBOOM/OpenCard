@@ -4,6 +4,7 @@ import type {
     CardBlock,
     CardDocument,
     CardFace,
+    CardFaceKey,
     FlowContainerBlock,
     FlowContainerLocationInfo,
     SimpleContainerBlock,
@@ -88,6 +89,47 @@ export function isBlockPackaged(target: CardBlock | CardFace): boolean {
     return target.type !== 'card-face'
         && isBlockContainer(target)
         && target.packaged === 'true'
+}
+
+export function visitCardBlockTree(
+    root: CardBlock,
+    visit: (
+        block: CardBlock,
+        depth: number,
+        location?: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    ) => void,
+): void {
+    const traverse = (
+        block: CardBlock,
+        depth: number,
+        location?: SimpleContainerLocationInfo | FlowContainerLocationInfo,
+    ): void => {
+        visit(block, depth, location)
+        if (!isBlockContainer(block)) return
+        for (const child of block.children) traverse(child.block, depth + 1, child.location)
+    }
+    traverse(root, 0)
+}
+
+export type LocatedCardBlock = {
+    block: CardBlock
+    faceKey: CardFaceKey
+}
+
+export function findCardBlockInDocument(
+    document: CardDocument,
+    blockId: string,
+): LocatedCardBlock | null {
+    for (const [faceKey, face] of Object.entries(document.faces) as [CardFaceKey, CardFace][]) {
+        for (const child of face.children) {
+            let found: CardBlock | null = null
+            visitCardBlockTree(child.block, block => {
+                if (!found && block.id === blockId) found = block
+            })
+            if (found) return { block: found, faceKey }
+        }
+    }
+    return null
 }
 
 function registerBlockSubtree(

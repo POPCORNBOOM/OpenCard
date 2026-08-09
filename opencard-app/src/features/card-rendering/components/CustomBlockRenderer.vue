@@ -8,7 +8,6 @@
     <template v-else>
       <OcIcon name="status.warning" tone="warning" size="md" />
       <span>{{ t('cardDesigner.customBlock.unavailable') }}</span>
-      <code>{{ block.error }}</code>
     </template>
   </div>
 </template>
@@ -44,13 +43,10 @@ function handleClick(event: MouseEvent): void {
   place-content: center;
   justify-items: center;
   gap: var(--oc-space-2);
-  color: var(--oc-color-text-muted);
-  background: var(--oc-color-surface-subtle);
-  border: var(--oc-border-width-default) dashed var(--oc-color-border-warning);
+  color: var(--oc-fg-muted);
+  background: var(--oc-bg-warning-subtle);
+  border: var(--oc-border-width) dashed var(--oc-border-default);
   overflow: hidden;
 }
 
-.custom-block-renderer code {
-  color: inherit;
-}
 </style>

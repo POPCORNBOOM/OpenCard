@@ -13,10 +13,16 @@ export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
   }
   readonly files?: ReadonlyMap<string, Uint8Array>
   readonly resourceUrls?: ReadonlyMap<string, string>
+  readonly hasResourceErrors?: boolean
 }>
 
 export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
-export type CustomBlockExpansionHost = { source: string; interfaceHash: string }
+export type CustomBlockExpansionHost = {
+  source: string
+  interfaceHash: string
+  faceKey: CardFaceKey
+  hasResourceErrors: boolean
+}
 
 function clone<T>(value: T): T {
   const raw = value && typeof value === 'object' ? toRaw(value as object) : value
@@ -28,9 +34,10 @@ function clone<T>(value: T): T {
 }
 
 function resolveBundledResources(block: CardBlock, packageKey: string, resourceUrls?: ReadonlyMap<string, string>): void {
-  if (block.type === 'image-block' && block.image.startsWith(`ocblock:${packageKey}/`)) {
-    const archivePath = block.image.slice(`ocblock:${packageKey}/`.length)
-    const url = resourceUrls?.get(archivePath)
+  const prefix = `ocblock:${packageKey}/`
+  if (block.type === 'image-block' && block.image.toLowerCase().startsWith(prefix.toLowerCase())) {
+    const archivePath = block.image.slice(prefix.length)
+    const url = resourceUrls?.get(archivePath.toLowerCase())
     if (url) block.image = url
   }
   if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
@@ -86,14 +93,19 @@ export function expandCustomBlocks(
       issues.push({ blockId: block.id, faceKey, reason: 'interface-mismatch', source: block.source })
       return block
     }
-    hosts.set(block.id, { source: block.source, interfaceHash: block.interfaceHash })
+    hosts.set(block.id, {
+      source: block.source,
+      interfaceHash: block.interfaceHash,
+      faceKey,
+      hasResourceErrors: entry.hasResourceErrors === true,
+    })
     const root = clone(entry.manifest.root) as CardBlock
     if (options.resolveRuntimeResources !== false) {
       resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
     }
     namespaceDescendantIds(root, block.id)
-    root.name = block.name
-    root.notes = block.notes
+    if (block.name !== undefined) root.name = block.name
+    if (block.notes !== undefined) root.notes = block.notes
     if (block.visible !== undefined) root.visible = block.visible
     for (const field of entry.manifest.publicFields) {
       if (Object.prototype.hasOwnProperty.call(block, field.key)) {

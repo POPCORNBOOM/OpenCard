@@ -3,7 +3,7 @@
     :class="{ 'is-selected': selected, 'is-missing': !entry }"
     contenteditable="false" tabindex="-1" data-tooltip="点击选中项目图标"
     aria-label="点击选中项目图标" @mousedown.stop @click="selectIconNode">
-    <span v-if="entry" class="project-icon-node__image" :style="iconStyle" role="img"
+    <span v-if="entry" class="project-icon-node__image oc-project-icon" :style="iconStyle" role="img"
       :aria-label="entry.name" :data-tooltip="entry.name" />
     <span v-else class="project-icon-node__missing">图标不可用</span>
   </NodeViewWrapper>

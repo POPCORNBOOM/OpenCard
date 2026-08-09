@@ -38,6 +38,7 @@
           @keydown="handleActionKeydown($event, entry)"
         >
           <span v-if="entry.thumbnailStyle" class="oc-action-menu__thumbnail"
+            :class="{ 'oc-project-icon': entry.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
             :style="entry.thumbnailStyle" role="img"
             :aria-label="entry.thumbnailLabel ?? entry.title ?? entry.key" />
           <OcIcon

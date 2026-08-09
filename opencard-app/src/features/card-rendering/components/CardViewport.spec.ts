@@ -211,8 +211,8 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ showInfo: false })
     expect(wrapper.find('.card-viewport-info').exists()).toBe(false)
-    expect(wrapper.find('.card-viewport-left-info').exists()).toBe(true)
-    expect(wrapper.find('.card-viewport-bottom-info').exists()).toBe(true)
+    expect(wrapper.find('.card-viewport-left-info').exists()).toBe(false)
+    expect(wrapper.find('.card-viewport-bottom-info').exists()).toBe(false)
   })
 
   it('emits anchor-preserving geometry actions from the selection toolbar', async () => {

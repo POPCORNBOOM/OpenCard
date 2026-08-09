@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { strToU8, zipSync } from 'fflate'
 import { createBlock } from '../../../entities/card/model'
 import { buildProjectCustomBlockManifest } from './buildProjectCustomBlockManifest'
 import {
   createProjectCustomBlockArchive,
+  exportProjectCustomBlockPackage,
   readProjectCustomBlockPackageFromBytes,
 } from './projectCustomBlock'
 import { serializeProjectCustomBlockManifest } from '../model/projectCustomBlocks'
@@ -22,6 +23,38 @@ describe('project custom block package', () => {
 
     await expect(readProjectCustomBlockPackageFromBytes(archive)).resolves.toMatchObject({
       manifest: { key: 'label', interfaceHash: manifest.interfaceHash },
+    })
+  })
+
+  it('validates a package with every resource type before writing it', async () => {
+    const root = createBlock('text-block', {
+      id: 'root',
+      content: '[[icon:ocblock-badge/star]]',
+      fontFamily: 'OpenCardCustomBlock-badge-heading',
+    })
+    const manifest = await buildProjectCustomBlockManifest({ root, key: 'badge' })
+    manifest.resources = {
+      fonts: [{ key: 'heading', name: 'Heading', source: 'resources/fonts/heading.woff2' }],
+      images: [{ key: 'badge', source: 'resources/images/badge.png' }],
+      iconSeries: [{
+        key: 'ocblock-badge', name: 'Badge icons', source: 'resources/icons/icons.png',
+        icons: [{ iconKey: 'star', name: 'Star', x: 0, y: 0, width: 16, height: 16 }],
+      }],
+    }
+    const files = new Map([
+      ['resources/fonts/heading.woff2', new Uint8Array([1])],
+      ['resources/images/badge.png', new Uint8Array([2])],
+      ['resources/icons/icons.png', new Uint8Array([3])],
+    ])
+    const writeBinaryFile = vi.fn(async (_path: string, _bytes: Uint8Array) => undefined)
+
+    await expect(exportProjectCustomBlockPackage({
+      fs: { writeBinaryFile }, manifest, files, outputPath: 'badge',
+    })).resolves.toBe('badge.ocblock')
+    expect(writeBinaryFile).toHaveBeenCalledOnce()
+    const written = writeBinaryFile.mock.calls[0]![1]
+    await expect(readProjectCustomBlockPackageFromBytes(written)).resolves.toMatchObject({
+      manifest: { key: 'badge' },
     })
   })
 
@@ -85,6 +118,34 @@ describe('project custom block package', () => {
     }))).rejects.toThrow('archive path')
     await expect(readProjectCustomBlockPackageFromBytes(new Uint8Array([1, 2, 3])))
       .rejects.toThrow()
+  })
+
+  it('does not export case-duplicate archive paths that its importer rejects', async () => {
+    const manifest = await createManifest()
+    manifest.resources = { images: [{ key: 'image', source: 'resources/images/a.png' }] }
+    expect(() => createProjectCustomBlockArchive(manifest, new Map([
+      ['resources/images/a.png', new Uint8Array([1])],
+      ['RESOURCES/IMAGES/A.PNG', new Uint8Array([2])],
+    ]))).toThrow('Invalid custom block archive path')
+    expect(() => createProjectCustomBlockArchive(manifest, new Map([
+      ['BLOCK.JSON', new Uint8Array([1])],
+      ['resources/images/a.png', new Uint8Array([2])],
+    ]))).toThrow('Invalid custom block archive path')
+  })
+
+  it('uses one case-insensitive identity for indexed resources and package references', async () => {
+    const root = createBlock('image-block', {
+      id: 'root',
+      image: 'ocblock:BADGE/RESOURCES/IMAGES/A.PNG',
+    })
+    const manifest = await buildProjectCustomBlockManifest({ root, key: 'Badge' })
+    manifest.resources = { images: [{ key: 'image', source: 'resources/images/a.png' }] }
+    const archive = createProjectCustomBlockArchive(manifest, new Map([
+      ['RESOURCES/IMAGES/A.PNG', new Uint8Array([1])],
+    ]))
+    await expect(readProjectCustomBlockPackageFromBytes(archive)).resolves.toMatchObject({
+      manifest: { key: 'Badge' },
+    })
   })
 
   it('rejects archives with too many entries before unpacking', async () => {

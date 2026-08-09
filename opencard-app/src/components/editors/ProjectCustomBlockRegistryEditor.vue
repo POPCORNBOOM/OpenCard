@@ -10,7 +10,7 @@
         </OcButton>
       </div>
       <OcText as="p" size="sm" tone="muted">{{ t('customBlockRegistry.description') }}</OcText>
-      <OcText v-if="error" as="p" size="sm" tone="danger">{{ error }}</OcText>
+      <OcText v-if="error" as="p" size="sm" tone="danger" role="alert">{{ error }}</OcText>
       <OcPanel fill padding="none" overflow="auto">
         <OcTree v-if="treeData.rootKeys.length" fill :data="treeData" :actions="actions"
           :selected-keys="[]" selection-mode="none" :aria-label="t('customBlockRegistry.title')"
@@ -106,8 +106,8 @@ async function addBlock(): Promise<void> {
       ? unregisterProjectCustomBlockPath(document.value, imported.replacedSource)
       : document.value
     await commitAndSave(registerProjectCustomBlockPath(current, imported.source))
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+  } catch {
+    error.value = t('customBlockRegistry.importFailed')
   } finally {
     busy.value = false
   }

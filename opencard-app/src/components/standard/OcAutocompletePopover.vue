@@ -17,7 +17,10 @@
         :key="item.key"
         :ref="(element) => setOptionElement(item.key, element)"
         class="oc-autocomplete-popover__option"
-        :class="{ 'is-active': item.key === activeKey }"
+        :class="{
+          'is-active': item.key === activeKey,
+          'has-detail': Boolean(item.detail),
+        }"
         role="option"
         :aria-selected="item.key === activeKey"
         @pointerdown.prevent="emit('select', item.key)"
@@ -25,10 +28,13 @@
         <span class="oc-autocomplete-popover__main">
           <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
           <span v-else-if="item.thumbnailStyle" class="oc-autocomplete-popover__thumbnail"
+            :class="{ 'oc-project-icon': item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
             :style="item.thumbnailStyle" role="img" :aria-label="item.thumbnailLabel ?? item.label" />
-          <span class="oc-autocomplete-popover__label" :style="item.labelStyle">{{ item.label }}</span>
+          <OcOverflowText class="oc-autocomplete-popover__label" :text="item.label"
+            :active="item.key === activeKey" :content-style="item.labelStyle" />
         </span>
-        <span v-if="item.detail" class="oc-autocomplete-popover__detail">{{ item.detail }}</span>
+        <OcOverflowText v-if="item.detail" class="oc-autocomplete-popover__detail"
+          :text="item.detail" :active="item.key === activeKey" align="right" />
       </div>
     </div>
   </OcFloatingLayer>
@@ -40,6 +46,7 @@ import type { Placement } from '@floating-ui/vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import OcIcon from '../base/OcIcon.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
+import OcOverflowText from './OcOverflowText.vue'
 
 export type OcAutocompleteItem = {
   key: string
@@ -114,9 +121,9 @@ watch(
 }
 
 .oc-autocomplete-popover__option {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: var(--oc-space-2);
   min-height: var(--oc-size-md);
   padding: var(--oc-space-1) var(--oc-space-2);
@@ -125,22 +132,24 @@ watch(
   cursor: default;
 }
 
+.oc-autocomplete-popover__option.has-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .oc-autocomplete-popover__option.is-active,
 .oc-autocomplete-popover__option:hover {
   background: var(--oc-bg-active);
 }
 
 .oc-autocomplete-popover__main {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--oc-space-2);
   min-width: 0;
 }
 
 .oc-autocomplete-popover__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto;
 }
 
 .oc-autocomplete-popover__thumbnail {
@@ -152,9 +161,8 @@ watch(
 }
 
 .oc-autocomplete-popover__detail {
-  flex: 0 0 auto;
+  min-width: 0;
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-sm);
-  white-space: nowrap;
 }
 </style>

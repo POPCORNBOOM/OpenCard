@@ -1,4 +1,9 @@
 import type { ProjectIcon, ProjectIconSeries } from '../model/projectIcons'
+import {
+  PROJECT_ICON_ELEMENT_SELECTOR,
+  findProjectIconTokenMatches,
+  readProjectIconElement,
+} from '../../../shared/rich-text/projectIconReference'
 
 export type ProjectIconCatalogEntry = ProjectIcon & {
   seriesKey: string
@@ -147,6 +152,7 @@ function createProjectIconRenderStyle(
     backgroundSize: `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
     backgroundPosition: `${-entry.x / unit}em ${-entry.y / unit}em`,
     imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
+    '--oc-project-icon-renderer': 'atlas-crop',
     '--oc-project-icon-background-image': `url(${JSON.stringify(entry.src)})`,
     '--oc-project-icon-background-size': `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
     '--oc-project-icon-background-position': `${-entry.x / unit}em ${-entry.y / unit}em`,
@@ -155,6 +161,12 @@ function createProjectIconRenderStyle(
     '--oc-project-icon-image-rendering': entry.pixelated === true ? 'pixelated' : 'auto',
     '--oc-project-icon-transform': `rotate(${effectiveRotation(entry)}deg)`,
   }
+}
+
+function toCssPropertyName(property: string): string {
+  return property.startsWith('--')
+    ? property
+    : property.replace(/[A-Z]/g, character => `-${character.toLowerCase()}`)
 }
 
 export function createProjectIconStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
@@ -177,23 +189,86 @@ export function createProjectIconPreviewStyle(entry: ProjectIconCatalogEntry): R
   }
 }
 
-export function renderProjectIconsInRichText(source: string, catalog: ProjectIconCatalog): string {
+export function createProjectIconCssProperties(entry: ProjectIconCatalogEntry): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(createProjectIconStyle(entry)).map(([property, value]) => [toCssPropertyName(property), value]),
+  )
+}
+
+export function applyProjectIconStyle(element: HTMLElement, entry: ProjectIconCatalogEntry): void {
+  for (const [property, value] of Object.entries(createProjectIconCssProperties(entry))) {
+    element.style.setProperty(property, value)
+  }
+}
+
+export function renderProjectIconsInRichText(
+  source: string,
+  catalog: ProjectIconCatalog,
+  options: { missingLabel?: string } = {},
+): string {
   const documentNode = new DOMParser().parseFromString(source, 'text/html')
-  for (const element of Array.from(documentNode.body.querySelectorAll<HTMLElement>(
-    'span[data-oc-icon-series][data-oc-icon-key]',
-  ))) {
-    const seriesKey = element.getAttribute('data-oc-icon-series') ?? ''
-    const iconKey = element.getAttribute('data-oc-icon-key') ?? ''
-    const entry = findProjectIcon(catalog, seriesKey, iconKey)
-    if (!entry) {
-      element.replaceWith(documentNode.createTextNode(`[[icon:${seriesKey}/${iconKey}]]`))
-      continue
-    }
+
+  const applyMissingIcon = (element: HTMLElement, seriesKey: string, iconKey: string): void => {
     element.textContent = ''
-    element.className = 'project-inline-icon'
+    element.className = 'project-inline-icon project-inline-icon--missing'
+    element.setAttribute('data-oc-icon-series', seriesKey)
+    element.setAttribute('data-oc-icon-key', iconKey)
+    element.setAttribute('data-oc-icon-missing', 'true')
+    element.setAttribute('role', 'img')
+    element.setAttribute('aria-label', options.missingLabel ?? 'Project icon unavailable')
+  }
+
+  const applyIcon = (element: HTMLElement, seriesKey: string, iconKey: string): void => {
+    const entry = findProjectIcon(catalog, seriesKey, iconKey)
+    if (!entry) return
+    element.textContent = ''
+    element.className = 'project-inline-icon oc-project-icon'
     element.setAttribute('role', 'img')
     element.setAttribute('aria-label', entry.name)
-    Object.assign(element.style, createProjectIconStyle(entry))
+    applyProjectIconStyle(element, entry)
+  }
+
+  for (const element of Array.from(documentNode.body.querySelectorAll<HTMLElement>(PROJECT_ICON_ELEMENT_SELECTOR))) {
+    const reference = readProjectIconElement(element)
+    if (!reference) continue
+    const { seriesKey, iconKey } = reference
+    if (!findProjectIcon(catalog, seriesKey, iconKey)) {
+      applyMissingIcon(element, seriesKey, iconKey)
+      continue
+    }
+    applyIcon(element, seriesKey, iconKey)
+  }
+
+  const walker = documentNode.createTreeWalker(documentNode.body, NodeFilter.SHOW_TEXT)
+  const textNodes: Text[] = []
+  let current: Node | null
+  while ((current = walker.nextNode())) {
+    if (current.parentElement?.closest(PROJECT_ICON_ELEMENT_SELECTOR)) continue
+    if (findProjectIconTokenMatches(current.textContent ?? '').length > 0) textNodes.push(current as Text)
+  }
+  for (const textNode of textNodes) {
+    const fragment = documentNode.createDocumentFragment()
+    let lastIndex = 0
+    const value = textNode.data
+    for (const match of findProjectIconTokenMatches(value)) {
+      fragment.append(value.slice(lastIndex, match.index))
+      const entry = findProjectIcon(catalog, match.seriesKey, match.iconKey)
+      if (!entry) {
+        const icon = documentNode.createElement('span')
+        applyMissingIcon(icon, match.seriesKey, match.iconKey)
+        fragment.append(icon)
+        lastIndex = match.index + match.token.length
+        continue
+      }
+      const icon = documentNode.createElement('span')
+      icon.setAttribute('data-oc-icon-series', match.seriesKey)
+      icon.setAttribute('data-oc-icon-key', match.iconKey)
+      applyIcon(icon, match.seriesKey, match.iconKey)
+      fragment.append(icon)
+      lastIndex = match.index + match.token.length
+    }
+    fragment.append(value.slice(lastIndex))
+    textNode.replaceWith(fragment)
   }
   return documentNode.body.innerHTML
 }

@@ -42,6 +42,18 @@ describe('OcActionMenu', () => {
     expect(wrapper.find('.oc-action-menu__icon-spacer').exists()).toBe(false)
   })
 
+  it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
+    const wrapper = mount(OcActionMenu, {
+      props: {
+        actions: [{
+          key: 'status/wide',
+          thumbnailStyle: { '--oc-project-icon-renderer': 'atlas-crop' },
+        }],
+      },
+    })
+    expect(wrapper.get('.oc-action-menu__thumbnail').classes()).toContain('oc-project-icon')
+  })
+
   it('moves keyboard focus across enabled commands', async () => {
     const wrapper = mount(OcActionMenu, {
       attachTo: document.body,

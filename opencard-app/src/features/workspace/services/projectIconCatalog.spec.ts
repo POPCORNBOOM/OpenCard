@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildProjectIconCatalog,
+  createProjectIconCssProperties,
   createProjectIconPreviewStyle,
   createProjectIconStyle,
+  EMPTY_PROJECT_ICON_CATALOG,
   findProjectIcon,
+  renderProjectIconsInRichText,
 } from './projectIconCatalog'
 
 describe('projectIconCatalog', () => {
@@ -18,6 +21,26 @@ describe('projectIconCatalog', () => {
     expect(loadDimensions).toHaveBeenCalledWith('asset://assets/icons/status.png')
     expect(catalog.series).toEqual([expect.objectContaining({ key: 'status', imageWidth: 64, imageHeight: 32 })])
     expect(findProjectIcon(catalog, 'STATUS', 'WARNING')).toMatchObject({ imageWidth: 64, imageHeight: 32 })
+  })
+
+  it('renders canonical rich-text icon tokens', async () => {
+    const catalog = await buildProjectIconCatalog([{
+      name: 'Status icons', key: 'status', source: 'status.png',
+      icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
+    }], source => source, async () => ({ width: 16, height: 16 }))
+    const html = renderProjectIconsInRichText('<p>A [[icon:status/warning]] B</p>', catalog)
+    expect(html).toContain('project-inline-icon oc-project-icon')
+    expect(html).toContain('aria-label="Warning"')
+    expect(html).toContain('--oc-project-icon-background-image: url(&quot;status.png&quot;)')
+  })
+
+  it('renders missing rich-text icons as a stable placeholder instead of machine syntax', () => {
+    const html = renderProjectIconsInRichText(
+      '<p>[[icon:status/missing]]</p>', EMPTY_PROJECT_ICON_CATALOG, { missingLabel: 'Unavailable icon' },
+    )
+    expect(html).toContain('project-inline-icon--missing')
+    expect(html).toContain('aria-label="Unavailable icon"')
+    expect(html).not.toContain('[[icon:status/missing]]')
   })
 
   it('reports failed images and out-of-bounds records without exposing them', async () => {
@@ -57,6 +80,12 @@ describe('projectIconCatalog', () => {
       width: '1em',
       height: `${1 / 3}em`,
       imageRendering: 'pixelated',
+    })
+    expect(createProjectIconCssProperties(catalog.entries[0]!)).toMatchObject({
+      width: '3em',
+      height: '1em',
+      'background-image': 'none',
+      'image-rendering': 'pixelated',
     })
   })
 

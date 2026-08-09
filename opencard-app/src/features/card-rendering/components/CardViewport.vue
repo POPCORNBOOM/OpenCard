@@ -17,24 +17,28 @@
           <slot name="info" />
         </aside>
       </Transition>
-      <aside v-if="$slots['left-info']" class="card-viewport-left-info" :style="viewportLeftInfoStyle"
-        @pointerdown.stop.prevent="startFaceDimensionDrag('height', $event)">
-        <span
-          class="card-viewport-dimension-line card-viewport-dimension-line--vertical"
-          :style="viewportLeftInfoLineStyle"
-        >
-          <span class="card-viewport-dimension-label"><slot name="left-info" /></span>
-        </span>
-      </aside>
-      <aside v-if="$slots['bottom-info']" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle"
-        @pointerdown.stop.prevent="startFaceDimensionDrag('width', $event)">
-        <span
-          class="card-viewport-dimension-line card-viewport-dimension-line--horizontal"
-          :style="viewportBottomInfoLineStyle"
-        >
-          <span class="card-viewport-dimension-label"><slot name="bottom-info" /></span>
-        </span>
-      </aside>
+      <Transition name="card-info-fade">
+        <aside v-if="$slots['left-info'] && showInfo" class="card-viewport-left-info" :style="viewportLeftInfoStyle"
+          @pointerdown.stop.prevent="startFaceDimensionDrag('height', $event)">
+          <span
+            class="card-viewport-dimension-line card-viewport-dimension-line--vertical"
+            :style="viewportLeftInfoLineStyle"
+          >
+            <span class="card-viewport-dimension-label"><slot name="left-info" /></span>
+          </span>
+        </aside>
+      </Transition>
+      <Transition name="card-info-fade">
+        <aside v-if="$slots['bottom-info'] && showInfo" class="card-viewport-bottom-info" :style="viewportBottomInfoStyle"
+          @pointerdown.stop.prevent="startFaceDimensionDrag('width', $event)">
+          <span
+            class="card-viewport-dimension-line card-viewport-dimension-line--horizontal"
+            :style="viewportBottomInfoLineStyle"
+          >
+            <span class="card-viewport-dimension-label"><slot name="bottom-info" /></span>
+          </span>
+        </aside>
+      </Transition>
     </div>
     <CardLayerView
       v-if="effectiveLayerViewActive"

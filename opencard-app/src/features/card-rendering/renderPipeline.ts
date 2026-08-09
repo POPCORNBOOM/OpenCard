@@ -10,6 +10,24 @@ import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalo
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { createCardPipelineIssue } from './cardPipelineIssue'
 
+function findCustomBlockHostId(
+  issue: CardPipelineIssue,
+  hosts: ReadonlyMap<string, unknown>,
+): string | null {
+  const candidateIds = [issue.location.blockId, issue.location.owner.id].filter(
+    (value): value is string => Boolean(value),
+  )
+  for (const id of candidateIds) {
+    if (hosts.has(id)) return id
+    const separator = id.indexOf('::')
+    if (separator > 0) {
+      const hostId = id.slice(0, separator)
+      if (hosts.has(hostId)) return hostId
+    }
+  }
+  return null
+}
+
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
   issues: CardPipelineIssue[]
@@ -42,23 +60,63 @@ export function runRenderPipeline(
     instanceId: instance?.id ?? null,
   })
 
-  return {
-    document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
-    issues: [
-      ...expanded.issues.map(issue => createCardPipelineIssue({
-        type: 'card-designer.render-parse.conversion-failed',
+  const expansionIssues = expanded.issues.map(issue => createCardPipelineIssue({
+    type: 'card-designer.custom-block.unavailable',
+    location: {
+      documentId: projected.id,
+      instanceId: instance?.id ?? null,
+      faceKey: issue.faceKey,
+      owner: { kind: 'block', id: issue.blockId },
+      blockId: issue.blockId,
+      fieldKey: 'source',
+    },
+  }))
+  const unavailableHosts = new Map(expanded.issues.map(issue => [issue.blockId, true]))
+  const visibleIssues: CardPipelineIssue[] = []
+  const internalHosts = new Map<string, CardPipelineIssue>()
+  for (const issue of [...resolved.issues, ...parsed.issues]) {
+    if (findCustomBlockHostId(issue, unavailableHosts)) continue
+    const hostId = findCustomBlockHostId(issue, expanded.hosts)
+    if (!hostId) {
+      visibleIssues.push(issue)
+      continue
+    }
+    const key = `${issue.location.faceKey ?? ''}\u0000${hostId}`
+    if (internalHosts.has(key)) continue
+    internalHosts.set(key, createCardPipelineIssue({
+      type: 'card-designer.custom-block.content-error',
+      location: {
+        documentId: projected.id,
+        instanceId: instance?.id ?? null,
+        faceKey: issue.location.faceKey,
+        owner: { kind: 'block', id: hostId },
+        blockId: hostId,
+        fieldKey: 'content',
+      },
+    }))
+  }
+
+  const pipelineIssues = [
+    ...expansionIssues,
+    ...visibleIssues,
+    ...internalHosts.values(),
+    ...[...expanded.hosts.entries()].flatMap(([hostId, host]) => host.hasResourceErrors
+      ? [createCardPipelineIssue({
+        type: 'card-designer.custom-block.resource-error',
         location: {
           documentId: projected.id,
           instanceId: instance?.id ?? null,
-          faceKey: issue.faceKey,
-          owner: { kind: 'block', id: issue.blockId },
-          blockId: issue.blockId,
+          faceKey: host.faceKey,
+          owner: { kind: 'block', id: hostId },
+          blockId: hostId,
           fieldKey: 'source',
         },
-        parameters: { value: `${issue.reason}:${issue.source}` },
-      })),
-      ...resolved.issues,
-      ...parsed.issues,
-    ],
+      })]
+      : []),
+  ]
+
+  return {
+    document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
+    issues: pipelineIssues,
   }
 }

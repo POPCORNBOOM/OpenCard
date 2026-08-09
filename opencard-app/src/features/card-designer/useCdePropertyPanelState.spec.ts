@@ -68,7 +68,7 @@ describe('useCdePropertyPanelState additional fields', () => {
 
     expect(input.record.score).toBe('10')
     expect(input.fields.score?.title).toBe('Score')
-    expect(input.fields.score?.category).toBe('custom')
+    expect(input.fields.score?.category).toBe('customFields')
     expect(input.fields.score?.deletable).toBe(true)
     expect(input.fields.name).toBeDefined()
     expect(input.fields.name?.order).toBeLessThan(input.fields.id?.order ?? Number.MAX_SAFE_INTEGER)

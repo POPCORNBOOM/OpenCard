@@ -7,6 +7,7 @@
       'is-fill': props.fill,
       'is-dragging': draggedKey,
       'is-root-drop': draggedKey && dropTargetKey === null && dropPosition === 'inside',
+      'are-actions-always-visible': props.actionVisibility === 'always',
     }"
     :role="props.role"
     :aria-multiselectable="props.selectionMode === 'multiple' ? 'true' : undefined"
@@ -63,6 +64,7 @@
           @click="handleIconClick($event, entry.key)"
         >
           <span v-if="entry.item.thumbnailStyle" class="oc-tree__thumbnail"
+            :class="{ 'oc-project-icon': entry.item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
             :style="entry.item.thumbnailStyle" role="img"
             :aria-label="entry.item.thumbnailLabel ?? entry.item.label" />
           <OcIcon v-else
@@ -158,6 +160,7 @@ interface OcTreeProps {
   scrollToSelection?: boolean
   virtualized?: boolean
   actionOverflowTitle?: string
+  actionVisibility?: 'on-interaction' | 'always'
 }
 
 type VisibleEntry = {
@@ -183,6 +186,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   scrollToSelection: false,
   virtualized: false,
   actionOverflowTitle: 'More actions',
+  actionVisibility: 'on-interaction',
 })
 
 const emit = defineEmits<{
@@ -693,7 +697,18 @@ async function startRename(key: OcTreeKey): Promise<void> {
   await nextTick()
   renameInputRefs.get(key)?.focus()
   const element = renameInputRefs.get(key)?.$el
-  if (element instanceof HTMLInputElement) element.select()
+  if (element instanceof HTMLInputElement) {
+    const selection = item.renameSelection
+    if (!selection) {
+      element.select()
+      return
+    }
+
+    const length = renameDraft.value.length
+    const start = Math.max(0, Math.min(selection.start, length))
+    const end = Math.max(start, Math.min(selection.end, length))
+    element.setSelectionRange(start, end)
+  }
 }
 
 defineExpose({ beginRename: startRename })
@@ -1075,7 +1090,8 @@ onBeforeUnmount(() => {
 
 .oc-tree__row:hover .oc-tree__controls,
 .oc-tree__row:focus-within .oc-tree__controls,
-.oc-tree__node.is-selected .oc-tree__controls {
+.oc-tree__node.is-selected .oc-tree__controls,
+.oc-tree.are-actions-always-visible .oc-tree__controls {
   visibility: visible;
 }
 

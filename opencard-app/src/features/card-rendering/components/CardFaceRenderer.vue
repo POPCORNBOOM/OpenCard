@@ -76,6 +76,7 @@ const rootContainerBlock = computed<RenderReadySimpleContainerBlock>(() => {
         visible: true,
         width: `${props.face.width}px`,
         height: `${props.face.height}px`,
+        clip: false,
         children: visibleChildren.value,
         borderColor: '#000000',
         borderWidth: 0,

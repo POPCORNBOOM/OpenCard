@@ -36,8 +36,12 @@ describe('referenceCompletion', () => {
   })
 
   it('offers field selection and continuation for parent chains', () => {
+    expect(resolveReferenceCompletion('{{p', 3, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['project:', 'parent:'])
     expect(resolveReferenceCompletion('{{parent}}', cursor('{{parent}}'), context)?.suggestions.map((item) => item.insertText))
       .toEqual(['parent:', 'parent.'])
+    expect(resolveReferenceCompletion('{{parent.p', 10, context)?.suggestions.map((item) => item.insertText))
+      .toEqual(['parent.parent:'])
     expect(resolveReferenceCompletion('{{parent.}}', cursor('{{parent.}}'), context)?.suggestions.map((item) => item.insertText))
       .toEqual(['parent.parent:', 'parent.parent.'])
     expect(resolveReferenceCompletion('{{parent.parent:wi}}', cursor('{{parent.parent:wi}}'), context)?.suggestions.map((item) => item.insertText))

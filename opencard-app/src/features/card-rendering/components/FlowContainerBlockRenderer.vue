@@ -42,7 +42,7 @@ const blockStyle = computed(() => {
         ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
         : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
     const flexDir = directionMap[props.block.direction]
-    return `${pos}; display: flex; flex-direction: ${flexDir}; gap: ${props.block.gap}`
+    return `${pos}; display: flex; flex-direction: ${flexDir}; gap: ${props.block.gap}; overflow: ${props.block.clip ? 'hidden' : 'visible'}`
 })
 
 const orderedChildren = computed(() =>

@@ -3,7 +3,7 @@ import markdownItAttrs from 'markdown-it-attrs'
 import type Token from 'markdown-it/lib/token.mjs'
 import { parseProjectIconToken } from '../../workspace/model/projectIcons'
 import {
-  createProjectIconStyle,
+  createProjectIconCssProperties,
   findProjectIcon,
   type ProjectIconCatalog,
 } from '../../workspace/services/projectIconCatalog'
@@ -58,11 +58,13 @@ markdown.core.ruler.after('curly_attributes', 'opencard_image_attributes', (stat
 export type MarkdownRenderOptions = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
+  missingProjectIconLabel?: string
 }
 
 type MarkdownEnvironment = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
+  missingProjectIconLabel?: string
 }
 
 markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, environment) => {
@@ -71,11 +73,16 @@ markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, enviro
   const entry = reference?.seriesKey && reference.iconKey
     ? findProjectIcon((environment as MarkdownEnvironment).projectIconCatalog, reference.seriesKey, reference.iconKey)
     : null
-  if (!entry) return markdown.utils.escapeHtml(token?.content ?? '')
-  const style = Object.entries(createProjectIconStyle(entry))
-    .map(([name, value]) => `${name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}:${value}`)
+  if (!entry) {
+    const label = markdown.utils.escapeHtml(
+      (environment as MarkdownEnvironment).missingProjectIconLabel ?? 'Project icon unavailable',
+    )
+    return `<span class="project-inline-icon project-inline-icon--missing" role="img" aria-label="${label}" data-oc-icon-missing="true"></span>`
+  }
+  const style = Object.entries(createProjectIconCssProperties(entry))
+    .map(([name, value]) => `${name}:${value}`)
     .join(';')
-  return `<span class="project-inline-icon" role="img" aria-label="${markdown.utils.escapeHtml(entry.name)}" style="${markdown.utils.escapeHtml(style)}"></span>`
+  return `<span class="project-inline-icon oc-project-icon" role="img" aria-label="${markdown.utils.escapeHtml(entry.name)}" style="${markdown.utils.escapeHtml(style)}"></span>`
 }
 
 function readCssLength(token: Token, name: 'width' | 'height'): string | null {
@@ -139,5 +146,6 @@ export function renderMarkdown(source: string, options: MarkdownRenderOptions = 
   return markdown.render(source, {
     resolveImageSrc: options.resolveImageSrc,
     projectIconCatalog: options.projectIconCatalog,
+    missingProjectIconLabel: options.missingProjectIconLabel,
   } satisfies MarkdownEnvironment)
 }
