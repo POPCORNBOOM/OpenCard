@@ -45,6 +45,33 @@ function createDocument(): CardDocument {
 }
 
 describe('useCdeTreeOps active face boundary', () => {
+  it('keeps selection but removes editing affordances in read-only projections', () => {
+    const document = createDocument()
+    const selectedBlockKeys = ref<string[]>([])
+    const readOnly = ref(true)
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision: ref(0),
+      parentLookup: ref(buildParentLookup(document)),
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+      readOnly,
+    })
+
+    expect(state.blockTreeData.value.items.get('front-text')).toMatchObject({
+      renamable: false,
+      draggable: false,
+      actions: [],
+      contextActions: [],
+    })
+    state.handleTreeIntent({
+      type: 'selection.change', triggerKey: 'front-text', selectedKeys: ['front-text'], mode: 'replace', input: 'left',
+    })
+    expect(selectedBlockKeys.value).toEqual(['front-text'])
+  })
+
   it('maps namespaced custom block descendants back to their host', () => {
     const document = createDocument()
     const host = createCustomBlock({ id: 'custom-host', source: 'block:item', interfaceHash: 'hash' })

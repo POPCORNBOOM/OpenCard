@@ -16,6 +16,7 @@ import type { EditorIssueSnapshot } from '../model/editorIssue'
 import type { EditorAccess } from '../model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
+import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
 
 export interface EditorProps {
   filePath: string
@@ -42,6 +43,7 @@ export interface EditorProps {
   comparisonContent?: string
   comparisonSide?: 'historical' | 'current'
   comparisonResourceRootPath?: string | null
+  renderEnvironment?: CardRenderEnvironment
 }
 
 export interface EditorEmits {

@@ -6,6 +6,8 @@
         <span>{{ side.label }}</span>
       </header>
       <OcEmpty v-if="!side.snapshot.exists">{{ t('versioning.diff.missing') }}</OcEmpty>
+      <OcEmpty v-else-if="side.error">{{ t('versioning.diff.loadFailed') }}</OcEmpty>
+      <OcEmpty v-else-if="side.loading">{{ t('versioning.diff.loading') }}</OcEmpty>
       <CardDesignEditor
         v-else
         :file-path="snapshotPath(side.snapshot)"
@@ -16,6 +18,7 @@
         :viewport-transform="viewportTransform"
         :theme-id="themeId"
         :theme-overrides="themeOverrides"
+        :render-environment="side.environment"
         access="observe-only"
         @update-card-designer-view="view = $event"
         @update-viewport-transform="viewportTransform = $event"
@@ -25,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
@@ -33,6 +36,10 @@ import type { CardDesignerViewState, EditorViewportTransform } from '../../edito
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import type { SnapshotDescriptorDto } from '../model/versioning'
+import {
+  createSnapshotProjectRenderSession,
+  type SnapshotProjectRenderSession,
+} from '../services/snapshotProjectRenderSession'
 
 const props = defineProps<{
   historical: SnapshotDescriptorDto
@@ -50,10 +57,82 @@ const view = ref<CardDesignerViewState>({
   selectedInstanceId: null,
 })
 const viewportTransform = ref<EditorViewportTransform>({ x: 0, y: 0, scale: 1 })
+const renderSessions = shallowRef<Record<'historical' | 'current', SnapshotProjectRenderSession | null>>({
+  historical: null,
+  current: null,
+})
+const loadingSides = ref(new Set<'historical' | 'current'>())
+const failedSides = ref(new Set<'historical' | 'current'>())
+let loadGeneration = 0
 const sides = computed(() => [
-  { key: 'historical', marker: 'A', label: t('versioning.diff.historical'), snapshot: props.historical, content: props.comparison.historicalContent },
-  { key: 'current', marker: 'B', label: t('versioning.diff.current'), snapshot: props.current, content: props.comparison.currentContent },
+  {
+    key: 'historical' as const,
+    marker: 'A',
+    label: t('versioning.diff.historical'),
+    snapshot: props.historical,
+    content: props.comparison.historicalContent,
+    environment: renderSessions.value.historical?.environment,
+    loading: loadingSides.value.has('historical'),
+    error: failedSides.value.has('historical'),
+  },
+  {
+    key: 'current' as const,
+    marker: 'B',
+    label: t('versioning.diff.current'),
+    snapshot: props.current,
+    content: props.comparison.currentContent,
+    environment: renderSessions.value.current?.environment,
+    loading: loadingSides.value.has('current'),
+    error: failedSides.value.has('current'),
+  },
 ])
+
+function releaseSessions(): void {
+  renderSessions.value.historical?.release()
+  renderSessions.value.current?.release()
+  renderSessions.value = { historical: null, current: null }
+}
+
+async function loadRenderSessions(): Promise<void> {
+  const generation = ++loadGeneration
+  releaseSessions()
+  const snapshots = { historical: props.historical, current: props.current }
+  const keys = (Object.keys(snapshots) as Array<keyof typeof snapshots>).filter(key => (
+    snapshots[key].exists && snapshots[key].completeness !== 'single-file'
+  ))
+  loadingSides.value = new Set(keys)
+  failedSides.value = new Set()
+  const results = await Promise.all(keys.map(async key => {
+    try {
+      return { key, session: await createSnapshotProjectRenderSession(snapshots[key].rootPath) }
+    } catch {
+      return { key, session: null }
+    }
+  }))
+  if (generation !== loadGeneration) {
+    results.forEach(result => result.session?.release())
+    return
+  }
+  const next = { historical: null, current: null } as Record<'historical' | 'current', SnapshotProjectRenderSession | null>
+  const failed = new Set<'historical' | 'current'>()
+  for (const result of results) {
+    next[result.key] = result.session
+    if (!result.session) failed.add(result.key)
+  }
+  renderSessions.value = next
+  failedSides.value = failed
+  loadingSides.value = new Set()
+}
+
+watch(
+  () => [props.historical.rootPath, props.current.rootPath, props.historical.completeness, props.current.completeness],
+  () => void loadRenderSessions(),
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  loadGeneration += 1
+  releaseSessions()
+})
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   const separator = snapshot.rootPath.includes('\\') ? '\\' : '/'

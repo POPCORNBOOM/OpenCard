@@ -67,19 +67,20 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         : []
       const visibility = block.visible === 'false' ? 'hidden' : 'visible'
       const presentation = getBlockPresentation(block.type)
+      const readOnly = options.readOnly?.value ?? false
       items.set(block.id, {
         label: block.name?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
-        renamable: true,
-        draggable: true,
-        actions: [
+        renamable: !readOnly,
+        draggable: !readOnly,
+        actions: readOnly ? [] : [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
           isBlockContainer(block)
             ? (packaged ? 'packaged-container-more' : 'container-more')
             : 'block-more',
         ],
-        contextActions: [
+        contextActions: readOnly ? [] : [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
           'rename',
           'export-custom-block',

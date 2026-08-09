@@ -679,6 +679,7 @@ const {
   reloadProjectFontRegistry,
   reloadProjectIconRegistry,
   reloadProjectDictionary,
+  reloadProjectCustomBlockRegistry,
 } = projectStore
 
 const settingsStore = useAppSettingsStore()
@@ -2199,6 +2200,7 @@ async function handleRestoreConfirm(): Promise<void> {
       reloadProjectFontRegistry(),
       reloadProjectIconRegistry(),
       reloadProjectDictionary(),
+      reloadProjectCustomBlockRegistry(),
     ])
     await reconcileWorkspaceSessionsFromDisk()
     await prepareVersioning(projectPath.value)
@@ -2257,6 +2259,12 @@ async function handleLocalHistoryRestoreConfirm(): Promise<void> {
     await restoreLocalHistory(relativePath, entry.entryId, entry.contentOid)
     closeLocalHistoryRestoreDialog()
     await refreshSessionFromDisk(activeSession.value?.id ?? '')
+    const fileName = relativePath.replace(/\\/g, '/').split('/').pop()?.toLowerCase()
+    if (fileName === '.ocproject') await reloadProjectProfile()
+    else if (fileName === '.ocfonts') await reloadProjectFontRegistry()
+    else if (fileName === '.ocicons') await reloadProjectIconRegistry()
+    else if (fileName === '.oclocale') await reloadProjectDictionary()
+    else if (fileName === '.ocblocks') await reloadProjectCustomBlockRegistry()
   } catch {
     // The versioning flow reports the stable error and leaves the target file unchanged.
   }

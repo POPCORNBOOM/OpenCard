@@ -4,6 +4,39 @@ import type { CardDocument } from '../../entities/card/model'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 
 describe('useCdeInstanceOps tree actions', () => {
+  it('keeps instance selection but removes editing affordances in read-only projections', () => {
+    const document: CardDocument = {
+      type: 'card-document', schemaVersion: '2', id: 'document', version: '1.0.0', width: '540', height: '850',
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '#FFFFFF', children: [] },
+        back: { type: 'card-face', id: 'back', background: '#FFFFFF', children: [] },
+      },
+      instances: [{ type: 'card-instance', id: 'instance-1', name: 'Instance 1', amount: '1', data: {} }],
+    }
+    const selectedCardId = ref<string | null>('__blueprint__')
+    const state = useCdeInstanceOps({
+      cardDoc: ref(document),
+      documentRevision: ref(0),
+      blueprintCardId: '__blueprint__',
+      selectedCardId,
+      selectedCardKeys: ref(['__blueprint__']),
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+      readOnly: ref(true),
+    })
+
+    expect(state.instanceTreeData.value.items.get('instance-1')).toMatchObject({
+      renamable: false,
+      draggable: false,
+      actions: [],
+      contextActions: [],
+    })
+    state.handleInstanceTreeIntent({
+      type: 'selection.change', triggerKey: 'instance-1', selectedKeys: ['instance-1'], mode: 'replace', input: 'left',
+    })
+    expect(selectedCardId.value).toBe('instance-1')
+  })
+
   it('projects instance operations behind a single submenu action', () => {
     const document: CardDocument = {
       type: 'card-document',

@@ -27,7 +27,7 @@
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="props.remoteResourcePolicy"
-          :project-icon-catalog="isObserveOnly ? undefined : projectStore.renderEnvironment.value.projectIconCatalog"
+          :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -159,7 +159,7 @@
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
                         :remote-resource-policy="props.remoteResourcePolicy"
-                        :project-icon-catalog="isObserveOnly ? undefined : projectStore.renderEnvironment.value.projectIconCatalog"
+                        :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -500,6 +500,7 @@ const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 const isObserveOnly = computed(() => props.access === 'observe-only')
+const activeRenderEnvironment = computed(() => props.renderEnvironment ?? projectStore.renderEnvironment.value)
 
 const editorRootRef = ref<HTMLElement | null>(null)
 const {
@@ -1128,6 +1129,7 @@ function handleStructureTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
+    if (isObserveOnly.value) return
     customBlockExportBlock.value = getBlockById(intent.key)
     customBlockExportErrorText.value = ''
     customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
@@ -1223,7 +1225,7 @@ function closeCustomBlockRegistration(): void {
 
 const structureTreeCardActions = computed<OcCardAction[]>(() =>
   [
-    ...treeActionKeys
+    ...(!isObserveOnly.value ? treeActionKeys : [])
       .map((actionKey) => {
         const selectionDependent = actionKey === 'duplicate-selected' || actionKey === 'delete-selected'
         return toCardActionDefinition(actionKey, selectionDependent && !selectedBlock.value)
@@ -1234,6 +1236,7 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
 )
 
 function handleStructureTreeCardAction(payload: { key: string }) {
+  if (isObserveOnly.value && payload.key !== 'toggle-structure-tree-panel') return
   if (payload.key.startsWith('add-custom-block:')) {
     const key = payload.key.slice('add-custom-block:'.length).toLowerCase()
     const entry = projectStore.projectCustomBlockCatalog.value.get(key)
@@ -1282,10 +1285,10 @@ const {
 
 const propertyProjectContext = computed(() => ({
   fonts: projectStore.projectFonts.value,
-  information: projectStore.resolvedProject.value,
-  dictionary: projectStore.resolvedDictionary.value,
+  information: activeRenderEnvironment.value.project,
+  dictionary: activeRenderEnvironment.value.dictionary,
   iconSeries: projectStore.projectIconSeries.value,
-  projectIconCatalog: projectStore.projectIconCatalog.value,
+  projectIconCatalog: activeRenderEnvironment.value.projectIconCatalog,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
   const rootPath = props.resourceRootPath
@@ -1505,7 +1508,7 @@ const selectedCustomBlockResize = computed(() => {
   const block = selectedBlock.value
   if (!block || block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
   const key = block.source.startsWith('block:') ? block.source.slice(6).toLowerCase() : ''
-  return projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
+  return activeRenderEnvironment.value.customBlockCatalog?.get(key)?.manifest.resize
     ?? { widthLocked: false, heightLocked: false }
 })
 
@@ -1513,9 +1516,7 @@ const renderTargetInstance = computed(() => (
   selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null
 ))
 
-const renderContext = computed(() => ({
-  ...projectStore.renderEnvironment.value,
-}))
+const renderContext = computed(() => ({ ...activeRenderEnvironment.value }))
 const {
   findViewBlock,
   renderPipelineResult,
@@ -1589,7 +1590,7 @@ const {
     const block = getBlockById(blockId)
     if (!block || block.type !== 'custom-block') return false
     const key = block.source.startsWith('block:') ? block.source.slice(6).toLowerCase() : ''
-    const policy = projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
+    const policy = activeRenderEnvironment.value.customBlockCatalog?.get(key)?.manifest.resize
     return axis === 'width' ? Boolean(policy?.widthLocked) : Boolean(policy?.heightLocked)
   },
 })

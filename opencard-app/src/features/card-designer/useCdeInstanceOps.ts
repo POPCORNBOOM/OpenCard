@@ -34,14 +34,15 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     for (const [index, instance] of (options.cardDoc.value?.instances ?? []).entries()) {
       const key = instance.id?.trim() || `instance-${index + 1}`
+      const readOnly = options.readOnly?.value ?? false
       rootKeys.push(key)
       items.set(key, {
         label: instance.name?.trim() || key,
         icon: 'entity.card-instance',
-        renamable: true,
-        draggable: true,
-        actions: ['instance-more'],
-        contextActions: ['rename', 'duplicate-instance', 'delete-instance'],
+        renamable: !readOnly,
+        draggable: !readOnly,
+        actions: readOnly ? [] : ['instance-more'],
+        contextActions: readOnly ? [] : ['rename', 'duplicate-instance', 'delete-instance'],
       })
     }
 
