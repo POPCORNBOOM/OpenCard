@@ -199,7 +199,13 @@
           :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.customBlocks.title') })"
           :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.customBlocks.title') })"
           :collapsed="isProjectSectionCollapsed('custom-blocks')" @toggle="toggleProjectSection('custom-blocks')">
-          <div class="project-profile-editor__linked-file">
+          <div v-if="isObserveOnly" class="project-profile-editor__linked-file-comparison">
+            <ProjectConfigComparisonField :label="t('projectConfig.customBlocks.title')"
+              :historical-value="linkedFileState(comparisonLinkedFiles.customBlocks)"
+              :current-value="linkedFileState(currentLinkedFiles.customBlocks)" :paired="true"
+              :changed="comparisonLinkedFiles.customBlocks !== currentLinkedFiles.customBlocks" />
+          </div>
+          <div v-else class="project-profile-editor__linked-file">
             <OcText tone="muted" size="sm">{{ customBlockRegistryExists
               ? t('projectConfig.customBlocks.registryAvailable')
               : t('projectConfig.customBlocks.registryMissing') }}</OcText>
@@ -308,8 +314,8 @@ const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
 const comparisonCollapsedSections = ref(new Set<ProjectProfileSectionKey>())
-const currentLinkedFiles = ref({ dictionary: false, fonts: false, icons: false })
-const comparisonLinkedFiles = ref({ dictionary: false, fonts: false, icons: false })
+const currentLinkedFiles = ref({ dictionary: false, fonts: false, icons: false, customBlocks: false })
+const comparisonLinkedFiles = ref({ dictionary: false, fonts: false, icons: false, customBlocks: false })
 let sectionObserver: IntersectionObserver | null = null
 
 type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons' | 'custom-blocks'
@@ -659,13 +665,14 @@ function rootFilePath(root: string, fileName: string): string {
 }
 
 async function linkedFilesAt(root: string | null | undefined): Promise<typeof currentLinkedFiles.value> {
-  if (!root) return { dictionary: false, fonts: false, icons: false }
-  const [dictionary, fonts, icons] = await Promise.all([
+  if (!root) return { dictionary: false, fonts: false, icons: false, customBlocks: false }
+  const [dictionary, fonts, icons, customBlocks] = await Promise.all([
     fileSystemService.fileExists(rootFilePath(root, PROJECT_DICTIONARY_FILE_NAME)),
     fileSystemService.fileExists(rootFilePath(root, PROJECT_FONT_REGISTRY_FILE_NAME)),
     fileSystemService.fileExists(rootFilePath(root, PROJECT_ICON_REGISTRY_FILE_NAME)),
+    fileSystemService.fileExists(rootFilePath(root, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)),
   ])
-  return { dictionary, fonts, icons }
+  return { dictionary, fonts, icons, customBlocks }
 }
 
 async function refreshComparisonLinkedFiles(): Promise<void> {

@@ -253,8 +253,8 @@ describe('ProjectConfigEditor', () => {
     })
     await flushPromises()
 
-    expect(wrapper.findAllComponents(ProjectConfigSection)).toHaveLength(6)
-    expect(wrapper.findAll('.project-config-comparison-field__pair').length).toBeGreaterThanOrEqual(8)
+    expect(wrapper.findAllComponents(ProjectConfigSection)).toHaveLength(7)
+    expect(wrapper.findAll('.project-config-comparison-field__pair').length).toBeGreaterThanOrEqual(9)
     expect(wrapper.findAllComponents(ProjectExportTaskEditor)).toHaveLength(2)
     expect(wrapper.findAllComponents(ProjectExportTaskEditor).every(editor => editor.props('busy'))).toBe(true)
     expect(wrapper.find('[data-field-key="name"]').exists()).toBe(false)
