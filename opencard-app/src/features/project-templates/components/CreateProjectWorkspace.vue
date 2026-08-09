@@ -18,13 +18,18 @@
         </p>
         <article v-else-if="selectedTemplate" class="create-project__details">
           <div class="create-project__details-heading">
-            <OcIcon name="file.opencard" size="lg" />
+            <OcIcon name="file.opencard" size="sm" />
             <div>
-              <strong>{{ localizedTemplateName(selectedTemplate) }}</strong>
+              <div class="create-project__template-title">
+                <strong>{{ localizedTemplateName(selectedTemplate) }}</strong>
+                <span class="create-project__template-source-label">
+                  {{ t(`projectTemplates.sources.${selectedTemplate.source}`) }}
+                </span>
+              </div>
               <p>{{ localizedTemplateDescription(selectedTemplate) || t('projectTemplates.status.noDescription') }}</p>
             </div>
           </div>
-          <dl>
+          <dl class="create-project__details-list">
             <div>
               <dt>{{ t('projectTemplates.fields.entry') }}</dt>
               <dd><code>{{ selectedTemplateEntryName(selectedEntry) }}</code></dd>
@@ -38,6 +43,17 @@
                   </li>
                 </ul>
                 <span v-else>{{ t('projectTemplates.status.noIconPacksSelected') }}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>{{ t('projectTemplates.fields.customBlocks') }}</dt>
+              <dd>
+                <ul v-if="selectedCustomBlocks.length" class="create-project__custom-block-list">
+                  <li v-for="block in selectedCustomBlocks" :key="block.key">
+                    {{ block.name }}
+                  </li>
+                </ul>
+                <span v-else>{{ t('projectTemplates.status.noCustomBlocksSelected') }}</span>
               </dd>
             </div>
           </dl>
@@ -137,8 +153,8 @@
       </section>
       <form class="create-project__form" @submit.prevent="createProject">
         <div class="create-project__form-heading">
-          <span>{{ t('projectTemplates.formTitle') }}</span>
-          <strong>{{ selectedTemplate ? localizedTemplateName(selectedTemplate) : t('projectTemplates.status.selectTemplate') }}</strong>
+          <strong>{{ t('projectTemplates.formTitle') }}</strong>
+          <span>{{ selectedTemplate ? localizedTemplateName(selectedTemplate) : t('projectTemplates.status.selectTemplate') }}</span>
         </div>
 
         <label>
@@ -184,7 +200,7 @@
         </p>
 
         <div class="create-project__form-actions">
-          <OcButton type="submit" size="lg" variant="solid" :disabled="!canCreate">
+          <OcButton type="submit" variant="solid" icon="action.folder-plus" :disabled="!canCreate">
             {{ isCreating ? t('projectTemplates.status.creating') : t('projectTemplates.actions.create') }}
           </OcButton>
         </div>
@@ -222,6 +238,11 @@ import {
 } from '../../workspace/model/projectIconPackCatalog'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { useProjectIconPackStore } from '../../workspace/store/projectIconPackStore'
+import type {
+  UserCustomBlockCatalogEntry,
+  UserCustomBlockCatalogKey,
+} from '../../workspace/model/userCustomBlockCatalog'
+import { useUserCustomBlockCatalogStore } from '../../workspace/store/userCustomBlockCatalogStore'
 import { useProjectTemplateStore } from '../store/projectTemplateStore'
 
 defineOptions({ name: 'CreateProjectWorkspace' })
@@ -229,9 +250,13 @@ defineOptions({ name: 'CreateProjectWorkspace' })
 const props = withDefaults(defineProps<{
   selectedKey: ProjectTemplateKey | null
   selectedIconPackKeys?: readonly string[]
+  selectedCustomBlockKeys?: readonly string[]
   activationError?: string
   externalBusy?: boolean
-}>(), { selectedIconPackKeys: () => [] })
+}>(), {
+  selectedIconPackKeys: () => [],
+  selectedCustomBlockKeys: () => [],
+})
 
 const emit = defineEmits<{
   created: [project: CreatedProject]
@@ -242,6 +267,7 @@ const emit = defineEmits<{
 const { t, locale } = useI18n()
 const store = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
+const customBlockCatalogStore = useUserCustomBlockCatalogStore()
 const appSettingsStore = useAppSettingsStore()
 
 const projectName = ref(t('projectTemplates.defaults.projectName'))
@@ -267,6 +293,9 @@ const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(p
 const selectedIconPacks = computed(() => props.selectedIconPackKeys
   .map((key) => iconPackStore.findPack(key as ProjectIconPackCatalogKey))
   .filter((pack): pack is ProjectIconPackCatalogEntry => Boolean(pack)))
+const selectedCustomBlocks = computed(() => props.selectedCustomBlockKeys
+  .map(key => customBlockCatalogStore.findBlock(key as UserCustomBlockCatalogKey))
+  .filter((block): block is UserCustomBlockCatalogEntry => Boolean(block)))
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
@@ -351,7 +380,7 @@ watch(localBusy, (busy) => {
 
 onMounted(async () => {
   try {
-    await Promise.all([store.load(), iconPackStore.load()])
+    await Promise.all([store.load(), iconPackStore.load(), customBlockCatalogStore.load()])
   } catch (cause) {
     operationError.value = resolveErrorMessage(cause)
   }
@@ -481,6 +510,7 @@ async function createProject(): Promise<void> {
       projectName: projectName.value,
       entry: selectedEntry.value,
       iconPacks: selectedIconPacks.value,
+      customBlocks: selectedCustomBlocks.value,
     })
     emit('created', project)
   } catch (cause) {
@@ -511,6 +541,7 @@ function resolveErrorMessage(cause: unknown): string {
     'invalid-package': 'invalidPackage',
     'archive-failed': 'archiveFailed',
     'icon-pack-failed': 'iconPackFailed',
+    'custom-block-failed': 'customBlockFailed',
   }
   return t(`projectTemplates.errors.${keyByCode[cause.code]}`)
 }
@@ -586,12 +617,7 @@ function resolveErrorMessage(cause: unknown): string {
 .create-project__catalog-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    var(--oc-bg-base),
-    color-mix(in srgb, var(--oc-bg-base) 88%, transparent) 42%,
-    color-mix(in srgb, var(--oc-bg-base) 46%, transparent)
-  );
+  background: linear-gradient(180deg, transparent, var(--oc-bg-base));
 }
 
 .create-project__catalog-content {
@@ -599,6 +625,8 @@ function resolveErrorMessage(cause: unknown): string {
   z-index: 1;
   height: 100%;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
 }
 
@@ -613,18 +641,17 @@ function resolveErrorMessage(cause: unknown): string {
 }
 
 .create-project__details {
-  margin-top: var(--oc-space-4);
+  margin-top: auto;
   padding: var(--oc-space-4) 0;
   display: grid;
-  gap: var(--oc-space-4);
-  border-bottom: 1px solid var(--oc-border-muted);
+  gap: var(--oc-space-3);
 }
 
 .create-project__details-heading {
   min-width: 0;
   display: flex;
-  align-items: flex-start;
-  gap: var(--oc-space-3);
+  align-items: center;
+  gap: var(--oc-space-2);
 }
 
 .create-project__details-heading > div {
@@ -638,11 +665,28 @@ function resolveErrorMessage(cause: unknown): string {
   font-size: var(--oc-text-lg);
 }
 
+.create-project__template-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--oc-space-2);
+}
+
+.create-project__template-source-label {
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-xs);
+}
+
 .create-project__details-heading p {
   margin: 0;
   color: var(--oc-fg-subtle);
   font-size: var(--oc-text-sm);
   line-height: 1.5;
+}
+
+.create-project__details-list {
+  display: grid;
+  border-top: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .create-project__details dl,
@@ -652,7 +696,11 @@ function resolveErrorMessage(cause: unknown): string {
 
 .create-project__details dl > div {
   display: grid;
-  gap: var(--oc-space-1);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--oc-space-4);
+  padding: var(--oc-space-2) 0;
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .create-project__details dt {
@@ -667,11 +715,23 @@ function resolveErrorMessage(cause: unknown): string {
   font-size: var(--oc-text-sm);
 }
 
-.create-project__icon-pack-list {
-  display: grid;
-  gap: var(--oc-space-1);
+.create-project__details dd {
+  min-width: 0;
+  justify-self: end;
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-size: var(--oc-text-sm);
+}
+
+.create-project__icon-pack-list,
+.create-project__custom-block-list {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--oc-space-2);
   margin: 0;
-  padding-left: var(--oc-space-4);
+  padding: 0;
+  list-style: none;
 }
 
 .create-project__details-actions,
@@ -746,9 +806,20 @@ function resolveErrorMessage(cause: unknown): string {
 .create-project__template-editor label,
 .create-project__form label {
   display: grid;
-  gap: var(--oc-space-1);
+  gap: var(--oc-space-2);
   color: var(--oc-fg-muted);
   font-size: var(--oc-text-sm);
+}
+
+.create-project__form label {
+  padding: var(--oc-space-4) 0;
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
+}
+
+.create-project__form label > span,
+.create-project__target > span {
+  color: var(--oc-fg-default);
+  font-weight: 600;
 }
 
 .create-project__inline-actions,
@@ -760,43 +831,43 @@ function resolveErrorMessage(cause: unknown): string {
 }
 
 .create-project__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--oc-space-4);
+  display: grid;
+  align-content: start;
   background: var(--oc-bg-surface);
 }
 
 .create-project__form-heading {
   display: grid;
   gap: var(--oc-space-1);
-  padding-bottom: var(--oc-space-3);
-  border-bottom: 1px solid var(--oc-border-muted);
+  padding-bottom: var(--oc-space-4);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
-.create-project__form-heading span,
-.create-project__target span {
+.create-project__form-heading span {
   color: var(--oc-fg-subtle);
   font-size: var(--oc-text-sm);
 }
 
+.create-project__form-heading strong {
+  font-size: var(--oc-text-lg);
+}
+
 .create-project__target {
   display: grid;
-  gap: var(--oc-space-1);
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-4) 0;
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .create-project__target code {
-  min-height: var(--oc-size-md);
-  padding: var(--oc-space-2);
   overflow-wrap: anywhere;
-  border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-input);
   color: var(--oc-fg-muted);
   font-family: var(--oc-font-mono);
   font-size: var(--oc-text-sm);
 }
 
 .create-project__form-actions {
-  margin-top: auto;
+  padding-top: var(--oc-space-4);
   justify-content: flex-end;
 }
 
@@ -837,6 +908,10 @@ function resolveErrorMessage(cause: unknown): string {
     height: auto;
     overflow: visible;
   }
+
+  .create-project__details {
+    margin-top: 0;
+  }
 }
 
 @container (max-width: 520px) {
@@ -855,5 +930,6 @@ function resolveErrorMessage(cause: unknown): string {
   .create-project__delete-confirm {
     flex-wrap: wrap;
   }
+
 }
 </style>

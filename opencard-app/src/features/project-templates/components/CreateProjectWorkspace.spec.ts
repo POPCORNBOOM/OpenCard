@@ -11,12 +11,18 @@ import type {
   TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectTemplateStore } from '../store/projectTemplateStore'
+import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
 import CreateProjectWorkspace from './CreateProjectWorkspace.vue'
 
 let store: ProjectTemplateStore
 let appSettingsStore: {
   settings: Ref<{ projectCreation: { lastParentPath: string } }>
   updateProjectCreation: ReturnType<typeof vi.fn>
+}
+let customBlockStore: {
+  blocks: Ref<readonly UserCustomBlockCatalogEntry[]>
+  load: ReturnType<typeof vi.fn>
+  findBlock: ReturnType<typeof vi.fn>
 }
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -29,6 +35,10 @@ vi.mock('../../settings/store/appSettingsStore', () => ({
 
 vi.mock('../store/projectTemplateStore', () => ({
   useProjectTemplateStore: () => store,
+}))
+
+vi.mock('../../workspace/store/userCustomBlockCatalogStore', () => ({
+  useUserCustomBlockCatalogStore: () => customBlockStore,
 }))
 
 const messages = {
@@ -58,7 +68,8 @@ const messages = {
       loadingIconPacks: 'Loading icon packs',
       noBuiltinIconPacks: 'No built-in icon packs',
       noUserIconPacks: 'No user icon packs',
-      noIconPacksSelected: 'No icon packs selected',
+      noIconPacksSelected: 'None',
+      noCustomBlocksSelected: 'None',
       selectTemplate: 'Select a template',
       noDescription: 'No description',
       chooseLocation: 'Choose a location',
@@ -67,6 +78,7 @@ const messages = {
       creatingFromProject: 'Creating from project',
       noCoverCandidates: 'No covers',
     },
+    sources: { builtin: 'Built in', user: 'Mine' },
     fields: {
       entry: 'Entry',
       templateName: 'Template name',
@@ -76,6 +88,7 @@ const messages = {
       location: 'Location',
       target: 'Target',
       iconPacks: 'Icon packs to register',
+      customBlocks: 'Custom blocks to register',
     },
     confirmDelete: 'Delete this template?',
     defaults: { projectName: 'Untitled Project' },
@@ -101,6 +114,7 @@ const messages = {
       builtinDeleteForbidden: 'Cannot delete built-in template',
       copyFailed: 'Copy failed',
       iconPackFailed: 'Icon pack failed',
+      customBlockFailed: 'Custom block failed',
       unknown: 'Unknown error',
     },
   },
@@ -150,10 +164,13 @@ function createStore(templates: ProjectTemplate[]): ProjectTemplateStore {
   }
 }
 
-function mountWorkspace(selectedKey: ProjectTemplateKey | null): VueWrapper {
+function mountWorkspace(
+  selectedKey: ProjectTemplateKey | null,
+  selectedCustomBlockKeys: readonly string[] = [],
+): VueWrapper {
   const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: messages } })
   return mount(CreateProjectWorkspace, {
-    props: { selectedKey },
+    props: { selectedKey, selectedCustomBlockKeys },
     global: { plugins: [i18n] },
   })
 }
@@ -167,6 +184,11 @@ describe('CreateProjectWorkspace', () => {
     appSettingsStore = {
       settings: ref({ projectCreation: { lastParentPath: '/cached-projects' } }),
       updateProjectCreation: vi.fn(),
+    }
+    customBlockStore = {
+      blocks: ref([]),
+      load: vi.fn(async () => undefined),
+      findBlock: vi.fn(() => null),
     }
   })
 
@@ -355,5 +377,26 @@ describe('CreateProjectWorkspace', () => {
       template: multiEntry,
       entry: 'alternate.ocdocument',
     }))
+  })
+
+  it('shows and submits custom blocks selected for the new project', async () => {
+    const badge: UserCustomBlockCatalogEntry = {
+      key: 'user:badge',
+      id: 'badge',
+      blockKey: 'badge',
+      name: 'Badge',
+      interfaceHash: 'hash',
+      path: '/app/custom-blocks/badge.ocblock',
+    }
+    customBlockStore.blocks.value = [badge]
+    customBlockStore.findBlock.mockImplementation(key => key === badge.key ? badge : null)
+    const wrapper = mountWorkspace(builtin.key, [badge.key])
+    await flushPromises()
+
+    expect(wrapper.get('.create-project__custom-block-list').text()).toContain('Badge')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(store.createProject).toHaveBeenCalledWith(expect.objectContaining({ customBlocks: [badge] }))
   })
 })
