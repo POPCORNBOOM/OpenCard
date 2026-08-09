@@ -128,6 +128,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法导出图标包', 'en-US': 'Could not export the icon pack' },
     solution: '确认项目图标的 spritesheet 可读取，并检查目标路径和磁盘写入权限。',
   },
+  'OC-E3015': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法导入自定义块', 'en-US': 'Could not import the custom block' },
+    solution: '确认 .ocblock 文件完整有效，并检查应用资源目录写入权限。',
+  },
   'OC-E4001': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法在预览会话中打开文件', 'en-US': 'Could not open the file in a preview session' },

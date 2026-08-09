@@ -10,9 +10,14 @@ import { parseProjectFontRegistryText } from '../../workspace/model/projectFontR
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
+  DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
   parseProjectCustomBlockRegistryText,
   PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+  PROJECT_CUSTOM_BLOCK_SUFFIX,
+  serializeProjectCustomBlockRegistry,
 } from '../../workspace/model/projectCustomBlocks'
+import { readProjectCustomBlockPackage } from '../../workspace/services/projectCustomBlock'
+import { registerProjectCustomBlockPath } from '../../workspace/services/projectCustomBlockRegistry'
 import {
   createProjectIconPackSpritesheetName,
   readProjectIconPack,
@@ -40,6 +45,7 @@ import {
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
 
 const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
@@ -411,6 +417,7 @@ export class ProjectTemplateService {
       await this.fs.createDirectory(temporaryPath)
       await this.copyDirectory(request.template.contentPath, temporaryPath)
       await this.registerIconPacks(temporaryPath, request.iconPacks ?? [])
+      await this.registerCustomBlocks(temporaryPath, request.customBlocks ?? [])
       const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
       if (!await this.fs.fileExists(entryPath)) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
@@ -495,6 +502,77 @@ export class ProjectTemplateService {
       }
     }
     await this.fs.writeFile(registryPath, serializeProjectIconRegistry({ iconSeries }))
+  }
+
+  private async registerCustomBlocks(
+    projectPath: string,
+    blocks: readonly UserCustomBlockCatalogEntry[],
+  ): Promise<void> {
+    if (blocks.length === 0) return
+    try {
+      const registryPath = await this.paths.join(projectPath, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+      let registry = await this.fs.fileExists(registryPath)
+        ? parseProjectCustomBlockRegistryText(await this.fs.readFile(registryPath))
+        : {}
+      if (!registry) throw new Error('The project custom block registry is invalid')
+
+      const existingKeys = new Set<string>()
+      for (const archivePath of registry.blocks ?? []) {
+        const absolutePath = await this.paths.join(projectPath, ...pathSegments(archivePath))
+        const existing = await readProjectCustomBlockPackage(this.fs, absolutePath)
+        const identity = existing.manifest.key.toLocaleLowerCase()
+        if (existingKeys.has(identity)) {
+          throw new Error(`Template contains a duplicate custom block Key: ${existing.manifest.key}`)
+        }
+        existingKeys.add(identity)
+      }
+
+      const selectedKeys = new Set<string>()
+      const customBlockDirectory = await this.paths.join(
+        projectPath,
+        ...pathSegments(DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY),
+      )
+      await this.fs.createDirectory(customBlockDirectory)
+
+      for (const block of blocks) {
+        const customBlock = await readProjectCustomBlockPackage(this.fs, block.path)
+        const identity = customBlock.manifest.key.toLocaleLowerCase()
+        if (customBlock.manifest.key.toLocaleLowerCase() !== block.blockKey.toLocaleLowerCase()
+          || customBlock.manifest.interfaceHash !== block.interfaceHash) {
+          throw new Error(`Installed custom block changed after selection: ${block.blockKey}`)
+        }
+        if (selectedKeys.has(identity)) {
+          throw new Error(`Selected custom block Key is duplicated: ${customBlock.manifest.key}`)
+        }
+        if (existingKeys.has(identity)) {
+          throw new Error(`Custom block Key already exists in the template: ${customBlock.manifest.key}`)
+        }
+        selectedKeys.add(identity)
+
+        const sourceName = await this.paths.basename(block.path)
+        const baseName = sourceName.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)
+          ? sourceName
+          : `${customBlock.manifest.key}${PROJECT_CUSTOM_BLOCK_SUFFIX}`
+        let fileName = baseName
+        let relativePath = `${DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY}/${fileName}`
+        let absolutePath = await this.paths.join(customBlockDirectory, fileName)
+        let suffix = 2
+        while (await this.fs.fileExists(absolutePath)) {
+          const stem = baseName.slice(0, -PROJECT_CUSTOM_BLOCK_SUFFIX.length)
+          fileName = `${stem} (${suffix})${PROJECT_CUSTOM_BLOCK_SUFFIX}`
+          relativePath = `${DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY}/${fileName}`
+          absolutePath = await this.paths.join(customBlockDirectory, fileName)
+          suffix += 1
+        }
+        await this.fs.copyFile(block.path, absolutePath)
+        registry = registerProjectCustomBlockPath(registry, relativePath)
+      }
+
+      await this.fs.writeFile(registryPath, serializeProjectCustomBlockRegistry(registry))
+    } catch (cause) {
+      if (cause instanceof TemplateServiceError) throw cause
+      throw new TemplateServiceError('custom-block-failed', 'Could not register selected custom blocks', { cause })
+    }
   }
 
   private async readTemplateArchive(sourcePath: string): Promise<{

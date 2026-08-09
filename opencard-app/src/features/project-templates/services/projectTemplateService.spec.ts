@@ -4,6 +4,10 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import type { FileSystemService } from '../../workspace/services/fileSystemService'
 import type { ProjectTemplate } from '../model/projectTemplate'
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
+import { createBlock } from '../../../entities/card/model'
+import { buildProjectCustomBlockManifest } from '../../workspace/services/buildProjectCustomBlockManifest'
+import { createProjectCustomBlockArchive } from '../../workspace/services/projectCustomBlock'
 import {
   ProjectTemplateService,
   type ProjectTemplatePathService,
@@ -365,6 +369,26 @@ function templateFixture(contentPath = '/template/content', entry = 'main.ocdocu
   }
 }
 
+async function customBlockFixture(
+  fs: MemoryFileSystem,
+  path: string,
+  key: string,
+  name = key,
+): Promise<UserCustomBlockCatalogEntry> {
+  const root = createBlock('text-block', { id: 'root' })
+  const manifest = await buildProjectCustomBlockManifest({ root, key })
+  manifest.name = name
+  fs.putFile(path, createProjectCustomBlockArchive(manifest))
+  return {
+    key: `user:${key.toLocaleLowerCase()}`,
+    id: key,
+    blockKey: key,
+    name,
+    interfaceHash: manifest.interfaceHash,
+    path,
+  }
+}
+
 describe('ProjectTemplateService catalog', () => {
   it('preserves built-in order, sorts user templates, and reports an invalid user manifest', async () => {
     const fs = new MemoryFileSystem()
@@ -699,6 +723,71 @@ describe('ProjectTemplateService project creation', () => {
       }],
     })
     expect(fs.rawFile('/projects/Demo/assets/icons/Status.png')).toEqual(new Uint8Array([7, 8, 9]))
+  })
+
+  it('copies selected custom blocks and creates the project registry', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.ocproject', projectFile())
+    fs.putFile('/template/content/main.ocdocument', cardDocument())
+    const block = await customBlockFixture(fs, '/library/badge.ocblock', 'badge', 'Badge')
+
+    await createService(fs).createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Demo',
+      customBlocks: [block],
+    })
+
+    expect(JSON.parse(fs.rawFile('/projects/Demo/.ocblocks') as string)).toEqual({
+      blocks: ['assets/blocks/badge.ocblock'],
+    })
+    expect(fs.rawFile('/projects/Demo/assets/blocks/badge.ocblock'))
+      .toEqual(fs.rawFile('/library/badge.ocblock'))
+  })
+
+  it('preserves template registrations and renames a selected package on filename collision', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.ocproject', projectFile())
+    fs.putFile('/template/content/main.ocdocument', cardDocument())
+    await customBlockFixture(fs, '/template/content/assets/blocks/badge.ocblock', 'template-badge')
+    fs.putFile('/template/content/.ocblocks', JSON.stringify({
+      blocks: ['assets/blocks/badge.ocblock'],
+    }))
+    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'selected-badge')
+
+    await createService(fs).createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Demo',
+      customBlocks: [selected],
+    })
+
+    expect(JSON.parse(fs.rawFile('/projects/Demo/.ocblocks') as string)).toEqual({
+      blocks: ['assets/blocks/badge.ocblock', 'assets/blocks/badge (2).ocblock'],
+    })
+    expect(await fs.fileExists('/projects/Demo/assets/blocks/badge (2).ocblock')).toBe(true)
+  })
+
+  it('rejects a selected custom block Key already owned by the template and cleans the temporary project', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.ocproject', projectFile())
+    fs.putFile('/template/content/main.ocdocument', cardDocument())
+    await customBlockFixture(fs, '/template/content/assets/blocks/badge.ocblock', 'badge')
+    fs.putFile('/template/content/.ocblocks', JSON.stringify({ blocks: ['assets/blocks/badge.ocblock'] }))
+    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'Badge')
+
+    await expect(createService(fs, 'custom-block-conflict').createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Demo',
+      customBlocks: [selected],
+    })).rejects.toMatchObject({ code: 'custom-block-failed' })
+
+    expect(await fs.fileExists('/projects/Demo')).toBe(false)
+    expect(fs.allPaths().some(path => path.includes('.Demo.opencard-create-'))).toBe(false)
   })
 
   it('returns a selected candidate entry without persisting it as project metadata', async () => {

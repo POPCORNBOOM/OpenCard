@@ -1,4 +1,5 @@
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
 
 export const PROJECT_TEMPLATE_SCHEMA_VERSION = 1 as const
 export const PROJECT_TEMPLATE_NAME_MAX_LENGTH = 80
@@ -74,6 +75,7 @@ export interface CreateProjectFromTemplateRequest {
   projectName: string
   entry?: string
   iconPacks?: readonly ProjectIconPackCatalogEntry[]
+  customBlocks?: readonly UserCustomBlockCatalogEntry[]
 }
 
 export interface TemplateExportSelection {
@@ -107,6 +109,7 @@ export type TemplateServiceErrorCode =
   | 'invalid-package'
   | 'archive-failed'
   | 'icon-pack-failed'
+  | 'custom-block-failed'
 
 export class TemplateServiceError extends Error {
   readonly cause?: unknown
