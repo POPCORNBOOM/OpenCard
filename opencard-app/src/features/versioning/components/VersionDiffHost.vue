@@ -23,7 +23,7 @@
       {{ t('versioning.diff.loadFailed') }}
     </div>
     <MonacoEditor
-      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback || iconRegistryFallback || cardFallback)"
+      v-else-if="comparison && (isTextComparison || dictionaryFallback || projectConfigFallback || fontRegistryFallback || iconRegistryFallback || cardFallback || customBlockRegistryFallback)"
       class="version-diff-host__editor"
       model-value=""
       :language="language"
@@ -80,6 +80,21 @@
       :theme-id="themeId"
       :theme-overrides="themeOverrides"
     />
+    <SnapshotCustomBlockRegistryDiffEditor
+      v-else-if="comparison && fileType.editorId === 'custom-block-registry'"
+      :historical="session.historical"
+      :current="session.current"
+      :comparison="comparison"
+      :file-name="fileName"
+      :theme-id="themeId"
+      :theme-overrides="themeOverrides"
+    />
+    <SnapshotCustomBlockPackageDiffEditor
+      v-else-if="loaded && fileType.editorId === 'custom-block-package'"
+      :historical="session.historical"
+      :current="session.current"
+      :file-name="fileName"
+    />
     <SnapshotResourceDiffEditor
       v-else-if="loaded && resourceKind"
       :historical="session.historical"
@@ -112,6 +127,8 @@ import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor
 import SnapshotFontRegistryDiffEditor from './SnapshotFontRegistryDiffEditor.vue'
 import SnapshotIconRegistryDiffEditor from './SnapshotIconRegistryDiffEditor.vue'
 import SnapshotCardDiffEditor from './SnapshotCardDiffEditor.vue'
+import SnapshotCustomBlockRegistryDiffEditor from './SnapshotCustomBlockRegistryDiffEditor.vue'
+import SnapshotCustomBlockPackageDiffEditor from './SnapshotCustomBlockPackageDiffEditor.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
@@ -121,6 +138,7 @@ import { parseProjectDictionaryText } from '../../workspace/model/projectDiction
 import { parseProjectMetadataText } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
+import { parseProjectCustomBlockRegistryText } from '../../workspace/model/projectCustomBlocks'
 import { parseCardDocument } from '../../../entities/card/storage'
 
 const props = defineProps<{
@@ -177,6 +195,12 @@ const cardFallback = computed(() => (
   && (!isValidCardContent(comparison.value!.historicalContent)
     || !isValidCardContent(comparison.value!.currentContent))
 ))
+const customBlockRegistryFallback = computed(() => (
+  fileType.value.editorId === 'custom-block-registry'
+  && Boolean(comparison.value)
+  && (!parseProjectCustomBlockRegistryText(comparison.value!.historicalContent)
+    || !parseProjectCustomBlockRegistryText(comparison.value!.currentContent))
+))
 
 function isValidCardContent(content: string): boolean {
   try {
@@ -209,7 +233,7 @@ async function loadComparison(): Promise<void> {
   loaded.value = false
   comparison.value = null
   try {
-    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry', 'icon-registry', 'card-designer'].includes(fileType.value.editorId)) {
+    if (!isTextComparison.value && !['dictionary', 'project-config', 'font-registry', 'icon-registry', 'card-designer', 'custom-block-registry'].includes(fileType.value.editorId)) {
       loaded.value = true
       return
     }

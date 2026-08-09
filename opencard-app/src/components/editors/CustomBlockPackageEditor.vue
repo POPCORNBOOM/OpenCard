@@ -44,7 +44,7 @@
           </ul>
         </section>
 
-        <section v-if="importConflict" class="custom-block-package-editor__conflict"
+        <section v-if="!isObserveOnly && importConflict" class="custom-block-package-editor__conflict"
           :aria-label="t('projectConfig.importConflict.title')">
           <OcText size="sm">
             {{ t('projectConfig.importConflict.message', { path: importConflict.existingSource }) }}
@@ -56,14 +56,14 @@
           </OcText>
         </section>
 
-        <OcText v-if="!projectStore.projectPath.value" tone="muted" size="sm">
+        <OcText v-if="!isObserveOnly && !projectStore.projectPath.value" tone="muted" size="sm">
           {{ t('customBlockPackage.projectRequired') }}
         </OcText>
-        <OcText v-if="registerError" tone="danger" size="sm" role="alert">{{ registerError }}</OcText>
-        <OcText v-if="registered" tone="accent" size="sm" role="status">
+        <OcText v-if="!isObserveOnly && registerError" tone="danger" size="sm" role="alert">{{ registerError }}</OcText>
+        <OcText v-if="!isObserveOnly && registered" tone="accent" size="sm" role="status">
           {{ t('customBlockPackage.registered') }}
         </OcText>
-        <div class="custom-block-package-editor__actions">
+        <div v-if="!isObserveOnly" class="custom-block-package-editor__actions">
           <OcButton icon="action.import" variant="solid"
             :disabled="busy || !projectStore.projectPath.value || Boolean(importConflict && !conflictResolution)"
             @click="registerPackage">
@@ -97,6 +97,7 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
+const isObserveOnly = computed(() => props.access === 'observe-only')
 const manifest = ref<ProjectCustomBlockManifest | null>(null)
 const loading = ref(true)
 const loadError = ref('')
@@ -168,7 +169,7 @@ async function loadPackage(): Promise<void> {
 }
 
 async function registerPackage(): Promise<void> {
-  if (!manifest.value || !projectStore.projectPath.value || busy.value) return
+  if (isObserveOnly.value || !manifest.value || !projectStore.projectPath.value || busy.value) return
   busy.value = true
   registerError.value = ''
   registered.value = false

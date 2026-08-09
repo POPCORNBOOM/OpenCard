@@ -5,7 +5,7 @@
     <div v-if="document" class="custom-block-registry-editor">
       <div class="custom-block-registry-editor__toolbar">
         <OcText as="h2" size="lg" bold>{{ t('customBlockRegistry.title') }}</OcText>
-        <OcButton icon="action.import" variant="solid" :disabled="busy" @click="addBlock">
+        <OcButton v-if="!isObserveOnly" icon="action.import" variant="solid" :disabled="busy" @click="addBlock">
           {{ t('customBlockRegistry.add') }}
         </OcButton>
       </div>
@@ -55,6 +55,10 @@ const busy = ref(false)
 const error = ref('')
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
+const isObserveOnly = computed(() => props.access === 'observe-only')
+const comparisonPaths = computed(() => new Set(
+  parseProjectCustomBlockRegistryText(props.comparisonContent ?? '')?.blocks ?? [],
+))
 const actions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   ['remove', { title: t('customBlockRegistry.remove'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
@@ -62,13 +66,18 @@ const treeData = computed<OcTreeData>(() => {
   const paths = document.value?.blocks ?? []
   return {
     rootKeys: [...paths],
-    items: new Map(paths.map(path => [path, {
-      label: path.split('/').pop() ?? path,
-      tail: path,
-      icon: 'file.custom-block',
-      actions: ['remove'],
-      contextActions: ['remove'],
-    }])),
+    items: new Map(paths.map(path => {
+      const differs = isObserveOnly.value && !comparisonPaths.value.has(path)
+      const isHistorical = props.comparisonSide === 'historical'
+      return [path, {
+        label: path.split('/').pop() ?? path,
+        tail: path,
+        icon: differs ? (isHistorical ? 'action.remove' : 'action.add') : 'file.custom-block',
+        iconTone: differs ? (isHistorical ? 'danger' : 'success') : undefined,
+        actions: isObserveOnly.value ? [] : ['remove'],
+        contextActions: isObserveOnly.value ? [] : ['remove'],
+      }]
+    })),
     children: new Map(),
   }
 })
@@ -78,6 +87,7 @@ watch(() => props.modelValue, content => {
 }, { immediate: true })
 
 function commit(next: ProjectCustomBlockRegistryDocument): void {
+  if (isObserveOnly.value) return
   const content = serializeProjectCustomBlockRegistry(next)
   document.value = parseProjectCustomBlockRegistryText(content)
   emit('update:modelValue', content)
@@ -90,7 +100,7 @@ async function commitAndSave(next: ProjectCustomBlockRegistryDocument): Promise<
 }
 
 async function addBlock(): Promise<void> {
-  if (!document.value || busy.value) return
+  if (isObserveOnly.value || !document.value || busy.value) return
   error.value = ''
   const source = await fileSystemService.pickFile({
     title: t('customBlockRegistry.choose'),
@@ -114,15 +124,17 @@ async function addBlock(): Promise<void> {
 }
 
 function handleIntent(intent: OcTreeIntent): void {
-  if (!document.value || intent.type !== 'action.invoke' || intent.actionKey !== 'remove') return
+  if (isObserveOnly.value || !document.value || intent.type !== 'action.invoke' || intent.actionKey !== 'remove') return
   void commitAndSave(unregisterProjectCustomBlockPath(document.value, intent.key))
 }
 
 function updateRawSource(content: string): void {
+  if (isObserveOnly.value) return
   emit('update:modelValue', content)
 }
 
 function save(): void {
+  if (isObserveOnly.value) return
   emit('save')
 }
 

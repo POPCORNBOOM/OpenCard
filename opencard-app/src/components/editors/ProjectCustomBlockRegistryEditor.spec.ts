@@ -115,4 +115,27 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(mocks.importProjectCustomBlockFile).not.toHaveBeenCalled()
   })
+
+  it('reuses the registry tree as an observe-only comparison', async () => {
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: {
+        filePath: 'D:/snapshot/.ocblocks',
+        modelValue: '{"blocks":["blocks/removed.ocblock","blocks/shared.ocblock"]}',
+        comparisonContent: '{"blocks":["blocks/shared.ocblock"]}',
+        comparisonSide: 'historical',
+        access: 'observe-only',
+      },
+    })
+
+    expect(wrapper.find('button').exists()).toBe(false)
+    const tree = wrapper.getComponent(OcTree)
+    const removed = tree.props('data').items.get('blocks/removed.ocblock')
+    expect(removed).toMatchObject({ icon: 'action.remove', iconTone: 'danger', actions: [] })
+    tree.vm.$emit('intent', {
+      type: 'action.invoke', key: 'blocks/removed.ocblock', actionKey: 'remove', source: 'inline',
+    })
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('save')).toBeUndefined()
+  })
 })

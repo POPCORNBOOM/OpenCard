@@ -96,4 +96,15 @@ describe('CustomBlockPackageEditor', () => {
     expect(wrapper.getComponent(OcButton).attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('customBlockPackage.projectRequired')
   })
+
+  it('reuses package details without registration controls in observe-only mode', async () => {
+    const wrapper = mount(CustomBlockPackageEditor, {
+      props: { filePath: 'D:/snapshot/square.ocblock', access: 'observe-only' },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Square')
+    expect(wrapper.findComponent(OcButton).exists()).toBe(false)
+    expect(wrapper.find('.custom-block-package-editor__actions').exists()).toBe(false)
+  })
 })
