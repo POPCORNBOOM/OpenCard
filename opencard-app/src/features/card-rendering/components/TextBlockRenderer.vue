@@ -31,6 +31,7 @@ const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
     props.layoutMode,
     isTransformDisabled.value,
+    editorContext.fontContext,
 ))
 
 function handleClick(event: MouseEvent) {

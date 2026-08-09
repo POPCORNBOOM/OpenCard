@@ -90,6 +90,7 @@ import {
   type ProjectCustomBlockAssetSession,
 } from '../services/projectCustomBlockAssetLoader'
 import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
+import type { ProjectFontResolutionContext } from '../model/projectFonts'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -173,6 +174,12 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
   projectIconCatalog: runtimeProjectIconCatalog.value,
+  projectIconSeries: projectIconSeries.value,
+  projectFonts: projectFonts.value,
+  fontContext: {
+    fonts: projectFontFiles.value,
+    fontSets: projectFontSets.value,
+  } satisfies ProjectFontResolutionContext,
   customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
 }) as CardRenderEnvironment)
 

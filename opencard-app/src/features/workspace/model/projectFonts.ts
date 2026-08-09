@@ -54,7 +54,12 @@ export type ProjectFontResolution = {
 
 export type ProjectFontResolutionContext = {
   fonts: readonly ProjectFont[]
-  fontSets: readonly ProjectFontSet[]
+  fontSets: readonly {
+    key: string
+    name: string
+    fontKeys: readonly string[]
+  }[]
+  cssFamilyPrefix?: string
 }
 
 export type ProjectFontRegistryIssue =
@@ -84,11 +89,11 @@ export function createProjectFontReference(id: string): string {
 }
 
 export function createProjectFontCssFamily(id: string): string {
-  return `OpenCardProjectFont-${id}`
+  return createProjectFontCssFamilyWithPrefix(id)
 }
 
 export function createProjectFontSetCssFamily(id: string): string {
-  return `OpenCardProjectFontSet-${id}`
+  return createProjectFontSetCssFamilyWithPrefix(id)
 }
 
 export function toCssFontFamily(reference: string): string {
@@ -108,6 +113,7 @@ export function resolveProjectFontExpression(
   const fontKeys: string[] = []
   const cssFamilies: string[] = []
   const issues: ProjectFontResolutionIssue[] = []
+  const cssFamilyPrefix = context?.cssFamilyPrefix ?? 'OpenCardProjectFont'
   const seenFonts = new Set<string>()
   const seenSystemFamilies = new Set<string>()
 
@@ -118,7 +124,7 @@ export function resolveProjectFontExpression(
       if (seenFonts.has(identity)) return
       seenFonts.add(identity)
       fontKeys.push(font.key)
-      cssFamilies.push(JSON.stringify(createProjectFontCssFamily(font.key)))
+      cssFamilies.push(JSON.stringify(createProjectFontCssFamilyWithPrefix(font.key, cssFamilyPrefix)))
       return
     }
     const fontSet = fontSetsByKey.get(identity)
@@ -137,7 +143,7 @@ export function resolveProjectFontExpression(
     if (value.startsWith('font:')) {
       const key = value.slice('font:'.length)
       if (fontSetsByKey.has(key.toLocaleLowerCase())) {
-        cssFamilies.push(JSON.stringify(createProjectFontSetCssFamily(key)))
+        cssFamilies.push(JSON.stringify(createProjectFontSetCssFamilyWithPrefix(key, cssFamilyPrefix)))
       }
       resolveKey(key, [])
       continue
@@ -148,6 +154,14 @@ export function resolveProjectFontExpression(
     cssFamilies.push(value)
   }
   return { fontKeys, cssFontFamily: cssFamilies.join(', '), issues }
+}
+
+function createProjectFontCssFamilyWithPrefix(id: string, prefix = 'OpenCardProjectFont'): string {
+  return `${prefix}-${id}`
+}
+
+function createProjectFontSetCssFamilyWithPrefix(id: string, prefix = 'OpenCardProjectFont'): string {
+  return `${prefix}Set-${id}`
 }
 
 export function fromCssFontFamily(value: string): string {

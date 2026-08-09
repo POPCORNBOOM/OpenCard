@@ -17,12 +17,14 @@ describe('snapshotProjectRenderSession', () => {
   it('builds the card environment from the immutable snapshot root', async () => {
     const session = await createSnapshotProjectRenderSession('D:/snapshot', createFileSystem(new Map([
       ['D:/snapshot/.ocproject', '{"name":"Historical","version":"0.1.0"}'],
+      ['D:/snapshot/.ocfonts', '{"fonts":[{"key":"body","name":"Body","source":"assets/body.ttf"}]}'],
       ['D:/snapshot/.oclocale', '{"active":"ja-JP","base":{"title":"Base"},"languages":{"ja-JP":{"title":"履歴"}}}'],
       ['D:/snapshot/.ocblocks', '{"blocks":[]}'],
     ])))
 
     expect(session.environment.project).toEqual({ name: 'Historical', description: '', version: '0.1.0' })
     expect(session.environment.dictionary).toEqual({ title: '履歴' })
+    expect(session.environment.fontContext?.cssFamilyPrefix).toMatch(/^OpenCardSnapshotFont-/)
     expect(session.environment.projectIconCatalog.entries).toEqual([])
     expect(session.environment.customBlockCatalog?.size).toBe(0)
     session.release()

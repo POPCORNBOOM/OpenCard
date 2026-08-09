@@ -17,6 +17,7 @@ import {
     EMPTY_PROJECT_ICON_CATALOG,
     type ProjectIconCatalog,
 } from '../../workspace/services/projectIconCatalog'
+import type { ProjectFontResolutionContext } from '../../workspace/model/projectFonts'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
@@ -37,6 +38,7 @@ const props = withDefaults(defineProps<{
     /** 当前项目允许加载的远程资源范围。 */
     remoteResourcePolicy?: ProjectRemoteResourcePolicy
     projectIconCatalog?: ProjectIconCatalog
+    fontContext?: ProjectFontResolutionContext
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
@@ -44,6 +46,7 @@ const props = withDefaults(defineProps<{
     resourceRootPath: null,
     remoteResourcePolicy: undefined,
     projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
+    fontContext: undefined,
 })
 
 const cardCanvasRef = ref<HTMLElement>()
@@ -106,6 +109,7 @@ provide(cardEditorContextKey, {
         props.remoteResourcePolicy,
     ),
     projectIconCatalog: computed(() => props.projectIconCatalog),
+    fontContext: props.fontContext,
 })
 
 defineExpose({

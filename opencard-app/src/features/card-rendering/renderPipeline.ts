@@ -7,6 +7,9 @@ import { resolveReferences } from './resolveCardBindings'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import type { ProjectIconSeries } from '../workspace/model/projectIcons'
+import type { ProjectFontRegistry } from '../workspace/model/projectFontRegistry'
+import type { ProjectFontResolutionContext } from '../workspace/model/projectFonts'
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { createCardPipelineIssue } from './cardPipelineIssue'
 
@@ -42,6 +45,9 @@ export type RenderPipelineContext = {
 export type CardRenderEnvironment = RenderPipelineContext & {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   projectIconCatalog: ProjectIconCatalog
+  projectIconSeries?: readonly ProjectIconSeries[]
+  projectFonts?: ProjectFontRegistry
+  fontContext?: ProjectFontResolutionContext
 }
 
 export function runRenderPipeline(

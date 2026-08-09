@@ -36,6 +36,7 @@ import {
   projectIconIdentity,
   type ProjectIconCatalog,
 } from '../../workspace/services/projectIconCatalog'
+import { createSnapshotProjectFontSession } from './snapshotProjectFontSession'
 
 export type SnapshotProjectRenderSession = {
   environment: CardRenderEnvironment
@@ -123,6 +124,7 @@ export async function createSnapshotProjectRenderSession(
     readOptionalText(fs, rootPath, PROJECT_DICTIONARY_FILE_NAME),
     readOptionalText(fs, rootPath, PROJECT_ICON_REGISTRY_FILE_NAME),
   ])
+  const projectFontSession = await createSnapshotProjectFontSession(rootPath, fs)
   const profile = profileContent === null ? null : parseProjectMetadataText(profileContent)
   const dictionary = dictionaryContent === null ? null : parseProjectDictionaryText(dictionaryContent)
   const iconRegistry = iconContent === null ? null : parseProjectIconRegistryText(iconContent)
@@ -144,6 +146,11 @@ export async function createSnapshotProjectRenderSession(
       dictionary: dictionary ? resolveProjectDictionary(dictionary).values : null,
       remoteResourcePolicy: profile?.remoteResources,
       projectIconCatalog: mergeIconCatalogs(customBlocks.assetSession.iconCatalog, projectIconCatalog),
+      projectIconSeries: iconRegistry?.iconSeries ?? [],
+      projectFonts: Object.fromEntries((projectFontSession.registry.fonts ?? []).map(font => [
+        font.key, { name: font.name, source: font.source },
+      ])),
+      fontContext: projectFontSession.context,
       customBlockCatalog: customBlocks.assetSession.customBlockCatalog,
     },
     release: () => {
@@ -151,6 +158,7 @@ export async function createSnapshotProjectRenderSession(
       released = true
       customBlocks.fontSession.release()
       customBlocks.assetSession.release()
+      projectFontSession.release()
     },
   }
 }

@@ -28,6 +28,7 @@
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="effectiveRemoteResourcePolicy"
           :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
+          :font-context="activeRenderEnvironment.fontContext"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -160,6 +161,7 @@
                         :resource-root-path="props.resourceRootPath"
                         :remote-resource-policy="effectiveRemoteResourcePolicy"
                         :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
+                        :font-context="activeRenderEnvironment.fontContext"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
                         class="card-design-editor__transform-preview-frame"
@@ -1071,16 +1073,16 @@ async function refreshCustomBlockExportResourcePreview(root: CardBlock): Promise
     const materialized = materializeProjectCustomBlockExport({
       document: cardDoc.value!,
       rootBlockId: root.id,
-      environment: { project: projectStore.resolvedProject.value, dictionary: projectStore.resolvedDictionary.value },
-      customBlockCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
+      environment: { project: activeRenderEnvironment.value.project, dictionary: activeRenderEnvironment.value.dictionary },
+      customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
     })
     if (materialized.issues.length > 0 || materialized.expansionIssues.length > 0) return
     const resources = await collectProjectCustomBlockResources({
       root: materialized.root,
       packageKey: customBlockExportDefaultKey.value,
       projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
-      projectFonts: projectStore.projectFonts.value,
-      projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
+      projectFonts: activeRenderEnvironment.value.projectFonts,
+      projectIconCatalog: activeRenderEnvironment.value.projectIconCatalog,
       customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
       remoteResourcePolicy: effectiveRemoteResourcePolicy.value,
       fs: fileSystemService,
@@ -1161,12 +1163,12 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
       key: payload.key,
       exposedFieldKeys: payload.exposedFieldKeys,
       projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
-      project: projectStore.resolvedProject.value,
-      dictionary: projectStore.resolvedDictionary.value,
-      projectFonts: projectStore.projectFonts.value,
-      projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
+      project: activeRenderEnvironment.value.project,
+      dictionary: activeRenderEnvironment.value.dictionary,
+      projectFonts: activeRenderEnvironment.value.projectFonts,
+      projectIconCatalog: activeRenderEnvironment.value.projectIconCatalog,
       customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-      customBlockRuntimeCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
+      customBlockRuntimeCatalog: activeRenderEnvironment.value.customBlockCatalog,
       remoteResourcePolicy: effectiveRemoteResourcePolicy.value,
       fs: fileSystemService,
     })
@@ -1287,10 +1289,10 @@ const {
 })
 
 const propertyProjectContext = computed(() => ({
-  fonts: projectStore.projectFonts.value,
+  fonts: activeRenderEnvironment.value.projectFonts,
   information: activeRenderEnvironment.value.project,
   dictionary: activeRenderEnvironment.value.dictionary,
-  iconSeries: projectStore.projectIconSeries.value,
+  iconSeries: activeRenderEnvironment.value.projectIconSeries,
   projectIconCatalog: activeRenderEnvironment.value.projectIconCatalog,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {

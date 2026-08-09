@@ -11,6 +11,7 @@
         :resource-root-path="resourceRootPath"
         :remote-resource-policy="remoteResourcePolicy"
         :project-icon-catalog="projectIconCatalog"
+        :font-context="fontContext"
         @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
@@ -186,6 +187,7 @@ import { buildCardLayerGroups } from './cardLayerModel'
 import type { RenderReadyCardBlock, RenderReadyCardFace } from '../render.types'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import type { ProjectFontResolutionContext } from '../../workspace/model/projectFonts'
 import {
   snapMoveRect,
   snapResizeRect,
@@ -294,6 +296,7 @@ const props = withDefaults(defineProps<{
   resourceRootPath?: string | null
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   projectIconCatalog?: ProjectIconCatalog
+  fontContext?: ProjectFontResolutionContext
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -330,6 +333,7 @@ const props = withDefaults(defineProps<{
   resourceRootPath: null,
   remoteResourcePolicy: undefined,
   projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
+  fontContext: undefined,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
