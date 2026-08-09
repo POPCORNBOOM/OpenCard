@@ -193,6 +193,25 @@
             </OcButton>
           </div>
         </ProjectConfigSection>
+
+        <ProjectConfigSection section-id="project-profile-section-custom-blocks" content-indent="single"
+          :heading="t('projectConfig.customBlocks.title')" :description="t('projectConfig.customBlocks.description')"
+          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.customBlocks.title') })"
+          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.customBlocks.title') })"
+          :collapsed="isProjectSectionCollapsed('custom-blocks')" @toggle="toggleProjectSection('custom-blocks')">
+          <div class="project-profile-editor__linked-file">
+            <OcText tone="muted" size="sm">{{ customBlockRegistryExists
+              ? t('projectConfig.customBlocks.registryAvailable')
+              : t('projectConfig.customBlocks.registryMissing') }}</OcText>
+            <OcButton data-linked-file="custom-blocks"
+              :icon="customBlockRegistryExists ? 'nav.arrow-right' : 'action.add'"
+              variant="soft" @click="openOrCreateCustomBlockRegistry">
+              {{ customBlockRegistryExists
+                ? t('projectConfig.customBlocks.openRegistry')
+                : t('projectConfig.customBlocks.createRegistry') }}
+            </OcButton>
+          </div>
+        </ProjectConfigSection>
       </template>
 
       <section v-else class="project-profile-editor__repair" role="alert">
@@ -257,6 +276,10 @@ import {
   serializeProjectFontRegistry,
 } from '../../features/workspace/model/projectFontRegistry'
 import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectIconRegistry'
+import {
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+  serializeProjectCustomBlockRegistry,
+} from '../../features/workspace/model/projectCustomBlocks'
 import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
@@ -279,6 +302,7 @@ const comparisonProfile = ref<ProjectProfile | null>(null)
 const dictionaryExists = ref(false)
 const fontRegistryExists = ref(false)
 const iconRegistryExists = ref(false)
+const customBlockRegistryExists = ref(false)
 const remoteHostDrafts = ref<string[]>([])
 const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
@@ -288,7 +312,7 @@ const currentLinkedFiles = ref({ dictionary: false, fonts: false, icons: false }
 const comparisonLinkedFiles = ref({ dictionary: false, fonts: false, icons: false })
 let sectionObserver: IntersectionObserver | null = null
 
-type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons'
+type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons' | 'custom-blocks'
 
 const projectProfileSections = [
   { key: 'information', labelKey: 'projectConfig.sections.information' },
@@ -297,6 +321,7 @@ const projectProfileSections = [
   { key: 'dictionary', labelKey: 'projectConfig.dictionary.title' },
   { key: 'fonts', labelKey: 'projectConfig.fonts.title' },
   { key: 'icons', labelKey: 'projectConfig.icons.title' },
+  { key: 'custom-blocks', labelKey: 'projectConfig.customBlocks.title' },
 ] as const satisfies readonly { key: ProjectProfileSectionKey, labelKey: string }[]
 
 const themeId = computed(() => props.themeId ?? 'dark')
@@ -351,6 +376,7 @@ watch(() => projectStore.indexedEntries.value, () => {
   dictionaryExists.value = fileTypeIds.has('opencard-dictionary')
   fontRegistryExists.value = fileTypeIds.has('opencard-font-registry')
   iconRegistryExists.value = fileTypeIds.has('opencard-icon-registry')
+  customBlockRegistryExists.value = fileTypeIds.has('opencard-custom-block-registry')
 }, { immediate: true })
 
 watch(() => projectStore.indexedEntries.value, async entries => {
@@ -570,6 +596,22 @@ async function openOrCreateIconRegistry() {
     () => { iconRegistryExists.value = true },
     'OC-E3010',
   )
+}
+
+async function openOrCreateCustomBlockRegistry() {
+  const path = projectStore.resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+  try {
+    if (!customBlockRegistryExists.value) {
+      await projectStore.createFile(
+        PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+        serializeProjectCustomBlockRegistry({ blocks: [] }),
+      )
+      customBlockRegistryExists.value = true
+    }
+    emit('open-file', path)
+  } catch (error) {
+    reportAppError('OC-E3013', { path, error })
+  }
 }
 
 async function openOrCreateLinkedFile(

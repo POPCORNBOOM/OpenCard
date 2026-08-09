@@ -10,6 +10,7 @@ import {
 import {
   addBlockToContainer,
   isBlockContainer,
+  isBlockPackaged,
   moveBlockBetweenContainers,
   removeBlockFromContainer,
   type BlockContainer,
@@ -32,6 +33,7 @@ type UseCdeTreeOpsOptions = {
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
   getDefaultBlockName: (type: CardBlock['type']) => string
+  createCustomBlock?: (key: string) => CardBlock | null
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
   readOnly?: Readonly<Ref<boolean>>
@@ -59,29 +61,35 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const children = new Map<string, readonly string[]>()
 
     function visit(block: CardBlock): void {
-      const childKeys = isBlockContainer(block) ? block.children.map((child) => child.block.id) : []
+      const packaged = isBlockPackaged(block)
+      const childKeys = isBlockContainer(block) && !packaged
+        ? block.children.map((child) => child.block.id)
+        : []
       const visibility = block.visible === 'false' ? 'hidden' : 'visible'
       const presentation = getBlockPresentation(block.type)
       items.set(block.id, {
         label: block.name?.trim() || block.id,
-        icon: presentation.icon,
+        icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         renamable: true,
         draggable: true,
         actions: [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
-          isBlockContainer(block) ? 'container-more' : 'block-more',
+          isBlockContainer(block)
+            ? (packaged ? 'packaged-container-more' : 'container-more')
+            : 'block-more',
         ],
         contextActions: [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
           'rename',
-          ...(isBlockContainer(block) ? ['add'] : []),
+          'export-custom-block',
+          ...(isBlockContainer(block) ? (packaged ? ['unpackage'] : ['add', 'package']) : []),
           'duplicate',
           'delete',
         ],
       })
       if (childKeys.length > 0) children.set(block.id, childKeys)
-      if (isBlockContainer(block)) {
+      if (isBlockContainer(block) && !packaged) {
         for (const child of block.children) visit(child.block)
       }
     }
@@ -100,11 +108,31 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   const selectedBlock = computed(() => selectedEntry.value?.block ?? null)
   const selectedLocation = computed(() => selectedEntry.value?.location ?? null)
 
+  function getBlockById(blockId: string): CardBlock | null {
+    return blockIndex.value.get(blockId)?.block ?? null
+  }
+
+  function resolveVisibleBlockKey(blockId: string): string | null {
+    const customHostId = blockId.includes('::block:') ? blockId.slice(0, blockId.indexOf('::block:')) : blockId
+    let current = blockIndex.value.get(customHostId)?.block ?? null
+    if (!current) return null
+
+    let visibleKey = current.id
+    while (current) {
+      const parent = options.parentLookup.value.get(current.id)
+      if (!parent || parent.type === 'card-face') break
+      if (isBlockPackaged(parent)) visibleKey = parent.id
+      current = parent
+    }
+    return visibleKey
+  }
+
   watch(
     [blockIndex, options.selectedBlockKeys],
     ([index, selectedKeys]) => {
       const key = selectedKeys[0]
-      const nextKeys = key && index.has(key) ? [key] : []
+      const visibleKey = key && index.has(key) ? resolveVisibleBlockKey(key) : null
+      const nextKeys = visibleKey ? [visibleKey] : []
       if (selectedKeys.length === nextKeys.length && selectedKeys[0] === nextKeys[0]) return
       options.selectedBlockKeys.value = nextKeys
     },
@@ -113,7 +141,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function selectKeys(keys: readonly string[]): void {
     const key = keys[0]
-    options.selectedBlockKeys.value = key && blockIndex.value.has(key) ? [key] : []
+    const visibleKey = key ? resolveVisibleBlockKey(key) : null
+    options.selectedBlockKeys.value = visibleKey ? [visibleKey] : []
   }
 
   function handleViewportBlockClick(blockId: string): void {
@@ -154,7 +183,14 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function executeBlockAction(actionKey: string, target: CardBlock | null): void {
-    const targetContainer: BlockContainer | null = target && isBlockContainer(target) ? target : options.activeFace.value
+    const targetContainer: BlockContainer | null = target && isBlockContainer(target) && !isBlockPackaged(target)
+      ? target
+      : target ? null : options.activeFace.value
+    if (actionKey.startsWith('add-custom-block:')) {
+      const block = options.createCustomBlock?.(actionKey.slice('add-custom-block:'.length)) ?? null
+      if (targetContainer && block) insertBlockAt(targetContainer, block)
+      return
+    }
     switch (actionKey) {
       case 'add-text-block':
         if (targetContainer) createBlockAt(targetContainer, 'text-block')
@@ -191,7 +227,21 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       case 'show-block':
         if (target) setBlockVisibility(target, true)
         return
+      case 'package':
+        if (target && isBlockContainer(target)) setBlockPackaged(target, true)
+        return
+      case 'unpackage':
+        if (target && isBlockContainer(target)) setBlockPackaged(target, false)
+        return
     }
+  }
+
+  function setBlockPackaged(block: Exclude<BlockContainer, CardFace>, packaged: boolean): void {
+    if (isBlockPackaged(block) === packaged) return
+    if (packaged) block.packaged = 'true'
+    else delete block.packaged
+    options.refreshDocumentState()
+    options.markDocumentChanged('action')
   }
 
   function setBlockVisibility(block: CardBlock, visible: boolean): void {
@@ -258,7 +308,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function resolveTargetContainer(target: CardBlock | null, position: 'before' | 'inside' | 'after'): BlockContainer | null {
     if (!target) return position === 'inside' ? options.activeFace.value : null
-    if (position === 'inside') return isBlockContainer(target) ? target : null
+    if (position === 'inside') return isBlockContainer(target) && !isBlockPackaged(target) ? target : null
     return options.parentLookup.value.get(target.id) ?? null
   }
 
@@ -298,6 +348,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function createBlockAt(container: BlockContainer, type: CardBlock['type']): void {
+    if (isBlockPackaged(container)) return
+    if (type === 'custom-block') return
     const name = options.getDefaultBlockName(type).trim() || undefined
     let block: CardBlock
     switch (type) {
@@ -323,10 +375,25 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         block = createBlock('flow-container-block', { name })
         break
     }
+    insertBlockAt(container, block)
+  }
+
+  function insertBlockAt(container: BlockContainer, block: CardBlock): void {
+    if (isBlockPackaged(container)) return
     addBlockToContainer(container, block, options.parentLookup.value)
     options.refreshDocumentState()
     options.selectedBlockKeys.value = [block.id]
     options.markDocumentChanged('action')
+  }
+
+  function insertBlockAtRoot(block: CardBlock): boolean {
+    const face = options.activeFace.value
+    if (!face) return false
+    addBlockToContainer(face, block, options.parentLookup.value)
+    options.refreshDocumentState()
+    options.selectedBlockKeys.value = [block.id]
+    options.markDocumentChanged('action')
+    return true
   }
 
   function deleteBlock(block: CardBlock): void {
@@ -401,9 +468,12 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     blockTreeData,
     selectedBlock,
     selectedLocation,
+    getBlockById,
+    insertBlockAtRoot,
     handleTreeIntent,
     handleRootAction,
     handleViewportBlockClick,
+    resolveVisibleBlockKey,
     clearSelection,
   }
 }

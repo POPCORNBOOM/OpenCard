@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import {
+  createBlock,
   createSimpleContainerBlock,
   createTextBlock,
   type CardDocument,
@@ -52,9 +53,10 @@ function createHarness() {
     child: ['name', 'content', 'score', 'legacy'],
     'back-text': ['content'],
   })
+  const documentRevision = ref(0)
   const model = useCdeDataTableModel({
     cardDoc: ref(document),
-    documentRevision: ref(0),
+    documentRevision,
     fieldSelection: selection,
     blueprintCardId: '__blueprint__',
     blueprintTitle: () => 'Blueprint',
@@ -62,7 +64,7 @@ function createHarness() {
     translate: key => key,
     hasMessage: () => false,
   })
-  return { model, selection }
+  return { container, document, documentRevision, model, selection }
 }
 
 describe('useCdeDataTableModel', () => {
@@ -109,5 +111,39 @@ describe('useCdeDataTableModel', () => {
     expect(model.faceGroups.value[0]?.blocks[0]?.fields.map(field => field.key)).toEqual(['content'])
     expect(model.faceGroups.value[1]?.blocks).toEqual([])
     expect(model.catalogFaceGroups.value[1]?.blocks.map(block => block.key)).toEqual(['back-text'])
+  })
+
+  it('hides packaged-container descendants while preserving their field selection for unpacking', () => {
+    const { container, documentRevision, model, selection } = createHarness()
+    container.packaged = 'true'
+    documentRevision.value += 1
+
+    expect(model.catalogFaceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container'])
+    expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container'])
+    expect(selection.value.child).toEqual(['name', 'content', 'score', 'legacy'])
+
+    delete container.packaged
+    documentRevision.value += 1
+    expect(model.catalogFaceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
+    expect(model.faceGroups.value[0]?.blocks.map(block => block.key)).toEqual(['container', 'child'])
+  })
+
+  it('exposes only public custom-block fields as non-deletable data rows', () => {
+    const { document, model, documentRevision } = createHarness()
+    const custom = createBlock('custom-block', {
+      id: 'custom', source: 'block:square', interfaceHash: 'hash', notes: 'Internal', visible: 'true',
+    })
+    custom.additionalFieldDefinition = { size: { fieldType: 'number', title: 'Size' } }
+    ;(custom as unknown as Record<string, unknown>).size = '120'
+    document.faces.back.children.push({
+      block: custom,
+      location: { id: 'custom-location', type: 'simple-container-location', anchor: 'lt' },
+    })
+    documentRevision.value += 1
+
+    const customCatalog = model.catalogFaceGroups.value[1]?.blocks.find(block => block.key === custom.id)
+    expect(customCatalog?.fields).toEqual([
+      expect.objectContaining({ key: 'size', title: 'Size', deletable: false }),
+    ])
   })
 })

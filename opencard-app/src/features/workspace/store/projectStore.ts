@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只管理文件系统真相 不管理编辑草稿与会话状态
  */
-import { computed, readonly, ref } from 'vue'
+import { computed, readonly, ref, shallowRef } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
@@ -52,6 +52,7 @@ import {
 import {
   buildProjectIconCatalog,
   EMPTY_PROJECT_ICON_CATALOG,
+  projectIconIdentity,
   type ProjectIconCatalog,
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
@@ -66,18 +67,45 @@ import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
   normalizeProjectFontDirectory,
 } from '../model/projectFonts'
+import {
+  parseProjectCustomBlockRegistryText,
+  DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+  serializeProjectCustomBlockRegistry,
+  type ProjectCustomBlockCatalog,
+  type ProjectCustomBlockCatalogEntry,
+} from '../model/projectCustomBlocks'
+import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
+import {
+  registerProjectCustomBlockPath,
+  unregisterProjectCustomBlockPath,
+} from '../services/projectCustomBlockRegistry'
+import {
+  createProjectCustomBlockFontSession,
+  type ProjectCustomBlockFontLoadError,
+  type ProjectCustomBlockFontSession,
+} from '../services/projectCustomBlockFontLoader'
+import {
+  createProjectCustomBlockAssetSession,
+  type ProjectCustomBlockAssetSession,
+} from '../services/projectCustomBlockAssetLoader'
+import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
 const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
 const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf'])
 const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp'])
+const PROJECT_CUSTOM_BLOCK_EXTENSIONS = new Set(['ocblock'])
 
 export type ImportedProjectFontFile = {
   source: string
   copied: boolean
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
+export type ImportedProjectCustomBlockFile = ImportedProjectFontFile & {
+  replacedSource?: string
+}
 export type ProjectAssetImportConflict = {
   existingSource: string
   availableCopySource: string
@@ -123,16 +151,37 @@ const projectIconLoadErrors = ref<readonly ProjectIconLoadError[]>([])
 const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
+const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
+const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
+const projectCustomBlockIconCatalog = shallowRef<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
+const customBlockRegistryError = ref<string | null>(null)
+const customBlockFontLoadErrors = ref<readonly ProjectCustomBlockFontLoadError[]>([])
 const settingsStore = useAppSettingsStore()
+const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
+  series: [...projectCustomBlockIconCatalog.value.series, ...projectIconCatalog.value.series],
+  entries: [
+    ...projectCustomBlockIconCatalog.value.entries,
+    ...projectIconCatalog.value.entries.filter(entry => !projectCustomBlockIconCatalog.value.entries.some(
+      customEntry => projectIconIdentity(customEntry.seriesKey, customEntry.iconKey)
+        === projectIconIdentity(entry.seriesKey, entry.iconKey),
+    )),
+  ],
+  errors: [...projectCustomBlockIconCatalog.value.errors, ...projectIconCatalog.value.errors],
+}))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
-  projectIconCatalog: projectIconCatalog.value,
-}))
+  projectIconCatalog: runtimeProjectIconCatalog.value,
+  customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
+}) as CardRenderEnvironment)
 
 let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
+let customBlockReloadVersion = 0
+let customBlockReloadQueue: Promise<boolean> = Promise.resolve(false)
+let customBlockAssetSession: ProjectCustomBlockAssetSession | null = null
+let customBlockFontSession: ProjectCustomBlockFontSession | null = null
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -141,7 +190,7 @@ function normalizePath(path: string): string {
 function pathIdentity(path: string): string {
   const normalized = normalizePath(path)
   return /^[A-Za-z]:\//.test(normalized) || normalized.startsWith('//')
-    ? normalized.toLocaleLowerCase()
+    ? normalized.toLowerCase()
     : normalized
 }
 
@@ -272,6 +321,20 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
   return canonicalContent
 }
 
+async function saveProjectCustomBlockRegistry(path: string, content: string): Promise<string> {
+  const document = JSON.parse(content) as unknown
+  const normalized = parseProjectCustomBlockRegistryText(JSON.stringify(document))
+  if (!normalized) throw new Error('Invalid .ocblocks content')
+  const resolvedPath = resolveProjectPath(path)
+  if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))) {
+    throw new Error('Custom block registry must be stored at the project root')
+  }
+  const canonicalContent = serializeProjectCustomBlockRegistry(normalized)
+  await fileSystemService.writeFile(resolvedPath, canonicalContent)
+  await reloadProjectCustomBlockRegistry()
+  return canonicalContent
+}
+
 function clearProjectProfile() {
   projectProfile.value = null
   resolvedProject.value = null
@@ -315,6 +378,90 @@ function clearProjectDictionary() {
   projectDictionary.value = null
   resolvedDictionary.value = null
   dictionaryError.value = null
+}
+
+function clearProjectCustomBlocks() {
+  customBlockFontSession?.release()
+  customBlockAssetSession?.release()
+  customBlockFontSession = null
+  customBlockAssetSession = null
+  projectCustomBlockCatalog.value = new Map()
+  projectCustomBlockRuntimeCatalog.value = new Map()
+  projectCustomBlockIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
+  customBlockRegistryError.value = null
+  customBlockFontLoadErrors.value = []
+}
+
+function reloadProjectCustomBlockRegistry(): Promise<boolean> {
+  const expectedVersion = ++customBlockReloadVersion
+  const expectedProjectPath = projectPath.value
+  const reload = async (): Promise<boolean> => {
+    const isCurrent = () => expectedVersion === customBlockReloadVersion
+      && expectedProjectPath === projectPath.value
+    if (!expectedProjectPath || !isCurrent()) return false
+
+    const registryPath = `${expectedProjectPath}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
+    let nextAssetSession: ProjectCustomBlockAssetSession | null = null
+    let nextFontSession: ProjectCustomBlockFontSession | null = null
+    try {
+      if (!await fileSystemService.fileExists(registryPath)) {
+        if (isCurrent()) clearProjectCustomBlocks()
+        return false
+      }
+      const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+      if (!registry) throw new Error('Invalid .ocblocks registry')
+      const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
+      for (const relativePath of registry.blocks ?? []) {
+        const entry = await readProjectCustomBlockPackage(fileSystemService, `${expectedProjectPath}/${relativePath}`)
+        const key = entry.manifest.key.toLowerCase()
+        if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
+        catalog.set(key, { ...entry, archivePath: relativePath })
+      }
+      if (!isCurrent()) return false
+      nextAssetSession = await createProjectCustomBlockAssetSession(catalog)
+      if (!isCurrent()) {
+        nextAssetSession.release()
+        return false
+      }
+      nextFontSession = await createProjectCustomBlockFontSession(catalog)
+      if (!isCurrent()) {
+        nextFontSession.release()
+        nextAssetSession.release()
+        return false
+      }
+      const previousFontSession = customBlockFontSession
+      const previousAssetSession = customBlockAssetSession
+      const runtimeCatalog = new Map(nextAssetSession.customBlockCatalog)
+      for (const [key, runtimeEntry] of runtimeCatalog) {
+        const packageEntry = catalog.get(key)
+        const packageSeriesKeys = new Set(
+          (packageEntry?.manifest.resources?.iconSeries ?? []).map(series => series.key.toLowerCase()),
+        )
+        const hasResourceErrors = nextFontSession.errors.some(error => error.packageKey.toLowerCase() === key)
+          || nextAssetSession.iconCatalog.errors.some(error => packageSeriesKeys.has(error.seriesKey.toLowerCase()))
+        if (hasResourceErrors) runtimeCatalog.set(key, { ...runtimeEntry, hasResourceErrors: true })
+      }
+      customBlockFontSession = nextFontSession
+      customBlockAssetSession = nextAssetSession
+      projectCustomBlockCatalog.value = catalog
+      projectCustomBlockRuntimeCatalog.value = runtimeCatalog
+      projectCustomBlockIconCatalog.value = nextAssetSession.iconCatalog
+      customBlockFontLoadErrors.value = nextFontSession.errors
+      customBlockRegistryError.value = null
+      previousFontSession?.release()
+      previousAssetSession?.release()
+      return true
+    } catch (error) {
+      nextFontSession?.release()
+      nextAssetSession?.release()
+      if (!isCurrent()) return false
+      customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
+      reportAppError('OC-E3011', { path: registryPath, error })
+      return false
+    }
+  }
+  customBlockReloadQueue = customBlockReloadQueue.then(reload, reload)
+  return customBlockReloadQueue
 }
 
 async function reloadProjectProfile(): Promise<boolean> {
@@ -547,6 +694,10 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
+      if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
+        || path.toLowerCase().endsWith('.ocblock'))) {
+        void reloadProjectCustomBlockRegistry()
+      }
       const fontSources = projectFontFiles.value
         .map(font => resolveProjectPath(font.source))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
@@ -589,6 +740,7 @@ async function setProjectPath(path: string) {
     await stopWatching()
   }
 
+  customBlockReloadVersion += 1
   projectPath.value = normalizedPath
   indexedEntries.value = []
   registeredDirectories.value = new Map()
@@ -597,6 +749,7 @@ async function setProjectPath(path: string) {
     clearProjectFontRegistry()
     clearProjectIconRegistry()
     clearProjectDictionary()
+    clearProjectCustomBlocks()
 
   if (!projectPath.value) {
     return
@@ -609,6 +762,7 @@ async function setProjectPath(path: string) {
     reloadProjectFontRegistry(),
     reloadProjectIconRegistry(),
     reloadProjectDictionary(),
+    reloadProjectCustomBlockRegistry(),
   ])
   await startWatching()
   scheduleProjectMetadataSave()
@@ -782,6 +936,72 @@ async function importProjectIconFile(
     'Unsupported project icon image',
     conflictResolution,
   )
+}
+
+async function importProjectCustomBlockFile(
+  sourcePath: string,
+  conflictResolution?: ProjectAssetImportResolution,
+): Promise<ImportedProjectCustomBlockFile> {
+  const sourcePackage = await readProjectCustomBlockPackage(fileSystemService, normalizePath(sourcePath))
+  assertCompatibleProjectCustomBlock(sourcePackage.manifest.key, sourcePackage.manifest.interfaceHash)
+  const imported = await importProjectAssetFile(
+    sourcePath,
+    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
+    'Unsupported custom block file',
+    conflictResolution,
+  )
+  const effectivePackage = conflictResolution === 'use-existing'
+    ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(imported.source))
+    : sourcePackage
+  const existing = assertCompatibleProjectCustomBlock(
+    effectivePackage.manifest.key,
+    effectivePackage.manifest.interfaceHash,
+  )
+  return {
+    ...imported,
+    ...(existing && pathIdentity(existing.archivePath) !== pathIdentity(imported.source)
+      ? { replacedSource: existing.archivePath }
+      : {}),
+  }
+}
+
+function assertCompatibleProjectCustomBlock(key: string, interfaceHash: string): ProjectCustomBlockCatalogEntry | undefined {
+  const existing = projectCustomBlockCatalog.value.get(key.toLowerCase())
+  if (existing && existing.manifest.interfaceHash !== interfaceHash) {
+    throw new Error(`Custom block interface mismatch: ${key}`)
+  }
+  return existing
+}
+
+async function getProjectCustomBlockImportConflict(sourcePath: string): Promise<ProjectAssetImportConflict | null> {
+  return await getProjectAssetImportConflict(
+    sourcePath,
+    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
+    'Unsupported custom block file',
+  )
+}
+
+async function registerProjectCustomBlockFile(
+  sourcePath: string,
+  conflictResolution?: ProjectAssetImportResolution,
+): Promise<ImportedProjectCustomBlockFile> {
+  const imported = await importProjectCustomBlockFile(sourcePath, conflictResolution)
+  const registryPath = resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+  const current = await fileSystemService.fileExists(registryPath)
+    ? parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
+    : {}
+  if (!current) throw new Error('Invalid .ocblocks registry')
+  const withoutReplaced = imported.replacedSource
+    ? unregisterProjectCustomBlockPath(current, imported.replacedSource)
+    : current
+  const updated = registerProjectCustomBlockPath(withoutReplaced, imported.source)
+  await saveProjectCustomBlockRegistry(
+    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+    serializeProjectCustomBlockRegistry(updated),
+  )
+  return imported
 }
 
 async function getProjectIconImportConflict(
@@ -1110,6 +1330,9 @@ export function useProjectStore() {
     renderEnvironment: readonly(renderEnvironment),
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
+    projectCustomBlockCatalog: readonly(projectCustomBlockCatalog),
+    customBlockRegistryError: readonly(customBlockRegistryError),
+    customBlockFontLoadErrors: readonly(customBlockFontLoadErrors),
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),
     projectName: computed(() => {
@@ -1131,14 +1354,17 @@ export function useProjectStore() {
     prepareProjectIconRegistryContent,
     saveProjectDictionary,
     prepareProjectDictionaryContent,
+    saveProjectCustomBlockRegistry,
     reloadProjectProfile,
     reloadProjectFontRegistry,
     reloadProjectIconRegistry,
     reloadProjectDictionary,
+    reloadProjectCustomBlockRegistry,
     clearProjectProfile,
     clearProjectFontRegistry,
     clearProjectIconRegistry,
     clearProjectDictionary,
+    clearProjectCustomBlocks,
     setProjectPath,
     loadFiles,
     readDirectoryEntries,
@@ -1155,6 +1381,9 @@ export function useProjectStore() {
     getProjectFontImportConflict,
     importProjectIconFile,
     getProjectIconImportConflict,
+    importProjectCustomBlockFile,
+    getProjectCustomBlockImportConflict,
+    registerProjectCustomBlockFile,
     createEntryWithAvailableName,
     trashFile,
     revealEntryInFileManager,

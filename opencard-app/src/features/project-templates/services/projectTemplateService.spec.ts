@@ -466,6 +466,24 @@ describe('ProjectTemplateService prepared package import', () => {
     await expect(createService(fs).importUserTemplate('/unsafe.zip')).rejects.toMatchObject({ code: 'invalid-package' })
     await expect(createService(fs).importUserTemplate('/unsafe.rar')).rejects.toMatchObject({ code: 'invalid-package' })
   })
+
+  it('rejects an invalid custom block registry inside a template package', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putFile('/invalid-registry.octemplate', zipSync({
+      'template.json': strToU8(JSON.stringify({
+        schemaVersion: 1,
+        id: 'invalid-registry',
+        name: 'Invalid registry',
+        description: '',
+        entry: 'main.ocdocument',
+      })),
+      'content/main.ocdocument': strToU8(cardDocument()),
+      'content/.ocblocks': strToU8('{"blocks":["../outside.ocblock"]}'),
+    }))
+
+    await expect(createService(fs).importUserTemplate('/invalid-registry.octemplate'))
+      .rejects.toMatchObject({ code: 'invalid-package' })
+  })
 })
 
 describe('ProjectTemplateService package export', () => {
@@ -475,6 +493,8 @@ describe('ProjectTemplateService package export', () => {
     fs.putFile('/source/alternate.ocdocument', cardDocument())
     fs.putFile('/source/notes/private.txt', 'private')
     fs.putFile('/source/.oclocale', JSON.stringify({ base: { title: 'Hello' } }))
+    fs.putFile('/source/.ocblocks', JSON.stringify({ blocks: ['assets/blocks/square.ocblock'] }))
+    fs.putFile('/source/assets/blocks/square.ocblock', new Uint8Array([5, 6]))
 
     const outputPath = await createService(fs, 'portable').exportProjectTemplate({
       sourcePath: '/source',
@@ -493,6 +513,8 @@ describe('ProjectTemplateService package export', () => {
       'template.json',
       'content/.ocproject',
       'content/.oclocale',
+      'content/.ocblocks',
+      'content/assets/blocks/square.ocblock',
       'content/main.ocdocument',
       'content/alternate.ocdocument',
       'content/assets/portrait.png',

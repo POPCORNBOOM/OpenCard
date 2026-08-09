@@ -7,6 +7,11 @@ export type OcTreeDropPosition = 'before' | 'inside' | 'after'
 export type OcTreeSelectionInput = 'left' | 'middle' | 'right' | 'keyboard'
 export type OcTreeActionSource = 'inline' | 'context'
 
+export interface OcTreeRenameSelection {
+  readonly start: number
+  readonly end: number
+}
+
 export interface OcTreeData {
   rootKeys: readonly OcTreeKey[]
   items: ReadonlyMap<OcTreeKey, OcTreeItem>
@@ -17,6 +22,7 @@ export interface OcTreeItem {
   label: string
   description?: string
   tail?: string
+  renameSelection?: OcTreeRenameSelection
   icon?: IconToken
   iconTone?: IconTone
   thumbnailStyle?: Readonly<Record<string, string>>

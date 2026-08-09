@@ -132,8 +132,10 @@ export const iconTokens = {
   'format.anchor-bottom-right': true,
 
   'entity.block-flow-container': true,
+  'entity.block-custom': true,
   'entity.block-image': true,
   'entity.block-markdown': true,
+  'entity.block-package': true,
   'entity.block-qrcode': true,
   'entity.block-shape': true,
   'entity.block-simple-container': true,
@@ -150,6 +152,7 @@ export const iconTokens = {
   'status.warning': true,
 
   'file.css': true,
+  'file.custom-block': true,
   'file.env': true,
   'file.font': true,
   'file.generic': true,

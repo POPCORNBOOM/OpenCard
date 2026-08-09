@@ -10,6 +10,10 @@ import { parseProjectFontRegistryText } from '../../workspace/model/projectFontR
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
+  parseProjectCustomBlockRegistryText,
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+} from '../../workspace/model/projectCustomBlocks'
+import {
   createProjectIconPackSpritesheetName,
   readProjectIconPack,
 } from '../../workspace/services/projectIconPack'
@@ -50,6 +54,11 @@ const STRUCTURED_PROJECT_FILES = [
   { name: FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
   { name: ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
   { name: DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
+  {
+    name: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
+    parse: parseProjectCustomBlockRegistryText,
+    label: 'custom block registry',
+  },
 ] as const
 const TEMPLATE_PACKAGE_EXTENSIONS = [PROJECT_TEMPLATE_PACKAGE_EXTENSION, 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024

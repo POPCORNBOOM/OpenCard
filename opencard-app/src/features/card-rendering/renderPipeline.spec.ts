@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { createTextBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
+import {
+  createSimpleContainerBlock,
+  createTextBlock,
+  type CardBlock,
+  type CardDocument,
+  type CardInstanceRecord,
+} from '../../entities/card/model'
 import { runRenderPipeline } from './renderPipeline'
 import {
   createDefaultProjectInformation,
 } from '../workspace/model/projectMetadata'
 
-function createDocument(block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })): CardDocument {
+function createDocument(
+  block: CardBlock = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' }),
+): CardDocument {
   return {
     type: 'card-document',
     schemaVersion: '2',
@@ -26,6 +34,23 @@ function createDocument(block = createTextBlock({ id: 'text', name: 'Title', con
 }
 
 describe('renderPipeline', () => {
+  it('renders packaged and unpackaged containers identically', () => {
+    const createContainer = (packaged?: string) => createSimpleContainerBlock({
+      id: 'container',
+      packaged,
+      children: [{
+        block: createTextBlock({ id: 'child', content: 'Visible content' }),
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+
+    const unpackaged = runRenderPipeline(createDocument(createContainer()), null)
+    const packaged = runRenderPipeline(createDocument(createContainer('true')), null)
+
+    expect(packaged.document).toEqual(unpackaged.document)
+    expect(packaged.issues).toEqual(unpackaged.issues)
+  })
+
   it('applies the instance before expanding bindings and parsing render data', () => {
     const document = createDocument()
     const instance: CardInstanceRecord = {
@@ -149,5 +174,100 @@ describe('renderPipeline', () => {
         referencedFieldKey: 'entry',
       }),
     }))
+  })
+
+  it('wraps an expanded custom block around its resolved native content', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
+    root.additionalFieldDefinition = { label: { fieldType: 'string' } }
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root,
+          publicFields: [{ key: 'label', fieldType: 'string', defaultValue: 'Ready' }],
+          resize: { widthLocked: false, heightLocked: false },
+        },
+      }]]),
+    })
+    const rendered = result.document.faces.front.children[0]!.block
+
+    expect(rendered).toMatchObject({
+      type: 'custom-block', id: 'host', source: 'block:label',
+      content: { type: 'text-block', id: 'host', content: 'Ready' },
+    })
+  })
+
+  it('reports packaged resource degradation on the host without exposing resource identity', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root: createTextBlock({ id: 'root', content: 'Fallback' }),
+          publicFields: [], resize: { widthLocked: false, heightLocked: false },
+        },
+        hasResourceErrors: true,
+      }]]),
+    })
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.resource-error',
+        location: expect.objectContaining({ owner: { kind: 'block', id: 'host' } }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('label')
+    expect(JSON.stringify(result.issues)).not.toContain('hash')
+  })
+
+  it('collapses internal custom block issues onto the opaque host', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    const root = createSimpleContainerBlock({
+      id: 'root',
+      children: [{
+        block: createTextBlock({ id: 'internal', name: 'Private label', content: '{{self:missing}}' }),
+        location: { id: 'internal-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+
+    const result = runRenderPipeline(createDocument(host), null, {
+      customBlockCatalog: new Map([['label', {
+        manifest: {
+          key: 'label', interfaceHash: 'hash', root, publicFields: [],
+          resize: { widthLocked: false, heightLocked: false },
+        },
+      }]]),
+    })
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.content-error',
+        location: expect.objectContaining({
+          owner: { kind: 'block', id: 'host' },
+          blockId: 'host',
+          fieldKey: 'content',
+        }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('Private label')
+    expect(JSON.stringify(result.issues)).not.toContain('internal')
+    expect(JSON.stringify(result.issues)).not.toContain('missing')
+  })
+
+  it('reports an unavailable custom block without exposing its source', () => {
+    const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
+    Object.assign(host, { type: 'custom-block', source: 'block:private-package', interfaceHash: 'secret-hash' })
+    const result = runRenderPipeline(createDocument(host), null)
+
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.custom-block.unavailable',
+        location: expect.objectContaining({ owner: { kind: 'block', id: 'host' } }),
+      }),
+    ])
+    expect(JSON.stringify(result.issues)).not.toContain('private-package')
+    expect(JSON.stringify(result.issues)).not.toContain('secret-hash')
   })
 })

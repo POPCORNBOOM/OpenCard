@@ -201,6 +201,72 @@ describe('CardDesignEditor issue navigation', () => {
     expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
   })
 
+  it('stops issue navigation at the outermost packaged container', async () => {
+    const document = createDocument()
+    const container = document.faces.front.children[0]!.block
+    if (container.type !== 'simple-container-block') throw new Error('Expected simple container')
+    container.packaged = 'true'
+
+    const revealField = vi.fn().mockResolvedValue(true)
+    const PropertyEditorStub = defineComponent({
+      name: 'PropertyEditor',
+      setup(_, { expose }) {
+        expose({ revealField })
+        return () => h('div')
+      },
+    })
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: {
+        role: String,
+        selectedKeys: Array,
+        scrollToSelection: Boolean,
+      },
+      template: '<div />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.ocdocument',
+        modelValue: JSON.stringify(document),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          PropertyEditor: PropertyEditorStub,
+          OcTree: OcTreeStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    await nextTick()
+    await nextTick()
+
+    const result = (wrapper.vm as unknown as {
+      navigate: (value: SessionNavigationToken) => Promise<string>
+    }).navigate({
+      protocol: 'card-designer',
+      version: 2,
+      target: {
+        kind: 'property',
+        instanceId: null,
+        faceKey: 'front',
+        blockId: 'text-1',
+        owner: 'block',
+        fieldKey: 'content',
+      },
+    })
+
+    await expect(result).resolves.toBe('not-found')
+    await nextTick()
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')
+    expect(structureTree?.props('selectedKeys')).toEqual(['container-1'])
+    expect(revealField).not.toHaveBeenCalled()
+  })
+
   it('shows reset after an instance Block field is overridden', async () => {
     const PropertyEditorStub = defineComponent({
       name: 'PropertyEditor',
@@ -551,10 +617,12 @@ describe('CardDesignEditor issue navigation', () => {
     expect(faceAction?.props('iconSize')).toBe('action')
     expect(faceAction?.props('action').icon).toBe('tool.flip-to-back')
     expect(clipAction?.props('variant')).toBe('ghost')
+    expect(clipAction?.props('active')).toBe(false)
     expect(clipAction?.props('size')).toBe('sm')
     expect(clipAction?.props('iconSize')).toBe('action')
     expect(clipAction?.props('action').icon).toBe('tool.box-cutter-off')
     expect(alignmentSnappingAction?.props('variant')).toBe('ghost')
+    expect(alignmentSnappingAction?.props('active')).toBe(false)
     expect(alignmentSnappingAction?.props('size')).toBe('sm')
     expect(alignmentSnappingAction?.props('iconSize')).toBe('action')
     expect(alignmentSnappingAction?.props('action').icon).toBe('tool.snap-grid')
@@ -565,7 +633,12 @@ describe('CardDesignEditor issue navigation', () => {
 
     expect(faceAction?.props('action').icon).toBe('tool.flip-to-front')
     expect(clipAction?.props('action').icon).toBe('tool.box-cutter')
+    expect(clipAction?.props('variant')).toBe('soft')
+    expect(clipAction?.props('active')).toBe(true)
+    expect(clipAction?.props('action').iconTone).toBeUndefined()
     expect(alignmentSnappingAction?.props('variant')).toBe('soft')
+    expect(alignmentSnappingAction?.props('active')).toBe(true)
+    expect(alignmentSnappingAction?.props('action').iconTone).toBeUndefined()
     expect(alignmentSnappingAction?.props('action').icon).toBe('tool.snap-grid-on')
     expect(viewport.props('alignmentSnappingEnabled')).toBe(true)
 
@@ -619,7 +692,9 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     expect(viewport.props('selectedBlockId')).toBe('text-1')
 
-    viewport.vm.$emit('selection-action', { type: 'fill-parent', blockId: 'text-1' })
+    viewport.vm.$emit('selection-action', {
+      type: 'fill-parent', blockId: 'text-1', width: true, height: true,
+    })
     await nextTick()
 
     const updates = wrapper.emitted('update:modelValue') ?? []

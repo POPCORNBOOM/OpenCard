@@ -229,6 +229,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-duration-fast',
   '--oc-duration-normal',
   '--oc-duration-slow',
+  '--oc-overflow-text-duration',
   '--oc-ease',
 
   // 焦点环

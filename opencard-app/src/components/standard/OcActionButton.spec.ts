@@ -54,6 +54,20 @@ describe('OcActionButton', () => {
     expect(wrapper.get('.oc-button__icon').classes()).toContain('oc-icon--action')
   })
 
+  it('forwards the active highlight without changing the icon tone', () => {
+    const wrapper = mount(OcActionButton, {
+      props: {
+        action: { key: 'toggle', icon: 'tool.snap-grid', title: 'Toggle' },
+        active: true,
+        variant: 'soft',
+      },
+    })
+
+    expect(wrapper.get('button').classes()).toContain('oc-button--active')
+    expect(wrapper.get('button').classes()).toContain('oc-button--variant-soft')
+    expect(wrapper.get('.oc-button__icon').attributes('style')).toContain('var(--oc-icon-default)')
+  })
+
   it('mounts floating behavior and the outside listener only when needed', async () => {
     const addListener = vi.spyOn(document, 'addEventListener')
     const wrapper = mount(OcActionButton, {

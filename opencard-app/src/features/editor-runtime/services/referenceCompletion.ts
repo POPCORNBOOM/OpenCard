@@ -106,9 +106,6 @@ function resolveScopeSuggestions(
   context: ReferenceCompletionContext,
 ): ReferenceCompletionSuggestion[] {
   const fragment = fragmentInput.toLocaleLowerCase()
-  if (fragment.startsWith('p')) {
-    return resolveParentScopeSuggestions(fragment, context)
-  }
 
   const fixedScopes: Array<readonly [string, ReferenceCompletionScope | undefined]> = [
     ['self', context.currentBlock],
@@ -124,10 +121,8 @@ function resolveScopeSuggestions(
     .filter(([token, scope]) => scope && token.startsWith(fragment) && hasCompatibleField(scope, context.targetKind))
     .map(([token, scope]) => scopeSuggestion(`${token}:`, scope!.label))
 
-  const parent = context.getAncestor(1)
-  if (isScopeAllowed('parent', context)
-    && parent && 'parent'.startsWith(fragment) && hasCompatibleField(parent, context.targetKind)) {
-    suggestions.push(scopeSuggestion('parent:', parent.label))
+  if (!fragment || fragment.startsWith('p')) {
+    suggestions.push(...resolveParentScopeSuggestions(fragment, context))
   }
   return suggestions
 }
@@ -137,15 +132,20 @@ function resolveParentScopeSuggestions(
   context: ReferenceCompletionContext,
 ): ReferenceCompletionSuggestion[] {
   if (!isScopeAllowed('parent', context)) return []
-  if (!/^parent(?:\.parent)*\.?$/i.test(fragment)) return []
-  const completedDepth = fragment.split('.').filter(Boolean).length
-  const targetDepth = fragment.endsWith('.') ? completedDepth + 1 : completedDepth
+  const segments = fragment.split('.')
+  const completedSegments = segments.slice(0, -1)
+  const partialSegment = fragment.endsWith('.') ? '' : segments[segments.length - 1] ?? ''
+  if (completedSegments.some(segment => segment !== 'parent')
+    || (partialSegment && !'parent'.startsWith(partialSegment))) return []
+
+  const targetDepth = completedSegments.length + 1
   const scope = context.getAncestor(targetDepth)
   if (!scope || !hasCompatibleField(scope, context.targetKind)) return []
 
   const token = Array.from({ length: targetDepth }, () => 'parent').join('.')
   const suggestions = [scopeSuggestion(`${token}:`, scope.label)]
-  if (context.getAncestor(targetDepth + 1)) {
+  const completesCurrentSegment = fragment.endsWith('.') || partialSegment === 'parent'
+  if (completesCurrentSegment && context.getAncestor(targetDepth + 1)) {
     suggestions.push(scopeSuggestion(`${token}.`, scope.label))
   }
   return suggestions

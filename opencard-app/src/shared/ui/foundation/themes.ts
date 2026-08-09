@@ -115,6 +115,7 @@ const sharedThemeTokens = {
   '--oc-duration-fast': '100ms',
   '--oc-duration-normal': '150ms',
   '--oc-duration-slow': '250ms',
+  '--oc-overflow-text-duration': '4s',
   '--oc-ease': 'cubic-bezier(0.2, 0, 0, 1)',
 } as const satisfies Partial<OcThemeTokens>
 

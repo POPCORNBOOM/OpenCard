@@ -50,6 +50,7 @@ function container(
   return {
     ...block(id, zIndex, visible),
     type: 'simple-container-block',
+    clip: false,
     children: children.map(child => ({
       block: child,
       location: { id: `${child.id}-location`, type: 'simple-container-location', anchor: 'lt', x: '0px', y: '0px' },

@@ -64,3 +64,43 @@ body {
   color: var(--oc-fg-default);
   font-family: var(--oc-font-sans);
 }
+
+/* Shared visual contract for cropped project-icon atlas entries. */
+.oc-project-icon {
+  position: relative;
+  isolation: isolate;
+  background-image: none;
+}
+
+.oc-project-icon::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--oc-project-icon-source-width);
+  height: var(--oc-project-icon-source-height);
+  background-image: var(--oc-project-icon-background-image);
+  background-repeat: no-repeat;
+  background-size: var(--oc-project-icon-background-size);
+  background-position: var(--oc-project-icon-background-position);
+  image-rendering: var(--oc-project-icon-image-rendering);
+  pointer-events: none;
+  transform: translate(-50%, -50%) var(--oc-project-icon-transform);
+  transform-origin: center;
+}
+
+.project-inline-icon--missing {
+  display: inline-grid;
+  width: 1em;
+  height: 1em;
+  place-items: center;
+  box-sizing: border-box;
+  border: var(--oc-border-width) dashed currentColor;
+  border-radius: var(--oc-radius-sm);
+  vertical-align: text-bottom;
+}
+
+.project-inline-icon--missing::before {
+  content: '?';
+  line-height: 1;
+}

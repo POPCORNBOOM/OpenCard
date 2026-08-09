@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OpenCard",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "identifier": "per.yiguwang.opencard",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -121,6 +121,38 @@
           "identifier": "per.yiguwang.opencard.project-global-dictionary",
           "conformsTo": [
             "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "ocblocks"
+        ],
+        "name": "OpenCard Custom Block Registry",
+        "description": "OpenCard custom block registry",
+        "mimeType": "application/vnd.opencard.custom-block-registry+json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.custom-block-registry",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "ocblock"
+        ],
+        "name": "OpenCard Custom Block",
+        "description": "OpenCard custom block package",
+        "mimeType": "application/vnd.opencard.custom-block+zip",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.custom-block",
+          "conformsTo": [
+            "public.zip-archive"
           ]
         }
       },

@@ -294,8 +294,10 @@ export const iconGlyphs = {
   'format.anchor-bottom-right': glyph(mdiArrowBottomRightThin),
 
   'entity.block-flow-container': glyph(mdiViewSequentialOutline),
+  'entity.block-custom': glyph(mdiPackageVariantClosed),
   'entity.block-image': glyph(mdiImageOutline),
   'entity.block-markdown': glyph(mdiLanguageMarkdownOutline),
+  'entity.block-package': glyph(mdiPackageVariantClosed),
   'entity.block-qrcode': glyph(mdiQrcodeScan),
   'entity.block-shape': glyph(mdiShapeOutline),
   'entity.block-simple-container': glyph(mdiViewGridOutline),
@@ -312,6 +314,7 @@ export const iconGlyphs = {
   'status.warning': glyph(mdiAlertOutline),
 
   'file.css': glyph(mdiLanguageCss3),
+  'file.custom-block': glyph(mdiPackageVariantClosed),
   'file.env': glyph(mdiFileKeyOutline),
   'file.font': glyph(mdiFormatFont),
   'file.generic': glyph(mdiFileOutline),

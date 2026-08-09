@@ -2,11 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { resolveDirectoryIcon, resolveEntryIcon, resolveFileType } from './fileTypes'
 
 describe('project metadata file types', () => {
-  it('recognizes only the four exact project resource file names', () => {
+  it('recognizes exact project resource file names and custom block packages', () => {
     expect(resolveFileType('D:/Cards/.ocproject').id).toBe('opencard-project-profile')
     expect(resolveFileType('D:/Cards/.oclocale').id).toBe('opencard-dictionary')
     expect(resolveFileType('D:/Cards/.ocfonts').id).toBe('opencard-font-registry')
     expect(resolveFileType('D:/Cards/.ocicons').id).toBe('opencard-icon-registry')
+    expect(resolveFileType('D:/Cards/.ocblocks')).toMatchObject({
+      id: 'opencard-custom-block-registry',
+      editorId: 'custom-block-registry',
+    })
+    expect(resolveFileType('D:/Cards/assets/square.ocblock')).toMatchObject({
+      id: 'opencard-custom-block',
+      editorId: 'custom-block-package',
+    })
     expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })
@@ -17,6 +25,7 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/nested/.ocproject', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocfonts', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocicons', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/.ocblocks', 'D:/Cards').id).toBe('unsupported')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {

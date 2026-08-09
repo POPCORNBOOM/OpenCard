@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CardDocument } from './model'
+import { createSimpleContainerBlock, createTextBlock, type CardDocument } from './model'
 import { parseCardDocument, serializeCardDocument } from './storage'
 
 function createDocument(): CardDocument {
@@ -77,6 +77,27 @@ describe('card document storage contract', () => {
     document.notes = 'Review print margins.'
 
     expect(parseCardDocument(document)).toEqual(document)
+  })
+
+  it('round-trips packaged container state without requiring it from older documents', () => {
+    const legacy = createDocument()
+    expect(parseCardDocument(JSON.parse(serializeCardDocument(legacy)))).toEqual(legacy)
+
+    const document = createDocument()
+    document.faces.front.children[0]!.block = createSimpleContainerBlock({
+      id: 'container',
+      packaged: 'true',
+      children: [{
+        block: createTextBlock({ id: 'child', content: 'Visible content' }),
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+
+    const parsed = parseCardDocument(JSON.parse(serializeCardDocument(document)))
+    expect(parsed.faces.front.children[0]!.block).toMatchObject({
+      id: 'container',
+      packaged: 'true',
+    })
   })
 
   it.each([

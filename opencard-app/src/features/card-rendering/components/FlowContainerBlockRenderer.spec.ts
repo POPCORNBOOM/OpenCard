@@ -11,6 +11,7 @@ describe('FlowContainerBlockRenderer', () => {
       id: 'flow',
       direction: 'lr',
       gap: '0px',
+      clip: true,
       width: '300px',
       height: '200px',
       visible: true,
@@ -49,6 +50,7 @@ describe('FlowContainerBlockRenderer', () => {
     })
 
     const child = wrapper.findAll('div')[1]!
+    expect(wrapper.get('[data-block-id="flow"]').attributes('style')).toContain('overflow: hidden')
     expect(child.attributes('style')).toContain('width: 400px')
     expect(child.attributes('style')).toContain('flex-shrink: 0')
   })

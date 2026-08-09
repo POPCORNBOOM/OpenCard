@@ -23,7 +23,7 @@ import type {
 import { taskScheduler } from '../../../utils/taskScheduler'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
-const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'unsupported-file'])
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type LocalHistorySource =
@@ -265,6 +265,7 @@ export function useEditorSessionStore() {
     prepareProjectIconRegistryContent,
     saveProjectDictionary,
     prepareProjectDictionaryContent,
+    saveProjectCustomBlockRegistry,
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
@@ -657,6 +658,7 @@ export function useEditorSessionStore() {
       'opencard-font-registry': saveProjectFontRegistry,
       'opencard-icon-registry': saveProjectIconRegistry,
       'opencard-dictionary': saveProjectDictionary,
+      'opencard-custom-block-registry': saveProjectCustomBlockRegistry,
     } as const
     const structuredSaver = nextResourceKind === 'workspace'
       ? structuredProjectSavers[nextFileType.id as keyof typeof structuredProjectSavers]

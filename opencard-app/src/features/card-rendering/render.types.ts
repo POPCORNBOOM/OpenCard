@@ -106,14 +106,23 @@ export type RenderReadyFlowContainerChild = {
 
 export type RenderReadySimpleContainerBlock = RenderReadyBaseBlock & {
   type: 'simple-container-block'
+  clip: boolean
   children: RenderReadySimpleContainerChild[]
 }
 
 export type RenderReadyFlowContainerBlock = RenderReadyBaseBlock & {
   type: 'flow-container-block'
+  clip: boolean
   direction: FlowDirection
   gap: string
   children: RenderReadyFlowContainerChild[]
+}
+
+export type RenderReadyCustomBlock = RenderReadyBaseBlock & {
+  type: 'custom-block'
+  source: string
+  interfaceHash: string
+  content: RenderReadyCardBlock | null
 }
 
 export type RenderReadyCardBlock =
@@ -124,6 +133,7 @@ export type RenderReadyCardBlock =
   | RenderReadyShapeBlock
   | RenderReadySimpleContainerBlock
   | RenderReadyFlowContainerBlock
+  | RenderReadyCustomBlock
 
 export type RenderReadyCardFace = {
   type: 'card-face'

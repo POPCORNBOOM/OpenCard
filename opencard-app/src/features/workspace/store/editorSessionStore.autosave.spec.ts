@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   saveProjectDictionary: vi.fn(),
   prepareProjectConfigurationContent: vi.fn(),
   prepareProjectDictionaryContent: vi.fn(),
+  saveProjectCustomBlockRegistry: vi.fn(),
 }))
 vi.mock('./projectStore', () => ({
   useProjectStore: () => ({
@@ -16,6 +17,7 @@ vi.mock('./projectStore', () => ({
     saveProjectDictionary: mocks.saveProjectDictionary,
     prepareProjectConfigurationContent: mocks.prepareProjectConfigurationContent,
     prepareProjectDictionaryContent: mocks.prepareProjectDictionaryContent,
+    saveProjectCustomBlockRegistry: mocks.saveProjectCustomBlockRegistry,
   }),
 }))
 
@@ -34,6 +36,7 @@ describe('editorSessionStore project profile manual save', () => {
     mocks.saveProjectDictionary.mockImplementation(async (_path: string, content: string) => content)
     mocks.prepareProjectConfigurationContent.mockImplementation((_path: string, content: string) => content)
     mocks.prepareProjectDictionaryContent.mockImplementation((_path: string, content: string) => content)
+    mocks.saveProjectCustomBlockRegistry.mockImplementation(async (_path: string, content: string) => content)
   })
 
   it('keeps profile edits dirty until explicitly saved', async () => {
@@ -129,5 +132,18 @@ describe('editorSessionStore project profile manual save', () => {
       source: 'manual-save',
     })
     expect(receipt).toMatchObject({ status: 'saved', localHistory: 'recorded' })
+  })
+
+  it('saves the custom block registry through its validated project boundary', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('.ocblocks')
+    store.updateDraftContent(session.id, '{"blocks":["assets/blocks/square.ocblock"]}')
+
+    await store.saveSession(session.id)
+
+    expect(mocks.saveProjectCustomBlockRegistry).toHaveBeenCalledWith(
+      '.ocblocks',
+      '{"blocks":["assets/blocks/square.ocblock"]}',
+    )
   })
 })

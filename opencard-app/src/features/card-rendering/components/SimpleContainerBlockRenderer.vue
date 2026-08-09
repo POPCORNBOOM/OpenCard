@@ -27,7 +27,7 @@ const blockStyle = computed(() => {
     const style = props.layoutMode === 'absolute'
         ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
         : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
-    return `${style}; position: relative`
+    return `${style}; position: relative; overflow: ${props.block.clip ? 'hidden' : 'visible'}`
 })
 
 function getChildStyle(child: RenderReadySimpleContainerBlock['children'][number]) {

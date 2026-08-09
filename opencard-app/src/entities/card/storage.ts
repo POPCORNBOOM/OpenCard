@@ -19,6 +19,7 @@ const blockTypes = new Set<CardBlock['type']>([
   'shape-block',
   'simple-container-block',
   'flow-container-block',
+  'custom-block',
 ])
 
 export function parseCardDocument(value: unknown): CardDocument {
@@ -88,6 +89,11 @@ export function serializeCardDocument(document: CardDocument): string {
   return JSON.stringify(parseCardDocument(document), null, 2)
 }
 
+export function parseStoredCardBlock(value: unknown): CardBlock {
+  assertBlock(value, '$')
+  return value
+}
+
 function assertRootChild(value: unknown, path: string): asserts value is RootChild {
   assertStoredObject(value, path)
   assertBlock(value.block, `${path}.block`)
@@ -101,6 +107,12 @@ function assertBlock(value: unknown, path: string): asserts value is CardBlock {
     throw new Error(`${path}.type is not a supported block type`)
   }
   assertStringField(value, 'id', path)
+
+  if (type === 'custom-block') {
+    assertStringField(value, 'source', path)
+    assertStringField(value, 'interfaceHash', path)
+    return
+  }
 
   if (type !== 'simple-container-block' && type !== 'flow-container-block') return
 

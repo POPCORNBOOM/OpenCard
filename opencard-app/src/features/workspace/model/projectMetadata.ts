@@ -32,9 +32,9 @@ export type ProjectInformation = {
 }
 
 export const projectPropertySchema = {
-  name: { fieldType: 'string', categoryId: 'identity', acceptsBinding: false },
-  description: { fieldType: 'string', multiline: true, categoryId: 'identity', acceptsBinding: false },
-  version: { fieldType: 'string', categoryId: 'identity', acceptsBinding: false },
+  name: { fieldType: 'string', categoryId: 'general', acceptsBinding: false },
+  description: { fieldType: 'string', multiline: true, categoryId: 'general', acceptsBinding: false },
+  version: { fieldType: 'string', categoryId: 'general', acceptsBinding: false },
 } as const satisfies Record<string, EditorPropertyDefinition>
 
 function isRecord(value: unknown): value is Record<string, unknown> {

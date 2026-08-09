@@ -88,6 +88,32 @@ describe('card additional fields and bindings', () => {
     })
   })
 
+  it('can preserve selected references while resolving the remaining external values', () => {
+    const block = createTextBlock({
+      id: 'text',
+      width: '{{self:size}}',
+      content: '<p><span data-oc-binding="self:label">{{self:label}}</span> / {{project:name}}</p>',
+    })
+    block.additionalFieldDefinition = {
+      size: { fieldType: 'number' },
+      label: { fieldType: 'string' },
+    }
+    ;(block as unknown as Record<string, unknown>).size = '120'
+    ;(block as unknown as Record<string, unknown>).label = 'Square'
+
+    const result = resolveReferences(createDocument(block), {
+      project: { name: 'Demo', description: '', version: '' },
+      preserveReference: ({ reference }) => reference.kind === 'current-block',
+    })
+    const resolved = result.document.faces.front.children[0]!.block
+
+    expect(result.issues).toEqual([])
+    expect(resolved).toMatchObject({
+      width: '{{self:size}}',
+      content: '<p><span data-oc-binding="self:label">{{self:label}}</span> / Demo</p>',
+    })
+  })
+
   it('treats a reference without a colon as a current-block field', () => {
     const block = createTextBlock({ id: 'text', content: '{{label}}' })
     block.additionalFieldDefinition = { label: { fieldType: 'string' } }

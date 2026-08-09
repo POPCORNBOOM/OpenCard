@@ -35,7 +35,12 @@ export type CardRenderParseIssueType =
   | 'card-designer.render-parse.invalid-option'
   | 'card-designer.render-parse.out-of-range'
 
-export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType
+export type CardCustomBlockIssueType =
+  | 'card-designer.custom-block.unavailable'
+  | 'card-designer.custom-block.content-error'
+  | 'card-designer.custom-block.resource-error'
+
+export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardCustomBlockIssueType
 
 export type CardPipelineIssue = {
   id: string

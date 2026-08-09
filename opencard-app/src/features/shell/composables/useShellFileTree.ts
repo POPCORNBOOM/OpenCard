@@ -2,7 +2,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveEntryIcon, resolveProjectTreeFilePresentation } from '../../workspace/model/fileTypes'
-import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
+import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
 import { reportAppError } from '../../logging/appErrorCatalog'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
@@ -40,6 +40,7 @@ type ProjectEntryView = {
   relativePath: string
   label: string
   tail?: string
+  isProjectSpecial: boolean
   isDirectory: boolean
   isExpanded: boolean
   rootPriority: number | null
@@ -60,6 +61,12 @@ type UseShellFileTreeOptions = {
 
 function normalizeShellPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function resolveFilenameRenameSelection(name: string): OcTreeRenameSelection {
+  const extensionSeparator = name.lastIndexOf('.')
+  const hasExtension = extensionSeparator > 0 && extensionSeparator < name.length - 1
+  return { start: 0, end: hasExtension ? extensionSeparator : name.length }
 }
 
 export function useShellFileTree(options: UseShellFileTreeOptions) {
@@ -89,8 +96,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const entry: ProjectEntryView = {
         key,
         relativePath,
-        label: parts[parts.length - 1] ?? relativePath,
-        tail: rootPresentation ? options.translate(rootPresentation.annotationKey) : undefined,
+        label: rootPresentation
+          ? options.translate(rootPresentation.annotationKey)
+          : parts[parts.length - 1] ?? relativePath,
+        tail: rootPresentation ? parts[parts.length - 1] ?? relativePath : undefined,
+        isProjectSpecial: Boolean(rootPresentation),
         isDirectory,
         isExpanded: isDirectory && options.isDirectoryExpanded(key),
         rootPriority: rootPresentation?.priority ?? null,
@@ -129,13 +139,16 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       items.set(entry.key, {
         label: entry.label,
         tail: entry.tail,
+        renameSelection: !entry.isDirectory && !entry.isProjectSpecial
+          ? resolveFilenameRenameSelection(entry.label)
+          : undefined,
         icon: presentation.icon,
         iconTone: presentation.tone,
-        renamable: true,
+        renamable: !entry.isProjectSpecial,
         draggable: true,
         actions: [projectEntryMoreActionKey(entry.key)],
         contextActions: [
-          PROJECT_ENTRY_RENAME_ACTION_KEY,
+          ...(entry.isProjectSpecial ? [] : [PROJECT_ENTRY_RENAME_ACTION_KEY]),
           projectEntryDeleteActionKey(entry.key),
           PROJECT_ENTRY_REVEAL_ACTION_KEY,
           PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,

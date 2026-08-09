@@ -213,6 +213,7 @@ function parseBlock(
       return {
         ...base,
         type,
+        clip: fields.boolean('clip'),
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
           const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues)
@@ -234,6 +235,7 @@ function parseBlock(
       return {
         ...base,
         type,
+        clip: fields.boolean('clip'),
         direction: fields.option('direction'),
         gap: fields.cssLength('gap'),
         children: fields.array('children').map((childValue) => {
@@ -252,6 +254,15 @@ function parseBlock(
             ),
           }
         }),
+      }
+    case 'custom-block':
+      const source = fields.string('source')
+      return {
+        ...base,
+        type,
+        source,
+        interfaceHash: fields.string('interfaceHash'),
+        content: null,
       }
   }
 }

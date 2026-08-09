@@ -1,6 +1,6 @@
 <template>
   <span
-    class="project-icon-view"
+    class="project-icon-view oc-project-icon"
     :style="style"
     role="img"
     :aria-label="entry.name"

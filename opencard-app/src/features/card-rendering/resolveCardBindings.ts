@@ -27,6 +27,7 @@ import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/mo
 import {
   isBindingStartEscaped,
   parseFieldReference,
+  type FieldReferenceDescriptor,
 } from '../editor-runtime/model/bindingExpression'
 import {
   exposesProjectFieldReference,
@@ -92,6 +93,20 @@ export type ResolveReferencesOptions = {
   currentCard?: CardInstanceRecord | null
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
+  preserveReference?: (context: PreserveReferenceContext) => boolean
+  shouldResolveOwner?: (owner: ResolveReferenceOwner) => boolean
+}
+
+export type ResolveReferenceOwner = {
+  kind: ReferenceOwnerKind
+  id: string
+  anchorBlockId: string | null
+}
+
+export type PreserveReferenceContext = {
+  owner: ResolveReferenceOwner
+  fieldKey: string
+  reference: FieldReferenceDescriptor
 }
 
 type ReferenceOwnerKind = 'document' | 'face' | 'block' | 'location' | 'current-card'
@@ -113,6 +128,7 @@ type ResolveFieldResult =
 
 type ResolveTokenResult =
   | { ok: true, value: unknown, valueKind: BindingValueKind }
+  | { ok: true, preserved: true }
   | { ok: false, value: unknown }
 
 type ResolveMemoState = 'resolving' | 'done' | 'failed'
@@ -378,6 +394,13 @@ export function resolveReferences(
       }, characterOffset)
       return { ok: false, value: null }
     }
+    if (options.preserveReference?.({
+      owner: { kind: owner.kind, id: owner.id, anchorBlockId: owner.anchorBlockId },
+      fieldKey,
+      reference: tokenDescriptor,
+    })) {
+      return { ok: true, preserved: true }
+    }
 
     function resolveTargetField(targetOwner: ReferenceOwner, targetFieldKey: string): ResolveTokenResult {
       if (!exposesCardFieldReference(targetOwner.source, targetFieldKey)) {
@@ -568,6 +591,9 @@ export function resolveReferences(
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
       }
+      if ('preserved' in tokenResult) {
+        return { ok: true, value: sourceValue }
+      }
       if (!isBindingCompatible(targetKind, tokenResult.valueKind)
         || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
         pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.type-mismatch', {
@@ -619,6 +645,11 @@ export function resolveReferences(
       )
       if (!tokenResult.ok) {
         return { ok: false, value: sourceValue }
+      }
+      if ('preserved' in tokenResult) {
+        resolvedValue += matched[0]
+        cursor = matched.index + matched[0].length
+        continue
       }
 
       if (!isBindingCompatible('string', tokenResult.valueKind)
@@ -679,6 +710,7 @@ export function resolveReferences(
           issueOffset,
         )
         if (!tokenResult.ok) return { ok: false }
+        if ('preserved' in tokenResult) return { ok: true, value: rawToken }
         if (!isBindingCompatible('string', tokenResult.valueKind)
           || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
           pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.type-mismatch', {
@@ -782,6 +814,11 @@ export function resolveReferences(
   }
 
   for (const owner of owners) {
+    if (options.shouldResolveOwner && !options.shouldResolveOwner({
+      kind: owner.kind,
+      id: owner.id,
+      anchorBlockId: owner.anchorBlockId,
+    })) continue
     const fieldKeys = getCardFieldKeys(owner.source)
     for (const fieldKey of fieldKeys) {
       const resolved = resolveOwnerField(owner, fieldKey, 0)

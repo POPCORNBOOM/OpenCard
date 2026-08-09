@@ -483,7 +483,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import {
   createDefaultOpenCardContent,
@@ -637,6 +637,7 @@ const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
 const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.ocproject'
 const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.ocfonts'
 const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.ocicons'
+const PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY = 'project.new-file.ocblocks'
 const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.oclocale'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
@@ -1359,7 +1360,7 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
     const deleteActionKey = projectEntryDeleteActionKey(entryKey)
     const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
     const children = [
-      PROJECT_ENTRY_RENAME_ACTION_KEY,
+      ...(item.renamable === false ? [] : [PROJECT_ENTRY_RENAME_ACTION_KEY]),
       deleteActionKey,
       PROJECT_ENTRY_REVEAL_ACTION_KEY,
       PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
@@ -1376,7 +1377,9 @@ const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>
       children: [confirmDeleteActionKey],
     })
     actions.set(confirmDeleteActionKey, {
-      title: t('sidebar.fileActions.confirmDeleteFile', { fileName: item.label }),
+      title: t('sidebar.fileActions.confirmDeleteFile', {
+        fileName: entryKey.split(/[\\/]/).pop() ?? item.label,
+      }),
       icon: 'action.delete',
       iconTone: 'danger',
     })
@@ -1455,6 +1458,7 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
       '.ocproject',
       '.ocfonts',
       '.ocicons',
+      '.ocblocks',
       '.oclocale',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
@@ -1804,6 +1808,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
               key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newIconRegistry'),
               icon: 'file.package-variant' as const,
+            }] : []),
+            ...(!hasRootProjectFile('.ocblocks') ? [{
+              key: PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY,
+              title: t('sidebar.fileActions.newCustomBlockRegistry'),
+              icon: 'file.custom-block' as const,
             }] : []),
             ...(!hasRootProjectFile('.oclocale') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
@@ -2276,6 +2285,10 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       await createProjectSpecialFile('.ocicons')
       return
     }
+    if (actionKey === PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY) {
+      await createProjectSpecialFile('.ocblocks')
+      return
+    }
     if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
       await createProjectSpecialFile('.oclocale')
       return
@@ -2324,10 +2337,11 @@ function getProjectEntryParentPath(): string {
 }
 
 async function createProjectSpecialFile(
-  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.oclocale',
+  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.ocblocks' | '.oclocale',
 ): Promise<void> {
   if (!projectPath.value || hasRootProjectFile(fileName)) return
-  await createFile(fileName, '{}')
+  const content = fileName === '.ocblocks' ? '{\n  "blocks": []\n}\n' : '{}'
+  await createFile(fileName, content)
   const path = `${projectPath.value}/${fileName}`
   selectedFileKeys.value = [path]
   await openEditorSession(path)
@@ -2639,7 +2653,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         continue
       }
 
-      if (kind === 'card') {
+      if (kind === 'card' || kind === 'custom-block') {
         await openEditorSession(normalizedPath)
         showPrimaryShellPage('workbench')
         continue
@@ -3129,8 +3143,10 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
   void startAppUpdater()
-  void loadSystemFontFamilies()
-  void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
+  if (isTauri()) {
+    void loadSystemFontFamilies()
+    void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
+  }
 })
 
 onUnmounted(() => {

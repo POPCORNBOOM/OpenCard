@@ -11,6 +11,16 @@ import {
 } from './schema'
 
 describe('property binding schema policy', () => {
+  function visibleFieldsByCategory(typeName: string): Record<string, string[]> {
+    const groups: Record<string, string[]> = {}
+    for (const [fieldKey, definition] of Object.entries(getTypePropertyEditorSchema(typeName))) {
+      if (definition.isHidden) continue
+      const category = definition.categoryId ?? 'uncategorized'
+      ;(groups[category] ??= []).push(fieldKey)
+    }
+    return groups
+  }
+
   it('allows scalar fields by default and requires explicit blacklisting', () => {
     const schema = getTypePropertyEditorSchema('text-block')
 
@@ -45,15 +55,15 @@ describe('property binding schema policy', () => {
   it('keeps optional document metadata addable in one category', () => {
     const schema = getTypePropertyEditorSchema('card-document')
 
-    expect(schema.name).toMatchObject({ fieldType: 'string', categoryId: 'identity' })
+    expect(schema.name).toMatchObject({ fieldType: 'string', categoryId: 'general' })
     expect(schema.description).toMatchObject({
       fieldType: 'string',
-      categoryId: 'identity',
+      categoryId: 'general',
       multiline: true,
     })
     expect(schema.notes).toMatchObject({
       fieldType: 'string',
-      categoryId: 'identity',
+      categoryId: 'general',
       multiline: true,
     })
     expect(schema.name?.deletable).toBeUndefined()
@@ -105,9 +115,73 @@ describe('property binding schema policy', () => {
     const textSchema = getTypePropertyEditorSchema('text-block')
     const shapeSchema = getTypePropertyEditorSchema('shape-block')
 
-    expect(textSchema.color?.categoryId).toBe('typography')
-    expect(textSchema.customCss?.categoryId).toBe('custom')
-    expect(shapeSchema.shape?.categoryId).toBe('appearance')
+    expect(textSchema.fontFamily?.categoryId).toBe('textStyle')
+    expect(textSchema.fontSize?.categoryId).toBe('textStyle')
+    expect(textSchema.fontWeight?.categoryId).toBe('textStyle')
+    expect(textSchema.color?.categoryId).toBe('textStyle')
+    expect(textSchema.textAlign?.categoryId).toBe('textLayout')
+    expect(textSchema.customCss?.categoryId).toBe('advanced')
+    expect(shapeSchema.shape?.categoryId).toBe('content')
+    expect(shapeSchema.fill?.categoryId).toBe('graphicStyle')
+    expect(getTypePropertyEditorSchema('flow-container-block').clip?.categoryId).toBe('container')
+  })
+
+  it('maps every visible Block and Location field to the task-oriented category contract', () => {
+    const commonBlock = {
+      general: ['name', 'notes'],
+      size: ['width', 'height'],
+      transform: ['transformAnchor', 'translateX', 'translateY', 'rotation', 'scaleX', 'scaleY'],
+      layer: ['visible', 'zIndex', 'opacity'],
+      surface: ['background', 'borderColor', 'borderWidth', 'borderStyle', 'borderRadius'],
+      advanced: ['customCss', 'id', 'type'],
+    }
+    const expected = {
+      'text-block': {
+        ...commonBlock,
+        content: ['content'],
+        textStyle: ['fontFamily', 'fontSize', 'fontWeight', 'color'],
+        textLayout: ['lineHeight', 'textAlign', 'verticalAlign', 'writingMode'],
+      },
+      'markdown-text-block': {
+        ...commonBlock,
+        content: ['content'],
+        textStyle: ['fontFamily', 'fontSize', 'fontWeight', 'color'],
+        textLayout: ['lineHeight', 'textAlign', 'verticalAlign', 'writingMode'],
+      },
+      'image-block': { ...commonBlock, content: ['image', 'fit'] },
+      'qrcode-block': {
+        ...commonBlock,
+        content: ['content', 'errorCorrection', 'quietZone'],
+        graphicStyle: ['foreground', 'backgroundColor'],
+      },
+      'shape-block': {
+        ...commonBlock,
+        content: ['shape'],
+        graphicStyle: [
+          'fill', 'stroke', 'strokeWidth', 'strokeStyle', 'strokeAlignment',
+          'strokeJoin', 'strokeCap', 'strokeMiterLimit',
+        ],
+      },
+      'simple-container-block': { ...commonBlock, container: ['clip'] },
+      'flow-container-block': { ...commonBlock, container: ['clip', 'direction', 'gap'] },
+      'custom-block': {
+        general: ['name', 'notes'],
+        layer: ['visible'],
+        advanced: ['source'],
+      },
+      'simple-container-location': {
+        advanced: ['id', 'type'],
+        position: ['anchor', 'x', 'y'],
+      },
+      'flow-container-location': {
+        advanced: ['id', 'type'],
+        position: ['index', 'align'],
+      },
+    }
+
+    for (const [typeName, categories] of Object.entries(expected)) {
+      expect(visibleFieldsByCategory(typeName), typeName).toEqual(categories)
+    }
   })
 
   it('assigns every visible native field to a registered category', () => {
@@ -138,6 +212,26 @@ describe('property binding schema policy', () => {
         }
       }
     }
+  })
+
+  it('keeps categories in the task workflow order used by PropertyEditor', () => {
+    expect(Object.keys(propertyEditorCategoryDefinitions)).toEqual([
+      'general',
+      'content',
+      'size',
+      'container',
+      'position',
+      'transform',
+      'layer',
+      'textStyle',
+      'textLayout',
+      'surface',
+      'graphicStyle',
+      'customFields',
+      'advanced',
+      'data',
+      'uncategorized',
+    ])
   })
 
   it('marks text content with explicit rich-text editing capability', () => {

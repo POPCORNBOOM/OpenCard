@@ -77,6 +77,20 @@ describe('OcTree', () => {
     expect(wrapper.get('.oc-tree__description').text()).toBe('Update card package')
   })
 
+  it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Icon',
+            thumbnailStyle: { '--oc-project-icon-renderer': 'atlas-crop' },
+          }]],
+        }),
+      },
+    })
+    expect(wrapper.get('.oc-tree__thumbnail').classes()).toContain('oc-project-icon')
+  })
+
   it.each([
     ['expand', ['open', 'parent', 'root']],
     ['expand-exclusive', ['parent', 'root']],
@@ -283,6 +297,26 @@ describe('OcTree', () => {
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
       { type: 'rename.commit', key: 'root', name: 'Renamed' },
     ]])
+  })
+
+  it('applies the consumer-provided rename selection range', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'archive.tar.gz',
+            renamable: true,
+            renameSelection: { start: 0, end: 11 },
+          }]],
+        }),
+      },
+    })
+
+    await (wrapper.vm as unknown as { beginRename: (key: string) => Promise<void> })
+      .beginRename('root')
+
+    const input = wrapper.get('input').element as HTMLInputElement
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 11])
   })
 
   it('commits rename on a real focus change and cancels it on Escape', async () => {
@@ -519,6 +553,23 @@ describe('OcTree', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.findAllComponents(OcActionButton).map(button => button.props('action').key))
       .toEqual(['top', 'up', 'delete'])
+  })
+
+  it('can keep inline actions visible without row interaction', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'Root', actions: ['move'] }]],
+        }),
+        actions: new Map<string, OcTreeActionDefinition>([
+          ['move', { title: 'Move up', icon: 'nav.arrow-up' }],
+        ]),
+        actionVisibility: 'always',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('are-actions-always-visible')
+    expect(getComputedStyle(wrapper.get('.oc-tree__controls').element).visibility).toBe('visible')
   })
 
   it('opens direct context actions without exposing the inline more wrapper', async () => {
