@@ -26,7 +26,7 @@
         <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
-          :remote-resource-policy="props.remoteResourcePolicy"
+          :remote-resource-policy="effectiveRemoteResourcePolicy"
           :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
@@ -158,7 +158,7 @@
                       :style="transformPreviewViewportStyle">
                       <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
                         :resource-root-path="props.resourceRootPath"
-                        :remote-resource-policy="props.remoteResourcePolicy"
+                        :remote-resource-policy="effectiveRemoteResourcePolicy"
                         :project-icon-catalog="activeRenderEnvironment.projectIconCatalog"
                         :style="transformPreviewRendererStyle" />
                       <button v-if="transformPreviewFrameStyle" type="button"
@@ -501,6 +501,9 @@ const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 const isObserveOnly = computed(() => props.access === 'observe-only')
 const activeRenderEnvironment = computed(() => props.renderEnvironment ?? projectStore.renderEnvironment.value)
+const effectiveRemoteResourcePolicy = computed(() => (
+  props.remoteResourcePolicy ?? activeRenderEnvironment.value.remoteResourcePolicy
+))
 
 const editorRootRef = ref<HTMLElement | null>(null)
 const {
@@ -1079,7 +1082,7 @@ async function refreshCustomBlockExportResourcePreview(root: CardBlock): Promise
       projectFonts: projectStore.projectFonts.value,
       projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
       customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-      remoteResourcePolicy: props.remoteResourcePolicy,
+      remoteResourcePolicy: effectiveRemoteResourcePolicy.value,
       fs: fileSystemService,
       fetchBytes: url => fetchProjectCustomBlockImageBytes(url),
     })
@@ -1164,7 +1167,7 @@ async function handleCustomBlockExport(payload: { name: string; key: string; exp
       projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
       customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
       customBlockRuntimeCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
-      remoteResourcePolicy: props.remoteResourcePolicy,
+      remoteResourcePolicy: effectiveRemoteResourcePolicy.value,
       fs: fileSystemService,
     })
     if (result.status === 'cancelled') return
