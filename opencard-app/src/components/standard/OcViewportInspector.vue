@@ -2,20 +2,18 @@
   <section ref="rootRef" class="oc-viewport-inspector"
     :class="{ 'is-expanded': expanded }"
     :style="rootStyle">
-    <div v-if="expanded" class="oc-viewport-inspector__resizebar">
-      <OcResizeHandle
-        :minimum="minimumHeight"
-        :maximum="maximumHeight"
-        :value="actualHeight"
-        :label="resizeLabel"
-        orientation="horizontal"
-        direction="reverse"
-        @resize-start="handleResizeStart"
-        @update:value="updateHeight"
-        @resize="handleResize"
-        @resize-cancel="handleResizeCancel"
-      />
-    </div>
+    <OcResizeTrack v-if="expanded" class="oc-viewport-inspector__resizebar"
+      :minimum="minimumHeight"
+      :maximum="maximumHeight"
+      :value="actualHeight"
+      :label="resizeLabel"
+      orientation="horizontal"
+      direction="reverse"
+      @resize-start="handleResizeStart"
+      @update:value="updateHeight"
+      @resize="handleResize"
+      @resize-cancel="handleResizeCancel"
+    />
     <OcCard fill variant="glass" :title="heading" :actions="cardActions" :collapsed="!expanded"
       @action="handleAction">
       <slot />
@@ -26,7 +24,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import OcCard, { type OcCardAction } from './OcCard.vue'
-import OcResizeHandle, { type OcResizeHandleChange } from './OcResizeHandle.vue'
+import OcResizeTrack from './OcResizeTrack.vue'
+import type { OcResizeHandleChange } from './OcResizeHandle.vue'
 
 const TOGGLE_ACTION_KEY = 'viewport-inspector.toggle'
 
@@ -177,6 +176,8 @@ onBeforeUnmount(() => {
 }
 
 .oc-viewport-inspector.is-expanded {
+  display: grid;
+  grid-template-rows: var(--oc-resize-track-size, var(--oc-space-3)) minmax(0, 1fr);
   height: var(
     --oc-viewport-inspector-current-height,
     var(--oc-viewport-inspector-default-height)
@@ -188,15 +189,8 @@ onBeforeUnmount(() => {
 }
 
 .oc-viewport-inspector__resizebar {
-  position: absolute;
-  top: calc(var(--oc-space-3) / -2);
-  right: 0;
-  left: 0;
+  position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--oc-space-3);
   min-width: 0;
   cursor: row-resize;
   touch-action: none;

@@ -18,7 +18,7 @@
         class="cde-overlay-dock__split-handle"
         :style="splitHandleStyle"
       >
-        <OcResizeHandle
+        <OcResizeTrack
           :minimum="props.topMinHeight"
           :maximum="splitMaximum"
           :value="splitHandleValue"
@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <OcResizeHandle
+    <OcResizeTrack
       class="cde-overlay-dock__width-handle"
       :minimum="props.collapsedExtent"
       :maximum="props.maxExtent"
@@ -49,14 +49,14 @@
       @resize="handleWidthResize"
       @resize-end="handleWidthResizeEnd"
       @resize-cancel="handleWidthResizeCancel"
-      @dblclick="handleWidthDoubleClick"
+      @double-click="handleWidthDoubleClick"
     />
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
-import OcResizeHandle from '../../components/standard/OcResizeHandle.vue'
+import OcResizeTrack from '../../components/standard/OcResizeTrack.vue'
 import {
   resolveCdeOverlayDockGeometry,
   settleCdeOverlayExtent,
