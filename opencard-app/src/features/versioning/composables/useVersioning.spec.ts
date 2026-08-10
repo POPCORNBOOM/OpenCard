@@ -44,6 +44,7 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
       prepareCompare: vi.fn(async request => ({
         projectId: request.projectId,
         generation: request.generation,
@@ -144,6 +145,16 @@ describe('useVersioning project preparation', () => {
       }),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(async request => ({ projectId: request.projectId, deleted: true, warnings: [] })),
+      findLocalHistoryFiles: vi.fn(async request => ({
+        projectId: request.projectId,
+        items: [{
+          relativePath: request.cursor ? 'notes/two.md' : 'notes/one.md',
+          latestEntryAtUnixMs: request.cursor ? 2 : 1,
+          entryCount: 1,
+          currentlyExists: !request.cursor,
+        }],
+        nextCursor: request.cursor ? null : 'next',
+      })),
       restoreLocalHistory: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
@@ -179,6 +190,15 @@ describe('useVersioning project preparation', () => {
       entryId: 'local-1',
     }))
     expect(service.listFileHistory).toHaveBeenCalledTimes(3)
+
+    await versioning.findLocalHistoryFiles('notes')
+    await versioning.findLocalHistoryFiles('notes', versioning.nextLocalHistoryFilesCursor.value)
+
+    expect(versioning.localHistoryFiles.value.map(item => item.relativePath)).toEqual([
+      'notes/one.md',
+      'notes/two.md',
+    ])
+    expect(versioning.nextLocalHistoryFilesCursor.value).toBeNull()
     versioning.dispose()
   })
 
@@ -220,6 +240,7 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
@@ -289,6 +310,7 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
@@ -332,6 +354,7 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
@@ -418,6 +441,7 @@ describe('useVersioning project preparation', () => {
       listLocalHistory: vi.fn(),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
       prepareCompare: vi.fn(),
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),

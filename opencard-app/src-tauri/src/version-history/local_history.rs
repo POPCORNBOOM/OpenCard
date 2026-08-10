@@ -1,7 +1,7 @@
 use super::*;
 use git2::{ObjectType, Oid};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -145,6 +145,35 @@ pub struct LocalHistoryDeleteResponse {
     pub project_id: String,
     pub deleted: bool,
     pub warnings: Vec<LocalHistoryWarningDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryFileRecordDto {
+    pub relative_path: String,
+    pub latest_entry_at_unix_ms: u64,
+    pub entry_count: usize,
+    pub currently_exists: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryFindFilesRequest {
+    pub operation_id: String,
+    pub project_root: String,
+    pub project_id: String,
+    pub generation: u64,
+    pub query: String,
+    pub cursor: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryFindFilesResponse {
+    pub project_id: String,
+    pub items: Vec<LocalHistoryFileRecordDto>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -305,6 +334,33 @@ pub async fn local_history_delete(
 }
 
 #[tauri::command]
+pub async fn local_history_find_files(
+    request: LocalHistoryFindFilesRequest,
+    app_handle: tauri::AppHandle,
+) -> Result<LocalHistoryFindFilesResponse, VersionErrorDto> {
+    let operation = "local_history_find_files";
+    validate_find_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        find_files(&context, &request.query, request.cursor.as_deref(), request.limit)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
 pub async fn local_history_restore(
     request: LocalHistoryRestoreRequest,
     app_handle: tauri::AppHandle,
@@ -380,6 +436,28 @@ fn validate_entry_request(request: &LocalHistoryEntryRequest) -> Result<(), Hist
             "validate-entry",
             "invalid Local History entry id",
         ));
+    }
+    Ok(())
+}
+
+fn validate_find_request(request: &LocalHistoryFindFilesRequest) -> Result<(), HistoryFailure> {
+    let _request_generation = request.generation;
+    validate_common_request(
+        &request.operation_id,
+        &request.project_root,
+        &request.project_id,
+    )?;
+    if request.query.len() > 500 {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-query",
+            "Local History search query is too long",
+        ));
+    }
+    if let Some(cursor) = request.cursor.as_deref() {
+        cursor.parse::<usize>().map_err(|_| {
+            HistoryFailure::new("invalid-request", "validate-cursor", "invalid Local History cursor")
+        })?;
     }
     Ok(())
 }
@@ -981,6 +1059,114 @@ fn load_entries(resolved: &ResolvedHistoryPath) -> Result<LoadedEntries, History
     Ok(LoadedEntries { entries, warnings })
 }
 
+fn find_files(
+    context: &ProjectHistoryContext,
+    query: &str,
+    cursor: Option<&str>,
+    limit: Option<usize>,
+) -> Result<LocalHistoryFindFilesResponse, HistoryFailure> {
+    let start = cursor
+        .unwrap_or("0")
+        .parse::<usize>()
+        .map_err(|_| HistoryFailure::new("invalid-request", "validate-cursor", "invalid Local History cursor"))?;
+    let limit = limit.unwrap_or(50).clamp(1, 100);
+    let query = query.trim().to_lowercase();
+    let history_root = context.project_history_root.join("local-history");
+    let mut records = BTreeMap::<String, Vec<LocalHistoryEntryDto>>::new();
+
+    let directories = match fs::read_dir(&history_root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(LocalHistoryFindFilesResponse {
+                project_id: context.project_id.clone(),
+                items: Vec::new(),
+                next_cursor: None,
+            })
+        }
+        Err(error) => {
+            return Err(
+                HistoryFailure::new("history-io", "find-files", error.to_string()).retryable(),
+            )
+        }
+    };
+
+    for directory in directories {
+        let Ok(directory) = directory else { continue };
+        let path = directory.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let manifest_path = path.join("entries.json");
+        let bytes = match fs::read(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(_) => continue,
+        };
+        let manifest: LocalHistoryManifest = match serde_json::from_slice::<LocalHistoryManifest>(&bytes) {
+            Ok(manifest) if manifest.schema_version == LOCAL_HISTORY_SCHEMA_VERSION => manifest,
+            _ => continue,
+        };
+        for entry in manifest.entries {
+            if entry.schema_version != LOCAL_HISTORY_SCHEMA_VERSION
+                || !is_safe_entry_id(&entry.entry_id)
+                || entry.size > MAX_FILE_SIZE
+                || !path.join(format!("{}.bin", entry.entry_id)).is_file()
+            {
+                continue;
+            }
+            let normalized = entry.relative_path.replace('\\', "/");
+            let template_managed = context
+                .template_managed_paths
+                .iter()
+                .any(|path| normalize_path_key(path) == normalize_path_key(&normalized));
+            if resolve_history_path(context, &normalized, false).is_err()
+                || !is_managed_file(&normalized, template_managed)
+            {
+                continue;
+            }
+            if !query.is_empty() && !normalized.to_lowercase().contains(&query) {
+                continue;
+            }
+            records.entry(normalized).or_default().push(entry);
+        }
+    }
+
+    let mut items = records
+        .into_iter()
+        .map(|(relative_path, entries)| {
+            let latest_entry_at_unix_ms = entries
+                .iter()
+                .map(|entry| entry.created_at_unix_ms)
+                .max()
+                .unwrap_or_default();
+            let current_path = context.canonical_root.join(Path::new(&relative_path));
+            let currently_exists = fs::symlink_metadata(&current_path)
+                .map(|metadata| metadata.is_file() && !is_linked_entry(&metadata))
+                .unwrap_or(false);
+            LocalHistoryFileRecordDto {
+                relative_path,
+                latest_entry_at_unix_ms,
+                entry_count: entries.len(),
+                currently_exists,
+            }
+        })
+        .collect::<Vec<_>>();
+    items.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    if start >= items.len() {
+        return Ok(LocalHistoryFindFilesResponse {
+            project_id: context.project_id.clone(),
+            items: Vec::new(),
+            next_cursor: None,
+        });
+    }
+    let end = (start + limit).min(items.len());
+    let next_cursor = (end < items.len()).then(|| end.to_string());
+    Ok(LocalHistoryFindFilesResponse {
+        project_id: context.project_id.clone(),
+        items: items.into_iter().skip(start).take(limit).collect(),
+        next_cursor,
+    })
+}
+
 fn cleanup_orphans(
     directory: &Path,
     referenced_files: &BTreeSet<String>,
@@ -1302,5 +1488,31 @@ mod tests {
         }
         let listed = list_entries(&context, "notes.txt").unwrap();
         assert_eq!(listed.items.len(), LOCAL_HISTORY_LIMIT);
+    }
+
+    #[test]
+    fn finds_existing_and_deleted_paths_with_query_and_cursor() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(project.path().join("notes.txt"), b"notes").unwrap();
+        fs::write(project.path().join("deleted.md"), b"deleted").unwrap();
+        let context = context(project.path(), storage.path());
+        record(&context, "notes.txt", "manual-save", b"notes");
+        record(&context, "deleted.md", "manual-save", b"deleted");
+        fs::remove_file(project.path().join("deleted.md")).unwrap();
+
+        let first = find_files(&context, "", None, Some(1)).unwrap();
+        assert_eq!(first.items.len(), 1);
+        assert_eq!(first.items[0].relative_path, "deleted.md");
+        assert!(!first.items[0].currently_exists);
+        assert_eq!(first.next_cursor.as_deref(), Some("1"));
+
+        let second = find_files(&context, "", first.next_cursor.as_deref(), Some(1)).unwrap();
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.items[0].relative_path, "notes.txt");
+        assert!(second.items[0].currently_exists);
+        assert!(second.next_cursor.is_none());
+        let query = find_files(&context, "NOTES", None, Some(50)).unwrap();
+        assert_eq!(query.items.iter().map(|item| item.relative_path.as_str()).collect::<Vec<_>>(), ["notes.txt"]);
     }
 }

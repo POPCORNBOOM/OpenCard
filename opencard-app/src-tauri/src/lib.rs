@@ -284,6 +284,7 @@ pub fn run() {
             version_history::local_history::local_history_list,
             version_history::local_history::local_history_read,
             version_history::local_history::local_history_delete,
+            version_history::local_history::local_history_find_files,
             version_history::local_history::local_history_restore,
         ])
         .build(tauri::generate_context!())

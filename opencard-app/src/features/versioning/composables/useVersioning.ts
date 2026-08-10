@@ -15,6 +15,7 @@ import type {
   VersionStatusDto,
   VersionRecordDto,
   LocalHistoryEntryDto,
+  LocalHistoryFileRecordDto,
   CompareSession,
   VersionWriteState,
   SaveVersionConfirmation,
@@ -49,6 +50,8 @@ export function useVersioning(options: UseVersioningOptions) {
   const versions = ref<VersionRecordDto[]>([])
   const fileVersions = ref<VersionRecordDto[]>([])
   const localHistory = ref<LocalHistoryEntryDto[]>([])
+  const localHistoryFiles = ref<LocalHistoryFileRecordDto[]>([])
+  const nextLocalHistoryFilesCursor = ref<string | null>(null)
   const historyPath = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
@@ -70,6 +73,8 @@ export function useVersioning(options: UseVersioningOptions) {
     versions.value = []
     fileVersions.value = []
     localHistory.value = []
+    localHistoryFiles.value = []
+    nextLocalHistoryFilesCursor.value = null
     historyPath.value = null
     nextVersionCursor.value = null
     saveVersionConfirmation.value = null
@@ -594,6 +599,32 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function findLocalHistoryFiles(query: string, cursor: string | null = null): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready') return
+    try {
+      const response = await service.findLocalHistoryFiles({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        query,
+        cursor,
+        limit: 50,
+      })
+      if (projectRoot !== options.projectPath.value || identity.value?.projectId !== response.projectId) return
+      localHistoryFiles.value = cursor
+        ? [...localHistoryFiles.value, ...response.items]
+        : response.items
+      nextLocalHistoryFilesCursor.value = response.nextCursor
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7001', error)
+      throw error
+    }
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -648,6 +679,8 @@ export function useVersioning(options: UseVersioningOptions) {
     versions: readonly(versions),
     fileVersions: readonly(fileVersions),
     localHistory: readonly(localHistory),
+    localHistoryFiles: readonly(localHistoryFiles),
+    nextLocalHistoryFilesCursor: readonly(nextLocalHistoryFilesCursor),
     historyPath: readonly(historyPath),
     compareSession: readonly(compareSession),
     nextVersionCursor: readonly(nextVersionCursor),
@@ -669,6 +702,7 @@ export function useVersioning(options: UseVersioningOptions) {
     restoreProject,
     restoreLocalHistory,
     deleteLocalHistory,
+    findLocalHistoryFiles,
     dispose,
   }
 }

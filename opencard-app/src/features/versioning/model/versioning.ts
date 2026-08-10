@@ -144,6 +144,25 @@ export type LocalHistoryDeleteResponse = {
   warnings: Array<{ code: string; entryId: string | null }>
 }
 
+export type LocalHistoryFileRecordDto = {
+  relativePath: string
+  latestEntryAtUnixMs: number
+  entryCount: number
+  currentlyExists: boolean
+}
+
+export type LocalHistoryFindFilesRequest = VersionProjectRequest & {
+  query: string
+  cursor?: string | null
+  limit?: number
+}
+
+export type LocalHistoryFindFilesResponse = {
+  projectId: string
+  items: LocalHistoryFileRecordDto[]
+  nextCursor: string | null
+}
+
 export type LocalHistoryRestoreRequest = LocalHistoryEntryRequest & {
   expectedContentOid: string | null
 }
