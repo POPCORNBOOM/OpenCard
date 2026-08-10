@@ -77,6 +77,24 @@ describe('OcTree', () => {
     expect(wrapper.get('.oc-tree__description').text()).toBe('Update card package')
   })
 
+  it('renders change markers without replacing the node icon', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Card',
+            icon: 'entity.card-instance',
+            changeMarkers: [{ icon: 'action.add', tone: 'success' }],
+          }]],
+        }),
+      },
+    })
+
+    expect(wrapper.findAll('.oc-icon')).toHaveLength(2)
+    expect(wrapper.get('.oc-tree__node-icon').attributes('style')).toContain('var(--oc-icon-default)')
+    expect(wrapper.get('.oc-tree__change-markers .oc-icon').attributes('style')).toContain('var(--oc-icon-success)')
+  })
+
   it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
     const wrapper = mount(OcTree, {
       props: {

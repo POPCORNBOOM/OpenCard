@@ -58,6 +58,8 @@ describe('useCdeTreeOps active face boundary', () => {
       refreshDocumentState: vi.fn(),
       markDocumentChanged: vi.fn(),
       readOnly,
+      comparisonRole: ref('current'),
+      comparisonChangedBlockIds: ref(['front-text']),
     })
 
     expect(state.blockTreeData.value.items.get('front-text')).toMatchObject({
@@ -65,6 +67,8 @@ describe('useCdeTreeOps active face boundary', () => {
       draggable: false,
       actions: [],
       contextActions: [],
+      icon: 'entity.block-text',
+      changeMarkers: [{ icon: 'action.add', tone: 'success' }],
     })
     state.handleTreeIntent({
       type: 'selection.change', triggerKey: 'front-text', selectedKeys: ['front-text'], mode: 'replace', input: 'left',

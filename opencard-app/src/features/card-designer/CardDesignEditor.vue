@@ -896,6 +896,9 @@ const {
   refreshDocumentState,
   markDocumentChanged,
   readOnly: isObserveOnly,
+  comparisonRole: toRef(props, 'comparisonRole'),
+  comparisonChangedInstanceIds: toRef(props, 'comparisonChangedInstanceIds'),
+  comparisonDocumentChanged: toRef(props, 'comparisonDocumentChanged'),
 })
 
 function duplicateDataTableCard(cardId: string): void {
@@ -1074,6 +1077,8 @@ const {
   refreshDocumentState,
   markDocumentChanged,
   readOnly: isObserveOnly,
+  comparisonRole: toRef(props, 'comparisonRole'),
+  comparisonChangedBlockIds: toRef(props, 'comparisonChangedBlockIds'),
 })
 const expandedBlockKeys = ref<string[]>([])
 

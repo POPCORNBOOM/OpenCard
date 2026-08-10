@@ -6,7 +6,10 @@ import enUS from '../../../locales/en-US'
 vi.mock('../../card-designer/CardDesignEditor.vue', () => ({
   default: {
     name: 'CardDesignEditor',
-    props: ['comparisonLayout', 'comparisonRole', 'comparisonSelectedBlockId', 'cardDesignerView', 'viewportTransform'],
+    props: [
+      'comparisonLayout', 'comparisonRole', 'comparisonSelectedBlockId', 'comparisonChangedBlockIds',
+      'comparisonChangedInstanceIds', 'comparisonDocumentChanged', 'cardDesignerView', 'viewportTransform',
+    ],
     emits: ['update-card-comparison-layout', 'update-card-comparison-selection'],
     template: '<button class="card-editor-stub" @click="$emit(\'update-card-comparison-layout\', \'vertical\')">{{ comparisonRole }}|{{ comparisonLayout }}|{{ comparisonSelectedBlockId }}</button>',
   },
@@ -29,12 +32,27 @@ const side = (rootPath: string) => ({
 
 describe('SnapshotCardDiffEditor', () => {
   it('shares selection and viewport state while keeping one inspector side per layout', async () => {
+    const historical = {
+      type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '640', height: '900',
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '#000', children: [{
+          block: { type: 'text-block', id: 'title', content: 'Old' },
+          location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+        }] },
+        back: { type: 'card-face', id: 'back', background: '#000', children: [] },
+      },
+      instances: [],
+    }
+    const current = structuredClone(historical)
+    current.version = '2'
+    current.faces.front.children[0]!.block.content = 'New'
     const wrapper = mount(SnapshotCardDiffEditor, {
       props: {
         historical: side('D:/historical'),
         current: side('D:/current'),
         comparison: {
-          historicalContent: '{}', currentContent: '{}', historicalLabel: 'v0.0.1', currentLabel: 'Current',
+          historicalContent: JSON.stringify(historical), currentContent: JSON.stringify(current),
+          historicalLabel: 'v0.0.1', currentLabel: 'Current',
         },
         fileName: 'main.ocdocument',
         themeId: 'dark',
@@ -49,6 +67,10 @@ describe('SnapshotCardDiffEditor', () => {
       'historical|horizontal|',
       'current|horizontal|',
     ])
+    for (const editor of wrapper.findAllComponents({ name: 'CardDesignEditor' })) {
+      expect(editor.props('comparisonChangedBlockIds')).toEqual(['title'])
+      expect(editor.props('comparisonDocumentChanged')).toBe(true)
+    }
 
     await wrapper.findAll('.card-editor-stub')[1]!.trigger('click')
     expect(wrapper.findAll('.card-editor-stub')).toHaveLength(2)

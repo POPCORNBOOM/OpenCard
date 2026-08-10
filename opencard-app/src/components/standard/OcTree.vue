@@ -112,6 +112,11 @@
           {{ entry.item.tail }}
         </OcText>
 
+        <span v-if="entry.item.changeMarkers?.length" class="oc-tree__change-markers" aria-hidden="true">
+          <OcIcon v-for="(marker, index) in entry.item.changeMarkers" :key="`${marker.icon}:${index}`"
+            :name="marker.icon" size="sm" :tone="marker.tone" :data-tooltip="marker.label" />
+        </span>
+
         <span class="oc-tree__controls" data-tree-interactive="true">
           <OcActionButton
             v-for="action in resolveItemActions(entry.key)"
@@ -1088,6 +1093,13 @@ onBeforeUnmount(() => {
 .oc-tree__tail {
   flex: 0 1 auto;
   min-width: 0;
+}
+
+.oc-tree__change-markers {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--oc-space-1);
 }
 
 .oc-tree__rename-input {

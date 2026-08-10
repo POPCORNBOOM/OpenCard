@@ -25,6 +25,11 @@ export interface OcTreeItem {
   renameSelection?: OcTreeRenameSelection
   icon?: IconToken
   iconTone?: IconTone
+  changeMarkers?: readonly {
+    icon: IconToken
+    tone?: IconTone
+    label?: string
+  }[]
   thumbnailStyle?: Readonly<Record<string, string>>
   thumbnailLabel?: string
   disabled?: boolean

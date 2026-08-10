@@ -24,6 +24,9 @@
         :comparison-layout="comparisonLayout"
         :comparison-role="side.key"
         :comparison-selected-block-id="selectedBlockId"
+        :comparison-changed-block-ids="comparisonChanges?.blockIds ? [...comparisonChanges.blockIds] : undefined"
+        :comparison-changed-instance-ids="comparisonChanges?.instanceIds ? [...comparisonChanges.instanceIds] : undefined"
+        :comparison-document-changed="comparisonChanges?.documentChanged"
         :theme-id="themeId"
         :theme-overrides="themeOverrides"
         :render-environment="side.environment"
@@ -42,11 +45,13 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
+import { parseCardDocument } from '../../../entities/card/storage'
 import type { CardDesignerViewState, EditorViewportTransform } from '../../editor-runtime/model/editorUiState'
 import type { CardComparisonLayout } from '../../editor-runtime/model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import type { SnapshotDescriptorDto } from '../model/versioning'
+import { createCardComparisonChanges, type CardComparisonChanges } from '../model/cardComparison'
 import {
   createSnapshotProjectRenderSession,
   type SnapshotProjectRenderSession,
@@ -70,6 +75,16 @@ const view = ref<CardDesignerViewState>({
 const viewportTransform = ref<EditorViewportTransform>({ x: 0, y: 0, scale: 1 })
 const selectedBlockId = ref<string | null>(null)
 const comparisonLayout = ref<CardComparisonLayout>('horizontal')
+const comparisonChanges = computed<CardComparisonChanges | null>(() => {
+  try {
+    return createCardComparisonChanges(
+      parseCardDocument(JSON.parse(props.comparison.historicalContent) as unknown),
+      parseCardDocument(JSON.parse(props.comparison.currentContent) as unknown),
+    )
+  } catch {
+    return null
+  }
+})
 const renderSessions = shallowRef<Record<'historical' | 'current', SnapshotProjectRenderSession | null>>({
   historical: null,
   current: null,

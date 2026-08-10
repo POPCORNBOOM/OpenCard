@@ -23,6 +23,9 @@ describe('useCdeInstanceOps tree actions', () => {
       refreshDocumentState: vi.fn(),
       markDocumentChanged: vi.fn(),
       readOnly: ref(true),
+      comparisonRole: ref('historical'),
+      comparisonChangedInstanceIds: ref(['instance-1']),
+      comparisonDocumentChanged: ref(true),
     })
 
     expect(state.instanceTreeData.value.items.get('instance-1')).toMatchObject({
@@ -30,7 +33,11 @@ describe('useCdeInstanceOps tree actions', () => {
       draggable: false,
       actions: [],
       contextActions: [],
+      icon: 'entity.card-instance',
+      changeMarkers: [{ icon: 'action.remove', tone: 'danger' }],
     })
+    expect(state.instanceTreeData.value.items.get('__blueprint__')?.changeMarkers)
+      .toEqual([{ icon: 'action.remove', tone: 'danger' }])
     state.handleInstanceTreeIntent({
       type: 'selection.change', triggerKey: 'instance-1', selectedKeys: ['instance-1'], mode: 'replace', input: 'left',
     })

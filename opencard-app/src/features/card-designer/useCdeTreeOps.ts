@@ -37,6 +37,8 @@ type UseCdeTreeOpsOptions = {
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
   readOnly?: Readonly<Ref<boolean>>
+  comparisonRole?: Readonly<Ref<'historical' | 'current' | undefined>>
+  comparisonChangedBlockIds?: Readonly<Ref<readonly string[] | undefined>>
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
@@ -68,10 +70,16 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       const visibility = block.visible === 'false' ? 'hidden' : 'visible'
       const presentation = getBlockPresentation(block.type)
       const readOnly = options.readOnly?.value ?? false
+      const changed = options.comparisonChangedBlockIds?.value?.includes(block.id) ?? false
+      const comparisonRole = options.comparisonRole?.value
       items.set(block.id, {
         label: block.name?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
+        changeMarkers: changed && comparisonRole ? [{
+          icon: comparisonRole === 'historical' ? 'action.remove' : 'action.add',
+          tone: comparisonRole === 'historical' ? 'danger' : 'success',
+        }] : undefined,
         renamable: !readOnly,
         draggable: !readOnly,
         actions: readOnly ? [] : [

@@ -130,7 +130,11 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     expect(wrapper.find('button').exists()).toBe(false)
     const tree = wrapper.getComponent(OcTree)
     const removed = tree.props('data').items.get('blocks/removed.ocblock')
-    expect(removed).toMatchObject({ icon: 'action.remove', iconTone: 'danger', actions: [] })
+    expect(removed).toMatchObject({
+      icon: 'file.custom-block',
+      changeMarkers: [{ icon: 'action.remove', tone: 'danger' }],
+      actions: [],
+    })
     tree.vm.$emit('intent', {
       type: 'action.invoke', key: 'blocks/removed.ocblock', actionKey: 'remove', source: 'inline',
     })

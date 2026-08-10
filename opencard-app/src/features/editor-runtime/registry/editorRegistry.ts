@@ -51,6 +51,9 @@ export interface EditorProps {
   comparisonLayout?: CardComparisonLayout
   comparisonRole?: CardComparisonRole
   comparisonSelectedBlockId?: string | null
+  comparisonChangedBlockIds?: readonly string[]
+  comparisonChangedInstanceIds?: readonly string[]
+  comparisonDocumentChanged?: boolean
 }
 
 export interface EditorEmits {

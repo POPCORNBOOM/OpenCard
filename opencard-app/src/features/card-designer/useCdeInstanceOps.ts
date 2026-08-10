@@ -13,6 +13,9 @@ type UseCdeInstanceOpsOptions = {
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
   readOnly?: Readonly<Ref<boolean>>
+  comparisonRole?: Readonly<Ref<'historical' | 'current' | undefined>>
+  comparisonChangedInstanceIds?: Readonly<Ref<readonly string[] | undefined>>
+  comparisonDocumentChanged?: Readonly<Ref<boolean | undefined>>
 }
 
 export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
@@ -30,6 +33,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     items.set(options.blueprintCardId, {
       label: '蓝图',
       icon: 'entity.card-blueprint',
+      changeMarkers: options.comparisonDocumentChanged?.value && options.comparisonRole?.value ? [{
+        icon: options.comparisonRole.value === 'historical' ? 'action.remove' : 'action.add',
+        tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
+      }] : undefined,
     })
 
     for (const [index, instance] of (options.cardDoc.value?.instances ?? []).entries()) {
@@ -39,6 +46,11 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       items.set(key, {
         label: instance.name?.trim() || key,
         icon: 'entity.card-instance',
+        changeMarkers: options.comparisonChangedInstanceIds?.value?.includes(instance.id)
+          && options.comparisonRole?.value ? [{
+            icon: options.comparisonRole.value === 'historical' ? 'action.remove' : 'action.add',
+            tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
+          }] : undefined,
         renamable: !readOnly,
         draggable: !readOnly,
         actions: readOnly ? [] : ['instance-more'],
