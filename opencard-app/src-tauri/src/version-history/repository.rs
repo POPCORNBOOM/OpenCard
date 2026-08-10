@@ -140,6 +140,7 @@ pub struct VersionChangeCountsDto {
 pub struct VersionRecordDto {
     pub(super) commit_id: String,
     parent_commit_id: Option<String>,
+    previous_version: Option<String>,
     version: String,
     kind: String,
     description: String,
@@ -2380,18 +2381,20 @@ fn version_record(
             .tree()
             .map_err(repository_error("read-version-tree"))?,
     )?;
-    let parent_entries = if commit.parent_count() == 0 {
-        BTreeMap::new()
+    let (parent_entries, previous_version) = if commit.parent_count() == 0 {
+        (BTreeMap::new(), None)
     } else if commit.parent_count() == 1 {
         let parent = commit
             .parent(0)
             .map_err(repository_error("read-version-parent"))?;
-        tree_entries(
+        let previous_version = parse_commit_metadata(&parent)?.version;
+        let entries = tree_entries(
             repository,
             &parent
                 .tree()
                 .map_err(repository_error("read-version-tree"))?,
-        )?
+        )?;
+        (entries, Some(previous_version))
     } else {
         return Err(HistoryFailure::new(
             "history-corrupt",
@@ -2415,6 +2418,7 @@ fn version_record(
         } else {
             None
         },
+        previous_version,
         version: metadata.version.clone(),
         kind: metadata.kind,
         description: metadata.description,
@@ -3145,6 +3149,7 @@ mod tests {
 
         assert_eq!(first.version.version, "0.2.4");
         assert_eq!(first.version.parent_commit_id, None);
+        assert_eq!(first.version.previous_version, None);
         assert_eq!(first.change_summary.added, 2);
         let profile: serde_json::Value =
             serde_json::from_slice(&fs::read(project.path().join(".ocproject")).unwrap()).unwrap();
@@ -3178,6 +3183,7 @@ mod tests {
             second.version.parent_commit_id,
             Some(first.version.commit_id)
         );
+        assert_eq!(second.version.previous_version.as_deref(), Some("0.2.4"));
         assert_eq!(second.change_summary.modified, 1);
 
         let first_page = list_versions(

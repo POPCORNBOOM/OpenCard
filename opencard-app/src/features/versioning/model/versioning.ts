@@ -58,6 +58,7 @@ export type ReleaseDto = {
 export type VersionRecordDto = {
   commitId: string
   parentCommitId: string | null
+  previousVersion: string | null
   version: string
   kind: 'saved' | 'restored'
   description: string

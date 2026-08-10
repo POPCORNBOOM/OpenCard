@@ -160,15 +160,19 @@
             @restore="requestLocalHistoryRestore"
             @delete="openLocalHistoryDeleteDialog"
           />
-          <OcTree
-            v-else-if="list.key === VERSION_LIST_KEY && versionTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="versionTreeData"
+          <ProjectVersionList
+            v-else-if="list.key === VERSION_LIST_KEY"
+            :versions="projectVersions"
+            :current-commit-id="versionStatus?.current?.commitId ?? null"
             :selected-keys="selectedVersionKeys"
-            role="listbox"
-            selection-mode="single"
-            activation-mode="single-click"
-            @intent="handleVersionTreeIntent"
+            :next-cursor="nextVersionCursor"
+            :locale="locale"
+            :empty-label="list.placeholder"
+            :busy="versionsBusy"
+            :error="versionsErrorMessage"
+            @select="selectedVersionKeys = $event"
+            @activate="selectedVersionInfoCommitId = $event"
+            @load-more="loadMoreVersions"
           />
           <div v-else class="shell-sidebar-empty">
             <OcButton
@@ -337,7 +341,7 @@
       @submit="handleSaveVersionConfirm"
     />
     <VersionInfoDialog
-      :version="selectedVersionInfo"
+      :version="publishVersionTarget || restoreVersionTarget ? null : selectedVersionInfo"
       :current-commit-id="versionStatus?.current?.commitId ?? null"
       :busy="versionWriteState.status === 'running'"
       :locale="locale"
@@ -604,6 +608,7 @@ import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue
 import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
 import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
 import LocalHistoryFindDialog from '../versioning/components/LocalHistoryFindDialog.vue'
+import ProjectVersionList from '../versioning/components/ProjectVersionList.vue'
 import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
 import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
 import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
@@ -994,6 +999,9 @@ const {
   localHistoryFiles,
   selectedLocalHistoryFileEntries,
   nextLocalHistoryFilesCursor,
+  nextVersionCursor,
+  versionsBusy,
+  versionsError,
   historyPath,
   loadFileHistory,
   compareSession,
@@ -1016,6 +1024,8 @@ const {
   findLocalHistoryFiles,
   moveLocalHistory,
   loadLocalHistoryFileEntries,
+  refreshVersions,
+  loadMoreVersions,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -1112,6 +1122,9 @@ const localHistoryRestoreTarget = computed(() => (
   [...localHistoryEntries.value, ...selectedLocalHistoryFileEntries.value].find(entry => (
     entry.entryId === localHistoryRestoreEntryId.value
   )) ?? null
+))
+const versionsErrorMessage = computed(() => (
+  versionsError.value ? t('versioning.list.loadFailed', { code: versionsError.value.code }) : null
 ))
 const localHistoryRestoreBusy = ref(false)
 const localHistoryRestoreError = ref('')
@@ -1349,41 +1362,6 @@ const recentProjectTreeData = computed(() => (
   )
 ))
 
-function formatVersionTime(timestamp: number): string {
-  const deltaSeconds = Math.round((timestamp - Date.now()) / 1000)
-  const absoluteSeconds = Math.abs(deltaSeconds)
-  const [value, unit] = absoluteSeconds < 60
-    ? [deltaSeconds, 'second'] as const
-    : absoluteSeconds < 3600
-      ? [Math.round(deltaSeconds / 60), 'minute'] as const
-      : absoluteSeconds < 86400
-        ? [Math.round(deltaSeconds / 3600), 'hour'] as const
-        : absoluteSeconds < 2592000
-          ? [Math.round(deltaSeconds / 86400), 'day'] as const
-          : [Math.round(deltaSeconds / 2592000), 'month'] as const
-  return new Intl.RelativeTimeFormat(locale.value, { numeric: 'auto' }).format(value, unit)
-}
-
-const versionTreeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeItem>()
-  const rootKeys = projectVersions.value.map(version => {
-    const key = `version:${version.commitId}`
-    const isCurrent = versionStatus.value?.current?.commitId === version.commitId
-    const labels = [
-      isCurrent ? t('versioning.list.current') : undefined,
-      version.release ? t('versioning.list.published') : t('versioning.list.saved'),
-    ].filter((value): value is string => Boolean(value))
-    items.set(key, {
-      label: `v${version.version}`,
-      description: version.description,
-      tail: [...labels, formatVersionTime(version.savedAtUnixMs)].join(' · '),
-      icon: 'data.version',
-      iconTone: isCurrent ? 'primary' : version.release ? 'success' : undefined,
-    })
-    return key
-  })
-  return { rootKeys, items, children: new Map() }
-})
 const selectedRecentProjectKeys = ref<string[]>([])
 const selectedVersionKeys = ref<string[]>([])
 watch(projectPath, () => {
@@ -2328,17 +2306,6 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
   if (shouldOpen) void openRecentProject(path)
 }
 
-function handleVersionTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'selection.change') {
-    selectedVersionKeys.value = intent.selectedKeys
-    return
-  }
-  if (intent.type === 'node.activate') {
-    selectedVersionKeys.value = [intent.key]
-    selectedVersionInfoCommitId.value = intent.key.replace(/^version:/, '')
-  }
-}
-
 function openPublishDialog(editRelease: boolean): void {
   const target = selectedVersionInfo.value ?? versionStatus.value?.current ?? null
   if (!target || (editRelease ? !target.release : Boolean(target.release))) return
@@ -2611,7 +2578,7 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
   }
 
   if (listKey === VERSION_LIST_KEY && actionKey === 'version-history.refresh') {
-    await prepareVersioning(projectPath.value)
+    await refreshVersions()
     return
   }
 

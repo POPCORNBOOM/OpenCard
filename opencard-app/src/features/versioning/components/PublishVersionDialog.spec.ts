@@ -12,7 +12,7 @@ describe('PublishVersionDialog', () => {
       attachTo: document.body,
       props: {
         version: {
-          commitId: 'commit-1', parentCommitId: null, version: '0.0.1', kind: 'saved',
+          commitId: 'commit-1', parentCommitId: null, previousVersion: null, version: '0.0.1', kind: 'saved',
           description: 'First release', savedAtUnixMs: 1, restoredFrom: null, release: null,
           changes: { added: 1, modified: 0, deleted: 0 },
         },

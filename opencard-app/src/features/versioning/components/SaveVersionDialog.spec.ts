@@ -39,6 +39,7 @@ describe('SaveVersionDialog', () => {
     await wrapper.vm.$nextTick()
 
     expect(document.body.textContent).toContain('v0.0.1')
+    expect(document.body.textContent).not.toContain('cards/main.ocdocument')
     const description = document.body.querySelector<HTMLTextAreaElement>('textarea')!
     expect(description.value).toBe('Update card package')
     document.body.querySelector<HTMLFormElement>('form')!

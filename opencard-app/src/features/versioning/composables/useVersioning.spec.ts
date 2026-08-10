@@ -164,10 +164,12 @@ describe('useVersioning project preparation', () => {
   })
 
   it('retains visible file history when refresh fails and reloads after deleting a local record', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const projectPath = ref('D:/project')
     const savedVersion = {
       commitId: 'commit-1',
       parentCommitId: null,
+      previousVersion: null,
       version: '0.0.1',
       kind: 'saved' as const,
       description: 'Initial card',
@@ -187,6 +189,15 @@ describe('useVersioning project preparation', () => {
       size: 12,
     }
     let failRefresh = false
+    let failVersionRefresh = false
+    const nextVersion = {
+      ...savedVersion,
+      commitId: 'commit-2',
+      parentCommitId: savedVersion.commitId,
+      previousVersion: savedVersion.version,
+      version: '0.0.2',
+      description: 'Second card',
+    }
     const service: VersioningService = {
       prepareProject: vi.fn(async request => ({
         identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
@@ -199,7 +210,12 @@ describe('useVersioning project preparation', () => {
         changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
         hasManagedContent: true,
       })),
-      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [savedVersion], nextCursor: null })),
+      listVersions: vi.fn(async request => {
+        if (failVersionRefresh && !request.cursor) throw new Error('version refresh failed')
+        return request.cursor
+          ? { projectId: request.projectId, items: [savedVersion, nextVersion], nextCursor: null }
+          : { projectId: request.projectId, items: [savedVersion], nextCursor: 'next' }
+      }),
       createVersion: vi.fn(),
       listFileHistory: vi.fn(async request => {
         if (failRefresh) throw new Error('refresh failed')
@@ -245,6 +261,19 @@ describe('useVersioning project preparation', () => {
       saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
     })
     await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+    expect(versioning.versions.value).toEqual([savedVersion])
+    expect(versioning.nextVersionCursor.value).toBe('next')
+
+    failVersionRefresh = true
+    await versioning.refreshVersions()
+    expect(versioning.versions.value).toEqual([savedVersion])
+    expect(versioning.versionsError.value).toEqual(expect.any(Error))
+
+    failVersionRefresh = false
+    await versioning.loadMoreVersions()
+    expect(versioning.versions.value).toEqual([savedVersion, nextVersion])
+    expect(versioning.nextVersionCursor.value).toBeNull()
+
     await versioning.loadFileHistory('cards/main.json')
 
     expect(versioning.fileVersions.value).toEqual([savedVersion])
@@ -487,6 +516,7 @@ describe('useVersioning project preparation', () => {
     const savedVersion = {
       commitId: 'commit-1',
       parentCommitId: null,
+      previousVersion: null,
       version: '0.0.1',
       kind: 'saved' as const,
       description: 'Update card package',

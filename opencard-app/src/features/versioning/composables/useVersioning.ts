@@ -56,6 +56,8 @@ export function useVersioning(options: UseVersioningOptions) {
   const historyPath = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
+  const versionsBusy = ref(false)
+  const versionsError = ref<VersionErrorDto | null>(null)
   const writeState = ref<VersionWriteState>({ status: 'idle' })
   const saveVersionConfirmation = ref<SaveVersionConfirmation | null>(null)
   const pendingPublishVersion = ref<VersionRecordDto | null>(null)
@@ -79,6 +81,8 @@ export function useVersioning(options: UseVersioningOptions) {
     nextLocalHistoryFilesCursor.value = null
     historyPath.value = null
     nextVersionCursor.value = null
+    versionsBusy.value = false
+    versionsError.value = null
     saveVersionConfirmation.value = null
     pendingPublishVersion.value = null
     lastError.value = null
@@ -115,6 +119,7 @@ export function useVersioning(options: UseVersioningOptions) {
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
       versions.value = page.items
       nextVersionCursor.value = page.nextCursor
+      versionsError.value = null
       readiness.value = { status: 'ready', projectId: response.identity.projectId }
     } catch (error) {
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
@@ -125,6 +130,74 @@ export function useVersioning(options: UseVersioningOptions) {
         reason: resolveDegradedReason(error),
       }
       reportAppError('OC-E7001', error)
+    }
+  }
+
+  async function refreshVersions(): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || versionsBusy.value) return
+    const requestGeneration = generation
+    versionsBusy.value = true
+    versionsError.value = null
+    try {
+      const [projectStatus, page] = await Promise.all([
+        service.getStatus({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: projectIdentity.projectId,
+          generation: requestGeneration,
+        }),
+        service.listVersions({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: projectIdentity.projectId,
+          generation: requestGeneration,
+          cursor: null,
+          limit: 50,
+        }),
+      ])
+      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      status.value = projectStatus
+      versions.value = page.items
+      nextVersionCursor.value = page.nextCursor
+    } catch (error) {
+      versionsError.value = error as VersionErrorDto
+      reportAppError('OC-E7001', error)
+    } finally {
+      versionsBusy.value = false
+    }
+  }
+
+  async function loadMoreVersions(): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    const cursor = nextVersionCursor.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || versionsBusy.value || !cursor) return
+    const requestGeneration = generation
+    versionsBusy.value = true
+    versionsError.value = null
+    try {
+      const page = await service.listVersions({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: requestGeneration,
+        cursor,
+        limit: 50,
+      })
+      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      const known = new Set(versions.value.map(version => version.commitId))
+      versions.value = [
+        ...versions.value,
+        ...page.items.filter(version => !known.has(version.commitId)),
+      ]
+      nextVersionCursor.value = page.nextCursor
+    } catch (error) {
+      versionsError.value = error as VersionErrorDto
+      reportAppError('OC-E7001', error)
+    } finally {
+      versionsBusy.value = false
     }
   }
 
@@ -790,12 +863,16 @@ export function useVersioning(options: UseVersioningOptions) {
     historyPath: readonly(historyPath),
     compareSession: readonly(compareSession),
     nextVersionCursor: readonly(nextVersionCursor),
+    versionsBusy: readonly(versionsBusy),
+    versionsError: readonly(versionsError),
     writeState: readonly(writeState),
     saveVersionConfirmation: readonly(saveVersionConfirmation),
     pendingPublishVersion: readonly(pendingPublishVersion),
     lastError: readonly(lastError),
     prepare,
     refresh,
+    refreshVersions,
+    loadMoreVersions,
     openSaveVersion,
     cancelSaveVersion,
     confirmSaveVersion,

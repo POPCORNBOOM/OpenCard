@@ -14,6 +14,7 @@ function mountList(overrides: Record<string, unknown> = {}) {
       versions: [{
         commitId: 'commit-1',
         parentCommitId: null,
+        previousVersion: null,
         version: '0.0.1',
         kind: 'saved',
         description: 'Initial card',

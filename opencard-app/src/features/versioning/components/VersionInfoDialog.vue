@@ -22,6 +22,10 @@
         <dd class="version-info-dialog__multiline">{{ version.description }}</dd>
       </div>
       <div>
+        <dt>{{ t('versioning.fields.previousVersion') }}</dt>
+        <dd>{{ version.previousVersion ? `v${version.previousVersion}` : t('versioning.info.noPreviousVersion') }}</dd>
+      </div>
+      <div>
         <dt>{{ t('versioning.fields.changes') }}</dt>
         <dd>{{ t('versioning.changeCounts', version.changes) }}</dd>
       </div>

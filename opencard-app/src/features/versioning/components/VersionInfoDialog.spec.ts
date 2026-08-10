@@ -12,7 +12,7 @@ describe('VersionInfoDialog', () => {
       attachTo: document.body,
       props: {
         version: {
-          commitId: 'commit-1', parentCommitId: null, version: '0.0.1', kind: 'saved',
+          commitId: 'commit-1', parentCommitId: 'parent', previousVersion: '0.0.0', version: '0.0.1', kind: 'saved',
           description: 'Initial card set', savedAtUnixMs: 1, restoredFrom: null, release: null,
           changes: { added: 2, modified: 0, deleted: 0 },
         },
@@ -28,6 +28,7 @@ describe('VersionInfoDialog', () => {
     await wrapper.vm.$nextTick()
     expect(document.body.textContent).toContain('Current · Saved')
     expect(document.body.textContent).toContain('Initial card set')
+    expect(document.body.textContent).toContain('v0.0.0')
 
     const publish = Array.from(document.body.querySelectorAll('button'))
       .find(button => button.textContent?.trim() === 'Publish')!
