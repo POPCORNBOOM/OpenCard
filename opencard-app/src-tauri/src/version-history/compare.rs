@@ -2,7 +2,11 @@ use super::*;
 use git2::{Commit, Repository, Tree};
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "kind"
+)]
 pub enum CompareSourceRequest {
     Version { commit_id: String },
     LocalHistory { entry_id: String },
@@ -393,6 +397,23 @@ fn compare_git(phase: &'static str, error: git2::Error) -> HistoryFailure {
 mod tests {
     use super::*;
     use crate::version_history::repository::{create_version, get_status, CreateVersionRequest};
+
+    #[test]
+    fn compare_source_uses_the_frontend_camel_case_contract() {
+        let version: CompareSourceRequest =
+            serde_json::from_str(r#"{"kind":"version","commitId":"commit"}"#).unwrap();
+        assert!(matches!(
+            version,
+            CompareSourceRequest::Version { commit_id } if commit_id == "commit"
+        ));
+
+        let local_history: CompareSourceRequest =
+            serde_json::from_str(r#"{"kind":"localHistory","entryId":"entry"}"#).unwrap();
+        assert!(matches!(
+            local_history,
+            CompareSourceRequest::LocalHistory { entry_id } if entry_id == "entry"
+        ));
+    }
 
     #[test]
     fn materializes_version_and_current_snapshots_without_dirty_overlays() {
