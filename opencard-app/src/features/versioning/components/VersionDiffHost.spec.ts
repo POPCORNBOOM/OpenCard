@@ -31,6 +31,7 @@ describe('VersionDiffHost', () => {
           sourceSessionId: 'session-1',
           sourcePath: 'D:/project/cards/main.json',
           editorId: 'monaco',
+          openedFromHistorySource: 'version',
           openedFromHistoryItemId: 'commit-1',
           historical: {
             rootPath: 'D:/historical', relativePath: 'cards/main.json', completeness: 'project', exists: true,

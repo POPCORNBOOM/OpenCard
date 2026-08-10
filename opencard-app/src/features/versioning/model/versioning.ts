@@ -253,6 +253,7 @@ export type CompareSession = PrepareCompareResponse & {
   sourceSessionId: string
   sourcePath: string
   editorId: string
+  openedFromHistorySource: 'version' | 'local-history'
   openedFromHistoryItemId: string
 }
 

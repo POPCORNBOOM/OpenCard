@@ -57,10 +57,14 @@ export function useVersioning(options: UseVersioningOptions) {
   const pendingPublishVersion = ref<VersionRecordDto | null>(null)
   const lastError = ref<VersionErrorDto | null>(null)
   let generation = 0
+  let fileHistoryRequestId = 0
+  let compareEpoch = 0
+  let compareOpenRequest: Promise<void> | null = null
 
   async function prepare(projectRoot: string): Promise<void> {
     if (compareSession.value) await closeCompare()
     const requestGeneration = ++generation
+    fileHistoryRequestId += 1
     identity.value = null
     status.value = null
     versions.value = []
@@ -304,6 +308,7 @@ export function useVersioning(options: UseVersioningOptions) {
   }
 
   async function loadFileHistory(relativePath: string): Promise<void> {
+    const requestId = ++fileHistoryRequestId
     const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
     if (!projectIdentity || readiness.value.status !== 'ready' || !relativePath) {
@@ -330,20 +335,49 @@ export function useVersioning(options: UseVersioningOptions) {
           relativePath,
         }),
       ])
-      if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
+      if (requestId !== fileHistoryRequestId
+        || requestGeneration !== generation
+        || options.projectPath.value !== projectRoot) return
       historyPath.value = relativePath
       fileVersions.value = versionResponse.items
       localHistory.value = localResponse.items
       if (localResponse.warnings.length > 0) reportAppError('OC-E7002', localResponse.warnings)
     } catch (error) {
+      if (requestId !== fileHistoryRequestId
+        || requestGeneration !== generation
+        || options.projectPath.value !== projectRoot) return
       historyPath.value = relativePath
-      fileVersions.value = []
-      localHistory.value = []
       reportAppError('OC-E7001', error)
     }
   }
 
   async function openCompare(
+    source: 'version' | 'local-history',
+    historyItemId: string,
+    sourceSession: EditorSession,
+    relativePath: string,
+  ): Promise<void> {
+    const activeCompare = compareSession.value
+    if (activeCompare
+      && activeCompare.openedFromHistorySource === source
+      && activeCompare.openedFromHistoryItemId === historyItemId
+      && activeCompare.sourceSessionId === sourceSession.id
+      && activeCompare.historical.relativePath === relativePath) return
+    if (compareOpenRequest) {
+      await compareOpenRequest
+      return await openCompare(source, historyItemId, sourceSession, relativePath)
+    }
+
+    const request = prepareCompare(source, historyItemId, sourceSession, relativePath)
+    compareOpenRequest = request
+    try {
+      await request
+    } finally {
+      if (compareOpenRequest === request) compareOpenRequest = null
+    }
+  }
+
+  async function prepareCompare(
     source: 'version' | 'local-history',
     historyItemId: string,
     sourceSession: EditorSession,
@@ -358,8 +392,8 @@ export function useVersioning(options: UseVersioningOptions) {
       || !sourceSession.path
       || !relativePath) return
 
-    await closeCompare()
     const requestGeneration = generation
+    const requestEpoch = compareEpoch
     lastError.value = null
     try {
       const response = await service.prepareCompare({
@@ -376,6 +410,7 @@ export function useVersioning(options: UseVersioningOptions) {
         session.id === sourceSession.id && session.path === sourceSession.path
       ))
       if (requestGeneration !== generation
+        || requestEpoch !== compareEpoch
         || options.projectPath.value !== projectRoot
         || identity.value?.projectId !== projectIdentity.projectId
         || !sourceStillExists) {
@@ -388,6 +423,7 @@ export function useVersioning(options: UseVersioningOptions) {
         })
         return
       }
+      const previousSession = compareSession.value
       compareSession.value = {
         ...response,
         id: crypto.randomUUID(),
@@ -395,8 +431,10 @@ export function useVersioning(options: UseVersioningOptions) {
         sourceSessionId: sourceSession.id,
         sourcePath: sourceSession.path,
         editorId: sourceSession.editorId,
+        openedFromHistorySource: source,
         openedFromHistoryItemId: historyItemId,
       }
+      if (previousSession) await releaseCompareSession(previousSession)
     } catch (error) {
       lastError.value = error as VersionErrorDto
       reportAppError('OC-E7005', error)
@@ -404,9 +442,14 @@ export function useVersioning(options: UseVersioningOptions) {
   }
 
   async function closeCompare(): Promise<void> {
+    compareEpoch += 1
     const session = compareSession.value
     if (!session) return
     compareSession.value = null
+    await releaseCompareSession(session)
+  }
+
+  async function releaseCompareSession(session: CompareSession): Promise<void> {
     try {
       await service.releaseCompare({
         operationId: crypto.randomUUID(),
@@ -529,6 +572,28 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function deleteLocalHistory(relativePath: string, entryId: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready') return
+    try {
+      const response = await service.deleteLocalHistory({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        relativePath,
+        entryId,
+      })
+      if (response.warnings.length > 0) reportAppError('OC-E7001', response.warnings)
+      if (historyPath.value === relativePath) await loadFileHistory(relativePath)
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7001', error)
+      throw error
+    }
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -603,6 +668,7 @@ export function useVersioning(options: UseVersioningOptions) {
     editReleaseDescription,
     restoreProject,
     restoreLocalHistory,
+    deleteLocalHistory,
     dispose,
   }
 }

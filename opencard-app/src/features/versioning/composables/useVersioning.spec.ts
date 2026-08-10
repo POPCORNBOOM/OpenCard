@@ -73,12 +73,15 @@ describe('useVersioning project preparation', () => {
     await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
 
     await versioning.openCompare('version', 'commit-1', sourceSession, 'cards/main.json')
+    await versioning.openCompare('version', 'commit-1', sourceSession, 'cards/main.json')
 
     expect(versioning.compareSession.value).toMatchObject({
       sourceSessionId: 'session-1',
       sourcePath: 'D:/project/cards/main.json',
+      openedFromHistorySource: 'version',
       openedFromHistoryItemId: 'commit-1',
     })
+    expect(service.prepareCompare).toHaveBeenCalledTimes(1)
     expect(sessions.value[0]).toMatchObject({
       id: 'session-1',
       draftContent: '{"value":3}',
@@ -88,6 +91,94 @@ describe('useVersioning project preparation', () => {
     await versioning.closeCompare()
     expect(versioning.compareSession.value).toBeNull()
     expect(service.releaseCompare).toHaveBeenCalledWith(expect.objectContaining({ leaseId: 'a'.repeat(40) }))
+    versioning.dispose()
+  })
+
+  it('retains visible file history when refresh fails and reloads after deleting a local record', async () => {
+    const projectPath = ref('D:/project')
+    const savedVersion = {
+      commitId: 'commit-1',
+      parentCommitId: null,
+      version: '0.0.1',
+      kind: 'saved' as const,
+      description: 'Initial card',
+      savedAtUnixMs: 1,
+      restoredFrom: null,
+      release: null,
+      changes: { added: 1, modified: 0, deleted: 0 },
+    }
+    const localEntry = {
+      schemaVersion: 1,
+      entryId: 'local-1',
+      relativePath: 'cards/main.json',
+      createdAtUnixMs: 2,
+      source: 'manual-save' as const,
+      sourceDescription: null,
+      contentOid: 'oid-1',
+      size: 12,
+    }
+    let failRefresh = false
+    const service: VersioningService = {
+      prepareProject: vi.fn(async request => ({
+        identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+      })),
+      getStatus: vi.fn(async request => ({
+        identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+        current: savedVersion,
+        nextVersion: '0.0.2',
+        expectedHeadCommitId: savedVersion.commitId,
+        changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
+        hasManagedContent: true,
+      })),
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [savedVersion], nextCursor: null })),
+      createVersion: vi.fn(),
+      listFileHistory: vi.fn(async request => {
+        if (failRefresh) throw new Error('refresh failed')
+        return { projectId: request.projectId, relativePath: request.relativePath, items: [savedVersion] }
+      }),
+      previewChanges: vi.fn(),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(async request => {
+        if (failRefresh) throw new Error('refresh failed')
+        return { projectId: request.projectId, relativePath: request.relativePath, items: [localEntry], warnings: [] }
+      }),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(async request => ({ projectId: request.projectId, deleted: true, warnings: [] })),
+      restoreLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(),
+      releaseCompare: vi.fn(),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
+      restoreProject: vi.fn(),
+    }
+    const versioning = useVersioning({
+      projectPath,
+      sessions: ref([]),
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+    await versioning.loadFileHistory('cards/main.json')
+
+    expect(versioning.fileVersions.value).toEqual([savedVersion])
+    expect(versioning.localHistory.value).toEqual([localEntry])
+
+    failRefresh = true
+    await versioning.loadFileHistory('cards/main.json')
+
+    expect(versioning.fileVersions.value).toEqual([savedVersion])
+    expect(versioning.localHistory.value).toEqual([localEntry])
+
+    failRefresh = false
+    await versioning.deleteLocalHistory('cards/main.json', 'local-1')
+
+    expect(service.deleteLocalHistory).toHaveBeenCalledWith(expect.objectContaining({
+      relativePath: 'cards/main.json',
+      entryId: 'local-1',
+    }))
+    expect(service.listFileHistory).toHaveBeenCalledTimes(3)
     versioning.dispose()
   })
 
