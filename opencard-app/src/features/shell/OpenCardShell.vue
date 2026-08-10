@@ -232,9 +232,10 @@
               @new-project="openCreateProject"
               @open-project="openProject"
             />
-            <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession)">
-              <div v-if="activeSession" class="open-card-shell__editor-stack">
+            <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession || compareSession)">
+              <div v-if="activeSession || compareSession" class="open-card-shell__editor-stack">
                 <div
+                  v-if="activeSession"
                   class="open-card-shell__source-editor"
                   :class="{ 'is-comparing': Boolean(compareSession) }"
                   :inert="Boolean(compareSession)"
@@ -263,7 +264,8 @@
                   :language="currentDiffLanguage"
                   :theme-id="currentEditorThemeId"
                   :theme-overrides="currentEditorThemeOverrides"
-                  @close="closeCompare"
+                  @close="handleCompareClose"
+                  @restore-file="openMissingFileRestoreDialog"
                 />
               </div>
             </WorkbenchWorkspace>
@@ -374,10 +376,26 @@
           {{ t('versioning.actions.cancel') }}
         </OcButton>
         <OcButton type="button" variant="solid" :disabled="localHistoryRestoreBusy" @click="handleLocalHistoryRestoreConfirm">
-          {{ localHistoryRestoreBusy ? t('versioning.restore.restoring') : t('versioning.actions.restore') }}
+          {{ localHistoryRestoreBusy ? t('versioning.restore.restoring') : t('versioning.history.restoreConfirm') }}
         </OcButton>
       </template>
     </OcDialog>
+    <LocalHistoryFindDialog
+      :open="localHistoryFindDialogOpen"
+      :files="localHistoryFiles"
+      :entries="selectedLocalHistoryFileEntries"
+      :selected-path="localHistoryFindPath"
+      :next-cursor="nextLocalHistoryFilesCursor"
+      :locale="locale"
+      :busy="localHistoryFindBusy"
+      :error="localHistoryFindError"
+      @close="closeLocalHistoryFindDialog"
+      @search="searchLocalHistoryFiles"
+      @select-path="selectLocalHistoryFindPath"
+      @select-entry="openDeletedFileCompare"
+      @back="backToLocalHistoryFindFiles"
+      @load-more="loadMoreLocalHistoryFiles"
+    />
     <OcDialog
       :open="Boolean(localHistoryDeleteTarget)"
       :title="t('versioning.history.deleteTitle')"
@@ -585,6 +603,7 @@ import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import SaveVersionDialog from '../versioning/components/SaveVersionDialog.vue'
 import ChangeHistoryList from '../versioning/components/ChangeHistoryList.vue'
+import LocalHistoryFindDialog from '../versioning/components/LocalHistoryFindDialog.vue'
 import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
 import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
 import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
@@ -653,6 +672,8 @@ const CHANGE_HISTORY_FILTER_ACTION_KEY = 'change-history.filter'
 const CHANGE_HISTORY_FILTER_ALL_ACTION_KEY = 'change-history.filter.all'
 const CHANGE_HISTORY_FILTER_VERSION_ACTION_KEY = 'change-history.filter.version'
 const CHANGE_HISTORY_FILTER_LOCAL_ACTION_KEY = 'change-history.filter.local-history'
+const CHANGE_HISTORY_MORE_ACTION_KEY = 'change-history.more'
+const CHANGE_HISTORY_FIND_ACTION_KEY = 'change-history.find'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
 const ICON_PACKS_LIST_KEY = 'icon-packs'
@@ -970,6 +991,9 @@ const {
   versions: projectVersions,
   fileVersions,
   localHistory: localHistoryEntries,
+  localHistoryFiles,
+  selectedLocalHistoryFileEntries,
+  nextLocalHistoryFilesCursor,
   historyPath,
   loadFileHistory,
   compareSession,
@@ -988,6 +1012,9 @@ const {
   restoreProject,
   restoreLocalHistory,
   deleteLocalHistory,
+  openDetachedLocalHistoryCompare,
+  findLocalHistoryFiles,
+  loadLocalHistoryFileEntries,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -1015,7 +1042,9 @@ const activeCompareKey = computed(() => compareSession.value
 const currentDiffLanguage = computed(() => (
   activeSession.value?.path
     ? resolveFileType(activeSession.value.path).language ?? 'plaintext'
-    : 'plaintext'
+    : compareSession.value?.sourcePath
+      ? resolveFileType(compareSession.value.sourcePath).language ?? 'plaintext'
+      : 'plaintext'
 ))
 
 const editorPropsWithVersioning = computed(() => ({
@@ -1031,8 +1060,12 @@ const editorPropsWithVersioning = computed(() => ({
 
 watch(
   () => activeSession.value?.path,
-  path => {
-    if (compareSession.value && compareSession.value.sourcePath !== path) void closeCompare()
+  (path, previousPath) => {
+    if (compareSession.value && (
+      compareSession.value.sourceSessionId
+        ? compareSession.value.sourcePath !== path
+        : path !== previousPath
+    )) void closeCompare()
     const relativePath = path && projectPath.value
       ? getRelativeProjectPath(path)
       : null
@@ -1073,14 +1106,22 @@ const restoreVersionErrorMessage = computed(() => (
   versioningError.value ? t('versioning.errors.restoreFailed', { code: versioningError.value.code }) : null
 ))
 const localHistoryRestoreEntryId = ref<string | null>(null)
-const localHistoryRestoreTarget = computed(() => localHistoryEntries.value.find(entry => (
-  entry.entryId === localHistoryRestoreEntryId.value
-)) ?? null)
+const localHistoryRestorePath = ref<string | null>(null)
+const localHistoryRestoreTarget = computed(() => (
+  [...localHistoryEntries.value, ...selectedLocalHistoryFileEntries.value].find(entry => (
+    entry.entryId === localHistoryRestoreEntryId.value
+  )) ?? null
+))
 const localHistoryRestoreBusy = ref(false)
 const localHistoryRestoreError = ref('')
 const localHistoryDeleteTarget = ref<LocalHistoryEntryDto | null>(null)
 const localHistoryDeleteBusy = ref(false)
 const localHistoryDeleteError = ref('')
+const localHistoryFindDialogOpen = ref(false)
+const localHistoryFindPath = ref<string | null>(null)
+const localHistoryFindQuery = ref('')
+const localHistoryFindBusy = ref(false)
+const localHistoryFindError = ref('')
 
 const {
   isActivating: isActivatingProject,
@@ -1944,6 +1985,15 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           title: t('versioning.history.filters.localHistory'),
           icon: changeHistorySourceFilter.value === 'local-history' ? 'action.check' : undefined,
         }],
+      }, {
+        key: CHANGE_HISTORY_MORE_ACTION_KEY,
+        icon: 'nav.more',
+        hoverTip: t('versioning.history.find.title'),
+        children: [{
+          key: CHANGE_HISTORY_FIND_ACTION_KEY,
+          title: t('versioning.history.find.title'),
+          icon: 'action.search',
+        }],
       }],
       maxHeight: 'var(--oc-list-max-height-md)',
     },
@@ -2368,21 +2418,31 @@ function handleChangeHistorySelect(source: 'version' | 'local-history', id: stri
   void openCompare(source, id, session, relativePath)
 }
 
+async function handleCompareClose(): Promise<void> {
+  await closeCompare()
+  if (localHistoryFindPath.value) localHistoryFindDialogOpen.value = true
+}
+
 async function requestLocalHistoryRestore(entryId: string): Promise<void> {
   const session = activeSession.value
   if (!historyPath.value || !session || session.resourceKind !== 'workspace') return
   await requestFileRestore(session.id, entryId)
 }
 
-function openLocalHistoryRestoreConfirmation(entryId: string): void {
-  if (!localHistoryEntries.value.some(entry => entry.entryId === entryId)) return
+function openLocalHistoryRestoreConfirmation(entryId: string, relativePath?: string): void {
+  const entries = relativePath
+    ? selectedLocalHistoryFileEntries.value
+    : localHistoryEntries.value
+  if (!entries.some(entry => entry.entryId === entryId)) return
   localHistoryRestoreEntryId.value = entryId
+  localHistoryRestorePath.value = relativePath ?? historyPath.value
   localHistoryRestoreError.value = ''
 }
 
 function closeLocalHistoryRestoreDialog(): void {
   if (localHistoryRestoreBusy.value) return
   localHistoryRestoreEntryId.value = null
+  localHistoryRestorePath.value = null
   localHistoryRestoreError.value = ''
 }
 
@@ -2417,7 +2477,7 @@ async function handleLocalHistoryDeleteConfirm(): Promise<void> {
 
 async function handleLocalHistoryRestoreConfirm(): Promise<void> {
   const entry = localHistoryRestoreTarget.value
-  const relativePath = historyPath.value
+  const relativePath = localHistoryRestorePath.value ?? historyPath.value
   if (!entry || !relativePath || localHistoryRestoreBusy.value) return
   localHistoryRestoreBusy.value = true
   localHistoryRestoreError.value = ''
@@ -2425,7 +2485,11 @@ async function handleLocalHistoryRestoreConfirm(): Promise<void> {
   try {
     await restoreLocalHistory(relativePath, entry.entryId, entry.contentOid)
     restored = true
-    await refreshSessionFromDisk(activeSession.value?.id ?? '')
+    await closeCompare()
+    const targetPath = resolveProjectPath(relativePath)
+    if (activeSession.value?.path === targetPath) await refreshSessionFromDisk(activeSession.value.id)
+    else await openEditorSession(targetPath)
+    await loadFiles()
     const fileName = relativePath.replace(/\\/g, '/').split('/').pop()?.toLowerCase()
     if (fileName === '.ocproject') await reloadProjectProfile()
     else if (fileName === '.ocfonts') await reloadProjectFontRegistry()
@@ -2441,6 +2505,83 @@ async function handleLocalHistoryRestoreConfirm(): Promise<void> {
     localHistoryRestoreBusy.value = false
     if (restored) closeLocalHistoryRestoreDialog()
   }
+}
+
+function closeLocalHistoryFindDialog(): void {
+  if (localHistoryFindBusy.value) return
+  localHistoryFindDialogOpen.value = false
+  localHistoryFindPath.value = null
+  localHistoryFindQuery.value = ''
+  localHistoryFindError.value = ''
+}
+
+async function searchLocalHistoryFiles(query: string): Promise<void> {
+  if (localHistoryFindBusy.value) return
+  localHistoryFindBusy.value = true
+  localHistoryFindError.value = ''
+  localHistoryFindQuery.value = query.trim()
+  localHistoryFindPath.value = null
+  try {
+    await findLocalHistoryFiles(localHistoryFindQuery.value)
+  } catch (error) {
+    const code = (error as Partial<VersionErrorDto> | null)?.code ?? 'unknown'
+    localHistoryFindError.value = t('versioning.history.find.loadFailed', { code })
+  } finally {
+    localHistoryFindBusy.value = false
+  }
+}
+
+async function loadMoreLocalHistoryFiles(): Promise<void> {
+  if (localHistoryFindBusy.value || !nextLocalHistoryFilesCursor.value) return
+  localHistoryFindBusy.value = true
+  localHistoryFindError.value = ''
+  try {
+    await findLocalHistoryFiles(localHistoryFindQuery.value, nextLocalHistoryFilesCursor.value)
+  } catch (error) {
+    const code = (error as Partial<VersionErrorDto> | null)?.code ?? 'unknown'
+    localHistoryFindError.value = t('versioning.history.find.loadFailed', { code })
+  } finally {
+    localHistoryFindBusy.value = false
+  }
+}
+
+async function selectLocalHistoryFindPath(relativePath: string): Promise<void> {
+  if (localHistoryFindBusy.value) return
+  localHistoryFindBusy.value = true
+  localHistoryFindError.value = ''
+  try {
+    await loadLocalHistoryFileEntries(relativePath)
+    localHistoryFindPath.value = relativePath
+  } catch (error) {
+    const code = (error as Partial<VersionErrorDto> | null)?.code ?? 'unknown'
+    localHistoryFindError.value = t('versioning.history.find.loadFailed', { code })
+  } finally {
+    localHistoryFindBusy.value = false
+  }
+}
+
+function backToLocalHistoryFindFiles(): void {
+  localHistoryFindPath.value = null
+  localHistoryFindError.value = ''
+}
+
+async function openDeletedFileCompare(entry: LocalHistoryEntryDto): Promise<void> {
+  const relativePath = localHistoryFindPath.value
+  if (!relativePath) return
+  localHistoryFindDialogOpen.value = false
+  await openDetachedLocalHistoryCompare(
+    entry.entryId,
+    relativePath,
+    resolveProjectPath(relativePath),
+    resolveFileType(relativePath, projectPath.value).editorId,
+  )
+  if (!compareSession.value) localHistoryFindDialogOpen.value = true
+}
+
+function openMissingFileRestoreDialog(): void {
+  const session = compareSession.value
+  if (!session || session.openedFromHistorySource !== 'local-history' || session.current.exists) return
+  openLocalHistoryRestoreConfirmation(session.openedFromHistoryItemId, session.historical.relativePath)
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
@@ -2459,6 +2600,11 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
     }
     if (actionKey === CHANGE_HISTORY_FILTER_LOCAL_ACTION_KEY) {
       changeHistorySourceFilter.value = 'local-history'
+      return
+    }
+    if (actionKey === CHANGE_HISTORY_FIND_ACTION_KEY) {
+      localHistoryFindDialogOpen.value = true
+      void searchLocalHistoryFiles('')
       return
     }
   }

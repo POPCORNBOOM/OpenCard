@@ -95,6 +95,72 @@ describe('useVersioning project preparation', () => {
     versioning.dispose()
   })
 
+  it('opens a Local History comparison for a missing file without creating an editor session', async () => {
+    const projectPath = ref('D:/project')
+    const service: VersioningService = {
+      prepareProject: vi.fn(async request => ({
+        identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+      })),
+      getStatus: vi.fn(async request => ({
+        identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+        current: null,
+        nextVersion: '0.0.1',
+        expectedHeadCommitId: null,
+        changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
+        hasManagedContent: false,
+      })),
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [], nextCursor: null })),
+      createVersion: vi.fn(),
+      listFileHistory: vi.fn(),
+      previewChanges: vi.fn(),
+      recordLocalHistory: vi.fn(),
+      listLocalHistory: vi.fn(),
+      readLocalHistory: vi.fn(),
+      deleteLocalHistory: vi.fn(),
+      findLocalHistoryFiles: vi.fn(),
+      restoreLocalHistory: vi.fn(),
+      prepareCompare: vi.fn(async request => ({
+        projectId: request.projectId,
+        generation: request.generation,
+        leaseId: 'b'.repeat(40),
+        historical: { rootPath: 'D:/history', relativePath: request.relativePath, completeness: 'single-file' as const, exists: true },
+        current: { rootPath: 'D:/current', relativePath: request.relativePath, completeness: 'project' as const, exists: false },
+      })),
+      releaseCompare: vi.fn(async () => ({ released: true })),
+      publishVersion: vi.fn(),
+      editReleaseDescription: vi.fn(),
+      restoreProject: vi.fn(),
+    }
+    const sessions = ref<EditorSession[]>([])
+    const versioning = useVersioning({
+      projectPath,
+      sessions,
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+
+    await versioning.openDetachedLocalHistoryCompare(
+      'entry-1',
+      'notes/deleted.md',
+      'D:/project/notes/deleted.md',
+      'monaco',
+    )
+
+    expect(sessions.value).toEqual([])
+    expect(versioning.compareSession.value).toMatchObject({
+      sourceSessionId: null,
+      sourcePath: 'D:/project/notes/deleted.md',
+      editorId: 'monaco',
+      openedFromHistorySource: 'local-history',
+      openedFromHistoryItemId: 'entry-1',
+      current: { exists: false },
+    })
+    versioning.dispose()
+  })
+
   it('retains visible file history when refresh fails and reloads after deleting a local record', async () => {
     const projectPath = ref('D:/project')
     const savedVersion = {

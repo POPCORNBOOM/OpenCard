@@ -6,6 +6,16 @@
           {{ t('versioning.diff.historical') }} → {{ t('versioning.diff.current') }}
         </span>
         <OcButton
+          v-if="canRestoreMissingFile"
+          size="sm"
+          variant="ghost"
+          icon="action.undo"
+          :disabled="loading"
+          @click="emit('restore-file')"
+        >
+          {{ t('versioning.diff.restoreFile') }}
+        </OcButton>
+        <OcButton
           icon-only
           size="sm"
           variant="ghost"
@@ -147,7 +157,7 @@ const props = defineProps<{
   themeId: OcThemeId
   themeOverrides?: OcThemeColorOverrides
 }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; 'restore-file': [] }>()
 const { t } = useI18n()
 const loading = ref(true)
 const loadFailed = ref(false)
@@ -157,6 +167,10 @@ let loadGeneration = 0
 
 const fileName = computed(() => (
   props.session.sourcePath.replace(/\\/g, '/').split('/').pop() ?? props.session.sourcePath
+))
+const canRestoreMissingFile = computed(() => (
+  props.session.openedFromHistorySource === 'local-history'
+  && !props.session.current.exists
 ))
 const fileType = computed(() => resolveFileType(props.session.sourcePath))
 const isTextComparison = computed(() => fileType.value.editorId === 'monaco')

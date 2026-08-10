@@ -269,7 +269,7 @@ export type RestoreProjectResponse = {
 export type CompareSession = PrepareCompareResponse & {
   id: string
   projectRoot: string
-  sourceSessionId: string
+  sourceSessionId: string | null
   sourcePath: string
   editorId: string
   openedFromHistorySource: 'version' | 'local-history'

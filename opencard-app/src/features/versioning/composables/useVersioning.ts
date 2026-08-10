@@ -51,6 +51,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const fileVersions = ref<VersionRecordDto[]>([])
   const localHistory = ref<LocalHistoryEntryDto[]>([])
   const localHistoryFiles = ref<LocalHistoryFileRecordDto[]>([])
+  const selectedLocalHistoryFileEntries = ref<LocalHistoryEntryDto[]>([])
   const nextLocalHistoryFilesCursor = ref<string | null>(null)
   const historyPath = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
@@ -74,6 +75,7 @@ export function useVersioning(options: UseVersioningOptions) {
     fileVersions.value = []
     localHistory.value = []
     localHistoryFiles.value = []
+    selectedLocalHistoryFileEntries.value = []
     nextLocalHistoryFilesCursor.value = null
     historyPath.value = null
     nextVersionCursor.value = null
@@ -382,6 +384,68 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function openDetachedLocalHistoryCompare(
+    historyItemId: string,
+    relativePath: string,
+    sourcePath: string,
+    editorId: string,
+  ): Promise<void> {
+    if (compareOpenRequest) {
+      await compareOpenRequest
+      return await openDetachedLocalHistoryCompare(historyItemId, relativePath, sourcePath, editorId)
+    }
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || writeState.value.status !== 'idle') return
+
+    const requestEpoch = compareEpoch
+    const requestGeneration = generation
+    const request = (async () => {
+      const response = await service.prepareCompare({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        relativePath,
+        source: { kind: 'local-history', entryId: historyItemId },
+      })
+      if (requestEpoch !== compareEpoch
+        || requestGeneration !== generation
+        || projectRoot !== options.projectPath.value
+        || identity.value?.projectId !== projectIdentity.projectId) {
+        await service.releaseCompare({
+          operationId: crypto.randomUUID(),
+          projectRoot,
+          projectId: response.projectId,
+          generation: response.generation,
+          leaseId: response.leaseId,
+        })
+        return
+      }
+      const previousSession = compareSession.value
+      compareSession.value = {
+        ...response,
+        id: crypto.randomUUID(),
+        projectRoot,
+        sourceSessionId: null,
+        sourcePath,
+        editorId,
+        openedFromHistorySource: 'local-history',
+        openedFromHistoryItemId: historyItemId,
+      }
+      if (previousSession) await releaseCompareSession(previousSession)
+    })()
+    compareOpenRequest = request
+    try {
+      await request
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7005', error)
+    } finally {
+      if (compareOpenRequest === request) compareOpenRequest = null
+    }
+  }
+
   async function prepareCompare(
     source: 'version' | 'local-history',
     historyItemId: string,
@@ -625,6 +689,22 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function loadLocalHistoryFileEntries(relativePath: string): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready') return
+    const response = await service.listLocalHistory({
+      operationId: crypto.randomUUID(),
+      projectRoot,
+      projectId: projectIdentity.projectId,
+      generation: projectIdentity.generation,
+      relativePath,
+    })
+    if (projectRoot !== options.projectPath.value || identity.value?.projectId !== response.projectId) return
+    selectedLocalHistoryFileEntries.value = response.items
+    if (response.warnings.length > 0) reportAppError('OC-E7002', response.warnings)
+  }
+
   const stopProjectWatch = watch(
     options.projectPath,
     (projectRoot) => void prepare(projectRoot),
@@ -680,6 +760,7 @@ export function useVersioning(options: UseVersioningOptions) {
     fileVersions: readonly(fileVersions),
     localHistory: readonly(localHistory),
     localHistoryFiles: readonly(localHistoryFiles),
+    selectedLocalHistoryFileEntries: readonly(selectedLocalHistoryFileEntries),
     nextLocalHistoryFilesCursor: readonly(nextLocalHistoryFilesCursor),
     historyPath: readonly(historyPath),
     compareSession: readonly(compareSession),
@@ -696,6 +777,7 @@ export function useVersioning(options: UseVersioningOptions) {
     recordLocalHistory,
     loadFileHistory,
     openCompare,
+    openDetachedLocalHistoryCompare,
     closeCompare,
     publishVersion,
     editReleaseDescription,
@@ -703,6 +785,7 @@ export function useVersioning(options: UseVersioningOptions) {
     restoreLocalHistory,
     deleteLocalHistory,
     findLocalHistoryFiles,
+    loadLocalHistoryFileEntries,
     dispose,
   }
 }

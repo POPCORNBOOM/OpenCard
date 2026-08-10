@@ -8,8 +8,13 @@ use git2::{Commit, Repository, Tree};
     tag = "kind"
 )]
 pub enum CompareSourceRequest {
-    Version { commit_id: String },
-    LocalHistory { entry_id: String },
+    Version {
+        commit_id: String,
+    },
+    #[serde(rename = "local-history", alias = "localHistory")]
+    LocalHistory {
+        entry_id: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -399,7 +404,7 @@ mod tests {
     use crate::version_history::repository::{create_version, get_status, CreateVersionRequest};
 
     #[test]
-    fn compare_source_uses_the_frontend_camel_case_contract() {
+    fn compare_source_uses_the_frontend_contract() {
         let version: CompareSourceRequest =
             serde_json::from_str(r#"{"kind":"version","commitId":"commit"}"#).unwrap();
         assert!(matches!(
@@ -408,9 +413,16 @@ mod tests {
         ));
 
         let local_history: CompareSourceRequest =
-            serde_json::from_str(r#"{"kind":"localHistory","entryId":"entry"}"#).unwrap();
+            serde_json::from_str(r#"{"kind":"local-history","entryId":"entry"}"#).unwrap();
         assert!(matches!(
             local_history,
+            CompareSourceRequest::LocalHistory { entry_id } if entry_id == "entry"
+        ));
+
+        let local_history_alias: CompareSourceRequest =
+            serde_json::from_str(r#"{"kind":"localHistory","entryId":"entry"}"#).unwrap();
+        assert!(matches!(
+            local_history_alias,
             CompareSourceRequest::LocalHistory { entry_id } if entry_id == "entry"
         ));
     }

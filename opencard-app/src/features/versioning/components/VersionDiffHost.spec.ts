@@ -52,4 +52,39 @@ describe('VersionDiffHost', () => {
     expect(readFile).toHaveBeenNthCalledWith(1, 'D:/historical/cards/main.json')
     expect(readFile).toHaveBeenNthCalledWith(2, 'D:/current/cards/main.json')
   })
+
+  it('offers restore only for a missing current file opened from Local History', async () => {
+    const wrapper = mount(VersionDiffHost, {
+      props: {
+        session: {
+          id: 'compare-deleted',
+          projectRoot: 'D:/project',
+          projectId: 'project-id',
+          generation: 1,
+          leaseId: 'b'.repeat(40),
+          sourceSessionId: null,
+          sourcePath: 'D:/project/notes/deleted.md',
+          editorId: 'monaco',
+          openedFromHistorySource: 'local-history',
+          openedFromHistoryItemId: 'entry-1',
+          historical: {
+            rootPath: 'D:/historical', relativePath: 'notes/deleted.md', completeness: 'single-file', exists: true,
+          },
+          current: {
+            rootPath: 'D:/current', relativePath: 'notes/deleted.md', completeness: 'project', exists: false,
+          },
+        },
+        language: 'markdown',
+        themeId: 'dark',
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+    await vi.waitFor(() => expect(wrapper.get('[data-test="comparison"]').text()).toBe('before|'))
+
+    const restore = wrapper.findAll('button').find(button => button.text().includes('Restore this file'))!
+    await restore.trigger('click')
+    expect(wrapper.emitted('restore-file')).toHaveLength(1)
+  })
 })
