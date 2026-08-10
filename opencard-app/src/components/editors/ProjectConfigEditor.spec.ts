@@ -256,7 +256,7 @@ describe('ProjectConfigEditor', () => {
     expect(wrapper.findAllComponents(ProjectConfigSection)).toHaveLength(7)
     expect(wrapper.findAll('.project-config-comparison-field__pair').length).toBeGreaterThanOrEqual(9)
     expect(wrapper.findAllComponents(ProjectExportTaskEditor)).toHaveLength(2)
-    expect(wrapper.findAllComponents(ProjectExportTaskEditor).every(editor => editor.props('busy'))).toBe(true)
+    expect(wrapper.findAllComponents(ProjectExportTaskEditor).every(editor => editor.props('readOnly'))).toBe(true)
     expect(wrapper.find('[data-field-key="name"]').exists()).toBe(false)
     expect(wrapper.find('[data-linked-file]').exists()).toBe(false)
     const comparisonValues = wrapper.findAll('.project-config-comparison-field input, .project-config-comparison-field textarea')

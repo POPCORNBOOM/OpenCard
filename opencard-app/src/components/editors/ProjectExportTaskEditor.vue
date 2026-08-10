@@ -2,7 +2,7 @@
   <div class="project-export-task-editor">
     <div class="project-export-task-editor__group">
       <OcText as="span" size="sm">{{ t('projectConfig.export.documents') }}</OcText>
-      <div ref="pickerRef" class="project-export-task-editor__picker">
+      <div v-if="!readOnly" ref="pickerRef" class="project-export-task-editor__picker">
         <OcFieldInput full-width :value="query" :placeholder="t('projectConfig.export.searchDocuments')"
           autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" :disabled="busy"
           :aria-expanded="menuOpen" :aria-controls="autocompleteId"
@@ -23,18 +23,18 @@
     <div class="project-export-task-editor__group project-export-task-editor__grid">
       <label class="project-export-task-editor__field">
         <span>{{ t('projectConfig.export.selection') }}</span>
-        <OcSelect v-model="selectionMode" :options="selectionOptions" full-width :disabled="busy" />
+        <OcSelect v-model="selectionMode" :options="selectionOptions" full-width :disabled="busy || readOnly" />
       </label>
       <label class="project-export-task-editor__field">
         <span>{{ t('projectConfig.export.layout') }}</span>
-        <OcSelect v-model="layoutMode" :options="layoutOptions" full-width :disabled="busy" />
+        <OcSelect v-model="layoutMode" :options="layoutOptions" full-width :disabled="busy || readOnly" />
       </label>
     </div>
 
     <div class="project-export-task-editor__group">
       <OcText as="span" size="sm">{{ t('projectConfig.export.resolution') }}</OcText>
       <div class="project-export-task-editor__resolution-controls">
-        <OcEnumStepper :model-value="quality" :options="qualityOptions" :disabled="busy"
+        <OcEnumStepper v-if="!readOnly" :model-value="quality" :options="qualityOptions" :disabled="busy"
           :previous-label="t('projectConfig.export.previousPreset')"
           :next-label="t('projectConfig.export.nextPreset')" @update:model-value="updateQuality" />
         <NumberPropertyField class="project-export-task-editor__scale-field"
@@ -52,18 +52,18 @@
           <OcFieldInput variant="plain" full-width readonly :value="outputDirectory"
             :placeholder="t('projectConfig.export.chooseOutputDirectory')" />
           <template #suffix>
-            <OcButton type="button" icon-only variant="ghost" icon="status.folder-open"
+            <OcButton v-if="!readOnly" type="button" icon-only variant="ghost" icon="status.folder-open"
               :disabled="busy" :aria-label="t('projectConfig.export.chooseOutputDirectory')" @click="chooseOutputDirectory" />
           </template>
         </OcFieldFrame>
       </label>
       <label class="project-export-task-editor__field">
         <span>{{ t('projectConfig.export.conflict') }}</span>
-        <OcSelect v-model="conflictMode" :options="conflictOptions" full-width :disabled="busy" />
+        <OcSelect v-model="conflictMode" :options="conflictOptions" full-width :disabled="busy || readOnly" />
       </label>
       <label class="project-export-task-editor__field">
         <span>{{ t('projectConfig.export.errorPolicy') }}</span>
-        <OcSelect v-model="errorPolicy" :options="errorPolicyOptions" full-width :disabled="busy" />
+        <OcSelect v-model="errorPolicy" :options="errorPolicyOptions" full-width :disabled="busy || readOnly" />
       </label>
     </div>
 
@@ -105,10 +105,12 @@ const props = withDefaults(defineProps<{
   documents: readonly ExportDocumentCandidate[]
   modelValue: ProjectExportTask
   busy?: boolean
+  readOnly?: boolean
   showValidation?: boolean
   preparationIssues?: readonly ExportTaskValidationIssue[]
 }>(), {
   busy: false,
+  readOnly: false,
   showValidation: false,
   preparationIssues: () => [],
 })
@@ -118,6 +120,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const busy = computed(() => props.busy)
+const readOnly = computed(() => props.readOnly)
 const showValidation = computed(() => props.showValidation)
 const preparationIssues = computed(() => props.preparationIssues)
 
@@ -150,7 +153,7 @@ const scaleDefinition = computed<Extract<PropertyEditorFieldDefinition, { fieldT
   fieldType: 'number',
   min: 0.1,
   step: 0.1,
-  isReadonly: busy.value,
+  isReadonly: busy.value || readOnly.value,
 }))
 const selectionOptions = computed<OcSelectOption[]>(() => [
   { value: 'blueprint-and-instances', label: t('projectConfig.export.selectionAll') },
@@ -189,8 +192,8 @@ const documentTreeData = computed<OcTreeData>(() => ({
     label: document.path,
     tail: targetResolution(document),
     icon: 'file.opencard',
-    draggable: !busy.value,
-    actions: busy.value ? [] : [REMOVE_DOCUMENT_ACTION_KEY],
+    draggable: !busy.value && !readOnly.value,
+    actions: busy.value || readOnly.value ? [] : [REMOVE_DOCUMENT_ACTION_KEY],
   }])),
   children: new Map(),
 }))
@@ -233,7 +236,7 @@ watch([() => props.modelValue, () => props.documents], ([task]) => {
 watch([
   selectedDocuments, scaleText, selectionMode, layoutMode, outputDirectory, conflictMode, errorPolicy,
 ], () => {
-  if (syncingFromProps || !Number.isFinite(scale.value) || scale.value < 0.1) return
+  if (syncingFromProps || readOnly.value || !Number.isFinite(scale.value) || scale.value < 0.1) return
   emit('update:modelValue', buildTask())
 }, { deep: true })
 
@@ -261,6 +264,7 @@ function selectSuggestion(path: string): void {
   void nextTick(() => activeInput.value?.focus())
 }
 function addCandidate(): void {
+  if (readOnly.value) return
   const path = candidatePath.value
   const document = props.documents.find(candidate => candidate.path === path)
   if (!document) return
@@ -290,7 +294,7 @@ function removeDocument(index: number): void {
   refreshActiveSuggestion()
 }
 function handleDocumentTreeIntent(intent: OcTreeIntent): void {
-  if (busy.value) return
+  if (busy.value || readOnly.value) return
   if (intent.type === 'action.invoke' && intent.actionKey === REMOVE_DOCUMENT_ACTION_KEY) {
     const index = selectedDocuments.value.findIndex(document => document.path === intent.key)
     if (index < 0) return
@@ -307,11 +311,13 @@ function handleDocumentTreeIntent(intent: OcTreeIntent): void {
   moveDocument(index, nextIndex)
 }
 function updateQuality(value: string): void {
+  if (readOnly.value) return
   if (!['preview', 'standard', 'high', 'ultra', 'custom'].includes(value)) return
   quality.value = value as typeof quality.value
   if (quality.value !== 'custom') scaleText.value = String(qualityScales[quality.value])
 }
 function updateScale(value: string): void {
+  if (readOnly.value) return
   scaleText.value = value
   quality.value = resolveQuality(Number(value))
 }
@@ -320,6 +326,7 @@ function resolveQuality(value: number): typeof quality.value {
   return preset ? preset as typeof quality.value : 'custom'
 }
 async function chooseOutputDirectory(): Promise<void> {
+  if (readOnly.value) return
   const selected = await openDirectory({ directory: true, multiple: false, title: t('projectConfig.export.chooseOutputDirectory') })
   if (typeof selected === 'string') outputDirectory.value = selected
 }

@@ -112,11 +112,11 @@
             <section class="project-profile-editor__comparison-side is-historical">
               <strong>A · {{ t('versioning.diff.historical') }}</strong>
               <ProjectExportTaskEditor :model-value="comparisonProfile.exportTask ?? createDefaultProjectExportTask()"
-                :documents="[]" busy />
+                :documents="[]" read-only />
             </section>
             <section class="project-profile-editor__comparison-side is-current">
               <strong>B · {{ t('versioning.diff.current') }}</strong>
-              <ProjectExportTaskEditor :model-value="defaultExportTask" :documents="[]" busy />
+              <ProjectExportTaskEditor :model-value="defaultExportTask" :documents="[]" read-only />
             </section>
           </div>
           <ProjectExportTaskEditor v-else :model-value="defaultExportTask" :documents="exportDocumentCandidates"

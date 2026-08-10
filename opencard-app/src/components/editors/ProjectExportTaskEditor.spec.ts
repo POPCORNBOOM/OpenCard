@@ -76,4 +76,32 @@ describe('projectExportTaskEditor', () => {
     expect(wrapper.get('[role="combobox"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
   })
+
+  it('preserves export values while removing every write intent in read-only mode', async () => {
+    const task = {
+      ...createDefaultProjectExportTask(),
+      documentPaths: ['cards/main.ocdocument'],
+      outputDirectory: 'D:/exports',
+    }
+    const wrapper = mount(ProjectExportTaskEditor, {
+      props: {
+        modelValue: task, documents: [{ path: 'cards/main.ocdocument', width: 540, height: 850 }],
+        readOnly: true,
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+        stubs: { Teleport: true, OcAutocompletePopover: true },
+      },
+    })
+    expect(wrapper.find('input[placeholder="Search card documents"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="Choose output folder"]').exists()).toBe(false)
+    expect(wrapper.find('.project-export-task-editor__resolution-controls .oc-enum-stepper').exists()).toBe(false)
+    expect(wrapper.text()).toContain('cards/main.ocdocument')
+    expect(wrapper.get('.project-export-task-editor__field input[readonly]').attributes('value')).toBe('D:/exports')
+    wrapper.getComponent({ name: 'OcTree' }).vm.$emit('intent', {
+      type: 'action.invoke', key: 'cards/main.ocdocument', actionKey: 'remove-document', source: 'inline',
+    })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
 })
