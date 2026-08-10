@@ -134,7 +134,7 @@
           @resize-end="handleDockResizeEnd('left', $event)"
         >
           <template #top>
-            <OcCard fill variant="glass" motion="none" title="卡牌树" :actions="instanceCardActions"
+            <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
               :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
@@ -144,7 +144,7 @@
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" motion="none" title="预览" :actions="previewCardActions"
+            <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
               :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
               <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
                 <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host"
@@ -194,7 +194,7 @@
           @resize-end="handleDockResizeEnd('right', $event)"
         >
           <template #top>
-            <OcCard fill variant="glass" motion="none" title="结构树" :actions="structureTreeCardActions"
+            <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill :data="blockTreeData" :actions="treeActions"
@@ -206,7 +206,7 @@
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" motion="none" title="属性" :actions="propertyCardActions"
+            <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
               :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
                 <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"

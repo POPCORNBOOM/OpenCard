@@ -92,7 +92,7 @@ describe('CdeOverlayDock', () => {
 
     expect(wrapper.emitted('update:top-size')).toContainEqual([280])
     expect(handle.getAttribute('aria-orientation')).toBe('horizontal')
-    expect(wrapper.get('.cde-overlay-dock__split-handle').element.style.height)
+    expect((wrapper.get('.cde-overlay-dock__split-handle').element as HTMLElement).style.height)
       .toBe(`${props.splitGap}px`)
   })
 
