@@ -176,8 +176,6 @@ onBeforeUnmount(() => {
 }
 
 .oc-viewport-inspector.is-expanded {
-  display: grid;
-  grid-template-rows: var(--oc-resize-track-size, var(--oc-space-3)) minmax(0, 1fr);
   height: var(
     --oc-viewport-inspector-current-height,
     var(--oc-viewport-inspector-default-height)
@@ -189,8 +187,15 @@ onBeforeUnmount(() => {
 }
 
 .oc-viewport-inspector__resizebar {
-  position: relative;
+  position: absolute;
+  top: calc(var(--oc-resize-track-size, var(--oc-space-3)) / -2);
+  right: 0;
+  left: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--oc-resize-track-size, var(--oc-space-3));
   min-width: 0;
   cursor: row-resize;
   touch-action: none;

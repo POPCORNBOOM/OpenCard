@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
-.cde-overlay-dock__width-handle {
+.cde-overlay-dock :deep(.cde-overlay-dock__width-handle) {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -323,11 +323,11 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
-.cde-overlay-dock--left .cde-overlay-dock__width-handle {
+.cde-overlay-dock--left :deep(.cde-overlay-dock__width-handle) {
   right: calc(var(--oc-space-3) * -1);
 }
 
-.cde-overlay-dock--right .cde-overlay-dock__width-handle {
+.cde-overlay-dock--right :deep(.cde-overlay-dock__width-handle) {
   left: calc(var(--oc-space-3) * -1);
 }
 </style>
