@@ -163,6 +163,19 @@ export type LocalHistoryFindFilesResponse = {
   nextCursor: string | null
 }
 
+export type LocalHistoryMoveRequest = VersionProjectRequest & {
+  fromRelativePath: string
+  toRelativePath: string
+  source: 'file-renamed' | 'file-moved'
+}
+
+export type LocalHistoryMoveResponse = {
+  projectId: string
+  movedFiles: number
+  recordedFiles: number
+  warnings: Array<{ code: string; entryId: string | null }>
+}
+
 export type LocalHistoryRestoreRequest = LocalHistoryEntryRequest & {
   expectedContentOid: string | null
 }

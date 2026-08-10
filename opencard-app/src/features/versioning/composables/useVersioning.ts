@@ -689,6 +689,31 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  async function moveLocalHistory(
+    fromRelativePath: string,
+    toRelativePath: string,
+    source: 'file-renamed' | 'file-moved',
+  ): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready') return
+    try {
+      const response = await service.moveLocalHistory({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        fromRelativePath,
+        toRelativePath,
+        source,
+      })
+      if (response.warnings.length > 0) reportAppError('OC-E7002', response.warnings)
+      if (historyPath.value === toRelativePath) await loadFileHistory(toRelativePath)
+    } catch (error) {
+      reportAppError('OC-E7002', error)
+    }
+  }
+
   async function loadLocalHistoryFileEntries(relativePath: string): Promise<void> {
     const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
@@ -785,6 +810,7 @@ export function useVersioning(options: UseVersioningOptions) {
     restoreLocalHistory,
     deleteLocalHistory,
     findLocalHistoryFiles,
+    moveLocalHistory,
     loadLocalHistoryFileEntries,
     dispose,
   }

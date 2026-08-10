@@ -1014,6 +1014,7 @@ const {
   deleteLocalHistory,
   openDetachedLocalHistoryCompare,
   findLocalHistoryFiles,
+  moveLocalHistory,
   loadLocalHistoryFileEntries,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
@@ -2886,14 +2887,28 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
 
   if (intent.type === 'rename.commit') {
     const result = await renameEntry(intent.key, intent.name)
-    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+    if (result.ok) {
+      remapSessionPaths(result.fromPath, result.toPath)
+      await moveLocalHistory(
+        getRelativeProjectPath(result.fromPath),
+        getRelativeProjectPath(result.toPath),
+        'file-renamed',
+      )
+    }
     else console.warn('[workspace] Rename rejected:', result.reason)
     return
   }
 
   if (intent.type === 'move.request') {
     const result = await moveEntryByDrop(intent)
-    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+    if (result.ok) {
+      remapSessionPaths(result.fromPath, result.toPath)
+      await moveLocalHistory(
+        getRelativeProjectPath(result.fromPath),
+        getRelativeProjectPath(result.toPath),
+        'file-moved',
+      )
+    }
     else console.warn('[workspace] Move rejected:', result.reason)
     return
   }

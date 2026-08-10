@@ -176,6 +176,27 @@ pub struct LocalHistoryFindFilesResponse {
     pub next_cursor: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryMoveRequest {
+    pub operation_id: String,
+    pub project_root: String,
+    pub project_id: String,
+    pub generation: u64,
+    pub from_relative_path: String,
+    pub to_relative_path: String,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalHistoryMoveResponse {
+    pub project_id: String,
+    pub moved_files: usize,
+    pub recorded_files: usize,
+    pub warnings: Vec<LocalHistoryWarningDto>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalHistoryRestoreResponse {
@@ -225,6 +246,7 @@ pub async fn local_history_record(
             )
             .retryable()
         })?;
+        let _request_generation = request.generation;
         let context = load_project_context(
             Path::new(&request.project_root),
             &storage_root,
@@ -316,6 +338,7 @@ pub async fn local_history_delete(
             )
             .retryable()
         })?;
+        let _request_generation = request.generation;
         let context = load_project_context(
             Path::new(&request.project_root),
             &storage_root,
@@ -348,7 +371,55 @@ pub async fn local_history_find_files(
             &storage_root,
             &request.project_id,
         )?;
-        find_files(&context, &request.query, request.cursor.as_deref(), request.limit)
+        find_files(
+            &context,
+            &request.query,
+            request.cursor.as_deref(),
+            request.limit,
+        )
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
+pub async fn local_history_move(
+    request: LocalHistoryMoveRequest,
+    app_handle: tauri::AppHandle,
+    state: State<'_, VersionHistoryState>,
+) -> Result<LocalHistoryMoveResponse, VersionErrorDto> {
+    let operation = "local_history_move";
+    validate_move_request(&request).map_err(|error| to_error_dto(operation, error))?;
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let write_lock = Arc::clone(&state.write_lock);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = write_lock.lock().map_err(|_| {
+            HistoryFailure::new(
+                "history-busy",
+                "acquire-lock",
+                "version history lock is poisoned",
+            )
+            .retryable()
+        })?;
+        let _request_generation = request.generation;
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        move_entries(
+            &context,
+            &request.from_relative_path,
+            &request.to_relative_path,
+            &request.source,
+        )
     })
     .await
     .map_err(|error| {
@@ -456,8 +527,35 @@ fn validate_find_request(request: &LocalHistoryFindFilesRequest) -> Result<(), H
     }
     if let Some(cursor) = request.cursor.as_deref() {
         cursor.parse::<usize>().map_err(|_| {
-            HistoryFailure::new("invalid-request", "validate-cursor", "invalid Local History cursor")
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-cursor",
+                "invalid Local History cursor",
+            )
         })?;
+    }
+    Ok(())
+}
+
+fn validate_move_request(request: &LocalHistoryMoveRequest) -> Result<(), HistoryFailure> {
+    validate_common_request(
+        &request.operation_id,
+        &request.project_root,
+        &request.project_id,
+    )?;
+    if request.from_relative_path.trim().is_empty() || request.to_relative_path.trim().is_empty() {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-path",
+            "missing Local History move path",
+        ));
+    }
+    if !matches!(request.source.as_str(), "file-renamed" | "file-moved") {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-source",
+            "invalid Local History move source",
+        ));
     }
     Ok(())
 }
@@ -803,6 +901,244 @@ fn delete_entry(
     })
 }
 
+fn move_entries(
+    context: &ProjectHistoryContext,
+    from_relative_path: &str,
+    to_relative_path: &str,
+    source: &str,
+) -> Result<LocalHistoryMoveResponse, HistoryFailure> {
+    let from_prefix = normalize_move_prefix(context, from_relative_path)?;
+    let to_prefix = normalize_move_prefix(context, to_relative_path)?;
+    if normalize_path_key(&from_prefix) == normalize_path_key(&to_prefix) {
+        return Err(HistoryFailure::new(
+            "invalid-request",
+            "validate-path",
+            "Local History move paths are the same",
+        )
+        .project_id(&context.project_id));
+    }
+
+    let records = collect_history_records(context)?;
+    let mut paths = BTreeMap::<String, String>::new();
+    for relative_path in records.keys() {
+        if let Some(target) = remap_move_path(relative_path, &from_prefix, &to_prefix) {
+            paths.insert(relative_path.clone(), target);
+        }
+    }
+    for relative_path in
+        scan_managed_files(&context.canonical_root, &context.template_managed_paths)?
+    {
+        if let Some(source_path) = remap_move_path(&relative_path, &to_prefix, &from_prefix) {
+            let content = fs::read(context.canonical_root.join(Path::new(&relative_path)))
+                .map_err(|error| {
+                    HistoryFailure::new("history-io", "read-moved-file", error.to_string())
+                        .project_id(&context.project_id)
+                        .relative_path(&relative_path)
+                        .retryable()
+                })?;
+            if ensure_local_history_admission(context, &relative_path, &content).is_ok() {
+                paths.insert(source_path, relative_path);
+            }
+        }
+    }
+
+    let mut moved_files = 0;
+    let mut recorded_files = 0;
+    let mut warnings = Vec::new();
+    for (from_path, to_path) in paths {
+        let moved = migrate_history_path(context, &from_path, &to_path)?;
+        if moved.moved {
+            moved_files += 1;
+            warnings.extend(moved.warnings);
+        }
+        let target = context.canonical_root.join(Path::new(&to_path));
+        let Ok(metadata) = fs::symlink_metadata(&target) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            continue;
+        }
+        let content = fs::read(&target).map_err(|error| {
+            HistoryFailure::new("history-io", "read-moved-file", error.to_string())
+                .project_id(&context.project_id)
+                .relative_path(&to_path)
+                .retryable()
+        })?;
+        if ensure_local_history_admission(context, &to_path, &content).is_err() {
+            continue;
+        }
+        let recorded = record_entry_internal(
+            context,
+            LocalHistoryRecordRequest {
+                operation_id: format!("move-{}", unix_time_ms()),
+                project_root: context.canonical_root_text.clone(),
+                project_id: context.project_id.clone(),
+                generation: 0,
+                relative_path: to_path,
+                source: source.to_owned(),
+                source_description: None,
+                content,
+            },
+            true,
+        )?;
+        recorded_files += 1;
+        warnings.extend(recorded.warnings);
+    }
+    Ok(LocalHistoryMoveResponse {
+        project_id: context.project_id.clone(),
+        moved_files,
+        recorded_files,
+        warnings,
+    })
+}
+
+struct MigratedHistory {
+    moved: bool,
+    warnings: Vec<LocalHistoryWarningDto>,
+}
+
+fn migrate_history_path(
+    context: &ProjectHistoryContext,
+    from_relative_path: &str,
+    to_relative_path: &str,
+) -> Result<MigratedHistory, HistoryFailure> {
+    let source = resolve_history_path(context, from_relative_path, false)?;
+    let target = resolve_history_path(context, to_relative_path, false)?;
+    let source_entries = load_entries(&source)?;
+    if source_entries.entries.is_empty() {
+        return Ok(MigratedHistory {
+            moved: false,
+            warnings: source_entries.warnings,
+        });
+    }
+    let target_entries = load_entries(&target)?;
+    fs::create_dir_all(&target.history_directory).map_err(|error| {
+        HistoryFailure::new("history-io", "move-history", error.to_string())
+            .project_id(&context.project_id)
+            .relative_path(&target.relative_path)
+            .retryable()
+    })?;
+    let mut warnings = source_entries.warnings;
+    warnings.extend(target_entries.warnings);
+    let mut entries = target_entries.entries;
+    let mut known_entry_ids = entries
+        .iter()
+        .map(|entry| entry.entry_id.clone())
+        .collect::<BTreeSet<_>>();
+    for mut entry in source_entries.entries {
+        if known_entry_ids.insert(entry.entry_id.clone()) {
+            let content = fs::read(content_path(&source.history_directory, &entry.entry_id))
+                .map_err(|error| {
+                    HistoryFailure::new("history-io", "move-history", error.to_string())
+                        .project_id(&context.project_id)
+                        .relative_path(&source.relative_path)
+                        .retryable()
+                })?;
+            verify_content(&entry, &content)?;
+            write_file_atomically(
+                &content_path(&target.history_directory, &entry.entry_id),
+                &content,
+            )
+            .map_err(|error| {
+                HistoryFailure::new("history-io", "move-history", error.to_string())
+                    .project_id(&context.project_id)
+                    .relative_path(&target.relative_path)
+                    .retryable()
+            })?;
+        }
+        entry.relative_path = target.relative_path.clone();
+        entries.push(entry);
+    }
+    entries.sort_by(|left, right| {
+        right
+            .created_at_unix_ms
+            .cmp(&left.created_at_unix_ms)
+            .then_with(|| right.entry_id.cmp(&left.entry_id))
+    });
+    entries.dedup_by(|left, right| left.entry_id == right.entry_id);
+    let removed = if entries.len() > LOCAL_HISTORY_LIMIT {
+        entries.split_off(LOCAL_HISTORY_LIMIT)
+    } else {
+        Vec::new()
+    };
+    write_manifest(
+        &target,
+        &LocalHistoryManifest {
+            schema_version: LOCAL_HISTORY_SCHEMA_VERSION,
+            entries,
+        },
+    )?;
+    for entry in removed {
+        if let Err(error) =
+            fs::remove_file(content_path(&target.history_directory, &entry.entry_id))
+        {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                warnings.push(LocalHistoryWarningDto {
+                    code: "history-cleanup".to_owned(),
+                    entry_id: Some(entry.entry_id),
+                });
+            }
+        }
+    }
+    if let Err(error) = fs::remove_dir_all(&source.history_directory) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            warnings.push(LocalHistoryWarningDto {
+                code: "history-cleanup".to_owned(),
+                entry_id: None,
+            });
+        }
+    }
+    Ok(MigratedHistory {
+        moved: true,
+        warnings,
+    })
+}
+
+fn normalize_move_prefix(
+    context: &ProjectHistoryContext,
+    relative_path: &str,
+) -> Result<String, HistoryFailure> {
+    let normalized = relative_path
+        .replace('\\', "/")
+        .trim_matches('/')
+        .to_owned();
+    let path = Path::new(&normalized);
+    if normalized.is_empty()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+        || is_excluded_path(&normalized)
+    {
+        return Err(HistoryFailure::new(
+            "project-boundary-violation",
+            "validate-path",
+            "invalid Local History move path",
+        )
+        .project_id(&context.project_id)
+        .relative_path(&normalized));
+    }
+    Ok(normalized)
+}
+
+fn remap_move_path(path: &str, from_prefix: &str, to_prefix: &str) -> Option<String> {
+    let path_key = normalize_path_key(path);
+    let from_key = normalize_path_key(from_prefix);
+    if path_key == from_key {
+        return Some(to_prefix.to_owned());
+    }
+    if !path_key.starts_with(&format!("{from_key}/")) {
+        return None;
+    }
+    let component_count = from_prefix.split('/').count();
+    let suffix = path
+        .replace('\\', "/")
+        .split('/')
+        .skip(component_count)
+        .collect::<Vec<_>>()
+        .join("/");
+    Some(format!("{}/{suffix}", to_prefix.trim_end_matches('/')))
+}
+
 fn resolve_history_path(
     context: &ProjectHistoryContext,
     relative_path: &str,
@@ -1065,73 +1401,21 @@ fn find_files(
     cursor: Option<&str>,
     limit: Option<usize>,
 ) -> Result<LocalHistoryFindFilesResponse, HistoryFailure> {
-    let start = cursor
-        .unwrap_or("0")
-        .parse::<usize>()
-        .map_err(|_| HistoryFailure::new("invalid-request", "validate-cursor", "invalid Local History cursor"))?;
+    let start = cursor.unwrap_or("0").parse::<usize>().map_err(|_| {
+        HistoryFailure::new(
+            "invalid-request",
+            "validate-cursor",
+            "invalid Local History cursor",
+        )
+    })?;
     let limit = limit.unwrap_or(50).clamp(1, 100);
     let query = query.trim().to_lowercase();
-    let history_root = context.project_history_root.join("local-history");
-    let mut records = BTreeMap::<String, Vec<LocalHistoryEntryDto>>::new();
-
-    let directories = match fs::read_dir(&history_root) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(LocalHistoryFindFilesResponse {
-                project_id: context.project_id.clone(),
-                items: Vec::new(),
-                next_cursor: None,
-            })
-        }
-        Err(error) => {
-            return Err(
-                HistoryFailure::new("history-io", "find-files", error.to_string()).retryable(),
-            )
-        }
-    };
-
-    for directory in directories {
-        let Ok(directory) = directory else { continue };
-        let path = directory.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let manifest_path = path.join("entries.json");
-        let bytes = match fs::read(&manifest_path) {
-            Ok(bytes) => bytes,
-            Err(_) => continue,
-        };
-        let manifest: LocalHistoryManifest = match serde_json::from_slice::<LocalHistoryManifest>(&bytes) {
-            Ok(manifest) if manifest.schema_version == LOCAL_HISTORY_SCHEMA_VERSION => manifest,
-            _ => continue,
-        };
-        for entry in manifest.entries {
-            if entry.schema_version != LOCAL_HISTORY_SCHEMA_VERSION
-                || !is_safe_entry_id(&entry.entry_id)
-                || entry.size > MAX_FILE_SIZE
-                || !path.join(format!("{}.bin", entry.entry_id)).is_file()
-            {
-                continue;
-            }
-            let normalized = entry.relative_path.replace('\\', "/");
-            let template_managed = context
-                .template_managed_paths
-                .iter()
-                .any(|path| normalize_path_key(path) == normalize_path_key(&normalized));
-            if resolve_history_path(context, &normalized, false).is_err()
-                || !is_managed_file(&normalized, template_managed)
-            {
-                continue;
-            }
-            if !query.is_empty() && !normalized.to_lowercase().contains(&query) {
-                continue;
-            }
-            records.entry(normalized).or_default().push(entry);
-        }
-    }
-
+    let records = collect_history_records(context)?;
     let mut items = records
         .into_iter()
+        .filter(|(relative_path, _)| {
+            query.is_empty() || relative_path.to_lowercase().contains(&query)
+        })
         .map(|(relative_path, entries)| {
             let latest_entry_at_unix_ms = entries
                 .iter()
@@ -1165,6 +1449,62 @@ fn find_files(
         items: items.into_iter().skip(start).take(limit).collect(),
         next_cursor,
     })
+}
+
+fn collect_history_records(
+    context: &ProjectHistoryContext,
+) -> Result<BTreeMap<String, Vec<LocalHistoryEntryDto>>, HistoryFailure> {
+    let history_root = context.project_history_root.join("local-history");
+    let mut records = BTreeMap::<String, Vec<LocalHistoryEntryDto>>::new();
+
+    let directories = match fs::read_dir(&history_root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) => {
+            return Err(
+                HistoryFailure::new("history-io", "find-files", error.to_string()).retryable(),
+            )
+        }
+    };
+
+    for directory in directories {
+        let Ok(directory) = directory else { continue };
+        let path = directory.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let manifest_path = path.join("entries.json");
+        let bytes = match fs::read(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(_) => continue,
+        };
+        let manifest: LocalHistoryManifest =
+            match serde_json::from_slice::<LocalHistoryManifest>(&bytes) {
+                Ok(manifest) if manifest.schema_version == LOCAL_HISTORY_SCHEMA_VERSION => manifest,
+                _ => continue,
+            };
+        for entry in manifest.entries {
+            if entry.schema_version != LOCAL_HISTORY_SCHEMA_VERSION
+                || !is_safe_entry_id(&entry.entry_id)
+                || entry.size > MAX_FILE_SIZE
+                || !path.join(format!("{}.bin", entry.entry_id)).is_file()
+            {
+                continue;
+            }
+            let normalized = entry.relative_path.replace('\\', "/");
+            let template_managed = context
+                .template_managed_paths
+                .iter()
+                .any(|path| normalize_path_key(path) == normalize_path_key(&normalized));
+            if resolve_history_path(context, &normalized, false).is_err()
+                || !is_managed_file(&normalized, template_managed)
+            {
+                continue;
+            }
+            records.entry(normalized).or_default().push(entry);
+        }
+    }
+    Ok(records)
 }
 
 fn cleanup_orphans(
@@ -1425,7 +1765,9 @@ mod tests {
         assert!(ensure_local_history_admission(&context, "notes.txt", b"").is_ok());
         assert!(ensure_local_history_admission(&context, "notes.txt", &[0xff]).is_err());
         assert!(ensure_local_history_admission(&context, ".ocproject", b"{}\n").is_ok());
-        assert!(ensure_local_history_admission(&context, ".ocblocks", b"{\"blocks\":[]}\n").is_ok());
+        assert!(
+            ensure_local_history_admission(&context, ".ocblocks", b"{\"blocks\":[]}\n").is_ok()
+        );
         assert!(ensure_local_history_admission(&context, "assets/image.png", b"bytes").is_err());
         assert!(ensure_local_history_admission(&context, ".env.local", b"TOKEN=x").is_err());
         assert!(ensure_local_history_admission(&context, "custom.fixture", b"text").is_ok());
@@ -1491,6 +1833,79 @@ mod tests {
     }
 
     #[test]
+    fn moving_a_file_merges_history_and_records_the_new_path() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::create_dir(project.path().join("notes")).unwrap();
+        fs::write(project.path().join("draft.txt"), b"draft").unwrap();
+        fs::write(project.path().join("notes/final.txt"), b"older target").unwrap();
+        let context = context(project.path(), storage.path());
+        let source = record(&context, "draft.txt", "manual-save", b"draft");
+        let target = record(&context, "notes/final.txt", "manual-save", b"older target");
+        fs::remove_file(project.path().join("notes/final.txt")).unwrap();
+        fs::rename(
+            project.path().join("draft.txt"),
+            project.path().join("notes/final.txt"),
+        )
+        .unwrap();
+
+        let response =
+            move_entries(&context, "draft.txt", "notes/final.txt", "file-renamed").unwrap();
+
+        assert_eq!(response.moved_files, 1);
+        assert!(list_entries(&context, "draft.txt")
+            .unwrap()
+            .items
+            .is_empty());
+        let entries = list_entries(&context, "notes/final.txt").unwrap().items;
+        assert_eq!(entries.len(), 3);
+        assert!(entries
+            .iter()
+            .any(|entry| entry.entry_id == source.entry.entry_id));
+        assert!(entries
+            .iter()
+            .any(|entry| entry.entry_id == target.entry.entry_id));
+        assert_eq!(entries[0].source, "file-renamed");
+        assert!(entries
+            .iter()
+            .all(|entry| entry.relative_path == "notes/final.txt"));
+    }
+
+    #[test]
+    fn moving_a_directory_remaps_each_managed_history_path() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::create_dir(project.path().join("drafts")).unwrap();
+        fs::write(project.path().join("drafts/one.md"), b"one").unwrap();
+        fs::write(project.path().join("drafts/two.json"), b"two").unwrap();
+        let context = context(project.path(), storage.path());
+        record(&context, "drafts/one.md", "manual-save", b"one");
+        record(&context, "drafts/two.json", "manual-save", b"two");
+        fs::rename(
+            project.path().join("drafts"),
+            project.path().join("archive"),
+        )
+        .unwrap();
+
+        let response = move_entries(&context, "drafts", "archive", "file-moved").unwrap();
+
+        assert_eq!(response.moved_files, 2);
+        assert_eq!(response.recorded_files, 2);
+        assert!(list_entries(&context, "drafts/one.md")
+            .unwrap()
+            .items
+            .is_empty());
+        assert_eq!(
+            list_entries(&context, "archive/one.md").unwrap().items[0].source,
+            "file-moved"
+        );
+        assert_eq!(
+            list_entries(&context, "archive/two.json").unwrap().items[0].source,
+            "file-moved"
+        );
+    }
+
+    #[test]
     fn finds_existing_and_deleted_paths_with_query_and_cursor() {
         let project = tempfile::tempdir().unwrap();
         let storage = tempfile::tempdir().unwrap();
@@ -1513,6 +1928,13 @@ mod tests {
         assert!(second.items[0].currently_exists);
         assert!(second.next_cursor.is_none());
         let query = find_files(&context, "NOTES", None, Some(50)).unwrap();
-        assert_eq!(query.items.iter().map(|item| item.relative_path.as_str()).collect::<Vec<_>>(), ["notes.txt"]);
+        assert_eq!(
+            query
+                .items
+                .iter()
+                .map(|item| item.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            ["notes.txt"]
+        );
     }
 }

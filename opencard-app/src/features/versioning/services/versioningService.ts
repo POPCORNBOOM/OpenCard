@@ -21,6 +21,8 @@ import type {
   LocalHistoryDeleteResponse,
   LocalHistoryFindFilesRequest,
   LocalHistoryFindFilesResponse,
+  LocalHistoryMoveRequest,
+  LocalHistoryMoveResponse,
   LocalHistoryRestoreRequest,
   LocalHistoryRestoreResponse,
   PrepareCompareRequest,
@@ -47,6 +49,7 @@ export interface VersioningService {
   readLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryReadResponse>
   deleteLocalHistory(request: LocalHistoryEntryRequest): Promise<LocalHistoryDeleteResponse>
   findLocalHistoryFiles(request: LocalHistoryFindFilesRequest): Promise<LocalHistoryFindFilesResponse>
+  moveLocalHistory(request: LocalHistoryMoveRequest): Promise<LocalHistoryMoveResponse>
   restoreLocalHistory(request: LocalHistoryRestoreRequest): Promise<LocalHistoryRestoreResponse>
   prepareCompare(request: PrepareCompareRequest): Promise<PrepareCompareResponse>
   releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse>
@@ -98,6 +101,10 @@ class VersioningServiceImpl implements VersioningService {
 
   async findLocalHistoryFiles(request: LocalHistoryFindFilesRequest): Promise<LocalHistoryFindFilesResponse> {
     return await invoke<LocalHistoryFindFilesResponse>('local_history_find_files', { request })
+  }
+
+  async moveLocalHistory(request: LocalHistoryMoveRequest): Promise<LocalHistoryMoveResponse> {
+    return await invoke<LocalHistoryMoveResponse>('local_history_move', { request })
   }
 
   async restoreLocalHistory(request: LocalHistoryRestoreRequest): Promise<LocalHistoryRestoreResponse> {
