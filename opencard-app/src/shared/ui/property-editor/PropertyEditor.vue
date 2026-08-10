@@ -15,10 +15,10 @@
 -->
 <template>
   <div ref="propertyEditorRoot" class="property-editor" :class="{ 'is-delete-mode': deleteMode }">
-    <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
+    <OcEmpty v-if="mergedDisplaySources.length === 0">选择一个对象查看属性</OcEmpty>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
-        <section v-for="source in displaySources" :key="source.key" class="property-editor__source">
+        <section v-for="source in mergedDisplaySources" :key="source.key" class="property-editor__source">
           <header class="property-editor__source-header">
             <span class="property-editor__icon-slot" aria-hidden="true">
               <OcIcon name="data.symbol-class" size="md" tone="muted" />
@@ -58,7 +58,31 @@
                   <OcText class="property-editor__row-label-text" :truncate="true">{{ entry.label }}</OcText>
                 </button>
               </div>
-              <div class="property-editor__value">
+              <div v-if="comparisonInputs" class="property-editor__value property-editor__comparison-value">
+                <template v-if="comparisonPair(category.inputKey, entry.key).changed">
+                  <div class="property-editor__comparison-side is-historical">
+                    <strong>A</strong>
+                    <PropertyFieldRenderer v-if="comparisonPair(category.inputKey, entry.key).historical"
+                      :definition="comparisonDefinition(comparisonPair(category.inputKey, entry.key).historical!.definition)"
+                      :value="comparisonPair(category.inputKey, entry.key).historical!.value"
+                      :editor-id="comparisonEditorId(category.inputKey, comparisonPair(category.inputKey, entry.key).historical!)" />
+                    <OcText v-else tone="muted" size="sm">{{ t('versioning.diff.missing') }}</OcText>
+                  </div>
+                  <div class="property-editor__comparison-side is-current">
+                    <strong>B</strong>
+                    <PropertyFieldRenderer v-if="comparisonPair(category.inputKey, entry.key).current"
+                      :definition="comparisonDefinition(comparisonPair(category.inputKey, entry.key).current!.definition)"
+                      :value="comparisonPair(category.inputKey, entry.key).current!.value"
+                      :editor-id="comparisonEditorId(category.inputKey, comparisonPair(category.inputKey, entry.key).current!)" />
+                    <OcText v-else tone="muted" size="sm">{{ t('versioning.diff.missing') }}</OcText>
+                  </div>
+                </template>
+                <PropertyFieldRenderer v-else
+                  :definition="comparisonDefinition(entry.definition)"
+                  :value="entry.value"
+                  :editor-id="comparisonEditorId(category.inputKey, entry)" />
+              </div>
+              <div v-else class="property-editor__value">
                 <PropertyFieldRenderer
                   :ref="component => setFieldRendererRef(fieldIdentity(category.inputKey, entry.key), component)"
                   class="entry-control"
@@ -131,6 +155,7 @@ const props = defineProps<{
   sortMode: PropertyEditorSortMode
   bindingInterpreter?: PropertyEditorBindingInterpreter
   deleteMode?: boolean
+  comparisonInputs?: readonly PropertyEditorInput[]
 }>()
 
 const { t, te } = useI18n()
@@ -182,6 +207,101 @@ const { displaySources } = usePropertyEditorView({
     icon: 'data.list-tree',
   })),
 })
+const { displaySources: comparisonDisplaySources } = usePropertyEditorView({
+  inputs: computed(() => props.comparisonInputs ?? []),
+  categories: computed(() => props.categories ?? new Map()),
+  sortMode: toRef(props, 'sortMode'),
+  otherCategory: computed(() => ({
+    title: resolveLocalizedText('propertyEditor.categories.other', 'Other'),
+    icon: 'data.list-tree',
+  })),
+})
+
+type ComparisonPair = {
+  historical?: PropertyEditorEntry
+  current?: PropertyEditorEntry
+  changed: boolean
+}
+
+function comparisonIdentity(inputKey: string, fieldKey: string): string {
+  return `${inputKey}\u0000${fieldKey}`
+}
+
+const comparisonPairs = computed(() => {
+  const pairs = new Map<string, ComparisonPair>()
+  for (const source of comparisonDisplaySources.value) {
+    for (const category of source.categories) {
+      for (const entry of category.entries) {
+        pairs.set(comparisonIdentity(source.key, entry.key), { historical: entry, changed: true })
+      }
+    }
+  }
+  for (const source of displaySources.value) {
+    for (const category of source.categories) {
+      for (const entry of category.entries) {
+        const identity = comparisonIdentity(source.key, entry.key)
+        const pair = pairs.get(identity) ?? { changed: true }
+        pair.current = entry
+        pair.changed = !pair.historical || !valuesEqual(pair.historical.value, entry.value)
+        pairs.set(identity, pair)
+      }
+    }
+  }
+  return pairs
+})
+
+const mergedDisplaySources = computed(() => {
+  if (!props.comparisonInputs) return displaySources.value
+  const sources = displaySources.value.map(source => ({
+    ...source,
+    categories: source.categories.map(category => ({ ...category, entries: [...category.entries] })),
+  }))
+  for (const historicalSource of comparisonDisplaySources.value) {
+    let source = sources.find(candidate => candidate.key === historicalSource.key)
+    if (!source) {
+      sources.push({
+        ...historicalSource,
+        categories: historicalSource.categories.map(category => ({ ...category, entries: [...category.entries] })),
+      })
+      continue
+    }
+    for (const historicalCategory of historicalSource.categories) {
+      let category = source.categories.find(candidate => candidate.key === historicalCategory.key)
+      if (!category) {
+        source.categories.push({ ...historicalCategory, entries: [...historicalCategory.entries] })
+        continue
+      }
+      for (const historicalEntry of historicalCategory.entries) {
+        if (!category.entries.some(entry => entry.key === historicalEntry.key)) category.entries.push(historicalEntry)
+      }
+    }
+  }
+  return sources
+})
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => [key, stableValue(entry)]))
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right))
+}
+
+function comparisonPair(inputKey: string, fieldKey: string): ComparisonPair {
+  return comparisonPairs.value.get(comparisonIdentity(inputKey, fieldKey)) ?? { changed: false }
+}
+
+function comparisonDefinition(definition: PropertyEditorFieldDefinition): PropertyEditorFieldDefinition {
+  return { ...definition, isReadonly: true, resettable: false, deletable: false } as PropertyEditorFieldDefinition
+}
+
+function comparisonEditorId(inputKey: string, entry: PropertyEditorEntry) {
+  return resolveFieldEditorState(inputKey, entry).editorId
+}
 
 function emitPropertyValue(sourceKey: string, fieldKey: string, value: unknown): void {
   emit('update-property', { key: sourceKey, fieldKey, value })
@@ -242,6 +362,7 @@ function handleFieldValueUpdate(inputKey: string, entry: PropertyEditorEntry, va
 
 // 添加字段与重置交互。
 function resolveCategoryActions(category: PropertyEditorCategoryView): OcActionButtonAction[] {
+  if (props.comparisonInputs) return []
   const actions: OcActionButtonAction[] = []
   if (category.addableFields.length > 0) {
     actions.push({
@@ -543,6 +664,36 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--oc-space-1);
   min-width: 0;
+}
+
+.property-editor__comparison-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--oc-space-1);
+  padding-block: var(--oc-space-1);
+}
+
+.property-editor__comparison-side {
+  display: grid;
+  grid-template-columns: var(--oc-size-sm) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--oc-space-1);
+  min-width: 0;
+  padding: var(--oc-space-1);
+}
+
+.property-editor__comparison-side > strong {
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-sm);
+  text-align: center;
+}
+
+.property-editor__comparison-side.is-historical {
+  background: var(--oc-bg-danger-subtle);
+}
+
+.property-editor__comparison-side.is-current {
+  background: color-mix(in srgb, var(--oc-icon-success) 10%, transparent);
 }
 
 @media (hover: none) {

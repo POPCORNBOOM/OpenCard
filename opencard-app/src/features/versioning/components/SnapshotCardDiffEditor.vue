@@ -27,6 +27,7 @@
         :comparison-changed-block-ids="comparisonChanges?.blockIds ? [...comparisonChanges.blockIds] : undefined"
         :comparison-changed-instance-ids="comparisonChanges?.instanceIds ? [...comparisonChanges.instanceIds] : undefined"
         :comparison-document-changed="comparisonChanges?.documentChanged"
+        :comparison-property-inputs="propertyInputs[side.key === 'historical' ? 'current' : 'historical']"
         :theme-id="themeId"
         :theme-overrides="themeOverrides"
         :render-environment="side.environment"
@@ -35,6 +36,7 @@
         @update-viewport-transform="viewportTransform = $event"
         @update-card-comparison-layout="comparisonLayout = $event"
         @update-card-comparison-selection="selectedBlockId = $event"
+        @update-card-comparison-properties="updatePropertyInputs(side.key, $event)"
       />
     </section>
   </section>
@@ -50,6 +52,7 @@ import type { CardDesignerViewState, EditorViewportTransform } from '../../edito
 import type { CardComparisonLayout } from '../../editor-runtime/model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
+import type { PropertyEditorInput } from '../../../shared/ui/property-editor/propertyEditor.types'
 import type { SnapshotDescriptorDto } from '../model/versioning'
 import { createCardComparisonChanges, type CardComparisonChanges } from '../model/cardComparison'
 import {
@@ -75,6 +78,10 @@ const view = ref<CardDesignerViewState>({
 const viewportTransform = ref<EditorViewportTransform>({ x: 0, y: 0, scale: 1 })
 const selectedBlockId = ref<string | null>(null)
 const comparisonLayout = ref<CardComparisonLayout>('horizontal')
+const propertyInputs = shallowRef<Record<'historical' | 'current', readonly PropertyEditorInput[]>>({
+  historical: [],
+  current: [],
+})
 const comparisonChanges = computed<CardComparisonChanges | null>(() => {
   try {
     return createCardComparisonChanges(
@@ -85,6 +92,10 @@ const comparisonChanges = computed<CardComparisonChanges | null>(() => {
     return null
   }
 })
+
+function updatePropertyInputs(side: 'historical' | 'current', inputs: readonly PropertyEditorInput[]): void {
+  propertyInputs.value = { ...propertyInputs.value, [side]: inputs }
+}
 const renderSessions = shallowRef<Record<'historical' | 'current', SnapshotProjectRenderSession | null>>({
   historical: null,
   current: null,
@@ -211,28 +222,34 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
 }
 .snapshot-card-diff-editor__header strong { color: var(--oc-fg-default); }
 
-.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor) {
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor) {
   --card-editor-right-sidebar-visible-width: 0px !important;
   --card-editor-right-sidebar-edge-inset: 0px !important;
 }
 
-.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--right),
-.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__resizebar--vertical:last-of-type) {
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--right),
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__resizebar--vertical:last-of-type) {
   display: none;
 }
 
-.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--left > .card-design-editor__resizebar),
-.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--left > .card-design-editor__sidebar-panel:last-child) {
+.snapshot-card-diff-editor__side :deep(.card-design-editor__sidebar--left > .card-design-editor__resizebar),
+.snapshot-card-diff-editor__side :deep(.card-design-editor__sidebar--left > .card-design-editor__sidebar-panel:last-child) {
   display: none;
 }
 
-.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor) {
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor) {
   --card-editor-left-sidebar-visible-width: 0px !important;
   --card-editor-left-sidebar-edge-inset: 0px !important;
 }
 
-.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left),
-.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left),
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
   display: none;
 }
 </style>

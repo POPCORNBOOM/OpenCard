@@ -21,6 +21,7 @@ import type {
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
+import type { PropertyEditorInput } from '../../../shared/ui/property-editor/propertyEditor.types'
 
 export interface EditorProps {
   filePath: string
@@ -54,6 +55,7 @@ export interface EditorProps {
   comparisonChangedBlockIds?: readonly string[]
   comparisonChangedInstanceIds?: readonly string[]
   comparisonDocumentChanged?: boolean
+  comparisonPropertyInputs?: readonly PropertyEditorInput[]
 }
 
 export interface EditorEmits {
@@ -70,6 +72,7 @@ export interface EditorEmits {
   (e: 'update-font-preview-text', value: string): void
   (e: 'update-card-comparison-layout', value: CardComparisonLayout): void
   (e: 'update-card-comparison-selection', value: string | null): void
+  (e: 'update-card-comparison-properties', value: readonly PropertyEditorInput[]): void
 }
 
 // 编辑器接口定义

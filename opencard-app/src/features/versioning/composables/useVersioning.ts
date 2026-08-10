@@ -55,6 +55,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const selectedLocalHistoryFileEntries = ref<LocalHistoryEntryDto[]>([])
   const nextLocalHistoryFilesCursor = ref<string | null>(null)
   const historyPath = ref<string | null>(null)
+  const historyRequestPath = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
   const versionsBusy = ref(false)
@@ -91,6 +92,7 @@ export function useVersioning(options: UseVersioningOptions) {
     selectedLocalHistoryFileEntries.value = []
     nextLocalHistoryFilesCursor.value = null
     historyPath.value = null
+    historyRequestPath.value = null
     nextVersionCursor.value = null
     versionsBusy.value = false
     versionsError.value = null
@@ -389,7 +391,7 @@ export function useVersioning(options: UseVersioningOptions) {
         source: input.source,
         content: Array.from(new TextEncoder().encode(input.content)),
       })
-      if (historyPath.value === input.relativePath) await loadFileHistory(input.relativePath)
+      if (historyRequestPath.value === input.relativePath) await loadFileHistory(input.relativePath)
       if (response.warnings.length > 0) reportAppError('OC-E7002', response.warnings)
       return response.result
     } catch (error) {
@@ -400,6 +402,7 @@ export function useVersioning(options: UseVersioningOptions) {
 
   async function loadFileHistory(relativePath: string): Promise<void> {
     const requestId = ++fileHistoryRequestId
+    historyRequestPath.value = relativePath || null
     const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
     if (!projectIdentity || readiness.value.status !== 'ready' || !relativePath) {

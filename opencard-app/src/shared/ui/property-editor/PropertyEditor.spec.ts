@@ -14,6 +14,26 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('reuses field renderers for changed A/B values and keeps unchanged fields single', () => {
+    const fields = {
+      name: { title: 'Name', fieldType: 'string' as const },
+      note: { title: 'Note', fieldType: 'string' as const },
+    }
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{ key: 'block', record: { name: 'Current', note: 'Same' }, fields }],
+        comparisonInputs: [{ key: 'block', record: { name: 'Historical', note: 'Same' }, fields }],
+      },
+    })
+
+    expect(wrapper.findAll('.property-editor__comparison-side')).toHaveLength(2)
+    expect(wrapper.findAllComponents({ name: 'PropertyFieldRenderer' }).map(renderer => renderer.props('value'))).toEqual([
+      'Historical', 'Current', 'Same',
+    ])
+    expect(wrapper.findComponent(PropertyFieldActionRail).exists()).toBe(false)
+  })
+
   it('uses the category action definitions for its context menu', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {

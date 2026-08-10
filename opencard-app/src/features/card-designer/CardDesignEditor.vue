@@ -269,6 +269,7 @@
                   <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
                     :categories="propertyCategories" :sort-mode="propertySortMode"
                     :binding-interpreter="propertyBindingInterpreter"
+                    :comparison-inputs="props.comparisonPropertyInputs"
                     :delete-mode="propertyDeleteMode"
                     @update-property="updateBlockProp" @add-property="addBlockProp"
                     @reset-property="resetBlockProp"
@@ -1377,6 +1378,9 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
 })
+watch(propertyEditorInputs, inputs => {
+  if (isObserveOnly.value && props.comparisonRole) emit('update-card-comparison-properties', inputs)
+}, { immediate: true, deep: true })
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
   documentRevision,

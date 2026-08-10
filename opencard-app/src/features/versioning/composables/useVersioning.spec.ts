@@ -111,6 +111,60 @@ describe('useVersioning project preparation', () => {
     versioning.dispose()
   })
 
+  it('refreshes the active history after a save races the initial history load', async () => {
+    const projectPath = ref('D:/project')
+    let releaseHistory!: () => void
+    const historyReady = new Promise<void>(resolve => { releaseHistory = resolve })
+    const listFileHistory = vi.fn(async (request: { projectId: string, relativePath: string }) => {
+      await historyReady
+      return { projectId: request.projectId, relativePath: request.relativePath, items: [] }
+    })
+    const listLocalHistory = vi.fn(async (request: { projectId: string, relativePath: string }) => {
+      await historyReady
+      return { projectId: request.projectId, relativePath: request.relativePath, items: [], warnings: [] }
+    })
+    const service = {
+      prepareProject: vi.fn(async request => ({
+        identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+      })),
+      getStatus: vi.fn(async request => ({
+        identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+        current: null, nextVersion: '0.0.1', expectedHeadCommitId: null,
+        changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
+        hasManagedContent: true,
+      })),
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [], nextCursor: null })),
+      listFileHistory,
+      listLocalHistory,
+      recordLocalHistory: vi.fn(async request => ({
+        projectId: request.projectId,
+        entry: {} as never,
+        result: 'recorded' as const,
+        warnings: [],
+      })),
+    } as unknown as VersioningService
+    const versioning = useVersioning({
+      projectPath,
+      sessions: ref([]),
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+
+    const initialLoad = versioning.loadFileHistory('cards/main.json')
+    await vi.waitFor(() => expect(listFileHistory).toHaveBeenCalledTimes(1))
+    const record = versioning.recordLocalHistory({
+      projectRoot: 'D:/project', relativePath: 'cards/main.json', content: 'saved', source: 'manual-save',
+    })
+    await vi.waitFor(() => expect(listFileHistory).toHaveBeenCalledTimes(2))
+    releaseHistory()
+    await Promise.all([initialLoad, record])
+    expect(versioning.historyPath.value).toBe('cards/main.json')
+    versioning.dispose()
+  })
+
   it('opens a Local History comparison for a missing file without creating an editor session', async () => {
     const projectPath = ref('D:/project')
     const service: VersioningService = {
