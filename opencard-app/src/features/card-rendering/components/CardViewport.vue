@@ -200,6 +200,8 @@ import {
   VIEWPORT_ZOOM_ANIMATION_EPSILON,
   VIEWPORT_ZOOM_ANIMATION_SMOOTHING,
   normalizeViewportWheelDelta,
+  resolveViewportSafeRegion,
+  type ViewportInsets,
 } from '../../../shared/ui/viewport/viewportNavigation'
 
 type ResizeHandle = 'lt' | 'rt' | 'lb' | 'rb' | 'l' | 'r' | 't' | 'b'
@@ -294,6 +296,7 @@ const props = withDefaults(defineProps<{
   resourceRootPath?: string | null
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   projectIconCatalog?: ProjectIconCatalog
+  viewportInsets?: ViewportInsets
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -330,6 +333,7 @@ const props = withDefaults(defineProps<{
   resourceRootPath: null,
   remoteResourcePolicy: undefined,
   projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
+  viewportInsets: () => ({}),
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -812,10 +816,11 @@ function zoomByWheelAt(
 
 function zoomBy(factor: number): void {
   if (effectiveLayerViewActive.value) return
+  const region = resolveViewportSafeRegion(viewportWidth.value, viewportHeight.value, props.viewportInsets)
   zoomAt(
     targetScale.value * factor,
-    viewportWidth.value / 2,
-    viewportHeight.value / 2,
+    region.centerX,
+    region.centerY,
   )
 }
 
@@ -849,27 +854,38 @@ function resetView(): void {
 }
 
 function fitView(targetRect?: { left: number; top: number; width: number; height: number }): void {
+  fitContent({ left: 0, top: 0, width: props.face.width, height: props.face.height }, targetRect)
+}
+
+function fitContent(
+  contentRect: { left: number; top: number; width: number; height: number },
+  targetRect?: { left: number; top: number; width: number; height: number },
+): void {
   if (effectiveLayerViewActive.value) return
   const viewport = viewportRef.value
-  if (!viewport || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
+  if (!viewport || viewportWidth.value <= 0 || viewportHeight.value <= 0
+    || contentRect.width <= 0 || contentRect.height <= 0) return
 
   const viewportRect = viewport.getBoundingClientRect()
   const hasTargetRegion = Boolean(targetRect && targetRect.width > 0 && targetRect.height > 0)
-  const regionLeft = hasTargetRegion ? targetRect!.left - viewportRect.left : 0
-  const regionTop = hasTargetRegion ? targetRect!.top - viewportRect.top : 0
-  const regionWidth = hasTargetRegion ? targetRect!.width : viewportWidth.value
-  const regionHeight = hasTargetRegion ? targetRect!.height : viewportHeight.value
+  const safeRegion = resolveViewportSafeRegion(viewportWidth.value, viewportHeight.value, props.viewportInsets)
+  const regionLeft = hasTargetRegion ? targetRect!.left - viewportRect.left : safeRegion.left
+  const regionTop = hasTargetRegion ? targetRect!.top - viewportRect.top : safeRegion.top
+  const regionWidth = hasTargetRegion ? targetRect!.width : safeRegion.width
+  const regionHeight = hasTargetRegion ? targetRect!.height : safeRegion.height
   const availableWidth = Math.max(1, regionWidth - VIEWPORT_FIT_PADDING * 2)
   const availableHeight = Math.max(1, regionHeight - VIEWPORT_FIT_PADDING * 2)
   const nextScale = clamp(
-    Math.min(availableWidth / props.face.width, availableHeight / props.face.height),
+    Math.min(availableWidth / contentRect.width, availableHeight / contentRect.height),
     VIEWPORT_MIN_SCALE,
     VIEWPORT_MAX_SCALE,
   )
 
   stopZoomAnimation()
-  panX.value = regionLeft + regionWidth / 2 - viewportWidth.value / 2
-  panY.value = regionTop + regionHeight / 2 - viewportHeight.value / 2
+  panX.value = regionLeft + regionWidth / 2
+    - getBaseOffsetXForScale(nextScale) - (contentRect.left + contentRect.width / 2) * nextScale
+  panY.value = regionTop + regionHeight / 2
+    - getBaseOffsetYForScale(nextScale) - (contentRect.top + contentRect.height / 2) * nextScale
   scale.value = nextScale
   targetPanX.value = panX.value
   targetPanY.value = panY.value
@@ -1556,6 +1572,7 @@ defineExpose({
   zoomByWheelAt,
   resetView,
   fitView,
+  fitContent,
   nudgeSelection,
   runSelectionQuickAction,
   stepLayer,
@@ -1861,9 +1878,9 @@ watch(
 
 .selection-quick-actions {
   position: absolute;
-  left: -1px;
-  bottom: calc(100% + 8px);
-  z-index: 3;
+  left: calc(var(--oc-border-width) * -1);
+  bottom: calc(100% + var(--oc-floating-surface-gap));
+  z-index: var(--oc-z-overlay-toolbar);
   pointer-events: auto;
 }
 

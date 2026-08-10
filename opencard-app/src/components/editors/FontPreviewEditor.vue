@@ -1,33 +1,28 @@
 <template>
-  <section class="font-preview-editor" :aria-label="t('fontPreview.title', { name: displayName })">
-    <header class="font-preview-editor__header">
-      <OcIcon name="file.font" tone="primary" size="lg" />
-      <div class="font-preview-editor__identity">
-        <h1>{{ displayName }}</h1>
-        <OcText tone="muted">{{ t('fontPreview.subtitle') }}</OcText>
+  <ProjectRegistryEditorShell icon="file.font" content-mode="workspace"
+    :heading="displayName" :description="t('fontPreview.subtitle')">
+    <section class="font-preview-editor" :aria-label="t('fontPreview.title', { name: displayName })">
+      <div v-if="loading" class="font-preview-editor__status">
+        <OcText tone="muted">{{ t('fontPreview.loading') }}</OcText>
       </div>
-    </header>
-
-    <div v-if="loading" class="font-preview-editor__status">
-      <OcText tone="muted">{{ t('fontPreview.loading') }}</OcText>
-    </div>
-    <div v-else-if="loadFailed" class="font-preview-editor__status">
-      <OcText tone="danger" role="alert">{{ t('fontPreview.loadFailed') }}</OcText>
-    </div>
-    <main v-else class="font-preview-editor__workspace">
-      <label for="font-preview-input">{{ t('fontPreview.tryLabel') }}</label>
-      <OcFieldInput
-        id="font-preview-input"
-        class="font-preview-editor__input"
-        as="textarea"
-        full-width
-        :value="previewText"
-        :placeholder="t('fontPreview.tryPlaceholder')"
-        :style="specimenStyle"
-        @input="previewText = ($event.target as HTMLTextAreaElement).value"
-      />
-    </main>
-  </section>
+      <div v-else-if="loadFailed" class="font-preview-editor__status">
+        <OcText tone="danger" role="alert">{{ t('fontPreview.loadFailed') }}</OcText>
+      </div>
+      <main v-else class="font-preview-editor__workspace">
+        <label for="font-preview-input">{{ t('fontPreview.tryLabel') }}</label>
+        <OcFieldInput
+          id="font-preview-input"
+          class="font-preview-editor__input"
+          as="textarea"
+          full-width
+          :value="previewText"
+          :placeholder="t('fontPreview.tryPlaceholder')"
+          :style="specimenStyle"
+          @input="previewText = ($event.target as HTMLTextAreaElement).value"
+        />
+      </main>
+    </section>
+  </ProjectRegistryEditorShell>
 </template>
 
 <script setup lang="ts">
@@ -36,8 +31,8 @@ import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import OcFieldInput from '../base/OcFieldInput.vue'
-import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 
 defineOptions({ name: 'FontPreviewEditor' })
 
@@ -126,35 +121,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   background: var(--oc-bg-base);
   color: var(--oc-fg-default);
-}
-
-.font-preview-editor__header {
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-3);
-  padding: var(--oc-space-5);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
-}
-
-.font-preview-editor__identity {
-  display: grid;
-  min-width: 0;
-  gap: var(--oc-space-1);
-}
-
-.font-preview-editor__identity h1 {
-  margin: 0;
-  overflow: hidden;
-  font-size: var(--oc-text-lg);
-  font-weight: var(--font-weight-ui-title);
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .font-preview-editor__status {

@@ -42,6 +42,6 @@ const emit = defineEmits<{
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--oc-overlay-toolbar-item-gap, var(--oc-space-1));
+  gap: var(--oc-space-1);
 }
 </style>

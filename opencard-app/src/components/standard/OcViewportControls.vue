@@ -72,7 +72,7 @@ const emit = defineEmits<{
 .oc-viewport-controls {
   display: flex;
   align-items: center;
-  gap: var(--oc-overlay-toolbar-item-gap, var(--oc-space-1));
+  gap: var(--oc-space-1);
   min-height: var(--oc-size-md);
   padding: 3px;
   border: 1px solid var(--oc-border-muted);

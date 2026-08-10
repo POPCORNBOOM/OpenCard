@@ -42,13 +42,21 @@ describe('ProjectFontRegistryEditor', () => {
   it('uses the standard tree for fonts and font sets', async () => {
     const wrapper = mount(ProjectFontRegistryEditor, { props: baseProps })
     expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual([
+      'fonts', 'sets',
+    ])
+    expect(wrapper.getComponent(OcTree).props('expandedKeys')).toEqual(['fonts', 'sets'])
+    expect(wrapper.getComponent(OcTree).props('data').children.get('fonts')).toEqual([
       'fonts:brand-latin', 'fonts:brand-cjk', 'fonts:symbols',
     ])
     expect(wrapper.getComponent(OcTree).text()).not.toContain('assets/fonts/Brand.woff2')
     expect(wrapper.getComponent(OcTree).text()).not.toContain('font:brand-latin')
 
-    await wrapper.findAll('[role="radio"]')[1]!.trigger('click')
-    expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual(['sets:body'])
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'selection.change', triggerKey: 'sets:body', selectedKeys: ['sets:body'], mode: 'replace', input: 'left',
+    })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual(['fonts', 'sets'])
+    expect(wrapper.getComponent(OcTree).props('data').children.get('sets')).toEqual(['sets:body'])
     expect(wrapper.get('.project-font-registry-workbench__preview').attributes('style'))
       .toContain('OpenCardProjectFont-brand-latin')
   })
@@ -58,7 +66,7 @@ describe('ProjectFontRegistryEditor', () => {
     const tree = wrapper.getComponent(OcTree)
     tree.vm.$emit('intent', { type: 'selection.change', selectedKeys: ['fonts:brand-cjk'] })
     await wrapper.vm.$nextTick()
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'fonts:brand-cjk', actionKey: 'delete' })
+    tree.vm.$emit('intent', { type: 'action.invoke', key: 'fonts:brand-cjk', actionKey: 'delete-font' })
     const updates = wrapper.emitted('update:fonts') ?? []
     const updated = updates[updates.length - 1]?.[0] as ProjectFont[]
     await wrapper.setProps({ fonts: updated })
@@ -66,15 +74,16 @@ describe('ProjectFontRegistryEditor', () => {
     expect(wrapper.getComponent(OcTree).props('selectedKeys')).toEqual(['fonts:symbols'])
 
     await wrapper.setProps({ fonts: [fonts[0]!] })
-    wrapper.getComponent(OcTree).vm.$emit('intent', { type: 'action.invoke', key: 'fonts:brand-latin', actionKey: 'delete' })
+    wrapper.getComponent(OcTree).vm.$emit('intent', { type: 'action.invoke', key: 'fonts:brand-latin', actionKey: 'delete-font' })
     const finalUpdates = wrapper.emitted('update:fonts') ?? []
     expect(finalUpdates[finalUpdates.length - 1]?.[0]).toEqual([])
   })
 
-  it('routes contextual add and double-click activation', async () => {
+  it('provides both add commands and routes double-click activation', async () => {
     const wrapper = mount(ProjectFontRegistryEditor, { props: baseProps })
-    await wrapper.findAll('[role="radio"]')[1]!.trigger('click')
+    await wrapper.get('[aria-label="projectConfig.fonts.addFont"]').trigger('click')
     await wrapper.get('[aria-label="projectConfig.fonts.addSet"]').trigger('click')
+    expect(wrapper.emitted('register-font')).toHaveLength(1)
     expect(wrapper.emitted('register-font-set')).toHaveLength(1)
     wrapper.getComponent(OcTree).vm.$emit('intent', { type: 'node.activate', key: 'sets:body' })
     expect(wrapper.emitted('configure-font-set')).toEqual([['body']])
@@ -82,7 +91,9 @@ describe('ProjectFontRegistryEditor', () => {
 
   it('groups preview text by resolved font and shows registration details on hover', async () => {
     const wrapper = mount(ProjectFontRegistryEditor, { props: baseProps, attachTo: document.body })
-    await wrapper.findAll('[role="radio"]')[1]!.trigger('click')
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'selection.change', triggerKey: 'sets', selectedKeys: ['sets'], mode: 'replace', input: 'left',
+    })
     const input = wrapper.get<HTMLInputElement>('.project-font-registry-workbench__preview-toolbar input')
     await input.setValue('AB中文🙂 C')
 

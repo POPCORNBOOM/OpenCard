@@ -377,6 +377,7 @@ import FeedbackHistoryDialog from '../feedback/components/FeedbackHistoryDialog.
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
 import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
+import { useFeedbackInbox } from '../feedback/composables/useFeedbackInbox'
 import { appConsoleEntries, clearAppConsoleEntries } from '../logging/appConsole'
 import { reportAppError } from '../logging/appErrorCatalog'
 import type {
@@ -676,6 +677,11 @@ const releaseNotesDialogMode = ref<'current' | 'available' | null>(null)
 const feedbackDialogKind = ref<FeedbackKind>('suggestion')
 const feedbackCenterPage = ref<FeedbackPage | null>(null)
 const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
+const {
+  unreadReplyCount: unreadFeedbackReplyCount,
+  start: startFeedbackInbox,
+  dispose: disposeFeedbackInbox,
+} = useFeedbackInbox()
 
 function openFeedbackCenter(page: FeedbackPage, kind: FeedbackKind = 'suggestion'): void {
   feedbackDialogKind.value = kind
@@ -912,6 +918,7 @@ const {
   handleOpenedEditorsSelect,
   handleFileTreeSelect,
   findProjectEntryByKey,
+  setProjectEntryExpanded,
 } = useShellFileTree({
   projectPath,
   indexedEntries,
@@ -1525,7 +1532,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
             ...(!hasRootProjectFile('.ocicons') ? [{
               key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
               title: t('sidebar.fileActions.newIconRegistry'),
-              icon: 'file.package-variant' as const,
+              icon: 'file.project-icon' as const,
             }] : []),
             ...(!hasRootProjectFile('.ocblocks') ? [{
               key: PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY,
@@ -1535,7 +1542,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
             ...(!hasRootProjectFile('.oclocale') ? [{
               key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
               title: t('sidebar.fileActions.newDictionary'),
-              icon: 'data.collection' as const,
+              icon: 'file.dictionary' as const,
             }] : []),
           ],
         },
@@ -1687,6 +1694,10 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   {
     key: 'help',
     label: t('app.menu.help'),
+    badge: unreadFeedbackReplyCount.value,
+    badgeLabel: unreadFeedbackReplyCount.value > 0
+      ? t('app.feedback.unreadReplies', { count: unreadFeedbackReplyCount.value })
+      : undefined,
     actions: [
       {
         key: 'check-for-updates',
@@ -1707,6 +1718,10 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         key: 'view-feedback',
         title: t('app.menu.viewFeedback'),
         icon: 'data.list-selection',
+        badge: unreadFeedbackReplyCount.value,
+        badgeLabel: unreadFeedbackReplyCount.value > 0
+          ? t('app.feedback.unreadReplies', { count: unreadFeedbackReplyCount.value })
+          : undefined,
       },
       { type: 'divider', key: 'help-about-divider' },
       {
@@ -1788,7 +1803,12 @@ async function handleWorkspaceIssueNavigate(request: SessionIssueNavigationReque
 
 async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   const entry = findProjectEntryByKey(itemKey)
-  if (!entry?.isDirectory) {
+  if (!entry) {
+    return
+  }
+
+  if (!entry.isDirectory) {
+    setProjectEntryExpanded(entry.key, expanded)
     return
   }
 
@@ -2458,7 +2478,7 @@ function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): 
     const isRegistered = selectedIconPackKeys.value.includes(pack.key)
     items.set(pack.key, {
       label: resolveProjectIconPackName(pack, locale.value),
-      icon: 'file.package-variant',
+      icon: 'file.project-icon',
       actions: [isRegistered ? REGISTERED_ICON_PACK_ACTION_KEY : REGISTER_ICON_PACK_ACTION_KEY],
       ...(isRegistered ? {
         disabledActions: new Map([[REGISTERED_ICON_PACK_ACTION_KEY, t('projectTemplates.status.iconPackRegistered')]]),
@@ -2712,6 +2732,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   void startShellWindow()
   void startAppUpdater()
+  void startFeedbackInbox()
   if (isTauri()) {
     void loadSystemFontFamilies()
     void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
@@ -2724,6 +2745,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
   disposeShellWindow()
   disposeAppUpdater()
+  disposeFeedbackInbox()
 })
 </script>
 

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useId, type ComponentPublicI
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcButton from '../../../components/base/OcButton.vue';
 import OcActionMenu, { isActionMenuBranchEvent } from '../../../components/standard/OcActionMenu.vue';
+import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from '../../../components/standard/actionBadge';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
 import type {
@@ -178,11 +179,15 @@ onBeforeUnmount(() => {
           :ref="(element) => setMenuAnchor(menu.key, element)"
           class="titlebar-menu-button"
           type="button"
+          :aria-label="actionAccessibleLabel(menu.label, menu.badgeLabel)"
           :aria-haspopup="'menu'"
           :aria-expanded="openMenu === menu.key"
           @click="toggleMenu(menu.key)"
         >
-          {{ menu.label }}
+          <span>{{ menu.label }}</span>
+          <span v-if="hasActionBadge(menu.badge)" class="oc-number-badge" aria-hidden="true">
+            {{ formatActionBadge(menu.badge) }}
+          </span>
         </button>
         <OcFloatingLayer
           :open="openMenu === menu.key"

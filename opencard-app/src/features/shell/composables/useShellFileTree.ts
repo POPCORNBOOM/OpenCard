@@ -13,6 +13,8 @@ export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-a
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
 const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
 const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
+const PROJECT_PROFILE_FILE_NAME = '.ocproject'
+const PROJECT_ATTACHMENT_FILE_NAMES = new Set(['.ocfonts', '.ocicons', '.ocblocks', '.oclocale'])
 
 export function projectEntryMoreActionKey(entryKey: string): string {
   return `${PROJECT_ENTRY_MORE_ACTION_PREFIX}${entryKey}`
@@ -72,6 +74,7 @@ function resolveFilenameRenameSelection(name: string): OcTreeRenameSelection {
 export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
+  const projectProfileExpanded = ref(true)
   const registeredFontSources = computed(() => new Set(options.registeredFontSources?.value ?? []))
 
   function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
@@ -102,7 +105,9 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         tail: rootPresentation ? parts[parts.length - 1] ?? relativePath : undefined,
         isProjectSpecial: Boolean(rootPresentation),
         isDirectory,
-        isExpanded: isDirectory && options.isDirectoryExpanded(key),
+        isExpanded: isDirectory
+          ? options.isDirectoryExpanded(key)
+          : relativePath === PROJECT_PROFILE_FILE_NAME && projectProfileExpanded.value,
         rootPriority: rootPresentation?.priority ?? null,
         children: [],
       }
@@ -110,12 +115,23 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       byKey.set(key, entry)
     }
 
+    const projectProfile = byRelativePath.get(PROJECT_PROFILE_FILE_NAME)
     for (const [relativePath, entry] of byRelativePath) {
       const separatorIndex = relativePath.lastIndexOf('/')
-      if (separatorIndex < 0) roots.push(entry)
+      if (separatorIndex < 0) {
+        if (projectProfile && PROJECT_ATTACHMENT_FILE_NAMES.has(relativePath)) {
+          projectProfile.children.push(entry)
+        } else {
+          roots.push(entry)
+        }
+      }
       else byRelativePath.get(relativePath.slice(0, separatorIndex))?.children.push(entry)
     }
 
+    projectProfile?.children.sort((left, right) => (
+      (left.rootPriority ?? Number.MAX_SAFE_INTEGER)
+      - (right.rootPriority ?? Number.MAX_SAFE_INTEGER)
+    ))
     roots.sort((left, right) => (
       (left.rootPriority ?? Number.MAX_SAFE_INTEGER)
       - (right.rootPriority ?? Number.MAX_SAFE_INTEGER)
@@ -169,7 +185,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
 
   const projectExpandedKeys = computed(() =>
     [...projectProjection.value.byKey.values()]
-      .filter((entry) => entry.isDirectory && entry.isExpanded)
+      .filter((entry) => entry.isExpanded && entry.children.length > 0)
       .map((entry) => entry.key),
   )
 
@@ -187,6 +203,13 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
 
   function findProjectEntryByKey(key: string): ProjectEntryView | null {
     return projectProjection.value.byKey.get(normalizeShellPath(key)) ?? null
+  }
+
+  function setProjectEntryExpanded(key: string, expanded: boolean): boolean {
+    const entry = findProjectEntryByKey(key)
+    if (entry?.relativePath !== PROJECT_PROFILE_FILE_NAME || entry.children.length === 0) return false
+    projectProfileExpanded.value = expanded
+    return true
   }
 
   function syncSelectionFromActiveSession(session: EditorSession | null): void {
@@ -227,6 +250,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   }
 
   watch(
+    () => options.projectPath.value,
+    () => { projectProfileExpanded.value = true },
+  )
+
+  watch(
     () => {
       const session = options.activeSession.value
       return session ? `${session.id}\0${session.resourceKind}\0${session.path ?? ''}` : ''
@@ -244,5 +272,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     handleOpenedEditorsSelect,
     handleFileTreeSelect,
     findProjectEntryByKey,
+    setProjectEntryExpanded,
   }
 }

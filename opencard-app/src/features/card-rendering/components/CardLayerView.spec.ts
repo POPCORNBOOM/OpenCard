@@ -395,7 +395,7 @@ describe('CardLayerView', () => {
     const legend = wrapper.get('.card-layer-view__shortcut-legend')
     expect(legend.attributes('aria-label')).toBe('Layer view shortcuts')
     expect(legend.findAll('.card-layer-view__shortcut-row')).toHaveLength(2)
-    expect(legend.findAll('.app-tooltip-layer__chip').map(chip => chip.text()))
+    expect(legend.findAll('.oc-key').map(key => key.text()))
       .toEqual(['', '↑ / ↓', '', '', '↑ / ↓'])
     expect(legend.findAll('.card-layer-view__shortcut-separator').map(separator => separator.text()))
       .toEqual(['or', 'or'])

@@ -246,6 +246,7 @@ describe('OcTree', () => {
     })
 
     expect(wrapper.get('.oc-tree__child-count').text()).toBe(expectedBadge)
+    expect(wrapper.get('.oc-tree__child-count').classes()).toContain('oc-number-badge')
   })
 
   it('emits expansion changes without mutating controlled state', async () => {

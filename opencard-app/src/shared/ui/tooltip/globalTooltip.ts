@@ -6,7 +6,7 @@ const TOOLTIP_GAP = 10;
 const TOOLTIP_EDGE_PADDING = 8;
 const TOOLTIP_POINTER_DELAY_MS = 350;
 const TOOLTIP_INIT_FLAG = '__oc_tooltip_initialized__';
-const TOOLTIP_INLINE_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]|\[(b|i|code)\]([^\[\]\r\n]+)\[\/\3\]|\[br\]/gi;
+const TOOLTIP_INLINE_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]|\[(b|i|key)\]([^\[\]\r\n]+)\[\/\3\]|\[br\]/gi;
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
@@ -24,7 +24,7 @@ function getTooltipText(target: HTMLElement): string {
 function createTooltipIcon(token: string): SVGSVGElement {
   const glyph = resolveIcon(token as IconToken, 'globalTooltip.inline');
   const icon = document.createElementNS(SVG_NAMESPACE, 'svg');
-  icon.setAttribute('class', 'app-tooltip-layer__icon');
+  icon.setAttribute('class', 'oc-inline-icon');
   icon.setAttribute('viewBox', glyph.viewBox ?? '0 0 24 24');
   icon.setAttribute('fill', 'currentColor');
   icon.setAttribute('aria-hidden', 'true');
@@ -37,9 +37,16 @@ function createTooltipIcon(token: string): SVGSVGElement {
 
 function createTooltipChip(text: string): HTMLSpanElement {
   const chip = document.createElement('span');
-  chip.className = 'app-tooltip-layer__chip';
+  chip.className = 'oc-chip';
   chip.textContent = text;
   return chip;
+}
+
+function createTooltipKey(text: string): HTMLSpanElement {
+  const key = document.createElement('span');
+  key.className = 'oc-key';
+  key.textContent = text;
+  return key;
 }
 
 function renderTooltipContent(layer: HTMLDivElement, text: string): void {
@@ -58,8 +65,8 @@ function renderTooltipContent(layer: HTMLDivElement, text: string): void {
     const bbcodeText = match[4]?.trim() ?? '';
     if (match[0].toLocaleLowerCase() === '[br]') {
       fragment.append(document.createElement('br'));
-    } else if (bbcodeTag === 'code') {
-      fragment.append(createTooltipChip(bbcodeText));
+    } else if (bbcodeTag === 'key') {
+      fragment.append(createTooltipKey(bbcodeText));
     } else if (bbcodeTag === 'b' || bbcodeTag === 'i') {
       const emphasis = document.createElement(bbcodeTag === 'b' ? 'strong' : 'em');
       emphasis.textContent = bbcodeText;

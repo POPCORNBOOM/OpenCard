@@ -58,8 +58,10 @@ withDefaults(defineProps<{
 .project-registry-shell__header {
   justify-content: space-between;
   gap: var(--oc-space-4);
-  padding: var(--oc-space-5) var(--oc-space-6);
+  padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
+  background: var(--oc-bg-base);
+  color: var(--oc-fg-default);
 }
 
 .project-registry-shell__identity {

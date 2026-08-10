@@ -3,7 +3,7 @@
     <section class="project-icon-registry-workbench__left">
       <header class="project-icon-registry-workbench__titlebar">
         <div class="project-icon-registry-workbench__title">
-          <OcIcon name="file.package-variant" size="lg" />
+          <OcIcon name="file.project-icon" size="lg" />
           <div>
             <h1>{{ heading }}</h1>
             <OcText tone="muted" size="sm">{{ description }}</OcText>
@@ -71,12 +71,14 @@
 
     <section class="project-icon-registry-workbench__right">
       <template v-if="selectedSeries">
-        <div class="project-icon-registry-workbench__atlas-pane">
+        <div class="project-icon-registry-workbench__atlas-pane"
+          :style="{ '--oc-project-icon-preview-occlusion': `${previewOcclusion}px` }">
           <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
             tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
           <ProjectIconCropEditor fill :runtime="selectedRuntime" :icon="selectedIcon" :alt="selectedSeries.name"
             :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
             :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+            :viewport-insets="previewViewportInsets"
             :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
             :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
             :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
@@ -101,15 +103,20 @@
             </OcFieldFrame>
           </OcOverlayToolbar>
         </div>
-        <div class="project-icon-registry-workbench__preview-pane">
-          <OcText as="strong">{{ selectedIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
-          <ProjectIconView v-if="selectedCatalogEntry" class="project-icon-registry-workbench__preview-icon"
-            :entry="selectedCatalogEntry" mode="preview" />
-          <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
-        </div>
+        <OcViewportInspector v-model:expanded="previewPanelExpanded" v-model:height="previewPanelHeight"
+          class="project-icon-registry-workbench__preview-pane" :heading="t('projectConfig.icons.preview')"
+          :expand-label="t('app.shell.expandBottomPanel')" :collapse-label="t('app.shell.collapseBottomPanel')"
+          :resize-label="t('projectConfig.icons.resizePreview')" @occlusion-change="previewOcclusion = $event">
+          <div class="project-icon-registry-workbench__preview-content">
+            <OcText as="strong">{{ selectedIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+            <ProjectIconView v-if="selectedCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+              :entry="selectedCatalogEntry" mode="preview" />
+            <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
+          </div>
+        </OcViewportInspector>
       </template>
       <div v-else class="project-icon-registry-workbench__placeholder">
-        <OcIcon name="file.package-variant" size="lg" tone="muted" />
+        <OcIcon name="file.project-icon" size="lg" tone="muted" />
         <OcEmpty tone="muted" inset="none">{{ t('projectConfig.icons.noSeriesSelected') }}</OcEmpty>
       </div>
     </section>
@@ -153,6 +160,7 @@ import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
+import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
 import ProjectIconCropEditor, { type ProjectIconCropHandle } from './ProjectIconCropEditor.vue'
 import ProjectIconGridDialog, { type ProjectIconGridRequest } from './ProjectIconGridDialog.vue'
@@ -179,6 +187,9 @@ const selectedSeriesKey = ref<string | null>(null)
 const selectedIconIndexes = ref<Record<string, number[]>>({})
 const settingsSeriesIndex = ref<number | null>(null)
 const gridDialogOpen = ref(false)
+const previewPanelExpanded = ref(true)
+const previewPanelHeight = ref<number | null>(null)
+const previewOcclusion = ref(0)
 const setWorkspaceRef = ref<InstanceType<typeof ProjectIconSetWorkspace> | null>(null)
 const localCatalog = ref<ProjectIconCatalog>({ series: [], entries: [], errors: [] })
 let catalogVersion = 0
@@ -225,6 +236,7 @@ const selectedCatalogEntry = computed<ProjectIconCatalogEntry | null>(() => {
     imageWidth: runtime.imageWidth, imageHeight: runtime.imageHeight }
 })
 const conflicts = computed(() => findProjectIconKeyConflicts(props.series))
+const previewViewportInsets = computed(() => ({ bottom: previewOcclusion.value }))
 const cropHandleLabels = computed<Record<ProjectIconCropHandle, string>>(() => Object.fromEntries(
   (['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l'] as const).map(handle => [
     handle, t('projectConfig.icons.resizeCrop', { handle: t(`projectConfig.icons.handles.${handle}`) }),
@@ -427,6 +439,8 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   gap: var(--oc-space-4);
   padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
+  background: var(--oc-bg-base);
+  color: var(--oc-fg-default);
 }
 .project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
 .project-icon-registry-workbench__title-actions { display: flex; flex-wrap: wrap; gap: var(--oc-space-2); justify-content: flex-end; }
@@ -444,14 +458,15 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   padding: 0 var(--oc-space-5) var(--oc-space-5);
 }
 .project-icon-registry-workbench__right {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, var(--oc-project-icon-atlas-height));
+  position: relative;
 }
 .project-icon-registry-workbench__atlas-pane {
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
   background-color: var(--oc-bg-raised);
   background-image: var(--oc-viewport-dot-pattern);
   background-size: var(--oc-viewport-dot-size);
@@ -462,23 +477,28 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   transform: translateX(-50%);
 }
 .project-icon-registry-workbench__grid-toolbar {
-  position: absolute; right: var(--oc-space-2); bottom: var(--oc-space-2); z-index: var(--oc-z-overlay-toolbar);
+  position: absolute;
+  right: var(--oc-floating-surface-gap);
+  bottom: calc(var(--oc-project-icon-preview-occlusion, 0px) + var(--oc-floating-surface-gap));
+  z-index: var(--oc-z-overlay-toolbar);
 }
 .project-icon-registry-workbench__grid-field {
   min-width: var(--oc-overlay-toolbar-field-min-width);
   max-width: var(--oc-overlay-toolbar-field-max-width);
 }
 .project-icon-registry-workbench__preview-pane {
+  --oc-viewport-inspector-default-height: var(--oc-project-icon-atlas-height);
+}
+.project-icon-registry-workbench__preview-content {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   gap: var(--oc-space-2);
-  padding: var(--oc-space-3);
   overflow: hidden;
-  border-top: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
 }
 .project-icon-registry-workbench__preview-icon {
   align-self: center;

@@ -24,6 +24,7 @@ export type FeedbackReceiptRecord = {
     text: string
     updatedAt: string
   }
+  readResponseUpdatedAt?: string
   lastSyncedAt?: string
   nextCheckAt?: string
   failureCount?: number
@@ -143,6 +144,14 @@ export class FeedbackReceiptStore {
     })
   }
 
+  async markResponseRead(reportId: string, responseUpdatedAt: string): Promise<void> {
+    await this.enqueue(async (document) => {
+      const record = document.records.find(item => item.reportId === reportId)
+      if (record?.officialResponse?.updatedAt !== responseUpdatedAt) return
+      record.readResponseUpdatedAt = responseUpdatedAt
+    })
+  }
+
   async remove(reportId: string): Promise<void> {
     await this.enqueue(async (document) => {
       document.records = document.records.filter(item => item.reportId !== reportId)
@@ -214,6 +223,9 @@ function parseRecord(value: unknown): FeedbackReceiptRecord | null {
     status: value.status,
     updatedAt: value.updatedAt as string,
     ...(officialResponse ? { officialResponse } : {}),
+    ...(typeof value.readResponseUpdatedAt === 'string'
+      ? { readResponseUpdatedAt: value.readResponseUpdatedAt }
+      : {}),
     ...(typeof value.lastSyncedAt === 'string' ? { lastSyncedAt: value.lastSyncedAt } : {}),
     ...(typeof value.nextCheckAt === 'string' ? { nextCheckAt: value.nextCheckAt } : {}),
     ...(typeof value.failureCount === 'number' && Number.isInteger(value.failureCount) && value.failureCount >= 0

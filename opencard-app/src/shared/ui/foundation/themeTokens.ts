@@ -81,6 +81,12 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-size-action',
   '--oc-field-affix-icon-offset-y',
 
+  // 数字角标
+  '--oc-number-badge-size',
+  '--oc-number-badge-padding-inline',
+  '--oc-number-badge-font-size',
+  '--oc-number-badge-line-height',
+
   // 文件类型图标色
   '--oc-icon-file-opencard',
   '--oc-icon-file-json',
@@ -165,6 +171,14 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-project-icon-workbench-inspector-width',
   '--oc-project-icon-workbench-icon-list-height',
   '--oc-project-icon-preview-size',
+  '--oc-custom-block-list-min-width',
+  '--oc-custom-block-list-width',
+  '--oc-custom-block-property-height',
+  '--oc-viewport-inspector-min-height',
+  '--oc-viewport-inspector-visible-min-height',
+  '--oc-z-viewport-inspector',
+  '--oc-floating-surface-padding',
+  '--oc-floating-surface-gap',
   '--oc-overlay-toolbar-field-min-width',
   '--oc-overlay-toolbar-field-max-width',
   '--oc-autocomplete-popover-min-width',

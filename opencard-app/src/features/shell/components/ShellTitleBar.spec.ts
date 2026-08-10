@@ -208,6 +208,19 @@ describe('ShellTitleBar', () => {
     expect(wrapper.emitted('app-action')).toEqual([['install-update']])
   })
 
+  it('shows a numeric badge on a titlebar menu group', () => {
+    const wrapper = mount(ShellTitleBar, {
+      props: {
+        collapsed: false,
+        brandLabel: 'OpenCard',
+        menuGroups: [{ key: 'help', label: 'Help', badge: 4, badgeLabel: '4 unread replies', actions: [] }],
+      },
+    })
+
+    expect(wrapper.get('.titlebar-menu-button .oc-number-badge').text()).toBe('4')
+    expect(wrapper.get('.titlebar-menu-button').attributes('aria-label')).toBe('Help, 4 unread replies')
+  })
+
   it('places the primary page action beside the sidebar toggle', async () => {
     const wrapper = mount(ShellTitleBar, {
       props: {

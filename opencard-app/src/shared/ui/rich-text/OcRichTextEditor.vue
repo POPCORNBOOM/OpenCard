@@ -282,7 +282,7 @@ const recentProjectIconEntries = computed(() => recentProjectIconIdentities.valu
 const projectIconActionChildren = computed(() => (props.projectIconCatalog?.series ?? []).map(series => ({
   key: `project-icon-series:${series.key}`,
   title: series.name,
-  icon: 'file.package-variant' as const,
+  icon: 'file.project-icon' as const,
   children: props.projectIconCatalog?.entries
     .filter(entry => entry.seriesKey.toLocaleLowerCase() === series.key.toLocaleLowerCase())
     .map(entry => ({

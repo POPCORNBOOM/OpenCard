@@ -1356,17 +1356,14 @@ const selectedParentFlowDirection = computed(() => {
 const selectedFlowAlign = computed(() => (
   selectedLocation.value?.type === 'flow-container-location' ? selectedLocation.value.align : null
 ))
-function withShortcut(label: string, shortcut: string): string {
-  return `${label} (${shortcut})`
-}
 const selectionActionLabels = computed<CardViewportSelectionActionLabels>(() => ({
   label: t('cardDesigner.selectionActions.label'),
-  fillParent: withShortcut(t('cardDesigner.selectionActions.fillParent'), 'F'),
-  centerInParent: withShortcut(t('cardDesigner.selectionActions.centerInParent'), 'C'),
-  inset: withShortcut(t('cardDesigner.selectionActions.inset'), 'I'),
-  outset: withShortcut(t('cardDesigner.selectionActions.outset'), 'O'),
-  fillCrossAxis: withShortcut(t('cardDesigner.selectionActions.fillCrossAxis'), 'F'),
-  centerCrossAxis: withShortcut(t('cardDesigner.selectionActions.centerCrossAxis'), 'C'),
+  fillParent: t('cardDesigner.selectionActions.fillParent'),
+  centerInParent: t('cardDesigner.selectionActions.centerInParent'),
+  inset: t('cardDesigner.selectionActions.inset'),
+  outset: t('cardDesigner.selectionActions.outset'),
+  fillCrossAxis: t('cardDesigner.selectionActions.fillCrossAxis'),
+  centerCrossAxis: t('cardDesigner.selectionActions.centerCrossAxis'),
 }))
 const selectionCommandActions = computed<OcActionButtonAction[]>(() => {
   const block = selectedBlock.value
@@ -2087,15 +2084,15 @@ onUnmounted(() => {
   right: calc(
     var(--card-editor-right-sidebar-visible-width, 320px)
     + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
-    + var(--oc-space-2)
+    + var(--oc-floating-surface-gap)
   );
-  bottom: var(--oc-space-2);
+  bottom: var(--oc-floating-surface-gap);
   z-index: 3;
   transition: right var(--oc-duration-slow) var(--oc-ease);
 }
 
 .card-design-editor__face-tools.is-right-sidebar-collapsed {
-  right: var(--oc-space-2);
+  right: var(--oc-floating-surface-gap);
 }
 
 .card-design-editor__face-tools-divider {
@@ -2106,8 +2103,8 @@ onUnmounted(() => {
 
 .card-design-editor__overlay-layout {
   width: 100%;
-  height: calc(100% - var(--oc-space-2) - var(--oc-space-2));
-  margin-block: var(--oc-space-2);
+  height: calc(100% - var(--oc-floating-surface-gap) - var(--oc-floating-surface-gap));
+  margin-block: var(--oc-floating-surface-gap);
   min-width: 0;
   min-height: 0;
   display: grid;

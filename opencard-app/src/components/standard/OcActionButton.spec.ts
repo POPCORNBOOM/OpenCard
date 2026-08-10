@@ -41,6 +41,15 @@ describe('OcActionButton', () => {
     expect(wrapper.get('button').attributes('title')).toBeUndefined()
   })
 
+  it('renders an action badge without changing the button contract', () => {
+    const wrapper = mount(OcActionButton, {
+      props: { action: { key: 'feedback', title: 'Feedback', badge: 3, badgeLabel: '3 unread replies' } },
+    })
+
+    expect(wrapper.get('.oc-action-button__badge').text()).toBe('3')
+    expect(wrapper.get('button').attributes('aria-label')).toBe('Feedback, 3 unread replies')
+  })
+
   it('decouples the action icon size from the button target size', () => {
     const wrapper = mount(OcActionButton, {
       props: {

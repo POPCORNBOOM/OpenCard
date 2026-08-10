@@ -1,11 +1,21 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OcTree from '../standard/OcTree.vue'
+import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectCustomBlockRegistryEditor from './ProjectCustomBlockRegistryEditor.vue'
 
 const mocks = vi.hoisted(() => ({
   pickFile: vi.fn(),
   importProjectCustomBlockFile: vi.fn(),
+  projectCustomBlockCatalog: { value: new Map() },
+  renderEnvironment: {
+    value: {
+      project: null,
+      dictionary: null,
+      customBlockCatalog: new Map(),
+      projectIconCatalog: { entries: [], errors: [] },
+    },
+  },
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -15,6 +25,8 @@ vi.mock('../../features/workspace/services/fileSystemService', () => ({
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
     projectPath: { value: 'D:/Demo' },
+    projectCustomBlockCatalog: mocks.projectCustomBlockCatalog,
+    renderEnvironment: mocks.renderEnvironment,
     importProjectCustomBlockFile: mocks.importProjectCustomBlockFile,
   }),
 }))
@@ -23,6 +35,13 @@ vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-
 describe('ProjectCustomBlockRegistryEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.projectCustomBlockCatalog.value = new Map()
+    mocks.renderEnvironment.value = {
+      project: null,
+      dictionary: null,
+      customBlockCatalog: new Map(),
+      projectIconCatalog: { entries: [], errors: [] },
+    }
   })
 
   it('replaces a compatible same-key path and requests an immediate save', async () => {
@@ -114,5 +133,64 @@ describe('ProjectCustomBlockRegistryEditor', () => {
 
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(mocks.importProjectCustomBlockFile).not.toHaveBeenCalled()
+  })
+
+  it('renders a catalog block and keeps property edits inside preview state', async () => {
+    const entry = {
+      archivePath: 'assets/blocks/square.ocblock',
+      files: new Map(),
+      manifest: {
+        type: 'opencard-custom-block', schemaVersion: '1', key: 'square', name: 'Square',
+        interfaceHash: 'square-interface',
+        root: {
+          type: 'text-block', id: 'root', content: '{{self:label}}',
+          additionalFieldDefinition: { label: { fieldType: 'string', title: 'Label' } },
+        },
+        publicFields: [{ key: 'label', fieldType: 'string', title: 'Label', defaultValue: 'Ready' }],
+        resize: { widthLocked: false, heightLocked: false },
+      },
+    }
+    mocks.projectCustomBlockCatalog.value = new Map([['square', entry]])
+    mocks.renderEnvironment.value = {
+      ...mocks.renderEnvironment.value,
+      customBlockCatalog: new Map([['square', entry]]),
+    }
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: {
+        filePath: 'D:/Demo/.ocblocks',
+        modelValue: '{"blocks":["assets/blocks/square.ocblock"]}',
+      },
+      global: {
+        stubs: {
+          CardViewport: {
+            name: 'CardViewport',
+            props: ['face', 'viewportInsets'],
+            template: '<div class="viewport-stub" />',
+          },
+          PropertyEditor: { name: 'PropertyEditor', props: ['inputs'], emits: ['update-property'], template: '<div class="property-editor-stub" />' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(OcTree).text()).toContain('Square')
+    const propertyEditor = wrapper.getComponent({ name: 'PropertyEditor' })
+    expect(propertyEditor.props('inputs')[0].record).toEqual({ label: 'Ready' })
+    propertyEditor.vm.$emit('update-property', {
+      key: 'custom-block-preview', fieldKey: 'label', value: 'Changed',
+    })
+    await flushPromises()
+
+    expect(propertyEditor.props('inputs')[0].record).toEqual({ label: 'Changed' })
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('save')).toBeUndefined()
+
+    const inspector = wrapper.getComponent(OcViewportInspector)
+    inspector.vm.$emit('update:height', 360)
+    inspector.vm.$emit('update:expanded', false)
+    inspector.vm.$emit('occlusion-change', 42)
+    await wrapper.vm.$nextTick()
+    expect(inspector.props()).toMatchObject({ height: 360, expanded: false })
+    expect(wrapper.getComponent({ name: 'CardViewport' }).props('viewportInsets')).toEqual({ bottom: 42 })
   })
 })

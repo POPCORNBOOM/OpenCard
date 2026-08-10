@@ -41,7 +41,8 @@ describe('FeedbackHistoryDialog', () => {
     }
     vi.spyOn(feedbackReceiptStore, 'list')
       .mockResolvedValueOnce([record])
-      .mockResolvedValueOnce([answeredRecord])
+      .mockResolvedValue([answeredRecord])
+    const markResponseRead = vi.spyOn(feedbackReceiptStore, 'markResponseRead').mockResolvedValue()
     const applyStatuses = vi.spyOn(feedbackReceiptStore, 'applyStatuses').mockResolvedValue()
     const getStatuses = vi.spyOn(feedbackService, 'getFeedbackStatuses').mockResolvedValue([{
       reportId: record.reportId,
@@ -62,6 +63,7 @@ describe('FeedbackHistoryDialog', () => {
     expect(wrapper.text()).toContain('Answered')
     expect(wrapper.text()).toContain('This is now fixed.')
     expect(wrapper.text()).not.toContain('receipt-token')
+    expect(markResponseRead).toHaveBeenCalledWith(record.reportId, answeredRecord.officialResponse?.updatedAt)
   })
 
   it('requires confirmation and deletes only the selected local record', async () => {

@@ -111,8 +111,8 @@
       <div v-for="hint in shortcutHints" :key="hint.label" class="card-layer-view__shortcut-row">
         <span class="card-layer-view__shortcut-keys" aria-hidden="true">
           <template v-for="(key, keyIndex) in hint.keys" :key="keyIndex">
-            <span v-if="typeof key === 'string'" class="app-tooltip-layer__chip">{{ key }}</span>
-            <span v-else-if="'icon' in key" class="app-tooltip-layer__chip">
+            <span v-if="typeof key === 'string'" class="oc-key">{{ key }}</span>
+            <span v-else-if="'icon' in key" class="oc-key">
               <OcIcon :name="key.icon" size="sm" />
             </span>
             <span v-else class="card-layer-view__shortcut-separator">{{ key.separator }}</span>

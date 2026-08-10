@@ -200,6 +200,8 @@ function leaveContent(element: Element, done: () => void): void {
 }
 
 .oc-card--variant-glass {
+  --oc-card-content-padding: var(--oc-floating-surface-padding);
+
   border: 1px solid var(--oc-border-muted);
   background: var(--oc-bg-glass);
   backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
@@ -239,7 +241,7 @@ function leaveContent(element: Element, done: () => void): void {
 }
 
 .oc-card__content {
-  padding: var(--oc-space-1);
+  padding: var(--oc-card-content-padding, var(--oc-space-1));
   min-height: 0;
   min-width: 0;
   flex: 1 1 auto;

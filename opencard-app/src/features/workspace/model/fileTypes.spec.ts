@@ -44,10 +44,10 @@ describe('project metadata file types', () => {
 })
 
 describe('workspace entry icon tokens', () => {
-  it('keeps category-specific collapsed folders and shares the open-folder token', () => {
+  it('uses closed and open folder glyphs with the same yellow tone', () => {
     expect(resolveDirectoryIcon('D:/Cards/src', false)).toEqual({
-      icon: 'folder.src',
-      tone: 'folder-default',
+      icon: 'folder.generic',
+      tone: 'folder-open',
     })
     expect(resolveDirectoryIcon('D:/Cards/src', true)).toEqual({
       icon: 'folder.open',
@@ -58,7 +58,7 @@ describe('workspace entry icon tokens', () => {
   it('uses the generic fallback token for unknown folders', () => {
     expect(resolveDirectoryIcon('D:/Cards/custom', false)).toEqual({
       icon: 'folder.generic',
-      tone: 'folder-default',
+      tone: 'folder-open',
     })
   })
 
@@ -69,9 +69,16 @@ describe('workspace entry icon tokens', () => {
     })
   })
 
-  it('uses the package variant icon for the project icon registry', () => {
+  it('uses the project icon glyph for the project icon registry', () => {
     expect(resolveEntryIcon('D:/Cards/.ocicons', false, false, 'D:/Cards')).toEqual({
-      icon: 'file.package-variant',
+      icon: 'file.project-icon',
+      tone: 'config',
+    })
+  })
+
+  it('uses the translate icon for the project dictionary', () => {
+    expect(resolveEntryIcon('D:/Cards/.oclocale', false, false, 'D:/Cards')).toEqual({
+      icon: 'file.dictionary',
       tone: 'config',
     })
   })

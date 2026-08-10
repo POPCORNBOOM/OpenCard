@@ -122,11 +122,7 @@ import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import type { FeedbackPage } from '../model/feedback'
-import { FeedbackServiceError, getFeedbackStatuses } from '../services/feedbackService'
-import {
-  feedbackReceiptStore,
-  type FeedbackReceiptRecord,
-} from '../services/feedbackReceiptStore'
+import { useFeedbackInbox } from '../composables/useFeedbackInbox'
 import FeedbackPageTabs from './FeedbackPageTabs.vue'
 
 const props = withDefaults(defineProps<{
@@ -139,10 +135,11 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{ close: []; pageChange: [page: FeedbackPage] }>()
 const { locale, t } = useI18n()
-const records = ref<FeedbackReceiptRecord[]>([])
+const feedbackInbox = useFeedbackInbox()
+const records = feedbackInbox.records
 const selectedReportId = ref<string | null>(null)
 const loading = ref(false)
-const refreshing = ref(false)
+const refreshing = feedbackInbox.refreshing
 const confirmingDelete = ref(false)
 const errorKey = ref('')
 
@@ -151,26 +148,34 @@ const selectedRecord = computed(() => (
 ))
 
 watch(() => props.open, (open) => {
-  if (open) void loadRecords(true)
+  if (open) void loadRecords()
   else resetTransientState()
 }, { immediate: true })
 
-async function loadRecords(refreshFirst: boolean): Promise<void> {
+watch(
+  [() => props.open, () => selectedRecord.value?.officialResponse?.updatedAt],
+  ([open, responseUpdatedAt]) => {
+    if (!open || !selectedRecord.value || !responseUpdatedAt) return
+    void feedbackInbox.markResponseRead(selectedRecord.value.reportId, responseUpdatedAt)
+  },
+  { flush: 'post' },
+)
+
+async function loadRecords(): Promise<void> {
   loading.value = true
   errorKey.value = ''
   try {
-    records.value = await feedbackReceiptStore.list()
+    const result = await feedbackInbox.refresh(false)
+    if (result.errorCode) errorKey.value = `app.feedback.history.errors.${result.errorCode}`
     if (!records.value.some(record => record.reportId === selectedReportId.value)) {
       selectedReportId.value = records.value[0]?.reportId ?? null
     }
   } catch {
-    records.value = []
     selectedReportId.value = null
     errorKey.value = 'app.feedback.history.errors.storage'
   } finally {
     loading.value = false
   }
-  if (refreshFirst) await refreshRecords(false)
 }
 
 function selectRecord(reportId: string): void {
@@ -181,43 +186,24 @@ function selectRecord(reportId: string): void {
 }
 
 async function refreshRecords(force: boolean): Promise<void> {
-  const now = Date.now()
-  const dueRecords = records.value.filter(record => (
-    record.status !== 'closed'
-    && (force || !record.nextCheckAt || Number.isNaN(Date.parse(record.nextCheckAt)) || Date.parse(record.nextCheckAt) <= now)
-  ))
-  if (dueRecords.length === 0 || refreshing.value) return
-  refreshing.value = true
+  if (refreshing.value) return
   errorKey.value = ''
   try {
-    const results = await getFeedbackStatuses(dueRecords.map(record => ({
-      reportId: record.reportId,
-      receiptToken: record.receiptToken,
-    })))
-    await feedbackReceiptStore.applyStatuses(results)
-    records.value = await feedbackReceiptStore.list()
-  } catch (error) {
-    try {
-      await feedbackReceiptStore.markRefreshFailed(dueRecords.map(record => record.reportId))
-      records.value = await feedbackReceiptStore.list()
-    } catch {
-      // Keep the cached records visible even when backoff persistence fails.
-    }
-    errorKey.value = error instanceof FeedbackServiceError
-      ? `app.feedback.history.errors.${error.code}`
-      : 'app.feedback.history.errors.network'
-  } finally {
-    refreshing.value = false
+    const result = await feedbackInbox.refresh(force)
+    if (result.errorCode) errorKey.value = `app.feedback.history.errors.${result.errorCode}`
+  } catch {
+    errorKey.value = 'app.feedback.history.errors.storage'
   }
 }
 
 async function removeSelected(): Promise<void> {
   if (!selectedRecord.value) return
   try {
-    await feedbackReceiptStore.remove(selectedRecord.value.reportId)
+    await feedbackInbox.removeReceipt(selectedRecord.value.reportId)
+    errorKey.value = ''
     confirmingDelete.value = false
     selectedReportId.value = null
-    await loadRecords(false)
+    if (records.value.length) selectedReportId.value = records.value[0]?.reportId ?? null
   } catch {
     errorKey.value = 'app.feedback.history.errors.storage'
   }

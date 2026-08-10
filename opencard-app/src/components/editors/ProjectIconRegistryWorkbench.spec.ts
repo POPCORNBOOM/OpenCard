@@ -6,6 +6,7 @@ import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
+import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -56,7 +57,7 @@ describe('ProjectIconRegistryWorkbench', () => {
 
     expect(wrapper.find('.project-icon-registry-workbench__placeholder').exists()).toBe(false)
     expect(wrapper.get('.project-icon-registry-workbench__left h1').text()).toBe('Icon registry')
-    expect(wrapper.findAllComponents(OcIcon).some(icon => icon.props('name') === 'file.package-variant')).toBe(true)
+    expect(wrapper.findAllComponents(OcIcon).some(icon => icon.props('name') === 'file.project-icon')).toBe(true)
     expect(wrapper.get('.project-config-section__heading').text()).toContain('Status icons')
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props()).toMatchObject({
       series: series[0],
@@ -74,6 +75,26 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(focusButton?.props('disabled')).toBe(false)
     expect(focusButton?.attributes('aria-pressed')).toBe('true')
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
+    const inspector = wrapper.getComponent(OcViewportInspector)
+    expect(inspector.props()).toMatchObject({
+      expanded: true, height: null, heading: 'projectConfig.icons.preview',
+    })
+    inspector.vm.$emit('occlusion-change', 260)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.getComponent(ProjectIconCropEditor).props('viewportInsets')).toEqual({ bottom: 260 })
+  })
+
+  it('keeps preview inspector layout while switching icon sets', async () => {
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: { ...baseProps, projectIconCatalog },
+    })
+    const inspector = wrapper.getComponent(OcViewportInspector)
+    inspector.vm.$emit('update:height', 300)
+    inspector.vm.$emit('update:expanded', false)
+    await (wrapper.vm as unknown as { selectSeries(key: string): Promise<boolean> }).selectSeries('actions')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.getComponent(OcViewportInspector).props()).toMatchObject({ height: 300, expanded: false })
   })
 
   it('routes pack creation through the left title action', async () => {

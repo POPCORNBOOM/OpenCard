@@ -38,7 +38,6 @@ type UseCdeOverlayLayoutOptions = {
 const SIDE_PANEL_MIN_WIDTH = 280
 const SIDE_PANEL_MAX_WIDTH = 420
 const SIDE_PANEL_COLLAPSED_WIDTH = 0
-const SIDE_PANEL_EDGE_INSET = 6
 const SIDE_PANEL_EXPAND_DRAG_RATIO = 0.1
 const SIDE_PANEL_COLLAPSE_DRAG_RATIO = 0.25
 const SIDEBAR_TOP_MIN_HEIGHT = 160
@@ -402,7 +401,7 @@ function formatSidebarRows(state: SidebarPairState): string {
 
 function resolveSidebarEdgeInset(visibleWidth: number): string {
   const progress = Math.min(1, Math.max(0, visibleWidth) / SIDE_PANEL_MIN_WIDTH)
-  return `${Math.round(SIDE_PANEL_EDGE_INSET * progress * 100) / 100}px`
+  return `calc(var(--oc-floating-surface-gap) * ${Math.round(progress * 100) / 100})`
 }
 
 function snapSidebarVisibleWidth(value: number, startWidth: number): number {

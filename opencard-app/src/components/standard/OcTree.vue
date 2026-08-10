@@ -76,7 +76,7 @@
           />
           <span
             v-if="isExpandable(entry.key)"
-            class="oc-tree__child-count"
+            class="oc-tree__child-count oc-number-badge oc-number-badge--neutral"
             :class="{ 'is-expanded': isExpanded(entry.key) }"
             aria-hidden="true"
           >
@@ -1035,22 +1035,6 @@ onBeforeUnmount(() => {
   z-index: 1;
   top: -6px;
   right: -9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 11px;
-  height: 11px;
-  box-sizing: border-box;
-  padding: 0 2px;
-  border: 1px solid var(--oc-border-default);
-  border-radius: 5px;
-  background: var(--oc-bg-surface);
-  color: var(--oc-fg-muted);
-  font-size: calc(var(--oc-text-xs) * 0.7);
-  font-weight: 600;
-  line-height: 9px;
-  letter-spacing: 0;
-  pointer-events: none;
   transition:
     border-color var(--oc-duration-fast) var(--oc-ease),
     color var(--oc-duration-fast) var(--oc-ease),

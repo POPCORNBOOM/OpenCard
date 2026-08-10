@@ -112,4 +112,38 @@ describe('feedback receipt store', () => {
     expect(record.failureCount).toBe(3)
     expect(Date.parse(record.nextCheckAt!) - Date.parse(failedAt)).toBe(60 * 60_000)
   })
+
+  it('marks only the displayed response version as read', async () => {
+    const store = createFeedbackReceiptStore(new MemoryFeedbackReceiptPersistence())
+    await store.add(submission, {
+      reportId: submission.reportId,
+      receiptToken: 'secret-receipt',
+      status: 'received',
+      submittedAt: submission.submittedAt,
+    })
+    const firstResponse = { text: 'First reply', updatedAt: '2026-08-01T02:00:00.000Z' }
+    await store.applyStatus({
+      reportId: submission.reportId,
+      status: 'answered',
+      submittedAt: submission.submittedAt,
+      updatedAt: firstResponse.updatedAt,
+      officialResponse: firstResponse,
+    })
+    await store.markResponseRead(submission.reportId, firstResponse.updatedAt)
+    expect((await store.list())[0]?.readResponseUpdatedAt).toBe(firstResponse.updatedAt)
+
+    const updatedResponse = { text: 'Updated reply', updatedAt: '2026-08-01T03:00:00.000Z' }
+    await store.applyStatus({
+      reportId: submission.reportId,
+      status: 'answered',
+      submittedAt: submission.submittedAt,
+      updatedAt: updatedResponse.updatedAt,
+      officialResponse: updatedResponse,
+    })
+    await store.markResponseRead(submission.reportId, firstResponse.updatedAt)
+    expect((await store.list())[0]).toMatchObject({
+      officialResponse: updatedResponse,
+      readResponseUpdatedAt: firstResponse.updatedAt,
+    })
+  })
 })

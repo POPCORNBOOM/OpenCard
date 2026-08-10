@@ -4,7 +4,7 @@
     <div class="dictionary-editor__content">
       <header class="dictionary-editor__header">
         <div class="dictionary-editor__title">
-          <OcIcon name="data.collection" size="lg" />
+          <OcIcon name="file.dictionary" size="lg" />
           <div>
             <h1>{{ t('dictionaryEditor.title') }}</h1>
             <OcText tone="muted" size="sm">{{ t('dictionaryEditor.description') }}</OcText>

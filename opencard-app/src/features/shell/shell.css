@@ -303,14 +303,15 @@
   opacity: 1;
 }
 
-.app-tooltip-layer__icon {
+.oc-inline-icon {
   display: inline-block;
   width: 14px;
   height: 14px;
   vertical-align: -2px;
 }
 
-.app-tooltip-layer__chip {
+.oc-chip,
+.oc-key {
   display: inline-flex;
   align-items: center;
   min-height: 18px;
@@ -318,14 +319,35 @@
   border-radius: var(--oc-radius-sm);
   background: var(--oc-bg-hover);
   color: var(--oc-fg-default);
-  font-family: var(--oc-font-mono);
   font-size: var(--oc-text-sm);
   line-height: 18px;
   vertical-align: 1px;
-  box-shadow: inset 0 0 0 1px var(--oc-border-default);
+  box-shadow: inset 0 0 0 var(--oc-border-width) var(--oc-border-default);
+}
+
+.oc-chip {
+  padding: 0 var(--oc-space-2);
+  border-radius: var(--oc-radius-pill);
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-xs);
+}
+
+.oc-key {
+  border: var(--oc-border-width) solid var(--oc-border-default);
+  background: var(--oc-bg-surface);
+  font-family: var(--oc-font-mono);
+  transform: translateY(calc(var(--oc-border-width) * -1));
+  box-shadow:
+    inset 0 var(--oc-border-width) 0 color-mix(in srgb, var(--oc-fg-default) 18%, transparent),
+    inset 0 calc(var(--oc-border-width) * -1) 0 color-mix(in srgb, var(--oc-border-strong) 46%, transparent),
+    0 calc(var(--oc-border-width) * 3) 0 var(--oc-border-strong),
+    var(--oc-shadow-sm);
 }
 
 .titlebar-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-space-1);
   height: var(--control-size);
   padding: 0 12px;
   background: transparent;

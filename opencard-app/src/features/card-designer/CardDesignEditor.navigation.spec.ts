@@ -931,10 +931,10 @@ describe('CardDesignEditor issue navigation', () => {
 
     const labels = viewport.props('selectionActionLabels') as Record<string, string>
     expect(labels).toMatchObject({
-      fillParent: 'Fill parent (F)',
-      centerInParent: 'Center in parent (C)',
-      inset: 'Inset 10 px (I)',
-      outset: 'Outset 10 px (O)',
+      fillParent: 'Fill parent [key]F[/key]',
+      centerInParent: 'Center in parent [key]C[/key]',
+      inset: 'Inset 10 px [key]I[/key]',
+      outset: 'Outset 10 px [key]O[/key]',
     })
     expect(viewport.props('layerViewShortcutLegendLabel')).toBe('Layer view shortcuts')
     expect(viewport.props('layerViewShortcutHints')).toEqual([

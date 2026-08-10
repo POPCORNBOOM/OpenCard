@@ -6,6 +6,8 @@ export interface ShellAction {
   hoverTip?: string;
   icon: IconToken;
   disabled?: boolean;
+  badge?: number;
+  badgeLabel?: string;
   children?: readonly OcActionMenuEntry[];
 }
 
@@ -28,6 +30,8 @@ export interface ShellList {
 export interface ShellTitleBarMenuGroup {
   key: string;
   label: string;
+  badge?: number;
+  badgeLabel?: string;
   actions: readonly OcActionMenuEntry[];
 }
 

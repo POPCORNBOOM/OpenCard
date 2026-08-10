@@ -96,6 +96,8 @@ function toActionDefinitions(actions: ShellList['actions']): OcActionButtonActio
     title: action.hoverTip,
     icon: action.icon,
     disabled: action.disabled,
+    badge: action.badge,
+    badgeLabel: action.badgeLabel,
     children: action.children,
   }))
 }

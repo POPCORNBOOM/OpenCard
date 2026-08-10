@@ -93,7 +93,7 @@ const fileTypes: FileTypeDefinition[] = [
     id: 'opencard-icon-registry',
     labelKey: 'fileTypes.opencardIconRegistry',
     fileNames: ['.ocicons'],
-    icon: 'file.package-variant',
+    icon: 'file.project-icon',
     iconTone: iconTone.config,
     language: 'json',
     editorId: 'icon-registry',
@@ -104,7 +104,7 @@ const fileTypes: FileTypeDefinition[] = [
     id: 'opencard-dictionary',
     labelKey: 'fileTypes.opencardDictionary',
     fileNames: ['.oclocale'],
-    icon: 'data.collection',
+    icon: 'file.dictionary',
     iconTone: iconTone.config,
     language: 'json',
     editorId: 'dictionary',
@@ -246,41 +246,14 @@ const fileTypes: FileTypeDefinition[] = [
 const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.ocproject': { icon: 'file.opencard-project', tone: iconTone.config },
   '.ocfonts': { icon: 'file.font', tone: iconTone.config },
-  '.ocicons': { icon: 'file.package-variant', tone: iconTone.config },
+  '.ocicons': { icon: 'file.project-icon', tone: iconTone.config },
   '.ocblocks': { icon: 'file.custom-block', tone: iconTone.config },
-  '.oclocale': { icon: 'data.collection', tone: iconTone.config },
+  '.oclocale': { icon: 'file.dictionary', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
   'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
   'jsconfig.json': { icon: 'file.settings', tone: iconTone.config },
   'vite.config.ts': { icon: 'file.settings', tone: iconTone.config },
-}
-
-const directoryIcons: Record<string, { collapsed: EntryIconPresentation; expanded: EntryIconPresentation }> = {
-  src: {
-    collapsed: { icon: 'folder.src', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
-  assets: {
-    collapsed: { icon: 'folder.assets', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
-  components: {
-    collapsed: { icon: 'folder.components', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
-  views: {
-    collapsed: { icon: 'folder.views', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
-  locales: {
-    collapsed: { icon: 'folder.locales', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
-  core: {
-    collapsed: { icon: 'folder.core', tone: iconTone.folderDefault },
-    expanded: { icon: 'folder.open', tone: iconTone.folderOpen },
-  },
 }
 
 function normalizeSegment(value: string): string {
@@ -403,16 +376,10 @@ export function resolveProjectTreeFilePresentation(
     : { annotationKey: fileType.labelKey, priority: fileType.projectTreePriority }
 }
 
-export function resolveDirectoryIcon(path: string, isExpanded: boolean): EntryIconPresentation {
-  const baseName = normalizeSegment(getBaseName(path))
-  const iconSet = directoryIcons[baseName]
-  if (iconSet) {
-    return isExpanded ? iconSet.expanded : iconSet.collapsed
-  }
-
+export function resolveDirectoryIcon(_path: string, isExpanded: boolean): EntryIconPresentation {
   return {
     icon: isExpanded ? 'folder.open' : 'folder.generic',
-    tone: isExpanded ? iconTone.folderOpen : iconTone.folderDefault,
+    tone: iconTone.folderOpen,
   }
 }
 

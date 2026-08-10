@@ -32,6 +32,7 @@
           :disabled="entry.disabled === true"
           :data-tooltip="entry.title || null"
           role="menuitem"
+          :aria-label="accessibleActionLabel(entry)"
           :aria-haspopup="hasActionChildren(entry) ? 'menu' : undefined"
           :aria-expanded="hasActionChildren(entry) ? openChildKey === entry.key : undefined"
           @click.stop="handleActionClick(entry)"
@@ -50,8 +51,11 @@
           />
           <span v-else class="oc-action-menu__icon-spacer" />
           <span class="oc-action-menu__label">{{ entry.title ?? entry.key }}</span>
+          <span v-if="hasActionBadge(entry.badge)" class="oc-number-badge" aria-hidden="true">
+            {{ formatActionBadge(entry.badge) }}
+          </span>
           <span v-if="entry.shortcut?.length" class="oc-action-menu__shortcut" aria-hidden="true">
-            <span v-for="part in entry.shortcut" :key="part" class="oc-action-menu__shortcut-chip">
+            <span v-for="part in entry.shortcut" :key="part" class="oc-key oc-action-menu__shortcut-key">
               {{ part }}
             </span>
           </span>
@@ -101,6 +105,8 @@ export interface OcActionDefinition {
   thumbnailStyle?: Readonly<Record<string, string>>
   thumbnailLabel?: string
   title?: string
+  badge?: number
+  badgeLabel?: string
   shortcut?: readonly string[]
   disabled?: boolean
   children?: readonly OcActionMenuEntry[]
@@ -129,6 +135,7 @@ export function isActionMenuBranchEvent(event: Event, branchId: string): boolean
 import { nextTick, onBeforeUnmount, reactive, ref, type ComponentPublicInstance } from 'vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
+import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from './actionBadge'
 
 defineOptions({ name: 'OcActionMenu' })
 
@@ -216,6 +223,10 @@ function handleActionClick(action: OcActionDefinition): void {
   if (!hasActionChildren(action) && action.disabled !== true) {
     emit('select', { key: action.key })
   }
+}
+
+function accessibleActionLabel(action: OcActionDefinition): string {
+  return actionAccessibleLabel(action.title ?? action.key, action.badgeLabel)
 }
 
 function enabledButtons(): HTMLButtonElement[] {
@@ -361,21 +372,10 @@ function handleActionKeydown(event: KeyboardEvent, action: OcActionDefinition): 
   gap: 3px;
 }
 
-.oc-action-menu__shortcut-chip {
-  display: inline-flex;
-  align-items: center;
+.oc-action-menu__shortcut-key {
   justify-content: center;
   min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
   box-sizing: border-box;
-  border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-hover);
-  color: var(--oc-fg-muted);
-  font-family: var(--oc-font-mono);
   font-size: var(--oc-text-xs);
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: inset 0 0 0 1px var(--oc-border-muted);
 }
 </style>

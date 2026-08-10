@@ -18,7 +18,7 @@ describe('OcActionMenu', () => {
     expect(wrapper.findAll('[role="menuitem"]')).toHaveLength(2)
     expect(wrapper.findAll('[role="menuitem"]')[0]!.attributes('data-tooltip')).toBe('Save')
     expect(wrapper.findAll('[role="menuitem"]')[0]!.attributes('title')).toBeUndefined()
-    expect(wrapper.findAll('.oc-action-menu__shortcut-chip').map(chip => chip.text()))
+    expect(wrapper.findAll('.oc-key').map(key => key.text()))
       .toEqual(['Ctrl', 'S'])
 
     await wrapper.findAll('[role="menuitem"]')[1]!.trigger('click')
@@ -40,6 +40,15 @@ describe('OcActionMenu', () => {
     expect(thumbnail.attributes('aria-label')).toBe('Wide icon')
     expect(thumbnail.attributes('style')).toContain('background-image')
     expect(wrapper.find('.oc-action-menu__icon-spacer').exists()).toBe(false)
+  })
+
+  it('renders a capped numeric badge with an accessible action label', () => {
+    const wrapper = mount(OcActionMenu, {
+      props: { actions: [{ key: 'feedback', title: 'Feedback', badge: 120, badgeLabel: '120 unread replies' }] },
+    })
+
+    expect(wrapper.get('.oc-number-badge').text()).toBe('99+')
+    expect(wrapper.get('[role="menuitem"]').attributes('aria-label')).toBe('Feedback, 120 unread replies')
   })
 
   it('opts atlas crop thumbnails into the shared project-icon renderer', () => {

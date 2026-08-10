@@ -232,4 +232,24 @@ describe('ProjectIconCropEditor', () => {
     expect(focusToggle.attributes('aria-pressed')).toBe('true')
     expect(api.getViewportTransform()).toEqual({ x: -100, y: -40, scale: 4 })
   })
+
+  it('focuses and positions its toolbar inside the unobscured viewport region', async () => {
+    const wrapper = mount(ProjectIconCropEditor, {
+      props: {
+        runtime, icon, alt: 'Status', moveLabel: 'Move', handleLabels: labels,
+        pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon',
+        viewportInsets: { bottom: 100 },
+      },
+    })
+    await nextTick()
+    await flushAnimation()
+
+    const api = wrapper.vm as unknown as {
+      getViewportTransform(): { x: number; y: number; scale: number }
+    }
+    expect(api.getViewportTransform()).toEqual({ x: 120, y: -10, scale: 4 })
+    expect(wrapper.get('.project-icon-crop-editor').attributes('style')).toContain(
+      '--oc-project-icon-viewport-inset-bottom: 100px',
+    )
+  })
 })

@@ -22,12 +22,15 @@
       :icon="action.icon"
       :icon-tone="action.iconTone"
       :data-tooltip="action.title || null"
-      :aria-label="action.title ?? action.key"
+      :aria-label="actionAccessibleLabel(action.title ?? action.key, action.badgeLabel)"
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"
       :disabled="action.disabled === true"
       @click.stop="handleButtonClick"
     />
+    <span v-if="hasActionBadge(action.badge)" class="oc-number-badge oc-action-button__badge" aria-hidden="true">
+      {{ formatActionBadge(action.badge) }}
+    </span>
     <OcFloatingLayer
       v-if="isMenuOpen && hasActionChildren(action)"
       :open="true"
@@ -72,6 +75,7 @@ import OcActionMenu, {
   isActionMenuBranchEvent,
 } from './OcActionMenu.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
+import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from './actionBadge'
 
 defineOptions({
   name: 'OcActionButton',
@@ -199,5 +203,12 @@ function hasActionChildren(
 
 .oc-action-button__floating {
   overflow: visible;
+}
+
+.oc-action-button__badge {
+  position: absolute;
+  z-index: 1;
+  top: calc(-1 * var(--oc-space-1));
+  right: calc(-1 * var(--oc-space-1));
 }
 </style>

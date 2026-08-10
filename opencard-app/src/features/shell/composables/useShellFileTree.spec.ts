@@ -98,8 +98,9 @@ describe('useShellFileTree opened editors', () => {
       'fileTypes.opencardFontRegistry': 'Font registry',
       'fileTypes.opencardIconRegistry': 'Icon registry',
       'fileTypes.opencardDictionary': 'Dictionary',
+      'fileTypes.opencardCustomBlockRegistry': 'Custom block registry',
     }
-    const { projectTreeData } = useShellFileTree({
+    const { projectTreeData, projectExpandedKeys, setProjectEntryExpanded } = useShellFileTree({
       projectPath: ref(projectPath),
       indexedEntries: ref([
         { name: 'cards', isDirectory: true },
@@ -107,6 +108,7 @@ describe('useShellFileTree opened editors', () => {
         { name: '.oclocale', isDirectory: false },
         { name: '.ocicons', isDirectory: false },
         { name: '.ocfonts', isDirectory: false },
+        { name: '.ocblocks', isDirectory: false },
         { name: '.ocproject', isDirectory: false },
         { name: 'cards/.oclocale', isDirectory: false },
       ]),
@@ -120,12 +122,18 @@ describe('useShellFileTree opened editors', () => {
 
     expect(projectTreeData.value.rootKeys).toEqual([
       `${projectPath}/.ocproject`,
-      `${projectPath}/.ocfonts`,
-      `${projectPath}/.ocicons`,
-      `${projectPath}/.oclocale`,
       `${projectPath}/cards`,
       `${projectPath}/notes.txt`,
     ])
+    expect(projectTreeData.value.children.get(`${projectPath}/.ocproject`)).toEqual([
+      `${projectPath}/.ocfonts`,
+      `${projectPath}/.ocicons`,
+      `${projectPath}/.oclocale`,
+      `${projectPath}/.ocblocks`,
+    ])
+    expect(projectExpandedKeys.value).toEqual([`${projectPath}/.ocproject`])
+    expect(setProjectEntryExpanded(`${projectPath}/.ocproject`, false)).toBe(true)
+    expect(projectExpandedKeys.value).toEqual([])
     expect(projectTreeData.value.items.get(`${projectPath}/.ocicons`)).toMatchObject({
       label: 'Icon registry',
       tail: '.ocicons',

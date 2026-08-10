@@ -172,7 +172,7 @@ import {
   isFeedbackServiceConfigured,
   submitFeedback,
 } from '../services/feedbackService'
-import { feedbackReceiptStore } from '../services/feedbackReceiptStore'
+import { useFeedbackInbox } from '../composables/useFeedbackInbox'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -184,6 +184,7 @@ const props = withDefaults(defineProps<{
   diagnostics: () => ({}),
   activePage: 'submit',
 })
+const feedbackInbox = useFeedbackInbox()
 
 const emit = defineEmits<{ close: []; pageChange: [page: FeedbackPage] }>()
 const { locale, t } = useI18n()
@@ -256,7 +257,7 @@ async function submit(): Promise<void> {
     }, createFeedbackEnvironment(locale.value), props.diagnostics)
     const result = await submitFeedback(submission)
     try {
-      await feedbackReceiptStore.add(submission, result)
+      await feedbackInbox.addReceipt(submission, result)
     } catch {
       receiptSaveFailed.value = true
     }

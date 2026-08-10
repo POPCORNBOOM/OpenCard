@@ -1,5 +1,5 @@
 <template>
-  <div ref="viewport" class="project-icon-crop-editor"
+  <div ref="viewport" class="project-icon-crop-editor" :style="viewportStyle"
     :class="{ 'is-panning': isPanning, 'project-icon-crop-editor--fill': fill }"
     @mousedown="handleMouseDown" @mousemove="handleMouseMove" @mouseup="handleMouseUp"
     @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
@@ -61,6 +61,8 @@ import {
   VIEWPORT_ZOOM_STEP,
   clampViewportScale,
   normalizeViewportWheelDelta,
+  resolveViewportSafeRegion,
+  type ViewportInsets,
 } from '../../shared/ui/viewport/viewportNavigation'
 import OcIcon from '../base/OcIcon.vue'
 import OcButton from '../base/OcButton.vue'
@@ -84,12 +86,14 @@ const props = withDefaults(defineProps<{
   focusSelectedLabel: string
   moveLabel: string
   handleLabels: Readonly<Record<ProjectIconCropHandle, string>>
+  viewportInsets?: ViewportInsets
 }>(), {
   snapToGrid: false,
   gridRows: 1,
   gridColumns: 1,
   pixelated: false,
   fill: false,
+  viewportInsets: () => ({}),
 })
 const emit = defineEmits<{
   'update:icon': [icon: ProjectIcon]
@@ -123,12 +127,23 @@ const interaction = ref<{
 const previewIcon = ref<ProjectIcon | null>(null)
 
 const scaleLabel = computed(() => `${Math.round(scale.value * 100)}%`)
+const safeViewportRegion = computed(() => resolveViewportSafeRegion(
+  viewportWidth.value,
+  viewportHeight.value,
+  props.viewportInsets,
+))
+const viewportStyle = computed<CSSProperties>(() => ({
+  '--oc-project-icon-viewport-inset-bottom': `${Math.max(
+    0,
+    viewportHeight.value - safeViewportRegion.value.top - safeViewportRegion.value.height,
+  )}px`,
+}))
 const fitScale = computed(() => {
   const runtime = props.runtime
   if (!runtime || viewportWidth.value <= 0 || viewportHeight.value <= 0) return 1
   return Math.min(
-    Math.max(1, viewportWidth.value - VIEWPORT_FIT_PADDING * 2) / runtime.imageWidth,
-    Math.max(1, viewportHeight.value - VIEWPORT_FIT_PADDING * 2) / runtime.imageHeight,
+    Math.max(1, safeViewportRegion.value.width - VIEWPORT_FIT_PADDING * 2) / runtime.imageWidth,
+    Math.max(1, safeViewportRegion.value.height - VIEWPORT_FIT_PADDING * 2) / runtime.imageHeight,
   )
 })
 const minimumScale = computed(() => Math.min(VIEWPORT_MIN_SCALE, fitScale.value))
@@ -190,11 +205,11 @@ function fitView(): void {
   if (!runtime || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
   stopZoomAnimation()
   scale.value = clampViewportScale(fitScale.value, minimumScale.value)
-  panX.value = 0
-  panY.value = 0
+  panX.value = safeViewportRegion.value.centerX - viewportWidth.value / 2
+  panY.value = safeViewportRegion.value.centerY - viewportHeight.value / 2
   targetScale.value = scale.value
-  targetPanX.value = 0
-  targetPanY.value = 0
+  targetPanX.value = panX.value
+  targetPanY.value = panY.value
   initialFitPending = false
 }
 
@@ -203,8 +218,8 @@ function focusSelected(): void {
   const icon = props.icon
   if (!runtime || !icon || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
   const nextScale = clampViewportScale(Math.min(
-    Math.max(1, viewportWidth.value - VIEWPORT_FIT_PADDING * 2) / icon.width,
-    Math.max(1, viewportHeight.value - VIEWPORT_FIT_PADDING * 2) / icon.height,
+    Math.max(1, safeViewportRegion.value.width - VIEWPORT_FIT_PADDING * 2) / icon.width,
+    Math.max(1, safeViewportRegion.value.height - VIEWPORT_FIT_PADDING * 2) / icon.height,
   ), minimumScale.value)
   const baseX = (viewportWidth.value - runtime.imageWidth * nextScale) / 2
   const baseY = (viewportHeight.value - runtime.imageHeight * nextScale) / 2
@@ -212,8 +227,8 @@ function focusSelected(): void {
   const iconCenterY = icon.y + icon.height / 2
 
   targetScale.value = nextScale
-  targetPanX.value = viewportWidth.value / 2 - baseX - iconCenterX * nextScale
-  targetPanY.value = viewportHeight.value / 2 - baseY - iconCenterY * nextScale
+  targetPanX.value = safeViewportRegion.value.centerX - baseX - iconCenterX * nextScale
+  targetPanY.value = safeViewportRegion.value.centerY - baseY - iconCenterY * nextScale
   initialFitPending = false
   startZoomAnimation()
 }
@@ -250,11 +265,13 @@ function zoomAt(nextValue: number, viewportX: number, viewportY: number): void {
 }
 
 function zoomIn(): void {
-  zoomAt(targetScale.value * VIEWPORT_ZOOM_STEP, viewportWidth.value / 2, viewportHeight.value / 2)
+  zoomAt(targetScale.value * VIEWPORT_ZOOM_STEP,
+    safeViewportRegion.value.centerX, safeViewportRegion.value.centerY)
 }
 
 function zoomOut(): void {
-  zoomAt(targetScale.value / VIEWPORT_ZOOM_STEP, viewportWidth.value / 2, viewportHeight.value / 2)
+  zoomAt(targetScale.value / VIEWPORT_ZOOM_STEP,
+    safeViewportRegion.value.centerX, safeViewportRegion.value.centerY)
 }
 
 function handleWheel(event: WheelEvent): void {
@@ -515,8 +532,8 @@ defineExpose({
 
 .project-icon-crop-editor__viewport-toolbar {
   position: absolute;
-  bottom: var(--oc-space-2);
-  left: var(--oc-space-2);
+  bottom: calc(var(--oc-project-icon-viewport-inset-bottom, 0px) + var(--oc-floating-surface-gap));
+  left: var(--oc-floating-surface-gap);
   z-index: var(--oc-z-overlay-toolbar);
 }
 

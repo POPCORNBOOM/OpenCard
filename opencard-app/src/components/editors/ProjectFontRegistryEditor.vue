@@ -12,28 +12,23 @@
           </div>
         </div>
         <div class="project-font-registry-workbench__title-actions">
-          <OcButton icon="action.add" variant="soft" :aria-label="addLabel"
-            @click="addCurrentEntry">{{ addLabel }}</OcButton>
+          <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addFont')"
+            @click="emit('register-font')">{{ t('projectConfig.fonts.addFont') }}</OcButton>
+          <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addSet')"
+            @click="emit('register-font-set')">{{ t('projectConfig.fonts.addSet') }}</OcButton>
         </div>
       </header>
-
-      <div class="project-font-registry-workbench__modebar">
-        <OcOptionGroup :model-value="activePage" :options="modeOptions" appearance="sliding-outline"
-          :columns="2" fill @update:model-value="selectPage" />
-      </div>
 
       <OcText v-if="error" class="project-font-registry-workbench__error" tone="danger" size="sm" role="alert">
         {{ error }}
       </OcText>
 
       <div class="project-font-registry-workbench__list">
-        <OcTree v-if="currentEntries.length" fill role="listbox" selection-mode="single"
+        <OcTree fill role="listbox" selection-mode="single"
           activation-mode="double-click" scroll-to-selection :data="treeData" :actions="treeActions"
+          :expanded-keys="['fonts', 'sets']"
           :selected-keys="selectedTreeKeys" :action-overflow-title="t('projectConfig.fonts.entryActions')"
           @intent="handleTreeIntent" />
-        <OcEmpty v-else tone="muted">
-          {{ activePage === 'fonts' ? t('projectConfig.fonts.empty') : t('projectConfig.fonts.emptySets') }}
-        </OcEmpty>
       </div>
     </section>
 
@@ -105,14 +100,13 @@ import {
   createProjectFontPreviewRuns,
   readProjectFontCharacterSet,
 } from '../../features/workspace/services/projectFontCoverage'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
-import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import OcTree from '../standard/OcTree.vue'
 
 const props = withDefaults(defineProps<{
@@ -146,42 +140,36 @@ let coverageGeneration = 0
 const selectedFont = computed(() => props.fonts.find(font => font.key === selectedFontKey.value) ?? null)
 const selectedFontSet = computed(() => props.fontSets.find(fontSet => fontSet.key === selectedFontSetKey.value) ?? null)
 const selectedEntry = computed(() => activePage.value === 'fonts' ? selectedFont.value : selectedFontSet.value)
-const currentEntries = computed(() => activePage.value === 'fonts' ? props.fonts : props.fontSets)
-const modeOptions = computed<readonly OcOption[]>(() => [
-  { value: 'fonts', label: t('projectConfig.fonts.projectFonts') },
-  { value: 'sets', label: t('projectConfig.fonts.fontSets') },
-])
-const addLabel = computed(() => activePage.value === 'fonts'
-  ? t('projectConfig.fonts.addFont') : t('projectConfig.fonts.addSet'))
 const selectedTreeKeys = computed(() => {
   const key = activePage.value === 'fonts' ? selectedFontKey.value : selectedFontSetKey.value
   return key ? [treeKey(activePage.value, key)] : []
 })
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['configure', {
-    title: activePage.value === 'fonts'
-      ? t('projectConfig.fonts.configure') : t('projectConfig.fonts.configureSet'),
-    icon: 'tool.settings',
-  }],
-  ['delete', {
-    title: activePage.value === 'fonts'
-      ? t('projectConfig.fonts.remove') : t('projectConfig.fonts.removeSet'),
-    icon: 'action.delete',
-    iconTone: 'danger',
-  }],
+  ['configure-font', { title: t('projectConfig.fonts.configure'), icon: 'tool.settings' }],
+  ['configure-set', { title: t('projectConfig.fonts.configureSet'), icon: 'tool.settings' }],
+  ['delete-font', { title: t('projectConfig.fonts.remove'), icon: 'action.delete', iconTone: 'danger' }],
+  ['delete-set', { title: t('projectConfig.fonts.removeSet'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 const treeData = computed<OcTreeData>(() => {
-  const entries = currentEntries.value
-  const rootKeys = entries.map(entry => treeKey(activePage.value, entry.key))
+  const fontRoot = 'fonts'
+  const setRoot = 'sets'
+  const rootKeys = [fontRoot, setRoot]
+  const fontKeys = props.fonts.map(entry => treeKey('fonts', entry.key))
+  const setKeys = props.fontSets.map(entry => treeKey('sets', entry.key))
+  const items = new Map<string, OcTreeItem>([
+    [fontRoot, { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
+    [setRoot, { label: t('projectConfig.fonts.fontSets'), icon: 'data.layers' }],
+    ...props.fonts.map(entry => [treeKey('fonts', entry.key), {
+      label: entry.name, icon: 'file.font', actions: ['configure-font', 'delete-font'], contextActions: ['configure-font', 'delete-font'],
+    }] as const),
+    ...props.fontSets.map(entry => [treeKey('sets', entry.key), {
+      label: entry.name, icon: 'data.layers', actions: ['configure-set', 'delete-set'], contextActions: ['configure-set', 'delete-set'],
+    }] as const),
+  ])
   return {
     rootKeys,
-    items: new Map(entries.map(entry => [treeKey(activePage.value, entry.key), {
-      label: entry.name,
-      icon: activePage.value === 'fonts' ? 'file.font' as const : 'data.layers' as const,
-      actions: ['configure', 'delete'],
-      contextActions: ['configure', 'delete'],
-    }])),
-    children: new Map(),
+    items,
+    children: new Map([[fontRoot, fontKeys], [setRoot, setKeys]]),
   }
 })
 const resolvedSet = computed(() => selectedFontSet.value
@@ -237,34 +225,46 @@ watch(
 
 function treeKey(page: 'fonts' | 'sets', key: string): string { return `${page}:${key}` }
 function entryKey(key: string): string { return key.slice(key.indexOf(':') + 1) }
-function selectPage(value: string): void { if (value === 'fonts' || value === 'sets') activePage.value = value }
-function addCurrentEntry(): void {
-  if (activePage.value === 'fonts') emit('register-font')
-  else emit('register-font-set')
+function entryPage(key: string): 'fonts' | 'sets' | null {
+  if (key === 'fonts' || key.startsWith('fonts:')) return 'fonts'
+  if (key === 'sets' || key.startsWith('sets:')) return 'sets'
+  return null
 }
-function configureEntry(key: string): void {
-  if (activePage.value === 'fonts') emit('configure-font', key)
+function configureEntry(page: 'fonts' | 'sets', key: string): void {
+  if (page === 'fonts') emit('configure-font', key)
   else emit('configure-font-set', key)
 }
-function removeEntry(key: string): void {
-  if (activePage.value === 'fonts') removeFont(props.fonts.findIndex(font => font.key === key))
+function removeEntry(page: 'fonts' | 'sets', key: string): void {
+  if (page === 'fonts') removeFont(props.fonts.findIndex(font => font.key === key))
   else removeFontSet(props.fontSets.findIndex(fontSet => fontSet.key === key))
 }
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
-    const key = intent.selectedKeys[0] ? entryKey(intent.selectedKeys[0]) : null
-    if (activePage.value === 'fonts') selectedFontKey.value = key
+    const selectedKey = intent.selectedKeys[0] ?? intent.triggerKey
+    const page = entryPage(selectedKey)
+    if (!page) return
+    activePage.value = page
+    if (selectedKey === page) return
+    const key = entryKey(selectedKey)
+    if (page === 'fonts') selectedFontKey.value = key
     else selectedFontSetKey.value = key
     return
   }
+  if (intent.type === 'node.activate' && (intent.key === 'fonts' || intent.key === 'sets')) {
+    activePage.value = intent.key
+    return
+  }
   if (intent.type === 'node.activate') {
-    configureEntry(entryKey(intent.key))
+    const page = entryPage(intent.key)
+    if (page) configureEntry(page, entryKey(intent.key))
     return
   }
   if (intent.type !== 'action.invoke') return
   const key = entryKey(intent.key)
-  if (intent.actionKey === 'configure') configureEntry(key)
-  else if (intent.actionKey === 'delete') removeEntry(key)
+  if (intent.actionKey === 'configure-font') configureEntry('fonts', key)
+  else if (intent.actionKey === 'configure-set') configureEntry('sets', key)
+  else if (intent.actionKey === 'delete-font') removeEntry('fonts', key)
+  else if (intent.actionKey === 'delete-set') removeEntry('sets', key)
 }
 function removeFont(index: number): void {
   if (index < 0) return
@@ -320,7 +320,7 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__right { min-width: 0; min-height: 0; overflow: hidden; }
 .project-font-registry-workbench__left {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   border-right: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
 }
@@ -333,14 +333,15 @@ defineExpose({ navigateToFont })
   gap: var(--oc-space-4);
   padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
+  background: var(--oc-bg-base);
+  color: var(--oc-fg-default);
 }
 .project-font-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
 .project-font-registry-workbench__title > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
 .project-font-registry-workbench__title-actions { flex: 0 0 auto; gap: var(--oc-space-1); }
 .project-font-registry-workbench h1 { margin: 0; font-size: var(--oc-text-lg); font-weight: var(--font-weight-ui-title); letter-spacing: 0; }
-.project-font-registry-workbench__modebar { grid-row: 2; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.project-font-registry-workbench__error { grid-row: 3; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.project-font-registry-workbench__list { position: relative; grid-row: 4; min-height: 0; overflow: hidden; }
+.project-font-registry-workbench__error { grid-row: 2; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-registry-workbench__list { position: relative; grid-row: 3; min-height: 0; overflow: hidden; }
 .project-font-registry-workbench__list > .oc-tree { position: absolute; inset: 0; }
 .project-font-registry-workbench__right { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-base); }
 .project-font-registry-workbench__preview-toolbar { padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }

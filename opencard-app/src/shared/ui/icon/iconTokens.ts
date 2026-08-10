@@ -152,6 +152,7 @@ export const iconTokens = {
 
   'file.css': true,
   'file.custom-block': true,
+  'file.dictionary': true,
   'file.env': true,
   'file.font': true,
   'file.generic': true,
@@ -166,7 +167,7 @@ export const iconTokens = {
   'file.opencard': true,
   'file.opencard-project': true,
   'file.package': true,
-  'file.package-variant': true,
+  'file.project-icon': true,
   'file.settings': true,
   'file.text': true,
   'file.typescript': true,
