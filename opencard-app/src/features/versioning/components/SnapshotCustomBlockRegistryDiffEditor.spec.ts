@@ -16,7 +16,12 @@ describe('SnapshotCustomBlockRegistryDiffEditor', () => {
       props: {
         historical: { rootPath: 'D:/history', relativePath: '.ocblocks', completeness: 'project', exists: true },
         current: { rootPath: 'D:/current', relativePath: '.ocblocks', completeness: 'project', exists: true },
-        comparison: { historicalContent: '{"blocks":[]}', currentContent: '{"blocks":[]}' },
+        comparison: {
+          historicalContent: '{"blocks":[]}',
+          currentContent: '{"blocks":[]}',
+          historicalLabel: 'A',
+          currentLabel: 'B',
+        },
         fileName: '.ocblocks',
         themeId: 'dark',
       },
