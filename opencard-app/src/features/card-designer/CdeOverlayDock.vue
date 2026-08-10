@@ -324,10 +324,10 @@ onBeforeUnmount(() => {
 }
 
 .cde-overlay-dock--left :deep(.cde-overlay-dock__width-handle) {
-  right: calc(var(--oc-space-3) / -2);
+  right: calc(var(--oc-space-3) * -1);
 }
 
 .cde-overlay-dock--right :deep(.cde-overlay-dock__width-handle) {
-  left: calc(var(--oc-space-3) / -2);
+  left: calc(var(--oc-space-3) * -1);
 }
 </style>
