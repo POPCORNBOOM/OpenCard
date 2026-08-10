@@ -18,7 +18,7 @@
         <OcResizeHandle
           :minimum="props.topMinHeight"
           :maximum="splitMaximum"
-          :value="splitValue"
+          :value="splitHandleValue"
           :label="props.splitLabel"
           orientation="horizontal"
           direction="normal"
@@ -129,6 +129,12 @@ const resolvedTopSize = computed(() => {
   const source = (props.topSize ?? measuredTopSize.value) || props.topMinHeight
   return clamp(source, props.topMinHeight, splitMaximum.value)
 })
+// Before the first drag, the measured panel height is the only reliable origin.
+// Keep the handle and the grid row on that same value so pointerdown cannot
+// start from the stale minimum while the visible separator is already lower.
+const splitHandleValue = computed(() => (
+  props.topSize ?? (isResizing.value ? splitValue.value : resolvedTopSize.value)
+))
 const dockStyle = computed<CSSProperties>(() => ({
   width: `${geometry.value.contentWidth}px`,
   transform: `translateX(${geometry.value.translationX}px)`,
@@ -137,18 +143,20 @@ const dockStyle = computed<CSSProperties>(() => ({
   height: hasExpandedPanel.value ? `calc(100% - ${props.floatingGap * 2}px)` : 'auto',
 }))
 const stackStyle = computed<CSSProperties>(() => {
+  const style: CSSProperties = { gap: `${props.splitGap}px` }
   if (!props.topExpanded && !props.bottomExpanded) {
-    return { gridTemplateRows: 'auto auto' }
+    return { ...style, gridTemplateRows: 'auto auto' }
   }
-  if (!props.topExpanded) return { gridTemplateRows: 'auto minmax(0, 1fr)' }
-  if (!props.bottomExpanded) return { gridTemplateRows: 'minmax(0, 1fr) auto' }
+  if (!props.topExpanded) return { ...style, gridTemplateRows: 'auto minmax(0, 1fr)' }
+  if (!props.bottomExpanded) return { ...style, gridTemplateRows: 'minmax(0, 1fr) auto' }
   if (props.topSize === null) {
-    return { gridTemplateRows: `minmax(${props.topMinHeight}px, 1fr) minmax(0, 1fr)` }
+    return { ...style, gridTemplateRows: `minmax(${props.topMinHeight}px, 1fr) minmax(0, 1fr)` }
   }
-  return { gridTemplateRows: `${resolvedTopSize.value}px minmax(0, 1fr)` }
+  return { ...style, gridTemplateRows: `${resolvedTopSize.value}px minmax(0, 1fr)` }
 })
 const splitHandleStyle = computed<CSSProperties>(() => ({
   top: `${resolvedTopSize.value}px`,
+  height: `${props.splitGap}px`,
 }))
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -192,7 +200,8 @@ function handleWidthResizeCancel(): void {
 
 function handleSplitResizeStart(): void {
   measureTopSize()
-  splitStartValue.value = splitValue.value
+  splitStartValue.value = resolvedTopSize.value
+  splitValue.value = splitStartValue.value
   isResizing.value = true
   emit('resize-start', 'split')
 }
@@ -267,7 +276,7 @@ onBeforeUnmount(() => {
   height: 100%;
   min-width: 0;
   min-height: 0;
-  gap: var(--oc-space-3);
+  gap: 0;
   pointer-events: none;
 }
 
@@ -288,8 +297,6 @@ onBeforeUnmount(() => {
   right: 0;
   left: 0;
   z-index: 2;
-  height: var(--oc-space-3);
-  transform: translateY(calc(var(--oc-space-3) / -2));
   pointer-events: auto;
 }
 

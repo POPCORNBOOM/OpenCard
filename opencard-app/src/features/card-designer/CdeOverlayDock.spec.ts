@@ -92,6 +92,8 @@ describe('CdeOverlayDock', () => {
 
     expect(wrapper.emitted('update:top-size')).toContainEqual([280])
     expect(handle.getAttribute('aria-orientation')).toBe('horizontal')
+    expect(wrapper.get('.cde-overlay-dock__split-handle').element.style.height)
+      .toBe(`${props.splitGap}px`)
   })
 
   it('keeps the measured split origin when the first pointer move arrives', async () => {
@@ -114,6 +116,30 @@ describe('CdeOverlayDock', () => {
     })
     pointer(handle, 'pointerdown', { button: 0, pointerId: 2, clientY: 240 })
     pointer(handle, 'pointermove', { pointerId: 2, clientY: 250 })
+
+    expect(wrapper.emitted('update:top-size')).toContainEqual([250])
+  })
+
+  it('uses the measured split origin when no persisted top size exists', async () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props: { ...props, topSize: null },
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const stack = wrapper.get('.cde-overlay-dock__stack').element as HTMLElement
+    const topPanel = wrapper.get('.cde-overlay-dock__panel--top').element as HTMLElement
+    stack.getBoundingClientRect = () => ({ height: 700 } as DOMRect)
+    topPanel.getBoundingClientRect = () => ({ height: 240 } as DOMRect)
+    await nextTick()
+    await nextTick()
+
+    const handle = wrapper.get('[aria-label="Resize panels"]').element as HTMLElement
+    Object.defineProperties(handle, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: vi.fn(() => true) },
+      releasePointerCapture: { value: vi.fn() },
+    })
+    pointer(handle, 'pointerdown', { button: 0, pointerId: 3, clientY: 240 })
+    pointer(handle, 'pointermove', { pointerId: 3, clientY: 250 })
 
     expect(wrapper.emitted('update:top-size')).toContainEqual([250])
   })

@@ -55,6 +55,8 @@ interface OcCardProps {
   actions?: OcCardAction[]
   /** 是否折叠内容。默认 false */
   collapsed?: boolean
+  /** 内容展开/收起动效。默认 'normal' */
+  motion?: 'normal' | 'none'
   /** 占满容器。默认 false */
   fill?: boolean
 }
@@ -76,6 +78,7 @@ const props = withDefaults(defineProps<OcCardProps>(), {
   radius: 'md',
   actions: () => [],
   collapsed: false,
+  motion: 'normal',
   fill: false,
 })
 
@@ -91,6 +94,7 @@ const hasHeader = computed(() => Boolean(props.title || props.icon || props.acti
 const cardClasses = computed(() => [
   `oc-card--variant-${props.variant}`,
   `oc-card--radius-${props.radius}`,
+  `oc-card--motion-${props.motion}`,
   { 'oc-card--fill': props.fill, 'oc-card--collapsed': props.collapsed },
   attrs.class,
 ])
@@ -100,7 +104,7 @@ function handleActionSelect(payload: OcActionButtonSelectPayload): void {
 }
 
 function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return props.motion === 'none' || window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function asContentElement(element: Element): HTMLElement | null {
@@ -185,6 +189,10 @@ function leaveContent(element: Element, done: () => void): void {
     background-color var(--oc-duration-fast) var(--oc-ease),
     border-color var(--oc-duration-fast) var(--oc-ease),
     box-shadow var(--oc-duration-fast) var(--oc-ease);
+}
+
+.oc-card--motion-none {
+  transition: none;
 }
 
 .oc-card--variant-plain {
