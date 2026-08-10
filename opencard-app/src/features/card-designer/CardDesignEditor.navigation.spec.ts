@@ -1,6 +1,6 @@
 import { defineComponent, h, nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
-import { shallowMount } from '@vue/test-utils'
+import { config, shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createCardFace,
@@ -71,10 +71,12 @@ function createDocument(): CardDocument {
 describe('CardDesignEditor issue navigation', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    config.global.stubs.CdeOverlayDock = false
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    delete config.global.stubs.CdeOverlayDock
   })
 
   it('toggles structure containers through double-click activation', async () => {
@@ -606,7 +608,8 @@ describe('CardDesignEditor issue navigation', () => {
     expect(viewportControls.props('embedded')).toBe(true)
     expect(viewportControls.props('buttonSize')).toBe('sm')
     expect(viewportControls.props('iconSize')).toBe('action')
-    expect(viewportControls.element.parentElement).toBe(wrapper.get('.card-design-editor__face-tools').element)
+    expect(viewportControls.element.parentElement)
+      .toBe(wrapper.get('.card-design-editor__face-tools .oc-overlay-toolbar__items').element)
     const faceAction = actions.find((action) => action.props('action').key === 'switch-face')
     const clipAction = actions.find((action) => action.props('action').key === 'toggle-face-clip')
     const alignmentSnappingAction = actions.find(
@@ -1115,13 +1118,14 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
 
     const tools = wrapper.get('.card-design-editor__face-tools')
-    expect(tools.classes()).toContain('is-right-sidebar-collapsed')
+    expect(tools.classes()).not.toContain('is-right-sidebar-collapsed')
+    expect((tools.element as HTMLElement).style.right).toBe('292px')
     const viewportControls = tools.findComponent({ name: 'OcViewportControls' })
     expect(viewportControls.exists()).toBe(true)
     expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(3)
   })
 
-  it('slides full-width sidebars through the stage edges and snaps symmetrically', async () => {
+  it('projects symmetric Dock extent updates without CSS variable state machines', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
@@ -1141,132 +1145,25 @@ describe('CardDesignEditor issue navigation', () => {
     })
     await nextTick()
 
-    const root = wrapper.get('.card-design-editor').element as HTMLElement
-    const flushSidebarSnap = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-    const leftSidebar = wrapper.get('.card-design-editor__sidebar--left')
-    const rightSidebar = wrapper.get('.card-design-editor__sidebar--right')
-    expect(leftSidebar.classes()).not.toContain('is-width-clipped')
-    expect(rightSidebar.classes()).not.toContain('is-width-clipped')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('6px')
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-edge-inset')).toBe('6px')
-    const leftResizebar = wrapper.get('[aria-label="调整左侧栏宽度"]')
-    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 320,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 220 }))
-    expect(root.style.getPropertyValue('--card-editor-left-panel-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('220px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('4.71px')
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 220 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('6px')
+    const docks = wrapper.findAllComponents({ name: 'CdeOverlayDock' })
+    expect(docks).toHaveLength(2)
+    expect(docks[0]?.props('extent')).toBe(280)
+    expect(docks[1]?.props('extent')).toBe(280)
 
-    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 320,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 240 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 240 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('0px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('0px')
+    docks[0]?.vm.$emit('update:extent', 120)
+    await nextTick()
+    expect(docks[0]?.props('extent')).toBe(120)
+    expect(wrapper.findComponent({ name: 'CardViewport' }).props('viewportInsets')).toMatchObject({
+      left: expect.closeTo(120 + 6 * (120 / 280)),
+      right: 286,
+    })
 
-    leftResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 100,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 300 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 300 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-visible-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-left-sidebar-edge-inset')).toBe('6px')
-
-    const rightResizebar = wrapper.get('[aria-label="调整右侧栏宽度"]')
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 800 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 800 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 780 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 780 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-edge-inset')).toBe('0px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 900,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 880 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 880 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 900,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 870 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 870 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-edge-inset')).toBe('6px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('280px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 700 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('0px')
-
-    rightResizebar.element.dispatchEvent(new MouseEvent('mousedown', {
-      bubbles: true,
-      button: 0,
-      clientX: 700,
-    }))
-    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 280 }))
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 280 }))
-    await flushSidebarSnap()
-    expect(root.style.getPropertyValue('--card-editor-right-panel-width')).toBe('420px')
-    expect(root.style.getPropertyValue('--card-editor-right-sidebar-visible-width')).toBe('420px')
+    docks[1]?.vm.$emit('update:extent', 0)
+    await nextTick()
+    expect(docks[1]?.props('extent')).toBe(0)
+    expect(wrapper.findComponent({ name: 'CardViewport' }).props('viewportInsets')).toMatchObject({
+      right: 0,
+    })
   })
 
   it('renders the Card Designer mode controlled by its prop', async () => {

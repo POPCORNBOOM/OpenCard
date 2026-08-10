@@ -3,7 +3,7 @@
  */
 import type { OcThemeId, OcThemeTokens } from './themeTokens'
 
-const sharedThemeTokens = {
+export const OC_SHARED_THEME_TOKENS = {
   '--oc-scrollbar-size': '8px',
   '--oc-bg-accent': '#A260FF',
   '--oc-bg-glass-blur': '18px',
@@ -78,6 +78,14 @@ const sharedThemeTokens = {
   '--oc-z-viewport-inspector': '2',
   '--oc-floating-surface-padding': '4px',
   '--oc-floating-surface-gap': '6px',
+  '--oc-card-editor-dock-min-width': '280px',
+  '--oc-card-editor-dock-max-width': '420px',
+  '--oc-card-editor-dock-default-width': '320px',
+  '--oc-card-editor-dock-expand-threshold': '28px',
+  '--oc-card-editor-dock-collapse-threshold': '70px',
+  '--oc-card-editor-dock-top-min-height': '160px',
+  '--oc-card-editor-dock-bottom-min-height': '220px',
+  '--oc-card-editor-dock-responsive-width': '720px',
   '--oc-overlay-toolbar-field-min-width': '48px',
   '--oc-overlay-toolbar-field-max-width': '56px',
   '--oc-autocomplete-popover-min-width': '240px',
@@ -132,7 +140,7 @@ const sharedThemeTokens = {
 } as const satisfies Partial<OcThemeTokens>
 
 const darkTheme: OcThemeTokens = {
-  ...sharedThemeTokens,
+  ...OC_SHARED_THEME_TOKENS,
   '--oc-scrollbar-thumb': 'rgba(156, 156, 156, 0.32)',
   '--oc-scrollbar-thumb-hover': 'rgba(186, 186, 186, 0.48)',
 
@@ -207,7 +215,7 @@ const darkTheme: OcThemeTokens = {
 }
 
 const lightTheme: OcThemeTokens = {
-  ...sharedThemeTokens,
+  ...OC_SHARED_THEME_TOKENS,
   '--oc-scrollbar-thumb': 'rgba(96, 108, 138, 0.3)',
   '--oc-scrollbar-thumb-hover': 'rgba(72, 84, 116, 0.46)',
 

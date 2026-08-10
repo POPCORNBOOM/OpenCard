@@ -1,14 +1,20 @@
 <template>
   <section ref="rootRef" class="oc-viewport-inspector"
-    :class="{ 'is-expanded': expanded, 'is-resizing': resizeState !== null }"
+    :class="{ 'is-expanded': expanded }"
     :style="rootStyle">
-    <div v-if="expanded" ref="handleRef" class="oc-viewport-inspector__resizebar"
-      :class="{ 'is-active': resizeState !== null }" role="separator" tabindex="0"
-      aria-orientation="horizontal" :aria-label="resizeLabel"
-      :aria-valuemin="minimumHeight" :aria-valuemax="maximumHeight" :aria-valuenow="actualHeight"
-      @pointerdown="startResize" @pointermove="continueResize" @pointerup="finishResize"
-      @pointercancel="finishResize" @keydown="handleResizeKeydown">
-      <span aria-hidden="true" />
+    <div v-if="expanded" class="oc-viewport-inspector__resizebar">
+      <OcResizeHandle
+        :minimum="minimumHeight"
+        :maximum="maximumHeight"
+        :value="actualHeight"
+        :label="resizeLabel"
+        orientation="horizontal"
+        direction="reverse"
+        @resize-start="handleResizeStart"
+        @update:value="updateHeight"
+        @resize="handleResize"
+        @resize-cancel="handleResizeCancel"
+      />
     </div>
     <OcCard fill variant="glass" :title="heading" :actions="cardActions" :collapsed="!expanded"
       @action="handleAction">
@@ -20,8 +26,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import OcCard, { type OcCardAction } from './OcCard.vue'
+import OcResizeHandle, { type OcResizeHandleChange } from './OcResizeHandle.vue'
 
-const RESIZE_KEYBOARD_STEP = 16
 const TOGGLE_ACTION_KEY = 'viewport-inspector.toggle'
 
 const props = withDefaults(defineProps<{
@@ -44,14 +50,11 @@ const emit = defineEmits<{
 }>()
 
 const rootRef = ref<HTMLElement | null>(null)
-const handleRef = ref<HTMLElement | null>(null)
 const actualHeight = ref(0)
 const minimumHeight = ref(0)
 const maximumHeight = ref(0)
-const resizeState = ref<{ pointerId: number; startY: number; startHeight: number } | null>(null)
+const resizeStartHeight = ref(0)
 let containerObserver: ResizeObserver | null = null
-let previousBodyCursor = ''
-let previousBodyUserSelect = ''
 
 const rootStyle = computed<CSSProperties>(() => (
   props.expanded && props.height !== null
@@ -75,50 +78,21 @@ function handleAction(payload: { key: string }): void {
   emit('action', payload)
 }
 
-function startResize(event: PointerEvent): void {
-  if (!props.expanded || event.button !== 0) return
+function handleResizeStart(): void {
   measureLimits()
-  resizeState.value = {
-    pointerId: event.pointerId,
-    startY: event.clientY,
-    startHeight: actualHeight.value,
-  }
-  handleRef.value?.setPointerCapture(event.pointerId)
-  previousBodyCursor = document.body.style.cursor
-  previousBodyUserSelect = document.body.style.userSelect
-  document.body.style.cursor = 'row-resize'
-  document.body.style.userSelect = 'none'
-  event.preventDefault()
+  resizeStartHeight.value = actualHeight.value
 }
 
-function continueResize(event: PointerEvent): void {
-  const state = resizeState.value
-  if (!state || state.pointerId !== event.pointerId) return
-  updateHeight(state.startHeight - (event.clientY - state.startY))
-  event.preventDefault()
+function handleResize(change: OcResizeHandleChange): void {
+  if (!props.expanded) return
+  updateHeight(change.value)
 }
 
-function finishResize(event?: PointerEvent): void {
-  const state = resizeState.value
-  if (!state || (event && state.pointerId !== event.pointerId)) return
-  if (handleRef.value?.hasPointerCapture(state.pointerId)) handleRef.value.releasePointerCapture(state.pointerId)
-  resizeState.value = null
-  document.body.style.cursor = previousBodyCursor
-  document.body.style.userSelect = previousBodyUserSelect
-  previousBodyCursor = ''
-  previousBodyUserSelect = ''
+function handleResizeCancel(): void {
+  updateHeight(resizeStartHeight.value)
 }
 
-function handleResizeKeydown(event: KeyboardEvent): void {
-  measureLimits()
-  if (event.key === 'ArrowUp') updateHeight(actualHeight.value + RESIZE_KEYBOARD_STEP)
-  else if (event.key === 'ArrowDown') updateHeight(actualHeight.value - RESIZE_KEYBOARD_STEP)
-  else if (event.key === 'Home') updateHeight(minimumHeight.value)
-  else if (event.key === 'End') updateHeight(maximumHeight.value)
-  else return
-  event.preventDefault()
-}
-
+/* OcResizeHandle owns pointer capture, keyboard semantics and document cleanup. */
 function updateHeight(value: number): void {
   measureLimits()
   const next = clamp(value, minimumHeight.value, maximumHeight.value)
@@ -185,7 +159,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  finishResize()
   containerObserver?.disconnect()
   containerObserver = null
 })
@@ -228,20 +201,6 @@ onBeforeUnmount(() => {
   cursor: row-resize;
   touch-action: none;
   outline: none;
-}
-
-.oc-viewport-inspector__resizebar span {
-  width: var(--oc-size-md);
-  height: var(--oc-space-1);
-  border-radius: var(--oc-radius-full);
-  background: var(--oc-border-muted);
-  transition: background-color var(--oc-duration-fast) var(--oc-ease);
-}
-
-.oc-viewport-inspector__resizebar:hover span,
-.oc-viewport-inspector__resizebar:focus-visible span,
-.oc-viewport-inspector__resizebar.is-active span {
-  background: var(--oc-border-accent);
 }
 
 .oc-viewport-inspector :deep(.oc-card) {

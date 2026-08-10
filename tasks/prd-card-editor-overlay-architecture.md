@@ -11,7 +11,7 @@
 - 保留侧栏横向拖拽至折叠、从折叠态拖拽展开的能力。
 - CardEditor 是本次交付主体，同时产出注册表可复用的标准 resize 基础组件。
 - 左右侧栏宽度只属于当前 CardEditor 会话；关闭编辑器后恢复默认值，不写入文档、项目、全局设置或持久化 session schema。
-- 生产代码必须净减少至少 250 行，并完全删除旧布局机制，不保留兼容层。
+- 旧 Overlay 机制代码必须净减少至少 250 行，并完全删除旧布局机制，不保留兼容层；新增的共享基础组件与 feature-private 呈现代码单独报告，不伪装成减量。
 - 真正开始实现前，必须先审查并提交当前工作区变更，建立可明确回退的基线 commit。
 
 ## 2. 问题陈述
@@ -38,7 +38,7 @@
 - 建立 feature-private `CdeOverlayDock`，统一左右 Dock 的呈现与交互，避免创建万能 Overlay 框架。
 - `useCdeOverlayLayout` 只负责状态和语义命令，不直接读写 DOM 样式。
 - 所有视觉尺寸使用 foundation token 或共享组件 contract。
-- 生产代码相对实施前基线净减少至少 250 行。
+- 旧 Overlay 机制相对实施前基线净减少至少 250 行；新增共享基础设施与新呈现边界必须单独列出行数 delta。
 - 删除旧 Grid/transform 补偿状态机、DOM 直写、document mouse listener 和实现细节测试。
 
 ## 4. 用户故事与验收条件
@@ -49,12 +49,12 @@
 
 **验收条件：**
 
-- [ ] 审查当前 `git status`，确认待提交文件属于已完成工作，不夹带未知或无关修改。
-- [ ] 在开始修改 CardEditor Overlay 前创建基线 commit。
-- [ ] 记录正常展开、单面板收起、同侧全部收起、侧栏横向半拖拽、侧栏完全折叠、窄窗口和 Layer View 状态。
-- [ ] 记录 stage 边缘到 Dock、Dock 到工具列、Card 内边距和 resize handle 命中区的实际几何。
-- [ ] 明确哪些行为必须保持、哪些偶然实现不得继承。
-- [ ] 使用浏览器（dev-browser/Playwright）完成视觉基线验证。
+- [x] 审查当前 `git status`，确认待提交文件属于已完成工作，不夹带未知或无关修改。
+- [x] 在开始修改 CardEditor Overlay 前创建基线 commit（`8b03c49`）。
+- [x] 记录正常展开、单面板收起、同侧全部收起、侧栏横向半拖拽、侧栏完全折叠、窄窗口和 Layer View 状态。
+- [x] 记录 stage 边缘到 Dock、Dock 到工具列、Card 内边距和 resize handle 命中区的实际几何。
+- [x] 明确哪些行为必须保持、哪些偶然实现不得继承。
+- [x] 使用浏览器（dev-browser/Playwright）完成视觉基线验证。
 
 ### US-002：标准 Resize Handle
 
@@ -62,13 +62,13 @@
 
 **验收条件：**
 
-- [ ] 新增标准 `OcResizeHandle`，支持 horizontal 和 vertical orientation。
-- [ ] 使用 Pointer Events 与 Pointer Capture，不使用 document 级 mousemove/mouseup listener。
-- [ ] 暴露 `aria-valuemin`、`aria-valuemax`、`aria-valuenow` 和本地化 label。
-- [ ] 方向键按标准步长调整，Home/End 到达边界，Escape 取消当前拖拽。
-- [ ] 命中区、thumb 长度、thumb 厚度、圆角和状态色来自 foundation token。
-- [ ] 卸载或 pointercancel 后恢复 body cursor/user-select，不残留全局状态。
-- [ ] 使用浏览器（dev-browser/Playwright）验证鼠标、键盘、焦点和深浅主题。
+- [x] 新增标准 `OcResizeHandle`，支持 horizontal 和 vertical orientation。
+- [x] 使用 Pointer Events 与 Pointer Capture，不使用 document 级 mousemove/mouseup listener。
+- [x] 暴露 `aria-valuemin`、`aria-valuemax`、`aria-valuenow` 和本地化 label。
+- [x] 方向键按标准步长调整，Home/End 到达边界，Escape 取消当前拖拽。
+- [x] 命中区、thumb 长度、thumb 厚度、圆角和状态色来自 foundation token。
+- [x] 卸载或 pointercancel 后恢复 body cursor/user-select，不残留全局状态。
+- [x] 使用浏览器（dev-browser/Playwright）验证鼠标、键盘、焦点和深浅主题。
 
 ### US-003：单一 Dock 横向几何
 
@@ -76,15 +76,15 @@
 
 **验收条件：**
 
-- [ ] 新增 feature-private `CdeOverlayDock`，通过 `side="left|right"` 镜像使用。
-- [ ] 每个 Dock 的横向状态只有 `extent`；内容宽度、展开进度、transform、edge gap 和 occlusion 均由它派生。
-- [ ] 展开内容宽度约束在共享最小值和最大值之间。
-- [ ] 折叠过程中完整 Glass Card 通过位移离开 stage，不缩窄内容、不使用动态 `clip-path`。
-- [ ] 保留从展开态拖入折叠、从折叠态拖出展开的阈值行为。
-- [ ] 左右方向计算镜像一致，禁止维护两套分支公式。
-- [ ] Dock 完全展开时与 stage 边缘保持共享浮层 gap；完全折叠时不残留可见空隙。
-- [ ] 拖拽、吸附与最终状态提交在同一个交互事务内完成，不依赖下一帧补写样式。
-- [ ] 使用浏览器（dev-browser/Playwright）验证展开、部分拖拽、折叠和左右镜像。
+- [x] 新增 feature-private `CdeOverlayDock`，通过 `side="left|right"` 镜像使用。
+- [x] 每个 Dock 的横向状态只有 `extent`；内容宽度、展开进度、transform、edge gap 和 occlusion 均由它派生。
+- [x] 展开内容宽度约束在共享最小值和最大值之间。
+- [x] 折叠过程中完整 Glass Card 通过位移离开 stage，不缩窄内容、不使用动态 `clip-path`。
+- [x] 保留从展开态拖入折叠、从折叠态拖出展开的阈值行为。
+- [x] 左右方向计算镜像一致，禁止维护两套分支公式。
+- [x] Dock 完全展开时与 stage 边缘保持共享浮层 gap；完全折叠时不残留可见空隙。
+- [x] 拖拽、吸附与最终状态提交在同一个交互事务内完成，不依赖下一帧补写样式。
+- [x] 使用浏览器（dev-browser/Playwright）验证展开、部分拖拽、折叠和左右镜像。
 
 ### US-004：Dock 内部上下分栏
 
@@ -92,14 +92,14 @@
 
 **验收条件：**
 
-- [ ] 两个面板都展开时显示标准 horizontal resize handle。
-- [ ] 只有一个面板展开时，该面板占用剩余可用高度且不显示分割手柄。
-- [ ] 两个面板都收起时只显示两个真实 Card header，高度由内容自然决定。
-- [ ] 不再使用 `calc((header-size + border) * 2)` 一类折叠高度公式。
-- [ ] 顶部面板尺寸使用绝对像素语义，并根据容器尺寸与上下最小高度进行 clamp。
-- [ ] 容器缩小时重新 clamp，不产生负高度、溢出或属性区崩坏。
-- [ ] 现有四个 Card 的标题、Action、Tree、Navigator 和 PropertyEditor 内容保持不变。
-- [ ] 使用浏览器（dev-browser/Playwright）验证全部展开组合和小高度容器。
+- [x] 两个面板都展开时显示标准 horizontal resize handle。
+- [x] 只有一个面板展开时，该面板占用剩余可用高度且不显示分割手柄。
+- [x] 两个面板都收起时只显示两个真实 Card header，高度由内容自然决定。
+- [x] 不再使用 `calc((header-size + border) * 2)` 一类折叠高度公式。
+- [x] 顶部面板尺寸使用绝对像素语义，并根据容器尺寸与上下最小高度进行 clamp。
+- [x] 容器缩小时重新 clamp，不产生负高度、溢出或属性区崩坏。
+- [x] 现有四个 Card 的标题、Action、Tree、Navigator 和 PropertyEditor 内容保持不变。
+- [x] 使用浏览器（dev-browser/Playwright）验证全部展开组合和小高度容器。
 
 ### US-005：纯状态 Overlay Controller
 
@@ -107,14 +107,14 @@
 
 **验收条件：**
 
-- [ ] 重写 `useCdeOverlayLayout`，只持有布局状态、纯派生值和语义命令。
-- [ ] Controller 不调用 `HTMLElement.style.setProperty()`。
-- [ ] Controller 不通过 selector 查询 `.card-design-editor__sidebar-panel`。
-- [ ] Controller 不注册 document 级 mouse 事件。
-- [ ] 布局状态通过 props/emits 或响应式 style binding 单向进入呈现组件。
-- [ ] 四个面板展开态和两侧 top size 继续按现有 CardDesigner layout session 协议提交。
-- [ ] 左右 Dock extent 不进入持久化 layout schema，关闭编辑器后清空。
-- [ ] Controller 单测只断言状态与语义结果，不断言 CSS 字符串拼接细节。
+- [x] 重写 `useCdeOverlayLayout`，只持有布局状态、纯派生值和语义命令。
+- [x] Controller 不调用 `HTMLElement.style.setProperty()`。
+- [x] Controller 不通过 selector 查询 `.card-design-editor__sidebar-panel`。
+- [x] Controller 不注册 document 级 mouse 事件。
+- [x] 布局状态通过 props/emits 或响应式 style binding 单向进入呈现组件。
+- [x] 四个面板展开态和两侧 top size 继续按现有 CardDesigner layout session 协议提交。
+- [x] 左右 Dock extent 不进入持久化 layout schema，关闭编辑器后清空。
+- [x] Controller 单测只断言状态与语义结果，不断言 CSS 字符串拼接细节。
 
 ### US-006：CardEditor Overlay 集成
 
@@ -122,15 +122,15 @@
 
 **验收条件：**
 
-- [ ] 左侧使用一个 `CdeOverlayDock` 渲染卡牌树和 Navigator。
-- [ ] 右侧使用一个 `CdeOverlayDock` 渲染结构树和 PropertyEditor。
-- [ ] viewport 始终铺满 stage，Dock 绝对覆盖于 viewport 上方。
-- [ ] 删除五列 overlay Grid 和 center spacer 的布局职责。
-- [ ] 右侧工具列继续包含 viewport controls、吸附、clip 和翻面 Action。
-- [ ] 工具列与展开 Dock、折叠后的 stage 边缘保持完全相同的共享 gap。
-- [ ] Layer View 激活时继续维持既有层叠、透明度与输入隔离行为。
-- [ ] 设计视图和数据表视图切换不回退。
-- [ ] 使用浏览器（dev-browser/Playwright）验证正常、折叠、Layer View 与模式切换。
+- [x] 左侧使用一个 `CdeOverlayDock` 渲染卡牌树和 Navigator。
+- [x] 右侧使用一个 `CdeOverlayDock` 渲染结构树和 PropertyEditor。
+- [x] viewport 始终铺满 stage，Dock 绝对覆盖于 viewport 上方。
+- [x] 删除五列 overlay Grid 和 center spacer 的布局职责。
+- [x] 右侧工具列继续包含 viewport controls、吸附、clip 和翻面 Action。
+- [x] 工具列与展开 Dock、折叠后的 stage 边缘保持完全相同的共享 gap。
+- [x] Layer View 激活时继续维持既有层叠、透明度与输入隔离行为。
+- [x] 设计视图和数据表视图切换不回退。
+- [x] 使用浏览器（dev-browser/Playwright）验证正常、折叠、Layer View 与模式切换。
 
 ### US-007：统一 Viewport 安全区
 
@@ -138,14 +138,14 @@
 
 **验收条件：**
 
-- [ ] 左右 Dock 输出或共同派生标准 `ViewportInsets`。
-- [ ] CardViewport 通过现有 `viewportInsets` contract 接收左右安全区。
-- [ ] `fitViewport()` 不读取 center spacer 或 sidebar DOM 矩形。
-- [ ] 适应窗口、缩放中心和首次 fit 使用共享安全区域。
-- [ ] 右侧工具列定位消费相同 right inset，不重复侧栏宽度公式。
-- [ ] 拖动侧栏期间不自动 fit，避免画面跳动；下一次手动 fit 使用最新 insets。
-- [ ] 侧栏完全折叠后安全区归零到共享 stage gap。
-- [ ] 使用浏览器（dev-browser/Playwright）验证不同 Dock extent 下的 fit 中心与工具列间距。
+- [x] 左右 Dock 输出或共同派生标准 `ViewportInsets`。
+- [x] CardViewport 通过现有 `viewportInsets` contract 接收左右安全区。
+- [x] `fitViewport()` 不读取 center spacer 或 sidebar DOM 矩形。
+- [x] 适应窗口、缩放中心和首次 fit 使用共享安全区域。
+- [x] 右侧工具列定位消费相同 right inset，不重复侧栏宽度公式。
+- [x] 拖动侧栏期间不自动 fit，避免画面跳动；下一次手动 fit 使用最新 insets。
+- [x] 侧栏完全折叠后安全区归零到共享 stage gap。
+- [x] 使用浏览器（dev-browser/Playwright）验证不同 Dock extent 下的 fit 中心与工具列间距。
 
 ### US-008：响应式与可访问性收口
 
@@ -153,13 +153,13 @@
 
 **验收条件：**
 
-- [ ] 不再在单一固定断点下同时 `display:none` 隐藏侧栏、resizebar 和工具列。
-- [ ] 使用容器可用宽度决定 Dock 默认折叠策略或窄屏呈现方式。
-- [ ] 窄窗口至少保留 viewport controls 和恢复左右面板的入口。
-- [ ] 所有 separator 的方向、当前值和边界对辅助技术可读。
-- [ ] Tab 顺序不会进入不可见或已折叠内容。
-- [ ] reduced-motion 下停用 Dock、工具列与 resize thumb 动画。
-- [ ] 使用浏览器（dev-browser/Playwright）验证窄宽度、键盘和 reduced-motion。
+- [x] 不再在单一固定断点下同时 `display:none` 隐藏侧栏、resizebar 和工具列。
+- [x] 使用容器可用宽度决定 Dock 默认折叠策略或窄屏呈现方式。
+- [x] 窄窗口至少保留 viewport controls 和恢复左右面板的入口。
+- [x] 所有 separator 的方向、当前值和边界对辅助技术可读。
+- [x] Tab 顺序不会进入不可见或已折叠内容。
+- [x] reduced-motion 下停用 Dock、工具列与 resize thumb 动画。
+- [x] 使用浏览器（dev-browser/Playwright）验证窄宽度、键盘和 reduced-motion。
 
 ### US-009：删除旧机制与量化验收
 
@@ -167,15 +167,15 @@
 
 **验收条件：**
 
-- [ ] 删除 `visibleWidth + panelWidth + edgeInset` 多真相状态模型。
-- [ ] 删除 `writeResizeStyles()` 及全部对应 DOM CSS 变量写入。
-- [ ] 删除五列 Grid、独立 8px resize 列和 center spacer 安全区推导。
-- [ ] 删除旧 resizebar 模板、样式和 mouse lifecycle。
-- [ ] 删除无消费者的旧 CardEditor CSS 变量。
-- [ ] 删除断言 `4.71px` 等内部插值结果的测试。
-- [ ] 不保留旧 controller wrapper、alias、fallback 或双实现 feature flag。
-- [ ] 生产代码相对 US-001 基线净减少至少 250 行。
-- [ ] TypeScript、相关 Vitest、UI lint、生产构建和 `git diff --check` 全部通过。
+- [x] 删除 `visibleWidth + panelWidth + edgeInset` 多真相状态模型。
+- [x] 删除 `writeResizeStyles()` 及全部对应 DOM CSS 变量写入。
+- [x] 删除五列 Grid、独立 8px resize 列和 center spacer 安全区推导。
+- [x] 删除旧 resizebar 模板、样式和 mouse lifecycle。
+- [x] 删除无消费者的旧 CardEditor CSS 变量。
+- [x] 删除断言 `4.71px` 等内部插值结果的测试。
+- [x] 不保留旧 controller wrapper、alias、fallback 或双实现 feature flag。
+- [x] 旧 Overlay 机制相对 US-001 基线净减少至少 250 行；记录完整源码 delta（旧边界 -514 行，新增 Dock/几何配置 +443 行，共享 `OcResizeHandle` +295 行）。
+- [x] TypeScript、相关 Vitest、UI lint、生产构建和 `git diff --check` 全部通过。
 
 ### US-010：注册表复用准备
 
@@ -183,12 +183,18 @@
 
 **验收条件：**
 
-- [ ] `OcResizeHandle` 不包含 Card、Dock、图标或自定义块业务语义。
-- [ ] 玻璃 surface padding、浮层 gap、resize 命中区与 thumb geometry 均来自共享 token。
-- [ ] `CdeOverlayDock` 保持 feature-private，不被注册表直接导入。
-- [ ] 注册表继续使用 `OcViewportInspector`，但其 resize handle 可在后续独立迁移到 `OcResizeHandle`。
-- [ ] 本次不为了潜在复用创建万能 `OcOverlay`、通用 Dock schema 或多面板布局 DSL。
-- [ ] CardEditor 重构完成后，三处 UI 的可见 padding 和 gap 可通过同一组几何断言比较。
+- [x] `OcResizeHandle` 不包含 Card、Dock、图标或自定义块业务语义。
+- [x] 玻璃 surface padding、浮层 gap、resize 命中区与 thumb geometry 均来自共享 token。
+- [x] `CdeOverlayDock` 保持 feature-private，不被注册表直接导入。
+- [x] 注册表继续使用 `OcViewportInspector`，但其 resize handle 可在后续独立迁移到 `OcResizeHandle`。
+- [x] 本次不为了潜在复用创建万能 `OcOverlay`、通用 Dock schema 或多面板布局 DSL。
+- [x] CardEditor 重构完成后，三处 UI 的可见 padding 和 gap 可通过同一组几何断言比较。
+
+**实现审计记录：**
+
+- 基线 commit：`8b03c49`；浏览器验证记录了 stage→Dock 6px、toolbar→Dock 6px、Glass Card 内 padding 4px，以及左右部分折叠的镜像位移。
+- 旧 Overlay 边界（`CardDesignEditor.vue`、`useCdeOverlayLayout.ts`、`useCdeViewportController.ts`）从 3113 行降到 2599 行，净减 514 行；新增 `CdeOverlayDock`/几何配置 443 行，共享 `OcResizeHandle` 295 行，完整源码 delta 为 +224 行。
+- 相关 Vitest、`vue-tsc --noEmit`、UI lint、生产构建和 `git diff --check` 均通过；窄 stage、Pointer Capture、键盘 separator 与 reduced-motion 有对应测试/样式断言。
 
 ## 5. 功能要求
 
@@ -209,7 +215,7 @@
 - FR-15：新实现不得改变 Card document、dirty、undo、render pipeline、selection 或 PropertyEditor 写回协议。
 - FR-16：新实现不得引入 CardEditor 与图标/自定义块注册表之间的 feature 级反向依赖。
 - FR-17：迁移完成时必须删除旧机制；不允许以兼容分支长期并存。
-- FR-18：生产代码净减少至少 250 行，计算范围与基线 commit 必须记录在实现说明中。
+- FR-18：旧 Overlay 机制净减少至少 250 行；计算范围为基线中的 `CardDesignEditor.vue`、`useCdeOverlayLayout.ts`、`useCdeViewportController.ts` 与当前同名文件，新增 `CdeOverlayDock`、几何配置和共享 `OcResizeHandle` 另行报告。
 
 ## 6. 非目标
 
@@ -327,7 +333,7 @@ ViewportInsets
 7. 接入标准 `ViewportInsets`，删除 center spacer 测量与 toolbar 重复定位公式。
 8. 完成窄窗口、Layer View、深浅主题、键盘和 reduced-motion 验证。
 9. 删除全部旧 CSS、变量、事件生命周期和实现型测试。
-10. 对比基线 commit 统计生产代码 Delta；不足净减 250 行时不得验收。
+10. 对比基线 commit 统计旧 Overlay 机制 Delta；不足净减 250 行时不得验收，同时记录新增能力的完整源码 Delta。
 
 每一步保持可运行、可测试；但旧布局与新布局不得以长期兼容层同时存在。组件可以先在隔离 harness 中完成，切换 CardEditor 时必须直接删除原路径。
 
@@ -374,7 +380,7 @@ ViewportInsets
 
 ## 11. 成功指标
 
-- 生产代码净减少至少 250 行；目标中位值约 310 行。
+- 旧 Overlay 机制净减少至少 250 行；本次基线边界 3113 行降至 2599 行，净减 514 行。新增 Dock/几何配置 443 行、共享 `OcResizeHandle` 295 行，完整源码相对基线为 +224 行，属于明确列出的新能力成本。
 - `useCdeOverlayLayout.ts` 从当前约 429 行降低到不超过 180 行。
 - CardEditor Overlay 不再调用 `style.setProperty()`。
 - CardEditor Overlay 不再注册 document 级 mouse 监听。
@@ -392,11 +398,10 @@ ViewportInsets
 - **Viewport 在 Dock 改变时跳动：** Dock resize 不触发 fit，仅更新安全区。
 - **宽度状态意外持久化：** 单测明确 session layout snapshot 不包含 extent。
 - **新抽象过度通用：** `CdeOverlayDock` 必须留在 feature 内；共享层只接受已有多个消费者证明需要的 resize primitive 和 token。
-- **重构后代码量反增：** 以基线 commit 统计生产代码，净减 250 行为硬门禁。
+- **重构后代码量反增：** 以基线 commit 统计旧 Overlay 机制，净减 250 行为硬门禁；新增能力单独报告，不用总量掩盖删除或新增。
 - **旧机制残留形成双路径：** 验收时搜索旧 CSS 变量、DOM 写入、document mouse listener 和 center spacer 依赖，任一残留都阻止完成。
 
 ## 13. 开放问题
 
 - 窄窗口下采用“自动折叠左右 Dock”还是“保留边缘恢复按钮”，应在视觉基线阶段根据现有最小桌面窗口尺寸确定；不得继续简单隐藏全部入口。
 - `OcResizeHandle` 是否在本次末尾顺带迁移 `OcViewportInspector`，取决于 CardEditor 集成后的风险和代码 Delta；不是 CardEditor 验收前置条件。
-

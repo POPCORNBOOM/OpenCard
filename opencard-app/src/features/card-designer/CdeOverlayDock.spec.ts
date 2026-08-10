@@ -1,0 +1,120 @@
+import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import CdeOverlayDock from './CdeOverlayDock.vue'
+
+const props = {
+  side: 'left' as const,
+  extent: 280,
+  collapsedExtent: 0,
+  minExtent: 280,
+  maxExtent: 420,
+  expandDragThreshold: 28,
+  collapseDragThreshold: 70,
+  floatingGap: 6,
+  topExpanded: true,
+  bottomExpanded: true,
+  topSize: 240,
+  topMinHeight: 160,
+  bottomMinHeight: 220,
+  splitGap: 8,
+  responsiveMinStageWidth: 720,
+  widthLabel: 'Resize sidebar',
+  splitLabel: 'Resize panels',
+}
+
+let resizeCallback: ResizeObserverCallback | null = null
+
+class ResizeObserverMock {
+  constructor(callback: ResizeObserverCallback) {
+    resizeCallback = callback
+  }
+  observe() {}
+  disconnect() {}
+}
+
+beforeEach(() => {
+  resizeCallback = null
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+function pointer(element: HTMLElement, type: string, init: PointerEventInit): void {
+  element.dispatchEvent(new PointerEvent(type, { bubbles: true, ...init }))
+}
+
+describe('CdeOverlayDock', () => {
+  it('keeps full glass content width while translating a partially collapsed Dock', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props: { ...props, extent: 120 },
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+
+    const dock = wrapper.element as HTMLElement
+    expect(dock.style.width).toBe('280px')
+    expect(Number.parseFloat(dock.style.transform.match(/-?[\d.]+/)?.[0] ?? '0'))
+      .toBeCloseTo(-157.43, 1)
+    expect(wrapper.get('[aria-label="Resize sidebar"]').attributes('aria-orientation')).toBe('vertical')
+  })
+
+  it('settles width drag through the shared extent contract', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props,
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const handle = wrapper.get('[aria-label="Resize sidebar"]').element as HTMLElement
+    Object.defineProperties(handle, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: vi.fn(() => true) },
+      releasePointerCapture: { value: vi.fn() },
+    })
+
+    pointer(handle, 'pointerdown', { button: 0, pointerId: 1, clientX: 280 })
+    pointer(handle, 'pointermove', { pointerId: 1, clientX: 200 })
+    pointer(handle, 'pointerup', { pointerId: 1, clientX: 200 })
+
+    const updates = wrapper.emitted('update:extent') ?? []
+    expect(updates[updates.length - 1]).toEqual([0])
+    expect(wrapper.emitted('resize-end')).toHaveLength(1)
+  })
+
+  it('uses vertical split semantics and emits an absolute top size', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props,
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const splitComponent = wrapper.findAllComponents({ name: 'OcResizeHandle' })[0]
+    const handle = wrapper.get('[aria-label="Resize panels"]').element as HTMLElement
+    splitComponent?.vm.$emit('resize', { value: 280, delta: 40, event: new KeyboardEvent('keydown') })
+
+    expect(wrapper.emitted('update:top-size')).toContainEqual([280])
+    expect(handle.getAttribute('aria-orientation')).toBe('horizontal')
+  })
+
+  it('renders collapsed panels without a split handle', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props: { ...props, topExpanded: false, bottomExpanded: false },
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+
+    expect(wrapper.find('[aria-label="Resize panels"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Resize sidebar"]').exists()).toBe(true)
+  })
+
+  it('auto-collapses in a narrow stage without hiding the resize entry point', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props,
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const stage = wrapper.element.parentElement as HTMLElement
+    resizeCallback?.([{
+      target: stage,
+      contentRect: { width: 600 } as DOMRectReadOnly,
+    } as unknown as ResizeObserverEntry], {} as ResizeObserver)
+
+    expect(wrapper.emitted('update:extent')).toContainEqual([0])
+    expect(wrapper.find('[aria-label="Resize sidebar"]').exists()).toBe(true)
+  })
+})

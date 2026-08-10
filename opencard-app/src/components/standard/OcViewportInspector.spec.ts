@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import OcViewportInspector from './OcViewportInspector.vue'
 
@@ -15,7 +16,7 @@ function rect(top: number, height: number): DOMRect {
   } as DOMRect
 }
 
-function mountInspector() {
+async function mountInspector() {
   const wrapper = mount(OcViewportInspector, {
     props: {
       heading: 'Preview',
@@ -39,6 +40,9 @@ function mountInspector() {
     hasPointerCapture: { value: () => false },
     releasePointerCapture: { value: () => undefined },
   })
+  await wrapper.setProps({ expanded: false })
+  await wrapper.setProps({ expanded: true })
+  await nextTick()
   return { handle: wrapper.get('[role="separator"]'), wrapper }
 }
 
@@ -50,7 +54,7 @@ afterEach(() => {
 
 describe('OcViewportInspector', () => {
   it('combines business actions with a glass-card collapse action', async () => {
-    const { wrapper } = mountInspector()
+    const { wrapper } = await mountInspector()
 
     expect(wrapper.find('.oc-card--variant-glass').exists()).toBe(true)
     expect(wrapper.get('button[aria-label="Reset"]')).toBeTruthy()
@@ -60,7 +64,7 @@ describe('OcViewportInspector', () => {
   })
 
   it('resizes upward with pointer capture and clamps to the visible viewport contract', async () => {
-    const { handle, wrapper } = mountInspector()
+    const { handle, wrapper } = await mountInspector()
 
     handle.element.dispatchEvent(new PointerEvent('pointerdown', {
       button: 0, pointerId: 7, clientY: 360, bubbles: true,
@@ -82,7 +86,7 @@ describe('OcViewportInspector', () => {
   })
 
   it('supports keyboard resizing with separator values', async () => {
-    const { handle, wrapper } = mountInspector()
+    const { handle, wrapper } = await mountInspector()
 
     await handle.trigger('keydown', { key: 'ArrowDown' })
     const updates = wrapper.emitted('update:height') ?? []
@@ -100,7 +104,7 @@ describe('OcViewportInspector', () => {
       disconnect(): void {}
     }
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-    const { wrapper } = mountInspector()
+    const { wrapper } = await mountInspector()
     const root = wrapper.element as HTMLElement
     root.getBoundingClientRect = () => rect(566, 28)
 

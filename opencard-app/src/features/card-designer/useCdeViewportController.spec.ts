@@ -56,8 +56,6 @@ function createHarness(initialFaceSize: { width: number; height: number } | null
   height: 200,
 }) {
   const faceSize = ref(initialFaceSize)
-  const leftSidebarElement = ref<HTMLElement | null>(null)
-  const rightSidebarElement = ref<HTMLElement | null>(null)
   const zoomBy = vi.fn()
   const zoomByWheelAt = vi.fn()
   const fitView = vi.fn()
@@ -70,14 +68,9 @@ function createHarness(initialFaceSize: { width: number; height: number } | null
       controller = useCdeViewportController({
         faceSize,
         viewportPort,
-        leftSidebarElement,
-        rightSidebarElement,
         commitTransform: transform => commits.push(transform),
       })
       return () => h('main', [
-        h('aside', { ref: leftSidebarElement }),
-        h('div', { ref: controller.centerSpacerRef }),
-        h('aside', { ref: rightSidebarElement }),
         h('div', { ref: controller.transformPreviewHostRef }, [
           h('div', { ref: controller.transformPreviewViewportRef }),
         ]),
@@ -91,8 +84,6 @@ function createHarness(initialFaceSize: { width: number; height: number } | null
     controller,
     faceSize,
     fitView,
-    leftSidebarElement,
-    rightSidebarElement,
     viewportPort,
     wrapper,
     zoomBy,
@@ -217,26 +208,13 @@ describe('useCdeViewportController', () => {
   })
 
   it('fits inside the visible region and exposes semantic zoom commands', () => {
-    const {
-      controller,
-      fitView,
-      leftSidebarElement,
-      rightSidebarElement,
-      wrapper,
-      zoomBy,
-    } = createHarness()
-    vi.spyOn(controller.centerSpacerRef.value!, 'getBoundingClientRect')
-      .mockReturnValue(rect(100, 50, 800, 600))
-    vi.spyOn(leftSidebarElement.value!, 'getBoundingClientRect')
-      .mockReturnValue(rect(0, 0, 320, 700))
-    vi.spyOn(rightSidebarElement.value!, 'getBoundingClientRect')
-      .mockReturnValue(rect(680, 0, 320, 700))
+    const { controller, fitView, wrapper, zoomBy } = createHarness()
 
     controller.fitViewport()
     controller.zoomViewportOut()
     controller.zoomViewportIn()
 
-    expect(fitView).toHaveBeenCalledWith({ left: 320, top: 50, width: 360, height: 600 })
+    expect(fitView).toHaveBeenCalledWith()
     expect(zoomBy.mock.calls).toEqual([[0.8], [1.25]])
     wrapper.unmount()
   })

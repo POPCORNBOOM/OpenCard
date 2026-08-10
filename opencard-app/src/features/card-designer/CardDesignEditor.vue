@@ -23,7 +23,7 @@
         <div :key="workspaceMode" class="card-design-editor__mode-view">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
-        <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
+          <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
           :resource-root-path="props.resourceRootPath"
           :remote-resource-policy="props.remoteResourcePolicy"
@@ -33,6 +33,7 @@
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selected-flow-align="selectedFlowAlign"
+          :viewport-insets="viewportInsets"
           :selection-info="selectionInfo"
           :width-locked="selectedCustomBlockResize.widthLocked"
           :height-locked="selectedCustomBlockResize.heightLocked"
@@ -109,172 +110,117 @@
         @reset-cell="resetDataTableCell"
       />
 
-      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer"
-        :class="{ 'is-sidebar-width-resizing': isSidebarWidthResizing }">
-        <div class="card-design-editor__overlay-layout">
-          <aside
-            ref="leftSidebarRef"
-            class="card-design-editor__sidebar card-design-editor__sidebar--left"
-            :class="{
-              'is-collapsed': isLeftSidebarCollapsed,
-            }"
-          >
-            <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
-                :collapsed="!isInstancePanelExpanded"
-                @action="handleInstanceCardAction">
-                <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto"
-                  align="stretch">
-
-                  <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
-                    :data="instanceTreeData" :actions="treeActions"
-                    :selected-keys="selectedCardKeys" selection-mode="single"
-                    @intent="handleInstanceTreeIntent" />
-                </OcPanel>
-              </OcCard>
-            </div>
-
-            <div
-              v-if="canResizeLeftSidebar"
-              class="card-design-editor__resizebar card-design-editor__resizebar--horizontal"
-              :class="{ 'is-active': activeResizeTarget === 'left-stack' }"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="调整卡牌树与预览高度"
-              tabindex="0"
-              @mousedown="startSidebarResize('left', $event)"
-            >
-              <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
-            </div>
-
-            <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
-                :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
-                <OcPanel align="stretch" fill radius="none" tone="transparent" border="none"
-                  shadow="lg" padding="none">
-                  <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host"
-                    @wheel.prevent.stop="handlePreviewViewportWheel">
-                    <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
-                      :style="transformPreviewViewportStyle">
-                      <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
-                        :resource-root-path="props.resourceRootPath"
-                        :remote-resource-policy="props.remoteResourcePolicy"
-                        :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
-                        :style="transformPreviewRendererStyle" />
-                      <button v-if="transformPreviewFrameStyle" type="button"
-                        class="card-design-editor__transform-preview-frame"
-                        :class="{
-                          'is-visible': isTransformPreviewFrameVisible,
-                          'is-dragging': isPreviewViewportDragging,
-                        }"
-                        :style="transformPreviewFrameStyle" aria-label="移动画布视口"
-                        :aria-hidden="!isTransformPreviewFrameVisible || undefined"
-                        :tabindex="isTransformPreviewFrameVisible ? 0 : -1"
-                        @keydown="handlePreviewViewportKeydown" @pointerdown="startPreviewViewportDrag"
-                        @pointermove="handlePreviewViewportDrag"
-                        @pointerup="stopPreviewViewportDrag"
-                        @pointercancel="stopPreviewViewportDrag" />
-                    </div>
+      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer">
+        <CdeOverlayDock
+          side="left"
+          :extent="leftDockExtent"
+          :collapsed-extent="overlayGeometryConfig.collapsedExtent"
+          :min-extent="overlayGeometryConfig.minExtent"
+          :max-extent="overlayGeometryConfig.maxExtent"
+          :expand-drag-threshold="overlayGeometryConfig.expandDragThreshold"
+          :collapse-drag-threshold="overlayGeometryConfig.collapseDragThreshold"
+          :floating-gap="overlayGeometryConfig.floatingGap"
+          :top-expanded="isInstancePanelExpanded"
+          :bottom-expanded="isPreviewPanelExpanded"
+          :top-size="leftSidebarTopHeight"
+          :top-min-height="overlayTopMinHeight"
+          :bottom-min-height="overlayBottomMinHeight"
+          :responsive-min-stage-width="overlayResponsiveWidth"
+          :split-gap="overlaySplitGap"
+          width-label="调整左侧栏宽度"
+          split-label="调整卡牌树与预览高度"
+          @update:extent="updateDockExtent('left', $event)"
+          @update:top-size="updateDockTopSize('left', $event)"
+          @resize-end="handleDockResizeEnd('left', $event)"
+        >
+          <template #top>
+            <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
+              :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
+              <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
+                <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
+                  :data="instanceTreeData" :actions="treeActions" :selected-keys="selectedCardKeys"
+                  selection-mode="single" @intent="handleInstanceTreeIntent" />
+              </OcPanel>
+            </OcCard>
+          </template>
+          <template #bottom>
+            <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
+              :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
+              <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
+                <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host"
+                  @wheel.prevent.stop="handlePreviewViewportWheel">
+                  <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
+                    :style="transformPreviewViewportStyle">
+                    <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
+                      :resource-root-path="props.resourceRootPath" :remote-resource-policy="props.remoteResourcePolicy"
+                      :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
+                      :style="transformPreviewRendererStyle" />
+                    <button v-if="transformPreviewFrameStyle" type="button"
+                      class="card-design-editor__transform-preview-frame"
+                      :class="{ 'is-visible': isTransformPreviewFrameVisible, 'is-dragging': isPreviewViewportDragging }"
+                      :style="transformPreviewFrameStyle" aria-label="移动画布视口"
+                      :aria-hidden="!isTransformPreviewFrameVisible || undefined"
+                      :tabindex="isTransformPreviewFrameVisible ? 0 : -1"
+                      @keydown="handlePreviewViewportKeydown" @pointerdown="startPreviewViewportDrag"
+                      @pointermove="handlePreviewViewportDrag" @pointerup="stopPreviewViewportDrag"
+                      @pointercancel="stopPreviewViewportDrag" />
                   </div>
-                </OcPanel>
-              </OcCard>
-            </div>
-          </aside>
+                </div>
+              </OcPanel>
+            </OcCard>
+          </template>
+        </CdeOverlayDock>
 
-          <div
-            class="card-design-editor__resizebar card-design-editor__resizebar--vertical"
-            :class="{
-              'is-active': activeResizeTarget === 'left-width',
-              'is-sidebar-collapsed': isLeftSidebarCollapsed,
-            }"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="调整左侧栏宽度"
-            tabindex="0"
-            @mousedown="startOverlayResize('left', $event)"
-            @keydown.enter.prevent="toggleSidebarMinimumWidth('left')"
-            @keydown.space.prevent="toggleSidebarMinimumWidth('left')"
-          >
-            <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
-          </div>
-
-          <div ref="centerSpacerRef" class="card-design-editor__center-spacer" aria-hidden="true" />
-
-          <div
-            class="card-design-editor__resizebar card-design-editor__resizebar--vertical"
-            :class="{
-              'is-active': activeResizeTarget === 'right-width',
-              'is-sidebar-collapsed': isRightSidebarCollapsed,
-            }"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="调整右侧栏宽度"
-            tabindex="0"
-            @mousedown="startOverlayResize('right', $event)"
-            @keydown.enter.prevent="toggleSidebarMinimumWidth('right')"
-            @keydown.space.prevent="toggleSidebarMinimumWidth('right')"
-          >
-            <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
-          </div>
-
-          <aside
-            ref="rightSidebarRef"
-            class="card-design-editor__sidebar card-design-editor__sidebar--right"
-            :class="{
-              'is-collapsed': isRightSidebarCollapsed,
-            }"
-          >
-            <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
-                :collapsed="!isStructureTreePanelExpanded"
-                @action="handleStructureTreeCardAction">
-                <OcPanel align="stretch" fill tone="transparent" border="none" padding="none"
-                  overflow="auto">
-                  <OcTree ref="structureTreeRef" fill :data="blockTreeData" :actions="treeActions"
-                    :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
-                    :selection-expansion-mode="forceStructureTreeReveal
-                      ? 'expand'
-                      : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
-                    :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
-                    selection-mode="single" activation-mode="double-click"
-                    @intent="handleStructureTreeIntent" />
-                </OcPanel>
-              </OcCard>
-            </div>
-
-            <div
-              v-if="canResizeRightSidebar"
-              class="card-design-editor__resizebar card-design-editor__resizebar--horizontal"
-              :class="{ 'is-active': activeResizeTarget === 'right-stack' }"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="调整结构树与属性高度"
-              tabindex="0"
-              @mousedown="startSidebarResize('right', $event)"
-            >
-              <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
-            </div>
-
-            <div class="card-design-editor__sidebar-panel">
-              <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
-                :collapsed="!isPropertyPanelExpanded"
-                @action="handlePropertyCardAction">
-                <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
-                  <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
-                    :categories="propertyCategories" :sort-mode="propertySortMode"
-                    :binding-interpreter="propertyBindingInterpreter"
-                    :delete-mode="propertyDeleteMode"
-                    @update-property="updateBlockProp" @add-property="addBlockProp"
-                    @reset-property="resetBlockProp"
-                    @delete-property="deleteProperty" />
-                </OcPanel>
-              </OcCard>
-            </div>
-          </aside>
-        </div>
+        <CdeOverlayDock
+          side="right"
+          :extent="rightDockExtent"
+          :collapsed-extent="overlayGeometryConfig.collapsedExtent"
+          :min-extent="overlayGeometryConfig.minExtent"
+          :max-extent="overlayGeometryConfig.maxExtent"
+          :expand-drag-threshold="overlayGeometryConfig.expandDragThreshold"
+          :collapse-drag-threshold="overlayGeometryConfig.collapseDragThreshold"
+          :floating-gap="overlayGeometryConfig.floatingGap"
+          :top-expanded="isStructureTreePanelExpanded"
+          :bottom-expanded="isPropertyPanelExpanded"
+          :top-size="rightSidebarTopHeight"
+          :top-min-height="overlayTopMinHeight"
+          :bottom-min-height="overlayBottomMinHeight"
+          :responsive-min-stage-width="overlayResponsiveWidth"
+          :split-gap="overlaySplitGap"
+          width-label="调整右侧栏宽度"
+          split-label="调整结构树与属性高度"
+          @update:extent="updateDockExtent('right', $event)"
+          @update:top-size="updateDockTopSize('right', $event)"
+          @resize-end="handleDockResizeEnd('right', $event)"
+        >
+          <template #top>
+            <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
+              :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
+              <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
+                <OcTree ref="structureTreeRef" fill :data="blockTreeData" :actions="treeActions"
+                  :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
+                  :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
+                  :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
+                  selection-mode="single" activation-mode="double-click" @intent="handleStructureTreeIntent" />
+              </OcPanel>
+            </OcCard>
+          </template>
+          <template #bottom>
+            <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
+              :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
+              <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
+                <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
+                  :categories="propertyCategories" :sort-mode="propertySortMode"
+                  :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
+                  @update-property="updateBlockProp" @add-property="addBlockProp"
+                  @reset-property="resetBlockProp" @delete-property="deleteProperty" />
+              </OcPanel>
+            </OcCard>
+          </template>
+        </CdeOverlayDock>
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools" orientation="vertical"
-          :class="{ 'is-right-sidebar-collapsed': isRightSidebarCollapsed }">
+          :style="faceToolsStyle">
           <OcViewportControls
             class="card-design-editor__viewport-controls"
             orientation="vertical"
@@ -419,6 +365,14 @@ import OcTree from '../../components/standard/OcTree.vue'
 import OcViewportControls from '../../components/standard/OcViewportControls.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
 import OcOverlayToolbar from '../../components/standard/OcOverlayToolbar.vue'
+import CdeOverlayDock from './CdeOverlayDock.vue'
+import {
+  CDE_OVERLAY_BOTTOM_MIN_HEIGHT,
+  CDE_OVERLAY_GEOMETRY_CONFIG,
+  CDE_OVERLAY_RESPONSIVE_WIDTH,
+  CDE_OVERLAY_SPLIT_GAP,
+  CDE_OVERLAY_TOP_MIN_HEIGHT,
+} from './cdeOverlayConfig'
 import { useCdeDocumentState } from './useCdeDocumentState'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 import { useCdeOverlayLayout } from './useCdeOverlayLayout'
@@ -501,30 +455,41 @@ const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 
 const editorRootRef = ref<HTMLElement | null>(null)
+const overlayGeometryConfig = CDE_OVERLAY_GEOMETRY_CONFIG
+const overlayTopMinHeight = CDE_OVERLAY_TOP_MIN_HEIGHT
+const overlayBottomMinHeight = CDE_OVERLAY_BOTTOM_MIN_HEIGHT
+const overlayResponsiveWidth = CDE_OVERLAY_RESPONSIVE_WIDTH
+const overlaySplitGap = CDE_OVERLAY_SPLIT_GAP
 const {
-  activeResizeTarget,
-  canResizeLeftSidebar,
-  canResizeRightSidebar,
   editorShellStyle,
   ensurePanelsExpanded,
+  commitLayout: commitOverlayLayout,
   isInstancePanelExpanded,
-  isLeftSidebarCollapsed,
   isPreviewPanelExpanded,
   isPropertyPanelExpanded,
-  isRightSidebarCollapsed,
-  isSidebarWidthResizing,
   isStructureTreePanelExpanded,
-  leftSidebarRef,
-  rightSidebarRef,
-  startOverlayResize,
-  startSidebarResize,
+  leftDockExtent,
+  leftSidebarTopHeight,
+  rightDockExtent,
+  rightSidebarTopHeight,
   togglePanel,
-  toggleSidebarMinimumWidth,
+  updateDockExtent,
+  updateDockTopSize,
+  viewportInsets,
 } = useCdeOverlayLayout({
   layout: toRef(props, 'cardDesignerLayout'),
-  rootElement: editorRootRef,
+  geometryConfig: overlayGeometryConfig,
+  topMinHeight: overlayTopMinHeight,
   commitLayout: layout => emit('update-card-designer-layout', layout),
 })
+const faceToolsStyle = computed(() => ({
+  right: `${(viewportInsets.value.right ?? 0) + overlayGeometryConfig.floatingGap}px`,
+  bottom: `${overlayGeometryConfig.floatingGap}px`,
+}))
+
+function handleDockResizeEnd(_side: 'left' | 'right', axis: 'width' | 'split'): void {
+  if (axis === 'split') commitOverlayLayout()
+}
 
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
@@ -1520,7 +1485,6 @@ const viewportFaceSize = computed(() => {
   return face ? { width: face.width, height: face.height } : null
 })
 const {
-  centerSpacerRef,
   completeFileLoad,
   fitViewport,
   handlePreviewViewportDrag,
@@ -1545,8 +1509,6 @@ const {
 } = useCdeViewportController({
   faceSize: viewportFaceSize,
   viewportPort: cardViewportRef,
-  leftSidebarElement: leftSidebarRef,
-  rightSidebarElement: rightSidebarRef,
   commitTransform: transform => emit('update-viewport-transform', transform),
 })
 
@@ -2011,6 +1973,7 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   height: 100%;
+  container-type: inline-size;
 }
 
 .card-design-editor__mode-view {
@@ -2081,18 +2044,10 @@ onUnmounted(() => {
 
 .card-design-editor__face-tools {
   position: absolute;
-  right: calc(
-    var(--card-editor-right-sidebar-visible-width, 320px)
-    + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
-    + var(--oc-floating-surface-gap)
-  );
+  right: var(--oc-floating-surface-gap);
   bottom: var(--oc-floating-surface-gap);
   z-index: 3;
   transition: right var(--oc-duration-slow) var(--oc-ease);
-}
-
-.card-design-editor__face-tools.is-right-sidebar-collapsed {
-  right: var(--oc-floating-surface-gap);
 }
 
 .card-design-editor__face-tools-divider {
@@ -2101,177 +2056,10 @@ onUnmounted(() => {
   background: var(--oc-border-muted);
 }
 
-.card-design-editor__overlay-layout {
-  width: 100%;
-  height: calc(100% - var(--oc-floating-surface-gap) - var(--oc-floating-surface-gap));
-  margin-block: var(--oc-floating-surface-gap);
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns:
-    minmax(0, calc(
-      var(--card-editor-left-sidebar-visible-width, 320px)
-      + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4))
-    ))
-    8px
-    minmax(0, 1fr)
-    8px
-    minmax(0, calc(
-      var(--card-editor-right-sidebar-visible-width, 320px)
-      + var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4))
-    ));
-  grid-template-rows: minmax(0, 1fr);
-  align-items: stretch;
-  pointer-events: none !important;
-  transition: grid-template-columns var(--oc-duration-slow) var(--oc-ease);
-}
-
-.card-design-editor__sidebar {
-  --card-design-editor-collapsed-sidebar-height: calc((var(--oc-size-md) + 2px) * 2);
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  display: grid;
-  pointer-events: auto;
-  transition:
-    height var(--oc-duration-slow) var(--oc-ease),
-    transform var(--oc-duration-slow) var(--oc-ease);
-}
-
-.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__overlay-layout,
-.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__sidebar,
-.card-design-editor__stage-layer.is-sidebar-width-resizing .card-design-editor__face-tools {
-  transition-duration: 0s;
-}
-
-.card-design-editor__sidebar.is-collapsed {
-  height: var(--card-design-editor-collapsed-sidebar-height);
-}
-
-.card-design-editor__sidebar--left {
-  width: var(--card-editor-left-panel-width, 320px);
-  grid-template-rows: var(--card-editor-left-sidebar-rows);
-  align-content: var(--card-editor-left-sidebar-align-content);
-  align-self: var(--card-editor-left-sidebar-align-self);
-  transform: translateX(
-    calc(
-      var(--card-editor-left-sidebar-visible-width, 320px)
-      + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4))
-      - var(--card-editor-left-panel-width, 320px)
-    )
-  );
-}
-
-.card-design-editor__sidebar--right {
-  width: var(--card-editor-right-panel-width, 320px);
-  grid-template-rows: var(--card-editor-right-sidebar-rows);
-  align-content: var(--card-editor-right-sidebar-align-content);
-  align-self: var(--card-editor-right-sidebar-align-self);
-}
-
-.card-design-editor__sidebar-panel {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-}
-
-.card-design-editor__center-spacer {
-  min-width: 0;
-  min-height: 0;
-}
-
-.card-design-editor__resizebar {
-  --card-design-editor-collapsed-sidebar-height: calc((var(--oc-size-md) + 2px) * 2);
-  position: relative;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  z-index: 2;
-  pointer-events: auto;
-}
-
-.card-design-editor__resizebar-visual {
-  display: inline-block;
-  background: var(--oc-border-muted);
-  transition: background-color 0.2s ease;
-}
-
-.card-design-editor__resizebar:hover .card-design-editor__resizebar-visual,
-.card-design-editor__resizebar:focus-visible .card-design-editor__resizebar-visual,
-.card-design-editor__resizebar.is-active .card-design-editor__resizebar-visual {
-  background: var(--oc-border-accent);
-}
-
-.card-design-editor__resizebar--vertical {
-  width: 8px;
-  height: 100%;
-  cursor: col-resize;
-  transition: height var(--oc-duration-slow) var(--oc-ease);
-}
-
-.card-design-editor__resizebar--vertical.is-sidebar-collapsed {
-  align-self: start;
-  height: var(--card-design-editor-collapsed-sidebar-height);
-}
-
-.card-design-editor__resizebar--vertical.is-sidebar-collapsed .card-design-editor__resizebar-visual {
-  background: var(--oc-border-accent);
-  opacity: 0.65;
-}
-
-.card-design-editor__resizebar--vertical .card-design-editor__resizebar-visual {
-  width: 4px;
-  height: 28px;
-  border-radius: 999px;
-  transition:
-    background-color var(--oc-duration-fast) var(--oc-ease),
-    opacity var(--oc-duration-fast) var(--oc-ease);
-}
-
-.card-design-editor__resizebar--vertical:hover .card-design-editor__resizebar-visual,
-.card-design-editor__resizebar--vertical:focus-visible .card-design-editor__resizebar-visual,
-.card-design-editor__resizebar--vertical.is-active .card-design-editor__resizebar-visual {
-  background: var(--oc-border-accent);
-  opacity: 0.9;
-}
-
-.card-design-editor__resizebar--horizontal {
-  height: 8px;
-  cursor: row-resize;
-}
-
-.card-design-editor__resizebar--horizontal .card-design-editor__resizebar-visual {
-  width: 28px;
-  height: 4px;
-  border-radius: 999px;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .card-design-editor__sidebar,
-  .card-design-editor__resizebar--vertical,
-  .card-design-editor__resizebar--vertical .card-design-editor__resizebar-visual,
   .card-design-editor__face-tools,
-  .card-design-editor__stage-layer,
-  .card-design-editor__overlay-layout {
+  .card-design-editor__stage-layer {
     transition: none;
-  }
-}
-
-@media (max-width: 760px) {
-  .card-design-editor__overlay-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .card-design-editor__sidebar,
-  .card-design-editor__resizebar,
-  .card-design-editor__face-tools {
-    display: none;
-  }
-
-  .card-design-editor__center-spacer {
-    grid-column: 1;
   }
 }
 

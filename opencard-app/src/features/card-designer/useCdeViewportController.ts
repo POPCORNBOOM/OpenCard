@@ -28,8 +28,6 @@ export type CdeViewportPort = {
 type UseCdeViewportControllerOptions = {
   faceSize: Readonly<Ref<{ width: number; height: number } | null>>
   viewportPort: Readonly<Ref<CdeViewportPort | null>>
-  leftSidebarElement: Readonly<Ref<HTMLElement | null>>
-  rightSidebarElement: Readonly<Ref<HTMLElement | null>>
   commitTransform: (transform: EditorViewportTransform) => void
 }
 
@@ -46,7 +44,6 @@ const TRANSFORM_PREVIEW_MAX_SIDE = 220
 const TRANSFORM_PREVIEW_VISIBILITY_COVERAGE = 0.7
 
 export function useCdeViewportController(options: UseCdeViewportControllerOptions) {
-  const centerSpacerRef = ref<HTMLElement | null>(null)
   const transformPreviewHostRef = ref<HTMLElement | null>(null)
   const transformPreviewViewportRef = ref<HTMLElement | null>(null)
   const viewportTransform = ref<EditorViewportTransform>({ ...DEFAULT_VIEWPORT_TRANSFORM })
@@ -184,21 +181,7 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
   }
 
   function fitViewport(): void {
-    const centerRect = centerSpacerRef.value?.getBoundingClientRect()
-    const leftRect = options.leftSidebarElement.value?.getBoundingClientRect()
-    const rightRect = options.rightSidebarElement.value?.getBoundingClientRect()
-    const left = leftRect?.right ?? centerRect?.left
-    const right = rightRect?.left ?? centerRect?.right
-    const hasVisibleRegion = centerRect && left !== undefined && right !== undefined && right > left
-
-    options.viewportPort.value?.fitView(hasVisibleRegion
-      ? {
-          left,
-          top: centerRect.top,
-          width: right - left,
-          height: centerRect.height,
-        }
-      : undefined)
+    options.viewportPort.value?.fitView()
   }
 
   function scheduleInitialViewportFit(): void {
@@ -319,7 +302,6 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
   })
 
   return {
-    centerSpacerRef,
     completeFileLoad,
     fitViewport,
     handlePreviewViewportDrag,
