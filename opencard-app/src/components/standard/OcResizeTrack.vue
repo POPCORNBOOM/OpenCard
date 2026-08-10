@@ -3,6 +3,9 @@
     class="oc-resize-track"
     :class="[
       `oc-resize-track--${props.orientation}`,
+      props.edge ? `oc-resize-track--edge-${props.edge}` : null,
+      props.edge ? `oc-resize-track--placement-${props.placement}` : null,
+      { 'oc-resize-track--positioned': props.edge },
       attrs.class,
     ]"
     :style="attrs.style"
@@ -35,6 +38,8 @@ defineOptions({ name: 'OcResizeTrack', inheritAttrs: false })
 
 type ResizeOrientation = 'horizontal' | 'vertical'
 type ResizeDirection = 'normal' | 'reverse'
+type ResizeEdge = 'top' | 'right' | 'bottom' | 'left'
+type ResizePlacement = 'inside' | 'center' | 'outside'
 
 const props = withDefaults(defineProps<{
   minimum: number
@@ -43,11 +48,15 @@ const props = withDefaults(defineProps<{
   label: string
   orientation?: ResizeOrientation
   direction?: ResizeDirection
+  edge?: ResizeEdge
+  placement?: ResizePlacement
   step?: number
   disabled?: boolean
 }>(), {
   orientation: 'horizontal',
   direction: 'normal',
+  edge: undefined,
+  placement: 'center',
   step: 16,
   disabled: false,
 })
@@ -90,5 +99,66 @@ function handleDoubleClick(event: MouseEvent): void {
 .oc-resize-track--vertical {
   width: var(--oc-resize-track-size, var(--oc-space-3));
   height: 100%;
+}
+
+.oc-resize-track--positioned {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.oc-resize-track--edge-top {
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.oc-resize-track--edge-right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.oc-resize-track--edge-bottom {
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.oc-resize-track--edge-left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.oc-resize-track--edge-top.oc-resize-track--placement-center {
+  transform: translateY(-50%);
+}
+
+.oc-resize-track--edge-right.oc-resize-track--placement-center {
+  transform: translateX(50%);
+}
+
+.oc-resize-track--edge-bottom.oc-resize-track--placement-center {
+  transform: translateY(50%);
+}
+
+.oc-resize-track--edge-left.oc-resize-track--placement-center {
+  transform: translateX(-50%);
+}
+
+.oc-resize-track--edge-top.oc-resize-track--placement-outside {
+  transform: translateY(-100%);
+}
+
+.oc-resize-track--edge-right.oc-resize-track--placement-outside {
+  transform: translateX(100%);
+}
+
+.oc-resize-track--edge-bottom.oc-resize-track--placement-outside {
+  transform: translateY(100%);
+}
+
+.oc-resize-track--edge-left.oc-resize-track--placement-outside {
+  transform: translateX(-100%);
 }
 </style>

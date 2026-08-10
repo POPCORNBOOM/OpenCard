@@ -44,6 +44,8 @@
       :value="props.extent"
       :label="props.widthLabel"
       orientation="vertical"
+      :edge="props.side === 'left' ? 'right' : 'left'"
+      placement="outside"
       :direction="props.side === 'left' ? 'normal' : 'reverse'"
       @resize-start="handleWidthResizeStart"
       @resize="handleWidthResize"
@@ -316,18 +318,6 @@ onBeforeUnmount(() => {
 }
 
 .cde-overlay-dock :deep(.cde-overlay-dock__width-handle) {
-  position: absolute;
-  top: 0;
-  bottom: 0;
   z-index: 3;
-  pointer-events: auto;
-}
-
-.cde-overlay-dock--left :deep(.cde-overlay-dock__width-handle) {
-  right: calc(var(--oc-space-3) * -1);
-}
-
-.cde-overlay-dock--right :deep(.cde-overlay-dock__width-handle) {
-  left: calc(var(--oc-space-3) * -1);
 }
 </style>

@@ -9,6 +9,8 @@
       :label="resizeLabel"
       orientation="horizontal"
       direction="reverse"
+      edge="top"
+      placement="outside"
       @resize-start="handleResizeStart"
       @update:value="updateHeight"
       @resize="handleResize"
@@ -187,16 +189,7 @@ onBeforeUnmount(() => {
 }
 
 .oc-viewport-inspector__resizebar {
-  position: absolute;
-  top: calc(var(--oc-resize-track-size, var(--oc-space-3)) / -2);
-  right: 0;
-  left: 0;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--oc-resize-track-size, var(--oc-space-3));
-  min-width: 0;
   cursor: row-resize;
   touch-action: none;
   outline: none;

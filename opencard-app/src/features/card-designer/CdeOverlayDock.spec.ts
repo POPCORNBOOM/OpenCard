@@ -58,6 +58,10 @@ describe('CdeOverlayDock', () => {
     expect(Number.parseFloat(dock.style.transform.match(/-?[\d.]+/)?.[0] ?? '0'))
       .toBeCloseTo(-157.43, 1)
     expect(wrapper.get('[aria-label="Resize sidebar"]').attributes('aria-orientation')).toBe('vertical')
+    expect(wrapper.findAllComponents({ name: 'OcResizeTrack' })[1]?.props()).toMatchObject({
+      edge: 'right',
+      placement: 'outside',
+    })
   })
 
   it('settles width drag through the shared extent contract', async () => {

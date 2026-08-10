@@ -10,10 +10,14 @@ describe('OcResizeTrack', () => {
         maximum: 600,
         value: 280,
         label: 'Resize panel',
+        edge: 'top',
+        placement: 'outside',
       },
     })
 
     expect(wrapper.classes()).toContain('oc-resize-track--horizontal')
+    expect(wrapper.classes()).toContain('oc-resize-track--edge-top')
+    expect(wrapper.classes()).toContain('oc-resize-track--placement-outside')
     expect(wrapper.get('[role="separator"]').attributes('aria-valuenow')).toBe('280')
 
     await wrapper.trigger('dblclick')
