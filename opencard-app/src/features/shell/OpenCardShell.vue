@@ -157,7 +157,7 @@
             :active-compare-key="activeCompareKey"
             @select="handleChangeHistorySelect"
             @info="selectedVersionInfoCommitId = $event"
-            @restore="openLocalHistoryRestoreDialog"
+            @restore="requestLocalHistoryRestore"
             @delete="openLocalHistoryDeleteDialog"
           />
           <OcTree
@@ -359,19 +359,22 @@
       :title="t('versioning.history.restoreTitle')"
       :description="t('versioning.history.restoreDescription')"
       size="sm"
-      :dismissible="true"
-      close-on-backdrop
+      :dismissible="!localHistoryRestoreBusy"
+      :close-on-backdrop="!localHistoryRestoreBusy"
       @request-close="closeLocalHistoryRestoreDialog"
     >
-      <p v-if="localHistoryRestoreTarget" class="open-card-shell__restore-dialog">
-        {{ t('versioning.history.restoreTarget', { path: localHistoryRestoreTarget.relativePath }) }}
-      </p>
+      <div v-if="localHistoryRestoreTarget" class="open-card-shell__restore-dialog">
+        <p v-if="localHistoryRestoreError" class="open-card-shell__restore-error" role="alert">
+          {{ localHistoryRestoreError }}
+        </p>
+        <p>{{ t('versioning.history.restoreTarget', { path: localHistoryRestoreTarget.relativePath }) }}</p>
+      </div>
       <template #footer>
-        <OcButton type="button" variant="ghost" @click="closeLocalHistoryRestoreDialog">
+        <OcButton type="button" variant="ghost" :disabled="localHistoryRestoreBusy" @click="closeLocalHistoryRestoreDialog">
           {{ t('versioning.actions.cancel') }}
         </OcButton>
-        <OcButton type="button" variant="solid" @click="handleLocalHistoryRestoreConfirm">
-          {{ t('versioning.actions.restore') }}
+        <OcButton type="button" variant="solid" :disabled="localHistoryRestoreBusy" @click="handleLocalHistoryRestoreConfirm">
+          {{ localHistoryRestoreBusy ? t('versioning.restore.restoring') : t('versioning.actions.restore') }}
         </OcButton>
       </template>
     </OcDialog>
@@ -1073,6 +1076,8 @@ const localHistoryRestoreEntryId = ref<string | null>(null)
 const localHistoryRestoreTarget = computed(() => localHistoryEntries.value.find(entry => (
   entry.entryId === localHistoryRestoreEntryId.value
 )) ?? null)
+const localHistoryRestoreBusy = ref(false)
+const localHistoryRestoreError = ref('')
 const localHistoryDeleteTarget = ref<LocalHistoryEntryDto | null>(null)
 const localHistoryDeleteBusy = ref(false)
 const localHistoryDeleteError = ref('')
@@ -1134,6 +1139,7 @@ const {
   requestProjectClose,
   requestPathTrash,
   requestApplicationClose,
+  requestFileRestore,
   discardSingle: discardSingleUnsavedEditor,
   saveSingle: saveSingleUnsavedEditor,
 } = useShellCloseCoordinator({
@@ -1147,6 +1153,7 @@ const {
     project: completeProjectClose,
     trash: performPathTrash,
     application: performApplicationClose,
+    restoreFile: openLocalHistoryRestoreConfirmation,
   },
 })
 
@@ -2361,13 +2368,22 @@ function handleChangeHistorySelect(source: 'version' | 'local-history', id: stri
   void openCompare(source, id, session, relativePath)
 }
 
-function openLocalHistoryRestoreDialog(entryId: string): void {
-  if (!historyPath.value || activeSession.value?.isDirty) return
+async function requestLocalHistoryRestore(entryId: string): Promise<void> {
+  const session = activeSession.value
+  if (!historyPath.value || !session || session.resourceKind !== 'workspace') return
+  await requestFileRestore(session.id, entryId)
+}
+
+function openLocalHistoryRestoreConfirmation(entryId: string): void {
+  if (!localHistoryEntries.value.some(entry => entry.entryId === entryId)) return
   localHistoryRestoreEntryId.value = entryId
+  localHistoryRestoreError.value = ''
 }
 
 function closeLocalHistoryRestoreDialog(): void {
+  if (localHistoryRestoreBusy.value) return
   localHistoryRestoreEntryId.value = null
+  localHistoryRestoreError.value = ''
 }
 
 function openLocalHistoryDeleteDialog(entryId: string): void {
@@ -2402,10 +2418,13 @@ async function handleLocalHistoryDeleteConfirm(): Promise<void> {
 async function handleLocalHistoryRestoreConfirm(): Promise<void> {
   const entry = localHistoryRestoreTarget.value
   const relativePath = historyPath.value
-  if (!entry || !relativePath) return
+  if (!entry || !relativePath || localHistoryRestoreBusy.value) return
+  localHistoryRestoreBusy.value = true
+  localHistoryRestoreError.value = ''
+  let restored = false
   try {
     await restoreLocalHistory(relativePath, entry.entryId, entry.contentOid)
-    closeLocalHistoryRestoreDialog()
+    restored = true
     await refreshSessionFromDisk(activeSession.value?.id ?? '')
     const fileName = relativePath.replace(/\\/g, '/').split('/').pop()?.toLowerCase()
     if (fileName === '.ocproject') await reloadProjectProfile()
@@ -2413,8 +2432,14 @@ async function handleLocalHistoryRestoreConfirm(): Promise<void> {
     else if (fileName === '.ocicons') await reloadProjectIconRegistry()
     else if (fileName === '.oclocale') await reloadProjectDictionary()
     else if (fileName === '.ocblocks') await reloadProjectCustomBlockRegistry()
-  } catch {
-    // The versioning flow reports the stable error and leaves the target file unchanged.
+  } catch (error) {
+    if (!restored) {
+      const code = (error as Partial<VersionErrorDto> | null)?.code ?? 'unknown'
+      localHistoryRestoreError.value = t('versioning.history.restoreFailed', { code })
+    }
+  } finally {
+    localHistoryRestoreBusy.value = false
+    if (restored) closeLocalHistoryRestoreDialog()
   }
 }
 

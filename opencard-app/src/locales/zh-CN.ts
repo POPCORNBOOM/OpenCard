@@ -54,6 +54,7 @@ export default {
         app: '退出前确认编辑器去留',
         sessions: '关闭编辑器前确认去留',
         trash: '删除项目前确认编辑器去留',
+        'restore-file': '恢复文件前确认编辑器去留',
       },
       description: '为每个未保存的编辑器选择保存位置或放弃更改，全部决定后才能继续。',
       selectAllPending: '全选未决定项',
@@ -776,6 +777,7 @@ export default {
       restoreTitle: '恢复文件历史',
       restoreDescription: '使用这条 Local History 内容替换当前文件。',
       restoreTarget: '恢复 {path}？当前文件内容将被替换。',
+      restoreFailed: '恢复失败，当前文件和历史记录仍保留（{code}）。',
       saveBeforeRestore: '请先保存或丢弃当前文件修改',
       sources: {
         'manual-save': '手动保存',

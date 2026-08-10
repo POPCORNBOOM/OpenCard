@@ -48,6 +48,7 @@ function createCoordinator(initialSessions: EditorSession[]) {
     project: vi.fn(async () => undefined),
     trash: vi.fn(async () => undefined),
     application: vi.fn(async () => undefined),
+    restoreFile: vi.fn(async () => undefined),
   }
   const coordinator = useShellCloseCoordinator({
     sessions,
@@ -172,5 +173,31 @@ describe('useShellCloseCoordinator', () => {
     await save.coordinator.saveSingle()
     expect(save.saveSession).toHaveBeenCalledWith('save', undefined)
     expect(save.completions.sessions).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes a clean file restore immediately and guards a dirty file first', async () => {
+    const clean = createCoordinator([createSession('clean')])
+    await clean.coordinator.requestFileRestore('clean', 'entry-clean')
+
+    expect(clean.completions.restoreFile).toHaveBeenCalledWith('entry-clean')
+    expect(clean.coordinator.isOpen.value).toBe(false)
+
+    const dirty = createCoordinator([createSession('dirty', { isDirty: true })])
+    await dirty.coordinator.requestFileRestore('dirty', 'entry-dirty')
+
+    expect(dirty.coordinator.isOpen.value).toBe(true)
+    expect(dirty.completions.restoreFile).not.toHaveBeenCalled()
+
+    await dirty.coordinator.discardSingle()
+
+    expect(dirty.saveSession).not.toHaveBeenCalled()
+    expect(dirty.completions.restoreFile).toHaveBeenCalledWith('entry-dirty')
+
+    const saved = createCoordinator([createSession('saved', { isDirty: true })])
+    await saved.coordinator.requestFileRestore('saved', 'entry-saved')
+    await saved.coordinator.saveSingle()
+
+    expect(saved.saveSession).toHaveBeenCalledWith('saved', undefined)
+    expect(saved.completions.restoreFile).toHaveBeenCalledWith('entry-saved')
   })
 })

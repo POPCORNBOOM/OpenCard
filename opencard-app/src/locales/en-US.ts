@@ -54,6 +54,7 @@ export default {
         app: 'Review editors before quitting',
         sessions: 'Review editor before closing',
         trash: 'Review editors before deleting',
+        'restore-file': 'Review editor before restoring the file',
       },
       description: 'Choose where to save each editor or discard its changes before continuing.',
       selectAllPending: 'Select all undecided',
@@ -777,6 +778,7 @@ export default {
       restoreTitle: 'Restore File History',
       restoreDescription: 'Replace the current file with this saved Local History content.',
       restoreTarget: 'Restore {path}? The current file will be replaced.',
+      restoreFailed: 'Restore failed. The current file and history record are unchanged ({code}).',
       saveBeforeRestore: 'Save or discard the current file changes before restoring',
       sources: {
         'manual-save': 'Manual save',

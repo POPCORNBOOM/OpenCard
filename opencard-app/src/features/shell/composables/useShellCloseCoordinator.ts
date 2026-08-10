@@ -17,6 +17,7 @@ type ShellCloseCompletions = {
   project: (destination: ProjectCloseDestination) => CloseResult
   trash: (path: string) => CloseResult
   application: () => CloseResult
+  restoreFile: (entryId: string) => CloseResult
 }
 
 type UseShellCloseCoordinatorOptions = {
@@ -51,6 +52,11 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     if (intent.type === 'trash') {
       if (!intent.path) throw new Error('trash close intent requires a path')
       await options.completions.trash(intent.path)
+      return
+    }
+    if (intent.type === 'restore-file') {
+      if (!intent.historyEntryId) throw new Error('file restore intent requires a history entry')
+      await options.completions.restoreFile(intent.historyEntryId)
       return
     }
     await options.completions.sessions(intent.sessionIds)
@@ -102,6 +108,14 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     })
   }
 
+  async function requestFileRestore(sessionId: string, historyEntryId: string): Promise<void> {
+    await request({
+      type: 'restore-file',
+      sessionIds: [sessionId],
+      historyEntryId,
+    })
+  }
+
   async function discardSingle(): Promise<void> {
     const row = guard.decisions.value[0]
     if (!row || guard.isBusy.value) return
@@ -143,6 +157,7 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     requestProjectClose,
     requestPathTrash,
     requestApplicationClose,
+    requestFileRestore,
     discardSingle,
     saveSingle,
   }
