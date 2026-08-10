@@ -293,11 +293,15 @@ defineExpose({ save })
 
 .custom-block-registry-editor__list,
 .custom-block-registry-editor__right,
-.custom-block-registry-editor__preview,
-.custom-block-registry-editor__properties {
+.custom-block-registry-editor__preview {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.custom-block-registry-editor__properties {
+  min-width: 0;
+  min-height: 0;
 }
 
 .custom-block-registry-editor__list {

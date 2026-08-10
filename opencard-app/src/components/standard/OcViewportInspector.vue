@@ -174,6 +174,7 @@ onBeforeUnmount(() => {
   z-index: var(--oc-z-viewport-inspector);
   min-width: 0;
   max-height: calc(100% - var(--oc-viewport-inspector-visible-min-height));
+  overflow: visible;
   pointer-events: auto;
 }
 
