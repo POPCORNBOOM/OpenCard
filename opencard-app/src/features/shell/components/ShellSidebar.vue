@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcActionRail from '../../../components/standard/OcActionRail.vue';
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue';
@@ -8,16 +8,19 @@ import type {
   ShellList,
 } from '../shell.types';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   collapsed: boolean;
   width: number;
   headButtons: ShellButton[];
   bodyLists: ShellList[];
+  bottomLists?: ShellList[];
   tailButtons: ShellButton[];
   collapseListTooltip?: string;
   expandListTooltip?: string;
   minResizeWidth?: number;
-}>();
+}>(), {
+  bottomLists: () => [],
+});
 
 const emit = defineEmits<{
   'head-button-clicked': [buttonKey: string];
@@ -33,6 +36,15 @@ defineSlots<{
 const sidebarElement = ref<HTMLElement | null>(null);
 const resizing = ref(false);
 const collapsedLists = ref<Record<string, boolean>>({});
+const listGroups = computed(() => [{
+  key: 'body',
+  className: 'shell-sidebar-body',
+  lists: props.bodyLists,
+}, {
+  key: 'bottom',
+  className: 'shell-sidebar-fixed',
+  lists: props.bottomLists,
+}]);
 
 function ensureListState(lists: ShellList[]): void {
   const next: Record<string, boolean> = {};
@@ -43,7 +55,7 @@ function ensureListState(lists: ShellList[]): void {
 }
 
 watch(
-  () => props.bodyLists,
+  () => [...props.bodyLists, ...props.bottomLists],
   (lists) => {
     ensureListState(lists);
   },
@@ -127,8 +139,8 @@ function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'aut
       </button>
     </div>
 
-    <div class="shell-sidebar-body">
-      <section v-for="list in bodyLists" :key="list.key" class="shell-sidebar-list">
+    <div v-for="group in listGroups" :key="group.key" :class="group.className">
+      <section v-for="list in group.lists" :key="list.key" class="shell-sidebar-list">
         <div class="shell-sidebar-list-head">
           <button
             v-if="!collapsed"

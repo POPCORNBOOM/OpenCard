@@ -419,7 +419,7 @@
   position: relative;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   padding: 8px;
   border-radius: 0;
   background: transparent;
@@ -444,7 +444,8 @@
 }
 
 .shell-sidebar-group,
-.shell-sidebar-body {
+.shell-sidebar-body,
+.shell-sidebar-fixed {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -453,6 +454,27 @@
 .shell-sidebar-body {
   padding: 6px 0;
   overflow: auto;
+}
+
+.shell-sidebar-fixed {
+  min-height: 0;
+  max-height: clamp(var(--oc-list-max-height-lg), 50vh, calc(var(--oc-list-max-height-md) + var(--oc-list-max-height-md) + var(--oc-size-lg) + var(--oc-size-lg)));
+  overflow: hidden;
+}
+
+.shell-sidebar-fixed .shell-sidebar-list {
+  min-height: var(--oc-size-md);
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.shell-sidebar-fixed .shell-sidebar-list-head {
+  flex: 0 0 auto;
+}
+
+.shell-sidebar-fixed .shell-sidebar-list-content-wrap {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .shell-sidebar-button {

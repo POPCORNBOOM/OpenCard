@@ -38,7 +38,8 @@
         :collapsed="effectiveSidebarCollapsed"
         :width="sidebarWidth"
         :head-buttons="sidebarHeadButtons"
-        :body-lists="sidebarBodyLists"
+        :body-lists="sidebarScrollableLists"
+        :bottom-lists="sidebarBottomLists"
         :tail-buttons="sidebarTailButtons"
         :min-resize-width="SIDEBAR_AUTO_COLLAPSE_WIDTH"
         @head-button-clicked="runShellCommand"
@@ -1862,6 +1863,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('sidebar.changes'),
       placeholder: t('sidebar.comingSoon'),
       actions: [],
+      maxHeight: 'var(--oc-list-max-height-md)',
     },
     {
       key: VERSION_LIST_KEY,
@@ -1877,9 +1879,17 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         hoverTip: t('versioning.actions.refresh'),
         disabled: !projectPath.value || versionReadiness.value.status === 'preparing',
       }],
+      maxHeight: 'var(--oc-list-max-height-md)',
     },
   ]
 })
+
+const sidebarBottomLists = computed(() => sidebarBodyLists.value.filter(list => (
+  list.key === CHANGES_LIST_KEY || list.key === VERSION_LIST_KEY
+)))
+const sidebarScrollableLists = computed(() => sidebarBodyLists.value.filter(list => (
+  list.key !== CHANGES_LIST_KEY && list.key !== VERSION_LIST_KEY
+)))
 
 const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
   import.meta.env.DEV
