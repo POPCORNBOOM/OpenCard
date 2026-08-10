@@ -69,6 +69,11 @@ function resolveFilenameRenameSelection(name: string): OcTreeRenameSelection {
   return { start: 0, end: hasExtension ? extensionSeparator : name.length }
 }
 
+function isVersionHistoryTemporaryFile(relativePath: string): boolean {
+  const fileName = relativePath.split('/').pop() ?? relativePath
+  return /^\.oc(?:project|fonts|icons|locale|blocks)\.tmp-\d+-\d+$/i.test(fileName)
+}
+
 export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
@@ -87,6 +92,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
 
     for (const file of options.indexedEntries.value) {
       const relativePath = normalizeShellPath(file.name)
+      if (!file.isDirectory && isVersionHistoryTemporaryFile(relativePath)) continue
       const key = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
       const parts = relativePath.split('/')
       const isDirectory = Boolean(file.isDirectory)

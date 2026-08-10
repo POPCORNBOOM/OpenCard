@@ -91,6 +91,26 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
   })
 
+  it('does not expose versioning atomic-write temporaries in the project tree', () => {
+    const projectPath = 'D:/project'
+    const { projectTreeData } = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([
+        { name: '.ocproject.tmp-13792-11', isDirectory: false },
+        { name: '.ocproject', isDirectory: false },
+      ]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      translate: key => key,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile: vi.fn(async () => undefined),
+    })
+
+    expect(projectTreeData.value.items.has(`${projectPath}/.ocproject.tmp-13792-11`)).toBe(false)
+    expect(projectTreeData.value.items.has(`${projectPath}/.ocproject`)).toBe(true)
+  })
+
   it('pins root project files with localized titles and filename tails', () => {
     const projectPath = 'D:/project'
     const labels: Record<string, string> = {
