@@ -60,7 +60,7 @@ describe('CdeOverlayDock', () => {
     expect(wrapper.get('[aria-label="Resize sidebar"]').attributes('aria-orientation')).toBe('vertical')
   })
 
-  it('settles width drag through the shared extent contract', () => {
+  it('settles width drag through the shared extent contract', async () => {
     const wrapper = mount(CdeOverlayDock, {
       props,
       slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
@@ -73,12 +73,31 @@ describe('CdeOverlayDock', () => {
     })
 
     pointer(handle, 'pointerdown', { button: 0, pointerId: 1, clientX: 280 })
+    await nextTick()
+    expect(wrapper.classes()).toContain('is-resizing')
     pointer(handle, 'pointermove', { pointerId: 1, clientX: 200 })
     pointer(handle, 'pointerup', { pointerId: 1, clientX: 200 })
+    await nextTick()
 
     const updates = wrapper.emitted('update:extent') ?? []
     expect(updates[updates.length - 1]).toEqual([0])
     expect(wrapper.emitted('resize-end')).toHaveLength(1)
+    expect(wrapper.classes()).not.toContain('is-resizing')
+  })
+
+  it('toggles the width Dock between collapsed and minimum expanded extents on double click', async () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props: { ...props, extent: props.minExtent },
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const handle = wrapper.get('[aria-label="Resize sidebar"]').element as HTMLElement
+
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    expect(wrapper.emitted('update:extent')).toContainEqual([props.collapsedExtent])
+
+    await wrapper.setProps({ extent: props.collapsedExtent })
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    expect(wrapper.emitted('update:extent')).toContainEqual([props.minExtent])
   })
 
   it('uses vertical split semantics and emits an absolute top size', () => {

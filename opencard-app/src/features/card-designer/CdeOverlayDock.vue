@@ -2,7 +2,10 @@
   <aside
     ref="dockRef"
     class="cde-overlay-dock"
-    :class="`cde-overlay-dock--${props.side}`"
+    :class="[
+      `cde-overlay-dock--${props.side}`,
+      { 'is-resizing': isResizing },
+    ]"
     :style="dockStyle"
   >
     <div ref="stackRef" class="cde-overlay-dock__stack" :style="stackStyle">
@@ -46,6 +49,7 @@
       @resize="handleWidthResize"
       @resize-end="handleWidthResizeEnd"
       @resize-cancel="handleWidthResizeCancel"
+      @dblclick="handleWidthDoubleClick"
     />
   </aside>
 </template>
@@ -187,8 +191,8 @@ function handleWidthResizeEnd(): void {
     widthStartExtent.value,
     geometryConfig.value,
   )
-  emit('update:extent', settled)
   isResizing.value = false
+  emit('update:extent', settled)
   emit('resize-end', 'width')
 }
 
@@ -196,6 +200,14 @@ function handleWidthResizeCancel(): void {
   emit('update:extent', widthStartExtent.value)
   isResizing.value = false
   emit('resize-end', 'width')
+}
+
+function handleWidthDoubleClick(event: MouseEvent): void {
+  event.preventDefault()
+  const nextExtent = props.extent > props.collapsedExtent
+    ? props.collapsedExtent
+    : props.minExtent
+  emit('update:extent', nextExtent)
 }
 
 function handleSplitResizeStart(): void {
@@ -265,6 +277,11 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   pointer-events: none;
+  transition: transform var(--oc-duration-normal) var(--oc-ease);
+}
+
+.cde-overlay-dock.is-resizing {
+  transition: none;
 }
 
 .cde-overlay-dock--left { left: 0; }

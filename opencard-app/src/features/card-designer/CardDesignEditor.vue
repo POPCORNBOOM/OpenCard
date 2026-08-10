@@ -131,6 +131,7 @@
           split-label="调整卡牌树与预览高度"
           @update:extent="updateDockExtent('left', $event)"
           @update:top-size="updateDockTopSize('left', $event)"
+          @resize-start="handleDockResizeStart"
           @resize-end="handleDockResizeEnd('left', $event)"
         >
           <template #top>
@@ -191,6 +192,7 @@
           split-label="调整结构树与属性高度"
           @update:extent="updateDockExtent('right', $event)"
           @update:top-size="updateDockTopSize('right', $event)"
+          @resize-start="handleDockResizeStart"
           @resize-end="handleDockResizeEnd('right', $event)"
         >
           <template #top>
@@ -219,7 +221,8 @@
           </template>
         </CdeOverlayDock>
 
-        <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools" orientation="vertical"
+        <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools"
+          :class="{ 'is-resizing': isDockResizing }" orientation="vertical"
           :style="faceToolsStyle" label="卡牌画布控制" :items="faceToolbarItems"
           @select="handleFaceToolbarSelect" />
       </div>
@@ -450,8 +453,14 @@ const faceToolsStyle = computed(() => ({
   right: `${(viewportInsets.value.right ?? 0) + overlayGeometryConfig.floatingGap}px`,
   bottom: `${overlayGeometryConfig.floatingGap}px`,
 }))
+const isDockResizing = ref(false)
+
+function handleDockResizeStart(): void {
+  isDockResizing.value = true
+}
 
 function handleDockResizeEnd(_side: 'left' | 'right', axis: 'width' | 'split'): void {
+  isDockResizing.value = false
   if (axis === 'split') commitOverlayLayout()
 }
 
@@ -2033,6 +2042,11 @@ onUnmounted(() => {
   right: var(--oc-floating-surface-gap);
   bottom: var(--oc-floating-surface-gap);
   z-index: 3;
+  transition: right var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-design-editor__face-tools.is-resizing {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

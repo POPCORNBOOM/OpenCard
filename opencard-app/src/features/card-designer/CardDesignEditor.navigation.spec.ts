@@ -1214,7 +1214,7 @@ describe('CardDesignEditor issue navigation', () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const OcCardStub = defineComponent({
       name: 'OcCard',
-      props: ['title', 'actions'],
+      props: ['title', 'actions', 'collapsed'],
       emits: ['action'],
       template: '<div><slot /></div>',
     })
@@ -1257,6 +1257,11 @@ describe('CardDesignEditor issue navigation', () => {
         (action: { key: string }) => action.key === 'delete-property',
       ))).toBe(true)
     expect(getAction('toggle-property-delete-mode').disabled).toBeUndefined()
+
+    propertyCard.vm.$emit('action', { key: 'toggle-property-panel' })
+    await nextTick()
+    expect(propertyCard.props('collapsed')).toBe(true)
+    expect(getAction('toggle-property-panel').icon).toBe('nav.chevron-up')
   })
 
   it('creates a custom field for the explicit table Block and persists it in the document', async () => {
