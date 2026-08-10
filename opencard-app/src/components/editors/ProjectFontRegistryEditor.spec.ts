@@ -106,4 +106,30 @@ describe('ProjectFontRegistryEditor', () => {
     expect(info?.textContent).toContain('assets/fonts/BrandCJK.woff2')
     wrapper.unmount()
   })
+
+  it('shares one selection while comparing current and historical fonts from separate resources', async () => {
+    const historicalFonts: ProjectFont[] = [
+      { key: 'brand-latin', name: 'Historical Latin', source: 'history/Brand.woff2' },
+      { key: 'removed', name: 'Removed', source: 'history/Removed.woff2' },
+    ]
+    const currentBytes = vi.fn(async () => new Uint8Array([1]))
+    const historicalBytes = vi.fn(async () => new Uint8Array([2]))
+    const wrapper = mount(ProjectFontRegistryEditor, {
+      props: {
+        ...baseProps, comparison: true, comparisonFonts: historicalFonts,
+        comparisonFontSets: [], comparisonResolveAssetSrc: (source: string) => `historical://${source}`,
+        comparisonReadFontBytes: historicalBytes, readFontBytes: currentBytes,
+        resolveAssetSrc: (source: string) => `current://${source}`, readOnly: true,
+      },
+    })
+    await vi.waitFor(() => expect(wrapper.findAll('[data-oc-tree-key]')).toHaveLength(4))
+    expect(wrapper.getComponent(OcTree).props('selectedKeys')).toEqual(['fonts:brand-latin'])
+    expect(wrapper.getComponent(OcTree).props('data').items.get('fonts:brand-latin')?.changeMarkers).toHaveLength(2)
+    expect(wrapper.findAll('.project-font-registry-workbench__preview')).toHaveLength(2)
+    expect(wrapper.findAll('.project-font-registry-workbench__preview')[0]?.text()).toContain('Historical Latin')
+    expect(wrapper.findAll('.project-font-registry-workbench__preview')[1]?.text()).toContain('Latin')
+    await vi.waitFor(() => expect(currentBytes).toHaveBeenCalled())
+    await vi.waitFor(() => expect(historicalBytes).toHaveBeenCalled())
+    expect(wrapper.find('button[aria-label="projectConfig.fonts.addFont"]').exists()).toBe(false)
+  })
 })

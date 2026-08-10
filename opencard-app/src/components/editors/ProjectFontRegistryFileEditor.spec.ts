@@ -114,4 +114,21 @@ describe('ProjectFontRegistryFileEditor', () => {
       { key: 'nested', name: 'Nested', fontKeys: ['foundation'] },
     ])
   })
+
+  it('projects both snapshots through one original font workbench', () => {
+    const current = JSON.stringify({ fonts: [{ key: 'brand', name: 'Current', source: 'fonts/current.woff2' }] })
+    const historical = JSON.stringify({ fonts: [{ key: 'brand', name: 'Historical', source: 'fonts/history.woff2' }] })
+    const wrapper = mount(ProjectFontRegistryFileEditor, {
+      props: {
+        filePath: 'D:/current/.ocfonts', modelValue: current, comparisonContent: historical,
+        resourceRootPath: 'D:/current', comparisonResourceRootPath: 'D:/historical', access: 'observe-only',
+      },
+      global: { stubs: { ProjectFontRegistryEditor: true } },
+    })
+    const workbench = wrapper.getComponent(ProjectFontRegistryEditor)
+    expect(workbench.props('fonts')[0]?.name).toBe('Current')
+    expect(workbench.props('comparisonFonts')?.[0]?.name).toBe('Historical')
+    expect(workbench.props('comparison')).toBe(true)
+    expect(workbench.props('readOnly')).toBe(true)
+  })
 })

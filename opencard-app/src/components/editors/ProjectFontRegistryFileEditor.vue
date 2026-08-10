@@ -2,9 +2,13 @@
   <ProjectRegistryEditorShell icon="file.font" content-mode="workspace" header-mode="hidden"
     :heading="t('fontRegistry.title')" :description="t('fontRegistry.description')"
     @keydown.ctrl.s.prevent="save">
-    <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
-      :description="t('fontRegistry.description')" :fonts="document.fonts ?? []" :font-sets="document.fontSets ?? []"
+    <ProjectFontRegistryEditor v-if="document || comparisonDocument" ref="workbenchRef" :heading="t('fontRegistry.title')"
+      :description="t('fontRegistry.description')" :fonts="document?.fonts ?? []" :font-sets="document?.fontSets ?? []"
+      :comparison="props.comparisonContent !== undefined"
+      :comparison-fonts="comparisonDocument?.fonts" :comparison-font-sets="comparisonDocument?.fontSets"
       :resolve-asset-src="resolveAssetSrc" :read-font-bytes="readFontBytes"
+      :comparison-resolve-asset-src="comparisonResolveAssetSrc"
+      :comparison-read-font-bytes="comparisonReadFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
       :read-only="isObserveOnly"
       :preview-text="props.fontPreviewText"
@@ -64,6 +68,7 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const document = ref<ProjectFontRegistryDocument | null>(null)
+const comparisonDocument = ref<ProjectFontRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
 const registrationDialogOpen = ref(false)
@@ -84,13 +89,19 @@ const projectDirectory = computed(() => {
     : normalized
 })
 const readFontBytes = (source: string) => fileSystemService.readBinaryFile(resolveSnapshotPath(source))
+const comparisonReadFontBytes = (source: string) => fileSystemService.readBinaryFile(resolveComparisonSnapshotPath(source))
 const resolveAssetSrc = (source: string) => {
   if (!isObserveOnly.value) return projectStore.resolveAssetSrc(source)
   return convertFileSrc(resolveSnapshotPath(source))
 }
+const comparisonResolveAssetSrc = (source: string) => convertFileSrc(resolveComparisonSnapshotPath(source))
 function resolveSnapshotPath(source: string): string {
   const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
   return root ? `${root}/${source.replace(/^[/\\]+/, '')}` : projectStore.resolveProjectPath(source)
+}
+function resolveComparisonSnapshotPath(source: string): string {
+  const root = props.comparisonResourceRootPath?.replace(/[/\\]+$/, '')
+  return root ? `${root}/${source.replace(/^[/\\]+/, '')}` : source
 }
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const fontSets = document.value?.fontSets ?? []
@@ -121,6 +132,9 @@ const issueSnapshot = computed<EditorIssueSnapshot>(() => {
 
 watch(() => props.modelValue, content => {
   document.value = parseProjectFontRegistryText(content ?? '')
+}, { immediate: true })
+watch(() => props.comparisonContent, content => {
+  comparisonDocument.value = content === undefined ? null : parseProjectFontRegistryText(content)
 }, { immediate: true })
 watch(issueSnapshot, snapshot => emit('issue-snapshot', snapshot), { immediate: true })
 

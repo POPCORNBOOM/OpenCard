@@ -43,7 +43,35 @@
           <OcFieldInput full-width :value="effectivePreviewText" :aria-label="t('projectConfig.fonts.previewText')"
             @input="updatePreviewText" />
         </header>
+        <div class="project-font-registry-workbench__previews" :class="{ 'is-comparison': comparison }">
+        <div v-if="comparison" class="project-font-registry-workbench__preview is-historical"
+          :style="comparisonPreviewStyle">
+          <strong>A · {{ t('versioning.diff.historical') }}</strong>
+          <dl v-if="comparisonSelectedEntry" class="project-font-registry-workbench__entry-details">
+            <div><dt>{{ t('projectConfig.fonts.name') }}</dt><dd>{{ comparisonSelectedEntry.name }}</dd></div>
+            <div><dt>{{ t('projectConfig.fonts.previewFontKey') }}</dt><dd>{{ comparisonSelectedEntry.key }}</dd></div>
+            <div v-if="activePage === 'fonts'"><dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
+              <dd>{{ comparisonSelectedFont?.source }}</dd></div>
+            <div v-else><dt>{{ t('projectConfig.fonts.members') }}</dt>
+              <dd>{{ comparisonSelectedFontSet?.fontKeys.join(', ') }}</dd></div>
+          </dl>
+          <span class="project-font-registry-workbench__preview-content">
+            <span v-for="(run, index) in comparisonPreviewRuns" :key="`${index}:${run.fontKey ?? 'fallback'}`"
+              class="project-font-registry-workbench__preview-run" :data-font-key="run.fontKey ?? 'fallback'"
+              :style="comparisonRunStyle(run.fontKey)">{{ run.text }}</span>
+          </span>
+          <OcEmpty v-if="!comparisonSelectedEntry" tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+        </div>
         <div class="project-font-registry-workbench__preview" :style="previewStyle">
+          <strong v-if="comparison">B · {{ t('versioning.diff.current') }}</strong>
+          <dl v-if="comparison && currentSelectedEntry" class="project-font-registry-workbench__entry-details">
+            <div><dt>{{ t('projectConfig.fonts.name') }}</dt><dd>{{ currentSelectedEntry.name }}</dd></div>
+            <div><dt>{{ t('projectConfig.fonts.previewFontKey') }}</dt><dd>{{ currentSelectedEntry.key }}</dd></div>
+            <div v-if="activePage === 'fonts'"><dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
+              <dd>{{ selectedFont?.source }}</dd></div>
+            <div v-else><dt>{{ t('projectConfig.fonts.members') }}</dt>
+              <dd>{{ selectedFontSet?.fontKeys.join(', ') }}</dd></div>
+          </dl>
           <span class="project-font-registry-workbench__preview-content">
             <span
               v-for="(run, index) in previewRuns"
@@ -55,6 +83,8 @@
               @pointerleave="hideFontInfo"
             >{{ run.text }}</span>
           </span>
+          <OcEmpty v-if="comparison && !currentSelectedEntry" tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+        </div>
         </div>
         <OcFloatingLayer
           :open="Boolean(hoveredFontAnchor)"
@@ -96,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, type CSSProperties } from 'vue'
+import { computed, ref, useId, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ProjectFont, ProjectFontSet } from '../../features/workspace/model/projectFontRegistry'
 import { createProjectFontCssFamily, resolveProjectFontExpression } from '../../features/workspace/model/projectFonts'
@@ -105,6 +135,7 @@ import {
   createProjectFontPreviewRuns,
   readProjectFontCharacterSet,
 } from '../../features/workspace/services/projectFontCoverage'
+import { orderedPair } from '../../shared/model/orderedPair'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
@@ -120,13 +151,21 @@ const props = withDefaults(defineProps<{
   description: string
   fonts: readonly ProjectFont[]
   fontSets?: readonly ProjectFontSet[]
+  comparison?: boolean
+  comparisonFonts?: readonly ProjectFont[]
+  comparisonFontSets?: readonly ProjectFontSet[]
   resolveAssetSrc: (source: string) => string
   readFontBytes: (source: string) => Promise<Uint8Array>
+  comparisonResolveAssetSrc?: (source: string) => string
+  comparisonReadFontBytes?: (source: string) => Promise<Uint8Array>
   error?: string
   loadErrors?: readonly ProjectFontLoadError[]
   readOnly?: boolean
   previewText?: string
-}>(), { fontSets: () => [], error: '', loadErrors: () => [], readOnly: false })
+}>(), {
+  fontSets: () => [], comparisonFonts: () => [], comparisonFontSets: () => [],
+  error: '', loadErrors: () => [], readOnly: false,
+})
 const emit = defineEmits<{
   'update:fonts': [fonts: ProjectFont[]]
   'update:fontSets': [fontSets: ProjectFontSet[]]
@@ -137,6 +176,9 @@ const emit = defineEmits<{
   'update:previewText': [value: string]
 }>()
 const { t } = useI18n()
+const compareFamilyPrefix = `OpenCardCompare-${useId().replace(/:/g, '')}`
+const currentFamilyPrefix = `${compareFamilyPrefix}-CurrentFont`
+const historicalFamilyPrefix = `${compareFamilyPrefix}-HistoricalFont`
 const activePage = ref<'fonts' | 'sets'>('fonts')
 const selectedFontKey = ref<string | null>(null)
 const selectedFontSetKey = ref<string | null>(null)
@@ -144,13 +186,34 @@ const previewText = ref(t('projectConfig.fonts.previewSample'))
 const effectivePreviewText = computed(() => props.previewText ?? previewText.value)
 const characterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
 const failedCoverageKeys = ref<ReadonlySet<string>>(new Set())
+const comparisonCharacterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
+const comparisonFailedCoverageKeys = ref<ReadonlySet<string>>(new Set())
 const hoveredFontKey = ref<string | null>(null)
 const hoveredFontAnchor = ref<HTMLElement | null>(null)
 let coverageGeneration = 0
-const selectedFont = computed(() => props.fonts.find(font => font.key === selectedFontKey.value) ?? null)
-const selectedFontSet = computed(() => props.fontSets.find(fontSet => fontSet.key === selectedFontSetKey.value) ?? null)
-const selectedEntry = computed(() => activePage.value === 'fonts' ? selectedFont.value : selectedFontSet.value)
-const currentEntries = computed(() => activePage.value === 'fonts' ? props.fonts : props.fontSets)
+let comparisonCoverageGeneration = 0
+function byKey<T extends { key: string }>(entries: readonly T[], key: string | null): T | null {
+  if (key === null) return null
+  return entries.find(entry => entry.key.toLocaleLowerCase() === key.toLocaleLowerCase()) ?? null
+}
+function pairedEntries<T extends { key: string }>(historical: readonly T[], current: readonly T[]): readonly T[] {
+  if (!props.comparison) return current
+  return orderedPair(historical, current, entry => entry.key.toLocaleLowerCase())
+    .flatMap(pair => pair.rightItem ? [pair.rightItem] : pair.leftItem ? [pair.leftItem] : [])
+}
+const displayFonts = computed(() => pairedEntries(props.comparisonFonts, props.fonts))
+const displayFontSets = computed(() => pairedEntries(props.comparisonFontSets, props.fontSets))
+const selectedFont = computed(() => byKey(props.fonts, selectedFontKey.value))
+const comparisonSelectedFont = computed(() => byKey(props.comparisonFonts, selectedFontKey.value))
+const selectedFontSet = computed(() => byKey(props.fontSets, selectedFontSetKey.value))
+const comparisonSelectedFontSet = computed(() => byKey(props.comparisonFontSets, selectedFontSetKey.value))
+const selectedEntry = computed(() => activePage.value === 'fonts'
+  ? selectedFont.value ?? comparisonSelectedFont.value
+  : selectedFontSet.value ?? comparisonSelectedFontSet.value)
+const currentSelectedEntry = computed(() => activePage.value === 'fonts' ? selectedFont.value : selectedFontSet.value)
+const comparisonSelectedEntry = computed(() => activePage.value === 'fonts'
+  ? comparisonSelectedFont.value : comparisonSelectedFontSet.value)
+const currentEntries = computed(() => activePage.value === 'fonts' ? displayFonts.value : displayFontSets.value)
 const modeOptions = computed<readonly OcOption[]>(() => [
   { value: 'fonts', label: t('projectConfig.fonts.projectFonts') },
   { value: 'sets', label: t('projectConfig.fonts.fontSets') },
@@ -182,6 +245,16 @@ const treeData = computed<OcTreeData>(() => {
     items: new Map(entries.map(entry => [treeKey(activePage.value, entry.key), {
       label: entry.name,
       icon: activePage.value === 'fonts' ? 'file.font' as const : 'data.layers' as const,
+      changeMarkers: props.comparison && JSON.stringify(
+        activePage.value === 'fonts' ? byKey(props.comparisonFonts, entry.key) : byKey(props.comparisonFontSets, entry.key),
+      ) !== JSON.stringify(
+        activePage.value === 'fonts' ? byKey(props.fonts, entry.key) : byKey(props.fontSets, entry.key),
+      ) ? [
+          ...((activePage.value === 'fonts' ? byKey(props.comparisonFonts, entry.key) : byKey(props.comparisonFontSets, entry.key))
+            ? [{ icon: 'status.change-removed' as const, tone: 'danger' as const }] : []),
+          ...((activePage.value === 'fonts' ? byKey(props.fonts, entry.key) : byKey(props.fontSets, entry.key))
+            ? [{ icon: 'status.change-added' as const, tone: 'success' as const }] : []),
+        ] : undefined,
       actions: props.readOnly ? [] : ['configure', 'delete'],
       contextActions: props.readOnly ? [] : ['configure', 'delete'],
     }])),
@@ -189,14 +262,32 @@ const treeData = computed<OcTreeData>(() => {
   }
 })
 const resolvedSet = computed(() => selectedFontSet.value
-  ? resolveProjectFontExpression(`font:${selectedFontSet.value.key}`, { fonts: props.fonts, fontSets: props.fontSets })
+  ? resolveProjectFontExpression(`font:${selectedFontSet.value.key}`, {
+      fonts: props.fonts, fontSets: props.fontSets,
+      ...(props.comparison ? { cssFamilyPrefix: currentFamilyPrefix } : {}),
+    })
   : { fontKeys: [], cssFontFamily: '', issues: [] })
+const comparisonResolvedSet = computed(() => comparisonSelectedFontSet.value
+  ? resolveProjectFontExpression(`font:${comparisonSelectedFontSet.value.key}`, {
+      fonts: props.comparisonFonts, fontSets: props.comparisonFontSets,
+      cssFamilyPrefix: historicalFamilyPrefix,
+    })
+  : { fontKeys: [], cssFontFamily: '', issues: [] })
+function currentFamily(key: string): string {
+  return props.comparison ? `${currentFamilyPrefix}-${key}` : createProjectFontCssFamily(key)
+}
+function comparisonFamily(key: string): string { return `${historicalFamilyPrefix}-${key}` }
 const previewStyle = computed(() => ({ fontFamily: activePage.value === 'sets'
   ? resolvedSet.value.cssFontFamily
-  : selectedFont.value ? JSON.stringify(createProjectFontCssFamily(selectedFont.value.key)) : '' }))
+  : selectedFont.value ? JSON.stringify(currentFamily(selectedFont.value.key)) : '' }))
+const comparisonPreviewStyle = computed(() => ({ fontFamily: activePage.value === 'sets'
+  ? comparisonResolvedSet.value.cssFontFamily
+  : comparisonSelectedFont.value ? JSON.stringify(comparisonFamily(comparisonSelectedFont.value.key)) : '' }))
 const previewFontCss = computed(() => props.fonts.map(font => (
-  `@font-face { font-family: ${JSON.stringify(createProjectFontCssFamily(font.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(font.source))}); }`
-)).join('\n'))
+  `@font-face { font-family: ${JSON.stringify(currentFamily(font.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(font.source))}); }`
+)).concat(props.comparison ? props.comparisonFonts.map(font => (
+  `@font-face { font-family: ${JSON.stringify(comparisonFamily(font.key))}; src: url(${JSON.stringify(props.comparisonResolveAssetSrc?.(font.source) ?? '')}); }`
+)) : []).join('\n'))
 const previewFonts = computed(() => activePage.value === 'fonts'
   ? selectedFont.value ? [selectedFont.value] : []
   : resolvedSet.value.fontKeys
@@ -207,16 +298,30 @@ const previewRuns = computed(() => createProjectFontPreviewRuns(
   previewFonts.value.map(font => font.key),
   characterSets.value,
 ))
+const comparisonPreviewFonts = computed(() => activePage.value === 'fonts'
+  ? comparisonSelectedFont.value ? [comparisonSelectedFont.value] : []
+  : comparisonResolvedSet.value.fontKeys
+      .map(key => byKey(props.comparisonFonts, key))
+      .filter((font): font is ProjectFont => Boolean(font)))
+const comparisonPreviewRuns = computed(() => createProjectFontPreviewRuns(
+  effectivePreviewText.value,
+  comparisonPreviewFonts.value.map(font => font.key),
+  comparisonCharacterSets.value,
+))
 const hoveredFont = computed(() => hoveredFontKey.value
   ? props.fonts.find(font => font.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
   : null)
 const coverageFailed = computed(() => previewFonts.value.some(font => failedCoverageKeys.value.has(font.key)))
 
-watch(() => props.fonts, fonts => {
-  if (!fonts.some(font => font.key === selectedFontKey.value)) selectedFontKey.value = fonts[0]?.key ?? null
+watch(displayFonts, fonts => {
+  if (!fonts.some(font => font.key === selectedFontKey.value)) {
+    selectedFontKey.value = fonts[0]?.key ?? null
+  }
 }, { immediate: true })
-watch(() => props.fontSets, fontSets => {
-  if (!fontSets.some(fontSet => fontSet.key === selectedFontSetKey.value)) selectedFontSetKey.value = fontSets[0]?.key ?? null
+watch(displayFontSets, fontSets => {
+  if (!fontSets.some(fontSet => fontSet.key === selectedFontSetKey.value)) {
+    selectedFontSetKey.value = fontSets[0]?.key ?? null
+  }
 }, { immediate: true })
 watch(
   () => previewFonts.value.map(font => `${font.key}\0${font.source}`),
@@ -235,6 +340,27 @@ watch(
     if (generation !== coverageGeneration) return
     characterSets.value = nextCharacterSets
     failedCoverageKeys.value = nextFailedKeys
+  },
+  { immediate: true },
+)
+watch(
+  () => comparisonPreviewFonts.value.map(font => `${font.key}\0${font.source}`),
+  async () => {
+    const generation = ++comparisonCoverageGeneration
+    const nextCharacterSets = new Map<string, ReadonlySet<number>>()
+    const nextFailedKeys = new Set<string>()
+    await Promise.all(comparisonPreviewFonts.value.map(async font => {
+      try {
+        const bytes = await props.comparisonReadFontBytes?.(font.source)
+        if (!bytes) throw new Error('Historical font unavailable')
+        nextCharacterSets.set(font.key, await readProjectFontCharacterSet(bytes))
+      } catch {
+        nextFailedKeys.add(font.key)
+      }
+    }))
+    if (generation !== comparisonCoverageGeneration) return
+    comparisonCharacterSets.value = nextCharacterSets
+    comparisonFailedCoverageKeys.value = nextFailedKeys
   },
   { immediate: true },
 )
@@ -293,7 +419,10 @@ function updatePreviewText(event: Event): void {
   emit('update:previewText', event.target.value)
 }
 function runStyle(fontKey: string | null): CSSProperties | undefined {
-  return fontKey ? { fontFamily: JSON.stringify(createProjectFontCssFamily(fontKey)) } : undefined
+  return fontKey ? { fontFamily: JSON.stringify(currentFamily(fontKey)) } : undefined
+}
+function comparisonRunStyle(fontKey: string | null): CSSProperties | undefined {
+  return fontKey ? { fontFamily: JSON.stringify(comparisonFamily(fontKey)) } : undefined
 }
 function showFontInfo(fontKey: string | null, event: PointerEvent): void {
   hoveredFontKey.value = fontKey
@@ -357,7 +486,15 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__list > .oc-tree { position: absolute; inset: 0; }
 .project-font-registry-workbench__right { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-base); }
 .project-font-registry-workbench__preview-toolbar { padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-registry-workbench__previews { display: grid; min-width: 0; min-height: 0; }
+.project-font-registry-workbench__previews.is-comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-font-registry-workbench__previews.is-comparison > * + * { border-left: var(--oc-border-width) solid var(--oc-border-muted); }
 .project-font-registry-workbench__preview { display: grid; place-items: center; min-width: 0; min-height: 0; padding: var(--oc-space-6); overflow: auto; overflow-wrap: anywhere; font-size: var(--oc-font-preview-size); text-align: center; }
+.project-font-registry-workbench__preview > strong { align-self: start; justify-self: start; color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
+.project-font-registry-workbench__entry-details { align-self: start; justify-self: stretch; margin: 0; font-size: var(--oc-text-sm); text-align: left; }
+.project-font-registry-workbench__entry-details > div { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--oc-space-2); }
+.project-font-registry-workbench__entry-details dt { color: var(--oc-fg-muted); }
+.project-font-registry-workbench__entry-details dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .project-font-registry-workbench__preview-content { white-space: pre-wrap; }
 .project-font-registry-workbench__preview-run {
   border-radius: var(--oc-radius-sm);
