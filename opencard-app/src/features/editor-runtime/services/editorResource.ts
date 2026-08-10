@@ -1,4 +1,3 @@
-import { convertFileSrc } from '@tauri-apps/api/core'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 export function resolveEditorResourcePath(rootPath: string | null, path: string): string | null {
@@ -30,18 +29,6 @@ export function isRemoteResourceAllowed(
     const suffix = allowedHost.slice(1)
     return hostname.endsWith(suffix) && hostname.length > suffix.length
   })
-}
-
-export function resolveEditorAssetSrc(
-  rootPath: string | null,
-  path: string,
-  remoteResourcePolicy?: ProjectRemoteResourcePolicy,
-): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(path) && !/^[a-z]:[\\/]/i.test(path)) {
-    return isRemoteResourceAllowed(path, remoteResourcePolicy) ? path : ''
-  }
-  const resolvedPath = resolveEditorResourcePath(rootPath, path)
-  return resolvedPath ? convertFileSrc(resolvedPath) : ''
 }
 
 export function getEditorResourceRelativePath(rootPath: string | null, path: string): string | null {

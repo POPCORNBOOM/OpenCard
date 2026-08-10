@@ -18,11 +18,9 @@ import type {
 } from '../../exporting/exportTask'
 import type { RenderReadyCardFace } from '../../card-rendering/render.types'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
-import type { ProjectExportTask, ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
-import {
-  EMPTY_PROJECT_ICON_CATALOG,
-  type ProjectIconCatalog,
-} from '../../workspace/services/projectIconCatalog'
+import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
+import type { ProjectExportTask } from '../../workspace/model/projectMetadata'
+import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
 import { waitForProjectFonts } from '../../workspace/services/projectFontLoader'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
@@ -48,12 +46,6 @@ type UseProjectExportOptions = {
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function directoryName(path: string): string {
-  const normalized = normalizePath(path)
-  const separatorIndex = normalized.lastIndexOf('/')
-  return separatorIndex > 0 ? normalized.slice(0, separatorIndex) : ''
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
@@ -101,9 +93,7 @@ async function waitForExportAssets(root: HTMLElement, iconCatalog: ProjectIconCa
 export function useProjectExport(options: UseProjectExportOptions) {
   const showExportRenderer = ref(false)
   const exportCardFace = ref<RenderReadyCardFace | null>(null)
-  const exportResourceRootPath = ref('')
-  const exportRemoteResourcePolicy = ref<ProjectRemoteResourcePolicy | undefined>()
-  const exportProjectIconCatalog = ref<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
+  const exportResourceContext = ref<CardRenderResourceContext | null>(null)
   const isRunning = ref(false)
   const controller = ref<AbortController | null>(null)
   const { setTask, removeTask } = useShellProgressTasks()
@@ -116,7 +106,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
     const content = session?.draftContent ?? await options.readProjectFile(normalizedRelativePath)
     return {
       sourcePath: normalizedRelativePath,
-      resourceRootPath: directoryName(options.resolveProjectPath(normalizedRelativePath)),
+      resourceRootPath: normalizePath(options.resolveProjectPath('')),
       document: parseCardDocument(JSON.parse(content) as unknown),
     }
   }
@@ -133,12 +123,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
       task,
       source: { load: loadDocumentSnapshot },
       destination,
-      environment: {
-        project: environment.project,
-        dictionary: environment.dictionary,
-        remoteResourcePolicy: environment.remoteResourcePolicy,
-        projectIconCatalog: environment.projectIconCatalog,
-      },
+      environment,
     })
   }
 
@@ -146,16 +131,14 @@ export function useProjectExport(options: UseProjectExportOptions) {
     async render(request, signal) {
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError')
       showExportRenderer.value = true
-      exportCardFace.value = request.face
-      exportResourceRootPath.value = request.resourceRootPath
-      exportRemoteResourcePolicy.value = request.rendererContext.remoteResourcePolicy
-      exportProjectIconCatalog.value = request.rendererContext.projectIconCatalog
+      exportCardFace.value = request.render.document.faces[request.faceKey]
+      exportResourceContext.value = request.render.resources
       await nextTick()
       await waitForNextPaint()
 
       const canvas = options.exportRendererRef.value?.getCanvasElement?.()
       if (!canvas) throw new Error('Export renderer is unavailable')
-      await waitForExportAssets(canvas, request.rendererContext.projectIconCatalog)
+      await waitForExportAssets(canvas, request.render.resources.projectIconCatalog)
       await waitForProjectFonts()
       await waitForNextPaint()
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError')
@@ -164,9 +147,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
     reset() {
       showExportRenderer.value = false
       exportCardFace.value = null
-      exportResourceRootPath.value = ''
-      exportRemoteResourcePolicy.value = undefined
-      exportProjectIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
+      exportResourceContext.value = null
     },
   }
 
@@ -204,7 +185,9 @@ export function useProjectExport(options: UseProjectExportOptions) {
     isRunning.value = true
     controller.value = new AbortController()
     for (const entry of plan.entries) {
-      if (entry.issues.length > 0) console.warn(`[export] pipeline issues in ${entry.sourcePath}:`, entry.issues)
+      if (entry.render.issues.length > 0) {
+        console.warn(`[export] pipeline issues in ${entry.sourcePath}:`, entry.render.issues)
+      }
     }
     setTask({
       key: PROJECT_EXPORT_PROGRESS_KEY,
@@ -241,9 +224,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
   return {
     showExportRenderer: readonly(showExportRenderer),
     exportCardFace,
-    exportResourceRootPath: readonly(exportResourceRootPath),
-    exportRemoteResourcePolicy: readonly(exportRemoteResourcePolicy),
-    exportProjectIconCatalog: readonly(exportProjectIconCatalog),
+    exportResourceContext: readonly(exportResourceContext),
     isRunning: readonly(isRunning),
     loadDocumentSnapshot,
     prepare,

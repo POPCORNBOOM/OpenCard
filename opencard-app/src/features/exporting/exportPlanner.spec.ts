@@ -69,6 +69,29 @@ describe('prepareExportTask', () => {
     if (result.ok) expect(result.plan.entries).toHaveLength(expectedCount)
   })
 
+  it('keeps the custom-block runtime catalog in the prepared renderer resources', async () => {
+    const customBlockCatalog = new Map([['picture', {
+      manifest: {
+        key: 'picture', interfaceHash: 'hash', root: {}, publicFields: [],
+        resize: { widthLocked: false, heightLocked: false },
+      },
+      resourceUrls: new Map([['resources/images/a.png', 'blob:export-picture']]),
+    }]])
+    const source: ExportDocumentSource = {
+      load: async sourcePath => ({ sourcePath, resourceRootPath: 'D:/project/cards', document: document() }),
+    }
+
+    const result = await prepareExportTask({
+      task: task('blueprint'), source, destination,
+      environment: { ...environment, customBlockCatalog },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.plan.entries[0]?.render.resources.customBlockCatalog).toBe(customBlockCatalog)
+    expect(result.plan.entries[0]?.render.resources.resourceRootPath).toBe('D:/project/cards')
+  })
+
   it('flattens project-relative paths and deterministically deduplicates names', async () => {
     const source: ExportDocumentSource = {
       load: async sourcePath => ({
@@ -131,8 +154,10 @@ describe('prepareExportTask', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     const frontContents = result.plan.entries
-      .filter(entry => entry.face.faceKey === 'front')
-      .map(entry => (entry.face.children[0]!.block as { content: string }).content)
+      .filter(entry => entry.faceKey === 'front')
+      .map(entry => (
+        entry.render.document.faces.front.children[0]!.block as { content: string }
+      ).content)
     expect(frontContents).toEqual([
       'Blueprint / Demo / Hello Demo',
       'Instance / Demo / Hello Demo',

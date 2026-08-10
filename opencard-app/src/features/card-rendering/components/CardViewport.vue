@@ -8,9 +8,7 @@
     <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace"
-        :resource-root-path="resourceRootPath"
-        :remote-resource-policy="remoteResourcePolicy"
-        :project-icon-catalog="projectIconCatalog"
+        :resource-context="resourceContext"
         @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
@@ -183,8 +181,7 @@ import CardFaceRenderer from './CardFaceRenderer.vue'
 import CardLayerView from './CardLayerView.vue'
 import { buildCardLayerGroups } from './cardLayerModel'
 import type { RenderReadyCardBlock, RenderReadyCardFace } from '../render.types'
-import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
-import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import type { CardRenderResourceContext } from '../cardRenderResources'
 import {
   snapMoveRect,
   snapResizeRect,
@@ -292,9 +289,7 @@ const props = withDefaults(defineProps<{
   transformDisabledBlockIds?: string[]
   widthLocked?: boolean
   heightLocked?: boolean
-  resourceRootPath?: string | null
-  remoteResourcePolicy?: ProjectRemoteResourcePolicy
-  projectIconCatalog?: ProjectIconCatalog
+  resourceContext: CardRenderResourceContext
   viewportInsets?: ViewportInsets
 }>(), {
   restoreKey: undefined,
@@ -329,9 +324,6 @@ const props = withDefaults(defineProps<{
   widthLocked: false,
   heightLocked: false,
   clipToFace: false,
-  resourceRootPath: null,
-  remoteResourcePolicy: undefined,
-  projectIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
   viewportInsets: () => ({}),
 })
 

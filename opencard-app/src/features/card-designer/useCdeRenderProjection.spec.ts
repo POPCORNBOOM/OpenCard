@@ -7,6 +7,7 @@ import {
   type CardInstanceRecord,
 } from '../../entities/card/model'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 
 function createDocument(): CardDocument {
   const text = createTextBlock({
@@ -48,23 +49,25 @@ function createHarness(document: CardDocument | null = createDocument()) {
   const documentRevision = ref(0)
   const instance = ref<CardInstanceRecord | null>(null)
   const activeFaceKey = ref<'front' | 'back'>('front')
-  const renderContext = ref({
+  const renderEnvironment = ref({
     project: { name: 'Project', description: '', version: '2.0.0' },
     dictionary: { greeting: 'Hello' },
+    projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG,
   })
   const state = useCdeRenderProjection({
     cardDoc,
     documentRevision,
     instance,
     activeFaceKey,
-    renderContext,
+    resourceRootPath: ref('D:/Project'),
+    renderEnvironment,
   })
   return {
     activeFaceKey,
     cardDoc,
     documentRevision,
     instance,
-    renderContext,
+    renderEnvironment,
     state,
   }
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveCdePropertyFields } from './cdePropertyFieldDefinitions'
+import { resolveCardPropertyFields } from './cardPropertyFieldDefinitions'
 
-describe('resolveCdePropertyFields categories', () => {
+describe('resolveCardPropertyFields categories', () => {
   it('separates user-defined fields from advanced native fields', () => {
-    const fields = resolveCdePropertyFields({
+    const fields = resolveCardPropertyFields({
       type: 'text-block',
       score: '1',
     }, {

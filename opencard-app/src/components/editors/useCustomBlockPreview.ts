@@ -10,8 +10,8 @@ import {
   parseAdditionalFieldDefinitions,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
-import { resolveCdePropertyFields } from '../../features/card-designer/cdePropertyFieldDefinitions'
-import { runRenderPipeline, type CardRenderEnvironment } from '../../features/card-rendering/renderPipeline'
+import { resolveCardPropertyFields } from '../../features/card-properties/cardPropertyFieldDefinitions'
+import { prepareCardRender, type CardRenderEnvironment } from '../../features/card-rendering/renderPipeline'
 import type { RenderReadyCardFace } from '../../features/card-rendering/render.types'
 import type {
   ProjectCustomBlockCatalogEntry,
@@ -49,6 +49,7 @@ type UseCustomBlockPreviewOptions = {
   document: Readonly<Ref<ProjectCustomBlockRegistryDocument | null>>
   catalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   renderEnvironment: Readonly<Ref<CardRenderEnvironment>>
+  resourceRootPath: Readonly<Ref<string | null>>
   translate: (messageKey: string) => string
   hasMessage: (messageKey: string) => boolean
 }
@@ -163,16 +164,18 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
   const pipelineResult = computed(() => {
     const entry = selectedEntry.value?.catalogEntry
     if (!entry) return null
-    return runRenderPipeline(
-      createPreviewDocument(entry, activeValues.value),
-      null,
-      options.renderEnvironment.value,
-    )
+    return prepareCardRender({
+      document: createPreviewDocument(entry, activeValues.value),
+      instance: null,
+      resourceRootPath: options.resourceRootPath.value,
+      environment: options.renderEnvironment.value,
+    })
   })
 
   const previewFace = computed<RenderReadyCardFace | null>(() => (
     pipelineResult.value?.document.faces.front ?? null
   ))
+  const previewResources = computed(() => pipelineResult.value?.resources ?? null)
   const previewFitRect = computed<CustomBlockPreviewFitRect | undefined>(() => {
     const face = previewFace.value
     const child = face?.children[0]
@@ -206,7 +209,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
       field.key,
       field.title ?? rootDefinitions[field.key]?.title ?? field.key,
     ]))
-    const fields = resolveCdePropertyFields({
+    const fields = resolveCardPropertyFields({
       type: 'custom-block',
       ...activeValues.value,
     }, {
@@ -273,6 +276,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     selectedEntry,
     activeValues,
     previewFace,
+    previewResources,
     previewFitRect,
     issues,
     propertyInputs,

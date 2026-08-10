@@ -7,7 +7,7 @@ import {
 } from '../../entities/card/model'
 import { buildParentLookup } from '../../entities/card/tree'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
-import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
+import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 import type { CdePropertyProjectContext } from './cdePropertyFieldEnrichment'
 import { useCdeDataTableCellProjection } from './useCdeDataTableCellProjection'
 
@@ -90,7 +90,7 @@ function createHarness() {
 
 const contentField = {
   key: 'content',
-  definition: { fieldType: 'string', title: 'Content' } satisfies CdePropertyFieldDefinition,
+  definition: { fieldType: 'string', title: 'Content' } satisfies CardPropertyFieldDefinition,
 }
 
 async function completionInsertTexts(
@@ -125,7 +125,7 @@ describe('useCdeDataTableCellProjection', () => {
     const { state } = createHarness()
     const nameField = {
       key: 'name',
-      definition: { fieldType: 'string', title: 'Name' } satisfies CdePropertyFieldDefinition,
+      definition: { fieldType: 'string', title: 'Name' } satisfies CardPropertyFieldDefinition,
     }
     const blueprint = state.getDataTableCellDefinition('text', nameField, {
       cardId: '__blueprint__',
@@ -168,7 +168,7 @@ describe('useCdeDataTableCellProjection', () => {
 
   it('does no eager work and returns an invalid Block fallback without caching it', () => {
     const { cardDoc, state } = createHarness()
-    const definition = { fieldType: 'string', title: 'Missing' } satisfies CdePropertyFieldDefinition
+    const definition = { fieldType: 'string', title: 'Missing' } satisfies CardPropertyFieldDefinition
 
     expect(state.getDataTableCellDefinition('missing', { key: 'content', definition }, {
       cardId: '__blueprint__',

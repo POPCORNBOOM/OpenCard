@@ -22,11 +22,10 @@
         <section class="custom-block-registry-editor__right"
           :style="{ '--oc-custom-block-preview-occlusion': `${propertyOcclusion}px` }">
           <main class="custom-block-registry-editor__preview">
-            <CardViewport v-if="previewFace" ref="viewportRef" class="custom-block-registry-editor__viewport"
+            <CardViewport v-if="previewFace && previewResources" ref="viewportRef" class="custom-block-registry-editor__viewport"
               :face="previewFace" :restore-key="selectedPath ?? undefined" :show-info="false"
               :viewport-insets="previewViewportInsets"
-              :resource-root-path="props.resourceRootPath" :remote-resource-policy="renderEnvironment.remoteResourcePolicy"
-              :project-icon-catalog="renderEnvironment.projectIconCatalog"
+              :resource-context="previewResources"
               @viewport-transform-change="handleViewportTransformChange"
               @viewport-size-change="handleViewportSizeChange" />
             <OcEmpty v-else tone="muted" inset="comfortable">
@@ -118,12 +117,13 @@ const propertyOcclusion = ref(0)
 const viewportScaleLabel = computed(() => `${Math.round(viewportScale.value * 100)}%`)
 const previewToolbarItems = computed(() => createViewportToolbarItems(viewportScaleLabel.value))
 const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
-const renderEnvironment = computed(() => projectStore.renderEnvironment.value)
+const resourceRootPath = computed(() => props.resourceRootPath ?? null)
 const {
   entries: previewEntries,
   selectedPath,
   selectedEntry,
   previewFace,
+  previewResources,
   previewFitRect,
   issues,
   propertyInputs,
@@ -135,6 +135,7 @@ const {
   document,
   catalog: projectStore.projectCustomBlockCatalog,
   renderEnvironment: projectStore.renderEnvironment,
+  resourceRootPath,
   translate: t,
   hasMessage: () => false,
 })

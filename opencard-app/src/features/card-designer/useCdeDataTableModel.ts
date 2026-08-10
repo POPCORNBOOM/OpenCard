@@ -8,8 +8,8 @@ import {
 import type { EditorPropertyDefinition } from '../../entities/card/schema'
 import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
-import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
-import { resolveCdePropertyFields } from './cdePropertyFieldDefinitions'
+import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
+import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
 
 export type CdeDataTableColumn = {
   key: string
@@ -30,7 +30,7 @@ export type CdeDataTableCell = {
 export type CdeDataTableFieldCatalogEntry = {
   key: string
   title: string
-  definition: CdePropertyFieldDefinition
+  definition: CardPropertyFieldDefinition
   deletable: boolean
 }
 
@@ -180,7 +180,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     const labels = Object.fromEntries(Object.entries(block.additionalFieldDefinition ?? {}).map(
       ([fieldKey, definition]) => [fieldKey, definition.title ?? fieldKey],
     ))
-    const definitions = resolveCdePropertyFields(definitionRecord, {
+    const definitions = resolveCardPropertyFields(definitionRecord, {
       allowDelete: true,
       translate: options.translate,
       hasMessage: options.hasMessage,

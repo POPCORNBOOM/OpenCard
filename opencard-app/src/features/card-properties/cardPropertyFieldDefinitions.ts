@@ -9,16 +9,16 @@ import {
 } from '../../entities/card/schema'
 import type { BindingScopeKind } from '../editor-runtime/model/bindingExpression'
 
-export type CdePropertyFieldDefinition = PropertyEditorFieldDefinition & {
+export type CardPropertyFieldDefinition = PropertyEditorFieldDefinition & {
   acceptsBinding?: false
   bindingScopes?: readonly BindingScopeKind[]
 }
 
-export type CdePropertyEditorInput = Omit<PropertyEditorInput, 'fields'> & {
-  fields: Readonly<Record<string, CdePropertyFieldDefinition>>
+export type CardPropertyEditorInput = Omit<PropertyEditorInput, 'fields'> & {
+  fields: Readonly<Record<string, CardPropertyFieldDefinition>>
 }
 
-export type CdePropertyFieldDefinitionOptions = {
+export type CardPropertyFieldDefinitionOptions = {
   allowDelete: boolean
   translate: (messageKey: string) => string
   hasMessage: (messageKey: string) => boolean
@@ -27,10 +27,10 @@ export type CdePropertyFieldDefinitionOptions = {
   customKeys?: ReadonlySet<string>
 }
 
-export function resolveCdePropertyFields(
+export function resolveCardPropertyFields(
   record: Readonly<Record<string, unknown>>,
-  options: CdePropertyFieldDefinitionOptions,
-): Record<string, CdePropertyFieldDefinition> {
+  options: CardPropertyFieldDefinitionOptions,
+): Record<string, CardPropertyFieldDefinition> {
   const typeName = typeof record.type === 'string' ? record.type : undefined
   const definitions: Record<string, EditorPropertyDefinition> = { ...getTypePropertyEditorSchema(typeName) }
   for (const [fieldKey, fieldOverride] of Object.entries(options.override ?? {})) {

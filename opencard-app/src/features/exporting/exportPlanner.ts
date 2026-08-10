@@ -1,5 +1,5 @@
 import type { CardInstanceRecord } from '../../entities/card/model'
-import { runRenderPipeline } from '../card-rendering/renderPipeline'
+import { prepareCardRender } from '../card-rendering/renderPipeline'
 import {
   type ExportDocumentSnapshot,
   type ExportPlan,
@@ -86,8 +86,11 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
     try {
       const sourceStem = sanitizeSegment(snapshot.sourcePath.replace(/[\\/]+/g, '_'), 'card')
       for (const projection of projectionsFor(snapshot, options.task.selectionMode)) {
-        const renderResult = runRenderPipeline(snapshot.document, projection.instance, {
-          ...options.environment,
+        const render = prepareCardRender({
+          document: snapshot.document,
+          instance: projection.instance,
+          resourceRootPath: snapshot.resourceRootPath,
+          environment: options.environment,
         })
         for (const faceKey of ['front', 'back'] as const) {
           const fileName = uniqueFileName(sourceStem, `${projection.suffix}_${faceKey}`, usedFileNames)
@@ -95,13 +98,8 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
             key: `${snapshot.sourcePath}\0${projection.suffix}\0${faceKey}`,
             sourcePath: snapshot.sourcePath,
             outputPath: joinPath(options.task.outputDirectory, fileName),
-            resourceRootPath: snapshot.resourceRootPath,
-            rendererContext: {
-              remoteResourcePolicy: options.environment.remoteResourcePolicy,
-              projectIconCatalog: options.environment.projectIconCatalog,
-            },
-            face: renderResult.document.faces[faceKey],
-            issues: renderResult.issues,
+            faceKey,
+            render,
           })
         }
       }

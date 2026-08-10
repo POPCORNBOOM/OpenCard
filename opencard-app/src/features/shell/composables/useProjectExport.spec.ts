@@ -45,7 +45,7 @@ describe('useProjectExport document source', () => {
     const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')
     session.draftContent = content('2160')
     expect(snapshot.document.width).toBe('1080')
-    expect(snapshot.resourceRootPath).toBe('D:/project/cards')
+    expect(snapshot.resourceRootPath).toBe('D:/project')
     expect(readProjectFile).not.toHaveBeenCalled()
   })
 

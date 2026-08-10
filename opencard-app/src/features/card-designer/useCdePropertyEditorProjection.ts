@@ -19,12 +19,12 @@ import type {
   ReferenceCompletionContext,
   ReferenceCompletionScope,
 } from '../editor-runtime/services/referenceCompletion'
-import type { CdePropertyEditorInput } from './cdePropertyFieldDefinitions'
+import type { CardPropertyEditorInput } from '../card-properties/cardPropertyFieldDefinitions'
 import {
   createCdeCardReferenceScope,
   createCdeDictionaryReferenceScope,
   createCdeProjectReferenceScope,
-  enrichCdePropertyFieldDefinition,
+  enrichCardPropertyFieldDefinition,
   type CdePropertyProjectContext,
 } from './cdePropertyFieldEnrichment'
 
@@ -35,7 +35,7 @@ type UseCdePropertyEditorProjectionOptions = {
   selectedCardId: Readonly<Ref<string | null>>
   selectedBlock: Readonly<Ref<CardBlock | null>>
   parentLookup: Readonly<Ref<ParentLookup>>
-  rawPropertyInputs: Readonly<Ref<readonly CdePropertyEditorInput[]>>
+  rawPropertyInputs: Readonly<Ref<readonly CardPropertyEditorInput[]>>
   projectContext: Readonly<Ref<CdePropertyProjectContext>>
   directoryProvider: Readonly<Ref<FilePathDirectoryProvider | undefined>>
   blueprintCardId: string
@@ -123,7 +123,7 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           getAncestor: depth => ancestorScopes[depth - 1],
           targetKind: getCardFieldValueKind(input.record, fieldKey),
         } : undefined
-        return [fieldKey, enrichCdePropertyFieldDefinition({
+        return [fieldKey, enrichCardPropertyFieldDefinition({
           definition,
           fieldKey,
           record: input.record,

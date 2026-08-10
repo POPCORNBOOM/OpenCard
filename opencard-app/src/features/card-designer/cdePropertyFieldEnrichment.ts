@@ -27,7 +27,7 @@ import {
   type ReferenceCompletionContext,
   type ReferenceCompletionScope,
 } from '../editor-runtime/services/referenceCompletion'
-import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
+import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 
 type Translate = (messageKey: string, parameters?: Record<string, unknown>) => string
 
@@ -96,8 +96,8 @@ export function createCdeDictionaryReferenceScope(
   }
 }
 
-export function enrichCdePropertyFieldDefinition(options: {
-  definition: CdePropertyFieldDefinition
+export function enrichCardPropertyFieldDefinition(options: {
+  definition: CardPropertyFieldDefinition
   fieldKey: string
   record: Readonly<Record<string, unknown>>
   referenceContext?: ReferenceCompletionContext | null

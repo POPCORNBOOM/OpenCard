@@ -72,9 +72,8 @@ export async function runExportPlan(options: RunExportPlanOptions): Promise<Expo
       try {
         bytes = await options.renderer.render({
           ...current,
-          resourceRootPath: entry.resourceRootPath,
-          rendererContext: entry.rendererContext,
-          face: entry.face,
+          faceKey: entry.faceKey,
+          render: entry.render,
           scale: options.plan.task.scale,
         }, options.signal)
         completedUnits += 1

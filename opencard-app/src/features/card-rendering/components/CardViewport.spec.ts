@@ -6,6 +6,9 @@ import { createTextBlock } from '../../../entities/card/model'
 import CardViewport from './CardViewport.vue'
 import { parseRenderReadyBlockForTest } from './renderTestUtils'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
+import { createCardRenderResourceContext } from '../cardRenderResources'
+
+const resourceContext = createCardRenderResourceContext({})
 
 const face: RenderReadyCardFace = {
   type: 'card-face',
@@ -89,7 +92,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('zooms in around the supplied viewport anchor', async () => {
     const wrapper = mount(CardViewport, {
-      props: { face },
+      props: { resourceContext, face },
       global: { stubs: { CardFaceRenderer: true } },
     })
     const viewport = wrapper.vm as unknown as {
@@ -121,7 +124,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('fits the face into a supplied visible region instead of resetting to 100%', async () => {
     const wrapper = mount(CardViewport, {
-      props: { face },
+      props: { resourceContext, face },
       global: { stubs: { CardFaceRenderer: true } },
     })
     const viewport = wrapper.vm as unknown as {
@@ -145,7 +148,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('fits content inside viewport insets without centering it behind an inspector', async () => {
     const wrapper = mount(CardViewport, {
-      props: { face, viewportInsets: { bottom: 300 } },
+      props: { resourceContext, face, viewportInsets: { bottom: 300 } },
       global: { stubs: { CardFaceRenderer: true } },
     })
     const viewport = wrapper.vm as unknown as {
@@ -166,7 +169,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('forwards face clipping to the face renderer', () => {
     const wrapper = mount(CardViewport, {
-      props: { face, clipToFace: true },
+      props: { resourceContext, face, clipToFace: true },
     })
 
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
@@ -178,7 +181,7 @@ describe('CardViewport wheel zoom API', () => {
       template: '<div data-block-id="layer-block">Layer</div>',
     })
     const wrapper = mount(CardViewport, {
-      props: { face: layeredFace, layerViewActive: true, layerViewBasePlaneLabel: 'Base plate' },
+      props: { resourceContext, face: layeredFace, layerViewActive: true, layerViewBasePlaneLabel: 'Base plate' },
       global: { stubs: { CardFaceRenderer: LayerSourceStub } },
     })
     const viewport = wrapper.vm as unknown as {
@@ -204,7 +207,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('anchors supplemental information to the top-right of the face', async () => {
     const wrapper = mount(CardViewport, {
-      props: { face },
+      props: { resourceContext, face },
       slots: {
         info: '<div data-test="face-info">Details</div>',
         'left-info': '<div data-test="height-info">Height</div>',
@@ -246,7 +249,7 @@ describe('CardViewport wheel zoom API', () => {
       },
     })
     const wrapper = mount(CardViewport, {
-      props: {
+      props: { resourceContext,
         face,
         selectedBlockId: null,
         selectedLocationType: 'simple-container-location',
@@ -407,7 +410,7 @@ describe('CardViewport wheel zoom API', () => {
       },
     })
     const wrapper = mount(CardViewport, {
-      props: {
+      props: { resourceContext,
         face,
         selectedBlockId: null,
         selectedLocationType: 'flow-container-location',
@@ -489,7 +492,7 @@ describe('CardViewport wheel zoom API', () => {
       },
     })
     const wrapper = mount(CardViewport, {
-      props: {
+      props: { resourceContext,
         face: snappingFace,
         selectedBlockId: null,
         selectedLocationType: 'simple-container-location',
@@ -554,7 +557,7 @@ describe('CardViewport wheel zoom API', () => {
       },
     })
     const wrapper = mount(CardViewport, {
-      props: {
+      props: { resourceContext,
         face: snappingFace,
         selectedBlockId: null,
         selectedLocationType: 'simple-container-location',
@@ -647,7 +650,7 @@ describe('CardViewport wheel zoom API', () => {
 
   it('drags dimensions by axis, changes cursors, and snaps to tens with Shift', async () => {
     const wrapper = mount(CardViewport, {
-      props: { face },
+      props: { resourceContext, face },
       slots: {
         'left-info': 'Height',
         'bottom-info': 'Width',

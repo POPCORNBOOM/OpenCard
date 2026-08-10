@@ -9,6 +9,10 @@ import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMeta
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { createCardPipelineIssue } from './cardPipelineIssue'
+import {
+  createCardRenderResourceContext,
+  type CardRenderResourceContext,
+} from './cardRenderResources'
 
 function findCustomBlockHostId(
   issue: CardPipelineIssue,
@@ -44,7 +48,31 @@ export type CardRenderEnvironment = RenderPipelineContext & {
   projectIconCatalog: ProjectIconCatalog
 }
 
-export function runRenderPipeline(
+export type CardRenderRequest = {
+  document: CardDocument
+  instance: CardInstanceRecord | null
+  resourceRootPath: string | null
+  environment: Readonly<CardRenderEnvironment>
+}
+
+export type PreparedCardRender = RenderPipelineResult & {
+  resources: CardRenderResourceContext
+}
+
+export function prepareCardRender(request: CardRenderRequest): PreparedCardRender {
+  const result = runRenderPipeline(request.document, request.instance, request.environment)
+  return {
+    ...result,
+    resources: createCardRenderResourceContext({
+      resourceRootPath: request.resourceRootPath,
+      remoteResourcePolicy: request.environment.remoteResourcePolicy,
+      customBlockCatalog: request.environment.customBlockCatalog,
+      projectIconCatalog: request.environment.projectIconCatalog,
+    }),
+  }
+}
+
+function runRenderPipeline(
   document: CardDocument,
   instance: CardInstanceRecord | null,
   context: RenderPipelineContext = {},

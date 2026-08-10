@@ -23,11 +23,9 @@
         <div :key="workspaceMode" class="card-design-editor__mode-view">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
-          <CardViewport ref="cardViewportRef" v-if="viewFace" class="card-design-editor__viewport" :face="viewFace"
+          <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
-          :resource-root-path="props.resourceRootPath"
-          :remote-resource-policy="props.remoteResourcePolicy"
-          :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
+          :resource-context="renderResources"
           :restore-key="props.filePath" :transform="viewportTransform"
           :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
@@ -153,9 +151,8 @@
                   @wheel.prevent.stop="handlePreviewViewportWheel">
                   <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
                     :style="transformPreviewViewportStyle">
-                    <CardFaceRenderer v-if="viewFace" :face="viewFace" :clip-to-face="true"
-                      :resource-root-path="props.resourceRootPath" :remote-resource-policy="props.remoteResourcePolicy"
-                      :project-icon-catalog="projectStore.renderEnvironment.value.projectIconCatalog"
+                    <CardFaceRenderer v-if="viewFace && renderResources" :face="viewFace" :clip-to-face="true"
+                      :resource-context="renderResources"
                       :style="transformPreviewRendererStyle" />
                     <button v-if="transformPreviewFrameStyle" type="button"
                       class="card-design-editor__transform-preview-frame"
@@ -1463,12 +1460,14 @@ const renderTargetInstance = computed(() => (
   selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null
 ))
 
-const renderContext = computed(() => ({
+const renderEnvironment = computed(() => ({
   ...projectStore.renderEnvironment.value,
 }))
+const renderResourceRootPath = computed(() => props.resourceRootPath ?? null)
 const {
   findViewBlock,
   renderPipelineResult,
+  renderResources,
   viewDocument: viewDoc,
   viewFace,
 } = useCdeRenderProjection({
@@ -1476,7 +1475,8 @@ const {
   documentRevision,
   instance: renderTargetInstance,
   activeFaceKey,
-  renderContext,
+  resourceRootPath: renderResourceRootPath,
+  renderEnvironment,
 })
 watch(renderPipelineResult, (result) => {
   if (result && result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)

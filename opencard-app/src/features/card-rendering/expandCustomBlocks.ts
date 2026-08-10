@@ -33,17 +33,6 @@ function clone<T>(value: T): T {
   }
 }
 
-function resolveBundledResources(block: CardBlock, packageKey: string, resourceUrls?: ReadonlyMap<string, string>): void {
-  const prefix = `ocblock:${packageKey}/`
-  if (block.type === 'image-block' && block.image.toLowerCase().startsWith(prefix.toLowerCase())) {
-    const archivePath = block.image.slice(prefix.length)
-    const url = resourceUrls?.get(archivePath.toLowerCase())
-    if (url) block.image = url
-  }
-  if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
-  for (const child of block.children) resolveBundledResources(child.block, packageKey, resourceUrls)
-}
-
 function namespaceDescendantIds(block: CardBlock, instanceId: string, root = true): void {
   if (root) block.id = instanceId
   else block.id = `${instanceId}::block:${block.id}`
@@ -57,7 +46,6 @@ function namespaceDescendantIds(block: CardBlock, instanceId: string, root = tru
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
-  options: { resolveRuntimeResources?: boolean } = {},
 ): { document: CardDocument; issues: CustomBlockExpansionIssue[]; hosts: ReadonlyMap<string, CustomBlockExpansionHost> } {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
   const issues: CustomBlockExpansionIssue[] = []
@@ -100,9 +88,6 @@ export function expandCustomBlocks(
       hasResourceErrors: entry.hasResourceErrors === true,
     })
     const root = clone(entry.manifest.root) as CardBlock
-    if (options.resolveRuntimeResources !== false) {
-      resolveBundledResources(root, entry.manifest.key, entry.resourceUrls)
-    }
     namespaceDescendantIds(root, block.id)
     if (block.name !== undefined) root.name = block.name
     if (block.notes !== undefined) root.notes = block.notes

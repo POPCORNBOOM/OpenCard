@@ -1,13 +1,6 @@
 import type { CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
-import type { CardPipelineIssue } from '../card-rendering/cardPipelineIssue'
-import type { RenderReadyCardFace } from '../card-rendering/render.types'
-import type { CardRenderEnvironment } from '../card-rendering/renderPipeline'
+import type { CardRenderEnvironment, PreparedCardRender } from '../card-rendering/renderPipeline'
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
-
-export type ExportRendererContext = Pick<
-  CardRenderEnvironment,
-  'remoteResourcePolicy' | 'projectIconCatalog'
->
 
 export type ExportTaskValidationCode =
   | 'documents-required'
@@ -37,10 +30,8 @@ export type ExportPlanEntry = {
   key: string
   sourcePath: string
   outputPath: string
-  resourceRootPath: string
-  rendererContext: ExportRendererContext
-  face: RenderReadyCardFace
-  issues: readonly CardPipelineIssue[]
+  faceKey: CardFaceKey
+  render: PreparedCardRender
 }
 
 export type ExportPlan = {
@@ -87,9 +78,8 @@ export type ExportRunResult = {
 export type ExportRenderRequest = {
   sourcePath: string
   outputPath: string
-  resourceRootPath: string
-  rendererContext: ExportRendererContext
-  face: RenderReadyCardFace
+  faceKey: CardFaceKey
+  render: PreparedCardRender
   scale: number
 }
 

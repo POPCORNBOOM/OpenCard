@@ -270,13 +270,11 @@
     <!-- 隐藏的导出渲染器 -->
     <div v-if="showExportRenderer" style="position: fixed; top: -9999px; left: -9999px;">
       <CardFaceRenderer
-        v-if="exportCardFace"
+        v-if="exportCardFace && exportResourceContext"
         ref="exportRendererRef"
         :face="exportCardFace"
         :clip-to-face="true"
-        :resource-root-path="exportResourceRootPath"
-        :remote-resource-policy="exportRemoteResourcePolicy"
-        :project-icon-catalog="exportProjectIconCatalog"
+        :resource-context="exportResourceContext"
       />
     </div>
 
@@ -892,9 +890,7 @@ watch(projectPath, (nextPath, previousPath) => {
 const {
   showExportRenderer,
   exportCardFace,
-  exportResourceRootPath,
-  exportRemoteResourcePolicy,
-  exportProjectIconCatalog,
+  exportResourceContext,
   isRunning: isProjectExportRunning,
   loadDocumentSnapshot,
   prepare: prepareProjectExport,

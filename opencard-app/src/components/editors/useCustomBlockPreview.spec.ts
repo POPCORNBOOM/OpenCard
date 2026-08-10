@@ -8,6 +8,7 @@ import type {
   ProjectCustomBlockRegistryDocument,
 } from '../../features/workspace/model/projectCustomBlocks'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../../features/workspace/services/projectIconCatalog'
+import { resolveCardAssetSrc } from '../../features/card-rendering/cardRenderResources'
 import { useCustomBlockPreview } from './useCustomBlockPreview'
 
 function createEntry(key: string, path: string): ProjectCustomBlockCatalogEntry {
@@ -58,10 +59,11 @@ function createHarness(initialCatalog = true) {
     document,
     catalog,
     renderEnvironment,
+    resourceRootPath: ref('D:/Project'),
     translate: key => key,
     hasMessage: () => false,
   })
-  return { catalog, document, first, second, preview }
+  return { catalog, document, first, renderEnvironment, second, preview }
 }
 
 describe('useCustomBlockPreview', () => {
@@ -105,6 +107,30 @@ describe('useCustomBlockPreview', () => {
     expect(JSON.stringify(document.value)).toBe(originalDocument)
     preview.resetActiveValues()
     expect(preview.activeValues.value.label).toBe('Ready')
+  })
+
+  it('uses the shared renderer resource context for packaged images', async () => {
+    const { first, preview, renderEnvironment } = createHarness()
+    first.manifest.root = createBlock('image-block', {
+      id: 'first-root',
+      image: 'ocblock:first/resources/images/a.png',
+    })
+    renderEnvironment.value = {
+      ...renderEnvironment.value,
+      customBlockCatalog: new Map([['first', {
+        ...first,
+        resourceUrls: new Map([['resources/images/a.png', 'blob:controlled-preview']]),
+      }]]),
+    }
+    await nextTick()
+
+    const host = preview.previewFace.value?.children[0]?.block
+    const image = host?.type === 'custom-block' ? host.content : null
+    expect(image?.type === 'image-block' ? image.image : null)
+      .toBe('ocblock:first/resources/images/a.png')
+    expect(preview.previewResources.value
+      ? resolveCardAssetSrc('ocblock:first/resources/images/a.png', preview.previewResources.value)
+      : null).toBe('blob:controlled-preview')
   })
 
   it('selects the neighboring path after removal and recovers from a delayed catalog', async () => {

@@ -30,12 +30,12 @@ import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import {
-  resolveCdePropertyFields,
-  type CdePropertyEditorInput,
-  type CdePropertyFieldDefinition,
-} from './cdePropertyFieldDefinitions'
+  resolveCardPropertyFields,
+  type CardPropertyEditorInput,
+  type CardPropertyFieldDefinition,
+} from '../card-properties/cardPropertyFieldDefinitions'
 
-export type { CdePropertyEditorInput, CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
+export type { CardPropertyEditorInput, CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 
 type CardLocationInfo = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
@@ -225,8 +225,8 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     labels?: Readonly<Record<string, string>>,
     customKeys: ReadonlySet<string> = new Set(),
     excludedKeys: ReadonlySet<string> = new Set(),
-  ): Record<string, CdePropertyFieldDefinition> {
-    const fields = resolveCdePropertyFields(record, {
+  ): Record<string, CardPropertyFieldDefinition> {
+    const fields = resolveCardPropertyFields(record, {
       allowDelete: options.selectedCardId.value === options.blueprintCardId,
       translate: options.translate,
       hasMessage: options.hasMessage,
@@ -237,8 +237,8 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return Object.fromEntries(Object.entries(fields).filter(([fieldKey]) => !excludedKeys.has(fieldKey)))
   }
 
-  const propertyInputs = computed<CdePropertyEditorInput[]>(() => {
-    const inputs: CdePropertyEditorInput[] = []
+  const propertyInputs = computed<CardPropertyEditorInput[]>(() => {
+    const inputs: CardPropertyEditorInput[] = []
     const selectedBlock = options.selectedBlock.value
     const layout = selectedLayout.value
     const cardDoc = options.cardDoc.value

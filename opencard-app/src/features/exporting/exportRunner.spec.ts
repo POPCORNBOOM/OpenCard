@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardFace } from '../card-rendering/render.types'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import { createCardRenderResourceContext } from '../card-rendering/cardRenderResources'
 import { runExportPlan } from './exportRunner'
 import type { ExportDestination, ExportFaceRenderer, ExportPlan, ExportProgressEvent } from './exportTask'
 
 const face: RenderReadyCardFace = {
   type: 'card-face', id: 'front', faceKey: 'front', width: 540, height: 850, background: '#fff', children: [],
+}
+const backFace: RenderReadyCardFace = { ...face, id: 'back', faceKey: 'back' }
+const render = {
+  document: {
+    type: 'card-document' as const,
+    id: 'document', name: 'Document', version: '1', description: '', notes: '',
+    faces: { front: face, back: backFace },
+  },
+  issues: [],
+  resources: createCardRenderResourceContext({ projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG }),
 }
 
 function plan(errorPolicy: 'continue' | 'stop' = 'continue'): ExportPlan {
@@ -17,8 +28,7 @@ function plan(errorPolicy: 'continue' | 'stop' = 'continue'): ExportPlan {
     outputDirectory: 'D:/exports',
     entries: [0, 1].map(index => ({
       key: String(index), sourcePath: 'cards/main.ocdocument',
-      outputPath: `D:/exports/card_${index}.png`, resourceRootPath: 'D:/project/cards', face, issues: [],
-      rendererContext: { projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG },
+      outputPath: `D:/exports/card_${index}.png`, faceKey: 'front' as const, render,
     })),
   }
 }

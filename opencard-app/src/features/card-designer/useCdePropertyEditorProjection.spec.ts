@@ -7,7 +7,7 @@ import {
 } from '../../entities/card/model'
 import { buildParentLookup } from '../../entities/card/tree'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
-import type { CdePropertyEditorInput } from './cdePropertyFieldDefinitions'
+import type { CardPropertyEditorInput } from '../card-properties/cardPropertyFieldDefinitions'
 import { useCdePropertyEditorProjection } from './useCdePropertyEditorProjection'
 import { setProjectFonts } from '../workspace/model/projectFonts'
 
@@ -52,7 +52,7 @@ function createHarness() {
       data: { text: { content: 'Instance content' } },
     }],
   }
-  const rawPropertyInputs = ref<readonly CdePropertyEditorInput[]>([{
+  const rawPropertyInputs = ref<readonly CardPropertyEditorInput[]>([{
     key: text.id,
     record: { ...text, image: '' } as unknown as Record<string, unknown>,
     fields: {

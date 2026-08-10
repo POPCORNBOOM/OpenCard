@@ -6,10 +6,24 @@ import {
   type CardDocument,
   type CardInstanceRecord,
 } from '../../entities/card/model'
-import { runRenderPipeline } from './renderPipeline'
+import { prepareCardRender, type RenderPipelineContext } from './renderPipeline'
 import {
   createDefaultProjectInformation,
 } from '../workspace/model/projectMetadata'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+
+function render(
+  document: CardDocument,
+  instance: CardInstanceRecord | null,
+  context: RenderPipelineContext = {},
+) {
+  return prepareCardRender({
+    document,
+    instance,
+    resourceRootPath: null,
+    environment: { ...context, projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG },
+  })
+}
 
 function createDocument(
   block: CardBlock = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' }),
@@ -44,8 +58,8 @@ describe('renderPipeline', () => {
       }],
     })
 
-    const unpackaged = runRenderPipeline(createDocument(createContainer()), null)
-    const packaged = runRenderPipeline(createDocument(createContainer('true')), null)
+    const unpackaged = render(createDocument(createContainer()), null)
+    const packaged = render(createDocument(createContainer('true')), null)
 
     expect(packaged.document).toEqual(unpackaged.document)
     expect(packaged.issues).toEqual(unpackaged.issues)
@@ -61,7 +75,7 @@ describe('renderPipeline', () => {
       data: { text: { content: '{{document:name}}' } },
     }
 
-    const result = runRenderPipeline(document, instance)
+    const result = render(document, instance)
 
     expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'Document' })
     expect(result.document.faces.back).toMatchObject({ faceKey: 'back', children: [] })
@@ -82,7 +96,7 @@ describe('renderPipeline', () => {
       data: { text: { content: '{{invalid}}' } },
     }
 
-    const result = runRenderPipeline(createDocument(block), instance)
+    const result = render(createDocument(block), instance)
 
     expect(result.issues).toEqual([
       expect.objectContaining({
@@ -108,7 +122,7 @@ describe('renderPipeline', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:name}}' })
     const project = createDefaultProjectInformation('OpenCard Demo')
 
-    const result = runRenderPipeline(createDocument(block), null, { project })
+    const result = render(createDocument(block), null, { project })
 
     expect(result.document.faces.front.children[0]!.block).toMatchObject({ content: 'OpenCard Demo' })
     expect(result.issues).toEqual([])
@@ -122,7 +136,7 @@ describe('renderPipeline', () => {
     const project = createDefaultProjectInformation('OpenCard Demo')
     project.description = 'Reusable cards'
 
-    const result = runRenderPipeline(document, null, { project })
+    const result = render(document, null, { project })
 
     expect(result.document).toMatchObject({
       name: 'OpenCard Demo',
@@ -132,7 +146,7 @@ describe('renderPipeline', () => {
     expect(result.issues).toEqual([])
 
     document.name = '{{document:version}}'
-    const rejected = runRenderPipeline(document, null, { project })
+    const rejected = render(document, null, { project })
     expect(rejected.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.binding.field-not-allowed',
       location: expect.objectContaining({ fieldKey: 'name' }),
@@ -143,7 +157,7 @@ describe('renderPipeline', () => {
   it('reports a missing project context without reading global state', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:name}}' })
 
-    const result = runRenderPipeline(createDocument(block), null)
+    const result = render(createDocument(block), null)
 
     expect(result.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.binding.source-not-found',
@@ -153,7 +167,7 @@ describe('renderPipeline', () => {
 
   it('resolves saved dictionary values', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{dictionary:title}}' })
-    const result = runRenderPipeline(createDocument(block), null, {
+    const result = render(createDocument(block), null, {
       dictionary: { title: 'English title' },
     })
 
@@ -165,7 +179,7 @@ describe('renderPipeline', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: '{{project:entry}}' })
     const project = createDefaultProjectInformation('Demo')
 
-    const result = runRenderPipeline(createDocument(block), null, { project })
+    const result = render(createDocument(block), null, { project })
 
     expect(result.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.binding.field-not-found',
@@ -181,7 +195,7 @@ describe('renderPipeline', () => {
     Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
     const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
     root.additionalFieldDefinition = { label: { fieldType: 'string' } }
-    const result = runRenderPipeline(createDocument(host), null, {
+    const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
           key: 'label', interfaceHash: 'hash', root,
@@ -201,7 +215,7 @@ describe('renderPipeline', () => {
   it('reports packaged resource degradation on the host without exposing resource identity', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
     Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
-    const result = runRenderPipeline(createDocument(host), null, {
+    const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
           key: 'label', interfaceHash: 'hash', root: createTextBlock({ id: 'root', content: 'Fallback' }),
@@ -232,7 +246,7 @@ describe('renderPipeline', () => {
       }],
     })
 
-    const result = runRenderPipeline(createDocument(host), null, {
+    const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
           key: 'label', interfaceHash: 'hash', root, publicFields: [],
@@ -259,7 +273,7 @@ describe('renderPipeline', () => {
   it('reports an unavailable custom block without exposing its source', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
     Object.assign(host, { type: 'custom-block', source: 'block:private-package', interfaceHash: 'secret-hash' })
-    const result = runRenderPipeline(createDocument(host), null)
+    const result = render(createDocument(host), null)
 
     expect(result.issues).toEqual([
       expect.objectContaining({

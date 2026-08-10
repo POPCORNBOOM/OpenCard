@@ -14,9 +14,9 @@ import type {
   RenderReadyCardFace,
 } from '../card-rendering/render.types'
 import {
-  runRenderPipeline,
-  type RenderPipelineContext,
-  type RenderPipelineResult,
+  prepareCardRender,
+  type CardRenderEnvironment,
+  type PreparedCardRender,
 } from '../card-rendering/renderPipeline'
 
 type UseCdeRenderProjectionOptions = {
@@ -24,26 +24,29 @@ type UseCdeRenderProjectionOptions = {
   documentRevision: Readonly<Ref<number>>
   instance: Readonly<Ref<CardInstanceRecord | null>>
   activeFaceKey: Readonly<Ref<CardFaceKey>>
-  renderContext: Readonly<Ref<RenderPipelineContext>>
+  resourceRootPath: Readonly<Ref<string | null>>
+  renderEnvironment: Readonly<Ref<Readonly<CardRenderEnvironment>>>
 }
 
 export function useCdeRenderProjection(options: UseCdeRenderProjectionOptions) {
-  const renderPipelineResult = computed<RenderPipelineResult | null>(() => {
+  const preparedRender = computed<PreparedCardRender | null>(() => {
     options.documentRevision.value
     const document = options.cardDoc.value
     if (!document) return null
-    return runRenderPipeline(
+    return prepareCardRender({
       document,
-      options.instance.value,
-      options.renderContext.value,
-    )
+      instance: options.instance.value,
+      resourceRootPath: options.resourceRootPath.value,
+      environment: options.renderEnvironment.value,
+    })
   })
   const viewDocument = computed<RenderReadyCardDocument | null>(() => (
-    renderPipelineResult.value?.document ?? null
+    preparedRender.value?.document ?? null
   ))
   const viewFace = computed<RenderReadyCardFace | null>(() => (
     viewDocument.value?.faces[options.activeFaceKey.value] ?? null
   ))
+  const renderResources = computed(() => preparedRender.value?.resources ?? null)
 
   function findViewBlock(blockId: string): RenderReadyCardBlock | null {
     const face = viewFace.value
@@ -52,7 +55,8 @@ export function useCdeRenderProjection(options: UseCdeRenderProjectionOptions) {
 
   return {
     findViewBlock,
-    renderPipelineResult,
+    renderPipelineResult: preparedRender,
+    renderResources,
     viewDocument,
     viewFace,
   }

@@ -19,18 +19,18 @@ import type {
   ReferenceCompletionContext,
   ReferenceCompletionScope,
 } from '../editor-runtime/services/referenceCompletion'
-import type { CdePropertyFieldDefinition } from './cdePropertyFieldDefinitions'
+import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 import {
   createCdeCardReferenceScope,
   createCdeDictionaryReferenceScope,
   createCdeProjectReferenceScope,
-  enrichCdePropertyFieldDefinition,
+  enrichCardPropertyFieldDefinition,
   type CdePropertyProjectContext,
 } from './cdePropertyFieldEnrichment'
 
 type CellFieldInput = {
   key: string
-  definition: CdePropertyFieldDefinition
+  definition: CardPropertyFieldDefinition
 }
 
 type CellIdentityInput = {
@@ -86,7 +86,7 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
         ([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey),
       )),
     } as Record<string, unknown>
-    const definition = enrichCdePropertyFieldDefinition({
+    const definition = enrichCardPropertyFieldDefinition({
       definition: canOverride
         ? field.definition
         : { ...field.definition, isReadonly: true, resettable: false },
