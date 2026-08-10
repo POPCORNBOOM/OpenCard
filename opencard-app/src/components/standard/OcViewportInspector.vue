@@ -2,7 +2,7 @@
   <section ref="rootRef" class="oc-viewport-inspector"
     :class="{ 'is-expanded': expanded }"
     :style="rootStyle">
-    <OcResizeTrack v-if="expanded" class="oc-viewport-inspector__resizebar"
+    <OcResizeTrack class="oc-viewport-inspector__resizebar"
       :minimum="minimumHeight"
       :maximum="maximumHeight"
       :value="actualHeight"
@@ -11,10 +11,12 @@
       direction="reverse"
       edge="top"
       placement="outside"
+      :disabled="!expanded"
       @resize-start="handleResizeStart"
       @update:value="updateHeight"
       @resize="handleResize"
       @resize-cancel="handleResizeCancel"
+      @double-click="toggleExpanded"
     />
     <OcCard fill variant="glass" :title="heading" :actions="cardActions" :collapsed="!expanded"
       @action="handleAction">
@@ -73,10 +75,14 @@ const cardActions = computed<OcCardAction[]>(() => [
 
 function handleAction(payload: { key: string }): void {
   if (payload.key === TOGGLE_ACTION_KEY) {
-    emit('update:expanded', !props.expanded)
+    toggleExpanded()
     return
   }
   emit('action', payload)
+}
+
+function toggleExpanded(): void {
+  emit('update:expanded', !props.expanded)
 }
 
 function handleResizeStart(): void {

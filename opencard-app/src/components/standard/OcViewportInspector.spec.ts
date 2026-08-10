@@ -63,6 +63,21 @@ describe('OcViewportInspector', () => {
     expect(wrapper.emitted('update:expanded')).toEqual([[false]])
   })
 
+  it('keeps the outside handle mounted and toggles collapse from double click', async () => {
+    const { wrapper } = await mountInspector()
+    const track = wrapper.getComponent({ name: 'OcResizeTrack' })
+
+    track.vm.$emit('double-click', new MouseEvent('dblclick'))
+    expect(wrapper.emitted('update:expanded')).toContainEqual([false])
+
+    await wrapper.setProps({ expanded: false })
+    expect(wrapper.findComponent({ name: 'OcResizeTrack' }).exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'OcResizeTrack' }).props('disabled')).toBe(true)
+    expect(wrapper.getComponent({ name: 'OcCard' }).props('collapsed')).toBe(true)
+    track.vm.$emit('double-click', new MouseEvent('dblclick'))
+    expect(wrapper.emitted('update:expanded')).toContainEqual([true])
+  })
+
   it('resizes upward with pointer capture and clamps to the visible viewport contract', async () => {
     const { handle, wrapper } = await mountInspector()
 
