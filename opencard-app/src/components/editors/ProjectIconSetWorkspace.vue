@@ -1,6 +1,6 @@
 <template>
-  <div class="project-icon-set-workspace" :class="{ 'is-empty': series.icons.length === 0 }">
-    <div v-if="series.icons.length === 0" class="project-icon-set-workspace__empty">
+  <div class="project-icon-set-workspace" :class="{ 'is-empty': displayIcons.length === 0 }">
+    <div v-if="displayIcons.length === 0" class="project-icon-set-workspace__empty">
       <OcIcon name="tool.box-cutter" size="lg" tone="muted" />
       <OcText as="strong">{{ t('projectConfig.icons.noCropRecords') }}</OcText>
       <OcText class="project-icon-set-workspace__empty-hint" tone="muted" size="sm">
@@ -30,13 +30,16 @@
           :action-overflow-title="t('projectConfig.icons.iconActions')"
           :selected-keys="selectedTreeKeys" selection-mode="multiple" @intent="handleTreeIntent" />
         <OcEmpty v-else tone="muted">
-          {{ series.icons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
+          {{ displayIcons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
         </OcEmpty>
       </div>
     </div>
     <div class="project-icon-set-workspace__property-pane">
-      <PropertyEditor v-if="selectedIcon" ref="propertyEditorRef" :inputs="iconPropertyInputs"
-        :categories="iconPropertyCategories" sort-mode="category" @update-property="updateIconProperty" />
+      <PropertyEditor v-if="propertyInputs.length || comparisonPropertyInputs.length" ref="propertyEditorRef"
+        :inputs="propertyInputs"
+        :categories="iconPropertyCategories" sort-mode="category"
+        :comparison-inputs="comparison ? comparisonPropertyInputs : readOnly ? propertyInputs : undefined"
+        @update-property="updateIconProperty" />
       <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
     </div>
     </template>
@@ -48,6 +51,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   duplicateProjectIcon,
+  DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   moveProjectIcon,
   PROJECT_ICON_ROTATIONS,
   type ProjectIcon,
@@ -65,6 +69,7 @@ import type {
   PropertyEditorMutation,
 } from '../../shared/ui/property-editor/propertyEditor.types'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import { orderedPair } from '../../shared/model/orderedPair'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
@@ -77,7 +82,12 @@ import OcTree from '../standard/OcTree.vue'
 const props = defineProps<{
   series: ProjectIconSeries
   runtime: ProjectIconSeriesRuntime | null
+  comparisonSeries?: ProjectIconSeries
+  comparisonRuntime?: ProjectIconSeriesRuntime | null
+  comparison?: boolean
+  currentMissing?: boolean
   selectedIconIndexes: readonly number[]
+  readOnly?: boolean
 }>()
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries]
@@ -87,15 +97,29 @@ const { t } = useI18n()
 const propertyEditorRef = ref<InstanceType<typeof PropertyEditor> | null>(null)
 const filterQuery = ref('')
 
+const displayIcons = computed<readonly ProjectIcon[]>(() => {
+  const current = [...props.series.icons]
+  if (!props.comparison) return current
+  return orderedPair(props.comparisonSeries?.icons ?? [], current,
+    icon => icon.iconKey.toLocaleLowerCase())
+    .flatMap(pair => pair.rightItem ? [pair.rightItem] : pair.leftItem ? [pair.leftItem] : [])
+})
 const selectedIconIndexes = computed(() => props.selectedIconIndexes.filter(index => (
-  Number.isInteger(index) && index >= 0 && index < props.series.icons.length
+  Number.isInteger(index) && index >= 0 && index < displayIcons.value.length
 )))
 const selectedIconIndex = computed(() => selectedIconIndexes.value[0] ?? null)
-const selectedIcon = computed(() => selectedIconIndex.value === null
-  ? null
-  : props.series.icons[selectedIconIndex.value] ?? null)
+const selectedIconKey = computed(() => selectedIconIndex.value === null
+  ? null : displayIcons.value[selectedIconIndex.value]?.iconKey ?? null)
+function findIcon(series: ProjectIconSeries | undefined, key: string | null): ProjectIcon | null {
+  if (!series || key === null) return null
+  return series.icons.find(icon => icon.iconKey.toLocaleLowerCase() === key.toLocaleLowerCase()) ?? null
+}
+const selectedIcon = computed(() => findIcon(props.series, selectedIconKey.value))
+const comparisonIcon = computed(() => findIcon(props.comparisonSeries, selectedIconKey.value))
 const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
   ['identity', { title: t('projectConfig.icons.identity'), icon: 'data.symbol-class' }],
+  ['source', { title: t('projectConfig.icons.file'), icon: 'file.image' }],
+  ['grid', { title: t('projectConfig.icons.gridSettings'), icon: 'tool.grid' }],
   ['crop', { title: t('projectConfig.icons.crop'), icon: 'tool.box-cutter' }],
   ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
 ]))
@@ -108,14 +132,12 @@ const iconTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(()
   ['delete', { title: t('projectConfig.icons.removeIcon'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 
-function catalogEntry(index: number): ProjectIconCatalogEntry | null {
-  const icon = props.series.icons[index]
-  const runtime = props.runtime
+function catalogEntry(icon: ProjectIcon, series: ProjectIconSeries, runtime: ProjectIconSeriesRuntime | null): ProjectIconCatalogEntry | null {
   if (!icon || !runtime || icon.x + icon.width > runtime.imageWidth
     || icon.y + icon.height > runtime.imageHeight) return null
   return {
     ...icon,
-    seriesKey: props.series.key,
+    seriesKey: series.key,
     source: runtime.source,
     src: runtime.src,
     imageWidth: runtime.imageWidth,
@@ -125,8 +147,8 @@ function catalogEntry(index: number): ProjectIconCatalogEntry | null {
 
 const filteredIconIndexes = computed(() => {
   const query = filterQuery.value.trim().toLocaleLowerCase()
-  if (!query) return props.series.icons.map((_, index) => index)
-  return props.series.icons.flatMap((icon, index) => (
+  if (!query) return displayIcons.value.map((_, index) => index)
+  return displayIcons.value.flatMap((icon, index) => (
     icon.name.toLocaleLowerCase().includes(query) || icon.iconKey.toLocaleLowerCase().includes(query)
       ? [index]
       : []
@@ -138,22 +160,34 @@ const iconTreeData = computed<OcTreeData>(() => {
     rootKeys,
     items: new Map(filteredIconIndexes.value.map(index => {
       const key = `icon:${index}`
-      const icon = props.series.icons[index]!
-      const entry = catalogEntry(index)
+      const icon = displayIcons.value[index]!
+      const current = findIcon(props.series, icon.iconKey)
+      const historical = findIcon(props.comparisonSeries, icon.iconKey)
+      const entry = current && props.runtime
+        ? catalogEntry(current, props.series, props.runtime)
+        : historical && props.comparisonSeries && props.comparisonRuntime
+          ? catalogEntry(historical, props.comparisonSeries, props.comparisonRuntime)
+          : null
       return [key, {
         label: icon.name,
         ...(entry
           ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
           : { icon: 'file.image' as const }),
-        draggable: true,
-        actions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
-        contextActions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        changeMarkers: props.comparison && JSON.stringify(current) !== JSON.stringify(historical)
+          ? [
+              ...(historical ? [{ icon: 'status.change-removed' as const, tone: 'danger' as const }] : []),
+              ...(current ? [{ icon: 'status.change-added' as const, tone: 'success' as const }] : []),
+            ]
+          : undefined,
+        draggable: !props.readOnly,
+        actions: props.readOnly ? [] : ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        contextActions: props.readOnly ? [] : ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
         disabledActions: new Map([
           ...(index === 0 ? [
             ['move-top', t('projectConfig.icons.alreadyAtTop')],
             ['move-up', t('projectConfig.icons.alreadyAtTop')],
           ] as const : []),
-          ...(index === props.series.icons.length - 1 ? [
+          ...(index === displayIcons.value.length - 1 ? [
             ['move-down', t('projectConfig.icons.alreadyAtBottom')],
             ['move-bottom', t('projectConfig.icons.alreadyAtBottom')],
           ] as const : []),
@@ -164,11 +198,36 @@ const iconTreeData = computed<OcTreeData>(() => {
   }
 })
 const selectedTreeKeys = computed(() => selectedIconIndexes.value.map(index => `icon:${index}`))
-const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
-  const icon = selectedIcon.value
-  if (!icon || selectedIconIndex.value === null) return []
+function createSeriesPropertyInput(series: ProjectIconSeries | undefined, key: string | null): PropertyEditorInput[] {
+  if (!series || key === null) return []
+  const grid = series.grid ?? DEFAULT_PROJECT_ICON_GRID_SETTINGS
   return [{
-    key: `icon:${selectedIconIndex.value}`,
+    key: `series:${key.toLocaleLowerCase()}`,
+    title: series.name,
+    record: {
+      name: series.name,
+      key: series.key,
+      source: series.source,
+      snapToGrid: String(grid.snapToGrid),
+      rows: String(grid.rows),
+      columns: String(grid.columns),
+      pixelated: String(grid.pixelated),
+    },
+    fields: {
+      name: { title: t('projectConfig.icons.iconSetName'), fieldType: 'string', category: 'identity', order: 1 },
+      key: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 2 },
+      source: { title: t('projectConfig.icons.file'), fieldType: 'string', category: 'source', order: 1 },
+      snapToGrid: { title: t('projectConfig.icons.snapToGrid'), fieldType: 'boolean', category: 'grid', order: 1 },
+      rows: { title: t('projectConfig.icons.rows'), fieldType: 'number', category: 'grid', order: 2 },
+      columns: { title: t('projectConfig.icons.columns'), fieldType: 'number', category: 'grid', order: 3 },
+      pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'grid', order: 4 },
+    },
+  }]
+}
+function createIconPropertyInputs(icon: ProjectIcon | null, identity: string | null): PropertyEditorInput[] {
+  if (!icon || identity === null) return []
+  return [{
+    key: `icon:${identity.toLocaleLowerCase()}`,
     title: icon.name,
     record: {
       iconKey: icon.iconKey,
@@ -179,6 +238,7 @@ const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
       height: String(icon.height),
       pixelated: String(icon.pixelated ?? false),
       rotation: `${icon.rotation ?? 0}°`,
+      atlasRotation: `${icon.atlasRotation ?? 0}°`,
     },
     fields: {
       iconKey: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 1, required: true, commitMode: 'blur' },
@@ -192,9 +252,21 @@ const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
         title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 2,
         options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
       },
+      atlasRotation: {
+        title: t('projectConfig.icons.atlasRotation'), fieldType: 'string', category: 'appearance', order: 3,
+        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
+      },
     },
   }]
-})
+}
+const propertyInputs = computed(() => [
+  ...(props.comparison ? createSeriesPropertyInput(props.currentMissing ? undefined : props.series, props.series.key) : []),
+  ...createIconPropertyInputs(selectedIcon.value, selectedIconKey.value),
+])
+const comparisonPropertyInputs = computed(() => [
+  ...createSeriesPropertyInput(props.comparisonSeries, props.series.key),
+  ...createIconPropertyInputs(comparisonIcon.value, selectedIconKey.value),
+])
 
 function treeIndex(key: string | null): number | null {
   if (!key?.startsWith('icon:')) return null
@@ -213,6 +285,7 @@ function handleTreeIntent(intent: OcTreeIntent): void {
       .filter((index): index is number => index !== null))
     return
   }
+  if (props.readOnly) return
   if (intent.type === 'move.request') {
     const fromIndex = treeIndex(intent.key)
     const targetIndex = treeIndex(intent.targetKey)
@@ -251,6 +324,7 @@ function moveIcon(fromIndex: number, toIndex: number): void {
 }
 
 function updateIcon(index: number, patch: Partial<ProjectIcon>): void {
+  if (props.readOnly) return
   const icon = props.series.icons[index]
   if (!icon) return
   const icons = [...props.series.icons]
@@ -265,10 +339,10 @@ function updateIconProperty(mutation: PropertyEditorMutation): void {
     updateIcon(index, { [mutation.fieldKey]: String(mutation.value) })
   } else if (mutation.fieldKey === 'pixelated') {
     updateIcon(index, { pixelated: mutation.value === true || mutation.value === 'true' })
-  } else if (mutation.fieldKey === 'rotation') {
+  } else if (mutation.fieldKey === 'rotation' || mutation.fieldKey === 'atlasRotation') {
     const value = Number(String(mutation.value).replace('°', ''))
     if ((PROJECT_ICON_ROTATIONS as readonly number[]).includes(value)) {
-      updateIcon(index, { rotation: value as ProjectIconRotation })
+      updateIcon(index, { [mutation.fieldKey]: value as ProjectIconRotation })
     }
   } else if (['x', 'y', 'width', 'height'].includes(mutation.fieldKey)) {
     updateIcon(index, { [mutation.fieldKey]: Number(mutation.value) })

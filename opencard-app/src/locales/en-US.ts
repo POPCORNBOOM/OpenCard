@@ -444,7 +444,7 @@ export default {
       importPackFailed: 'Could not import the icon pack. Check the file and project folder permissions.',
       exportPackFailed: 'Could not export the icon pack. Check the source image and destination path.',
       identity: 'Icon Details', crop: 'Crop', appearance: 'Appearance', referenceName: 'Reference name', iconName: 'Icon name',
-      width: 'Width', height: 'Height', rotation: 'Rotation', defaultIconName: 'Icon {index}',
+      width: 'Width', height: 'Height', rotation: 'Rotation', atlasRotation: 'Atlas rotation', defaultIconName: 'Icon {index}',
       rows: 'Rows', columns: 'Columns', gridSettings: 'Grid settings', autoFocusSelected: 'Auto-focus selected icon', snapToGrid: 'Snap to grid', showGrid: 'Show grid', pixelated: 'Pixelated',
       addSingleCrop: 'Add one icon crop', generateIcons: 'Crop icons using an even grid', gridPreview: 'Even-grid crop preview',
       factorConstraint: 'Require exact divisors', factorConstraintHelp: 'Rows must divide the image height; columns must divide the image width.',

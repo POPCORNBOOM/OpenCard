@@ -76,6 +76,59 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
   })
 
+  it('keeps the original workbench owner in read-only comparison mode', async () => {
+    const historicalSeries: ProjectIconSeries[] = [
+      {
+        ...series[0]!,
+        icons: [{ ...series[0]!.icons[0]!, name: 'Historical warning' }],
+      },
+      { name: 'Legacy icons', key: 'legacy', source: 'assets/icons/legacy.png', icons: [] },
+    ]
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: {
+        ...baseProps,
+        comparison: true,
+        comparisonSeries: historicalSeries,
+        comparisonResolveAssetSrc: (source: string) => `historical://${source}`,
+        readOnly: true,
+        projectIconCatalog,
+      },
+    })
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
+
+    expect(wrapper.findAll('.project-config-section__heading')).toHaveLength(3)
+    expect(wrapper.findAll('.project-icon-registry-workbench__change-markers')).toHaveLength(3)
+    expect(wrapper.findAllComponents(ProjectIconCropEditor)).toHaveLength(2)
+    expect(wrapper.findAllComponents(ProjectIconCropEditor)[0]?.props('runtime')).toMatchObject({
+      src: 'historical://assets/icons/status.png',
+    })
+    expect(wrapper.findAllComponents(ProjectIconCropEditor)[1]?.props('runtime')).toMatchObject({
+      src: 'asset://assets/icons/status.png',
+    })
+    const propertyInputs = wrapper.getComponent(ProjectIconSetWorkspace).props('series')
+    expect(propertyInputs.key).toBe('status')
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('comparisonSeries')).toEqual(historicalSeries[0])
+    expect(wrapper.find('button[aria-label="projectConfig.icons.createPack"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="projectConfig.icons.addSingleCrop"]').exists()).toBe(false)
+    expect(wrapper.emitted('update:series')).toBeUndefined()
+  })
+
+  it('uses the shared current-order pairing for removed series', async () => {
+    const historicalSeries: ProjectIconSeries[] = [
+      { name: 'Removed first', key: 'removed-first', source: 'assets/icons/removed-first.png', icons: [] },
+      series[0]!,
+      { name: 'Removed middle', key: 'removed-middle', source: 'assets/icons/removed-middle.png', icons: [] },
+      series[1]!,
+    ]
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: { ...baseProps, comparison: true, comparisonSeries: historicalSeries, readOnly: true },
+    })
+    expect(wrapper.findAll('.project-config-section__title').map(node => node.text())).toEqual([
+      'Removed first', 'Status icons', 'Removed middle', 'Action icons',
+    ])
+  })
+
   it('routes pack creation through the left title action', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: baseProps,

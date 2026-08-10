@@ -9,7 +9,7 @@
             <OcText tone="muted" size="sm">{{ description }}</OcText>
           </div>
         </div>
-        <div class="project-icon-registry-workbench__title-actions">
+        <div v-if="!readOnly" class="project-icon-registry-workbench__title-actions">
           <OcButton icon="action.add" variant="soft"
             :aria-label="t('projectConfig.icons.createPack')" @click="emit('create-pack')">
             {{ t('projectConfig.icons.createPack') }}
@@ -25,14 +25,18 @@
         {{ error }}
       </OcText>
       <div class="project-icon-registry-workbench__series-list">
-        <OcEmpty v-if="series.length === 0" tone="muted">{{ t('projectConfig.icons.empty') }}</OcEmpty>
-        <ProjectConfigSection v-for="(candidate, index) in series" :key="candidate.key"
+        <OcEmpty v-if="displaySeries.length === 0" tone="muted">{{ t('projectConfig.icons.empty') }}</OcEmpty>
+        <ProjectConfigSection v-for="(candidate, index) in displaySeries" :key="candidate.key"
           :section-id="`project-icon-series-${index}`" :heading="candidate.name"
           :description="candidate.source" :collapsed="selectedSeriesIndex !== index"
           :expand-label="t('projectConfig.sections.expand', { section: candidate.name })"
           :collapse-label="t('projectConfig.sections.collapse', { section: candidate.name })"
           @toggle="toggleSeries(index)">
           <template #heading-actions>
+            <span v-if="comparisonMarker(candidate)" class="project-icon-registry-workbench__change-markers">
+              <OcIcon v-if="comparisonMarker(candidate)?.historical" name="status.change-removed" size="sm" tone="danger" />
+              <OcIcon v-if="comparisonMarker(candidate)?.current" name="status.change-added" size="sm" tone="success" />
+            </span>
             <OcText as="span" tone="muted" size="sm">
               {{ t('projectConfig.icons.iconCount', { count: candidate.icons.length }) }}
             </OcText>
@@ -63,7 +67,11 @@
             @click.stop="removeSeries(index)" />
           </template>
           <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index" :ref="captureSetWorkspace"
-            :series="candidate" :runtime="selectedRuntime" :selected-icon-indexes="selectedIconIndexesForSeries"
+            :series="currentSeries ?? { ...candidate, icons: [] }" :runtime="currentRuntime"
+            :comparison-series="historicalSeries ?? undefined" :comparison-runtime="historicalRuntime"
+            :comparison="isComparison" :current-missing="isComparison && !currentSeries"
+            :selected-icon-indexes="selectedIconIndexesForSeries"
+            :read-only="readOnly"
             @update:series="updateSelectedSeries" @update:selected-icon-indexes="setSelectedIconIndexes" />
         </ProjectConfigSection>
       </div>
@@ -71,17 +79,31 @@
 
     <section class="project-icon-registry-workbench__right">
       <template v-if="selectedSeries">
-        <div class="project-icon-registry-workbench__atlas-pane">
-          <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
-            tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
-          <ProjectIconCropEditor fill :runtime="selectedRuntime" :icon="selectedIcon" :alt="selectedSeries.name"
-            :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
-            :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
-            :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
-            :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
-            :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
-            :read-only="readOnly"
-            @update:icon="updateSelectedIcon" @update:pixelated="updateGridSettings({ pixelated: $event })" />
+        <div class="project-icon-registry-workbench__atlas-pane" :class="{ 'is-comparison': isComparison }">
+          <section v-if="isComparison" class="project-icon-registry-workbench__compare-pane is-historical">
+            <header>A · {{ t('versioning.diff.historical') }}</header>
+            <ProjectIconCropEditor v-if="historicalSeries" fill :runtime="historicalRuntime" :icon="historicalIcon"
+              :alt="historicalSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+              :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+              :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+              :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
+              :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels" read-only />
+            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+          </section>
+          <section class="project-icon-registry-workbench__compare-pane">
+            <header v-if="isComparison">B · {{ t('versioning.diff.current') }}</header>
+            <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
+              tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
+            <ProjectIconCropEditor v-if="currentSeries" fill :runtime="currentRuntime" :icon="currentIcon"
+              :alt="currentSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+              :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+              :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+              :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
+              :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
+              :read-only="readOnly" @update:icon="updateSelectedIcon"
+              @update:pixelated="updateGridSettings({ pixelated: $event })" />
+            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+          </section>
           <OcOverlayToolbar class="project-icon-registry-workbench__grid-toolbar"
             :label="t('projectConfig.icons.gridSettings')">
             <OcButton v-if="!readOnly" icon-only size="sm" icon="tool.snap-grid" :active="gridSettings.snapToGrid"
@@ -102,11 +124,21 @@
             </OcFieldFrame>
           </OcOverlayToolbar>
         </div>
-        <div class="project-icon-registry-workbench__preview-pane">
-          <OcText as="strong">{{ selectedIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
-          <ProjectIconView v-if="selectedCatalogEntry" class="project-icon-registry-workbench__preview-icon"
-            :entry="selectedCatalogEntry" mode="preview" />
-          <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
+        <div class="project-icon-registry-workbench__preview-pane" :class="{ 'is-comparison': isComparison }">
+          <section v-if="isComparison">
+            <header>A · {{ t('versioning.diff.historical') }}</header>
+            <OcText as="strong">{{ historicalIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+            <ProjectIconView v-if="historicalCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+              :entry="historicalCatalogEntry" mode="preview" />
+            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+          </section>
+          <section>
+            <header v-if="isComparison">B · {{ t('versioning.diff.current') }}</header>
+            <OcText as="strong">{{ currentIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+            <ProjectIconView v-if="currentCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+              :entry="currentCatalogEntry" mode="preview" />
+            <OcEmpty v-else tone="muted">{{ isComparison ? t('versioning.diff.missing') : t('projectConfig.icons.noIconSelected') }}</OcEmpty>
+          </section>
         </div>
       </template>
       <div v-else class="project-icon-registry-workbench__placeholder">
@@ -117,7 +149,7 @@
 
     <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null" :name="settingsSeries?.name"
       :series-key="settingsSeries?.key" :source="settingsSeries?.source"
-      :existing-keys="series.map(candidate => candidate.key)"
+      :existing-keys="displaySeries.map(candidate => candidate.key)"
       @close="settingsSeriesIndex = null" @submit="saveIconSetSettings" />
     <ProjectIconGridDialog :open="gridDialogOpen" :has-icons="Boolean(selectedSeries?.icons.length)"
       :initial-rows="gridSettings.rows" :initial-columns="gridSettings.columns"
@@ -147,6 +179,7 @@ import {
   type ProjectIconCatalog,
   type ProjectIconCatalogEntry,
 } from '../../features/workspace/services/projectIconCatalog'
+import { orderedPair } from '../../shared/model/orderedPair'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldFrame from '../base/OcFieldFrame.vue'
@@ -164,7 +197,10 @@ const props = withDefaults(defineProps<{
   heading: string
   description: string
   series?: readonly ProjectIconSeries[]
+  comparison?: boolean
+  comparisonSeries?: readonly ProjectIconSeries[]
   resolveAssetSrc: (source: string) => string
+  comparisonResolveAssetSrc?: (source: string) => string
   projectIconCatalog?: ProjectIconCatalog
   error?: string
   readOnly?: boolean
@@ -183,49 +219,92 @@ const settingsSeriesIndex = ref<number | null>(null)
 const gridDialogOpen = ref(false)
 const setWorkspaceRef = ref<InstanceType<typeof ProjectIconSetWorkspace> | null>(null)
 const localCatalog = ref<ProjectIconCatalog>({ series: [], entries: [], errors: [] })
+const historicalCatalog = ref<ProjectIconCatalog>({ series: [], entries: [], errors: [] })
 let catalogVersion = 0
 let initialized = false
 
+const isComparison = computed(() => props.comparison === true)
+const displaySeries = computed<readonly ProjectIconSeries[]>(() => {
+  if (!isComparison.value) return props.series
+  return orderedPair(props.comparisonSeries ?? [], props.series,
+    candidate => candidate.key.toLocaleLowerCase())
+    .flatMap(pair => pair.rightItem ? [pair.rightItem] : pair.leftItem ? [pair.leftItem] : [])
+})
+function findSeriesByKey(seriesList: readonly ProjectIconSeries[] | undefined, key: string | null): ProjectIconSeries | null {
+  if (key === null) return null
+  return seriesList?.find(candidate => candidate.key.toLocaleLowerCase() === key.toLocaleLowerCase()) ?? null
+}
+function sameSeries(left: ProjectIconSeries | null, right: ProjectIconSeries | null): boolean {
+  return left !== null && right !== null && JSON.stringify(left) === JSON.stringify(right)
+}
+function comparisonMarker(candidate: ProjectIconSeries): { historical: boolean; current: boolean } | null {
+  if (!isComparison.value) return null
+  const current = findSeriesByKey(props.series, candidate.key)
+  const historical = findSeriesByKey(props.comparisonSeries, candidate.key)
+  if (sameSeries(current, historical)) return null
+  return { historical: historical !== null, current: current !== null }
+}
 const selectedSeriesIndex = computed(() => {
   if (selectedSeriesKey.value === null) return null
-  const index = props.series.findIndex(candidate => candidate.key === selectedSeriesKey.value)
+  const index = displaySeries.value.findIndex(candidate => candidate.key === selectedSeriesKey.value)
   return index >= 0 ? index : null
 })
 const selectedSeries = computed(() => selectedSeriesIndex.value === null
-  ? null : props.series[selectedSeriesIndex.value] ?? null)
-const selectedRuntime = computed(() => selectedSeries.value
-  ? findProjectIconSeries(localCatalog.value, selectedSeries.value.key)
-    ?? findProjectIconSeries(props.projectIconCatalog, selectedSeries.value.key)
+  ? null : displaySeries.value[selectedSeriesIndex.value] ?? null)
+const currentSeries = computed(() => findSeriesByKey(props.series, selectedSeriesKey.value))
+const historicalSeries = computed(() => findSeriesByKey(props.comparisonSeries, selectedSeriesKey.value))
+const currentRuntime = computed(() => currentSeries.value
+  ? findProjectIconSeries(localCatalog.value, currentSeries.value.key)
+    ?? findProjectIconSeries(props.projectIconCatalog, currentSeries.value.key)
   : null)
-const selectedIconIndex = computed(() => {
-  const current = selectedSeries.value
-  if (!current) return null
-  return selectedIconIndexes.value[current.key]?.find(index => current.icons[index]) ?? null
+const historicalRuntime = computed(() => historicalSeries.value
+  ? findProjectIconSeries(historicalCatalog.value, historicalSeries.value.key)
+  : null)
+const selectedRuntime = computed(() => currentRuntime.value ?? historicalRuntime.value)
+const displayIcons = computed<readonly ProjectIcon[]>(() => {
+  const current = [...(currentSeries.value?.icons ?? [])]
+  if (!isComparison.value) return current
+  return orderedPair(historicalSeries.value?.icons ?? [], current,
+    icon => icon.iconKey.toLocaleLowerCase())
+    .flatMap(pair => pair.rightItem ? [pair.rightItem] : pair.leftItem ? [pair.leftItem] : [])
 })
+const selectedIconIndex = computed(() => {
+  if (!selectedSeries.value) return null
+  return selectedIconIndexes.value[selectedSeries.value.key]?.find(index => displayIcons.value[index]) ?? null
+})
+const selectedIconKey = computed(() => selectedIconIndex.value === null
+  ? null : displayIcons.value[selectedIconIndex.value]?.iconKey ?? null)
+function findIconByKey(series: ProjectIconSeries | null, key: string | null): ProjectIcon | null {
+  if (key === null) return null
+  return series?.icons.find(icon => icon.iconKey.toLocaleLowerCase() === key.toLocaleLowerCase()) ?? null
+}
+const currentIcon = computed(() => selectedIconIndex.value === null
+  ? null : findIconByKey(currentSeries.value, selectedIconKey.value))
+const historicalIcon = computed(() => selectedIconIndex.value === null
+  ? null : findIconByKey(historicalSeries.value, selectedIconKey.value))
 const selectedIconIndexesForSeries = computed(() => (
   selectedSeries.value ? selectedIconIndexes.value[selectedSeries.value.key] ?? [] : []
 ))
-const selectedIcon = computed(() => selectedIconIndex.value === null
-  ? null : selectedSeries.value?.icons[selectedIconIndex.value] ?? null)
 const settingsSeries = computed(() => settingsSeriesIndex.value === null
-  ? null : props.series[settingsSeriesIndex.value] ?? null)
+  ? null : findSeriesByKey(props.series, displaySeries.value[settingsSeriesIndex.value]?.key ?? null))
 const gridSettings = computed<Readonly<ProjectIconGridSettings>>(() => (
   selectedSeries.value?.grid ?? DEFAULT_PROJECT_ICON_GRID_SETTINGS
 ))
-const selectedSeriesLoadError = computed(() => selectedSeries.value
+const selectedSeriesLoadError = computed(() => currentSeries.value
   ? [...localCatalog.value.errors, ...(props.projectIconCatalog?.errors ?? [])].some(error => (
-      error.seriesKey.toLocaleLowerCase() === selectedSeries.value!.key.toLocaleLowerCase()
+      error.seriesKey.toLocaleLowerCase() === currentSeries.value!.key.toLocaleLowerCase()
       && error.reason === 'load-failed'
     ))
   : false)
-const selectedCatalogEntry = computed<ProjectIconCatalogEntry | null>(() => {
-  const icon = selectedIcon.value
-  const runtime = selectedRuntime.value
+function toCatalogEntry(icon: ProjectIcon | null, series: ProjectIconSeries | null,
+  runtime: ReturnType<typeof findProjectIconSeries>): ProjectIconCatalogEntry | null {
   if (!icon || !runtime || icon.x + icon.width > runtime.imageWidth
     || icon.y + icon.height > runtime.imageHeight) return null
-  return { ...icon, seriesKey: selectedSeries.value!.key, source: runtime.source, src: runtime.src,
+  return { ...icon, seriesKey: series?.key ?? '', source: runtime.source, src: runtime.src,
     imageWidth: runtime.imageWidth, imageHeight: runtime.imageHeight }
-})
+}
+const currentCatalogEntry = computed(() => toCatalogEntry(currentIcon.value, currentSeries.value, currentRuntime.value))
+const historicalCatalogEntry = computed(() => toCatalogEntry(historicalIcon.value, historicalSeries.value, historicalRuntime.value))
 const conflicts = computed(() => findProjectIconKeyConflicts(props.series))
 const cropHandleLabels = computed<Record<ProjectIconCropHandle, string>>(() => Object.fromEntries(
   (['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l'] as const).map(handle => [
@@ -233,36 +312,56 @@ const cropHandleLabels = computed<Record<ProjectIconCropHandle, string>>(() => O
   ]),
 ) as Record<ProjectIconCropHandle, string>)
 
-watch(() => props.series, nextSeries => {
+watch(() => [props.series, props.comparisonSeries, isComparison.value] as const, () => {
   if (!initialized) {
-    selectedSeriesKey.value = nextSeries[0]?.key ?? null
+    selectedSeriesKey.value = displaySeries.value[0]?.key ?? null
     initialized = true
   } else if (selectedSeriesKey.value !== null
-    && !nextSeries.some(candidate => candidate.key === selectedSeriesKey.value)) {
-    selectedSeriesKey.value = nextSeries[0]?.key ?? null
+    && !displaySeries.value.some(candidate => candidate.key === selectedSeriesKey.value)) {
+    selectedSeriesKey.value = displaySeries.value[0]?.key ?? null
   }
   const nextSelections: Record<string, number[]> = {}
-  for (const candidate of nextSeries) {
+  for (const candidate of displaySeries.value) {
     const selected = selectedIconIndexes.value[candidate.key] ?? []
-    const valid = selected.filter(index => candidate.icons[index])
-    nextSelections[candidate.key] = valid.length ? valid : candidate.icons.length ? [0] : []
+    const current = findSeriesByKey(props.series, candidate.key)
+    const historical = findSeriesByKey(props.comparisonSeries, candidate.key)
+    const icons = orderedPair(historical?.icons ?? [], current?.icons ?? [],
+      icon => icon.iconKey.toLocaleLowerCase())
+      .flatMap(pair => pair.rightItem ? [pair.rightItem] : pair.leftItem ? [pair.leftItem] : [])
+    const valid = selected.filter(index => icons[index])
+    nextSelections[candidate.key] = valid.length ? valid : icons.length ? [0] : []
   }
   selectedIconIndexes.value = nextSelections
 }, { immediate: true })
-watch(() => selectedSeries.value ? `${selectedSeries.value.key}\u0000${selectedSeries.value.source}` : null,
-  async identity => {
-    const version = ++catalogVersion
-    if (identity === null || !selectedSeries.value) {
+watch(() => {
+  const current = currentSeries.value
+  const historical = historicalSeries.value
+  return `${current?.key ?? ''}\u0000${current?.source ?? ''}\u0000${historical?.key ?? ''}\u0000${historical?.source ?? ''}`
+}, async identity => {
+  const version = ++catalogVersion
+  const current = currentSeries.value
+  const historical = historicalSeries.value
+  if (!current && !historical) {
       localCatalog.value = { series: [], entries: [], errors: [] }
+    historicalCatalog.value = { series: [], entries: [], errors: [] }
       return
     }
-    const next = await buildProjectIconCatalog([selectedSeries.value], props.resolveAssetSrc)
-    if (version === catalogVersion) localCatalog.value = next
-  }, { immediate: true })
+  const [nextCurrent, nextHistorical] = await Promise.all([
+    current ? buildProjectIconCatalog([current], props.resolveAssetSrc)
+      : Promise.resolve({ series: [], entries: [], errors: [] }),
+    historical && props.comparisonResolveAssetSrc
+      ? buildProjectIconCatalog([historical], props.comparisonResolveAssetSrc)
+      : Promise.resolve({ series: [], entries: [], errors: [] }),
+  ])
+  if (identity !== `${currentSeries.value?.key ?? ''}\u0000${currentSeries.value?.source ?? ''}\u0000${historicalSeries.value?.key ?? ''}\u0000${historicalSeries.value?.source ?? ''}`
+    || version !== catalogVersion) return
+  localCatalog.value = nextCurrent
+  historicalCatalog.value = nextHistorical
+}, { immediate: true })
 watch(conflicts, value => emit('key-conflicts', value), { immediate: true })
 
 function selectSeriesByIndex(index: number): void {
-  const candidate = props.series[index]
+  const candidate = displaySeries.value[index]
   if (!candidate) return
   selectedSeriesKey.value = candidate.key
   if (selectedIconIndexes.value[candidate.key] == null && candidate.icons.length) {
@@ -278,8 +377,8 @@ function setSelectedIconIndexes(indexes: number[]): void {
 }
 function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
   if (props.readOnly) return
-  const index = selectedSeriesIndex.value
-  if (index === null) return
+  const index = props.series.findIndex(candidate => candidate.key === selectedSeriesKey.value)
+  if (index < 0) return
   const next = [...props.series]
   next[index] = nextSeries
   emit('update:series', next)
@@ -352,7 +451,7 @@ function generateIcons(request: ProjectIconGridRequest): void {
   gridDialogOpen.value = false
 }
 function openSettingsDialog(index: number): void {
-  if (props.series[index]) settingsSeriesIndex.value = index
+  if (displaySeries.value[index]) settingsSeriesIndex.value = index
 }
 function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
   const index = settingsSeriesIndex.value
@@ -384,7 +483,7 @@ function captureSetWorkspace(instance: unknown): void {
 }
 async function selectSeries(seriesKey: string): Promise<boolean> {
   await nextTick()
-  const index = props.series.findIndex(candidate => candidate.key === seriesKey)
+  const index = displaySeries.value.findIndex(candidate => candidate.key === seriesKey)
   if (index < 0) return false
   selectSeriesByIndex(index)
   return true
@@ -462,6 +561,28 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   background-size: var(--oc-viewport-dot-size);
   background-position: var(--oc-viewport-dot-position);
 }
+.project-icon-registry-workbench__atlas-pane.is-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.project-icon-registry-workbench__compare-pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.project-icon-registry-workbench__compare-pane + .project-icon-registry-workbench__compare-pane {
+  border-left: var(--oc-border-width) solid var(--oc-border-muted);
+}
+.project-icon-registry-workbench__compare-pane > header,
+.project-icon-registry-workbench__preview-pane section > header {
+  position: absolute;
+  top: var(--oc-space-2);
+  left: var(--oc-space-3);
+  z-index: var(--oc-z-overlay-toolbar);
+  color: var(--oc-text-muted);
+  font-size: var(--oc-text-xs);
+}
 .project-icon-registry-workbench__load-error {
   position: absolute; top: var(--oc-space-2); left: 50%; z-index: var(--oc-z-overlay-toolbar);
   transform: translateX(-50%);
@@ -484,6 +605,32 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   overflow: hidden;
   border-top: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
+}
+.project-icon-registry-workbench__preview-pane.is-comparison {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+  padding: 0;
+}
+.project-icon-registry-workbench__preview-pane section {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  gap: var(--oc-space-2);
+  padding: var(--oc-space-3);
+}
+.project-icon-registry-workbench__preview-pane section + section {
+  border-left: var(--oc-border-width) solid var(--oc-border-muted);
+}
+.project-icon-registry-workbench__change-markers {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oc-space-1);
+  margin-right: var(--oc-space-2);
 }
 .project-icon-registry-workbench__preview-icon {
   align-self: center;

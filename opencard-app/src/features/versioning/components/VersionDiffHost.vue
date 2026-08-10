@@ -157,6 +157,7 @@ import { parseProjectDictionaryText } from '../../workspace/model/projectDiction
 import { parseProjectMetadataText } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText } from '../../workspace/model/projectIconRegistry'
+import { findProjectIconKeyConflicts } from '../../workspace/model/projectIcons'
 import { parseProjectCustomBlockRegistryText } from '../../workspace/model/projectCustomBlocks'
 import { parseCardDocument } from '../../../entities/card/storage'
 
@@ -209,8 +210,7 @@ const fontRegistryFallback = computed(() => (
 const iconRegistryFallback = computed(() => (
   fileType.value.editorId === 'icon-registry'
   && Boolean(comparison.value)
-  && (!parseProjectIconRegistryText(comparison.value!.historicalContent)
-    || !parseProjectIconRegistryText(comparison.value!.currentContent))
+  && !isValidIconRegistryComparison(comparison.value!.historicalContent, comparison.value!.currentContent)
 ))
 const cardFallback = computed(() => (
   fileType.value.editorId === 'card-designer'
@@ -231,6 +231,14 @@ function isValidCardContent(content: string): boolean {
   } catch {
     return false
   }
+}
+
+function isValidIconRegistryComparison(historicalContent: string, currentContent: string): boolean {
+  const historical = parseProjectIconRegistryText(historicalContent)
+  const current = parseProjectIconRegistryText(currentContent)
+  return Boolean(historical && current
+    && findProjectIconKeyConflicts(historical.iconSeries).length === 0
+    && findProjectIconKeyConflicts(current.iconSeries).length === 0)
 }
 
 function snapshotPath(snapshot: SnapshotDescriptorDto): string {

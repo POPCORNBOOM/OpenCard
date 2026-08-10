@@ -59,4 +59,20 @@ describe('ProjectIconRegistryFileEditor', () => {
     })
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
   })
+
+  it('keeps the original workbench for a deleted current registry comparison', () => {
+    const historical = JSON.stringify({ iconSeries: [{
+      name: 'Historical icons', key: 'historical', source: 'icons/historical.png', icons: [],
+    }] })
+    const wrapper = mount(ProjectIconRegistryFileEditor, {
+      props: {
+        filePath: 'D:/current/.ocicons', fileName: '.ocicons', modelValue: '',
+        comparisonContent: historical, resourceRootPath: 'D:/current',
+        comparisonResourceRootPath: 'D:/historical', access: 'observe-only',
+      },
+    })
+    expect(wrapper.findComponent(ProjectIconRegistryWorkbench).exists()).toBe(true)
+    expect(wrapper.findComponent(ProjectIconRegistryWorkbench).props('series')).toEqual([])
+    expect(wrapper.findComponent(ProjectIconRegistryWorkbench).props('comparisonSeries')).toHaveLength(1)
+  })
 })

@@ -3,7 +3,7 @@ import { createI18n } from 'vue-i18n'
 import { describe, expect, it, vi } from 'vitest'
 import enUS from '../../../locales/en-US'
 
-const readFile = vi.hoisted(() => vi.fn(async (path: string) => (
+const readFile = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>(async (path: string) => (
   path.includes('historical') ? 'before' : 'after'
 )))
 vi.mock('../../workspace/services/fileSystemService', () => ({
@@ -112,5 +112,30 @@ describe('VersionDiffHost', () => {
     const restore = wrapper.findAll('button').find(button => button.text().includes('Restore this file'))!
     await restore.trigger('click')
     expect(wrapper.emitted('restore-file')).toHaveLength(1)
+  })
+
+  it('falls back to Monaco when icon identities are ambiguous', async () => {
+    const duplicateRegistry = JSON.stringify({ iconSeries: [
+      { name: 'One', key: 'duplicate', source: 'icons/one.png', icons: [] },
+      { name: 'Two', key: 'duplicate', source: 'icons/two.png', icons: [] },
+    ] })
+    readFile.mockResolvedValue(duplicateRegistry)
+    const wrapper = mount(VersionDiffHost, {
+      props: {
+        session: {
+          id: 'compare-icons', projectRoot: 'D:/project', projectId: 'project-id', generation: 1,
+          leaseId: 'd'.repeat(40), sourceSessionId: 'session-1', sourcePath: 'D:/project/.ocicons',
+          editorId: 'icon-registry', openedFromHistorySource: 'version', openedFromHistoryItemId: 'commit-1',
+          historical: { rootPath: 'D:/historical', relativePath: '.ocicons', completeness: 'project', exists: true },
+          current: { rootPath: 'D:/current', relativePath: '.ocicons', completeness: 'project', exists: true },
+        },
+        language: 'json', themeId: 'dark',
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+    await vi.waitFor(() => expect(wrapper.find('[data-test="comparison"]').exists()).toBe(true))
+    expect(wrapper.find('.snapshot-icon-registry-diff-editor').exists()).toBe(false)
   })
 })

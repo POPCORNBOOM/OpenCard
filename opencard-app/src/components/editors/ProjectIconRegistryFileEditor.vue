@@ -2,9 +2,12 @@
   <ProjectRegistryEditorShell icon="file.package-variant" content-mode="workspace" header-mode="hidden"
     :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
-    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
-      :description="t('iconRegistry.description')" :series="document.iconSeries"
+    <ProjectIconRegistryWorkbench v-if="document || comparisonDocument" ref="workbenchRef"
+      :heading="t('iconRegistry.title')" :description="t('iconRegistry.description')"
+      :series="document?.iconSeries" :comparison="props.comparisonContent !== undefined"
+      :comparison-series="comparisonDocument?.iconSeries"
       :resolve-asset-src="resolveAssetSrc" :project-icon-catalog="isObserveOnly ? undefined : projectStore.projectIconCatalog.value"
+      :comparison-resolve-asset-src="comparisonResolveAssetSrc"
       :read-only="isObserveOnly"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
@@ -75,6 +78,7 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const document = ref<ProjectIconRegistryDocument | null>(null)
+const comparisonDocument = ref<ProjectIconRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
 const registrationDialogOpen = ref(false)
@@ -91,6 +95,10 @@ const resolveAssetSrc = (source: string): string => {
   if (!isObserveOnly.value) return projectStore.resolveAssetSrc(source)
   const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
   return convertFileSrc(root ? `${root}/${source.replace(/^[/\\]+/, '')}` : projectStore.resolveProjectPath(source))
+}
+const comparisonResolveAssetSrc = (source: string): string => {
+  const root = props.comparisonResourceRootPath?.replace(/[/\\]+$/, '')
+  return convertFileSrc(root ? `${root}/${source.replace(/^[/\\]+/, '')}` : source)
 }
 const projectDirectory = computed(() => {
   const source = projectStore.projectPath.value || props.filePath
@@ -139,6 +147,9 @@ const issueSnapshot = computed<EditorIssueSnapshot>(() => ({
 watch(() => props.modelValue, content => {
   document.value = parseProjectIconRegistryText(content ?? '')
   if (!document.value) keyConflicts.value = []
+}, { immediate: true })
+watch(() => props.comparisonContent, content => {
+  comparisonDocument.value = content === undefined ? null : parseProjectIconRegistryText(content)
 }, { immediate: true })
 watch(issueSnapshot, snapshot => emit('issue-snapshot', snapshot), { immediate: true })
 

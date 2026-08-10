@@ -443,7 +443,7 @@ export default {
       importPackFailed: '图标包导入失败，请检查文件格式和项目目录权限。',
       exportPackFailed: '图标包导出失败，请检查源图片和目标路径。',
       identity: '图标信息', crop: '裁切范围', appearance: '显示方式', referenceName: '引用名称', iconName: '图标名称',
-      width: '宽度', height: '高度', rotation: '旋转', defaultIconName: '图标 {index}',
+      width: '宽度', height: '高度', rotation: '旋转', atlasRotation: '图集旋转', defaultIconName: '图标 {index}',
       rows: '行数', columns: '列数', gridSettings: '网格设置', autoFocusSelected: '自动聚焦选中图标', snapToGrid: '吸附到网格', showGrid: '显示网格', pixelated: '像素化',
       addSingleCrop: '新增单个图标裁切', generateIcons: '使用均分法裁切图标', gridPreview: '均分裁切预览',
       factorConstraint: '仅允许整除尺寸', factorConstraintHelp: '行数须整除图片高度，列数须整除图片宽度。',

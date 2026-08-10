@@ -49,6 +49,49 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
   })
 
+  it('keeps selection available while blocking icon mutations in read-only mode', () => {
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series, runtime, selectedIconIndexes: [0], readOnly: true },
+    })
+    const tree = wrapper.getComponent(OcTree)
+    expect(tree.props('data').items.get('icon:0')?.actions).toEqual([])
+    expect(tree.props('data').items.get('icon:0')?.draggable).toBe(false)
+    expect(wrapper.getComponent(PropertyEditor).props('comparisonInputs')).toEqual(
+      wrapper.getComponent(PropertyEditor).props('inputs'),
+    )
+
+    tree.vm.$emit('intent', {
+      type: 'action.invoke', key: 'icon:0', actionKey: 'delete', source: 'inline',
+    })
+    wrapper.getComponent(PropertyEditor).vm.$emit('update-property', {
+      key: 'icon:0', fieldKey: 'name', value: 'Alert',
+    })
+    expect(wrapper.emitted('update:series')).toBeUndefined()
+  })
+
+  it('pairs comparison fields and ordering by case-insensitive icon key', () => {
+    const comparisonSeries: ProjectIconSeries = {
+      ...series,
+      name: 'Historical status icons',
+      icons: [
+        { ...series.icons[0]!, iconKey: 'WARNING', name: 'Historical warning', x: 2 },
+        { iconKey: 'removed', name: 'Removed', x: 32, y: 0, width: 16, height: 16 },
+        series.icons[1]!,
+      ],
+    }
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series, runtime, comparisonSeries, comparisonRuntime: runtime,
+        comparison: true, readOnly: true, selectedIconIndexes: [0] },
+    })
+    expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual(['icon:0', 'icon:1', 'icon:2'])
+    expect(wrapper.getComponent(OcTree).props('data').items.get('icon:0')?.changeMarkers).toHaveLength(2)
+    expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Status icons')
+    expect(wrapper.getComponent(PropertyEditor).props('comparisonInputs')?.[0]?.record.name)
+      .toBe('Historical status icons')
+    expect(wrapper.getComponent(PropertyEditor).props('comparisonInputs')?.[1]?.record.name)
+      .toBe('Historical warning')
+  })
+
   it('filters by icon name or key while preserving original icon indexes', async () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndexes: [0] },
