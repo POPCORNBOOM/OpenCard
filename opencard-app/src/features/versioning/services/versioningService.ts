@@ -35,6 +35,8 @@ import type {
   VersionRecordDto,
   RestoreProjectRequest,
   RestoreProjectResponse,
+  PreviewRestoreRequest,
+  PreviewRestoreResponse,
 } from '../model/versioning'
 
 export interface VersioningService {
@@ -55,6 +57,7 @@ export interface VersioningService {
   releaseCompare(request: ReleaseCompareRequest): Promise<ReleaseCompareResponse>
   publishVersion(request: PublishVersionRequest): Promise<PublishVersionResponse>
   editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto>
+  previewRestore(request: PreviewRestoreRequest): Promise<PreviewRestoreResponse>
   restoreProject(request: RestoreProjectRequest): Promise<RestoreProjectResponse>
 }
 
@@ -125,6 +128,10 @@ class VersioningServiceImpl implements VersioningService {
 
   async editReleaseDescription(request: EditReleaseDescriptionRequest): Promise<VersionRecordDto> {
     return await invoke<VersionRecordDto>('version_edit_release_description', { request })
+  }
+
+  async previewRestore(request: PreviewRestoreRequest): Promise<PreviewRestoreResponse> {
+    return await invoke<PreviewRestoreResponse>('version_preview_restore', { request })
   }
 
   async restoreProject(request: RestoreProjectRequest): Promise<RestoreProjectResponse> {

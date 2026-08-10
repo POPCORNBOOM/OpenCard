@@ -7,10 +7,11 @@ import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { ProjectCloseDestination } from '../shellPage'
 
 export type UnsavedCloseIntent = {
-  type: 'project' | 'app' | 'sessions' | 'trash' | 'restore-file'
+  type: 'project' | 'app' | 'sessions' | 'trash' | 'restore-file' | 'restore-project'
   sessionIds: readonly string[]
   path?: string
   historyEntryId?: string
+  targetCommitId?: string
   projectDestination?: ProjectCloseDestination
 }
 

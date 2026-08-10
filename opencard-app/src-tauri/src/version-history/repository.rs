@@ -86,6 +86,16 @@ pub struct RestoreProjectRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PreviewRestoreRequest {
+    operation_id: String,
+    project_root: String,
+    project_id: String,
+    generation: u64,
+    target_commit_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DraftOverlayDto {
     session_id: String,
     relative_path: String,
@@ -195,6 +205,16 @@ pub struct PublishVersionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct RestoreProjectResponse {
     version: VersionRecordDto,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRestoreResponse {
+    project_id: String,
+    expected_head_commit_id: Option<String>,
+    expected_snapshot_id: String,
+    current_changes: ChangeSummaryDto,
+    restore_changes: ChangeSummaryDto,
 }
 
 #[derive(Debug, Serialize)]
@@ -513,6 +533,46 @@ pub async fn version_edit_release_description(
 }
 
 #[tauri::command]
+pub async fn version_preview_restore(
+    request: PreviewRestoreRequest,
+    app_handle: tauri::AppHandle,
+) -> Result<PreviewRestoreResponse, VersionErrorDto> {
+    let operation = "version_preview_restore";
+    if request.operation_id.trim().is_empty()
+        || request.project_root.trim().is_empty()
+        || request.project_id.trim().is_empty()
+        || request.target_commit_id.trim().is_empty()
+    {
+        return Err(to_error_dto(
+            operation,
+            HistoryFailure::new(
+                "invalid-request",
+                "validate-request",
+                "missing restore preview request field",
+            ),
+        ));
+    }
+    let storage_root =
+        resolve_storage_root(&app_handle).map_err(|error| to_error_dto(operation, error))?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let context = load_project_context(
+            Path::new(&request.project_root),
+            &storage_root,
+            &request.project_id,
+        )?;
+        preview_restore(&context, request)
+    })
+    .await
+    .map_err(|error| {
+        to_error_dto(
+            operation,
+            HistoryFailure::new("history-io", "join-worker", error.to_string()).retryable(),
+        )
+    })?;
+    result.map_err(|error| to_error_dto(operation, error))
+}
+
+#[tauri::command]
 pub async fn version_restore_project(
     request: RestoreProjectRequest,
     app_handle: tauri::AppHandle,
@@ -670,6 +730,34 @@ fn validate_restore_request(request: &RestoreProjectRequest) -> Result<(), Histo
         ));
     }
     validate_description(&request.description)
+}
+
+fn preview_restore(
+    context: &ProjectHistoryContext,
+    request: PreviewRestoreRequest,
+) -> Result<PreviewRestoreResponse, HistoryFailure> {
+    let status = get_status(context, request.generation)?;
+    let repository = open_repository(context)?;
+    let target = find_version_commit(&repository, &request.target_commit_id)?;
+    let target_entries = tree_entries(
+        &repository,
+        &target
+            .tree()
+            .map_err(repository_error("read-restore-tree"))?,
+    )?;
+    let current_entries = current_snapshot_entries(context)?;
+    let expected_snapshot_id = status.change_summary.snapshot_id.clone();
+    let restore_changes = summarize_changes(
+        compare_entries(&current_entries, &target_entries),
+        expected_snapshot_id.clone(),
+    );
+    Ok(PreviewRestoreResponse {
+        project_id: context.project_id.clone(),
+        expected_head_commit_id: status.expected_head_commit_id,
+        expected_snapshot_id,
+        current_changes: status.change_summary,
+        restore_changes,
+    })
 }
 
 fn restore_project(
@@ -2956,6 +3044,29 @@ mod tests {
         )
         .unwrap();
         let restore_status = get_status(&context, 1).unwrap();
+        let restore_preview = preview_restore(
+            &context,
+            PreviewRestoreRequest {
+                operation_id: "preview-restore-first".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                target_commit_id: first.version.commit_id.clone(),
+            },
+        )
+        .unwrap();
+
+        assert!(restore_preview.current_changes.files.is_empty());
+        assert_eq!(restore_preview.restore_changes.modified, 1);
+        assert_eq!(restore_preview.restore_changes.deleted, 1);
+        assert_eq!(
+            restore_preview.expected_head_commit_id,
+            restore_status.expected_head_commit_id
+        );
+        assert_eq!(
+            restore_preview.expected_snapshot_id,
+            restore_status.change_summary.snapshot_id
+        );
 
         let restored = restore_project(
             &context,

@@ -18,6 +18,7 @@ type ShellCloseCompletions = {
   trash: (path: string) => CloseResult
   application: () => CloseResult
   restoreFile: (entryId: string) => CloseResult
+  restoreProject: (commitId: string) => CloseResult
 }
 
 type UseShellCloseCoordinatorOptions = {
@@ -57,6 +58,11 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     if (intent.type === 'restore-file') {
       if (!intent.historyEntryId) throw new Error('file restore intent requires a history entry')
       await options.completions.restoreFile(intent.historyEntryId)
+      return
+    }
+    if (intent.type === 'restore-project') {
+      if (!intent.targetCommitId) throw new Error('project restore intent requires a target commit')
+      await options.completions.restoreProject(intent.targetCommitId)
       return
     }
     await options.completions.sessions(intent.sessionIds)
@@ -116,6 +122,16 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     })
   }
 
+  async function requestProjectRestore(targetCommitId: string): Promise<void> {
+    await request({
+      type: 'restore-project',
+      sessionIds: options.sessions.value
+        .filter(session => session.resourceKind === 'workspace')
+        .map(session => session.id),
+      targetCommitId,
+    })
+  }
+
   async function discardSingle(): Promise<void> {
     const row = guard.decisions.value[0]
     if (!row || guard.isBusy.value) return
@@ -158,6 +174,7 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     requestPathTrash,
     requestApplicationClose,
     requestFileRestore,
+    requestProjectRestore,
     discardSingle,
     saveSingle,
   }

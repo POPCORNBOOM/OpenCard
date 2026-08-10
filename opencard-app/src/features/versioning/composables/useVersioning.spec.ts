@@ -60,6 +60,13 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(async () => ({ released: true })),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(async request => ({
+        projectId: request.projectId,
+        expectedHeadCommitId: 'head-1',
+        expectedSnapshotId: 'snapshot-1',
+        currentChanges: { added: 1, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot-1' },
+        restoreChanges: { added: 0, modified: 2, deleted: 1, files: [], snapshotId: 'snapshot-1' },
+      })),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
     }
@@ -73,6 +80,14 @@ describe('useVersioning project preparation', () => {
       saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
     })
     await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+
+    await expect(versioning.previewRestore('commit-1')).resolves.toMatchObject({
+      expectedHeadCommitId: 'head-1',
+      restoreChanges: { modified: 2, deleted: 1 },
+    })
+    expect(service.previewRestore).toHaveBeenCalledWith(expect.objectContaining({
+      targetCommitId: 'commit-1',
+    }))
 
     await versioning.openCompare('version', 'commit-1', sourceSession, 'cards/main.json')
     await versioning.openCompare('version', 'commit-1', sourceSession, 'cards/main.json')
@@ -131,6 +146,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(async () => ({ released: true })),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
     }
     const sessions = ref<EditorSession[]>([])
@@ -250,6 +266,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
     }
     const versioning = useVersioning({
@@ -355,6 +372,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
     }
@@ -426,6 +444,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
     }
@@ -471,6 +490,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
     }
@@ -560,6 +580,7 @@ describe('useVersioning project preparation', () => {
       releaseCompare: vi.fn(),
       publishVersion: vi.fn(),
       editReleaseDescription: vi.fn(),
+      previewRestore: vi.fn(),
       restoreProject: vi.fn(),
       restoreLocalHistory: vi.fn(),
       createVersion: vi.fn(async request => ({

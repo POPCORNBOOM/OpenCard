@@ -276,6 +276,7 @@ pub fn run() {
             version_history::repository::version_list_file_history,
             version_history::repository::version_publish,
             version_history::repository::version_edit_release_description,
+            version_history::repository::version_preview_restore,
             version_history::repository::version_restore_project,
             version_history::compare::version_prepare_compare,
             version_history::compare::version_release_compare,

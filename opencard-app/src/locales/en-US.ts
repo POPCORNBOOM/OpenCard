@@ -756,6 +756,11 @@ export default {
       description: 'Restore the project content while preserving the existing history.',
       target: 'A new restore version will be created from {version}.',
       defaultDescription: 'Restore to {version}',
+      changesTitle: 'Current Project Changes',
+      changesDescription: 'Choose how to handle the current disk changes before restoring.',
+      changesNotice: 'The current disk content differs from the latest saved version.',
+      saveCurrent: 'Save current content, then restore',
+      discardCurrent: 'Discard current changes, then restore',
       restoring: 'Restoring…',
     },
     history: {

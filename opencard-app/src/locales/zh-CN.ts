@@ -755,6 +755,11 @@ export default {
       description: '恢复项目内容，同时保留现有历史。',
       target: '将以 {version} 的内容创建一个新的恢复版本。',
       defaultDescription: '恢复到 {version}',
+      changesTitle: '当前项目有变化',
+      changesDescription: '请选择恢复前如何处理当前磁盘变化。',
+      changesNotice: '当前磁盘内容相对最新保存版本存在变化。',
+      saveCurrent: '保存当前内容后恢复',
+      discardCurrent: '放弃当前变化后恢复',
       restoring: '正在恢复…',
     },
     history: {

@@ -19,6 +19,7 @@ import type {
   CompareSession,
   VersionWriteState,
   SaveVersionConfirmation,
+  PreviewRestoreResponse,
 } from '../model/versioning'
 import {
   versioningService,
@@ -691,6 +692,26 @@ export function useVersioning(options: UseVersioningOptions) {
     writeState.value = { status: 'idle' }
   }
 
+  async function previewRestore(targetCommitId: string): Promise<PreviewRestoreResponse | null> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    if (!projectIdentity || readiness.value.status !== 'ready' || writeState.value.status !== 'idle') return null
+    lastError.value = null
+    try {
+      return await service.previewRestore({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        targetCommitId,
+      })
+    } catch (error) {
+      lastError.value = error as VersionErrorDto
+      reportAppError('OC-E7007', error)
+      throw error
+    }
+  }
+
   async function restoreLocalHistory(relativePath: string, entryId: string, expectedContentOid: string | null): Promise<void> {
     const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
@@ -883,6 +904,7 @@ export function useVersioning(options: UseVersioningOptions) {
     closeCompare,
     publishVersion,
     editReleaseDescription,
+    previewRestore,
     restoreProject,
     restoreLocalHistory,
     deleteLocalHistory,

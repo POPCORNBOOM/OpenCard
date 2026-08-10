@@ -276,6 +276,18 @@ export type RestoreProjectRequest = VersionProjectRequest & {
   description: string
 }
 
+export type PreviewRestoreRequest = VersionProjectRequest & {
+  targetCommitId: string
+}
+
+export type PreviewRestoreResponse = {
+  projectId: string
+  expectedHeadCommitId: string | null
+  expectedSnapshotId: string
+  currentChanges: ChangeSummaryDto
+  restoreChanges: ChangeSummaryDto
+}
+
 export type RestoreProjectResponse = {
   version: VersionRecordDto
 }

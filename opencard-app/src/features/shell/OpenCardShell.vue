@@ -337,15 +337,15 @@
       :confirmation="saveVersionConfirmation"
       :busy="versionWriteState.status === 'running'"
       :error="versioningErrorMessage"
-      @close="cancelSaveVersion"
+      @close="handleSaveVersionDialogClose"
       @submit="handleSaveVersionConfirm"
     />
     <VersionInfoDialog
       :version="publishVersionTarget || restoreVersionTarget ? null : selectedVersionInfo"
       :current-commit-id="versionStatus?.current?.commitId ?? null"
-      :busy="versionWriteState.status === 'running'"
+      :busy="versionWriteState.status === 'running' || restorePreviewBusy"
       :locale="locale"
-      :can-restore="!hasWorkspaceVersionChanges"
+      :can-restore="versionReadiness.status === 'ready' && !restorePreviewBusy && !compareSession"
       @close="selectedVersionInfoCommitId = null"
       @publish="openPublishDialog(false)"
       @edit-release="openPublishDialog(true)"
@@ -435,45 +435,17 @@
         </OcButton>
       </template>
     </OcDialog>
-    <OcDialog
-      :open="Boolean(restoreVersionTarget)"
-      :title="t('versioning.restore.title')"
-      :description="t('versioning.restore.description')"
-      as="form"
-      size="md"
-      :dismissible="versionWriteState.status !== 'running'"
-      close-on-backdrop
-      @request-close="closeRestoreDialog"
+    <RestoreProjectDialog
+      :target="restoreVersionTarget"
+      :stage="restoreProjectStage ?? 'confirm'"
+      :changes="restorePreview?.restoreChanges ?? { added: 0, modified: 0, deleted: 0 }"
+      :busy="versionWriteState.status === 'running' || restorePreviewBusy || restoreProjectStage === 'saving'"
+      :error="restoreVersionErrorMessage"
+      @close="closeRestoreDialog"
+      @save-current="saveCurrentBeforeRestore"
+      @discard-current="discardCurrentBeforeRestore"
       @submit="handleRestoreConfirm"
-    >
-      <div v-if="restoreVersionTarget" class="open-card-shell__restore-dialog">
-        <p v-if="restoreVersionErrorMessage" class="open-card-shell__restore-error" role="alert">
-          {{ restoreVersionErrorMessage }}
-        </p>
-        <p>{{ t('versioning.restore.target', { version: `v${restoreVersionTarget.version}` }) }}</p>
-        <label>
-          <span>{{ t('versioning.fields.description') }}</span>
-          <OcFieldInput
-            as="textarea"
-            :value="restoreDescription"
-            rows="4"
-            maxlength="500"
-            required
-            autofocus
-            :disabled="versionWriteState.status === 'running'"
-            @input="restoreDescription = ($event.target as HTMLTextAreaElement).value"
-          />
-        </label>
-      </div>
-      <template #footer>
-        <OcButton type="button" variant="ghost" :disabled="versionWriteState.status === 'running'" @click="closeRestoreDialog">
-          {{ t('versioning.actions.cancel') }}
-        </OcButton>
-        <OcButton type="submit" variant="solid" :disabled="versionWriteState.status === 'running' || restoreDescription.trim().length === 0">
-          {{ versionWriteState.status === 'running' ? t('versioning.restore.restoring') : t('versioning.actions.restore') }}
-        </OcButton>
-      </template>
-    </OcDialog>
+    />
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -612,9 +584,14 @@ import ProjectVersionList from '../versioning/components/ProjectVersionList.vue'
 import VersionDiffHost from '../versioning/components/VersionDiffHost.vue'
 import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
 import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
+import RestoreProjectDialog from '../versioning/components/RestoreProjectDialog.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
-import OcFieldInput from '../../components/base/OcFieldInput.vue'
-import type { LocalHistoryEntryDto, VersionErrorDto, VersionRecordDto } from '../versioning/model/versioning'
+import type {
+  LocalHistoryEntryDto,
+  PreviewRestoreResponse,
+  VersionErrorDto,
+  VersionRecordDto,
+} from '../versioning/model/versioning'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -1026,6 +1003,7 @@ const {
   loadLocalHistoryFileEntries,
   refreshVersions,
   loadMoreVersions,
+  previewRestore,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -1109,12 +1087,16 @@ const publishVersionErrorMessage = computed(() => (
   versioningError.value ? t('versioning.errors.publishFailed', { code: versioningError.value.code }) : null
 ))
 const restoreVersionTargetCommitId = ref<string | null>(null)
-const restoreDescription = ref('')
+const restoreProjectStage = ref<'changes' | 'confirm' | 'saving' | null>(null)
+const restorePreview = ref<PreviewRestoreResponse | null>(null)
+const restorePreviewBusy = ref(false)
+const restorePreviewError = ref('')
 const restoreVersionTarget = computed<VersionRecordDto | null>(() => (
   projectVersions.value.find(version => version.commitId === restoreVersionTargetCommitId.value) ?? null
 ))
 const restoreVersionErrorMessage = computed(() => (
-  versioningError.value ? t('versioning.errors.restoreFailed', { code: versioningError.value.code }) : null
+  restorePreviewError.value
+    || (versioningError.value ? t('versioning.errors.restoreFailed', { code: versioningError.value.code }) : null)
 ))
 const localHistoryRestoreEntryId = ref<string | null>(null)
 const localHistoryRestorePath = ref<string | null>(null)
@@ -1195,6 +1177,7 @@ const {
   requestPathTrash,
   requestApplicationClose,
   requestFileRestore,
+  requestProjectRestore,
   discardSingle: discardSingleUnsavedEditor,
   saveSingle: saveSingleUnsavedEditor,
 } = useShellCloseCoordinator({
@@ -1209,6 +1192,7 @@ const {
     trash: performPathTrash,
     application: performApplicationClose,
     restoreFile: openLocalHistoryRestoreConfirmation,
+    restoreProject: prepareProjectRestore,
   },
 })
 
@@ -2315,28 +2299,60 @@ function openPublishDialog(editRelease: boolean): void {
 
 function openRestoreDialog(): void {
   const target = selectedVersionInfo.value
-  if (!target || hasWorkspaceVersionChanges.value
-    || target.commitId === versionStatus.value?.current?.commitId) return
-  restoreVersionTargetCommitId.value = target.commitId
-  restoreDescription.value = t('versioning.restore.defaultDescription', { version: `v${target.version}` })
+  if (!target || target.commitId === versionStatus.value?.current?.commitId) return
+  void requestProjectRestore(target.commitId)
 }
 
 function closeRestoreDialog(): void {
-  if (versionWriteState.value.status === 'running') return
+  if (versionWriteState.value.status === 'running' || restorePreviewBusy.value) return
   restoreVersionTargetCommitId.value = null
-  restoreDescription.value = ''
+  restoreProjectStage.value = null
+  restorePreview.value = null
+  restorePreviewError.value = ''
 }
 
-async function handleRestoreConfirm(): Promise<void> {
+async function prepareProjectRestore(targetCommitId: string): Promise<void> {
+  if (restorePreviewBusy.value) return
+  restorePreviewBusy.value = true
+  restorePreviewError.value = ''
+  try {
+    await reconcileWorkspaceSessionsFromDisk()
+    const preview = await previewRestore(targetCommitId)
+    if (!preview) return
+    restorePreview.value = preview
+    restoreVersionTargetCommitId.value = targetCommitId
+    restoreProjectStage.value = preview.currentChanges.files.length > 0 ? 'changes' : 'confirm'
+  } catch (error) {
+    restorePreviewError.value = error instanceof Error ? error.message : t('versioning.errors.restoreFailed', { code: 'OC-E7007' })
+  } finally {
+    restorePreviewBusy.value = false
+  }
+}
+
+async function saveCurrentBeforeRestore(): Promise<void> {
+  if (!restoreVersionTarget.value || restorePreviewBusy.value) return
+  restoreProjectStage.value = 'saving'
+  await openSaveVersion()
+  if (!saveVersionConfirmation.value && versionWriteState.value.status === 'idle') {
+    closeRestoreDialog()
+  }
+}
+
+function discardCurrentBeforeRestore(): void {
+  if (restorePreviewBusy.value) return
+  restoreProjectStage.value = 'confirm'
+}
+
+async function handleRestoreConfirm(description: string): Promise<void> {
   const target = restoreVersionTarget.value
-  const currentStatus = versionStatus.value
-  if (!target || !currentStatus || restoreDescription.value.trim().length === 0) return
+  const preview = restorePreview.value
+  if (!target || !preview) return
   try {
     await restoreProject(
       target.commitId,
-      currentStatus.expectedHeadCommitId,
-      currentStatus.changeSummary.snapshotId,
-      restoreDescription.value.trim(),
+      preview.expectedHeadCommitId,
+      preview.expectedSnapshotId,
+      description,
     )
     await Promise.all([
       loadFiles(),
@@ -3216,6 +3232,9 @@ async function handleSaveVersionConfirm(
   try {
     await confirmSaveVersion(description, version, releaseDescription)
     await Promise.all([reloadProjectProfile(), reconcileWorkspaceSessionsFromDisk()])
+    if (restoreProjectStage.value === 'saving' && restoreVersionTargetCommitId.value) {
+      await prepareProjectRestore(restoreVersionTargetCommitId.value)
+    }
   } catch {
     if (pendingPublishVersion.value) {
       await Promise.all([reloadProjectProfile(), reconcileWorkspaceSessionsFromDisk()])
@@ -3224,6 +3243,15 @@ async function handleSaveVersionConfirm(
     }
     // The versioning flow reports the stable application error and keeps the dialog open.
   }
+}
+
+function handleSaveVersionDialogClose(): void {
+  if (restoreProjectStage.value === 'saving') {
+    cancelSaveVersion()
+    closeRestoreDialog()
+    return
+  }
+  cancelSaveVersion()
 }
 
 function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): OcTreeData {

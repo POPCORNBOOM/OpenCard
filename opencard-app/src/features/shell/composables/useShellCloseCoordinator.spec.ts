@@ -49,6 +49,7 @@ function createCoordinator(initialSessions: EditorSession[]) {
     trash: vi.fn(async () => undefined),
     application: vi.fn(async () => undefined),
     restoreFile: vi.fn(async () => undefined),
+    restoreProject: vi.fn(async () => undefined),
   }
   const coordinator = useShellCloseCoordinator({
     sessions,
@@ -199,5 +200,25 @@ describe('useShellCloseCoordinator', () => {
 
     expect(saved.saveSession).toHaveBeenCalledWith('saved', undefined)
     expect(saved.completions.restoreFile).toHaveBeenCalledWith('entry-saved')
+  })
+
+  it('guards every dirty workspace session before project restore', async () => {
+    const first = createSession('first', { isDirty: true })
+    const second = createSession('second')
+    const external = createSession('external', { resourceKind: 'external', isDirty: true })
+    const result = createCoordinator([first, second, external])
+
+    await result.coordinator.requestProjectRestore('commit-1')
+
+    expect(result.flushAffectedSessions).toHaveBeenCalledWith([first.id, second.id])
+    expect(result.coordinator.pendingIntent.value).toMatchObject({
+      type: 'restore-project',
+      targetCommitId: 'commit-1',
+    })
+    expect(result.completions.restoreProject).not.toHaveBeenCalled()
+
+    await result.coordinator.discardSingle()
+
+    expect(result.completions.restoreProject).toHaveBeenCalledWith('commit-1')
   })
 })
