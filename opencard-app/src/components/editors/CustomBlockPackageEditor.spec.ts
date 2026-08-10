@@ -35,6 +35,9 @@ const packageResult = {
     root: { type: 'text', id: 'root', name: 'Square' },
     publicFields: [{ key: 'size', fieldType: 'number', title: 'Size', defaultValue: '100' }],
     resize: { widthLocked: true, heightLocked: true },
+    resources: {
+      images: [{ key: 'logo', source: 'resources/images/logo.png' }],
+    },
   },
   files: new Map(),
 }
@@ -60,6 +63,7 @@ describe('CustomBlockPackageEditor', () => {
     expect(wrapper.text()).toContain('Square')
     expect(wrapper.text()).toContain('interface-hash')
     expect(wrapper.text()).toContain('Size')
+    expect(wrapper.text()).toContain('resources/images/logo.png')
     expect(mocks.registerProjectCustomBlockFile).not.toHaveBeenCalled()
   })
 

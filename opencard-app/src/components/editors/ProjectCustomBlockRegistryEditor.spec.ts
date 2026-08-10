@@ -6,11 +6,15 @@ import ProjectCustomBlockRegistryEditor from './ProjectCustomBlockRegistryEditor
 const mocks = vi.hoisted(() => ({
   pickFile: vi.fn(),
   importProjectCustomBlockFile: vi.fn(),
+  readProjectCustomBlockPackage: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
   fileSystemService: { pickFile: mocks.pickFile },
+}))
+vi.mock('../../features/workspace/services/projectCustomBlock', () => ({
+  readProjectCustomBlockPackage: mocks.readProjectCustomBlockPackage,
 }))
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
@@ -23,6 +27,7 @@ vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-
 describe('ProjectCustomBlockRegistryEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.readProjectCustomBlockPackage.mockRejectedValue(new Error('not available'))
   })
 
   it('replaces a compatible same-key path and requests an immediate save', async () => {
@@ -114,6 +119,49 @@ describe('ProjectCustomBlockRegistryEditor', () => {
 
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(mocks.importProjectCustomBlockFile).not.toHaveBeenCalled()
+  })
+
+  it('pairs renamed packages by manifest key and keeps both sides inspectable', async () => {
+    mocks.readProjectCustomBlockPackage.mockImplementation(async (_fs: unknown, path: string) => ({
+      manifest: path.includes('history')
+        ? {
+            type: 'opencard-custom-block', schemaVersion: '1', key: 'square', name: 'Square A',
+            interfaceHash: 'hash-a', root: { type: 'text', id: 'root', name: 'Square' },
+            publicFields: [], resize: { widthLocked: true, heightLocked: true },
+          }
+        : {
+            type: 'opencard-custom-block', schemaVersion: '1', key: 'square', name: 'Square B',
+            interfaceHash: 'hash-b', root: { type: 'text', id: 'root', name: 'Square' },
+            publicFields: [], resize: { widthLocked: true, heightLocked: true },
+          },
+      files: new Map(),
+    }))
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: {
+        filePath: 'D:/current/.ocblocks',
+        resourceRootPath: 'D:/current',
+        comparisonResourceRootPath: 'D:/history',
+        modelValue: '{"blocks":["assets/blocks/square.ocblock"]}',
+        comparisonContent: '{"blocks":["history/square.ocblock"]}',
+        access: 'observe-only',
+      },
+    })
+    await flushPromises()
+
+    const tree = wrapper.getComponent(OcTree)
+    const item = tree.props('data').items.get('assets/blocks/square.ocblock')
+    expect(item).toMatchObject({
+      changeMarkers: [
+        { icon: 'status.change-removed', tone: 'danger' },
+        { icon: 'status.change-added', tone: 'success' },
+      ],
+      actions: [],
+      contextActions: [],
+    })
+    expect(wrapper.text()).toContain('Square A')
+    expect(wrapper.text()).toContain('Square B')
+    expect(wrapper.text()).toContain('history/square.ocblock')
+    expect(wrapper.text()).toContain('assets/blocks/square.ocblock')
   })
 
   it('reuses the registry tree as an observe-only comparison', async () => {

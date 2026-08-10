@@ -44,6 +44,19 @@
           </ul>
         </section>
 
+        <section class="custom-block-package-editor__fields">
+          <OcText as="h2" size="sm" bold>{{ t('customBlockPackage.resources') }}</OcText>
+          <OcText v-if="!packageResources.length" tone="muted" size="sm">
+            {{ t('customBlockPackage.noResources') }}
+          </OcText>
+          <ul v-else>
+            <li v-for="resource in packageResources" :key="resource.key">
+              <span>{{ resource.label }}</span>
+              <OcText mono tone="muted" size="sm">{{ resource.source }}</OcText>
+            </li>
+          </ul>
+        </section>
+
         <section v-if="!isObserveOnly && importConflict" class="custom-block-package-editor__conflict"
           :aria-label="t('projectConfig.importConflict.title')">
           <OcText size="sm">
@@ -126,6 +139,23 @@ const resizeDescription = computed(() => {
   if (heightLocked) return t('customBlockPackage.heightLocked')
   return t('customBlockPackage.resizeFree')
 })
+const packageResources = computed(() => [
+  ...(manifest.value?.resources?.fonts ?? []).map(resource => ({
+    key: `font:${resource.key}`,
+    label: resource.name,
+    source: resource.source,
+  })),
+  ...(manifest.value?.resources?.images ?? []).map(resource => ({
+    key: `image:${resource.key}`,
+    label: resource.key,
+    source: resource.source,
+  })),
+  ...(manifest.value?.resources?.iconSeries ?? []).map(resource => ({
+    key: `icon:${resource.key}`,
+    label: resource.name,
+    source: resource.source,
+  })),
+])
 const conflictOptions = computed<readonly OcOption[]>(() => [
   {
     value: 'rename-copy',
