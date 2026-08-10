@@ -826,6 +826,13 @@ export default {
       projectSnapshot: 'Saved project snapshot',
       loadFailed: 'The historical content could not be loaded.',
       restoreFile: 'Restore this file',
+      cardLayout: {
+        title: 'Compare layout',
+        horizontal: 'Side by side',
+        vertical: 'Stacked',
+        historical: 'Historical only',
+        current: 'Current only',
+      },
     },
   },
   settings: {

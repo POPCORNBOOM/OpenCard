@@ -3,8 +3,17 @@
     <OcBar icon="data.version" :title="t('versioning.diff.title', { file: fileName })">
       <template #append>
         <span class="version-diff-host__sides">
-          {{ t('versioning.diff.historical') }} → {{ t('versioning.diff.current') }}
+          {{ session.historicalLabel ?? t('versioning.diff.historical') }} → {{ t('versioning.diff.current') }}
         </span>
+        <OcButton
+          v-if="loadFailed"
+          size="sm"
+          variant="ghost"
+          icon="action.refresh"
+          @click="loadComparison"
+        >
+          {{ t('versioning.actions.refresh') }}
+        </OcButton>
         <OcButton
           v-if="canRestoreMissingFile"
           size="sm"
@@ -259,7 +268,7 @@ async function loadComparison(): Promise<void> {
     comparison.value = {
       historicalContent,
       currentContent,
-      historicalLabel: t('versioning.diff.historical'),
+      historicalLabel: props.session.historicalLabel ?? t('versioning.diff.historical'),
       currentLabel: t('versioning.diff.current'),
     }
     loaded.value = true

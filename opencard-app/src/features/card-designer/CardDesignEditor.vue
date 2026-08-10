@@ -13,7 +13,11 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle" tabindex="-1"
+  <div ref="editorRootRef" class="card-design-editor" :class="{
+    'is-comparison-editor': isObserveOnly && props.comparisonRole,
+    'is-comparison-historical': props.comparisonRole === 'historical',
+    'is-comparison-current': props.comparisonRole === 'current',
+  }" :style="editorShellStyle" tabindex="-1"
     @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
@@ -289,6 +293,15 @@
             @reset="fitViewport"
             @zoom-in="zoomViewportIn"
           />
+          <OcActionButton
+            v-if="comparisonLayoutAction"
+            :action="comparisonLayoutAction"
+            size="sm"
+            icon-size="action"
+            :active="props.comparisonLayout === 'vertical'"
+            variant="ghost"
+            @select="handleComparisonLayoutSelect"
+          />
           <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
           <OcActionButton
             :action="alignmentSnappingAction"
@@ -465,6 +478,7 @@ import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/
 import { isBlockContainer } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
+import type { CardComparisonLayout } from '../editor-runtime/model/editorComparison'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
@@ -586,6 +600,31 @@ const faceSwitchAction = computed<OcActionButtonAction>(() => ({
     ? t('cardDesigner.view.switchToBack')
     : t('cardDesigner.view.switchToFront'),
 }))
+
+const comparisonLayoutAction = computed<OcActionButtonAction | null>(() => {
+  if (!isObserveOnly.value || !props.comparisonLayout || !props.comparisonRole) return null
+  const isVisible = props.comparisonRole === 'current'
+    ? props.comparisonLayout !== 'historical'
+    : props.comparisonLayout === 'historical'
+  if (!isVisible) return null
+  return {
+    key: 'comparison-layout',
+    icon: props.comparisonLayout === 'vertical' ? 'layout.rows' : 'layout.columns',
+    title: t('versioning.diff.cardLayout.title'),
+    children: [
+      { key: 'horizontal', icon: 'layout.columns', title: t('versioning.diff.cardLayout.horizontal') },
+      { key: 'vertical', icon: 'layout.rows', title: t('versioning.diff.cardLayout.vertical') },
+      { key: 'historical', icon: 'nav.arrow-left', title: t('versioning.diff.cardLayout.historical') },
+      { key: 'current', icon: 'nav.arrow-right', title: t('versioning.diff.cardLayout.current') },
+    ],
+  }
+})
+
+function handleComparisonLayoutSelect(payload: { key: string }): void {
+  if (!['horizontal', 'vertical', 'historical', 'current'].includes(payload.key)) return
+  emit('update-card-comparison-layout', payload.key as CardComparisonLayout)
+}
+
 function toggleFaceClip(): void {
   clipToFace.value = !clipToFace.value
   commitViewState()
@@ -1037,6 +1076,26 @@ const {
   readOnly: isObserveOnly,
 })
 const expandedBlockKeys = ref<string[]>([])
+
+watch(
+  () => props.comparisonSelectedBlockId,
+  blockId => {
+    if (!isObserveOnly.value || blockId === undefined) return
+    const visibleBlockId = blockId ? resolveVisibleBlockKey(blockId) : null
+    selectedBlockKeys.value = visibleBlockId ? [visibleBlockId] : []
+  },
+  { immediate: true },
+)
+
+watch(
+  selectedBlock,
+  block => {
+    if (isObserveOnly.value && props.comparisonRole) {
+      emit('update-card-comparison-selection', block?.id ?? null)
+    }
+  },
+)
+
 const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
 const customBlockExportErrorText = ref('')

@@ -300,6 +300,7 @@ export type CompareSession = PrepareCompareResponse & {
   editorId: string
   openedFromHistorySource: 'version' | 'local-history'
   openedFromHistoryItemId: string
+  historicalLabel?: string
 }
 
 export type VersionWriteState =

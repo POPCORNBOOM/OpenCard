@@ -68,6 +68,16 @@ export function useVersioning(options: UseVersioningOptions) {
   let compareEpoch = 0
   let compareOpenRequest: Promise<void> | null = null
 
+  function historyLabel(source: 'version' | 'local-history', historyItemId: string): string | undefined {
+    if (source === 'version') {
+      const version = fileVersions.value.find(item => item.commitId === historyItemId)
+      return version ? `v${version.version}` : undefined
+    }
+    const entry = [...localHistory.value, ...selectedLocalHistoryFileEntries.value]
+      .find(item => item.entryId === historyItemId)
+    return entry ? new Date(entry.createdAtUnixMs).toLocaleString() : undefined
+  }
+
   async function prepare(projectRoot: string): Promise<void> {
     if (compareSession.value) await closeCompare()
     const requestGeneration = ++generation
@@ -506,6 +516,7 @@ export function useVersioning(options: UseVersioningOptions) {
         editorId,
         openedFromHistorySource: 'local-history',
         openedFromHistoryItemId: historyItemId,
+        historicalLabel: historyLabel('local-history', historyItemId),
       }
       if (previousSession) await releaseCompareSession(previousSession)
     })()
@@ -576,6 +587,7 @@ export function useVersioning(options: UseVersioningOptions) {
         editorId: sourceSession.editorId,
         openedFromHistorySource: source,
         openedFromHistoryItemId: historyItemId,
+        historicalLabel: historyLabel(source, historyItemId),
       }
       if (previousSession) await releaseCompareSession(previousSession)
     } catch (error) {

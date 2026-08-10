@@ -1,6 +1,11 @@
 <template>
-  <section class="snapshot-card-diff-editor">
-    <section v-for="side in sides" :key="side.key" class="snapshot-card-diff-editor__side">
+  <section class="snapshot-card-diff-editor" :class="`is-layout-${comparisonLayout}`">
+    <section
+      v-for="side in visibleSides"
+      :key="side.key"
+      class="snapshot-card-diff-editor__side"
+      :class="`is-side-${side.key}`"
+    >
       <header class="snapshot-card-diff-editor__header">
         <strong>{{ side.marker }}</strong>
         <span>{{ side.label }}</span>
@@ -16,12 +21,17 @@
         :model-value="side.content"
         :card-designer-view="view"
         :viewport-transform="viewportTransform"
+        :comparison-layout="comparisonLayout"
+        :comparison-role="side.key"
+        :comparison-selected-block-id="selectedBlockId"
         :theme-id="themeId"
         :theme-overrides="themeOverrides"
         :render-environment="side.environment"
         access="observe-only"
         @update-card-designer-view="view = $event"
         @update-viewport-transform="viewportTransform = $event"
+        @update-card-comparison-layout="comparisonLayout = $event"
+        @update-card-comparison-selection="selectedBlockId = $event"
       />
     </section>
   </section>
@@ -33,6 +43,7 @@ import { useI18n } from 'vue-i18n'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
 import type { CardDesignerViewState, EditorViewportTransform } from '../../editor-runtime/model/editorUiState'
+import type { CardComparisonLayout } from '../../editor-runtime/model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { TextEditorComparison } from '../../editor-runtime/model/editorComparison'
 import type { SnapshotDescriptorDto } from '../model/versioning'
@@ -57,6 +68,8 @@ const view = ref<CardDesignerViewState>({
   selectedInstanceId: null,
 })
 const viewportTransform = ref<EditorViewportTransform>({ x: 0, y: 0, scale: 1 })
+const selectedBlockId = ref<string | null>(null)
+const comparisonLayout = ref<CardComparisonLayout>('horizontal')
 const renderSessions = shallowRef<Record<'historical' | 'current', SnapshotProjectRenderSession | null>>({
   historical: null,
   current: null,
@@ -86,6 +99,9 @@ const sides = computed(() => [
     error: failedSides.value.has('current'),
   },
 ])
+const visibleSides = computed(() => comparisonLayout.value === 'horizontal' || comparisonLayout.value === 'vertical'
+  ? sides.value
+  : sides.value.filter(side => side.key === comparisonLayout.value))
 
 function releaseSessions(): void {
   renderSessions.value.historical?.release()
@@ -150,6 +166,14 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   min-height: 0;
   overflow: hidden;
 }
+.snapshot-card-diff-editor.is-layout-vertical {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.snapshot-card-diff-editor.is-layout-historical,
+.snapshot-card-diff-editor.is-layout-current {
+  grid-template-columns: minmax(0, 1fr);
+}
 .snapshot-card-diff-editor__side {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -171,4 +195,29 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   font-size: var(--oc-text-sm);
 }
 .snapshot-card-diff-editor__header strong { color: var(--oc-fg-default); }
+
+.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor) {
+  --card-editor-right-sidebar-visible-width: 0px !important;
+  --card-editor-right-sidebar-edge-inset: 0px !important;
+}
+
+.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--right),
+.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__resizebar--vertical:last-of-type) {
+  display: none;
+}
+
+.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--left > .card-design-editor__resizebar),
+.snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--left > .card-design-editor__sidebar-panel:last-child) {
+  display: none;
+}
+
+.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor) {
+  --card-editor-left-sidebar-visible-width: 0px !important;
+  --card-editor-left-sidebar-edge-inset: 0px !important;
+}
+
+.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left),
+.snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
+  display: none;
+}
 </style>

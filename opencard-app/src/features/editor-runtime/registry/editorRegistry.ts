@@ -13,7 +13,11 @@ import type {
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
-import type { EditorAccess } from '../model/editorComparison'
+import type {
+  CardComparisonLayout,
+  CardComparisonRole,
+  EditorAccess,
+} from '../model/editorComparison'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
@@ -44,6 +48,9 @@ export interface EditorProps {
   comparisonSide?: 'historical' | 'current'
   comparisonResourceRootPath?: string | null
   renderEnvironment?: CardRenderEnvironment
+  comparisonLayout?: CardComparisonLayout
+  comparisonRole?: CardComparisonRole
+  comparisonSelectedBlockId?: string | null
 }
 
 export interface EditorEmits {
@@ -58,6 +65,8 @@ export interface EditorEmits {
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
   (e: 'open-file', path: string): void
   (e: 'update-font-preview-text', value: string): void
+  (e: 'update-card-comparison-layout', value: CardComparisonLayout): void
+  (e: 'update-card-comparison-selection', value: string | null): void
 }
 
 // 编辑器接口定义
