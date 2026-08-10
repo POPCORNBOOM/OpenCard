@@ -138,4 +138,26 @@ describe('VersionDiffHost', () => {
     await vi.waitFor(() => expect(wrapper.find('[data-test="comparison"]').exists()).toBe(true))
     expect(wrapper.find('.snapshot-icon-registry-diff-editor').exists()).toBe(false)
   })
+
+  it('uses the full Monaco deletion diff when a structured current file is missing', async () => {
+    readFile.mockImplementation(async path => path.includes('historical')
+      ? JSON.stringify({ base: { title: 'Historical title' } }) : '')
+    const wrapper = mount(VersionDiffHost, {
+      props: {
+        session: {
+          id: 'compare-deleted-dictionary', projectRoot: 'D:/project', projectId: 'project-id', generation: 1,
+          leaseId: 'e'.repeat(40), sourceSessionId: null, sourcePath: 'D:/project/.oclocale',
+          editorId: 'dictionary', openedFromHistorySource: 'local-history', openedFromHistoryItemId: 'entry-2',
+          historical: { rootPath: 'D:/historical', relativePath: '.oclocale', completeness: 'single-file', exists: true },
+          current: { rootPath: 'D:/current', relativePath: '.oclocale', completeness: 'project', exists: false },
+        },
+        language: 'json', themeId: 'dark',
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+    await vi.waitFor(() => expect(wrapper.find('[data-test="comparison"]').exists()).toBe(true))
+    expect(wrapper.find('.dictionary-diff-editor').exists()).toBe(false)
+  })
 })

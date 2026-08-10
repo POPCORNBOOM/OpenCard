@@ -184,6 +184,7 @@ const canRestoreMissingFile = computed(() => (
 ))
 const fileType = computed(() => resolveFileType(props.session.sourcePath))
 const isTextComparison = computed(() => fileType.value.editorId === 'monaco')
+const structuredSidesPresent = computed(() => props.session.historical.exists && props.session.current.exists)
 const resourceKind = computed<'image' | 'font' | null>(() => {
   if (fileType.value.editorId === 'image-preview') return 'image'
   if (fileType.value.editorId === 'font-preview') return 'font'
@@ -192,36 +193,42 @@ const resourceKind = computed<'image' | 'font' | null>(() => {
 const dictionaryFallback = computed(() => (
   fileType.value.editorId === 'dictionary'
   && Boolean(comparison.value)
-  && (!parseProjectDictionaryText(comparison.value!.historicalContent)
+  && (!structuredSidesPresent.value
+    || !parseProjectDictionaryText(comparison.value!.historicalContent)
     || !parseProjectDictionaryText(comparison.value!.currentContent))
 ))
 const projectConfigFallback = computed(() => (
   fileType.value.editorId === 'project-config'
   && Boolean(comparison.value)
-  && (!parseProjectMetadataText(comparison.value!.historicalContent)
+  && (!structuredSidesPresent.value
+    || !parseProjectMetadataText(comparison.value!.historicalContent)
     || !parseProjectMetadataText(comparison.value!.currentContent))
 ))
 const fontRegistryFallback = computed(() => (
   fileType.value.editorId === 'font-registry'
   && Boolean(comparison.value)
-  && (!parseProjectFontRegistryText(comparison.value!.historicalContent)
+  && (!structuredSidesPresent.value
+    || !parseProjectFontRegistryText(comparison.value!.historicalContent)
     || !parseProjectFontRegistryText(comparison.value!.currentContent))
 ))
 const iconRegistryFallback = computed(() => (
   fileType.value.editorId === 'icon-registry'
   && Boolean(comparison.value)
-  && !isValidIconRegistryComparison(comparison.value!.historicalContent, comparison.value!.currentContent)
+  && (!structuredSidesPresent.value
+    || !isValidIconRegistryComparison(comparison.value!.historicalContent, comparison.value!.currentContent))
 ))
 const cardFallback = computed(() => (
   fileType.value.editorId === 'card-designer'
   && Boolean(comparison.value)
-  && (!isValidCardContent(comparison.value!.historicalContent)
+  && (!structuredSidesPresent.value
+    || !isValidCardContent(comparison.value!.historicalContent)
     || !isValidCardContent(comparison.value!.currentContent))
 ))
 const customBlockRegistryFallback = computed(() => (
   fileType.value.editorId === 'custom-block-registry'
   && Boolean(comparison.value)
-  && (!parseProjectCustomBlockRegistryText(comparison.value!.historicalContent)
+  && (!structuredSidesPresent.value
+    || !parseProjectCustomBlockRegistryText(comparison.value!.historicalContent)
     || !parseProjectCustomBlockRegistryText(comparison.value!.currentContent))
 ))
 
