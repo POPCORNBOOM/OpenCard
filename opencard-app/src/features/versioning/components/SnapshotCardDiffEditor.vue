@@ -252,4 +252,30 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
   display: none;
 }
+
+/* Keep the original Card Designer grid columns when its historical-only left
+   panels are hidden from the current comparison side. */
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
+  display: block;
+  visibility: hidden;
+  grid-column: 2;
+}
+
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left) {
+  display: grid;
+  visibility: hidden;
+  grid-column: 1;
+}
+
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__center-spacer) {
+  grid-column: 3;
+}
+
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--right) {
+  grid-column: 5;
+}
 </style>
