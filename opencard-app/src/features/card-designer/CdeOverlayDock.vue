@@ -92,6 +92,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:extent': [value: number]
   'update:top-size': [value: number]
+  'toggle-collapse': []
   'resize-start': [axis: 'width' | 'split']
   'resize-end': [axis: 'width' | 'split']
 }>()
@@ -204,10 +205,7 @@ function handleWidthResizeCancel(): void {
 
 function handleWidthDoubleClick(event: MouseEvent): void {
   event.preventDefault()
-  const nextExtent = props.extent > props.collapsedExtent
-    ? props.collapsedExtent
-    : props.minExtent
-  emit('update:extent', nextExtent)
+  emit('toggle-collapse')
 }
 
 function handleSplitResizeStart(): void {

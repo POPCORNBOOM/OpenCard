@@ -85,7 +85,7 @@ describe('CdeOverlayDock', () => {
     expect(wrapper.classes()).not.toContain('is-resizing')
   })
 
-  it('toggles the width Dock between collapsed and minimum expanded extents on double click', async () => {
+  it('emits a collapse toggle intent on width handle double click', () => {
     const wrapper = mount(CdeOverlayDock, {
       props: { ...props, extent: props.minExtent },
       slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
@@ -93,11 +93,7 @@ describe('CdeOverlayDock', () => {
     const handle = wrapper.get('[aria-label="Resize sidebar"]').element as HTMLElement
 
     handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
-    expect(wrapper.emitted('update:extent')).toContainEqual([props.collapsedExtent])
-
-    await wrapper.setProps({ extent: props.collapsedExtent })
-    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
-    expect(wrapper.emitted('update:extent')).toContainEqual([props.minExtent])
+    expect(wrapper.emitted('toggle-collapse')).toHaveLength(1)
   })
 
   it('uses vertical split semantics and emits an absolute top size', () => {

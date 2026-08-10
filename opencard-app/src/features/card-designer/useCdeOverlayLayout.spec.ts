@@ -69,6 +69,34 @@ describe('useCdeOverlayLayout', () => {
     expect(controller.viewportInsets.value.right).toBeCloseTo(120 + 6 * (120 / 280))
   })
 
+  it('restores each side to its last expanded width after collapsing', () => {
+    const { controller } = createController()
+
+    controller.updateDockExtent('left', 420)
+    controller.updateDockExtent('right', 360)
+    controller.toggleDockCollapsed('left')
+    controller.toggleDockCollapsed('right')
+    expect(controller.leftDockExtent.value).toBe(0)
+    expect(controller.rightDockExtent.value).toBe(0)
+
+    controller.toggleDockCollapsed('left')
+    controller.toggleDockCollapsed('right')
+    expect(controller.leftDockExtent.value).toBe(420)
+    expect(controller.rightDockExtent.value).toBe(360)
+  })
+
+  it('does not cache a transient partial drag as the expanded width', () => {
+    const { controller } = createController()
+
+    controller.updateDockExtent('left', 420)
+    controller.toggleDockCollapsed('left')
+    controller.updateDockExtent('left', 20)
+    controller.settleDockExtent('left', 20, 0)
+    controller.toggleDockCollapsed('left')
+
+    expect(controller.leftDockExtent.value).toBe(420)
+  })
+
   it('settles dock extent without persisting transient width state', () => {
     const { commits, controller } = createController()
 

@@ -30,6 +30,8 @@ export function useCdeOverlayLayout(options: UseCdeOverlayLayoutOptions) {
   const isPropertyPanelExpanded = ref(true)
   const leftDockExtent = ref(options.geometryConfig.minExtent)
   const rightDockExtent = ref(options.geometryConfig.minExtent)
+  const leftExpandedDockExtent = ref(options.geometryConfig.minExtent)
+  const rightExpandedDockExtent = ref(options.geometryConfig.minExtent)
   const leftSidebarTopHeight = ref<number | null>(null)
   const rightSidebarTopHeight = ref<number | null>(null)
   const viewportInsets = computed(() => resolveCdeOverlayViewportInsets(
@@ -67,12 +69,26 @@ export function useCdeOverlayLayout(options: UseCdeOverlayLayoutOptions) {
 
   function updateDockExtent(side: CdeOverlaySide, extent: number): void {
     const next = clampCdeOverlayExtent(extent, options.geometryConfig)
-    if (side === 'left') leftDockExtent.value = next
-    else rightDockExtent.value = next
+    if (side === 'left') {
+      leftDockExtent.value = next
+      if (next >= options.geometryConfig.minExtent) leftExpandedDockExtent.value = next
+    } else {
+      rightDockExtent.value = next
+      if (next >= options.geometryConfig.minExtent) rightExpandedDockExtent.value = next
+    }
   }
 
   function settleDockExtent(side: CdeOverlaySide, extent: number, startExtent: number): void {
     const next = settleCdeOverlayExtent(extent, startExtent, options.geometryConfig)
+    updateDockExtent(side, next)
+  }
+
+  function toggleDockCollapsed(side: CdeOverlaySide): void {
+    const current = side === 'left' ? leftDockExtent.value : rightDockExtent.value
+    const expanded = side === 'left' ? leftExpandedDockExtent.value : rightExpandedDockExtent.value
+    const next = current > options.geometryConfig.collapsedExtent
+      ? options.geometryConfig.collapsedExtent
+      : clampCdeOverlayExtent(expanded, options.geometryConfig)
     if (side === 'left') leftDockExtent.value = next
     else rightDockExtent.value = next
   }
@@ -140,6 +156,7 @@ export function useCdeOverlayLayout(options: UseCdeOverlayLayoutOptions) {
     rightDockExtent,
     rightSidebarTopHeight,
     settleDockExtent,
+    toggleDockCollapsed,
     togglePanel,
     updateDockExtent,
     updateDockTopSize,

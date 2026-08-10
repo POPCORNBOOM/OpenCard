@@ -131,6 +131,7 @@
           split-label="调整卡牌树与预览高度"
           @update:extent="updateDockExtent('left', $event)"
           @update:top-size="updateDockTopSize('left', $event)"
+          @toggle-collapse="toggleDockCollapsed('left')"
           @resize-start="handleDockResizeStart"
           @resize-end="handleDockResizeEnd('left', $event)"
         >
@@ -192,6 +193,7 @@
           split-label="调整结构树与属性高度"
           @update:extent="updateDockExtent('right', $event)"
           @update:top-size="updateDockTopSize('right', $event)"
+          @toggle-collapse="toggleDockCollapsed('right')"
           @resize-start="handleDockResizeStart"
           @resize-end="handleDockResizeEnd('right', $event)"
         >
@@ -439,6 +441,7 @@ const {
   leftSidebarTopHeight,
   rightDockExtent,
   rightSidebarTopHeight,
+  toggleDockCollapsed,
   togglePanel,
   updateDockExtent,
   updateDockTopSize,
