@@ -263,11 +263,11 @@ onBeforeUnmount(() => {
 
 .oc-resize-handle--horizontal::after {
   width: var(--oc-size-md);
-  height: var(--oc-border-width);
+  height: var(--oc-space-1);
 }
 
 .oc-resize-handle--vertical::after {
-  width: var(--oc-border-width);
+  width: var(--oc-space-1);
   height: var(--oc-size-md);
 }
 

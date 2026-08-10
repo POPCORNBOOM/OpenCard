@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import OcButton from '../base/OcButton.vue'
-import OcViewportControls from '../standard/OcViewportControls.vue'
 import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 
 const labels = { lt: 'lt', t: 't', rt: 'rt', r: 'r', rb: 'rb', b: 'b', lb: 'lb', l: 'l' } as const
@@ -163,7 +162,7 @@ describe('ProjectIconCropEditor', () => {
       props: { runtime, icon: null, alt: 'Status', moveLabel: 'Move', handleLabels: labels, pixelatedLabel: 'Pixelated', gridLabel: 'Show grid', focusSelectedLabel: 'Auto-focus selected icon' },
     })
     await nextTick()
-    expect(wrapper.findComponent(OcViewportControls).exists()).toBe(true)
+    expect(wrapper.find('.project-icon-crop-editor__viewport-toolbar.oc-overlay-toolbar').exists()).toBe(true)
     const viewport = wrapper.get('.project-icon-crop-editor').element as HTMLElement
     viewport.getBoundingClientRect = () => ({
       x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300,

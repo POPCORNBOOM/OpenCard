@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CdeOverlayDock from './CdeOverlayDock.vue'
 
@@ -91,6 +92,30 @@ describe('CdeOverlayDock', () => {
 
     expect(wrapper.emitted('update:top-size')).toContainEqual([280])
     expect(handle.getAttribute('aria-orientation')).toBe('horizontal')
+  })
+
+  it('keeps the measured split origin when the first pointer move arrives', async () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props,
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+    const stack = wrapper.get('.cde-overlay-dock__stack').element as HTMLElement
+    const topPanel = wrapper.get('.cde-overlay-dock__panel--top').element as HTMLElement
+    stack.getBoundingClientRect = () => ({ height: 700 } as DOMRect)
+    topPanel.getBoundingClientRect = () => ({ height: 240 } as DOMRect)
+    await nextTick()
+    await nextTick()
+
+    const handle = wrapper.get('[aria-label="Resize panels"]').element as HTMLElement
+    Object.defineProperties(handle, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: vi.fn(() => true) },
+      releasePointerCapture: { value: vi.fn() },
+    })
+    pointer(handle, 'pointerdown', { button: 0, pointerId: 2, clientY: 240 })
+    pointer(handle, 'pointermove', { pointerId: 2, clientY: 250 })
+
+    expect(wrapper.emitted('update:top-size')).toContainEqual([250])
   })
 
   it('renders collapsed panels without a split handle', () => {

@@ -58,7 +58,7 @@ describe('ImagePreviewEditor', () => {
     Object.defineProperty(image, 'naturalHeight', { value: 500 })
     await wrapper.get('img').trigger('load')
 
-    expect(wrapper.get('.oc-viewport-controls__scale').text()).toBe('77%')
+    expect(wrapper.get('.oc-overlay-toolbar__text').text()).toBe('77%')
     expect(wrapper.get('.image-preview-editor__image').classes()).not.toContain('is-pixelated')
 
     const pixelatedToggle = wrapper.get('button[aria-label="Pixelated"]')

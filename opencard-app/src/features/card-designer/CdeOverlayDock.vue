@@ -2,10 +2,7 @@
   <aside
     ref="dockRef"
     class="cde-overlay-dock"
-    :class="[
-      `cde-overlay-dock--${props.side}`,
-      { 'is-resizing': isResizing },
-    ]"
+    :class="`cde-overlay-dock--${props.side}`"
     :style="dockStyle"
   >
     <div ref="stackRef" class="cde-overlay-dock__stack" :style="stackStyle">
@@ -99,6 +96,7 @@ const dockRef = ref<HTMLElement | null>(null)
 const stackRef = ref<HTMLElement | null>(null)
 const topPanelRef = ref<HTMLElement | null>(null)
 const measuredTopSize = ref(0)
+const measuredStackHeight = ref(0)
 const isResizing = ref(false)
 const widthStartExtent = ref(props.extent)
 const widthCurrentExtent = ref(props.extent)
@@ -122,8 +120,10 @@ const geometry = computed(() => resolveCdeOverlayDockGeometry(
 const hasExpandedPanel = computed(() => props.topExpanded || props.bottomExpanded)
 const canResizeStack = computed(() => props.topExpanded && props.bottomExpanded)
 const splitMaximum = computed(() => {
-  const stackHeight = stackRef.value?.getBoundingClientRect().height ?? 0
-  return Math.max(props.topMinHeight, stackHeight - props.bottomMinHeight - props.splitGap)
+  return Math.max(
+    props.topMinHeight,
+    measuredStackHeight.value - props.bottomMinHeight - props.splitGap,
+  )
 })
 const resolvedTopSize = computed(() => {
   const source = (props.topSize ?? measuredTopSize.value) || props.topMinHeight
@@ -156,6 +156,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 }
 
 function measureTopSize(): void {
+  measuredStackHeight.value = stackRef.value?.getBoundingClientRect().height ?? 0
   const height = topPanelRef.value?.getBoundingClientRect().height ?? 0
   if (height > 0) measuredTopSize.value = height
 }
@@ -191,8 +192,7 @@ function handleWidthResizeCancel(): void {
 
 function handleSplitResizeStart(): void {
   measureTopSize()
-  splitStartValue.value = resolvedTopSize.value
-  splitValue.value = splitStartValue.value
+  splitStartValue.value = splitValue.value
   isResizing.value = true
   emit('resize-start', 'split')
 }
@@ -217,6 +217,10 @@ function handleSplitResizeCancel(): void {
 watch(() => props.topSize, value => {
   if (value !== null) splitValue.value = value
 })
+
+watch(resolvedTopSize, value => {
+  if (!isResizing.value) splitValue.value = value
+}, { flush: 'sync' })
 
 onMounted(() => {
   void nextTick(measureTopSize)
@@ -252,13 +256,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   pointer-events: none;
-  transition: transform var(--oc-duration-slow) var(--oc-ease);
 }
 
 .cde-overlay-dock--left { left: 0; }
 .cde-overlay-dock--right { right: 0; }
-
-.cde-overlay-dock.is-resizing { transition: none; }
 
 .cde-overlay-dock__stack {
   display: grid;
@@ -301,16 +302,10 @@ onBeforeUnmount(() => {
 }
 
 .cde-overlay-dock--left .cde-overlay-dock__width-handle {
-  right: calc(var(--oc-space-3) / -2);
+  right: calc(var(--oc-space-3) * -1);
 }
 
 .cde-overlay-dock--right .cde-overlay-dock__width-handle {
-  left: calc(var(--oc-space-3) / -2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cde-overlay-dock {
-    transition: none;
-  }
+  left: calc(var(--oc-space-3) * -1);
 }
 </style>

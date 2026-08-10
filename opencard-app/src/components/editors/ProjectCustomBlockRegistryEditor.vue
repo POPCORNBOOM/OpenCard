@@ -33,11 +33,9 @@
               {{ selectedEntry ? t('customBlockRegistry.preview.unavailable')
                 : t('customBlockRegistry.preview.selectBlock') }}
             </OcEmpty>
-            <OcOverlayToolbar v-if="previewFace" class="custom-block-registry-editor__viewport-tools">
-              <OcViewportControls embedded :scale-label="viewportScaleLabel"
-                :aria-label="t('customBlockRegistry.preview.viewportControls')"
-                @zoom-out="zoomOut" @reset="fitPreview" @zoom-in="zoomIn" />
-            </OcOverlayToolbar>
+            <OcOverlayToolbar v-if="previewFace" class="custom-block-registry-editor__viewport-tools"
+              :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
+              @select="handlePreviewToolbarSelect" />
             <OcCard v-if="issues.length" class="custom-block-registry-editor__issues"
               variant="glass" role="status">
               <OcText size="sm" tone="muted">
@@ -79,8 +77,7 @@ import OcEmpty from '../base/OcEmpty.vue'
 import OcPanel from '../base/OcPanel.vue'
 import OcText from '../base/OcText.vue'
 import OcTree from '../standard/OcTree.vue'
-import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
-import OcViewportControls from '../standard/OcViewportControls.vue'
+import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
 import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
@@ -119,6 +116,7 @@ const propertyPanelExpanded = ref(true)
 const propertyPanelHeight = ref<number | null>(null)
 const propertyOcclusion = ref(0)
 const viewportScaleLabel = computed(() => `${Math.round(viewportScale.value * 100)}%`)
+const previewToolbarItems = computed(() => createViewportToolbarItems(viewportScaleLabel.value))
 const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
 const renderEnvironment = computed(() => projectStore.renderEnvironment.value)
 const {
@@ -234,6 +232,12 @@ function zoomIn(): void {
 
 function zoomOut(): void {
   viewportRef.value?.zoomBy(1 / VIEWPORT_ZOOM_STEP)
+}
+
+function handlePreviewToolbarSelect({ key }: { key: string }): void {
+  if (key === 'viewport.zoom-out') zoomOut()
+  else if (key === 'viewport.fit') fitPreview()
+  else if (key === 'viewport.zoom-in') zoomIn()
 }
 
 watch(selectedPath, async () => {

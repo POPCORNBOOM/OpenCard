@@ -100,10 +100,9 @@
         @keydown="openSelectionKeyboardMenu">
         <Transition name="selection-overlay-fade">
         <OcOverlayToolbar v-if="selectionQuickActions.length > 0 && !isTransformingSelection"
-          class="selection-quick-actions" :label="selectionActionLabels.label" @pointerdown.stop>
-          <OcActionButton v-for="action in selectionQuickActions" :key="action.key" :action="action"
-            size="sm" variant="ghost" @select="handleSelectionQuickAction($event.key)" />
-        </OcOverlayToolbar>
+          class="selection-quick-actions" :label="selectionActionLabels.label"
+          :items="selectionQuickActions" @select="handleSelectionQuickAction($event.key)"
+          @pointerdown.stop />
         </Transition>
         <Transition name="selection-info-fade">
         <aside v-if="selectionInfo && !isTransformingSelection" class="selection-block-info" @pointerdown.stop>
@@ -177,7 +176,7 @@ export type CardViewportSelectionInfo = {
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AnchorPosition, FlowDirection } from '../../../entities/card/model'
 import OcIcon from '../../../components/base/OcIcon.vue'
-import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
+import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import OcOverlayToolbar from '../../../components/standard/OcOverlayToolbar.vue'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 import CardFaceRenderer from './CardFaceRenderer.vue'

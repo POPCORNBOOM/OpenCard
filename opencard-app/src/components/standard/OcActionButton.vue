@@ -25,6 +25,7 @@
       :aria-label="actionAccessibleLabel(action.title ?? action.key, action.badgeLabel)"
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"
+      :aria-pressed="props.ariaPressed"
       :disabled="action.disabled === true"
       @click.stop="handleButtonClick"
     />
@@ -88,11 +89,13 @@ const props = withDefaults(defineProps<{
   iconSize?: OcIconSize
   variant?: ActionButtonVariant
   active?: boolean
+  ariaPressed?: boolean
 }>(), {
   size: 'md',
   iconSize: 'action',
   variant: 'ghost',
   active: false,
+  ariaPressed: undefined,
 })
 
 const emit = defineEmits<{

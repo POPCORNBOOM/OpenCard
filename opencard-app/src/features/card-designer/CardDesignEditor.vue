@@ -220,46 +220,8 @@
         </CdeOverlayDock>
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools" orientation="vertical"
-          :style="faceToolsStyle">
-          <OcViewportControls
-            class="card-design-editor__viewport-controls"
-            orientation="vertical"
-            embedded
-            button-size="sm"
-            icon-size="action"
-            aria-label="卡牌画布缩放控制"
-            :scale-label="viewportScaleLabel"
-            @zoom-out="zoomViewportOut"
-            @reset="fitViewport"
-            @zoom-in="zoomViewportIn"
-          />
-          <span class="card-design-editor__face-tools-divider" aria-hidden="true" />
-          <OcActionButton
-            :action="alignmentSnappingAction"
-            size="sm"
-            icon-size="action"
-            :active="alignmentSnappingEnabled"
-            :aria-pressed="alignmentSnappingEnabled"
-            :variant="alignmentSnappingEnabled ? 'soft' : 'ghost'"
-            @select="toggleAlignmentSnapping"
-          />
-          <OcActionButton
-            :action="clipAction"
-            size="sm"
-            icon-size="action"
-            :active="clipToFace"
-            :aria-pressed="clipToFace"
-            :variant="clipToFace ? 'soft' : 'ghost'"
-            @select="toggleFaceClip"
-          />
-          <OcActionButton
-            :action="faceSwitchAction"
-            size="sm"
-            icon-size="action"
-            variant="ghost"
-            @select="toggleActiveFace"
-          />
-        </OcOverlayToolbar>
+          :style="faceToolsStyle" label="卡牌画布控制" :items="faceToolbarItems"
+          @select="handleFaceToolbarSelect" />
       </div>
         </div>
       </Transition>
@@ -362,9 +324,11 @@ import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
-import OcViewportControls from '../../components/standard/OcViewportControls.vue'
-import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
-import OcOverlayToolbar from '../../components/standard/OcOverlayToolbar.vue'
+import type { OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
+import OcOverlayToolbar, {
+  createViewportToolbarItems,
+  type OcOverlayToolbarItem,
+} from '../../components/standard/OcOverlayToolbar.vue'
 import CdeOverlayDock from './CdeOverlayDock.vue'
 import {
   CDE_OVERLAY_BOTTOM_MIN_HEIGHT,
@@ -544,6 +508,32 @@ const faceSwitchAction = computed<OcActionButtonAction>(() => ({
     ? t('cardDesigner.view.switchToBack')
     : t('cardDesigner.view.switchToFront'),
 }))
+
+const faceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [
+  ...createViewportToolbarItems(viewportScaleLabel.value),
+  { type: 'divider', key: 'viewport-actions' },
+  {
+    ...alignmentSnappingAction.value,
+    active: alignmentSnappingEnabled.value,
+    variant: alignmentSnappingEnabled.value ? 'soft' : 'ghost',
+  },
+  {
+    ...clipAction.value,
+    active: clipToFace.value,
+    variant: clipToFace.value ? 'soft' : 'ghost',
+  },
+  faceSwitchAction.value,
+])
+
+function handleFaceToolbarSelect({ key }: { key: string }): void {
+  if (key === 'viewport.zoom-out') zoomViewportOut()
+  else if (key === 'viewport.fit') fitViewport()
+  else if (key === 'viewport.zoom-in') zoomViewportIn()
+  else if (key === 'toggle-alignment-snapping') toggleAlignmentSnapping()
+  else if (key === 'toggle-face-clip') toggleFaceClip()
+  else if (key === 'switch-face') toggleActiveFace()
+}
+
 function toggleFaceClip(): void {
   clipToFace.value = !clipToFace.value
   commitViewState()
@@ -2038,22 +2028,12 @@ onUnmounted(() => {
   pointer-events: none !important;
 }
 
-.card-design-editor__viewport-controls {
-  pointer-events: auto;
-}
-
 .card-design-editor__face-tools {
   position: absolute;
   right: var(--oc-floating-surface-gap);
   bottom: var(--oc-floating-surface-gap);
   z-index: 3;
   transition: right var(--oc-duration-slow) var(--oc-ease);
-}
-
-.card-design-editor__face-tools-divider {
-  width: var(--oc-space-4);
-  height: var(--oc-border-width);
-  background: var(--oc-border-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

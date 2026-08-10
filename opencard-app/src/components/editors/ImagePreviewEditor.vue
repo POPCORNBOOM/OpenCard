@@ -35,29 +35,11 @@
       v-if="isImageReady"
       class="image-preview-editor__controls"
       label="图片预览控制"
+      :items="toolbarItems"
+      @select="handleToolbarSelect"
       @pointerdown.stop
       @dblclick.stop
-    >
-      <OcViewportControls
-        embedded
-        aria-label="图片缩放控制"
-        :scale-label="scaleLabel"
-        @zoom-out="zoomBy(1 / ZOOM_STEP)"
-        @reset="resetView"
-        @zoom-in="zoomBy(ZOOM_STEP)"
-      />
-      <OcButton
-        icon-only
-        size="sm"
-        icon="tool.pixelated"
-        :active="pixelated"
-        :aria-pressed="pixelated"
-        :variant="pixelated ? 'soft' : 'ghost'"
-        :aria-label="pixelatedLabel"
-        :data-tooltip="pixelatedLabel"
-        @click="emit('update:pixelated', !pixelated)"
-      />
-    </OcOverlayToolbar>
+    />
   </div>
 </template>
 
@@ -66,10 +48,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } 
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
-import OcButton from '../base/OcButton.vue'
 import OcText from '../base/OcText.vue'
-import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
-import OcViewportControls from '../standard/OcViewportControls.vue'
+import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
 
 type ViewportTransform = { x: number; y: number; scale: number }
 
@@ -134,6 +114,24 @@ const imageStyle = computed<CSSProperties>(() => ({
 const scaleLabel = computed(() => `${Math.round(renderedScale.value * 100)}%`)
 const pixelated = computed(() => props.pixelated ?? false)
 const pixelatedLabel = computed(() => t('projectConfig.icons.pixelated'))
+const toolbarItems = computed(() => [
+  ...createViewportToolbarItems(scaleLabel.value),
+  { type: 'divider' as const, key: 'image-options' },
+  {
+    key: 'toggle-pixelated',
+    icon: 'tool.pixelated' as const,
+    title: pixelatedLabel.value,
+    active: pixelated.value,
+    variant: pixelated.value ? 'soft' as const : 'ghost' as const,
+  },
+])
+
+function handleToolbarSelect({ key }: { key: string }): void {
+  if (key === 'viewport.zoom-out') zoomBy(1 / ZOOM_STEP)
+  else if (key === 'viewport.fit') resetView()
+  else if (key === 'viewport.zoom-in') zoomBy(ZOOM_STEP)
+  else if (key === 'toggle-pixelated') emit('update:pixelated', !pixelated.value)
+}
 
 function normalizeTransform(value: ViewportTransform): ViewportTransform {
   return {

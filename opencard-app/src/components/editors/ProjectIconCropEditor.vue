@@ -23,25 +23,8 @@
           @pointerdown="beginInteraction(handle, $event)" />
       </div>
     </div>
-    <OcOverlayToolbar v-if="runtime" class="project-icon-crop-editor__viewport-toolbar">
-      <OcViewportControls embedded :scale-label="scaleLabel"
-        @zoom-out="zoomOut" @reset="fitView" @zoom-in="zoomIn" />
-      <OcButton icon-only size="sm" icon="tool.focus-selection"
-        :disabled="!icon" :active="focusSelectionEnabled" :aria-pressed="focusSelectionEnabled"
-        :variant="focusSelectionEnabled ? 'soft' : 'ghost'"
-        :aria-label="focusSelectedLabel" :data-tooltip="focusSelectedLabel"
-        @click="toggleFocusSelection" />
-      <OcButton icon-only size="sm" icon="tool.pixelated"
-        :active="pixelated" :aria-pressed="pixelated"
-        :variant="pixelated ? 'soft' : 'ghost'"
-        :aria-label="pixelatedLabel" :data-tooltip="pixelatedLabel"
-        @click="emit('update:pixelated', !pixelated)" />
-      <OcButton icon-only size="sm" :icon="gridVisible ? 'tool.grid' : 'tool.grid-off'"
-        :active="gridVisible" :aria-pressed="gridVisible"
-        :variant="gridVisible ? 'soft' : 'ghost'"
-        :aria-label="gridLabel" :data-tooltip="gridLabel"
-        @click="gridVisible = !gridVisible" />
-    </OcOverlayToolbar>
+    <OcOverlayToolbar v-if="runtime" class="project-icon-crop-editor__viewport-toolbar"
+      :items="viewportToolbarItems" @select="handleViewportToolbarSelect" />
     <div v-else class="project-icon-crop-editor__missing">
       <OcIcon name="file.image" tone="muted" />
     </div>
@@ -65,9 +48,7 @@ import {
   type ViewportInsets,
 } from '../../shared/ui/viewport/viewportNavigation'
 import OcIcon from '../base/OcIcon.vue'
-import OcButton from '../base/OcButton.vue'
-import OcOverlayToolbar from '../standard/OcOverlayToolbar.vue'
-import OcViewportControls from '../standard/OcViewportControls.vue'
+import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
 
 export type ProjectIconCropHandle = 'lt' | 't' | 'rt' | 'r' | 'rb' | 'b' | 'lb' | 'l'
 type InteractionHandle = ProjectIconCropHandle | 'move'
@@ -127,6 +108,32 @@ const interaction = ref<{
 const previewIcon = ref<ProjectIcon | null>(null)
 
 const scaleLabel = computed(() => `${Math.round(scale.value * 100)}%`)
+const viewportToolbarItems = computed(() => [
+  ...createViewportToolbarItems(scaleLabel.value),
+  { type: 'divider' as const, key: 'crop-options' },
+  {
+    key: 'focus-selected',
+    icon: 'tool.focus-selection' as const,
+    title: props.focusSelectedLabel,
+    disabled: !props.icon,
+    active: focusSelectionEnabled.value,
+    variant: focusSelectionEnabled.value ? 'soft' as const : 'ghost' as const,
+  },
+  {
+    key: 'toggle-pixelated',
+    icon: 'tool.pixelated' as const,
+    title: props.pixelatedLabel,
+    active: props.pixelated,
+    variant: props.pixelated ? 'soft' as const : 'ghost' as const,
+  },
+  {
+    key: 'toggle-grid',
+    icon: (gridVisible.value ? 'tool.grid' : 'tool.grid-off') as 'tool.grid' | 'tool.grid-off',
+    title: props.gridLabel,
+    active: gridVisible.value,
+    variant: gridVisible.value ? 'soft' as const : 'ghost' as const,
+  },
+])
 const safeViewportRegion = computed(() => resolveViewportSafeRegion(
   viewportWidth.value,
   viewportHeight.value,
@@ -236,6 +243,15 @@ function focusSelected(): void {
 function toggleFocusSelection(): void {
   focusSelectionEnabled.value = !focusSelectionEnabled.value
   if (focusSelectionEnabled.value) focusSelected()
+}
+
+function handleViewportToolbarSelect({ key }: { key: string }): void {
+  if (key === 'viewport.zoom-out') zoomOut()
+  else if (key === 'viewport.fit') fitView()
+  else if (key === 'viewport.zoom-in') zoomIn()
+  else if (key === 'focus-selected') toggleFocusSelection()
+  else if (key === 'toggle-pixelated') emit('update:pixelated', !props.pixelated)
+  else if (key === 'toggle-grid') gridVisible.value = !gridVisible.value
 }
 
 function scheduleInitialFit(): void {

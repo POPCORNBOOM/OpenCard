@@ -603,13 +603,11 @@ describe('CardDesignEditor issue navigation', () => {
     expect(wrapper.find('.card-viewport-stub').text()).not.toContain('53e4786d-a867')
 
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
-    const viewportControls = wrapper.findComponent({ name: 'OcViewportControls' })
-    expect(viewportControls.props('orientation')).toBe('vertical')
-    expect(viewportControls.props('embedded')).toBe(true)
-    expect(viewportControls.props('buttonSize')).toBe('sm')
-    expect(viewportControls.props('iconSize')).toBe('action')
-    expect(viewportControls.element.parentElement)
-      .toBe(wrapper.get('.card-design-editor__face-tools .oc-overlay-toolbar__items').element)
+    const toolbar = wrapper.findComponent({ name: 'OcOverlayToolbar' })
+    const toolbarItems = toolbar.props('items') as readonly unknown[]
+    expect(toolbarItems).toHaveLength(8)
+    expect(toolbarItems[1]).toBe('100%')
+    expect(toolbarItems[4]).toEqual({ type: 'divider', key: 'viewport-actions' })
     const faceAction = actions.find((action) => action.props('action').key === 'switch-face')
     const clipAction = actions.find((action) => action.props('action').key === 'toggle-face-clip')
     const alignmentSnappingAction = actions.find(
@@ -1120,9 +1118,8 @@ describe('CardDesignEditor issue navigation', () => {
     const tools = wrapper.get('.card-design-editor__face-tools')
     expect(tools.classes()).not.toContain('is-right-sidebar-collapsed')
     expect((tools.element as HTMLElement).style.right).toBe('292px')
-    const viewportControls = tools.findComponent({ name: 'OcViewportControls' })
-    expect(viewportControls.exists()).toBe(true)
-    expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(3)
+    expect(tools.classes()).toContain('oc-overlay-toolbar')
+    expect(tools.findAllComponents({ name: 'OcActionButton' })).toHaveLength(6)
   })
 
   it('projects symmetric Dock extent updates without CSS variable state machines', async () => {

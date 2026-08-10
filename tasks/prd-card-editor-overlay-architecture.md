@@ -276,8 +276,7 @@
 复用：
 
 - `OcCard variant="glass"`
-- `OcOverlayToolbar`
-- `OcViewportControls`
+- `OcOverlayToolbar` 的 `action|string|divider[]` viewmodel与 `select({ key })` 意图协议
 - `CardViewport`
 - `ViewportInsets` 与 `resolveViewportSafeRegion`
 - 当前 CardDesigner session layout 协议
@@ -401,7 +400,7 @@ ViewportInsets
 - **重构后代码量反增：** 以基线 commit 统计旧 Overlay 机制，净减 250 行为硬门禁；新增能力单独报告，不用总量掩盖删除或新增。
 - **旧机制残留形成双路径：** 验收时搜索旧 CSS 变量、DOM 写入、document mouse listener 和 center spacer 依赖，任一残留都阻止完成。
 
-## 13. 开放问题
+## 13. 已决策事项
 
-- 窄窗口下采用“自动折叠左右 Dock”还是“保留边缘恢复按钮”，应在视觉基线阶段根据现有最小桌面窗口尺寸确定；不得继续简单隐藏全部入口。
-- `OcResizeHandle` 是否在本次末尾顺带迁移 `OcViewportInspector`，取决于 CardEditor 集成后的风险和代码 Delta；不是 CardEditor 验收前置条件。
+- 窄容器自动折叠左右 Dock，外侧透明 hit area 继续作为恢复入口；viewport controls 不隐藏。
+- `OcViewportInspector` 已迁移到 `OcResizeHandle`，所有 viewport 工具条改用 `OcOverlayToolbar` 的统一 viewmodel；不保留独立 `OcViewportControls` 复合组件。
