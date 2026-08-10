@@ -22,23 +22,44 @@ import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import type { LocalHistoryEntryDto, VersionRecordDto } from '../model/versioning'
 
-const props = defineProps<{
+type ChangeHistorySourceFilter = 'all' | 'version' | 'local-history'
+
+const props = withDefaults(defineProps<{
   versions: readonly VersionRecordDto[]
   localHistory: readonly LocalHistoryEntryDto[]
   emptyLabel: string
   locale: string
-  canRestore: boolean
-}>()
+  sourceFilter?: ChangeHistorySourceFilter
+  activeCompareKey?: string | null
+}>(), {
+  sourceFilter: 'all',
+  activeCompareKey: null,
+})
 const emit = defineEmits<{
   select: [source: 'version' | 'local-history', id: string]
+  info: [commitId: string]
   restore: [entryId: string]
+  delete: [entryId: string]
 }>()
 const { t } = useI18n()
 const selectedKeys = ref<string[]>([])
 const actions = computed(() => new Map([
-  ['local-history.restore', {
-    title: t('versioning.actions.restore'),
+  ['history.compare', {
+    title: t('versioning.history.compareWithCurrent'),
+    icon: 'status.eye' as const,
+  }],
+  ['history.info', {
+    title: t('versioning.history.viewVersionInfo'),
+    icon: 'data.version' as const,
+  }],
+  ['history.restore', {
+    title: t('versioning.history.restoreContent'),
     icon: 'action.undo' as const,
+  }],
+  ['history.delete', {
+    title: t('versioning.history.deleteRecord'),
+    icon: 'action.delete' as const,
+    iconTone: 'danger' as const,
   }],
 ]))
 
@@ -58,32 +79,41 @@ function relativeTime(timestamp: number): string {
 const treeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeItem>()
   const rows = [
-    ...props.versions.map(version => ({
-      key: `version:${version.commitId}`,
+    ...props.versions.map((version, order) => ({
+      key: `version:${version.commitId}` as const,
       source: 'version' as const,
       id: version.commitId,
+      timestamp: version.savedAtUnixMs,
+      order,
       label: `v${version.version}`,
       description: version.description,
       tail: relativeTime(version.savedAtUnixMs),
       icon: 'data.version' as const,
       iconTone: version.release ? 'success' as const : undefined,
+      contextActions: ['history.compare', 'history.info'],
     })),
-    ...props.localHistory.map(entry => ({
-      key: `local-history:${entry.entryId}`,
+    ...props.localHistory.map((entry, order) => ({
+      key: `local-history:${entry.entryId}` as const,
       source: 'local-history' as const,
       id: entry.entryId,
+      timestamp: entry.createdAtUnixMs,
+      order: props.versions.length + order,
       label: new Date(entry.createdAtUnixMs).toLocaleString(props.locale),
       description: entry.sourceDescription || t(`versioning.history.sources.${entry.source}`, entry.source),
       tail: relativeTime(entry.createdAtUnixMs),
       icon: 'action.save' as const,
       iconTone: undefined,
-      actions: ['local-history.restore'],
-      disabledActions: props.canRestore
-        ? undefined
-        : new Map([['local-history.restore', t('versioning.history.saveBeforeRestore')]]),
+      contextActions: ['history.compare', 'history.restore', 'history.delete'],
+      disabledActions: props.activeCompareKey === `local-history:${entry.entryId}`
+        ? new Map([['history.delete', t('versioning.history.deleteOpenComparison')]])
+        : undefined,
     })),
   ]
-  for (const row of rows) items.set(row.key, row)
+    .filter(row => props.sourceFilter === 'all' || row.source === props.sourceFilter)
+    .sort((left, right) => right.timestamp - left.timestamp || left.order - right.order)
+  for (const { timestamp: _timestamp, order: _order, source: _source, id: _id, ...row } of rows) {
+    items.set(row.key, row)
+  }
   return { rootKeys: rows.map(row => row.key), items, children: new Map() }
 })
 
@@ -92,8 +122,12 @@ watch(treeData, data => {
 })
 
 function handleIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'action.invoke' && intent.actionKey === 'local-history.restore') {
-    emit('restore', intent.key.slice('local-history:'.length))
+  if (intent.type === 'action.invoke') {
+    const { source, id } = parseHistoryKey(intent.key)
+    if (intent.actionKey === 'history.compare') emit('select', source, id)
+    else if (intent.actionKey === 'history.info' && source === 'version') emit('info', id)
+    else if (intent.actionKey === 'history.restore' && source === 'local-history') emit('restore', id)
+    else if (intent.actionKey === 'history.delete' && source === 'local-history') emit('delete', id)
     return
   }
   if (intent.type === 'selection.change') {
@@ -102,7 +136,15 @@ function handleIntent(intent: OcTreeIntent): void {
   }
   if (intent.type !== 'node.activate') return
   selectedKeys.value = [intent.key]
-  const source = intent.key.startsWith('version:') ? 'version' : 'local-history'
-  emit('select', source, intent.key.slice(source === 'version' ? 'version:'.length : 'local-history:'.length))
+  const { source, id } = parseHistoryKey(intent.key)
+  emit('select', source, id)
+}
+
+function parseHistoryKey(key: string): { source: 'version' | 'local-history', id: string } {
+  const source = key.startsWith('version:') ? 'version' : 'local-history'
+  return {
+    source,
+    id: key.slice(source === 'version' ? 'version:'.length : 'local-history:'.length),
+  }
 }
 </script>

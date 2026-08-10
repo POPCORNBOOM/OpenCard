@@ -153,9 +153,12 @@
             :local-history="localHistoryEntries"
             :empty-label="changeHistoryEmptyLabel"
             :locale="locale"
-            :can-restore="!activeSession?.isDirty"
+            :source-filter="changeHistorySourceFilter"
+            :active-compare-key="activeCompareKey"
             @select="handleChangeHistorySelect"
+            @info="selectedVersionInfoCommitId = $event"
             @restore="openLocalHistoryRestoreDialog"
+            @delete="openLocalHistoryDeleteDialog"
           />
           <OcTree
             v-else-if="list.key === VERSION_LIST_KEY && versionTreeData.rootKeys.length > 0"
@@ -373,6 +376,41 @@
       </template>
     </OcDialog>
     <OcDialog
+      :open="Boolean(localHistoryDeleteTarget)"
+      :title="t('versioning.history.deleteTitle')"
+      :description="t('versioning.history.deleteDescription')"
+      size="sm"
+      :dismissible="!localHistoryDeleteBusy"
+      :close-on-backdrop="!localHistoryDeleteBusy"
+      @request-close="closeLocalHistoryDeleteDialog"
+    >
+      <div v-if="localHistoryDeleteTarget" class="open-card-shell__restore-dialog">
+        <p v-if="localHistoryDeleteError" class="open-card-shell__restore-error" role="alert">
+          {{ localHistoryDeleteError }}
+        </p>
+        <p>{{ t('versioning.history.deleteTarget', {
+          path: localHistoryDeleteTarget.relativePath,
+          time: new Date(localHistoryDeleteTarget.createdAtUnixMs).toLocaleString(locale),
+        }) }}</p>
+        <p>{{ t('versioning.history.deleteKeepsFile') }}</p>
+      </div>
+      <template #footer>
+        <OcButton type="button" variant="ghost" :disabled="localHistoryDeleteBusy" @click="closeLocalHistoryDeleteDialog">
+          {{ t('versioning.actions.cancel') }}
+        </OcButton>
+        <OcButton
+          type="button"
+          variant="solid"
+          icon="action.delete"
+          icon-tone="danger"
+          :disabled="localHistoryDeleteBusy"
+          @click="handleLocalHistoryDeleteConfirm"
+        >
+          {{ localHistoryDeleteBusy ? t('versioning.history.deleting') : t('versioning.history.deleteRecord') }}
+        </OcButton>
+      </template>
+    </OcDialog>
+    <OcDialog
       :open="Boolean(restoreVersionTarget)"
       :title="t('versioning.restore.title')"
       :description="t('versioning.restore.description')"
@@ -549,7 +587,7 @@ import VersionInfoDialog from '../versioning/components/VersionInfoDialog.vue'
 import PublishVersionDialog from '../versioning/components/PublishVersionDialog.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
-import type { VersionRecordDto } from '../versioning/model/versioning'
+import type { LocalHistoryEntryDto, VersionErrorDto, VersionRecordDto } from '../versioning/model/versioning'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -607,6 +645,11 @@ const OPENED_EDITORS_LIST_KEY = 'opened-editors'
 const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
 const CHANGES_LIST_KEY = 'changes'
 const VERSION_LIST_KEY = 'versions'
+const CHANGE_HISTORY_REFRESH_ACTION_KEY = 'change-history.refresh'
+const CHANGE_HISTORY_FILTER_ACTION_KEY = 'change-history.filter'
+const CHANGE_HISTORY_FILTER_ALL_ACTION_KEY = 'change-history.filter.all'
+const CHANGE_HISTORY_FILTER_VERSION_ACTION_KEY = 'change-history.filter.version'
+const CHANGE_HISTORY_FILTER_LOCAL_ACTION_KEY = 'change-history.filter.local-history'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
 const ICON_PACKS_LIST_KEY = 'icon-packs'
@@ -941,6 +984,7 @@ const {
   editReleaseDescription,
   restoreProject,
   restoreLocalHistory,
+  deleteLocalHistory,
   prepare: prepareVersioning,
   dispose: disposeVersioning,
 } = useVersioning({
@@ -952,12 +996,18 @@ const {
 })
 setLocalHistoryRecorder(recordLocalHistory)
 
+const changeHistorySourceFilter = ref<'all' | 'version' | 'local-history'>('all')
 const changeHistoryEmptyLabel = computed(() => {
   if (!activeSession.value || activeSession.value.resourceKind !== 'workspace') {
     return t('versioning.history.selectProjectFile')
   }
+  if (changeHistorySourceFilter.value !== 'all') return t('versioning.history.emptyForSource')
   return t('versioning.history.empty')
 })
+
+const activeCompareKey = computed(() => compareSession.value
+  ? `${compareSession.value.openedFromHistorySource}:${compareSession.value.openedFromHistoryItemId}`
+  : null)
 
 const currentDiffLanguage = computed(() => (
   activeSession.value?.path
@@ -1023,6 +1073,9 @@ const localHistoryRestoreEntryId = ref<string | null>(null)
 const localHistoryRestoreTarget = computed(() => localHistoryEntries.value.find(entry => (
   entry.entryId === localHistoryRestoreEntryId.value
 )) ?? null)
+const localHistoryDeleteTarget = ref<LocalHistoryEntryDto | null>(null)
+const localHistoryDeleteBusy = ref(false)
+const localHistoryDeleteError = ref('')
 
 const {
   isActivating: isActivatingProject,
@@ -1862,7 +1915,29 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       key: CHANGES_LIST_KEY,
       title: t('sidebar.changes'),
       placeholder: t('sidebar.comingSoon'),
-      actions: [],
+      actions: [{
+        key: CHANGE_HISTORY_REFRESH_ACTION_KEY,
+        icon: 'action.refresh',
+        hoverTip: t('versioning.actions.refresh'),
+        disabled: !historyPath.value,
+      }, {
+        key: CHANGE_HISTORY_FILTER_ACTION_KEY,
+        icon: 'data.collection',
+        hoverTip: t('versioning.history.filterTitle'),
+        children: [{
+          key: CHANGE_HISTORY_FILTER_ALL_ACTION_KEY,
+          title: t('versioning.history.filters.all'),
+          icon: changeHistorySourceFilter.value === 'all' ? 'action.check' : undefined,
+        }, {
+          key: CHANGE_HISTORY_FILTER_VERSION_ACTION_KEY,
+          title: t('versioning.history.filters.versions'),
+          icon: changeHistorySourceFilter.value === 'version' ? 'action.check' : undefined,
+        }, {
+          key: CHANGE_HISTORY_FILTER_LOCAL_ACTION_KEY,
+          title: t('versioning.history.filters.localHistory'),
+          icon: changeHistorySourceFilter.value === 'local-history' ? 'action.check' : undefined,
+        }],
+      }],
       maxHeight: 'var(--oc-list-max-height-md)',
     },
     {
@@ -2295,6 +2370,35 @@ function closeLocalHistoryRestoreDialog(): void {
   localHistoryRestoreEntryId.value = null
 }
 
+function openLocalHistoryDeleteDialog(entryId: string): void {
+  const target = localHistoryEntries.value.find(entry => entry.entryId === entryId)
+  if (!target) return
+  localHistoryDeleteTarget.value = target
+  localHistoryDeleteError.value = ''
+}
+
+function closeLocalHistoryDeleteDialog(): void {
+  if (localHistoryDeleteBusy.value) return
+  localHistoryDeleteTarget.value = null
+  localHistoryDeleteError.value = ''
+}
+
+async function handleLocalHistoryDeleteConfirm(): Promise<void> {
+  const target = localHistoryDeleteTarget.value
+  if (!target || localHistoryDeleteBusy.value) return
+  localHistoryDeleteBusy.value = true
+  localHistoryDeleteError.value = ''
+  try {
+    await deleteLocalHistory(target.relativePath, target.entryId)
+    localHistoryDeleteBusy.value = false
+    closeLocalHistoryDeleteDialog()
+  } catch (error) {
+    const code = (error as Partial<VersionErrorDto> | null)?.code ?? 'unknown'
+    localHistoryDeleteError.value = t('versioning.history.deleteFailed', { code })
+    localHistoryDeleteBusy.value = false
+  }
+}
+
 async function handleLocalHistoryRestoreConfirm(): Promise<void> {
   const entry = localHistoryRestoreTarget.value
   const relativePath = historyPath.value
@@ -2315,6 +2419,25 @@ async function handleLocalHistoryRestoreConfirm(): Promise<void> {
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
+  if (listKey === CHANGES_LIST_KEY) {
+    if (actionKey === CHANGE_HISTORY_REFRESH_ACTION_KEY) {
+      if (historyPath.value) await loadFileHistory(historyPath.value)
+      return
+    }
+    if (actionKey === CHANGE_HISTORY_FILTER_ALL_ACTION_KEY) {
+      changeHistorySourceFilter.value = 'all'
+      return
+    }
+    if (actionKey === CHANGE_HISTORY_FILTER_VERSION_ACTION_KEY) {
+      changeHistorySourceFilter.value = 'version'
+      return
+    }
+    if (actionKey === CHANGE_HISTORY_FILTER_LOCAL_ACTION_KEY) {
+      changeHistorySourceFilter.value = 'local-history'
+      return
+    }
+  }
+
   if (listKey === VERSION_LIST_KEY && actionKey === 'version-history.refresh') {
     await prepareVersioning(projectPath.value)
     return
