@@ -34,7 +34,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       label: '蓝图',
       icon: 'entity.card-blueprint',
       changeMarkers: options.comparisonDocumentChanged?.value && options.comparisonRole?.value ? [{
-        icon: options.comparisonRole.value === 'historical' ? 'action.remove' : 'action.add',
+        icon: options.comparisonRole.value === 'historical' ? 'status.change-removed' : 'status.change-added',
         tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
       }] : undefined,
     })
@@ -48,7 +48,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         icon: 'entity.card-instance',
         changeMarkers: options.comparisonChangedInstanceIds?.value?.includes(instance.id)
           && options.comparisonRole?.value ? [{
-            icon: options.comparisonRole.value === 'historical' ? 'action.remove' : 'action.add',
+            icon: options.comparisonRole.value === 'historical' ? 'status.change-removed' : 'status.change-added',
             tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
           }] : undefined,
         renamable: !readOnly,

@@ -145,6 +145,8 @@ export const iconTokens = {
   'entity.card-instance': true,
 
   'status.error': true,
+  'status.change-added': true,
+  'status.change-removed': true,
   'status.eye': true,
   'status.eye-off': true,
   'status.folder-open': true,

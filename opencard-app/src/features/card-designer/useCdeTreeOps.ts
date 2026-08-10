@@ -77,7 +77,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         changeMarkers: changed && comparisonRole ? [{
-          icon: comparisonRole === 'historical' ? 'action.remove' : 'action.add',
+          icon: comparisonRole === 'historical' ? 'status.change-removed' : 'status.change-added',
           tone: comparisonRole === 'historical' ? 'danger' : 'success',
         }] : undefined,
         renamable: !readOnly,

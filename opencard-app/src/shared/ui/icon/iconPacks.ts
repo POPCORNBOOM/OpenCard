@@ -308,6 +308,8 @@ export const iconGlyphs = {
   'entity.card-instance': glyph(mdiViewDashboardEditOutline),
 
   'status.error': glyph(mdiAlertCircleOutline),
+  'status.change-added': glyph(mdiPlus),
+  'status.change-removed': glyph(mdiMinus),
   'status.eye': glyph(mdiEyeOutline),
   'status.eye-off': glyph(mdiEyeOffOutline),
   'status.folder-open': glyph(mdiFolderOpenOutline),

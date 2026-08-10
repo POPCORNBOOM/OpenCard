@@ -132,7 +132,7 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     const removed = tree.props('data').items.get('blocks/removed.ocblock')
     expect(removed).toMatchObject({
       icon: 'file.custom-block',
-      changeMarkers: [{ icon: 'action.remove', tone: 'danger' }],
+      changeMarkers: [{ icon: 'status.change-removed', tone: 'danger' }],
       actions: [],
     })
     tree.vm.$emit('intent', {

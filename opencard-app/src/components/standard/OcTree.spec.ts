@@ -84,7 +84,7 @@ describe('OcTree', () => {
           items: [['root', {
             label: 'Card',
             icon: 'entity.card-instance',
-            changeMarkers: [{ icon: 'action.add', tone: 'success' }],
+            changeMarkers: [{ icon: 'status.change-added', tone: 'success' }],
           }]],
         }),
       },

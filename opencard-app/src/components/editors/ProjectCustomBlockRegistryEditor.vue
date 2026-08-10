@@ -74,7 +74,7 @@ const treeData = computed<OcTreeData>(() => {
         tail: path,
         icon: 'file.custom-block',
         changeMarkers: differs ? [{
-          icon: isHistorical ? 'action.remove' : 'action.add',
+          icon: isHistorical ? 'status.change-removed' : 'status.change-added',
           tone: isHistorical ? 'danger' : 'success',
         }] : undefined,
         actions: isObserveOnly.value ? [] : ['remove'],
