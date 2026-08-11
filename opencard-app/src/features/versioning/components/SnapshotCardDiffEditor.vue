@@ -278,4 +278,22 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
   .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--right) {
   grid-column: 5;
 }
+
+/* The Card Designer keeps its panels as overlays in normal editing. In a
+   comparison side the visible panel is a real boundary for the card surface,
+   so the shared editor viewport must reserve that space instead of rendering
+   underneath the panel. */
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__stage-base) {
+  width: calc(100% - var(--card-editor-left-sidebar-visible-width, 320px)
+    - var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4)));
+  margin-left: calc(var(--card-editor-left-sidebar-visible-width, 320px)
+    + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4)));
+}
+
+.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
+  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__stage-base) {
+  width: calc(100% - var(--card-editor-right-sidebar-visible-width, 320px)
+    - var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4)));
+}
 </style>
