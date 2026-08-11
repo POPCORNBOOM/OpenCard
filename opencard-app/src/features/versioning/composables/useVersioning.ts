@@ -57,6 +57,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const nextLocalHistoryFilesCursor = ref<string | null>(null)
   const historyPath = ref<string | null>(null)
   const historyRequestPath = ref<string | null>(null)
+  const historyRequestProjectRoot = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
   const nextFileVersionCursor = ref<string | null>(null)
@@ -97,7 +98,10 @@ export function useVersioning(options: UseVersioningOptions) {
     selectedLocalHistoryFileEntries.value = []
     nextLocalHistoryFilesCursor.value = null
     historyPath.value = null
-    historyRequestPath.value = null
+    if (historyRequestProjectRoot.value !== projectRoot) {
+      historyRequestPath.value = null
+      historyRequestProjectRoot.value = projectRoot || null
+    }
     nextVersionCursor.value = null
     nextFileVersionCursor.value = null
     versionsBusy.value = false
@@ -142,6 +146,10 @@ export function useVersioning(options: UseVersioningOptions) {
       nextVersionCursor.value = page.nextCursor
       versionsError.value = null
       readiness.value = { status: 'ready', projectId: response.identity.projectId }
+      const pendingHistoryPath = historyRequestProjectRoot.value === projectRoot
+        ? historyRequestPath.value
+        : null
+      if (pendingHistoryPath) void loadFileHistory(pendingHistoryPath)
     } catch (error) {
       if (requestGeneration !== generation || options.projectPath.value !== projectRoot) return
       const projectId = (error as Partial<VersionErrorDto> | null)?.projectId ?? ''
@@ -410,9 +418,10 @@ export function useVersioning(options: UseVersioningOptions) {
 
   async function loadFileHistory(relativePath: string): Promise<void> {
     const requestId = ++fileHistoryRequestId
-    historyRequestPath.value = relativePath || null
-    const projectIdentity = identity.value
     const projectRoot = options.projectPath.value
+    historyRequestPath.value = relativePath || null
+    historyRequestProjectRoot.value = projectRoot || null
+    const projectIdentity = identity.value
     if (!projectIdentity || readiness.value.status !== 'ready' || !relativePath) {
       historyPath.value = null
       fileVersions.value = []

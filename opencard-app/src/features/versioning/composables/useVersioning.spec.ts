@@ -9,6 +9,61 @@ afterEach(() => {
 })
 
 describe('useVersioning project preparation', () => {
+  it('loads the active file history after project preparation catches up', async () => {
+    const projectPath = ref('')
+    let releasePreparation!: () => void
+    const preparationGate = new Promise<void>(resolve => { releasePreparation = resolve })
+    const listFileHistory = vi.fn(async request => ({
+      projectId: request.projectId,
+      relativePath: request.relativePath,
+      items: [],
+      nextCursor: null,
+    }))
+    const listLocalHistory = vi.fn(async request => ({
+      projectId: request.projectId,
+      relativePath: request.relativePath,
+      items: [],
+      warnings: [],
+    }))
+    const service = {
+      prepareProject: vi.fn(async request => {
+        await preparationGate
+        return {
+          identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+        }
+      }),
+      getStatus: vi.fn(async request => ({
+        identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+        current: null,
+        nextVersion: '0.0.1',
+        expectedHeadCommitId: null,
+        changeSummary: { added: 0, modified: 0, deleted: 0, files: [], snapshotId: 'snapshot' },
+        hasManagedContent: true,
+      })),
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [], nextCursor: null })),
+      listFileHistory,
+      listLocalHistory,
+    } as unknown as VersioningService
+    const versioning = useVersioning({
+      projectPath,
+      sessions: ref([]),
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    projectPath.value = 'D:/project'
+    await versioning.loadFileHistory('cards/main.json')
+    expect(listFileHistory).not.toHaveBeenCalled()
+
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('preparing'))
+    releasePreparation()
+    await vi.waitFor(() => expect(listFileHistory).toHaveBeenCalledTimes(1))
+    expect(listLocalHistory).toHaveBeenCalledTimes(1)
+    expect(versioning.historyPath.value).toBe('cards/main.json')
+    versioning.dispose()
+  })
+
   it('debounces external file events into one fresh project status scan', async () => {
     const projectPath = ref('D:/project')
     const externalChangeRevision = ref(0)
