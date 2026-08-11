@@ -164,6 +164,35 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     expect(wrapper.text()).toContain('assets/blocks/square.ocblock')
   })
 
+  it('highlights only registry detail fields whose values changed', async () => {
+    mocks.readProjectCustomBlockPackage.mockImplementation(async (_fs: unknown, path: string) => ({
+      manifest: {
+        type: 'opencard-custom-block', schemaVersion: '1', key: 'square',
+        name: path.includes('history') ? 'Square A' : 'Square B',
+        interfaceHash: 'shared-hash', root: { type: 'text', id: 'root', name: 'Square' },
+        publicFields: [], resize: { widthLocked: true, heightLocked: true },
+      },
+      files: new Map(),
+    }))
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: {
+        filePath: 'D:/current/.ocblocks',
+        resourceRootPath: 'D:/current',
+        comparisonResourceRootPath: 'D:/history',
+        modelValue: '{"blocks":["blocks/square.ocblock"]}',
+        comparisonContent: '{"blocks":["blocks/square.ocblock"]}',
+        access: 'observe-only',
+      },
+    })
+    await flushPromises()
+
+    const rows = wrapper.findAll('.custom-block-registry-editor__detail-side dl > div')
+    expect(rows.map(row => row.attributes('data-change-state'))).toEqual([
+      'unchanged', 'changed', 'unchanged', 'unchanged', 'unchanged',
+      'unchanged', 'changed', 'unchanged', 'unchanged', 'unchanged',
+    ])
+  })
+
   it('reuses the registry tree as an observe-only comparison', async () => {
     const wrapper = mount(ProjectCustomBlockRegistryEditor, {
       props: {

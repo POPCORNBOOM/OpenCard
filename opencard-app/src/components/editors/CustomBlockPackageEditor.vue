@@ -23,7 +23,7 @@
           </div>
           <div>
             <dt>{{ t('customBlockPackage.packagePath') }}</dt>
-            <dd><OcText mono>{{ props.filePath }}</OcText></dd>
+            <dd><OcText mono>{{ displayPackagePath }}</OcText></dd>
           </div>
           <div>
             <dt>{{ t('customBlockPackage.resize') }}</dt>
@@ -123,6 +123,16 @@ const conflictChecked = ref(false)
 let loadVersion = 0
 
 const displayName = computed(() => props.fileName || props.filePath.split(/[/\\]/).pop() || props.filePath)
+const displayPackagePath = computed(() => {
+  if (!isObserveOnly.value || !props.resourceRootPath) return props.filePath
+  const path = props.filePath.replace(/\\/g, '/')
+  const root = props.resourceRootPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const comparisonPath = /^[a-z]:\//i.test(root) ? path.toLocaleLowerCase() : path
+  const comparisonRoot = /^[a-z]:\//i.test(root) ? root.toLocaleLowerCase() : root
+  return comparisonPath.startsWith(`${comparisonRoot}/`)
+    ? path.slice(root.length + 1)
+    : displayName.value
+})
 const absolutePath = computed(() => {
   if (/^[a-z]:[/\\]/i.test(props.filePath) || props.filePath.startsWith('/')) return props.filePath
   const root = props.resourceRootPath?.replace(/[/\\]+$/, '')

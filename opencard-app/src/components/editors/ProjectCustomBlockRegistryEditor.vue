@@ -26,15 +26,18 @@
             <div v-for="side in selectedPairSides" :key="side.key" class="custom-block-registry-editor__detail-side"
               :class="`is-${side.key}`">
               <header><strong>{{ side.marker }} · {{ side.label }}</strong></header>
-              <OcEmpty v-if="!side.entry" tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+              <OcEmpty v-if="!side.entry" class="custom-block-registry-editor__missing is-changed" tone="muted">
+                {{ t('versioning.diff.missing') }}
+              </OcEmpty>
               <dl v-else>
-                <div><dt>{{ t('customBlockRegistry.path') }}</dt><dd>{{ side.entry.path }}</dd></div>
-                <div><dt>{{ t('customBlockPackage.name') }}</dt><dd>{{ side.entry.manifest?.name ?? t('customBlockRegistry.packageUnavailable') }}</dd></div>
-                <div><dt>{{ t('customBlockPackage.key') }}</dt><dd>{{ side.entry.manifest?.key ?? '—' }}</dd></div>
-                <div><dt>{{ t('customBlockPackage.interfaceHash') }}</dt><dd>{{ side.entry.manifest?.interfaceHash ?? '—' }}</dd></div>
-                <div><dt>{{ t('customBlockPackage.resize') }}</dt><dd>{{ resizeDescription(side.entry.manifest) }}</dd></div>
+                <div v-for="field in selectedDetailFields" :key="field.key"
+                  :class="{ 'is-changed': field.changed }"
+                  :data-change-state="field.changed ? 'changed' : 'unchanged'">
+                  <dt>{{ field.label }}</dt><dd>{{ field[side.key] }}</dd>
+                </div>
               </dl>
-              <section v-if="side.entry?.manifest?.resources" class="custom-block-registry-editor__resources">
+              <section v-if="side.entry?.manifest?.resources" class="custom-block-registry-editor__resources"
+                :class="{ 'is-changed': selectedResourcesChanged }">
                 <strong>{{ t('customBlockRegistry.resources') }}</strong>
                 <ul>
                   <li v-for="resource in manifestResources(side.entry.manifest)" :key="resource">{{ resource }}</li>
@@ -143,6 +146,23 @@ const selectedPairSides = computed(() => selectedPair.value ? [
   { key: 'historical' as const, marker: 'A', label: t('versioning.diff.historical'), entry: selectedPair.value.leftItem },
   { key: 'current' as const, marker: 'B', label: t('versioning.diff.current'), entry: selectedPair.value.rightItem },
 ] : [])
+const selectedDetailFields = computed(() => {
+  const historical = selectedPair.value?.leftItem ?? null
+  const current = selectedPair.value?.rightItem ?? null
+  return [
+    detailField('path', t('customBlockRegistry.path'), historical?.path ?? '', current?.path ?? ''),
+    detailField('name', t('customBlockPackage.name'), manifestValue(historical, 'name'), manifestValue(current, 'name')),
+    detailField('key', t('customBlockPackage.key'), manifestValue(historical, 'key'), manifestValue(current, 'key')),
+    detailField('interfaceHash', t('customBlockPackage.interfaceHash'), manifestValue(historical, 'interfaceHash'), manifestValue(current, 'interfaceHash')),
+    detailField('resize', t('customBlockPackage.resize'), resizeValue(historical), resizeValue(current)),
+  ]
+})
+const selectedResourcesChanged = computed(() => {
+  const historical = selectedPair.value?.leftItem?.manifest
+  const current = selectedPair.value?.rightItem?.manifest
+  return JSON.stringify(historical ? manifestResources(historical) : [])
+    !== JSON.stringify(current ? manifestResources(current) : [])
+})
 
 watch(() => props.modelValue, content => {
   document.value = parseProjectCustomBlockRegistryText(content ?? '')
@@ -298,6 +318,19 @@ function resizeDescription(manifest: ProjectCustomBlockManifest | null): string 
   return t('customBlockPackage.resizeFree')
 }
 
+function detailField(key: string, label: string, historical: string, current: string) {
+  return { key, label, historical, current, changed: historical !== current }
+}
+
+function manifestValue(entry: RegistryEntry | null, key: 'name' | 'key' | 'interfaceHash'): string {
+  if (!entry) return ''
+  return entry.manifest?.[key] ?? (key === 'name' ? t('customBlockRegistry.packageUnavailable') : '—')
+}
+
+function resizeValue(entry: RegistryEntry | null): string {
+  return entry ? resizeDescription(entry.manifest) : ''
+}
+
 function manifestResources(manifest: ProjectCustomBlockManifest): string[] {
   return [
     ...(manifest.resources?.fonts ?? []).map(resource => `${resource.name} · ${resource.source}`),
@@ -360,14 +393,15 @@ defineExpose({ save })
   border-left: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
-.custom-block-registry-editor__detail-side.is-historical { background: var(--oc-bg-danger-subtle); }
-.custom-block-registry-editor__detail-side.is-current { background: var(--oc-bg-accent-subtle); }
 .custom-block-registry-editor__detail-side header { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
 .custom-block-registry-editor__detail-side dl { display: grid; gap: var(--oc-space-2); margin: 0; }
-.custom-block-registry-editor__detail-side dl > div { display: grid; gap: var(--oc-space-1); }
+.custom-block-registry-editor__detail-side dl > div { display: grid; gap: var(--oc-space-1); padding: var(--oc-space-1); }
+.custom-block-registry-editor__detail-side.is-historical .is-changed { background: var(--oc-bg-danger-subtle); }
+.custom-block-registry-editor__detail-side.is-current .is-changed { background: color-mix(in srgb, var(--oc-icon-success) 10%, transparent); }
 .custom-block-registry-editor__detail-side dt { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
 .custom-block-registry-editor__detail-side dd { margin: 0; overflow-wrap: anywhere; color: var(--oc-fg-default); }
-.custom-block-registry-editor__resources { display: grid; gap: var(--oc-space-2); }
+.custom-block-registry-editor__missing,
+.custom-block-registry-editor__resources { display: grid; gap: var(--oc-space-2); padding: var(--oc-space-1); }
 .custom-block-registry-editor__resources ul { display: grid; gap: var(--oc-space-1); margin: 0; padding-left: var(--oc-space-4); }
 
 .custom-block-registry-editor__toolbar {
