@@ -772,6 +772,7 @@ export default {
     },
     history: {
       empty: 'No history for the current file',
+      loadFailed: 'Change history refresh failed; loaded records are kept ({code}).',
       compareWithCurrent: 'Compare with current saved file',
       viewVersionInfo: 'View version information',
       restoreContent: 'Restore content',

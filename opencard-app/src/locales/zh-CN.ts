@@ -771,6 +771,7 @@ export default {
     },
     history: {
       empty: '当前文件暂无历史记录',
+      loadFailed: '更改记录刷新失败，已加载记录仍保留（{code}）。',
       compareWithCurrent: '与当前已保存文件比较',
       viewVersionInfo: '查看版本信息',
       restoreContent: '恢复内容',

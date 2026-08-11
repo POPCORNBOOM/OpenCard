@@ -1118,7 +1118,7 @@ const versionsErrorMessage = computed(() => (
 ))
 const fileHistoryErrorMessage = computed(() => (
   fileHistoryError.value
-    ? t('versioning.list.loadFailed', { code: fileHistoryError.value.code ?? 'OC-E7001' })
+    ? t('versioning.history.loadFailed', { code: fileHistoryError.value.code ?? 'OC-E7001' })
     : null
 ))
 const localHistoryRestoreBusy = ref(false)
