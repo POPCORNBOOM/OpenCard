@@ -296,15 +296,16 @@ async function loadComparison(): Promise<void> {
 
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
+  if (document.querySelector('.oc-dialog[role="dialog"], .oc-action-menu[role="menu"]')) return
   event.preventDefault()
   emit('close')
 }
 
 watch(() => props.session.id, () => void loadComparison(), { immediate: true })
-onMounted(() => document.addEventListener('keydown', handleKeydown))
+onMounted(() => document.addEventListener('keydown', handleKeydown, true))
 onBeforeUnmount(() => {
   loadGeneration += 1
-  document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('keydown', handleKeydown, true)
 })
 </script>
 

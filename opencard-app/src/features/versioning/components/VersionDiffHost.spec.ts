@@ -12,13 +12,47 @@ vi.mock('../../workspace/services/fileSystemService', () => ({
 vi.mock('../../../components/editors/MonacoEditor.vue', () => ({
   default: {
     props: ['comparison'],
-    template: '<div data-test="comparison">{{ comparison.historicalContent }}|{{ comparison.currentContent }}</div>',
+    template: '<div data-test="comparison" tabindex="0" @keydown.stop>{{ comparison.historicalContent }}|{{ comparison.currentContent }}</div>',
   },
 }))
 
 import VersionDiffHost from './VersionDiffHost.vue'
 
 describe('VersionDiffHost', () => {
+  it('closes from an editor-owned Escape without stealing Escape from an open menu', async () => {
+    const wrapper = mount(VersionDiffHost, {
+      props: {
+        session: {
+          id: 'compare-escape', projectRoot: 'D:/project', projectId: 'project-id', generation: 1,
+          leaseId: 'f'.repeat(40), sourceSessionId: 'session-1', sourcePath: 'D:/project/notes.txt',
+          editorId: 'monaco', openedFromHistorySource: 'version', openedFromHistoryItemId: 'commit-1',
+          historical: { rootPath: 'D:/historical', relativePath: 'notes.txt', completeness: 'project', exists: true },
+          current: { rootPath: 'D:/current', relativePath: 'notes.txt', completeness: 'project', exists: true },
+        },
+        language: 'plaintext', themeId: 'dark',
+      },
+      attachTo: document.body,
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+    await vi.waitFor(() => expect(wrapper.find('[data-test="comparison"]').exists()).toBe(true))
+    const editor = wrapper.get('[data-test="comparison"]')
+
+    await editor.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+
+    const menu = document.createElement('div')
+    menu.className = 'oc-action-menu'
+    menu.setAttribute('role', 'menu')
+    document.body.append(menu)
+    await editor.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    menu.remove()
+    wrapper.unmount()
+    readFile.mockClear()
+  })
+
   it('loads the immutable historical and current snapshot paths', async () => {
     const wrapper = mount(VersionDiffHost, {
       props: {
