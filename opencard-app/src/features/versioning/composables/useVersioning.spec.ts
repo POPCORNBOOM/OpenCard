@@ -259,6 +259,7 @@ describe('useVersioning project preparation', () => {
       size: 12,
     }
     let failRefresh = false
+    let failFileVersionRefresh = false
     let failVersionRefresh = false
     const nextVersion = {
       ...savedVersion,
@@ -288,14 +289,31 @@ describe('useVersioning project preparation', () => {
       }),
       createVersion: vi.fn(),
       listFileHistory: vi.fn(async request => {
-        if (failRefresh) throw new Error('refresh failed')
-        return { projectId: request.projectId, relativePath: request.relativePath, items: [savedVersion] }
+        if (failRefresh || failFileVersionRefresh) throw new Error('refresh failed')
+        return request.cursor
+          ? {
+              projectId: request.projectId,
+              relativePath: request.relativePath,
+              items: [nextVersion],
+              nextCursor: null,
+            }
+          : {
+              projectId: request.projectId,
+              relativePath: request.relativePath,
+              items: [savedVersion],
+              nextCursor: 'next-file-version',
+            }
       }),
       previewChanges: vi.fn(),
       recordLocalHistory: vi.fn(),
       listLocalHistory: vi.fn(async request => {
         if (failRefresh) throw new Error('refresh failed')
-        return { projectId: request.projectId, relativePath: request.relativePath, items: [localEntry], warnings: [] }
+        return {
+          projectId: request.projectId,
+          relativePath: request.relativePath,
+          items: [{ ...localEntry, relativePath: request.relativePath }],
+          warnings: [],
+        }
       }),
       readLocalHistory: vi.fn(),
       deleteLocalHistory: vi.fn(async request => ({ projectId: request.projectId, deleted: true, warnings: [] })),
@@ -349,11 +367,16 @@ describe('useVersioning project preparation', () => {
 
     expect(versioning.fileVersions.value).toEqual([savedVersion])
     expect(versioning.localHistory.value).toEqual([localEntry])
+    expect(versioning.nextFileVersionCursor.value).toBe('next-file-version')
+
+    await versioning.loadMoreFileVersions()
+    expect(versioning.fileVersions.value).toEqual([savedVersion, nextVersion])
+    expect(versioning.nextFileVersionCursor.value).toBeNull()
 
     failRefresh = true
     await versioning.loadFileHistory('cards/main.json')
 
-    expect(versioning.fileVersions.value).toEqual([savedVersion])
+    expect(versioning.fileVersions.value).toEqual([savedVersion, nextVersion])
     expect(versioning.localHistory.value).toEqual([localEntry])
 
     failRefresh = false
@@ -363,7 +386,15 @@ describe('useVersioning project preparation', () => {
       relativePath: 'cards/main.json',
       entryId: 'local-1',
     }))
-    expect(service.listFileHistory).toHaveBeenCalledTimes(3)
+    expect(service.listFileHistory).toHaveBeenCalledTimes(4)
+
+    failFileVersionRefresh = true
+    await versioning.loadFileHistory('cards/other.json')
+    expect(versioning.fileVersions.value).toEqual([])
+    expect(versioning.localHistory.value).toEqual([expect.objectContaining({
+      relativePath: 'cards/other.json',
+    })])
+    failFileVersionRefresh = false
 
     await versioning.findLocalHistoryFiles('notes')
     await versioning.findLocalHistoryFiles('notes', versioning.nextLocalHistoryFilesCursor.value)

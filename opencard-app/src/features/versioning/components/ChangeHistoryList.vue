@@ -1,6 +1,7 @@
 <template>
-  <div v-if="treeData.rootKeys.length > 0" class="change-history-list">
+  <div class="change-history-list">
     <OcTree
+      v-if="treeData.rootKeys.length > 0"
       :data="treeData"
       :actions="actions"
       :selected-keys="selectedKeys"
@@ -9,15 +10,27 @@
       activation-mode="single-click"
       @intent="handleIntent"
     />
-  </div>
-  <div v-else class="shell-sidebar-empty">
-    <span>{{ emptyLabel }}</span>
+    <div v-else class="shell-sidebar-empty">
+      <span>{{ emptyLabel }}</span>
+    </div>
+    <p v-if="error" class="change-history-list__error" role="alert">{{ error }}</p>
+    <OcButton
+      v-if="nextCursor && sourceFilter !== 'local-history'"
+      block
+      size="sm"
+      variant="ghost"
+      :disabled="busy"
+      @click="emit('load-more')"
+    >
+      {{ busy ? t('versioning.list.loadingMore') : t('versioning.list.loadMore') }}
+    </OcButton>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import OcButton from '../../../components/base/OcButton.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import type { LocalHistoryEntryDto, VersionRecordDto } from '../model/versioning'
@@ -31,6 +44,9 @@ const props = withDefaults(defineProps<{
   locale: string
   sourceFilter?: ChangeHistorySourceFilter
   activeCompareKey?: string | null
+  nextCursor: string | null
+  busy: boolean
+  error: string | null
 }>(), {
   sourceFilter: 'all',
   activeCompareKey: null,
@@ -40,6 +56,7 @@ const emit = defineEmits<{
   info: [commitId: string]
   restore: [entryId: string]
   delete: [entryId: string]
+  'load-more': []
 }>()
 const { t } = useI18n()
 const selectedKeys = ref<string[]>([])
@@ -148,3 +165,15 @@ function parseHistoryKey(key: string): { source: 'version' | 'local-history', id
   }
 }
 </script>
+
+<style scoped>
+.change-history-list {
+  display: grid;
+  min-height: 0;
+}
+
+.change-history-list__error {
+  margin: var(--oc-space-2);
+  color: var(--oc-fg-danger);
+}
+</style>

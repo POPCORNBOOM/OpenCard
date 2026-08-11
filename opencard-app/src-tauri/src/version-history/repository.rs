@@ -46,6 +46,8 @@ pub struct FileHistoryRequest {
     project_id: String,
     generation: u64,
     relative_path: String,
+    cursor: Option<String>,
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,6 +194,7 @@ pub struct FileHistoryResponse {
     project_id: String,
     relative_path: String,
     items: Vec<VersionRecordDto>,
+    next_cursor: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1420,9 +1423,50 @@ fn list_file_history(
     let _request_generation = request.generation;
     let relative_path = normalize_history_path(context, &request.relative_path)?;
     let repository = open_repository(context)?;
-    let mut commit = head_commit(&repository)?;
+    let limit = request.limit.unwrap_or(50).clamp(1, 100);
+    let mut commit = match request.cursor {
+        Some(cursor) => {
+            let cursor_id = Oid::from_str(&cursor).map_err(|error| {
+                HistoryFailure::new("invalid-request", "parse-cursor", error.to_string())
+            })?;
+            let cursor_commit = repository.find_commit(cursor_id).map_err(|_| {
+                HistoryFailure::new("invalid-request", "parse-cursor", "unknown file cursor")
+            })?;
+            if cursor_commit.parent_count() == 0 {
+                None
+            } else if cursor_commit.parent_count() == 1 {
+                Some(
+                    cursor_commit
+                        .parent(0)
+                        .map_err(repository_error("read-version-parent"))?,
+                )
+            } else {
+                return Err(HistoryFailure::new(
+                    "history-corrupt",
+                    "read-version-parent",
+                    "version history is not linear",
+                ));
+            }
+        }
+        None => head_commit(&repository)?,
+    };
     let mut items = Vec::new();
     while let Some(current) = commit {
+        let next = if current.parent_count() == 0 {
+            None
+        } else if current.parent_count() == 1 {
+            Some(
+                current
+                    .parent(0)
+                    .map_err(repository_error("read-version-parent"))?,
+            )
+        } else {
+            return Err(HistoryFailure::new(
+                "history-corrupt",
+                "read-version-parent",
+                "version history is not linear",
+            ));
+        };
         let current_entries = tree_entries(
             &repository,
             &current
@@ -1449,22 +1493,25 @@ fn list_file_history(
             ));
         };
         if current_entries.get(&relative_path) != parent_entries.get(&relative_path) {
+            if items.len() == limit {
+                return Ok(FileHistoryResponse {
+                    project_id: context.project_id.clone(),
+                    relative_path,
+                    next_cursor: items
+                        .last()
+                        .map(|item: &VersionRecordDto| item.commit_id.clone()),
+                    items,
+                });
+            }
             items.push(version_record(&repository, &current)?);
         }
-        commit = if current.parent_count() == 0 {
-            None
-        } else {
-            Some(
-                current
-                    .parent(0)
-                    .map_err(repository_error("read-version-parent"))?,
-            )
-        };
+        commit = next;
     }
     Ok(FileHistoryResponse {
         project_id: context.project_id.clone(),
         relative_path,
         items,
+        next_cursor: None,
     })
 }
 
@@ -3403,6 +3450,8 @@ mod tests {
                 project_id: context.project_id.clone(),
                 generation: 1,
                 relative_path: "cards/main.ocdocument".to_owned(),
+                cursor: None,
+                limit: Some(1),
             },
         )
         .unwrap();
@@ -3412,8 +3461,30 @@ mod tests {
                 .iter()
                 .map(|item| item.version.as_str())
                 .collect::<Vec<_>>(),
-            ["0.2.5", "0.2.4"]
+            ["0.2.5"]
         );
+        let history_tail = list_file_history(
+            &context,
+            FileHistoryRequest {
+                operation_id: "file-history-tail".to_owned(),
+                project_root: project.path().to_string_lossy().into_owned(),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                relative_path: "cards/main.ocdocument".to_owned(),
+                cursor: history.next_cursor,
+                limit: Some(1),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            history_tail
+                .items
+                .iter()
+                .map(|item| item.version.as_str())
+                .collect::<Vec<_>>(),
+            ["0.2.4"]
+        );
+        assert!(history_tail.next_cursor.is_none());
     }
 
     #[test]

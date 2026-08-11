@@ -155,10 +155,14 @@
             :locale="locale"
             :source-filter="changeHistorySourceFilter"
             :active-compare-key="activeCompareKey"
+            :next-cursor="nextFileVersionCursor"
+            :busy="fileHistoryBusy"
+            :error="fileHistoryErrorMessage"
             @select="handleChangeHistorySelect"
             @info="selectedVersionInfoCommitId = $event"
             @restore="requestLocalHistoryRestore"
             @delete="openLocalHistoryDeleteDialog"
+            @load-more="loadMoreFileVersions"
           />
           <ProjectVersionList
             v-else-if="list.key === VERSION_LIST_KEY"
@@ -977,10 +981,14 @@ const {
   selectedLocalHistoryFileEntries,
   nextLocalHistoryFilesCursor,
   nextVersionCursor,
+  nextFileVersionCursor,
   versionsBusy,
   versionsError,
+  fileHistoryBusy,
+  fileHistoryError,
   historyPath,
   loadFileHistory,
+  loadMoreFileVersions,
   compareSession,
   writeState: versionWriteState,
   saveVersionConfirmation,
@@ -1107,6 +1115,11 @@ const localHistoryRestoreTarget = computed(() => (
 ))
 const versionsErrorMessage = computed(() => (
   versionsError.value ? t('versioning.list.loadFailed', { code: versionsError.value.code }) : null
+))
+const fileHistoryErrorMessage = computed(() => (
+  fileHistoryError.value
+    ? t('versioning.list.loadFailed', { code: fileHistoryError.value.code ?? 'OC-E7001' })
+    : null
 ))
 const localHistoryRestoreBusy = ref(false)
 const localHistoryRestoreError = ref('')

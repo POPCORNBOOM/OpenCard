@@ -58,8 +58,11 @@ export function useVersioning(options: UseVersioningOptions) {
   const historyRequestPath = ref<string | null>(null)
   const compareSession = ref<CompareSession | null>(null)
   const nextVersionCursor = ref<string | null>(null)
+  const nextFileVersionCursor = ref<string | null>(null)
   const versionsBusy = ref(false)
   const versionsError = ref<VersionErrorDto | null>(null)
+  const fileHistoryBusy = ref(false)
+  const fileHistoryError = ref<VersionErrorDto | null>(null)
   const writeState = ref<VersionWriteState>({ status: 'idle' })
   const saveVersionConfirmation = ref<SaveVersionConfirmation | null>(null)
   const pendingPublishVersion = ref<VersionRecordDto | null>(null)
@@ -94,8 +97,11 @@ export function useVersioning(options: UseVersioningOptions) {
     historyPath.value = null
     historyRequestPath.value = null
     nextVersionCursor.value = null
+    nextFileVersionCursor.value = null
     versionsBusy.value = false
     versionsError.value = null
+    fileHistoryBusy.value = false
+    fileHistoryError.value = null
     saveVersionConfirmation.value = null
     pendingPublishVersion.value = null
     lastError.value = null
@@ -409,17 +415,30 @@ export function useVersioning(options: UseVersioningOptions) {
       historyPath.value = null
       fileVersions.value = []
       localHistory.value = []
+      nextFileVersionCursor.value = null
+      fileHistoryBusy.value = false
+      fileHistoryError.value = null
       return
     }
+    if (historyPath.value !== relativePath) {
+      fileVersions.value = []
+      localHistory.value = []
+      nextFileVersionCursor.value = null
+    }
+    historyPath.value = relativePath
+    fileHistoryBusy.value = true
+    fileHistoryError.value = null
     const requestGeneration = generation
     try {
-      const [versionResponse, localResponse] = await Promise.all([
+      const [versionResult, localResult] = await Promise.allSettled([
         service.listFileHistory({
           operationId: crypto.randomUUID(),
           projectRoot,
           projectId: projectIdentity.projectId,
           generation: projectIdentity.generation,
           relativePath,
+          cursor: null,
+          limit: 50,
         }),
         service.listLocalHistory({
           operationId: crypto.randomUUID(),
@@ -432,16 +451,76 @@ export function useVersioning(options: UseVersioningOptions) {
       if (requestId !== fileHistoryRequestId
         || requestGeneration !== generation
         || options.projectPath.value !== projectRoot) return
-      historyPath.value = relativePath
-      fileVersions.value = versionResponse.items
-      localHistory.value = localResponse.items
-      if (localResponse.warnings.length > 0) reportAppError('OC-E7002', localResponse.warnings)
+      if (versionResult.status === 'fulfilled') {
+        fileVersions.value = versionResult.value.items
+        nextFileVersionCursor.value = versionResult.value.nextCursor
+      } else {
+        fileHistoryError.value = versionResult.reason as VersionErrorDto
+        reportAppError('OC-E7001', versionResult.reason)
+      }
+      if (localResult.status === 'fulfilled') {
+        localHistory.value = localResult.value.items
+        if (localResult.value.warnings.length > 0) reportAppError('OC-E7002', localResult.value.warnings)
+      } else {
+        fileHistoryError.value ??= localResult.reason as VersionErrorDto
+        reportAppError('OC-E7002', localResult.reason)
+      }
+    } finally {
+      if (requestId === fileHistoryRequestId
+        && requestGeneration === generation
+        && options.projectPath.value === projectRoot) {
+        fileHistoryBusy.value = false
+      }
+    }
+  }
+
+  async function loadMoreFileVersions(): Promise<void> {
+    const projectIdentity = identity.value
+    const projectRoot = options.projectPath.value
+    const relativePath = historyPath.value
+    const cursor = nextFileVersionCursor.value
+    if (!projectIdentity
+      || readiness.value.status !== 'ready'
+      || fileHistoryBusy.value
+      || !relativePath
+      || !cursor) return
+    const requestGeneration = generation
+    const requestId = fileHistoryRequestId
+    fileHistoryBusy.value = true
+    fileHistoryError.value = null
+    try {
+      const response = await service.listFileHistory({
+        operationId: crypto.randomUUID(),
+        projectRoot,
+        projectId: projectIdentity.projectId,
+        generation: projectIdentity.generation,
+        relativePath,
+        cursor,
+        limit: 50,
+      })
+      if (requestId !== fileHistoryRequestId
+        || requestGeneration !== generation
+        || options.projectPath.value !== projectRoot
+        || historyPath.value !== relativePath) return
+      const known = new Set(fileVersions.value.map(version => version.commitId))
+      fileVersions.value = [
+        ...fileVersions.value,
+        ...response.items.filter(version => !known.has(version.commitId)),
+      ]
+      nextFileVersionCursor.value = response.nextCursor
     } catch (error) {
       if (requestId !== fileHistoryRequestId
         || requestGeneration !== generation
-        || options.projectPath.value !== projectRoot) return
-      historyPath.value = relativePath
+        || options.projectPath.value !== projectRoot
+        || historyPath.value !== relativePath) return
+      fileHistoryError.value = error as VersionErrorDto
       reportAppError('OC-E7001', error)
+    } finally {
+      if (requestId === fileHistoryRequestId
+        && requestGeneration === generation
+        && options.projectPath.value === projectRoot) {
+        fileHistoryBusy.value = false
+      }
     }
   }
 
@@ -899,8 +978,11 @@ export function useVersioning(options: UseVersioningOptions) {
     historyPath: readonly(historyPath),
     compareSession: readonly(compareSession),
     nextVersionCursor: readonly(nextVersionCursor),
+    nextFileVersionCursor: readonly(nextFileVersionCursor),
     versionsBusy: readonly(versionsBusy),
     versionsError: readonly(versionsError),
+    fileHistoryBusy: readonly(fileHistoryBusy),
+    fileHistoryError: readonly(fileHistoryError),
     writeState: readonly(writeState),
     saveVersionConfirmation: readonly(saveVersionConfirmation),
     pendingPublishVersion: readonly(pendingPublishVersion),
@@ -914,6 +996,7 @@ export function useVersioning(options: UseVersioningOptions) {
     confirmSaveVersion,
     recordLocalHistory,
     loadFileHistory,
+    loadMoreFileVersions,
     openCompare,
     openDetachedLocalHistoryCompare,
     closeCompare,

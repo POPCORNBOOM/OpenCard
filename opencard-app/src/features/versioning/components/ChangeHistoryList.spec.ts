@@ -37,6 +37,9 @@ function mountList(overrides: Record<string, unknown> = {}) {
       locale: 'en-US',
       sourceFilter: 'all',
       activeCompareKey: null,
+      nextCursor: 'next-file-version',
+      busy: false,
+      error: null,
       ...overrides,
     },
     global: {
@@ -73,6 +76,8 @@ describe('ChangeHistoryList', () => {
 
     expect(treeData(versionsOnly).rootKeys).toEqual(['version:commit-1'])
     expect(treeData(localHistoryOnly).rootKeys).toEqual(['local-history:local-1'])
+    expect(versionsOnly.find('button').exists()).toBe(true)
+    expect(localHistoryOnly.find('button').exists()).toBe(false)
   })
 
   it('uses source-specific context actions and no inline row actions', () => {
@@ -123,5 +128,13 @@ describe('ChangeHistoryList', () => {
     expect(wrapper.emitted('info')).toEqual([['commit-1']])
     expect(wrapper.emitted('restore')).toEqual([['local-1']])
     expect(wrapper.emitted('delete')).toEqual([['local-1']])
+  })
+
+  it('loads more file versions from the bottom without changing row activation', async () => {
+    const wrapper = mountList()
+
+    await wrapper.get('button').trigger('click')
+
+    expect(wrapper.emitted('load-more')).toHaveLength(1)
   })
 })

@@ -213,12 +213,15 @@ export type VersionListResponse = {
 
 export type FileHistoryRequest = VersionProjectRequest & {
   relativePath: string
+  cursor?: string | null
+  limit?: number
 }
 
 export type FileHistoryResponse = {
   projectId: string
   relativePath: string
   items: VersionRecordDto[]
+  nextCursor: string | null
 }
 
 export type CompareSourceRequest =
