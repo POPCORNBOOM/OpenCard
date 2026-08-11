@@ -81,9 +81,15 @@ fn is_supported_path(path: &Path) -> bool {
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| {
-            [".ocproject", ".ocfonts", ".ocicons", ".oclocale", ".ocblocks"]
-                .iter()
-                .any(|supported| name.eq_ignore_ascii_case(supported))
+            [
+                ".ocproject",
+                ".ocfonts",
+                ".ocicons",
+                ".oclocale",
+                ".ocblocks",
+            ]
+            .iter()
+            .any(|supported| name.eq_ignore_ascii_case(supported))
         })
     {
         return true;
