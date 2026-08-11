@@ -6,7 +6,7 @@ import { useProjectExport } from './useProjectExport'
 
 function content(width: string): string {
   return JSON.stringify({
-    type: 'card-document', schemaVersion: '2', id: 'document', name: 'Card', version: '1',
+    type: 'card-document', id: 'document', name: 'Card', version: '1',
     width, height: '850', instances: [],
     faces: {
       front: { type: 'card-face', id: 'front', background: '#fff', children: [] },
@@ -54,5 +54,15 @@ describe('useProjectExport document source', () => {
     const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')
     expect(snapshot.document.width).toBe('640')
     expect(readProjectFile).toHaveBeenCalledWith('cards/main.ocdocument')
+  })
+
+  it('records non-blocking storage warnings on an export snapshot', async () => {
+    const source = JSON.parse(content('640'))
+    source.faces.front.children = [{ block: { type: 'future-block' }, location: {} }]
+    const { adapter } = createAdapter([], vi.fn(async () => JSON.stringify(source)))
+
+    const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')
+    expect(snapshot.document.faces.front.children).toEqual([])
+    expect(snapshot.storageWarnings).toContainEqual(expect.objectContaining({ code: 'entry-ignored' }))
   })
 })

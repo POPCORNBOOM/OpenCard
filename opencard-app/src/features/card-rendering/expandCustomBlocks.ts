@@ -1,27 +1,36 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import { toRaw } from 'vue'
-import type { ProjectCustomBlockPublicField, ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
+import type {
+  ProjectCustomBlockResizePolicy,
+  ProjectCustomBlockResourceIndex,
+} from '../workspace/model/projectCustomBlocks'
+import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import { visitCardBlockTree } from '../../entities/card/tree'
 import type { RenderReadyCardBlock, RenderReadyCardDocument, RenderReadyCustomBlock } from './render.types'
 
 export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
   readonly manifest: {
-    readonly key: string
-    readonly interfaceHash: string
-    readonly root: unknown
-    readonly publicFields: readonly ProjectCustomBlockPublicField[]
+    readonly customBlockKey: string
+    readonly publicFieldKeys: readonly string[]
     readonly resize: Readonly<ProjectCustomBlockResizePolicy>
+    readonly resources?: ProjectCustomBlockResourceIndex
   }
+  readonly block: unknown
   readonly files?: ReadonlyMap<string, Uint8Array>
   readonly resourceUrls?: ReadonlyMap<string, string>
+  readonly iconCatalog?: ProjectIconCatalog
   readonly hasResourceErrors?: boolean
 }>
 
-export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle' | 'interface-mismatch'; source: string }
+export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle'; customBlockKey: string }
 export type CustomBlockExpansionHost = {
-  source: string
-  interfaceHash: string
+  customBlockKey: string
   faceKey: CardFaceKey
   hasResourceErrors: boolean
+}
+
+export function customBlockResourceOwnerIdentity(blockId: string, fieldKey: string): string {
+  return `${blockId}\u0000${fieldKey}`
 }
 
 function clone<T>(value: T): T {
@@ -46,10 +55,16 @@ function namespaceDescendantIds(block: CardBlock, instanceId: string, root = tru
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
-): { document: CardDocument; issues: CustomBlockExpansionIssue[]; hosts: ReadonlyMap<string, CustomBlockExpansionHost> } {
+): {
+  document: CardDocument
+  issues: CustomBlockExpansionIssue[]
+  hosts: ReadonlyMap<string, CustomBlockExpansionHost>
+  resourceOwners: ReadonlyMap<string, string>
+} {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
   const issues: CustomBlockExpansionIssue[] = []
   const hosts = new Map<string, CustomBlockExpansionHost>()
+  const resourceOwners = new Map<string, string>()
 
   function expand(block: CardBlock, ancestors: Set<string>, faceKey: CardFaceKey): CardBlock {
     if (block.type !== 'custom-block') {
@@ -67,36 +82,32 @@ export function expandCustomBlocks(
       }
       return block
     }
-    const key = block.source.startsWith('block:') ? block.source.slice(6) : ''
+    const key = block.customBlockKey
     const entry = activeCatalog.get(key.toLowerCase())
     if (!entry) {
-      issues.push({ blockId: block.id, faceKey, reason: 'missing', source: block.source })
+      issues.push({ blockId: block.id, faceKey, reason: 'missing', customBlockKey: key })
       return block
     }
     if (ancestors.has(key.toLowerCase())) {
-      issues.push({ blockId: block.id, faceKey, reason: 'cycle', source: block.source })
-      return block
-    }
-    if (block.interfaceHash !== entry.manifest.interfaceHash) {
-      issues.push({ blockId: block.id, faceKey, reason: 'interface-mismatch', source: block.source })
+      issues.push({ blockId: block.id, faceKey, reason: 'cycle', customBlockKey: key })
       return block
     }
     hosts.set(block.id, {
-      source: block.source,
-      interfaceHash: block.interfaceHash,
+      customBlockKey: key,
       faceKey,
       hasResourceErrors: entry.hasResourceErrors === true,
     })
-    const root = clone(entry.manifest.root) as CardBlock
+    const root = clone(entry.block) as CardBlock
     namespaceDescendantIds(root, block.id)
-    if (block.name !== undefined) root.name = block.name
-    if (block.notes !== undefined) root.notes = block.notes
-    if (block.visible !== undefined) root.visible = block.visible
-    for (const field of entry.manifest.publicFields) {
-      if (Object.prototype.hasOwnProperty.call(block, field.key)) {
-        ;(root as Record<string, unknown>)[field.key] = (block as Record<string, unknown>)[field.key]
-      } else if (field.defaultValue !== undefined) {
-        ;(root as Record<string, unknown>)[field.key] = field.defaultValue
+    visitCardBlockTree(root, candidate => {
+      for (const [fieldKey, value] of Object.entries(candidate)) {
+        if (typeof value === 'string') resourceOwners.set(customBlockResourceOwnerIdentity(candidate.id, fieldKey), key.toLowerCase())
+      }
+    })
+    for (const fieldKey of entry.manifest.publicFieldKeys) {
+      if (Object.prototype.hasOwnProperty.call(block, fieldKey)) {
+        ;(root as Record<string, unknown>)[fieldKey] = (block as Record<string, unknown>)[fieldKey]
+        resourceOwners.delete(customBlockResourceOwnerIdentity(root.id, fieldKey))
       }
     }
     if (!entry.manifest.resize.widthLocked && block.width !== undefined) root.width = block.width
@@ -111,7 +122,7 @@ export function expandCustomBlocks(
       ...face,
       children: face.children.map(child => ({ ...child, block: expand(child.block, new Set(), faceKey) })),
     }])) as CardDocument['faces']
-  return { document: { ...document, faces }, issues, hosts }
+  return { document: { ...document, faces }, issues, hosts, resourceOwners }
 }
 
 export function wrapExpandedCustomBlocks(
@@ -136,8 +147,7 @@ export function wrapExpandedCustomBlocks(
     return {
       ...content,
       type: 'custom-block',
-      source: host.source,
-      interfaceHash: host.interfaceHash,
+      customBlockKey: host.customBlockKey,
       content,
     } satisfies RenderReadyCustomBlock
   }

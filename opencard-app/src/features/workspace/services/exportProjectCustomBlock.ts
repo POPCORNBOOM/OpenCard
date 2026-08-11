@@ -6,11 +6,12 @@ import type { ResolvedProjectDictionary } from '../model/projectDictionary'
 import type { ProjectInformation, ProjectRemoteResourcePolicy } from '../model/projectMetadata'
 import type {
   ProjectCustomBlockManifest,
+  ProjectCustomBlockResizePolicy,
   ProjectCustomBlockResourceIndex,
 } from '../model/projectCustomBlocks'
 import type { ProjectIconCatalog } from './projectIconCatalog'
 import type { FileSystemService } from './fileSystemService'
-import { buildProjectCustomBlockManifest } from './buildProjectCustomBlockManifest'
+import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from './projectCustomBlock'
 import {
   collectProjectCustomBlockResources,
@@ -28,8 +29,7 @@ type CustomBlockExportFileSystem = Pick<
 
 type ExportCustomBlockCatalog = ReadonlyMap<string, {
   readonly manifest: {
-    readonly key: string
-    readonly interfaceHash: string
+    readonly customBlockKey: string
     readonly resources?: ProjectCustomBlockResourceIndex
   }
   readonly files: ReadonlyMap<string, Uint8Array>
@@ -40,7 +40,6 @@ export type ProjectCustomBlockExportResult =
   | { status: 'cancelled' }
   | { status: 'blocked'; reason: 'expansion'; issue: CustomBlockExpansionIssue }
   | { status: 'blocked'; reason: 'binding'; issue: CardPipelineIssue }
-  | { status: 'blocked'; reason: 'interface-mismatch'; key: string }
 
 export async function fetchProjectCustomBlockImageBytes(
   url: string,
@@ -95,6 +94,7 @@ export async function exportProjectCustomBlock(options: {
   name: string
   key: string
   exposedFieldKeys: readonly string[]
+  resize: ProjectCustomBlockResizePolicy
   projectRootPath: string
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<ResolvedProjectDictionary> | null
@@ -122,25 +122,24 @@ export async function exportProjectCustomBlock(options: {
     key: options.key,
     name: options.name,
     exposedFieldKeys: options.exposedFieldKeys,
+    resize: options.resize,
   })
-  const registered = options.customBlockCatalog?.get(manifest.key.toLowerCase())
-  if (registered && registered.manifest.interfaceHash !== manifest.interfaceHash) {
-    return { status: 'blocked', reason: 'interface-mismatch', key: manifest.key }
-  }
+  const block = buildProjectCustomBlockRoot(materialized.root)
 
   const resources = await collectProjectCustomBlockResources({
-    root: materialized.root,
-    packageKey: manifest.key,
+    root: block,
+    packageKey: manifest.customBlockKey,
     projectRootPath: options.projectRootPath,
     projectFonts: options.projectFonts,
     projectIconCatalog: options.projectIconCatalog,
-    customBlockCatalog: options.customBlockCatalog,
+    customBlockCatalog: options.customBlockRuntimeCatalog ?? options.customBlockCatalog,
+    resourceOwners: materialized.resourceOwners,
     remoteResourcePolicy: options.remoteResourcePolicy,
     fs: options.fs,
     fetchBytes: url => fetchProjectCustomBlockImageBytes(url, options.fetchResponse),
   })
   if (Object.keys(resources.index).length > 0) manifest.resources = resources.index
-  rewriteProjectCustomBlockResourceReferences(manifest.root, manifest.key, resources)
+  rewriteProjectCustomBlockResourceReferences(block, resources)
 
   const outputPath = await options.fs.pickSavePath({
     defaultPath: `${options.key}.ocblock`,
@@ -151,6 +150,7 @@ export async function exportProjectCustomBlock(options: {
   const writtenPath = await exportProjectCustomBlockPackage({
     fs: options.fs,
     manifest,
+    block,
     files: resources.files,
     outputPath,
   })

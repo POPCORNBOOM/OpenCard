@@ -5,7 +5,7 @@ import { parseRenderDocument } from './renderParser'
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     description: 'Reusable card.',

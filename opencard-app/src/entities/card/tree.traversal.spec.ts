@@ -14,7 +14,7 @@ function createDocument(): CardDocument {
     location: { id: 'nested-location', type: 'simple-container-location', anchor: 'lt' },
   })
   return {
-    type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '1', height: '1',
+    type: 'card-document', id: 'document', version: '1', width: '1', height: '1',
     instances: [],
     faces: {
       front: {

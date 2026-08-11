@@ -43,7 +43,6 @@ export function parseRenderReadyBlockForTest(block: FlowContainerBlock): RenderR
 export function parseRenderReadyBlockForTest(block: CardBlock): RenderReadyCardBlock {
   const document: CardDocument = {
     type: 'card-document',
-    schemaVersion: '2',
     id: 'render-test-document',
     name: 'Render test',
     version: '1.0.0',

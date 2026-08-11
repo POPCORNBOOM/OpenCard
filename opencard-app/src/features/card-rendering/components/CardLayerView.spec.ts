@@ -364,7 +364,7 @@ describe('CardLayerView', () => {
     expect(Number.parseFloat(plane.style.height)).toBeLessThan(1000)
   })
 
-  it('renders the localized shortcut legend with tooltip chips', async () => {
+  it('renders the localized shortcut legend through the shared shortcut contract', async () => {
     const wrapper = mount(CardLayerView, {
       props: {
         face: createFace(),
@@ -397,7 +397,7 @@ describe('CardLayerView', () => {
     expect(legend.findAll('.card-layer-view__shortcut-row')).toHaveLength(2)
     expect(legend.findAll('.oc-key').map(key => key.text()))
       .toEqual(['', '↑ / ↓', '', '', '↑ / ↓'])
-    expect(legend.findAll('.card-layer-view__shortcut-separator').map(separator => separator.text()))
+    expect(legend.findAll('.oc-shortcut__separator').map(separator => separator.text()))
       .toEqual(['or', 'or'])
     expect(legend.findAllComponents(OcIcon).map(
       (icon: VueWrapper) => (icon.props() as { name: string }).name,

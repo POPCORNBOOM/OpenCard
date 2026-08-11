@@ -11,7 +11,7 @@ describe('globalTooltip', () => {
     document.body.innerHTML = `
       <button id="first" data-tooltip="First tooltip">First</button>
       <button id="second" data-tooltip="Second tooltip">Second</button>
-      <button id="rich" data-tooltip="[b]Before[/b][br][i]Now[/i] [[chip:Ctrl]] [[icon:action.copy]] [key]Alt[/key]">Rich</button>
+      <button id="rich" data-tooltip="[b]Before[/b][br][i]Now[/i] [code]copy[/code] [icon:action.copy] [key]Alt[/key]">Rich</button>
     `
     setupGlobalTooltip()
 
@@ -41,13 +41,12 @@ describe('globalTooltip', () => {
 
     const rich = document.getElementById('rich')!
     rich.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    expect(layer.textContent).toBe('BeforeNow Ctrl  Alt')
+    expect(layer.textContent).toBe('BeforeNow copy  Alt')
     expect(layer.querySelector('strong')?.textContent).toBe('Before')
     expect(layer.querySelector('em')?.textContent).toBe('Now')
     expect(layer.querySelector('br')).not.toBeNull()
-    expect(layer.querySelectorAll('.oc-chip')).toHaveLength(1)
-    expect(layer.querySelector('.oc-chip')?.textContent).toBe('Ctrl')
+    expect(layer.querySelector('code')?.textContent).toBe('copy')
     expect(layer.querySelector('.oc-key')?.textContent).toBe('Alt')
-    expect(layer.querySelector('.oc-inline-icon path')).not.toBeNull()
+    expect(layer.querySelector('.oc-inline-markup__icon path')).not.toBeNull()
   })
 })

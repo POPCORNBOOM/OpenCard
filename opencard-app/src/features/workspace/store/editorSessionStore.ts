@@ -130,7 +130,6 @@ export function createDefaultOpenCardContent(displayName: string) {
   const documentName = stripFileExtension(displayName) || 'UNTITLED'
   return JSON.stringify({
     type: 'card-document',
-    schemaVersion: '2',
     id: `card-document-${crypto.randomUUID()}`,
     name: documentName,
     version: '1.0.0',

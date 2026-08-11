@@ -15,11 +15,7 @@
         <dl class="custom-block-package-editor__details">
           <div>
             <dt>{{ t('customBlockPackage.key') }}</dt>
-            <dd><OcText mono>{{ manifest.key }}</OcText></dd>
-          </div>
-          <div>
-            <dt>{{ t('customBlockPackage.interfaceHash') }}</dt>
-            <dd><OcText mono>{{ manifest.interfaceHash }}</OcText></dd>
+            <dd><OcText mono>{{ manifest.customBlockKey }}</OcText></dd>
           </div>
           <div>
             <dt>{{ t('customBlockPackage.packagePath') }}</dt>
@@ -30,14 +26,20 @@
             <dd>{{ resizeDescription }}</dd>
           </div>
         </dl>
+        <OcText v-if="!packageBlock" tone="danger" size="sm" role="status">
+          {{ t('customBlockPackage.unavailable') }}
+        </OcText>
+        <OcText v-else-if="packageIssueCount" tone="muted" size="sm" role="status">
+          {{ t('customBlockPackage.issuesFound', { count: packageIssueCount }) }}
+        </OcText>
 
         <section class="custom-block-package-editor__fields">
           <OcText as="h2" size="sm" bold>{{ t('customBlockPackage.publicFields') }}</OcText>
-          <OcText v-if="!manifest.publicFields.length" tone="muted" size="sm">
+          <OcText v-if="!publicFields.length" tone="muted" size="sm">
             {{ t('customBlockPackage.noPublicFields') }}
           </OcText>
           <ul v-else>
-            <li v-for="field in manifest.publicFields" :key="field.key">
+            <li v-for="field in publicFields" :key="field.key">
               <span>{{ field.title || field.key }}</span>
               <OcText mono tone="muted" size="sm">{{ field.key }} · {{ field.fieldType }}</OcText>
             </li>
@@ -80,7 +82,9 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
-import type { ProjectCustomBlockManifest } from '../../features/workspace/model/projectCustomBlocks'
+import type { CardBlock } from '../../entities/card/model'
+import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../entities/card/schema'
+import type { ProjectCustomBlockManifest, ProjectCustomBlockPackageIssue } from '../../features/workspace/model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../../features/workspace/services/projectCustomBlock'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import {
@@ -98,6 +102,8 @@ const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
 const manifest = ref<ProjectCustomBlockManifest | null>(null)
+const packageBlock = ref<CardBlock | null>(null)
+const packageIssues = ref<readonly ProjectCustomBlockPackageIssue[]>([])
 const loading = ref(true)
 const loadError = ref('')
 const busy = ref(false)
@@ -115,8 +121,25 @@ const absolutePath = computed(() => {
   return root ? `${root}/${props.filePath}` : props.filePath
 })
 const existingEntry = computed(() => manifest.value
-  ? projectStore.projectCustomBlockCatalog.value.get(manifest.value.key.toLocaleLowerCase())
+  ? projectStore.projectCustomBlockCatalog.value.get(manifest.value.customBlockKey.toLocaleLowerCase())
   : undefined)
+const publicFields = computed(() => {
+  if (!manifest.value || !packageBlock.value) return []
+  const definitions = parseAdditionalFieldDefinitions(packageBlock.value.additionalFieldDefinition)
+  const nativeSchema = getTypePropertyEditorSchema(packageBlock.value.type)
+  return manifest.value.publicFieldKeys.flatMap(key => {
+    const additional = definitions[key]
+    if (additional) return [{ key, ...additional }]
+    const native = nativeSchema[key]
+    return native ? [{
+      key,
+      fieldType: native.fieldType,
+      title: t(`propertyEditor.fields.${key}`),
+      ...(typeof native.defaultValue === 'string' ? { defaultValue: native.defaultValue } : {}),
+    }] : []
+  })
+})
+const packageIssueCount = computed(() => packageIssues.value.length)
 const resizeDescription = computed(() => {
   if (!manifest.value) return ''
   const { widthLocked, heightLocked } = manifest.value.resize
@@ -152,11 +175,15 @@ async function loadPackage(): Promise<void> {
   loading.value = true
   loadError.value = ''
   manifest.value = null
+  packageBlock.value = null
+  packageIssues.value = []
   resetRegistrationState()
   try {
     const loaded = await readProjectCustomBlockPackage(fileSystemService, absolutePath.value)
     if (version !== loadVersion) return
     manifest.value = loaded.manifest
+    packageBlock.value = loaded.block
+    packageIssues.value = loaded.issues ?? []
   } catch (cause) {
     if (version === loadVersion) loadError.value = cause instanceof Error ? cause.message : String(cause)
   } finally {

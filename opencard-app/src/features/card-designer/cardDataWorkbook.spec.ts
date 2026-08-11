@@ -9,7 +9,7 @@ import {
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document-1',
     name: 'Export test',
     version: '1.0.0',

@@ -13,7 +13,7 @@ const environment = {
 
 function document(instances = ['Knight']): CardDocument {
   return {
-    type: 'card-document', schemaVersion: '2', id: 'document', name: 'Card', version: '1',
+    type: 'card-document', id: 'document', name: 'Card', version: '1',
     width: '540', height: '850',
     faces: {
       front: { type: 'card-face', id: 'front', background: '#fff', children: [] },
@@ -69,12 +69,25 @@ describe('prepareExportTask', () => {
     if (result.ok) expect(result.plan.entries).toHaveLength(expectedCount)
   })
 
+  it('keeps document normalization warnings non-blocking', async () => {
+    const source: ExportDocumentSource = {
+      load: async sourcePath => ({
+        sourcePath, resourceRootPath: 'D:/project/cards', document: document(),
+        storageWarnings: [{ code: 'entry-ignored', path: '$.faces.front.children[0]', message: 'ignored' }],
+      }),
+    }
+    const result = await prepareExportTask({ task: task('blueprint'), source, destination, environment })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.warnings).toEqual([expect.objectContaining({ code: 'document-normalized' })])
+  })
+
   it('keeps the custom-block runtime catalog in the prepared renderer resources', async () => {
     const customBlockCatalog = new Map([['picture', {
       manifest: {
-        key: 'picture', interfaceHash: 'hash', root: {}, publicFields: [],
+        customBlockKey: 'picture', publicFieldKeys: [],
         resize: { widthLocked: false, heightLocked: false },
       },
+      block: {},
       resourceUrls: new Map([['resources/images/a.png', 'blob:export-picture']]),
     }]])
     const source: ExportDocumentSource = {

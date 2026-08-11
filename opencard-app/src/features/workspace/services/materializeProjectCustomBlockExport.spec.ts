@@ -4,7 +4,7 @@ import { materializeProjectCustomBlockExport } from './materializeProjectCustomB
 
 function createDocument(root: CardBlock): CardDocument {
   return {
-    type: 'card-document', schemaVersion: '2', id: 'document', name: 'Document', version: '1',
+    type: 'card-document', id: 'document', name: 'Document', version: '1',
     width: '540', height: '850', instances: [],
     faces: {
       front: {
@@ -49,7 +49,8 @@ describe('materializeProjectCustomBlockExport', () => {
 
   it('bakes nested custom blocks with their public values and no package dependency', () => {
     const packagedRoot = createBlock('text-block', { id: 'package-root', content: '{{self:label}}' })
-    const host = createBlock('custom-block', { id: 'nested', source: 'block:label', interfaceHash: 'hash' })
+    packagedRoot.additionalFieldDefinition = { label: { fieldType: 'string' } }
+    const host = createBlock('custom-block', { id: 'nested', customBlockKey: 'label' })
     ;(host as unknown as Record<string, unknown>).label = 'Exported'
     const root = createBlock('simple-container-block', { id: 'root' })
     root.children.push({
@@ -62,10 +63,10 @@ describe('materializeProjectCustomBlockExport', () => {
       rootBlockId: root.id,
       customBlockCatalog: new Map([['label', {
         manifest: {
-          key: 'label', interfaceHash: 'hash', root: packagedRoot,
-          publicFields: [{ key: 'label', fieldType: 'string' }],
+          customBlockKey: 'label', publicFieldKeys: ['label'],
           resize: { widthLocked: false, heightLocked: false },
         },
+        block: packagedRoot,
       }]]),
     })
 
@@ -80,19 +81,19 @@ describe('materializeProjectCustomBlockExport', () => {
   it('reports only nested custom block failures inside the exported subtree', () => {
     const root = createBlock('simple-container-block', { id: 'root' })
     root.children.push({
-      block: createBlock('custom-block', { id: 'missing-inside', source: 'block:missing', interfaceHash: 'hash' }),
+      block: createBlock('custom-block', { id: 'missing-inside', customBlockKey: 'missing' }),
       location: { id: 'inside-location', type: 'simple-container-location', anchor: 'lt' },
     })
     const document = createDocument(root)
     document.faces.back.children.push({
-      block: createBlock('custom-block', { id: 'missing-outside', source: 'block:missing', interfaceHash: 'hash' }),
+      block: createBlock('custom-block', { id: 'missing-outside', customBlockKey: 'missing' }),
       location: { id: 'outside-location', type: 'simple-container-location', anchor: 'lt' },
     })
 
     const result = materializeProjectCustomBlockExport({ document, rootBlockId: root.id, customBlockCatalog: new Map() })
 
     expect(result.expansionIssues).toEqual([
-      { blockId: 'missing-inside', faceKey: 'front', reason: 'missing', source: 'block:missing' },
+      { blockId: 'missing-inside', faceKey: 'front', reason: 'missing', customBlockKey: 'missing' },
     ])
   })
 

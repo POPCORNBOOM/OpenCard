@@ -13,7 +13,7 @@ describe('editorSessionStore card designer layout', () => {
 
     expect(document).toMatchObject({
       type: 'card-document',
-      schemaVersion: '2',
+
       faces: {
         front: { type: 'card-face', background: '#FFFFFF', children: [] },
         back: { type: 'card-face', background: '#FFFFFF', children: [] },

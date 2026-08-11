@@ -33,12 +33,21 @@ export type ProjectIconCatalog = {
   series: readonly ProjectIconSeriesRuntime[]
   entries: readonly ProjectIconCatalogEntry[]
   errors: readonly ProjectIconLoadError[]
+  /** Case-insensitive runtime indexes. Optional only for hand-authored test catalogs. */
+  seriesByKey?: ReadonlyMap<string, ProjectIconSeriesRuntime>
+  entriesByIdentity?: ReadonlyMap<string, ProjectIconCatalogEntry>
 }
 
 export type ProjectImageDimensions = { width: number; height: number }
 export type ProjectImageDimensionLoader = (src: string) => Promise<ProjectImageDimensions>
 
-export const EMPTY_PROJECT_ICON_CATALOG: ProjectIconCatalog = { series: [], entries: [], errors: [] }
+export const EMPTY_PROJECT_ICON_CATALOG: ProjectIconCatalog = {
+  series: [],
+  entries: [],
+  errors: [],
+  seriesByKey: new Map(),
+  entriesByIdentity: new Map(),
+}
 
 export function projectIconIdentity(seriesKey: string, iconKey: string): string {
   return `${seriesKey.toLowerCase()}\u0000${iconKey.toLowerCase()}`
@@ -107,14 +116,22 @@ export async function buildProjectIconCatalog(
       })
     }
   }
-  return { series: runtimeSeries, entries, errors }
+  return {
+    series: runtimeSeries,
+    entries,
+    errors,
+    seriesByKey: new Map(runtimeSeries.map(series => [series.key.toLowerCase(), series])),
+    entriesByIdentity: new Map(entries.map(entry => [projectIconIdentity(entry.seriesKey, entry.iconKey), entry])),
+  }
 }
 
 export function findProjectIconSeries(
   catalog: ProjectIconCatalog | null | undefined,
   seriesKey: string,
 ): ProjectIconSeriesRuntime | null {
-  return catalog?.series.find(series => series.key.toLowerCase() === seriesKey.toLowerCase()) ?? null
+  return catalog?.seriesByKey?.get(seriesKey.toLowerCase())
+    ?? catalog?.series.find(series => series.key.toLowerCase() === seriesKey.toLowerCase())
+    ?? null
 }
 
 export function findProjectIcon(
@@ -123,7 +140,9 @@ export function findProjectIcon(
   iconKey: string,
 ): ProjectIconCatalogEntry | null {
   const identity = projectIconIdentity(seriesKey, iconKey)
-  return catalog?.entries.find(entry => projectIconIdentity(entry.seriesKey, entry.iconKey) === identity) ?? null
+  return catalog?.entriesByIdentity?.get(identity)
+    ?? catalog?.entries.find(entry => projectIconIdentity(entry.seriesKey, entry.iconKey) === identity)
+    ?? null
 }
 
 function isQuarterTurn(rotation: number | undefined): boolean {

@@ -50,6 +50,15 @@ describe('OcActionButton', () => {
     expect(wrapper.get('button').attributes('aria-label')).toBe('Feedback, 3 unread replies')
   })
 
+  it('keeps marked-up tooltip copy but exposes a plain accessible label', () => {
+    const wrapper = mount(OcActionButton, {
+      props: { action: { key: 'fill', title: 'Fill [key]F[/key]' } },
+    })
+
+    expect(wrapper.get('button').attributes('data-tooltip')).toBe('Fill [key]F[/key]')
+    expect(wrapper.get('button').attributes('aria-label')).toBe('Fill F')
+  })
+
   it('decouples the action icon size from the button target size', () => {
     const wrapper = mount(OcActionButton, {
       props: {

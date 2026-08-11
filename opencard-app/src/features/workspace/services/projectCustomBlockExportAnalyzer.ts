@@ -1,7 +1,8 @@
 import type { CardBlock, FlowContainerBlock, SimpleContainerBlock } from '../../../entities/card/model'
-import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
 import { isBindingStartEscaped, parseFieldReference } from '../../editor-runtime/model/bindingExpression'
-import type { ProjectCustomBlockPublicField, ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
+import { PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
+  type ProjectCustomBlockPublicField, type ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
 
 export type CustomBlockFieldAnalysis = ProjectCustomBlockPublicField & {
   referenceCount: number
@@ -53,9 +54,19 @@ function scanRecord(value: unknown, rootFields: ReadonlySet<string>, depth: numb
 }
 
 export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExportAnalysis {
-  const definitions = Object.entries(parseAdditionalFieldDefinitions(root.additionalFieldDefinition))
-  const keys = new Set(definitions.map(([key]) => key))
-  const counts = new Map<string, number>(definitions.map(([key]) => [key, 0]))
+  const alwaysPublicKeys = new Set(PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS.map(key => key.toLowerCase()))
+  const nativeFields = Object.entries(getTypePropertyEditorSchema(root.type)).flatMap(([key, definition]) => (
+    key === 'width' || key === 'height' || alwaysPublicKeys.has(key.toLowerCase())
+      || definition.isHidden || definition.isReadonly || definition.fieldType === 'object'
+      ? []
+      : [{ key, fieldType: definition.fieldType, title: undefined }]
+  ))
+  const nativeKeys = new Set(nativeFields.map(field => field.key.toLowerCase()))
+  const additionalFields = Object.entries(parseAdditionalFieldDefinitions(root.additionalFieldDefinition))
+    .flatMap(([key, definition]) => nativeKeys.has(key.toLowerCase()) ? [] : [{ key, ...definition }])
+  const definitions = [...nativeFields, ...additionalFields]
+  const keys = new Set(definitions.map(definition => definition.key))
+  const counts = new Map<string, number>(definitions.map(definition => [definition.key, 0]))
   const seen = new Set<object>()
   const mergeCounts = (next: Map<string, number>) => next.forEach((count, key) => counts.set(key, (counts.get(key) ?? 0) + count))
   const visit = (block: CardBlock, depth: number) => {
@@ -69,11 +80,9 @@ export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExp
     }
   }
   visit(root, 0)
-  const fields = definitions.map(([key, definition], definitionOrder) => ({
-    key,
-    fieldType: definition.fieldType,
-    ...(definition.title ? { title: definition.title } : {}),
-    referenceCount: counts.get(key) ?? 0,
+  const fields = definitions.map((definition, definitionOrder) => ({
+    ...definition,
+    referenceCount: counts.get(definition.key) ?? 0,
     definitionOrder,
     exposed: false,
   })).sort((a, b) => b.referenceCount - a.referenceCount || a.definitionOrder - b.definitionOrder)

@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
 import type {
   CardBlock,
   CardDocument,
@@ -21,6 +21,7 @@ import {
   additionalFieldTypes,
   getDefault,
   getTypePropertyEditorSchema,
+  parseAdditionalFieldDefinitions,
   propertyEditorCategoryDefinitions,
   resolveNulls,
   type EditorPropertyDefinition,
@@ -29,6 +30,7 @@ import {
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
+import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import {
   resolveCardPropertyFields,
   type CardPropertyEditorInput,
@@ -79,6 +81,7 @@ type UseCdePropertyPanelStateOptions = {
   selectedBlock: Readonly<ComputedRef<CardBlock | null>>
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
   selectedCardId: Readonly<Ref<string | null>>
+  customBlockCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
   refreshDocumentState: () => void
@@ -175,6 +178,30 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     } as Record<string, unknown> & { type?: string }
   })
 
+  const selectedBlockFieldDefinitions = computed(() => {
+    const block = options.selectedBlock.value
+    if (!block) return {}
+    if (block.type !== 'custom-block') return block.additionalFieldDefinition ?? {}
+    const entry = options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
+    if (!entry) return {}
+    const definitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
+    return Object.fromEntries(entry.manifest.publicFieldKeys.flatMap(fieldKey => (
+      definitions[fieldKey] ? [[fieldKey, definitions[fieldKey]] as const] : []
+    )))
+  })
+
+  const selectedCustomBlockExcludedKeys = computed(() => {
+    const block = options.selectedBlock.value
+    if (block?.type !== 'custom-block') return new Set<string>()
+    const manifest = options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())?.manifest
+    if (!manifest) return new Set(Object.keys(getTypePropertyEditorSchema('custom-block')))
+    const allowed = new Set(manifest.publicFieldKeys.map(key => key.toLowerCase()))
+    if (!manifest.resize.widthLocked) allowed.add('width')
+    if (!manifest.resize.heightLocked) allowed.add('height')
+    return new Set(Object.keys(getTypePropertyEditorSchema('custom-block'))
+      .filter(fieldKey => !allowed.has(fieldKey.toLowerCase())))
+  })
+
   const blockInputOverride = computed<Record<string, Partial<EditorPropertyDefinition>> | undefined>(() => {
     options.documentRevision.value
     const block = options.selectedBlock.value
@@ -187,14 +214,26 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       : undefined
 
     const overrideEntries: Array<readonly [string, Partial<EditorPropertyDefinition>]> = []
-    for (const [fieldKey, definition] of Object.entries(block.additionalFieldDefinition ?? {})) {
+    const fieldDefinitions = selectedBlockFieldDefinitions.value
+    for (const [fieldKey, definition] of Object.entries(fieldDefinitions)) {
       overrideEntries.push([fieldKey, {
         ...getAdditionalFieldPropertyDefinition(definition),
         resettable: Object.prototype.hasOwnProperty.call(instanceBlockData ?? {}, fieldKey),
       }])
     }
+    if (block.type === 'custom-block') {
+      const entry = options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
+      const rootSchema = getTypePropertyEditorSchema(entry?.block.type)
+      for (const fieldKey of entry?.manifest.publicFieldKeys ?? []) {
+        if (fieldDefinitions[fieldKey] || !rootSchema[fieldKey]) continue
+        overrideEntries.push([fieldKey, {
+          ...rootSchema[fieldKey],
+          resettable: Object.prototype.hasOwnProperty.call(instanceBlockData ?? {}, fieldKey),
+        }])
+      }
+    }
     for (const fieldKey of Object.keys(instanceBlockData ?? {})) {
-      if (block.additionalFieldDefinition?.[fieldKey]) continue
+      if (fieldDefinitions[fieldKey]) continue
       overrideEntries.push([fieldKey, { resettable: true }])
     }
 
@@ -252,13 +291,16 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         fields: resolveFields(
           selectedBlockEditorRecord.value,
           blockInputOverride.value,
-          Object.entries(selectedBlock.additionalFieldDefinition ?? {})
+          Object.entries(selectedBlockFieldDefinitions.value)
             .reduce<Record<string, string>>((labels, [fieldKey, definition]) => {
               labels[fieldKey] = definition.title ?? fieldKey
               return labels
             }, {}),
-          new Set(Object.keys(selectedBlock.additionalFieldDefinition ?? {})),
-          options.selectedCardId.value === options.blueprintCardId ? new Set() : new Set(['name']),
+          new Set(Object.keys(selectedBlockFieldDefinitions.value)),
+          new Set([
+            ...selectedCustomBlockExcludedKeys.value,
+            ...(options.selectedCardId.value === options.blueprintCardId ? [] : ['name']),
+          ]),
         ),
       })
       if (layout) {

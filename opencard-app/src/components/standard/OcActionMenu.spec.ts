@@ -51,6 +51,17 @@ describe('OcActionMenu', () => {
     expect(wrapper.get('[role="menuitem"]').attributes('aria-label')).toBe('Feedback, 120 unread replies')
   })
 
+  it('renders marked-up titles while deriving a plain accessible label', () => {
+    const wrapper = mount(OcActionMenu, {
+      props: { actions: [{ key: 'fill', title: '[b]Fill[/b] [key]F[/key] [icon:layout.fill]' }] },
+    })
+
+    expect(wrapper.get('.oc-action-menu__label strong').text()).toBe('Fill')
+    expect(wrapper.get('.oc-action-menu__label kbd').text()).toBe('F')
+    expect(wrapper.find('.oc-action-menu__label .oc-icon').exists()).toBe(true)
+    expect(wrapper.get('[role="menuitem"]').attributes('aria-label')).toBe('Fill F')
+  })
+
   it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
     const wrapper = mount(OcActionMenu, {
       props: {

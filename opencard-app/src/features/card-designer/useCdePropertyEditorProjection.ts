@@ -4,9 +4,7 @@
  */
 import { computed, type Ref } from 'vue'
 import {
-  getCardFieldDefinition,
   getCardFieldKeys,
-  getCardFieldValueKind,
   type CardBlock,
   type CardDocument,
   type CardFaceKey,
@@ -119,9 +117,11 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           document: documentScope,
           project: projectScope,
           dictionary: dictionaryScope,
-          allowedScopes: getCardFieldDefinition(input.record, fieldKey)?.bindingScopes,
+          allowedScopes: definition.bindingScopes,
           getAncestor: depth => ancestorScopes[depth - 1],
-          targetKind: getCardFieldValueKind(input.record, fieldKey),
+          targetKind: definition.fieldType === 'number' ? 'number'
+            : definition.fieldType === 'boolean' ? 'boolean'
+              : definition.fieldType === 'object' ? 'object' : 'string',
         } : undefined
         return [fieldKey, enrichCardPropertyFieldDefinition({
           definition,

@@ -1,4 +1,5 @@
 import type { CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
+import type { CardStorageWarning } from '../../entities/card/storage'
 import type { CardRenderEnvironment, PreparedCardRender } from '../card-rendering/renderPipeline'
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 
@@ -12,6 +13,7 @@ export type ExportTaskValidationCode =
   | 'invalid-error-policy'
   | 'output-unavailable'
   | 'document-unavailable'
+  | 'document-normalized'
   | 'empty-plan'
 
 export type ExportTaskValidationIssue = {
@@ -24,6 +26,7 @@ export type ExportDocumentSnapshot = {
   sourcePath: string
   resourceRootPath: string
   document: CardDocument
+  storageWarnings?: readonly CardStorageWarning[]
 }
 
 export type ExportPlanEntry = {
@@ -41,7 +44,7 @@ export type ExportPlan = {
 }
 
 export type ExportPreparationResult =
-  | { ok: true; plan: ExportPlan }
+  | { ok: true; plan: ExportPlan; warnings: readonly ExportTaskValidationIssue[] }
   | { ok: false; issues: readonly ExportTaskValidationIssue[] }
 
 export type ExportFailure = {

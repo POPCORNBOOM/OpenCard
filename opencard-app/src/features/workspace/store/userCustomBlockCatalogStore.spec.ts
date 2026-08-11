@@ -6,9 +6,8 @@ import { createUserCustomBlockCatalogStore } from './userCustomBlockCatalogStore
 const badge: UserCustomBlockCatalogEntry = {
   key: 'user:badge',
   id: 'badge',
-  blockKey: 'badge',
+  customBlockKey: 'badge',
   name: 'Badge',
-  interfaceHash: 'hash',
   path: '/app/custom-blocks/badge.ocblock',
 }
 

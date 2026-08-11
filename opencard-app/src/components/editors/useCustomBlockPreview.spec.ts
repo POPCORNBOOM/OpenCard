@@ -8,7 +8,6 @@ import type {
   ProjectCustomBlockRegistryDocument,
 } from '../../features/workspace/model/projectCustomBlocks'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../../features/workspace/services/projectIconCatalog'
-import { resolveCardAssetSrc } from '../../features/card-rendering/cardRenderResources'
 import { useCustomBlockPreview } from './useCustomBlockPreview'
 
 function createEntry(key: string, path: string): ProjectCustomBlockCatalogEntry {
@@ -24,19 +23,13 @@ function createEntry(key: string, path: string): ProjectCustomBlockCatalogEntry 
     files: new Map(),
     manifest: {
       type: 'opencard-custom-block',
-      schemaVersion: '1',
-      key,
+
+      customBlockKey: key,
       name: key.toUpperCase(),
-      interfaceHash: `${key}-interface`,
-      root,
-      publicFields: [
-        { key: 'label', fieldType: 'string', title: 'Label', defaultValue: 'Ready' },
-        { key: 'count', fieldType: 'number', title: 'Count' },
-        { key: 'enabled', fieldType: 'boolean', title: 'Enabled' },
-        { key: 'color', fieldType: 'color', title: 'Color' },
-      ],
+      publicFieldKeys: ['label', 'count', 'enabled', 'color', 'content'],
       resize: { widthLocked: false, heightLocked: false },
     },
+    block: Object.assign(root, { label: 'Ready' }),
   }
 }
 
@@ -55,9 +48,15 @@ function createHarness(initialCatalog = true) {
     customBlockCatalog: new Map([['first', first], ['second', second]]),
     projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG,
   })
+  const manifestCatalog = ref(new Map([
+    ['first', { manifest: first.manifest, archivePath: first.archivePath, loadState: 'ready' as const }],
+    ['second', { manifest: second.manifest, archivePath: second.archivePath, loadState: 'ready' as const }],
+  ]))
   const preview = useCustomBlockPreview({
     document,
     catalog,
+    manifestCatalog,
+    ensureLoaded: async key => catalog.value.get(key.toLowerCase()) ?? null,
     renderEnvironment,
     resourceRootPath: ref('D:/Project'),
     translate: key => key,
@@ -78,9 +77,10 @@ describe('useCustomBlockPreview', () => {
       count: '0',
       enabled: 'false',
       color: '',
+      content: '{{self:label}}',
     })
     expect(Object.keys(preview.propertyInputs.value[0]?.fields ?? {}))
-      .toEqual(['label', 'count', 'enabled', 'color'])
+      .toEqual(['label', 'count', 'enabled', 'color', 'content'])
 
     const host = preview.previewFace.value?.children[0]?.block
     expect(host).toMatchObject({ type: 'custom-block', id: 'custom-block-preview-host' })
@@ -111,10 +111,11 @@ describe('useCustomBlockPreview', () => {
 
   it('uses the shared renderer resource context for packaged images', async () => {
     const { first, preview, renderEnvironment } = createHarness()
-    first.manifest.root = createBlock('image-block', {
+    first.block = createBlock('image-block', {
       id: 'first-root',
-      image: 'ocblock:first/resources/images/a.png',
+      image: 'resource:image:a',
     })
+    first.manifest.resources = { images: [{ key: 'a', source: 'resources/images/a.png' }] }
     renderEnvironment.value = {
       ...renderEnvironment.value,
       customBlockCatalog: new Map([['first', {
@@ -127,10 +128,7 @@ describe('useCustomBlockPreview', () => {
     const host = preview.previewFace.value?.children[0]?.block
     const image = host?.type === 'custom-block' ? host.content : null
     expect(image?.type === 'image-block' ? image.image : null)
-      .toBe('ocblock:first/resources/images/a.png')
-    expect(preview.previewResources.value
-      ? resolveCardAssetSrc('ocblock:first/resources/images/a.png', preview.previewResources.value)
-      : null).toBe('blob:controlled-preview')
+      .toBe('resource:image:a')
   })
 
   it('selects the neighboring path after removal and recovers from a delayed catalog', async () => {

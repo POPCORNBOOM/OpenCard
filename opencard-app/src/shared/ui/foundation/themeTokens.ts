@@ -87,6 +87,13 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-number-badge-font-size',
   '--oc-number-badge-line-height',
 
+  // 内联标记
+  '--oc-inline-key-height',
+  '--oc-inline-key-padding-inline',
+  '--oc-inline-key-highlight',
+  '--oc-inline-key-lowlight',
+  '--oc-inline-key-shadow-offset',
+
   // 文件类型图标色
   '--oc-icon-file-opencard',
   '--oc-icon-file-json',
@@ -174,6 +181,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-custom-block-list-min-width',
   '--oc-custom-block-list-width',
   '--oc-custom-block-property-height',
+  '--oc-custom-block-export-fields-max-height',
   '--oc-viewport-inspector-min-height',
   '--oc-viewport-inspector-visible-min-height',
   '--oc-z-viewport-inspector',

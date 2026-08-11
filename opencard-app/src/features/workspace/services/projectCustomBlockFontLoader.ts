@@ -58,7 +58,7 @@ export async function createProjectCustomBlockFontSession(
         const bytes = findProjectCustomBlockFile(entry.files, font.source)
         if (!bytes) throw new Error(`Custom block font resource is missing: ${font.source}`)
         url = runtime.createObjectUrl(new Blob([bytes.slice().buffer], { type: fontMimeForPath(font.source) }))
-        const family = createProjectCustomBlockFontFamily(entry.manifest.key, font.key)
+        const family = createProjectCustomBlockFontFamily(entry.manifest.customBlockKey, font.key)
         face = runtime.createFontFace(family, `url(${JSON.stringify(url)})`)
         await face.load()
         runtime.addFont(face)
@@ -67,7 +67,7 @@ export async function createProjectCustomBlockFontSession(
         if (face) runtime.deleteFont(face)
         if (url) runtime.revokeObjectUrl(url)
         errors.push({
-          packageKey: entry.manifest.key,
+          packageKey: entry.manifest.customBlockKey,
           fontKey: font.key,
           source: font.source,
           reason: 'load-failed',

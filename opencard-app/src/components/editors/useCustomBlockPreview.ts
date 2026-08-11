@@ -7,6 +7,7 @@ import {
 import {
   createPropertyDefaultValue,
   fillDefaults,
+  getTypePropertyEditorSchema,
   parseAdditionalFieldDefinitions,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
@@ -15,6 +16,7 @@ import { prepareCardRender, type CardRenderEnvironment } from '../../features/ca
 import type { RenderReadyCardFace } from '../../features/card-rendering/render.types'
 import type {
   ProjectCustomBlockCatalogEntry,
+  ProjectCustomBlockManifestCatalogEntry,
   ProjectCustomBlockRegistryDocument,
 } from '../../features/workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockInstance } from '../../features/workspace/services/createProjectCustomBlockInstance'
@@ -41,13 +43,15 @@ export type CustomBlockPreviewFitRect = {
 }
 
 type PreviewValueState = {
-  interfaceHash: string
+  block: DeepReadonly<ProjectCustomBlockCatalogEntry['block']>
   values: Record<string, unknown>
 }
 
 type UseCustomBlockPreviewOptions = {
   document: Readonly<Ref<ProjectCustomBlockRegistryDocument | null>>
   catalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
+  manifestCatalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockManifestCatalogEntry>>>>
+  ensureLoaded: (customBlockKey: string) => Promise<ProjectCustomBlockCatalogEntry | null>
   renderEnvironment: Readonly<Ref<CardRenderEnvironment>>
   resourceRootPath: Readonly<Ref<string | null>>
   translate: (messageKey: string) => string
@@ -59,13 +63,14 @@ function normalizePath(path: string): string {
 }
 
 function createDefaultValues(entry: DeepReadonly<ProjectCustomBlockCatalogEntry>): Record<string, unknown> {
-  const rootDefinitions = parseAdditionalFieldDefinitions(entry.manifest.root.additionalFieldDefinition)
-  return Object.fromEntries(entry.manifest.publicFields.map(field => {
-    const definition = rootDefinitions[field.key] ?? { fieldType: field.fieldType }
-    const editorDefinition = getAdditionalFieldPropertyDefinition(definition)
-    return [field.key, field.defaultValue !== undefined
-      ? structuredClone(field.defaultValue)
-      : createPropertyDefaultValue(editorDefinition)]
+  const rootDefinitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
+  const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
+  return Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => {
+    const additional = rootDefinitions[fieldKey]
+    const editorDefinition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[fieldKey]
+    return [fieldKey, Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
+      ? structuredClone((entry.block as Readonly<Record<string, unknown>>)[fieldKey])
+      : editorDefinition ? createPropertyDefaultValue(editorDefinition) : '']
   }))
 }
 
@@ -92,7 +97,7 @@ function createPreviewDocument(
   const back = createCardFace({ id: 'custom-block-preview-back', background: 'transparent' })
   return fillDefaults('card-document', {
     type: 'card-document',
-    id: `custom-block-preview-${entry.manifest.key}`,
+    id: `custom-block-preview-${entry.manifest.customBlockKey}`,
     name: entry.manifest.name,
     faces: { front, back },
     instances: [],
@@ -121,6 +126,14 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     }))
   })
 
+  watch(selectedPath, path => {
+    if (!path) return
+    const descriptor = [...options.manifestCatalog.value.values()].find(
+      entry => normalizePath(entry.archivePath) === normalizePath(path),
+    )
+    if (descriptor) void options.ensureLoaded(descriptor.manifest.customBlockKey)
+  }, { immediate: true })
+
   watch(
     () => entries.value.map(entry => entry.path),
     (paths, previousPaths = []) => {
@@ -145,10 +158,10 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
       if (!entry || !selectedPath.value) return
       const identity = normalizePath(selectedPath.value)
       const current = valueStates.value.get(identity)
-      if (current?.interfaceHash === entry.manifest.interfaceHash) return
+      if (current?.block === entry.block) return
       const next = new Map(valueStates.value)
       next.set(identity, {
-        interfaceHash: entry.manifest.interfaceHash,
+        block: entry.block,
         values: createDefaultValues(entry),
       })
       valueStates.value = next
@@ -194,20 +207,25 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
 
   const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     const entry = selectedEntry.value?.catalogEntry
-    if (!entry || entry.manifest.publicFields.length === 0) return []
-    const rootDefinitions = parseAdditionalFieldDefinitions(entry.manifest.root.additionalFieldDefinition)
-    const publicKeys = new Set(entry.manifest.publicFields.map(field => field.key))
-    const override = Object.fromEntries(entry.manifest.publicFields.map(field => {
-      const definition = rootDefinitions[field.key] ?? { fieldType: field.fieldType }
-      return [field.key, {
-        ...getAdditionalFieldPropertyDefinition(definition),
+    if (!entry || entry.manifest.publicFieldKeys.length === 0) return []
+    const rootDefinitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
+    const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
+    const publicKeys = new Set(entry.manifest.publicFieldKeys)
+    const override = Object.fromEntries(entry.manifest.publicFieldKeys.flatMap(fieldKey => {
+      const additional = rootDefinitions[fieldKey]
+      const definition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[fieldKey]
+      return definition ? [[fieldKey, {
+        ...definition,
         required: true,
         resettable: false,
-      } satisfies Partial<EditorPropertyDefinition>]
+      } satisfies Partial<EditorPropertyDefinition>] as const] : []
     }))
-    const labels = Object.fromEntries(entry.manifest.publicFields.map(field => [
-      field.key,
-      field.title ?? rootDefinitions[field.key]?.title ?? field.key,
+    const labels = Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => [
+      fieldKey,
+      rootDefinitions[fieldKey]?.title
+        ?? (options.hasMessage(`propertyEditor.fields.${fieldKey}`)
+          ? options.translate(`propertyEditor.fields.${fieldKey}`)
+          : fieldKey),
     ]))
     const fields = resolveCardPropertyFields({
       type: 'custom-block',
@@ -218,7 +236,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
       hasMessage: options.hasMessage,
       override,
       labels,
-      customKeys: publicKeys,
+      customKeys: new Set([...publicKeys].filter(fieldKey => Boolean(rootDefinitions[fieldKey]))),
     })
     return [{
       key: PREVIEW_INPUT_KEY,
@@ -248,11 +266,11 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     const entry = selectedEntry.value?.catalogEntry
     const path = selectedPath.value
     if (!entry || !path || mutation.key !== PREVIEW_INPUT_KEY
-      || !entry.manifest.publicFields.some(field => field.key === mutation.fieldKey)) return
+      || !entry.manifest.publicFieldKeys.includes(mutation.fieldKey)) return
     const identity = normalizePath(path)
     const next = new Map(valueStates.value)
     next.set(identity, {
-      interfaceHash: entry.manifest.interfaceHash,
+      block: entry.block,
       values: { ...activeValues.value, [mutation.fieldKey]: mutation.value },
     })
     valueStates.value = next
@@ -264,7 +282,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     if (!entry || !path) return
     const next = new Map(valueStates.value)
     next.set(normalizePath(path), {
-      interfaceHash: entry.manifest.interfaceHash,
+      block: entry.block,
       values: createDefaultValues(entry),
     })
     valueStates.value = next

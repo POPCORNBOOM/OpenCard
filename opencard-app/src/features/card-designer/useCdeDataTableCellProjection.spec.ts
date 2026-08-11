@@ -22,7 +22,7 @@ function createHarness() {
   })
   const document: CardDocument = {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Blueprint',
     version: '1.0.0',

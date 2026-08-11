@@ -1,6 +1,5 @@
 {
   "type": "card-document",
-  "schemaVersion": "2",
   "id": "doc-playing-card-reskin",
   "name": "换皮扑克牌",
   "version": "1.0.0",

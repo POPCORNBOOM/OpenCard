@@ -28,13 +28,15 @@ vi.mock('../../features/workspace/store/projectStore', () => ({
 const packageResult = {
   manifest: {
     type: 'opencard-custom-block',
-    schemaVersion: '1',
-    key: 'square',
+
+    customBlockKey: 'square',
     name: 'Square',
-    interfaceHash: 'interface-hash',
-    root: { type: 'text', id: 'root', name: 'Square' },
-    publicFields: [{ key: 'size', fieldType: 'number', title: 'Size', defaultValue: '100' }],
+    publicFieldKeys: ['size', 'content'],
     resize: { widthLocked: true, heightLocked: true },
+  },
+  block: {
+    type: 'text-block', id: 'root', content: '', size: '100',
+    additionalFieldDefinition: { size: { fieldType: 'number', title: 'Size' } },
   },
   files: new Map(),
 }
@@ -58,8 +60,9 @@ describe('CustomBlockPackageEditor', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Square')
-    expect(wrapper.text()).toContain('interface-hash')
+    expect(wrapper.text()).toContain('square')
     expect(wrapper.text()).toContain('Size')
+    expect(wrapper.text()).toContain('content')
     expect(mocks.registerProjectCustomBlockFile).not.toHaveBeenCalled()
   })
 

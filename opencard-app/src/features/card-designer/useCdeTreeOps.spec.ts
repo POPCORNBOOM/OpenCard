@@ -14,7 +14,7 @@ import { useCdeTreeOps } from './useCdeTreeOps'
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',
@@ -47,7 +47,7 @@ function createDocument(): CardDocument {
 describe('useCdeTreeOps active face boundary', () => {
   it('maps namespaced custom block descendants back to their host', () => {
     const document = createDocument()
-    const host = createCustomBlock({ id: 'custom-host', source: 'block:item', interfaceHash: 'hash' })
+    const host = createCustomBlock({ id: 'custom-host', customBlockKey: 'item' })
     document.faces.front.children = [{
       block: host,
       location: { type: 'simple-container-location', id: 'custom-location', anchor: 'lt' },
@@ -241,7 +241,7 @@ describe('useCdeTreeOps active face boundary', () => {
       parentLookup,
       selectedBlockKeys: ref([]),
       getDefaultBlockName: type => type,
-      createCustomBlock: key => createCustomBlock({ source: `block:${key}`, interfaceHash: 'hash' }),
+      createCustomBlock: key => createCustomBlock({ customBlockKey: key }),
       refreshDocumentState: () => {
         documentRevision.value += 1
         parentLookup.value = buildParentLookup(document)
@@ -252,7 +252,7 @@ describe('useCdeTreeOps active face boundary', () => {
     state.handleRootAction('add-custom-block:square')
     expect(document.faces.front.children[2]?.block).toMatchObject({
       type: 'custom-block',
-      source: 'block:square',
+      customBlockKey: 'square',
     })
 
     state.handleTreeIntent({

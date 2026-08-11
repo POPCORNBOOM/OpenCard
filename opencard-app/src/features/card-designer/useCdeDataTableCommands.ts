@@ -2,7 +2,7 @@
  * Coordinates Data Table field-selection configuration with injected Block field commands.
  * Owns document-write transactions only; projection, UI, selection, and Cell caches stay outside.
  */
-import { computed, type Ref } from 'vue'
+import { computed, type DeepReadonly, type Ref } from 'vue'
 import {
   setCardFieldValue,
   type AdditionalFieldKeyError,
@@ -13,6 +13,9 @@ import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { isBlockContainer } from '../../entities/card/tree'
 import type { PropertyFieldType } from '../../entities/card/schema'
 import type { CardDataWorkbookImportResult, CardDataWorkbookUpdate } from './cardDataWorkbook'
+import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
+
+type CustomBlockSchemaCatalog = ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>
 
 type CdeDataTableChangeMode = 'typing' | 'action'
 
@@ -38,6 +41,7 @@ type UseCdeDataTableCommandsOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
+  customBlockCatalog?: Readonly<Ref<CustomBlockSchemaCatalog>>
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDataTableChangeMode) => void
   updateBlockField: (
@@ -81,7 +85,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
 
   function includeField(blockId: string, fieldKey: string): boolean {
     if (!blockId || !fieldKey) return false
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, blockId, fieldKey)) return false
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, blockId, fieldKey)) return false
     const current = fieldSelection.value[blockId] ?? []
     if (current.includes(fieldKey)) return false
     return commitFieldSelection({
@@ -100,7 +104,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function updateCell(payload: BlockFieldTarget & { value: unknown }): boolean {
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, payload.blockId, payload.fieldKey)) return false
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, payload.blockId, payload.fieldKey)) return false
     return options.updateBlockField(payload, payload.value, 'typing')
   }
 
@@ -122,7 +126,7 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function resetCell(payload: BlockFieldTarget): boolean {
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, payload.blockId, payload.fieldKey)) return false
+    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, payload.blockId, payload.fieldKey)) return false
     return options.resetBlockField(payload)
   }
 
@@ -184,7 +188,8 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     for (const update of updates) {
       const block = blockLookup.get(update.blockId)
       if (!block) continue
-      if (block.type === 'custom-block' && !block.additionalFieldDefinition?.[update.fieldKey]) continue
+      if (block.type === 'custom-block'
+        && !isCustomBlockFieldAllowed(document, options.customBlockCatalog?.value, block.id, update.fieldKey)) continue
       if (update.cardId === options.blueprintCardId) {
         if (update.reset || update.value === undefined) continue
         const record = block as unknown as Record<string, unknown>
@@ -299,12 +304,15 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
 
 function isCustomBlockFieldAllowed(
   document: CardDocument | null,
+  catalog: CustomBlockSchemaCatalog | undefined,
   blockId: string,
   fieldKey: string,
 ): boolean {
   if (!document) return false
   const block = createBlockLookup(document).get(blockId)
-  return block?.type !== 'custom-block' || Boolean(block.additionalFieldDefinition?.[fieldKey])
+  if (block?.type !== 'custom-block') return true
+  return catalog?.get(block.customBlockKey.toLowerCase())?.manifest.publicFieldKeys
+    .some(key => key.toLowerCase() === fieldKey.toLowerCase()) === true
 }
 
 function createBlockLookup(document: CardDocument): Map<string, CardBlock> {

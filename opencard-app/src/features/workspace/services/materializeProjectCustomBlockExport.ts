@@ -16,6 +16,7 @@ export type MaterializeProjectCustomBlockExportResult = {
   faceKey: CardFaceKey
   issues: readonly CardPipelineIssue[]
   expansionIssues: readonly CustomBlockExpansionIssue[]
+  resourceOwners: ReadonlyMap<string, string>
 }
 
 function collectSubtreeDepths(root: CardBlock): Map<string, number> {
@@ -61,5 +62,6 @@ export function materializeProjectCustomBlockExport(options: {
     faceKey: resolvedRoot.faceKey,
     issues: validation.issues,
     expansionIssues: expanded.issues.filter(issue => sourceSubtreeIds.has(issue.blockId)),
+    resourceOwners: expanded.resourceOwners,
   }
 }

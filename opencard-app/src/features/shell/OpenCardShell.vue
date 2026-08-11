@@ -902,6 +902,7 @@ const {
   readProjectFile,
   resolveProjectPath,
   getRelativeProjectPath,
+  ensureCustomBlocksLoaded: projectStore.ensureProjectCustomBlocksLoaded,
   translate: t,
 })
 
@@ -953,6 +954,7 @@ function createRecentProjectTreeData(
     const isMissing = availability.get(key) === false
     items.set(key, {
       label: path.split(/[/\\]/).filter(Boolean).pop() || path,
+      tail: path,
       icon: isMissing ? 'status.folder-alert' : 'status.folder-open',
       iconTone: isMissing ? 'warning' : undefined,
       actions: [

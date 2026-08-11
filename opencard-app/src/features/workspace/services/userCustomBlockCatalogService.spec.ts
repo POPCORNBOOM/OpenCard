@@ -14,7 +14,7 @@ async function blockBytes(key: string, name: string, fieldKey = 'label'): Promis
   ;(root as unknown as Record<string, unknown>)[fieldKey] = 'Default'
   const manifest = await buildProjectCustomBlockManifest({ root, key, exposedFieldKeys: [fieldKey] })
   manifest.name = name
-  return createProjectCustomBlockArchive(manifest)
+  return createProjectCustomBlockArchive(manifest, root)
 }
 
 function createHarness(initialFiles: ReadonlyMap<string, Uint8Array> = new Map()) {
@@ -59,7 +59,7 @@ describe('UserCustomBlockCatalogService', () => {
     const catalog = await service.loadCatalog()
 
     expect(catalog.blocks).toHaveLength(1)
-    expect(catalog.blocks[0]).toMatchObject({ key: 'user:badge', blockKey: 'Badge', name: 'Badge' })
+    expect(catalog.blocks[0]).toMatchObject({ key: 'user:badge', customBlockKey: 'Badge', name: 'Badge' })
     expect(catalog.warnings).toHaveLength(2)
   })
 
@@ -72,7 +72,7 @@ describe('UserCustomBlockCatalogService', () => {
     expect(files.get('/app/custom-blocks/badge.ocblock')).toEqual(incoming)
   })
 
-  it('updates a compatible Key in place and rejects an incompatible interface', async () => {
+  it('updates an existing Key in place using the new package schema', async () => {
     const installed = await blockBytes('Badge', 'Original')
     const compatible = await blockBytes('badge', 'Updated')
     const incompatible = await blockBytes('BADGE', 'Incompatible', 'other')
@@ -87,7 +87,7 @@ describe('UserCustomBlockCatalogService', () => {
     expect(files.get('/app/custom-blocks/original.ocblock')).toEqual(compatible)
 
     await expect(service.importUserCustomBlock('/incoming/incompatible.ocblock'))
-      .rejects.toThrow('interface mismatch')
-    expect(files.get('/app/custom-blocks/original.ocblock')).toEqual(compatible)
+      .resolves.toBe('/app/custom-blocks/original.ocblock')
+    expect(files.get('/app/custom-blocks/original.ocblock')).toEqual(incompatible)
   })
 })

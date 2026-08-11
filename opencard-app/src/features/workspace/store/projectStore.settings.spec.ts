@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   startWatching: vi.fn(),
   stopWatching: vi.fn(),
   readProjectCustomBlockPackage: vi.fn(),
+  readProjectCustomBlockManifest: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: vi.fn(), isTauri: () => false }))
@@ -49,6 +50,7 @@ vi.mock('../services/projectIconCatalog', async (importOriginal) => {
 })
 vi.mock('../services/projectCustomBlock', () => ({
   readProjectCustomBlockPackage: mocks.readProjectCustomBlockPackage,
+  readProjectCustomBlockManifest: mocks.readProjectCustomBlockManifest,
 }))
 
 import { useProjectStore } from './projectStore'
@@ -68,20 +70,8 @@ describe('projectStore settings actions', () => {
     mocks.trashFile.mockResolvedValue(undefined)
     mocks.startWatching.mockResolvedValue(undefined)
     mocks.stopWatching.mockResolvedValue(undefined)
-    mocks.readProjectCustomBlockPackage.mockResolvedValue({
-      manifest: {
-        type: 'opencard-custom-block',
-        schemaVersion: '1',
-        key: 'square',
-        name: 'Square',
-        interfaceHash: 'same-interface',
-        root: { type: 'text', id: 'root', name: 'Square' },
-        publicFields: [],
-        resize: { widthLocked: false, heightLocked: false },
-      },
-      archivePath: '',
-      files: new Map(),
-    })
+    mocks.readProjectCustomBlockPackage.mockResolvedValue(packageResultForTest())
+    mocks.readProjectCustomBlockManifest.mockResolvedValue({ manifest: packageResultForTest().manifest, issues: [] })
     useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
 
@@ -383,21 +373,19 @@ describe('projectStore settings actions', () => {
     mocks.readProjectCustomBlockPackage.mockResolvedValueOnce({
       manifest: {
         type: 'opencard-custom-block',
-        schemaVersion: '1',
-        key: 'square',
+
+        customBlockKey: 'square',
         name: 'Square v2',
-        interfaceHash: 'different-interface',
-        root: { type: 'text', id: 'root', name: 'Square' },
-        publicFields: [],
+        publicFieldKeys: [],
         resize: { widthLocked: false, heightLocked: false },
       },
+      block: { type: 'text-block', id: 'root', content: '' },
       archivePath: '',
       files: new Map(),
     })
     await expect(store.importProjectCustomBlockFile(
       'D:/Downloads/incompatible.ocblock',
-    )).rejects.toThrow('Custom block interface mismatch: square')
-    expect(mocks.copyFile).not.toHaveBeenCalled()
+    )).resolves.toMatchObject({ replacedSource: 'library/old-square.ocblock' })
 
     await store.setProjectPath('')
   })
@@ -425,30 +413,28 @@ describe('projectStore settings actions', () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     mocks.fileExists.mockImplementation(async path => path.endsWith('.ocblocks'))
-    let resolveOld: (value: ReturnType<typeof packageResultForTest>) => void = () => undefined
-    const oldPackage = new Promise<ReturnType<typeof packageResultForTest>>(resolve => { resolveOld = resolve })
+    type ManifestResult = { manifest: ReturnType<typeof packageResultForTest>['manifest'], issues: readonly never[] }
+    let resolveOld: (value: ManifestResult) => void = () => undefined
+    const oldPackage = new Promise<ManifestResult>(resolve => { resolveOld = resolve })
     mocks.readFile.mockImplementation(async () => '{"blocks":["old.ocblock"]}')
-    mocks.readProjectCustomBlockPackage.mockImplementationOnce(async () => await oldPackage)
+    mocks.readProjectCustomBlockManifest.mockImplementationOnce(async () => await oldPackage)
 
     const oldReload = store.reloadProjectCustomBlockRegistry()
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.readProjectCustomBlockManifest).toHaveBeenCalled())
+    mocks.readProjectCustomBlockManifest.mockClear()
     mocks.readFile.mockImplementation(async () => '{"blocks":["new.ocblock"]}')
-    mocks.readProjectCustomBlockPackage.mockImplementationOnce(async () => ({
-      ...packageResultForTest('same-interface'),
-      manifest: { ...packageResultForTest('same-interface').manifest, key: 'new' },
+    mocks.readProjectCustomBlockManifest.mockImplementationOnce(async () => ({
+      manifest: { ...packageResultForTest().manifest, customBlockKey: 'new' }, issues: [],
     }))
     const newReload = store.reloadProjectCustomBlockRegistry()
-    resolveOld({
-      ...packageResultForTest('same-interface'),
-      manifest: { ...packageResultForTest('same-interface').manifest, key: 'old' },
-    })
+    resolveOld({ manifest: { ...packageResultForTest().manifest, customBlockKey: 'old' }, issues: [] })
 
     await Promise.all([oldReload, newReload])
-    expect([...store.projectCustomBlockCatalog.value.keys()]).toEqual(['new'])
+    expect([...store.projectCustomBlockManifestCatalog.value.keys()]).toEqual(['new'])
     await store.setProjectPath('')
   })
 
-  it('validates the actual project package selected by use-existing', async () => {
+  it('uses the actual project package selected by use-existing', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => (
       path.endsWith('.ocblocks') || path.endsWith('/assets/blocks/square.ocblock')
     ))
@@ -456,13 +442,13 @@ describe('projectStore settings actions', () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     mocks.readProjectCustomBlockPackage
-      .mockResolvedValueOnce({ ...packageResultForTest('same-interface') })
-      .mockResolvedValueOnce({ ...packageResultForTest('different-interface') })
+      .mockResolvedValueOnce({ ...packageResultForTest() })
+      .mockResolvedValueOnce({ ...packageResultForTest() })
 
     await expect(store.importProjectCustomBlockFile(
       'D:/Downloads/square.ocblock',
       'use-existing',
-    )).rejects.toThrow('Custom block interface mismatch: square')
+    )).resolves.toMatchObject({ copied: false })
     expect(mocks.copyFile).not.toHaveBeenCalled()
     await store.setProjectPath('')
   })
@@ -541,18 +527,17 @@ describe('projectStore settings actions', () => {
   })
 })
 
-function packageResultForTest(interfaceHash: string) {
+function packageResultForTest() {
   return {
     manifest: {
       type: 'opencard-custom-block',
-      schemaVersion: '1',
-      key: 'square',
+
+      customBlockKey: 'square',
       name: 'Square',
-      interfaceHash,
-      root: { type: 'text', id: 'root', name: 'Square' },
-      publicFields: [],
+      publicFieldKeys: [],
       resize: { widthLocked: false, heightLocked: false },
     },
+    block: { type: 'text-block', id: 'root', content: '' },
     archivePath: '',
     files: new Map(),
   }

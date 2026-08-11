@@ -1,69 +1,38 @@
 import type { CardBlock } from '../../../entities/card/model'
-import { additionalFieldTypes, type PropertyFieldType } from '../../../entities/card/schema'
+import type { PropertyFieldType } from '../../../entities/card/schema'
 import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 
 export const PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME = '.ocblocks'
 export const PROJECT_CUSTOM_BLOCK_EXTENSION = 'ocblock'
 export const PROJECT_CUSTOM_BLOCK_SUFFIX = `.${PROJECT_CUSTOM_BLOCK_EXTENSION}`
 export const DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY = 'assets/blocks'
-export const PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME = 'block.json'
-export const PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION = '1'
+export const PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME = 'manifest.json'
+export const PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME = 'block.json'
+export const PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS = ['name', 'notes'] as const
 
-export type ProjectCustomBlockPublicField = {
-  key: string
-  fieldType: PropertyFieldType
-  title?: string
-  defaultValue?: string
-}
+export type ProjectCustomBlockPublicField = { key: string; fieldType: PropertyFieldType
+  title?: string; defaultValue?: string }
+export type ProjectCustomBlockResizePolicy = { widthLocked: boolean; heightLocked: boolean }
+export type ProjectCustomBlockFontResource = { key: string; name: string; source: string }
+export type ProjectCustomBlockImageResource = { key: string; source: string }
+export type ProjectCustomBlockResourceIndex = { fonts?: readonly ProjectCustomBlockFontResource[]
+  images?: readonly ProjectCustomBlockImageResource[]; iconSeries?: readonly ProjectIconSeries[] }
 
-export type ProjectCustomBlockResizePolicy = {
-  widthLocked: boolean
-  heightLocked: boolean
-}
+export type ProjectCustomBlockManifest = { type: 'opencard-custom-block'; customBlockKey: string; name: string
+  description?: string; publicFieldKeys: readonly string[]; resize: ProjectCustomBlockResizePolicy
+  resources?: ProjectCustomBlockResourceIndex }
+export type ProjectCustomBlockPackageIssue = { code: 'manifest-field-ignored' | 'block-unavailable' | 'block-entry-ignored' | 'resource-unavailable'
+  path: string; message: string }
 
-export type ProjectCustomBlockFontResource = {
-  key: string
-  name: string
-  source: string
-}
-
-export type ProjectCustomBlockImageResource = {
-  key: string
-  source: string
-}
-
-export type ProjectCustomBlockResourceIndex = {
-  fonts?: readonly ProjectCustomBlockFontResource[]
-  images?: readonly ProjectCustomBlockImageResource[]
-  iconSeries?: readonly ProjectIconSeries[]
-}
-
-export type ProjectCustomBlockManifest = {
-  type: 'opencard-custom-block'
-  schemaVersion: typeof PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION
-  key: string
-  name: string
-  description?: string
-  interfaceHash: string
-  root: CardBlock
-  publicFields: readonly ProjectCustomBlockPublicField[]
-  resize: ProjectCustomBlockResizePolicy
-  resources?: ProjectCustomBlockResourceIndex
-}
-
-export type ProjectCustomBlockRegistryDocument = {
-  blocks?: readonly string[]
-}
-
-export type ProjectCustomBlockCatalogEntry = {
-  manifest: ProjectCustomBlockManifest
-  archivePath: string
-  files: ReadonlyMap<string, Uint8Array>
-}
+export type ProjectCustomBlockRegistryDocument = { blocks?: readonly string[] }
+export type ProjectCustomBlockCatalogEntry = { manifest: ProjectCustomBlockManifest; block: CardBlock; archivePath: string
+  files: ReadonlyMap<string, Uint8Array>; issues?: readonly ProjectCustomBlockPackageIssue[]; hasResourceErrors?: boolean }
 
 export type ProjectCustomBlockCatalog = ReadonlyMap<string, ProjectCustomBlockCatalogEntry>
+export type ProjectCustomBlockManifestCatalogEntry = { manifest: ProjectCustomBlockManifest; archivePath: string
+  loadState: 'unloaded' | 'loading' | 'ready' | 'error'; issues?: readonly ProjectCustomBlockPackageIssue[]; unavailable?: boolean }
 
-const additionalFieldTypeSet = new Set<string>(additionalFieldTypes)
+export type ProjectCustomBlockManifestCatalog = ReadonlyMap<string, ProjectCustomBlockManifestCatalogEntry>
 
 const customBlockKeyPattern = /^[a-z0-9][a-z0-9._-]*$/i
 
@@ -76,6 +45,10 @@ export function normalizeProjectCustomBlockKey(value: string): string | null {
   return customBlockKeyPattern.test(key) ? key : null
 }
 
+function warn(issues: ProjectCustomBlockPackageIssue[], path: string, message: string): void {
+  issues.push({ code: 'manifest-field-ignored', path, message })
+}
+
 export function normalizeProjectCustomBlockArchivePath(value: string): string | null {
   const path = value.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
   if (!path || path.startsWith('/') || /^[a-z]:\//i.test(path)
@@ -84,49 +57,65 @@ export function normalizeProjectCustomBlockArchivePath(value: string): string | 
   return path
 }
 
-function parsePublicFields(value: unknown): ProjectCustomBlockPublicField[] | null {
-  if (!Array.isArray(value)) return null
-  const fields: ProjectCustomBlockPublicField[] = []
+function parsePublicFieldKeys(value: unknown, issues: ProjectCustomBlockPackageIssue[]): string[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) {
+    warn(issues, 'publicFieldKeys', 'Invalid public field list used an empty list')
+    return []
+  }
+  const fields: string[] = []
   const keys = new Set<string>()
-  for (const candidate of value) {
-    if (!isRecord(candidate) || typeof candidate.key !== 'string'
-      || typeof candidate.fieldType !== 'string' || keys.has(candidate.key.toLowerCase())) return null
-    const key = candidate.key.trim()
-    if (!key || keys.has(key.toLowerCase())) return null
-    if (candidate.title !== undefined && typeof candidate.title !== 'string') return null
-    if (candidate.defaultValue !== undefined && typeof candidate.defaultValue !== 'string') return null
-    if (!additionalFieldTypeSet.has(candidate.fieldType)) return null
+  for (const [index, candidate] of value.entries()) {
+    if (typeof candidate !== 'string') {
+      warn(issues, `publicFieldKeys[${index}]`, 'Invalid public field Key was ignored')
+      continue
+    }
+    const key = candidate.trim()
+    if (!key || keys.has(key.toLowerCase())) {
+      warn(issues, `publicFieldKeys[${index}]`, 'Empty or duplicate public field Key was ignored')
+      continue
+    }
     keys.add(key.toLowerCase())
-    fields.push({
-      key,
-      fieldType: candidate.fieldType as PropertyFieldType,
-      ...(candidate.title ? { title: candidate.title.trim() } : {}),
-      ...(candidate.defaultValue !== undefined ? { defaultValue: candidate.defaultValue } : {}),
-    })
+    fields.push(key)
   }
   return fields
 }
 
-function parseResources(value: unknown): ProjectCustomBlockResourceIndex | null {
+function parseResources(value: unknown, issues: ProjectCustomBlockPackageIssue[]): ProjectCustomBlockResourceIndex {
   if (value === undefined) return {}
-  if (!isRecord(value)) return null
-  const parseList = <T extends { key: string }>(candidate: unknown, extra: (record: Record<string, unknown>) => boolean): T[] | undefined | null => {
+  if (!isRecord(value)) {
+    warn(issues, 'resources', 'Invalid resource index used an empty index')
+    return {}
+  }
+  const parseList = <T extends { key: string }>(group: string, candidate: unknown, extra: (record: Record<string, unknown>) => boolean): T[] | undefined => {
     if (candidate === undefined) return undefined
-    if (!Array.isArray(candidate)) return null
+    if (!Array.isArray(candidate)) {
+      warn(issues, `resources.${group}`, 'Invalid resource list was ignored')
+      return undefined
+    }
     const seen = new Set<string>()
     const result: T[] = []
-    for (const item of candidate) {
-      if (!isRecord(item) || typeof item.key !== 'string' || !item.key.trim() || seen.has(item.key.toLowerCase()) || !extra(item)) return null
+    for (const [index, item] of candidate.entries()) {
+      if (!isRecord(item) || typeof item.key !== 'string' || !item.key.trim()
+        || seen.has(item.key.toLowerCase()) || !extra(item)) {
+        warn(issues, `resources.${group}[${index}]`, 'Invalid or duplicate resource was ignored')
+        continue
+      }
       seen.add(item.key.toLowerCase())
       result.push(item as T)
     }
     return result
   }
-  const fonts = parseList<ProjectCustomBlockFontResource>(value.fonts, item => typeof item.name === 'string' && typeof item.source === 'string')
-  const images = parseList<ProjectCustomBlockImageResource>(value.images, item => typeof item.source === 'string')
-  if (fonts === null || images === null) return null
-  const iconSeries = value.iconSeries === undefined ? undefined : parseProjectIconSeries(value.iconSeries)
-  if (value.iconSeries !== undefined && !iconSeries) return null
+  const fonts = parseList<ProjectCustomBlockFontResource>('fonts', value.fonts, item => typeof item.name === 'string' && typeof item.source === 'string')
+  const images = parseList<ProjectCustomBlockImageResource>('images', value.images, item => typeof item.source === 'string')
+  const iconSeries = Array.isArray(value.iconSeries)
+    ? value.iconSeries.flatMap((candidate, index) => {
+        const parsed = parseProjectIconSeries([candidate])
+        if (parsed) return parsed
+        warn(issues, `resources.iconSeries[${index}]`, 'Invalid icon series was ignored')
+        return []
+      })
+    : undefined
   return {
     ...(fonts ? { fonts } : {}),
     ...(images ? { images } : {}),
@@ -134,58 +123,46 @@ function parseResources(value: unknown): ProjectCustomBlockResourceIndex | null 
   }
 }
 
-function parseResize(value: unknown): ProjectCustomBlockResizePolicy | null {
-  if (!isRecord(value) || typeof value.widthLocked !== 'boolean' || typeof value.heightLocked !== 'boolean') return null
-  return { widthLocked: value.widthLocked, heightLocked: value.heightLocked }
-}
-
-export function parseProjectCustomBlockManifest(value: unknown): ProjectCustomBlockManifest | null {
-  if (!isRecord(value) || value.type !== 'opencard-custom-block'
-    || value.schemaVersion !== PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION
-    || typeof value.key !== 'string' || !normalizeProjectCustomBlockKey(value.key)
-    || typeof value.name !== 'string' || !value.name.trim()
-    || typeof value.interfaceHash !== 'string' || !value.interfaceHash.trim()
-    || !isRecord(value.root) || typeof value.root.type !== 'string'
-    || typeof value.root.id !== 'string') return null
-  const publicFields = parsePublicFields(value.publicFields)
-  const resize = parseResize(value.resize)
-  if (!publicFields || !resize) return null
-  if (value.description !== undefined && typeof value.description !== 'string') return null
-  const resources = parseResources(value.resources)
-  if (!resources) return null
+function parseResize(value: unknown): ProjectCustomBlockResizePolicy {
   return {
-    type: 'opencard-custom-block',
-    schemaVersion: PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION,
-    key: value.key.trim(),
-    name: value.name.trim(),
-    ...(value.description ? { description: value.description.trim() } : {}),
-    interfaceHash: value.interfaceHash.trim(),
-    root: value.root as CardBlock,
-    publicFields,
-    resize,
-    ...(Object.keys(resources).length ? { resources } : {}),
+    widthLocked: isRecord(value) && typeof value.widthLocked === 'boolean' ? value.widthLocked : false,
+    heightLocked: isRecord(value) && typeof value.heightLocked === 'boolean' ? value.heightLocked : false,
   }
 }
 
-/** Stable interface contract hash. Titles/defaults intentionally do not participate. */
-export async function computeProjectCustomBlockInterfaceHash(
-  fields: readonly ProjectCustomBlockPublicField[],
-  resize: ProjectCustomBlockResizePolicy,
-): Promise<string> {
-  const canonical = JSON.stringify({
-    fields: [...fields].map(field => ({ key: field.key, fieldType: field.fieldType })).sort((a, b) => (
-      a.key < b.key ? -1 : a.key > b.key ? 1 : 0
-    )),
+export function normalizeProjectCustomBlockManifest(
+  value: unknown,
+  fallbackKey = 'custom-block',
+): { manifest: ProjectCustomBlockManifest, issues: readonly ProjectCustomBlockPackageIssue[] } {
+  const issues: ProjectCustomBlockPackageIssue[] = []
+  const source = isRecord(value) ? value : {}
+  const customBlockKey = typeof source.customBlockKey === 'string'
+    ? normalizeProjectCustomBlockKey(source.customBlockKey)
+    : null
+  const normalizedFallback = normalizeProjectCustomBlockKey(fallbackKey) ?? 'custom-block'
+  if (!customBlockKey) warn(issues, 'customBlockKey', 'Missing or invalid custom Block Key used the filename fallback')
+  const key = customBlockKey ?? normalizedFallback
+  const parsedPublicFieldKeys = parsePublicFieldKeys(source.publicFieldKeys, issues)
+  const alwaysPublicKeys = new Set(PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS.map(key => key.toLowerCase()))
+  const publicFieldKeys = [
+    ...PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
+    ...parsedPublicFieldKeys.filter(key => !alwaysPublicKeys.has(key.toLowerCase())),
+  ]
+  const resize = parseResize(source.resize)
+  const resources = parseResources(source.resources, issues)
+  return { manifest: {
+    type: 'opencard-custom-block',
+    customBlockKey: key,
+    name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : key,
+    ...(typeof source.description === 'string' && source.description.trim() ? { description: source.description.trim() } : {}),
+    publicFieldKeys,
     resize,
-  })
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical))
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+    ...(Object.keys(resources).length ? { resources } : {}),
+  }, issues }
 }
 
 export function serializeProjectCustomBlockManifest(manifest: ProjectCustomBlockManifest): string {
-  const normalized = parseProjectCustomBlockManifest(manifest)
-  if (!normalized) throw new Error('Invalid custom block manifest')
-  return JSON.stringify(normalized, null, 2)
+  return JSON.stringify(normalizeProjectCustomBlockManifest(manifest, manifest.customBlockKey).manifest, null, 2)
 }
 
 export function parseProjectCustomBlockRegistry(value: unknown): ProjectCustomBlockRegistryDocument | null {

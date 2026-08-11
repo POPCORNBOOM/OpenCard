@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCardRenderResourceContext, resolveCardAssetSrc } from './cardRenderResources'
+import { createCardRenderResourceContext, resolveCardAssetSrc, resolveCustomBlockAssetSrc } from './cardRenderResources'
 
 const { convertFileSrc } = vi.hoisted(() => ({
   convertFileSrc: vi.fn((path: string) => `asset://${path}`),
@@ -10,20 +10,22 @@ vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc }))
 describe('cardRenderResources', () => {
   beforeEach(() => convertFileSrc.mockClear())
 
-  it('resolves package identities only through the controlled runtime catalog', () => {
+  it('resolves package-local logical keys only through an explicit package scope', () => {
     const context = createCardRenderResourceContext({
       customBlockCatalog: new Map([['picture', {
         manifest: {
-          key: 'picture', interfaceHash: 'hash', root: {}, publicFields: [],
+          customBlockKey: 'picture', publicFieldKeys: [],
           resize: { widthLocked: false, heightLocked: false },
+          resources: { images: [{ key: 'a', source: 'resources/images/a.png' }] },
         },
+        block: {},
         resourceUrls: new Map([['resources/images/a.png', 'blob:controlled']]),
       }]]),
     })
 
-    expect(resolveCardAssetSrc('ocblock:PICTURE/RESOURCES/IMAGES/A.PNG', context))
+    expect(resolveCustomBlockAssetSrc('resource:image:A', 'PICTURE', context))
       .toBe('blob:controlled')
-    expect(resolveCardAssetSrc('ocblock:picture/resources/images/missing.png', context)).toBe('')
+    expect(resolveCardAssetSrc('resource:image:a', context)).toBe('')
   })
 
   it('resolves local files and applies the remote HTTPS policy', () => {

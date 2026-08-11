@@ -109,15 +109,7 @@
       :aria-label="shortcutLegendLabel"
     >
       <div v-for="hint in shortcutHints" :key="hint.label" class="card-layer-view__shortcut-row">
-        <span class="card-layer-view__shortcut-keys" aria-hidden="true">
-          <template v-for="(key, keyIndex) in hint.keys" :key="keyIndex">
-            <span v-if="typeof key === 'string'" class="oc-key">{{ key }}</span>
-            <span v-else-if="'icon' in key" class="oc-key">
-              <OcIcon :name="key.icon" size="sm" />
-            </span>
-            <span v-else class="card-layer-view__shortcut-separator">{{ key.separator }}</span>
-          </template>
-        </span>
+        <OcShortcut :parts="hint.keys" decorative />
         <span class="card-layer-view__shortcut-label">{{ hint.label }}</span>
       </div>
     </aside>
@@ -127,8 +119,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import { pinyin } from 'pinyin-pro'
-import OcIcon from '../../../components/base/OcIcon.vue'
-import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+import OcShortcut, { type OcShortcutPart } from '../../../components/standard/OcShortcut.vue'
 import type { RenderReadyCardFace } from '../render.types'
 import { buildCardLayerGroups, type CardLayerGroup } from './cardLayerModel'
 
@@ -152,8 +143,6 @@ type VisualPlaneSlot =
   | { type: 'block'; entryIndex: number; zIndex: number }
   | { type: 'face'; zIndex: 0 }
 
-type ShortcutKey = string | { icon: IconToken } | { separator: string }
-
 const POSITION_EPSILON = 0.002
 const POSITION_SMOOTHING = 0.22
 const WHEEL_FOCUS_THRESHOLD = 40
@@ -171,7 +160,7 @@ const props = defineProps<{
   spaceModifierActive?: boolean
   shortcutLegendLabel?: string
   basePlaneLabel?: string
-  shortcutHints?: Array<{ keys: ShortcutKey[]; label: string }>
+  shortcutHints?: Array<{ keys: OcShortcutPart[]; label: string }>
 }>()
 
 const emit = defineEmits<{
@@ -966,16 +955,6 @@ defineExpose({ stepLayer, handleWheel, focusBlock, getFocusedBlockId, cycleLayer
   min-height: 20px;
 }
 
-.card-layer-view__shortcut-keys {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.card-layer-view__shortcut-separator {
-  margin: 0 1px;
-  color: var(--oc-fg-muted);
-}
 
 .card-layer-view__shortcut-label {
   white-space: nowrap;

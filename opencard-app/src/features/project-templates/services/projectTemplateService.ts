@@ -1,7 +1,7 @@
 import { basename, join, resolveResource } from '@tauri-apps/api/path'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { parseCardDocument } from '../../../entities/card/storage'
+import { normalizeCardDocument } from '../../../entities/card/storage'
 import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
@@ -261,7 +261,7 @@ export class ProjectTemplateService {
 
       const absolutePath = await this.paths.join(sourcePath, ...pathSegments(relativePath))
       try {
-        const document = parseCardDocument(JSON.parse(await this.fs.readFile(absolutePath)))
+        const document = normalizeCardDocument(JSON.parse(await this.fs.readFile(absolutePath))).document
         documentEntries.push(relativePath)
         entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch {
@@ -520,9 +520,9 @@ export class ProjectTemplateService {
       for (const archivePath of registry.blocks ?? []) {
         const absolutePath = await this.paths.join(projectPath, ...pathSegments(archivePath))
         const existing = await readProjectCustomBlockPackage(this.fs, absolutePath)
-        const identity = existing.manifest.key.toLocaleLowerCase()
+        const identity = existing.manifest.customBlockKey.toLocaleLowerCase()
         if (existingKeys.has(identity)) {
-          throw new Error(`Template contains a duplicate custom block Key: ${existing.manifest.key}`)
+          throw new Error(`Template contains a duplicate custom block Key: ${existing.manifest.customBlockKey}`)
         }
         existingKeys.add(identity)
       }
@@ -536,23 +536,22 @@ export class ProjectTemplateService {
 
       for (const block of blocks) {
         const customBlock = await readProjectCustomBlockPackage(this.fs, block.path)
-        const identity = customBlock.manifest.key.toLocaleLowerCase()
-        if (customBlock.manifest.key.toLocaleLowerCase() !== block.blockKey.toLocaleLowerCase()
-          || customBlock.manifest.interfaceHash !== block.interfaceHash) {
-          throw new Error(`Installed custom block changed after selection: ${block.blockKey}`)
+        const identity = customBlock.manifest.customBlockKey.toLocaleLowerCase()
+        if (identity !== block.customBlockKey.toLocaleLowerCase()) {
+          throw new Error(`Installed custom block changed after selection: ${block.customBlockKey}`)
         }
         if (selectedKeys.has(identity)) {
-          throw new Error(`Selected custom block Key is duplicated: ${customBlock.manifest.key}`)
+          throw new Error(`Selected custom block Key is duplicated: ${customBlock.manifest.customBlockKey}`)
         }
         if (existingKeys.has(identity)) {
-          throw new Error(`Custom block Key already exists in the template: ${customBlock.manifest.key}`)
+          throw new Error(`Custom block Key already exists in the template: ${customBlock.manifest.customBlockKey}`)
         }
         selectedKeys.add(identity)
 
         const sourceName = await this.paths.basename(block.path)
         const baseName = sourceName.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)
           ? sourceName
-          : `${customBlock.manifest.key}${PROJECT_CUSTOM_BLOCK_SUFFIX}`
+          : `${customBlock.manifest.customBlockKey}${PROJECT_CUSTOM_BLOCK_SUFFIX}`
         let fileName = baseName
         let relativePath = `${DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY}/${fileName}`
         let absolutePath = await this.paths.join(customBlockDirectory, fileName)
@@ -627,7 +626,7 @@ export class ProjectTemplateService {
     const entryNames: Record<string, string> = {}
     for (const entry of entries) {
       try {
-        const document = parseCardDocument(JSON.parse(strFromU8(content.get(entry)!)))
+        const document = normalizeCardDocument(JSON.parse(strFromU8(content.get(entry)!))).document
         entryNames[entry] = resolveEntryName(document, entry)
       } catch (cause) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is invalid', { cause })
@@ -792,7 +791,7 @@ export class ProjectTemplateService {
     const templateEntries = resolveTemplateEntries(manifest)
     for (const [index, entryPath] of entryPaths.entries()) {
       try {
-        const document = parseCardDocument(JSON.parse(await this.fs.readFile(entryPath)))
+        const document = normalizeCardDocument(JSON.parse(await this.fs.readFile(entryPath))).document
         const relativePath = templateEntries[index]
         if (relativePath) entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch (cause) {

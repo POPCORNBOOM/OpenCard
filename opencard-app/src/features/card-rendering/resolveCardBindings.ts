@@ -52,7 +52,7 @@ export function resolveParentFieldReferenceKey(
   blockId: string,
   reference: string,
   parentLookup: ParentLookup,
-): string | null {
+): { ownerId: string, fieldKey: string } | null {
   const descriptor = parseFieldReference(reference)
   if (!descriptor) {
     return null
@@ -67,7 +67,7 @@ export function resolveParentFieldReferenceKey(
   }
 
   if (descriptor.kind === 'current-block') {
-    return `${blockId}:${descriptor.fieldKey}`
+    return { ownerId: blockId, fieldKey: descriptor.fieldKey }
   }
 
   if (descriptor.kind !== 'parent') return null
@@ -81,7 +81,7 @@ export function resolveParentFieldReferenceKey(
     currentBlockId = parent.id
   }
 
-  return `${currentBlockId}:${descriptor.fieldKey}`
+  return { ownerId: currentBlockId, fieldKey: descriptor.fieldKey }
 }
 
 export type ResolveReferencesResult = {
@@ -520,7 +520,7 @@ export function resolveReferences(
       return resolveTargetField(documentOwner, tokenDescriptor.fieldKey)
     }
 
-    let targetReference: string | null = null
+    let targetReference: { ownerId: string, fieldKey: string } | null = null
     if (owner.anchorBlockId) {
       targetReference = resolveParentFieldReferenceKey(owner.anchorBlockId, tokenBody, parentLookup)
       if (!targetReference) {
@@ -532,23 +532,15 @@ export function resolveReferences(
       return { ok: false, value: null }
     }
 
-    const separatorIndex = targetReference.indexOf(':')
-    if (separatorIndex < 1) {
-      pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.invalid-token', undefined, characterOffset)
-      return { ok: false, value: null }
-    }
-
-    const targetOwnerId = targetReference.slice(0, separatorIndex)
-    const targetFieldKey = targetReference.slice(separatorIndex + 1)
-    const targetOwner = targetOwnersById.get(targetOwnerId)
+    const targetOwner = targetOwnersById.get(targetReference.ownerId)
     if (!targetOwner) {
       pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.source-not-found', {
-        referencedOwnerId: targetOwnerId,
+        referencedOwnerId: targetReference.ownerId,
       }, characterOffset)
       return { ok: false, value: null }
     }
 
-    return resolveTargetField(targetOwner, targetFieldKey)
+    return resolveTargetField(targetOwner, targetReference.fieldKey)
   }
 
   function resolveTemplateString(

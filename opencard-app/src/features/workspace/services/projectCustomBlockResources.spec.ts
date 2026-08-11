@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createBlock } from '../../../entities/card/model'
 import { collectProjectCustomBlockResources, rewriteProjectCustomBlockResourceReferences } from './projectCustomBlockResources'
 import type { ProjectIconCatalogEntry } from './projectIconCatalog'
+import { customBlockResourceOwnerIdentity } from '../../card-rendering/expandCustomBlocks'
 
 describe('collectProjectCustomBlockResources', () => {
   it('collects and content-deduplicates local images and project fonts', async () => {
@@ -26,9 +27,9 @@ describe('collectProjectCustomBlockResources', () => {
     expect(result.files.size).toBe(2)
     expect(result.index.images).toHaveLength(1)
     expect(result.index.fonts).toHaveLength(1)
-    rewriteProjectCustomBlockResourceReferences(root, 'square', result)
-    expect(root.children[0].block.type === 'image-block' && root.children[0].block.image).toMatch(/^ocblock:square\//)
-    expect(root.children[1].block.type === 'text-block' && root.children[1].block.fontFamily).toContain('OpenCardCustomBlock-square-body')
+    rewriteProjectCustomBlockResourceReferences(root, result)
+    expect(root.children[0].block.type === 'image-block' && root.children[0].block.image).toMatch(/^resource:image:/)
+    expect(root.children[1].block.type === 'text-block' && root.children[1].block.fontFamily).toContain('resource:font:body')
   })
 
   it('rejects missing project fonts', async () => {
@@ -60,11 +61,11 @@ describe('collectProjectCustomBlockResources', () => {
 
     expect(result.index.images).toHaveLength(1)
     expect(result.files.size).toBe(1)
-    expect(result.imageSources.get('assets/first.png')).toBe(result.imageSources.get('assets/second.jpg'))
+    expect(new Set(result.imageSources.values()).size).toBe(1)
   })
 
   it('repackages image bytes from an expanded custom block catalog entry', async () => {
-    const root = createBlock('image-block', { image: 'ocblock:picture/resources/images/image.png' })
+    const root = createBlock('image-block', { id: 'nested', image: 'resource:image:image' })
     const bytes = new Uint8Array([7, 8, 9])
     const result = await collectProjectCustomBlockResources({
       root,
@@ -72,9 +73,10 @@ describe('collectProjectCustomBlockResources', () => {
       projectRootPath: 'D:/Cards',
       fs: { readBinaryFile: vi.fn() },
       customBlockCatalog: new Map([['picture', {
-        manifest: { key: 'picture', resources: { images: [{ key: 'image', source: 'resources/images/image.png' }] } },
+        manifest: { customBlockKey: 'picture', resources: { images: [{ key: 'image', source: 'resources/images/image.png' }] } },
         files: new Map([['resources/images/image.png', bytes]]),
       }]]),
+      resourceOwners: new Map([[customBlockResourceOwnerIdentity('nested', 'image'), 'picture']]),
     })
 
     expect(result.files.size).toBe(1)
@@ -110,9 +112,9 @@ describe('collectProjectCustomBlockResources', () => {
     })
 
     expect(result.files.get(result.index.iconSeries![0]!.source)).toEqual(atlasBytes)
-    expect(result.index.iconSeries).toMatchObject([{ key: 'ocblock-weapon', icons: [{ iconKey: 'icon-1' }] }])
-    rewriteProjectCustomBlockResourceReferences(root, 'weapon', result)
-    expect(root.content).toContain('data-oc-icon-series="ocblock-weapon"')
-    expect(root.content).toContain('[[icon:ocblock-weapon/icon-1]]')
+    expect(result.index.iconSeries).toMatchObject([{ key: 'icons', icons: [{ iconKey: 'icon-1' }] }])
+    rewriteProjectCustomBlockResourceReferences(root, result)
+    expect(root.content).toContain('data-oc-icon-series="icons"')
+    expect(root.content).toContain('[[icon:icons/icon-1]]')
   })
 })

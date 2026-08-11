@@ -10,6 +10,9 @@ const baseProps = {
     { key: 'size', fieldType: 'number' as const, title: 'Size', referenceCount: 3, definitionOrder: 0, exposed: false },
     { key: 'color', fieldType: 'color' as const, title: 'Color', referenceCount: 2, definitionOrder: 1, exposed: false },
   ],
+  resize: { widthLocked: false, heightLocked: false },
+  widthLabel: 'Width',
+  heightLabel: 'Height',
   defaultName: 'Square',
   defaultKey: 'square',
   nameLabel: 'Name',
@@ -26,7 +29,7 @@ const baseProps = {
 }
 
 describe('CustomBlockExportDialog', () => {
-  it('keeps both titled groups expanded and defaults every root field to private', () => {
+  it('keeps dimensions exposed while defaulting additional fields to private', () => {
     const wrapper = mount(CustomBlockExportDialog, {
       props: baseProps,
       global: { stubs: { Teleport: true } },
@@ -36,10 +39,32 @@ describe('CustomBlockExportDialog', () => {
     expect(tree.props('expandedKeys')).toEqual(['group:exposed', 'group:private'])
     expect(tree.props('data').items.get('group:exposed')?.label).toBe('Available to users')
     expect(tree.props('data').items.get('group:private')?.label).toBe('Not exposed to users')
+    expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height'])
     expect(tree.props('data').children.get('group:private')).toEqual(['field:size', 'field:color'])
     expect(tree.props('actionVisibility')).toBe('always')
     expect(tree.props('actions')!.get('move-exposed')?.icon).toBe('nav.arrow-up')
     expect(tree.props('actions')!.get('move-private')?.icon).toBe('nav.arrow-down')
+  })
+
+  it('writes dimension availability to resize without adding it to public fields', async () => {
+    const wrapper = mount(CustomBlockExportDialog, {
+      props: baseProps,
+      global: { stubs: { Teleport: true } },
+    })
+    const tree = wrapper.getComponent(OcTree)
+    tree.vm.$emit('intent', {
+      type: 'action.invoke', key: 'resize:width', actionKey: 'move-private', source: 'inline',
+    })
+    tree.vm.$emit('intent', {
+      type: 'action.invoke', key: 'field:size', actionKey: 'move-exposed', source: 'inline',
+    })
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      exposedFieldKeys: ['size'],
+      resize: { widthLocked: true, heightLocked: false },
+    })
   })
 
   it('moves fields by row action or by dropping beside a field in the other group', async () => {
@@ -63,7 +88,8 @@ describe('CustomBlockExportDialog', () => {
     })
     await wrapper.vm.$nextTick()
 
-    expect(tree.props('data').children.get('group:exposed')).toEqual(['field:size', 'field:color'])
+    expect(tree.props('data').children.get('group:exposed'))
+      .toEqual(['resize:width', 'resize:height', 'field:size', 'field:color'])
   })
 
   it('blocks duplicate submit and dismissal while export is busy', async () => {

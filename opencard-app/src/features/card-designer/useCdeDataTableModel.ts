@@ -1,15 +1,16 @@
-import { computed, type Ref } from 'vue'
+import { computed, type DeepReadonly, type Ref } from 'vue'
 import {
   getAdditionalFieldPropertyDefinition,
   type CardBlock,
   type CardDocument,
   type CardFaceKey,
 } from '../../entities/card/model'
-import type { EditorPropertyDefinition } from '../../entities/card/schema'
+import { getTypePropertyEditorSchema, type EditorPropertyDefinition } from '../../entities/card/schema'
 import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
+import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 
 export type CdeDataTableColumn = {
   key: string
@@ -70,6 +71,7 @@ type UseCdeDataTableModelOptions = {
   fieldSelection: Readonly<Ref<CdeDataTableFieldSelection>>
   exportInstanceIds?: Readonly<Ref<readonly string[]>>
   blueprintCardId: string
+  customBlockCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   blueprintTitle: () => string
   faceTitle: (faceKey: CardFaceKey) => string
   translate: (messageKey: string) => string
@@ -171,29 +173,41 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
       }
     }
 
-    const override = Object.fromEntries(Object.entries(block.additionalFieldDefinition ?? {}).map(
-      ([fieldKey, definition]) => [
-        fieldKey,
-        getAdditionalFieldPropertyDefinition(definition) as Partial<EditorPropertyDefinition>,
-      ],
-    ))
-    const labels = Object.fromEntries(Object.entries(block.additionalFieldDefinition ?? {}).map(
-      ([fieldKey, definition]) => [fieldKey, definition.title ?? fieldKey],
-    ))
+    const customEntry = block.type === 'custom-block'
+      ? options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
+      : undefined
+    const sourceDefinitions = block.additionalFieldDefinition ?? {}
+    const customRootSchema = getTypePropertyEditorSchema(customEntry?.block.type)
+    const override = customEntry
+      ? Object.fromEntries(customEntry.manifest.publicFieldKeys.flatMap(fieldKey => {
+          const additional = customEntry.block.additionalFieldDefinition?.[fieldKey]
+          const definition = additional
+            ? getAdditionalFieldPropertyDefinition({ ...additional })
+            : customRootSchema[fieldKey]
+          return definition ? [[fieldKey, definition]] : []
+        }))
+      : Object.fromEntries(Object.entries(sourceDefinitions).map(([fieldKey, definition]) => [
+          fieldKey,
+          getAdditionalFieldPropertyDefinition({ ...definition }) as Partial<EditorPropertyDefinition>,
+        ]))
+    const labels = Object.fromEntries(Object.entries(customEntry?.block.additionalFieldDefinition ?? sourceDefinitions)
+      .map(([fieldKey, definition]) => [fieldKey, definition.title ?? fieldKey]))
     const definitions = resolveCardPropertyFields(definitionRecord, {
       allowDelete: true,
       translate: options.translate,
       hasMessage: options.hasMessage,
       override,
       labels,
-      customKeys: new Set(Object.keys(block.additionalFieldDefinition ?? {})),
+      customKeys: new Set(customEntry
+        ? customEntry.manifest.publicFieldKeys.filter(fieldKey => Boolean(customEntry.block.additionalFieldDefinition?.[fieldKey]))
+        : Object.keys(sourceDefinitions)),
     })
     const blockRecord = block as unknown as Record<string, unknown>
 
     return Object.entries(definitions)
       .filter(([fieldKey, definition]) => (
         fieldKey !== 'name' && !definition.isHidden && !definition.isReadonly
-        && (block.type !== 'custom-block' || hasOwn(block.additionalFieldDefinition ?? {}, fieldKey))
+        && (block.type !== 'custom-block' || hasOwn(override, fieldKey))
       ))
       .map(([fieldKey, definition]) => ({
         key: fieldKey,

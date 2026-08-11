@@ -176,6 +176,7 @@ import type { AnchorPosition, FlowDirection } from '../../../entities/card/model
 import OcIcon from '../../../components/base/OcIcon.vue'
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import OcOverlayToolbar from '../../../components/standard/OcOverlayToolbar.vue'
+import type { OcShortcutPart } from '../../../components/standard/OcShortcut.vue'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import CardLayerView from './CardLayerView.vue'
@@ -282,7 +283,7 @@ const props = withDefaults(defineProps<{
   layerViewShortcutLegendLabel?: string
   layerViewBasePlaneLabel?: string
   layerViewShortcutHints?: Array<{
-    keys: Array<string | { icon: IconToken } | { separator: string }>
+    keys: OcShortcutPart[]
     label: string
   }>
   transform?: ViewportTransform

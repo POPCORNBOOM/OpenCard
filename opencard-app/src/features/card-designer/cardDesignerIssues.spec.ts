@@ -28,7 +28,7 @@ const resolveFieldLabel = (key: string) => ({
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'card-doc',
     name: 'Card',
     version: '1.0.0',

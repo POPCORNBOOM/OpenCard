@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
+import { createBlock } from '../../../entities/card/model'
 import {
   createProjectCustomBlockAssetSession,
   type ProjectCustomBlockAssetRuntime,
@@ -13,17 +14,17 @@ function createCatalog(): ProjectCustomBlockCatalog {
       ['resources/icons/ATLAS.PNG', new Uint8Array([2])],
     ]),
     manifest: {
-      type: 'opencard-custom-block', schemaVersion: '1', key: 'picture', name: 'Picture', interfaceHash: 'hash',
-      root: { type: 'image-block', id: 'root' } as never,
-      publicFields: [], resize: { widthLocked: false, heightLocked: false },
+      type: 'opencard-custom-block', customBlockKey: 'picture', name: 'Picture',
+      publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
       resources: {
         images: [{ key: 'a', source: 'resources/images/a.png' }],
         iconSeries: [{
-          name: 'Picture', key: 'ocblock-picture', source: 'resources/icons/atlas.png',
+          name: 'Picture', key: 'icons', source: 'resources/icons/atlas.png',
           icons: [{ iconKey: 'icon-1', name: 'One', x: 0, y: 0, width: 8, height: 8 }],
         }],
       },
     },
+    block: createBlock('image-block', { id: 'root', image: 'resource:image:a' }),
   }]])
 }
 
@@ -44,7 +45,7 @@ describe('project custom block asset loader', () => {
     const entry = result.customBlockCatalog.get('picture')!
 
     expect(entry.resourceUrls?.get('resources/images/a.png')).toBe('blob:resource-1')
-    expect(result.iconCatalog.entries[0]).toMatchObject({ seriesKey: 'ocblock-picture', src: 'blob:resource-2' })
+    expect(result.iconCatalog.entries[0]).toMatchObject({ seriesKey: 'icons', src: 'blob:resource-2' })
 
     result.release()
     result.release()

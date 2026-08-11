@@ -12,12 +12,11 @@ function createBlock(content: RenderReadyTextBlock | null): RenderReadyCustomBlo
     id: 'host',
     type: 'custom-block',
     name: 'Badge',
-    source: 'block:private-package',
-    interfaceHash: 'private-interface-hash',
+    customBlockKey: 'private-package',
     width: '100px',
     height: '50px',
     content,
-  } as RenderReadyCustomBlock
+  } as unknown as RenderReadyCustomBlock
 }
 
 function mountRenderer(block: RenderReadyCustomBlock) {

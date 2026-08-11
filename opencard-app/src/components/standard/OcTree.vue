@@ -103,10 +103,6 @@
           {{ entry.item.label }}
         </OcText>
 
-        <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
-          {{ entry.item.tail }}
-        </OcText>
-
         <span class="oc-tree__controls" data-tree-interactive="true">
           <OcActionButton
             v-for="action in resolveItemActions(entry.key)"
@@ -118,6 +114,10 @@
             @select="emitActionIntent(entry.key, $event.key)"
           />
         </span>
+
+        <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
+          {{ entry.item.tail }}
+        </OcText>
       </div>
     </div>
     </div>

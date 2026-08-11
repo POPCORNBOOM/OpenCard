@@ -1,150 +1,169 @@
-import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { strFromU8, strToU8, unzip, zipSync, type UnzipFileInfo } from 'fflate'
 import type { FileSystemService } from './fileSystemService'
-import { parseStoredCardBlock } from '../../../entities/card/storage'
+import { normalizeStoredCardBlock } from '../../../entities/card/storage'
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
 import { collectProjectIconReferences } from '../../../shared/rich-text/projectIconReference'
-import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
-import {
-  parseProjectCustomBlockManifest,
-  PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME,
-  PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION,
-  serializeProjectCustomBlockManifest,
-  type ProjectCustomBlockManifest,
-  computeProjectCustomBlockInterfaceHash,
-} from '../model/projectCustomBlocks'
+import { toKeySlug } from '../../../shared/model/keySlug'
+import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
+import { normalizeProjectCustomBlockKey, normalizeProjectCustomBlockManifest, PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
+  PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME,
+  PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, serializeProjectCustomBlockManifest, type ProjectCustomBlockManifest,
+  type ProjectCustomBlockPackageIssue } from '../model/projectCustomBlocks'
 
 const MAX_CUSTOM_BLOCK_BYTES = 128 * 1024 * 1024
 const MAX_CUSTOM_BLOCK_UNPACKED_BYTES = 512 * 1024 * 1024
 const MAX_CUSTOM_BLOCK_ENTRIES = 256
 const MAX_CUSTOM_BLOCK_ENTRY_BYTES = 256 * 1024 * 1024
-const ZIP_END_OF_CENTRAL_DIRECTORY = 0x06054b50
-const ZIP_CENTRAL_DIRECTORY_ENTRY = 0x02014b50
+const ZIP_END_OF_CENTRAL_DIRECTORY = 0x06054b50, ZIP_CENTRAL_DIRECTORY_ENTRY = 0x02014b50
 
-export type ProjectCustomBlockPackage = {
-  manifest: ProjectCustomBlockManifest
-  files: ReadonlyMap<string, Uint8Array>
-}
-
-export function findProjectCustomBlockFile(
-  files: ReadonlyMap<string, Uint8Array>,
-  path: string,
-): Uint8Array | undefined {
+export type ProjectCustomBlockPackage = { manifest: ProjectCustomBlockManifest; block: CardBlock | null
+  files: ReadonlyMap<string, Uint8Array>; issues: readonly ProjectCustomBlockPackageIssue[]; hasResourceErrors: boolean }
+export type ProjectCustomBlockManifestReadResult = { manifest: ProjectCustomBlockManifest
+  issues: readonly ProjectCustomBlockPackageIssue[] }
+function addIssue(issues: ProjectCustomBlockPackageIssue[], code: ProjectCustomBlockPackageIssue['code'], path: string, message: string): void {
+  issues.push({ code, path, message }) }
+export function findProjectCustomBlockFile(files: ReadonlyMap<string, Uint8Array>, path: string): Uint8Array | undefined {
   const identity = path.toLowerCase()
   for (const [candidate, bytes] of files) {
     if (candidate.toLowerCase() === identity) return bytes
   }
   return undefined
 }
-
 function normalizeArchivePath(value: string): string | null {
   const path = value.replace(/\\/g, '/').replace(/\/+/g, '/')
   if (!path || path.startsWith('/') || /^[a-z]:/i.test(path)
     || path.split('/').some(segment => !segment || segment === '.' || segment === '..')) return null
   return path
 }
-
-function normalizeAdditionalFieldDefinitions(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeAdditionalFieldDefinitions)
-  if (!value || typeof value !== 'object') return value
-
-  const source = value as Record<string, unknown>
-  const normalized: Record<string, unknown> = {}
-  for (const [key, fieldValue] of Object.entries(source)) {
-    if (key === 'additionalFieldDefinition') {
-      const definitions = parseAdditionalFieldDefinitions(fieldValue)
-      if (Object.keys(definitions).length > 0) normalized[key] = definitions
-      continue
-    }
-    normalized[key] = normalizeAdditionalFieldDefinitions(fieldValue)
-  }
-  return normalized
-}
-
 function preflightZipArchive(bytes: Uint8Array): void {
   if (bytes.byteLength < 22) throw new Error('Custom block archive is invalid')
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const searchStart = Math.max(0, bytes.byteLength - 0xffff - 22)
   let endOffset = -1
   for (let offset = bytes.byteLength - 22; offset >= searchStart; offset -= 1) {
-    if (view.getUint32(offset, true) === ZIP_END_OF_CENTRAL_DIRECTORY) {
-      endOffset = offset
-      break
-    }
+    if (view.getUint32(offset, true) === ZIP_END_OF_CENTRAL_DIRECTORY) { endOffset = offset; break }
   }
   if (endOffset < 0) throw new Error('Custom block archive is invalid')
 
-  const entryCount = view.getUint16(endOffset + 10, true)
-  const directorySize = view.getUint32(endOffset + 12, true)
+  const entryCount = view.getUint16(endOffset + 10, true), directorySize = view.getUint32(endOffset + 12, true)
   const directoryOffset = view.getUint32(endOffset + 16, true)
   if (entryCount === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff
-    || entryCount > MAX_CUSTOM_BLOCK_ENTRIES || directoryOffset + directorySize > endOffset) {
+    || entryCount > MAX_CUSTOM_BLOCK_ENTRIES || directoryOffset + directorySize > endOffset)
     throw new Error('Custom block archive exceeds limits')
-  }
 
   let cursor = directoryOffset
   let unpackedBytes = 0
   for (let index = 0; index < entryCount; index += 1) {
     if (cursor + 46 > directoryOffset + directorySize
-      || view.getUint32(cursor, true) !== ZIP_CENTRAL_DIRECTORY_ENTRY) {
+      || view.getUint32(cursor, true) !== ZIP_CENTRAL_DIRECTORY_ENTRY)
       throw new Error('Custom block archive is invalid')
-    }
-    const uncompressedSize = view.getUint32(cursor + 24, true)
-    const nameLength = view.getUint16(cursor + 28, true)
-    const extraLength = view.getUint16(cursor + 30, true)
-    const commentLength = view.getUint16(cursor + 32, true)
-    if (uncompressedSize > MAX_CUSTOM_BLOCK_ENTRY_BYTES) {
-      throw new Error('Custom block archive exceeds limits')
-    }
+    const uncompressedSize = view.getUint32(cursor + 24, true), nameLength = view.getUint16(cursor + 28, true)
+    const extraLength = view.getUint16(cursor + 30, true), commentLength = view.getUint16(cursor + 32, true)
+    if (uncompressedSize > MAX_CUSTOM_BLOCK_ENTRY_BYTES) throw new Error('Custom block archive exceeds limits')
     unpackedBytes += uncompressedSize
-    if (unpackedBytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) {
-      throw new Error('Custom block archive exceeds limits')
-    }
+    if (unpackedBytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) throw new Error('Custom block archive exceeds limits')
     cursor += 46 + nameLength + extraLength + commentLength
   }
   if (cursor !== directoryOffset + directorySize) throw new Error('Custom block archive is invalid')
 }
 
-function validateNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest): CardBlock {
-  const block = parseStoredCardBlock(normalizeAdditionalFieldDefinitions(root))
-  const ids = new Set<string>()
-  visitCardBlockTree(block, (candidate, _depth, location) => {
-    if (!candidate.id.trim() || ids.has(candidate.id)) throw new Error('Custom block tree contains an invalid or duplicate ID')
-    ids.add(candidate.id)
-    if (location) {
-      if (!location.id.trim() || ids.has(location.id)) {
-        throw new Error('Custom block tree contains an invalid or duplicate ID')
-      }
-      ids.add(location.id)
-    }
-    if (candidate.type === 'custom-block') throw new Error('Custom block package contains an unresolved custom block')
-    if ((candidate.type === 'simple-container-block' || candidate.type === 'flow-container-block')
-      && Object.prototype.hasOwnProperty.call(candidate, 'packaged')) {
-      throw new Error('Custom block package contains editor packaging state')
-    }
-    const rawDefinitions = candidate.additionalFieldDefinition
-    const parsedDefinitions = parseAdditionalFieldDefinitions(rawDefinitions)
-    if (rawDefinitions !== undefined
-      && (!rawDefinitions || typeof rawDefinitions !== 'object' || Array.isArray(rawDefinitions)
-        || Object.keys(parsedDefinitions).length !== Object.keys(rawDefinitions).length)) {
-      throw new Error('Custom block tree contains invalid additional field definitions')
+async function unzipArchive(bytes: Uint8Array, filter?: (file: UnzipFileInfo) => boolean): Promise<Record<string, Uint8Array>> {
+  return await new Promise((resolve, reject) => {
+    const paths = new Set<string>()
+    try {
+      unzip(bytes, { filter: file => {
+        const path = normalizeArchivePath(file.name)
+        const identity = path?.toLowerCase()
+        if (!path || paths.has(identity!)) throw new Error('Invalid custom block archive path')
+        paths.add(identity!)
+        return filter?.(file) ?? true
+      } }, (error, data) => {
+        if (error) reject(error)
+        else resolve(Object.fromEntries(Object.entries(data).map(([path, content]) => [normalizeArchivePath(path)!, content])))
+      })
+    } catch (error) {
+      reject(error)
     }
   })
-  const rootDefinitions = parseAdditionalFieldDefinitions(block.additionalFieldDefinition)
-  for (const field of manifest.publicFields) {
-    const definition = rootDefinitions[field.key]
-    if (!definition || definition.fieldType !== field.fieldType) {
-      throw new Error(`Custom block public field is not defined on the root: ${field.key}`)
-    }
-    if (field.defaultValue !== undefined
-      && (block as unknown as Record<string, unknown>)[field.key] !== field.defaultValue) {
-      throw new Error(`Custom block public field default does not match the root: ${field.key}`)
-    }
-  }
-  return block
 }
 
-function indexedResourcePaths(manifest: ProjectCustomBlockManifest): string[] {
+function fallbackKeyFromPath(path?: string): string {
+  const name = path?.replace(/\\/g, '/').split('/').pop()?.replace(/\.ocblock$/i, '') ?? ''
+  return normalizeProjectCustomBlockKey(toKeySlug(name, 'custom-block')) ?? 'custom-block' }
+
+function parseManifestBytes(bytes: Uint8Array | undefined, fallbackKey: string): ProjectCustomBlockManifestReadResult {
+  if (!bytes) {
+    const result = normalizeProjectCustomBlockManifest({}, fallbackKey)
+    return { ...result, issues: [{ code: 'manifest-field-ignored', path: PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, message: 'Missing manifest used current defaults' }, ...result.issues] }
+  }
+  try {
+    return normalizeProjectCustomBlockManifest(JSON.parse(strFromU8(bytes)), fallbackKey)
+  } catch {
+    const result = normalizeProjectCustomBlockManifest({}, fallbackKey)
+    return { ...result, issues: [{ code: 'manifest-field-ignored', path: PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, message: 'Unreadable manifest used current defaults' }, ...result.issues] }
+  }
+}
+
+export async function readProjectCustomBlockManifestFromBytes(bytes: Uint8Array, sourcePath?: string): Promise<ProjectCustomBlockManifestReadResult> {
+  if (bytes.byteLength > MAX_CUSTOM_BLOCK_BYTES) throw new Error('Custom block package is too large')
+  preflightZipArchive(bytes)
+  const unpacked = await unzipArchive(bytes, file => file.name.toLowerCase() === PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME.toLowerCase())
+  const manifestBytes = Object.entries(unpacked).find(([path]) => path.toLowerCase() === PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME.toLowerCase())?.[1]
+  return parseManifestBytes(manifestBytes, fallbackKeyFromPath(sourcePath))
+}
+
+function normalizeNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest, issues: ProjectCustomBlockPackageIssue[]): {
+  block: CardBlock | null; manifest: ProjectCustomBlockManifest } {
+  const normalized = normalizeStoredCardBlock(root)
+  issues.push(...normalized.warnings.map(warning => ({ code: 'block-entry-ignored' as const,
+    path: `${PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME}${warning.path.slice(1)}`, message: warning.message })))
+  const block = normalized.block
+  if (!block || block.type === 'custom-block') {
+    addIssue(issues, 'block-unavailable', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Root Block is unavailable')
+    return { block: null, manifest }
+  }
+
+  const removeNestedCustomBlocks = (candidate: CardBlock): void => {
+    if (candidate.type !== 'simple-container-block' && candidate.type !== 'flow-container-block') return
+    for (let index = candidate.children.length - 1; index >= 0; index -= 1) {
+      if (candidate.children[index]!.block.type !== 'custom-block') continue
+      candidate.children.splice(index, 1)
+      addIssue(issues, 'block-entry-ignored', `${PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME}.children[${index}]`, 'Nested custom Block was ignored')
+    }
+    candidate.children.forEach(child => removeNestedCustomBlocks(child.block))
+  }
+  removeNestedCustomBlocks(block)
+
+  const ids = new Set<string>()
+  let generatedId = 0
+  visitCardBlockTree(block, (candidate, _depth, location) => {
+    if (!candidate.id.trim() || ids.has(candidate.id)) {
+      candidate.id = `package-block-${++generatedId}`
+      addIssue(issues, 'block-entry-ignored', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Missing or duplicate Block ID used a generated ID')
+    }
+    ids.add(candidate.id)
+    if (location && (!location.id.trim() || ids.has(location.id))) {
+      location.id = `package-location-${++generatedId}`
+      addIssue(issues, 'block-entry-ignored', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Missing or duplicate Location ID used a generated ID')
+    }
+    if (location) ids.add(location.id)
+    if ((candidate.type === 'simple-container-block' || candidate.type === 'flow-container-block')
+      && Object.prototype.hasOwnProperty.call(candidate, 'packaged')) delete candidate.packaged
+  })
+  const publicFields = new Set([
+    ...PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
+    ...analyzeProjectCustomBlockExport(block).fields.map(field => field.key),
+  ].map(fieldKey => fieldKey.toLowerCase()))
+  const publicFieldKeys = manifest.publicFieldKeys.filter(fieldKey => {
+    const found = publicFields.has(fieldKey.toLowerCase())
+    if (!found) addIssue(issues, 'manifest-field-ignored', `publicFieldKeys.${fieldKey}`, 'Public field unavailable on the root was ignored')
+    return found
+  })
+  return { block, manifest: { ...manifest, publicFieldKeys } }
+}
+
+function indexedResourcePaths(manifest: ProjectCustomBlockManifest, issues: ProjectCustomBlockPackageIssue[]): string[] {
   const resources = manifest.resources
   const groups = [
     { prefix: 'resources/fonts/', paths: (resources?.fonts ?? []).map(resource => resource.source) },
@@ -158,7 +177,8 @@ function indexedResourcePaths(manifest: ProjectCustomBlockManifest): string[] {
       const path = normalizeArchivePath(rawPath)
       const identity = path?.toLowerCase()
       if (!path || !path.toLowerCase().startsWith(group.prefix) || identities.has(identity!)) {
-        throw new Error('Custom block resource index is invalid')
+        addIssue(issues, 'resource-unavailable', rawPath, 'Invalid or duplicate resource path was ignored')
+        continue
       }
       identities.add(identity!)
       paths.push(path)
@@ -167,54 +187,71 @@ function indexedResourcePaths(manifest: ProjectCustomBlockManifest): string[] {
   return paths
 }
 
-function validatePackageFiles(manifest: ProjectCustomBlockManifest, files: ReadonlyMap<string, Uint8Array>): void {
-  const indexed = indexedResourcePaths(manifest)
+function collectRuntimeFiles(manifest: ProjectCustomBlockManifest, files: ReadonlyMap<string, Uint8Array>, issues: ProjectCustomBlockPackageIssue[]): ReadonlyMap<string, Uint8Array> {
+  const indexed = indexedResourcePaths(manifest, issues)
+  const runtimeFiles = new Map<string, Uint8Array>()
   for (const path of indexed) {
-    if (!findProjectCustomBlockFile(files, path)) throw new Error('Custom block resource is missing')
+    const bytes = findProjectCustomBlockFile(files, path)
+    if (bytes) runtimeFiles.set(path, bytes)
+    else addIssue(issues, 'resource-unavailable', path, 'Indexed resource file is missing')
   }
-  const allowed = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME, ...indexed].map(path => path.toLowerCase()))
-  for (const path of files.keys()) {
-    if (!allowed.has(path.toLowerCase())) throw new Error('Custom block package contains an unlisted file')
-  }
+  return runtimeFiles
 }
 
-function validateResourceReferences(manifest: ProjectCustomBlockManifest, root: CardBlock): void {
-  const imagePaths = new Set((manifest.resources?.images ?? []).map(resource => resource.source.toLowerCase()))
+function collectResourceReferenceIssues(manifest: ProjectCustomBlockManifest, root: CardBlock): ProjectCustomBlockPackageIssue[] {
+  const issues: ProjectCustomBlockPackageIssue[] = []
+  const imageKeys = new Set((manifest.resources?.images ?? []).map(resource => resource.key.toLowerCase()))
+  const fontKeys = new Set((manifest.resources?.fonts ?? []).map(resource => resource.key.toLowerCase()))
   const iconSeries = new Map((manifest.resources?.iconSeries ?? []).map(series => [
     series.key.toLowerCase(),
     new Set(series.icons.map(icon => icon.iconKey.toLowerCase())),
   ]))
   const validateIconReference = (seriesKey: string, iconKey: string): void => {
     const icons = iconSeries.get(seriesKey.toLowerCase())
-    if (seriesKey.toLowerCase().startsWith('ocblock-') && (!icons || !icons.has(iconKey.toLowerCase()))) {
-      throw new Error('Custom block icon reference is not indexed')
+    if (!icons || !icons.has(iconKey.toLowerCase())) {
+      addIssue(issues, 'resource-unavailable', `${seriesKey}/${iconKey}`, 'Icon reference is not indexed')
     }
   }
   visitCardBlockTree(root, block => {
-    if (block.type === 'image-block' && block.image.toLowerCase().startsWith('ocblock:')) {
-      const prefix = `ocblock:${manifest.key}/`
-      if (!block.image.toLowerCase().startsWith(prefix.toLowerCase())
-        || !imagePaths.has(block.image.slice(prefix.length).toLowerCase())) {
-        throw new Error('Custom block image reference is not indexed')
+    if (block.type === 'image-block' && !block.image.includes('{{')) {
+      const match = /^resource:image:([a-z0-9][a-z0-9._-]*)$/i.exec(block.image.trim())
+      if (!match || !imageKeys.has(match[1]!.toLowerCase())) {
+        addIssue(issues, 'resource-unavailable', block.image, 'Image reference is not package-local or indexed')
+      }
+    }
+    if ('fontFamily' in block && typeof block.fontFamily === 'string') {
+      for (const entry of block.fontFamily.split(';').map(value => value.trim()).filter(Boolean)) {
+        const match = /^resource:font:([a-z0-9][a-z0-9._-]*)$/i.exec(entry)
+        if (entry.toLowerCase().startsWith('resource:font:')
+          && (!match || !fontKeys.has(match[1]!.toLowerCase()))) {
+          addIssue(issues, 'resource-unavailable', entry, 'Font reference is not indexed')
+        }
+        if (entry.toLowerCase().startsWith('font:') || entry.startsWith('OpenCardCustomBlock-')) {
+          addIssue(issues, 'resource-unavailable', entry, 'Font reference is not package-local')
+        }
       }
     }
     for (const value of Object.values(block)) {
       if (typeof value !== 'string') continue
+      if (/ocblock:/i.test(value)) addIssue(issues, 'resource-unavailable', block.id, 'Cross-package resource reference is unavailable')
       for (const reference of collectProjectIconReferences(value)) {
         validateIconReference(reference.seriesKey, reference.iconKey)
       }
     }
   })
+  return issues
 }
 
-export function createProjectCustomBlockArchive(
-  manifest: ProjectCustomBlockManifest,
-  files: ReadonlyMap<string, Uint8Array> = new Map(),
-): Uint8Array {
+export function createProjectCustomBlockArchive(manifest: ProjectCustomBlockManifest, block: CardBlock,
+  files: ReadonlyMap<string, Uint8Array> = new Map()): Uint8Array {
   const archive: Record<string, Uint8Array> = {
     [PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME]: strToU8(serializeProjectCustomBlockManifest(manifest)),
+    [PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME]: strToU8(JSON.stringify(block, null, 2)),
   }
-  const pathIdentities = new Set([PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME.toLowerCase()])
+  const pathIdentities = new Set([
+    PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME.toLowerCase(),
+    PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME.toLowerCase(),
+  ])
   for (const [rawPath, bytes] of files) {
     const path = normalizeArchivePath(rawPath)
     const identity = path?.toLowerCase()
@@ -222,66 +259,57 @@ export function createProjectCustomBlockArchive(
     pathIdentities.add(identity!)
     archive[path] = bytes
   }
-  validateNativeRoot(manifest.root, manifest)
-  validateResourceReferences(manifest, manifest.root)
-  validatePackageFiles(manifest, new Map(Object.entries(archive)))
+  const issues: ProjectCustomBlockPackageIssue[] = []
+  const normalized = normalizeNativeRoot(block, manifest, issues)
+  if (!normalized.block) throw new Error('Custom block root Block is unavailable')
+  const runtimeFiles = collectRuntimeFiles(normalized.manifest, new Map(Object.entries(archive)), issues)
+  if (runtimeFiles.size !== Object.keys(archive).length - 2) addIssue(issues, 'resource-unavailable', 'resources', 'Package contains an unlisted resource file')
+  issues.push(...collectResourceReferenceIssues(normalized.manifest, normalized.block))
+  if (issues.length) throw new Error(issues[0]!.message)
   return zipSync(archive, { level: 9 })
 }
 
-export async function readProjectCustomBlockPackageFromBytes(bytes: Uint8Array): Promise<ProjectCustomBlockPackage> {
+export async function readProjectCustomBlockPackageFromBytes(bytes: Uint8Array, sourcePath?: string): Promise<ProjectCustomBlockPackage> {
   if (bytes.byteLength > MAX_CUSTOM_BLOCK_BYTES) throw new Error('Custom block package is too large')
   preflightZipArchive(bytes)
-  const unpacked = unzipSync(bytes)
-  const files = new Map<string, Uint8Array>()
-  const pathIdentities = new Set<string>()
-  let unpackedBytes = 0
-  for (const [rawPath, content] of Object.entries(unpacked)) {
-    const path = normalizeArchivePath(rawPath)
-    const identity = path?.toLowerCase()
-    if (!path || pathIdentities.has(identity!)) throw new Error('Invalid custom block archive path')
-    pathIdentities.add(identity!)
-    unpackedBytes += content.byteLength
-    if (unpackedBytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) throw new Error('Unpacked custom block package is too large')
-    files.set(path, content)
+  const unpacked = await unzipArchive(bytes)
+  const files = new Map(Object.entries(unpacked))
+  const manifestResult = parseManifestBytes(
+    findProjectCustomBlockFile(files, PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME),
+    fallbackKeyFromPath(sourcePath),
+  )
+  const issues = [...manifestResult.issues]
+  const blockBytes = findProjectCustomBlockFile(files, PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME)
+  let root: unknown
+  if (!blockBytes) {
+    addIssue(issues, 'block-unavailable', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Root Block file is missing')
+  } else {
+    try {
+      root = JSON.parse(strFromU8(blockBytes))
+    } catch {
+      addIssue(issues, 'block-unavailable', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Root Block JSON is unreadable')
+    }
   }
-  const manifestBytes = findProjectCustomBlockFile(files, PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME)
-  if (!manifestBytes) throw new Error('Custom block manifest is missing')
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(strFromU8(manifestBytes))
-  } catch {
-    throw new Error('Custom block manifest is invalid')
-  }
-  const manifest = parseProjectCustomBlockManifest(parsed)
-  if (!manifest || manifest.schemaVersion !== PROJECT_CUSTOM_BLOCK_SCHEMA_VERSION) {
-    throw new Error('Custom block manifest is invalid')
-  }
-  const root = validateNativeRoot(manifest.root, manifest)
-  validateResourceReferences(manifest, root)
-  validatePackageFiles(manifest, files)
-  const interfaceHash = await computeProjectCustomBlockInterfaceHash(manifest.publicFields, manifest.resize)
-  if (interfaceHash !== manifest.interfaceHash) throw new Error('Custom block interface hash does not match')
-  return { manifest, files }
+  const normalized = root === undefined
+    ? { block: null, manifest: manifestResult.manifest }
+    : normalizeNativeRoot(root, manifestResult.manifest, issues)
+  const runtimeFiles = collectRuntimeFiles(normalized.manifest, files, issues)
+  if (normalized.block) issues.push(...collectResourceReferenceIssues(normalized.manifest, normalized.block))
+  return { manifest: normalized.manifest, block: normalized.block, files: runtimeFiles, issues,
+    hasResourceErrors: issues.some(issue => issue.code === 'resource-unavailable') }
 }
 
-export async function readProjectCustomBlockPackage(
-  fs: Pick<FileSystemService, 'readBinaryFile'>,
-  sourcePath: string,
-): Promise<ProjectCustomBlockPackage> {
-  return await readProjectCustomBlockPackageFromBytes(await fs.readBinaryFile(sourcePath))
-}
+export async function readProjectCustomBlockPackage(fs: Pick<FileSystemService, 'readBinaryFile'>, sourcePath: string): Promise<ProjectCustomBlockPackage> {
+  return await readProjectCustomBlockPackageFromBytes(await fs.readBinaryFile(sourcePath), sourcePath) }
+export async function readProjectCustomBlockManifest(fs: Pick<FileSystemService, 'readBinaryFile'>, sourcePath: string): Promise<ProjectCustomBlockManifestReadResult> {
+  return await readProjectCustomBlockManifestFromBytes(await fs.readBinaryFile(sourcePath), sourcePath) }
 
-export async function exportProjectCustomBlockPackage(options: {
-  fs: Pick<FileSystemService, 'writeBinaryFile'>
-  manifest: ProjectCustomBlockManifest
-  files?: ReadonlyMap<string, Uint8Array>
-  outputPath: string
-}): Promise<string> {
+export async function exportProjectCustomBlockPackage(options: { fs: Pick<FileSystemService, 'writeBinaryFile'>
+  manifest: ProjectCustomBlockManifest; block: CardBlock; files?: ReadonlyMap<string, Uint8Array>; outputPath: string }): Promise<string> {
   const outputPath = options.outputPath.toLowerCase().endsWith('.ocblock')
     ? options.outputPath
     : `${options.outputPath}.ocblock`
-  const archive = createProjectCustomBlockArchive(options.manifest, options.files)
-  await readProjectCustomBlockPackageFromBytes(archive)
+  const archive = createProjectCustomBlockArchive(options.manifest, options.block, options.files)
   await options.fs.writeBinaryFile(outputPath, archive)
   return outputPath
 }

@@ -9,7 +9,7 @@ function createHarness() {
   ;(block as unknown as Record<string, unknown>).score = '10'
   const document: CardDocument = {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',

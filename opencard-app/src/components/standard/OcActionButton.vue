@@ -22,7 +22,7 @@
       :icon="action.icon"
       :icon-tone="action.iconTone"
       :data-tooltip="action.title || null"
-      :aria-label="actionAccessibleLabel(action.title ?? action.key, action.badgeLabel)"
+      :aria-label="actionAccessibleLabel(inlineMarkupToText(action.title ?? action.key), action.badgeLabel)"
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"
       :aria-pressed="props.ariaPressed"
@@ -69,6 +69,7 @@ export type ActionButtonVariant = 'solid' | 'soft' | 'ghost' | 'outline'
 import { onBeforeUnmount, ref, useId } from 'vue'
 import OcButton from '../base/OcButton.vue'
 import type { OcIconSize } from '../base/OcIcon.vue'
+import { inlineMarkupToText } from '../../shared/ui/inline-markup/inlineMarkup'
 import OcActionMenu, {
   type OcActionDefinition,
   type OcActionMenuEntry,

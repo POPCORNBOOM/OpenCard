@@ -7,7 +7,7 @@ describe('useCdeInstanceOps tree actions', () => {
   it('projects instance operations behind a single submenu action', () => {
     const document: CardDocument = {
       type: 'card-document',
-      schemaVersion: '2',
+
       id: 'document',
       version: '1.0.0',
       width: '540',
@@ -41,7 +41,7 @@ describe('useCdeInstanceOps tree actions', () => {
   it('keeps explicit data-table export selection aligned with Instance lifecycle', () => {
     const document: CardDocument = {
       type: 'card-document',
-      schemaVersion: '2',
+
       id: 'document',
       version: '1.0.0',
       width: '540',

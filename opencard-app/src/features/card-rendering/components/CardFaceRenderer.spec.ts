@@ -7,10 +7,10 @@ import CardFaceRenderer from './CardFaceRenderer.vue'
 import { parseRenderReadyBlockForTest } from './renderTestUtils'
 
 describe('CardFaceRenderer resources', () => {
-  it('renders a packaged image through the controlled resource context', () => {
+  it('does not expose package-local image keys to an ordinary native block', () => {
     const image = parseRenderReadyBlockForTest(createBlock('image-block', {
       id: 'picture',
-      image: 'ocblock:picture/resources/images/a.png',
+      image: 'resource:image:a',
     }))
     const face: RenderReadyCardFace = {
       type: 'card-face', id: 'front', faceKey: 'front', width: 100, height: 100,
@@ -23,15 +23,17 @@ describe('CardFaceRenderer resources', () => {
     const resourceContext = createCardRenderResourceContext({
       customBlockCatalog: new Map([['picture', {
         manifest: {
-          key: 'picture', interfaceHash: 'hash', root: {}, publicFields: [],
+          customBlockKey: 'picture', publicFieldKeys: [],
           resize: { widthLocked: false, heightLocked: false },
+          resources: { images: [{ key: 'a', source: 'resources/images/a.png' }] },
         },
+        block: {},
         resourceUrls: new Map([['resources/images/a.png', 'blob:controlled-renderer']]),
       }]]),
     })
 
     const wrapper = mount(CardFaceRenderer, { props: { face, resourceContext } })
 
-    expect(wrapper.get('img').attributes('src')).toBe('blob:controlled-renderer')
+    expect(wrapper.find('img').exists()).toBe(false)
   })
 })

@@ -52,7 +52,6 @@ import {
 import {
   buildProjectIconCatalog,
   EMPTY_PROJECT_ICON_CATALOG,
-  projectIconIdentity,
   type ProjectIconCatalog,
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
@@ -74,8 +73,10 @@ import {
   serializeProjectCustomBlockRegistry,
   type ProjectCustomBlockCatalog,
   type ProjectCustomBlockCatalogEntry,
+  type ProjectCustomBlockManifestCatalog,
+  type ProjectCustomBlockManifestCatalogEntry,
 } from '../model/projectCustomBlocks'
-import { readProjectCustomBlockPackage } from '../services/projectCustomBlock'
+import { readProjectCustomBlockManifest, readProjectCustomBlockPackage } from '../services/projectCustomBlock'
 import {
   registerProjectCustomBlockPath,
   unregisterProjectCustomBlockPath,
@@ -87,9 +88,12 @@ import {
 } from '../services/projectCustomBlockFontLoader'
 import {
   createProjectCustomBlockAssetSession,
-  type ProjectCustomBlockAssetSession,
 } from '../services/projectCustomBlockAssetLoader'
 import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
+import {
+  estimateProjectCustomBlockUnpackedBytes,
+  ProjectCustomBlockResourceCache,
+} from '../services/projectCustomBlockCache'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -152,27 +156,16 @@ const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
+const projectCustomBlockManifestCatalog = shallowRef<ProjectCustomBlockManifestCatalog>(new Map())
 const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
-const projectCustomBlockIconCatalog = shallowRef<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
 const customBlockRegistryError = ref<string | null>(null)
 const customBlockFontLoadErrors = ref<readonly ProjectCustomBlockFontLoadError[]>([])
 const settingsStore = useAppSettingsStore()
-const runtimeProjectIconCatalog = computed<ProjectIconCatalog>(() => ({
-  series: [...projectCustomBlockIconCatalog.value.series, ...projectIconCatalog.value.series],
-  entries: [
-    ...projectCustomBlockIconCatalog.value.entries,
-    ...projectIconCatalog.value.entries.filter(entry => !projectCustomBlockIconCatalog.value.entries.some(
-      customEntry => projectIconIdentity(customEntry.seriesKey, customEntry.iconKey)
-        === projectIconIdentity(entry.seriesKey, entry.iconKey),
-    )),
-  ],
-  errors: [...projectCustomBlockIconCatalog.value.errors, ...projectIconCatalog.value.errors],
-}))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
-  projectIconCatalog: runtimeProjectIconCatalog.value,
+  projectIconCatalog: projectIconCatalog.value,
   customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
 }) as CardRenderEnvironment)
 
@@ -180,8 +173,21 @@ let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
 let customBlockReloadVersion = 0
 let customBlockReloadQueue: Promise<boolean> = Promise.resolve(false)
-let customBlockAssetSession: ProjectCustomBlockAssetSession | null = null
-let customBlockFontSession: ProjectCustomBlockFontSession | null = null
+let customBlockWatchTimer: ReturnType<typeof setTimeout> | null = null
+const pendingCustomBlockChanges = new Set<string>()
+let activeCustomBlockKeys = new Set<string>()
+
+const customBlockResourceCache = new ProjectCustomBlockResourceCache(undefined, (key) => {
+  const catalog = new Map(projectCustomBlockCatalog.value)
+  catalog.delete(key)
+  projectCustomBlockCatalog.value = catalog
+  const runtimeCatalog = new Map(projectCustomBlockRuntimeCatalog.value)
+  runtimeCatalog.delete(key)
+  projectCustomBlockRuntimeCatalog.value = runtimeCatalog
+  customBlockFontLoadErrors.value = customBlockFontLoadErrors.value.filter(
+    error => error.packageKey.toLowerCase() !== key,
+  )
+})
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -361,15 +367,121 @@ function clearProjectDictionary() {
 }
 
 function clearProjectCustomBlocks() {
-  customBlockFontSession?.release()
-  customBlockAssetSession?.release()
-  customBlockFontSession = null
-  customBlockAssetSession = null
+  activeCustomBlockKeys = new Set()
+  customBlockResourceCache.clear()
+  projectCustomBlockManifestCatalog.value = new Map()
   projectCustomBlockCatalog.value = new Map()
   projectCustomBlockRuntimeCatalog.value = new Map()
-  projectCustomBlockIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
   customBlockRegistryError.value = null
   customBlockFontLoadErrors.value = []
+}
+
+async function ensureProjectCustomBlockLoaded(customBlockKey: string): Promise<ProjectCustomBlockCatalogEntry | null> {
+  const key = customBlockKey.toLowerCase()
+  const descriptor = projectCustomBlockManifestCatalog.value.get(key)
+  if (!descriptor || !projectPath.value) return null
+  const ready = projectCustomBlockCatalog.value.get(key)
+  if (ready) return ready
+  projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
+    ...descriptor, loadState: 'loading',
+  })
+  try {
+    return await customBlockResourceCache.load(key, async () => {
+      const packageEntry = await readProjectCustomBlockPackage(
+        fileSystemService,
+        `${projectPath.value}/${descriptor.archivePath}`,
+      )
+      if (packageEntry.manifest.customBlockKey.toLowerCase() !== key) {
+        throw new Error(`Custom block key changed while loading: ${customBlockKey}`)
+      }
+      if (!packageEntry.block) {
+        const descriptors = new Map(projectCustomBlockManifestCatalog.value)
+        descriptors.set(key, {
+          manifest: packageEntry.manifest,
+          archivePath: descriptor.archivePath,
+          issues: packageEntry.issues,
+          unavailable: true,
+          loadState: 'error',
+        })
+        projectCustomBlockManifestCatalog.value = descriptors
+        throw new Error(`Custom block is unavailable: ${customBlockKey}`)
+      }
+      const entry: ProjectCustomBlockCatalogEntry = {
+        ...packageEntry,
+        block: packageEntry.block,
+        archivePath: descriptor.archivePath,
+      }
+      const singleCatalog: ProjectCustomBlockCatalog = new Map([[key, entry]])
+      const assetSession = await createProjectCustomBlockAssetSession(singleCatalog)
+      let fontSession: ProjectCustomBlockFontSession
+      try {
+        fontSession = await createProjectCustomBlockFontSession(singleCatalog)
+      } catch (error) {
+        assetSession.release()
+        throw error
+      }
+      const runtimeEntry = assetSession.customBlockCatalog.get(key)
+      if (!runtimeEntry) {
+        assetSession.release()
+        fontSession.release()
+        throw new Error(`Custom block runtime entry is missing: ${customBlockKey}`)
+      }
+      const hasResourceErrors = packageEntry.hasResourceErrors
+        || fontSession.errors.length > 0
+        || assetSession.iconCatalog.errors.length > 0
+      const catalog = new Map(projectCustomBlockCatalog.value)
+      catalog.set(key, entry)
+      projectCustomBlockCatalog.value = catalog
+      const descriptors = new Map(projectCustomBlockManifestCatalog.value)
+      descriptors.set(key, {
+        manifest: packageEntry.manifest,
+        archivePath: descriptor.archivePath,
+        issues: packageEntry.issues,
+        loadState: 'ready',
+      })
+      projectCustomBlockManifestCatalog.value = descriptors
+      const runtimeCatalog = new Map(projectCustomBlockRuntimeCatalog.value)
+      runtimeCatalog.set(key, hasResourceErrors ? { ...runtimeEntry, hasResourceErrors: true } : runtimeEntry)
+      projectCustomBlockRuntimeCatalog.value = runtimeCatalog
+      customBlockFontLoadErrors.value = [
+        ...customBlockFontLoadErrors.value.filter(error => error.packageKey.toLowerCase() !== key),
+        ...fontSession.errors,
+      ]
+      const decodedIconBytes = assetSession.iconCatalog.series.reduce(
+        (total, series) => total + series.imageWidth * series.imageHeight * 4,
+        0,
+      )
+      return {
+        entry,
+        byteSize: estimateProjectCustomBlockUnpackedBytes(entry) + decodedIconBytes,
+        release: () => {
+          fontSession.release()
+          assetSession.release()
+        },
+      }
+    })
+  } catch (error) {
+    const current = projectCustomBlockManifestCatalog.value.get(key)
+    if (!current?.unavailable) {
+      projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
+        ...descriptor, loadState: 'error',
+      })
+      reportAppError('OC-E3011', { path: descriptor.archivePath, error })
+    }
+    return null
+  }
+}
+
+async function ensureProjectCustomBlocksLoaded(keys: Iterable<string>): Promise<void> {
+  await Promise.all([...new Set([...keys].map(key => key.toLowerCase()))]
+    .map(key => ensureProjectCustomBlockLoaded(key)))
+}
+
+function setActiveProjectCustomBlockKeys(keys: Iterable<string>): void {
+  const normalized = [...new Set([...keys].map(key => key.toLowerCase()))]
+  activeCustomBlockKeys = new Set(normalized)
+  customBlockResourceCache.setPinnedKeys(normalized)
+  void ensureProjectCustomBlocksLoaded(normalized)
 }
 
 function reloadProjectCustomBlockRegistry(): Promise<boolean> {
@@ -381,8 +493,6 @@ function reloadProjectCustomBlockRegistry(): Promise<boolean> {
     if (!expectedProjectPath || !isCurrent()) return false
 
     const registryPath = `${expectedProjectPath}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
-    let nextAssetSession: ProjectCustomBlockAssetSession | null = null
-    let nextFontSession: ProjectCustomBlockFontSession | null = null
     try {
       if (!await fileSystemService.fileExists(registryPath)) {
         if (isCurrent()) clearProjectCustomBlocks()
@@ -390,50 +500,29 @@ function reloadProjectCustomBlockRegistry(): Promise<boolean> {
       }
       const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
       if (!registry) throw new Error('Invalid .ocblocks registry')
-      const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
+      const catalog = new Map<string, ProjectCustomBlockManifestCatalogEntry>()
       for (const relativePath of registry.blocks ?? []) {
-        const entry = await readProjectCustomBlockPackage(fileSystemService, `${expectedProjectPath}/${relativePath}`)
-        const key = entry.manifest.key.toLowerCase()
-        if (catalog.has(key)) throw new Error(`Duplicate custom block key: ${entry.manifest.key}`)
-        catalog.set(key, { ...entry, archivePath: relativePath })
+        if (!isCurrent()) return false
+        const result = await readProjectCustomBlockManifest(fileSystemService, `${expectedProjectPath}/${relativePath}`)
+        const key = result.manifest.customBlockKey.toLowerCase()
+        const duplicate = catalog.get(key)
+        if (duplicate) {
+          catalog.set(key, { ...duplicate, issues: [...(duplicate.issues ?? []), {
+            code: 'manifest-field-ignored', path: relativePath, message: 'Duplicate custom Block Key was ignored',
+          }] })
+          continue
+        }
+        catalog.set(key, { manifest: result.manifest, archivePath: relativePath, loadState: 'unloaded', issues: result.issues })
       }
       if (!isCurrent()) return false
-      nextAssetSession = await createProjectCustomBlockAssetSession(catalog)
-      if (!isCurrent()) {
-        nextAssetSession.release()
-        return false
-      }
-      nextFontSession = await createProjectCustomBlockFontSession(catalog)
-      if (!isCurrent()) {
-        nextFontSession.release()
-        nextAssetSession.release()
-        return false
-      }
-      const previousFontSession = customBlockFontSession
-      const previousAssetSession = customBlockAssetSession
-      const runtimeCatalog = new Map(nextAssetSession.customBlockCatalog)
-      for (const [key, runtimeEntry] of runtimeCatalog) {
-        const packageEntry = catalog.get(key)
-        const packageSeriesKeys = new Set(
-          (packageEntry?.manifest.resources?.iconSeries ?? []).map(series => series.key.toLowerCase()),
-        )
-        const hasResourceErrors = nextFontSession.errors.some(error => error.packageKey.toLowerCase() === key)
-          || nextAssetSession.iconCatalog.errors.some(error => packageSeriesKeys.has(error.seriesKey.toLowerCase()))
-        if (hasResourceErrors) runtimeCatalog.set(key, { ...runtimeEntry, hasResourceErrors: true })
-      }
-      customBlockFontSession = nextFontSession
-      customBlockAssetSession = nextAssetSession
-      projectCustomBlockCatalog.value = catalog
-      projectCustomBlockRuntimeCatalog.value = runtimeCatalog
-      projectCustomBlockIconCatalog.value = nextAssetSession.iconCatalog
-      customBlockFontLoadErrors.value = nextFontSession.errors
+      customBlockResourceCache.clear()
+      projectCustomBlockManifestCatalog.value = catalog
+      projectCustomBlockCatalog.value = new Map()
+      projectCustomBlockRuntimeCatalog.value = new Map()
+      customBlockFontLoadErrors.value = []
       customBlockRegistryError.value = null
-      previousFontSession?.release()
-      previousAssetSession?.release()
       return true
     } catch (error) {
-      nextFontSession?.release()
-      nextAssetSession?.release()
       if (!isCurrent()) return false
       customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
       reportAppError('OC-E3011', { path: registryPath, error })
@@ -656,6 +745,55 @@ async function loadFiles() {
   await readDirectoryEntries('', Number.POSITIVE_INFINITY)
 }
 
+async function flushProjectCustomBlockChanges(): Promise<void> {
+  customBlockWatchTimer = null
+  const paths = [...pendingCustomBlockChanges]
+  pendingCustomBlockChanges.clear()
+  if (!projectPath.value || paths.length === 0) return
+  const registryPath = pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
+  if (paths.some(path => pathIdentity(path) === registryPath)) {
+    await reloadProjectCustomBlockRegistry()
+    if (activeCustomBlockKeys.size > 0) await ensureProjectCustomBlocksLoaded(activeCustomBlockKeys)
+    return
+  }
+
+  for (const changedPath of paths) {
+    if (!changedPath.toLowerCase().endsWith('.ocblock')) continue
+    const descriptors = new Map(projectCustomBlockManifestCatalog.value)
+    const previous = [...descriptors.entries()].find(([, entry]) => (
+      pathIdentity(resolveProjectPath(entry.archivePath)) === pathIdentity(changedPath)
+    ))
+    if (previous) {
+      descriptors.delete(previous[0])
+      customBlockResourceCache.invalidate(previous[0])
+    }
+    if (await fileSystemService.fileExists(changedPath)) {
+      try {
+        const result = await readProjectCustomBlockManifest(fileSystemService, changedPath)
+        const key = result.manifest.customBlockKey.toLowerCase()
+        customBlockResourceCache.invalidate(key)
+        descriptors.set(key, {
+          manifest: result.manifest,
+          archivePath: toRelativeProjectPath(changedPath),
+          loadState: 'unloaded',
+          issues: result.issues,
+        })
+        if (activeCustomBlockKeys.has(key)) void ensureProjectCustomBlockLoaded(key)
+      } catch (error) {
+        customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
+        reportAppError('OC-E3011', { path: changedPath, error })
+      }
+    }
+    projectCustomBlockManifestCatalog.value = descriptors
+  }
+}
+
+function scheduleProjectCustomBlockChanges(paths: readonly string[]): void {
+  paths.forEach(path => pendingCustomBlockChanges.add(path))
+  if (customBlockWatchTimer) clearTimeout(customBlockWatchTimer)
+  customBlockWatchTimer = setTimeout(() => void flushProjectCustomBlockChanges(), 120)
+}
+
 async function startWatching() {
   if (!projectPath.value || isWatching.value) return
 
@@ -674,10 +812,11 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
-      if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
-        || path.toLowerCase().endsWith('.ocblock'))) {
-        void reloadProjectCustomBlockRegistry()
-      }
+      const customBlockChanges = changedPaths.filter(path => (
+        pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
+        || path.toLowerCase().endsWith('.ocblock')
+      ))
+      if (customBlockChanges.length > 0) scheduleProjectCustomBlockChanges(customBlockChanges)
       const fontSources = projectFontFiles.value
         .map(font => resolveProjectPath(font.source))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
@@ -699,6 +838,9 @@ async function startWatching() {
 
 async function stopWatching() {
   taskScheduler.cancel(PROJECT_METADATA_SAVE_KEY)
+  if (customBlockWatchTimer) clearTimeout(customBlockWatchTimer)
+  customBlockWatchTimer = null
+  pendingCustomBlockChanges.clear()
 
   if (unlistenFn) {
     unlistenFn()
@@ -923,7 +1065,7 @@ async function importProjectCustomBlockFile(
   conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectCustomBlockFile> {
   const sourcePackage = await readProjectCustomBlockPackage(fileSystemService, normalizePath(sourcePath))
-  assertCompatibleProjectCustomBlock(sourcePackage.manifest.key, sourcePackage.manifest.interfaceHash)
+  findRegisteredProjectCustomBlock(sourcePackage.manifest.customBlockKey)
   const imported = await importProjectAssetFile(
     sourcePath,
     DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
@@ -934,10 +1076,7 @@ async function importProjectCustomBlockFile(
   const effectivePackage = conflictResolution === 'use-existing'
     ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(imported.source))
     : sourcePackage
-  const existing = assertCompatibleProjectCustomBlock(
-    effectivePackage.manifest.key,
-    effectivePackage.manifest.interfaceHash,
-  )
+  const existing = findRegisteredProjectCustomBlock(effectivePackage.manifest.customBlockKey)
   return {
     ...imported,
     ...(existing && pathIdentity(existing.archivePath) !== pathIdentity(imported.source)
@@ -946,11 +1085,8 @@ async function importProjectCustomBlockFile(
   }
 }
 
-function assertCompatibleProjectCustomBlock(key: string, interfaceHash: string): ProjectCustomBlockCatalogEntry | undefined {
-  const existing = projectCustomBlockCatalog.value.get(key.toLowerCase())
-  if (existing && existing.manifest.interfaceHash !== interfaceHash) {
-    throw new Error(`Custom block interface mismatch: ${key}`)
-  }
+function findRegisteredProjectCustomBlock(key: string): ProjectCustomBlockManifestCatalogEntry | undefined {
+  const existing = projectCustomBlockManifestCatalog.value.get(key.toLowerCase())
   return existing
 }
 
@@ -1310,6 +1446,7 @@ export function useProjectStore() {
     renderEnvironment: readonly(renderEnvironment),
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
+    projectCustomBlockManifestCatalog: readonly(projectCustomBlockManifestCatalog),
     projectCustomBlockCatalog: readonly(projectCustomBlockCatalog),
     customBlockRegistryError: readonly(customBlockRegistryError),
     customBlockFontLoadErrors: readonly(customBlockFontLoadErrors),
@@ -1336,6 +1473,9 @@ export function useProjectStore() {
     reloadProjectIconRegistry,
     reloadProjectDictionary,
     reloadProjectCustomBlockRegistry,
+    ensureProjectCustomBlockLoaded,
+    ensureProjectCustomBlocksLoaded,
+    setActiveProjectCustomBlockKeys,
     clearProjectProfile,
     clearProjectFontRegistry,
     clearProjectIconRegistry,

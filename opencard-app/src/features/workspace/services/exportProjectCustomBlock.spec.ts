@@ -8,7 +8,7 @@ import { readProjectCustomBlockPackageFromBytes } from './projectCustomBlock'
 
 function createDocument(): CardDocument {
   return {
-    type: 'card-document', schemaVersion: '2', id: 'document', version: '1', width: '100', height: '100',
+    type: 'card-document', id: 'document', version: '1', width: '100', height: '100',
     instances: [],
     faces: {
       front: {
@@ -28,7 +28,7 @@ describe('exportProjectCustomBlock', () => {
     const writeBinaryFile = vi.fn(async (_path: string, _bytes: Uint8Array) => undefined)
     const result = await exportProjectCustomBlock({
       document: createDocument(), rootBlockId: 'root', name: 'Portable', key: 'portable',
-      exposedFieldKeys: [], projectRootPath: 'D:/Cards',
+      exposedFieldKeys: [], resize: { widthLocked: false, heightLocked: false }, projectRootPath: 'D:/Cards',
       fs: {
         pickSavePath: vi.fn(async () => 'D:/Cards/assets/portable.ocblock'),
         readBinaryFile: vi.fn(),
@@ -39,7 +39,8 @@ describe('exportProjectCustomBlock', () => {
     expect(result).toMatchObject({ status: 'exported', outputPath: 'D:/Cards/assets/portable.ocblock' })
     const archive = writeBinaryFile.mock.calls[0]![1]
     await expect(readProjectCustomBlockPackageFromBytes(archive)).resolves.toMatchObject({
-      manifest: { key: 'portable', root: { content: 'Portable' } },
+      manifest: { customBlockKey: 'portable' },
+      block: { content: 'Portable' },
     })
   })
 
@@ -47,7 +48,7 @@ describe('exportProjectCustomBlock', () => {
     const writeBinaryFile = vi.fn(async (_path: string, _bytes: Uint8Array) => undefined)
     const result = await exportProjectCustomBlock({
       document: createDocument(), rootBlockId: 'root', name: 'Portable', key: 'portable',
-      exposedFieldKeys: [], projectRootPath: 'D:/Cards',
+      exposedFieldKeys: [], resize: { widthLocked: false, heightLocked: false }, projectRootPath: 'D:/Cards',
       fs: {
         pickSavePath: vi.fn(async () => null),
         readBinaryFile: vi.fn(),

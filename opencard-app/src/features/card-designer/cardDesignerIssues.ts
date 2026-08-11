@@ -3,6 +3,7 @@ import type { CardPipelineIssue, CardIssueType } from '../card-rendering/cardPip
 import type { RenderPipelineResult } from '../card-rendering/renderPipeline'
 import type { EditorIssue, EditorIssueSnapshot } from '../editor-runtime/model/editorIssue'
 import type { CardDesignerNavigationToken } from './cardDesignerNavigation'
+import type { CardStorageWarning } from '../../entities/card/storage'
 
 type Translate = (key: string, parameters?: Readonly<Record<string, string | number>>) => string
 type ResolveFieldLabel = (fieldKey: string) => string
@@ -186,6 +187,7 @@ export function createCardDesignerIssueSnapshot(options: {
   result: RenderPipelineResult | null
   translate: Translate
   resolveFieldLabel: ResolveFieldLabel
+  storageWarnings?: readonly CardStorageWarning[]
 }): EditorIssueSnapshot {
   const scopeKey = options.instance
     ? createCardInstanceScopeKey(options.instance.id)
@@ -193,11 +195,20 @@ export function createCardDesignerIssueSnapshot(options: {
   return {
     scopeKey,
     scopeOrder: options.document ? createCardIssueScopeOrder(options.document) : [],
-    issues: createCardDesignerIssues(
-      options.result,
-      options.instance,
-      options.translate,
-      options.resolveFieldLabel,
-    ),
+    issues: [
+      ...(options.instance ? [] : (options.storageWarnings ?? []).map((warning, index) => ({
+        id: `card-storage:${warning.code}:${warning.path}:${index}`,
+        type: `card-designer.storage.${warning.code}`,
+        severity: 'warning' as const,
+        locationText: options.translate('app.problems.locations.storagePath', { path: warning.path }),
+        description: options.translate(`app.problems.storageCodes.${warning.code}`),
+      }))),
+      ...createCardDesignerIssues(
+        options.result,
+        options.instance,
+        options.translate,
+        options.resolveFieldLabel,
+      ),
+    ],
   }
 }

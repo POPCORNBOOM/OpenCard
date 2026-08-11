@@ -49,7 +49,7 @@ describe('property binding schema policy', () => {
     expect(exposesPropertyReference(faceSchema.background)).toBe(true)
     expect(acceptsPropertyBinding(faceSchema.children)).toBe(false)
     expect(exposesPropertyReference(documentSchema.faces)).toBe(false)
-    expect(documentSchema.schemaVersion?.isHidden).toBe(true)
+    expect(documentSchema).not.toHaveProperty('schemaVersion')
   })
 
   it('keeps optional document metadata addable in one category', () => {
@@ -167,7 +167,7 @@ describe('property binding schema policy', () => {
       'custom-block': {
         general: ['name', 'notes'],
         layer: ['visible'],
-        advanced: ['source'],
+        advanced: ['customBlockKey'],
       },
       'simple-container-location': {
         advanced: ['id', 'type'],

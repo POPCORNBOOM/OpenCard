@@ -134,6 +134,8 @@ const {
 } = useCustomBlockPreview({
   document,
   catalog: projectStore.projectCustomBlockCatalog,
+  manifestCatalog: projectStore.projectCustomBlockManifestCatalog,
+  ensureLoaded: projectStore.ensureProjectCustomBlockLoaded,
   renderEnvironment: projectStore.renderEnvironment,
   resourceRootPath,
   translate: t,

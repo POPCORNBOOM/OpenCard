@@ -324,7 +324,6 @@ function projectFile(name = 'Project'): string {
 function cardDocument(name = ''): string {
   return JSON.stringify({
     type: 'card-document',
-    schemaVersion: '2',
     id: 'card-document-fixture',
     name,
     version: '1.0.0',
@@ -378,13 +377,12 @@ async function customBlockFixture(
   const root = createBlock('text-block', { id: 'root' })
   const manifest = await buildProjectCustomBlockManifest({ root, key })
   manifest.name = name
-  fs.putFile(path, createProjectCustomBlockArchive(manifest))
+  fs.putFile(path, createProjectCustomBlockArchive(manifest, root))
   return {
     key: `user:${key.toLocaleLowerCase()}`,
     id: key,
-    blockKey: key,
+    customBlockKey: key,
     name,
-    interfaceHash: manifest.interfaceHash,
     path,
   }
 }
@@ -830,7 +828,7 @@ describe('ProjectTemplateService project creation', () => {
 })
 
 describe('ProjectTemplateService safety boundaries', () => {
-  it('does not accept legacy single-face documents as project entries', async () => {
+  it('accepts a document entry whose missing faces can use current defaults', async () => {
     const fs = new MemoryFileSystem()
     fs.putFile('/source/.ocproject', projectFile())
     fs.putFile('/source/main.ocdocument', JSON.stringify({
@@ -845,8 +843,8 @@ describe('ProjectTemplateService safety boundaries', () => {
       instances: [],
     }))
 
-    await expect(createService(fs).inspectProjectSource('/source')).rejects.toMatchObject({
-      code: 'source-not-project',
+    await expect(createService(fs).inspectProjectSource('/source')).resolves.toMatchObject({
+      entries: ['main.ocdocument'],
     })
   })
 

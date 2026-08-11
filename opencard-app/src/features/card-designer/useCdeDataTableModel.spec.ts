@@ -7,6 +7,7 @@ import {
   type CardDocument,
 } from '../../entities/card/model'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
+import type { ProjectCustomBlockCatalog } from '../workspace/model/projectCustomBlocks'
 
 function createHarness() {
   const child = createTextBlock({ id: 'child', name: 'Child', content: 'Blueprint' })
@@ -22,7 +23,7 @@ function createHarness() {
   })
   const back = createTextBlock({ id: 'back-text', name: 'Back', content: 'Back' })
   const document: CardDocument = {
-    type: 'card-document', schemaVersion: '2', id: 'document', name: 'Document', version: '1.0.0',
+    type: 'card-document', id: 'document', name: 'Document', version: '1.0.0',
     width: '540', height: '850',
     faces: {
       front: {
@@ -54,17 +55,19 @@ function createHarness() {
     'back-text': ['content'],
   })
   const documentRevision = ref(0)
+  const customBlockCatalog = ref<ProjectCustomBlockCatalog>(new Map())
   const model = useCdeDataTableModel({
     cardDoc: ref(document),
     documentRevision,
     fieldSelection: selection,
     blueprintCardId: '__blueprint__',
+    customBlockCatalog,
     blueprintTitle: () => 'Blueprint',
     faceTitle: key => key === 'front' ? 'Front' : 'Back',
     translate: key => key,
     hasMessage: () => false,
   })
-  return { container, document, documentRevision, model, selection }
+  return { container, customBlockCatalog, document, documentRevision, model, selection }
 }
 
 describe('useCdeDataTableModel', () => {
@@ -129,12 +132,23 @@ describe('useCdeDataTableModel', () => {
   })
 
   it('exposes only public custom-block fields as non-deletable data rows', () => {
-    const { document, model, documentRevision } = createHarness()
+    const { customBlockCatalog, document, model, documentRevision } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', source: 'block:square', interfaceHash: 'hash', notes: 'Internal', visible: 'true',
+      id: 'custom', customBlockKey: 'square', notes: 'Internal', visible: 'true',
     })
-    custom.additionalFieldDefinition = { size: { fieldType: 'number', title: 'Size' } }
     ;(custom as unknown as Record<string, unknown>).size = '120'
+    ;(custom as unknown as Record<string, unknown>).content = 'Public native content'
+    const packageRoot = createBlock('text-block')
+    packageRoot.additionalFieldDefinition = { size: { fieldType: 'number', title: 'Size' } }
+    customBlockCatalog.value = new Map([['square', {
+      manifest: {
+        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+        publicFieldKeys: ['size', 'content'], resize: { widthLocked: false, heightLocked: false },
+      },
+      block: packageRoot,
+      archivePath: 'square.ocblock',
+      files: new Map(),
+    }]])
     document.faces.back.children.push({
       block: custom,
       location: { id: 'custom-location', type: 'simple-container-location', anchor: 'lt' },
@@ -144,6 +158,7 @@ describe('useCdeDataTableModel', () => {
     const customCatalog = model.catalogFaceGroups.value[1]?.blocks.find(block => block.key === custom.id)
     expect(customCatalog?.fields).toEqual([
       expect.objectContaining({ key: 'size', title: 'Size', deletable: false }),
+      expect.objectContaining({ key: 'content', deletable: false }),
     ])
   })
 })

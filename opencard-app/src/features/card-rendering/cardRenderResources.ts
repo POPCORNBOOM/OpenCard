@@ -9,6 +9,7 @@ import {
   resolveEditorResourcePath,
 } from '../editor-runtime/services/editorResource'
 import type { CustomBlockRuntimeCatalog } from './expandCustomBlocks'
+import { createProjectCustomBlockFontFamily } from '../workspace/services/projectCustomBlockResources'
 
 export type CardRenderResourceContext = {
   readonly resourceRootPath: string | null
@@ -35,17 +36,42 @@ export function resolveCardAssetSrc(
   source: string,
   context: CardRenderResourceContext,
 ): string {
-  const packaged = /^ocblock:([^/]+)\/(.+)$/i.exec(source)
-  if (packaged) {
-    const packageKey = packaged[1]?.toLowerCase()
-    const resourcePath = packaged[2]?.toLowerCase()
-    if (!packageKey || !resourcePath) return ''
-    return context.customBlockCatalog.get(packageKey)?.resourceUrls?.get(resourcePath) ?? ''
-  }
-
   if (/^[a-z][a-z0-9+.-]*:/i.test(source) && !/^[a-z]:[\\/]/i.test(source)) {
     return isRemoteResourceAllowed(source, context.remoteResourcePolicy) ? source : ''
   }
   const resolvedPath = resolveEditorResourcePath(context.resourceRootPath, source)
   return resolvedPath ? convertFileSrc(resolvedPath) : ''
+}
+
+export function resolveCustomBlockAssetSrc(
+  source: string,
+  customBlockKey: string,
+  context: CardRenderResourceContext,
+): string {
+  const match = /^resource:image:([a-z0-9][a-z0-9._-]*)$/i.exec(source.trim())
+  if (!match) return resolveCardAssetSrc(source, context)
+  const entry = context.customBlockCatalog.get(customBlockKey.toLowerCase())
+  const resource = entry?.manifest.resources?.images?.find(candidate => (
+    candidate.key.toLowerCase() === match[1]!.toLowerCase()
+  ))
+  return resource ? entry?.resourceUrls?.get(resource.source.toLowerCase()) ?? '' : ''
+}
+
+export function resolveCustomBlockFontFamily(
+  value: string,
+  customBlockKey: string,
+  context: CardRenderResourceContext,
+  fallback: (value: string) => string,
+): string {
+  const entry = context.customBlockCatalog.get(customBlockKey.toLowerCase())
+  const mapped = value.split(';').map(candidate => {
+    const trimmed = candidate.trim()
+    const match = /^resource:font:([a-z0-9][a-z0-9._-]*)$/i.exec(trimmed)
+    if (!match) return trimmed
+    const resource = entry?.manifest.resources?.fonts?.find(font => (
+      font.key.toLowerCase() === match[1]!.toLowerCase()
+    ))
+    return resource ? JSON.stringify(createProjectCustomBlockFontFamily(customBlockKey, resource.key)) : ''
+  }).filter(Boolean)
+  return fallback(mapped.join('; '))
 }

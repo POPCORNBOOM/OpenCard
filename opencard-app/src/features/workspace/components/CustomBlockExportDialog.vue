@@ -77,6 +77,7 @@ import ProjectIconView from './ProjectIconView.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
 import type { ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
 import { normalizeProjectCustomBlockKey } from '../model/projectCustomBlocks'
 import { buildProjectIconCatalog, createProjectIconPreviewStyle, type ProjectIconCatalogEntry } from '../services/projectIconCatalog'
 import { toKeySlug } from '../../../shared/model/keySlug'
@@ -85,6 +86,9 @@ const props = withDefaults(defineProps<{
   open: boolean
   dialogTitle: string
   fields: readonly CustomBlockFieldAnalysis[]
+  resize: ProjectCustomBlockResizePolicy
+  widthLabel: string
+  heightLabel: string
   defaultName?: string
   defaultKey?: string
   nameLabel: string
@@ -121,7 +125,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   close: []
-  submit: [payload: { name: string; key: string; exposedFieldKeys: string[] }]
+  submit: [payload: { name: string; key: string; exposedFieldKeys: string[]; resize: ProjectCustomBlockResizePolicy }]
 }>()
 
 const name = ref(props.defaultName)
@@ -143,9 +147,12 @@ watch(() => props.open, open => {
   if (!open) return
   name.value = props.defaultName
   key.value = ''
-  exposed.value = new Set()
+  exposed.value = new Set([
+    ...(!props.resize.widthLocked ? ['resize:width'] : []),
+    ...(!props.resize.heightLocked ? ['resize:height'] : []),
+  ])
   selectedResourceKey.value = null
-})
+}, { immediate: true })
 
 watch(() => [props.resourceIndex, props.resourceFiles] as const, async ([index, files]) => {
   const request = ++resourceLoadRequest
@@ -204,6 +211,18 @@ const treeData = computed<OcTreeData>(() => {
   const children = new Map<string, readonly string[]>()
   const exposedKeys: string[] = []
   const privateKeys: string[] = []
+  for (const [axis, label] of [['width', props.widthLabel], ['height', props.heightLabel]] as const) {
+    const fieldKey = `resize:${axis}`
+    const isExposed = exposed.value.has(fieldKey)
+    ;(isExposed ? exposedKeys : privateKeys).push(fieldKey)
+    items.set(fieldKey, {
+      label,
+      icon: 'layout.fill',
+      draggable: true,
+      actions: [isExposed ? 'move-private' : 'move-exposed'],
+      contextActions: [isExposed ? 'move-private' : 'move-exposed'],
+    })
+  }
   for (const field of props.fields) {
     const fieldKey = `field:${field.key}`
     const isExposed = exposed.value.has(field.key)
@@ -300,17 +319,21 @@ function move(fieldKey: string, target: 'exposed' | 'private') {
   exposed.value = next
 }
 
+function exposedKey(treeKey: string): string | null {
+  if (treeKey.startsWith('field:')) return treeKey.slice(6)
+  return treeKey === 'resize:width' || treeKey === 'resize:height' ? treeKey : null
+}
+
 function handleTreeIntent(intent: OcTreeIntent) {
-  if (intent.type === 'action.invoke' && intent.key.startsWith('field:')) {
-    move(intent.key.slice(6), intent.actionKey === 'move-exposed' ? 'exposed' : 'private')
+  const fieldKey = 'key' in intent ? exposedKey(intent.key) : null
+  if (intent.type === 'action.invoke' && fieldKey) {
+    move(fieldKey, intent.actionKey === 'move-exposed' ? 'exposed' : 'private')
   }
-  if (intent.type === 'move.request' && intent.key.startsWith('field:')) {
-    if (intent.targetKey === 'group:exposed') move(intent.key.slice(6), 'exposed')
-    if (intent.targetKey === 'group:private') move(intent.key.slice(6), 'private')
-    if (intent.targetKey?.startsWith('field:')) {
-      const targetFieldKey = intent.targetKey.slice(6)
-      move(intent.key.slice(6), exposed.value.has(targetFieldKey) ? 'exposed' : 'private')
-    }
+  if (intent.type === 'move.request' && fieldKey) {
+    if (intent.targetKey === 'group:exposed') move(fieldKey, 'exposed')
+    if (intent.targetKey === 'group:private') move(fieldKey, 'private')
+    const targetFieldKey = intent.targetKey ? exposedKey(intent.targetKey) : null
+    if (targetFieldKey) move(fieldKey, exposed.value.has(targetFieldKey) ? 'exposed' : 'private')
   }
 }
 
@@ -321,7 +344,15 @@ function handleResourceTreeIntent(intent: OcTreeIntent) {
 
 function submit() {
   if (props.busy) return
-  emit('submit', { name: name.value.trim(), key: resolvedKey.value, exposedFieldKeys: [...exposed.value] })
+  emit('submit', {
+    name: name.value.trim(),
+    key: resolvedKey.value,
+    exposedFieldKeys: props.fields.map(field => field.key).filter(fieldKey => exposed.value.has(fieldKey)),
+    resize: {
+      widthLocked: !exposed.value.has('resize:width'),
+      heightLocked: !exposed.value.has('resize:height'),
+    },
+  })
 }
 
 function requestClose() {
@@ -331,6 +362,7 @@ function requestClose() {
 
 <style scoped>
 .custom-block-export-dialog { display: grid; gap: var(--oc-space-4); }
+.custom-block-export-dialog__fields { max-height: var(--oc-custom-block-export-fields-max-height); }
 .custom-block-export-dialog__metadata { display: grid; grid-template-columns: 1fr 1fr; gap: var(--oc-space-3); }
 .custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); }
 .custom-block-export-dialog__resources { display: grid; gap: var(--oc-space-2); min-height: 0; }

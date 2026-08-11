@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   pickFile: vi.fn(),
   importProjectCustomBlockFile: vi.fn(),
   projectCustomBlockCatalog: { value: new Map() },
+  projectCustomBlockManifestCatalog: { value: new Map() },
+  ensureProjectCustomBlockLoaded: vi.fn(),
   renderEnvironment: {
     value: {
       project: null,
@@ -26,6 +28,8 @@ vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
     projectPath: { value: 'D:/Demo' },
     projectCustomBlockCatalog: mocks.projectCustomBlockCatalog,
+    projectCustomBlockManifestCatalog: mocks.projectCustomBlockManifestCatalog,
+    ensureProjectCustomBlockLoaded: mocks.ensureProjectCustomBlockLoaded,
     renderEnvironment: mocks.renderEnvironment,
     importProjectCustomBlockFile: mocks.importProjectCustomBlockFile,
   }),
@@ -36,6 +40,7 @@ describe('ProjectCustomBlockRegistryEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.projectCustomBlockCatalog.value = new Map()
+    mocks.projectCustomBlockManifestCatalog.value = new Map()
     mocks.renderEnvironment.value = {
       project: null,
       dictionary: null,
@@ -140,17 +145,21 @@ describe('ProjectCustomBlockRegistryEditor', () => {
       archivePath: 'assets/blocks/square.ocblock',
       files: new Map(),
       manifest: {
-        type: 'opencard-custom-block', schemaVersion: '1', key: 'square', name: 'Square',
-        interfaceHash: 'square-interface',
-        root: {
-          type: 'text-block', id: 'root', content: '{{self:label}}',
-          additionalFieldDefinition: { label: { fieldType: 'string', title: 'Label' } },
-        },
-        publicFields: [{ key: 'label', fieldType: 'string', title: 'Label', defaultValue: 'Ready' }],
+        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+        publicFieldKeys: ['label'],
         resize: { widthLocked: false, heightLocked: false },
+      },
+      block: {
+        type: 'text-block', id: 'root', content: '{{self:label}}', label: 'Ready',
+        additionalFieldDefinition: { label: { fieldType: 'string', title: 'Label' } },
       },
     }
     mocks.projectCustomBlockCatalog.value = new Map([['square', entry]])
+    mocks.projectCustomBlockManifestCatalog.value = new Map([['square', {
+      manifest: entry.manifest,
+      archivePath: entry.archivePath,
+    }]])
+    mocks.ensureProjectCustomBlockLoaded.mockResolvedValue(entry)
     mocks.renderEnvironment.value = {
       ...mocks.renderEnvironment.value,
       customBlockCatalog: new Map([['square', entry]]),

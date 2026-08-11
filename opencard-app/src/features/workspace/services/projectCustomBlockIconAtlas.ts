@@ -131,7 +131,7 @@ export function createProjectCustomBlockIconSeries(options: {
 }): ProjectIconSeries {
   return {
     name: options.packageKey,
-    key: `ocblock-${options.packageKey}`,
+    key: 'icons',
     source: options.source,
     icons: options.icons,
   }

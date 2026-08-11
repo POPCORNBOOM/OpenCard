@@ -256,19 +256,11 @@ function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyD
             key,
             visibleKeys.has(key) ? definition : { ...definition, isHidden: true },
         ])),
-        source: {
+        customBlockKey: {
             fieldType: 'string',
             required: true,
             isReadonly: true,
             categoryId: 'advanced',
-            acceptsBinding: false,
-            exposesReference: false,
-        },
-        interfaceHash: {
-            fieldType: 'string',
-            required: true,
-            isReadonly: true,
-            isHidden: true,
             acceptsBinding: false,
             exposesReference: false,
         },
@@ -382,7 +374,6 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         height: { fieldType: 'number', required: true, min: 0, categoryId: 'size', bindingScopes: ['project'] },
         id: { fieldType: 'string', required: true, categoryId: 'advanced', isReadonly: true, acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false, exposesReference: false },
-        schemaVersion: { fieldType: 'string', required: true, isReadonly: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         faces: { fieldType: 'object', objectType: 'CardFace', required: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         instances: { fieldType: 'object', objectType: 'CardInstanceRecord', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
         dataTable: { fieldType: 'object', objectType: 'CardDataTableConfiguration', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
@@ -595,7 +586,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
     },
     'card-document': {
         type: 'card-document',
-        schemaVersion: '2',
         id: '',
         version: '1.0.0',
         width: '540',
@@ -618,8 +608,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         notes: '',
         visible: 'true',
         type: 'custom-block',
-        source: '',
-        interfaceHash: '',
+        customBlockKey: '',
     },
     'card-instance': {
         type: 'card-instance',

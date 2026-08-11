@@ -12,6 +12,7 @@ import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
 import { resolveCardAssetSrc, type CardRenderResourceContext } from '../cardRenderResources'
+import { toCssFontFamily } from '../../workspace/model/projectFonts'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
@@ -90,7 +91,9 @@ provide(cardEditorContextKey, {
         emit('block-click', blockId, event)
     },
     resolveAssetSrc: path => resolveCardAssetSrc(path, props.resourceContext),
+    resolveFontFamily: toCssFontFamily,
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
+    customBlockCatalog: props.resourceContext.customBlockCatalog,
 })
 
 defineExpose({

@@ -158,8 +158,7 @@ export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
 
 export type CustomBlock = BaseBlock & {
     type: 'custom-block'
-    source: string
-    interfaceHash: string
+    customBlockKey: string
 }
 
 export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QrCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock | CustomBlock
@@ -186,7 +185,6 @@ export type CardDataTableConfiguration = {
 
 export type CardDocument = {
     type: "card-document"
-    schemaVersion: '2'
     name?: string
     description?: string
     notes?: string
@@ -572,8 +570,7 @@ export function createCustomBlock(init: CustomBlockInit = {}): CustomBlock {
             ...init,
         }),
         type: 'custom-block',
-        source: init.source ?? '',
-        interfaceHash: init.interfaceHash ?? '',
+        customBlockKey: init.customBlockKey ?? '',
     }
 }
 

@@ -13,13 +13,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, provide } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { getPositionStyles } from '../../../utils/blockStyle'
-import { useCardEditorContext } from './cardEditorContext'
+import { cardEditorContextKey, useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyCustomBlock } from '../render.types'
 import NativeBlockRenderer from './NativeBlockRenderer.vue'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../workspace/services/projectIconCatalog'
+import { resolveCustomBlockAssetSrc, resolveCustomBlockFontFamily } from '../cardRenderResources'
 
 const props = withDefaults(defineProps<{
   block: RenderReadyCustomBlock
@@ -31,6 +33,29 @@ const nativeContent = computed(() => props.block.content?.type === 'custom-block
 const blockStyle = computed(() => props.layoutMode === 'absolute'
   ? getPositionStyles(props.block, { disableTransform: false })
   : `width: ${props.block.width}; height: ${props.block.height}`)
+const scopedEntry = computed(() => editorContext.customBlockCatalog?.get(props.block.customBlockKey.toLowerCase()))
+
+provide(cardEditorContextKey, {
+  ...editorContext,
+  resolveAssetSrc: source => /^resource:image:/i.test(source.trim())
+    ? resolveCustomBlockAssetSrc(source, props.block.customBlockKey, {
+        resourceRootPath: null,
+        customBlockCatalog: editorContext.customBlockCatalog ?? new Map(),
+        projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+      })
+    : editorContext.resolveAssetSrc(source),
+  resolveFontFamily: value => resolveCustomBlockFontFamily(
+    value,
+    props.block.customBlockKey,
+    {
+      resourceRootPath: null,
+      customBlockCatalog: editorContext.customBlockCatalog ?? new Map(),
+      projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+    },
+    editorContext.resolveFontFamily,
+  ),
+  projectIconCatalog: computed(() => scopedEntry.value?.iconCatalog ?? EMPTY_PROJECT_ICON_CATALOG),
+})
 
 function handleClick(event: MouseEvent): void {
   editorContext.handleBlockClick(props.block.id, event)

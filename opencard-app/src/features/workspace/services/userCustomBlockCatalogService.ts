@@ -54,9 +54,9 @@ export class UserCustomBlockCatalogService {
       const path = await this.paths.join(root, entry.name)
       try {
         const customBlock = await readProjectCustomBlockPackage(this.fs, path)
-        const identity = customBlock.manifest.key.toLocaleLowerCase()
+        const identity = customBlock.manifest.customBlockKey.toLocaleLowerCase()
         if (identities.has(identity)) {
-          warnings.push({ path, reason: `Duplicate custom block Key: ${customBlock.manifest.key}` })
+          warnings.push({ path, reason: `Duplicate custom block Key: ${customBlock.manifest.customBlockKey}` })
           continue
         }
         identities.add(identity)
@@ -82,11 +82,8 @@ export class UserCustomBlockCatalogService {
     const customBlock = await readProjectCustomBlockPackage(this.fs, sourcePath)
     const catalog = await this.loadCatalog()
     const existing = catalog.blocks.find(block => (
-      block.blockKey.toLocaleLowerCase() === customBlock.manifest.key.toLocaleLowerCase()
+      block.customBlockKey.toLocaleLowerCase() === customBlock.manifest.customBlockKey.toLocaleLowerCase()
     ))
-    if (existing && existing.interfaceHash !== customBlock.manifest.interfaceHash) {
-      throw new Error(`Custom block interface mismatch: ${customBlock.manifest.key}`)
-    }
 
     const root = await this.resolveUserRoot()
     const sourceBytes = await this.fs.readBinaryFile(sourcePath)
@@ -95,7 +92,7 @@ export class UserCustomBlockCatalogService {
       return existing.path
     }
 
-    const baseName = safeCustomBlockFileName(customBlock.manifest.key)
+    const baseName = safeCustomBlockFileName(customBlock.manifest.customBlockKey)
     let candidateName = baseName
     let candidatePath = await this.paths.join(root, candidateName)
     let suffix = 2

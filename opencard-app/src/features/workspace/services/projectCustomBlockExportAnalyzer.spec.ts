@@ -3,6 +3,16 @@ import { createBlock } from '../../../entities/card/model'
 import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
 
 describe('analyzeProjectCustomBlockExport', () => {
+  it('offers editable native fields alongside additional fields, with dimensions handled separately', () => {
+    const root = createBlock('text-block', { content: 'Default' })
+    const result = analyzeProjectCustomBlockExport(root)
+
+    expect(result.fields.map(field => field.key)).toEqual(expect.arrayContaining(['content', 'fontFamily', 'visible']))
+    expect(result.fields.map(field => field.key)).not.toEqual(expect.arrayContaining([
+      'name', 'notes', 'width', 'height', 'type', 'id',
+    ]))
+  })
+
   it('counts root self references and locks referenced axes', () => {
     const root = createBlock('text-block', { width: '{{self:size}}', height: '{{self:size}}' })
     root.additionalFieldDefinition = { size: { fieldType: 'number', title: '尺寸' } }

@@ -5,7 +5,7 @@
  * - 只提供端口适配和运行生命周期，不定义队列、命名、冲突或失败策略。
  */
 import { nextTick, readonly, ref, type Ref } from 'vue'
-import { parseCardDocument } from '../../../entities/card/storage'
+import { normalizeCardDocument } from '../../../entities/card/storage'
 import { prepareExportTask } from '../../exporting/exportPlanner'
 import { runExportPlan } from '../../exporting/exportRunner'
 import type {
@@ -27,6 +27,7 @@ import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import { useShellProgressTasks } from './useShellProgressTasks'
+import { visitCardBlockTree } from '../../../entities/card/tree'
 
 const PROJECT_EXPORT_PROGRESS_KEY = 'project-export'
 
@@ -41,6 +42,7 @@ type UseProjectExportOptions = {
   readProjectFile: (relativePath: string) => Promise<string>
   resolveProjectPath: (relativePath: string) => string
   getRelativeProjectPath: (path: string) => string
+  ensureCustomBlocksLoaded?: (keys: Iterable<string>) => Promise<void>
   translate: (key: string, params?: Record<string, unknown>) => string
 }
 
@@ -104,10 +106,12 @@ export function useProjectExport(options: UseProjectExportOptions) {
       && candidate.path
       && options.getRelativeProjectPath(candidate.path).toLocaleLowerCase() === normalizedRelativePath.toLocaleLowerCase())
     const content = session?.draftContent ?? await options.readProjectFile(normalizedRelativePath)
+    const normalized = normalizeCardDocument(JSON.parse(content) as unknown)
     return {
       sourcePath: normalizedRelativePath,
       resourceRootPath: normalizePath(options.resolveProjectPath('')),
-      document: parseCardDocument(JSON.parse(content) as unknown),
+      document: normalized.document,
+      storageWarnings: normalized.warnings,
     }
   }
 
@@ -118,10 +122,24 @@ export function useProjectExport(options: UseProjectExportOptions) {
   }
 
   async function prepare(task: ProjectExportTask): Promise<ExportPreparationResult> {
+    const snapshots = new Map<string, ExportDocumentSnapshot>()
+    const customBlockKeys = new Set<string>()
+    for (const path of task.documentPaths) {
+      const snapshot = await loadDocumentSnapshot(path)
+      snapshots.set(normalizePath(path).toLowerCase(), snapshot)
+      for (const face of Object.values(snapshot.document.faces)) {
+        for (const child of face.children) {
+          visitCardBlockTree(child.block, block => {
+            if (block.type === 'custom-block') customBlockKeys.add(block.customBlockKey)
+          })
+        }
+      }
+    }
+    await options.ensureCustomBlocksLoaded?.(customBlockKeys)
     const environment = options.renderEnvironment.value
     return await prepareExportTask({
       task,
-      source: { load: loadDocumentSnapshot },
+      source: { load: async path => snapshots.get(normalizePath(path).toLowerCase()) ?? await loadDocumentSnapshot(path) },
       destination,
       environment,
     })

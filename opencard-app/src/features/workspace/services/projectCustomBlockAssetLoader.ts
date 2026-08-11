@@ -69,15 +69,17 @@ export async function createProjectCustomBlockAssetSession(
         nextUrls.push(url)
         resourceUrls.set(identity, url)
       }
-      runtimeCatalog.set(key, { ...entry, resourceUrls })
       const iconSeries = entry.manifest.resources?.iconSeries ?? []
+      let iconCatalog = EMPTY_PROJECT_ICON_CATALOG
       if (iconSeries.length > 0) {
-        iconCatalogs.push(await buildProjectIconCatalog(
+        iconCatalog = await buildProjectIconCatalog(
           iconSeries,
           source => resourceUrls.get(source.toLowerCase()) ?? '',
           loadDimensions,
-        ))
+        )
+        iconCatalogs.push(iconCatalog)
       }
+      runtimeCatalog.set(key, { ...entry, resourceUrls, iconCatalog })
     }
     let released = false
     return {

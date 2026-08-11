@@ -3,11 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { createBlock, type AdditionalFieldKeyError, type CardDocument } from '../../entities/card/model'
 import type { PropertyFieldType } from '../../entities/card/schema'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
+import type { ProjectCustomBlockCatalog } from '../workspace/model/projectCustomBlocks'
 
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',
@@ -37,10 +38,12 @@ function createHarness() {
     title?: string
   }) => AdditionalFieldKeyError | 'invalid-target' | null>(() => null)
   const deleteBlockField = vi.fn(() => true)
+  const customBlockCatalog = ref<ProjectCustomBlockCatalog>(new Map())
   const state = useCdeDataTableCommands({
     cardDoc,
     documentRevision,
     blueprintCardId: '__blueprint__',
+    customBlockCatalog,
     refreshDocumentState,
     markDocumentChanged,
     updateBlockField,
@@ -50,6 +53,7 @@ function createHarness() {
   })
   return {
     cardDoc,
+    customBlockCatalog,
     createBlockField,
     deleteBlockField,
     markDocumentChanged,
@@ -240,12 +244,22 @@ describe('useCdeDataTableCommands', () => {
   })
 
   it('allows custom-block public values but protects its interface definition', () => {
-    const { cardDoc, createBlockField, deleteBlockField, state, updateBlockField } = createHarness()
+    const { cardDoc, createBlockField, customBlockCatalog, deleteBlockField, state, updateBlockField } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', source: 'block:square', interfaceHash: 'hash', notes: 'Protected',
+      id: 'custom', customBlockKey: 'square', notes: 'Protected',
     })
-    custom.additionalFieldDefinition = { size: { fieldType: 'number' } }
     ;(custom as unknown as Record<string, unknown>).size = '120'
+    const packageRoot = createBlock('text-block')
+    packageRoot.additionalFieldDefinition = { size: { fieldType: 'number' } }
+    customBlockCatalog.value = new Map([['square', {
+      manifest: {
+        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+        publicFieldKeys: ['size'], resize: { widthLocked: false, heightLocked: false },
+      },
+      block: packageRoot,
+      archivePath: 'square.ocblock',
+      files: new Map(),
+    }]])
     cardDoc.value!.faces.front.children = [{
       block: custom,
       location: { id: 'custom-location', type: 'simple-container-location', anchor: 'lt' },

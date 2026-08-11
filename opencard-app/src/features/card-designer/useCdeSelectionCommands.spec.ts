@@ -44,7 +44,7 @@ function createDocument(): CardDocument {
   })
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',

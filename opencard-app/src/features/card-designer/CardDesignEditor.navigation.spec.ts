@@ -25,7 +25,7 @@ class ResizeObserverMock {
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document-1',
     name: 'Document',
     description: 'Reusable hero\ncard.',

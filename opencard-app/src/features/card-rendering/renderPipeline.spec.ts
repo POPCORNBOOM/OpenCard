@@ -30,7 +30,7 @@ function createDocument(
 ): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',
@@ -192,35 +192,35 @@ describe('renderPipeline', () => {
 
   it('wraps an expanded custom block around its resolved native content', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'label', label: 'Ready' })
     const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
     root.additionalFieldDefinition = { label: { fieldType: 'string' } }
     const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
-          key: 'label', interfaceHash: 'hash', root,
-          publicFields: [{ key: 'label', fieldType: 'string', defaultValue: 'Ready' }],
+          customBlockKey: 'label', publicFieldKeys: ['label'],
           resize: { widthLocked: false, heightLocked: false },
         },
+        block: root,
       }]]),
     })
     const rendered = result.document.faces.front.children[0]!.block
 
     expect(rendered).toMatchObject({
-      type: 'custom-block', id: 'host', source: 'block:label',
+      type: 'custom-block', id: 'host', customBlockKey: 'label',
       content: { type: 'text-block', id: 'host', content: 'Ready' },
     })
   })
 
   it('reports packaged resource degradation on the host without exposing resource identity', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'label' })
     const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
-          key: 'label', interfaceHash: 'hash', root: createTextBlock({ id: 'root', content: 'Fallback' }),
-          publicFields: [], resize: { widthLocked: false, heightLocked: false },
+          customBlockKey: 'label', publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
         },
+        block: createTextBlock({ id: 'root', content: 'Fallback' }),
         hasResourceErrors: true,
       }]]),
     })
@@ -237,7 +237,7 @@ describe('renderPipeline', () => {
 
   it('collapses internal custom block issues onto the opaque host', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', source: 'block:label', interfaceHash: 'hash' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'label' })
     const root = createSimpleContainerBlock({
       id: 'root',
       children: [{
@@ -249,9 +249,10 @@ describe('renderPipeline', () => {
     const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([['label', {
         manifest: {
-          key: 'label', interfaceHash: 'hash', root, publicFields: [],
+          customBlockKey: 'label', publicFieldKeys: [],
           resize: { widthLocked: false, heightLocked: false },
         },
+        block: root,
       }]]),
     })
 
@@ -272,7 +273,7 @@ describe('renderPipeline', () => {
 
   it('reports an unavailable custom block without exposing its source', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', source: 'block:private-package', interfaceHash: 'secret-hash' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'private-package' })
     const result = render(createDocument(host), null)
 
     expect(result.issues).toEqual([

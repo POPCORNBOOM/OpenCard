@@ -59,7 +59,7 @@ describe('QR code and shape blocks', () => {
     const qr = createBlock('qrcode-block', { id: 'qr', name: 'Blueprint QR', content: 'blueprint' })
     const document: CardDocument = {
       type: 'card-document',
-      schemaVersion: '2',
+
       id: 'doc',
       name: 'Document',
       version: '1.0.0',

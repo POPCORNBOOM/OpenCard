@@ -4,7 +4,11 @@ import {
   type CardDocument,
 } from '../../entities/card/model'
 import { buildParentLookup, type ParentLookup } from '../../entities/card/tree'
-import { parseCardDocument, serializeCardDocument } from '../../entities/card/storage'
+import {
+  normalizeCardDocument,
+  serializeCardDocument,
+  type CardStorageWarning,
+} from '../../entities/card/storage'
 import { reportAppError } from '../logging/appErrorCatalog'
 
 const TYPING_DEBOUNCE_MS = 300
@@ -15,11 +19,13 @@ type UseCdeDocumentStateOptions = {
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
+  resolveCustomBlockPublicFieldKeys?: (customBlockKey: string) => readonly string[] | undefined
 }
 
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const rawContent = ref('')
   const cardDoc = ref<CardDocument | null>(null)
+  const storageWarnings = ref<readonly CardStorageWarning[]>([])
   const parentLookup = ref<ParentLookup>(new Map())
   const isModified = ref(false)
   const savedContent = ref('')
@@ -37,16 +43,22 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     commit: commitHistory,
   } = useManualRefHistory<CardDocument | null, string>(cardDoc, {
     capacity: 100,
-    dump: (value) => value ? serializeCardDocument(value) : 'null',
+    dump: (value) => value ? serializeCurrentDocument(value) : 'null',
     parse: (value) => {
       const parsed = JSON.parse(value) as unknown
-      return parsed === null ? null : parseCardDocument(parsed)
+      return parsed === null ? null : normalizeCardDocument(parsed).document
     },
   })
   const canUndo = computed(() => historyCanUndo.value && historyDepth.value > 0)
   const canRedo = computed(() => historyCanRedo.value)
 
   const hasDocument = computed(() => Boolean(cardDoc.value))
+
+  function serializeCurrentDocument(document: CardDocument): string {
+    return serializeCardDocument(document, {
+      resolveCustomBlockPublicFieldKeys: options.resolveCustomBlockPublicFieldKeys,
+    })
+  }
 
   function updateModifiedState(nextContent: string) {
     const nextIsModified = nextContent !== savedContent.value
@@ -87,7 +99,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       return
     }
 
-    const content = serializeCardDocument(cardDoc.value)
+    const content = serializeCurrentDocument(cardDoc.value)
     applyDocumentContent(content)
   }
 
@@ -105,7 +117,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       return false
     }
 
-    const content = serializeCardDocument(cardDoc.value)
+    const content = serializeCurrentDocument(cardDoc.value)
     if (content === rawContent.value) {
       updateModifiedState(content)
       return false
@@ -193,14 +205,16 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
     try {
       const parsed = JSON.parse(content) as unknown
-      const nextDocument = parseCardDocument(parsed)
-      cardDoc.value = nextDocument
+      const normalized = normalizeCardDocument(parsed)
+      cardDoc.value = normalized.document
+      storageWarnings.value = normalized.warnings
       rebuildParentLookup()
       setSavedContent(content)
       resetDocumentHistory()
     } catch (e) {
       reportAppError('OC-E4003', e)
       cardDoc.value = null
+      storageWarnings.value = []
       rebuildParentLookup()
       setSavedContent(content)
       clearHistory()
@@ -236,7 +250,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     if (!cardDoc.value) return
     try {
       await flushPendingChanges()
-      const content = serializeCardDocument(cardDoc.value)
+      const content = serializeCurrentDocument(cardDoc.value)
       rawContent.value = content
       setSavedContent(content)
       options.emitModelValueUpdate(content)
@@ -254,6 +268,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   return {
     rawContent,
     cardDoc,
+    storageWarnings,
     documentRevision,
     parentLookup,
     isModified,

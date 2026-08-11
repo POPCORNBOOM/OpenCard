@@ -1,4 +1,5 @@
-import { resolveIcon, type IconToken } from '../icon/iconRegistry';
+import { h, render } from 'vue';
+import OcInlineMarkup from '../../../components/standard/OcInlineMarkup.vue';
 
 const TOOLTIP_SELECTOR = '[data-tooltip]';
 const TOOLTIP_LAYER_ID = 'oc-tooltip-layer';
@@ -6,8 +7,6 @@ const TOOLTIP_GAP = 10;
 const TOOLTIP_EDGE_PADDING = 8;
 const TOOLTIP_POINTER_DELAY_MS = 350;
 const TOOLTIP_INIT_FLAG = '__oc_tooltip_initialized__';
-const TOOLTIP_INLINE_PATTERN = /\[\[(icon|chip):([^\]\r\n]+)\]\]|\[(b|i|key)\]([^\[\]\r\n]+)\[\/\3\]|\[br\]/gi;
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
 function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) {
@@ -21,70 +20,8 @@ function getTooltipText(target: HTMLElement): string {
   return target.getAttribute('data-tooltip')?.trim() ?? '';
 }
 
-function createTooltipIcon(token: string): SVGSVGElement {
-  const glyph = resolveIcon(token as IconToken, 'globalTooltip.inline');
-  const icon = document.createElementNS(SVG_NAMESPACE, 'svg');
-  icon.setAttribute('class', 'oc-inline-icon');
-  icon.setAttribute('viewBox', glyph.viewBox ?? '0 0 24 24');
-  icon.setAttribute('fill', 'currentColor');
-  icon.setAttribute('aria-hidden', 'true');
-
-  const path = document.createElementNS(SVG_NAMESPACE, 'path');
-  path.setAttribute('d', glyph.path);
-  icon.appendChild(path);
-  return icon;
-}
-
-function createTooltipChip(text: string): HTMLSpanElement {
-  const chip = document.createElement('span');
-  chip.className = 'oc-chip';
-  chip.textContent = text;
-  return chip;
-}
-
-function createTooltipKey(text: string): HTMLSpanElement {
-  const key = document.createElement('span');
-  key.className = 'oc-key';
-  key.textContent = text;
-  return key;
-}
-
 function renderTooltipContent(layer: HTMLDivElement, text: string): void {
-  const fragment = document.createDocumentFragment();
-  let cursor = 0;
-
-  for (const match of text.matchAll(TOOLTIP_INLINE_PATTERN)) {
-    const index = match.index ?? 0;
-    if (index > cursor) {
-      fragment.append(document.createTextNode(text.slice(cursor, index)));
-    }
-
-    const kind = match[1];
-    const value = match[2]?.trim() ?? '';
-    const bbcodeTag = match[3]?.toLocaleLowerCase();
-    const bbcodeText = match[4]?.trim() ?? '';
-    if (match[0].toLocaleLowerCase() === '[br]') {
-      fragment.append(document.createElement('br'));
-    } else if (bbcodeTag === 'key') {
-      fragment.append(createTooltipKey(bbcodeText));
-    } else if (bbcodeTag === 'b' || bbcodeTag === 'i') {
-      const emphasis = document.createElement(bbcodeTag === 'b' ? 'strong' : 'em');
-      emphasis.textContent = bbcodeText;
-      fragment.append(emphasis);
-    } else if (!value) {
-      fragment.append(document.createTextNode(match[0]));
-    } else if (kind === 'icon') {
-      fragment.append(createTooltipIcon(value));
-    } else {
-      fragment.append(createTooltipChip(value));
-    }
-    cursor = index + match[0].length;
-  }
-
-  if (cursor < text.length) {
-    fragment.append(document.createTextNode(text.slice(cursor)));
-  }
-  layer.replaceChildren(fragment);
+  render(h(OcInlineMarkup, { source: text }), layer);
 }
 
 export function setupGlobalTooltip(): void {

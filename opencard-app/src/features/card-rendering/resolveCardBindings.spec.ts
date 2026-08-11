@@ -2,17 +2,19 @@ import { describe, expect, it } from 'vitest'
 import {
   createBlockAdditionalField,
   createTextBlock,
+  createSimpleContainerBlock,
   deleteBlockAdditionalField,
   type CardDocument,
+  type CardBlock,
   type CardInstanceRecord,
 } from '../../entities/card/model'
 import { applyInstance } from '../../entities/card/instance'
 import { resolveReferences } from './resolveCardBindings'
 
-function createDocument(block = createTextBlock({ id: 'text', content: '' })): CardDocument {
+function createDocument(block: CardBlock = createTextBlock({ id: 'text', content: '' })): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Document',
     version: '1.0.0',
@@ -35,6 +37,49 @@ function createDocument(block = createTextBlock({ id: 'text', content: '' })): C
 }
 
 describe('card additional fields and bindings', () => {
+  it('resolves parent references when runtime owner IDs contain namespace separators', () => {
+    const child = createTextBlock({
+      id: 'host::block:child::block:label',
+      content: '{{parent:title}} / {{parent.parent:title}}',
+    })
+    const parent = createSimpleContainerBlock({
+      id: 'host::block:container',
+      children: [{
+        block: child,
+        location: {
+          id: 'host::location:child',
+          type: 'simple-container-location',
+          anchor: 'lt',
+        },
+      }],
+    })
+    parent.additionalFieldDefinition = { title: { fieldType: 'string' } }
+    ;(parent as unknown as Record<string, unknown>).title = 'Resolved parent'
+    const grandparent = createSimpleContainerBlock({
+      id: 'host::block:grandparent',
+      children: [{
+        block: parent,
+        location: {
+          id: 'host::location:parent',
+          type: 'simple-container-location',
+          anchor: 'lt',
+        },
+      }],
+    })
+    grandparent.additionalFieldDefinition = { title: { fieldType: 'string' } }
+    ;(grandparent as unknown as Record<string, unknown>).title = 'Resolved grandparent'
+
+    const result = resolveReferences(createDocument(grandparent))
+    const resolvedGrandparent = result.document.faces.front.children[0]!.block
+    if (resolvedGrandparent.type !== 'simple-container-block') throw new Error('Expected container')
+    const resolvedParent = resolvedGrandparent.children[0]!.block
+    if (resolvedParent.type !== 'simple-container-block') throw new Error('Expected nested container')
+    expect(result.issues).toEqual([])
+    expect(resolvedParent.children[0]!.block).toMatchObject({
+      content: 'Resolved parent / Resolved grandparent',
+    })
+  })
+
   it('resolves current-block additional fields into string and number targets', () => {
     const block = createTextBlock({ id: 'text', content: '{{self:label}}' })
     block.additionalFieldDefinition = {

@@ -78,6 +78,11 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
     }
   }
   if (loadIssues.length > 0) return { ok: false, issues: loadIssues }
+  const warnings = snapshots.flatMap(snapshot => (snapshot.storageWarnings ?? []).map(warning => ({
+    code: 'document-normalized' as const,
+    path: `${snapshot.sourcePath}:${warning.path}`,
+    message: warning.message,
+  })))
 
   const usedFileNames = new Set<string>()
   const entries: ExportPlanEntry[] = []
@@ -119,5 +124,5 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
     entries,
     outputDirectory: options.task.outputDirectory,
   }
-  return { ok: true, plan }
+  return { ok: true, plan, warnings }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
+import { createBlock } from '../../../entities/card/model'
 import {
   createProjectCustomBlockFontSession,
   type ProjectCustomBlockFontRuntime,
@@ -10,11 +11,11 @@ function createCatalog(): ProjectCustomBlockCatalog {
     archivePath: 'assets/square.ocblock',
     files: new Map([['resources/fonts/a.woff2', new Uint8Array([1, 2, 3])]]),
     manifest: {
-      type: 'opencard-custom-block', schemaVersion: '1', key: 'square', name: 'Square', interfaceHash: 'hash',
-      root: { type: 'text-block', id: 'root' } as never,
-      publicFields: [], resize: { widthLocked: false, heightLocked: false },
+      type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+      publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
       resources: { fonts: [{ key: 'body', name: 'Body', source: 'resources/fonts/a.woff2' }] },
     },
+    block: createBlock('text-block', { id: 'root', fontFamily: 'resource:font:body' }),
   }]])
 }
 

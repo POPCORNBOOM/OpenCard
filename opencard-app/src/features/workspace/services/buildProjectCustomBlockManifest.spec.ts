@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createBlock } from '../../../entities/card/model'
-import { buildProjectCustomBlockManifest } from './buildProjectCustomBlockManifest'
+import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
 
 describe('buildProjectCustomBlockManifest', () => {
   it('projects only exposed root fields and keeps the blueprint tree', async () => {
@@ -11,9 +11,8 @@ describe('buildProjectCustomBlockManifest', () => {
     }
     ;(root as unknown as Record<string, unknown>).size = '120'
     const manifest = await buildProjectCustomBlockManifest({ root, key: 'square', exposedFieldKeys: ['size'] })
-    expect(manifest.publicFields).toEqual([{ key: 'size', fieldType: 'number', title: '尺寸', defaultValue: '120' }])
+    expect(manifest).toMatchObject({ customBlockKey: 'square', publicFieldKeys: ['name', 'notes', 'size'] })
     expect(manifest.resize).toEqual({ widthLocked: true, heightLocked: true })
-    expect(manifest.root).not.toBe(root)
   })
 
   it('removes editor packaging state without removing container children', async () => {
@@ -23,12 +22,28 @@ describe('buildProjectCustomBlockManifest', () => {
       location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
     })
 
-    const manifest = await buildProjectCustomBlockManifest({ root, key: 'container' })
+    await buildProjectCustomBlockManifest({ root, key: 'container' })
+    const block = buildProjectCustomBlockRoot(root)
 
-    expect(manifest.root).not.toHaveProperty('packaged')
-    if (manifest.root.type !== 'simple-container-block') throw new Error('Expected container')
-    expect(manifest.root.children).toHaveLength(1)
-    expect(manifest.root.children[0]!.block).not.toHaveProperty('packaged')
+    expect(block).not.toHaveProperty('packaged')
+    if (block.type !== 'simple-container-block') throw new Error('Expected container')
+    expect(block.children).toHaveLength(1)
+    expect(block.children[0]!.block).not.toHaveProperty('packaged')
+  })
+
+  it('uses the explicitly exposed standard dimensions as the resize policy', async () => {
+    const root = createBlock('text-block')
+    const manifest = await buildProjectCustomBlockManifest({
+      root, key: 'sized', resize: { widthLocked: true, heightLocked: false },
+    })
+    expect(manifest.publicFieldKeys).toEqual(['name', 'notes'])
+    expect(manifest.resize).toEqual({ widthLocked: true, heightLocked: false })
+  })
+
+  it('allows an editable native root field to be public', async () => {
+    const root = createBlock('text-block', { content: 'Default' })
+    const manifest = await buildProjectCustomBlockManifest({ root, key: 'text', exposedFieldKeys: ['content'] })
+    expect(manifest.publicFieldKeys).toEqual(['name', 'notes', 'content'])
   })
 
   it('normalizes exported field definitions to the portable contract', async () => {
@@ -38,9 +53,9 @@ describe('buildProjectCustomBlockManifest', () => {
       invalid: false,
     }
 
-    const manifest = await buildProjectCustomBlockManifest({ root, key: 'normalized' })
+    const block = buildProjectCustomBlockRoot(root)
 
-    expect(manifest.root.additionalFieldDefinition).toEqual({
+    expect(block.additionalFieldDefinition).toEqual({
       size: { fieldType: 'number', title: 'Size' },
     })
   })
@@ -50,6 +65,6 @@ describe('buildProjectCustomBlockManifest', () => {
     ;(root as unknown as Record<string, unknown>).additionalFieldDefinition = { broken: false }
 
     await expect(buildProjectCustomBlockManifest({ root, key: 'invalid', exposedFieldKeys: ['broken'] }))
-      .rejects.toThrow('not defined on the root')
+      .rejects.toThrow('not available on the root')
   })
 })

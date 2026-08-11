@@ -6,7 +6,7 @@ import { useCdeDocumentState } from './useCdeDocumentState'
 function createDocument(): CardDocument {
   return {
     type: 'card-document',
-    schemaVersion: '2',
+
     id: 'document',
     name: 'Before typing',
     version: '1.0.0',

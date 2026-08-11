@@ -4,8 +4,6 @@
  */
 import type { Ref } from 'vue'
 import {
-  getCardFieldDefinition,
-  getCardFieldValueKind,
   type CardBlock,
   type CardDocument,
   type CardFaceKey,
@@ -97,7 +95,7 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
         target.block,
         target.faceKey,
         cell.cardId,
-        field.key,
+        field,
       ),
       fontCatalog: buildFontCatalog(options.projectContext.value.fonts),
       iconSeries: options.projectContext.value.iconSeries,
@@ -113,7 +111,7 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
     block: CardBlock,
     faceKey: CardFaceKey,
     cardId: string,
-    fieldKey: string,
+    field: CellFieldInput,
   ): ReferenceCompletionContext | null {
     const instance = cardId === options.blueprintCardId
       ? null
@@ -177,9 +175,11 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
             project.dictionary,
           )
         : undefined,
-      allowedScopes: getCardFieldDefinition(currentBlockRecord, fieldKey)?.bindingScopes,
+      allowedScopes: field.definition.bindingScopes,
       getAncestor: ancestorDepth => ancestorScopes[ancestorDepth - 1],
-      targetKind: getCardFieldValueKind(currentBlockRecord, fieldKey),
+      targetKind: field.definition.fieldType === 'number' ? 'number'
+        : field.definition.fieldType === 'boolean' ? 'boolean'
+          : field.definition.fieldType === 'object' ? 'object' : 'string',
     }
   }
 

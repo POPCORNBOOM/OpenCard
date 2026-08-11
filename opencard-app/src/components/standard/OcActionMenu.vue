@@ -50,15 +50,11 @@
             class="oc-action-menu__icon"
           />
           <span v-else class="oc-action-menu__icon-spacer" />
-          <span class="oc-action-menu__label">{{ entry.title ?? entry.key }}</span>
+          <OcInlineMarkup class="oc-action-menu__label" :source="entry.title ?? entry.key" />
           <span v-if="hasActionBadge(entry.badge)" class="oc-number-badge" aria-hidden="true">
             {{ formatActionBadge(entry.badge) }}
           </span>
-          <span v-if="entry.shortcut?.length" class="oc-action-menu__shortcut" aria-hidden="true">
-            <span v-for="part in entry.shortcut" :key="part" class="oc-key oc-action-menu__shortcut-key">
-              {{ part }}
-            </span>
-          </span>
+          <OcShortcut v-if="entry.shortcut?.length" :parts="entry.shortcut" decorative />
           <OcIcon
             v-if="hasActionChildren(entry)"
             name="nav.arrow-right"
@@ -96,6 +92,7 @@
 
 <script lang="ts">
 import type { IconToken, IconTone } from '../../shared/ui/icon/iconRegistry'
+import type { OcShortcutPart } from './OcShortcut.vue'
 
 export interface OcActionDefinition {
   type?: 'action'
@@ -107,7 +104,7 @@ export interface OcActionDefinition {
   title?: string
   badge?: number
   badgeLabel?: string
-  shortcut?: readonly string[]
+  shortcut?: readonly OcShortcutPart[]
   disabled?: boolean
   children?: readonly OcActionMenuEntry[]
 }
@@ -134,7 +131,10 @@ export function isActionMenuBranchEvent(event: Event, branchId: string): boolean
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, reactive, ref, type ComponentPublicInstance } from 'vue'
 import OcIcon from '../base/OcIcon.vue'
+import { inlineMarkupToText } from '../../shared/ui/inline-markup/inlineMarkup'
 import OcFloatingLayer from './OcFloatingLayer.vue'
+import OcInlineMarkup from './OcInlineMarkup.vue'
+import OcShortcut from './OcShortcut.vue'
 import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from './actionBadge'
 
 defineOptions({ name: 'OcActionMenu' })
@@ -226,7 +226,7 @@ function handleActionClick(action: OcActionDefinition): void {
 }
 
 function accessibleActionLabel(action: OcActionDefinition): string {
-  return actionAccessibleLabel(action.title ?? action.key, action.badgeLabel)
+  return actionAccessibleLabel(inlineMarkupToText(action.title ?? action.key), action.badgeLabel)
 }
 
 function enabledButtons(): HTMLButtonElement[] {
@@ -365,17 +365,4 @@ function handleActionKeydown(event: KeyboardEvent, action: OcActionDefinition): 
   white-space: nowrap;
 }
 
-.oc-action-menu__shortcut {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 3px;
-}
-
-.oc-action-menu__shortcut-key {
-  justify-content: center;
-  min-width: 18px;
-  box-sizing: border-box;
-  font-size: var(--oc-text-xs);
-}
 </style>

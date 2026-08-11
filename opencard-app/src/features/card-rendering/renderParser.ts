@@ -256,12 +256,10 @@ function parseBlock(
         }),
       }
     case 'custom-block':
-      const source = fields.string('source')
       return {
         ...base,
         type,
-        source,
-        interfaceHash: fields.string('interfaceHash'),
+        customBlockKey: fields.string('customBlockKey'),
         content: null,
       }
   }
