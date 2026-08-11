@@ -243,6 +243,28 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('drops a stale expanded directory without hiding project files', async () => {
+    useAppSettingsStore().updateProjectCreation({
+      workspaceStates: {
+        'D:/project': { expandedDirectories: ['assets', 'missing'] },
+      },
+    })
+    mocks.readDirectoryEntries.mockImplementation(async (path: string, _depth: number, basePath: string) => {
+      if (path === 'D:/project/missing') throw new Error('directory not found')
+      if (basePath === '') return [{ name: '.ocproject', isDirectory: false, isFile: true, isSymlink: false }]
+      return []
+    })
+    mocks.fileExists.mockImplementation(async (path: string) => path !== 'D:/project/missing')
+
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.ocproject')
+    expect(store.expandedDirectories.value).toEqual(new Set(['assets']))
+    expect(store.registeredDirectories.value.has('missing')).toBe(false)
+    await store.setProjectPath('')
+  })
+
   it('prefetches one level below an expanded directory', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')

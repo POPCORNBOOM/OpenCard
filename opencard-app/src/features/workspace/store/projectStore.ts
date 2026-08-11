@@ -613,7 +613,15 @@ async function refreshIndexedEntries(options?: { persist?: boolean }) {
 
     for (const [relativePath, depth] of registrations) {
       const directoryPath = relativePath ? resolveProjectPath(relativePath) : ensureProjectOpen()
-      const entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath)
+      let entries: DirEntry[]
+      try {
+        entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath)
+      } catch (error) {
+        if (!relativePath || await fileSystemService.fileExists(directoryPath)) throw error
+        registeredDirectories.value.delete(relativePath)
+        expandedDirectories.value.delete(relativePath)
+        continue
+      }
 
       for (const entry of entries) {
         nextEntries.set(entry.name, entry)
