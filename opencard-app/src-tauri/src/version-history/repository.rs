@@ -2766,6 +2766,58 @@ mod tests {
     }
 
     #[test]
+    fn versions_a_managed_file_beyond_the_legacy_windows_path_limit() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        fs::write(
+            project.path().join(".ocproject"),
+            br#"{"name":"Long path fixture","version":"0.0.1"}"#,
+        )
+        .unwrap();
+        let relative_path = PathBuf::from("cards")
+            .join("a".repeat(72))
+            .join("b".repeat(72))
+            .join("c".repeat(72))
+            .join("中文说明.md");
+        let absolute_path = project.path().join(&relative_path);
+        fs::create_dir_all(absolute_path.parent().unwrap()).unwrap();
+        fs::write(&absolute_path, "长路径版本内容".as_bytes()).unwrap();
+        #[cfg(windows)]
+        assert!(display_path(&absolute_path).encode_utf16().count() > 260);
+
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let context = load_project_context(
+            project.path(),
+            storage.path(),
+            &prepared.identity.project_id,
+        )
+        .unwrap();
+        let status = get_status(&context, 1).unwrap();
+        let created = create_version(
+            &context,
+            CreateVersionRequest {
+                operation_id: "long-path".to_owned(),
+                project_root: display_path(project.path()),
+                project_id: context.project_id.clone(),
+                generation: 1,
+                expected_head_commit_id: None,
+                expected_snapshot_id: status.change_summary.snapshot_id,
+                description: "Long path".to_owned(),
+                requested_version: None,
+            },
+        )
+        .unwrap();
+
+        let repository = open_repository(&context).unwrap();
+        let commit = repository
+            .find_commit(Oid::from_str(&created.version.commit_id).unwrap())
+            .unwrap();
+        let entry = commit.tree().unwrap().get_path(&relative_path).unwrap();
+        let blob = repository.find_blob(entry.id()).unwrap();
+        assert_eq!(blob.content(), "长路径版本内容".as_bytes());
+    }
+
+    #[test]
     fn invalid_profile_bytes_remain_unchanged_when_saving_a_version() {
         let project = tempfile::tempdir().unwrap();
         let storage = tempfile::tempdir().unwrap();
