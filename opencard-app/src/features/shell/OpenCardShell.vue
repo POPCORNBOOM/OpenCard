@@ -2414,10 +2414,9 @@ async function requestLocalHistoryRestore(entryId: string): Promise<void> {
 }
 
 function openLocalHistoryRestoreConfirmation(entryId: string, relativePath?: string): void {
-  const entries = relativePath
-    ? selectedLocalHistoryFileEntries.value
-    : localHistoryEntries.value
-  if (!entries.some(entry => entry.entryId === entryId)) return
+  const entries = [...localHistoryEntries.value, ...selectedLocalHistoryFileEntries.value]
+  if (!entries.some(entry => entry.entryId === entryId
+    && (!relativePath || entry.relativePath === relativePath))) return
   localHistoryRestoreEntryId.value = entryId
   localHistoryRestorePath.value = relativePath ?? historyPath.value
   localHistoryRestoreError.value = ''
