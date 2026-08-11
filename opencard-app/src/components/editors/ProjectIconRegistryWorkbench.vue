@@ -614,6 +614,7 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   padding: 0;
 }
 .project-icon-registry-workbench__preview-pane section {
+  position: relative;
   display: grid;
   align-content: center;
   justify-items: center;
