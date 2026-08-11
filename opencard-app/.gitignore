@@ -18,6 +18,7 @@ output/playwright/
 playwright-report/
 test-results/
 blob-report/
+e2e/.tmp/
 
 # Editor directories and files
 .vscode/*
