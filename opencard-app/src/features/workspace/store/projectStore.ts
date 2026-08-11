@@ -133,6 +133,7 @@ export type WorkspaceEntryMoveRequest = {
 }
 
 const projectPath = ref('')
+const fileChangeRevision = ref(0)
 const indexedEntries = ref<DirEntry[]>([])
 const isWatching = ref(false)
 const registeredDirectories = ref(new Map<string, number>())
@@ -700,6 +701,7 @@ async function startWatching() {
 
   try {
     unlistenFn = await listen<FileChangedPayload>('file-changed', (event: Event<FileChangedPayload>) => {
+      fileChangeRevision.value += 1
       const changedPaths = event.payload.paths.map((path) => normalizePath(path))
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME)))) {
         void reloadProjectProfile()
@@ -1334,6 +1336,7 @@ async function moveEntryByDrop(payload: WorkspaceEntryMoveRequest): Promise<Move
 export function useProjectStore() {
   return {
     projectPath: readonly(projectPath),
+    fileChangeRevision: readonly(fileChangeRevision),
     projectProfile: readonly(projectProfile),
     resolvedProject: readonly(resolvedProject),
     projectInformation: readonly(resolvedProject),

@@ -706,6 +706,7 @@ const EMPTY_TREE_DATA: OcTreeData = {
 const projectStore = useProjectStore()
 const {
   projectPath,
+  fileChangeRevision,
   projectProfile,
   projectInformation,
   projectFontFiles,
@@ -1016,6 +1017,7 @@ const {
   dispose: disposeVersioning,
 } = useVersioning({
   projectPath,
+  externalChangeRevision: fileChangeRevision,
   sessions,
   flushAffectedSessions: flushActiveEditorForClose,
   prepareSessionContent,

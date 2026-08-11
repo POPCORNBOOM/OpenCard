@@ -28,6 +28,7 @@ import {
 
 type UseVersioningOptions = {
   projectPath: Readonly<Ref<string>>
+  externalChangeRevision?: Readonly<Ref<number>>
   sessions: Readonly<Ref<readonly EditorSession[]>>
   flushAffectedSessions: (sessionIds: readonly string[]) => Promise<void>
   prepareSessionContent: (sessionId: string) => PreparedSessionContent | null
@@ -68,6 +69,7 @@ export function useVersioning(options: UseVersioningOptions) {
   const pendingPublishVersion = ref<VersionRecordDto | null>(null)
   const lastError = ref<VersionErrorDto | null>(null)
   let generation = 0
+  let externalRefreshTimer: ReturnType<typeof setTimeout> | null = null
   let fileHistoryRequestId = 0
   let compareEpoch = 0
   let compareOpenRequest: Promise<void> | null = null
@@ -958,11 +960,24 @@ export function useVersioning(options: UseVersioningOptions) {
     }
   }
 
+  const stopExternalChangeWatch = options.externalChangeRevision
+    ? watch(options.externalChangeRevision, () => {
+      if (externalRefreshTimer) clearTimeout(externalRefreshTimer)
+      externalRefreshTimer = setTimeout(() => {
+        externalRefreshTimer = null
+        void refresh(options.projectPath.value)
+      }, 500)
+    })
+    : () => undefined
+
   function dispose(): void {
     void closeCompare()
     generation += 1
+    if (externalRefreshTimer) clearTimeout(externalRefreshTimer)
+    externalRefreshTimer = null
     stopProjectWatch()
     stopSessionWatch()
+    stopExternalChangeWatch()
   }
 
   return {

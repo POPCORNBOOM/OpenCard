@@ -9,6 +9,53 @@ afterEach(() => {
 })
 
 describe('useVersioning project preparation', () => {
+  it('debounces external file events into one fresh project status scan', async () => {
+    const projectPath = ref('D:/project')
+    const externalChangeRevision = ref(0)
+    let changed = false
+    const getStatus = vi.fn(async request => ({
+      identity: { projectId: request.projectId, canonicalRoot: request.projectRoot, generation: request.generation },
+      current: null,
+      nextVersion: '0.0.1',
+      expectedHeadCommitId: null,
+      changeSummary: {
+        added: changed ? 1 : 0,
+        modified: 0,
+        deleted: 0,
+        files: changed ? [{ path: 'README.md', status: 'added' as const }] : [],
+        snapshotId: changed ? 'changed' : 'initial',
+      },
+      hasManagedContent: true,
+    }))
+    const service = {
+      prepareProject: vi.fn(async request => ({
+        identity: { projectId: 'project-id', canonicalRoot: request.projectRoot, generation: request.generation },
+      })),
+      getStatus,
+      listVersions: vi.fn(async request => ({ projectId: request.projectId, items: [], nextCursor: null })),
+    } as unknown as VersioningService
+    const versioning = useVersioning({
+      projectPath,
+      externalChangeRevision,
+      sessions: ref([]),
+      service,
+      flushAffectedSessions: vi.fn(async () => undefined),
+      prepareSessionContent: vi.fn(() => null),
+      saveSession: vi.fn(async () => ({ status: 'skipped' as const, sessionId: '', reason: 'missing' as const })),
+    })
+    await vi.waitFor(() => expect(versioning.readiness.value.status).toBe('ready'))
+
+    changed = true
+    externalChangeRevision.value += 1
+    externalChangeRevision.value += 1
+
+    await vi.waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2), { timeout: 1_500 })
+    expect(versioning.status.value?.changeSummary.files).toEqual([
+      { path: 'README.md', status: 'added' },
+    ])
+    versioning.dispose()
+  })
+
   it('opens and releases a comparison without replacing the source session', async () => {
     const projectPath = ref('D:/project')
     const sourceSession: EditorSession = {
