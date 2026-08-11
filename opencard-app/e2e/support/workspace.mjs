@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 export const e2eWorkspacePath = resolve(appRoot, 'e2e/.tmp/OpenCard E2E 中文项目')
+export const e2eSecondaryWorkspacePath = resolve(appRoot, 'e2e/.tmp/OpenCard E2E Secondary')
 const storageRoot = join(homedir(), '.opencard')
 const settingsPath = join(storageRoot, 'settings.json')
 const backupPath = join(storageRoot, 'settings.e2e-backup.json')
@@ -13,14 +14,9 @@ const historyRoot = join(storageRoot, 'version-history/v1')
 export function prepareE2eWorkspace() {
   restoreSettingsBackup()
   rmSync(e2eWorkspacePath, { recursive: true, force: true })
-  mkdirSync(e2eWorkspacePath, { recursive: true })
-  writeFileSync(join(e2eWorkspacePath, '.ocproject'), `${JSON.stringify({
-    name: 'OpenCard E2E Fixture',
-    description: 'Release desktop version management fixture.',
-    version: '0.0.1',
-    remoteResources: { mode: 'deny' },
-  }, null, 2)}\n`)
-  writeFileSync(join(e2eWorkspacePath, 'README.md'), '# OpenCard E2E\n\nDesktop version management fixture.\n')
+  rmSync(e2eSecondaryWorkspacePath, { recursive: true, force: true })
+  writeWorkspace(e2eWorkspacePath, 'OpenCard E2E Fixture')
+  writeWorkspace(e2eSecondaryWorkspacePath, 'OpenCard E2E Secondary')
 
   mkdirSync(storageRoot, { recursive: true })
   writeFileSync(backupPath, JSON.stringify({
@@ -31,26 +27,43 @@ export function prepareE2eWorkspace() {
   const document = readSettingsDocument()
   const projectCreation = document['app-settings'].projectCreation ?? {}
   const normalizedPath = e2eWorkspacePath.replace(/\\/g, '/')
+  const normalizedSecondaryPath = e2eSecondaryWorkspacePath.replace(/\\/g, '/')
   const recentProjects = Array.isArray(projectCreation.recentProjects)
-    ? projectCreation.recentProjects.filter(path => path !== normalizedPath)
+    ? projectCreation.recentProjects.filter(path => path !== normalizedPath && path !== normalizedSecondaryPath)
     : []
   document['app-settings'].projectCreation = {
     ...projectCreation,
-    recentProjects: [normalizedPath, ...recentProjects],
+    recentProjects: [normalizedPath, normalizedSecondaryPath, ...recentProjects],
     workspaceStates: {
       ...(projectCreation.workspaceStates ?? {}),
       [normalizedPath]: { expandedDirectories: [] },
+      [normalizedSecondaryPath]: { expandedDirectories: [] },
     },
   }
   writeFileSync(settingsPath, `${JSON.stringify(document, null, 2)}\n`)
   removeWorkspaceHistory(normalizedPath)
+  removeWorkspaceHistory(normalizedSecondaryPath)
+}
+
+function writeWorkspace(path, name) {
+  mkdirSync(path, { recursive: true })
+  writeFileSync(join(path, '.ocproject'), `${JSON.stringify({
+    name,
+    description: 'Release desktop version management fixture.',
+    version: '0.0.1',
+    remoteResources: { mode: 'deny' },
+  }, null, 2)}\n`)
+  writeFileSync(join(path, 'README.md'), '# OpenCard E2E\n\nDesktop version management fixture.\n')
 }
 
 export function cleanupE2eWorkspace() {
   const normalizedPath = e2eWorkspacePath.replace(/\\/g, '/')
+  const normalizedSecondaryPath = e2eSecondaryWorkspacePath.replace(/\\/g, '/')
   restoreSettingsBackup()
   removeWorkspaceHistory(normalizedPath)
+  removeWorkspaceHistory(normalizedSecondaryPath)
   rmSync(e2eWorkspacePath, { recursive: true, force: true })
+  rmSync(e2eSecondaryWorkspacePath, { recursive: true, force: true })
 }
 
 function readSettingsDocument() {
