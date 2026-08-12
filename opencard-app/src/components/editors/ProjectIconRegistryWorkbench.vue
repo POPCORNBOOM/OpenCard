@@ -566,9 +566,12 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .project-icon-registry-workbench__compare-pane {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   position: relative;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 .project-icon-registry-workbench__compare-pane + .project-icon-registry-workbench__compare-pane {
