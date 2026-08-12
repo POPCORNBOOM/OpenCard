@@ -9,6 +9,7 @@ vi.mock('../../card-designer/CardDesignEditor.vue', () => ({
     props: [
       'comparisonLayout', 'comparisonRole', 'comparisonSelectedBlockId', 'comparisonChangedBlockIds',
       'comparisonChangedInstanceIds', 'comparisonDocumentChanged', 'cardDesignerView', 'viewportTransform',
+      'comparisonInspectorTarget',
     ],
     emits: ['update-card-comparison-layout', 'update-card-comparison-selection'],
     template: '<button class="card-editor-stub" @click="$emit(\'update-card-comparison-layout\', \'vertical\')">{{ comparisonRole }}|{{ comparisonLayout }}|{{ comparisonSelectedBlockId }}</button>',
@@ -67,6 +68,9 @@ describe('SnapshotCardDiffEditor', () => {
       'historical|horizontal|',
       'current|horizontal|',
     ])
+    const editors = wrapper.findAllComponents({ name: 'CardDesignEditor' })
+    expect(editors[0]!.props('comparisonInspectorTarget')).toBeUndefined()
+    expect(editors[1]!.props('comparisonInspectorTarget')).toMatch(/^#snapshot-card-diff-inspector-/)
     for (const editor of wrapper.findAllComponents({ name: 'CardDesignEditor' })) {
       expect(editor.props('comparisonChangedBlockIds')).toEqual(['title'])
       expect(editor.props('comparisonDocumentChanged')).toBe(true)

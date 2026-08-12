@@ -34,10 +34,16 @@ describe('useCdeInstanceOps tree actions', () => {
       actions: [],
       contextActions: [],
       icon: 'entity.card-instance',
-      changeMarkers: [{ icon: 'status.change-removed', tone: 'danger' }],
+      changeMarkers: [
+        { icon: 'status.change-removed', tone: 'danger' },
+        { icon: 'status.change-added', tone: 'success' },
+      ],
     })
     expect(state.instanceTreeData.value.items.get('__blueprint__')?.changeMarkers)
-      .toEqual([{ icon: 'status.change-removed', tone: 'danger' }])
+      .toEqual([
+        { icon: 'status.change-removed', tone: 'danger' },
+        { icon: 'status.change-added', tone: 'success' },
+      ])
     state.handleInstanceTreeIntent({
       type: 'selection.change', triggerKey: 'instance-1', selectedKeys: ['instance-1'], mode: 'replace', input: 'left',
     })

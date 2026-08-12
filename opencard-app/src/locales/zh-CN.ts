@@ -833,6 +833,7 @@ export default {
       projectSnapshot: '项目保存版本快照',
       loadFailed: '历史内容加载失败。',
       restoreFile: '恢复此文件',
+      cardInspector: '卡牌对比检查器',
       cardLayout: {
         title: '对比布局',
         horizontal: '左右对比',

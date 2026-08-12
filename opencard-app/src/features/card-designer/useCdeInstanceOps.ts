@@ -33,10 +33,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     items.set(options.blueprintCardId, {
       label: '蓝图',
       icon: 'entity.card-blueprint',
-      changeMarkers: options.comparisonDocumentChanged?.value && options.comparisonRole?.value ? [{
-        icon: options.comparisonRole.value === 'historical' ? 'status.change-removed' : 'status.change-added',
-        tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
-      }] : undefined,
+      changeMarkers: comparisonMarkers(
+        options.comparisonDocumentChanged?.value ?? false,
+        options.comparisonRole?.value,
+      ),
     })
 
     for (const [index, instance] of (options.cardDoc.value?.instances ?? []).entries()) {
@@ -46,11 +46,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       items.set(key, {
         label: instance.name?.trim() || key,
         icon: 'entity.card-instance',
-        changeMarkers: options.comparisonChangedInstanceIds?.value?.includes(instance.id)
-          && options.comparisonRole?.value ? [{
-            icon: options.comparisonRole.value === 'historical' ? 'status.change-removed' : 'status.change-added',
-            tone: options.comparisonRole.value === 'historical' ? 'danger' : 'success',
-          }] : undefined,
+        changeMarkers: comparisonMarkers(
+          options.comparisonChangedInstanceIds?.value?.includes(instance.id) ?? false,
+          options.comparisonRole?.value,
+        ),
         renamable: !readOnly,
         draggable: !readOnly,
         actions: readOnly ? [] : ['instance-more'],
@@ -218,6 +217,14 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     duplicateInstance,
     deleteInstance,
   }
+}
+
+function comparisonMarkers(changed: boolean, role: 'historical' | 'current' | undefined): OcTreeItem['changeMarkers'] {
+  if (!changed || !role) return undefined
+  return [
+    { icon: 'status.change-removed', tone: 'danger' },
+    { icon: 'status.change-added', tone: 'success' },
+  ]
 }
 
 function includeNewInstanceInDataTableExport(document: CardDocument, instanceId: string): void {

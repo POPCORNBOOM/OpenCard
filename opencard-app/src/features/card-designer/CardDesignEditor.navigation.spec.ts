@@ -16,6 +16,13 @@ import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import CardDesignEditor from './CardDesignEditor.vue'
 
+const TeleportStub = defineComponent({
+  props: ['to', 'disabled'],
+  setup(_, { slots }) {
+    return () => slots.default?.()
+  },
+})
+
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
@@ -100,7 +107,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcTree: OcTreeStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -163,7 +170,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcTree: OcTreeStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -237,7 +244,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcTree: OcTreeStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -298,7 +305,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcTree: OcTreeStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -330,7 +337,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     await nextTick()
 
-    const inputs = propertyEditor.props('inputs') as Array<{
+    const inputs = wrapper.findComponent({ name: 'PropertyEditor' }).props('inputs') as Array<{
       key: string
       fields: Record<string, { resettable?: boolean }>
     }>
@@ -364,7 +371,7 @@ describe('CardDesignEditor issue navigation', () => {
         plugins: [i18n],
         stubs: {
           CardDataTable: CardDataTableStub,
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -413,7 +420,7 @@ describe('CardDesignEditor issue navigation', () => {
       },
       global: {
         plugins: [i18n],
-        stubs: { CardDataTable: CardDataTableStub, Teleport: true },
+        stubs: { CardDataTable: CardDataTableStub, Teleport: TeleportStub },
       },
     })
     const table = wrapper.findComponent({ name: 'CardDataTable' })
@@ -460,7 +467,7 @@ describe('CardDesignEditor issue navigation', () => {
           PropertyEditor: PropertyEditorStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -510,7 +517,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -586,7 +593,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcOverlayToolbar: false,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -681,7 +688,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -739,7 +746,7 @@ describe('CardDesignEditor issue navigation', () => {
           PropertyEditor: PropertyEditorStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -790,7 +797,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -849,7 +856,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -919,7 +926,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -1054,7 +1061,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: CardViewportStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -1108,7 +1115,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcOverlayToolbar: false,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -1135,7 +1142,7 @@ describe('CardDesignEditor issue navigation', () => {
           CardViewport: true,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })
@@ -1335,29 +1342,28 @@ describe('CardDesignEditor issue navigation', () => {
           OcCard: OcCardStub,
           OcPanel: { template: '<div><slot /></div>' },
           PropertyEditor: false,
+          Teleport: TeleportStub,
         },
       },
     })
     await nextTick()
 
-    const propertyCard = wrapper.findAllComponents(OcCardStub)
+    const getPropertyCard = () => wrapper.findAllComponents(OcCardStub)
       .find(card => card.props('title') === '属性')!
-    const getAction = (key: string) => (propertyCard.props('actions') as Array<{
+    const getAction = (key: string) => (getPropertyCard().props('actions') as Array<{
       key: string
       icon: IconToken
       disabled?: boolean
     }>).find(action => action.key === key)!
-    const propertyEditor = wrapper.getComponent({ name: 'PropertyEditor' })
-
     expect(getAction('toggle-property-sort').icon).toBe('action.sort-alphabetical-ascending')
-    propertyCard.vm.$emit('action', { key: 'toggle-property-sort' })
+    getPropertyCard().vm.$emit('action', { key: 'toggle-property-sort' })
     await nextTick()
-    expect(propertyEditor.props('sortMode')).toBe('alphabetical')
+    expect(wrapper.getComponent({ name: 'PropertyEditor' }).props('sortMode')).toBe('alphabetical')
     expect(getAction('toggle-property-sort').icon).toBe('action.sort-category')
 
-    propertyCard.vm.$emit('action', { key: 'toggle-property-delete-mode' })
+    getPropertyCard().vm.$emit('action', { key: 'toggle-property-delete-mode' })
     await nextTick()
-    expect(propertyEditor.props('deleteMode')).toBe(true)
+    expect(wrapper.getComponent({ name: 'PropertyEditor' }).props('deleteMode')).toBe(true)
     expect(wrapper.findAllComponents({ name: 'PropertyFieldActionRail' })
       .some(rail => rail.props('actions')?.some(
         (action: { key: string }) => action.key === 'delete-property',
@@ -1566,7 +1572,7 @@ describe('CardDesignEditor issue navigation', () => {
           OcTree: OcTreeStub,
           OcCard: OcCardStub,
           OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
+          Teleport: TeleportStub,
         },
       },
     })

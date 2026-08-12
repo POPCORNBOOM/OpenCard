@@ -1,5 +1,10 @@
 <template>
   <section class="snapshot-card-diff-editor" :class="`is-layout-${comparisonLayout}`">
+    <aside
+      :id="inspectorId"
+      class="snapshot-card-diff-editor__inspector"
+      :aria-label="t('versioning.diff.cardInspector')"
+    />
     <section
       v-for="side in visibleSides"
       :key="side.key"
@@ -28,6 +33,7 @@
         :comparison-changed-instance-ids="comparisonChanges?.instanceIds ? [...comparisonChanges.instanceIds] : undefined"
         :comparison-document-changed="comparisonChanges?.documentChanged"
         :comparison-property-inputs="propertyInputs[side.key === 'historical' ? 'current' : 'historical']"
+        :comparison-inspector-target="side.key === inspectorSide ? `#${inspectorId}` : undefined"
         :theme-id="themeId"
         :theme-overrides="themeOverrides"
         :render-environment="side.environment"
@@ -43,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CardDesignEditor from '../../card-designer/CardDesignEditor.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
@@ -69,6 +75,7 @@ const props = defineProps<{
   themeOverrides?: OcThemeColorOverrides
 }>()
 const { t } = useI18n()
+const inspectorId = `snapshot-card-diff-inspector-${useId()}`
 const view = ref<CardDesignerViewState>({
   activeFace: 'front',
   clipToFace: true,
@@ -128,6 +135,9 @@ const sides = computed(() => [
 const visibleSides = computed(() => comparisonLayout.value === 'horizontal' || comparisonLayout.value === 'vertical'
   ? sides.value
   : sides.value.filter(side => side.key === comparisonLayout.value))
+const inspectorSide = computed<'historical' | 'current'>(() => (
+  comparisonLayout.value === 'historical' ? 'historical' : 'current'
+))
 
 function releaseSessions(): void {
   renderSessions.value.historical?.release()
@@ -184,21 +194,58 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
 
 <style scoped>
 .snapshot-card-diff-editor {
+  --snapshot-card-diff-inspector-width: calc(320px + var(--oc-space-4));
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr)) var(--snapshot-card-diff-inspector-width);
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
+.snapshot-card-diff-editor__inspector {
+  grid-column: 3;
+  grid-row: 1;
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: var(--oc-space-2);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--oc-space-2) var(--oc-space-2) var(--oc-space-2) 0;
+  overflow: hidden;
+}
+.snapshot-card-diff-editor__inspector :deep(.card-design-editor__sidebar) {
+  display: contents;
+}
+.snapshot-card-diff-editor__inspector :deep(.card-design-editor__sidebar--left > .card-design-editor__resizebar),
+.snapshot-card-diff-editor__inspector :deep(.card-design-editor__sidebar--left > .card-design-editor__sidebar-panel:last-child) {
+  display: none;
+}
+.snapshot-card-diff-editor__inspector :deep(.card-design-editor__sidebar--right > .card-design-editor__resizebar) {
+  display: none;
+}
 .snapshot-card-diff-editor.is-layout-vertical {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--snapshot-card-diff-inspector-width);
   grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.snapshot-card-diff-editor.is-layout-vertical .snapshot-card-diff-editor__inspector {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+.snapshot-card-diff-editor.is-layout-vertical .snapshot-card-diff-editor__side {
+  grid-column: 1;
 }
 .snapshot-card-diff-editor.is-layout-historical,
 .snapshot-card-diff-editor.is-layout-current {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--snapshot-card-diff-inspector-width);
+}
+.snapshot-card-diff-editor.is-layout-historical .snapshot-card-diff-editor__inspector,
+.snapshot-card-diff-editor.is-layout-current .snapshot-card-diff-editor__inspector {
+  grid-column: 2;
+}
+.snapshot-card-diff-editor.is-layout-historical .snapshot-card-diff-editor__side,
+.snapshot-card-diff-editor.is-layout-current .snapshot-card-diff-editor__side {
+  grid-column: 1;
 }
 .snapshot-card-diff-editor__side {
   display: grid;
@@ -209,6 +256,10 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
 }
 .snapshot-card-diff-editor__side + .snapshot-card-diff-editor__side {
   border-left: var(--oc-border-width) solid var(--oc-border-default);
+}
+.snapshot-card-diff-editor.is-layout-vertical .snapshot-card-diff-editor__side + .snapshot-card-diff-editor__side {
+  border-top: var(--oc-border-width) solid var(--oc-border-default);
+  border-left: 0;
 }
 .snapshot-card-diff-editor__header {
   display: flex;
@@ -222,78 +273,17 @@ function snapshotPath(snapshot: SnapshotDescriptorDto): string {
 }
 .snapshot-card-diff-editor__header strong { color: var(--oc-fg-default); }
 
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor) {
+.snapshot-card-diff-editor__side :deep(.card-design-editor) {
+  --card-editor-left-sidebar-visible-width: 0px !important;
+  --card-editor-left-sidebar-edge-inset: 0px !important;
   --card-editor-right-sidebar-visible-width: 0px !important;
   --card-editor-right-sidebar-edge-inset: 0px !important;
 }
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__sidebar--right),
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__resizebar--vertical:last-of-type) {
+.snapshot-card-diff-editor__side :deep(.card-design-editor__overlay-layout) {
   display: none;
 }
-
-.snapshot-card-diff-editor__side :deep(.card-design-editor__sidebar--left > .card-design-editor__resizebar),
-.snapshot-card-diff-editor__side :deep(.card-design-editor__sidebar--left > .card-design-editor__sidebar-panel:last-child) {
-  display: none;
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor) {
-  --card-editor-left-sidebar-visible-width: 0px !important;
-  --card-editor-left-sidebar-edge-inset: 0px !important;
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left),
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
-  display: none;
-}
-
-/* Keep the original Card Designer grid columns when its historical-only left
-   panels are hidden from the current comparison side. */
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__resizebar--vertical:first-of-type) {
-  display: block;
-  visibility: hidden;
-  grid-column: 2;
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--left) {
-  display: grid;
-  visibility: hidden;
-  grid-column: 1;
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__center-spacer) {
-  grid-column: 3;
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__sidebar--right) {
-  grid-column: 5;
-}
-
-/* The Card Designer keeps its panels as overlays in normal editing. In a
-   comparison side the visible panel is a real boundary for the card surface,
-   so the shared editor viewport must reserve that space instead of rendering
-   underneath the panel. */
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-historical :deep(.card-design-editor__stage-base) {
-  width: calc(100% - var(--card-editor-left-sidebar-visible-width, 320px)
-    - var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4)));
-  margin-left: calc(var(--card-editor-left-sidebar-visible-width, 320px)
-    + var(--card-editor-left-sidebar-edge-inset, var(--oc-space-4)));
-}
-
-.snapshot-card-diff-editor:not(.is-layout-historical):not(.is-layout-current)
-  .snapshot-card-diff-editor__side.is-side-current :deep(.card-design-editor__stage-base) {
-  width: calc(100% - var(--card-editor-right-sidebar-visible-width, 320px)
-    - var(--card-editor-right-sidebar-edge-inset, var(--oc-space-4)));
+.snapshot-card-diff-editor__side :deep(.card-design-editor__face-tools),
+.snapshot-card-diff-editor__side :deep(.card-design-editor__face-tools.is-right-sidebar-collapsed) {
+  right: var(--oc-space-2);
 }
 </style>

@@ -76,10 +76,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         label: block.name?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
-        changeMarkers: changed && comparisonRole ? [{
-          icon: comparisonRole === 'historical' ? 'status.change-removed' : 'status.change-added',
-          tone: comparisonRole === 'historical' ? 'danger' : 'success',
-        }] : undefined,
+        changeMarkers: changed && comparisonRole ? [
+          { icon: 'status.change-removed', tone: 'danger' },
+          { icon: 'status.change-added', tone: 'success' },
+        ] : undefined,
         renamable: !readOnly,
         draggable: !readOnly,
         actions: readOnly ? [] : [

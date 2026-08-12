@@ -56,6 +56,7 @@ export interface EditorProps {
   comparisonChangedInstanceIds?: readonly string[]
   comparisonDocumentChanged?: boolean
   comparisonPropertyInputs?: readonly PropertyEditorInput[]
+  comparisonInspectorTarget?: string
 }
 
 export interface EditorEmits {

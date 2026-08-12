@@ -17,6 +17,7 @@
     'is-comparison-editor': isObserveOnly && props.comparisonRole,
     'is-comparison-historical': props.comparisonRole === 'historical',
     'is-comparison-current': props.comparisonRole === 'current',
+    'is-comparison-external-inspector': Boolean(props.comparisonInspectorTarget),
   }" :style="editorShellStyle" tabindex="-1"
     @keydown="handleRootKeydown">
     <div
@@ -117,6 +118,7 @@
       <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer"
         :class="{ 'is-sidebar-width-resizing': isSidebarWidthResizing }">
         <div class="card-design-editor__overlay-layout">
+          <Teleport :to="props.comparisonInspectorTarget ?? 'body'" :disabled="!props.comparisonInspectorTarget">
           <aside
             ref="leftSidebarRef"
             class="card-design-editor__sidebar card-design-editor__sidebar--left"
@@ -186,6 +188,7 @@
               </OcCard>
             </div>
           </aside>
+          </Teleport>
 
           <div
             class="card-design-editor__resizebar card-design-editor__resizebar--vertical"
@@ -223,6 +226,7 @@
             <span class="card-design-editor__resizebar-visual" aria-hidden="true" />
           </div>
 
+          <Teleport :to="props.comparisonInspectorTarget ?? 'body'" :disabled="!props.comparisonInspectorTarget">
           <aside
             ref="rightSidebarRef"
             class="card-design-editor__sidebar card-design-editor__sidebar--right"
@@ -278,6 +282,7 @@
               </OcCard>
             </div>
           </aside>
+          </Teleport>
         </div>
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools" orientation="vertical"

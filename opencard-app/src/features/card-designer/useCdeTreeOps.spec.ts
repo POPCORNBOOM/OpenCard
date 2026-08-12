@@ -68,7 +68,10 @@ describe('useCdeTreeOps active face boundary', () => {
       actions: [],
       contextActions: [],
       icon: 'entity.block-text',
-      changeMarkers: [{ icon: 'status.change-added', tone: 'success' }],
+      changeMarkers: [
+        { icon: 'status.change-removed', tone: 'danger' },
+        { icon: 'status.change-added', tone: 'success' },
+      ],
     })
     state.handleTreeIntent({
       type: 'selection.change', triggerKey: 'front-text', selectedKeys: ['front-text'], mode: 'replace', input: 'left',
