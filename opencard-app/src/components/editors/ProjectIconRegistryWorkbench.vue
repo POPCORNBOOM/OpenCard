@@ -80,30 +80,42 @@
     <section class="project-icon-registry-workbench__right">
       <template v-if="selectedSeries">
         <div class="project-icon-registry-workbench__atlas-pane" :class="{ 'is-comparison': isComparison }">
-          <section v-if="isComparison" class="project-icon-registry-workbench__compare-pane is-historical">
-            <header>A · {{ t('versioning.diff.historical') }}</header>
-            <ProjectIconCropEditor v-if="historicalSeries" fill :runtime="historicalRuntime" :icon="historicalIcon"
-              :alt="historicalSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
-              :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
-              :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
-              :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
-              :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels" read-only />
-            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
-          </section>
-          <section class="project-icon-registry-workbench__compare-pane">
-            <header v-if="isComparison">B · {{ t('versioning.diff.current') }}</header>
+          <template v-if="isComparison">
+            <section class="project-icon-registry-workbench__compare-pane is-historical">
+              <header>A · {{ t('versioning.diff.historical') }}</header>
+              <ProjectIconCropEditor v-if="historicalSeries" fill :runtime="historicalRuntime" :icon="historicalIcon"
+                :alt="historicalSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+                :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+                :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+                :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
+                :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels" read-only />
+              <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+            </section>
+            <section class="project-icon-registry-workbench__compare-pane">
+              <header>B · {{ t('versioning.diff.current') }}</header>
+              <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
+                tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
+              <ProjectIconCropEditor v-if="currentSeries" fill :runtime="currentRuntime" :icon="currentIcon"
+                :alt="currentSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+                :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
+                :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
+                :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
+                :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels" read-only />
+              <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+            </section>
+          </template>
+          <template v-else>
             <OcText v-if="selectedSeriesLoadError" class="project-icon-registry-workbench__load-error"
               tone="danger" size="sm">{{ t('projectConfig.icons.imageLoadFailed') }}</OcText>
-            <ProjectIconCropEditor v-if="currentSeries" fill :runtime="currentRuntime" :icon="currentIcon"
-              :alt="currentSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
+            <ProjectIconCropEditor fill :runtime="currentRuntime" :icon="currentIcon"
+              :alt="selectedSeries.name" :snap-to-grid="gridSettings.snapToGrid" :grid-rows="gridSettings.rows"
               :grid-columns="gridSettings.columns" :pixelated="gridSettings.pixelated"
               :pixelated-label="t('projectConfig.icons.pixelated')" :grid-label="t('projectConfig.icons.showGrid')"
               :focus-selected-label="t('projectConfig.icons.autoFocusSelected')"
               :move-label="t('projectConfig.icons.moveCrop')" :handle-labels="cropHandleLabels"
               :read-only="readOnly" @update:icon="updateSelectedIcon"
               @update:pixelated="updateGridSettings({ pixelated: $event })" />
-            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
-          </section>
+          </template>
           <OcOverlayToolbar class="project-icon-registry-workbench__grid-toolbar"
             :label="t('projectConfig.icons.gridSettings')">
             <OcButton v-if="!readOnly" icon-only size="sm" icon="tool.snap-grid" :active="gridSettings.snapToGrid"
@@ -125,20 +137,28 @@
           </OcOverlayToolbar>
         </div>
         <div class="project-icon-registry-workbench__preview-pane" :class="{ 'is-comparison': isComparison }">
-          <section v-if="isComparison">
-            <header>A · {{ t('versioning.diff.historical') }}</header>
-            <OcText as="strong">{{ historicalIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
-            <ProjectIconView v-if="historicalCatalogEntry" class="project-icon-registry-workbench__preview-icon"
-              :entry="historicalCatalogEntry" mode="preview" />
-            <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
-          </section>
-          <section>
-            <header v-if="isComparison">B · {{ t('versioning.diff.current') }}</header>
+          <template v-if="isComparison">
+            <section>
+              <header>A · {{ t('versioning.diff.historical') }}</header>
+              <OcText as="strong">{{ historicalIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+              <ProjectIconView v-if="historicalCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+                :entry="historicalCatalogEntry" mode="preview" />
+              <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+            </section>
+            <section>
+              <header>B · {{ t('versioning.diff.current') }}</header>
+              <OcText as="strong">{{ currentIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
+              <ProjectIconView v-if="currentCatalogEntry" class="project-icon-registry-workbench__preview-icon"
+                :entry="currentCatalogEntry" mode="preview" />
+              <OcEmpty v-else tone="muted">{{ t('versioning.diff.missing') }}</OcEmpty>
+            </section>
+          </template>
+          <template v-else>
             <OcText as="strong">{{ currentIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
             <ProjectIconView v-if="currentCatalogEntry" class="project-icon-registry-workbench__preview-icon"
               :entry="currentCatalogEntry" mode="preview" />
-            <OcEmpty v-else tone="muted">{{ isComparison ? t('versioning.diff.missing') : t('projectConfig.icons.noIconSelected') }}</OcEmpty>
-          </section>
+            <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
+          </template>
         </div>
       </template>
       <div v-else class="project-icon-registry-workbench__placeholder">

@@ -74,6 +74,8 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(focusButton?.props('disabled')).toBe(false)
     expect(focusButton?.attributes('aria-pressed')).toBe('true')
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
+    expect(wrapper.findAll('.project-icon-registry-workbench__compare-pane')).toHaveLength(0)
+    expect(wrapper.find('.project-icon-registry-workbench__preview-pane > section').exists()).toBe(false)
   })
 
   it('keeps the original workbench owner in read-only comparison mode', async () => {
@@ -100,6 +102,7 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.findAll('.project-config-section__heading')).toHaveLength(3)
     expect(wrapper.findAll('.project-icon-registry-workbench__change-markers')).toHaveLength(3)
     expect(wrapper.findAllComponents(ProjectIconCropEditor)).toHaveLength(2)
+    expect(wrapper.findAll('.project-icon-registry-workbench__compare-pane')).toHaveLength(2)
     expect(wrapper.findAllComponents(ProjectIconCropEditor)[0]?.props('runtime')).toMatchObject({
       src: 'historical://assets/icons/status.png',
     })
