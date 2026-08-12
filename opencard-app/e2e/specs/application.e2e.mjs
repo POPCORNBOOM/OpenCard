@@ -23,6 +23,12 @@ async function treeRow(text) {
   return row
 }
 
+async function projectVersionRow(version) {
+  const row = await $(`//div[contains(concat(' ', normalize-space(@class), ' '), ' project-version-list ')]//*[contains(concat(' ', normalize-space(@class), ' '), ' oc-tree__row ')][.//*[contains(concat(' ', normalize-space(@class), ' '), ' oc-tree__label ')][normalize-space(.)='v${version}']]`)
+  await row.waitForDisplayed()
+  return row
+}
+
 async function dialogButton(label) {
   const button = await $(`//*[contains(concat(' ', normalize-space(@class), ' '), ' oc-dialog ')][@role='dialog']//button[normalize-space(.)='${label}']`)
   await button.waitForClickable()
@@ -125,7 +131,7 @@ describe('OpenCard desktop application', () => {
     await (await dialogButton('保存版本')).click()
     await browser.waitUntil(async () => (await $$('.project-version-list .oc-tree__row')).length === 2)
 
-    const firstVersion = await treeRow('v0.0.1')
+    const firstVersion = await projectVersionRow('0.0.1')
     await firstVersion.click()
     await waitForText('版本信息')
     await (await dialogButton('恢复到此版本')).click()
