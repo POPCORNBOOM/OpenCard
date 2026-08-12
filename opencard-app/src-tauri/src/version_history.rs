@@ -341,6 +341,15 @@ fn prepare_project(
         )?;
     }
 
+    let compare_root = project_history_root.join("compare");
+    if compare_root.exists() {
+        fs::remove_dir_all(&compare_root).map_err(|error| {
+            HistoryFailure::new("history-io", "cleanup-compare", error.to_string())
+                .project_id(&project_id)
+                .retryable()
+        })?;
+    }
+
     prepare_repository(&project_history_root.join("history.git"), &project_id)?;
     repository::recover_pending_transactions(&ProjectHistoryContext {
         canonical_root: canonical_root.clone(),
@@ -868,6 +877,28 @@ mod tests {
                 .unwrap(),
             Some("refs/heads/main")
         );
+    }
+
+    #[test]
+    fn prepare_removes_compare_materialization_left_by_a_previous_process() {
+        let project = tempfile::tempdir().unwrap();
+        let storage = tempfile::tempdir().unwrap();
+        let prepared = prepare_project(project.path(), storage.path(), 1, Vec::new()).unwrap();
+        let compare_root = storage
+            .path()
+            .join("version-history/v1")
+            .join(format!("p1-{}", prepared.identity.project_id))
+            .join("compare");
+        fs::create_dir_all(compare_root.join("stale-lease/historical")).unwrap();
+        fs::write(
+            compare_root.join("stale-lease/historical/file.txt"),
+            b"stale",
+        )
+        .unwrap();
+
+        prepare_project(project.path(), storage.path(), 2, Vec::new()).unwrap();
+
+        assert!(!compare_root.exists());
     }
 
     #[test]
