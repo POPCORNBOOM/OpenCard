@@ -224,7 +224,8 @@ function createSeriesPropertyInput(series: ProjectIconSeries | undefined, key: s
     },
   }]
 }
-function createIconPropertyInputs(icon: ProjectIcon | null, identity: string | null): PropertyEditorInput[] {
+function createIconPropertyInputs(icon: ProjectIcon | null, identity: string | null,
+  includeAtlasRotation = false): PropertyEditorInput[] {
   if (!icon || identity === null) return []
   return [{
     key: `icon:${identity.toLocaleLowerCase()}`,
@@ -238,7 +239,7 @@ function createIconPropertyInputs(icon: ProjectIcon | null, identity: string | n
       height: String(icon.height),
       pixelated: String(icon.pixelated ?? false),
       rotation: `${icon.rotation ?? 0}°`,
-      atlasRotation: `${icon.atlasRotation ?? 0}°`,
+      ...(includeAtlasRotation ? { atlasRotation: `${icon.atlasRotation ?? 0}°` } : {}),
     },
     fields: {
       iconKey: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 1, required: true, commitMode: 'blur' },
@@ -252,20 +253,22 @@ function createIconPropertyInputs(icon: ProjectIcon | null, identity: string | n
         title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 2,
         options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
       },
-      atlasRotation: {
-        title: t('projectConfig.icons.atlasRotation'), fieldType: 'string', category: 'appearance', order: 3,
-        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
-      },
+      ...(includeAtlasRotation ? {
+        atlasRotation: {
+          title: t('projectConfig.icons.atlasRotation'), fieldType: 'string', category: 'appearance', order: 3,
+          options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select' as const,
+        },
+      } : {}),
     },
   }]
 }
 const propertyInputs = computed(() => [
   ...(props.comparison ? createSeriesPropertyInput(props.currentMissing ? undefined : props.series, props.series.key) : []),
-  ...createIconPropertyInputs(selectedIcon.value, selectedIconKey.value),
+  ...createIconPropertyInputs(selectedIcon.value, selectedIconKey.value, props.comparison),
 ])
 const comparisonPropertyInputs = computed(() => [
   ...createSeriesPropertyInput(props.comparisonSeries, props.series.key),
-  ...createIconPropertyInputs(comparisonIcon.value, selectedIconKey.value),
+  ...createIconPropertyInputs(comparisonIcon.value, selectedIconKey.value, true),
 ])
 
 function treeIndex(key: string | null): number | null {

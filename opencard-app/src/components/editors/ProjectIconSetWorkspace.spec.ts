@@ -46,7 +46,10 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.getComponent(OcTree).props('actions')?.get('move-bottom')?.icon).toBe('format.vertical-bottom')
     expect([...wrapper.getComponent(OcTree).props('data').items.get('icon:0')!.disabledActions!.keys()])
       .toEqual(['move-top', 'move-up'])
-    expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
+    const inspector = wrapper.getComponent(PropertyEditor).props('inputs')[0]
+    expect(inspector?.record.name).toBe('Warning')
+    expect(inspector?.record).not.toHaveProperty('atlasRotation')
+    expect(inspector?.fields).not.toHaveProperty('atlasRotation')
   })
 
   it('keeps selection available while blocking icon mutations in read-only mode', () => {
@@ -90,6 +93,9 @@ describe('ProjectIconSetWorkspace', () => {
       .toBe('Historical status icons')
     expect(wrapper.getComponent(PropertyEditor).props('comparisonInputs')?.[1]?.record.name)
       .toBe('Historical warning')
+    expect(wrapper.getComponent(PropertyEditor).props('inputs')[1]?.record).toHaveProperty('atlasRotation', '0°')
+    expect(wrapper.getComponent(PropertyEditor).props('comparisonInputs')?.[1]?.record)
+      .toHaveProperty('atlasRotation', '0°')
   })
 
   it('filters by icon name or key while preserving original icon indexes', async () => {
