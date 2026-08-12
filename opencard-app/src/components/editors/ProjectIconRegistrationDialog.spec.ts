@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectIconRegistrationDialog from './ProjectIconRegistrationDialog.vue'
 import OcButton from '../base/OcButton.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
@@ -15,6 +15,8 @@ vi.mock('../../features/workspace/services/fileSystemService', () => ({
 vi.mock('../../features/workspace/services/projectIconSpritesheetComposer', () => ({
   composeProjectIconSpritesheet: mocks.compose,
 }))
+
+enableAutoUnmount(afterEach)
 
 describe('ProjectIconRegistrationDialog', () => {
   beforeEach(() => {
