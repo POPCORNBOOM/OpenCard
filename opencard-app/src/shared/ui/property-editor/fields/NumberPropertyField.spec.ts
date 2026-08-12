@@ -67,6 +67,44 @@ describe('NumberPropertyField', () => {
     expect(wrapper.emitted('update:value')).toEqual([['1.1'], ['0.9']])
   })
 
+  it('rounds step writes and valid blurred input to at most three decimal places', async () => {
+    const wrapper = mount(NumberPropertyField, {
+      props: {
+        definition: { title: 'Scale', fieldType: 'number', step: 0.1 },
+        value: '9.6',
+      },
+    })
+
+    await wrapper.findAll('.number-field__stepper')[0]!.trigger('click')
+    const input = wrapper.get('input')
+    await input.setValue('1.2345')
+    await input.trigger('blur')
+    await input.setValue('-1.2345')
+    await input.trigger('blur')
+
+    expect(wrapper.emitted('update:value')).toEqual([
+      ['9.7'],
+      ['1.2345'],
+      ['1.235'],
+      ['-1.2345'],
+      ['-1.235'],
+    ])
+  })
+
+  it('keeps empty, incomplete, and diagnostic text unchanged on blur', async () => {
+    const wrapper = mount(NumberPropertyField, {
+      props: { definition: { title: 'Number', fieldType: 'number' }, value: '' },
+    })
+    const input = wrapper.get('input')
+
+    await input.setValue('-')
+    await input.trigger('blur')
+    await input.setValue('{{self:value}}')
+    await input.trigger('blur')
+
+    expect(wrapper.emitted('update:value')).toEqual([['-'], ['{{self:value}}']])
+  })
+
   it('steps between allowed values', async () => {
     const wrapper = mount(NumberPropertyField, {
       props: {

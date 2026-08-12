@@ -76,6 +76,24 @@ describe('card document storage projection', () => {
     expect(stored.faces.front.children[0].block).not.toHaveProperty('broken')
   })
 
+  it('projects only constraints supported by each additional field type', () => {
+    const source = createDocument() as unknown as Record<string, unknown>
+    const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>
+    block.additionalFieldDefinition = {
+      label: {
+        fieldType: 'string', minLength: 1, maxLength: 12, multiline: true,
+        options: ['One', '', 'one', 'Two'], enumMode: 'select', min: 5,
+      },
+      score: { fieldType: 'number', min: 0, max: 100, step: 5, multiline: true },
+    }
+
+    const normalized = normalizeCardDocument(source).document
+    expect(normalized.faces.front.children[0]!.block.additionalFieldDefinition).toEqual({
+      label: { fieldType: 'string', minLength: 1, maxLength: 12, multiline: true, options: ['One', 'Two'], enumMode: 'select' },
+      score: { fieldType: 'number', min: 0, max: 100, step: 5 },
+    })
+  })
+
   it('keeps custom instance extras in memory and writes only resolvable public fields', () => {
     const source = createDocument() as unknown as Record<string, unknown>
     const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>

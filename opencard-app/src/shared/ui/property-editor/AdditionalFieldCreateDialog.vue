@@ -1,7 +1,7 @@
 <template>
-  <OcDialog :open="open" :title="t('propertyEditor.customFields.create')" as="form" size="sm"
-    close-on-backdrop @request-close="emit('close')" @submit="emit('submit')">
-        <label v-if="showTitle !== false" class="additional-field-dialog__field">
+  <OcDialog :open="open" :title="t('propertyEditor.customFields.create')" as="form" size="md"
+    close-on-backdrop @request-close="emit('close')" @submit="submit">
+        <label class="additional-field-dialog__field">
           <span>{{ t('propertyEditor.customFields.type') }}</span>
           <OcSelect
             full-width
@@ -27,17 +27,45 @@
           <OcFieldInput
             full-width
             :value="title"
+            :placeholder="fieldKey"
             @input="emitInputValue('update-title', $event)"
           />
         </label>
 
-        <p v-if="errorText" class="additional-field-dialog__error" role="alert">{{ errorText }}</p>
+        <OcButton class="additional-field-dialog__advanced-toggle" type="button" variant="ghost"
+          :icon="advancedOpen ? 'nav.chevron-up' : 'nav.chevron-down'"
+          :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
+          {{ t('propertyEditor.customFields.advanced') }}
+        </OcButton>
+
+        <section v-if="advancedOpen" class="additional-field-dialog__advanced"
+          :aria-label="t('propertyEditor.customFields.advanced')">
+          <PropertyEditor v-if="Object.keys(definitionFields).length" :inputs="definitionInputs"
+            :categories="definitionCategories" sort-mode="category" delete-mode
+            @update-property="updateDefinitionProperty" @add-property="updateDefinitionProperty"
+            @delete-property="deleteDefinitionProperty" />
+          <p v-else class="additional-field-dialog__empty">
+            {{ t('propertyEditor.customFields.noAdvanced') }}
+          </p>
+        </section>
+
+        <section class="additional-field-dialog__preview"
+          :aria-label="t('propertyEditor.customFields.preview')">
+          <span>{{ t('propertyEditor.customFields.preview') }}</span>
+          <div class="additional-field-dialog__preview-field">
+            <span>{{ title.trim() || fieldKey || t('propertyEditor.customFields.previewFallback') }}</span>
+            <PropertyFieldRenderer :definition="previewDefinition" :value="previewValue" editor-id="field"
+              @update:value="previewValue = $event" />
+          </div>
+        </section>
+
+        <p v-if="displayErrorText" class="additional-field-dialog__error" role="alert">{{ displayErrorText }}</p>
 
     <template #footer>
       <OcButton type="button" @click="emit('close')">
         {{ t('propertyEditor.customFields.cancel') }}
       </OcButton>
-      <OcButton type="submit" variant="solid" :disabled="invalid">
+      <OcButton type="submit" variant="solid" :disabled="invalid || Boolean(definitionError)">
         {{ t('propertyEditor.customFields.confirmCreate') }}
       </OcButton>
     </template>
@@ -45,12 +73,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getAdditionalFieldPropertyDefinition, type AdditionalFieldDefinition } from '../../../entities/card/model'
+import { createPropertyDefaultValue } from '../../../entities/card/schema'
+import type { PropertyEditorCategoryDefinition, PropertyEditorFieldDefinition,
+  PropertyEditorInput, PropertyEditorMutation, PropertyEditorFieldIntent } from './propertyEditor.types'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
+import PropertyEditor from './PropertyEditor.vue'
+import PropertyFieldRenderer from './PropertyFieldRenderer.vue'
 
 const props = defineProps<{
   open: boolean
@@ -58,7 +92,6 @@ const props = defineProps<{
   fieldType: string
   fieldKey: string
   title: string
-  showTitle?: boolean
   errorText?: string
   invalid?: boolean
 }>()
@@ -68,13 +101,138 @@ const emit = defineEmits<{
   (e: 'update-field-key', value: string): void
   (e: 'update-title', value: string): void
   (e: 'close'): void
-  (e: 'submit'): void
+  (e: 'submit', definition: AdditionalFieldDefinition): void
 }>()
 const { t } = useI18n()
+const advancedOpen = ref(false)
+const definitionRecord = ref<Record<string, unknown>>({})
+const previewValue = ref<unknown>('')
 const fieldTypeOptions = computed(() => props.fieldTypes.map(option => ({
   value: option,
   label: t(`propertyEditor.fieldTypes.${option}`),
 })))
+const definitionCategories = computed(() => new Map<string, PropertyEditorCategoryDefinition>([
+  ['advanced', { title: t('propertyEditor.customFields.advanced'), icon: 'data.symbol-class' }],
+]))
+const definitionFields = computed<Record<string, PropertyEditorFieldDefinition>>(() => {
+  const common = { category: 'advanced', deletable: true } as const
+  if (props.fieldType === 'string') return Object.fromEntries(Object.entries({
+    minLength: { ...common, title: t('propertyEditor.customFields.constraints.minLength'), fieldType: 'number', min: 0, step: 1 },
+    maxLength: { ...common, title: t('propertyEditor.customFields.constraints.maxLength'), fieldType: 'number', min: 0, step: 1 },
+    multiline: { ...common, title: t('propertyEditor.customFields.constraints.multiline'), fieldType: 'boolean' },
+    options: { ...common, title: t('propertyEditor.customFields.constraints.options'), fieldType: 'string[]' },
+    enumMode: { ...common, title: t('propertyEditor.customFields.constraints.enumMode'), fieldType: 'string', options: ['select', 'stepper'] },
+  }).filter(([, value]) => value !== undefined)) as Record<string, PropertyEditorFieldDefinition>
+  if (props.fieldType === 'number') return Object.fromEntries(Object.entries({
+    min: { ...common, title: t('propertyEditor.customFields.constraints.min'), fieldType: 'number' },
+    max: { ...common, title: t('propertyEditor.customFields.constraints.max'), fieldType: 'number' },
+    step: { ...common, title: t('propertyEditor.customFields.constraints.step'), fieldType: 'number' },
+  }).filter(([, value]) => value !== undefined)) as Record<string, PropertyEditorFieldDefinition>
+  return {}
+})
+const definitionInputs = computed<readonly PropertyEditorInput[]>(() => [{
+  key: 'additional-field-definition',
+  title: t('propertyEditor.customFields.advanced'),
+  record: definitionRecord.value,
+  fields: definitionFields.value,
+}])
+const definitionError = computed(() => validateDefinitionRecord(props.fieldType, definitionRecord.value))
+const displayErrorText = computed(() => props.errorText || (definitionError.value
+  ? t(`propertyEditor.customFields.errors.${definitionError.value}`)
+  : ''))
+const previewDefinition = computed<PropertyEditorFieldDefinition>(() => ({
+  ...getAdditionalFieldPropertyDefinition(buildDefinition()),
+  title: props.title.trim() || props.fieldKey || t('propertyEditor.customFields.previewFallback'),
+}) as PropertyEditorFieldDefinition)
+
+watch(() => props.open, open => {
+  if (open) {
+    advancedOpen.value = false
+    definitionRecord.value = {}
+    resetPreviewValue()
+  }
+})
+watch(() => props.fieldType, () => {
+  definitionRecord.value = {}
+})
+watch(() => [props.fieldType, JSON.stringify(definitionRecord.value)], resetPreviewValue, { immediate: true })
+
+function updateDefinitionProperty(mutation: PropertyEditorMutation): void {
+  definitionRecord.value = { ...definitionRecord.value, [mutation.fieldKey]: mutation.value }
+}
+
+function deleteDefinitionProperty(intent: PropertyEditorFieldIntent): void {
+  const next = { ...definitionRecord.value }
+  delete next[intent.fieldKey]
+  definitionRecord.value = next
+}
+
+function parseNumber(value: unknown): number | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function validateDefinitionRecord(fieldType: string, record: Record<string, unknown>): string | null {
+  if (fieldType === 'string') {
+    const minLength = parseNumber(record.minLength)
+    const maxLength = parseNumber(record.maxLength)
+    if ((record.minLength !== undefined && (!Number.isInteger(minLength) || minLength! < 0))
+      || (record.maxLength !== undefined && (!Number.isInteger(maxLength) || maxLength! < 0))) return 'invalidLength'
+    if (minLength !== undefined && maxLength !== undefined && minLength > maxLength) return 'lengthRange'
+    const options = Array.isArray(record.options) ? record.options : []
+    const normalized = options.map(value => typeof value === 'string' ? value.trim() : '')
+    if (normalized.some(value => !value)) return 'invalidOption'
+    if (new Set(normalized.map(value => value.toLocaleLowerCase())).size !== normalized.length) return 'duplicateOption'
+    if (record.enumMode !== undefined && normalized.length === 0) return 'enumModeWithoutOptions'
+  }
+  if (fieldType === 'number') {
+    const min = parseNumber(record.min)
+    const max = parseNumber(record.max)
+    const step = parseNumber(record.step)
+    if ((record.min !== undefined && min === undefined) || (record.max !== undefined && max === undefined)) return 'invalidNumber'
+    if (min !== undefined && max !== undefined && min > max) return 'numberRange'
+    if (record.step !== undefined && (step === undefined || step <= 0)) return 'invalidStep'
+  }
+  return null
+}
+
+function buildDefinition(): AdditionalFieldDefinition {
+  const title = props.title.trim()
+  const base = { fieldType: props.fieldType, ...(title ? { title } : {}) }
+  if (props.fieldType === 'string') {
+    const minLength = parseNumber(definitionRecord.value.minLength)
+    const maxLength = parseNumber(definitionRecord.value.maxLength)
+    const options = Array.isArray(definitionRecord.value.options)
+      ? definitionRecord.value.options.map(value => String(value).trim()).filter(Boolean) : []
+    return {
+      ...base, fieldType: 'string',
+      ...(minLength !== undefined ? { minLength } : {}),
+      ...(maxLength !== undefined ? { maxLength } : {}),
+      ...(typeof definitionRecord.value.multiline === 'boolean' ? { multiline: definitionRecord.value.multiline } : {}),
+      ...(options.length ? { options } : {}),
+      ...(options.length && (definitionRecord.value.enumMode === 'select' || definitionRecord.value.enumMode === 'stepper')
+        ? { enumMode: definitionRecord.value.enumMode } : {}),
+    }
+  }
+  if (props.fieldType === 'number') {
+    const min = parseNumber(definitionRecord.value.min)
+    const max = parseNumber(definitionRecord.value.max)
+    const step = parseNumber(definitionRecord.value.step)
+    return { ...base, fieldType: 'number', ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}), ...(step !== undefined ? { step } : {}) }
+  }
+  return base as AdditionalFieldDefinition
+}
+
+function resetPreviewValue(): void {
+  previewValue.value = createPropertyDefaultValue(getAdditionalFieldPropertyDefinition(buildDefinition()))
+}
+
+function submit(): void {
+  if (props.invalid || definitionError.value) return
+  emit('submit', buildDefinition())
+}
 
 function emitInputValue(
   eventName: 'update-field-key' | 'update-title',
@@ -94,6 +252,12 @@ function emitInputValue(
   font-size: var(--oc-text-sm);
   color: var(--oc-fg-muted);
 }
+.additional-field-dialog__advanced-toggle { justify-self: start; }
+.additional-field-dialog__advanced { min-width: 0; }
+.additional-field-dialog__empty { margin: 0; color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
+.additional-field-dialog__preview { display: grid; gap: var(--oc-space-2); color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
+.additional-field-dialog__preview-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: var(--oc-space-3); }
+.additional-field-dialog__preview-field > span { overflow: hidden; color: var(--oc-fg-default); text-overflow: ellipsis; white-space: nowrap; }
 
 .additional-field-dialog__error {
   margin: 0;

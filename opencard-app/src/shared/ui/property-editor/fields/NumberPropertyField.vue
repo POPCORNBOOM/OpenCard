@@ -10,6 +10,7 @@
       :readonly="definition.isReadonly"
       full-width
       @input="onInput"
+      @blur="onBlur"
     />
     <template #suffix>
       <span class="number-field__steppers">
@@ -45,6 +46,7 @@ const REPEAT_START_INTERVAL_MS = 160
 const REPEAT_MIN_INTERVAL_MS = 35
 const REPEAT_ACCELERATION_MS = 1800
 const SHIFT_STEP_MULTIPLIER = 5
+const WRITE_PRECISION_SCALE = 1000
 
 let holdTimer: number | null = null
 let holdDirection: -1 | 1 | null = null
@@ -75,18 +77,36 @@ function onInput(event: Event) {
   emit('update:value', (event.target as HTMLInputElement).value)
 }
 
+function onBlur(event: FocusEvent): void {
+  const value = (event.target as HTMLInputElement).value.trim()
+  if (!value) return
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return
+  const normalized = String(normalizeWrittenNumber(parsed))
+  if (normalized !== value) emit('update:value', normalized)
+}
+
+function normalizeWrittenNumber(value: number): number {
+  const roundedMagnitude = Math.round(
+    (Math.abs(value) + Number.EPSILON) * WRITE_PRECISION_SCALE,
+  ) / WRITE_PRECISION_SCALE
+  return Object.is(roundedMagnitude, 0) ? 0 : Math.sign(value) * roundedMagnitude
+}
+
 function calculateNextValue(current: number, direction: -1 | 1, shiftKey: boolean): number {
   if (allowedValues.value.length) {
     const candidates = direction > 0
       ? allowedValues.value.filter(value => value > current)
       : allowedValues.value.filter(value => value < current).reverse()
-    return candidates[Math.min(candidates.length - 1, (shiftKey ? SHIFT_STEP_MULTIPLIER : 1) - 1)] ?? current
+    return normalizeWrittenNumber(
+      candidates[Math.min(candidates.length - 1, (shiftKey ? SHIFT_STEP_MULTIPLIER : 1) - 1)] ?? current,
+    )
   }
   const minimum = props.definition.min ?? -Infinity
   const maximum = props.definition.max ?? Infinity
   const baseStep = props.definition.step ?? 1
   const step = baseStep * (shiftKey ? SHIFT_STEP_MULTIPLIER : 1)
-  return Math.min(maximum, Math.max(minimum, current + direction * step))
+  return normalizeWrittenNumber(Math.min(maximum, Math.max(minimum, current + direction * step)))
 }
 
 function stepValue(direction: -1 | 1, shiftKey: boolean, current = numberValue.value ?? 0): number {

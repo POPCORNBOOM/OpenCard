@@ -319,9 +319,9 @@ describe('card additional fields and bindings', () => {
       data: { text: { score: '8' } },
     }]
 
-    expect(createBlockAdditionalField(block, '1bad', 'number')).toBe('invalid')
-    expect(createBlockAdditionalField(block, 'content', 'number')).toBe('duplicate')
-    expect(createBlockAdditionalField(block, 'score', 'number', 'Score')).toBeNull()
+    expect(createBlockAdditionalField(block, '1bad', { fieldType: 'number' })).toBe('invalid')
+    expect(createBlockAdditionalField(block, 'content', { fieldType: 'number' })).toBe('duplicate')
+    expect(createBlockAdditionalField(block, 'score', { fieldType: 'number', title: 'Score' })).toBeNull()
     expect(block.additionalFieldDefinition?.score).toEqual({ fieldType: 'number', title: 'Score' })
     expect((block as unknown as Record<string, unknown>).score).toBe('0')
     expect(deleteBlockAdditionalField(document, block, 'score')).toBe(1)

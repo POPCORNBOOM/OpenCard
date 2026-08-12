@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { createBlock, type AdditionalFieldKeyError, type CardDocument } from '../../entities/card/model'
-import type { PropertyFieldType } from '../../entities/card/schema'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import type { ProjectCustomBlockCatalog } from '../workspace/model/projectCustomBlocks'
 
@@ -34,8 +33,7 @@ function createHarness() {
     cardId: string
     blockId: string
     fieldKey: string
-    fieldType: PropertyFieldType
-    title?: string
+    definition: import('../../entities/card/model').AdditionalFieldDefinition
   }) => AdditionalFieldKeyError | 'invalid-target' | null>(() => null)
   const deleteBlockField = vi.fn(() => true)
   const customBlockCatalog = ref<ProjectCustomBlockCatalog>(new Map())
@@ -199,8 +197,7 @@ describe('useCdeDataTableCommands', () => {
         cardId: '__blueprint__',
         blockId: 'text',
         fieldKey: 'score',
-        fieldType: 'number',
-        title: 'Score',
+        definition: { fieldType: 'number', title: 'Score' },
       })
       return null
     })
@@ -208,8 +205,7 @@ describe('useCdeDataTableCommands', () => {
     expect(state.createField({
       blockId: 'text',
       fieldKey: 'score',
-      fieldType: 'number',
-      title: 'Score',
+      definition: { fieldType: 'number', title: 'Score' },
     })).toBeNull()
     expect(cardDoc.value?.dataTable?.blocks.text).toEqual(['content', 'score'])
   })
@@ -221,7 +217,7 @@ describe('useCdeDataTableCommands', () => {
     expect(state.createField({
       blockId: 'text',
       fieldKey: 'score',
-      fieldType: 'number',
+      definition: { fieldType: 'number' },
     })).toBe('duplicate')
     expect(cardDoc.value?.dataTable?.blocks).toEqual({ text: ['content'] })
     expect(refreshDocumentState).toHaveBeenCalledTimes(1)
@@ -270,7 +266,7 @@ describe('useCdeDataTableCommands', () => {
     expect(state.updateCell({ cardId: '__blueprint__', blockId: custom.id, fieldKey: 'size', value: '160' })).toBe(true)
     expect(state.updateCell({ cardId: '__blueprint__', blockId: custom.id, fieldKey: 'notes', value: 'Changed' })).toBe(false)
     expect(updateBlockField).toHaveBeenCalledTimes(1)
-    expect(state.createField({ blockId: custom.id, fieldKey: 'other', fieldType: 'string' })).toBe('invalid-target')
+    expect(state.createField({ blockId: custom.id, fieldKey: 'other', definition: { fieldType: 'string' } })).toBe('invalid-target')
     expect(state.deleteField(custom.id, 'size')).toBe(false)
     expect(createBlockField).not.toHaveBeenCalled()
     expect(deleteBlockField).not.toHaveBeenCalled()

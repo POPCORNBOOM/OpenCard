@@ -58,8 +58,13 @@ describe('useCdeBlockFieldCommands', () => {
   it('resets overrides and deletes blueprint fields across every instance', () => {
     const { block, document, commands } = createHarness()
     expect(commands.createField({
-      cardId: '__blueprint__', blockId: 'text', fieldKey: 'score', fieldType: 'number', title: 'Score',
+      cardId: '__blueprint__', blockId: 'text', fieldKey: 'score',
+      definition: { fieldType: 'number', title: 'Score', min: 5, max: 100, step: 5 },
     })).toBeNull()
+    expect(block.additionalFieldDefinition?.score).toEqual({
+      fieldType: 'number', title: 'Score', min: 5, max: 100, step: 5,
+    })
+    expect((block as unknown as Record<string, unknown>).score).toBe('5')
     commands.updateField({ cardId: 'one', blockId: 'text', fieldKey: 'score' }, '10')
     commands.updateField({ cardId: 'two', blockId: 'text', fieldKey: 'score' }, '20')
 

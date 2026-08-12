@@ -16,6 +16,7 @@ import {
   isCardStoredValue,
   validateAdditionalFieldKey,
   type AdditionalFieldKeyError,
+  type AdditionalFieldDefinition,
 } from '../../entities/card/model'
 import {
   additionalFieldTypes,
@@ -25,7 +26,6 @@ import {
   propertyEditorCategoryDefinitions,
   resolveNulls,
   type EditorPropertyDefinition,
-  type PropertyFieldType,
 } from '../../entities/card/schema'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
@@ -57,8 +57,7 @@ export type CdePropertyResetMutation = {
 export type CdeAdditionalFieldCreateMutation = {
   key: string
   fieldKey: string
-  title?: string
-  fieldType: PropertyFieldType
+  definition: AdditionalFieldDefinition
 }
 
 export type CdePropertyDeleteMutation = {
@@ -586,13 +585,12 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
   }
 
-  function createAdditionalField({ key, fieldKey, title, fieldType }: CdeAdditionalFieldCreateMutation) {
+  function createAdditionalField({ key, fieldKey, definition }: CdeAdditionalFieldCreateMutation) {
     return blockFieldCommands.createField({
       cardId: options.blueprintCardId,
       blockId: key,
       fieldKey,
-      fieldType,
-      title,
+      definition,
     })
   }
 
@@ -617,7 +615,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     additionalFieldTargetBlockId.value = null
   }
 
-  function submitAdditionalFieldCreate(): AdditionalFieldKeyError | 'invalid-target' | null {
+  function submitAdditionalFieldCreate(definition: AdditionalFieldDefinition): AdditionalFieldKeyError | 'invalid-target' | null {
     const document = options.cardDoc.value
     const block = document && additionalFieldTargetBlockId.value
       ? findCdeBlock(document, additionalFieldTargetBlockId.value)
@@ -627,8 +625,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     const result = createAdditionalField({
       key: block.id,
       fieldKey: additionalFieldCreateDraft.value.fieldKey,
-      fieldType: additionalFieldCreateDraft.value.fieldType,
-      title: additionalFieldCreateDraft.value.title,
+      definition,
     })
     if (!result) closeAdditionalFieldCreateDialog()
     return result

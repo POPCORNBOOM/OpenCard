@@ -312,6 +312,7 @@ import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editor
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
   getCardFieldDefinition,
+  type AdditionalFieldDefinition,
   type CardBlock,
   type CardFaceKey,
   type FlowDirection,
@@ -852,17 +853,16 @@ function closeAdditionalFieldDialog(): void {
   closeAdditionalFieldCreateDialog()
 }
 
-function submitAdditionalFieldDialog(): void {
+function submitAdditionalFieldDialog(definition: AdditionalFieldDefinition): void {
   const blockId = dataTableCustomFieldTargetBlockId.value
   if (!blockId) {
-    submitAdditionalFieldCreate()
+    submitAdditionalFieldCreate(definition)
     return
   }
   const result = createDataTableField({
     blockId,
     fieldKey: additionalFieldCreateDraft.value.fieldKey,
-    fieldType: additionalFieldCreateDraft.value.fieldType,
-    title: additionalFieldCreateDraft.value.title,
+    definition,
   })
   if (result) return
   dataTableCustomFieldTargetBlockId.value = null

@@ -5,14 +5,11 @@ import {
   isCardStoredValue,
   setCardFieldValue,
   type AdditionalFieldKeyError,
+  type AdditionalFieldDefinition,
   type CardBlock,
   type CardDocument,
 } from '../../entities/card/model'
-import {
-  getDefault,
-  getTypePropertyEditorSchema,
-  type PropertyFieldType,
-} from '../../entities/card/schema'
+import { getDefault, getTypePropertyEditorSchema } from '../../entities/card/schema'
 import { isBlockContainer } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { resetInstanceOverrideField } from './cdeInstanceOverride'
@@ -25,8 +22,7 @@ export type CdeBlockFieldTarget = {
 }
 
 export type CdeBlockFieldCreateTarget = CdeBlockFieldTarget & {
-  fieldType: PropertyFieldType
-  title?: string
+  definition: AdditionalFieldDefinition
 }
 
 type UseCdeBlockFieldCommandsOptions = {
@@ -112,7 +108,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
     if (target.cardId !== options.blueprintCardId) return 'invalid-target'
     const { block } = resolveTarget(target)
     if (!block) return 'invalid-target'
-    const error = createBlockAdditionalField(block, target.fieldKey, target.fieldType, target.title)
+    const error = createBlockAdditionalField(block, target.fieldKey, target.definition)
     if (error) return error
     options.refreshDocumentState()
     options.markDocumentChanged('action')

@@ -58,10 +58,12 @@ export type PropertyConstraintMap = {
 }
 
 export type PropertyFieldType = keyof PropertyConstraintMap
-export type AdditionalFieldDefinition = {
-    title?: string
-    fieldType: PropertyFieldType
-}
+type AdditionalFieldDefinitionBase<T extends PropertyFieldType> = { title?: string; fieldType: T }
+export type AdditionalFieldDefinition =
+    | (AdditionalFieldDefinitionBase<'string'> & Pick<PropertyConstraintMap['string'],
+        'minLength' | 'maxLength' | 'options' | 'enumMode' | 'multiline'>)
+    | (AdditionalFieldDefinitionBase<'number'> & PropertyConstraintMap['number'])
+    | AdditionalFieldDefinitionBase<Exclude<(typeof additionalFieldTypes)[number], 'string' | 'number'>>
 export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
 export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
 export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
@@ -104,14 +106,61 @@ export function parseAdditionalFieldDefinitions(
             continue
         }
 
+        const fieldType = source.fieldType as (typeof additionalFieldTypes)[number]
         const title = typeof source.title === 'string' ? source.title.trim() : ''
-        definitions[fieldKey] = {
-            fieldType: source.fieldType as PropertyFieldType,
-            ...(title ? { title } : {}),
+        const base = { fieldType, ...(title ? { title } : {}) }
+        if (fieldType === 'string') {
+            const minLength = parseNonNegativeInteger(source.minLength)
+            const maxLength = parseNonNegativeInteger(source.maxLength)
+            const options = parseStringOptions(source.options)
+            definitions[fieldKey] = {
+                ...base,
+                fieldType,
+                ...(minLength !== undefined ? { minLength } : {}),
+                ...(maxLength !== undefined ? { maxLength } : {}),
+                ...(typeof source.multiline === 'boolean' ? { multiline: source.multiline } : {}),
+                ...(options.length ? { options } : {}),
+                ...(options.length && (source.enumMode === 'select' || source.enumMode === 'stepper')
+                    ? { enumMode: source.enumMode } : {}),
+            }
+        } else if (fieldType === 'number') {
+            const min = parseFiniteNumber(source.min)
+            const max = parseFiniteNumber(source.max)
+            const step = parseFiniteNumber(source.step)
+            definitions[fieldKey] = {
+                ...base,
+                fieldType,
+                ...(min !== undefined ? { min } : {}),
+                ...(max !== undefined ? { max } : {}),
+                ...(step !== undefined && step > 0 ? { step } : {}),
+            }
+        } else {
+            definitions[fieldKey] = { ...base, fieldType } as AdditionalFieldDefinition
         }
     }
 
     return definitions
+}
+
+function parseFiniteNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function parseNonNegativeInteger(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined
+}
+
+function parseStringOptions(value: unknown): string[] {
+    if (!Array.isArray(value)) return []
+    const seen = new Set<string>()
+    return value.flatMap(candidate => {
+        if (typeof candidate !== 'string') return []
+        const option = candidate.trim()
+        const identity = option.toLocaleLowerCase()
+        if (!option || seen.has(identity)) return []
+        seen.add(identity)
+        return [option]
+    })
 }
 
 export function validateAdditionalFieldKey(

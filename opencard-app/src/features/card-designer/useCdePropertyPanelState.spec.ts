@@ -76,11 +76,17 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(state.createAdditionalField({
       key: block.id,
       fieldKey: 'enabled',
-      title: 'Enabled',
-      fieldType: 'boolean',
+      definition: { fieldType: 'boolean', title: 'Enabled' },
     })).toBeNull()
     expect(block.additionalFieldDefinition?.enabled).toEqual({ fieldType: 'boolean', title: 'Enabled' })
     expect((block as unknown as Record<string, unknown>).enabled).toBe('false')
+
+    expect(state.createAdditionalField({
+      key: block.id,
+      fieldKey: 'rank',
+      definition: { fieldType: 'number', title: 'Rank', min: 1, max: 10, step: 1 },
+    })).toBeNull()
+    expect(state.propertyInputs.value[0]?.fields.rank).toMatchObject({ min: 1, max: 10, step: 1 })
   })
 
   it('writes instance overrides and resets them without changing the blueprint', () => {

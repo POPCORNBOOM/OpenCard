@@ -1287,11 +1287,15 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     const dialog = wrapper.getComponent({ name: 'AdditionalFieldCreateDialog' })
     expect(dialog.props('open')).toBe(true)
+    expect(dialog.props('fieldTypes')).toEqual([
+      'string', 'filePath', 'anchorPosition', 'alignPosition', 'verticalAlignPosition',
+      'flowDirection', 'number', 'boolean', 'color',
+    ])
     dialog.vm.$emit('update-field-key', 'score')
     dialog.vm.$emit('update-field-type', 'number')
     dialog.vm.$emit('update-title', 'Score')
     await nextTick()
-    dialog.vm.$emit('submit')
+    dialog.vm.$emit('submit', { fieldType: 'number', title: 'Score' })
     await nextTick()
 
     const contentUpdates = wrapper.emitted('update:modelValue') ?? []

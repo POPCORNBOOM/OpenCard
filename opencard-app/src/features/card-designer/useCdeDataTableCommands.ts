@@ -6,12 +6,12 @@ import { computed, type DeepReadonly, type Ref } from 'vue'
 import {
   setCardFieldValue,
   type AdditionalFieldKeyError,
+  type AdditionalFieldDefinition,
   type CardBlock,
   type CardDocument,
 } from '../../entities/card/model'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { isBlockContainer } from '../../entities/card/tree'
-import type { PropertyFieldType } from '../../entities/card/schema'
 import type { CardDataWorkbookImportResult, CardDataWorkbookUpdate } from './cardDataWorkbook'
 import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 
@@ -26,15 +26,13 @@ type BlockFieldTarget = {
 }
 
 type BlockFieldCreateTarget = BlockFieldTarget & {
-  fieldType: PropertyFieldType
-  title?: string
+  definition: AdditionalFieldDefinition
 }
 
 export type CdeDataTableFieldCreatePayload = {
   blockId: string
   fieldKey: string
-  fieldType: PropertyFieldType
-  title?: string
+  definition: AdditionalFieldDefinition
 }
 
 type UseCdeDataTableCommandsOptions = {

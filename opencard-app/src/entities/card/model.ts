@@ -236,9 +236,8 @@ function cloneAdditionalFieldDefinitions(
 export function getAdditionalFieldPropertyDefinition(
     definition: AdditionalFieldDefinition,
 ): EditorPropertyDefinition {
-    return {
-        fieldType: definition.fieldType,
-    } as EditorPropertyDefinition
+    const { title: _title, ...editorDefinition } = definition
+    return editorDefinition as EditorPropertyDefinition
 }
 
 export function getCardFieldDefinition(
@@ -315,21 +314,18 @@ export function validateAdditionalFieldKey(block: CardBlock, candidate: string):
 export function createBlockAdditionalField(
     block: CardBlock,
     fieldKeyInput: string,
-    fieldType: PropertyFieldType,
-    titleInput?: string,
+    definition: AdditionalFieldDefinition,
 ): AdditionalFieldKeyError | null {
-    if (!additionalFieldTypeSet.has(fieldType)) return 'unsupported-field-type'
+    if (!additionalFieldTypeSet.has(definition.fieldType)) return 'unsupported-field-type'
     const error = validateAdditionalFieldKey(block, fieldKeyInput)
     if (error) return error
 
     const fieldKey = fieldKeyInput.trim()
-    const title = titleInput?.trim() ?? ''
     const definitions = block.additionalFieldDefinition ?? (block.additionalFieldDefinition = {})
-    definitions[fieldKey] = {
-        fieldType,
-        ...(title ? { title } : {}),
-    }
-    ;(block as unknown as Record<string, unknown>)[fieldKey] = createPropertyDefaultValue({ fieldType } as EditorPropertyDefinition)
+    definitions[fieldKey] = structuredClone(definition)
+    ;(block as unknown as Record<string, unknown>)[fieldKey] = createPropertyDefaultValue(
+        getAdditionalFieldPropertyDefinition(definition),
+    )
     return null
 }
 

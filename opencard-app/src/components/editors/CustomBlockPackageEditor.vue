@@ -1,7 +1,7 @@
 <template>
   <section class="custom-block-package-editor" :aria-label="t('customBlockPackage.title')">
     <header class="custom-block-package-editor__header">
-      <OcIcon name="file.custom-block" tone="primary" size="lg" />
+      <OcIcon name="file.custom-block" size="lg" />
       <div>
         <h1>{{ manifest?.name || displayName }}</h1>
         <OcText tone="muted" size="sm">{{ t('customBlockPackage.subtitle') }}</OcText>
@@ -123,17 +123,17 @@ const absolutePath = computed(() => {
 const existingEntry = computed(() => manifest.value
   ? projectStore.projectCustomBlockCatalog.value.get(manifest.value.customBlockKey.toLocaleLowerCase())
   : undefined)
-const publicFields = computed(() => {
+const publicFields = computed<readonly { key: string; title?: string; fieldType: string }[]>(() => {
   if (!manifest.value || !packageBlock.value) return []
   const definitions = parseAdditionalFieldDefinitions(packageBlock.value.additionalFieldDefinition)
   const nativeSchema = getTypePropertyEditorSchema(packageBlock.value.type)
   return manifest.value.publicFieldKeys.flatMap(key => {
     const additional = definitions[key]
-    if (additional) return [{ key, ...additional }]
+    if (additional) return [{ key, title: additional.title, fieldType: String(additional.fieldType) }]
     const native = nativeSchema[key]
     return native ? [{
       key,
-      fieldType: native.fieldType,
+      fieldType: String(native.fieldType),
       title: t(`propertyEditor.fields.${key}`),
       ...(typeof native.defaultValue === 'string' ? { defaultValue: native.defaultValue } : {}),
     }] : []
@@ -238,7 +238,7 @@ function projectAssetName(path: string): string {
 
 <style scoped>
 .custom-block-package-editor { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
-.custom-block-package-editor__header { display: flex; align-items: center; gap: var(--oc-space-3); padding: var(--oc-space-5); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.custom-block-package-editor__header { display: flex;background: var(--oc-bg-base); align-items: center; gap: var(--oc-space-3); padding: var(--oc-space-5); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .custom-block-package-editor__header > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
 .custom-block-package-editor__header h1 { margin: 0; overflow: hidden; font-size: var(--oc-text-lg); font-weight: var(--font-weight-ui-title); letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
 .custom-block-package-editor__content { display: grid; align-content: start; gap: var(--oc-space-4); min-height: 0; padding: var(--oc-space-5); overflow: auto; }
