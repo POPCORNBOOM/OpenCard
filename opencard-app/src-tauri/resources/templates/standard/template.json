@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "standard",
+  "name": "Standard Project",
+  "description": "Start with the standard OpenCard project structure and an empty card.",
+  "entry": "Card 1.ocdocument",
+  "i18n": {
+    "name": { "zh-CN": "标准项目", "en-US": "Standard Project" },
+    "description": { "zh-CN": "从标准项目结构和一张空白卡牌开始。", "en-US": "Start with the standard OpenCard project structure and an empty card." }
+  }
+}

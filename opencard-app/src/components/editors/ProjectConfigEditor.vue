@@ -201,6 +201,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import type { EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
@@ -333,7 +334,10 @@ function updateProfileField(fieldKey: 'name' | 'description' | 'version', event:
   const value = event.target.value
   const next: ProjectProfile = { ...profile.value, [fieldKey]: value }
   if (value === '') delete next[fieldKey]
-  updateProfile(next)
+  updateProfile(next, {
+    mode: 'debounced',
+    merge: { family: 'project-profile-field', target: fieldKey },
+  })
 }
 
 function updateRemoteResourceMode(mode: string) {
@@ -350,7 +354,7 @@ function isRemoteHostValid(host: string): boolean {
   return normalizeProjectAllowedHost(host) !== null
 }
 
-function commitRemoteHostDrafts() {
+function commitRemoteHostDrafts(changedIndex?: number) {
   if (!profile.value || profile.value.remoteResources?.mode !== 'allowlist') return
   const normalizedHosts = remoteHostDrafts.value.map(normalizeProjectAllowedHost)
   if (normalizedHosts.some(host => host === null)) return
@@ -360,13 +364,16 @@ function commitRemoteHostDrafts() {
       mode: 'allowlist',
       allowedHosts: [...new Set(normalizedHosts as string[])],
     },
+  }, changedIndex === undefined ? { mode: 'immediate' } : {
+    mode: 'debounced',
+    merge: { family: 'project-remote-host', target: String(changedIndex) },
   })
 }
 
 function updateRemoteHost(index: number, event: Event) {
   if (!(event.target instanceof HTMLInputElement)) return
   remoteHostDrafts.value[index] = event.target.value
-  commitRemoteHostDrafts()
+  commitRemoteHostDrafts(index)
 }
 
 function addRemoteHost() {
@@ -378,11 +385,11 @@ function removeRemoteHost(index: number) {
   commitRemoteHostDrafts()
 }
 
-function updateProfile(next: ProjectProfile) {
+function updateProfile(next: ProjectProfile, history: HistoryOperationMeta = { mode: 'immediate' }) {
   try {
     const serialized = serializeProjectMetadata(next)
     profile.value = next
-    emit('update:modelValue', serialized)
+    emit('update:modelValue', serialized, history)
   } catch (error) {
     reportAppError('OC-E3006', error)
   }
@@ -483,8 +490,8 @@ onBeforeUnmount(() => {
   sectionObserver?.disconnect()
 })
 
-function updateRawSource(content: string) {
-  emit('update:modelValue', content)
+function updateRawSource(content: string, history?: HistoryOperationMeta) {
+  emit('update:modelValue', content, history)
 }
 
 async function openOrCreateDictionary() {

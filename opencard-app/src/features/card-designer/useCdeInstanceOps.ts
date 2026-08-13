@@ -10,8 +10,8 @@ type UseCdeInstanceOpsOptions = {
   blueprintCardId: string
   selectedCardId: Ref<string | null>
   selectedCardKeys: Ref<string[]>
-  refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  refreshDocumentState: (structural?: boolean) => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
 
 export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
@@ -85,8 +85,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     const instance = options.cardDoc.value.instances.find((item) => item.id === instanceId)
     if (!instance || instance.name === nextName) return
     instance.name = nextName
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'instances', true)
   }
 
   function moveInstance(
@@ -115,10 +115,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     instances.splice(insertionIndex, 0, draggedInstance)
     options.cardDoc.value.instances = instances
-    options.refreshDocumentState()
+    options.refreshDocumentState(true)
     options.selectedCardKeys.value = [draggedKey]
     options.selectedCardId.value = draggedKey
-    options.markDocumentChanged('action')
+    options.markDocumentChanged('action', 'instances', true)
   }
 
   function createInstance(): void {
@@ -135,8 +135,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     includeNewInstanceInDataTableExport(options.cardDoc.value, nextInstance.id)
     options.selectedCardId.value = nextInstance.id
     options.selectedCardKeys.value = [nextInstance.id]
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'instances', true)
   }
 
   function duplicateInstance(instanceId: string): void {
@@ -156,8 +156,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     includeNewInstanceInDataTableExport(options.cardDoc.value, duplicated.id)
     options.selectedCardId.value = duplicated.id
     options.selectedCardKeys.value = [duplicated.id]
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'instances', true)
   }
 
   function deleteInstance(instanceId: string): void {
@@ -172,8 +172,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       options.selectedCardId.value = options.blueprintCardId
       options.selectedCardKeys.value = [options.blueprintCardId]
     }
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'instances', true)
   }
 
   watch(

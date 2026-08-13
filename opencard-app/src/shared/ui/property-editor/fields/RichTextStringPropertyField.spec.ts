@@ -11,6 +11,24 @@ afterEach(() => {
 })
 
 describe('RichTextStringPropertyField', () => {
+  it('keeps dynamic style bindings when switching source and visual modes', async () => {
+    const sourceHtml = '<p><mark style="background-color: {{parent.color}}; color: inherit;">Text</mark></p>'
+    const wrapper = mount(RichTextStringPropertyField, {
+      attachTo: document.body,
+      props: { definition: { title: 'Content', fieldType: 'string', richText: true }, value: sourceHtml },
+    })
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await nextTick()
+    document.querySelector<HTMLButtonElement>('[role="radio"][aria-label="HTML 源码"]')!.click()
+    await nextTick()
+    expect(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="HTML 源码"]')!.value)
+      .toContain('background-color: {{parent.color}}; color: inherit;')
+    document.querySelector<HTMLButtonElement>('[role="radio"][aria-label="富文本"]')!.click()
+    await nextTick()
+    document.querySelector<HTMLButtonElement>('[aria-label="保存富文本编辑"]')!.click()
+    expect(wrapper.emitted('update:value')).toBeUndefined()
+    wrapper.unmount()
+  })
   it('writes a local draft only when the user saves', async () => {
     const wrapper = mount(RichTextStringPropertyField, {
       attachTo: document.body,
@@ -75,13 +93,12 @@ describe('RichTextStringPropertyField', () => {
     await nextTick()
     await nextTick()
     const editor = (wrapper.findComponent(OcRichTextEditor).vm as unknown as { editor: Editor }).editor
-    editor.view.dom.querySelector<HTMLButtonElement>('[aria-label="编辑 binding"]')!.click()
+    editor.view.dom.querySelector<HTMLElement>('.binding-node__label')!.click()
+    ;(wrapper.findComponent(OcRichTextEditor).vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
     await nextTick()
 
-    const input = editor.view.dom.querySelector<HTMLInputElement>('.binding-node__input')!
-    input.value = 'project:name'
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    ;(wrapper.findComponent(OcRichTextEditor).vm as unknown as { cancelSelectedNodeEditor: () => void })
+      .cancelSelectedNodeEditor()
     await new Promise(resolve => window.setTimeout(resolve, 0))
 
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')
@@ -119,17 +136,13 @@ describe('RichTextStringPropertyField', () => {
 
     document.querySelector<HTMLButtonElement>('[role="radio"][aria-label="富文本"]')!.click()
     await nextTick()
-    await nextTick()
-    const editor = (wrapper.findComponent(OcRichTextEditor).vm as unknown as { editor: Editor }).editor
-    expect(editor.getHTML()).toBe('<p><strong>Edited</strong><span data-oc-binding="self:name">{{self:name}}</span></p>')
+    expect(wrapper.findComponent(OcRichTextEditor).exists()).toBe(false)
+    expect(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="HTML 源码"]')!.value)
+      .toContain('<script>bad</script>')
 
-    document.querySelector<HTMLButtonElement>('[role="radio"][aria-label="HTML 源码"]')!.click()
-    await nextTick()
     document.querySelector<HTMLButtonElement>('[aria-label="保存富文本编辑"]')!.click()
     await nextTick()
-    expect(wrapper.emitted('update:value')).toEqual([[
-      '<p><strong>Edited</strong><span data-oc-binding="self:name">{{self:name}}</span></p>',
-    ]])
+    expect(wrapper.emitted('update:value')).toBeUndefined()
     wrapper.unmount()
   })
 
@@ -148,7 +161,23 @@ describe('RichTextStringPropertyField', () => {
     await nextTick()
 
     expect(document.querySelector<HTMLTextAreaElement>('textarea[aria-label="HTML 源码"]')!.value)
-      .toBe('<p>First</p>\n<p><strong>Second</strong></p>')
+      .toBe('<p>First</p><p><strong>Second</strong></p>')
+    wrapper.unmount()
+  })
+
+  it('opens invalid persisted HTML in source mode without discarding it', async () => {
+    const source = '<p>Before</p><script>bad()</script><p>After</p>'
+    const wrapper = mount(RichTextStringPropertyField, {
+      attachTo: document.body,
+      props: { definition: { title: 'Content', fieldType: 'string', richText: true }, value: source },
+    })
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await nextTick()
+    const sourceEditor = document.querySelector<HTMLTextAreaElement>('.rich-text-string-popover__source')
+    expect(sourceEditor).not.toBeNull()
+    expect(sourceEditor?.value).toBe(source)
+    expect(document.querySelector('.rich-text-string-popover__diagnostics')?.textContent).toContain('script')
+    expect(wrapper.emitted('update:value')).toBeUndefined()
     wrapper.unmount()
   })
 })

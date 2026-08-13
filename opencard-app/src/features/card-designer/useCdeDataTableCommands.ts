@@ -41,7 +41,7 @@ type UseCdeDataTableCommandsOptions = {
   blueprintCardId: string
   customBlockCatalog?: Readonly<Ref<CustomBlockSchemaCatalog>>
   refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDataTableChangeMode) => void
+  markDocumentChanged: (mode?: CdeDataTableChangeMode, target?: string, structural?: boolean) => void
   updateBlockField: (
     target: BlockFieldTarget,
     value: unknown,

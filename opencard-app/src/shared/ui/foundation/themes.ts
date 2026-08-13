@@ -17,6 +17,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-icon-size-md': '16px',
   '--oc-icon-size-lg': '20px',
   '--oc-icon-size-action': '16px',
+  '--oc-icon-size-display': '40px',
   '--oc-field-affix-icon-offset-y': '-1px',
   '--oc-number-badge-size': '11px',
   '--oc-number-badge-padding-inline': '2px',
@@ -47,6 +48,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-size-sm': '22px',
   '--oc-size-md': '28px',
   '--oc-size-lg': '36px',
+  '--oc-viewport-status-size': '132px',
   '--oc-color-picker-plane-height': '132px',
   '--oc-color-channel-track-height': '12px',
   '--oc-color-channel-handle-width': '8px',
@@ -141,6 +143,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-duration-fast': '100ms',
   '--oc-duration-normal': '150ms',
   '--oc-duration-slow': '250ms',
+  '--oc-viewport-status-duration': '1200ms',
   '--oc-overflow-text-duration': '4s',
   '--oc-ease': 'cubic-bezier(0.2, 0, 0, 1)',
 } as const satisfies Partial<OcThemeTokens>

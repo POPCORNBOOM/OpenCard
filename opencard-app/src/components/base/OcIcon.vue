@@ -14,7 +14,7 @@
 </template>
 
 <script lang="ts">
-export type OcIconSize = 'sm' | 'md' | 'lg' | 'action'
+export type OcIconSize = 'sm' | 'md' | 'lg' | 'action' | 'display'
 </script>
 
 <script setup lang="ts">
@@ -129,5 +129,11 @@ const iconStyle = computed(() => ({
   font-size: var(--oc-icon-size-action);
   width: var(--oc-icon-size-action);
   height: var(--oc-icon-size-action);
+}
+
+.oc-icon--display {
+  font-size: var(--oc-icon-size-display);
+  width: var(--oc-icon-size-display);
+  height: var(--oc-icon-size-display);
 }
 </style>

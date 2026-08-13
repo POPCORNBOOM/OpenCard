@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../../workspace/services/projectIconCatalog'
-import { useProjectExport } from './useProjectExport'
+import { inlineProjectIconAtlases, useProjectExport } from './useProjectExport'
 
 function content(width: string): string {
   return JSON.stringify({
@@ -64,5 +64,30 @@ describe('useProjectExport document source', () => {
     const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')
     expect(snapshot.document.faces.front.children).toEqual([])
     expect(snapshot.storageWarnings).toContainEqual(expect.objectContaining({ code: 'entry-ignored' }))
+  })
+})
+
+describe('useProjectExport project icon assets', () => {
+  it('temporarily replaces atlas URLs stored in project-icon CSS variables', async () => {
+    const root = document.createElement('div')
+    const icon = document.createElement('span')
+    icon.className = 'oc-project-icon'
+    icon.style.setProperty('--oc-project-icon-background-image', 'url("asset://atlas.png")')
+    root.appendChild(icon)
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob(['atlas'], { type: 'image/png' }),
+    })))
+
+    const restore = await inlineProjectIconAtlases(root, {
+      series: [{ name: 'Atlas', key: 'atlas', source: 'atlas.png', src: 'asset://atlas.png', imageWidth: 8, imageHeight: 8 }],
+      entries: [],
+      errors: [],
+    })
+
+    expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toMatch(/^url\("data:image\/png;base64,/)
+    restore()
+    expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toBe('url("asset://atlas.png")')
+    vi.unstubAllGlobals()
   })
 })

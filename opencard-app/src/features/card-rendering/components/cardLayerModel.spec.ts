@@ -97,6 +97,17 @@ describe('buildCardLayerGroups', () => {
     expect(result[0]?.blocks.map(item => item.id)).toEqual(['visible'])
   })
 
+  it('treats packaged containers as atomic layer planes', () => {
+    const result = buildCardLayerGroups(face([
+      container('package', 2, [block('packaged-child', 8)]),
+      block('sibling', 1),
+    ]), new Set(['package']))
+
+    expect(result.map(layer => layer.zIndex)).toEqual([2, 1])
+    expect(result.flatMap(layer => layer.blocks.map(item => item.id)))
+      .toEqual(['package', 'sibling'])
+  })
+
   it('supports decimal layers and an empty face', () => {
     expect(buildCardLayerGroups(face([block('fraction', 0.5), block('zero', 0)]))
       .map(layer => layer.zIndex)).toEqual([0.5, 0])

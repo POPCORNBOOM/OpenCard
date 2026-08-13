@@ -29,7 +29,7 @@ type UseCdeBlockFieldCommandsOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
   blueprintCardId: string
   refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
 
 export function findCdeBlock(document: CardDocument, blockId: string): CardBlock | null {
@@ -81,7 +81,7 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
     }
 
     options.refreshDocumentState()
-    options.markDocumentChanged(mode)
+    options.markDocumentChanged(mode, `block-field:${target.cardId}:${target.blockId}:${target.fieldKey}`)
     return true
   }
 

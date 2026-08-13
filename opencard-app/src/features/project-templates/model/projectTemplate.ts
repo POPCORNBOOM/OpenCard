@@ -22,7 +22,7 @@ export interface ProjectTemplateManifest {
   id: string
   name: string
   description: string
-  entry: string
+  entry?: string
   entries?: readonly string[]
   covers?: readonly string[]
   i18n?: ProjectTemplateLocalization
@@ -87,7 +87,7 @@ export interface TemplateExportSelection {
 
 export interface CreatedProject {
   path: string
-  entry: string
+  entry?: string
 }
 
 export type TemplateServiceErrorCode =
@@ -172,7 +172,7 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
   if (typeof value.description !== 'string' || value.description.length > PROJECT_TEMPLATE_DESCRIPTION_MAX_LENGTH) {
     return null
   }
-  if (typeof value.entry !== 'string' || !isSafeRelativePath(value.entry)) return null
+  if (value.entry !== undefined && (typeof value.entry !== 'string' || !isSafeRelativePath(value.entry))) return null
   if (value.entries !== undefined && (
     !Array.isArray(value.entries)
     || value.entries.length === 0
@@ -191,18 +191,18 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
   const covers = Array.isArray(value.covers)
     ? [...new Set(value.covers.map((cover) => cover.replace(/\\/g, '/').trim()))]
     : []
-  const entry = value.entry.replace(/\\/g, '/').trim()
+  const entry = typeof value.entry === 'string' ? value.entry.replace(/\\/g, '/').trim() : undefined
   const entries = Array.isArray(value.entries)
     ? [...new Set(value.entries.map((candidate) => candidate.replace(/\\/g, '/').trim()))]
     : []
-  if (entries.length > 0 && !entries.includes(entry)) return null
+  if (entries.length > 0 && (!entry || !entries.includes(entry))) return null
 
   return {
     schemaVersion: PROJECT_TEMPLATE_SCHEMA_VERSION,
     id: value.id,
     name: value.name.trim(),
     description: value.description.trim(),
-    entry,
+    ...(entry ? { entry } : {}),
     ...(entries.length > 0 ? { entries } : {}),
     ...(covers.length > 0 ? { covers } : {}),
     ...(i18n && Object.keys(i18n).length > 0 ? { i18n } : {}),
@@ -210,7 +210,7 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
 }
 
 export function resolveTemplateEntries(template: Pick<ProjectTemplateManifest, 'entry' | 'entries'>): string[] {
-  return [...new Set([template.entry, ...(template.entries ?? [])])]
+  return [...new Set([template.entry, ...(template.entries ?? [])].filter((entry): entry is string => Boolean(entry)))]
 }
 
 export function resolveProjectTemplateText(

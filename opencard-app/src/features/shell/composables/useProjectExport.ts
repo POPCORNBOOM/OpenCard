@@ -18,6 +18,8 @@ import type {
 } from '../../exporting/exportTask'
 import type { RenderReadyCardFace } from '../../card-rendering/render.types'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
+import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
+import type { CardFaceKey } from '../../../entities/card/model'
 import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
 import type { ProjectExportTask } from '../../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
@@ -55,6 +57,43 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   const bytes = new Uint8Array(binaryData.length)
   for (let index = 0; index < binaryData.length; index += 1) bytes[index] = binaryData.charCodeAt(index)
   return bytes
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => typeof reader.result === 'string'
+      ? resolve(reader.result)
+      : reject(new Error('Could not encode the project icon atlas')))
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('Could not read the project icon atlas')))
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function inlineProjectIconAtlases(root: HTMLElement, iconCatalog: ProjectIconCatalog): Promise<() => void> {
+  const replacements = new Map<string, string>()
+  await Promise.all(iconCatalog.series.map(async series => {
+    const response = await fetch(series.src)
+    if (!response.ok) throw new Error(`Could not load project icon atlas: ${series.source}`)
+    replacements.set(series.src, await blobToDataUrl(await response.blob()))
+  }))
+
+  const restorations: Array<() => void> = []
+  for (const element of root.querySelectorAll<HTMLElement>('.oc-project-icon')) {
+    const property = '--oc-project-icon-background-image'
+    const original = element.style.getPropertyValue(property)
+    const source = extractCssUrl(original)
+    const replacement = source ? replacements.get(source) : undefined
+    if (!replacement) continue
+    element.style.setProperty(property, `url(${JSON.stringify(replacement)})`)
+    restorations.push(() => element.style.setProperty(property, original))
+  }
+  return () => restorations.forEach(restore => restore())
+}
+
+function extractCssUrl(value: string): string | null {
+  const match = /^url\((?:"([^"]*)"|'([^']*)'|([^)]*))\)$/.exec(value.trim())
+  return match ? (match[1] ?? match[2] ?? match[3] ?? '').trim() : null
 }
 
 function waitForNextPaint(): Promise<void> {
@@ -160,7 +199,15 @@ export function useProjectExport(options: UseProjectExportOptions) {
       await waitForProjectFonts()
       await waitForNextPaint()
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError')
-      return dataUrlToBytes(await exportCardAsImage(canvas, { scale: request.scale, format: 'png' }))
+      const restoreProjectIcons = await inlineProjectIconAtlases(
+        canvas,
+        request.render.resources.projectIconCatalog,
+      )
+      try {
+        return dataUrlToBytes(await exportCardAsImage(canvas, { scale: request.scale, format: 'png' }))
+      } finally {
+        restoreProjectIcons()
+      }
     },
     reset() {
       showExportRenderer.value = false
@@ -235,6 +282,34 @@ export function useProjectExport(options: UseProjectExportOptions) {
     }
   }
 
+  async function renderCardImages(
+    render: PreparedCardRender,
+    faceKeys: readonly CardFaceKey[],
+    scale: number,
+  ): Promise<ReadonlyMap<CardFaceKey, Uint8Array> | null> {
+    if (isRunning.value) return null
+    isRunning.value = true
+    const result = new Map<CardFaceKey, Uint8Array>()
+    try {
+      for (const faceKey of faceKeys) {
+        result.set(faceKey, await renderer.render({
+          sourcePath: '',
+          outputPath: '',
+          faceKey,
+          render,
+          scale,
+        }, new AbortController().signal))
+      }
+      return result
+    } catch (error) {
+      reportAppError('OC-E5006', error)
+      return null
+    } finally {
+      renderer.reset()
+      isRunning.value = false
+    }
+  }
+
   function cancel(): void {
     controller.value?.abort()
   }
@@ -247,6 +322,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
     loadDocumentSnapshot,
     prepare,
     run,
+    renderCardImages,
     cancel,
   }
 }

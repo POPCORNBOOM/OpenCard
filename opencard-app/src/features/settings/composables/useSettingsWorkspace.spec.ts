@@ -96,6 +96,7 @@ describe('useSettingsWorkspace', () => {
 
     categoryKey.value = 'workspace'
     expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
+      'workspace.historyEntryLimit',
       'workspace.structureTreeSelectionBehavior',
       'workspace.structureTreeScrollToSelection',
       'workspace.showSelectionPositionOnMove',

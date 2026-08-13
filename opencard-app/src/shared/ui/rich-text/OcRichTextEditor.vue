@@ -29,6 +29,16 @@
       </div>
 
       <div class="oc-rich-text-editor__toolbar-row">
+        <div class="oc-rich-text-editor__tool-group" role="group" aria-label="文档结构">
+          <OcButton size="md" icon-only icon="data.list-bulleted" data-tooltip="无序列表" aria-label="无序列表"
+            :active="editor.isActive('bulletList')" @mousedown.prevent @click="editor.chain().focus().toggleBulletList().run()" />
+          <OcButton size="md" icon-only icon="data.list-numbered" data-tooltip="有序列表" aria-label="有序列表"
+            :active="editor.isActive('orderedList')" @mousedown.prevent @click="editor.chain().focus().toggleOrderedList().run()" />
+          <OcButton v-if="!editor.isActive('table')" size="md" icon-only icon="data.table" data-tooltip="插入表格" aria-label="插入表格"
+            @mousedown.prevent @click="insertTable" />
+          <OcActionButton v-if="editor.isActive('table')" :action="tableAction" size="md" variant="ghost"
+            @select="handleTableAction" />
+        </div>
         <div v-if="bindingCompletion" class="oc-rich-text-editor__tool-group" role="group" aria-label="数据引用">
           <OcButton size="md" icon-only icon="format.code-braces" data-tooltip="插入 binding"
             aria-label="插入 binding" @mousedown.prevent @click="insertBinding" />
@@ -44,6 +54,9 @@
                 :style="createProjectIconPreviewStyle(entry)" aria-hidden="true" />
             </template>
           </OcButton>
+        </div>
+        <div v-if="customBlockCatalog" class="oc-rich-text-editor__tool-group" role="group" aria-label="自定义块">
+          <OcActionButton :action="customBlockAction" size="md" variant="ghost" @select="insertCustomBlock" />
         </div>
         <div class="oc-rich-text-editor__tool-group" role="group" aria-label="颜色与描边">
           <OcColorPicker label="前景色" :model-value="foregroundColor" :z-index="2500"
@@ -86,13 +99,56 @@
       :anchor="projectIconCompletionAnchor" :items="projectIconSuggestions" :active-key="activeProjectIconSuggestionKey"
       :match-anchor-width="false" :z-index="2500" @select="acceptProjectIconSuggestionByKey" />
 
+    <OcFloatingLayer v-if="selectedNodeAnchor && selectedNodeKind" :open="nodeEditOpen"
+      :anchor="selectedNodeAnchor" placement="top-start" :z-index="2500">
+      <div class="oc-rich-text-editor__node-edit-layer">
+        <OcActionButton v-if="selectedNodeKind === 'projectIcon'" :action="projectIconAction"
+          size="sm" variant="ghost" @mousedown.prevent @select="handleProjectIconAction" />
+        <OcButton v-else size="sm" icon-only icon="action.edit" :data-tooltip="tr('propertyEditor.richText.editSelected', '编辑选中内容')"
+          :aria-label="tr('propertyEditor.richText.editSelected', '编辑选中内容')" data-test="rich-text-node-edit"
+          @mousedown.prevent @click="openSelectedNodeEditor" />
+      </div>
+    </OcFloatingLayer>
+
+    <OcDialog :open="selectedNodeEditorOpen" :title="selectedNodeDialogTitle"
+      size="md" close-on-backdrop @request-close="cancelSelectedNodeEditor">
+      <div v-if="dialogNodeTarget?.kind === 'binding'" class="oc-rich-text-editor__node-dialog-content">
+        <label class="oc-rich-text-editor__dialog-field oc-rich-text-editor__dialog-binding-field">
+          <span>{{ tr('propertyEditor.richText.bindingExpression', 'Binding 表达式') }}</span>
+          <OcFieldInput :value="dialogBindingExpression" variant="plain" full-width
+            aria-label="Binding expression"
+            @input="updateDialogBindingExpression" />
+        </label>
+      </div>
+      <div v-else-if="dialogNodeTarget?.kind === 'projectIcon'" class="oc-rich-text-editor__node-dialog-content">
+        <OcActionButton :action="dialogProjectIconAction" size="md" variant="ghost"
+          @select="selectDialogProjectIcon" />
+      </div>
+      <div v-else-if="dialogNodeTarget?.kind === 'customBlock' && selectedCustomBlock"
+        class="oc-rich-text-editor__node-dialog-content">
+        <header class="oc-rich-text-editor__node-dialog-actions">
+          <OcButton size="sm" icon-only icon="layout.rows" data-tooltip="切换行内/独占行"
+            aria-label="切换行内/独占行" @click="toggleDialogCustomBlockLayout" />
+        </header>
+        <PropertyEditor :inputs="dialogCustomBlockInputs" sort-mode="category"
+          :binding-interpreter="customBlockBindingInterpreter"
+          @update-property="updateDialogCustomBlockProperty"
+          @reset-property="resetDialogCustomBlockProperty" />
+      </div>
+      <template #footer>
+        <OcButton type="button" @click="cancelSelectedNodeEditor">{{ tr('propertyEditor.richText.cancel', '取消') }}</OcButton>
+        <OcButton type="button" variant="solid" @click="confirmSelectedNodeEditor">{{ tr('propertyEditor.richText.confirm', '确定') }}</OcButton>
+      </template>
+    </OcDialog>
+
     <EditorContent :editor="editor" class="oc-rich-text-editor__surface" :style="baseStyle" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
-import { Extension, type Editor, type JSONContent } from '@tiptap/core'
+import { computed, getCurrentInstance, ref, useId, watch } from 'vue'
+import { Extension, Mark, type Editor, type JSONContent } from '@tiptap/core'
+import type { ParseRule } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import Color from '@tiptap/extension-color'
 import FontFamily from '@tiptap/extension-font-family'
@@ -101,9 +157,15 @@ import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import Underline from '@tiptap/extension-underline'
 import StarterKit from '@tiptap/starter-kit'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableHeader from '@tiptap/extension-table-header'
+import TableCell from '@tiptap/extension-table-cell'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
 import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
@@ -111,7 +173,20 @@ import OcActionButton, {
   type OcActionButtonAction,
   type OcActionButtonSelectPayload,
 } from '../../../components/standard/OcActionButton.vue'
-import { normalizeRichTextHtml } from '../../rich-text/richTextHtml'
+import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue'
+import PropertyEditor from '../property-editor/PropertyEditor.vue'
+import type {
+  PropertyEditorBindingInterpreter,
+  PropertyEditorFieldDefinition,
+  PropertyEditorFieldIntent,
+  PropertyEditorInput,
+  PropertyEditorMutation,
+} from '../property-editor/propertyEditor.types'
+import type { DeepReadonly } from 'vue'
+import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../../../features/workspace/model/projectCustomBlocks'
+import { getProjectCustomBlockPublicFields } from '../../../features/workspace/services/projectCustomBlockPublicFields'
+import { InlineCustomBlockNode, BlockCustomBlockNode, remapPastedEmbedIds } from './customBlockNode'
+import { normalizeRichTextHtml, parseRichTextHtml } from '../../rich-text/richTextHtml'
 import type { IconToken } from '../icon/iconRegistry'
 import { BindingNode } from './bindingNode'
 import type { RichTextBindingCompletionProvider } from './bindingNode.types'
@@ -148,16 +223,27 @@ const props = defineProps<{
   bindingCompletion?: RichTextBindingCompletionProvider
   projectIconCompletion?: PropertyCompletionProvider
   projectIconCatalog?: ProjectIconCatalog
+  customBlockCatalog?: {
+    catalog: DeepReadonly<ProjectCustomBlockCatalog>
+    manifests: DeepReadonly<ProjectCustomBlockManifestCatalog>
+    ensureLoaded: (key: string) => Promise<unknown>
+  }
   fontOptions?: readonly RichTextFontOption[]
   baseStyle?: {
     fontFamily?: string
     fontSize?: string
+  }
+  fieldModeLabels?: {
+    useFieldEditor: string
+    useRawStringEditor: string
   }
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
 }>()
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as ((key: string) => string) | undefined
+const tr = (key: string, fallback: string) => translate?.(key) ?? fallback
 
 const lastEmittedValue = ref<string | null>(null)
 const toolbarRevision = ref(0)
@@ -169,6 +255,14 @@ const projectIconCompletionState = ref<ProjectIconCompletionState | null>(null)
 const projectIconCompletionOpen = ref(false)
 const projectIconCompletionAnchor = ref<DOMRect | null>(null)
 const activeProjectIconSuggestionKey = ref<string | null>(null)
+const loadingCustomBlockKey = ref<string | null>(null)
+const failedCustomBlockKeys = ref(new Set<string>())
+const selectedNodeEditorOpen = ref(false)
+const dialogBindingExpression = ref('')
+const dialogIconAttrs = ref<{ seriesKey: string, iconKey: string } | null>(null)
+const dialogCustomBlockProperties = ref<Record<string, string>>({})
+const dialogCustomBlockNodeType = ref<'inlineCustomBlock' | 'blockCustomBlock'>('inlineCustomBlock')
+const dialogNodeTarget = ref<{ position: number, nodeType: string, kind: 'binding' | 'projectIcon' | 'customBlock' } | null>(null)
 const projectIconAutocompleteId = useId()
 let projectIconCompletionRequestId = 0
 let lastProjectIconCompletionSignature: string | null = null
@@ -211,6 +305,49 @@ const TextStyleAttributes = Extension.create({
   },
 })
 
+const DynamicStyle = Mark.create({
+  name: 'dynamicStyle',
+  priority: 1000,
+  excludes: 'highlight textStyle',
+  addAttributes() {
+    return {
+      tag: { default: 'span' },
+      rawStyle: { default: '' },
+    }
+  },
+  parseHTML() {
+    const rule = (tag: 'mark' | 'span') => ({
+      tag: `${tag}[data-oc-dynamic-style]`,
+      getAttrs: (element: HTMLElement) => {
+        const rawStyle = element.getAttribute('data-oc-dynamic-style') ?? ''
+        return rawStyle ? { tag, rawStyle } : false
+      },
+    })
+    return [rule('mark'), rule('span')]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [HTMLAttributes.tag === 'mark' ? 'mark' : 'span', {
+      'data-oc-dynamic-style': HTMLAttributes.rawStyle,
+    }, 0]
+  },
+})
+
+const StaticHighlight = Highlight.extend({
+  parseHTML() {
+    return (this.parent?.() ?? []).map((rule): ParseRule => ({
+      ...rule,
+      getAttrs: (element: HTMLElement | string) => {
+        if (typeof element === 'string') return null
+        return element.hasAttribute('data-oc-dynamic-style')
+          ? false
+          : typeof rule.getAttrs === 'function'
+            ? ((rule.getAttrs as (element: HTMLElement) => ParseRule['attrs'])(element) ?? null)
+            : rule.getAttrs ?? null
+      },
+    }))
+  },
+})
+
 const fallbackFontFamilies: readonly RichTextFontOption[] = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Georgia', value: 'Georgia' },
@@ -237,6 +374,21 @@ const strokeWidthOptions = [
 const fontSizeSteps = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96] as const
 const defaultFontSize = 16
 const richTextParseOptions = { preserveWhitespace: 'full' as const }
+function canonicalEditorHtml(value: string): string {
+  return value.replace(/\bdata-oc-dynamic-style=("[^"]*"|'[^']*')/g, 'style=$1')
+}
+function visualEditorHtml(value: string): string {
+  const parsed = parseRichTextHtml(value, { allowUnresolvedBindings: true })
+  if (!parsed.canEnterVisualMode || !/<[^>]+>/.test(value)) return normalizeRichTextHtml(value)
+  const documentNode = new DOMParser().parseFromString(value, 'text/html')
+  for (const element of Array.from(documentNode.body.querySelectorAll<HTMLElement>('[style]'))) {
+    const rawStyle = element.getAttribute('style') ?? ''
+    if (!rawStyle.includes('{{') && !rawStyle.includes('}}')) continue
+    element.setAttribute('data-oc-dynamic-style', rawStyle)
+    element.removeAttribute('style')
+  }
+  return documentNode.body.innerHTML
+}
 
 const alignments: ReadonlyArray<{
   value: 'left' | 'center' | 'right' | 'justify'
@@ -304,6 +456,206 @@ const projectIconAction = computed<OcActionButtonAction>(() => {
     children: projectIconActionChildren.value,
   }
 })
+const customBlockAction = computed<OcActionButtonAction>(() => ({
+  key: 'custom-block', icon: 'data.symbol-custom-block', title: '插入自定义块',
+  children: [...(props.customBlockCatalog?.manifests.values() ?? [])].map(item => ({
+    key: `custom-block:${item.manifest.customBlockKey}`,
+    title: item.manifest.name,
+    disabled: loadingCustomBlockKey.value === item.manifest.customBlockKey,
+    icon: failedCustomBlockKeys.value.has(item.manifest.customBlockKey.toLowerCase())
+      ? 'status.warning' as const : 'data.symbol-custom-block' as const,
+  })),
+}))
+const tableAction = computed<OcActionButtonAction>(() => ({
+  key: 'table-actions',
+  icon: 'data.table',
+  title: tr('propertyEditor.richText.tableActions', '表格操作'),
+  children: [
+    { key: 'table.add-row-before', icon: 'nav.arrow-up', title: tr('propertyEditor.richText.addRowBefore', '在上方插入行') },
+    { key: 'table.add-row-after', icon: 'nav.arrow-down', title: tr('propertyEditor.richText.addRowAfter', '在下方插入行') },
+    { key: 'table.add-column-before', icon: 'nav.arrow-left', title: tr('propertyEditor.richText.addColumnBefore', '在左侧插入列') },
+    { key: 'table.add-column-after', icon: 'nav.arrow-right', title: tr('propertyEditor.richText.addColumnAfter', '在右侧插入列') },
+    { key: 'table.toggle-header', icon: 'layout.rows', title: tr('propertyEditor.richText.toggleHeader', '切换表头行') },
+    { key: 'table.delete-row', icon: 'action.delete', iconTone: 'danger', title: tr('propertyEditor.richText.deleteRow', '删除当前行') },
+    { key: 'table.delete-column', icon: 'action.delete', iconTone: 'danger', title: tr('propertyEditor.richText.deleteColumn', '删除当前列') },
+    { key: 'table.delete', icon: 'action.discard', iconTone: 'danger', title: tr('propertyEditor.richText.deleteTable', '删除整个表格') },
+  ],
+}))
+function isCompleteBinding(value: unknown): boolean {
+  return typeof value === 'string' && /^\s*\{\{\s*[^{}]+?\s*\}\}\s*$/.test(value)
+}
+
+const customBlockBindingInterpreter: PropertyEditorBindingInterpreter = {
+  isExpression: isCompleteBinding,
+}
+
+const selectedCustomBlock = computed(() => {
+  toolbarRevision.value
+  const currentEditor = editor.value
+  const selection = currentEditor?.state.selection
+  if (!currentEditor || !(selection instanceof NodeSelection)
+    || !['inlineCustomBlock', 'blockCustomBlock'].includes(selection.node.type.name)) return null
+  const key = String(selection.node.attrs.customBlockKey ?? '')
+  const entry = props.customBlockCatalog?.catalog.get(key.toLowerCase())
+  const definitions = entry ? getProjectCustomBlockPublicFields(entry) : {}
+  const properties = selection.node.attrs.properties as Record<string, string>
+  return {
+    key, entry, position: selection.from, nodeType: selection.node.type.name,
+    fields: Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => {
+      const value = properties[fieldKey] ?? (entry?.block as unknown as Record<string, unknown>)?.[fieldKey] ?? definition.defaultValue ?? ''
+      const projectedDefinition: PropertyEditorFieldDefinition = {
+        ...definition,
+        title: fieldKey,
+        resettable: Object.prototype.hasOwnProperty.call(properties, fieldKey),
+        ...(props.bindingCompletion ? {
+          binding: { provider: props.bindingCompletion },
+          completion: { provider: props.bindingCompletion },
+        } : {}),
+      }
+      return [fieldKey, { value, definition: projectedDefinition }] as const
+    })),
+  }
+})
+
+const selectedNodeKind = computed<'binding' | 'projectIcon' | 'customBlock' | null>(() => {
+  const node = editor.value?.state.selection instanceof NodeSelection
+    ? editor.value.state.selection.node
+    : null
+  if (!node) return null
+  if (node.type.name === 'binding') return 'binding'
+  if (node.type.name === 'projectIcon') return 'projectIcon'
+  if (node.type.name === 'inlineCustomBlock' || node.type.name === 'blockCustomBlock') return 'customBlock'
+  return null
+})
+const selectedNodeAnchor = computed<DOMRect | null>(() => {
+  toolbarRevision.value
+  const currentEditor = editor.value
+  const selection = currentEditor?.state.selection
+  if (!currentEditor || !(selection instanceof NodeSelection) || !selectedNodeKind.value) return null
+  try {
+    const nodeDom = currentEditor.view.nodeDOM(selection.from)
+    if (nodeDom instanceof HTMLElement) return nodeDom.getBoundingClientRect()
+    const coordinates = currentEditor.view.coordsAtPos(selection.from)
+    return new DOMRect(coordinates.left, coordinates.top, Math.max(1, coordinates.right - coordinates.left), Math.max(1, coordinates.bottom - coordinates.top))
+  } catch {
+    return currentEditor.view.dom.getBoundingClientRect()
+  }
+})
+const nodeEditOpen = computed(() => Boolean(selectedNodeAnchor.value))
+const selectedNodeDialogTitle = computed(() => dialogNodeTarget.value?.kind === 'binding'
+  ? tr('propertyEditor.richText.editBinding', '编辑 Binding')
+  : dialogNodeTarget.value?.kind === 'projectIcon'
+    ? tr('propertyEditor.richText.editProjectIcon', '编辑项目图标')
+    : tr('propertyEditor.richText.editCustomBlock', '编辑自定义块'))
+const dialogCustomBlockInputs = computed<readonly PropertyEditorInput[]>(() => {
+  const selected = selectedCustomBlock.value
+  if (!selected) return []
+  const record: Record<string, unknown> = {}
+  const fields: Record<string, PropertyEditorFieldDefinition> = {}
+  for (const [fieldKey, field] of Object.entries(selected.fields)) {
+    const overridden = Object.prototype.hasOwnProperty.call(dialogCustomBlockProperties.value, fieldKey)
+    record[fieldKey] = overridden ? dialogCustomBlockProperties.value[fieldKey] : field.value
+    fields[fieldKey] = { ...field.definition, resettable: overridden }
+  }
+  return [{
+    key: String(selected.position),
+    title: selected.entry?.manifest.name ?? selected.key,
+    record,
+    fields,
+  }]
+})
+const dialogProjectIconAction = computed<OcActionButtonAction>(() => ({
+  ...projectIconAction.value,
+  title: tr('propertyEditor.richText.chooseProjectIcon', '选择项目图标'),
+}))
+
+function openSelectedNodeEditor(): void {
+  const currentEditor = editor.value
+  const selection = currentEditor?.state.selection
+  if (!currentEditor || !(selection instanceof NodeSelection)) return
+  const kind = selectedNodeKind.value
+  if (!kind) return
+  dialogNodeTarget.value = { position: selection.from, nodeType: selection.node.type.name, kind }
+  if (selectedNodeKind.value === 'binding') {
+    dialogBindingExpression.value = String(selection.node.attrs.expression ?? '')
+  } else if (selectedNodeKind.value === 'projectIcon') {
+    dialogIconAttrs.value = {
+      seriesKey: String(selection.node.attrs.seriesKey ?? ''),
+      iconKey: String(selection.node.attrs.iconKey ?? ''),
+    }
+  } else if (selectedNodeKind.value === 'customBlock') {
+    dialogCustomBlockProperties.value = { ...(selection.node.attrs.properties as Record<string, string>) }
+    dialogCustomBlockNodeType.value = selection.node.type.name === 'blockCustomBlock'
+      ? 'blockCustomBlock'
+      : 'inlineCustomBlock'
+  }
+  selectedNodeEditorOpen.value = true
+}
+
+function updateDialogBindingExpression(event: Event): void {
+  const target = event.target
+  if (target instanceof HTMLInputElement) dialogBindingExpression.value = target.value
+}
+
+function selectDialogProjectIcon(payload: OcActionButtonSelectPayload): void {
+  const entry = projectIconEntriesByActionKey.value.get(payload.key)
+  if (entry) dialogIconAttrs.value = { seriesKey: entry.seriesKey, iconKey: entry.iconKey }
+}
+
+function updateDialogCustomBlockProperty(payload: PropertyEditorMutation): void {
+  dialogCustomBlockProperties.value = {
+    ...dialogCustomBlockProperties.value,
+    [payload.fieldKey]: String(payload.value ?? ''),
+  }
+}
+
+function resetDialogCustomBlockProperty(payload: PropertyEditorFieldIntent): void {
+  const next = { ...dialogCustomBlockProperties.value }
+  delete next[payload.fieldKey]
+  dialogCustomBlockProperties.value = next
+}
+
+function toggleDialogCustomBlockLayout(): void {
+  dialogCustomBlockNodeType.value = dialogCustomBlockNodeType.value === 'inlineCustomBlock'
+    ? 'blockCustomBlock'
+    : 'inlineCustomBlock'
+}
+
+function confirmSelectedNodeEditor(): void {
+  const currentEditor = editor.value
+  const target = dialogNodeTarget.value
+  if (!currentEditor || !target) return
+  const node = currentEditor.state.doc.nodeAt(target.position)
+  if (!node || node.type.name !== target.nodeType) return cancelSelectedNodeEditor()
+  if (target.kind === 'binding') {
+    const expression = dialogBindingExpression.value.trim()
+    if (!expression) currentEditor.chain().focus().setNodeSelection(target.position).deleteSelection().run()
+    else currentEditor.chain().focus().setNodeSelection(target.position)
+      .updateAttributes(target.nodeType, { expression }).run()
+  } else if (target.kind === 'projectIcon' && dialogIconAttrs.value) {
+    currentEditor.chain().focus().setNodeSelection(target.position)
+      .updateAttributes(target.nodeType, dialogIconAttrs.value).run()
+  } else if (target.kind === 'customBlock') {
+    if (target.nodeType === dialogCustomBlockNodeType.value) {
+      currentEditor.chain().focus().setNodeSelection(target.position)
+        .updateAttributes(target.nodeType, { properties: dialogCustomBlockProperties.value }).run()
+    } else {
+      currentEditor.chain().focus().insertContentAt({ from: target.position, to: target.position + node.nodeSize }, {
+        type: dialogCustomBlockNodeType.value,
+        attrs: { ...node.attrs, properties: dialogCustomBlockProperties.value },
+      }).setNodeSelection(target.position).run()
+    }
+  }
+  selectedNodeEditorOpen.value = false
+}
+
+function cancelSelectedNodeEditor(): void {
+  selectedNodeEditorOpen.value = false
+  dialogIconAttrs.value = null
+  dialogCustomBlockProperties.value = {}
+  dialogCustomBlockNodeType.value = 'inlineCustomBlock'
+  dialogNodeTarget.value = null
+}
 
 watch(projectIconSuggestions, suggestions => {
   if (suggestions.some(suggestion => suggestion.key === activeProjectIconSuggestionKey.value)) return
@@ -311,22 +663,25 @@ watch(projectIconSuggestions, suggestions => {
 })
 
 const editor = useEditor({
-  content: normalizeRichTextHtml(props.modelValue),
+  content: visualEditorHtml(props.modelValue),
   parseOptions: richTextParseOptions,
   extensions: [
     StarterKit.configure({
       blockquote: false,
-      bulletList: false,
       codeBlock: false,
       heading: false,
       horizontalRule: false,
-      orderedList: false,
     }),
+    Table.configure({ resizable: true, allowTableNodeSelection: true }),
+    TableRow,
+    TableHeader,
+    TableCell,
     TextStyle,
     Underline,
     Color,
     FontFamily,
-    Highlight.configure({ multicolor: true }),
+    StaticHighlight.configure({ multicolor: true }),
+    DynamicStyle,
     TextAlign.configure({ types: ['paragraph'] }),
     TextStyleAttributes,
     BindingNode.configure({
@@ -335,6 +690,8 @@ const editor = useEditor({
     ProjectIconNode.configure({
       catalog: () => props.projectIconCatalog,
     }),
+    InlineCustomBlockNode,
+    BlockCustomBlockNode,
   ],
   editorProps: {
     attributes: {
@@ -342,6 +699,7 @@ const editor = useEditor({
       spellcheck: 'true',
     },
     handleKeyDown: (_view, event) => handleProjectIconCompletionKeydown(event),
+    transformPasted: slice => remapPastedEmbedIds(slice),
     handleDOMEvents: {
       blur: () => {
         closeProjectIconCompletion()
@@ -350,7 +708,7 @@ const editor = useEditor({
     },
   },
   onUpdate: ({ editor: currentEditor }) => {
-    const value = currentEditor.getHTML()
+    const value = canonicalEditorHtml(currentEditor.getHTML())
     lastEmittedValue.value = value
     emit('update:modelValue', value)
   },
@@ -362,6 +720,16 @@ const editor = useEditor({
   },
 })
 
+watch(() => {
+  toolbarRevision.value
+  const selection = editor.value?.state.selection
+  return selection instanceof NodeSelection
+    ? `${selection.from}:${selection.node.type.name}`
+    : ''
+}, () => {
+  if (!selectedNodeEditorOpen.value) dialogNodeTarget.value = null
+})
+
 watch(() => props.modelValue, (value) => {
   if (value === lastEmittedValue.value) {
     lastEmittedValue.value = null
@@ -370,8 +738,8 @@ watch(() => props.modelValue, (value) => {
   lastEmittedValue.value = null
   const currentEditor = editor.value
   if (!currentEditor) return
-  const normalizedValue = normalizeRichTextHtml(value)
-  if (currentEditor.getHTML() === normalizedValue) return
+  const normalizedValue = visualEditorHtml(value)
+  if (canonicalEditorHtml(currentEditor.getHTML()) === value) return
   currentEditor.commands.setContent(normalizedValue, false, richTextParseOptions)
 })
 
@@ -386,6 +754,50 @@ function setFontFamily(value: string): void {
   const cssFamily = fontOptions.value.find(option => option.value === value)?.cssFamily ?? value
   if (cssFamily) chain.setFontFamily(cssFamily).run()
   else chain.unsetFontFamily().run()
+}
+
+function insertTable(): void {
+  editor.value?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+}
+
+function handleTableAction(payload: OcActionButtonSelectPayload): void {
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (payload.key === 'table.add-row-before') chain.addRowBefore().run()
+  else if (payload.key === 'table.add-row-after') chain.addRowAfter().run()
+  else if (payload.key === 'table.add-column-before') chain.addColumnBefore().run()
+  else if (payload.key === 'table.add-column-after') chain.addColumnAfter().run()
+  else if (payload.key === 'table.toggle-header') chain.toggleHeaderRow().run()
+  else if (payload.key === 'table.delete-row') chain.deleteRow().run()
+  else if (payload.key === 'table.delete-column') chain.deleteColumn().run()
+  else if (payload.key === 'table.delete') chain.deleteTable().run()
+}
+
+async function insertCustomBlock(payload: OcActionButtonSelectPayload): Promise<void> {
+  const key = payload.key.startsWith('custom-block:') ? payload.key.slice('custom-block:'.length) : ''
+  if (!key || !props.customBlockCatalog) return
+  loadingCustomBlockKey.value = key
+  try {
+    await props.customBlockCatalog.ensureLoaded(key)
+  } catch {
+    failedCustomBlockKeys.value = new Set(failedCustomBlockKeys.value).add(key.toLowerCase())
+    return
+  } finally {
+    loadingCustomBlockKey.value = null
+  }
+  if (!props.customBlockCatalog.catalog.has(key.toLowerCase())) {
+    failedCustomBlockKeys.value = new Set(failedCustomBlockKeys.value).add(key.toLowerCase())
+    return
+  }
+  if (failedCustomBlockKeys.value.has(key.toLowerCase())) {
+    const nextFailedKeys = new Set(failedCustomBlockKeys.value)
+    nextFailedKeys.delete(key.toLowerCase())
+    failedCustomBlockKeys.value = nextFailedKeys
+  }
+  editor.value?.chain().focus().insertContent({
+    type: 'inlineCustomBlock',
+    attrs: { embedId: crypto.randomUUID(), customBlockKey: key, properties: {} },
+  }).run()
 }
 
 function parsePositiveNumber(value: unknown): number | null {
@@ -635,7 +1047,13 @@ function focus(): void {
   editor.value?.commands.focus('end', { scrollIntoView: false })
 }
 
-defineExpose({ editor, focus })
+defineExpose({
+  editor,
+  focus,
+  openSelectedNodeEditor,
+  confirmSelectedNodeEditor,
+  cancelSelectedNodeEditor,
+})
 </script>
 
 <style scoped>
@@ -756,5 +1174,45 @@ defineExpose({ editor, focus })
 
 .oc-rich-text-editor__surface :deep(p + p) {
   margin-top: 0.35em;
+}
+
+.oc-rich-text-editor__surface :deep(ul),
+.oc-rich-text-editor__surface :deep(ol) {
+  margin-block: var(--oc-space-2);
+  padding-inline-start: var(--oc-space-5);
+}
+
+.oc-rich-text-editor__surface :deep(table) {
+  width: 100%;
+  margin-block: var(--oc-space-2);
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.oc-rich-text-editor__surface :deep(th),
+.oc-rich-text-editor__surface :deep(td) {
+  min-width: var(--oc-size-lg);
+  padding: var(--oc-space-1) var(--oc-space-2);
+  border: var(--oc-border-width) solid var(--oc-border-default);
+  vertical-align: top;
+}
+
+.oc-rich-text-editor__surface :deep([class~="selectedCell"]) {
+  background: var(--oc-bg-selected);
+}
+
+.oc-rich-text-editor__node-edit-layer {
+  display: grid;
+  max-width: var(--oc-dialog-width-md);
+  max-height: inherit;
+  gap: var(--oc-space-2);
+  padding: var(--oc-floating-surface-padding);
+  overflow: auto;
+}
+
+.oc-rich-text-editor__node-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 </style>

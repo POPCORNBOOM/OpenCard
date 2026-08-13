@@ -161,6 +161,7 @@ const props = defineProps<{
   shortcutLegendLabel?: string
   basePlaneLabel?: string
   shortcutHints?: Array<{ keys: OcShortcutPart[]; label: string }>
+  atomicBlockIds?: readonly string[]
 }>()
 
 const emit = defineEmits<{
@@ -169,7 +170,7 @@ const emit = defineEmits<{
 }>()
 
 const rootRef = ref<HTMLElement | null>(null)
-const layers = computed(() => buildCardLayerGroups(props.face))
+const layers = computed(() => buildCardLayerGroups(props.face, new Set(props.atomicBlockIds ?? [])))
 const snapshots = ref(new Map<string, Snapshot>())
 const facePreviewHtml = ref('')
 const layerPosition = ref(0)

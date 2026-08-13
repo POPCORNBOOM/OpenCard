@@ -102,7 +102,7 @@ describe('useCdeTreeOps active face boundary', () => {
 
     state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'show-block', source: 'inline' })
     expect(document.faces.front.children[0]!.block.visible).toBe('true')
-    expect(markDocumentChanged).toHaveBeenCalledWith('action')
+    expect(markDocumentChanged).toHaveBeenCalledWith('action', 'structure-tree', true)
 
     activeFaceKey.value = 'back'
     await nextTick()
@@ -113,7 +113,7 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(document.faces.back.children).toHaveLength(2)
     expect(document.faces.front.children).toHaveLength(1)
     expect(document.faces.back.children[1]?.block.name).toBe('Localized text-block')
-    expect(markDocumentChanged).toHaveBeenCalledWith('action')
+    expect(markDocumentChanged).toHaveBeenCalledWith('action', 'structure-tree', true)
 
     state.handleRootAction('add-markdown-text-block')
     expect(document.faces.back.children).toHaveLength(3)

@@ -6,7 +6,11 @@
         <OcText tone="muted">{{ t('fontPreview.loading') }}</OcText>
       </div>
       <div v-else-if="loadFailed" class="font-preview-editor__status">
-        <OcText tone="danger" role="alert">{{ t('fontPreview.loadFailed') }}</OcText>
+        <OcText tone="danger" role="alert">{{ repairError || t('fontPreview.loadFailed') }}</OcText>
+        <OcText tone="muted" size="sm">{{ t('fontPreview.repairDescription') }}</OcText>
+        <OcButton icon="action.refresh" variant="soft" :disabled="repairing" @click="attemptRepair">
+          {{ repairing ? t('fontPreview.repairing') : t('fontPreview.attemptRepair') }}
+        </OcButton>
       </div>
       <main v-else class="font-preview-editor__workspace">
         <label for="font-preview-input">{{ t('fontPreview.tryLabel') }}</label>
@@ -30,6 +34,8 @@ import { computed, onBeforeUnmount, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import { repairTrueTypeFont } from '../../features/workspace/services/trueTypeFontRepair'
+import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcText from '../base/OcText.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
@@ -42,6 +48,8 @@ const { t } = useI18n()
 const previewFamily = `OpenCardFontPreview-${crypto.randomUUID()}`
 const loading = ref(true)
 const loadFailed = ref(false)
+const repairing = ref(false)
+const repairError = ref('')
 const previewText = ref(t('fontPreview.sample'))
 let loadedFace: FontFace | null = null
 let fontObjectUrl: string | null = null
@@ -71,6 +79,7 @@ async function loadFont(): Promise<void> {
   removeLoadedFace()
   loading.value = true
   loadFailed.value = false
+  repairError.value = ''
 
   try {
     const bytes = await fileSystemService.readBinaryFile(absolutePath.value)
@@ -96,6 +105,58 @@ async function loadFont(): Promise<void> {
       emit('modified', false)
     }
   }
+}
+
+async function attemptRepair(): Promise<void> {
+  if (repairing.value) return
+  repairing.value = true
+  repairError.value = ''
+  try {
+    const source = await fileSystemService.readBinaryFile(absolutePath.value)
+    const repaired = await repairTrueTypeFont(source)
+    const verified = await createLoadedFace(repaired)
+    const outputPath = await fileSystemService.pickSavePath({
+      defaultPath: createRepairOutputPath(absolutePath.value),
+      fileTypeName: t('fileTypes.font'),
+      extensions: ['ttf'],
+      title: t('fontPreview.saveRepairedTitle'),
+    })
+    if (!outputPath) {
+      document.fonts.delete(verified.face)
+      URL.revokeObjectURL(verified.source)
+      return
+    }
+    removeLoadedFace()
+    loadedFace = verified.face
+    fontObjectUrl = verified.source
+    await fileSystemService.writeBinaryFile(outputPath, repaired)
+    loadFailed.value = false
+  } catch (error) {
+    repairError.value = t('fontPreview.repairFailed', {
+      message: error instanceof DOMException && error.name === 'NetworkError'
+        ? t('fontPreview.repairedFontRejected')
+        : error instanceof Error ? error.message : String(error),
+    })
+  } finally {
+    repairing.value = false
+  }
+}
+
+async function createLoadedFace(bytes: Uint8Array): Promise<{ face: FontFace; source: string }> {
+  const blob = new Blob([new Uint8Array(bytes)], { type: 'font/ttf' })
+  const source = URL.createObjectURL(blob)
+  try {
+    const face = await new FontFace(previewFamily, `url(${JSON.stringify(source)})`).load()
+    document.fonts.add(face)
+    return { face, source }
+  } catch (error) {
+    URL.revokeObjectURL(source)
+    throw error
+  }
+}
+
+function createRepairOutputPath(path: string): string {
+  return path.replace(/\.ttf$/i, '') + t('fontPreview.repairedSuffix') + '.ttf'
 }
 
 function resolveFontMimeType(path: string): string {
@@ -133,6 +194,9 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-height: 0;
   padding: var(--oc-space-5);
+  flex-direction: column;
+  gap: var(--oc-space-3);
+  text-align: center;
 }
 
 .font-preview-editor__workspace {

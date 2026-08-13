@@ -653,6 +653,22 @@ describe('ProjectTemplateService user template creation', () => {
 })
 
 describe('ProjectTemplateService project creation', () => {
+  it('creates an empty project folder when the template has no entry or content directory', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    const template = templateFixture('/template/content')
+    delete template.entry
+
+    const created = await createService(fs, 'empty-id').createProject({
+      template,
+      parentPath: '/projects',
+      projectName: 'Empty',
+    })
+
+    expect(created).toEqual({ path: '/projects/Empty' })
+    expect(fs.allPaths().filter(path => path.startsWith('/projects/Empty'))).toEqual(['/projects/Empty'])
+  })
+
   it('copies the selected template atomically and returns its entry', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
@@ -673,6 +689,23 @@ describe('ProjectTemplateService project creation', () => {
     expect(projectFileContent).not.toHaveProperty('entry')
     expect(fs.rawFile('/projects/Demo/assets/portrait.png')).toEqual(new Uint8Array([1, 2, 3]))
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
+  })
+
+  it('copies template content without opening a page when None is selected', async () => {
+    const fs = new MemoryFileSystem()
+    fs.putDirectory('/projects')
+    fs.putFile('/template/content/.ocproject', projectFile())
+    fs.putFile('/template/content/main.ocdocument', cardDocument())
+
+    const created = await createService(fs, 'no-entry').createProject({
+      template: templateFixture(),
+      parentPath: '/projects',
+      projectName: 'Standard',
+      entry: '',
+    })
+
+    expect(created).toEqual({ path: '/projects/Standard' })
+    expect(await fs.fileExists('/projects/Standard/main.ocdocument')).toBe(true)
   })
 
   it('refuses an existing target without touching it', async () => {

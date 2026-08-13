@@ -105,6 +105,26 @@ describe('prepareExportTask', () => {
     expect(result.plan.entries[0]?.render.resources.resourceRootPath).toBe('D:/project/cards')
   })
 
+  it('carries the same prepared rich-text catalog into every export renderer entry', async () => {
+    const sourceDocument = document([])
+    sourceDocument.faces.front.children = [{
+      block: createTextBlock({ id: 'text', content: '<p>Export</p>' }),
+      location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+    }]
+    const source: ExportDocumentSource = {
+      load: async sourcePath => ({ sourcePath, resourceRootPath: 'D:/project/cards', document: sourceDocument }),
+    }
+
+    const result = await prepareExportTask({ task: task('blueprint'), source, destination, environment })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    for (const entry of result.plan.entries) {
+      expect(entry.render.resources.richText).toBe(entry.render.richText)
+      expect(entry.render.richText?.get('text')?.document.html).toBe('<p>Export</p>')
+    }
+  })
+
   it('flattens project-relative paths and deterministically deduplicates names', async () => {
     const source: ExportDocumentSource = {
       load: async sourcePath => ({

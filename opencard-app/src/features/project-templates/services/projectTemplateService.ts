@@ -408,19 +408,24 @@ export class ProjectTemplateService {
       request.parentPath,
       `.${projectName}.opencard-create-${this.createId()}`,
     )
-    const selectedEntry = normalizeRelativePath(request.entry ?? request.template.entry)
-    if (!resolveTemplateEntries(request.template).includes(selectedEntry)) {
+    const templateEntries = resolveTemplateEntries(request.template)
+    const selectedEntry = normalizeRelativePath(request.entry ?? request.template.entry ?? '')
+    if (selectedEntry && !templateEntries.includes(selectedEntry)) {
       throw new TemplateServiceError('entry-not-found', 'Selected template entry is not available')
     }
 
     try {
       await this.fs.createDirectory(temporaryPath)
-      await this.copyDirectory(request.template.contentPath, temporaryPath)
+      if (await this.fs.fileExists(request.template.contentPath)) {
+        await this.copyDirectory(request.template.contentPath, temporaryPath)
+      }
       await this.registerIconPacks(temporaryPath, request.iconPacks ?? [])
       await this.registerCustomBlocks(temporaryPath, request.customBlocks ?? [])
-      const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
-      if (!await this.fs.fileExists(entryPath)) {
-        throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
+      if (selectedEntry) {
+        const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
+        if (!await this.fs.fileExists(entryPath)) {
+          throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
+        }
       }
       const projectFilePath = await this.paths.join(temporaryPath, PROJECT_FILE_NAME)
       if (await this.fs.fileExists(projectFilePath)) {
@@ -433,9 +438,11 @@ export class ProjectTemplateService {
           name: projectName,
         }))
       }
-      const createdEntryPath = await this.paths.join(targetPath, ...pathSegments(selectedEntry))
+      const createdEntryPath = selectedEntry
+        ? await this.paths.join(targetPath, ...pathSegments(selectedEntry))
+        : undefined
       await this.fs.renameFile(temporaryPath, targetPath)
-      return { path: targetPath, entry: createdEntryPath }
+      return { path: targetPath, ...(createdEntryPath ? { entry: createdEntryPath } : {}) }
     } catch (cause) {
       const cleanupCause = await this.removeIfExists(temporaryPath)
       if (cause instanceof TemplateServiceError && !cleanupCause) throw cause

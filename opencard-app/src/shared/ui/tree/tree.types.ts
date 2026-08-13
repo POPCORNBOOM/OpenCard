@@ -39,6 +39,7 @@ export interface OcTreeActionDefinition {
   title: string
   icon?: IconToken
   iconTone?: IconTone
+  shortcut?: readonly (string | { icon: IconToken } | { separator: string })[]
   children?: readonly OcTreeActionKey[]
 }
 

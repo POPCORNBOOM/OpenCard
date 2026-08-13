@@ -310,6 +310,16 @@ export function useSettingsWorkspace(
       title: categoryLabels.value.workspace,
       fields: [
         {
+          type: 'range',
+          key: 'workspace.historyEntryLimit',
+          label: options.translate('settings.fields.historyEntryLimit', 'History entries per editor'),
+          value: settings.workspace.historyEntryLimit,
+          min: 10,
+          max: 1000,
+          step: 10,
+          suffix: options.translate('settings.values.historyEntries', ' entries'),
+        },
+        {
           type: 'options',
           key: 'workspace.structureTreeSelectionBehavior',
           label: options.translate('settings.fields.structureTreeSelectionBehavior', 'Structure tree selection'),

@@ -40,7 +40,11 @@ export type CardCustomBlockIssueType =
   | 'card-designer.custom-block.content-error'
   | 'card-designer.custom-block.resource-error'
 
-export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardCustomBlockIssueType
+export type CardRichTextIssueType =
+  | 'card-designer.rich-text.invalid-html'
+  | 'card-designer.rich-text.limit-exceeded'
+
+export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardCustomBlockIssueType | CardRichTextIssueType
 
 export type CardPipelineIssue = {
   id: string

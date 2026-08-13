@@ -1,6 +1,7 @@
 import { inject, type ComputedRef, type InjectionKey } from 'vue'
 import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
 import type { CustomBlockRuntimeCatalog } from '../expandCustomBlocks'
+import type { PreparedRichTextCatalog } from '../prepareRichText'
 
 export interface CardEditorContext {
   transformDisabledBlockIds: ComputedRef<Set<string>>
@@ -8,7 +9,8 @@ export interface CardEditorContext {
   resolveAssetSrc: (path: string) => string
   resolveFontFamily: (value: string) => string
   projectIconCatalog?: ComputedRef<ProjectIconCatalog>
-  customBlockCatalog?: CustomBlockRuntimeCatalog
+  customBlockCatalog?: ComputedRef<CustomBlockRuntimeCatalog>
+  richText?: ComputedRef<PreparedRichTextCatalog>
 }
 
 export const cardEditorContextKey: InjectionKey<CardEditorContext> = Symbol('card-editor-context')

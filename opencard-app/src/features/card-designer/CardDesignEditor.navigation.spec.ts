@@ -876,6 +876,9 @@ describe('CardDesignEditor issue navigation', () => {
   it('maps canvas keyboard shortcuts to viewport selection commands', async () => {
     const nudgeSelection = vi.fn(() => true)
     const runSelectionQuickAction = vi.fn(() => true)
+    const zoomBy = vi.fn()
+    const fitView = vi.fn()
+    const flashStatus = vi.fn()
     const stepLayer = vi.fn()
     const focusLayerBlock = vi.fn()
     const getFocusedLayerBlockId = vi.fn(() => 'container-1')
@@ -894,6 +897,9 @@ describe('CardDesignEditor issue navigation', () => {
       emits: ['block-click', 'blank-click', 'z-index-step'],
       setup(_, { expose }) {
         expose({
+          zoomBy,
+          fitView,
+          flashStatus,
           nudgeSelection,
           runSelectionQuickAction,
           stepLayer,
@@ -1019,6 +1025,50 @@ describe('CardDesignEditor issue navigation', () => {
     await root.trigger('keydown', { key: 'f' })
     expect(nudgeSelection).toHaveBeenCalledWith(1, 0)
     expect(runSelectionQuickAction).toHaveBeenCalledWith('fill-parent')
+
+    await root.trigger('keydown', { key: '0', ctrlKey: true })
+    await root.trigger('keydown', { key: '+', ctrlKey: true, shiftKey: true })
+    await root.trigger('keydown', { key: '-', ctrlKey: true })
+    expect(fitView).toHaveBeenCalledTimes(1)
+    expect(zoomBy.mock.calls).toEqual([[1.25], [0.8]])
+
+    await root.trigger('keydown', { key: 'd', ctrlKey: true })
+    await nextTick()
+    const duplicatedFace = viewport.props('face') as {
+      children: Array<{ block: { children: Array<{ block: { id: string } }> } }>
+    }
+    expect(duplicatedFace.children[0]?.block.children).toHaveLength(2)
+    await root.trigger('keydown', { key: 'Delete' })
+    await nextTick()
+    const restoredFace = viewport.props('face') as {
+      children: Array<{ block: { children: Array<{ block: { id: string } }> } }>
+    }
+    expect(restoredFace.children[0]?.block.children).toHaveLength(1)
+
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
+    await root.trigger('keydown', { key: 's' })
+    const snappingEvents = wrapper.emitted('update-card-designer-view') ?? []
+    const snappingUpdate = snappingEvents[snappingEvents.length - 1]?.[0] as {
+      alignmentSnappingEnabled: boolean
+    }
+    await root.trigger('keydown', { key: 's' })
+    await root.trigger('keydown', { key: 'x' })
+    await root.trigger('keydown', { key: 'b' })
+    const viewUpdates = wrapper.emitted('update-card-designer-view') as Array<[
+      { activeFace: string; clipToFace: boolean; alignmentSnappingEnabled: boolean }
+    ]>
+    expect(viewUpdates[viewUpdates.length - 3]?.[0].alignmentSnappingEnabled)
+      .toBe(!snappingUpdate.alignmentSnappingEnabled)
+    expect(viewUpdates.map(([view]) => view)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ clipToFace: true }),
+      expect.objectContaining({ activeFace: 'back' }),
+    ]))
+    expect(flashStatus.mock.calls).toEqual(expect.arrayContaining([
+      [{ icon: 'tool.snap-grid-on', message: 'Alignment snapping enabled' }],
+      [{ icon: 'tool.snap-grid', message: 'Alignment snapping disabled' }],
+      [{ icon: 'tool.box-cutter', message: 'Face clipping enabled' }],
+      [{ icon: 'tool.flip-to-back', message: 'Switched to back face' }],
+    ]))
 
     await wrapper.get('.shortcut-input').trigger('keydown', { key: 'ArrowLeft' })
     expect(nudgeSelection).toHaveBeenCalledTimes(1)

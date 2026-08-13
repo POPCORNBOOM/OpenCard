@@ -11,7 +11,10 @@ export type CardLayerGroup = {
   blocks: CardLayerBlock[]
 }
 
-export function buildCardLayerGroups(face: RenderReadyCardFace): CardLayerGroup[] {
+export function buildCardLayerGroups(
+  face: RenderReadyCardFace,
+  atomicBlockIds: ReadonlySet<string> = new Set(),
+): CardLayerGroup[] {
   const blocks: CardLayerBlock[] = []
 
   function visit(block: RenderReadyCardBlock, ancestorsVisible: boolean): void {
@@ -19,6 +22,7 @@ export function buildCardLayerGroups(face: RenderReadyCardFace): CardLayerGroup[
     if (!visible) return
 
     blocks.push({ id: block.id, zIndex: block.zIndex, block })
+    if (atomicBlockIds.has(block.id)) return
     if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
       block.children.forEach(child => visit(child.block, visible))
     }

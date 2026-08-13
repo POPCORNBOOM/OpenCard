@@ -48,11 +48,23 @@
       :base-plane-label="layerViewBasePlaneLabel"
       :shortcut-legend-label="layerViewShortcutLegendLabel"
       :shortcut-hints="layerViewShortcutHints"
+      :atomic-block-ids="layerViewAtomicBlockIds"
       :viewport-width="viewportWidth"
       :viewport-height="viewportHeight"
       @block-click="handleBlockClick"
       @z-index-step="emit('z-index-step', $event)"
     />
+    <div
+      v-if="statusFlash"
+      :key="statusFlash.sequence"
+      class="card-viewport-status-flash"
+      role="status"
+      aria-live="polite"
+      @animationend="finishStatusFlash(statusFlash.sequence)"
+    >
+      <OcIcon :name="statusFlash.icon" size="display" />
+      <span>{{ statusFlash.message }}</span>
+    </div>
     <div v-if="!effectiveLayerViewActive" class="card-selection-layer">
       <svg v-if="alignmentSnapGuides.length > 0" class="selection-alignment-guides" aria-hidden="true">
         <line v-for="guide in alignmentSnapGuides" :key="guide.axis"
@@ -167,6 +179,11 @@ export type CardViewportSelectionInfo = {
   iconTone: IconTone
   name: string
   notes: string
+}
+
+export type CardViewportStatusFlash = {
+  icon: IconToken
+  message: string
 }
 </script>
 
@@ -288,6 +305,7 @@ const props = withDefaults(defineProps<{
   }>
   transform?: ViewportTransform
   transformDisabledBlockIds?: string[]
+  layerViewAtomicBlockIds?: string[]
   widthLocked?: boolean
   heightLocked?: boolean
   resourceContext: CardRenderResourceContext
@@ -322,6 +340,7 @@ const props = withDefaults(defineProps<{
   layerViewShortcutHints: () => [],
   transform: undefined,
   transformDisabledBlockIds: () => [],
+  layerViewAtomicBlockIds: () => [],
   widthLocked: false,
   heightLocked: false,
   clipToFace: false,
@@ -363,6 +382,8 @@ const faceDimensionDrag = ref<{
   startValue: number
   lastValue: number
 } | null>(null)
+const statusFlash = ref<(CardViewportStatusFlash & { sequence: number }) | null>(null)
+let statusFlashSequence = 0
 
 let resizeObserver: ResizeObserver | null = null
 let zoomAnimationFrame: number | null = null
@@ -371,7 +392,8 @@ let pendingTransformEchoes: ViewportTransform[] = []
 let previousDimensionCursor = ''
 
 const effectiveLayerViewActive = computed(() => (
-  props.layerViewActive && buildCardLayerGroups(props.face).length > 0
+  props.layerViewActive
+  && buildCardLayerGroups(props.face, new Set(props.layerViewAtomicBlockIds)).length > 0
 ))
 
 function applyViewportTransform(transform: ViewportTransform | undefined) {
@@ -1557,7 +1579,17 @@ onBeforeUnmount(() => {
   stopZoomAnimation()
   resizeObserver?.disconnect()
   resizeObserver = null
+  statusFlash.value = null
 })
+
+function flashStatus(status: CardViewportStatusFlash): void {
+  statusFlashSequence += 1
+  statusFlash.value = { ...status, sequence: statusFlashSequence }
+}
+
+function finishStatusFlash(sequence: number): void {
+  if (statusFlash.value?.sequence === sequence) statusFlash.value = null
+}
 
 defineExpose({
   zoomBy,
@@ -1571,6 +1603,7 @@ defineExpose({
   focusLayerBlock,
   getFocusedLayerBlockId,
   cycleLayerByInitial,
+  flashStatus,
 })
 
 watch(
@@ -1624,6 +1657,53 @@ watch(
   cursor: grabbing;
 }
 
+.card-viewport-status-flash {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  width: var(--oc-viewport-status-size);
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-3);
+  max-width: calc(100% - var(--oc-space-8) * 2);
+  padding: var(--oc-space-5);
+  border: var(--oc-border-width) solid var(--oc-border-muted);
+  border-radius: var(--oc-radius-md);
+  background: var(--oc-bg-surface);
+  box-shadow: var(--oc-shadow-md);
+  color: var(--oc-fg-default);
+  font-size: var(--oc-text-sm);
+  pointer-events: none;
+  animation: card-viewport-status-flash var(--oc-viewport-status-duration) var(--oc-ease) both;
+}
+
+.card-viewport-status-flash > span {
+  width: 100%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+@keyframes card-viewport-status-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + var(--oc-space-2)));
+  }
+  20%, 75% {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - var(--oc-space-2)));
+  }
+}
+
 .card-viewport-stage {
   position: absolute;
   left: 0;
@@ -1672,6 +1752,10 @@ watch(
 @media (prefers-reduced-motion: reduce) {
   .card-viewport-stage {
     transition: none;
+  }
+
+  .card-viewport-status-flash {
+    animation-timing-function: linear;
   }
 }
 

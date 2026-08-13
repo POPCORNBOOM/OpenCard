@@ -79,6 +79,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-icon-size-md',
   '--oc-icon-size-lg',
   '--oc-icon-size-action',
+  '--oc-icon-size-display',
   '--oc-field-affix-icon-offset-y',
 
   // 数字角标
@@ -144,6 +145,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-size-sm',
   '--oc-size-md',
   '--oc-size-lg',
+  '--oc-viewport-status-size',
 
   // 颜色通道控件
   '--oc-color-picker-plane-height',
@@ -259,6 +261,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-duration-fast',
   '--oc-duration-normal',
   '--oc-duration-slow',
+  '--oc-viewport-status-duration',
   '--oc-overflow-text-duration',
   '--oc-ease',
 

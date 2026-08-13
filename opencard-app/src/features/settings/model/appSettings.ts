@@ -115,6 +115,7 @@ export type AppSettingKey =
   | 'workspace.alignmentSnappingEnabledByDefault'
   | 'workspace.defaultFontImportDirectory'
   | 'workspace.defaultIconImportDirectory'
+  | 'workspace.historyEntryLimit'
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
@@ -143,6 +144,7 @@ export interface AppSettings {
     alignmentSnappingEnabledByDefault: boolean
     defaultFontImportDirectory: string
     defaultIconImportDirectory: string
+    historyEntryLimit: number
   }
   projectCreation: {
     lastParentPath: string
@@ -216,6 +218,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     alignmentSnappingEnabledByDefault: true,
     defaultFontImportDirectory: DEFAULT_PROJECT_FONT_DIRECTORY,
     defaultIconImportDirectory: DEFAULT_PROJECT_ICON_DIRECTORY,
+    historyEntryLimit: 100,
   }),
   projectCreation: Object.freeze({
     lastParentPath: '',
@@ -238,6 +241,11 @@ function clampSidebarWidth(value: unknown): number {
 function clampPercentage(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+function clampHistoryEntryLimit(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.historyEntryLimit
+  return Math.min(1000, Math.max(10, Math.round(value / 10) * 10))
 }
 
 function normalizeRecentProjects(value: unknown): string[] {
@@ -570,6 +578,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       defaultIconImportDirectory: typeof workspace.defaultIconImportDirectory === 'string'
         ? normalizeProjectIconDirectory(workspace.defaultIconImportDirectory) ?? DEFAULT_PROJECT_ICON_DIRECTORY
         : DEFAULT_PROJECT_ICON_DIRECTORY,
+      historyEntryLimit: clampHistoryEntryLimit(workspace.historyEntryLimit),
     },
     projectCreation: {
       lastParentPath: typeof projectCreation.lastParentPath === 'string'

@@ -21,6 +21,8 @@ import type { ProjectFontRegistry } from '../workspace/model/projectFontRegistry
 import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/projectFonts'
 import type { ProjectIconSeries } from '../workspace/model/projectIcons'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import type { DeepReadonly } from 'vue'
+import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../workspace/model/projectCustomBlocks'
 import { createProjectIconCompletionProvider } from '../workspace/services/projectIconCompletion'
 import {
   resolveReferenceCompletion,
@@ -37,6 +39,9 @@ export type CdePropertyProjectContext = {
   dictionary?: Readonly<Record<string, string>> | null
   iconSeries?: readonly ProjectIconSeries[] | null
   projectIconCatalog?: ProjectIconCatalog | null
+  customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
+  customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
+  ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
 }
 
 export function createCdeCardReferenceScope(options: {
@@ -105,6 +110,9 @@ export function enrichCardPropertyFieldDefinition(options: {
   directoryProvider?: FilePathDirectoryProvider
   iconSeries?: readonly ProjectIconSeries[] | null
   projectIconCatalog?: ProjectIconCatalog | null
+  customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
+  customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
+  ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
 }): PropertyEditorFieldDefinition {
   const bindingProvider = options.referenceContext
     && options.definition.acceptsBinding !== false
@@ -141,7 +149,11 @@ export function enrichCardPropertyFieldDefinition(options: {
     ? options.directoryProvider
     : undefined
 
-  if (!provider && !fontOptions && !richTextBaseStyle) return options.definition
+  const customBlock = options.definition.fieldType === 'string' && options.definition.richText
+    && options.customBlockCatalog && options.customBlockManifestCatalog && options.ensureCustomBlockLoaded
+    ? { catalog: options.customBlockCatalog, manifests: options.customBlockManifestCatalog, ensureLoaded: options.ensureCustomBlockLoaded }
+    : undefined
+  if (!provider && !fontOptions && !richTextBaseStyle && !customBlock) return options.definition
   return {
     ...options.definition,
     ...(fontOptions ? { fontOptions } : {}),
@@ -153,6 +165,7 @@ export function enrichCardPropertyFieldDefinition(options: {
     ] } : {}),
     ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
     ...(iconProvider ? { projectIcon: { provider: iconProvider, catalog: options.projectIconCatalog ?? undefined } } : {}),
+    ...(customBlock ? { customBlock } : {}),
     ...(provider ? { completion: { ...options.definition.completion, provider } } : {}),
   } as PropertyEditorFieldDefinition
 }

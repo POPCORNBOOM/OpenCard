@@ -212,6 +212,30 @@ describe('renderPipeline', () => {
     })
   })
 
+  it('prepares embedded rich-text blocks once and shares the catalog with renderer resources', () => {
+    const host = createTextBlock({
+      id: 'host',
+      content: '<p><oc-custom-block data-oc-id="badge-1" data-oc-key="badge" data-oc-layout="inline">'
+        + '<oc-prop data-oc-key="label">Ready</oc-prop></oc-custom-block></p>',
+    })
+    const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
+    root.additionalFieldDefinition = { label: { fieldType: 'string' } }
+
+    const result = render(createDocument(host), null, {
+      customBlockCatalog: new Map([['badge', {
+        manifest: {
+          customBlockKey: 'badge', publicFieldKeys: ['label'],
+          resize: { widthLocked: true, heightLocked: true },
+        },
+        block: root,
+      }]]),
+    })
+
+    expect(result.resources.richText).toBe(result.richText)
+    expect(result.resources.richText?.get('host')?.embeddedBlocks.get('badge-1'))
+      .toMatchObject({ type: 'custom-block', content: { type: 'text-block', content: 'Ready' } })
+  })
+
   it('reports packaged resource degradation on the host without exposing resource identity', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
     Object.assign(host, { type: 'custom-block', customBlockKey: 'label' })

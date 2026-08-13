@@ -439,7 +439,6 @@ defineExpose({ selectSeries, navigateToKeyConflict })
   gap: var(--oc-space-4);
   padding: var(--oc-space-5);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
   color: var(--oc-fg-default);
 }
 .project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }

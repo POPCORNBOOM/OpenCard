@@ -90,6 +90,8 @@ export const iconTokens = {
   'data.collection': true,
   'data.code-string': true,
   'data.layers': true,
+  'data.list-bulleted': true,
+  'data.list-numbered': true,
   'data.list-selection': true,
   'data.list-tree': true,
   'data.table': true,
@@ -99,6 +101,7 @@ export const iconTokens = {
   'data.symbol-key': true,
   'data.symbol-number': true,
   'data.symbol-string': true,
+  'data.symbol-custom-block': true,
   'data.variable': true,
 
   'format.align-start': true,

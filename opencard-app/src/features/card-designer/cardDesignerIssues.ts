@@ -23,6 +23,8 @@ const issueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.custom-block.unavailable': 'app.problems.customBlockCodes.UNAVAILABLE',
   'card-designer.custom-block.content-error': 'app.problems.customBlockCodes.CONTENT_ERROR',
   'card-designer.custom-block.resource-error': 'app.problems.customBlockCodes.RESOURCE_ERROR',
+  'card-designer.rich-text.invalid-html': 'app.problems.richTextCodes.INVALID_HTML',
+  'card-designer.rich-text.limit-exceeded': 'app.problems.richTextCodes.LIMIT_EXCEEDED',
 }
 
 const valueKindMessageKeys: Readonly<Record<string, string>> = {

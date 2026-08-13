@@ -80,6 +80,7 @@ import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOver
 import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import CardViewport from '../../features/card-rendering/components/CardViewport.vue'
 import { VIEWPORT_ZOOM_STEP } from '../../shared/ui/viewport/viewportNavigation'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
@@ -253,8 +254,8 @@ function handlePropertyCardAction(payload: { key: string }): void {
   if (payload.key === 'reset-preview-values') resetActiveValues()
 }
 
-function updateRawSource(content: string): void {
-  emit('update:modelValue', content)
+function updateRawSource(content: string, history?: HistoryOperationMeta): void {
+  emit('update:modelValue', content, history)
 }
 
 function save(): void {

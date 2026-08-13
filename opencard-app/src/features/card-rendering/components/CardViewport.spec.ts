@@ -175,6 +175,27 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
   })
 
+  it('flashes and replaces centered viewport status feedback', async () => {
+    const wrapper = mount(CardViewport, {
+      props: { resourceContext, face },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    const viewport = wrapper.vm as unknown as {
+      flashStatus(status: { icon: 'tool.flip-to-back' | 'tool.snap-grid-on'; message: string }): void
+    }
+
+    viewport.flashStatus({ icon: 'tool.flip-to-back', message: 'Switched to back face' })
+    await nextTick()
+    expect(wrapper.get('.card-viewport-status-flash').text()).toContain('Switched to back face')
+
+    viewport.flashStatus({ icon: 'tool.snap-grid-on', message: 'Alignment snapping enabled' })
+    await nextTick()
+    const flash = wrapper.get('.card-viewport-status-flash')
+    expect(flash.text()).toContain('Alignment snapping enabled')
+    await flash.trigger('animationend')
+    expect(wrapper.find('.card-viewport-status-flash').exists()).toBe(false)
+  })
+
   it('pauses viewport zoom while layer view is active and restores it on exit', async () => {
     const LayerSourceStub = defineComponent({
       name: 'CardFaceRenderer',

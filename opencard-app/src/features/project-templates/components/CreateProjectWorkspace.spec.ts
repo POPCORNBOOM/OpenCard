@@ -72,6 +72,7 @@ const messages = {
       noCustomBlocksSelected: 'None',
       selectTemplate: 'Select a template',
       noDescription: 'No description',
+      noInitialPage: 'None',
       chooseLocation: 'Choose a location',
       creating: 'Creating',
       skippedTemplates: 'Skipped {count}',
@@ -364,6 +365,7 @@ describe('CreateProjectWorkspace', () => {
 
     const entrySelect = wrapper.get('.create-project__form').getComponent(OcSelect)
     expect(entrySelect.props('options')).toEqual([
+      { value: '', label: 'None' },
       { value: 'main.ocdocument', label: 'Main Blueprint' },
       { value: 'alternate.ocdocument', label: 'Alternate Blueprint' },
     ])

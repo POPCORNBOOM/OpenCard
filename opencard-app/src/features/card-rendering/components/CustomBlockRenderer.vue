@@ -33,15 +33,16 @@ const nativeContent = computed(() => props.block.content?.type === 'custom-block
 const blockStyle = computed(() => props.layoutMode === 'absolute'
   ? getPositionStyles(props.block, { disableTransform: false })
   : `width: ${props.block.width}; height: ${props.block.height}`)
-const scopedEntry = computed(() => editorContext.customBlockCatalog?.get(props.block.customBlockKey.toLowerCase()))
+const scopedEntry = computed(() => editorContext.customBlockCatalog?.value.get(props.block.customBlockKey.toLowerCase()))
 
 provide(cardEditorContextKey, {
   ...editorContext,
   resolveAssetSrc: source => /^resource:image:/i.test(source.trim())
     ? resolveCustomBlockAssetSrc(source, props.block.customBlockKey, {
         resourceRootPath: null,
-        customBlockCatalog: editorContext.customBlockCatalog ?? new Map(),
+        customBlockCatalog: editorContext.customBlockCatalog?.value ?? new Map(),
         projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+        richText: editorContext.richText?.value,
       })
     : editorContext.resolveAssetSrc(source),
   resolveFontFamily: value => resolveCustomBlockFontFamily(
@@ -49,8 +50,9 @@ provide(cardEditorContextKey, {
     props.block.customBlockKey,
     {
       resourceRootPath: null,
-      customBlockCatalog: editorContext.customBlockCatalog ?? new Map(),
+      customBlockCatalog: editorContext.customBlockCatalog?.value ?? new Map(),
       projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+      richText: editorContext.richText?.value,
     },
     editorContext.resolveFontFamily,
   ),

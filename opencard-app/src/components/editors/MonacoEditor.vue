@@ -9,9 +9,12 @@ import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as monaco from 'monaco-editor'
 import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundation'
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
+import { editorHistoryManager } from '../../features/editor-runtime/history/editorHistoryManager'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 
 const props = withDefaults(defineProps<{
   modelValue: string
+  sessionId?: string
   language?: string
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
@@ -22,7 +25,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
+  'update:modelValue': [value: string, history?: HistoryOperationMeta]
   'save': []
 }>()
 
@@ -33,8 +36,19 @@ onMounted(() => {
   if (!editorContainer.value) return
 
   const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
+  const sessionModel = props.sessionId ? editorHistoryManager.getMonacoModel(props.sessionId) : null
+  const managedModel = sessionModel ?? (props.sessionId
+    ? monaco.editor.createModel(
+        props.modelValue,
+        props.language,
+        monaco.Uri.parse(`inmemory://opencard/${props.sessionId}`),
+      )
+    : null)
+  if (props.sessionId && managedModel && !sessionModel) {
+    editorHistoryManager.attachMonacoModel(props.sessionId, managedModel)
+  }
   editor = monaco.editor.create(editorContainer.value, {
-    value: props.modelValue,
+    ...(managedModel ? { model: managedModel } : { value: props.modelValue }),
     language: props.language,
     theme: appearance.themeName,
     automaticLayout: true,
@@ -57,9 +71,19 @@ onMounted(() => {
   })
 
   // 监听内容变化
-  editor.onDidChangeModelContent(() => {
-    emit('update:modelValue', editor?.getValue() || '')
-  })
+  if (!managedModel) {
+    editor.onDidChangeModelContent(() => {
+      emit('update:modelValue', editor?.getValue() || '', {
+        mode: 'debounced',
+        merge: { family: 'source-edit', target: 'document-source' },
+      })
+    })
+  }
+
+  if (props.sessionId) {
+    const viewState = editorHistoryManager.getMonacoViewState(props.sessionId)
+    if (viewState) editor.restoreViewState(viewState)
+  }
 
   // 监听保存快捷键 (Ctrl+S / Cmd+S)
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -89,6 +113,7 @@ watch(() => [props.themeId, props.themeOverrides] as const, ([themeId, themeOver
 
 // 监听外部内容变化
 watch(() => props.modelValue, (newValue) => {
+  if (props.sessionId && editorHistoryManager.getMonacoModel(props.sessionId) === editor?.getModel()) return
   if (editor && newValue !== editor.getValue()) {
     editor.setValue(newValue)
   }
@@ -96,8 +121,9 @@ watch(() => props.modelValue, (newValue) => {
 
 onUnmounted(() => {
   const model = editor?.getModel()
+  if (props.sessionId) editorHistoryManager.setMonacoViewState(props.sessionId, editor?.saveViewState() ?? null)
   editor?.dispose()
-  model?.dispose()
+  if (!props.sessionId) model?.dispose()
 })
 </script>
 

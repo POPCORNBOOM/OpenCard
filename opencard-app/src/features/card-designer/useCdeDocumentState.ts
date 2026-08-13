@@ -1,5 +1,4 @@
 import { computed, ref } from 'vue'
-import { useManualRefHistory } from '@vueuse/core'
 import {
   type CardDocument,
 } from '../../entities/card/model'
@@ -10,12 +9,12 @@ import {
   type CardStorageWarning,
 } from '../../entities/card/storage'
 import { reportAppError } from '../logging/appErrorCatalog'
+import type { HistoryOperationMeta } from '../editor-runtime/history/structuredHistory'
 
-const TYPING_DEBOUNCE_MS = 300
 export type CdeDocumentChangeMode = 'typing' | 'action'
 
 type UseCdeDocumentStateOptions = {
-  emitModelValueUpdate: (content: string) => void
+  emitModelValueUpdate: (content: string, history?: HistoryOperationMeta) => void
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
@@ -29,28 +28,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const parentLookup = ref<ParentLookup>(new Map())
   const isModified = ref(false)
   const savedContent = ref('')
-  const historyDepth = ref(0)
-  const hasPendingTypingCommit = ref(false)
   const documentRevision = ref(0)
-  let typingTimer: ReturnType<typeof setTimeout> | null = null
-
-  const {
-    canUndo: historyCanUndo,
-    canRedo: historyCanRedo,
-    undo: historyUndo,
-    redo: historyRedo,
-    clear: clearHistory,
-    commit: commitHistory,
-  } = useManualRefHistory<CardDocument | null, string>(cardDoc, {
-    capacity: 100,
-    dump: (value) => value ? serializeCurrentDocument(value) : 'null',
-    parse: (value) => {
-      const parsed = JSON.parse(value) as unknown
-      return parsed === null ? null : normalizeCardDocument(parsed).document
-    },
-  })
-  const canUndo = computed(() => historyCanUndo.value && historyDepth.value > 0)
-  const canRedo = computed(() => historyCanRedo.value)
 
   const hasDocument = computed(() => Boolean(cardDoc.value))
 
@@ -74,45 +52,27 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     parentLookup.value = cardDoc.value ? buildParentLookup(cardDoc.value) : new Map()
   }
 
-  function refreshDocumentState() {
+  function refreshDocumentState(structural = false) {
     if (!cardDoc.value) {
-      rebuildParentLookup()
+      if (structural) rebuildParentLookup()
       return
     }
 
     documentRevision.value += 1
-    rebuildParentLookup()
+    if (structural) rebuildParentLookup()
   }
 
-  function applyDocumentContent(content: string) {
+  function applyDocumentContent(content: string, history?: HistoryOperationMeta) {
     const hasChanged = content !== rawContent.value
     if (hasChanged) {
       rawContent.value = content
-      options.emitModelValueUpdate(content)
+      options.emitModelValueUpdate(content, history)
     }
 
     updateModifiedState(content)
   }
 
-  function syncDocumentContent() {
-    if (!cardDoc.value) {
-      return
-    }
-
-    const content = serializeCurrentDocument(cardDoc.value)
-    applyDocumentContent(content)
-  }
-
-  function clearTypingTimer() {
-    if (typingTimer === null) {
-      return
-    }
-
-    clearTimeout(typingTimer)
-    typingTimer = null
-  }
-
-  function commitCurrentDocument() {
+  function commitCurrentDocument(history: HistoryOperationMeta) {
     if (!cardDoc.value) {
       return false
     }
@@ -123,36 +83,8 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       return false
     }
 
-    commitHistory()
-    historyDepth.value += 1
-    applyDocumentContent(content)
+    applyDocumentContent(content, history)
     return true
-  }
-
-  function flushPendingChangesSync() {
-    const hasPending = hasPendingTypingCommit.value
-    clearTypingTimer()
-
-    if (!hasPending) {
-      return false
-    }
-
-    hasPendingTypingCommit.value = false
-    return commitCurrentDocument()
-  }
-
-  function scheduleTypingCommit() {
-    hasPendingTypingCommit.value = true
-    clearTypingTimer()
-    typingTimer = setTimeout(() => {
-      typingTimer = null
-      if (!hasPendingTypingCommit.value) {
-        return
-      }
-
-      hasPendingTypingCommit.value = false
-      commitCurrentDocument()
-    }, TYPING_DEBOUNCE_MS)
   }
 
   function markDirtyImmediately() {
@@ -164,32 +96,24 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     options.emitModified(true)
   }
 
-  function markDocumentChanged(mode: CdeDocumentChangeMode = 'action') {
+  function markDocumentChanged(
+    mode: CdeDocumentChangeMode = 'action',
+    target = 'document',
+    structural = false,
+  ) {
     if (!hasDocument.value) {
       return
     }
 
     markDirtyImmediately()
 
-    if (mode === 'typing') {
-      scheduleTypingCommit()
-      return
-    }
-
-    const committedPendingChange = flushPendingChangesSync()
-    if (!committedPendingChange) {
-      commitCurrentDocument()
-    }
+    commitCurrentDocument(mode === 'typing'
+      ? { mode: 'debounced', merge: { family: 'card-edit', target }, structural }
+      : { mode: 'immediate', structural })
   }
 
   async function flushPendingChanges() {
-    flushPendingChangesSync()
-  }
-
-  function resetDocumentHistory() {
-    clearHistory()
-    commitHistory()
-    historyDepth.value = 0
+    // Session history owns debounced grouping and is flushed by the editor host.
   }
 
   function setSavedContent(content: string) {
@@ -197,11 +121,9 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     updateModifiedState(content)
   }
 
-  function loadRawDoc(content: string) {
-    clearTypingTimer()
-    hasPendingTypingCommit.value = false
+  function loadRawDoc(content: string, saved = true) {
     rawContent.value = content
-    options.resetSelection()
+    if (saved) options.resetSelection()
 
     try {
       const parsed = JSON.parse(content) as unknown
@@ -209,41 +131,16 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       cardDoc.value = normalized.document
       storageWarnings.value = normalized.warnings
       rebuildParentLookup()
-      setSavedContent(content)
-      resetDocumentHistory()
+      if (saved) setSavedContent(content)
+      else updateModifiedState(content)
     } catch (e) {
       reportAppError('OC-E4003', e)
       cardDoc.value = null
       storageWarnings.value = []
       rebuildParentLookup()
-      setSavedContent(content)
-      clearHistory()
-      historyDepth.value = 0
+      if (saved) setSavedContent(content)
+      else updateModifiedState(content)
     }
-  }
-
-  async function undo() {
-    await flushPendingChanges()
-    if (!canUndo.value) {
-      return
-    }
-
-    historyUndo()
-    historyDepth.value = Math.max(0, historyDepth.value - 1)
-    rebuildParentLookup()
-    syncDocumentContent()
-  }
-
-  async function redo() {
-    await flushPendingChanges()
-    if (!canRedo.value) {
-      return
-    }
-
-    historyRedo()
-    historyDepth.value += 1
-    rebuildParentLookup()
-    syncDocumentContent()
   }
 
   async function saveFile() {
@@ -260,11 +157,6 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     }
   }
 
-  function dispose() {
-    // Disposal is the final handoff boundary for a session-backed editor.
-    flushPendingChangesSync()
-  }
-
   return {
     rawContent,
     cardDoc,
@@ -272,16 +164,10 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
     documentRevision,
     parentLookup,
     isModified,
-    canUndo,
-    canRedo,
-    syncDocumentContent,
     markDocumentChanged,
     refreshDocumentState,
     flushPendingChanges,
-    undo,
-    redo,
     loadRawDoc,
     saveFile,
-    dispose,
   }
 }

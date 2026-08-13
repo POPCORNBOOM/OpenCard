@@ -2,10 +2,9 @@
   "schemaVersion": 1,
   "id": "blank",
   "name": "Blank Project",
-  "description": "Start with an empty OpenCard document.",
-  "entry": "main.ocdocument",
+  "description": "Start with a completely empty folder.",
   "i18n": {
     "name": { "zh-CN": "空白项目", "en-US": "Blank Project" },
-    "description": { "zh-CN": "从空白 OpenCard 文档开始。", "en-US": "Start with an empty OpenCard document." }
+    "description": { "zh-CN": "从一个完全空白的新文件夹开始。", "en-US": "Start with a completely empty folder." }
   }
 }

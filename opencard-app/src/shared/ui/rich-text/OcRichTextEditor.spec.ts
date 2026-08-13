@@ -3,15 +3,39 @@ import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
+import { Fragment, Slice } from '@tiptap/pm/model'
+import { remapPastedEmbedIds } from './customBlockNode'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
+import PropertyEditor from '../property-editor/PropertyEditor.vue'
+import PropertyFieldActionRail from '../property-editor/PropertyFieldActionRail.vue'
+import PropertyFieldRenderer from '../property-editor/PropertyFieldRenderer.vue'
 import { createProjectIconCompletionProvider } from '../../../features/workspace/services/projectIconCompletion'
 import OcRichTextEditor from './OcRichTextEditor.vue'
 import { clearRecentProjectIcons } from './recentProjectIcons'
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key,
+    te: () => false,
+  }),
+}))
+
 describe('OcRichTextEditor', () => {
+  it('round-trips unresolved style bindings without CSSOM loss', async () => {
+    const source = '<p><mark style="background-color: {{parent.color}}; color: inherit;">Text</mark></p>'
+    const wrapper = mount(OcRichTextEditor, { props: { modelValue: source } })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    expect(editor.getJSON()).toMatchObject({
+      content: [{ content: [{ marks: [expect.objectContaining({
+        type: 'dynamicStyle', attrs: { tag: 'mark', rawStyle: 'background-color: {{parent.color}}; color: inherit;' },
+      })] }] }],
+    })
+    expect(editor.getHTML()).toContain('data-oc-dynamic-style="background-color: {{parent.color}}; color: inherit;"')
+    wrapper.unmount()
+  })
   it('preserves consecutive spaces when parsing initial and external HTML', async () => {
     const wrapper = mount(OcRichTextEditor, {
       props: { modelValue: '<p>Left   right</p>' },
@@ -386,6 +410,184 @@ describe('OcRichTextEditor', () => {
     clearRecentProjectIcons()
   })
 
+  it('supports lists and basic table editing', async () => {
+    const wrapper = mount(OcRichTextEditor, { props: { modelValue: '<p>Text</p>' } })
+    await nextTick()
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    editor.commands.toggleBulletList()
+    expect(editor.getHTML()).toContain('<ul>')
+    editor.commands.insertTable({ rows: 2, cols: 2, withHeaderRow: true })
+    expect(editor.getHTML()).toContain('<table')
+    editor.commands.addRowAfter()
+    expect(editor.getHTML().match(/<tr>/g)?.length).toBe(3)
+    editor.commands.addColumnBefore()
+    expect(editor.getHTML().match(/<th|<td/g)?.length).toBe(9)
+    editor.commands.toggleHeaderRow()
+    expect(editor.getHTML()).not.toContain('<th')
+    editor.commands.deleteTable()
+    expect(editor.getHTML()).not.toContain('<table')
+    wrapper.unmount()
+  })
+
+  it('loads and edits only public fields on embedded custom blocks', async () => {
+    const ensureLoaded = vi.fn(async (_key: string) => undefined)
+    const root = Object.assign({
+      type: 'text-block' as const, id: 'root', content: '', label: 'Default', secret: 'Private',
+      additionalFieldDefinition: {
+        label: { fieldType: 'string' as const, title: 'Label' },
+        secret: { fieldType: 'string' as const, title: 'Secret' },
+      },
+    })
+    const entry = {
+      manifest: {
+        type: 'opencard-custom-block' as const, customBlockKey: 'badge', name: 'Badge',
+        publicFieldKeys: ['label'], resize: { widthLocked: true, heightLocked: true },
+      }, block: root, archivePath: 'badge.ocblock', files: new Map(),
+    }
+    const catalog = new Map([['badge', entry]])
+    const manifests = new Map([['badge', { manifest: entry.manifest, archivePath: 'badge.ocblock', loadState: 'ready' as const }]])
+    const wrapper = mount(OcRichTextEditor, {
+      props: { modelValue: '<p></p>', customBlockCatalog: { catalog, manifests, ensureLoaded } },
+    })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    await ensureLoaded('badge')
+    editor.chain().focus().insertContent({ type: 'inlineCustomBlock', attrs: { embedId: 'badge-1', customBlockKey: 'badge', properties: {} } }).run()
+    editor.commands.setNodeSelection(editor.state.selection.from - 1)
+    await nextTick()
+    expect(editor.getHTML()).toContain('data-oc-key="badge"')
+    ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
+    await nextTick()
+    expect(wrapper.findComponent(PropertyEditor).exists()).toBe(true)
+    expect(document.querySelector('.oc-rich-text-editor__node-dialog-content')?.textContent).toContain('label')
+    expect(document.querySelector('.oc-rich-text-editor__node-dialog-content')?.textContent).not.toContain('secret')
+    wrapper.unmount()
+  })
+
+  it('exposes custom block loading and failure states and clears them after a successful retry', async () => {
+    let settleLoad = (): void => undefined
+    let rejectFirst = true
+    const root = Object.assign({ type: 'text-block' as const, id: 'root', content: 'Ready' })
+    const entry = {
+      manifest: {
+        type: 'opencard-custom-block' as const, customBlockKey: 'badge', name: 'Badge',
+        publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true },
+      }, block: root, archivePath: 'badge.ocblock', files: new Map(),
+    }
+    const catalog = new Map<string, typeof entry>()
+    const ensureLoaded = vi.fn(() => new Promise<void>((resolve, reject) => {
+      settleLoad = () => {
+        if (rejectFirst) reject(new Error('load failed'))
+        else { catalog.set('badge', entry); resolve() }
+      }
+    }))
+    const wrapper = mount(OcRichTextEditor, {
+      props: {
+        modelValue: '<p></p>',
+        customBlockCatalog: {
+          catalog,
+          manifests: new Map([['badge', { manifest: entry.manifest, archivePath: 'badge.ocblock', loadState: 'unloaded' as const }]]),
+          ensureLoaded,
+        },
+      },
+    })
+    await nextTick()
+    await nextTick()
+    const actionButton = wrapper.findAllComponents(OcActionButton)
+      .find(component => component.props('action').key === 'custom-block')!
+    actionButton.vm.$emit('select', { key: 'custom-block:badge' })
+    await nextTick()
+    expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ disabled: true })
+    settleLoad()
+    await vi.waitFor(() => expect(ensureLoaded).toHaveBeenCalledTimes(1))
+    await nextTick()
+    await nextTick()
+    expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ icon: 'status.warning' })
+    expect((wrapper.vm as unknown as { editor: Editor }).editor.getHTML()).not.toContain('oc-custom-block')
+
+    rejectFirst = false
+    actionButton.vm.$emit('select', { key: 'custom-block:badge' })
+    await nextTick()
+    settleLoad()
+    await vi.waitFor(() => expect((wrapper.vm as unknown as { editor: Editor }).editor.getHTML()).toContain('data-oc-key="badge"'))
+    await nextTick()
+    expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ icon: 'data.symbol-custom-block' })
+    wrapper.unmount()
+  })
+
+  it('switches bindable custom block fields between typed and binding editors', async () => {
+    const root = Object.assign({
+      type: 'text-block' as const, id: 'root', content: '', amount: '2',
+      additionalFieldDefinition: {
+        amount: { fieldType: 'number' as const, title: 'Amount', min: 1, max: 10 },
+      },
+    })
+    const entry = {
+      manifest: {
+        type: 'opencard-custom-block' as const, customBlockKey: 'counter', name: 'Counter',
+        publicFieldKeys: ['amount'], resize: { widthLocked: true, heightLocked: true },
+      }, block: root, archivePath: 'counter.ocblock', files: new Map(),
+    }
+    const wrapper = mount(OcRichTextEditor, {
+      props: {
+        modelValue: '<p><oc-custom-block data-oc-id="counter-1" data-oc-key="counter" data-oc-layout="inline"></oc-custom-block></p>',
+        bindingCompletion: () => null,
+        customBlockCatalog: {
+          catalog: new Map([['counter', entry]]),
+          manifests: new Map([['counter', { manifest: entry.manifest, archivePath: 'counter.ocblock', loadState: 'ready' as const }]]),
+          ensureLoaded: async () => undefined,
+        },
+      },
+    })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    let position = -1
+    editor.state.doc.descendants((node, nodePosition) => {
+      if (node.type.name === 'inlineCustomBlock') position = nodePosition
+    })
+    editor.commands.setNodeSelection(position)
+    await nextTick()
+    ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
+    await nextTick()
+
+    const dialogField = document.querySelector('[role="dialog"]')!
+    const fieldRenderer = wrapper.findAllComponents(PropertyFieldRenderer)[0]!
+    const actionRail = wrapper.findAllComponents(PropertyFieldActionRail)[0]!
+    expect(fieldRenderer.props('editorId')).toBe('field')
+    actionRail.vm.$emit('action', 'field-editor.use-raw-string')
+    await nextTick()
+    const field = wrapper.findAllComponents(PropertyFieldRenderer).find(component => dialogField.contains(component.element))!
+    expect(field.props('editorId')).toBe('raw-string')
+    field.vm.$emit('update:value', '{{parent:amount}}')
+    await nextTick()
+    expect(editor.getHTML()).not.toContain('<oc-prop data-oc-key="amount">')
+    ;(wrapper.vm as unknown as { confirmSelectedNodeEditor: () => void }).confirmSelectedNodeEditor()
+    await nextTick()
+    expect(editor.getHTML()).toContain('<oc-prop data-oc-key="amount">{{parent:amount}}</oc-prop>')
+    expect(field.props('editorId')).toBe('raw-string')
+    expect(actionRail.props('actions')).toEqual([
+      expect.objectContaining({ key: 'reset-property' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('regenerates embed IDs on paste while undo keeps the pasted ID stable', async () => {
+    const source = '<p><oc-custom-block data-oc-id="original" data-oc-key="badge" data-oc-layout="inline"></oc-custom-block></p>'
+    const wrapper = mount(OcRichTextEditor, { props: { modelValue: source } })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    const original = editor.state.doc.firstChild!.firstChild!
+    const pasted = remapPastedEmbedIds(new Slice(Fragment.from(original), 0, 0))
+    const pastedId = pasted.content.firstChild?.attrs.embedId
+    expect(pastedId).not.toBe('original')
+    editor.chain().focus('end').insertContent(pasted.content.toJSON()).run()
+    editor.commands.undo()
+    editor.commands.redo()
+    const embedIds: string[] = []
+    editor.state.doc.descendants(node => {
+      if (node.type.name === 'inlineCustomBlock' || node.type.name === 'blockCustomBlock') embedIds.push(node.attrs.embedId)
+    })
+    expect(embedIds).toContain(pastedId)
+    wrapper.unmount()
+  })
+
   it('reuses property binding completion inside a new capsule', async () => {
     const completion = vi.fn(({ value }: { value: string; cursor: number }) => (
       value === '{{pro}}'
@@ -439,32 +641,35 @@ describe('OcRichTextEditor', () => {
     expect(editor.state.selection).toBeInstanceOf(NodeSelection)
     expect(editor.view.dom.querySelector('.binding-node')?.classList.contains('is-selected')).toBe(true)
 
-    editor.view.dom.querySelector<HTMLButtonElement>('[aria-label="编辑 binding"]')!.click()
+    ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
     await nextTick()
 
-    let input = editor.view.dom.querySelector<HTMLInputElement>('.binding-node__input')!
+    let input = document.querySelector<HTMLInputElement>('.oc-rich-text-editor__dialog-binding-field input')!
     input.value = 'project:name'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await nextTick()
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    await new Promise(resolve => window.setTimeout(resolve, 0))
+    ;(wrapper.vm as unknown as { cancelSelectedNodeEditor: () => void }).cancelSelectedNodeEditor()
+    await nextTick()
 
     expect(editor.getHTML()).toContain('data-oc-binding="self:name"')
-    expect(editor.view.dom.querySelector('.binding-node__input')).toBeNull()
+    expect(document.querySelector('[aria-label="Binding expression"]')).toBeNull()
 
-    editor.view.dom.querySelector<HTMLButtonElement>('[aria-label="编辑 binding"]')!.click()
+    label.click()
     await nextTick()
-    input = editor.view.dom.querySelector<HTMLInputElement>('.binding-node__input')!
+    ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
+    await nextTick()
+    input = document.querySelector<HTMLInputElement>('.oc-rich-text-editor__dialog-binding-field input')!
     input.value = 'project:name'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await nextTick()
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    document.querySelectorAll<HTMLButtonElement>('.oc-dialog__footer .oc-button')[1]!.click()
     await nextTick()
 
     expect(editor.getHTML()).toContain('data-oc-binding="project:name"')
     expect(editor.getHTML()).toContain('{{project:name}}')
 
-    editor.view.dom.querySelector<HTMLButtonElement>('[aria-label="删除 binding"]')!.click()
+    editor.view.dom.querySelector<HTMLElement>('.binding-node__label')!.click()
+    editor.commands.deleteSelection()
     expect(editor.state.doc.firstChild?.childCount).toBe(0)
     wrapper.unmount()
   })

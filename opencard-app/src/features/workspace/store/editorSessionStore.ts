@@ -21,6 +21,10 @@ import type {
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
 import { taskScheduler } from '../../../utils/taskScheduler'
+import {
+  editorHistoryManager,
+  resolveEditorHistoryKind,
+} from '../../editor-runtime/history/editorHistoryManager'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
 const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'unsupported-file'])
@@ -198,6 +202,29 @@ export function useEditorSessionStore() {
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
+  function publishHistoryContent(sessionId: string, content: string, isDirty: boolean): void {
+    sessions.value = sessions.value.map(session => session.id === sessionId
+      ? {
+          ...session,
+          name: session.resourceKind === 'draft' && session.fileTypeId === 'opencard'
+            ? resolveOpenCardDraftName(content, session.name)
+            : session.name,
+          draftContent: content,
+          isDirty,
+          isPreview: isDirty ? false : session.isPreview,
+        }
+      : session)
+  }
+
+  function initializeSessionHistory(session: EditorSession): void {
+    editorHistoryManager.initialize(
+      session.id,
+      resolveEditorHistoryKind(session.editorId),
+      session.draftContent,
+      (content, isDirty) => publishHistoryContent(session.id, content, isDirty),
+    )
+  }
+
   const activeSession = computed(() =>
     sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   )
@@ -290,7 +317,12 @@ export function useEditorSessionStore() {
       ? sessions.value.filter((candidate) => !candidate.isPreview)
       : sessions.value
 
+    if (preview) {
+      editorHistoryManager.releaseMany(sessions.value.filter(candidate => candidate.isPreview).map(candidate => candidate.id))
+    }
+
     sessions.value = [...nextSessions, session]
+    initializeSessionHistory(session)
     activeSessionId.value = session.id
     return session
   }
@@ -326,6 +358,7 @@ export function useEditorSessionStore() {
     }
 
     sessions.value = [...sessions.value, session]
+    initializeSessionHistory(session)
     activeSessionId.value = session.id
     return session
   }
@@ -345,6 +378,10 @@ export function useEditorSessionStore() {
   }
 
   function updateDraftContent(sessionId: string, content: string) {
+    if (editorHistoryManager.has(sessionId)) {
+      editorHistoryManager.recordContent(sessionId, content)
+      return
+    }
     sessions.value = sessions.value.map((session) => {
       if (session.id !== sessionId) {
         return session
@@ -418,6 +455,7 @@ export function useEditorSessionStore() {
     }
 
     taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
+    editorHistoryManager.release(sessionId)
 
     const nextSessions = [...sessions.value]
     nextSessions.splice(index, 1)
@@ -437,6 +475,9 @@ export function useEditorSessionStore() {
         taskScheduler.cancel(projectConfigurationAutosaveKey(session.id))
       }
     }
+    editorHistoryManager.releaseMany(sessions.value
+      .filter(session => session.resourceKind === 'workspace')
+      .map(session => session.id))
     const activeSessionWasClosed = sessions.value.some(
       (session) => session.id === activeSessionId.value && session.resourceKind === 'workspace',
     )
@@ -479,6 +520,7 @@ export function useEditorSessionStore() {
     for (const sessionId of closedSessionIds) {
       taskScheduler.cancel(projectConfigurationAutosaveKey(sessionId))
     }
+    editorHistoryManager.releaseMany([...closedSessionIds])
 
     const activeSessionWasClosed = closedSessionIds.has(activeSessionId.value)
     sessions.value = sessions.value.filter((session) => !closedSessionIds.has(session.id))
@@ -579,6 +621,7 @@ export function useEditorSessionStore() {
         })()
         : candidate
     )
+    editorHistoryManager.markSaved(sessionId, savedContent)
 
     return 'saved'
   }
@@ -615,6 +658,7 @@ export function useEditorSessionStore() {
         }
         : candidate
     )
+    editorHistoryManager.syncExternalContent(sessionId, content, true)
   }
 
   async function refreshActiveSessionFromDisk() {

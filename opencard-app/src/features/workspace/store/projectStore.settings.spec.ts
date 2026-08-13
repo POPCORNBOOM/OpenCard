@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   fileExists: vi.fn(),
   readDirectoryEntries: vi.fn(),
   writeFile: vi.fn(),
+  readBinaryFile: vi.fn(),
+  writeBinaryFile: vi.fn(),
   createDirectory: vi.fn(),
     copyFile: vi.fn(),
     renameFile: vi.fn(),
@@ -32,6 +34,8 @@ vi.mock('../services/fileSystemService', () => ({
     fileExists: mocks.fileExists,
     readDirectoryEntries: mocks.readDirectoryEntries,
     writeFile: mocks.writeFile,
+    readBinaryFile: mocks.readBinaryFile,
+    writeBinaryFile: mocks.writeBinaryFile,
     createDirectory: mocks.createDirectory,
     copyFile: mocks.copyFile,
     renameFile: mocks.renameFile,
@@ -63,6 +67,8 @@ describe('projectStore settings actions', () => {
     mocks.fileExists.mockResolvedValue(false)
     mocks.readDirectoryEntries.mockResolvedValue([])
     mocks.writeFile.mockResolvedValue(undefined)
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.writeBinaryFile.mockResolvedValue(undefined)
     mocks.createDirectory.mockResolvedValue(undefined)
     mocks.copyFile.mockResolvedValue(undefined)
     mocks.renameFile.mockResolvedValue(undefined)
@@ -86,6 +92,28 @@ describe('projectStore settings actions', () => {
     expect(store.expandedDirectories.value.size).toBe(0)
     expect(store.registeredDirectories.value).toEqual(new Map([['', 2]]))
     expect(mocks.writeFile).not.toHaveBeenCalled()
+
+    await store.setProjectPath('')
+  })
+
+  it('recovers when a persisted expanded directory was deleted between sessions', async () => {
+    useAppSettingsStore().updateProjectCreation({
+      workspaceStates: {
+        'D:/project': { expandedDirectories: ['deleted-fonts'] },
+      },
+    })
+    mocks.readDirectoryEntries.mockImplementation(async (path: string) => {
+      if (path.endsWith('/deleted-fonts')) throw new Error('The system cannot find the path specified')
+      return [{ name: 'main.ocdocument', isDirectory: false, isFile: true, isSymlink: false }]
+    })
+    mocks.fileExists.mockImplementation(async (path: string) => !path.endsWith('/deleted-fonts'))
+
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    expect(store.indexedEntries.value.map(entry => entry.name)).toContain('main.ocdocument')
+    expect(store.expandedDirectories.value.has('deleted-fonts')).toBe(false)
+    expect(store.registeredDirectories.value.has('deleted-fonts')).toBe(false)
 
     await store.setProjectPath('')
   })

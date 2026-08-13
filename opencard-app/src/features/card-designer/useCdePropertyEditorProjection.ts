@@ -131,6 +131,9 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           fontCatalog,
           iconSeries: projectContext.iconSeries,
           projectIconCatalog: projectContext.projectIconCatalog,
+          customBlockCatalog: projectContext.customBlockCatalog,
+          customBlockManifestCatalog: projectContext.customBlockManifestCatalog,
+          ensureCustomBlockLoaded: projectContext.ensureCustomBlockLoaded,
           directoryProvider: options.directoryProvider.value,
         })]
       })),

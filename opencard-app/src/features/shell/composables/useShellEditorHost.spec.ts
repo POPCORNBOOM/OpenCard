@@ -6,6 +6,7 @@ import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEd
 import { createDefaultAppSettings } from '../../settings/model/appSettings'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { useShellEditorHost } from './useShellEditorHost'
+import { editorHistoryManager, resolveEditorHistoryKind } from '../../editor-runtime/history/editorHistoryManager'
 
 vi.mock('../../../components/editors/MonacoEditor.vue', () => ({
   default: { name: 'MockMonacoEditor' },
@@ -33,6 +34,15 @@ function createHost(session = createSession()) {
   const setSessionDirtyState = vi.fn()
   const updateSessionUiState = vi.fn()
   const saveActiveSession = vi.fn(async () => 'saved' as const)
+  editorHistoryManager.initialize(
+    session.id,
+    resolveEditorHistoryKind(session.editorId),
+    session.draftContent,
+    (content, dirty) => {
+      updateDraftContent(session.id, content)
+      setSessionDirtyState(session.id, dirty)
+    },
+  )
   const host = useShellEditorHost({
     activeSession,
     projectPath: ref('D:/project'),
@@ -59,6 +69,7 @@ function createHost(session = createSession()) {
 
 afterEach(() => {
   vi.useRealTimers()
+  editorHistoryManager.release('session-a')
 })
 
 describe('useShellEditorHost', () => {
@@ -260,12 +271,12 @@ describe('useShellEditorHost', () => {
   })
 
   it('routes save, flush, dirty, undo and redo through the editor boundary', async () => {
-    const { host, setSessionDirtyState, saveActiveSession } = createHost()
+    const { host, setSessionDirtyState, saveActiveSession, updateDraftContent } = createHost()
     const save = vi.fn()
     const flush = vi.fn()
-    const undo = vi.fn()
-    const redo = vi.fn()
-    host.editorRef.value = { save, flush, undo, redo, canUndo: true, canRedo: true }
+    host.editorRef.value = { save, flush }
+    const updateContent = host.props.value['onUpdate:modelValue'] as (value: string) => void
+    updateContent('{"changed":true}')
 
     host.handleModified(true)
     await host.save()
@@ -276,9 +287,8 @@ describe('useShellEditorHost', () => {
     expect(setSessionDirtyState).toHaveBeenCalledWith('session-a', true)
     expect(save).toHaveBeenCalledTimes(1)
     expect(saveActiveSession).not.toHaveBeenCalled()
-    expect(flush).toHaveBeenCalledTimes(1)
-    expect(undo).toHaveBeenCalledTimes(1)
-    expect(redo).toHaveBeenCalledTimes(1)
+    expect(flush).toHaveBeenCalledTimes(3)
+    expect(updateDraftContent).toHaveBeenLastCalledWith('session-a', '{"changed":true}')
     host.dispose()
   })
 

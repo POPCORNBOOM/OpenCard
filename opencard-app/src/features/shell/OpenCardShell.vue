@@ -372,6 +372,7 @@ import UnsavedEditorsDialog from './components/UnsavedEditorsDialog.vue'
 import ReleaseNotesDialog from './components/ReleaseNotesDialog.vue'
 import FeedbackDialog from '../feedback/components/FeedbackDialog.vue'
 import FeedbackHistoryDialog from '../feedback/components/FeedbackHistoryDialog.vue'
+import { editorHistoryManager } from '../editor-runtime/history/editorHistoryManager'
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
 import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
@@ -505,6 +506,8 @@ const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
 const CARD_DATA_TABLE_EXPORT_ACTION_KEY = 'card-designer.data-table.export'
+const CARD_RENDER_IMAGE_ACTION_KEY = 'card-designer.render-image'
+const CARD_RENDER_IMAGE_OPTION_PREFIX = `${CARD_RENDER_IMAGE_ACTION_KEY}.`
 const DICTIONARY_IMPORT_ACTION_KEY = 'dictionary.workbook.import'
 const DICTIONARY_EXPORT_ACTION_KEY = 'dictionary.workbook.export'
 const EMPTY_TREE_DATA: OcTreeData = {
@@ -539,6 +542,11 @@ const {
 } = projectStore
 
 const settingsStore = useAppSettingsStore()
+watch(
+  () => settingsStore.settings.value.workspace.historyEntryLimit,
+  limit => editorHistoryManager.setEntryLimit(limit),
+  { immediate: true },
+)
 const templateStore = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
 const customBlockCatalogStore = useUserCustomBlockCatalogStore()
@@ -744,11 +752,15 @@ const {
   props: currentEditorProps,
   isCardDesigner: isActiveCardDesignerEditor,
   isDictionaryEditor: isActiveDictionaryEditor,
+  canUndo: canUndoActiveEditor,
+  canRedo: canRedoActiveEditor,
   cardDesignerMode: activeCardDesignerMode,
   dataTableWorkbookBusy: isDataTableWorkbookBusy,
   canExportDataTableWorkbook,
+  canRenderCardImage,
   importDataTableWorkbook,
   exportDataTableWorkbook,
+  getCardImageRenderSource,
   handleViewportTransform: handleViewportTransformUpdate,
   handleImagePreviewPixelated: handleImagePreviewPixelatedUpdate,
   handleCardDesignerMode: handleCardDesignerModeUpdate,
@@ -895,6 +907,7 @@ const {
   loadDocumentSnapshot,
   prepare: prepareProjectExport,
   run: runProjectExport,
+  renderCardImages,
 } = useProjectExport({
   sessions,
   exportRendererRef,
@@ -1636,14 +1649,14 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         title: t('app.menu.undo'),
         icon: 'action.undo',
         shortcut: shellShortcutParts.undo,
-        disabled: !isActiveCardDesignerEditor.value,
+        disabled: !canUndoActiveEditor.value,
       },
       {
         key: 'redo-active-editor',
         title: t('app.menu.redo'),
         icon: 'action.redo',
         shortcut: shellShortcutParts.redo,
-        disabled: !isActiveCardDesignerEditor.value,
+        disabled: !canRedoActiveEditor.value,
       },
       { type: 'divider', key: 'edit-settings-divider' },
       { key: 'open-settings', title: t('settings.title'), icon: 'tool.settings' },
@@ -1767,7 +1780,22 @@ const workspaceActions = computed<ShellAction[]>(() => {
       ? t('cardDesigner.dataTable.switchToDesignMode')
       : t('cardDesigner.dataTable.switchToTableMode'),
   }
-  if (!tableMode) return [modeAction]
+  const renderImageAction: ShellAction = {
+    key: CARD_RENDER_IMAGE_ACTION_KEY,
+    icon: 'action.image-plus',
+    hoverTip: t('cardDesigner.renderImage.title'),
+    disabled: isProjectExportRunning.value || !canRenderCardImage.value,
+    children: ['current', 'both'].map(faceMode => ({
+      key: `${CARD_RENDER_IMAGE_OPTION_PREFIX}${faceMode}`,
+      title: t(`cardDesigner.renderImage.${faceMode}`),
+      children: [
+        { key: `${CARD_RENDER_IMAGE_OPTION_PREFIX}${faceMode}.0.5`, title: t('cardDesigner.renderImage.preview') },
+        { key: `${CARD_RENDER_IMAGE_OPTION_PREFIX}${faceMode}.1`, title: t('cardDesigner.renderImage.standard') },
+        { key: `${CARD_RENDER_IMAGE_OPTION_PREFIX}${faceMode}.2`, title: t('cardDesigner.renderImage.highDefinition') },
+      ],
+    })),
+  }
+  if (!tableMode) return [renderImageAction, modeAction]
   return [
     {
       key: CARD_DATA_TABLE_IMPORT_ACTION_KEY,
@@ -1781,6 +1809,7 @@ const workspaceActions = computed<ShellAction[]>(() => {
       hoverTip: t('cardDesigner.dataTable.exportWorkbook'),
       disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
     },
+    renderImageAction,
     modeAction,
   ]
 })
@@ -2592,6 +2621,11 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
 }
 
 async function handleWorkspaceFrameAction(actionKey: string) {
+  if (actionKey.startsWith(CARD_RENDER_IMAGE_OPTION_PREFIX)) {
+    await handleRenderCardImageAction(actionKey)
+    return
+  }
+
   if (actionKey === CARD_DESIGNER_MODE_ACTION_KEY) {
     handleCardDesignerModeUpdate(
       activeCardDesignerMode.value === 'design' ? 'data-table' : 'design',
@@ -2610,6 +2644,48 @@ async function handleWorkspaceFrameAction(actionKey: string) {
   }
 
   await runShellCommand(actionKey)
+}
+
+async function handleRenderCardImageAction(actionKey: string): Promise<void> {
+  const match = /^card-designer\.render-image\.(current|both)\.(0\.5|1|2)$/.exec(actionKey)
+  if (!match) return
+  const source = getCardImageRenderSource()
+  if (!source) return
+
+  const faceMode = match[1] as 'current' | 'both'
+  const scale = Number(match[2])
+  const faceKeys = faceMode === 'current'
+    ? [source.activeFaceKey]
+    : ['front', 'back'] as const
+  const stem = (activeSession.value?.name ?? 'card').replace(/\.ocdocument$/i, '')
+
+  if (faceMode === 'current') {
+    const faceKey = faceKeys[0]!
+    const outputPath = await fileSystemService.pickSavePath({
+      defaultPath: `${stem}_${faceKey}.png`,
+      fileTypeName: t('cardDesigner.renderImage.pngFile'),
+      extensions: ['png'],
+      title: t('cardDesigner.renderImage.saveCurrent'),
+    })
+    if (!outputPath) return
+    const images = await renderCardImages(source.render, faceKeys, scale)
+    const bytes = images?.get(faceKey)
+    if (bytes) await fileSystemService.writeBinaryFile(outputPath, bytes)
+    return
+  }
+
+  const outputDirectory = await fileSystemService.pickDirectory(t('cardDesigner.renderImage.saveBoth'))
+  if (!outputDirectory) return
+  const images = await renderCardImages(source.render, faceKeys, scale)
+  if (!images) return
+  const separator = outputDirectory.includes('\\') ? '\\' : '/'
+  for (const faceKey of faceKeys) {
+    const bytes = images.get(faceKey)
+    if (bytes) await fileSystemService.writeBinaryFile(
+      `${outputDirectory.replace(/[\\/]+$/, '')}${separator}${stem}_${faceKey}.png`,
+      bytes,
+    )
+  }
 }
 
 async function handleWindowControl(actionKey: string) {
@@ -2669,6 +2745,8 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
     return
   }
 
+  if (event.defaultPrevented || event.isComposing) return
+
   const key = event.key.toLowerCase()
   if (key === SHELL_SHORTCUT_KEYS.newOpenCard && event.shiftKey) {
     event.preventDefault()
@@ -2689,7 +2767,8 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.undo) {
-    if (!isActiveCardDesignerEditor.value) {
+    if (isNativeHistoryTarget(event.target)) return
+    if (!canUndoActiveEditor.value && !(event.shiftKey && canRedoActiveEditor.value)) {
       return
     }
 
@@ -2704,13 +2783,19 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.redo) {
-    if (!isActiveCardDesignerEditor.value) {
+    if (isNativeHistoryTarget(event.target)) return
+    if (!canRedoActiveEditor.value) {
       return
     }
 
     event.preventDefault()
     await triggerCurrentEditorRedo()
   }
+}
+
+function isNativeHistoryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return Boolean(target.closest('input, textarea, [contenteditable="true"], .monaco-editor'))
 }
 
 async function startAppUpdater(): Promise<void> {

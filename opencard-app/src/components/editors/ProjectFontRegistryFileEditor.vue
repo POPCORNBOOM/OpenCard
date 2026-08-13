@@ -31,6 +31,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
@@ -193,7 +194,9 @@ async function registerFont(request: ProjectFontRegistrationRequest): Promise<vo
     registrationOriginalKey.value = undefined
   } catch (error) {
     reportAppError('OC-E3007', error)
-    importError.value = t('projectConfig.fonts.registrationFailed')
+    importError.value = error instanceof Error
+      ? t('projectConfig.fonts.registrationFailedWithReason', { message: error.message })
+      : t('projectConfig.fonts.registrationFailed')
   } finally {
     importBusy.value = false
   }
@@ -223,8 +226,8 @@ function saveFontSet(request: ProjectFontSetRequest): void {
   fontSetOriginalKey.value = undefined
 }
 
-function updateRawSource(content: string): void {
-  emit('update:modelValue', content)
+function updateRawSource(content: string, history?: HistoryOperationMeta): void {
+  emit('update:modelValue', content, history)
 }
 
 function save(): void {

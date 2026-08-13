@@ -37,6 +37,18 @@ function createDocument(block: CardBlock = createTextBlock({ id: 'text', content
 }
 
 describe('card additional fields and bindings', () => {
+  it('resolves rich-text HTML with the ordinary string template path', () => {
+    const block = createTextBlock({
+      id: 'text', content: '<p><mark style="background-color: {{self:color}}">{{self:label}}</mark></p>',
+    })
+    ;(block as unknown as Record<string, unknown>).color = '#ff0000'
+    ;(block as unknown as Record<string, unknown>).label = 'Ready'
+    block.additionalFieldDefinition = { color: { fieldType: 'color' }, label: { fieldType: 'string' } }
+    const result = resolveReferences(createDocument(block))
+    expect(result.document.faces.front.children[0]?.block).toMatchObject({
+      content: '<p><mark style="background-color: #ff0000">Ready</mark></p>',
+    })
+  })
   it('resolves parent references when runtime owner IDs contain namespace separators', () => {
     const child = createTextBlock({
       id: 'host::block:child::block:label',
@@ -116,20 +128,22 @@ describe('card additional fields and bindings', () => {
     })
   })
 
-  it('resolves rich-text binding nodes as text without scanning HTML attributes', () => {
+  it('treats rich-text HTML as an ordinary string template', () => {
     const block = createTextBlock({
       id: 'text',
       content: '<p title="{{self:label}}">Legacy {{self:label}} <strong><span data-oc-binding="self:label">{{self:other}}</span></strong></p>',
     })
     block.additionalFieldDefinition = { label: { fieldType: 'string' } }
-    ;(block as unknown as Record<string, unknown>).label = '<em>Power & value</em>'
+    ;(block as unknown as Record<string, unknown>).label = 'Power'
+    ;(block as unknown as Record<string, unknown>).other = 'Other'
+    block.additionalFieldDefinition.other = { fieldType: 'string' }
 
     const result = resolveReferences(createDocument(block))
     const resolved = result.document.faces.front.children[0]!.block
 
     expect(result.issues).toEqual([])
     expect(resolved).toMatchObject({
-      content: '<p title="{{self:label}}">Legacy &lt;em&gt;Power &amp; value&lt;/em&gt; <strong><span data-oc-binding="self:label">&lt;em&gt;Power &amp; value&lt;/em&gt;</span></strong></p>',
+      content: '<p title="Power">Legacy Power <strong><span data-oc-binding="self:label">Other</span></strong></p>',
     })
   })
 

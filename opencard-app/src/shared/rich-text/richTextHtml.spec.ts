@@ -1,37 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { formatRichTextHtmlSource, normalizeRichTextHtml, sanitizeRichTextHtml, transformRichTextHtml } from './richTextHtml'
-
-describe('transformRichTextHtml', () => {
-  it('transforms binding elements and text nodes without touching attributes', () => {
-    const resolveBindingNode = vi.fn(() => ({ ok: true as const, value: '<Node & value>' }))
-    const resolveTextNode = vi.fn((value: string) => ({
-      ok: true as const,
-      value: value.replace('{{legacy}}', '<Legacy & value>'),
-    }))
-
-    const result = transformRichTextHtml(
-      '<p title="{{attribute}}">Before {{legacy}} <strong><span data-oc-binding="self:name">{{wrong}}</span></strong></p>',
-      { resolveBindingNode, resolveTextNode },
-    )
-
-    expect(result).toEqual({
-      ok: true,
-      value: '<p title="{{attribute}}">Before &lt;Legacy &amp; value&gt; <strong><span data-oc-binding="self:name">&lt;Node &amp; value&gt;</span></strong></p>',
-    })
-    expect(resolveBindingNode).toHaveBeenCalledWith('self:name')
-    expect(resolveTextNode).not.toHaveBeenCalledWith('{{wrong}}')
-  })
-
-  it('returns no partial document when a callback fails', () => {
-    const source = '<p>{{first}} <span data-oc-binding="self:name">{{self:name}}</span></p>'
-    const result = transformRichTextHtml(source, {
-      resolveTextNode: value => ({ ok: true, value: value.replace('{{first}}', 'resolved') }),
-      resolveBindingNode: () => ({ ok: false }),
-    })
-
-    expect(result).toEqual({ ok: false })
-  })
-})
+import { describe, expect, it } from 'vitest'
+import { formatRichTextHtmlSource, normalizeRichTextHtml, parseRichTextHtml, sanitizeRichTextHtml } from './richTextHtml'
 
 describe('sanitizeRichTextHtml', () => {
   it('preserves consecutive spaces inside rich-text content', () => {
@@ -62,13 +30,75 @@ describe('sanitizeRichTextHtml', () => {
 })
 
 describe('formatRichTextHtmlSource', () => {
-  it('puts top-level rich-text blocks on separate lines without changing inline content', () => {
+  it('keeps top-level blocks adjacent so source formatting does not become document whitespace', () => {
     expect(formatRichTextHtmlSource('<p>Hello <strong>world</strong></p><p>Next</p>'))
-      .toBe('<p>Hello <strong>world</strong></p>\n<p>Next</p>')
+      .toBe('<p>Hello <strong>world</strong></p><p>Next</p>')
   })
 
   it('does not persist source formatting whitespace between blocks', () => {
     expect(normalizeRichTextHtml('<p>First</p>\n  <p>Second</p>'))
       .toBe('<p>First</p><p>Second</p>')
+  })
+
+  it('does not inject block whitespace when switching source to visual mode', () => {
+    expect(formatRichTextHtmlSource('<p>First</p><p>Second</p>'))
+      .toBe('<p>First</p><p>Second</p>')
+  })
+})
+
+describe('parseRichTextHtml', () => {
+  it('allows unresolved dynamic styles for the visual editor boundary', () => {
+    const source = '<p><mark style="background-color: {{parent.color}}; color: inherit;">Text</mark></p>'
+    const result = parseRichTextHtml(source, { allowUnresolvedBindings: true })
+    expect(result.diagnostics).toEqual([])
+    expect(result.canEnterVisualMode).toBe(true)
+  })
+  it('rejects dangerous CSS values after generic Binding substitution', () => {
+    const result = parseRichTextHtml('<p><mark style="background-color: url(javascript:bad); color: red">Text</mark></p>')
+    expect(result.canEnterVisualMode).toBe(false)
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'invalid-style' }))
+    expect(result.document.html).toContain('javascript:bad')
+  })
+  it('rejects event attributes and merged table cells without rewriting source', () => {
+    const source = '<table onclick="bad()"><tbody><tr><td rowspan="2" colspan="1">Cell</td></tr></tbody></table>'
+    const result = parseRichTextHtml(source)
+    expect(result.canEnterVisualMode).toBe(false)
+    expect(result.diagnostics.map(item => item.code)).toEqual(expect.arrayContaining([
+      'unsupported-attribute',
+      'invalid-structure',
+    ]))
+    expect(result.document.html).toBe(source)
+  })
+  it('accepts lists, tables, icons, bindings, and public custom block fields', () => {
+    const result = parseRichTextHtml(
+      '<p><span data-oc-binding="parent:name">{{parent:name}}</span></p>'
+        + '<ul><li>One</li></ul><table><tbody><tr><td>Cell</td></tr></tbody></table>'
+        + '<p><span data-oc-icon-series="status" data-oc-icon-key="ok">[[icon:status/ok]]</span></p>'
+        + '<oc-custom-block data-oc-id="badge-1" data-oc-key="badge" data-oc-layout="inline">'
+        + '<oc-prop data-oc-key="label">Ready</oc-prop></oc-custom-block>',
+      { resolveCustomBlock: key => key === 'badge' ? { publicFieldKeys: ['label'] } : null },
+    )
+    expect(result.canEnterVisualMode).toBe(true)
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it('keeps unsupported source intact and reports dynamic style bindings', () => {
+    const source = '<p><script>bad</script><mark style="color: {{parent:color}}">Text</mark></p>'
+    const result = parseRichTextHtml(source)
+    expect(result.canEnterVisualMode).toBe(false)
+    expect(result.document.html).toBe(source)
+    expect(result.diagnostics.map(item => item.code)).toEqual(['unsupported-tag', 'invalid-style'])
+  })
+
+  it('rejects private custom block fields and duplicate IDs', () => {
+    const result = parseRichTextHtml(
+      '<oc-custom-block data-oc-id="same" data-oc-key="badge" data-oc-layout="block">'
+        + '<oc-prop data-oc-key="private">x</oc-prop></oc-custom-block>'
+        + '<oc-custom-block data-oc-id="same" data-oc-key="badge" data-oc-layout="block" />',
+      { resolveCustomBlock: () => ({ publicFieldKeys: ['label'] }) },
+    )
+    expect(result.canEnterVisualMode).toBe(false)
+    expect(result.diagnostics.map(item => item.code)).toContain('invalid-custom-block')
+    expect(result.diagnostics.map(item => item.code)).toContain('duplicate-embed-id')
   })
 })

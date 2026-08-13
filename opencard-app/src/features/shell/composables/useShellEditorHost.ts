@@ -22,6 +22,10 @@ import type {
 } from '../../workspace/store/editorSessionStore'
 import type { ProjectProfile } from '../../workspace/model/projectMetadata'
 import { reportAppError } from '../../logging/appErrorCatalog'
+import { editorHistoryManager } from '../../editor-runtime/history/editorHistoryManager'
+import type { HistoryOperationMeta } from '../../editor-runtime/history/structuredHistory'
+import type { CardFaceKey } from '../../../entities/card/model'
+import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
 
 const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
@@ -37,6 +41,7 @@ export type ShellEditorRef = {
   exportDataTableWorkbook?: () => Promise<void> | void
   dataTableWorkbookBusy?: boolean
   canExportDataTableWorkbook?: boolean
+  getImageRenderSource?: () => { render: PreparedCardRender; activeFaceKey: CardFaceKey } | null
 }
 
 type SessionActions = {
@@ -100,6 +105,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     return editorRegistry.getEditor(session.editorId)?.component ?? UnsupportedFileEditor
   })
 
+  const historyState = computed(() => editorHistoryManager.state(options.activeSession.value?.id))
+  const canUndo = computed(() => historyState.value.canUndo)
+  const canRedo = computed(() => historyState.value.canRedo)
+
   const key = computed(() => {
     const session = options.activeSession.value
     if (!session) return 'none'
@@ -116,13 +125,17 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     const editor = editorRegistry.getEditor(session.editorId) ?? editorRegistry.getEditor('unsupported-file')
     if (editor && editor.id !== 'monaco') {
       const baseProps = {
+        sessionId,
         filePath,
         fileName: session.name,
         resourceRootPath: resourceRootPath.value,
         modelValue: session.draftContent,
+        savedContent: session.savedContent,
         themeId: themeId.value,
         themeOverrides: themeOverrides.value,
-        'onUpdate:modelValue': (value: string) => options.sessionActions.updateDraftContent(sessionId, value),
+        'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
+          editorHistoryManager.recordContent(sessionId, value, history)
+        },
       }
 
       if (editor.id === 'card-designer') {
@@ -162,8 +175,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     }
 
     return {
+      sessionId,
       modelValue: session.draftContent,
-      'onUpdate:modelValue': (value: string) => options.sessionActions.updateDraftContent(sessionId, value),
+      savedContent: session.savedContent,
+      'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
+        editorHistoryManager.recordContent(sessionId, value, history)
+      },
       language: fileType.language ?? 'plaintext',
       themeId: themeId.value,
       themeOverrides: themeOverrides.value,
@@ -192,6 +209,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
 
   const canExportDataTableWorkbook = computed(() => (
     hasDataTableWorkbook.value && editorRef.value?.canExportDataTableWorkbook === true
+  ))
+
+  const canRenderCardImage = computed(() => (
+    isCardDesigner.value && editorRef.value?.getImageRenderSource?.() != null
   ))
 
   function persistPendingViewportTransform(): void {
@@ -257,8 +278,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   }
 
   async function handleSaveEvent(): Promise<void> {
-    if (!options.activeSession.value) return
+    const sessionId = options.activeSession.value?.id
+    if (!sessionId) return
     try {
+      await editorHistoryManager.flush(sessionId)
       await options.sessionActions.saveActiveSession()
     } catch (error) {
       reportAppError('OC-E4002', error)
@@ -266,8 +289,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   }
 
   async function save(): Promise<void> {
-    if (!options.activeSession.value) return
-    if (editorRegistry.getEditor(options.activeSession.value.editorId)?.id !== 'monaco'
+    const session = options.activeSession.value
+    if (!session) return
+    await editorHistoryManager.flush(session.id)
+    if (editorRegistry.getEditor(session.editorId)?.id !== 'monaco'
       && editorRef.value?.save) {
       await editorRef.value.save()
       return
@@ -276,13 +301,17 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   }
 
   async function undo(): Promise<void> {
-    if (!isCardDesigner.value || editorRef.value?.canUndo === false || !editorRef.value?.undo) return
-    await editorRef.value.undo()
+    const sessionId = options.activeSession.value?.id
+    if (!sessionId || !canUndo.value) return
+    await editorRef.value?.flush?.()
+    await editorHistoryManager.undo(sessionId)
   }
 
   async function redo(): Promise<void> {
-    if (!isCardDesigner.value || editorRef.value?.canRedo === false || !editorRef.value?.redo) return
-    await editorRef.value.redo()
+    const sessionId = options.activeSession.value?.id
+    if (!sessionId || !canRedo.value) return
+    await editorRef.value?.flush?.()
+    await editorHistoryManager.redo(sessionId)
   }
 
   async function importDataTableWorkbook(): Promise<void> {
@@ -295,9 +324,14 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     await editorRef.value?.exportDataTableWorkbook?.()
   }
 
+  function getCardImageRenderSource() {
+    return isCardDesigner.value ? editorRef.value?.getImageRenderSource?.() ?? null : null
+  }
+
   async function flushAffectedSessions(sessionIds: readonly string[]): Promise<void> {
     const activeId = options.activeSession.value?.id
     if (activeId && sessionIds.includes(activeId)) await editorRef.value?.flush?.()
+    await editorHistoryManager.flushMany(sessionIds)
   }
 
   const stopSessionWatch = watch(
@@ -320,9 +354,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     resourceRootPath,
     isCardDesigner,
     isDictionaryEditor,
+    canUndo,
+    canRedo,
     cardDesignerMode,
     dataTableWorkbookBusy,
     canExportDataTableWorkbook,
+    canRenderCardImage,
     handleViewportTransform,
     handleCardDesignerMode,
     handleCardDesignerLayout,
@@ -335,6 +372,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     redo,
     importDataTableWorkbook,
     exportDataTableWorkbook,
+    getCardImageRenderSource,
     flushAffectedSessions,
     dispose,
   }

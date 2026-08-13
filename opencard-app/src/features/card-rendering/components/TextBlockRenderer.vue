@@ -1,16 +1,17 @@
 <!-- 文本块组件：根据块属性渲染文本内容并映射文本布局样式。 -->
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
-        <div class="text-block-content text-block-content--richtext" v-html="richTextContent" />
+	        <RichTextDocumentRenderer v-if="preparedRichText" class="text-block-content text-block-content--richtext"
+	          :prepared="preparedRichText" />
+	        <div v-else class="text-block-content text-block-content--richtext" />
     </div>
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyTextBlock } from '../render.types'
-import { normalizeRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
-import { EMPTY_PROJECT_ICON_CATALOG, renderProjectIconsInRichText } from '../../workspace/services/projectIconCatalog'
+import RichTextDocumentRenderer from './richTextDocumentRenderer'
 
 const props = withDefaults(defineProps<{
     /** 文本块数据模型。 */
@@ -23,10 +24,7 @@ const props = withDefaults(defineProps<{
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
-const richTextContent = computed(() => renderProjectIconsInRichText(
-    normalizeRichTextHtml(props.block.content),
-    editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
-))
+const preparedRichText = computed(() => editorContext.richText?.value.get(props.block.id) ?? null)
 const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
     props.layoutMode,

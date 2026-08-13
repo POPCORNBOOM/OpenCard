@@ -47,6 +47,7 @@ describe('appSettings', () => {
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: false },
       workspace: {
+        historyEntryLimit: 100,
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
         showSelectionPositionOnMove: true,

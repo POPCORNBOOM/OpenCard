@@ -225,11 +225,11 @@ describe('useCdeSelectionCommands', () => {
     expect(commands.changeFaceDimension({ dimension: 'width', value: 600, final: false })).toBe(true)
     expect(document.width).toBe('600')
     expect(refreshDocumentState).toHaveBeenCalledOnce()
-    expect(markDocumentChanged).toHaveBeenLastCalledWith('typing')
+    expect(markDocumentChanged).toHaveBeenLastCalledWith('typing', 'face-dimension:width')
 
     expect(commands.changeFaceDimension({ dimension: 'width', value: 600, final: true })).toBe(true)
     expect(refreshDocumentState).toHaveBeenCalledOnce()
-    expect(markDocumentChanged).toHaveBeenLastCalledWith('action')
+    expect(markDocumentChanged).toHaveBeenLastCalledWith('action', 'face-dimension:width')
   })
 
   it('changes zIndex numerically or moves to an adjacent existing layer', () => {

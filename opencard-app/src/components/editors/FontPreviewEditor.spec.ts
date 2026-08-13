@@ -8,8 +8,12 @@ const fontSet = {
 }
 const mocks = vi.hoisted(() => ({
   readBinaryFile: vi.fn(),
+  pickSavePath: vi.fn(),
+  writeBinaryFile: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
+  repairTrueTypeFont: vi.fn(),
+  rejectLoad: false,
 }))
 
 class FontFaceMock {
@@ -19,6 +23,7 @@ class FontFaceMock {
   ) {}
 
   async load(): Promise<this> {
+    if (mocks.rejectLoad) throw new DOMException('A network error occurred.', 'NetworkError')
     return this
   }
 }
@@ -28,7 +33,14 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
-  fileSystemService: { readBinaryFile: mocks.readBinaryFile },
+  fileSystemService: {
+    readBinaryFile: mocks.readBinaryFile,
+    pickSavePath: mocks.pickSavePath,
+    writeBinaryFile: mocks.writeBinaryFile,
+  },
+}))
+vi.mock('../../features/workspace/services/trueTypeFontRepair', () => ({
+  repairTrueTypeFont: mocks.repairTrueTypeFont,
 }))
 
 describe('FontPreviewEditor', () => {
@@ -40,7 +52,9 @@ describe('FontPreviewEditor', () => {
       revokeObjectURL: mocks.revokeObjectURL,
     })
     vi.clearAllMocks()
+    mocks.rejectLoad = false
     mocks.readBinaryFile.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.repairTrueTypeFont.mockResolvedValue(new Uint8Array([4, 5, 6]))
     mocks.createObjectURL.mockReturnValue('blob:font-preview')
   })
 
@@ -76,5 +90,21 @@ describe('FontPreviewEditor', () => {
     wrapper.unmount()
     expect(fontSet.delete).toHaveBeenCalledWith(loadedFace)
     expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:font-preview')
+  })
+
+  it('offers repair after loading fails and translates a rejected repaired font', async () => {
+    mocks.rejectLoad = true
+    const wrapper = mount(FontPreviewEditor, {
+      props: { filePath: 'D:/fonts/Broken.ttf', fileName: 'Broken.ttf' },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('fontPreview.attemptRepair')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(mocks.repairTrueTypeFont).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('fontPreview.repairFailed')
+    expect(mocks.pickSavePath).not.toHaveBeenCalled()
   })
 })

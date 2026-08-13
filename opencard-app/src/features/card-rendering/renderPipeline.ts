@@ -13,6 +13,7 @@ import {
   createCardRenderResourceContext,
   type CardRenderResourceContext,
 } from './cardRenderResources'
+import { prepareRichText, type PreparedRichTextCatalog } from './prepareRichText'
 
 function findCustomBlockHostId(
   issue: CardPipelineIssue,
@@ -35,6 +36,7 @@ function findCustomBlockHostId(
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
   issues: CardPipelineIssue[]
+  richText?: PreparedRichTextCatalog
 }
 
 export type RenderPipelineContext = {
@@ -68,6 +70,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
       customBlockCatalog: request.environment.customBlockCatalog,
       projectIconCatalog: request.environment.projectIconCatalog,
+      richText: result.richText,
     }),
   }
 }
@@ -83,6 +86,13 @@ function runRenderPipeline(
     currentCard: instance,
     project: context.project,
     dictionary: context.dictionary,
+  })
+  const richText = prepareRichText({
+    document: resolved.document,
+    currentCard: instance,
+    project: context.project,
+    dictionary: context.dictionary,
+    customBlockCatalog: context.customBlockCatalog,
   })
   const parsed = parseRenderDocument(resolved.document, {
     instanceId: instance?.id ?? null,
@@ -102,7 +112,7 @@ function runRenderPipeline(
   const unavailableHosts = new Map(expanded.issues.map(issue => [issue.blockId, true]))
   const visibleIssues: CardPipelineIssue[] = []
   const internalHosts = new Map<string, CardPipelineIssue>()
-  for (const issue of [...resolved.issues, ...parsed.issues]) {
+  for (const issue of [...resolved.issues, ...parsed.issues, ...richText.issues]) {
     if (findCustomBlockHostId(issue, unavailableHosts)) continue
     const hostId = findCustomBlockHostId(issue, expanded.hosts)
     if (!hostId) {
@@ -146,5 +156,6 @@ function runRenderPipeline(
   return {
     document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
     issues: pipelineIssues,
+    richText: richText.catalog,
   }
 }

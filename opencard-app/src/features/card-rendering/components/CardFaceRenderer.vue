@@ -93,7 +93,8 @@ provide(cardEditorContextKey, {
     resolveAssetSrc: path => resolveCardAssetSrc(path, props.resourceContext),
     resolveFontFamily: toCssFontFamily,
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
-    customBlockCatalog: props.resourceContext.customBlockCatalog,
+    customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
+	    richText: computed(() => props.resourceContext.richText ?? new Map()),
 })
 
 defineExpose({

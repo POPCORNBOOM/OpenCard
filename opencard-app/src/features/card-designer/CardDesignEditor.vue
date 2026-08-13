@@ -13,8 +13,8 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle" tabindex="-1"
-    @keydown="handleRootKeydown">
+  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
+    tabindex="-1" @keydown="handleCdeKeydown">
     <div
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
@@ -42,6 +42,7 @@
           :space-modifier-active="spaceHeld"
           :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
           :layer-view-shortcut-hints="layerViewShortcutHints"
+          :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
           :show-info="!selectedBlock"
           :show-position-on-move="props.showSelectionPositionOnMove ?? true"
           :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
@@ -138,6 +139,7 @@
               :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
+                  data-cde-shortcut-scope="instance-tree"
                   :data="instanceTreeData" :actions="treeActions" :selected-keys="selectedCardKeys"
                   selection-mode="single" @intent="handleInstanceTreeIntent" />
               </OcPanel>
@@ -198,7 +200,8 @@
             <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
-                <OcTree ref="structureTreeRef" fill :data="blockTreeData" :actions="treeActions"
+                <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
+                  :data="blockTreeData" :actions="treeActions"
                   :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
@@ -324,6 +327,7 @@ import CardViewport, {
   type CardViewportSelectionActionLabels,
   type CardViewportSelectionCommand,
   type CardViewportSelectionInfo,
+  type CardViewportStatusFlash,
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
@@ -371,6 +375,7 @@ import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
+import type { PreparedCardRender } from '../card-rendering/renderPipeline'
 import {
   useCdeViewportController,
   type CdeViewportPort,
@@ -381,10 +386,17 @@ import {
   type CdeLayerViewPort,
 } from './useCdeLayerViewInteraction'
 import {
+  formatCdeShortcutMarkup,
+  getCdeShortcutBindings,
+  getCdeShortcutParts,
+  useCdeShortcuts,
+  type CdeShortcutCommand,
+} from './useCdeShortcuts'
+import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
-import { isBlockContainer, visitCardBlockTree } from '../../entities/card/tree'
+import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
@@ -499,17 +511,17 @@ function commitViewState(): void {
 const clipAction = computed<OcActionButtonAction>(() => ({
   key: 'toggle-face-clip',
   icon: clipToFace.value ? 'tool.box-cutter' : 'tool.box-cutter-off',
-  title: clipToFace.value
+  title: `${clipToFace.value
     ? t('cardDesigner.view.disableClip')
-    : t('cardDesigner.view.enableClip'),
+    : t('cardDesigner.view.enableClip')} ${formatCdeShortcutMarkup('view.toggle-clip')}`,
 }))
 
 const alignmentSnappingAction = computed<OcActionButtonAction>(() => ({
   key: 'toggle-alignment-snapping',
   icon: alignmentSnappingEnabled.value ? 'tool.snap-grid-on' : 'tool.snap-grid',
-  title: alignmentSnappingEnabled.value
+  title: `${alignmentSnappingEnabled.value
     ? t('cardDesigner.view.disableAlignmentSnapping')
-    : t('cardDesigner.view.enableAlignmentSnapping'),
+    : t('cardDesigner.view.enableAlignmentSnapping')} ${formatCdeShortcutMarkup('view.toggle-snapping')}`,
 }))
 
 const faceSwitchAction = computed<OcActionButtonAction>(() => ({
@@ -517,13 +529,17 @@ const faceSwitchAction = computed<OcActionButtonAction>(() => ({
   icon: activeFaceKey.value === 'front'
     ? 'tool.flip-to-front'
     : 'tool.flip-to-back',
-  title: activeFaceKey.value === 'front'
+  title: `${activeFaceKey.value === 'front'
     ? t('cardDesigner.view.switchToBack')
-    : t('cardDesigner.view.switchToFront'),
+    : t('cardDesigner.view.switchToFront')} ${formatCdeShortcutMarkup('view.switch-face')}`,
 }))
 
 const faceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [
-  ...createViewportToolbarItems(viewportScaleLabel.value),
+  ...createViewportToolbarItems(viewportScaleLabel.value, {
+    zoomOut: `${t('cardDesigner.shortcuts.zoomOut')} ${formatCdeShortcutMarkup('viewport.zoom-out')}`,
+    fit: `${t('cardDesigner.shortcuts.fitViewport')} ${formatCdeShortcutMarkup('viewport.fit')}`,
+    zoomIn: `${t('cardDesigner.shortcuts.zoomIn')} ${formatCdeShortcutMarkup('viewport.zoom-in')}`,
+  }),
   { type: 'divider', key: 'viewport-actions' },
   {
     ...alignmentSnappingAction.value,
@@ -550,11 +566,23 @@ function handleFaceToolbarSelect({ key }: { key: string }): void {
 function toggleFaceClip(): void {
   clipToFace.value = !clipToFace.value
   commitViewState()
+  cardViewportRef.value?.flashStatus?.({
+    icon: clipToFace.value ? 'tool.box-cutter' : 'tool.box-cutter-off',
+    message: clipToFace.value
+      ? t('cardDesigner.viewportStatus.clipEnabled')
+      : t('cardDesigner.viewportStatus.clipDisabled'),
+  })
 }
 
 function toggleAlignmentSnapping(): void {
   alignmentSnappingEnabled.value = !alignmentSnappingEnabled.value
   commitViewState()
+  cardViewportRef.value?.flashStatus?.({
+    icon: alignmentSnappingEnabled.value ? 'tool.snap-grid-on' : 'tool.snap-grid',
+    message: alignmentSnappingEnabled.value
+      ? t('cardDesigner.viewportStatus.snappingEnabled')
+      : t('cardDesigner.viewportStatus.snappingDisabled'),
+  })
 }
 
 function toggleActiveFace(): void {
@@ -562,9 +590,17 @@ function toggleActiveFace(): void {
   selectedBlockKeys.value = []
   forceStructureTreeReveal.value = false
   commitViewState()
+  cardViewportRef.value?.flashStatus?.({
+    icon: activeFaceKey.value === 'front' ? 'tool.flip-to-front' : 'tool.flip-to-back',
+    message: activeFaceKey.value === 'front'
+      ? t('cardDesigner.viewportStatus.switchedToFront')
+      : t('cardDesigner.viewportStatus.switchedToBack'),
+  })
 }
 
-type CardViewportHandle = CdeViewportPort & CdeLayerViewPort
+type CardViewportHandle = CdeViewportPort & CdeLayerViewPort & {
+  flashStatus?: (status: CardViewportStatusFlash) => void
+}
 
 type PropertyEditorHandle = {
   revealField: (inputKey: string, fieldKey: string, characterOffset?: number) => Promise<boolean>
@@ -633,8 +669,16 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
     title: '添加',
     children: addChildren,
   }],
-  ['duplicate-selected', { icon: 'action.copy', title: '复制选中' }],
-  ['delete-selected', { icon: 'action.delete', title: '删除选中' }],
+  ['duplicate-selected', {
+    icon: 'action.copy',
+    title: '复制选中',
+    shortcut: getCdeShortcutParts('block.duplicate'),
+  }],
+  ['delete-selected', {
+    icon: 'action.delete',
+    title: '删除选中',
+    shortcut: getCdeShortcutParts('block.delete'),
+  }],
   ['add', {
     icon: 'action.add',
     title: '添加子块',
@@ -647,16 +691,36 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
   ['add-shape-block', { ...getBlockPresentation('shape-block'), title: '形状' }],
   ['add-simple-container-block', { ...getBlockPresentation('simple-container-block'), title: '简单容器' }],
   ['add-flow-container-block', { ...getBlockPresentation('flow-container-block'), title: '流式容器' }],
-  ['duplicate', { icon: 'action.copy', title: '复制' }],
-  ['delete', { icon: 'action.delete', title: '删除' }],
-  ['rename', { icon: 'action.edit', title: '重命名' }],
+  ['duplicate', {
+    icon: 'action.copy',
+    title: '复制',
+    shortcut: getCdeShortcutParts('block.duplicate'),
+  }],
+  ['delete', {
+    icon: 'action.delete',
+    title: '删除',
+    shortcut: getCdeShortcutParts('block.delete'),
+  }],
+  ['rename', {
+    icon: 'action.edit',
+    title: '重命名',
+    shortcut: getCdeShortcutParts('block.rename'),
+  }],
   ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
   ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
   ['export-custom-block', { icon: 'action.download', title: t('cardDesigner.treeActions.exportCustomBlock') }],
   ['hide-block', { icon: 'status.eye', title: '隐藏' }],
   ['show-block', { icon: 'status.eye-off', title: '显示' }],
-  ['duplicate-instance', { icon: 'action.copy', title: '复制实例' }],
-  ['delete-instance', { icon: 'action.delete', title: '删除实例' }],
+  ['duplicate-instance', {
+    icon: 'action.copy',
+    title: '复制实例',
+    shortcut: getCdeShortcutParts('instance.duplicate'),
+  }],
+  ['delete-instance', {
+    icon: 'action.delete',
+    title: '删除实例',
+    shortcut: getCdeShortcutParts('instance.delete'),
+  }],
   ...(customBlockActions.length ? [[
     'add-custom-block-menu',
     {
@@ -678,6 +742,7 @@ function toCardActionDefinition(actionKey: string, disabled = false): OcCardActi
     icon: action.icon,
     iconTone: action.iconTone,
     title: action.title,
+    shortcut: action.shortcut,
     disabled,
     children: action.children
       ?.map((childKey) => toCardActionDefinition(childKey))
@@ -708,18 +773,13 @@ const {
   storageWarnings,
   documentRevision,
   parentLookup,
-  canUndo,
-  canRedo,
   markDocumentChanged,
   refreshDocumentState,
   flushPendingChanges,
-  undo: undoDocumentState,
-  redo: redoDocumentState,
   loadRawDoc,
   saveFile: saveDocumentFile,
-  dispose: disposeDocumentState,
 } = useCdeDocumentState({
-  emitModelValueUpdate: (content) => emit('update:modelValue', content),
+  emitModelValueUpdate: (content, history) => emit('update:modelValue', content, history),
   emitModified: (modified) => emit('modified', modified),
   emitSave: () => emit('save'),
   resetSelection: () => {
@@ -735,13 +795,23 @@ const {
 const activeFace = computed(() => cardDoc.value?.faces[activeFaceKey.value] ?? null)
 
 const activeCustomBlockKeys = computed(() => {
+  documentRevision.value
   const keys = new Set<string>()
+  const collectRichTextKeys = (content: unknown): void => {
+    if (typeof content !== 'string') return
+    const pattern = /<oc-custom-block\b[^>]*\bdata-oc-key\s*=\s*(["'])([^"']+)\1/gi
+    for (const match of content.matchAll(pattern)) {
+      const key = match[2]?.trim().toLowerCase()
+      if (key) keys.add(key)
+    }
+  }
   const document = cardDoc.value
   if (!document) return keys
   for (const face of Object.values(document.faces)) {
     for (const child of face.children) {
       visitCardBlockTree(child.block, block => {
         if (block.type === 'custom-block') keys.add(block.customBlockKey.toLowerCase())
+        if (block.type === 'text-block') collectRichTextKeys(block.content)
       })
     }
   }
@@ -1278,6 +1348,9 @@ const propertyProjectContext = computed(() => ({
   dictionary: projectStore.resolvedDictionary.value,
   iconSeries: projectStore.projectIconSeries.value,
   projectIconCatalog: projectStore.projectIconCatalog.value,
+  customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
+  customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+  ensureCustomBlockLoaded: projectStore.ensureProjectCustomBlockLoaded,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
   const rootPath = props.resourceRootPath
@@ -1601,6 +1674,116 @@ const {
   changeZIndex: changeSelectionZIndex,
 })
 
+const layerViewAtomicBlockIds = computed(() => {
+  const ids: string[] = []
+  for (const child of activeFace.value?.children ?? []) {
+    visitCardBlockTree(child.block, block => {
+      if (isBlockContainer(block) && isBlockPackaged(block)) ids.push(block.id)
+    })
+  }
+  return ids
+})
+
+const cdeShortcutCommands = [
+  {
+    key: 'instance.rename',
+    shortcut: getCdeShortcutBindings('instance.rename'),
+    scopes: ['instance-tree'],
+    canRun: () => canMutateSelectedInstance.value,
+    run: () => {
+      const key = selectedCardKeys.value[0]
+      if (key) void instanceTreeRef.value?.beginRename(key)
+    },
+  },
+  {
+    key: 'instance.duplicate',
+    shortcut: getCdeShortcutBindings('instance.duplicate'),
+    scopes: ['instance-tree'],
+    canRun: () => canMutateSelectedInstance.value,
+    run: () => triggerInstanceAction('duplicate-instance'),
+  },
+  {
+    key: 'instance.delete',
+    shortcut: getCdeShortcutBindings('instance.delete'),
+    scopes: ['instance-tree'],
+    canRun: () => canMutateSelectedInstance.value,
+    run: () => triggerInstanceAction('delete-instance'),
+  },
+  {
+    key: 'block.rename',
+    shortcut: getCdeShortcutBindings('block.rename'),
+    scopes: ['canvas', 'structure-tree'],
+    canRun: () => workspaceMode.value === 'design' && Boolean(selectedBlock.value),
+    run: () => {
+      const key = selectedBlockKeys.value[0]
+      if (key) void structureTreeRef.value?.beginRename(key)
+    },
+  },
+  {
+    key: 'block.duplicate',
+    shortcut: getCdeShortcutBindings('block.duplicate'),
+    scopes: ['canvas', 'structure-tree'],
+    canRun: () => workspaceMode.value === 'design' && Boolean(selectedBlock.value),
+    run: () => handleRootAction('duplicate-selected'),
+  },
+  {
+    key: 'block.delete',
+    shortcut: getCdeShortcutBindings('block.delete'),
+    scopes: ['canvas', 'structure-tree'],
+    canRun: () => workspaceMode.value === 'design' && Boolean(selectedBlock.value),
+    run: () => handleRootAction('delete-selected'),
+  },
+  {
+    key: 'viewport.fit',
+    shortcut: getCdeShortcutBindings('viewport.fit'),
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: fitViewport,
+  },
+  {
+    key: 'viewport.zoom-in',
+    shortcut: getCdeShortcutBindings('viewport.zoom-in'),
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: zoomViewportIn,
+  },
+  {
+    key: 'viewport.zoom-out',
+    shortcut: getCdeShortcutBindings('viewport.zoom-out'),
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: zoomViewportOut,
+  },
+  {
+    key: 'view.toggle-snapping',
+    shortcut: getCdeShortcutBindings('view.toggle-snapping'),
+    scopes: ['canvas'],
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: toggleAlignmentSnapping,
+  },
+  {
+    key: 'view.toggle-clip',
+    shortcut: getCdeShortcutBindings('view.toggle-clip'),
+    scopes: ['canvas'],
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: toggleFaceClip,
+  },
+  {
+    key: 'view.switch-face',
+    shortcut: getCdeShortcutBindings('view.switch-face'),
+    scopes: ['canvas'],
+    canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
+    run: toggleActiveFace,
+  },
+] as const satisfies readonly CdeShortcutCommand[]
+
+const { handleKeydown: handleShortcutKeydown } = useCdeShortcuts({
+  rootElement: editorRootRef,
+  commands: cdeShortcutCommands,
+})
+
+function handleCdeKeydown(event: KeyboardEvent): void {
+  handleRootKeydown(event)
+  handleShortcutKeydown(event)
+}
+
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value
   const face = viewFace.value
@@ -1759,16 +1942,6 @@ function ensureSelectionValidity() {
   }
 }
 
-async function undoFile() {
-  await undoDocumentState()
-  ensureSelectionValidity()
-}
-
-async function redoFile() {
-  await redoDocumentState()
-  ensureSelectionValidity()
-}
-
 function resolveNavigationInputKey(
   target: CardDesignerNavigationToken['target'],
 ): string | null {
@@ -1916,30 +2089,32 @@ watch(
     if (fileChanged) {
       prepareForFileChange()
     }
-    loadRawDoc(content)
+    loadRawDoc(content, fileChanged || !hasLoadedDocument || content === props.savedContent)
+    if (!fileChanged) ensureSelectionValidity()
     if (fileChanged) completeFileLoad()
   },
   { immediate: true },
 )
 
+function getImageRenderSource(): { render: PreparedCardRender; activeFaceKey: CardFaceKey } | null {
+  const render = renderPipelineResult.value
+  return render ? { render, activeFaceKey: activeFaceKey.value } : null
+}
+
 defineExpose({
   save: saveFile,
   flush: flushPendingChanges,
-  undo: undoFile,
-  redo: redoFile,
-  canUndo,
-  canRedo,
   navigate,
   importDataTableWorkbook,
   exportDataTableWorkbook,
   dataTableWorkbookBusy,
   canExportDataTableWorkbook,
+  getImageRenderSource,
 })
 
 onUnmounted(() => {
   for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
   infoHighlightTimers.clear()
-  disposeDocumentState()
 })
 
 </script>

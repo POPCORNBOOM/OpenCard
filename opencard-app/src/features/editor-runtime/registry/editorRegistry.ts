@@ -15,13 +15,17 @@ import type {
 import type { EditorIssueSnapshot } from '../model/editorIssue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
+import type { EditorHistoryKind } from '../history/editorHistoryManager'
+import type { HistoryOperationMeta } from '../history/structuredHistory'
 
 export interface EditorProps {
+  sessionId?: string
   filePath: string
   fileName?: string
   resourceRootPath?: string | null
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   modelValue?: string
+  savedContent?: string
   viewportTransform?: EditorViewportTransform
   pixelated?: boolean
   cardDesignerMode?: CardDesignerMode
@@ -39,7 +43,7 @@ export interface EditorProps {
 export interface EditorEmits {
   (e: 'save'): void
   (e: 'modified', isModified: boolean): void
-  (e: 'update:modelValue', value: string): void
+  (e: 'update:modelValue', value: string, history?: HistoryOperationMeta): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
   (e: 'update:pixelated', value: boolean): void
   (e: 'update:card-designer-mode', value: CardDesignerMode): void
@@ -57,6 +61,7 @@ export interface IEditor {
   name: string
   // Vue 组件引用
   component: Component
+  history: EditorHistoryKind
   // 是否支持预览
   hasPreview?: boolean
   // 预览组件名称
@@ -102,6 +107,7 @@ editorRegistry.register({
   id: 'monaco',
   name: 'Monaco Editor',
   component: MonacoEditor,
+  history: 'monaco',
   hasPreview: false
 })
 
@@ -109,6 +115,7 @@ editorRegistry.register({
   id: 'card-designer',
   name: 'Card Designer',
   component: CardDesignEditor,
+  history: 'structured',
   hasPreview: false
 })
 
@@ -116,6 +123,7 @@ editorRegistry.register({
   id: 'image-preview',
   name: 'Image Preview',
   component: ImagePreviewEditor,
+  history: 'none',
   hasPreview: false,
 })
 
@@ -123,6 +131,7 @@ editorRegistry.register({
   id: 'project-config',
   name: 'Project Configuration',
   component: ProjectConfigEditor,
+  history: 'structured',
   hasPreview: false,
 })
 
@@ -130,6 +139,7 @@ editorRegistry.register({
   id: 'font-registry',
   name: 'Project Font Set',
   component: ProjectFontRegistryFileEditor,
+  history: 'structured',
   hasPreview: false,
 })
 
@@ -137,6 +147,7 @@ editorRegistry.register({
   id: 'icon-registry',
   name: 'Project Icon Registry',
   component: ProjectIconRegistryFileEditor,
+  history: 'structured',
   hasPreview: false,
 })
 
@@ -144,6 +155,7 @@ editorRegistry.register({
   id: 'font-preview',
   name: 'Font Preview',
   component: FontPreviewEditor,
+  history: 'none',
   hasPreview: false,
 })
 
@@ -151,6 +163,7 @@ editorRegistry.register({
   id: 'unsupported-file',
   name: 'Unsupported File',
   component: UnsupportedFileEditor,
+  history: 'none',
   hasPreview: false,
 })
 
@@ -158,6 +171,7 @@ editorRegistry.register({
   id: 'custom-block-registry',
   name: 'Custom Block Registry',
   component: ProjectCustomBlockRegistryEditor,
+  history: 'structured',
   hasPreview: false,
 })
 
@@ -165,6 +179,7 @@ editorRegistry.register({
   id: 'custom-block-package',
   name: 'Custom Block Package',
   component: CustomBlockPackageEditor,
+  history: 'none',
   hasPreview: false,
 })
 
@@ -172,5 +187,6 @@ editorRegistry.register({
   id: 'dictionary',
   name: 'Dictionary',
   component: DictionaryEditor,
+  history: 'structured',
   hasPreview: false,
 })

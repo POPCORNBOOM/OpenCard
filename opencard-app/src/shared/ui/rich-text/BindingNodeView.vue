@@ -5,6 +5,7 @@
     :class="{ 'is-selected': selected, 'is-editing': editing }"
     data-drag-handle
     contenteditable="false"
+    @oc-edit-binding="startEditing"
   >
     <span v-if="editing" class="binding-node__editor binding-node__expression"
       :style="expressionStyle" @mousedown.stop>
@@ -42,28 +43,6 @@
       @dblclick.stop="startEditing"
     >{{ bindingLabel }}</span>
 
-    <button
-      v-if="!editing"
-      type="button"
-      class="binding-node__action"
-      data-tooltip="编辑 binding"
-      aria-label="编辑 binding"
-      @mousedown.prevent.stop
-      @click.stop="startEditing"
-    >
-      <OcIcon name="action.edit" size="sm" />
-    </button>
-    <button
-      type="button"
-      class="binding-node__action"
-      data-tooltip="删除 binding"
-      aria-label="删除 binding"
-      @mousedown.prevent.stop
-      @click.stop="deleteNode"
-    >
-      <OcIcon name="action.close" size="sm" />
-    </button>
-
     <OcAutocompletePopover
       :id="autocompleteId"
       :open="menuOpen"
@@ -82,7 +61,6 @@ import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import { computed, nextTick, onMounted, ref, useId, type ComponentPublicInstance } from 'vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
-import OcIcon from '../../../components/base/OcIcon.vue'
 import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
 import type { BindingNodeOptions } from './bindingNode'
 import type {
@@ -314,22 +292,4 @@ function handleKeydown(event: KeyboardEvent): void {
   font: inherit;
 }
 
-.binding-node__action {
-  display: inline-grid;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--oc-fg-muted);
-  cursor: pointer;
-}
-
-.binding-node__action:hover {
-  background: var(--oc-bg-hover);
-  color: var(--oc-fg-default);
-}
 </style>

@@ -3,7 +3,6 @@ import {
   acceptsCardFieldBindingScope,
   exposesCardFieldReference,
   getCardFieldKeys,
-  getCardFieldDefinition,
   getCardFieldValue,
   getCardFieldValueKind,
   hasCardField,
@@ -22,7 +21,6 @@ import {
   isBlockContainer,
   type ParentLookup,
 } from '../../entities/card/tree'
-import { transformRichTextHtml } from '../../shared/rich-text/richTextHtml'
 import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/model/binding'
 import {
   isBindingStartEscaped,
@@ -665,83 +663,12 @@ export function resolveReferences(
     return { ok: true, value: resolvedValue }
   }
 
-  function resolveRichTextField(
-    owner: ReferenceOwner,
-    fieldKey: string,
-    sourceValue: string,
-    recursionDepth: number,
-  ): ResolveFieldResult {
-    let sourceSearchOffset = 0
-    const locateToken = (rawToken: string): number => {
-      let codeUnitOffset = sourceValue.indexOf(rawToken, sourceSearchOffset)
-      if (codeUnitOffset < 0) codeUnitOffset = sourceValue.indexOf(rawToken)
-      if (codeUnitOffset < 0) codeUnitOffset = sourceSearchOffset
-      sourceSearchOffset = codeUnitOffset + rawToken.length
-      return toCharacterOffset(sourceValue, codeUnitOffset)
-    }
-
-    const transformed = transformRichTextHtml(sourceValue, {
-      resolveBindingNode: (expression) => {
-        const rawToken = `{{${expression}}}`
-        const issueOffset = locateToken(rawToken)
-        if (!expression || !acceptsCardFieldBinding(owner.source, fieldKey)) {
-          pushIssue(owner, fieldKey, rawToken, expression
-            ? 'card-designer.binding.field-not-allowed'
-            : 'card-designer.binding.invalid-token', expression
-            ? { ownerType: owner.typeName, referencedFieldKey: fieldKey }
-            : undefined, issueOffset)
-          return { ok: false }
-        }
-
-        const tokenResult = resolveTokenValue(
-          owner,
-          expression,
-          fieldKey,
-          recursionDepth + 1,
-          rawToken,
-          issueOffset,
-        )
-        if (!tokenResult.ok) return { ok: false }
-        if ('preserved' in tokenResult) return { ok: true, value: rawToken }
-        if (!isBindingCompatible('string', tokenResult.valueKind)
-          || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-          pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.type-mismatch', {
-            sourceType: tokenResult.valueKind,
-            targetType: 'string',
-          }, issueOffset)
-          return { ok: false }
-        }
-        return { ok: true, value: String(tokenResult.value) }
-      },
-      resolveTextNode: (value) => {
-        const resolved = resolveTemplateString(
-          owner,
-          fieldKey,
-          value,
-          recursionDepth,
-          'string',
-          locateToken,
-        )
-        return resolved.ok
-          ? { ok: true, value: String(resolved.value) }
-          : { ok: false }
-      },
-    })
-
-    return transformed.ok
-      ? transformed
-      : { ok: false, value: sourceValue }
-  }
-
   function resolveStringField(
     owner: ReferenceOwner,
     fieldKey: string,
     sourceValue: string,
     recursionDepth: number,
   ): ResolveFieldResult {
-    if (getCardFieldDefinition(owner.source, fieldKey)?.richText) {
-      return resolveRichTextField(owner, fieldKey, sourceValue, recursionDepth)
-    }
     return resolveTemplateString(owner, fieldKey, sourceValue, recursionDepth)
   }
 

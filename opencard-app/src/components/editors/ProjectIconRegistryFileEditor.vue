@@ -30,6 +30,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import type {
   EditorIssue,
   EditorIssueSnapshot,
@@ -305,8 +306,8 @@ function safeFileName(value: string): string {
   return value.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '') || 'icon-pack'
 }
 
-function updateRawSource(content: string): void {
-  emit('update:modelValue', content)
+function updateRawSource(content: string, history?: HistoryOperationMeta): void {
+  emit('update:modelValue', content, history)
 }
 
 function save(): void {

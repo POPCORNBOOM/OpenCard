@@ -299,17 +299,22 @@ const selectedCustomBlocks = computed(() => props.selectedCustomBlockKeys
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
-const selectedEntryOptions = computed(() => selectedTemplateEntries.value.map(entry => ({
-  value: entry,
-  label: selectedTemplateEntryName(entry),
-})))
+const selectedEntryOptions = computed(() => [
+  { value: '', label: t('projectTemplates.status.noInitialPage') },
+  ...selectedTemplateEntries.value.map(entry => ({
+    value: entry,
+    label: selectedTemplateEntryName(entry),
+  })),
+])
 const templateEntryOptions = computed(() => templateInspection.value?.entries.map(entry => ({
   value: entry,
   label: templateInspection.value?.entryNames[entry] ?? entry,
 })) ?? [])
 
 function selectedTemplateEntryName(entry: string): string {
-  return selectedTemplate.value?.entryNames?.[entry] ?? entry
+  return entry
+    ? selectedTemplate.value?.entryNames?.[entry] ?? entry
+    : t('projectTemplates.status.noInitialPage')
 }
 function localizedTemplateName(template: ProjectTemplate): string {
   return resolveProjectTemplateName(template, locale.value)
@@ -345,7 +350,7 @@ const targetPreview = computed(() => {
 })
 const canCreate = computed(() => Boolean(
   selectedTemplate.value
-  && selectedEntry.value
+  && (selectedTemplateEntries.value.length === 0 || selectedEntry.value)
   && parentPath.value
   && projectName.value.trim()
   && !projectNameError.value
@@ -508,7 +513,7 @@ async function createProject(): Promise<void> {
       template: selectedTemplate.value,
       parentPath: parentPath.value,
       projectName: projectName.value,
-      entry: selectedEntry.value,
+      entry: selectedEntry.value || undefined,
       iconPacks: selectedIconPacks.value,
       customBlocks: selectedCustomBlocks.value,
     })

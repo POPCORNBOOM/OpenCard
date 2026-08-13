@@ -8,7 +8,7 @@
       </div>
     </div>
     <MonacoEditor language="json" :model-value="modelValue" :theme-id="themeId"
-      :theme-overrides="themeOverrides" @update:model-value="emit('update:modelValue', $event)"
+      :theme-overrides="themeOverrides" @update:model-value="updateModelValue"
       @save="emit('save')" />
   </section>
 </template>
@@ -18,6 +18,7 @@ import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundatio
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import MonacoEditor from './MonacoEditor.vue'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 
 defineProps<{
   modelValue: string
@@ -28,9 +29,13 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
+  'update:modelValue': [value: string, history?: HistoryOperationMeta]
   save: []
 }>()
+
+function updateModelValue(value: string, history?: HistoryOperationMeta): void {
+  emit('update:modelValue', value, history)
+}
 </script>
 
 <style scoped>

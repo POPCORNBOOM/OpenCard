@@ -122,6 +122,8 @@ export function createAppSettingsStore(
       candidate.workspace.defaultFontImportDirectory = String(value)
     } else if (key === 'workspace.defaultIconImportDirectory') {
       candidate.workspace.defaultIconImportDirectory = String(value)
+    } else if (key === 'workspace.historyEntryLimit') {
+      candidate.workspace.historyEntryLimit = value as number
     }
   }
 

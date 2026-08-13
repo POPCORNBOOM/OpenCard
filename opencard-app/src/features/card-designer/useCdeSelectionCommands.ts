@@ -51,7 +51,7 @@ type UseCdeSelectionCommandsOptions = {
   parentLookup: Readonly<Ref<ParentLookup>>
   availableLayerZIndices: Readonly<Ref<readonly number[]>>
   refreshDocumentState: () => void
-  markDocumentChanged: (mode: 'typing' | 'action') => void
+  markDocumentChanged: (mode: 'typing' | 'action', target?: string, structural?: boolean) => void
   isResizeAxisLocked?: (blockId: string, axis: 'width' | 'height') => boolean
 }
 
@@ -171,7 +171,10 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
       document[intent.dimension] = nextValue
       options.refreshDocumentState()
     }
-    options.markDocumentChanged(intent.final ? 'action' : 'typing')
+    options.markDocumentChanged(
+      intent.final ? 'action' : 'typing',
+      `face-dimension:${intent.dimension}`,
+    )
     return true
   }
 

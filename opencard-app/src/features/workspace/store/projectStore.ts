@@ -49,6 +49,7 @@ import {
   syncProjectFonts,
   type ProjectFontLoadError,
 } from '../services/projectFontLoader'
+import { ensureLoadableProjectFont } from '../services/trueTypeFontRepair'
 import {
   buildProjectIconCatalog,
   EMPTY_PROJECT_ICON_CATALOG,
@@ -666,18 +667,32 @@ async function refreshIndexedEntries(options?: { persist?: boolean }) {
 
   try {
     const nextEntries = new Map<string, DirEntry>()
+    const unavailableDirectories = new Set<string>()
     const registrations = Array.from(registeredDirectories.value.entries())
       .sort(([leftPath], [rightPath]) => leftPath.length - rightPath.length)
 
     for (const [relativePath, depth] of registrations) {
       const directoryPath = relativePath ? resolveProjectPath(relativePath) : ensureProjectOpen()
-      const entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath)
+      let entries: DirEntry[]
+      try {
+        entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath)
+      } catch (error) {
+        if (!relativePath || await fileSystemService.fileExists(directoryPath)) throw error
+        unavailableDirectories.add(relativePath)
+        continue
+      }
 
       for (const entry of entries) {
         nextEntries.set(entry.name, entry)
       }
     }
 
+    if (unavailableDirectories.size > 0) {
+      registeredDirectories.value = new Map([...registeredDirectories.value]
+        .filter(([relativePath]) => !unavailableDirectories.has(relativePath)))
+      expandedDirectories.value = new Set([...expandedDirectories.value]
+        .filter(relativePath => !unavailableDirectories.has(relativePath)))
+    }
     indexedEntries.value = Array.from(nextEntries.values())
 
     if (options?.persist !== false) {
@@ -1021,13 +1036,50 @@ async function importProjectFontFile(
 ): Promise<ImportedProjectFontFile> {
   const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
   if (!targetDirectory) throw new Error('Invalid project font directory')
-  return await importProjectAssetFile(
-    sourcePath,
-    targetDirectory,
-    PROJECT_FONT_EXTENSIONS,
-    'Unsupported project font file',
-    conflictResolution,
+  const normalizedSourcePath = normalizePath(sourcePath)
+  const projectRoot = ensureProjectOpen()
+  const fileName = getPathBasename(normalizedSourcePath)
+  const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
+  if (!PROJECT_FONT_EXTENSIONS.has(extension)) throw new Error('Unsupported project font file')
+
+  const sourceIdentity = pathIdentity(normalizedSourcePath)
+  const projectIdentity = pathIdentity(projectRoot)
+  const sourceInsideProject = sourceIdentity.startsWith(`${projectIdentity}/`)
+  const targetAbsoluteDirectory = resolveProjectPath(targetDirectory)
+  const targetExists = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${fileName}`)
+  if (!sourceInsideProject && targetExists && conflictResolution === 'use-existing') {
+    return { source: `${targetDirectory}/${fileName}`, copied: false }
+  }
+
+  const prepared = await ensureLoadableProjectFont(
+    await fileSystemService.readBinaryFile(normalizedSourcePath),
+    fileName,
   )
+  if (sourceInsideProject && !prepared.repaired) {
+    return { source: normalizedSourcePath.slice(projectRoot.length + 1), copied: false }
+  }
+
+  const outputDirectory = sourceInsideProject
+    ? normalizedSourcePath.slice(0, normalizedSourcePath.lastIndexOf('/'))
+    : targetAbsoluteDirectory
+  const repairedName = prepared.repaired ? createRepairedFontName(fileName) : fileName
+  const outputName = await fileSystemService.fileExists(`${outputDirectory}/${repairedName}`)
+    ? await findAvailableProjectAssetName(outputDirectory, repairedName)
+    : repairedName
+  await fileSystemService.createDirectory(outputDirectory)
+  if (prepared.repaired) await fileSystemService.writeBinaryFile(`${outputDirectory}/${outputName}`, prepared.bytes)
+  else await fileSystemService.copyFile(normalizedSourcePath, `${outputDirectory}/${outputName}`)
+  await refreshIndexedEntries()
+  const relativeDirectory = sourceInsideProject
+    ? outputDirectory.slice(projectRoot.length + 1)
+    : targetDirectory
+  return { source: relativeDirectory ? `${relativeDirectory}/${outputName}` : outputName, copied: true }
+}
+
+function createRepairedFontName(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  const stem = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName
+  return `${stem}-repaired.ttf`
 }
 
 async function getProjectFontImportConflict(

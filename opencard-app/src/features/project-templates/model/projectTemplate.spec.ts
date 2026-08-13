@@ -9,19 +9,33 @@ import {
 } from './projectTemplate'
 
 describe('project template model', () => {
+  it('accepts an entryless manifest for a completely empty folder template', () => {
+    expect(parseProjectTemplateManifest({
+      schemaVersion: 1,
+      id: 'blank',
+      name: 'Blank Project',
+      description: 'Start empty.',
+    })).toEqual({
+      schemaVersion: 1,
+      id: 'blank',
+      name: 'Blank Project',
+      description: 'Start empty.',
+    })
+  })
+
   it('normalizes a valid manifest', () => {
     expect(parseProjectTemplateManifest({
       schemaVersion: 1,
-      id: 'tactical-showcase',
-      name: '  Tactical Showcase  ',
+      id: 'sample-project',
+      name: '  Sample Project  ',
       description: '  Advanced demo  ',
       entry: 'cards\\main.ocdocument',
       entries: ['cards\\main.ocdocument', 'cards/alternate.ocdocument', 'cards/alternate.ocdocument'],
       covers: ['assets\\cover.png', 'assets/cover.png', 'assets/second.webp'],
     })).toEqual({
       schemaVersion: 1,
-      id: 'tactical-showcase',
-      name: 'Tactical Showcase',
+      id: 'sample-project',
+      name: 'Sample Project',
       description: 'Advanced demo',
       entry: 'cards/main.ocdocument',
       entries: ['cards/main.ocdocument', 'cards/alternate.ocdocument'],

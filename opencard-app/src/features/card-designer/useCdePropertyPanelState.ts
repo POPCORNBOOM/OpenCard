@@ -84,7 +84,7 @@ type UseCdePropertyPanelStateOptions = {
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
   refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
   translate: (messageKey: string) => string
   hasMessage: (messageKey: string) => boolean
 }
@@ -376,7 +376,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     ; (layout as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
-    options.markDocumentChanged(mode)
+    options.markDocumentChanged(mode, `layout:${layout.id}:${fieldKey}`)
     return true
   }
 
@@ -388,7 +388,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     ; (cardDoc as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
-    options.markDocumentChanged(mode)
+    options.markDocumentChanged(mode, `document:${cardDoc.id}:${fieldKey}`)
     return true
   }
 
@@ -400,7 +400,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
 
     ; (selectedCard as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
-    options.markDocumentChanged(mode)
+    options.markDocumentChanged(mode, `instance:${selectedCard.id}:${fieldKey}`)
     return true
   }
 
@@ -409,7 +409,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (!face || !isCardStoredValue(value)) return false
     ;(face as unknown as Record<string, unknown>)[fieldKey] = value
     options.refreshDocumentState()
-    options.markDocumentChanged(mode)
+    options.markDocumentChanged(mode, `face:${face.id}:${fieldKey}`)
     return true
   }
 

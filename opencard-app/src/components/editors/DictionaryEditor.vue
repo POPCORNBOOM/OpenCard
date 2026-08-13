@@ -161,7 +161,7 @@
         <div class="dictionary-editor__source">
           <MonacoEditor :model-value="modelValue ?? ''" language="json" :theme-id="themeId"
             :theme-overrides="themeOverrides"
-            @update:model-value="emit('update:modelValue', $event)" @save="save" />
+            @update:model-value="updateRawSource" @save="save" />
         </div>
       </section>
     </div>
@@ -175,6 +175,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type Ref }
 import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import { parseProjectDictionaryText, serializeProjectDictionary, type ProjectDictionary } from '../../features/workspace/model/projectDictionary'
 import {
   DICTIONARY_BASE_COLUMN_KEY,
@@ -289,9 +290,13 @@ function canUseLanguageKey(candidate: string, current?: string) {
     : false
 }
 
-function commit(next: ProjectDictionary) {
+function commit(next: ProjectDictionary, history: HistoryOperationMeta = { mode: 'immediate' }) {
   dictionary.value = next
-  emit('update:modelValue', serializeProjectDictionary(next))
+  emit('update:modelValue', serializeProjectDictionary(next), history)
+}
+
+function updateRawSource(content: string, history?: HistoryOperationMeta): void {
+  emit('update:modelValue', content, history)
 }
 
 function beginRecordCreate(): void {
@@ -344,7 +349,10 @@ function finishLanguageCreate(): void {
 
 function updateCell(columnKey: string, recordKey: string, value: string) {
   if (!dictionary.value) return
-  commit(setDictionaryCellValue(dictionary.value, columnKey, recordKey, value))
+  commit(setDictionaryCellValue(dictionary.value, columnKey, recordKey, value), {
+    mode: 'debounced',
+    merge: { family: 'dictionary-cell', target: `${columnKey}\u0000${recordKey}` },
+  })
 }
 
 function resetOverride(language: string, recordKey: string) {

@@ -52,7 +52,7 @@ describe('useCdeBlockFieldCommands', () => {
     expect(document.instances[1]!.data.text?.content).toBe('Override')
     expect(commands.updateField({ cardId: 'two', blockId: 'text', fieldKey: 'name' }, 'Instance title')).toBe(false)
     expect(document.instances[1]!.data.text).not.toHaveProperty('name')
-    expect(markDocumentChanged).toHaveBeenLastCalledWith('typing')
+    expect(markDocumentChanged).toHaveBeenLastCalledWith('typing', 'block-field:two:text:content')
   })
 
   it('resets overrides and deletes blueprint fields across every instance', () => {

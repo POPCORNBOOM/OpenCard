@@ -34,8 +34,8 @@ type UseCdeTreeOpsOptions = {
   selectedBlockKeys: Ref<string[]>
   getDefaultBlockName: (type: CardBlock['type']) => string
   createCustomBlock?: (key: string) => CardBlock | null
-  refreshDocumentState: () => void
-  markDocumentChanged: (mode?: CdeDocumentChangeMode) => void
+  refreshDocumentState: (structural?: boolean) => void
+  markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
@@ -235,16 +235,16 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     if (isBlockPackaged(block) === packaged) return
     if (packaged) block.packaged = 'true'
     else delete block.packaged
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function setBlockVisibility(block: CardBlock, visible: boolean): void {
     const nextValue = visible ? 'true' : 'false'
     if (block.visible === nextValue) return
     block.visible = nextValue
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function renameBlock(key: string, name: string): void {
@@ -252,8 +252,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const nextName = name.trim()
     if (!block || !nextName || block.name === nextName) return
     block.name = nextName
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function moveBlock(
@@ -286,9 +286,9 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       insertionIndex,
     )
     if (!moved) return
-    options.refreshDocumentState()
+    options.refreshDocumentState(true)
     options.selectedBlockKeys.value = [draggedKey]
-    options.markDocumentChanged('action')
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function isDescendantOf(targetKey: string, ancestorKey: string): boolean {
@@ -376,18 +376,18 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   function insertBlockAt(container: BlockContainer, block: CardBlock): void {
     if (isBlockPackaged(container)) return
     addBlockToContainer(container, block, options.parentLookup.value)
-    options.refreshDocumentState()
+    options.refreshDocumentState(true)
     options.selectedBlockKeys.value = [block.id]
-    options.markDocumentChanged('action')
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function insertBlockAtRoot(block: CardBlock): boolean {
     const face = options.activeFace.value
     if (!face) return false
     addBlockToContainer(face, block, options.parentLookup.value)
-    options.refreshDocumentState()
+    options.refreshDocumentState(true)
     options.selectedBlockKeys.value = [block.id]
-    options.markDocumentChanged('action')
+    options.markDocumentChanged('action', 'structure-tree', true)
     return true
   }
 
@@ -395,8 +395,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const container = options.parentLookup.value.get(block.id)
     if (!container || !removeBlockFromContainer(container, block.id, options.parentLookup.value)) return
     options.selectedBlockKeys.value = options.selectedBlockKeys.value.filter((key) => key !== block.id)
-    options.refreshDocumentState()
-    options.markDocumentChanged('action')
+    options.refreshDocumentState(true)
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function duplicateBlock(block: CardBlock): void {
@@ -409,9 +409,9 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const insertionIndex = sourceIndex + 1
     const location = cloneLocationForDuplicate(sourceChild.location, container, insertionIndex)
     addBlockToContainer(container, duplicated, options.parentLookup.value, location, insertionIndex)
-    options.refreshDocumentState()
+    options.refreshDocumentState(true)
     options.selectedBlockKeys.value = [duplicated.id]
-    options.markDocumentChanged('action')
+    options.markDocumentChanged('action', 'structure-tree', true)
   }
 
   function cloneBlockWithNewIds(source: CardBlock): CardBlock {

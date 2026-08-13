@@ -22,6 +22,8 @@ import type {
   RenderReadySimpleContainerBlock,
   RenderReadyTextBlock,
 } from '../render.types'
+import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
+import type { PreparedRichTextCatalog } from '../prepareRichText'
 
 export const rendererTestGlobal = {
   provide: {
@@ -31,6 +33,27 @@ export const rendererTestGlobal = {
       resolveAssetSrc: (path: string) => `asset://${path}`,
     },
   },
+}
+
+export function richTextRendererTestGlobal(block: RenderReadyTextBlock, projectIconCatalog?: unknown) {
+  const parsed = parseRichTextHtml(block.content)
+  const prepared: PreparedRichTextCatalog = new Map([[block.id, {
+    document: parsed.document,
+    embeddedBlocks: new Map(),
+    diagnostics: [],
+    valid: parsed.canEnterVisualMode,
+  }]])
+  return {
+    provide: {
+      [cardEditorContextKey as symbol]: {
+        transformDisabledBlockIds: computed(() => new Set<string>()),
+        handleBlockClick: () => undefined,
+        resolveAssetSrc: (path: string) => `asset://${path}`,
+        richText: computed(() => prepared),
+        ...(projectIconCatalog ? { projectIconCatalog: computed(() => projectIconCatalog) } : {}),
+      },
+    },
+  }
 }
 
 export function parseRenderReadyBlockForTest(block: TextBlock): RenderReadyTextBlock

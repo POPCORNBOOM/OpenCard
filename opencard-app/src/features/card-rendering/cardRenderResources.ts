@@ -9,6 +9,7 @@ import {
   resolveEditorResourcePath,
 } from '../editor-runtime/services/editorResource'
 import type { CustomBlockRuntimeCatalog } from './expandCustomBlocks'
+import type { PreparedRichTextCatalog } from './prepareRichText'
 import { createProjectCustomBlockFontFamily } from '../workspace/services/projectCustomBlockResources'
 
 export type CardRenderResourceContext = {
@@ -16,6 +17,7 @@ export type CardRenderResourceContext = {
   readonly remoteResourcePolicy?: ProjectRemoteResourcePolicy
   readonly customBlockCatalog: CustomBlockRuntimeCatalog
   readonly projectIconCatalog: ProjectIconCatalog
+  readonly richText?: PreparedRichTextCatalog
 }
 
 export function createCardRenderResourceContext(options: {
@@ -23,12 +25,14 @@ export function createCardRenderResourceContext(options: {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   customBlockCatalog?: CustomBlockRuntimeCatalog
   projectIconCatalog?: ProjectIconCatalog
+  richText?: PreparedRichTextCatalog
 }): CardRenderResourceContext {
   return {
     resourceRootPath: options.resourceRootPath ?? null,
     remoteResourcePolicy: options.remoteResourcePolicy,
     customBlockCatalog: options.customBlockCatalog ?? new Map(),
     projectIconCatalog: options.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
+    richText: options.richText ?? new Map(),
   }
 }
 

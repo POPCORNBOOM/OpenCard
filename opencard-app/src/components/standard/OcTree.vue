@@ -640,6 +640,7 @@ function resolveAction(
     icon: definition.icon,
     iconTone: definition.iconTone,
     title: disabledReason ? `${definition.title}: ${disabledReason}` : definition.title,
+    shortcut: definition.shortcut,
     disabled: disabledReason !== undefined,
     children,
   }

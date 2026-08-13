@@ -2,22 +2,26 @@
   <div :ref="setAnchor" class="rich-text-string-field">
     <button v-if="!definition.isReadonly" type="button" class="rich-text-string-field__preview"
       :aria-expanded="open" @click="openEditor">
-      <span v-if="stringValue" class="rich-text-string-field__content" v-html="safeStringValue" />
+      <RichTextPreview v-if="stringValue" class="rich-text-string-field__content"
+        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog" />
       <span v-else class="rich-text-string-field__empty">-</span>
     </button>
     <div v-else class="rich-text-string-field__preview rich-text-string-field__preview--readonly">
-      <span v-if="stringValue" class="rich-text-string-field__content" v-html="safeStringValue" />
+      <RichTextPreview v-if="stringValue" class="rich-text-string-field__content"
+        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog" />
       <span v-else class="rich-text-string-field__empty">-</span>
     </div>
 
   <OcDialog class="rich-text-string-popover" :open="open" :title="definition.title" size="lg"
       :padded="false" :scrollable="false" height-mode="fixed" height="workspace"
       close-on-backdrop @request-close="cancelEditor">
-          <div class="rich-text-string-popover__editor">
+	          <div class="rich-text-string-popover__editor">
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
               :project-icon-completion="definition.projectIcon?.provider"
-              :project-icon-catalog="definition.projectIcon?.catalog"
+	              :project-icon-catalog="definition.projectIcon?.catalog"
+	              :custom-block-catalog="definition.customBlock"
+              :field-mode-labels="fieldModeLabels"
               :font-options="definition.fontOptions"
               :base-style="definition.richTextBaseStyle"
               @update:model-value="draftValue = $event" />
@@ -25,8 +29,11 @@
               class="rich-text-string-popover__source" :value="sourceValue"
               resize="none" autocomplete="off" spellcheck="false"
               aria-label="HTML 源码"
-              @input="handleSourceInput" />
-          </div>
+	              @input="handleSourceInput" />
+	          </div>
+	          <p v-if="sourceDiagnostics.length" class="rich-text-string-popover__diagnostics" role="alert">
+	            {{ sourceDiagnostics[0]?.path }}: {{ sourceDiagnostics[0]?.message }}
+	          </p>
       <template #footer>
           <div class="rich-text-string-popover__footer-content">
             <OcOptionGroup :model-value="editorMode" :options="editorModeOptions"
@@ -35,7 +42,8 @@
             <span class="rich-text-string-popover__actions">
               <OcButton size="md" icon-only icon="action.close" icon-tone="danger"
                 data-tooltip="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
-              <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
+	              <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
+	                :disabled="editorMode === 'source' && sourceDiagnostics.length > 0"
                 data-tooltip="保存" aria-label="保存富文本编辑" @click="saveEditor" />
             </span>
           </div>
@@ -45,21 +53,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, type ComponentPublicInstance } from 'vue'
+import { computed, getCurrentInstance, nextTick, ref, type ComponentPublicInstance } from 'vue'
 import OcButton from '../../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
 import OcDialog from '../../../../components/standard/OcDialog.vue'
 import OcOptionGroup, { type OcOption } from '../../../../components/standard/OcOptionGroup.vue'
-import { formatRichTextHtmlSource, normalizeRichTextHtml } from '../../../rich-text/richTextHtml'
+import { formatRichTextHtmlSource, parseRichTextHtml } from '../../../rich-text/richTextHtml'
 import OcRichTextEditor from '../../rich-text/OcRichTextEditor.vue'
-import { renderProjectIconsInRichText } from '../../../../features/workspace/services/projectIconCatalog'
-import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
+import RichTextPreview from '../../rich-text/RichTextPreview.vue'
 
 const props = defineProps<{
   definition: Extract<PropertyEditorFieldDefinition, { fieldType: 'string' }>
   value: unknown
 }>()
+
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as ((key: string) => string) | undefined
+const fieldModeLabels = {
+  useFieldEditor: translate?.('propertyEditor.bindings.useFieldEditor') ?? 'Use field editor',
+  useRawStringEditor: translate?.('propertyEditor.bindings.useRawEditor') ?? 'Use raw string editor',
+}
 
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
@@ -73,10 +86,9 @@ const editorMode = ref<'rich' | 'source'>('rich')
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
 const draftValue = ref('')
 const sourceValue = ref('')
-const safeStringValue = computed(() => renderProjectIconsInRichText(
-  normalizeRichTextHtml(stringValue.value),
-  props.definition.projectIcon?.catalog ?? EMPTY_PROJECT_ICON_CATALOG,
-))
+const sourceDiagnostics = computed(() => editorMode.value === 'source'
+  ? parseRichTextHtml(sourceValue.value, { allowUnresolvedBindings: true }).diagnostics
+  : [])
 const editorModeOptions: readonly OcOption[] = [
   { value: 'rich', label: '富文本', icon: 'format.text-variant-outline' },
   { value: 'source', label: 'HTML 源码', icon: 'format.xml' },
@@ -84,17 +96,24 @@ const editorModeOptions: readonly OcOption[] = [
 
 async function openEditor(): Promise<void> {
   draftValue.value = stringValue.value
-  sourceValue.value = ''
-  editorMode.value = 'rich'
+  sourceValue.value = stringValue.value
+  editorMode.value = parseRichTextHtml(stringValue.value, { allowUnresolvedBindings: true }).canEnterVisualMode
+    ? 'rich'
+    : 'source'
   open.value = true
   await nextTick()
-  richTextEditor.value?.focus()
+  if (editorMode.value === 'rich') richTextEditor.value?.focus()
+  else sourceEditor.value?.focus()
 }
 
 async function setEditorMode(mode: string): Promise<void> {
   if (mode !== 'rich' && mode !== 'source') return
   if (mode === editorMode.value) return
-  if (mode === 'rich') draftValue.value = normalizeRichTextHtml(sourceValue.value)
+  if (mode === 'rich') {
+    const parsed = parseRichTextHtml(sourceValue.value, { allowUnresolvedBindings: true })
+    if (!parsed.canEnterVisualMode) return
+    draftValue.value = sourceValue.value
+  }
   else sourceValue.value = formatRichTextHtmlSource(draftValue.value)
   editorMode.value = mode
   await nextTick()
@@ -117,9 +136,10 @@ function cancelEditor(): void {
 }
 
 function saveEditor(): void {
-  const normalizedValue = normalizeRichTextHtml(
-    editorMode.value === 'source' ? sourceValue.value : draftValue.value,
-  )
+  if (editorMode.value === 'source' && sourceDiagnostics.value.length > 0) return
+  const normalizedValue = editorMode.value === 'source'
+    ? sourceValue.value
+    : draftValue.value
   if (normalizedValue !== stringValue.value) {
     emit('update:value', normalizedValue)
   }
@@ -208,6 +228,15 @@ defineExpose({ activate: openEditor })
   background: var(--oc-bg-input);
   color: var(--oc-fg-default);
   line-height: 1.55;
+}
+
+.rich-text-string-popover__diagnostics {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--oc-space-2) var(--oc-space-4);
+  border-top: var(--oc-border-width) solid var(--oc-fg-danger);
+  background: var(--oc-bg-danger-subtle);
+  color: var(--oc-fg-danger);
 }
 
 .rich-text-string-popover__footer-content {

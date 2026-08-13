@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import playingCardSource from '../../../src-tauri/resources/templates/playing-card-reskin/content/playing-card.ocdocument?raw'
-import tacticalSource from '../../../src-tauri/resources/templates/tactical-showcase/content/tactical-showcase.ocdocument?raw'
 
 function collectTextBlockContents(value: unknown, contents: string[]): void {
   if (Array.isArray(value)) {
@@ -44,7 +43,6 @@ function findRawBindingText(content: string): string[] {
 describe('built-in template rich text', () => {
   it.each([
     ['playing-card-reskin', playingCardSource],
-    ['tactical-showcase', tacticalSource],
   ])('encodes every %s TextBlock binding as a structured node', (_name, source) => {
     const contents: string[] = []
     collectTextBlockContents(JSON.parse(source), contents)

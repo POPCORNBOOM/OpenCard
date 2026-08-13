@@ -168,7 +168,7 @@ function parseBlock(
       return {
         ...base,
         type,
-        content: fields.string('content'),
+	        content: fields.string('content'),
         fontSize: fields.cssLength('fontSize'),
         fontFamily: fields.string('fontFamily'),
         fontWeight: fields.string('fontWeight'),
@@ -505,6 +505,10 @@ function convertValue(value: unknown, definition: EditorPropertyDefinition): Con
   }
 
   return { ok: true, value: converted }
+}
+
+export function isRenderFieldValueValid(value: unknown, definition: EditorPropertyDefinition): boolean {
+  return convertValue(value, definition).ok
 }
 
 function parseSchemaDefault(

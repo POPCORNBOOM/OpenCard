@@ -2,6 +2,6 @@
   "schemaVersion": 1,
   "templates": [
     "blank",
-    "tactical-showcase"
+    "standard"
   ]
 }
