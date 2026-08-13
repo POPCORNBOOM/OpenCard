@@ -55,7 +55,10 @@
             <div v-else><dt>{{ t('projectConfig.fonts.members') }}</dt>
               <dd>{{ comparisonSelectedFontSet?.fontKeys.join(', ') }}</dd></div>
           </dl>
-          <span class="project-font-registry-workbench__preview-content">
+          <OcEmpty v-if="comparisonCoverageFailed" tone="muted">
+            {{ t('projectConfig.fonts.previewCoverageUnavailable') }}
+          </OcEmpty>
+          <span v-else class="project-font-registry-workbench__preview-content">
             <span v-for="(run, index) in comparisonPreviewRuns" :key="`${index}:${run.fontKey ?? 'fallback'}`"
               class="project-font-registry-workbench__preview-run" :data-font-key="run.fontKey ?? 'fallback'"
               :style="comparisonRunStyle(run.fontKey)">{{ run.text }}</span>
@@ -312,6 +315,9 @@ const hoveredFont = computed(() => hoveredFontKey.value
   ? props.fonts.find(font => font.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
   : null)
 const coverageFailed = computed(() => previewFonts.value.some(font => failedCoverageKeys.value.has(font.key)))
+const comparisonCoverageFailed = computed(() => (
+  comparisonPreviewFonts.value.some(font => comparisonFailedCoverageKeys.value.has(font.key))
+))
 
 watch(displayFonts, fonts => {
   if (!fonts.some(font => font.key === selectedFontKey.value)) {

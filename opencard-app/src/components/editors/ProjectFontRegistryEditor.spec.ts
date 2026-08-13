@@ -132,4 +132,24 @@ describe('ProjectFontRegistryEditor', () => {
     await vi.waitFor(() => expect(historicalBytes).toHaveBeenCalled())
     expect(wrapper.find('button[aria-label="projectConfig.fonts.addFont"]').exists()).toBe(false)
   })
+
+  it('shows historical font coverage failure on the historical preview only', async () => {
+    const wrapper = mount(ProjectFontRegistryEditor, {
+      props: {
+        ...baseProps,
+        comparison: true,
+        comparisonFonts: [{ key: 'brand-latin', name: 'Historical Latin', source: 'history/missing.woff2' }],
+        comparisonFontSets: [],
+        comparisonResolveAssetSrc: (source: string) => `historical://${source}`,
+        comparisonReadFontBytes: async () => { throw new Error('missing historical font') },
+        readOnly: true,
+      },
+    })
+
+    await vi.waitFor(() => {
+      const previews = wrapper.findAll('.project-font-registry-workbench__preview')
+      expect(previews[0]?.text()).toContain('projectConfig.fonts.previewCoverageUnavailable')
+      expect(previews[1]?.text()).not.toContain('projectConfig.fonts.previewCoverageUnavailable')
+    })
+  })
 })
