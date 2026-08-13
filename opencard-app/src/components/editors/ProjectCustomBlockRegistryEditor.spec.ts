@@ -193,6 +193,35 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     ])
   })
 
+  it('keeps same-interface packages paired by path when only their order changes', async () => {
+    mocks.readProjectCustomBlockPackage.mockImplementation(async (_fs: unknown, path: string) => {
+      const key = path.includes('circle') ? 'circle' : 'square'
+      return {
+        manifest: {
+          type: 'opencard-custom-block', schemaVersion: '1', key, name: key,
+          interfaceHash: 'shared-hash', root: { type: 'text', id: 'root', name: key },
+          publicFields: [], resize: { widthLocked: true, heightLocked: true },
+        },
+        files: new Map(),
+      }
+    })
+    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
+      props: {
+        filePath: 'D:/current/.ocblocks',
+        resourceRootPath: 'D:/current',
+        comparisonResourceRootPath: 'D:/history',
+        modelValue: '{"blocks":["blocks/square.ocblock","blocks/circle.ocblock"]}',
+        comparisonContent: '{"blocks":["blocks/circle.ocblock","blocks/square.ocblock"]}',
+        access: 'observe-only',
+      },
+    })
+    await flushPromises()
+
+    const items = [...wrapper.getComponent(OcTree).props('data').items.values()]
+    expect(items.map(item => item.changeMarkers)).toEqual([undefined, undefined])
+    expect(wrapper.findAll('[data-change-state="changed"]')).toHaveLength(0)
+  })
+
   it('reuses the registry tree as an observe-only comparison', async () => {
     const wrapper = mount(ProjectCustomBlockRegistryEditor, {
       props: {

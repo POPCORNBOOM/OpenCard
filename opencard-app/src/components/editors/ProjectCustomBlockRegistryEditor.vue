@@ -263,10 +263,7 @@ function handleIntent(intent: OcTreeIntent): void {
 function pairRegistryEntries(historical: readonly RegistryEntry[], current: readonly RegistryEntry[]): readonly OrderedPairEntry<RegistryEntryWithIdentity>[] {
   const unmatchedHistorical = new Set(historical.map((_, index) => index))
   const currentItems = current.map((entry, index) => {
-    const historicalIndex = historical.findIndex((candidate, candidateIndex) => {
-      if (!unmatchedHistorical.has(candidateIndex)) return false
-      return sameRegistryIdentity(candidate, entry)
-    })
+    const historicalIndex = findHistoricalMatch(historical, unmatchedHistorical, entry)
     if (historicalIndex >= 0) unmatchedHistorical.delete(historicalIndex)
     return {
       ...entry,
@@ -280,14 +277,25 @@ function pairRegistryEntries(historical: readonly RegistryEntry[], current: read
   return orderedPair(historicalItems, currentItems, entry => entry.identity)
 }
 
-function sameRegistryIdentity(left: RegistryEntry, right: RegistryEntry): boolean {
-  if (left.path.toLocaleLowerCase() === right.path.toLocaleLowerCase()) return true
-  const leftKey = left.manifest?.key.toLocaleLowerCase()
-  const rightKey = right.manifest?.key.toLocaleLowerCase()
-  if (leftKey && rightKey && leftKey === rightKey) return true
-  const leftHash = left.manifest?.interfaceHash
-  const rightHash = right.manifest?.interfaceHash
-  return Boolean(leftHash && rightHash && leftHash === rightHash)
+function findHistoricalMatch(
+  historical: readonly RegistryEntry[],
+  unmatched: ReadonlySet<number>,
+  current: RegistryEntry,
+): number {
+  const findUnique = (matches: (candidate: RegistryEntry) => boolean): number => {
+    const candidates = [...unmatched].filter(index => matches(historical[index]!))
+    return candidates.length === 1 ? candidates[0]! : -1
+  }
+  const path = current.path.toLocaleLowerCase()
+  const pathMatch = findUnique(candidate => candidate.path.toLocaleLowerCase() === path)
+  if (pathMatch >= 0) return pathMatch
+  const key = current.manifest?.key.toLocaleLowerCase()
+  if (key) {
+    const keyMatch = findUnique(candidate => candidate.manifest?.key.toLocaleLowerCase() === key)
+    if (keyMatch >= 0) return keyMatch
+  }
+  const hash = current.manifest?.interfaceHash
+  return hash ? findUnique(candidate => candidate.manifest?.interfaceHash === hash) : -1
 }
 
 function pairKey(pair: OrderedPairEntry<RegistryEntryWithIdentity>): string {
