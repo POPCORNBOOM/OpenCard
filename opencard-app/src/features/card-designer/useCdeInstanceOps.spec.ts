@@ -84,6 +84,37 @@ describe('useCdeInstanceOps tree actions', () => {
     expect(state.instanceTreeData.value.items.get('instance-1')?.actions).toEqual(['instance-more'])
   })
 
+  it('uses one-sided markers for added and removed instances', () => {
+    const document: CardDocument = {
+      type: 'card-document', schemaVersion: '2', id: 'document', version: '1.0.0', width: '540', height: '850',
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '#FFFFFF', children: [] },
+        back: { type: 'card-face', id: 'back', background: '#FFFFFF', children: [] },
+      },
+      instances: [{ type: 'card-instance', id: 'instance-1', name: 'Instance 1', amount: '1', data: {} }],
+    }
+    const current = useCdeInstanceOps({
+      cardDoc: ref(document), documentRevision: ref(0), blueprintCardId: '__blueprint__',
+      selectedCardId: ref('instance-1'), selectedCardKeys: ref(['instance-1']),
+      refreshDocumentState: vi.fn(), markDocumentChanged: vi.fn(), readOnly: ref(true),
+      comparisonRole: ref('current'), comparisonChangedInstanceIds: ref(['instance-1']),
+      comparisonAddedInstanceIds: ref(['instance-1']),
+    })
+    expect(current.instanceTreeData.value.items.get('instance-1')?.changeMarkers).toEqual([
+      { icon: 'status.change-added', tone: 'success' },
+    ])
+    const historical = useCdeInstanceOps({
+      cardDoc: ref(document), documentRevision: ref(0), blueprintCardId: '__blueprint__',
+      selectedCardId: ref('instance-1'), selectedCardKeys: ref(['instance-1']),
+      refreshDocumentState: vi.fn(), markDocumentChanged: vi.fn(), readOnly: ref(true),
+      comparisonRole: ref('historical'), comparisonChangedInstanceIds: ref(['instance-1']),
+      comparisonRemovedInstanceIds: ref(['instance-1']),
+    })
+    expect(historical.instanceTreeData.value.items.get('instance-1')?.changeMarkers).toEqual([
+      { icon: 'status.change-removed', tone: 'danger' },
+    ])
+  })
+
   it('keeps explicit data-table export selection aligned with Instance lifecycle', () => {
     const document: CardDocument = {
       type: 'card-document',

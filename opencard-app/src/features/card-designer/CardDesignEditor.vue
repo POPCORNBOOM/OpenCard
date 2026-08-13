@@ -904,6 +904,8 @@ const {
   readOnly: isObserveOnly,
   comparisonRole: toRef(props, 'comparisonRole'),
   comparisonChangedInstanceIds: toRef(props, 'comparisonChangedInstanceIds'),
+  comparisonAddedInstanceIds: toRef(props, 'comparisonAddedInstanceIds'),
+  comparisonRemovedInstanceIds: toRef(props, 'comparisonRemovedInstanceIds'),
   comparisonDocumentChanged: toRef(props, 'comparisonDocumentChanged'),
 })
 
@@ -1085,6 +1087,8 @@ const {
   readOnly: isObserveOnly,
   comparisonRole: toRef(props, 'comparisonRole'),
   comparisonChangedBlockIds: toRef(props, 'comparisonChangedBlockIds'),
+  comparisonAddedBlockIds: toRef(props, 'comparisonAddedBlockIds'),
+  comparisonRemovedBlockIds: toRef(props, 'comparisonRemovedBlockIds'),
 })
 const expandedBlockKeys = ref<string[]>([])
 

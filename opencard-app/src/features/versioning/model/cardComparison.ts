@@ -3,8 +3,14 @@ import type { CardBlock, CardDocument, CardFace, CardInstanceRecord } from '../.
 export type CardComparisonChanges = {
   documentChanged: boolean
   faceIds: ReadonlySet<string>
+  addedFaceIds: ReadonlySet<string>
+  removedFaceIds: ReadonlySet<string>
   instanceIds: ReadonlySet<string>
+  addedInstanceIds: ReadonlySet<string>
+  removedInstanceIds: ReadonlySet<string>
   blockIds: ReadonlySet<string>
+  addedBlockIds: ReadonlySet<string>
+  removedBlockIds: ReadonlySet<string>
 }
 
 function stableValue(value: unknown): unknown {
@@ -52,6 +58,14 @@ function changedIds<T>(historical: Map<string, T>, current: Map<string, T>, proj
   )))
 }
 
+function addedIds<T>(historical: Map<string, T>, current: Map<string, T>): Set<string> {
+  return new Set([...current.keys()].filter(id => !historical.has(id)))
+}
+
+function removedIds<T>(historical: Map<string, T>, current: Map<string, T>): Set<string> {
+  return new Set([...historical.keys()].filter(id => !current.has(id)))
+}
+
 export function createCardComparisonChanges(
   historical: CardDocument,
   current: CardDocument,
@@ -69,7 +83,13 @@ export function createCardComparisonChanges(
       { ...current, faces: undefined, instances: undefined },
     ),
     faceIds: changedIds(historicalFaces, currentFaces, withoutChildren),
+    addedFaceIds: addedIds(historicalFaces, currentFaces),
+    removedFaceIds: removedIds(historicalFaces, currentFaces),
     instanceIds: changedIds(historicalInstances, currentInstances, value => value),
+    addedInstanceIds: addedIds(historicalInstances, currentInstances),
+    removedInstanceIds: removedIds(historicalInstances, currentInstances),
     blockIds: changedIds(historicalBlocks, currentBlocks, withoutChildren),
+    addedBlockIds: addedIds(historicalBlocks, currentBlocks),
+    removedBlockIds: removedIds(historicalBlocks, currentBlocks),
   }
 }

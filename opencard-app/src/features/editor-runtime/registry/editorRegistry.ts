@@ -54,7 +54,11 @@ export interface EditorProps {
   comparisonFitFaceSize?: { width: number; height: number }
   comparisonSelectedBlockId?: string | null
   comparisonChangedBlockIds?: readonly string[]
+  comparisonAddedBlockIds?: readonly string[]
+  comparisonRemovedBlockIds?: readonly string[]
   comparisonChangedInstanceIds?: readonly string[]
+  comparisonAddedInstanceIds?: readonly string[]
+  comparisonRemovedInstanceIds?: readonly string[]
   comparisonDocumentChanged?: boolean
   comparisonPropertyInputs?: readonly PropertyEditorInput[]
   comparisonInspectorTarget?: string

@@ -39,6 +39,8 @@ type UseCdeTreeOpsOptions = {
   readOnly?: Readonly<Ref<boolean>>
   comparisonRole?: Readonly<Ref<'historical' | 'current' | undefined>>
   comparisonChangedBlockIds?: Readonly<Ref<readonly string[] | undefined>>
+  comparisonAddedBlockIds?: Readonly<Ref<readonly string[] | undefined>>
+  comparisonRemovedBlockIds?: Readonly<Ref<readonly string[] | undefined>>
 }
 
 export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
@@ -71,15 +73,14 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       const presentation = getBlockPresentation(block.type)
       const readOnly = options.readOnly?.value ?? false
       const changed = options.comparisonChangedBlockIds?.value?.includes(block.id) ?? false
+      const added = options.comparisonAddedBlockIds?.value?.includes(block.id) ?? false
+      const removed = options.comparisonRemovedBlockIds?.value?.includes(block.id) ?? false
       const comparisonRole = options.comparisonRole?.value
       items.set(block.id, {
         label: block.name?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
-        changeMarkers: changed && comparisonRole ? [
-          { icon: 'status.change-removed', tone: 'danger' },
-          { icon: 'status.change-added', tone: 'success' },
-        ] : undefined,
+        changeMarkers: comparisonMarkers(changed, added, removed, comparisonRole),
         renamable: !readOnly,
         draggable: !readOnly,
         actions: readOnly ? [] : [
@@ -485,4 +486,22 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     resolveVisibleBlockKey,
     clearSelection,
   }
+}
+
+function comparisonMarkers(
+  changed: boolean,
+  added: boolean,
+  removed: boolean,
+  role: 'historical' | 'current' | undefined,
+): OcTreeItem['changeMarkers'] {
+  if (!role) return undefined
+  if (role === 'historical' && added) return undefined
+  if (role === 'current' && removed) return undefined
+  if (removed) return [{ icon: 'status.change-removed', tone: 'danger' }]
+  if (added) return [{ icon: 'status.change-added', tone: 'success' }]
+  if (!changed) return undefined
+  return [
+    { icon: 'status.change-removed', tone: 'danger' },
+    { icon: 'status.change-added', tone: 'success' },
+  ]
 }

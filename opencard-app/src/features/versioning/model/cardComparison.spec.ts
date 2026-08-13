@@ -41,4 +41,17 @@ describe('createCardComparisonChanges', () => {
     expect(changes.blockIds).toEqual(new Set(['block-a']))
     expect(changes.instanceIds).toEqual(new Set(['instance-a']))
   })
+
+  it('keeps pure additions and deletions distinguishable for tree markers', () => {
+    const historical = createDocument('same')
+    const current = structuredClone(historical)
+    current.faces.front.children = []
+    current.instances = []
+
+    const changes = createCardComparisonChanges(historical, current)
+    expect(changes.removedBlockIds).toEqual(new Set(['block-a']))
+    expect(changes.addedBlockIds).toEqual(new Set())
+    expect(changes.removedInstanceIds).toEqual(new Set(['instance-a']))
+    expect(changes.addedInstanceIds).toEqual(new Set())
+  })
 })

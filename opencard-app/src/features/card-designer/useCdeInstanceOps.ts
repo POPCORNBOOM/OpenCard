@@ -15,6 +15,8 @@ type UseCdeInstanceOpsOptions = {
   readOnly?: Readonly<Ref<boolean>>
   comparisonRole?: Readonly<Ref<'historical' | 'current' | undefined>>
   comparisonChangedInstanceIds?: Readonly<Ref<readonly string[] | undefined>>
+  comparisonAddedInstanceIds?: Readonly<Ref<readonly string[] | undefined>>
+  comparisonRemovedInstanceIds?: Readonly<Ref<readonly string[] | undefined>>
   comparisonDocumentChanged?: Readonly<Ref<boolean | undefined>>
 }
 
@@ -35,6 +37,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       icon: 'entity.card-blueprint',
       changeMarkers: comparisonMarkers(
         options.comparisonDocumentChanged?.value ?? false,
+        false,
+        false,
         options.comparisonRole?.value,
       ),
     })
@@ -48,6 +52,8 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         icon: 'entity.card-instance',
         changeMarkers: comparisonMarkers(
           options.comparisonChangedInstanceIds?.value?.includes(instance.id) ?? false,
+          options.comparisonAddedInstanceIds?.value?.includes(instance.id) ?? false,
+          options.comparisonRemovedInstanceIds?.value?.includes(instance.id) ?? false,
           options.comparisonRole?.value,
         ),
         renamable: !readOnly,
@@ -219,8 +225,18 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   }
 }
 
-function comparisonMarkers(changed: boolean, role: 'historical' | 'current' | undefined): OcTreeItem['changeMarkers'] {
-  if (!changed || !role) return undefined
+function comparisonMarkers(
+  changed: boolean,
+  added: boolean,
+  removed: boolean,
+  role: 'historical' | 'current' | undefined,
+): OcTreeItem['changeMarkers'] {
+  if (!role) return undefined
+  if (role === 'historical' && added) return undefined
+  if (role === 'current' && removed) return undefined
+  if (removed) return [{ icon: 'status.change-removed', tone: 'danger' }]
+  if (added) return [{ icon: 'status.change-added', tone: 'success' }]
+  if (!changed) return undefined
   return [
     { icon: 'status.change-removed', tone: 'danger' },
     { icon: 'status.change-added', tone: 'success' },

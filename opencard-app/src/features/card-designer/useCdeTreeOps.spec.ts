@@ -100,6 +100,46 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(selectedBlockKeys.value).toEqual(['custom-host'])
   })
 
+  it('uses a green marker for a block present only in the current snapshot', () => {
+    const document = createDocument()
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision: ref(0),
+      parentLookup: ref(buildParentLookup(document)),
+      selectedBlockKeys: ref<string[]>([]),
+      getDefaultBlockName: type => type,
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+      readOnly: ref(true),
+      comparisonRole: ref('current'),
+      comparisonChangedBlockIds: ref(['front-text']),
+      comparisonAddedBlockIds: ref(['front-text']),
+    })
+    expect(state.blockTreeData.value.items.get('front-text')?.changeMarkers).toEqual([
+      { icon: 'status.change-added', tone: 'success' },
+    ])
+  })
+
+  it('uses a red marker for a block present only in the historical snapshot', () => {
+    const document = createDocument()
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision: ref(0),
+      parentLookup: ref(buildParentLookup(document)),
+      selectedBlockKeys: ref<string[]>([]),
+      getDefaultBlockName: type => type,
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+      readOnly: ref(true),
+      comparisonRole: ref('historical'),
+      comparisonChangedBlockIds: ref(['front-text']),
+      comparisonRemovedBlockIds: ref(['front-text']),
+    })
+    expect(state.blockTreeData.value.items.get('front-text')?.changeMarkers).toEqual([
+      { icon: 'status.change-removed', tone: 'danger' },
+    ])
+  })
+
   it('projects and mutates only the active face', async () => {
     const document = createDocument()
     const activeFaceKey = ref<CardFaceKey>('front')
