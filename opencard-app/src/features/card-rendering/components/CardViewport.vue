@@ -852,7 +852,10 @@ function resetView(): void {
   targetScale.value = 1
 }
 
-function fitView(targetRect?: { left: number; top: number; width: number; height: number }): void {
+function fitView(
+  targetRect?: { left: number; top: number; width: number; height: number },
+  fitFaceSize = { width: props.face.width, height: props.face.height },
+): void {
   if (effectiveLayerViewActive.value) return
   const viewport = viewportRef.value
   if (!viewport || viewportWidth.value <= 0 || viewportHeight.value <= 0) return
@@ -866,7 +869,7 @@ function fitView(targetRect?: { left: number; top: number; width: number; height
   const availableWidth = Math.max(1, regionWidth - VIEWPORT_FIT_PADDING * 2)
   const availableHeight = Math.max(1, regionHeight - VIEWPORT_FIT_PADDING * 2)
   const nextScale = clamp(
-    Math.min(availableWidth / props.face.width, availableHeight / props.face.height),
+    Math.min(availableWidth / fitFaceSize.width, availableHeight / fitFaceSize.height),
     VIEWPORT_MIN_SCALE,
     VIEWPORT_MAX_SCALE,
   )

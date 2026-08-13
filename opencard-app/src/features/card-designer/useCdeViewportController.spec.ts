@@ -236,8 +236,29 @@ describe('useCdeViewportController', () => {
     controller.zoomViewportOut()
     controller.zoomViewportIn()
 
-    expect(fitView).toHaveBeenCalledWith({ left: 320, top: 50, width: 360, height: 600 })
+    expect(fitView).toHaveBeenCalledWith(
+      { left: 320, top: 50, width: 360, height: 600 },
+      { width: 400, height: 200 },
+    )
     expect(zoomBy.mock.calls).toEqual([[0.8], [1.25]])
+    wrapper.unmount()
+  })
+
+  it('refits only after a requested viewport resize reports new geometry', async () => {
+    const { controller, fitView, wrapper } = createHarness()
+    controller.completeFileLoad()
+    controller.handleViewportSizeChange({ width: 1000, height: 800 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    controller.requestViewportFitAfterResize()
+    controller.handleViewportSizeChange({ width: 1000, height: 800 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    controller.handleViewportSizeChange({ width: 1000, height: 400 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 

@@ -9,7 +9,7 @@ vi.mock('../../card-designer/CardDesignEditor.vue', () => ({
     props: [
       'comparisonLayout', 'comparisonRole', 'comparisonSelectedBlockId', 'comparisonChangedBlockIds',
       'comparisonChangedInstanceIds', 'comparisonDocumentChanged', 'cardDesignerView', 'viewportTransform',
-      'comparisonInspectorTarget',
+      'comparisonInspectorTarget', 'comparisonFitFaceSize',
     ],
     emits: ['update-card-comparison-layout', 'update-card-comparison-selection'],
     template: '<button class="card-editor-stub" @click="$emit(\'update-card-comparison-layout\', \'vertical\')">{{ comparisonRole }}|{{ comparisonLayout }}|{{ comparisonSelectedBlockId }}</button>',
@@ -46,6 +46,8 @@ describe('SnapshotCardDiffEditor', () => {
     }
     const current = structuredClone(historical)
     current.version = '2'
+    current.width = '900'
+    current.height = '640'
     current.faces.front.children[0]!.block.content = 'New'
     const wrapper = mount(SnapshotCardDiffEditor, {
       props: {
@@ -74,10 +76,14 @@ describe('SnapshotCardDiffEditor', () => {
     for (const editor of wrapper.findAllComponents({ name: 'CardDesignEditor' })) {
       expect(editor.props('comparisonChangedBlockIds')).toEqual(['title'])
       expect(editor.props('comparisonDocumentChanged')).toBe(true)
+      expect(editor.props('comparisonFitFaceSize')).toEqual({ width: 900, height: 900 })
     }
 
     await wrapper.findAll('.card-editor-stub')[1]!.trigger('click')
     expect(wrapper.findAll('.card-editor-stub')).toHaveLength(2)
     expect(wrapper.find('.snapshot-card-diff-editor').classes()).toContain('is-layout-vertical')
+    for (const editor of wrapper.findAllComponents({ name: 'CardDesignEditor' })) {
+      expect(editor.props('comparisonFitFaceSize')).toEqual({ width: 900, height: 900 })
+    }
   })
 })

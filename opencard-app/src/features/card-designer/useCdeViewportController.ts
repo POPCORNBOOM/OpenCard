@@ -22,11 +22,15 @@ export type CdeViewportPort = {
     viewportX: number,
     viewportY: number,
   ) => void
-  fitView: (targetRect?: { left: number; top: number; width: number; height: number }) => void
+  fitView: (
+    targetRect?: { left: number; top: number; width: number; height: number },
+    fitFaceSize?: { width: number; height: number },
+  ) => void
 }
 
 type UseCdeViewportControllerOptions = {
   faceSize: Readonly<Ref<{ width: number; height: number } | null>>
+  fitFaceSize?: Readonly<Ref<{ width: number; height: number } | null>>
   viewportPort: Readonly<Ref<CdeViewportPort | null>>
   leftSidebarElement: Readonly<Ref<HTMLElement | null>>
   rightSidebarElement: Readonly<Ref<HTMLElement | null>>
@@ -58,6 +62,7 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
   const previewDragState = ref<PreviewDragState | null>(null)
   let initialFitPending = true
   let initialFitRequested = false
+  let resizeFitPending = false
   let transformPreviewSizeObserver: ResizeObserver | null = null
 
   const transformPreviewScale = computed(() => {
@@ -198,7 +203,7 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
           width: right - left,
           height: centerRect.height,
         }
-      : undefined)
+      : undefined, options.fitFaceSize?.value ?? options.faceSize.value ?? undefined)
   }
 
   function scheduleInitialViewportFit(): void {
@@ -234,8 +239,17 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
   }
 
   function handleViewportSizeChange(size: { width: number; height: number }): void {
+    const sizeChanged = size.width !== viewportSize.value.width || size.height !== viewportSize.value.height
     viewportSize.value = size
+    if (resizeFitPending && sizeChanged) {
+      resizeFitPending = false
+      void nextTick(fitViewport)
+    }
     scheduleInitialViewportFit()
+  }
+
+  function requestViewportFitAfterResize(): void {
+    resizeFitPending = true
   }
 
   function startPreviewViewportDrag(event: PointerEvent): void {
@@ -330,6 +344,7 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
     isPreviewViewportDragging,
     isTransformPreviewFrameVisible,
     prepareForFileChange,
+    requestViewportFitAfterResize,
     startPreviewViewportDrag,
     stopPreviewViewportDrag,
     transformPreviewFrameStyle,

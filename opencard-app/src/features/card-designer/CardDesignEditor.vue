@@ -1615,6 +1615,7 @@ const viewportFaceSize = computed(() => {
   const face = viewFace.value
   return face ? { width: face.width, height: face.height } : null
 })
+const viewportFitFaceSize = computed(() => props.comparisonFitFaceSize ?? viewportFaceSize.value)
 const {
   centerSpacerRef,
   completeFileLoad,
@@ -1627,6 +1628,7 @@ const {
   isPreviewViewportDragging,
   isTransformPreviewFrameVisible,
   prepareForFileChange,
+  requestViewportFitAfterResize,
   startPreviewViewportDrag,
   stopPreviewViewportDrag,
   transformPreviewFrameStyle,
@@ -1640,10 +1642,15 @@ const {
   zoomViewportOut,
 } = useCdeViewportController({
   faceSize: viewportFaceSize,
+  fitFaceSize: viewportFitFaceSize,
   viewportPort: cardViewportRef,
   leftSidebarElement: leftSidebarRef,
   rightSidebarElement: rightSidebarRef,
   commitTransform: transform => emit('update-viewport-transform', transform),
+})
+watch(() => props.comparisonLayout, (layout, previousLayout) => {
+  if (!isObserveOnly.value || !layout || !previousLayout || layout === previousLayout) return
+  requestViewportFitAfterResize()
 })
 
 const availableLayerZIndices = computed(() => (

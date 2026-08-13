@@ -143,6 +143,32 @@ describe('CardViewport wheel zoom API', () => {
     expect(fitted.y).toBe(0)
   })
 
+  it('fits against a shared comparison size while centering the rendered face', async () => {
+    const wrapper = mount(CardViewport, {
+      props: { face },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    const viewport = wrapper.vm as unknown as {
+      fitView(
+        targetRect?: { left: number; top: number; width: number; height: number },
+        fitFaceSize?: { width: number; height: number },
+      ): void
+    }
+
+    viewport.fitView({ left: 0, top: 0, width: 1000, height: 800 }, { width: 1000, height: 1000 })
+    await nextTick()
+
+    const transformEvents = wrapper.emitted('viewport-transform-change') ?? []
+    const fitted = transformEvents[transformEvents.length - 1]?.[0] as {
+      x: number
+      y: number
+      scale: number
+    }
+    expect(fitted.scale).toBeCloseTo(736 / 1000, 4)
+    expect(fitted.x).toBe(0)
+    expect(fitted.y).toBe(0)
+  })
+
   it('forwards face clipping to the face renderer', () => {
     const wrapper = mount(CardViewport, {
       props: { face, clipToFace: true },

@@ -879,6 +879,53 @@ describe('CardDesignEditor issue navigation', () => {
     expect(fitView).toHaveBeenCalledTimes(2)
   })
 
+  it('refits an observe-only viewport when the comparison layout changes', async () => {
+    const fitView = vi.fn()
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      emits: ['viewport-size-change'],
+      setup(_, { expose }) {
+        expose({ fitView })
+        return {}
+      },
+      template: '<div class="card-viewport-stub" />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'D:/Project/cards/hero.ocdocument',
+        fileName: 'hero.ocdocument',
+        modelValue: JSON.stringify(createDocument()),
+        access: 'observe-only',
+        comparisonRole: 'current',
+        comparisonLayout: 'horizontal',
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          CardViewport: CardViewportStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: TeleportStub,
+        },
+      },
+    })
+    await nextTick()
+
+    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    viewport.vm.$emit('viewport-size-change', { width: 1000, height: 800 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ comparisonLayout: 'vertical' })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(1)
+
+    viewport.vm.$emit('viewport-size-change', { width: 1000, height: 400 })
+    await nextTick()
+    expect(fitView).toHaveBeenCalledTimes(2)
+  })
+
   it('maps canvas keyboard shortcuts to viewport selection commands', async () => {
     const nudgeSelection = vi.fn(() => true)
     const runSelectionQuickAction = vi.fn(() => true)

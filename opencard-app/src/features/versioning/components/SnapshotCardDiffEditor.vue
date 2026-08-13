@@ -28,6 +28,7 @@
         :viewport-transform="viewportTransform"
         :comparison-layout="comparisonLayout"
         :comparison-role="side.key"
+        :comparison-fit-face-size="comparisonFitFaceSize"
         :comparison-selected-block-id="selectedBlockId"
         :comparison-changed-block-ids="comparisonChanges?.blockIds ? [...comparisonChanges.blockIds] : undefined"
         :comparison-changed-instance-ids="comparisonChanges?.instanceIds ? [...comparisonChanges.instanceIds] : undefined"
@@ -89,15 +90,28 @@ const propertyInputs = shallowRef<Record<'historical' | 'current', readonly Prop
   historical: [],
   current: [],
 })
-const comparisonChanges = computed<CardComparisonChanges | null>(() => {
+const comparisonDocuments = computed(() => {
   try {
-    return createCardComparisonChanges(
-      parseCardDocument(JSON.parse(props.comparison.historicalContent) as unknown),
-      parseCardDocument(JSON.parse(props.comparison.currentContent) as unknown),
-    )
+    return {
+      historical: parseCardDocument(JSON.parse(props.comparison.historicalContent) as unknown),
+      current: parseCardDocument(JSON.parse(props.comparison.currentContent) as unknown),
+    }
   } catch {
     return null
   }
+})
+const comparisonFitFaceSize = computed(() => {
+  if (comparisonLayout.value !== 'horizontal' && comparisonLayout.value !== 'vertical') return undefined
+  const documents = comparisonDocuments.value
+  if (!documents) return undefined
+  const widths = [Number(documents.historical.width), Number(documents.current.width)]
+  const heights = [Number(documents.historical.height), Number(documents.current.height)]
+  if (![...widths, ...heights].every(value => Number.isFinite(value) && value > 0)) return undefined
+  return { width: Math.max(...widths), height: Math.max(...heights) }
+})
+const comparisonChanges = computed<CardComparisonChanges | null>(() => {
+  const documents = comparisonDocuments.value
+  return documents ? createCardComparisonChanges(documents.historical, documents.current) : null
 })
 
 function updatePropertyInputs(side: 'historical' | 'current', inputs: readonly PropertyEditorInput[]): void {

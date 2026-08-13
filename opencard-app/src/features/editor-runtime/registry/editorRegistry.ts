@@ -51,6 +51,7 @@ export interface EditorProps {
   renderEnvironment?: CardRenderEnvironment
   comparisonLayout?: CardComparisonLayout
   comparisonRole?: CardComparisonRole
+  comparisonFitFaceSize?: { width: number; height: number }
   comparisonSelectedBlockId?: string | null
   comparisonChangedBlockIds?: readonly string[]
   comparisonChangedInstanceIds?: readonly string[]
