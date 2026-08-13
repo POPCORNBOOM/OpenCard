@@ -25,6 +25,11 @@ export function prepareE2eWorkspace() {
   }))
 
   const document = readSettingsDocument()
+  document['app-settings'].appearance = {
+    ...(document['app-settings'].appearance ?? {}),
+    locale: 'zh-CN',
+    theme: 'dark',
+  }
   const projectCreation = document['app-settings'].projectCreation ?? {}
   const normalizedPath = e2eWorkspacePath.replace(/\\/g, '/')
   const normalizedSecondaryPath = e2eSecondaryWorkspacePath.replace(/\\/g, '/')
