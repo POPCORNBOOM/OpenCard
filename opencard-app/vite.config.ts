@@ -24,6 +24,9 @@ export default defineConfig(async ({ command, mode }) => ({
     port: 1420,
     strictPort: true,
     host: devHost,
+    fs: mode === "test" ? {
+      allow: [".."],
+    } : undefined,
     allowedHosts: true,
     hmr: host
       ? {
