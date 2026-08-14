@@ -32,7 +32,7 @@ describe('ProjectConfigEditor', () => {
   it('edits only project name, description, and version', async () => {
     const wrapper = mount(ProjectConfigEditor, {
       props: {
-        filePath: 'D:/Demo/.ocproject',
+        filePath: 'D:/Demo/.opencard/.ocproject',
         modelValue: JSON.stringify({ name: 'Demo', description: 'Info', version: '1.0.0' }),
       },
     })
@@ -49,7 +49,7 @@ describe('ProjectConfigEditor', () => {
 
   it('omits empty profile fields', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{"name":"Demo"}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{"name":"Demo"}' },
     })
     await wrapper.get('[data-field-key="name"] input').setValue('')
     const updates = wrapper.emitted('update:modelValue') ?? []
@@ -58,7 +58,7 @@ describe('ProjectConfigEditor', () => {
 
   it('edits the project HTTPS host allowlist with custom controls', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
     const modeControl = wrapper.getComponent(OcOptionGroup)
@@ -82,7 +82,7 @@ describe('ProjectConfigEditor', () => {
 
   it('stores allow-all without rendering a host list', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'allow-all')
@@ -95,7 +95,7 @@ describe('ProjectConfigEditor', () => {
 
   it('stores export fields only as the default export configuration', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
     const task = {
       documentPaths: ['cards/main.ocdocument'],
@@ -116,7 +116,7 @@ describe('ProjectConfigEditor', () => {
 
   it('persists collapsed project-profile sections and exposes them in the outline', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
     expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(7)
@@ -136,12 +136,11 @@ describe('ProjectConfigEditor', () => {
     })
   })
 
-  it('creates empty font and icon registries directly', async () => {
+  it('opens the managed font and icon registries directly', async () => {
     const projectStore = useProjectStore()
-    const createFile = vi.spyOn(projectStore, 'createFile').mockResolvedValue(undefined)
     vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
     await wrapper.get('[data-linked-file="fonts"]').trigger('click')
@@ -149,37 +148,27 @@ describe('ProjectConfigEditor', () => {
     await wrapper.get('[data-linked-file="icons"]').trigger('click')
     await flushPromises()
 
-    expect(createFile.mock.calls[0]?.[0]).toBe('.ocfonts')
-    expect(JSON.parse(createFile.mock.calls[0]?.[1] ?? '')).toEqual({})
-    expect(createFile.mock.calls[1]).toEqual(['.ocicons', '{}'])
     const opened = (wrapper.emitted('open-file') ?? []).map(([path]) => String(path).replace(/\\/g, '/'))
-    expect(opened[0]).toMatch(/\/\.ocfonts$/)
-    expect(opened[1]).toMatch(/\/\.ocicons$/)
-    expect(wrapper.get('[data-linked-file="fonts"]').text()).toBe('projectConfig.fonts.openRegistry')
-    expect(wrapper.get('[data-linked-file="icons"]').text()).toBe('projectConfig.icons.openRegistry')
+    expect(opened[0]).toBe('D:/Demo/.opencard/.ocfonts')
+    expect(opened[1]).toBe('D:/Demo/.opencard/.ocicons')
     await wrapper.get('[data-linked-file="fonts"]').trigger('click')
     await wrapper.get('[data-linked-file="icons"]').trigger('click')
     await flushPromises()
-    expect(createFile).toHaveBeenCalledTimes(2)
     expect(wrapper.emitted('open-file')).toHaveLength(4)
   })
 
-  it('creates and opens an empty custom block registry directly', async () => {
+  it('opens the managed custom block registry directly', async () => {
     const projectStore = useProjectStore()
-    const createFile = vi.spyOn(projectStore, 'createFile').mockResolvedValue(undefined)
     vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
     await wrapper.get('[data-linked-file="custom-blocks"]').trigger('click')
     await flushPromises()
 
-    expect(createFile).toHaveBeenCalledWith('.ocblocks', expect.stringContaining('"blocks": []'))
     const openedFiles = wrapper.emitted('open-file') ?? []
-    expect(openedFiles[openedFiles.length - 1]?.[0]).toBe('D:/Demo/.ocblocks')
-    expect(wrapper.get('[data-linked-file="custom-blocks"]').text())
-      .toBe('projectConfig.customBlocks.openRegistry')
+    expect(openedFiles[openedFiles.length - 1]?.[0]).toBe('D:/Demo/.opencard/.ocblocks')
   })
 
   it('expands a collapsed section when navigating from the outline', async () => {
@@ -193,7 +182,7 @@ describe('ProjectConfigEditor', () => {
     })
     const wrapper = mount(ProjectConfigEditor, {
       props: {
-        filePath: 'D:/Demo/.ocproject',
+        filePath: 'D:/Demo/.opencard/.ocproject',
         modelValue: '{}',
       },
     })
@@ -211,7 +200,7 @@ describe('ProjectConfigEditor', () => {
 
   it('shows the embedded JSON repair editor for invalid content', () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{broken' },
     })
     expect(wrapper.find('.project-profile-editor__repair').exists()).toBe(true)
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
@@ -219,7 +208,7 @@ describe('ProjectConfigEditor', () => {
 
   it('emits the standard save command from Ctrl+S for valid content', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
     await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)

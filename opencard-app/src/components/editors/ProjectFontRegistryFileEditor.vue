@@ -4,7 +4,8 @@
     @keydown.ctrl.s.prevent="save">
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
       :description="t('fontRegistry.description')" :fonts="document.fonts ?? []" :font-sets="document.fontSets ?? []"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :read-font-bytes="readFontBytes"
+      :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
+      :read-font-bytes="readFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
       :error="importError" @update:fonts="updateFonts" @update:font-sets="updateFontSets"
       @register-font="openRegistrationDialog()" @configure-font="openRegistrationDialog"
@@ -17,7 +18,6 @@
     <ProjectFontRegistrationDialog :open="registrationDialogOpen" :fonts="flatFonts"
       :reserved-keys="(document?.fontSets ?? []).map(fontSet => fontSet.key)"
       :original-key="registrationOriginalKey" :busy="importBusy" :error="importError"
-      :default-directory="settingsStore.settings.value.workspace.defaultFontImportDirectory"
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
       :resolve-import-conflict="projectStore.getProjectFontImportConflict"
       @close="closeRegistrationDialog" @submit="registerFont" />
@@ -34,7 +34,6 @@ import type { EditorEmits, EditorProps } from '../../features/editor-runtime/reg
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
-import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import {
   flattenProjectFonts,
   parseProjectFontRegistryText,
@@ -59,7 +58,6 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
-const settingsStore = useAppSettingsStore()
 const document = ref<ProjectFontRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
@@ -79,7 +77,7 @@ const projectDirectory = computed(() => {
     ? normalized.slice(0, -PROJECT_FONT_REGISTRY_FILE_NAME.length - 1)
     : normalized
 })
-const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectPath(source))
+const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectInternalPath(source))
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const fontSets = document.value?.fontSets ?? []
   const registryIssues: EditorIssue[] = document.value
@@ -175,11 +173,11 @@ async function registerFont(request: ProjectFontRegistrationRequest): Promise<vo
     const original = request.originalKey
       ? fonts.find(font => font.key === request.originalKey)
       : undefined
-    const source = original && request.sourcePath === original.source && !request.targetDirectory
+    const source = original && request.sourcePath === original.source
       ? original.source
       : (await projectStore.importProjectFontFile(
           request.sourcePath,
-          request.targetDirectory,
+          undefined,
           request.conflictResolution,
         )).source
     const font = { key: request.key, name: request.name, source }

@@ -6,14 +6,6 @@ import {
   type OcThemeColorOverrides,
   type OcThemeId,
 } from '../../../shared/ui/foundation'
-import {
-  DEFAULT_PROJECT_FONT_DIRECTORY,
-  normalizeProjectFontDirectory,
-} from '../../workspace/model/projectFonts'
-import {
-  DEFAULT_PROJECT_ICON_DIRECTORY,
-  normalizeProjectIconDirectory,
-} from '../../workspace/model/projectIcons'
 
 export const APP_SETTINGS_VERSION = 1 as const
 export const APP_THEME_FILE_EXTENSION = 'octheme'
@@ -113,8 +105,6 @@ export type AppSettingKey =
   | 'workspace.showSelectionPositionOnMove'
   | 'workspace.showSelectionSizeOnResize'
   | 'workspace.alignmentSnappingEnabledByDefault'
-  | 'workspace.defaultFontImportDirectory'
-  | 'workspace.defaultIconImportDirectory'
   | 'workspace.historyEntryLimit'
 
 export interface AppSettings {
@@ -142,8 +132,6 @@ export interface AppSettings {
     showSelectionPositionOnMove: boolean
     showSelectionSizeOnResize: boolean
     alignmentSnappingEnabledByDefault: boolean
-    defaultFontImportDirectory: string
-    defaultIconImportDirectory: string
     historyEntryLimit: number
   }
   projectCreation: {
@@ -216,8 +204,6 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     showSelectionPositionOnMove: true,
     showSelectionSizeOnResize: true,
     alignmentSnappingEnabledByDefault: true,
-    defaultFontImportDirectory: DEFAULT_PROJECT_FONT_DIRECTORY,
-    defaultIconImportDirectory: DEFAULT_PROJECT_ICON_DIRECTORY,
     historyEntryLimit: 100,
   }),
   projectCreation: Object.freeze({
@@ -572,12 +558,6 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       alignmentSnappingEnabledByDefault: typeof workspace.alignmentSnappingEnabledByDefault === 'boolean'
         ? workspace.alignmentSnappingEnabledByDefault
         : DEFAULT_APP_SETTINGS.workspace.alignmentSnappingEnabledByDefault,
-      defaultFontImportDirectory: typeof workspace.defaultFontImportDirectory === 'string'
-        ? normalizeProjectFontDirectory(workspace.defaultFontImportDirectory) ?? DEFAULT_PROJECT_FONT_DIRECTORY
-        : DEFAULT_PROJECT_FONT_DIRECTORY,
-      defaultIconImportDirectory: typeof workspace.defaultIconImportDirectory === 'string'
-        ? normalizeProjectIconDirectory(workspace.defaultIconImportDirectory) ?? DEFAULT_PROJECT_ICON_DIRECTORY
-        : DEFAULT_PROJECT_ICON_DIRECTORY,
       historyEntryLimit: clampHistoryEntryLimit(workspace.historyEntryLimit),
     },
     projectCreation: {

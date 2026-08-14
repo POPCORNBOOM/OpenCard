@@ -20,7 +20,6 @@ describe('ProjectFontRegistrationDialog', () => {
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/fonts',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -32,12 +31,11 @@ describe('ProjectFontRegistrationDialog', () => {
     expect(wrapper.findAll('input')[0]!.attributes('aria-invalid')).toBe('true')
   })
 
-  it('registers one external font with its name, key, and copy destination', async () => {
+  it('registers one external font with its name and key', async () => {
     mocks.pickFile.mockResolvedValue('D:/Downloads/BrandSans-BoldItalic.woff2')
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'resources/fonts',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -52,7 +50,6 @@ describe('ProjectFontRegistrationDialog', () => {
     await wrapper.findAll('input')[2]!.setValue('brand-sans-bold-italic')
 
     expect(wrapper.text()).toContain('projectConfig.fonts.copyIntoProject')
-    expect(wrapper.findAll('input')[3]!.element.value).toBe('resources/fonts')
     const buttons = wrapper.findAllComponents(OcButton)
     expect(buttons[buttons.length - 1]!.text()).toBe('projectConfig.fonts.confirmRegister')
     expect(buttons[buttons.length - 1]!.props('disabled')).toBe(false)
@@ -62,7 +59,6 @@ describe('ProjectFontRegistrationDialog', () => {
       key: 'brand-sans-bold-italic',
       name: 'Brand Sans Bold Italic',
       sourcePath: 'D:/Downloads/BrandSans-BoldItalic.woff2',
-      targetDirectory: 'resources/fonts',
     })
   })
 
@@ -77,7 +73,6 @@ describe('ProjectFontRegistrationDialog', () => {
           },
         },
         originalKey: 'brand-sans',
-        defaultDirectory: 'assets/fonts',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -104,7 +99,6 @@ describe('ProjectFontRegistrationDialog', () => {
         fonts: {
           brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' },
         },
-        defaultDirectory: 'assets/fonts',
         getRelativeProjectPath: () => 'assets/fonts/Body.woff2',
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -125,7 +119,6 @@ describe('ProjectFontRegistrationDialog', () => {
       props: {
         open: true,
         fonts: { brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' } },
-        defaultDirectory: 'assets/fonts',
         getRelativeProjectPath: () => 'assets/fonts/Brand.woff2',
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -153,7 +146,6 @@ describe('ProjectFontRegistrationDialog', () => {
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/fonts',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -173,7 +165,6 @@ describe('ProjectFontRegistrationDialog', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       conflictResolution: 'rename-copy',
-      targetDirectory: 'assets/fonts',
     })
   })
 })

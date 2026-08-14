@@ -118,10 +118,6 @@ export function createAppSettingsStore(
       candidate.workspace.showSelectionSizeOnResize = value as boolean
     } else if (key === 'workspace.alignmentSnappingEnabledByDefault') {
       candidate.workspace.alignmentSnappingEnabledByDefault = value as boolean
-    } else if (key === 'workspace.defaultFontImportDirectory') {
-      candidate.workspace.defaultFontImportDirectory = String(value)
-    } else if (key === 'workspace.defaultIconImportDirectory') {
-      candidate.workspace.defaultIconImportDirectory = String(value)
     } else if (key === 'workspace.historyEntryLimit') {
       candidate.workspace.historyEntryLimit = value as number
     }

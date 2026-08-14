@@ -18,6 +18,15 @@ import {
 } from '../../workspace/model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../../workspace/services/projectCustomBlock'
 import { registerProjectCustomBlockPath } from '../../workspace/services/projectCustomBlockRegistry'
+import { initializeProjectStructure } from '../../workspace/services/projectStructureService'
+import {
+  PROJECT_DICTIONARY_FILE_NAME,
+  PROJECT_FONT_REGISTRY_FILE_NAME,
+  PROJECT_ICON_DIRECTORY,
+  PROJECT_ICON_REGISTRY_FILE_NAME,
+  PROJECT_PROFILE_FILE_NAME,
+  resolveProjectInternalRelativePath,
+} from '../../workspace/model/projectStructure'
 import {
   createProjectIconPackSpritesheetName,
   readProjectIconPack,
@@ -51,15 +60,11 @@ const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
 const TEMPLATE_MANIFEST_FILE_NAME = 'template.json'
 const TEMPLATE_CONTENT_DIRECTORY_NAME = 'content'
-const PROJECT_FILE_NAME = '.ocproject'
-const FONT_REGISTRY_FILE_NAME = '.ocfonts'
-const ICON_REGISTRY_FILE_NAME = '.ocicons'
-const DICTIONARY_FILE_NAME = '.oclocale'
 const STRUCTURED_PROJECT_FILES = [
-  { name: PROJECT_FILE_NAME, parse: parseProjectMetadataText, label: 'project file' },
-  { name: FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
-  { name: ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
-  { name: DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
+  { name: PROJECT_PROFILE_FILE_NAME, parse: parseProjectMetadataText, label: 'project file' },
+  { name: PROJECT_FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
+  { name: PROJECT_ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
+  { name: PROJECT_DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
   {
     name: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
     parse: parseProjectCustomBlockRegistryText,
@@ -183,7 +188,7 @@ async function assertValidStructuredProjectFiles(
   errorKind: 'source-not-project' | 'invalid-package' | 'invalid-manifest',
 ): Promise<void> {
   for (const file of STRUCTURED_PROJECT_FILES) {
-    const path = await paths.join(rootPath, file.name)
+    const path = await paths.join(rootPath, ...pathSegments(file.name))
     if (await fs.fileExists(path) && !file.parse(await fs.readFile(path))) {
       throw new TemplateServiceError(errorKind, `OpenCard ${file.label} is invalid`)
     }
@@ -309,7 +314,7 @@ export class ProjectTemplateService {
     }
     const excludedPaths = normalizeExcludedPaths(request.excludedPaths)
     for (const file of STRUCTURED_PROJECT_FILES) {
-      if (await this.fs.fileExists(await this.paths.join(request.sourcePath, file.name))
+      if (await this.fs.fileExists(await this.paths.join(request.sourcePath, ...pathSegments(file.name)))
         && isExcludedPath(file.name, excludedPaths)) {
         throw new TemplateServiceError('source-not-project', `The ${file.label} cannot be excluded`)
       }
@@ -419,6 +424,7 @@ export class ProjectTemplateService {
       if (await this.fs.fileExists(request.template.contentPath)) {
         await this.copyDirectory(request.template.contentPath, temporaryPath)
       }
+      await initializeProjectStructure(this.fs, temporaryPath, this.createId)
       await this.registerIconPacks(temporaryPath, request.iconPacks ?? [])
       await this.registerCustomBlocks(temporaryPath, request.customBlocks ?? [])
       if (selectedEntry) {
@@ -427,7 +433,7 @@ export class ProjectTemplateService {
           throw new TemplateServiceError('entry-not-found', 'Template entry is missing')
         }
       }
-      const projectFilePath = await this.paths.join(temporaryPath, PROJECT_FILE_NAME)
+      const projectFilePath = await this.paths.join(temporaryPath, ...pathSegments(PROJECT_PROFILE_FILE_NAME))
       if (await this.fs.fileExists(projectFilePath)) {
         const projectMetadata = parseProjectMetadataText(await this.fs.readFile(projectFilePath))
         if (!projectMetadata) {
@@ -461,14 +467,17 @@ export class ProjectTemplateService {
     packs: readonly ProjectIconPackCatalogEntry[],
   ): Promise<void> {
     if (packs.length === 0) return
-    const registryPath = await this.paths.join(projectPath, ICON_REGISTRY_FILE_NAME)
+    const registryPath = await this.paths.join(projectPath, ...pathSegments(PROJECT_ICON_REGISTRY_FILE_NAME))
     const existing = await this.fs.fileExists(registryPath)
       ? parseProjectIconRegistryText(await this.fs.readFile(registryPath))
       : {}
     if (!existing) throw new TemplateServiceError('icon-pack-failed', 'The project icon registry is invalid')
 
     const iconSeries = [...(existing.iconSeries ?? [])]
-    const iconDirectory = await this.paths.join(projectPath, 'assets', 'icons')
+    const iconDirectory = await this.paths.join(
+      projectPath,
+      ...pathSegments(resolveProjectInternalRelativePath(PROJECT_ICON_DIRECTORY)),
+    )
     await this.fs.createDirectory(iconDirectory)
 
     for (const pack of packs) {
@@ -483,7 +492,7 @@ export class ProjectTemplateService {
           iconPack.manifest.spritesheet,
         )
         let fileName = baseName
-        let sourcePath = await this.paths.join('assets', 'icons', fileName)
+        let sourcePath = await this.paths.join(PROJECT_ICON_DIRECTORY, fileName)
         let absolutePath = await this.paths.join(iconDirectory, fileName)
         let suffix = 2
         while (await this.fs.fileExists(absolutePath)) {
@@ -491,7 +500,7 @@ export class ProjectTemplateService {
           const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName
           const extension = dotIndex > 0 ? baseName.slice(dotIndex) : ''
           fileName = `${stem} (${suffix})${extension}`
-          sourcePath = await this.paths.join('assets', 'icons', fileName)
+          sourcePath = await this.paths.join(PROJECT_ICON_DIRECTORY, fileName)
           absolutePath = await this.paths.join(iconDirectory, fileName)
           suffix += 1
         }
@@ -517,7 +526,10 @@ export class ProjectTemplateService {
   ): Promise<void> {
     if (blocks.length === 0) return
     try {
-      const registryPath = await this.paths.join(projectPath, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+      const registryPath = await this.paths.join(
+        projectPath,
+        ...pathSegments(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME),
+      )
       let registry = await this.fs.fileExists(registryPath)
         ? parseProjectCustomBlockRegistryText(await this.fs.readFile(registryPath))
         : {}
@@ -525,7 +537,10 @@ export class ProjectTemplateService {
 
       const existingKeys = new Set<string>()
       for (const archivePath of registry.blocks ?? []) {
-        const absolutePath = await this.paths.join(projectPath, ...pathSegments(archivePath))
+        const absolutePath = await this.paths.join(
+          projectPath,
+          ...pathSegments(resolveProjectInternalRelativePath(archivePath)),
+        )
         const existing = await readProjectCustomBlockPackage(this.fs, absolutePath)
         const identity = existing.manifest.customBlockKey.toLocaleLowerCase()
         if (existingKeys.has(identity)) {
@@ -537,7 +552,7 @@ export class ProjectTemplateService {
       const selectedKeys = new Set<string>()
       const customBlockDirectory = await this.paths.join(
         projectPath,
-        ...pathSegments(DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY),
+        ...pathSegments(resolveProjectInternalRelativePath(DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY)),
       )
       await this.fs.createDirectory(customBlockDirectory)
 

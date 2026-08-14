@@ -1,11 +1,11 @@
 # Project File Tree
 
-`fileTypes.ts` owns root special-file presentation. A definition with
-`projectTreePriority` receives its translated `labelKey` and fixed root ordering
-in the project tree. `useShellFileTree` receives translation as an explicit
-dependency and must not hardcode registry filenames or localized labels.
+`.opencard` is an application-owned boundary and must never appear in the
+ordinary project file tree. `useShellFileTree` filters the directory and every
+descendant even when the filesystem index contains them individually.
 
-Only root files resolve this presentation. Their real paths remain node keys and
-all file commands continue to target those keys. Same-named files in nested
-directories keep their literal filenames. Ordinary roots retain index order after
-the prioritized project files.
+The five structured documents are projected as fixed, localized entries in a
+separate project-management tree. Their absolute paths remain node keys so they
+open through normal editor sessions, but they never receive ordinary rename,
+move, create, or trash actions. Same-named files outside `.opencard` remain
+ordinary user files.

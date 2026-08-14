@@ -22,13 +22,14 @@ export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | n
   const fileName = normalizedPath.split('/').pop() ?? normalizedPath
   const windowsPath = /^[A-Za-z]:\//.test(normalizedPath) || normalizedPath.startsWith('//')
   const comparableFileName = windowsPath ? fileName.toLocaleLowerCase() : fileName
+  const comparablePath = windowsPath ? normalizedPath.toLocaleLowerCase() : normalizedPath
   if ([
     PROJECT_PROFILE_FILE_NAME,
     PROJECT_FONT_REGISTRY_FILE_NAME,
     PROJECT_ICON_REGISTRY_FILE_NAME,
     PROJECT_DICTIONARY_FILE_NAME,
     PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  ].includes(comparableFileName)) return 'project-resource'
+  ].some(resourcePath => comparablePath.endsWith(`/${resourcePath}`))) return 'project-resource'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_TEMPLATE_PACKAGE_SUFFIX)) return 'template'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_ICON_PACK_PACKAGE_SUFFIX)) return 'icon-pack'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)) return 'custom-block'

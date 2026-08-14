@@ -53,8 +53,6 @@ describe('appSettings', () => {
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
         alignmentSnappingEnabledByDefault: true,
-        defaultFontImportDirectory: 'assets/fonts',
-        defaultIconImportDirectory: 'assets/icons',
       },
       projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
     })
@@ -115,28 +113,6 @@ describe('appSettings', () => {
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
     expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })
-  })
-
-  it('keeps a valid project-relative font directory and rejects unsafe paths', () => {
-    expect(normalizeAppSettings({
-      version: APP_SETTINGS_VERSION,
-      workspace: { defaultFontImportDirectory: 'resources/typefaces/' },
-    }).workspace.defaultFontImportDirectory).toBe('resources/typefaces')
-    expect(normalizeAppSettings({
-      version: APP_SETTINGS_VERSION,
-      workspace: { defaultFontImportDirectory: '../fonts' },
-    }).workspace.defaultFontImportDirectory).toBe('assets/fonts')
-  })
-
-  it('keeps a valid project-relative icon directory and rejects unsafe paths', () => {
-    expect(normalizeAppSettings({
-      version: APP_SETTINGS_VERSION,
-      workspace: { defaultIconImportDirectory: 'resources/sprites/' },
-    }).workspace.defaultIconImportDirectory).toBe('resources/sprites')
-    expect(normalizeAppSettings({
-      version: APP_SETTINGS_VERSION,
-      workspace: { defaultIconImportDirectory: '../icons' },
-    }).workspace.defaultIconImportDirectory).toBe('assets/icons')
   })
 
   it('migrates the legacy shared phase angle and clamps per-theme values', () => {

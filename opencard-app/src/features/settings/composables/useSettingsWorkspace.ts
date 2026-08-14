@@ -373,22 +373,6 @@ export function useSettingsWorkspace(
           checked: settings.workspace.alignmentSnappingEnabledByDefault,
         },
         {
-          type: 'text',
-          key: 'workspace.defaultFontImportDirectory',
-          label: options.translate('settings.fields.defaultFontImportDirectory', 'Default project font directory'),
-          value: settings.workspace.defaultFontImportDirectory,
-          placeholder: 'assets/fonts',
-          mono: true,
-        },
-        {
-          type: 'text',
-          key: 'workspace.defaultIconImportDirectory',
-          label: options.translate('settings.fields.defaultIconImportDirectory', 'Default project icon directory'),
-          value: settings.workspace.defaultIconImportDirectory,
-          placeholder: 'assets/icons',
-          mono: true,
-        },
-        {
           type: 'action',
           key: 'project-workspace.reset',
           label: options.translate('settings.fields.projectWorkspaceState', 'Project workspace state'),

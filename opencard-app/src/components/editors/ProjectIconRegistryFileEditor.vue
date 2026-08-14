@@ -4,7 +4,8 @@
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
       :description="t('iconRegistry.description')" :series="document.iconSeries"
-      :resolve-asset-src="projectStore.resolveAssetSrc" :project-icon-catalog="projectStore.projectIconCatalog.value"
+      :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
+      :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
       @create-pack="openCreatePackDialog" @import-pack="openImportPackDialog" @export-pack="exportIconPack" />
@@ -15,13 +16,11 @@
 
     <ProjectIconRegistrationDialog :open="registrationDialogOpen" :series="document?.iconSeries"
       :busy="importBusy" :error="importError"
-      :default-directory="settingsStore.settings.value.workspace.defaultIconImportDirectory"
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
       :resolve-import-conflict="projectStore.getProjectIconImportConflict"
       @close="closeRegistrationDialog" @submit="registerIconSet" />
     <ProjectIconPackImportDialog :open="packImportDialogOpen" :series="document?.iconSeries"
       :busy="packImportBusy" :error="packImportError"
-      :default-directory="settingsStore.settings.value.workspace.defaultIconImportDirectory"
       :default-open-path="projectDirectory" @close="closeImportPackDialog" @submit="importIconPack" />
   </ProjectRegistryEditorShell>
 </template>
@@ -38,7 +37,6 @@ import type {
   SessionNavigationToken,
 } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
-import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import {
   parseProjectIconRegistryText,
   PROJECT_ICON_REGISTRY_FILE_NAME,
@@ -72,7 +70,6 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
-const settingsStore = useAppSettingsStore()
 const document = ref<ProjectIconRegistryDocument | null>(null)
 const importBusy = ref(false)
 const importError = ref('')
@@ -192,11 +189,10 @@ async function registerIconSet(request: ProjectIconRegistrationRequest): Promise
           request.generatedSpritesheet.bytes,
           request.name,
           request.generatedSpritesheet.fileName,
-          request.targetDirectory ?? DEFAULT_PROJECT_ICON_DIRECTORY,
         )
       : (await projectStore.importProjectIconFile(
           request.sourcePath,
-          request.targetDirectory,
+          undefined,
           request.conflictResolution,
         )).source
     iconSeries.push({
@@ -234,7 +230,6 @@ async function importIconPack(request: ProjectIconPackImportRequest): Promise<vo
       iconPack.spritesheetBytes,
       request.name,
       iconPack.manifest.spritesheet,
-      request.targetDirectory,
     )
     iconSeries.push({
       name: request.name,
@@ -268,7 +263,7 @@ async function exportIconPack(series: ProjectIconSeries): Promise<void> {
     await exportProjectIconPack({
       fs: fileSystemService,
       series,
-      spritesheetPath: projectStore.resolveProjectPath(series.source),
+      spritesheetPath: projectStore.resolveProjectInternalPath(series.source),
       outputPath,
     })
   } catch (error) {
@@ -281,16 +276,15 @@ async function copyPackSpritesheet(
   bytes: Uint8Array,
   packName: string,
   originalFileName: string,
-  targetDirectory: string,
 ): Promise<string> {
-  const normalizedDirectory = targetDirectory.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  const normalizedDirectory = DEFAULT_PROJECT_ICON_DIRECTORY
   const sourceName = createProjectIconPackSpritesheetName(packName, originalFileName)
-  const directoryPath = projectStore.resolveProjectPath(normalizedDirectory)
+  const directoryPath = projectStore.resolveProjectInternalPath(normalizedDirectory)
   await fileSystemService.createDirectory(directoryPath)
   let candidateName = sourceName
   let candidatePath = `${normalizedDirectory}/${candidateName}`
   let suffix = 2
-  while (await fileSystemService.fileExists(projectStore.resolveProjectPath(candidatePath))) {
+  while (await fileSystemService.fileExists(projectStore.resolveProjectInternalPath(candidatePath))) {
     const dotIndex = sourceName.lastIndexOf('.')
     const stem = dotIndex > 0 ? sourceName.slice(0, dotIndex) : sourceName
     const extension = dotIndex > 0 ? sourceName.slice(dotIndex) : ''
@@ -298,7 +292,7 @@ async function copyPackSpritesheet(
     candidatePath = `${normalizedDirectory}/${candidateName}`
     suffix += 1
   }
-  await fileSystemService.writeBinaryFile(projectStore.resolveProjectPath(candidatePath), bytes)
+  await fileSystemService.writeBinaryFile(projectStore.resolveProjectInternalPath(candidatePath), bytes)
   return candidatePath
 }
 

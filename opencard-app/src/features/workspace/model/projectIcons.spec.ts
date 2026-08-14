@@ -23,7 +23,7 @@ const series: ProjectIconSeries = {
 describe('projectIcons', () => {
   it('defaults newly registered icon sets to a 2 by 2 grid', () => {
     expect(DEFAULT_PROJECT_ICON_GRID_SETTINGS).toEqual({ snapToGrid: false, rows: 2, columns: 2, pixelated: false })
-    expect(DEFAULT_PROJECT_ICON_DIRECTORY).toBe('assets/icons')
+    expect(DEFAULT_PROJECT_ICON_DIRECTORY).toBe('icons')
     expect(normalizeProjectIconDirectory(' resources\\icons/ ')).toBe('resources/icons')
     expect(normalizeProjectIconDirectory('../icons')).toBeNull()
   })

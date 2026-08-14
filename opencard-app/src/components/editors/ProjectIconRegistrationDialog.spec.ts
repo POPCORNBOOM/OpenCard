@@ -26,12 +26,11 @@ describe('ProjectIconRegistrationDialog', () => {
     })
   })
 
-  it('registers an external image with a filename-derived name and copy directory', async () => {
+  it('registers an external image with a filename-derived name', async () => {
     mocks.pickFile.mockResolvedValue('D:/Downloads/Status Icons.PNG')
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/icons',
         defaultOpenPath: 'D:/Project',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
@@ -47,14 +46,12 @@ describe('ProjectIconRegistrationDialog', () => {
     expect(wrapper.findAll('input')[2]!.element.value).toBe('')
     expect(wrapper.findAll('input')[2]!.attributes('placeholder')).toBe('status-icons')
     expect(wrapper.text()).toContain('projectConfig.icons.copyIntoProject')
-    expect(wrapper.findAll('input')[3]!.element.value).toBe('assets/icons')
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
       name: 'Status Icons',
       key: 'status-icons',
       sourcePath: 'D:/Downloads/Status Icons.PNG',
-      targetDirectory: 'assets/icons',
     })
   })
 
@@ -63,7 +60,6 @@ describe('ProjectIconRegistrationDialog', () => {
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/icons',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -83,7 +79,6 @@ describe('ProjectIconRegistrationDialog', () => {
       props: {
         open: true,
         series: [{ name: 'Existing status', key: 'status', source: 'assets/icons/status.png', icons: [] }],
-        defaultDirectory: 'assets/icons',
         getRelativeProjectPath: () => 'assets/icons/status.png',
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -114,7 +109,6 @@ describe('ProjectIconRegistrationDialog', () => {
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/icons',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -128,7 +122,6 @@ describe('ProjectIconRegistrationDialog', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       conflictResolution: 'use-existing',
-      targetDirectory: 'assets/icons',
     })
   })
 
@@ -137,7 +130,6 @@ describe('ProjectIconRegistrationDialog', () => {
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        defaultDirectory: 'assets/icons',
         getRelativeProjectPath: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -157,7 +149,6 @@ describe('ProjectIconRegistrationDialog', () => {
     ])
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       generatedSpritesheet: expect.objectContaining({ fileName: 'spritesheet.png' }),
-      targetDirectory: 'assets/icons',
     })
   })
 
@@ -168,7 +159,6 @@ describe('ProjectIconRegistrationDialog', () => {
       const wrapper = mount(ProjectIconRegistrationDialog, {
         props: {
           open: true,
-          defaultDirectory: 'assets/icons',
           getRelativeProjectPath: () => null,
           resolveImportConflict: mocks.resolveImportConflict,
         },

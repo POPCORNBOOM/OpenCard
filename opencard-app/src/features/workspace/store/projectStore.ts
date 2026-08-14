@@ -10,6 +10,15 @@ import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
 import {
+  classifyProjectDirectory,
+  ensureProjectStructure,
+  initializeProjectStructure,
+} from '../services/projectStructureService'
+import {
+  isProjectInternalRelativePath,
+  resolveProjectInternalRelativePath,
+} from '../model/projectStructure'
+import {
   PROJECT_PROFILE_FILE_NAME,
   parseProjectMetadataText,
   serializeProjectMetadata,
@@ -225,6 +234,14 @@ function resolveProjectPath(path: string): string {
   return `${normalizedProjectPath}/${path.replace(/^[/\\]+/, '').replace(/\\/g, '/')}`
 }
 
+function resolveProjectInternalPath(path = ''): string {
+  return resolveProjectPath(resolveProjectInternalRelativePath(path))
+}
+
+function resolveProjectInternalAssetSrc(path: string): string {
+  return convertFileSrc(resolveProjectInternalPath(path))
+}
+
 function toRelativeProjectPath(path: string): string {
   const normalizedProjectPath = ensureProjectOpen()
   const resolvedPath = resolveProjectPath(path)
@@ -349,13 +366,13 @@ async function syncRegisteredProjectFonts(
   fonts: readonly ProjectFont[],
   fontSets: readonly ProjectFontSet[] = projectFontSets.value,
 ): Promise<void> {
-  const result = await syncProjectFonts(fonts, resolveAssetSrc, fontSets)
+  const result = await syncProjectFonts(fonts, resolveProjectInternalAssetSrc, fontSets)
   if (result.current) projectFontLoadErrors.value = result.errors
 }
 
 async function syncRegisteredProjectIcons(iconSeries: readonly ProjectIconSeries[]): Promise<void> {
   const version = ++projectIconLoadVersion
-  const catalog = await buildProjectIconCatalog(iconSeries, resolveAssetSrc)
+  const catalog = await buildProjectIconCatalog(iconSeries, resolveProjectInternalAssetSrc)
   if (version !== projectIconLoadVersion) return
   projectIconCatalog.value = catalog
   projectIconLoadErrors.value = catalog.errors
@@ -390,7 +407,7 @@ async function ensureProjectCustomBlockLoaded(customBlockKey: string): Promise<P
     return await customBlockResourceCache.load(key, async () => {
       const packageEntry = await readProjectCustomBlockPackage(
         fileSystemService,
-        `${projectPath.value}/${descriptor.archivePath}`,
+        resolveProjectInternalPath(descriptor.archivePath),
       )
       if (packageEntry.manifest.customBlockKey.toLowerCase() !== key) {
         throw new Error(`Custom block key changed while loading: ${customBlockKey}`)
@@ -504,7 +521,10 @@ function reloadProjectCustomBlockRegistry(): Promise<boolean> {
       const catalog = new Map<string, ProjectCustomBlockManifestCatalogEntry>()
       for (const relativePath of registry.blocks ?? []) {
         if (!isCurrent()) return false
-        const result = await readProjectCustomBlockManifest(fileSystemService, `${expectedProjectPath}/${relativePath}`)
+        const result = await readProjectCustomBlockManifest(
+          fileSystemService,
+          `${expectedProjectPath}/${resolveProjectInternalRelativePath(relativePath)}`,
+        )
         const key = result.manifest.customBlockKey.toLowerCase()
         const duplicate = catalog.get(key)
         if (duplicate) {
@@ -833,11 +853,11 @@ async function startWatching() {
       ))
       if (customBlockChanges.length > 0) scheduleProjectCustomBlockChanges(customBlockChanges)
       const fontSources = projectFontFiles.value
-        .map(font => resolveProjectPath(font.source))
+        .map(font => resolveProjectInternalPath(font.source))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectFonts(projectFontFiles.value)
       }
-      const iconSources = projectIconSeries.value.map(series => resolveProjectPath(series.source))
+      const iconSources = projectIconSeries.value.map(series => resolveProjectInternalPath(series.source))
       if (changedPaths.some(path => iconSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectIcons(projectIconSeries.value)
       }
@@ -871,6 +891,12 @@ async function setProjectPath(path: string) {
 
   if (projectPath.value === normalizedPath) {
     return
+  }
+
+  if (normalizedPath) {
+    const projectKind = await classifyProjectDirectory(fileSystemService, normalizedPath)
+    if (projectKind !== 'project') throw new Error('The selected directory is not an initialized OpenCard project')
+    await ensureProjectStructure(fileSystemService, normalizedPath)
   }
 
   if (isWatching.value) {
@@ -940,16 +966,25 @@ async function isProjectAvailable(path: string): Promise<boolean> {
 }
 
 async function saveFile(relativePath: string, content: string) {
+  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
+    throw new Error('Managed project files cannot be saved through ordinary file operations')
+  }
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
   await refreshIndexedEntries()
 }
 
 async function createFolder(relativePath: string) {
+  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
+    throw new Error('Managed project directories cannot be created through ordinary file operations')
+  }
   await fileSystemService.createDirectory(resolveProjectPath(relativePath))
   await refreshIndexedEntries()
 }
 
 async function createFile(relativePath: string, content: string = '') {
+  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
+    throw new Error('Managed project files cannot be created through ordinary file operations')
+  }
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
   await refreshIndexedEntries()
 }
@@ -962,21 +997,21 @@ async function importProjectAssetFile(
   conflictResolution?: ProjectAssetImportResolution,
 ): Promise<ImportedProjectFontFile> {
   const normalizedSourcePath = normalizePath(sourcePath)
-  const projectRoot = ensureProjectOpen()
+  ensureProjectOpen()
   const fileName = getPathBasename(normalizedSourcePath)
   const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
   if (!supportedExtensions.has(extension)) throw new Error(unsupportedMessage)
 
   const sourceIdentity = pathIdentity(normalizedSourcePath)
-  const projectIdentity = pathIdentity(projectRoot)
-  if (sourceIdentity.startsWith(`${projectIdentity}/`)) {
+  const targetDirectory = resolveProjectInternalPath(targetDirectoryPath)
+  const targetIdentity = pathIdentity(targetDirectory)
+  if (sourceIdentity.startsWith(`${targetIdentity}/`)) {
     return {
-      source: normalizedSourcePath.slice(projectRoot.length + 1),
+      source: `${targetDirectoryPath}/${normalizedSourcePath.slice(targetDirectory.length + 1)}`,
       copied: false,
     }
   }
 
-  const targetDirectory = resolveProjectPath(targetDirectoryPath)
   let candidateName = fileName
   const targetExists = await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)
   if (targetExists && conflictResolution === 'use-existing') {
@@ -1014,13 +1049,13 @@ async function getProjectAssetImportConflict(
   unsupportedMessage: string,
 ): Promise<ProjectAssetImportConflict | null> {
   const normalizedSourcePath = normalizePath(sourcePath)
-  const projectRoot = ensureProjectOpen()
+  ensureProjectOpen()
   const fileName = getPathBasename(normalizedSourcePath)
   const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
   if (!supportedExtensions.has(extension)) throw new Error(unsupportedMessage)
-  if (pathIdentity(normalizedSourcePath).startsWith(`${pathIdentity(projectRoot)}/`)) return null
+  const targetDirectory = resolveProjectInternalPath(targetDirectoryPath)
+  if (pathIdentity(normalizedSourcePath).startsWith(`${pathIdentity(targetDirectory)}/`)) return null
 
-  const targetDirectory = resolveProjectPath(targetDirectoryPath)
   if (!await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)) return null
   const availableName = await findAvailableProjectAssetName(targetDirectory, fileName)
   return {
@@ -1037,17 +1072,16 @@ async function importProjectFontFile(
   const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
   if (!targetDirectory) throw new Error('Invalid project font directory')
   const normalizedSourcePath = normalizePath(sourcePath)
-  const projectRoot = ensureProjectOpen()
+  ensureProjectOpen()
   const fileName = getPathBasename(normalizedSourcePath)
   const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
   if (!PROJECT_FONT_EXTENSIONS.has(extension)) throw new Error('Unsupported project font file')
 
   const sourceIdentity = pathIdentity(normalizedSourcePath)
-  const projectIdentity = pathIdentity(projectRoot)
-  const sourceInsideProject = sourceIdentity.startsWith(`${projectIdentity}/`)
-  const targetAbsoluteDirectory = resolveProjectPath(targetDirectory)
+  const targetAbsoluteDirectory = resolveProjectInternalPath(targetDirectory)
+  const sourceInsideManagedDirectory = sourceIdentity.startsWith(`${pathIdentity(targetAbsoluteDirectory)}/`)
   const targetExists = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${fileName}`)
-  if (!sourceInsideProject && targetExists && conflictResolution === 'use-existing') {
+  if (!sourceInsideManagedDirectory && targetExists && conflictResolution === 'use-existing') {
     return { source: `${targetDirectory}/${fileName}`, copied: false }
   }
 
@@ -1055,13 +1089,11 @@ async function importProjectFontFile(
     await fileSystemService.readBinaryFile(normalizedSourcePath),
     fileName,
   )
-  if (sourceInsideProject && !prepared.repaired) {
-    return { source: normalizedSourcePath.slice(projectRoot.length + 1), copied: false }
+  if (sourceInsideManagedDirectory && !prepared.repaired) {
+    return { source: `${targetDirectory}/${normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1)}`, copied: false }
   }
 
-  const outputDirectory = sourceInsideProject
-    ? normalizedSourcePath.slice(0, normalizedSourcePath.lastIndexOf('/'))
-    : targetAbsoluteDirectory
+  const outputDirectory = targetAbsoluteDirectory
   const repairedName = prepared.repaired ? createRepairedFontName(fileName) : fileName
   const outputName = await fileSystemService.fileExists(`${outputDirectory}/${repairedName}`)
     ? await findAvailableProjectAssetName(outputDirectory, repairedName)
@@ -1070,10 +1102,15 @@ async function importProjectFontFile(
   if (prepared.repaired) await fileSystemService.writeBinaryFile(`${outputDirectory}/${outputName}`, prepared.bytes)
   else await fileSystemService.copyFile(normalizedSourcePath, `${outputDirectory}/${outputName}`)
   await refreshIndexedEntries()
-  const relativeDirectory = sourceInsideProject
-    ? outputDirectory.slice(projectRoot.length + 1)
-    : targetDirectory
-  return { source: relativeDirectory ? `${relativeDirectory}/${outputName}` : outputName, copied: true }
+  return { source: `${targetDirectory}/${outputName}`, copied: true }
+}
+
+async function inspectProjectDirectory(path: string) {
+  return await classifyProjectDirectory(fileSystemService, normalizePath(path))
+}
+
+async function initializeProjectDirectory(path: string): Promise<void> {
+  await initializeProjectStructure(fileSystemService, normalizePath(path))
 }
 
 function createRepairedFontName(fileName: string): string {
@@ -1126,7 +1163,7 @@ async function importProjectCustomBlockFile(
     conflictResolution,
   )
   const effectivePackage = conflictResolution === 'use-existing'
-    ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectPath(imported.source))
+    ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectInternalPath(imported.source))
     : sourcePackage
   const existing = findRegisteredProjectCustomBlock(effectivePackage.manifest.customBlockKey)
   return {
@@ -1214,6 +1251,9 @@ async function createEntryWithAvailableName(
 }
 
 async function trashFile(relativePath: string) {
+  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
+    throw new Error('Managed project files cannot be moved to trash')
+  }
   const resolvedPath = resolveProjectPath(relativePath)
   await fileSystemService.trashFile(resolvedPath)
   if (pathIdentity(resolvedPath) === pathIdentity(resolveProjectPath(PROJECT_PROFILE_FILE_NAME))) clearProjectProfile()
@@ -1291,6 +1331,8 @@ function resolveFileTreeDestination({ key, targetKey, position }: WorkspaceEntry
 
   const draggedPath = normalizePath(key)
   const targetPath = targetKey ? normalizePath(targetKey) : null
+  if (isProjectInternalRelativePath(toRelativeProjectPath(draggedPath))
+    || targetPath && isProjectInternalRelativePath(toRelativeProjectPath(targetPath))) return null
   const draggedEntry = indexedEntries.value.find((entry) =>
     normalizePath(resolveProjectPath(entry.name)) === draggedPath,
   )
@@ -1362,6 +1404,9 @@ function remapRelativePath(path: string, oldPrefix: string, newPrefix: string): 
 async function moveEntry(sourcePath: string, targetPath: string) {
   const sourceRelativePath = toRelativeProjectPath(sourcePath)
   const targetRelativePath = toRelativeProjectPath(targetPath)
+  if (isProjectInternalRelativePath(sourceRelativePath) || isProjectInternalRelativePath(targetRelativePath)) {
+    throw new Error('Managed project entries cannot be moved')
+  }
   const sourceEntry = indexedEntries.value.find((entry) => entry.name === sourceRelativePath)
 
   await fileSystemService.renameFile(
@@ -1513,6 +1558,8 @@ export function useProjectStore() {
     expandedDirectories: readonly(expandedDirectories),
     isWatching: readonly(isWatching),
     chooseProjectDirectory,
+    inspectProjectDirectory,
+    initializeProjectDirectory,
     openProject,
     resetProjectWorkspaceState,
     saveProjectConfiguration,
@@ -1540,6 +1587,7 @@ export function useProjectStore() {
     setDirectoryExpanded,
     isDirectoryExpanded,
     resolveAssetSrc,
+    resolveProjectInternalPath,
     readFile,
     isProjectAvailable,
     saveFile,

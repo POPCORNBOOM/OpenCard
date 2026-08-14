@@ -85,12 +85,6 @@
       </OcText>
     </section>
 
-    <label v-if="copyRequired" class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.copyDirectory') }}</span>
-      <OcFieldInput full-width mono :value="copyDirectory" :aria-invalid="!normalizedCopyDirectory"
-        @input="updateText('copyDirectory', $event)" @blur="checkImportConflict" />
-    </label>
-
     <div v-if="importConflict && inputMode === 'spritesheet'" class="project-icon-registration-dialog__conflict" role="group"
       :aria-label="t('projectConfig.importConflict.title')">
       <OcText as="p" size="sm">
@@ -125,7 +119,6 @@ export type ProjectIconRegistrationRequest = {
   name: string
   key: string
   sourcePath: string
-  targetDirectory?: string
   conflictResolution?: ProjectAssetImportResolution
   generatedSpritesheet?: {
     bytes: Uint8Array
@@ -141,7 +134,7 @@ import { useI18n } from 'vue-i18n'
 import {
   createAvailableProjectIconSeriesKey,
   createAvailableProjectIconKey,
-  normalizeProjectIconDirectory,
+  DEFAULT_PROJECT_ICON_DIRECTORY,
   projectIconKeyPattern,
   type ProjectIcon,
   type ProjectIconSeries,
@@ -166,7 +159,6 @@ import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 const props = withDefaults(defineProps<{
   open: boolean
   series?: readonly ProjectIconSeries[]
-  defaultDirectory: string
   defaultOpenPath?: string
   busy?: boolean
   error?: string
@@ -188,7 +180,6 @@ const selectedPath = ref('')
 const selectedImagePaths = ref<string[]>([])
 const projectSource = ref<string | null>(null)
 const copyRequired = ref(false)
-const copyDirectory = ref('')
 const iconSetName = ref('')
 const iconSetKey = ref('')
 const keyEdited = ref(false)
@@ -225,7 +216,6 @@ const validKey = computed(() => projectIconKeyPattern.test(effectiveKey.value))
 const uniqueKey = computed(() => !props.series.some(series => (
   series.key.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
 )))
-const normalizedCopyDirectory = computed(() => normalizeProjectIconDirectory(copyDirectory.value))
 const conflictOptions = computed<readonly OcOption[]>(() => [
   {
     value: 'rename-copy',
@@ -257,7 +247,6 @@ const canSubmit = computed(() => Boolean(
   && validName.value
   && validKey.value
   && uniqueKey.value
-  && (!copyRequired.value || normalizedCopyDirectory.value)
   && !conflictCheckPending.value
   && !conflictCheckFailed.value
   && (inputMode.value === 'images' || !importConflict.value || conflictResolution.value)
@@ -267,7 +256,6 @@ const validationMessage = computed(() => {
   if (!validKey.value) return t('projectConfig.icons.invalidIconSetKey')
   if (!uniqueKey.value) return t('projectConfig.icons.iconSetKeyExists')
   if (!hasSelectedInput.value) return ''
-  if (copyRequired.value && !normalizedCopyDirectory.value) return t('projectConfig.icons.invalidCopyDirectory')
   if (conflictCheckFailed.value) return t('projectConfig.importConflict.checkFailed')
   return ''
 })
@@ -279,7 +267,6 @@ watch(() => props.open, open => {
   selectedImagePaths.value = []
   projectSource.value = null
   copyRequired.value = false
-  copyDirectory.value = props.defaultDirectory
   iconSetName.value = ''
   iconSetKey.value = ''
   keyEdited.value = false
@@ -332,13 +319,9 @@ function fileName(path: string): string {
   const segments = path.replace(/\\/g, '/').split('/')
   return segments[segments.length - 1] ?? path
 }
-function updateText(field: 'copyDirectory' | 'name' | 'key', event: Event): void {
+function updateText(field: 'name' | 'key', event: Event): void {
   if (!(event.target instanceof HTMLInputElement)) return
-  if (field === 'copyDirectory') {
-    copyDirectory.value = event.target.value
-    resetImportConflict(Boolean(selectedPath.value && copyRequired.value))
-  }
-  else if (field === 'name') {
+  if (field === 'name') {
     iconSetName.value = event.target.value
     if (!keyEdited.value) iconSetKey.value = ''
   } else {
@@ -428,9 +411,6 @@ async function submit(): Promise<void> {
       name: normalizedName.value,
       key: effectiveKey.value,
       sourcePath: selectedPath.value,
-      ...(copyRequired.value && normalizedCopyDirectory.value
-        ? { targetDirectory: normalizedCopyDirectory.value }
-        : {}),
       ...(conflictResolution.value ? { conflictResolution: conflictResolution.value } : {}),
     }
     if (inputMode.value === 'images') {
@@ -475,8 +455,7 @@ function resetImportConflict(pending = false): void {
 }
 
 async function checkImportConflict(): Promise<void> {
-  const targetDirectory = normalizedCopyDirectory.value
-  if (!selectedPath.value || !copyRequired.value || !targetDirectory) {
+  if (!selectedPath.value || !copyRequired.value) {
     resetImportConflict()
     return
   }
@@ -484,7 +463,7 @@ async function checkImportConflict(): Promise<void> {
   conflictCheckPending.value = true
   conflictCheckFailed.value = false
   try {
-    const conflict = await props.resolveImportConflict(selectedPath.value, targetDirectory)
+    const conflict = await props.resolveImportConflict(selectedPath.value, DEFAULT_PROJECT_ICON_DIRECTORY)
     if (version !== conflictCheckVersion) return
     importConflict.value = conflict
     conflictResolution.value = null

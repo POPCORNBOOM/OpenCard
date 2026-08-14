@@ -2,9 +2,12 @@
 
 ## Boundary
 
-`.ocproject` owns project information and the remote-resource policy.
-`.ocfonts` owns project fonts and font sets. `.ocicons` owns ordered icon sets.
-`.oclocale` owns project localization. The four files are independent root-only structured documents.
+`.opencard/.ocproject` owns project information and the remote-resource policy.
+`.opencard/.ocfonts` owns project fonts and font sets. `.opencard/.ocicons` owns
+ordered icon sets. `.opencard/.oclocale` owns project localization, and
+`.opencard/.ocblocks` owns custom-block registrations. Sources inside these
+registries are relative to `.opencard`; managed files live in `fonts`, `icons`,
+and `blocks` beneath that directory.
 
 ## Runtime Truth
 
@@ -12,9 +15,12 @@
 `projectIconSeries` separately from `projectProfile`. Font CSS loading and icon
 catalog construction consume those dedicated refs only.
 
-Missing registry files mean an empty registry. Invalid registry files clear only
-their own runtime domain and report a domain-specific error. Asset file changes
-reload the affected registry resources without reloading unrelated project data.
+Opening or creating a project ensures all five documents and all three managed
+asset directories exist. A directory without `.opencard` requires explicit
+initialization; legacy root-level `.oc*` project files are rejected rather than
+migrated. Invalid registry files clear only their own runtime domain and report a
+domain-specific error. Asset file changes reload the affected registry resources
+without reloading unrelated project data.
 
 ## Document Contract
 
@@ -32,7 +38,7 @@ Saving a profile canonicalizes it without those legacy fields.
 
 ## Editor Protocol
 
-The root editor ids are `font-registry` and `icon-registry`. Icon duplicate-key
+The managed editor ids are `font-registry` and `icon-registry`. Icon duplicate-key
 issues use the `icon-registry` navigation protocol, version 1, and carry stable
 indices plus the conflicting key. Editors own business state and commands;
 shared shell and repair components own only common document UI geometry.

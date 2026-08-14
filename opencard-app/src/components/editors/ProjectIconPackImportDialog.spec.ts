@@ -28,7 +28,7 @@ describe('ProjectIconPackImportDialog', () => {
 
   it('derives the name immediately and keeps the suggested key as a placeholder', async () => {
     const wrapper = mount(ProjectIconPackImportDialog, {
-      props: { open: true, defaultDirectory: 'assets/icons' },
+      props: { open: true },
       global: { stubs: { Teleport: true } },
     })
 
@@ -46,7 +46,6 @@ describe('ProjectIconPackImportDialog', () => {
       packPath: 'D:/Downloads/Status Icons.ociconpack',
       name: 'Status Icons',
       key: 'status-icons',
-      targetDirectory: 'assets/icons',
     })
   })
 })

@@ -32,12 +32,6 @@
       </OcText>
     </div>
 
-    <label v-if="copyRequired" class="project-font-dialog__field">
-      <span>{{ t('projectConfig.fonts.copyDirectory') }}</span>
-      <OcFieldInput full-width mono :value="copyDirectory" :aria-invalid="!normalizedCopyDirectory"
-        @input="updateText('copyDirectory', $event)" @blur="checkImportConflict" />
-    </label>
-
     <div v-if="importConflict" class="project-font-dialog__conflict" role="group"
       :aria-label="t('projectConfig.importConflict.title')">
       <OcText as="p" size="sm">
@@ -74,7 +68,6 @@ export type ProjectFontRegistrationRequest = {
   key: string
   name: string
   sourcePath: string
-  targetDirectory?: string
   conflictResolution?: ProjectAssetImportResolution
 }
 </script>
@@ -88,7 +81,7 @@ import type {
   ProjectAssetImportResolution,
 } from '../../features/workspace/store/projectStore'
 import {
-  normalizeProjectFontDirectory,
+  DEFAULT_PROJECT_FONT_DIRECTORY,
   projectFontIdPattern,
 } from '../../features/workspace/model/projectFonts'
 import { createAvailableKey } from '../../shared/model/keySlug'
@@ -105,7 +98,6 @@ const props = withDefaults(defineProps<{
   fonts?: ProjectFontRegistry
   reservedKeys?: readonly string[]
   originalKey?: string
-  defaultDirectory: string
   defaultOpenPath?: string
   busy?: boolean
   error?: string
@@ -127,7 +119,6 @@ const { t } = useI18n()
 const selectedPath = ref('')
 const projectSource = ref<string | null>(null)
 const copyRequired = ref(false)
-const copyDirectory = ref('')
 const fontKey = ref('')
 const fontName = ref('')
 const importConflict = ref<ProjectAssetImportConflict | null>(null)
@@ -149,7 +140,6 @@ const uniqueKey = computed(() => ![...Object.keys(props.fonts), ...props.reserve
   key.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
   && key.toLocaleLowerCase() !== props.originalKey?.toLocaleLowerCase()
 )))
-const normalizedCopyDirectory = computed(() => normalizeProjectFontDirectory(copyDirectory.value))
 const conflictOptions = computed<readonly OcOption[]>(() => [
   {
     value: 'rename-copy',
@@ -172,7 +162,6 @@ const canSubmit = computed(() => Boolean(
   && fontName.value.trim()
   && validKey.value
   && uniqueKey.value
-  && (!copyRequired.value || normalizedCopyDirectory.value)
   && !conflictCheckPending.value
   && !conflictCheckFailed.value
   && (!importConflict.value || conflictResolution.value)
@@ -188,7 +177,6 @@ const validationMessage = computed(() => {
   if (!uniqueKey.value) return t('projectConfig.fonts.keyExists')
   if (fontKey.value && !validKey.value) return t('projectConfig.fonts.invalidKey')
   if (!fontName.value.trim()) return t('projectConfig.fonts.nameRequired')
-  if (copyRequired.value && !normalizedCopyDirectory.value) return t('projectConfig.fonts.invalidCopyDirectory')
   if (conflictCheckFailed.value) return t('projectConfig.importConflict.checkFailed')
   return ''
 })
@@ -199,7 +187,6 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   selectedPath.value = definition?.source ?? ''
   projectSource.value = definition?.source ?? null
   copyRequired.value = false
-  copyDirectory.value = props.defaultDirectory
   fontKey.value = props.originalKey ?? ''
   fontName.value = definition?.name ?? ''
   resetImportConflict()
@@ -220,13 +207,9 @@ async function pickFontFile(): Promise<void> {
   await checkImportConflict()
 }
 
-function updateText(field: 'copyDirectory' | 'key' | 'name', event: Event): void {
+function updateText(field: 'key' | 'name', event: Event): void {
   if (!(event.target instanceof HTMLInputElement)) return
-  if (field === 'copyDirectory') {
-    copyDirectory.value = event.target.value
-    resetImportConflict(Boolean(selectedPath.value && copyRequired.value))
-  }
-  else if (field === 'key') fontKey.value = event.target.value
+  if (field === 'key') fontKey.value = event.target.value
   else fontName.value = event.target.value
 }
 
@@ -241,9 +224,6 @@ function submit(): void {
     key: effectiveKey.value,
     name: fontName.value.trim(),
     sourcePath: selectedPath.value,
-    ...(copyRequired.value && normalizedCopyDirectory.value
-      ? { targetDirectory: normalizedCopyDirectory.value }
-      : {}),
     ...(conflictResolution.value ? { conflictResolution: conflictResolution.value } : {}),
   })
 }
@@ -257,8 +237,7 @@ function resetImportConflict(pending = false): void {
 }
 
 async function checkImportConflict(): Promise<void> {
-  const targetDirectory = normalizedCopyDirectory.value
-  if (!selectedPath.value || !copyRequired.value || !targetDirectory) {
+  if (!selectedPath.value || !copyRequired.value) {
     resetImportConflict()
     return
   }
@@ -266,7 +245,7 @@ async function checkImportConflict(): Promise<void> {
   conflictCheckPending.value = true
   conflictCheckFailed.value = false
   try {
-    const conflict = await props.resolveImportConflict(selectedPath.value, targetDirectory)
+    const conflict = await props.resolveImportConflict(selectedPath.value, DEFAULT_PROJECT_FONT_DIRECTORY)
     if (version !== conflictCheckVersion) return
     importConflict.value = conflict
     conflictResolution.value = null

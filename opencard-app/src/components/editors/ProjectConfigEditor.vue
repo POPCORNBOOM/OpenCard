@@ -217,15 +217,9 @@ import {
 import { createDefaultProjectExportTask } from '../../features/exporting/exportTask'
 import { normalizeCardDocument } from '../../entities/card/storage'
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../features/workspace/model/projectDictionary'
-import {
-  PROJECT_FONT_REGISTRY_FILE_NAME,
-  serializeProjectFontRegistry,
-} from '../../features/workspace/model/projectFontRegistry'
+import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectFontRegistry'
 import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectIconRegistry'
-import {
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  serializeProjectCustomBlockRegistry,
-} from '../../features/workspace/model/projectCustomBlocks'
+import { PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectCustomBlocks'
 import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
@@ -495,61 +489,27 @@ function updateRawSource(content: string, history?: HistoryOperationMeta) {
 }
 
 async function openOrCreateDictionary() {
-  await openOrCreateLinkedFile(
-    PROJECT_DICTIONARY_FILE_NAME,
-    dictionaryExists.value,
-    () => { dictionaryExists.value = true },
-    'OC-E3008',
-  )
+  await openManagedProjectFile(PROJECT_DICTIONARY_FILE_NAME, 'OC-E3008')
 }
 
 async function openOrCreateFontRegistry() {
-  const path = projectStore.resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME)
-  if (fontRegistryExists.value) emit('open-file', path)
-  else {
-    await projectStore.createFile(PROJECT_FONT_REGISTRY_FILE_NAME, serializeProjectFontRegistry({}))
-    fontRegistryExists.value = true
-    emit('open-file', path)
-  }
+  await openManagedProjectFile(PROJECT_FONT_REGISTRY_FILE_NAME, 'OC-E3009')
 }
 
 async function openOrCreateIconRegistry() {
-  await openOrCreateLinkedFile(
-    PROJECT_ICON_REGISTRY_FILE_NAME,
-    iconRegistryExists.value,
-    () => { iconRegistryExists.value = true },
-    'OC-E3010',
-  )
+  await openManagedProjectFile(PROJECT_ICON_REGISTRY_FILE_NAME, 'OC-E3010')
 }
 
 async function openOrCreateCustomBlockRegistry() {
-  const path = projectStore.resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
-  try {
-    if (!customBlockRegistryExists.value) {
-      await projectStore.createFile(
-        PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-        serializeProjectCustomBlockRegistry({ blocks: [] }),
-      )
-      customBlockRegistryExists.value = true
-    }
-    emit('open-file', path)
-  } catch (error) {
-    reportAppError('OC-E3013', { path, error })
-  }
+  await openManagedProjectFile(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, 'OC-E3013')
 }
 
-async function openOrCreateLinkedFile(
+async function openManagedProjectFile(
   fileName: string,
-  exists: boolean,
-  markExists: () => void,
-  errorCode: 'OC-E3008' | 'OC-E3009' | 'OC-E3010',
+  errorCode: 'OC-E3008' | 'OC-E3009' | 'OC-E3010' | 'OC-E3013',
 ): Promise<void> {
   const path = projectStore.resolveProjectPath(fileName)
   try {
-    if (!exists) {
-      await projectStore.createFile(fileName, '{}')
-      markExists()
-    }
     emit('open-file', path)
   } catch (error) {
     reportAppError(errorCode, { path, error })

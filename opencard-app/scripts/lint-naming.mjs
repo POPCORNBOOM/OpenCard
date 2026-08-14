@@ -29,6 +29,7 @@ const kebab = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const snake = /^[a-z0-9]+(?:_[a-z0-9]+)*$/
 const localeModule = /^[a-z]{2}-[A-Z]{2}\.ts$/
 const assetExtensions = new Set(['.gif', '.jpeg', '.jpg', '.pdn', '.png', '.svg', '.webp'])
+const managedDirectoryNames = new Set(['.opencard'])
 
 function toProjectPath(path) {
   return relative(projectRoot, path).split(sep).join('/')
@@ -57,6 +58,7 @@ function walk(path) {
 
 function inspectDirectory(path) {
   const name = basename(path)
+  if (managedDirectoryNames.has(name)) return
   if (!kebab.test(name)) {
     addViolation(path, 'directory names must use kebab-case')
   }

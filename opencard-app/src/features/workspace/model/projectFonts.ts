@@ -1,6 +1,6 @@
 import type { ProjectFont, ProjectFontRegistry, ProjectFontSet } from './projectFontRegistry'
 
-export const DEFAULT_PROJECT_FONT_DIRECTORY = 'assets/fonts'
+export const DEFAULT_PROJECT_FONT_DIRECTORY = 'fonts'
 export const projectFontIdPattern = /^[a-z0-9][a-z0-9._-]*$/
 
 export function normalizeProjectFontDirectory(value: string): string | null {

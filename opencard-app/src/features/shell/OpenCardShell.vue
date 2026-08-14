@@ -134,6 +134,16 @@
             @intent="handleExportSelectionTreeIntent"
           />
           <OcTree
+            v-else-if="list.key === PROJECT_MANAGEMENT_LIST_KEY && projectManagementTreeData.rootKeys.length > 0"
+            class="open-card-shell__sidebar-tree"
+            :data="projectManagementTreeData"
+            :selected-keys="selectedFileKeys"
+            role="listbox"
+            selection-mode="single"
+            activation-mode="none"
+            @intent="handleProjectManagementTreeIntent"
+          />
+          <OcTree
             v-else-if="list.key === PROJECT_FILES_LIST_KEY && projectTreeData.rootKeys.length > 0"
             ref="projectTreeRef"
             class="open-card-shell__sidebar-tree"
@@ -284,6 +294,26 @@
       @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
       @submit="startProjectExport" />
 
+    <OcDialog
+      :open="projectInitializationOpen"
+      :title="t('projectInitialization.title')"
+      :description="t('projectInitialization.description')"
+      size="sm"
+      close-on-backdrop
+      :dismissible="!isActivatingProject"
+      @request-close="cancelProjectInitialization"
+    >
+      <OcText mono>{{ projectInitializationPath }}</OcText>
+      <template #footer>
+        <OcButton :disabled="isActivatingProject" @click="cancelProjectInitialization">
+          {{ t('projectInitialization.cancel') }}
+        </OcButton>
+        <OcButton variant="solid" :disabled="isActivatingProject" @click="confirmProjectInitialization">
+          {{ t('projectInitialization.confirm') }}
+        </OcButton>
+      </template>
+    </OcDialog>
+
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
       <span>{{ t('app.shell.dropFilesToOpen') }}</span>
@@ -356,9 +386,11 @@ import {
 } from '../workspace/store/editorSessionStore'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
+import OcDialog from '../../components/standard/OcDialog.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
+import OcText from '../../components/base/OcText.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
@@ -469,6 +501,7 @@ const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
 const SIDEBAR_AUTO_COLLAPSE_WIDTH = 168
 const PROJECT_FILES_LIST_KEY = 'project-files'
+const PROJECT_MANAGEMENT_LIST_KEY = 'project-management'
 const OPENED_EDITORS_LIST_KEY = 'opened-editors'
 const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
 const CHANGES_LIST_KEY = 'changes'
@@ -499,11 +532,6 @@ const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
 const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
-const PROJECT_NEW_PROFILE_ACTION_KEY = 'project.new-file.ocproject'
-const PROJECT_NEW_FONT_REGISTRY_ACTION_KEY = 'project.new-file.ocfonts'
-const PROJECT_NEW_ICON_REGISTRY_ACTION_KEY = 'project.new-file.ocicons'
-const PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY = 'project.new-file.ocblocks'
-const PROJECT_NEW_DICTIONARY_ACTION_KEY = 'project.new-file.oclocale'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
@@ -526,6 +554,8 @@ const {
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
+  inspectProjectDirectory,
+  initializeProjectDirectory,
   isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
@@ -535,7 +565,6 @@ const {
   setDirectoryExpanded,
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
-  createFile,
   trashFile,
   revealEntryInFileManager,
   getRelativeProjectPath,
@@ -798,6 +827,10 @@ const {
 const {
   isActivating: isActivatingProject,
   activationError: projectActivationError,
+  projectInitializationOpen,
+  projectInitializationPath,
+  confirmProjectInitialization,
+  cancelProjectInitialization,
   openProject,
   openRecentProject,
   relocateRecentProject: relocateRecentProjectPath,
@@ -811,6 +844,8 @@ const {
     chooseProjectDirectory,
     setProjectPath,
     readDirectoryEntries,
+    classifyProjectDirectory: inspectProjectDirectory,
+    initializeProjectDirectory,
   },
   sessions: {
     detachWorkspaceSessions,
@@ -930,12 +965,14 @@ const {
 
 const {
   projectTreeData,
+  projectManagementTreeData,
   projectExpandedKeys,
   openedEditorTreeData,
   selectedFileKeys,
   openedEditorSelectedKeys,
   handleOpenedEditorsSelect,
   handleFileTreeSelect,
+  handleProjectManagementSelect,
   findProjectEntryByKey,
   setProjectEntryExpanded,
 } = useShellFileTree({
@@ -1071,13 +1108,6 @@ const projectFolderName = computed(() => {
   if (!projectPath.value) return ''
   return projectPath.value.split(/[/\\]/).filter(Boolean).pop() || ''
 })
-
-function hasRootProjectFile(fileName: string): boolean {
-  const expectedType = resolveFileType(`${projectPath.value}/${fileName}`, projectPath.value).id
-  return indexedEntries.value.some(entry => !entry.isDirectory && (
-    resolveFileType(`${projectPath.value}/${entry.name}`, projectPath.value).id === expectedType
-  ))
-}
 
 const shellMainStyle = computed(() => ({
   '--shell-sidebar-width': effectiveSidebarCollapsed.value ? '0px' : `${sidebarWidth.value}px`,
@@ -1542,6 +1572,12 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       actions: [],
     },
     {
+      key: PROJECT_MANAGEMENT_LIST_KEY,
+      title: t('sidebar.projectManagement'),
+      placeholder: '',
+      actions: [],
+    },
+    {
       key: PROJECT_FILES_LIST_KEY,
       title: projectFolderName.value || t('sidebar.files'),
       placeholder: projectPath.value
@@ -1559,31 +1595,6 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
               title: t('sidebar.fileActions.newOpenCard'),
               icon: 'file.opencard',
             },
-            ...(!hasRootProjectFile('.ocproject') ? [{
-              key: PROJECT_NEW_PROFILE_ACTION_KEY,
-              title: t('sidebar.fileActions.newProjectProfile'),
-              icon: 'file.opencard-project' as const,
-            }] : []),
-            ...(!hasRootProjectFile('.ocfonts') ? [{
-              key: PROJECT_NEW_FONT_REGISTRY_ACTION_KEY,
-              title: t('sidebar.fileActions.newFontRegistry'),
-              icon: 'file.font' as const,
-            }] : []),
-            ...(!hasRootProjectFile('.ocicons') ? [{
-              key: PROJECT_NEW_ICON_REGISTRY_ACTION_KEY,
-              title: t('sidebar.fileActions.newIconRegistry'),
-              icon: 'file.project-icon' as const,
-            }] : []),
-            ...(!hasRootProjectFile('.ocblocks') ? [{
-              key: PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY,
-              title: t('sidebar.fileActions.newCustomBlockRegistry'),
-              icon: 'file.custom-block' as const,
-            }] : []),
-            ...(!hasRootProjectFile('.oclocale') ? [{
-              key: PROJECT_NEW_DICTIONARY_ACTION_KEY,
-              title: t('sidebar.fileActions.newDictionary'),
-              icon: 'file.dictionary' as const,
-            }] : []),
           ],
         },
         {
@@ -1944,26 +1955,6 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       await createProjectEntry('opencard')
       return
     }
-    if (actionKey === PROJECT_NEW_PROFILE_ACTION_KEY) {
-      await createProjectSpecialFile('.ocproject')
-      return
-    }
-    if (actionKey === PROJECT_NEW_FONT_REGISTRY_ACTION_KEY) {
-      await createProjectSpecialFile('.ocfonts')
-      return
-    }
-    if (actionKey === PROJECT_NEW_ICON_REGISTRY_ACTION_KEY) {
-      await createProjectSpecialFile('.ocicons')
-      return
-    }
-    if (actionKey === PROJECT_NEW_CUSTOM_BLOCK_REGISTRY_ACTION_KEY) {
-      await createProjectSpecialFile('.ocblocks')
-      return
-    }
-    if (actionKey === PROJECT_NEW_DICTIONARY_ACTION_KEY) {
-      await createProjectSpecialFile('.oclocale')
-      return
-    }
     if (actionKey === PROJECT_NEW_FOLDER_ACTION_KEY) {
       await createProjectEntry('folder')
       return
@@ -2007,17 +1998,6 @@ function getProjectEntryParentPath(): string {
   if (selectedEntry.isDirectory) return selectedEntry.key
   const separatorIndex = selectedEntry.key.lastIndexOf('/')
   return separatorIndex < 0 ? projectPath.value : selectedEntry.key.slice(0, separatorIndex)
-}
-
-async function createProjectSpecialFile(
-  fileName: '.ocproject' | '.ocfonts' | '.ocicons' | '.ocblocks' | '.oclocale',
-): Promise<void> {
-  if (!projectPath.value || hasRootProjectFile(fileName)) return
-  const content = fileName === '.ocblocks' ? '{\n  "blocks": []\n}\n' : '{}'
-  await createFile(fileName, content)
-  const path = `${projectPath.value}/${fileName}`
-  selectedFileKeys.value = [path]
-  await openEditorSession(path)
 }
 
 async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
@@ -2201,6 +2181,12 @@ async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
   }
 }
 
+async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
+  if (intent.type === 'selection.change') {
+    await handleProjectManagementSelect(intent.selectedKeys)
+  }
+}
+
 async function handleProjectTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'selection.change') {
     await handleFileTreeSelect(intent.selectedKeys)
@@ -2327,7 +2313,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
 
     try {
       if (kind === 'project-resource') {
-        const projectDirectory = getPathDirectory(normalizedPath)
+        const projectDirectory = getPathDirectory(getPathDirectory(normalizedPath))
         if (!projectDirectory) continue
         await openRecentProject(projectDirectory)
         await openEditorSession(normalizedPath)

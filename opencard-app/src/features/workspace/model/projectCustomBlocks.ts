@@ -1,11 +1,10 @@
 import type { CardBlock } from '../../../entities/card/model'
 import type { PropertyFieldType } from '../../../entities/card/schema'
 import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
-
-export const PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME = '.ocblocks'
+export { PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME } from './projectStructure'
 export const PROJECT_CUSTOM_BLOCK_EXTENSION = 'ocblock'
 export const PROJECT_CUSTOM_BLOCK_SUFFIX = `.${PROJECT_CUSTOM_BLOCK_EXTENSION}`
-export const DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY = 'assets/blocks'
+export const DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY = 'blocks'
 export const PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME = 'manifest.json'
 export const PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME = 'block.json'
 export const PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS = ['name', 'notes'] as const

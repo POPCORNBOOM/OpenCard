@@ -1,7 +1,7 @@
 import { createAvailableKey } from '../../../shared/model/keySlug'
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
-export const DEFAULT_PROJECT_ICON_DIRECTORY = 'assets/icons'
+export const DEFAULT_PROJECT_ICON_DIRECTORY = 'icons'
 export const PROJECT_ICON_ROTATIONS = [0, 90, 180, 270] as const
 export const PROJECT_ICON_ATLAS_ROTATIONS = [0, 90, 180, 270] as const
 

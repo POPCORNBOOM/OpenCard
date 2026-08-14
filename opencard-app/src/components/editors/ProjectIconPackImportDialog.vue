@@ -30,12 +30,6 @@
       <OcText as="span" tone="muted" size="sm">{{ t('projectConfig.icons.packCopyIntoProject') }}</OcText>
     </div>
 
-    <label v-if="selectedPath" class="project-icon-pack-dialog__field">
-      <span>{{ t('projectConfig.icons.copyDirectory') }}</span>
-      <OcFieldInput full-width mono :value="copyDirectory" :aria-invalid="!normalizedCopyDirectory"
-        @input="updateText('copyDirectory', $event)" />
-    </label>
-
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">{{ validationMessage }}</OcText>
     <OcText v-if="error || packError" tone="danger" size="sm" role="alert">{{ error || packError }}</OcText>
 
@@ -53,14 +47,13 @@ export type ProjectIconPackImportRequest = {
   packPath: string
   name: string
   key: string
-  targetDirectory: string
 }
 </script>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { createAvailableProjectIconSeriesKey, normalizeProjectIconDirectory, projectIconKeyPattern, type ProjectIconSeries } from '../../features/workspace/model/projectIcons'
+import { createAvailableProjectIconSeriesKey, projectIconKeyPattern, type ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import { readProjectIconPack, type ProjectIconPack } from '../../features/workspace/services/projectIconPack'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import OcButton from '../base/OcButton.vue'
@@ -72,7 +65,6 @@ import OcDialog from '../standard/OcDialog.vue'
 const props = withDefaults(defineProps<{
   open: boolean
   series?: readonly ProjectIconSeries[]
-  defaultDirectory: string
   defaultOpenPath?: string
   busy?: boolean
   error?: string
@@ -85,11 +77,9 @@ const { t } = useI18n()
 const selectedPath = ref('')
 const packName = ref('')
 const packKey = ref('')
-const copyDirectory = ref('')
 const pack = ref<ProjectIconPack | null>(null)
 const packError = ref('')
 
-const normalizedCopyDirectory = computed(() => normalizeProjectIconDirectory(copyDirectory.value))
 const generatedKey = computed(() => createAvailableProjectIconSeriesKey(packName.value, props.series ?? []))
 const effectiveKey = computed(() => packKey.value || generatedKey.value)
 const validKey = computed(() => projectIconKeyPattern.test(effectiveKey.value))
@@ -98,7 +88,6 @@ const uniqueKey = computed(() => !(props.series ?? []).some(series => (
 )))
 const canSubmit = computed(() => Boolean(
   pack.value && selectedPath.value && packName.value.trim() && validKey.value && uniqueKey.value
-  && normalizedCopyDirectory.value,
 ))
 const validationMessage = computed(() => {
   if (!selectedPath.value) return ''
@@ -106,7 +95,6 @@ const validationMessage = computed(() => {
   if (!packName.value.trim()) return t('projectConfig.icons.invalidPackName')
   if (!validKey.value) return t('projectConfig.icons.invalidIconSetKey')
   if (!uniqueKey.value) return t('projectConfig.icons.iconSetKeyExists')
-  if (!normalizedCopyDirectory.value) return t('projectConfig.icons.invalidCopyDirectory')
   return ''
 })
 
@@ -115,7 +103,6 @@ watch(() => props.open, open => {
   selectedPath.value = ''
   packName.value = ''
   packKey.value = ''
-  copyDirectory.value = props.defaultDirectory
   pack.value = null
   packError.value = ''
 }, { immediate: true })
@@ -141,10 +128,9 @@ async function pickIconPackFile(): Promise<void> {
   }
 }
 
-function updateText(field: 'copyDirectory' | 'name' | 'key', event: Event): void {
+function updateText(field: 'name' | 'key', event: Event): void {
   if (!(event.target instanceof HTMLInputElement)) return
-  if (field === 'copyDirectory') copyDirectory.value = event.target.value
-  else if (field === 'name') packName.value = event.target.value
+  if (field === 'name') packName.value = event.target.value
   else packKey.value = event.target.value
 }
 
@@ -153,12 +139,11 @@ function close(): void {
 }
 
 function submit(): void {
-  if (!canSubmit.value || !normalizedCopyDirectory.value) return
+  if (!canSubmit.value) return
   emit('submit', {
     packPath: selectedPath.value,
     name: packName.value.trim(),
     key: effectiveKey.value,
-    targetDirectory: normalizedCopyDirectory.value,
   })
 }
 

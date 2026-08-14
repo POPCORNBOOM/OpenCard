@@ -45,6 +45,11 @@ vi.mock('../services/fileSystemService', () => ({
     stopWatching: mocks.stopWatching,
   },
 }))
+vi.mock('../services/projectStructureService', () => ({
+  classifyProjectDirectory: vi.fn(async () => 'project'),
+  ensureProjectStructure: vi.fn(async () => undefined),
+  initializeProjectStructure: vi.fn(async () => undefined),
+}))
 vi.mock('../services/projectIconCatalog', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/projectIconCatalog')>()
   return {
@@ -123,7 +128,7 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
     store.setDirectoryExpanded('D:/project/assets', true)
 
-    const saved = await store.saveProjectConfiguration('.ocproject', JSON.stringify({
+    const saved = await store.saveProjectConfiguration('.opencard/.ocproject', JSON.stringify({
       name: 'Renamed',
       description: 'Demo cards',
       version: '1.0.0',
@@ -134,7 +139,7 @@ describe('projectStore settings actions', () => {
       description: 'Demo cards',
       version: '1.0.0',
     })
-    expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.ocproject', saved)
+    expect(mocks.writeFile).toHaveBeenLastCalledWith('D:/project/.opencard/.ocproject', saved)
 
     await store.setProjectPath('')
   })
@@ -144,7 +149,7 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('D:/project')
     const icon = { iconKey: 'same', name: '', x: 0, y: 0, width: 8, height: 8 }
 
-    await expect(store.saveProjectIconRegistry('.ocicons', JSON.stringify({
+    await expect(store.saveProjectIconRegistry('.opencard/.ocicons', JSON.stringify({
       iconSeries: [{
         key: 'status',
         source: 'assets/icons/status.png',
@@ -157,16 +162,16 @@ describe('projectStore settings actions', () => {
 
   it('loads font and icon registries independently from the profile', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.ocproject') || path.endsWith('.ocfonts') || path.endsWith('.ocicons')
+      path.endsWith('.opencard/.ocproject') || path.endsWith('.opencard/.ocfonts') || path.endsWith('.opencard/.ocicons')
     ))
     mocks.readFile.mockImplementation(async (path: string) => {
-      if (path.endsWith('.ocfonts')) {
+      if (path.endsWith('.opencard/.ocfonts')) {
         return JSON.stringify({
           fonts: [{ key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' }],
           fontSets: [{ key: 'body', name: 'Body', fontKeys: ['brand'] }],
         })
       }
-      if (path.endsWith('.ocicons')) {
+      if (path.endsWith('.opencard/.ocicons')) {
         return JSON.stringify({ iconSeries: [] })
       }
       return JSON.stringify({ name: 'Demo', fonts: { ignored: true }, iconSeries: [{ ignored: true }] })
@@ -220,13 +225,13 @@ describe('projectStore settings actions', () => {
       languages: { en_US: { title: 'English' } },
     })
     mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.ocproject') || path.endsWith('.oclocale')
+      path.endsWith('.opencard/.ocproject') || path.endsWith('.opencard/.oclocale')
     ))
     mocks.readFile.mockImplementation(async (path: string) => (
-      path.endsWith('.oclocale') ? dictionaryContent : '{"name":"Demo"}'
+      path.endsWith('.opencard/.oclocale') ? dictionaryContent : '{"name":"Demo"}'
     ))
     mocks.writeFile.mockImplementation(async (path: string, content: string) => {
-      if (path.endsWith('.oclocale')) dictionaryContent = content
+      if (path.endsWith('.opencard/.oclocale')) dictionaryContent = content
     })
 
     const store = useProjectStore()
@@ -234,7 +239,7 @@ describe('projectStore settings actions', () => {
     expect(store.resolvedProject.value?.name).toBe('Demo')
     expect(store.resolvedDictionary.value).toEqual({ title: 'English' })
 
-    const saved = await store.saveProjectDictionary('.oclocale', JSON.stringify({
+    const saved = await store.saveProjectDictionary('.opencard/.oclocale', JSON.stringify({
       base: { title: 'Changed' },
     }))
     expect(JSON.parse(saved)).toEqual({ base: { title: 'Changed' } })
@@ -246,7 +251,7 @@ describe('projectStore settings actions', () => {
 
   it('keeps the project file visible in the workspace index', async () => {
     mocks.readDirectoryEntries.mockResolvedValue([{
-      name: '.ocproject',
+      name: '.opencard/.ocproject',
       isDirectory: false,
       isFile: true,
       isSymlink: false,
@@ -255,7 +260,7 @@ describe('projectStore settings actions', () => {
 
     await store.setProjectPath('D:/project')
 
-    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.ocproject')
+    expect(store.indexedEntries.value.map((entry) => entry.name)).toContain('.opencard/.ocproject')
     expect(mocks.readDirectoryEntries).toHaveBeenCalledWith('D:/project', 2, '')
     expect(mocks.readDirectoryEntries.mock.calls.every(([, depth]) => Number.isFinite(depth))).toBe(true)
     await store.setProjectPath('')
@@ -309,7 +314,7 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
-  it('distinguishes project font files from external files and uses a custom import directory', async () => {
+  it('distinguishes project font files from external files and keeps imports under .opencard', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
 
@@ -321,10 +326,10 @@ describe('projectStore settings actions', () => {
       'D:/Downloads/Brand.woff2',
       'resources/typefaces',
     )).resolves.toEqual({ source: 'resources/typefaces/Brand.woff2', copied: true })
-    expect(mocks.createDirectory).toHaveBeenCalledWith('D:/project/resources/typefaces')
+    expect(mocks.createDirectory).toHaveBeenCalledWith('D:/project/.opencard/resources/typefaces')
     expect(mocks.copyFile).toHaveBeenCalledWith(
       'D:/Downloads/Brand.woff2',
-      'D:/project/resources/typefaces/Brand.woff2',
+      'D:/project/.opencard/resources/typefaces/Brand.woff2',
     )
 
     await store.setProjectPath('')
@@ -359,42 +364,42 @@ describe('projectStore settings actions', () => {
     )).resolves.toEqual({ source: 'assets/fonts/Brand (11).woff2', copied: true })
     expect(mocks.copyFile).toHaveBeenCalledWith(
       'D:/Downloads/Brand.woff2',
-      'D:/project/assets/fonts/Brand (11).woff2',
+      'D:/project/.opencard/assets/fonts/Brand (11).woff2',
     )
 
     await store.setProjectPath('')
   })
 
-  it('keeps project custom block packages in place and copies external packages to assets/blocks', async () => {
+  it('copies custom block packages into the managed blocks directory', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
 
     await expect(store.importProjectCustomBlockFile(
       'D:/project/library/square.ocblock',
-    )).resolves.toEqual({ source: 'library/square.ocblock', copied: false })
+    )).resolves.toEqual({ source: 'blocks/square.ocblock', copied: true })
     await expect(store.importProjectCustomBlockFile(
       'D:/Downloads/square.ocblock',
-    )).resolves.toEqual({ source: 'assets/blocks/square.ocblock', copied: true })
+    )).resolves.toEqual({ source: 'blocks/square.ocblock', copied: true })
     expect(mocks.copyFile).toHaveBeenCalledWith(
       'D:/Downloads/square.ocblock',
-      'D:/project/assets/blocks/square.ocblock',
+      'D:/project/.opencard/blocks/square.ocblock',
     )
 
     await store.setProjectPath('')
   })
 
   it('replaces a compatible same-key registration and rejects an incompatible package before copying', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocblocks'))
-    mocks.readFile.mockResolvedValue('{"blocks":["library/old-square.ocblock"]}')
+    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencard/.ocblocks'))
+    mocks.readFile.mockResolvedValue('{"blocks":["blocks/old-square.ocblock"]}')
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
 
     await expect(store.importProjectCustomBlockFile(
       'D:/Downloads/new-square.ocblock',
     )).resolves.toEqual({
-      source: 'assets/blocks/new-square.ocblock',
+      source: 'blocks/new-square.ocblock',
       copied: true,
-      replacedSource: 'library/old-square.ocblock',
+      replacedSource: 'blocks/old-square.ocblock',
     })
 
     mocks.copyFile.mockClear()
@@ -413,7 +418,7 @@ describe('projectStore settings actions', () => {
     })
     await expect(store.importProjectCustomBlockFile(
       'D:/Downloads/incompatible.ocblock',
-    )).resolves.toMatchObject({ replacedSource: 'library/old-square.ocblock' })
+    )).resolves.toMatchObject({ replacedSource: 'blocks/old-square.ocblock' })
 
     await store.setProjectPath('')
   })
@@ -425,14 +430,14 @@ describe('projectStore settings actions', () => {
     await expect(store.registerProjectCustomBlockFile(
       'D:/Downloads/square.ocblock',
     )).resolves.toMatchObject({
-      source: 'assets/blocks/square.ocblock',
+      source: 'blocks/square.ocblock',
       copied: true,
     })
 
-    const registryWrite = mocks.writeFile.mock.calls.find(([path]) => path === 'D:/project/.ocblocks')
+    const registryWrite = mocks.writeFile.mock.calls.find(([path]) => path === 'D:/project/.opencard/.ocblocks')
     expect(registryWrite).toBeDefined()
     expect(JSON.parse(registryWrite?.[1] as string)).toEqual({
-      blocks: ['assets/blocks/square.ocblock'],
+      blocks: ['blocks/square.ocblock'],
     })
     await store.setProjectPath('')
   })
@@ -440,7 +445,7 @@ describe('projectStore settings actions', () => {
   it('does not let an older custom block reload overwrite a newer catalog', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
-    mocks.fileExists.mockImplementation(async path => path.endsWith('.ocblocks'))
+    mocks.fileExists.mockImplementation(async path => path.endsWith('.opencard/.ocblocks'))
     type ManifestResult = { manifest: ReturnType<typeof packageResultForTest>['manifest'], issues: readonly never[] }
     let resolveOld: (value: ManifestResult) => void = () => undefined
     const oldPackage = new Promise<ManifestResult>(resolve => { resolveOld = resolve })
@@ -464,9 +469,9 @@ describe('projectStore settings actions', () => {
 
   it('uses the actual project package selected by use-existing', async () => {
     mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.ocblocks') || path.endsWith('/assets/blocks/square.ocblock')
+      path.endsWith('.opencard/.ocblocks') || path.endsWith('/.opencard/blocks/square.ocblock')
     ))
-    mocks.readFile.mockResolvedValue('{"blocks":["library/old-square.ocblock"]}')
+    mocks.readFile.mockResolvedValue('{"blocks":["blocks/old-square.ocblock"]}')
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     mocks.readProjectCustomBlockPackage
@@ -498,7 +503,7 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
-  it('moves a nested special file back to the project root beside a root entry', async () => {
+  it('treats a nested legacy-named file as an ordinary workspace entry', async () => {
     mocks.readDirectoryEntries.mockResolvedValue([
       { name: 'config', isDirectory: true, isFile: false, isSymlink: false },
       { name: 'config/.oclocale', isDirectory: false, isFile: true, isSymlink: false },
@@ -526,33 +531,20 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
-  it('preserves the loaded profile when moving it to trash fails', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocproject'))
+  it('protects managed project files from ordinary trash operations', async () => {
+    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencard/.ocproject'))
     mocks.readFile.mockResolvedValue('{"name":"Demo"}')
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
     expect(store.resolvedProject.value?.name).toBe('Demo')
-    mocks.trashFile.mockRejectedValueOnce(new Error('trash unavailable'))
-
-    await expect(store.trashFile('.ocproject')).rejects.toThrow('trash unavailable')
+    await expect(store.trashFile('.opencard/.ocproject'))
+      .rejects.toThrow('Managed project files cannot be moved to trash')
     expect(store.resolvedProject.value).not.toBeNull()
+    expect(mocks.trashFile).not.toHaveBeenCalled()
 
     await store.setProjectPath('')
   })
 
-  it('clears the loaded profile only after it reaches trash', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.ocproject'))
-    mocks.readFile.mockResolvedValue('{"name":"Demo"}')
-    const store = useProjectStore()
-    await store.setProjectPath('D:/project')
-    expect(store.resolvedProject.value?.name).toBe('Demo')
-
-    await store.trashFile('.ocproject')
-    expect(mocks.trashFile).toHaveBeenCalledWith('D:/project/.ocproject')
-    expect(store.resolvedProject.value).toBeNull()
-
-    await store.setProjectPath('')
-  })
 })
 
 function packageResultForTest() {

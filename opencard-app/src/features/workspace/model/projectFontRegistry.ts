@@ -1,4 +1,4 @@
-export const PROJECT_FONT_REGISTRY_FILE_NAME = '.ocfonts'
+export { PROJECT_FONT_REGISTRY_FILE_NAME } from './projectStructure'
 
 export const projectFontKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectFontSourcePattern = /\.(?:woff2?|ttf|otf)$/i

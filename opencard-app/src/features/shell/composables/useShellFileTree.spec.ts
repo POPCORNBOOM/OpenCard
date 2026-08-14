@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  PROJECT_ENTRY_RENAME_ACTION_KEY,
-  projectEntryDeleteActionKey,
   projectEntryMoreActionKey,
   useShellFileTree,
 } from './useShellFileTree'
@@ -52,98 +50,55 @@ describe('useShellFileTree opened editors', () => {
     })
   })
 
-  it('allows deletion for the root project interpretation file', () => {
+  it('hides the complete managed directory from the ordinary project tree', () => {
     const projectPath = 'D:/project'
-    const entryKey = `${projectPath}/.ocproject`
     const { projectTreeData } = useShellFileTree({
       projectPath: ref(projectPath),
       indexedEntries: ref([
-        { name: '.ocproject', isDirectory: false },
-        { name: 'cards/main.ocdocument', isDirectory: false },
-      ]),
-      openedEditorItems: ref([]),
-      activeSession: ref(null),
-      translate: key => key,
-      isDirectoryExpanded: vi.fn(() => false),
-      activateSession: vi.fn(),
-      openPreviewFile: vi.fn(async () => undefined),
-    })
-
-    expect(projectTreeData.value.items.get(entryKey)?.disabledActions?.has(
-      projectEntryDeleteActionKey(entryKey),
-    )).toBeUndefined()
-    expect(projectTreeData.value.items.get(`${projectPath}/cards/main.ocdocument`)?.disabledActions)
-      .toBeUndefined()
-  })
-
-  it('treats project metadata files as ordinary actionable tree entries', () => {
-    const path = 'D:/project/.oclocale'
-    const { projectTreeData } = useShellFileTree({
-      projectPath: ref('D:/project'),
-      indexedEntries: ref([{ name: '.oclocale', isDirectory: false }]),
-      openedEditorItems: ref([]),
-      activeSession: ref(null),
-      translate: key => key,
-      isDirectoryExpanded: vi.fn(() => false),
-      activateSession: vi.fn(),
-      openPreviewFile: vi.fn(async () => undefined),
-    })
-    expect(projectTreeData.value.items.get(path)?.actions).toEqual([projectEntryMoreActionKey(path)])
-  })
-
-  it('pins root project files with localized titles and filename tails', () => {
-    const projectPath = 'D:/project'
-    const labels: Record<string, string> = {
-      'fileTypes.opencardProjectProfile': 'Project profile',
-      'fileTypes.opencardFontRegistry': 'Font registry',
-      'fileTypes.opencardIconRegistry': 'Icon registry',
-      'fileTypes.opencardDictionary': 'Dictionary',
-      'fileTypes.opencardCustomBlockRegistry': 'Custom block registry',
-    }
-    const { projectTreeData, projectExpandedKeys, setProjectEntryExpanded } = useShellFileTree({
-      projectPath: ref(projectPath),
-      indexedEntries: ref([
-        { name: 'cards', isDirectory: true },
+        { name: '.opencard', isDirectory: true },
+        { name: '.opencard/.ocproject', isDirectory: false },
+        { name: '.opencard/fonts', isDirectory: true },
+        { name: '.opencard/fonts/Brand.otf', isDirectory: false },
         { name: 'notes.txt', isDirectory: false },
-        { name: '.oclocale', isDirectory: false },
-        { name: '.ocicons', isDirectory: false },
-        { name: '.ocfonts', isDirectory: false },
-        { name: '.ocblocks', isDirectory: false },
-        { name: '.ocproject', isDirectory: false },
-        { name: 'cards/.oclocale', isDirectory: false },
       ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
-      translate: key => labels[key] ?? key,
+      translate: key => key,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
     })
 
-    expect(projectTreeData.value.rootKeys).toEqual([
-      `${projectPath}/.ocproject`,
-      `${projectPath}/cards`,
-      `${projectPath}/notes.txt`,
-    ])
-    expect(projectTreeData.value.children.get(`${projectPath}/.ocproject`)).toEqual([
-      `${projectPath}/.ocfonts`,
-      `${projectPath}/.ocicons`,
-      `${projectPath}/.oclocale`,
-      `${projectPath}/.ocblocks`,
-    ])
-    expect(projectExpandedKeys.value).toEqual([`${projectPath}/.ocproject`])
-    expect(setProjectEntryExpanded(`${projectPath}/.ocproject`, false)).toBe(true)
-    expect(projectExpandedKeys.value).toEqual([])
-    expect(projectTreeData.value.items.get(`${projectPath}/.ocicons`)).toMatchObject({
-      label: 'Icon registry',
-      tail: '.ocicons',
-      renamable: false,
-      contextActions: expect.not.arrayContaining([PROJECT_ENTRY_RENAME_ACTION_KEY]),
+    expect(projectTreeData.value.rootKeys).toEqual([`${projectPath}/notes.txt`])
+    expect([...projectTreeData.value.items.keys()]).toEqual([`${projectPath}/notes.txt`])
+  })
+
+  it('provides fixed localized project-management entries that open managed files', async () => {
+    const projectPath = 'D:/project'
+    const openPreviewFile = vi.fn(async () => undefined)
+    const result = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([]),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      translate: key => `translated:${key}`,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile,
     })
-    expect(projectTreeData.value.items.get(`${projectPath}/cards/.oclocale`)).toMatchObject({
-      label: '.oclocale',
-      tail: undefined,
-    })
+
+    expect(result.projectManagementTreeData.value.rootKeys).toEqual([
+      `${projectPath}/.opencard/.ocproject`,
+      `${projectPath}/.opencard/.oclocale`,
+      `${projectPath}/.opencard/.ocfonts`,
+      `${projectPath}/.opencard/.ocicons`,
+      `${projectPath}/.opencard/.ocblocks`,
+    ])
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`)?.label)
+      .toBe('translated:fileTypes.opencardFontRegistry')
+
+    await result.handleProjectManagementSelect([`${projectPath}/.opencard/.ocfonts`])
+    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/.ocfonts`)
   })
 
   it('keeps selection references stable when active editor content changes', async () => {
