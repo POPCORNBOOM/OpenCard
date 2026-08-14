@@ -16,6 +16,7 @@ describe('useShellProgressTasks', () => {
       title: 'Exporting cards',
       progress: 1.5,
       weight: 0,
+      active: false,
     })
 
     expect(registry.tasks.value.find((task) => task.key === TEST_TASK_KEY)).toEqual({
@@ -23,6 +24,7 @@ describe('useShellProgressTasks', () => {
       title: 'Exporting cards',
       progress: 1,
       weight: 1,
+      active: false,
     })
 
     registry.setTask({

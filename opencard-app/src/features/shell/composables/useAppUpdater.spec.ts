@@ -52,18 +52,19 @@ describe('useAppUpdater', () => {
     expect(mocks.check).not.toHaveBeenCalled()
   })
 
-  it('exposes an available update and installs it before relaunching', async () => {
+  it('downloads an available update in the background before installing and relaunching', async () => {
     let updater: ReturnType<typeof useAppUpdater>
     const update = {
       version: '0.2.1',
       body: '# OpenCard 0.2.1',
       date: '2026-07-29T00:00:00.000Z',
-      downloadAndInstall: vi.fn(async (onEvent: (event: unknown) => void) => {
+      download: vi.fn(async (onEvent: (event: unknown) => void) => {
         onEvent({ event: 'Started', data: { contentLength: 100 } })
         onEvent({ event: 'Progress', data: { chunkLength: 40 } })
-        expect(updater.installProgress.value).toBe(0)
+        expect(updater.downloadProgress.value).toBe(0)
         onEvent({ event: 'Finished' })
       }),
+      install: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
     }
     mocks.check.mockResolvedValue(update)
@@ -78,9 +79,17 @@ describe('useAppUpdater', () => {
       pending: { version: '0.2.1', body: '# OpenCard 0.2.1' },
     })
 
-    await updater.installAvailableUpdate()
-    expect(update.downloadAndInstall).toHaveBeenCalledOnce()
-    expect(updater.installProgress.value).toBe(1)
+    await updater.downloadAvailableUpdate()
+    expect(update.download).toHaveBeenCalledOnce()
+    expect(update.install).not.toHaveBeenCalled()
+    expect(mocks.relaunch).not.toHaveBeenCalled()
+    expect(updater.downloadProgress.value).toBe(1)
+    expect(updater.isDownloaded.value).toBe(true)
+    await updater.checkForUpdate()
+    expect(mocks.check).toHaveBeenCalledOnce()
+
+    await updater.installDownloadedUpdate()
+    expect(update.install).toHaveBeenCalledOnce()
     expect(mocks.relaunch).toHaveBeenCalledOnce()
   })
 
@@ -89,8 +98,12 @@ describe('useAppUpdater', () => {
     const updater = createUpdater()
 
     updater.startDeveloperPreview()
+    expect(updater.isDeveloperPreviewDownloading.value).toBe(true)
     vi.advanceTimersByTime(140)
     expect(updater.developerPreviewProgress.value).toBe(0.04)
+    vi.advanceTimersByTime(140 * 24)
+    expect(updater.isDeveloperPreviewDownloading.value).toBe(false)
+    expect(updater.isDeveloperPreviewDownloaded.value).toBe(true)
 
     updater.dispose()
     vi.advanceTimersByTime(140)

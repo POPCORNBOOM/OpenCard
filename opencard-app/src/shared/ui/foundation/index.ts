@@ -1,6 +1,7 @@
 export {
   getOcTheme,
   deriveAccentNeighborColor,
+  getReadableForegroundColor,
   getReadableForegroundTone,
   resolveOcPixelToken,
   resolveOcThemeTokens,

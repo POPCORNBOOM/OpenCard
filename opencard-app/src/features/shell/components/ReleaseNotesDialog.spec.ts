@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import enUS from '../../../locales/en-US'
 import ReleaseNotesDialog from './ReleaseNotesDialog.vue'
 
-function mountDialog(available: boolean) {
+function mountDialog(available: boolean, downloaded = false) {
   return mount(ReleaseNotesDialog, {
     props: {
       open: true,
@@ -14,7 +14,8 @@ function mountDialog(available: boolean) {
         publishedAt: null,
       },
       available,
-      installing: false,
+      busy: false,
+      downloaded,
     },
     global: {
       plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
@@ -24,15 +25,21 @@ function mountDialog(available: boolean) {
 }
 
 describe('ReleaseNotesDialog', () => {
-  it('renders Markdown and offers installation for an available release', async () => {
+  it('renders Markdown and offers download for an available release', async () => {
     const wrapper = mountDialog(true)
 
     expect(wrapper.get('.release-notes-dialog__body h1').text()).toBe('Improvements')
-    expect(wrapper.text()).toContain('Install 0.3.0')
+    expect(wrapper.text()).toContain('Download 0.3.0')
 
     const buttons = wrapper.findAll('button')
     await buttons[buttons.length - 1]!.trigger('click')
-    expect(wrapper.emitted('install')).toHaveLength(1)
+    expect(wrapper.emitted('action')).toHaveLength(1)
+  })
+
+  it('changes the available release action to install after download', () => {
+    const wrapper = mountDialog(true, true)
+
+    expect(wrapper.text()).toContain('Install 0.3.0')
   })
 
   it('shows current release notes without an install action', () => {

@@ -160,7 +160,7 @@ import OcFloatingLayer from './OcFloatingLayer.vue'
 import OcOptionGroup, { type OcOption } from './OcOptionGroup.vue'
 import OcSlider from './OcSlider.vue'
 import {
-  getReadableForegroundTone,
+  getReadableForegroundColor,
   hexToHsva,
   hsvaToHex,
   hsvaToRgba,
@@ -317,10 +317,9 @@ const channelFields = computed<ColorChannelField[]>(() => {
   return props.allowAlpha ? [...fields, alphaField] : fields
 })
 const fieldStyle = computed<CSSProperties>(() => {
-  const foregroundTone = getReadableForegroundTone(opaqueColor.value)
   return {
     backgroundColor: displayColor.value,
-    color: foregroundTone === 'dark' ? '#24272C' : '#F1F3F5',
+    color: getReadableForegroundColor(opaqueColor.value),
   }
 })
 

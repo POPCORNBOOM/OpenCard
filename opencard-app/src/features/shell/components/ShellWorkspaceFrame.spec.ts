@@ -81,7 +81,7 @@ describe('ShellWorkspaceFrame', () => {
     await action.trigger('click')
     await flushPromises()
     document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="Export current card"]',
+      '.oc-action-menu__button[aria-label="Export current card"]',
     )?.click()
     await flushPromises()
 

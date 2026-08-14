@@ -139,7 +139,7 @@ describe('TextBlockRenderer', () => {
     const block = parseRenderReadyBlockForTest({
       id: 'project-icon-rich-text-block',
       type: 'text-block',
-      content: '<p><span data-oc-icon-series="mc-wu-pin" data-oc-icon-key="r3-c16">[[icon:mc-wu-pin/r3-c16]]</span></p>',
+      content: '<p><span data-oc-icon-path="mc-wu-pin/r3-c16"></span></p>',
     })
     const catalog = {
       series: [{ name: 'MC items', key: 'mc-wu-pin', source: 'items.png', src: 'asset://items.png', imageWidth: 400, imageHeight: 400 }],

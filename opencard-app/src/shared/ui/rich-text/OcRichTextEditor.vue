@@ -95,10 +95,6 @@
       </div>
     </div>
 
-    <OcAutocompletePopover :id="projectIconAutocompleteId" :open="projectIconCompletionOpen"
-      :anchor="projectIconCompletionAnchor" :items="projectIconSuggestions" :active-key="activeProjectIconSuggestionKey"
-      :match-anchor-width="false" :z-index="2500" @select="acceptProjectIconSuggestionByKey" />
-
     <OcFloatingLayer v-if="selectedNodeAnchor && selectedNodeKind" :open="nodeEditOpen"
       :anchor="selectedNodeAnchor" placement="top-start" :z-index="2500">
       <div class="oc-rich-text-editor__node-edit-layer">
@@ -146,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, getCurrentInstance, ref, useId, watch } from 'vue'
+import { computed, getCurrentInstance, ref, watch } from 'vue'
 import { Extension, Mark, type Editor, type JSONContent } from '@tiptap/core'
 import type { ParseRule } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -167,7 +163,6 @@ import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
-import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
 import OcActionButton, {
   type OcActionButtonAction,
@@ -191,11 +186,6 @@ import type { IconToken } from '../icon/iconRegistry'
 import { BindingNode } from './bindingNode'
 import type { RichTextBindingCompletionProvider } from './bindingNode.types'
 import { ProjectIconNode } from './projectIconNode'
-import type {
-  PropertyCompletionItem,
-  PropertyCompletionProvider,
-  PropertyCompletionResult,
-} from '../property-editor/propertyEditor.types'
 import {
   createProjectIconStyle,
   createProjectIconPreviewStyle,
@@ -221,7 +211,6 @@ type RichTextFontSelectOption = RichTextFontOption & {
 const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
-  projectIconCompletion?: PropertyCompletionProvider
   projectIconCatalog?: ProjectIconCatalog
   customBlockCatalog?: {
     catalog: DeepReadonly<ProjectCustomBlockCatalog>
@@ -247,25 +236,14 @@ const tr = (key: string, fallback: string) => translate?.(key) ?? fallback
 
 const lastEmittedValue = ref<string | null>(null)
 const toolbarRevision = ref(0)
-type ProjectIconCompletionState = PropertyCompletionResult & {
-  documentFrom: number
-  documentTo: number
-}
-const projectIconCompletionState = ref<ProjectIconCompletionState | null>(null)
-const projectIconCompletionOpen = ref(false)
-const projectIconCompletionAnchor = ref<DOMRect | null>(null)
-const activeProjectIconSuggestionKey = ref<string | null>(null)
 const loadingCustomBlockKey = ref<string | null>(null)
 const failedCustomBlockKeys = ref(new Set<string>())
 const selectedNodeEditorOpen = ref(false)
 const dialogBindingExpression = ref('')
-const dialogIconAttrs = ref<{ seriesKey: string, iconKey: string } | null>(null)
+const dialogIconPath = ref<string | null>(null)
 const dialogCustomBlockProperties = ref<Record<string, string>>({})
 const dialogCustomBlockNodeType = ref<'inlineCustomBlock' | 'blockCustomBlock'>('inlineCustomBlock')
 const dialogNodeTarget = ref<{ position: number, nodeType: string, kind: 'binding' | 'projectIcon' | 'customBlock' } | null>(null)
-const projectIconAutocompleteId = useId()
-let projectIconCompletionRequestId = 0
-let lastProjectIconCompletionSignature: string | null = null
 type ColorCommand = 'foreground' | 'background' | 'stroke'
 type ColorSnapshot = {
   content: JSONContent
@@ -378,7 +356,7 @@ function canonicalEditorHtml(value: string): string {
   return value.replace(/\bdata-oc-dynamic-style=("[^"]*"|'[^']*')/g, 'style=$1')
 }
 function visualEditorHtml(value: string): string {
-  const parsed = parseRichTextHtml(value, { allowUnresolvedBindings: true })
+  const parsed = parseRichTextHtml(value)
   if (!parsed.canEnterVisualMode || !/<[^>]+>/.test(value)) return normalizeRichTextHtml(value)
   const documentNode = new DOMParser().parseFromString(value, 'text/html')
   for (const element of Array.from(documentNode.body.querySelectorAll<HTMLElement>('[style]'))) {
@@ -424,7 +402,6 @@ const fontSizeOptions = computed(() => {
 const projectIconEntriesByActionKey = computed(() => new Map(
   (props.projectIconCatalog?.entries ?? []).map(entry => [projectIconActionKey(entry), entry]),
 ))
-const projectIconSuggestions = computed(() => projectIconCompletionState.value?.items ?? [])
 const recentProjectIconEntries = computed(() => recentProjectIconIdentities.value.flatMap(identity => {
   const entry = props.projectIconCatalog?.entries.find(candidate => (
     projectIconRecentIdentity(candidate.seriesKey, candidate.iconKey) === identity
@@ -450,14 +427,14 @@ const projectIconAction = computed<OcActionButtonAction>(() => {
   const catalog = props.projectIconCatalog
   return {
     key: 'project-icon',
-    icon: 'action.image-plus',
+    icon: 'action.project-icon-plus',
     title: selected ? '替换项目图标' : '插入项目图标',
     disabled: !catalog?.entries.length,
     children: projectIconActionChildren.value,
   }
 })
 const customBlockAction = computed<OcActionButtonAction>(() => ({
-  key: 'custom-block', icon: 'data.symbol-custom-block', title: '插入自定义块',
+  key: 'custom-block', icon: 'action.custom-block-plus', title: '插入自定义块',
   children: [...(props.customBlockCatalog?.manifests.values() ?? [])].map(item => ({
     key: `custom-block:${item.manifest.customBlockKey}`,
     title: item.manifest.name,
@@ -579,10 +556,7 @@ function openSelectedNodeEditor(): void {
   if (selectedNodeKind.value === 'binding') {
     dialogBindingExpression.value = String(selection.node.attrs.expression ?? '')
   } else if (selectedNodeKind.value === 'projectIcon') {
-    dialogIconAttrs.value = {
-      seriesKey: String(selection.node.attrs.seriesKey ?? ''),
-      iconKey: String(selection.node.attrs.iconKey ?? ''),
-    }
+    dialogIconPath.value = String(selection.node.attrs.iconPath ?? '')
   } else if (selectedNodeKind.value === 'customBlock') {
     dialogCustomBlockProperties.value = { ...(selection.node.attrs.properties as Record<string, string>) }
     dialogCustomBlockNodeType.value = selection.node.type.name === 'blockCustomBlock'
@@ -599,7 +573,7 @@ function updateDialogBindingExpression(event: Event): void {
 
 function selectDialogProjectIcon(payload: OcActionButtonSelectPayload): void {
   const entry = projectIconEntriesByActionKey.value.get(payload.key)
-  if (entry) dialogIconAttrs.value = { seriesKey: entry.seriesKey, iconKey: entry.iconKey }
+  if (entry) dialogIconPath.value = `${entry.seriesKey}/${entry.iconKey}`
 }
 
 function updateDialogCustomBlockProperty(payload: PropertyEditorMutation): void {
@@ -632,9 +606,9 @@ function confirmSelectedNodeEditor(): void {
     if (!expression) currentEditor.chain().focus().setNodeSelection(target.position).deleteSelection().run()
     else currentEditor.chain().focus().setNodeSelection(target.position)
       .updateAttributes(target.nodeType, { expression }).run()
-  } else if (target.kind === 'projectIcon' && dialogIconAttrs.value) {
+  } else if (target.kind === 'projectIcon' && dialogIconPath.value) {
     currentEditor.chain().focus().setNodeSelection(target.position)
-      .updateAttributes(target.nodeType, dialogIconAttrs.value).run()
+      .updateAttributes(target.nodeType, { iconPath: dialogIconPath.value }).run()
   } else if (target.kind === 'customBlock') {
     if (target.nodeType === dialogCustomBlockNodeType.value) {
       currentEditor.chain().focus().setNodeSelection(target.position)
@@ -651,16 +625,11 @@ function confirmSelectedNodeEditor(): void {
 
 function cancelSelectedNodeEditor(): void {
   selectedNodeEditorOpen.value = false
-  dialogIconAttrs.value = null
+  dialogIconPath.value = null
   dialogCustomBlockProperties.value = {}
   dialogCustomBlockNodeType.value = 'inlineCustomBlock'
   dialogNodeTarget.value = null
 }
-
-watch(projectIconSuggestions, suggestions => {
-  if (suggestions.some(suggestion => suggestion.key === activeProjectIconSuggestionKey.value)) return
-  activeProjectIconSuggestionKey.value = suggestions[0]?.key ?? null
-})
 
 const editor = useEditor({
   content: visualEditorHtml(props.modelValue),
@@ -698,11 +667,9 @@ const editor = useEditor({
       class: 'oc-rich-text-editor__content',
       spellcheck: 'true',
     },
-    handleKeyDown: (_view, event) => handleProjectIconCompletionKeydown(event),
     transformPasted: slice => remapPastedEmbedIds(slice),
     handleDOMEvents: {
       blur: () => {
-        closeProjectIconCompletion()
         return false
       },
     },
@@ -712,11 +679,8 @@ const editor = useEditor({
     lastEmittedValue.value = value
     emit('update:modelValue', value)
   },
-  onTransaction: ({ transaction }) => {
+  onTransaction: () => {
     toolbarRevision.value += 1
-    if (transaction.docChanged || transaction.selectionSet) {
-      queueMicrotask(() => void refreshProjectIconCompletion())
-    }
   },
 })
 
@@ -741,11 +705,6 @@ watch(() => props.modelValue, (value) => {
   const normalizedValue = visualEditorHtml(value)
   if (canonicalEditorHtml(currentEditor.getHTML()) === value) return
   currentEditor.commands.setContent(normalizedValue, false, richTextParseOptions)
-})
-
-watch(() => props.projectIconCompletion, () => {
-  lastProjectIconCompletionSignature = null
-  void refreshProjectIconCompletion()
 })
 
 function setFontFamily(value: string): void {
@@ -890,117 +849,11 @@ function projectIconActionKey(entry: Pick<ProjectIconCatalogEntry, 'seriesKey' |
   return `project-icon:${entry.seriesKey}/${entry.iconKey}`
 }
 
-function closeProjectIconCompletion(): void {
-  projectIconCompletionRequestId += 1
-  projectIconCompletionState.value = null
-  projectIconCompletionOpen.value = false
-  projectIconCompletionAnchor.value = null
-  activeProjectIconSuggestionKey.value = null
-}
-
-async function refreshProjectIconCompletion(): Promise<void> {
-  const currentEditor = editor.value
-  const provider = props.projectIconCompletion
-  const selection = currentEditor?.state.selection
-  if (!currentEditor || !provider || !selection?.empty || !selection.$from.parent.isTextblock) {
-    closeProjectIconCompletion()
-    return
-  }
-
-  const parent = selection.$from.parent
-  const parentOffset = selection.$from.parentOffset
-  const value = parent.textBetween(0, parent.content.size, '', '\ufffc')
-  const cursor = parent.textBetween(0, parentOffset, '', '\ufffc').length
-  const signature = `${selection.$from.start()}\u0000${cursor}\u0000${value}`
-  if (signature === lastProjectIconCompletionSignature) return
-  lastProjectIconCompletionSignature = signature
-  const requestId = ++projectIconCompletionRequestId
-  const result = await provider({ value, cursor })
-  if (requestId !== projectIconCompletionRequestId) return
-  if (!result?.items.length) {
-    closeProjectIconCompletion()
-    return
-  }
-
-  const parentStart = selection.$from.start()
-  projectIconCompletionState.value = {
-    ...result,
-    documentFrom: parentStart + result.replaceStart,
-    documentTo: parentStart + result.replaceEnd,
-  }
-  const editorBounds = currentEditor.view.dom.getBoundingClientRect()
-  let anchorLeft = editorBounds.left
-  let anchorTop = editorBounds.top
-  try {
-    const coordinates = currentEditor.view.coordsAtPos(selection.from)
-    anchorLeft = coordinates.left
-    anchorTop = coordinates.bottom
-  } catch {
-    // The editor can briefly lack a measurable DOM range while a dialog is opening.
-  }
-  projectIconCompletionAnchor.value = new DOMRect(anchorLeft, anchorTop, 0, 0)
-  projectIconCompletionOpen.value = true
-  activeProjectIconSuggestionKey.value = result.items[0]?.key ?? null
-}
-
-function acceptProjectIconSuggestionByKey(key: string): void {
-  const suggestion = projectIconSuggestions.value.find(item => item.key === key)
-  if (suggestion) acceptProjectIconSuggestion(suggestion)
-}
-
-function acceptProjectIconSuggestion(suggestion: PropertyCompletionItem): void {
-  const currentEditor = editor.value
-  const state = projectIconCompletionState.value
-  if (!currentEditor || !state) return
-  const entry = projectIconEntriesByActionKey.value.get(suggestion.key)
-  if (entry) {
-    const content = createProjectIconContent(currentEditor, entry, state.documentFrom)
-    currentEditor.chain().focus()
-      .insertContentAt({ from: state.documentFrom, to: state.documentTo }, content)
-      .run()
-    rememberRecentProjectIcon(entry.seriesKey, entry.iconKey)
-    closeProjectIconCompletion()
-    return
-  }
-
-  currentEditor.chain().focus()
-    .insertContentAt({ from: state.documentFrom, to: state.documentTo }, suggestion.insertText)
-    .run()
-  if (!suggestion.keepOpen) closeProjectIconCompletion()
-}
-
-function handleProjectIconCompletionKeydown(event: KeyboardEvent): boolean {
-  const suggestions = projectIconSuggestions.value
-  if (!projectIconCompletionOpen.value || suggestions.length === 0) return false
-  const activeIndex = Math.max(0, suggestions.findIndex(item => item.key === activeProjectIconSuggestionKey.value))
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    event.preventDefault()
-    const direction = event.key === 'ArrowDown' ? 1 : -1
-    const nextIndex = (activeIndex + direction + suggestions.length) % suggestions.length
-    activeProjectIconSuggestionKey.value = suggestions[nextIndex]?.key ?? null
-    return true
-  }
-  if (event.key === 'Enter' || event.key === 'Tab') {
-    event.preventDefault()
-    if (activeProjectIconSuggestionKey.value) {
-      acceptProjectIconSuggestionByKey(activeProjectIconSuggestionKey.value)
-    }
-    return true
-  }
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    closeProjectIconCompletion()
-    return true
-  }
-  return false
-}
-
 function selectedProjectIconEntry(): ProjectIconCatalogEntry | null {
   const currentEditor = editor.value
   const selection = currentEditor?.state.selection
   if (!currentEditor || !(selection instanceof NodeSelection) || selection.node.type.name !== 'projectIcon') return null
-  const seriesKey = String(selection.node.attrs.seriesKey ?? '')
-  const iconKey = String(selection.node.attrs.iconKey ?? '')
+  const [seriesKey, iconKey] = String(selection.node.attrs.iconPath ?? '').split('/')
   return props.projectIconCatalog?.entries.find(entry => (
     entry.seriesKey.toLocaleLowerCase() === seriesKey.toLocaleLowerCase()
     && entry.iconKey.toLocaleLowerCase() === iconKey.toLocaleLowerCase()
@@ -1019,7 +872,7 @@ function insertRecentProjectIcon(entry: ProjectIconCatalogEntry): void {
 function insertProjectIconEntry(entry: ProjectIconCatalogEntry): void {
   const currentEditor = editor.value
   if (!currentEditor) return
-  const attrs = { seriesKey: entry.seriesKey, iconKey: entry.iconKey }
+  const attrs = { iconPath: `${entry.seriesKey}/${entry.iconKey}` }
   if (selectedProjectIconEntry()) {
     const position = currentEditor.state.selection.from
     currentEditor.chain().focus().updateAttributes('projectIcon', attrs).setNodeSelection(position).run()
@@ -1038,7 +891,7 @@ function createProjectIconContent(
       ?? currentEditor.state.doc.resolve(sourcePosition).marks())
   return {
     type: 'projectIcon',
-    attrs: { seriesKey: entry.seriesKey, iconKey: entry.iconKey },
+    attrs: { iconPath: `${entry.seriesKey}/${entry.iconKey}` },
     ...(marks.length > 0 ? { marks: marks.map(mark => mark.toJSON()) } : {}),
   }
 }

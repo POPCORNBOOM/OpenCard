@@ -38,7 +38,7 @@ describe('ShellSidebar list actions', () => {
     await action.trigger('click')
     await flushPromises()
     document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="OpenCard (.ocdocument)"]',
+      '.oc-action-menu__button[aria-label="OpenCard (.ocdocument)"]',
     )?.click()
     await flushPromises()
 
@@ -46,5 +46,21 @@ describe('ShellSidebar list actions', () => {
       'project-files',
       'project.new-file.ocdocument',
     ]])
+  })
+
+  it('uses the same medium icon size as sidebar trees for primary buttons', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        headButtons: [{ key: 'open', title: 'Open', icon: 'status.folder-open' }],
+        tailButtons: [{ key: 'settings', title: 'Settings', icon: 'tool.settings' }],
+        bodyLists: [],
+      },
+    })
+
+    const icons = wrapper.findAll('.shell-sidebar-button .oc-icon')
+    expect(icons).toHaveLength(2)
+    expect(icons.every(icon => icon.classes().includes('oc-icon--md'))).toBe(true)
   })
 })

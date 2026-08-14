@@ -103,7 +103,22 @@ describe('useShellCloseCoordinator', () => {
     await coordinator.requestApplicationClose()
 
     expect(flushAffectedSessions).toHaveBeenCalledWith([first.id, second.id])
-    expect(completions.application).toHaveBeenCalledTimes(1)
+    expect(completions.application).toHaveBeenCalledWith('close')
+  })
+
+  it('preserves update installation as the application close completion', async () => {
+    const session = createSession('dirty', { isDirty: true })
+    const { coordinator, completions } = createCoordinator([session])
+
+    await coordinator.requestApplicationClose('install-update')
+
+    expect(coordinator.pendingIntent.value?.applicationAction).toBe('install-update')
+    expect(completions.application).not.toHaveBeenCalled()
+
+    coordinator.markSelectedDiscard()
+    await coordinator.confirm()
+
+    expect(completions.application).toHaveBeenCalledWith('install-update')
   })
 
   it('selects only sessions at or below the trashed path', async () => {

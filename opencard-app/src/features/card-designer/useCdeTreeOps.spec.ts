@@ -271,4 +271,136 @@ describe('useCdeTreeOps active face boundary', () => {
     })
     expect(packagedContainer.children).toHaveLength(0)
   })
+
+  it('moves selected roots from different parents in visual order as one action', () => {
+    const document = createDocument()
+    const left = createSimpleContainerBlock({
+      id: 'left',
+      children: [{
+        block: createTextBlock({ id: 'left-child' }),
+        location: { id: 'left-child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    const right = createFlowContainerBlock({
+      id: 'right',
+      children: [{
+        block: createTextBlock({ id: 'right-child' }),
+        location: { id: 'right-child-location', type: 'flow-container-location', index: '0' },
+      }],
+    })
+    const target = createFlowContainerBlock({ id: 'target' })
+    document.faces.front.children = [left, right, target].map(block => ({
+      block,
+      location: { id: `${block.id}-location`, type: 'simple-container-location' as const, anchor: 'lt' as const },
+    }))
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const selectedBlockKeys = ref(['right-child', 'left-child'])
+    const refreshDocumentState = vi.fn(() => {
+      documentRevision.value += 1
+      parentLookup.value = buildParentLookup(document)
+    })
+    const markDocumentChanged = vi.fn()
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState,
+      markDocumentChanged,
+    })
+
+    state.handleTreeIntent({ type: 'move.request', key: 'left-child', targetKey: 'target', position: 'inside' })
+
+    expect(left.children).toEqual([])
+    expect(right.children).toEqual([])
+    expect(target.children.map(child => child.block.id)).toEqual(['left-child', 'right-child'])
+    expect(target.children.map(child => child.location)).toMatchObject([
+      { type: 'flow-container-location', index: '0' },
+      { type: 'flow-container-location', index: '1' },
+    ])
+    expect(selectedBlockKeys.value).toEqual(['right-child', 'left-child'])
+    expect(refreshDocumentState).toHaveBeenCalledTimes(1)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('adjusts same-parent insertion and applies selected-node context delete to the batch', () => {
+    const document = createDocument()
+    document.faces.front.children = ['a', 'b', 'c', 'd'].map(id => ({
+      block: createTextBlock({ id }),
+      location: { id: `${id}-location`, type: 'simple-container-location' as const, anchor: 'lt' as const },
+    }))
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const selectedBlockKeys = ref(['b', 'c'])
+    const refreshDocumentState = vi.fn(() => {
+      documentRevision.value += 1
+      parentLookup.value = buildParentLookup(document)
+    })
+    const markDocumentChanged = vi.fn()
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState,
+      markDocumentChanged,
+    })
+
+    state.handleTreeIntent({ type: 'move.request', key: 'c', targetKey: 'a', position: 'before' })
+    expect(document.faces.front.children.map(entry => entry.block.id)).toEqual(['b', 'c', 'a', 'd'])
+    expect(selectedBlockKeys.value).toEqual(['b', 'c'])
+
+    state.handleTreeIntent({ type: 'action.invoke', key: 'b', actionKey: 'delete', source: 'context' })
+    expect(document.faces.front.children.map(entry => entry.block.id)).toEqual(['a', 'd'])
+    expect(selectedBlockKeys.value).toEqual([])
+    expect(refreshDocumentState).toHaveBeenCalledTimes(2)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(2)
+  })
+
+  it('deduplicates selected descendants for delete and rejects drops into the selected subtree', () => {
+    const document = createDocument()
+    const child = createTextBlock({ id: 'child' })
+    const container = createSimpleContainerBlock({
+      id: 'container',
+      children: [{
+        block: child,
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    const sibling = createTextBlock({ id: 'sibling' })
+    document.faces.front.children = [container, sibling].map(block => ({
+      block,
+      location: { id: `${block.id}-location`, type: 'simple-container-location' as const, anchor: 'lt' as const },
+    }))
+    const documentRevision = ref(0)
+    const parentLookup = ref(buildParentLookup(document))
+    const selectedBlockKeys = ref(['container', 'child'])
+    const refreshDocumentState = vi.fn(() => {
+      documentRevision.value += 1
+      parentLookup.value = buildParentLookup(document)
+    })
+    const markDocumentChanged = vi.fn()
+    const state = useCdeTreeOps({
+      activeFace: ref(document.faces.front),
+      documentRevision,
+      parentLookup,
+      selectedBlockKeys,
+      getDefaultBlockName: type => type,
+      refreshDocumentState,
+      markDocumentChanged,
+    })
+
+    state.handleTreeIntent({ type: 'move.request', key: 'child', targetKey: 'child', position: 'inside' })
+    expect(document.faces.front.children.map(entry => entry.block.id)).toEqual(['container', 'sibling'])
+    expect(refreshDocumentState).not.toHaveBeenCalled()
+
+    state.handleRootAction('delete-selected')
+    expect(document.faces.front.children.map(entry => entry.block.id)).toEqual(['sibling'])
+    expect(selectedBlockKeys.value).toEqual([])
+    expect(refreshDocumentState).toHaveBeenCalledTimes(1)
+    expect(markDocumentChanged).toHaveBeenCalledTimes(1)
+  })
 })

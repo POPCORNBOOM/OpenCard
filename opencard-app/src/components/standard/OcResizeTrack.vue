@@ -17,6 +17,7 @@
       :maximum="props.maximum"
       :value="props.value"
       :label="props.label"
+      :tooltip="props.tooltip"
       :orientation="props.orientation"
       :direction="props.direction"
       :step="props.step"
@@ -46,6 +47,7 @@ const props = withDefaults(defineProps<{
   maximum: number
   value: number
   label: string
+  tooltip?: string
   orientation?: ResizeOrientation
   direction?: ResizeDirection
   edge?: ResizeEdge
@@ -57,6 +59,7 @@ const props = withDefaults(defineProps<{
   direction: 'normal',
   edge: undefined,
   placement: 'center',
+  tooltip: undefined,
   step: 16,
   disabled: false,
 })

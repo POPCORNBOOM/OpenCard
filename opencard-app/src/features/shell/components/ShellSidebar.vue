@@ -124,7 +124,7 @@ function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'aut
         :data-tooltip="button.hoverTip || null"
         @click="emit('head-button-clicked', button.key)"
       >
-        <OcIcon v-if="button.icon" :name="button.icon" size="sm" />
+        <OcIcon v-if="button.icon" :name="button.icon" size="md" />
         <span v-if="!collapsed">{{ button.title }}</span>
       </button>
     </div>
@@ -172,7 +172,7 @@ function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'aut
         :data-tooltip="button.hoverTip || null"
         @click="emit('tail-button-clicked', button.key)"
       >
-        <OcIcon v-if="button.icon" :name="button.icon" size="sm" />
+        <OcIcon v-if="button.icon" :name="button.icon" size="md" />
         <span v-if="!collapsed">{{ button.title }}</span>
       </button>
     </div>

@@ -1,3 +1,5 @@
+import { parseProjectIconPath } from './projectIconReference'
+
 const allowedTags = new Set([
   'B', 'BR', 'COL', 'COLGROUP', 'EM', 'I', 'LI', 'MARK', 'OL', 'P', 'S', 'SPAN',
   'STRIKE', 'STRONG', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'U', 'UL',
@@ -7,7 +9,7 @@ const allowedTags = new Set([
 const blockedTags = new Set(['IFRAME', 'OBJECT', 'SCRIPT', 'STYLE', 'TEMPLATE'])
 const allowedStyleProperties = [
   'background-color', 'color', 'font-family', 'font-size', 'text-align',
-  '-webkit-text-stroke-color', '-webkit-text-stroke-width',
+  '-webkit-text-stroke', '-webkit-text-stroke-color', '-webkit-text-stroke-width',
 ] as const
 const tableStyleProperties = ['min-width', 'width'] as const
 const keyPattern = /^[a-z0-9][a-z0-9._-]*$/i
@@ -19,7 +21,7 @@ const tableParents: Readonly<Record<string, ReadonlySet<string>>> = {
 }
 
 export type RichTextDiagnosticCode =
-  | 'unsupported-tag' | 'unsupported-attribute' | 'invalid-style' | 'invalid-structure'
+  | 'unsupported-tag' | 'invalid-structure'
   | 'invalid-custom-block' | 'duplicate-embed-id'
 
 export type RichTextDiagnostic = {
@@ -47,7 +49,6 @@ export type RichTextNode = RichTextTextNode | RichTextElementNode | RichTextIcon
 export type RichTextDocument = { html: string, children: readonly RichTextNode[] }
 export type RichTextParseContext = {
   resolveCustomBlock?: (key: string) => { publicFieldKeys: readonly string[] } | null | undefined
-  allowUnresolvedBindings?: boolean
 }
 export type RichTextParseResult = {
   document: RichTextDocument
@@ -71,70 +72,28 @@ function pushDiagnostic(diagnostics: RichTextDiagnostic[], element: Element, cod
   diagnostics.push({ code, path: elementPath(element), message })
 }
 
-function isSafeCssValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase()
-  if (!normalized || /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|data\s*:/i.test(normalized)) return false
-  if (/[{}<>\u0000-\u001f]/.test(value)) return false
-  return !/@import|behavior\s*:|-moz-binding/i.test(normalized)
-}
-
 export function parseRichTextHtml(source: string, context: RichTextParseContext = {}): RichTextParseResult {
   const documentNode = new DOMParser().parseFromString(source, 'text/html')
   const diagnostics: RichTextDiagnostic[] = []
   const embedIds = new Set<string>()
 
   for (const element of Array.from(documentNode.body.querySelectorAll('*'))) {
-    if (!allowedTags.has(element.tagName)) {
+    if (element.tagName === 'SCRIPT') {
       pushDiagnostic(diagnostics, element, 'unsupported-tag', `Unsupported <${element.tagName.toLowerCase()}> element`)
       continue
     }
+    if (!allowedTags.has(element.tagName)) continue
     const expectedParents = tableParents[element.tagName]
     if (expectedParents && !expectedParents.has(element.parentElement?.tagName ?? '')) {
       pushDiagnostic(diagnostics, element, 'invalid-structure', `Invalid <${element.tagName.toLowerCase()}> parent`)
     }
 
-    const allowedAttributes = new Set<string>()
-    if (element.tagName === 'SPAN' && element.hasAttribute('data-oc-binding')) allowedAttributes.add('data-oc-binding')
-    if (element.tagName === 'SPAN' && element.hasAttribute('data-oc-icon-series')) {
-      allowedAttributes.add('data-oc-icon-series'); allowedAttributes.add('data-oc-icon-key')
-    }
-    if (element.tagName === 'OC-CUSTOM-BLOCK') {
-      allowedAttributes.add('data-oc-id'); allowedAttributes.add('data-oc-key'); allowedAttributes.add('data-oc-layout')
-    }
-    if (element.tagName === 'OC-PROP') allowedAttributes.add('data-oc-key')
-    if (element.tagName === 'COL' || element.tagName === 'TABLE') allowedAttributes.add('style')
-    if (['P', 'SPAN', 'MARK'].includes(element.tagName)) allowedAttributes.add('style')
     if (['TH', 'TD'].includes(element.tagName)) {
-      allowedAttributes.add('colspan'); allowedAttributes.add('rowspan')
       for (const name of ['colspan', 'rowspan']) {
         const value = element.getAttribute(name)
         if (value !== null && value !== '1') pushDiagnostic(diagnostics, element, 'invalid-structure', 'Merged table cells are not supported')
       }
     }
-
-    for (const attribute of Array.from(element.attributes)) {
-      if (!allowedAttributes.has(attribute.name)) {
-        pushDiagnostic(diagnostics, element, 'unsupported-attribute', `Unsupported ${attribute.name} attribute`)
-      }
-    }
-    const rawStyle = element.getAttribute('style') ?? ''
-    if (!context.allowUnresolvedBindings && (rawStyle.includes('{{') || rawStyle.includes('}}'))) {
-      pushDiagnostic(diagnostics, element, 'invalid-style', 'Bindings are not supported inside style attributes')
-    }
-    if (rawStyle && !rawStyle.includes('{{') && !rawStyle.includes('}}')) {
-      const allowed = new Set<string>(element.tagName === 'TABLE' || element.tagName === 'COL'
-        ? tableStyleProperties : allowedStyleProperties)
-      const declarations = rawStyle.split(';').map(item => item.trim()).filter(Boolean)
-      for (const declaration of declarations) {
-        const colon = declaration.indexOf(':')
-        const property = colon > 0 ? declaration.slice(0, colon).trim().toLowerCase() : ''
-        const cssValue = property ? (element as HTMLElement).style.getPropertyValue(property) : ''
-        if (!allowed.has(property) || !isSafeCssValue(cssValue)) {
-          pushDiagnostic(diagnostics, element, 'invalid-style', `Unsupported or invalid ${property || 'style'} declaration`)
-        }
-      }
-    }
-
     if (element.tagName === 'OC-CUSTOM-BLOCK') {
       const id = element.getAttribute('data-oc-id')?.trim() ?? ''
       const key = element.getAttribute('data-oc-key')?.trim() ?? ''
@@ -165,11 +124,12 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
   function toNode(node: Node): RichTextNode | null {
     if (node instanceof Text) return { type: 'text', value: node.data }
     if (!(node instanceof Element) || !allowedTags.has(node.tagName) || node.tagName === 'OC-PROP') return null
-    if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-series')) {
+    if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-path')) {
+      const reference = parseProjectIconPath(node.getAttribute('data-oc-icon-path') ?? '')
       return {
         type: 'icon',
-        seriesKey: node.getAttribute('data-oc-icon-series') ?? '',
-        iconKey: node.getAttribute('data-oc-icon-key') ?? '',
+        seriesKey: reference?.seriesKey ?? '',
+        iconKey: reference?.iconKey ?? '',
       }
     }
     if (node.tagName === 'OC-CUSTOM-BLOCK') {
@@ -247,8 +207,7 @@ export function sanitizeRichTextHtml(source: string): string {
     const styleValues = Object.fromEntries(allowedStyleProperties.map(property => [property, (element as HTMLElement).style.getPropertyValue(property)]))
     styleValues['font-family'] = normalizeProjectFontFamilyStyle(styleValues['font-family'])
     const bindingExpression = element.tagName === 'SPAN' ? sanitizeBindingExpression(element.getAttribute('data-oc-binding')) : null
-    const iconSeries = element.tagName === 'SPAN' ? sanitizeKey(element.getAttribute('data-oc-icon-series')) : null
-    const iconKey = element.tagName === 'SPAN' ? sanitizeKey(element.getAttribute('data-oc-icon-key')) : null
+    const iconPath = element.tagName === 'SPAN' ? sanitizeIconPath(element.getAttribute('data-oc-icon-path')) : null
     const embed = element.tagName === 'OC-CUSTOM-BLOCK' ? {
       id: sanitizeEmbedId(element.getAttribute('data-oc-id')), key: sanitizeKey(element.getAttribute('data-oc-key')),
       layout: element.getAttribute('data-oc-layout') === 'block' ? 'block' : 'inline',
@@ -258,13 +217,13 @@ export function sanitizeRichTextHtml(source: string): string {
     for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name)
     for (const property of allowedStyleProperties) {
       const value = styleValues[property]
-      if (value && !(iconSeries && iconKey)) (element as HTMLElement).style.setProperty(property, value)
+      if (value && !iconPath) (element as HTMLElement).style.setProperty(property, value)
     }
     if (columnWidth) (element as HTMLElement).style.width = columnWidth
     if (bindingExpression !== null) element.setAttribute('data-oc-binding', bindingExpression)
-    if (iconSeries && iconKey) {
-      element.setAttribute('data-oc-icon-series', iconSeries); element.setAttribute('data-oc-icon-key', iconKey)
-      element.textContent = `[[icon:${iconSeries}/${iconKey}]]`
+    if (iconPath) {
+      element.setAttribute('data-oc-icon-path', iconPath)
+      element.replaceChildren()
     }
     if (embed?.id && embed.key) {
       element.setAttribute('data-oc-id', embed.id); element.setAttribute('data-oc-key', embed.key); element.setAttribute('data-oc-layout', embed.layout)
@@ -287,6 +246,10 @@ function sanitizeBindingExpression(value: string | null): string | null {
   const expression = value.trim()
   return /[{}<>\u0000-\u001f\u007f]/.test(expression) ? null : expression
 }
+function sanitizeIconPath(value: string | null): string | null {
+  const path = value?.trim() ?? ''
+  return parseProjectIconPath(path) || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
+}
 function sanitizeKey(value: string | null): string | null { const key = value?.trim() ?? ''; return keyPattern.test(key) ? key : null }
 function sanitizeEmbedId(value: string | null): string | null { const id = value?.trim() ?? ''; return embedIdPattern.test(id) ? id : null }
 
@@ -307,7 +270,7 @@ export function normalizeRichTextHtml(source: string): string {
 }
 
 export function formatRichTextHtmlSource(source: string): string {
-  const parsed = parseRichTextHtml(source, { allowUnresolvedBindings: true })
+  const parsed = parseRichTextHtml(source)
   const value = parsed.canEnterVisualMode && /<[^>]+>/.test(source) ? source : normalizeRichTextHtml(source)
   const documentNode = new DOMParser().parseFromString(value, 'text/html')
   // Formatting whitespace between block nodes becomes real text when Tiptap preserves whitespace.

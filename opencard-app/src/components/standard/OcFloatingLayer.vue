@@ -1,15 +1,17 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="open && anchor"
-      ref="floatingRef"
-      class="oc-floating-layer"
-      :style="layerStyle"
-      :data-placement="resolvedPlacement"
-      v-bind="$attrs"
-    >
-      <slot />
-    </div>
+    <Transition name="oc-floating-layer-fade" appear>
+      <div
+        v-if="open && anchor"
+        ref="floatingRef"
+        class="oc-floating-layer"
+        :style="layerStyle"
+        :data-placement="resolvedPlacement"
+        v-bind="$attrs"
+      >
+        <slot />
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -102,5 +104,22 @@ const layerStyle = computed<CSSProperties>(() => ({
   background-clip: padding-box;
   border-radius: var(--oc-floating-layer-radius, var(--oc-radius-md, 6px));
   isolation: isolate;
+}
+
+.oc-floating-layer-fade-enter-active,
+.oc-floating-layer-fade-leave-active {
+  transition: opacity var(--oc-duration-fast) var(--oc-ease);
+}
+
+.oc-floating-layer-fade-enter-from,
+.oc-floating-layer-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-floating-layer-fade-enter-active,
+  .oc-floating-layer-fade-leave-active {
+    transition: none;
+  }
 }
 </style>

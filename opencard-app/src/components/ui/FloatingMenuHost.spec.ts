@@ -85,7 +85,7 @@ describe('FloatingMenuHost pointer dismissal', () => {
     }
 
     const leafButton = document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="Leaf"]',
+      '.oc-action-menu__button[aria-label="Leaf"]',
     )
     expect(leafButton).not.toBeNull()
     leafButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))

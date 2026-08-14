@@ -44,9 +44,10 @@ const taskPanelAnchor = ref<HTMLElement | null>(null);
 const taskPanelOpen = ref(false);
 const menuAnchors = new Map<string, HTMLElement>();
 let taskPanelCloseTimer: number | null = null;
+const activeProgressTasks = computed(() => (props.tasks ?? []).filter(task => task.active !== false));
 const titlebarProgress = computed(() => {
-  if (!props.tasks?.length) return null;
-  const totals = props.tasks.reduce((result, task) => {
+  if (activeProgressTasks.value.length === 0) return null;
+  const totals = activeProgressTasks.value.reduce((result, task) => {
     const weight = Number.isFinite(task.weight) && (task.weight ?? 0) > 0 ? task.weight! : 1;
     result.progress += Math.min(1, Math.max(0, task.progress)) * weight;
     result.weight += weight;

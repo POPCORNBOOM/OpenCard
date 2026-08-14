@@ -166,7 +166,7 @@ describe('OcActionButton', () => {
     await new Promise((resolve) => window.setTimeout(resolve, 120))
     await flushPromises()
     const revealButton = document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="Reveal in File Manager"]',
+      '.oc-action-menu__button[aria-label="Reveal in File Manager"]',
     )
     expect(revealButton).not.toBeNull()
 
@@ -224,7 +224,7 @@ describe('OcActionButton', () => {
     expect(document.body.querySelectorAll('.oc-action-menu')).toHaveLength(4)
 
     const confirmButton = document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="Confirm Delete"]',
+      '.oc-action-menu__button[aria-label="Confirm Delete"]',
     )
     expect(confirmButton).not.toBeNull()
     confirmButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))

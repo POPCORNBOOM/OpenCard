@@ -52,6 +52,12 @@ function normalizeThemeId(themeId: string): OcThemeId {
 
 type Rgb = readonly [number, number, number]
 
+const DARK_READABLE_FOREGROUND: Rgb = [31, 36, 48]
+const LIGHT_READABLE_FOREGROUND: Rgb = [245, 242, 255]
+const RGB_BLACK: Rgb = [0, 0, 0]
+const RGB_WHITE: Rgb = [255, 255, 255]
+const FOREGROUND_THEME_BIAS = 1.2
+
 function parseHex(value: string): Rgb | null {
   if (!/^#[0-9a-f]{6}$/i.test(value)) return null
   return [1, 3, 5].map(index => Number.parseInt(value.slice(index, index + 2), 16)) as unknown as Rgb
@@ -73,11 +79,26 @@ function luminance(channels: Rgb): number {
   return red! * 0.2126 + green! * 0.7152 + blue! * 0.0722
 }
 
-export function getReadableForegroundTone(value: string): 'dark' | 'light' {
-  const color = parseHex(value) ?? [0, 0, 0]
-  const dark: Rgb = [31, 36, 48]
-  const light: Rgb = [245, 242, 255]
-  return contrast(dark, color) >= contrast(light, color) ? 'dark' : 'light'
+export function getReadableForegroundTone(
+  value: string,
+  themeId: OcThemeId = currentTheme,
+): 'dark' | 'light' {
+  const color = parseHex(value) ?? RGB_BLACK
+  const darkContrast = contrast(DARK_READABLE_FOREGROUND, color)
+  const lightContrast = contrast(LIGHT_READABLE_FOREGROUND, color)
+  if (themeId === 'light') {
+    return lightContrast * FOREGROUND_THEME_BIAS >= darkContrast ? 'light' : 'dark'
+  }
+  return darkContrast * FOREGROUND_THEME_BIAS >= lightContrast ? 'dark' : 'light'
+}
+
+export function getReadableForegroundColor(
+  value: string,
+  themeId: OcThemeId = currentTheme,
+): string {
+  return toHex(getReadableForegroundTone(value, themeId) === 'dark'
+    ? DARK_READABLE_FOREGROUND
+    : LIGHT_READABLE_FOREGROUND)
 }
 
 function contrast(left: Rgb, right: Rgb): number {
@@ -123,20 +144,14 @@ export function deriveAccentNeighborColor(value: string, angleDegrees = -50): st
 
 function readableAccent(accent: Rgb, background: Rgb): string {
   if (contrast(accent, background) >= 4.5) return toHex(accent)
-  const dark: Rgb = [31, 36, 48]
-  const light: Rgb = [245, 242, 255]
-  const target = contrast(dark, background) >= contrast(light, background) ? dark : light
+  const target = contrast(DARK_READABLE_FOREGROUND, background) >= contrast(LIGHT_READABLE_FOREGROUND, background)
+    ? DARK_READABLE_FOREGROUND
+    : LIGHT_READABLE_FOREGROUND
   for (let amount = 0.1; amount <= 1; amount += 0.1) {
     const candidate = mix(accent, target, amount)
     if (contrast(candidate, background) >= 4.5) return toHex(candidate)
   }
   return toHex(target)
-}
-
-function accentForeground(accent: Rgb): string {
-  const dark: Rgb = [31, 36, 48]
-  const light: Rgb = [245, 242, 255]
-  return toHex(contrast(dark, accent) >= contrast(light, accent) ? dark : light)
 }
 
 export function resolveOcThemeTokens(
@@ -164,15 +179,14 @@ export function resolveOcThemeTokens(
   const foregroundValue = tokens['--oc-fg-default']
   const base = parseHex(baseValue)
   const foreground = parseHex(foregroundValue)
-  const usesLightForeground = getReadableForegroundTone(baseValue) === 'light'
-  const white: Rgb = [255, 255, 255]
+  const usesLightForeground = getReadableForegroundTone(baseValue, themeId) === 'light'
 
   if (base && overrides['--oc-bg-base']) {
-    tokens['--oc-bg-surface'] = toHex(mix(base, white, usesLightForeground ? 0.045 : 0.7))
+    tokens['--oc-bg-surface'] = toHex(mix(base, RGB_WHITE, usesLightForeground ? 0.045 : 0.7))
     const surface = parseHex(tokens['--oc-bg-surface'])!
     tokens['--oc-bg-block'] = toHex(mix(base, surface, 0.5))
-    tokens['--oc-bg-raised'] = toHex(mix(base, white, usesLightForeground ? 0.09 : 0.35))
-    tokens['--oc-bg-input'] = toHex(mix(base, white, usesLightForeground ? 0.14 : 0.72))
+    tokens['--oc-bg-raised'] = toHex(mix(base, RGB_WHITE, usesLightForeground ? 0.09 : 0.35))
+    tokens['--oc-bg-input'] = toHex(mix(base, RGB_WHITE, usesLightForeground ? 0.14 : 0.72))
   }
 
   if (base && foreground && (overrides['--oc-bg-base'] || overrides['--oc-fg-default'])) {
@@ -193,13 +207,18 @@ export function resolveOcThemeTokens(
   tokens['--oc-accent-neighbor'] = deriveAccentNeighborColor(accentValue, accentNeighborAngle)
   if (accent) {
     const accentSurface = parseHex(tokens['--oc-bg-surface']) ?? base!
+    const accentForegroundTone = getReadableForegroundTone(accentValue, themeId)
     tokens['--oc-bg-active'] = withAlpha(accentValue, usesLightForeground ? 0.22 : 0.18)
     tokens['--oc-bg-selected'] = withAlpha(accentValue, usesLightForeground ? 0.16 : 0.12)
     tokens['--oc-bg-accent'] = accentValue
-    tokens['--oc-bg-accent-hover'] = withAlpha(accentValue, usesLightForeground ? 0.92 : 0.84)
+    tokens['--oc-bg-accent-hover'] = toHex(mix(
+      accent,
+      accentForegroundTone === 'light' ? RGB_BLACK : RGB_WHITE,
+      0.08,
+    ))
     tokens['--oc-bg-accent-subtle'] = withAlpha(accentValue, usesLightForeground ? 0.12 : 0.1)
     tokens['--oc-border-accent'] = accentValue
-    tokens['--oc-accent-fg'] = accentForeground(accent)
+    tokens['--oc-accent-fg'] = getReadableForegroundColor(accentValue, themeId)
     tokens['--oc-accent-glow'] = withAlpha(accentValue, usesLightForeground ? 0.28 : 0.35)
     tokens['--oc-fg-accent'] = readableAccent(accent, accentSurface)
     tokens['--oc-icon-accent'] = tokens['--oc-fg-accent']

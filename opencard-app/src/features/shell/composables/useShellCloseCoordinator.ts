@@ -7,6 +7,7 @@ import type {
 import type { ProjectCloseDestination } from '../shellPage'
 import {
   useUnsavedSessionGuard,
+  type ApplicationCloseAction,
   type UnsavedCloseIntent,
 } from './useUnsavedSessionGuard'
 
@@ -16,7 +17,7 @@ type ShellCloseCompletions = {
   sessions: (sessionIds: readonly string[]) => CloseResult
   project: (destination: ProjectCloseDestination) => CloseResult
   trash: (path: string) => CloseResult
-  application: () => CloseResult
+  application: (action: ApplicationCloseAction) => CloseResult
 }
 
 type UseShellCloseCoordinatorOptions = {
@@ -45,7 +46,7 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
       return
     }
     if (intent.type === 'app') {
-      await options.completions.application()
+      await options.completions.application(intent.applicationAction ?? 'close')
       return
     }
     if (intent.type === 'trash') {
@@ -95,10 +96,11 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     })
   }
 
-  async function requestApplicationClose(): Promise<void> {
+  async function requestApplicationClose(action: ApplicationCloseAction = 'close'): Promise<void> {
     await request({
       type: 'app',
       sessionIds: options.sessions.value.map(session => session.id),
+      applicationAction: action,
     })
   }
 

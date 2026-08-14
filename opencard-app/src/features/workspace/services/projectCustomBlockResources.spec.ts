@@ -85,7 +85,7 @@ describe('collectProjectCustomBlockResources', () => {
 
   it('packs only referenced icon crops and rewrites rich-text icon identities', async () => {
     const root = createBlock('text-block', {
-      content: '<p><span data-oc-icon-series="items" data-oc-icon-key="sword">[[icon:items/sword]]</span></p>',
+      content: '<p><span data-oc-icon-path="items/sword"></span></p>',
     })
     const atlasBytes = new Uint8Array([8, 9, 10])
     const result = await collectProjectCustomBlockResources({
@@ -114,7 +114,7 @@ describe('collectProjectCustomBlockResources', () => {
     expect(result.files.get(result.index.iconSeries![0]!.source)).toEqual(atlasBytes)
     expect(result.index.iconSeries).toMatchObject([{ key: 'icons', icons: [{ iconKey: 'icon-1' }] }])
     rewriteProjectCustomBlockResourceReferences(root, result)
-    expect(root.content).toContain('data-oc-icon-series="icons"')
-    expect(root.content).toContain('[[icon:icons/icon-1]]')
+    expect(root.content).toContain('data-oc-icon-path="icons/icon-1"')
+    expect(root.content).not.toContain('[[icon:')
   })
 })

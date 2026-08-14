@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createSimpleContainerBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
+import {
+  createMarkdownTextBlock,
+  createSimpleContainerBlock,
+  createTextBlock,
+  type CardDocument,
+} from '../../entities/card/model'
 import { parseRenderDocument } from './renderParser'
 
 function createDocument(): CardDocument {
@@ -55,6 +60,7 @@ describe('renderParser', () => {
       notes: '',
       visible: true,
       opacity: 0.5,
+      color: '#000000',
       verticalAlign: 'top',
     })
     expect(result.issues).toEqual([])
@@ -104,7 +110,7 @@ describe('renderParser', () => {
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-type',
         location: expect.objectContaining({ blockId: 'text', fieldKey: 'color' }),
-        parameters: { fieldName: 'textColor', defaultValue: '""' },
+        parameters: { fieldName: 'textColor', defaultValue: '#000000' },
       }),
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-type',
@@ -116,6 +122,18 @@ describe('renderParser', () => {
       }),
     ]))
     expect(document).toEqual(sourceSnapshot)
+  })
+
+  it('uses the same stable default text color for markdown blocks', () => {
+    const document = createDocument()
+    document.faces.front.children[0]!.block = createMarkdownTextBlock({
+      id: 'markdown',
+      content: '# Heading',
+    })
+
+    const block = parseRenderDocument(document).document.faces.front.children[0]!.block
+
+    expect(block).toMatchObject({ type: 'markdown-text-block', color: '#000000' })
   })
 
   it('records nested block paths as dot-separated block names', () => {

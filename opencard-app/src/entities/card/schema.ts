@@ -469,7 +469,7 @@ function createTextContentBlockDefaultValues(type: 'text-block' | 'markdown-text
         fontSize: '',
         fontFamily: '',
         fontWeight: 'normal',
-        color: '',
+        color: '#000000',
         textAlign: 'start',
         verticalAlign: 'top',
         lineHeight: '',

@@ -1,6 +1,6 @@
-import { getReadableForegroundTone } from '../../shared/ui/foundation'
+import { getReadableForegroundColor, getReadableForegroundTone } from '../../shared/ui/foundation'
 
-export { getReadableForegroundTone }
+export { getReadableForegroundColor, getReadableForegroundTone }
 
 export interface HsvColor {
   hue: number

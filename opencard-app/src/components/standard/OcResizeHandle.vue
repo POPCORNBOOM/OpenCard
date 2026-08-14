@@ -16,7 +16,7 @@
     :aria-valuenow="currentValue"
     :aria-label="props.label"
     :aria-disabled="props.disabled || undefined"
-    :data-tooltip="props.label"
+    :data-tooltip="props.tooltip ?? props.label"
     v-bind="forwardedAttrs"
     @pointerdown="startResize"
     @pointermove="continueResize"
@@ -47,6 +47,7 @@ const props = withDefaults(defineProps<{
   maximum: number
   value: number
   label: string
+  tooltip?: string
   orientation?: ResizeOrientation
   direction?: ResizeDirection
   step?: number
@@ -54,6 +55,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   orientation: 'horizontal',
   direction: 'normal',
+  tooltip: undefined,
   step: KEYBOARD_STEP,
   disabled: false,
 })

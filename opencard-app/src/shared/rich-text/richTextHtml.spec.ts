@@ -11,6 +11,11 @@ describe('sanitizeRichTextHtml', () => {
       .toBe('<p><span style="font-size: 18px;">Text</span></p>')
   })
 
+  it('preserves the text stroke shorthand', () => {
+    expect(sanitizeRichTextHtml('<p><span style="-webkit-text-stroke: 1px #000">Text</span></p>'))
+      .toContain('-webkit-text-stroke: 1px #000')
+  })
+
   it('normalizes project font references to the stable CSS alias', () => {
     expect(normalizeRichTextHtml('<p><span style="font-family: &quot;font:brand-sans&quot;">Text</span></p>'))
       .toBe('<p><span style="font-family: &quot;OpenCardProjectFont-brand-sans&quot;;">Text</span></p>')
@@ -22,9 +27,9 @@ describe('sanitizeRichTextHtml', () => {
   })
 
   it('preserves only valid project icon keys and canonical fallback text', () => {
-    expect(sanitizeRichTextHtml('<span data-oc-icon-series="status" data-oc-icon-key="wide" style="background:url(bad)">bad</span>'))
-      .toBe('<span data-oc-icon-series="status" data-oc-icon-key="wide">[[icon:status/wide]]</span>')
-    expect(sanitizeRichTextHtml('<span data-oc-icon-series="Bad Key" data-oc-icon-key="wide">bad</span>'))
+    expect(sanitizeRichTextHtml('<span data-oc-icon-path="status/wide" style="background:url(bad)">bad</span>'))
+      .toBe('<span data-oc-icon-path="status/wide"></span>')
+    expect(sanitizeRichTextHtml('<span data-oc-icon-path="Bad Key/wide">bad</span>'))
       .toBe('<span>bad</span>')
   })
 })
@@ -49,31 +54,33 @@ describe('formatRichTextHtmlSource', () => {
 describe('parseRichTextHtml', () => {
   it('allows unresolved dynamic styles for the visual editor boundary', () => {
     const source = '<p><mark style="background-color: {{parent.color}}; color: inherit;">Text</mark></p>'
-    const result = parseRichTextHtml(source, { allowUnresolvedBindings: true })
+    const result = parseRichTextHtml(source)
     expect(result.diagnostics).toEqual([])
     expect(result.canEnterVisualMode).toBe(true)
   })
-  it('rejects dangerous CSS values after generic Binding substitution', () => {
+  it('does not block rich text for CSS declarations it does not render', () => {
     const result = parseRichTextHtml('<p><mark style="background-color: url(javascript:bad); color: red">Text</mark></p>')
-    expect(result.canEnterVisualMode).toBe(false)
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'invalid-style' }))
+    expect(result.canEnterVisualMode).toBe(true)
+    expect(result.diagnostics).toEqual([])
     expect(result.document.html).toContain('javascript:bad')
   })
-  it('rejects event attributes and merged table cells without rewriting source', () => {
+  it('accepts the text stroke shorthand', () => {
+    const result = parseRichTextHtml('<p><span style="-webkit-text-stroke: 1px #000">Text</span></p>')
+    expect(result.canEnterVisualMode).toBe(true)
+    expect(result.diagnostics).toEqual([])
+  })
+  it('ignores event attributes but rejects unsupported merged table cells', () => {
     const source = '<table onclick="bad()"><tbody><tr><td rowspan="2" colspan="1">Cell</td></tr></tbody></table>'
     const result = parseRichTextHtml(source)
     expect(result.canEnterVisualMode).toBe(false)
-    expect(result.diagnostics.map(item => item.code)).toEqual(expect.arrayContaining([
-      'unsupported-attribute',
-      'invalid-structure',
-    ]))
+    expect(result.diagnostics.map(item => item.code)).toEqual(['invalid-structure'])
     expect(result.document.html).toBe(source)
   })
   it('accepts lists, tables, icons, bindings, and public custom block fields', () => {
     const result = parseRichTextHtml(
       '<p><span data-oc-binding="parent:name">{{parent:name}}</span></p>'
         + '<ul><li>One</li></ul><table><tbody><tr><td>Cell</td></tr></tbody></table>'
-        + '<p><span data-oc-icon-series="status" data-oc-icon-key="ok">[[icon:status/ok]]</span></p>'
+        + '<p><span data-oc-icon-path="status/ok"></span></p>'
         + '<oc-custom-block data-oc-id="badge-1" data-oc-key="badge" data-oc-layout="inline">'
         + '<oc-prop data-oc-key="label">Ready</oc-prop></oc-custom-block>',
       { resolveCustomBlock: key => key === 'badge' ? { publicFieldKeys: ['label'] } : null },
@@ -82,12 +89,12 @@ describe('parseRichTextHtml', () => {
     expect(result.diagnostics).toEqual([])
   })
 
-  it('keeps unsupported source intact and reports dynamic style bindings', () => {
+  it('keeps unsupported source intact and only reports blocked tags', () => {
     const source = '<p><script>bad</script><mark style="color: {{parent:color}}">Text</mark></p>'
     const result = parseRichTextHtml(source)
     expect(result.canEnterVisualMode).toBe(false)
     expect(result.document.html).toBe(source)
-    expect(result.diagnostics.map(item => item.code)).toEqual(['unsupported-tag', 'invalid-style'])
+    expect(result.diagnostics.map(item => item.code)).toEqual(['unsupported-tag'])
   })
 
   it('rejects private custom block fields and duplicate IDs', () => {

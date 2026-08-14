@@ -35,4 +35,22 @@ describe('FontFamilyAutocomplete', () => {
     await vi.runAllTimersAsync()
     expect(wrapper.emitted('commit')).toEqual([['Inter; Microsoft YaHei UI']])
   })
+
+  it('does not hide non-Latin system fonts after the first 60 families', () => {
+    const fontFamilies = [
+      ...Array.from({ length: 61 }, (_, index) => `Latin Font ${String(index).padStart(2, '0')}`),
+      '微软雅黑',
+    ]
+    const wrapper = mount(FontFamilyAutocomplete, {
+      props: {
+        modelValue: 'system',
+        fontFamilies,
+        label: 'UI font',
+        placeholder: 'System default',
+      },
+    })
+
+    expect(wrapper.getComponent(OcAutocompletePopover).props('items'))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ key: '微软雅黑' })]))
+  })
 })

@@ -41,6 +41,7 @@ export function setupGlobalTooltip(): void {
   layer.id = TOOLTIP_LAYER_ID;
   layer.className = 'app-tooltip-layer';
   layer.setAttribute('role', 'tooltip');
+  layer.setAttribute('aria-hidden', 'true');
   layer.hidden = true;
   if (!layer.isConnected) {
     document.body.appendChild(layer);
@@ -61,7 +62,7 @@ export function setupGlobalTooltip(): void {
     cancelPendingTooltip();
     activeTarget = null;
     layer.classList.remove('open');
-    layer.hidden = true;
+    layer.setAttribute('aria-hidden', 'true');
   };
 
   const placeTooltip = (): void => {
@@ -103,9 +104,11 @@ export function setupGlobalTooltip(): void {
 
     activeTarget = target;
     renderTooltipContent(layer, text);
+    layer.classList.remove('open');
     layer.hidden = false;
-    layer.classList.add('open');
+    layer.setAttribute('aria-hidden', 'false');
     placeTooltip();
+    layer.classList.add('open');
   };
 
   const scheduleTooltip = (target: HTMLElement): void => {

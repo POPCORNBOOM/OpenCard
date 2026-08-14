@@ -223,7 +223,7 @@
     inset 0 0 0 1px var(--oc-border-default);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity var(--oc-duration-fast) var(--oc-ease);
   z-index: 2147483647;
   white-space: pre-line;
 }
@@ -301,6 +301,12 @@
 
 .app-tooltip-layer.open {
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-tooltip-layer {
+    transition: none;
+  }
 }
 
 .titlebar-menu-button {
@@ -438,14 +444,15 @@
 
 .shell-sidebar-button {
   width: 100%;
-  min-height: var(--button-height);
-  padding: 0 12px;
+  height: var(--oc-size-md);
+  min-height: var(--oc-size-md);
+  padding: 0 var(--oc-space-3);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--oc-space-2);
   justify-content: flex-start;
   font-weight: 400;
-  font-size: var(--oc-text-lg);
+  font-size: var(--oc-text-base);
 }
 
 .shell-sidebar-list {

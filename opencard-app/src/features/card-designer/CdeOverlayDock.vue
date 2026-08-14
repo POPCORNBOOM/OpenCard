@@ -43,6 +43,7 @@
       :maximum="props.maxExtent"
       :value="props.extent"
       :label="props.widthLabel"
+      :tooltip="props.widthTooltip"
       orientation="vertical"
       :edge="props.side === 'left' ? 'right' : 'left'"
       placement="outside"
@@ -86,9 +87,11 @@ const props = withDefaults(defineProps<{
   splitGap: number
   responsiveMinStageWidth: number
   widthLabel: string
+  widthTooltip?: string
   splitLabel: string
 }>(), {
   topSize: null,
+  widthTooltip: undefined,
 })
 
 const emit = defineEmits<{

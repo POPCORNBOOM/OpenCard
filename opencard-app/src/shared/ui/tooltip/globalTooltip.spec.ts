@@ -30,14 +30,17 @@ describe('globalTooltip', () => {
     expect(layer.textContent).toBe('Second tooltip')
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    expect(layer.hidden).toBe(true)
+    expect(layer.classList.contains('open')).toBe(false)
+    expect(layer.getAttribute('aria-hidden')).toBe('true')
 
     first.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
     expect(layer.hidden).toBe(false)
+    expect(layer.getAttribute('aria-hidden')).toBe('false')
     expect(layer.textContent).toBe('First tooltip')
 
     first.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
-    expect(layer.hidden).toBe(true)
+    expect(layer.classList.contains('open')).toBe(false)
+    expect(layer.getAttribute('aria-hidden')).toBe('true')
 
     const rich = document.getElementById('rich')!
     rich.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))

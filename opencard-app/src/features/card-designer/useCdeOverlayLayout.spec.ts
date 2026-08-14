@@ -14,6 +14,10 @@ function createLayout(overrides: Partial<CardDesignerLayoutState> = {}): CardDes
     },
     leftTopHeight: null,
     rightTopHeight: null,
+    leftDockExtent: 280,
+    rightDockExtent: 280,
+    leftExpandedDockExtent: 280,
+    rightExpandedDockExtent: 280,
     ...overrides,
   }
 }
@@ -74,6 +78,8 @@ describe('useCdeOverlayLayout', () => {
 
     controller.updateDockExtent('left', 420)
     controller.updateDockExtent('right', 360)
+    controller.commitDockExtent('left')
+    controller.commitDockExtent('right')
     controller.toggleDockCollapsed('left')
     controller.toggleDockCollapsed('right')
     expect(controller.leftDockExtent.value).toBe(0)
@@ -85,30 +91,45 @@ describe('useCdeOverlayLayout', () => {
     expect(controller.rightDockExtent.value).toBe(360)
   })
 
+  it('restores committed dock extents and expanded widths from session layout', () => {
+    const { controller } = createController(createLayout({
+      leftDockExtent: 0,
+      rightDockExtent: 360,
+      leftExpandedDockExtent: 420,
+      rightExpandedDockExtent: 360,
+    }))
+
+    expect(controller.leftDockExtent.value).toBe(0)
+    expect(controller.rightDockExtent.value).toBe(360)
+    controller.toggleDockCollapsed('left')
+    expect(controller.leftDockExtent.value).toBe(420)
+  })
+
   it('does not cache a transient partial drag as the expanded width', () => {
     const { controller } = createController()
 
     controller.updateDockExtent('left', 420)
-    controller.toggleDockCollapsed('left')
-    controller.updateDockExtent('left', 20)
-    controller.settleDockExtent('left', 20, 0)
+    controller.commitDockExtent('left')
+    controller.settleDockExtent('left', 200, 420)
     controller.toggleDockCollapsed('left')
 
     expect(controller.leftDockExtent.value).toBe(420)
   })
 
-  it('settles dock extent without persisting transient width state', () => {
+  it('persists only settled dock extents', () => {
     const { commits, controller } = createController()
 
     controller.updateDockExtent('left', 200)
     controller.settleDockExtent('left', 200, 280)
     expect(controller.leftDockExtent.value).toBe(0)
-    expect(commits).toHaveLength(0)
+    expect(commits).toHaveLength(1)
+    expect(commits[0]?.leftDockExtent).toBe(0)
 
     controller.updateDockExtent('right', 0)
     controller.settleDockExtent('right', 40, 0)
     expect(controller.rightDockExtent.value).toBe(280)
-    expect(commits).toHaveLength(0)
+    expect(commits).toHaveLength(2)
+    expect(commits[1]?.rightDockExtent).toBe(280)
   })
 
   it('updates top sizes independently and only commits layout through the explicit callback', () => {
@@ -124,7 +145,7 @@ describe('useCdeOverlayLayout', () => {
   })
 
   it('ensures requested panels are expanded without changing transient dock extents', () => {
-    const { controller } = createController(createLayout({
+    const { commits, controller } = createController(createLayout({
       panels: {
         instanceExpanded: false,
         previewExpanded: true,
@@ -138,5 +159,6 @@ describe('useCdeOverlayLayout', () => {
     expect(controller.leftDockExtent.value).toBe(140)
     expect(controller.isStructureTreePanelExpanded.value).toBe(true)
     expect(controller.isPropertyPanelExpanded.value).toBe(true)
+    expect(commits[0]?.leftDockExtent).toBe(280)
   })
 })

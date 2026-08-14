@@ -6,11 +6,14 @@ import {
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { ProjectCloseDestination } from '../shellPage'
 
+export type ApplicationCloseAction = 'close' | 'install-update'
+
 export type UnsavedCloseIntent = {
   type: 'project' | 'app' | 'sessions' | 'trash'
   sessionIds: readonly string[]
   path?: string
   projectDestination?: ProjectCloseDestination
+  applicationAction?: ApplicationCloseAction
 }
 
 export type UnsavedDecision = 'pending' | 'save' | 'discard'

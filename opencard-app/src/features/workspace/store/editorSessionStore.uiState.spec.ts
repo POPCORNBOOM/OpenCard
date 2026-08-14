@@ -37,6 +37,10 @@ describe('editorSessionStore card designer layout', () => {
       },
       leftTopHeight: 240,
       rightTopHeight: 320,
+      leftDockExtent: 0,
+      rightDockExtent: 360,
+      leftExpandedDockExtent: 420,
+      rightExpandedDockExtent: 360,
     }
 
     store.updateSessionUiState(first.id, {
@@ -64,6 +68,10 @@ describe('editorSessionStore card designer layout', () => {
       },
       leftTopHeight: null,
       rightTopHeight: null,
+      leftDockExtent: 280,
+      rightDockExtent: 280,
+      leftExpandedDockExtent: 280,
+      rightExpandedDockExtent: 280,
     }
     const view: CardDesignerViewState = {
       activeFace: 'back',

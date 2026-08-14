@@ -2,7 +2,7 @@
   <OcDialog class="release-notes-dialog" :open="open && Boolean(release)"
     :title="t('app.updater.releaseNotesTitle', { version: release?.version ?? '' })"
     size="lg" height-mode="fixed" height="lg"
-    :dismissible="!installing" @request-close="handleClose">
+    :dismissible="!busy" @request-close="handleClose">
     <template v-if="release">
         <div
           v-if="release.body"
@@ -13,12 +13,16 @@
 
     </template>
     <template v-if="release" #footer>
-      <OcButton :disabled="installing" @click="handleClose">
+      <OcButton :disabled="busy" @click="handleClose">
         {{ t('app.updater.releaseNotesClose') }}
       </OcButton>
-      <OcButton v-if="available" variant="solid" icon="action.download"
-        :disabled="installing" @click="emit('install')">
-        {{ installing ? t('app.updater.installing') : t('app.updater.installVersion', { version: release.version }) }}
+      <OcButton v-if="available" variant="solid" :icon="downloaded ? 'action.restart' : 'action.download'"
+        :disabled="busy" @click="emit('action')">
+        {{ busy
+          ? t('app.updater.downloading')
+          : downloaded
+            ? t('app.updater.installVersion', { version: release.version })
+            : t('app.updater.downloadVersion', { version: release.version }) }}
       </OcButton>
     </template>
   </OcDialog>
@@ -36,19 +40,20 @@ const props = defineProps<{
   open: boolean
   release: ReleaseNotesSnapshot | null
   available: boolean
-  installing: boolean
+  busy: boolean
+  downloaded: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  install: []
+  action: []
 }>()
 
 const { t } = useI18n()
 const renderedBody = computed(() => renderMarkdown(props.release?.body ?? ''))
 
 function handleClose(): void {
-  if (!props.installing) emit('close')
+  if (!props.busy) emit('close')
 }
 </script>
 

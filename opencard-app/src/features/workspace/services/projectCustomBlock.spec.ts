@@ -47,7 +47,7 @@ describe('project custom block package projection', () => {
       {
         block: createBlock('text-block', {
           id: 'text',
-          content: '[[icon:icons/star]]',
+          content: '<p><span data-oc-icon-path="icons/star"></span></p>',
           fontFamily: 'resource:font:heading; Arial',
         }),
         location: { id: 'text-location', type: 'simple-container-location', anchor: 'lt' },

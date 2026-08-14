@@ -2,7 +2,13 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_OC_THEME, OC_THEME_REGISTRY } from './themes'
-import { deriveAccentNeighborColor, getOcTheme, setOcTheme } from './theme'
+import {
+  deriveAccentNeighborColor,
+  getOcTheme,
+  getReadableForegroundColor,
+  getReadableForegroundTone,
+  setOcTheme,
+} from './theme'
 
 const srcRoot = join(process.cwd(), 'src')
 const sourceExtensions = new Set(['.css', '.ts', '.vue'])
@@ -30,6 +36,18 @@ const blockIconColorTokens = [
   '--oc-icon-block-flow-container',
 ] as const
 
+function testLuminance(value: string): number {
+  const channels = [1, 3, 5].map(index => Number.parseInt(value.slice(index, index + 2), 16) / 255)
+    .map(channel => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+}
+
+function testContrast(left: string, right: string): number {
+  const brighter = Math.max(testLuminance(left), testLuminance(right))
+  const darker = Math.min(testLuminance(left), testLuminance(right))
+  return (brighter + 0.05) / (darker + 0.05)
+}
+
 function readProductionSources(directory: string): string {
   return readdirSync(directory, { withFileTypes: true })
     .map((entry) => {
@@ -52,6 +70,27 @@ describe('OC theme runtime', () => {
     expect(deriveAccentNeighborColor('#FF0000')).toBe('#FF00D4')
     expect(deriveAccentNeighborColor('#FF0000', 50)).toBe('#FFD500')
     expect(deriveAccentNeighborColor('#808080')).toBe('#808080')
+  })
+
+  it('biases the foreground boundary toward the active theme near the midpoint', () => {
+    expect(getReadableForegroundTone('#808080', 'light')).toBe('light')
+    expect(getReadableForegroundTone('#808080', 'dark')).toBe('dark')
+    expect(getReadableForegroundTone('#111111', 'light')).toBe('light')
+    expect(getReadableForegroundTone('#F5F6FB', 'dark')).toBe('dark')
+  })
+
+  it('uses the theme-aware foreground tone on primary accent surfaces', () => {
+    setOcTheme('light', { '--oc-accent': '#5879FA' })
+
+    const style = document.documentElement.style
+    const foreground = style.getPropertyValue('--oc-accent-fg')
+    const restingBackground = style.getPropertyValue('--oc-bg-accent')
+    const hoverBackground = style.getPropertyValue('--oc-bg-accent-hover')
+    expect(getReadableForegroundColor('#5879FA', 'light')).toBe('#F5F2FF')
+    expect(foreground).toBe('#F5F2FF')
+    expect(hoverBackground).toBe('#516FE6')
+    expect(testContrast(foreground, hoverBackground))
+      .toBeGreaterThanOrEqual(testContrast(foreground, restingBackground))
   })
 
   it.each(['dark', 'light'] as const)('applies %s tokens and native color scheme', (themeId) => {
@@ -81,6 +120,15 @@ describe('OC theme runtime', () => {
     expect(blockColors.every(isOklchColor)).toBe(true)
     expect(new Set(fileColors).size).toBe(fileColors.length)
     expect(new Set(blockColors).size).toBe(blockColors.length)
+  })
+
+  it('keeps light-theme file and Block icons within a balanced lightness range', () => {
+    const colors = [...fileIconColorTokens, ...blockIconColorTokens]
+      .map(token => OC_THEME_REGISTRY.light[token])
+    const lightnessValues = colors.map(color => Number(/^oklch\(([\d.]+)%/.exec(color)?.[1]))
+
+    expect(Math.min(...lightnessValues)).toBeGreaterThanOrEqual(67)
+    expect(Math.max(...lightnessValues)).toBeLessThanOrEqual(77)
   })
 
   it('falls back unknown themes to the default theme', () => {

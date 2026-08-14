@@ -42,7 +42,7 @@
         :data-actions-overflowed="collapsedActionKeys.has(entry.key) || undefined"
         :data-tooltip="entry.item.disabledReason"
         :role="rowRole"
-        :tabindex="activeKey === entry.key && !entry.item.disabled ? 0 : -1"
+        :tabindex="props.tabNavigation === 'roving' && activeKey === entry.key && !entry.item.disabled ? 0 : -1"
         :aria-disabled="entry.item.disabled || undefined"
         :aria-selected="props.role !== 'menu' && props.selectionMode !== 'none' ? isSelected(entry.key) : undefined"
         :aria-expanded="isExpandable(entry.key) ? isExpanded(entry.key) : undefined"
@@ -110,6 +110,7 @@
             :action="action"
             size="sm"
             variant="ghost"
+            :button-tabindex="props.tabNavigation === 'none' ? -1 : undefined"
             @mousedown.stop
             @select="emitActionIntent(entry.key, $event.key)"
           />
@@ -161,6 +162,7 @@ interface OcTreeProps {
   virtualized?: boolean
   actionOverflowTitle?: string
   actionVisibility?: 'on-interaction' | 'always'
+  tabNavigation?: 'roving' | 'none'
 }
 
 type VisibleEntry = {
@@ -187,6 +189,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   virtualized: false,
   actionOverflowTitle: 'More actions',
   actionVisibility: 'on-interaction',
+  tabNavigation: 'roving',
 })
 
 const emit = defineEmits<{
@@ -440,18 +443,20 @@ function isSameOrDescendantKey(key: OcTreeKey, ancestorKey: OcTreeKey): boolean 
 
 watch(
   [
-    () => props.selectedKeys[0],
+    () => props.selectedKeys,
     () => props.selectionExpansionMode,
     parentKeyLookup,
   ],
-  ([selectedKey, mode]) => {
-    if (!selectedKey || mode === 'none') return
+  ([selectedKeys, mode]) => {
+    if (selectedKeys.length === 0 || mode === 'none') return
 
-    const ancestorKeys = resolveSelectionAncestorKeys(selectedKey)
+    const ancestorKeys = selectedKeys.flatMap(resolveSelectionAncestorKeys)
     const nextKeys = mode === 'expand-exclusive'
       ? [...new Set([
           ...ancestorKeys,
-          ...props.expandedKeys.filter((key) => isSameOrDescendantKey(key, selectedKey)),
+          ...props.expandedKeys.filter((key) => selectedKeys.some(selectedKey => (
+            isSameOrDescendantKey(key, selectedKey)
+          ))),
         ])]
       : [...new Set([...props.expandedKeys, ...ancestorKeys])]
 
@@ -470,6 +475,11 @@ watch(
   },
   { immediate: true },
 )
+
+const selectionRevealKey = computed(() => {
+  if (activeKey.value && selectedKeySet.value.has(activeKey.value)) return activeKey.value
+  return props.selectedKeys[props.selectedKeys.length - 1] ?? null
+})
 
 function scrollRowIntoTreeViewport(key: OcTreeKey): void {
   const root = treeRootElement.value
@@ -498,7 +508,7 @@ function scrollRowIntoTreeViewport(key: OcTreeKey): void {
 }
 
 watch(
-  [() => props.selectedKeys[0], () => props.scrollToSelection, visibleEntries],
+  [selectionRevealKey, () => props.scrollToSelection, visibleEntries],
   async ([selectedKey]) => {
     if (!props.scrollToSelection || !selectedKey) return
     await nextTick()
@@ -518,7 +528,7 @@ watch(
 )
 watch(renderedEntries, entries => {
   if (!props.virtualized || entries.some(entry => entry.key === activeKey.value)) return
-  const selectedKey = props.selectedKeys[0]
+  const selectedKey = selectionRevealKey.value
   activeKey.value = entries.find(entry => entry.key === selectedKey && !entry.item.disabled)?.key
     ?? entries.find(entry => !entry.item.disabled)?.key
     ?? null
@@ -553,6 +563,7 @@ function handleIconMouseDown(event: MouseEvent, key: OcTreeKey): void {
 function handleIconClick(event: MouseEvent, key: OcTreeKey): void {
   if (!isExpandable(key)) return
   event.stopPropagation()
+  focusRowFromPointer(key)
   toggleExpanded(key)
 }
 
@@ -597,8 +608,14 @@ function emitSelectionIntent(
 
 function handleRowClick(event: MouseEvent, key: OcTreeKey): void {
   if (props.data.items.get(key)?.disabled || suppressClick.value || renamingKey.value === key) return
+  focusRowFromPointer(key)
   emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'left', event.shiftKey)
   if (props.activationMode === 'single-click') emit('intent', { type: 'node.activate', key })
+}
+
+function focusRowFromPointer(key: OcTreeKey): void {
+  activeKey.value = key
+  rowRefs.get(key)?.focus({ preventScroll: true })
 }
 
 function handleRowAuxClick(event: MouseEvent, key: OcTreeKey): void {
@@ -862,9 +879,10 @@ function handleGlobalMouseUp(): void {
 }
 
 function resolveNodeClass(key: OcTreeKey): Record<string, boolean> {
+  const draggingSelection = Boolean(draggedKey.value && isSelected(draggedKey.value))
   return {
     'is-selected': isSelected(key),
-    'is-drag-source': draggedKey.value === key,
+    'is-drag-source': draggedKey.value === key || (draggingSelection && isSelected(key)),
     'is-drop-before': dropTargetKey.value === key && dropPosition.value === 'before',
     'is-drop-inside': dropTargetKey.value === key && dropPosition.value === 'inside',
     'is-drop-after': dropTargetKey.value === key && dropPosition.value === 'after',

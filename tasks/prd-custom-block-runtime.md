@@ -272,7 +272,7 @@ example-badge.ocblock
         "title": "Title"
       }
     },
-    "title": "<p>Example <span data-oc-icon-series=\"ocblock-example-badge\" data-oc-icon-key=\"star\">[[icon:ocblock-example-badge/star]]</span></p>",
+    "title": "<p>Example <span data-oc-icon-path=\"ocblock-example-badge/star\"></span></p>",
     "children": [
       {
         "location": {
@@ -304,7 +304,7 @@ example-badge.ocblock
           "id": "badge-text",
           "name": "Badge Text",
           "type": "text-block",
-          "content": "<p>Example <span data-oc-icon-series=\"ocblock-example-badge\" data-oc-icon-key=\"star\">[[icon:ocblock-example-badge/star]]</span></p>",
+          "content": "<p>Example <span data-oc-icon-path=\"ocblock-example-badge/star\"></span></p>",
           "fontFamily": "OpenCardCustomBlock-example-badge-heading",
           "fontSize": "24px",
           "color": "#111111"
@@ -317,7 +317,7 @@ example-badge.ocblock
       "key": "title",
       "fieldType": "string",
       "title": "Title",
-      "defaultValue": "<p>Example <span data-oc-icon-series=\"ocblock-example-badge\" data-oc-icon-key=\"star\">[[icon:ocblock-example-badge/star]]</span></p>"
+      "defaultValue": "<p>Example <span data-oc-icon-path=\"ocblock-example-badge/star\"></span></p>"
     }
   ],
   "resize": {

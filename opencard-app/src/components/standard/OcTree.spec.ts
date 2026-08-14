@@ -141,6 +141,37 @@ describe('OcTree', () => {
     }])
   })
 
+  it('keeps every selected branch visible in expand-exclusive mode', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['left-root', 'right-root'],
+          items: [
+            ['left-root', { label: 'Left root' }],
+            ['left-child', { label: 'Left child' }],
+            ['right-root', { label: 'Right root' }],
+            ['right-child', { label: 'Right child' }],
+          ],
+          children: [
+            ['left-root', ['left-child']],
+            ['right-root', ['right-child']],
+          ],
+        }),
+        selectedKeys: ['left-child', 'right-child'],
+        expandedKeys: ['left-child'],
+        selectionMode: 'multiple',
+        selectionExpansionMode: 'expand-exclusive',
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted<OcTreeIntent[]>('intent')).toContainEqual([{
+      type: 'expansion.sync',
+      expandedKeys: ['left-root', 'right-root', 'left-child'],
+      reason: 'selection',
+    }])
+  })
+
   it('scrolls the tree viewport to a selected row only when enabled', async () => {
     const data = createData({
       roots: ['first', 'second'],
@@ -226,6 +257,31 @@ describe('OcTree', () => {
     expect(wrapper.find('[data-oc-tree-key="root"] .oc-tree__branch-connector').exists()).toBe(false)
     expect(wrapper.find('[data-oc-tree-key="child"] .oc-tree__branch-connector').exists()).toBe(true)
     expect(wrapper.find('[data-oc-tree-key="child"] .oc-tree__branch-guide').exists()).toBe(false)
+  })
+
+  it('can leave the tree out of Tab order while pointer focus keeps keyboard interaction active', async () => {
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: {
+        data: createData({
+          roots: ['root', 'child'],
+          items: [
+            ['root', { label: 'Root', actions: ['move'] }],
+            ['child', { label: 'Child', actions: ['move'] }],
+          ],
+        }),
+        actions: new Map<string, OcTreeActionDefinition>([
+          ['move', { title: 'Move', icon: 'action.drag' }],
+        ]),
+        tabNavigation: 'none',
+      },
+    })
+
+    expect(wrapper.findAll('.oc-tree__row').map(row => row.attributes('tabindex'))).toEqual(['-1', '-1'])
+    expect(wrapper.findAll('.oc-tree__controls button').map(button => button.attributes('tabindex'))).toEqual(['-1', '-1'])
+    await wrapper.get('[data-oc-tree-key="child"] .oc-tree__row').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('[data-oc-tree-key="child"] .oc-tree__row').element)
+    wrapper.unmount()
   })
 
   it.each([
@@ -619,12 +675,15 @@ describe('OcTree', () => {
       attachTo: document.body,
       props: {
         data: createData({
-          roots: ['dragged', 'target'],
+          roots: ['dragged', 'other', 'target'],
           items: [
             ['dragged', { label: 'Dragged', draggable: true }],
+            ['other', { label: 'Other', draggable: true }],
             ['target', { label: 'Target' }],
           ],
         }),
+        selectedKeys: ['dragged', 'other'],
+        selectionMode: 'multiple',
       },
     })
     const draggedRow = wrapper.get('[data-oc-tree-key="dragged"] .oc-tree__row')
@@ -652,6 +711,9 @@ describe('OcTree', () => {
 
     await draggedRow.trigger('mousedown', { button: 0, clientX: 10, clientY: 110 })
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 105 }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-oc-tree-key="dragged"]').classes()).toContain('is-drag-source')
+    expect(wrapper.get('[data-oc-tree-key="other"]').classes()).toContain('is-drag-source')
     window.dispatchEvent(new MouseEvent('mouseup'))
     expect(wrapper.emitted<OcTreeIntent[]>('intent')).toEqual([[
       { type: 'move.request', key: 'dragged', targetKey: 'target', position: 'before' },

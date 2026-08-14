@@ -92,6 +92,30 @@ describe('card additional fields and bindings', () => {
     })
   })
 
+  it('resolves a parent field into a rich-text icon path attribute', () => {
+    const child = createTextBlock({
+      id: 'child',
+      content: '<p><span data-oc-icon-path="{{parent:suit}}"></span></p>',
+    })
+    const parent = createSimpleContainerBlock({
+      id: 'parent',
+      children: [{
+        block: child,
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    parent.additionalFieldDefinition = { suit: { fieldType: 'string' } }
+    ;(parent as unknown as Record<string, unknown>).suit = 'hua-se/fang-kuai'
+
+    const result = resolveReferences(createDocument(parent))
+    const resolvedParent = result.document.faces.front.children[0]!.block
+    if (resolvedParent.type !== 'simple-container-block') throw new Error('Expected container')
+    expect(result.issues).toEqual([])
+    expect(resolvedParent.children[0]!.block).toMatchObject({
+      content: '<p><span data-oc-icon-path="hua-se/fang-kuai"></span></p>',
+    })
+  })
+
   it('resolves current-block additional fields into string and number targets', () => {
     const block = createTextBlock({ id: 'text', content: '{{self:label}}' })
     block.additionalFieldDefinition = {

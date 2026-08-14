@@ -12,7 +12,7 @@ const props = defineProps<{
   projectIconCatalog?: ProjectIconCatalog
 }>()
 
-const document = computed(() => parseRichTextHtml(props.html, { allowUnresolvedBindings: true }).document)
+const document = computed(() => parseRichTextHtml(props.html).document)
 
 function renderNode(node: RichTextNode): VNodeChild {
   if (node.type === 'text') return node.value

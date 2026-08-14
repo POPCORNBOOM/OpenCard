@@ -11,7 +11,6 @@ import {
   addBlockToContainer,
   isBlockContainer,
   isBlockPackaged,
-  moveBlockBetweenContainers,
   removeBlockFromContainer,
   type BlockContainer,
   type ParentLookup,
@@ -25,6 +24,7 @@ type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
 type IndexedBlock = {
   block: CardBlock
   location: CardLocation
+  order: number
 }
 
 type UseCdeTreeOpsOptions = {
@@ -42,9 +42,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   const blockIndex = computed(() => {
     options.documentRevision.value
     const index = new Map<string, IndexedBlock>()
+    let order = 0
 
     function visit(block: CardBlock, location: CardLocation): void {
-      index.set(block.id, { block, location })
+      index.set(block.id, { block, location, order })
+      order += 1
       if (!isBlockContainer(block)) return
       for (const child of block.children) visit(child.block, child.location)
     }
@@ -101,6 +103,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   })
 
   const selectedEntry = computed<IndexedBlock | null>(() => {
+    if (options.selectedBlockKeys.value.length !== 1) return null
     const key = options.selectedBlockKeys.value[0]
     return key ? blockIndex.value.get(key) ?? null : null
   })
@@ -129,19 +132,33 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   watch(
     [blockIndex, options.selectedBlockKeys],
     ([index, selectedKeys]) => {
-      const key = selectedKeys[0]
-      const visibleKey = key && index.has(key) ? resolveVisibleBlockKey(key) : null
-      const nextKeys = visibleKey ? [visibleKey] : []
-      if (selectedKeys.length === nextKeys.length && selectedKeys[0] === nextKeys[0]) return
+      const nextKeys = normalizeVisibleSelectionKeys(selectedKeys, index)
+      if (
+        selectedKeys.length === nextKeys.length
+        && selectedKeys.every((key, index) => key === nextKeys[index])
+      ) return
       options.selectedBlockKeys.value = nextKeys
     },
     { immediate: true },
   )
 
   function selectKeys(keys: readonly string[]): void {
-    const key = keys[0]
-    const visibleKey = key ? resolveVisibleBlockKey(key) : null
-    options.selectedBlockKeys.value = visibleKey ? [visibleKey] : []
+    options.selectedBlockKeys.value = normalizeVisibleSelectionKeys(keys, blockIndex.value)
+  }
+
+  function normalizeVisibleSelectionKeys(
+    keys: readonly string[],
+    index: ReadonlyMap<string, IndexedBlock>,
+  ): string[] {
+    const normalized: string[] = []
+    const seen = new Set<string>()
+    for (const key of keys) {
+      const visibleKey = resolveVisibleBlockKey(key)
+      if (!visibleKey || !index.has(visibleKey) || seen.has(visibleKey)) continue
+      seen.add(visibleKey)
+      normalized.push(visibleKey)
+    }
+    return normalized
   }
 
   function handleViewportBlockClick(blockId: string): void {
@@ -158,6 +175,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         selectKeys(intent.selectedKeys)
         return
       case 'action.invoke':
+        if (intent.actionKey === 'delete' && options.selectedBlockKeys.value.includes(intent.key)) {
+          deleteBlocks(options.selectedBlockKeys.value)
+          return
+        }
         selectKeys([intent.key])
         executeBlockAction(intent.actionKey, blockIndex.value.get(intent.key)?.block ?? null)
         return
@@ -165,7 +186,13 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         renameBlock(intent.key, intent.name)
         return
       case 'move.request':
-        moveBlock(intent.key, intent.targetKey, intent.position)
+        moveBlocks(
+          options.selectedBlockKeys.value.includes(intent.key)
+            ? options.selectedBlockKeys.value
+            : [intent.key],
+          intent.targetKey,
+          intent.position,
+        )
         return
       default:
         return
@@ -173,6 +200,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function handleRootAction(actionKey: string): void {
+    if (actionKey === 'delete-selected') {
+      deleteBlocks(options.selectedBlockKeys.value)
+      return
+    }
     const target = actionKey.endsWith('-selected') ? selectedBlock.value : null
     executeBlockAction(actionKey, target)
   }
@@ -213,8 +244,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         if (target) duplicateBlock(target)
         return
       case 'delete':
-      case 'delete-selected':
-        if (target) deleteBlock(target)
+        if (target) deleteBlocks([target.id])
         return
       case 'hide-block':
         if (target) setBlockVisibility(target, false)
@@ -256,39 +286,69 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     options.markDocumentChanged('action', 'structure-tree', true)
   }
 
-  function moveBlock(
-    draggedKey: string,
+  function moveBlocks(
+    requestedKeys: readonly string[],
     targetKey: string | null,
     position: 'before' | 'inside' | 'after',
   ): void {
-    const draggedEntry = blockIndex.value.get(draggedKey)
+    const selectedKeys = normalizeVisibleSelectionKeys(requestedKeys, blockIndex.value)
+    const movedKeys = resolveTopLevelSelectionKeys(selectedKeys)
     const targetEntry = targetKey ? blockIndex.value.get(targetKey) : null
-    if (!draggedEntry || targetKey === draggedKey) return
-    if (targetKey && isDescendantOf(targetKey, draggedKey)) return
+    if (movedKeys.length === 0 || (targetKey && !targetEntry)) return
+    if (targetKey && movedKeys.some(key => targetKey === key || isDescendantOf(targetKey, key))) return
 
-    const sourceContainer = options.parentLookup.value.get(draggedKey)
     const targetContainer = resolveTargetContainer(targetEntry?.block ?? null, position)
     let insertionIndex = resolveInsertionIndex(targetEntry?.block ?? null, targetContainer, position)
-    if (!sourceContainer || !targetContainer || insertionIndex === null) return
+    if (!targetContainer || insertionIndex === null || isBlockPackaged(targetContainer)) return
 
-    if (sourceContainer === targetContainer) {
-      const sourceIndex = sourceContainer.children.findIndex((child) => child.block.id === draggedKey)
-      if (sourceIndex >= 0 && sourceIndex < insertionIndex) insertionIndex -= 1
+    const entries = movedKeys.flatMap((key) => {
+      const indexed = blockIndex.value.get(key)
+      const sourceContainer = options.parentLookup.value.get(key)
+      const sourceIndex = sourceContainer?.children.findIndex(child => child.block.id === key) ?? -1
+      return indexed && sourceContainer && sourceIndex >= 0
+        ? [{ key, ...indexed, sourceContainer, sourceIndex }]
+        : []
+    })
+    if (entries.length !== movedKeys.length) return
+
+    insertionIndex -= entries.filter(entry => (
+      entry.sourceContainer === targetContainer && entry.sourceIndex < insertionIndex!
+    )).length
+
+    for (const entry of entries) {
+      removeBlockFromContainer(entry.sourceContainer, entry.key, options.parentLookup.value)
     }
+    entries.forEach((entry, offset) => {
+      const nextIndex = insertionIndex! + offset
+      addBlockToContainer(
+        targetContainer,
+        entry.block,
+        options.parentLookup.value,
+        createDropLocation(entry.location, targetContainer, nextIndex),
+        nextIndex,
+      )
+    })
 
-    const location = createDropLocation(draggedEntry.location, targetContainer, insertionIndex)
-    const moved = moveBlockBetweenContainers(
-      sourceContainer,
-      targetContainer,
-      draggedKey,
-      options.parentLookup.value,
-      location,
-      insertionIndex,
-    )
-    if (!moved) return
     options.refreshDocumentState(true)
-    options.selectedBlockKeys.value = [draggedKey]
+    selectKeys(selectedKeys)
     options.markDocumentChanged('action', 'structure-tree', true)
+  }
+
+  function resolveTopLevelSelectionKeys(keys: readonly string[]): string[] {
+    const selected = new Set(keys)
+    return [...selected]
+      .filter((key) => {
+        let parent = options.parentLookup.value.get(key)
+        while (parent && parent.type !== 'card-face') {
+          if (selected.has(parent.id)) return false
+          parent = options.parentLookup.value.get(parent.id)
+        }
+        return true
+      })
+      .sort((left, right) => (
+        (blockIndex.value.get(left)?.order ?? Number.MAX_SAFE_INTEGER)
+        - (blockIndex.value.get(right)?.order ?? Number.MAX_SAFE_INTEGER)
+      ))
   }
 
   function isDescendantOf(targetKey: string, ancestorKey: string): boolean {
@@ -391,10 +451,22 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return true
   }
 
-  function deleteBlock(block: CardBlock): void {
-    const container = options.parentLookup.value.get(block.id)
-    if (!container || !removeBlockFromContainer(container, block.id, options.parentLookup.value)) return
-    options.selectedBlockKeys.value = options.selectedBlockKeys.value.filter((key) => key !== block.id)
+  function deleteBlocks(requestedKeys: readonly string[]): void {
+    const keys = resolveTopLevelSelectionKeys(
+      normalizeVisibleSelectionKeys(requestedKeys, blockIndex.value),
+    )
+    const targets = keys.flatMap((key) => {
+      const container = options.parentLookup.value.get(key)
+      return container?.children.some(child => child.block.id === key)
+        ? [{ key, container }]
+        : []
+    })
+    if (targets.length !== keys.length || targets.length === 0) return
+
+    for (const target of targets) {
+      removeBlockFromContainer(target.container, target.key, options.parentLookup.value)
+    }
+    options.selectedBlockKeys.value = []
     options.refreshDocumentState(true)
     options.markDocumentChanged('action', 'structure-tree', true)
   }

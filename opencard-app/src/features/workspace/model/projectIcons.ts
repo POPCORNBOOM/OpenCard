@@ -1,11 +1,4 @@
 import { createAvailableKey } from '../../../shared/model/keySlug'
-import {
-  formatProjectIconToken,
-  parseProjectIconToken,
-} from '../../../shared/rich-text/projectIconReference'
-
-export { formatProjectIconToken, parseProjectIconToken }
-
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
 export const DEFAULT_PROJECT_ICON_DIRECTORY = 'assets/icons'

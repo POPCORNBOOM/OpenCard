@@ -64,7 +64,7 @@
                   'is-highlighted': highlightedInfoKeys.has(item.key),
                   'is-group-separated': item.separated,
                   'is-multiline': item.multiline,
-                }" :data-tooltip="item.value">
+                }">
                 {{ item.value }}
               </span>
             </section>
@@ -126,7 +126,10 @@
           :bottom-min-height="overlayBottomMinHeight"
           :responsive-min-stage-width="overlayResponsiveWidth"
           :split-gap="overlaySplitGap"
-          width-label="调整左侧栏宽度"
+          :width-label="t('cardDesigner.layout.resizeLeftSidebar')"
+          :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
+            label: t('cardDesigner.layout.resizeLeftSidebar'),
+          })"
           split-label="调整卡牌树与预览高度"
           @update:extent="updateDockExtent('left', $event)"
           @update:top-size="updateDockTopSize('left', $event)"
@@ -140,6 +143,7 @@
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                   data-cde-shortcut-scope="instance-tree"
+                  tab-navigation="none"
                   :data="instanceTreeData" :actions="treeActions" :selected-keys="selectedCardKeys"
                   selection-mode="single" @intent="handleInstanceTreeIntent" />
               </OcPanel>
@@ -188,7 +192,10 @@
           :bottom-min-height="overlayBottomMinHeight"
           :responsive-min-stage-width="overlayResponsiveWidth"
           :split-gap="overlaySplitGap"
-          width-label="调整右侧栏宽度"
+          :width-label="t('cardDesigner.layout.resizeRightSidebar')"
+          :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
+            label: t('cardDesigner.layout.resizeRightSidebar'),
+          })"
           split-label="调整结构树与属性高度"
           @update:extent="updateDockExtent('right', $event)"
           @update:top-size="updateDockTopSize('right', $event)"
@@ -201,11 +208,12 @@
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
+                  tab-navigation="none"
                   :data="blockTreeData" :actions="treeActions"
                   :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
-                  selection-mode="single" activation-mode="double-click" @intent="handleStructureTreeIntent" />
+                  selection-mode="multiple" activation-mode="double-click" @intent="handleStructureTreeIntent" />
               </OcPanel>
             </OcCard>
           </template>
@@ -213,7 +221,10 @@
             <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
               :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
-                <PropertyEditor ref="propertyEditorRef" :inputs="propertyEditorInputs"
+                <OcEmpty v-if="isMultiBlockSelection" class="card-design-editor__multi-selection-summary">
+                  {{ t('cardDesigner.selectionSummary.multipleBlocks', { count: selectedBlockKeys.length }) }}
+                </OcEmpty>
+                <PropertyEditor v-else ref="propertyEditorRef" :inputs="propertyEditorInputs"
                   :categories="propertyCategories" :sort-mode="propertySortMode"
                   :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
                   @update-property="updateBlockProp" @add-property="addBlockProp"
@@ -445,6 +456,7 @@ const overlaySplitGap = CDE_OVERLAY_SPLIT_GAP
 const {
   editorShellStyle,
   ensurePanelsExpanded,
+  commitDockExtent,
   commitLayout: commitOverlayLayout,
   isInstancePanelExpanded,
   isPreviewPanelExpanded,
@@ -475,9 +487,10 @@ function handleDockResizeStart(): void {
   isDockResizing.value = true
 }
 
-function handleDockResizeEnd(_side: 'left' | 'right', axis: 'width' | 'split'): void {
+function handleDockResizeEnd(side: 'left' | 'right', axis: 'width' | 'split'): void {
   isDockResizing.value = false
-  if (axis === 'split') commitOverlayLayout()
+  if (axis === 'width') commitDockExtent(side)
+  else commitOverlayLayout()
 }
 
 // 文档与编辑器状态
@@ -760,6 +773,7 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
 
 // 当前选择状态
 const selectedBlockKeys = ref<string[]>([])
+const isMultiBlockSelection = computed(() => selectedBlockKeys.value.length > 1)
 const selectedCardKeys = ref<string[]>([])
 const selectedCardId = ref<string | null>(
   props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
@@ -976,31 +990,35 @@ const previewCardActions = computed<OcCardAction[]>(() => [
   createPanelToggleAction('toggle-preview-panel', isPreviewPanelExpanded.value),
 ])
 
-const propertyCardActions = computed<OcCardAction[]>(() => [
-  ...(canCreateAdditionalField.value
-    ? [{
-        key: 'additional-field.create',
-        icon: 'action.add' as const,
-        title: t('propertyEditor.customFields.create'),
-      }]
-    : []),
-  {
-    key: 'toggle-property-delete-mode',
-    icon: 'action.delete',
-    iconTone: propertyDeleteMode.value ? 'danger' : 'default',
-    title: t('propertyEditor.actions.delete'),
-  },
-  {
-    key: 'toggle-property-sort',
-    icon: propertySortMode.value === 'category'
-      ? 'action.sort-alphabetical-ascending'
-      : 'action.sort-category',
-    title: propertySortMode.value === 'category'
-      ? t('propertyEditor.actions.switchToAlphabetical')
-      : t('propertyEditor.actions.switchToCategory'),
-  },
-  createPanelToggleAction('toggle-property-panel', isPropertyPanelExpanded.value),
-])
+const propertyCardActions = computed<OcCardAction[]>(() => {
+  const panelToggle = createPanelToggleAction('toggle-property-panel', isPropertyPanelExpanded.value)
+  if (isMultiBlockSelection.value) return [panelToggle]
+  return [
+    ...(canCreateAdditionalField.value
+      ? [{
+          key: 'additional-field.create',
+          icon: 'action.add' as const,
+          title: t('propertyEditor.customFields.create'),
+        }]
+      : []),
+    {
+      key: 'toggle-property-delete-mode',
+      icon: 'action.delete',
+      iconTone: propertyDeleteMode.value ? 'danger' : 'default',
+      title: t('propertyEditor.actions.delete'),
+    },
+    {
+      key: 'toggle-property-sort',
+      icon: propertySortMode.value === 'category'
+        ? 'action.sort-alphabetical-ascending'
+        : 'action.sort-category',
+      title: propertySortMode.value === 'category'
+        ? t('propertyEditor.actions.switchToAlphabetical')
+        : t('propertyEditor.actions.switchToCategory'),
+    },
+    panelToggle,
+  ]
+})
 
 function triggerInstanceAction(actionKey: 'add-instance' | 'duplicate-instance' | 'delete-instance') {
   const selectedKey = selectedCardKeys.value[0]
@@ -1173,6 +1191,13 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
     return
   }
   if (intent.type === 'rename.request') {
+    handleTreeIntent({
+      type: 'selection.change',
+      triggerKey: intent.key,
+      selectedKeys: [intent.key],
+      mode: 'replace',
+      input: 'keyboard',
+    })
     void structureTreeRef.value?.beginRename(intent.key)
     return
   }
@@ -1182,6 +1207,7 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
+    handleTreeIntent(intent)
     customBlockExportBlock.value = getBlockById(intent.key)
     customBlockExportErrorText.value = ''
     customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
@@ -1287,8 +1313,12 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
   [
     ...treeActionKeys
       .map((actionKey) => {
-        const selectionDependent = actionKey === 'duplicate-selected' || actionKey === 'delete-selected'
-        return toCardActionDefinition(actionKey, selectionDependent && !selectedBlock.value)
+        const disabled = actionKey === 'duplicate-selected'
+          ? !selectedBlock.value
+          : actionKey === 'delete-selected'
+            ? selectedBlockKeys.value.length === 0
+            : false
+        return toCardActionDefinition(actionKey, disabled)
       })
       .filter((action): action is OcCardAction => action !== null),
     createPanelToggleAction('toggle-structure-tree-panel', isStructureTreePanelExpanded.value),
@@ -1730,7 +1760,7 @@ const cdeShortcutCommands = [
     key: 'block.delete',
     shortcut: getCdeShortcutBindings('block.delete'),
     scopes: ['canvas', 'structure-tree'],
-    canRun: () => workspaceMode.value === 'design' && Boolean(selectedBlock.value),
+    canRun: () => workspaceMode.value === 'design' && selectedBlockKeys.value.length > 0,
     run: () => handleRootAction('delete-selected'),
   },
   {
@@ -2120,6 +2150,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.card-design-editor__multi-selection-summary {
+  margin: auto;
+}
+
 .card-design-editor__viewport {
   flex: 1 1 auto;
   min-width: 0;

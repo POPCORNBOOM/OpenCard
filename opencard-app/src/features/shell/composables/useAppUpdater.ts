@@ -34,8 +34,10 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
   const currentReleaseNotes = shallowRef<CurrentReleaseNotes | null>(null)
   const updateState = shallowRef<UpdateStateDocument>({ current: null, pending: null })
   const isChecking = ref(false)
+  const isDownloading = ref(false)
+  const isDownloaded = ref(false)
   const isInstalling = ref(false)
-  const installProgress = ref<number | null>(null)
+  const downloadProgress = ref<number | null>(null)
   const developerPreviewProgress = ref<number | null>(null)
   let progressTimer: ReturnType<typeof setTimeout> | null = null
   let developerPreviewTimer: ReturnType<typeof setInterval> | null = null
@@ -56,6 +58,10 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
   const hasUnseenCurrentReleaseNotes = computed(() => (
     Boolean(currentReleaseNotes.value?.body) && currentReleaseNotes.value?.seenAt === null
   ))
+  const isDeveloperPreviewDownloading = computed(() => (
+    developerPreviewProgress.value !== null && developerPreviewProgress.value < 1
+  ))
+  const isDeveloperPreviewDownloaded = computed(() => developerPreviewProgress.value === 1)
 
   function parseReleaseNotes(value: unknown): ReleaseNotesSnapshot | null {
     if (!value || typeof value !== 'object') return null
@@ -154,21 +160,21 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
     const elapsed = Date.now() - lastProgressUpdate
     if (immediate || elapsed >= PROGRESS_UPDATE_INTERVAL) {
       clearProgressTimer()
-      installProgress.value = value
+      downloadProgress.value = value
       lastProgressUpdate = Date.now()
       return
     }
     if (progressTimer !== null) return
     progressTimer = setTimeout(() => {
       progressTimer = null
-      if (pendingProgress !== null) installProgress.value = pendingProgress
+      if (pendingProgress !== null) downloadProgress.value = pendingProgress
       pendingProgress = null
       lastProgressUpdate = Date.now()
     }, PROGRESS_UPDATE_INTERVAL - elapsed)
   }
 
   async function checkForUpdate(): Promise<void> {
-    if (!isTauri() || isChecking.value || isInstalling.value) return
+    if (!isTauri() || isChecking.value || isDownloading.value || isDownloaded.value || isInstalling.value) return
 
     isChecking.value = true
     try {
@@ -182,16 +188,16 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
     }
   }
 
-  async function installAvailableUpdate(): Promise<void> {
+  async function downloadAvailableUpdate(): Promise<void> {
     const update = availableUpdate.value
-    if (!update || isInstalling.value) return
+    if (!update || isDownloading.value || isDownloaded.value || isInstalling.value) return
 
-    isInstalling.value = true
+    isDownloading.value = true
     updateProgress(0, true)
     let contentLength = 0
     let downloadedBytes = 0
     try {
-      await update.downloadAndInstall((event) => {
+      await update.download((event) => {
         if (event.event === 'Started') {
           contentLength = event.data.contentLength ?? 0
           downloadedBytes = 0
@@ -207,12 +213,29 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
         }
         updateProgress(1, true)
       })
+      updateProgress(1, true)
+      isDownloaded.value = true
+    } catch (error) {
+      reportAppError('OC-E6001', error)
+      clearProgressTimer()
+      downloadProgress.value = null
+    } finally {
+      isDownloading.value = false
+    }
+  }
+
+  async function installDownloadedUpdate(): Promise<void> {
+    const update = availableUpdate.value
+    if (!update || !isDownloaded.value || isDownloading.value || isInstalling.value) return
+
+    isInstalling.value = true
+    try {
+      await update.install()
       await relaunch()
     } catch (error) {
       reportAppError('OC-E6001', error)
       isInstalling.value = false
-      clearProgressTimer()
-      installProgress.value = null
+      throw error
     }
   }
 
@@ -223,6 +246,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
   }
 
   function startDeveloperPreview(): void {
+    if (isDeveloperPreviewDownloading.value || isDeveloperPreviewDownloaded.value) return
     stopDeveloperPreview()
     developerPreviewProgress.value = 0
     developerPreviewTimer = setInterval(() => {
@@ -238,7 +262,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
   function dispose(): void {
     clearProgressTimer()
     stopDeveloperPreview()
-    if (!isInstalling.value) {
+    if (!isDownloading.value && !isInstalling.value) {
       void availableUpdate.value?.close()
     }
   }
@@ -250,13 +274,18 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
     currentReleaseNotes,
     hasUnseenCurrentReleaseNotes,
     isChecking,
+    isDownloading,
+    isDownloaded,
     isInstalling,
-    installProgress,
+    downloadProgress,
     developerPreviewProgress,
+    isDeveloperPreviewDownloading,
+    isDeveloperPreviewDownloaded,
     initialize,
     checkForUpdate,
     markCurrentReleaseNotesSeen,
-    installAvailableUpdate,
+    downloadAvailableUpdate,
+    installDownloadedUpdate,
     startDeveloperPreview,
     stopDeveloperPreview,
     dispose,

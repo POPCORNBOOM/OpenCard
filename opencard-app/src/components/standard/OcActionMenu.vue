@@ -30,7 +30,6 @@
           type="button"
           class="oc-action-menu__button"
           :disabled="entry.disabled === true"
-          :data-tooltip="entry.title || null"
           role="menuitem"
           :aria-label="accessibleActionLabel(entry)"
           :aria-haspopup="hasActionChildren(entry) ? 'menu' : undefined"

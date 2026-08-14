@@ -26,6 +26,7 @@
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"
       :aria-pressed="props.ariaPressed"
+      :tabindex="props.buttonTabindex"
       :disabled="action.disabled === true"
       @click.stop="handleButtonClick"
     />
@@ -91,6 +92,7 @@ const props = withDefaults(defineProps<{
   variant?: ActionButtonVariant
   active?: boolean
   ariaPressed?: boolean
+  buttonTabindex?: number
 }>(), {
   size: 'md',
   iconSize: 'action',

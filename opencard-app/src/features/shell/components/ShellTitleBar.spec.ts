@@ -23,6 +23,7 @@ describe('ShellTitleBar', () => {
       tasks: [
         { key: 'export', title: 'Exporting cards', progress: 0.25, weight: 3 },
         { key: 'index', title: 'Indexing files', progress: 0.75, weight: 1 },
+        { key: 'update', title: 'Waiting to install update', progress: 0, active: false },
       ],
     })
 
@@ -32,10 +33,11 @@ describe('ShellTitleBar', () => {
 
     await wrapper.get('.titlebar-brand-lockup').trigger('pointerenter')
     const rows = document.body.querySelectorAll('.titlebar-task-row')
-    expect(rows).toHaveLength(2)
+    expect(rows).toHaveLength(3)
     expect(rows[0]?.textContent).toContain('Exporting cards')
     expect(rows[0]?.textContent).toContain('25%')
     expect(rows[0]?.querySelector<HTMLElement>('.titlebar-task-row__fill')?.style.width).toBe('25%')
+    expect(rows[2]?.textContent).toContain('Waiting to install update')
 
     await wrapper.setProps({
       tasks: [{ key: 'export', title: 'Exporting cards', progress: 0.6, weight: 1 }],
@@ -130,7 +132,7 @@ describe('ShellTitleBar', () => {
     }
 
     const leafButton = document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[data-tooltip="Leaf"]',
+      '.oc-action-menu__button[aria-label="Leaf"]',
     )
     expect(leafButton).not.toBeNull()
     leafButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }))

@@ -253,6 +253,7 @@ const panelStyles = computed<CSSProperties>(() => ({
 
 .oc-panel--tone-accent {
   background-color: var(--oc-bg-accent);
+  color: var(--oc-accent-fg);
 }
 
 .oc-panel--tone-transparent {

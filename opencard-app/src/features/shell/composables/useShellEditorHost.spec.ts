@@ -247,6 +247,10 @@ describe('useShellEditorHost', () => {
       },
       leftTopHeight: 240,
       rightTopHeight: null,
+      leftDockExtent: 320,
+      rightDockExtent: 360,
+      leftExpandedDockExtent: 320,
+      rightExpandedDockExtent: 360,
     }
     const view = {
       activeFace: 'back' as const,

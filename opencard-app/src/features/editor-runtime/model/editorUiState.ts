@@ -18,6 +18,10 @@ export interface CardDesignerLayoutState {
   panels: CardDesignerPanelState
   leftTopHeight: number | null
   rightTopHeight: number | null
+  leftDockExtent: number
+  rightDockExtent: number
+  leftExpandedDockExtent: number
+  rightExpandedDockExtent: number
 }
 
 export type CardDesignerMode = 'design' | 'data-table'

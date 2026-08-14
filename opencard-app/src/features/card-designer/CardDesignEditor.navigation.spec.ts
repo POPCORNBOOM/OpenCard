@@ -86,6 +86,7 @@ describe('CardDesignEditor issue navigation', () => {
         role: String,
         activationMode: String,
         expandedKeys: Array,
+        tabNavigation: String,
       },
       emits: ['intent'],
       template: '<div />',
@@ -110,6 +111,7 @@ describe('CardDesignEditor issue navigation', () => {
       .find(tree => tree.props('role') !== 'listbox')!
 
     expect(structureTree.props('activationMode')).toBe('double-click')
+    expect(structureTree.props('tabNavigation')).toBe('none')
     structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
     await nextTick()
     expect(structureTree.props('expandedKeys')).toContain('container-1')
@@ -117,6 +119,111 @@ describe('CardDesignEditor issue navigation', () => {
     structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
     await nextTick()
     expect(structureTree.props('expandedKeys')).not.toContain('container-1')
+  })
+
+  it('shows a centered summary and hides single-block viewport controls for multiple selection', async () => {
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: { role: String, selectedKeys: Array, selectionMode: String },
+      emits: ['intent'],
+      template: '<div />',
+    })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      props: { selectedBlockId: String, showInfo: Boolean },
+      emits: ['block-click'],
+      template: '<div class="card-viewport-stub" />',
+    })
+    const OcCardStub = defineComponent({
+      name: 'OcCard',
+      props: { title: String, actions: Array },
+      emits: ['action'],
+      template: '<div><slot /></div>',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: {
+        filePath: 'card.ocdocument',
+        modelValue: JSON.stringify(createDocument()),
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          OcTree: OcTreeStub,
+          CardViewport: CardViewportStub,
+          OcCard: OcCardStub,
+          OcPanel: { template: '<div><slot /></div>' },
+          OcEmpty: { template: '<div class="multi-selection-summary"><slot /></div>' },
+          PropertyEditor: { name: 'PropertyEditor', template: '<div class="property-editor-stub" />' },
+          Teleport: true,
+        },
+      },
+    })
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')!
+    expect(structureTree.props('selectionMode')).toBe('multiple')
+
+    structureTree.vm.$emit('intent', {
+      type: 'selection.change',
+      triggerKey: 'text-1',
+      selectedKeys: ['container-1', 'text-1'],
+      mode: 'range',
+      input: 'left',
+    })
+    await nextTick()
+
+    expect(wrapper.get('.multi-selection-summary').text()).toBe('2 blocks selected')
+    expect(wrapper.find('.property-editor-stub').exists()).toBe(false)
+    const viewport = wrapper.findComponent(CardViewportStub)
+    expect(viewport.props('selectedBlockId')).toBeNull()
+    expect(viewport.props('showInfo')).toBe(true)
+    const propertyCard = wrapper.findAllComponents(OcCardStub).find(card => card.props('title') === '属性')!
+    expect(propertyCard.props('actions')).toMatchObject([{ key: 'toggle-property-panel' }])
+
+    viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
+    await nextTick()
+    expect(viewport.props('selectedBlockId')).toBe('text-1')
+    expect(wrapper.find('.property-editor-stub').exists()).toBe(true)
+  })
+
+  it('deletes a multiple structure selection through one shortcut action', async () => {
+    const OcTreeStub = defineComponent({
+      name: 'OcTree',
+      props: { role: String, selectedKeys: Array },
+      emits: ['intent'],
+      template: '<div />',
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: { filePath: 'card.ocdocument', modelValue: JSON.stringify(createDocument()) },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          OcTree: OcTreeStub,
+          OcCard: { template: '<div><slot /></div>' },
+          OcPanel: { template: '<div><slot /></div>' },
+          Teleport: true,
+        },
+      },
+    })
+    const structureTree = wrapper.findAllComponents(OcTreeStub)
+      .find(tree => tree.props('role') !== 'listbox')!
+    structureTree.vm.$emit('intent', {
+      type: 'selection.change',
+      triggerKey: 'text-1',
+      selectedKeys: ['container-1', 'text-1'],
+      mode: 'range',
+      input: 'left',
+    })
+    await nextTick()
+
+    await wrapper.get('.card-design-editor').trigger('keydown', { key: 'Delete' })
+    await nextTick()
+
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    const updated = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    expect(updated.faces.front.children).toEqual([])
+    expect(structureTree.props('selectedKeys')).toEqual([])
   })
 
   it('selects the instance and block, forces tree reveal, and focuses the property field', async () => {
@@ -529,6 +636,8 @@ describe('CardDesignEditor issue navigation', () => {
       '2 blocks',
       'Review print\nmargins.',
     ])
+    expect(wrapper.findAll('.card-design-editor__card-info > span')
+      .every(item => item.attributes('data-tooltip') === undefined)).toBe(true)
     expect(wrapper.findAll('.card-design-editor__card-info > .is-group-separated').map((item) => item.text()))
       .toEqual(['Front Face', 'Review print\nmargins.'])
 
@@ -1150,6 +1259,10 @@ describe('CardDesignEditor issue navigation', () => {
           },
           leftTopHeight: null,
           rightTopHeight: null,
+          leftDockExtent: 280,
+          rightDockExtent: 280,
+          leftExpandedDockExtent: 280,
+          rightExpandedDockExtent: 280,
         },
       },
       global: {
@@ -1194,15 +1307,29 @@ describe('CardDesignEditor issue navigation', () => {
 
     const docks = wrapper.findAllComponents({ name: 'CdeOverlayDock' })
     expect(docks).toHaveLength(2)
+    expect(docks[0]?.props('widthTooltip'))
+      .toBe('Resize left sidebar[br]Double-click to quickly toggle expand or collapse')
+    expect(docks[1]?.props('widthTooltip'))
+      .toBe('Resize right sidebar[br]Double-click to quickly toggle expand or collapse')
     expect(docks[0]?.props('extent')).toBe(280)
     expect(docks[1]?.props('extent')).toBe(280)
 
     docks[0]?.vm.$emit('update:extent', 120)
     await nextTick()
     expect(docks[0]?.props('extent')).toBe(120)
+    expect(wrapper.emitted('update-card-designer-layout')).toBeUndefined()
     expect(wrapper.findComponent({ name: 'CardViewport' }).props('viewportInsets')).toMatchObject({
       left: expect.closeTo(120 + 6 * (120 / 280)),
       right: 286,
+    })
+
+    docks[0]?.vm.$emit('update:extent', 420)
+    docks[0]?.vm.$emit('resize-end', 'width')
+    await nextTick()
+    const layoutUpdates = wrapper.emitted('update-card-designer-layout') ?? []
+    expect(layoutUpdates[layoutUpdates.length - 1]?.[0]).toMatchObject({
+      leftDockExtent: 420,
+      leftExpandedDockExtent: 420,
     })
 
     docks[1]?.vm.$emit('update:extent', 0)

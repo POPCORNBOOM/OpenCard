@@ -3,48 +3,31 @@ export type ProjectIconReference = {
   iconKey: string
 }
 
-export type ProjectIconTokenMatch = ProjectIconReference & {
-  token: string
-  index: number
-}
-
-export const PROJECT_ICON_ELEMENT_SELECTOR = '[data-oc-icon-series][data-oc-icon-key]'
+export const PROJECT_ICON_ELEMENT_SELECTOR = '[data-oc-icon-path]'
 
 const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
-const projectIconTokenPatternSource = String.raw`\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]`
 
-export function formatProjectIconToken(seriesKey: string, iconKey: string): string {
-  return `[[icon:${seriesKey}/${iconKey}]]`
+export function formatProjectIconPath(seriesKey: string, iconKey: string): string {
+  return `${seriesKey}/${iconKey}`
 }
 
-export function parseProjectIconToken(value: string): ProjectIconReference | null {
-  const matches = findProjectIconTokenMatches(value)
-  const match = matches[0]
-  return match && match.index === 0 && match.token.length === value.length
-    ? { seriesKey: match.seriesKey, iconKey: match.iconKey }
+export function parseProjectIconPath(path: string): ProjectIconReference | null {
+  const separator = path.indexOf('/')
+  if (separator <= 0 || separator === path.length - 1) return null
+  const seriesKey = path.slice(0, separator).trim()
+  const iconKey = path.slice(separator + 1).trim()
+  return projectIconKeyPattern.test(seriesKey) && projectIconKeyPattern.test(iconKey)
+    ? { seriesKey, iconKey }
     : null
 }
 
-export function findProjectIconTokenMatches(value: string): ProjectIconTokenMatch[] {
-  return [...value.matchAll(new RegExp(projectIconTokenPatternSource, 'g'))].map(match => ({
-    token: match[0],
-    seriesKey: match[1]!,
-    iconKey: match[2]!,
-    index: match.index!,
-  }))
-}
-
 export function readProjectIconElement(element: Element): ProjectIconReference | null {
-  const seriesKey = element.getAttribute('data-oc-icon-series')?.trim() ?? ''
-  const iconKey = element.getAttribute('data-oc-icon-key')?.trim() ?? ''
-  if (!projectIconKeyPattern.test(seriesKey) || !projectIconKeyPattern.test(iconKey)) return null
-  return { seriesKey, iconKey }
+  return parseProjectIconPath(element.getAttribute('data-oc-icon-path')?.trim() ?? '')
 }
 
 export function writeProjectIconElement(element: Element, reference: ProjectIconReference): void {
-  element.setAttribute('data-oc-icon-series', reference.seriesKey)
-  element.setAttribute('data-oc-icon-key', reference.iconKey)
-  element.textContent = formatProjectIconToken(reference.seriesKey, reference.iconKey)
+  element.setAttribute('data-oc-icon-path', formatProjectIconPath(reference.seriesKey, reference.iconKey))
+  element.replaceChildren()
 }
 
 export function collectProjectIconReferences(source: string): ProjectIconReference[] {
@@ -56,15 +39,6 @@ export function collectProjectIconReferences(source: string): ProjectIconReferen
     if (reference) references.push(reference)
   }
 
-  const walker = documentNode.createTreeWalker(documentNode.body, NodeFilter.SHOW_TEXT)
-  let current: Node | null
-  while ((current = walker.nextNode())) {
-    if (current.parentElement?.closest(PROJECT_ICON_ELEMENT_SELECTOR)) continue
-    references.push(...findProjectIconTokenMatches(current.textContent ?? '').map(match => ({
-      seriesKey: match.seriesKey,
-      iconKey: match.iconKey,
-    })))
-  }
   return references
 }
 
@@ -82,30 +56,6 @@ export function rewriteProjectIconReferences(
       || (replacement.seriesKey === reference.seriesKey && replacement.iconKey === reference.iconKey)) continue
     writeProjectIconElement(element, replacement)
     changed = true
-  }
-
-  const walker = documentNode.createTreeWalker(documentNode.body, NodeFilter.SHOW_TEXT)
-  const textNodes: Text[] = []
-  let current: Node | null
-  while ((current = walker.nextNode())) {
-    if (current.parentElement?.closest(PROJECT_ICON_ELEMENT_SELECTOR)) continue
-    if (findProjectIconTokenMatches(current.textContent ?? '').length > 0) textNodes.push(current as Text)
-  }
-
-  for (const textNode of textNodes) {
-    const value = textNode.data
-    const matches = findProjectIconTokenMatches(value)
-    let lastIndex = 0
-    let rewritten = ''
-    for (const match of matches) {
-      const replacement = replace(match)
-      rewritten += value.slice(lastIndex, match.index)
-      rewritten += replacement ? formatProjectIconToken(replacement.seriesKey, replacement.iconKey) : match.token
-      if (replacement && (replacement.seriesKey !== match.seriesKey || replacement.iconKey !== match.iconKey)) changed = true
-      lastIndex = match.index + match.token.length
-    }
-    rewritten += value.slice(lastIndex)
-    if (rewritten !== value) textNode.data = rewritten
   }
 
   return changed ? documentNode.body.innerHTML : source

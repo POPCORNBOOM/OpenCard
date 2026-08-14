@@ -20,6 +20,7 @@ const props = {
   splitGap: 8,
   responsiveMinStageWidth: 720,
   widthLabel: 'Resize sidebar',
+  widthTooltip: 'Resize sidebar[br]Double-click to toggle',
   splitLabel: 'Resize panels',
 }
 
@@ -58,6 +59,8 @@ describe('CdeOverlayDock', () => {
     expect(Number.parseFloat(dock.style.transform.match(/-?[\d.]+/)?.[0] ?? '0'))
       .toBeCloseTo(-157.43, 1)
     expect(wrapper.get('[aria-label="Resize sidebar"]').attributes('aria-orientation')).toBe('vertical')
+    expect(wrapper.get('[aria-label="Resize sidebar"]').attributes('data-tooltip'))
+      .toBe('Resize sidebar[br]Double-click to toggle')
     expect(wrapper.findAllComponents({ name: 'OcResizeTrack' })[1]?.props()).toMatchObject({
       edge: 'right',
       placement: 'outside',

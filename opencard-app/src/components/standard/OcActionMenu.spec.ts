@@ -16,7 +16,7 @@ describe('OcActionMenu', () => {
 
     expect(wrapper.findAll('[role="separator"]')).toHaveLength(1)
     expect(wrapper.findAll('[role="menuitem"]')).toHaveLength(2)
-    expect(wrapper.findAll('[role="menuitem"]')[0]!.attributes('data-tooltip')).toBe('Save')
+    expect(wrapper.findAll('[role="menuitem"]')[0]!.attributes('data-tooltip')).toBeUndefined()
     expect(wrapper.findAll('[role="menuitem"]')[0]!.attributes('title')).toBeUndefined()
     expect(wrapper.findAll('.oc-key').map(key => key.text()))
       .toEqual(['Ctrl', 'S'])

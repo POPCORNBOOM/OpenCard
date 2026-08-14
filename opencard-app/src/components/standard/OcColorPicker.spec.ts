@@ -1,9 +1,12 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setOcTheme } from '../../shared/ui/foundation'
 import OcFieldFrame from '../base/OcFieldFrame.vue'
 import OcColorPicker from './OcColorPicker.vue'
 
 describe('OcColorPicker', () => {
+  afterEach(() => setOcTheme('dark'))
+
   it('uses a themed popover without a native color input', async () => {
     const wrapper = mount(OcColorPicker, {
       props: { modelValue: '#112233' },
@@ -26,9 +29,9 @@ describe('OcColorPicker', () => {
     expect(wrapper.getComponent(OcFieldFrame).classes()).toContain('oc-color-picker__field')
     expect(wrapper.getComponent(OcFieldFrame)
       .get('.oc-field-frame__prefix .oc-color-picker__field-trigger').element.tagName).toBe('BUTTON')
-    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(241, 243, 245)')
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(245, 242, 255)')
     await wrapper.get('.oc-color-picker__field-input').setValue('#FFFFFF')
-    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(36, 39, 44)')
+    expect(wrapper.get('.oc-color-picker__field').attributes('style')).toContain('color: rgb(31, 36, 48)')
     await wrapper.get('.oc-color-picker__field-input').trigger('blur')
     expect(wrapper.emitted('commit')).toEqual([['#FFFFFF']])
   })
@@ -39,7 +42,18 @@ describe('OcColorPicker', () => {
     })
 
     expect(wrapper.get('.oc-color-picker__field').attributes('style'))
-      .toContain('color: rgb(36, 39, 44)')
+      .toContain('color: rgb(31, 36, 48)')
+  })
+
+  it('uses the same theme-aware foreground color as accent controls', () => {
+    setOcTheme('light', { '--oc-accent': '#5879FA' })
+    const wrapper = mount(OcColorPicker, {
+      props: { modelValue: '#5879FA', variant: 'field' },
+    })
+
+    expect(wrapper.get('.oc-color-picker__field').attributes('style'))
+      .toContain('color: rgb(245, 242, 255)')
+    expect(document.documentElement.style.getPropertyValue('--oc-accent-fg')).toBe('#F5F2FF')
   })
 
   it.each(['#000000', '#FFFFFF'])(

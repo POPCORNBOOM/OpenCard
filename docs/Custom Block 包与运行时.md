@@ -82,7 +82,7 @@ example-badge.ocblock
           "id": "badge-text",
           "name": "Badge Text",
           "type": "text-block",
-          "content": "<p>Badge <span data-oc-icon-series=\"ocblock-example-badge\" data-oc-icon-key=\"star\">[[icon:ocblock-example-badge/star]]</span></p>",
+          "content": "<p>Badge <span data-oc-icon-path=\"ocblock-example-badge/star\"></span></p>",
           "fontFamily": "OpenCardCustomBlock-example-badge-heading",
           "fontSize": "24px"
         }

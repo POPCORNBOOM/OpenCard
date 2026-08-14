@@ -318,6 +318,7 @@ describe('CardViewport wheel zoom API', () => {
       ])
     expect(wrapper.get('.selection-block-info__title').text()).toContain('Title')
     expect(wrapper.get('.selection-block-info__notes').text()).toBe('Primary heading')
+    expect(wrapper.get('.selection-block-info').attributes('data-tooltip')).toBeUndefined()
     await wrapper.get('.selection-block-info').trigger('pointerdown')
     expect(wrapper.get('.selection-frame').classes()).not.toContain('is-moving')
 

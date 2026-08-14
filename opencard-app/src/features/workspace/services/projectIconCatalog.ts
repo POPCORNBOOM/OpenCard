@@ -1,7 +1,6 @@
 import type { ProjectIcon, ProjectIconSeries } from '../model/projectIcons'
 import {
   PROJECT_ICON_ELEMENT_SELECTOR,
-  findProjectIconTokenMatches,
   readProjectIconElement,
 } from '../../../shared/rich-text/projectIconReference'
 
@@ -230,8 +229,7 @@ export function renderProjectIconsInRichText(
   const applyMissingIcon = (element: HTMLElement, seriesKey: string, iconKey: string): void => {
     element.textContent = ''
     element.className = 'project-inline-icon project-inline-icon--missing'
-    element.setAttribute('data-oc-icon-series', seriesKey)
-    element.setAttribute('data-oc-icon-key', iconKey)
+    element.setAttribute('data-oc-icon-path', `${seriesKey}/${iconKey}`)
     element.setAttribute('data-oc-icon-missing', 'true')
     element.setAttribute('role', 'img')
     element.setAttribute('aria-label', options.missingLabel ?? 'Project icon unavailable')
@@ -258,36 +256,5 @@ export function renderProjectIconsInRichText(
     applyIcon(element, seriesKey, iconKey)
   }
 
-  const walker = documentNode.createTreeWalker(documentNode.body, NodeFilter.SHOW_TEXT)
-  const textNodes: Text[] = []
-  let current: Node | null
-  while ((current = walker.nextNode())) {
-    if (current.parentElement?.closest(PROJECT_ICON_ELEMENT_SELECTOR)) continue
-    if (findProjectIconTokenMatches(current.textContent ?? '').length > 0) textNodes.push(current as Text)
-  }
-  for (const textNode of textNodes) {
-    const fragment = documentNode.createDocumentFragment()
-    let lastIndex = 0
-    const value = textNode.data
-    for (const match of findProjectIconTokenMatches(value)) {
-      fragment.append(value.slice(lastIndex, match.index))
-      const entry = findProjectIcon(catalog, match.seriesKey, match.iconKey)
-      if (!entry) {
-        const icon = documentNode.createElement('span')
-        applyMissingIcon(icon, match.seriesKey, match.iconKey)
-        fragment.append(icon)
-        lastIndex = match.index + match.token.length
-        continue
-      }
-      const icon = documentNode.createElement('span')
-      icon.setAttribute('data-oc-icon-series', match.seriesKey)
-      icon.setAttribute('data-oc-icon-key', match.iconKey)
-      applyIcon(icon, match.seriesKey, match.iconKey)
-      fragment.append(icon)
-      lastIndex = match.index + match.token.length
-    }
-    fragment.append(value.slice(lastIndex))
-    textNode.replaceWith(fragment)
-  }
   return documentNode.body.innerHTML
 }

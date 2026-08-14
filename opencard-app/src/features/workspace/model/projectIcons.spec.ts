@@ -5,13 +5,11 @@ import {
   DEFAULT_PROJECT_ICON_DIRECTORY,
   DEFAULT_PROJECT_ICON_GRID_SETTINGS,
   duplicateProjectIcon,
-  formatProjectIconToken,
   findProjectIconKeyConflicts,
   generateProjectIconGrid,
   moveProjectIcon,
   normalizeProjectIconDirectory,
   parseProjectIconSeries,
-  parseProjectIconToken,
   type ProjectIconSeries,
 } from './projectIcons'
 
@@ -173,9 +171,4 @@ describe('projectIcons', () => {
     expect(duplicated.icons[1]).not.toBe(series.icons[0])
   })
 
-  it('formats and parses canonical icon tokens', () => {
-    expect(formatProjectIconToken('status', 'warning')).toBe('[[icon:status/warning]]')
-    expect(parseProjectIconToken('[[icon:status/warning]]')).toEqual({ seriesKey: 'status', iconKey: 'warning' })
-    expect(parseProjectIconToken('[[icon:STATUS/warning]]')).toBeNull()
-  })
 })

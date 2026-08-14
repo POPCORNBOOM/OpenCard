@@ -551,7 +551,7 @@ onBeforeUnmount(() => {
   }
 }
 
-@container (max-width: 280px) {
+@container (max-width: 240px) {
   .property-editor__row {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--oc-space-1);

@@ -18,8 +18,7 @@
 	          <div class="rich-text-string-popover__editor">
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
-              :project-icon-completion="definition.projectIcon?.provider"
-	              :project-icon-catalog="definition.projectIcon?.catalog"
+		              :project-icon-catalog="definition.projectIcon?.catalog"
 	              :custom-block-catalog="definition.customBlock"
               :field-mode-labels="fieldModeLabels"
               :font-options="definition.fontOptions"
@@ -87,7 +86,7 @@ const stringValue = computed(() => (props.value == null ? '' : String(props.valu
 const draftValue = ref('')
 const sourceValue = ref('')
 const sourceDiagnostics = computed(() => editorMode.value === 'source'
-  ? parseRichTextHtml(sourceValue.value, { allowUnresolvedBindings: true }).diagnostics
+  ? parseRichTextHtml(sourceValue.value).diagnostics
   : [])
 const editorModeOptions: readonly OcOption[] = [
   { value: 'rich', label: '富文本', icon: 'format.text-variant-outline' },
@@ -97,7 +96,7 @@ const editorModeOptions: readonly OcOption[] = [
 async function openEditor(): Promise<void> {
   draftValue.value = stringValue.value
   sourceValue.value = stringValue.value
-  editorMode.value = parseRichTextHtml(stringValue.value, { allowUnresolvedBindings: true }).canEnterVisualMode
+  editorMode.value = parseRichTextHtml(stringValue.value).canEnterVisualMode
     ? 'rich'
     : 'source'
   open.value = true
@@ -110,7 +109,7 @@ async function setEditorMode(mode: string): Promise<void> {
   if (mode !== 'rich' && mode !== 'source') return
   if (mode === editorMode.value) return
   if (mode === 'rich') {
-    const parsed = parseRichTextHtml(sourceValue.value, { allowUnresolvedBindings: true })
+    const parsed = parseRichTextHtml(sourceValue.value)
     if (!parsed.canEnterVisualMode) return
     draftValue.value = sourceValue.value
   }

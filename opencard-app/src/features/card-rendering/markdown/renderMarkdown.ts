@@ -1,7 +1,6 @@
 import MarkdownIt from 'markdown-it'
 import markdownItAttrs from 'markdown-it-attrs'
 import type Token from 'markdown-it/lib/token.mjs'
-import { parseProjectIconToken } from '../../workspace/model/projectIcons'
 import {
   createProjectIconCssProperties,
   findProjectIcon,
@@ -12,6 +11,7 @@ const IMAGE_ATTRIBUTE_NAMES = new Set(['width', 'height', 'fit', 'align'])
 const CSS_LENGTH_PATTERN = /^(?:auto|0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|%|em|rem|vw|vh|vmin|vmax|ch|ex|cm|mm|in|pt|pc))$/i
 const IMAGE_FIT_VALUES = new Set(['contain', 'cover', 'fill'])
 const IMAGE_ALIGN_VALUES = new Set(['start', 'center', 'end'])
+const PROJECT_ICON_TOKEN_PATTERN = /^\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]$/
 
 const markdown = new MarkdownIt({
   html: false,
@@ -29,12 +29,12 @@ markdown.inline.ruler.before('emphasis', 'opencard_project_icon', (state, silent
   const end = state.src.indexOf(']]', state.pos + 7)
   if (end < 0) return false
   const source = state.src.slice(state.pos, end + 2)
-  const reference = parseProjectIconToken(source)
-  if (!reference) return false
+  const match = PROJECT_ICON_TOKEN_PATTERN.exec(source)
+  if (!match) return false
   if (!silent) {
     const token = state.push('opencard_project_icon', '', 0)
     token.content = source
-    token.meta = reference
+    token.meta = { seriesKey: match[1]!, iconKey: match[2]! }
   }
   state.pos = end + 2
   return true

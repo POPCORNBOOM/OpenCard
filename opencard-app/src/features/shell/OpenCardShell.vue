@@ -317,9 +317,10 @@
       :open="releaseNotesDialogMode !== null"
       :release="displayedReleaseNotes"
       :available="releaseNotesDialogMode === 'available'"
-      :installing="isInstallingUpdate"
+      :busy="isDownloadingUpdate || isInstallingUpdate"
+      :downloaded="isUpdateDownloaded"
       @close="closeReleaseNotesDialog"
-      @install="installAvailableRelease"
+      @action="handleAvailableReleaseAction"
     />
 
     <FeedbackDialog
@@ -423,6 +424,7 @@ import {
 import { useAppUpdater } from './composables/useAppUpdater'
 import { useShellProgressTasks } from './composables/useShellProgressTasks'
 import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator'
+import type { ApplicationCloseAction } from './composables/useUnsavedSessionGuard'
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
 import { useShellWindow } from './composables/useShellWindow'
@@ -667,13 +669,18 @@ const {
   currentReleaseNotes,
   hasUnseenCurrentReleaseNotes,
   isChecking: isCheckingForUpdate,
+  isDownloading: isDownloadingUpdate,
+  isDownloaded: isUpdateDownloaded,
   isInstalling: isInstallingUpdate,
-  installProgress: updateInstallProgress,
+  downloadProgress: updateDownloadProgress,
   developerPreviewProgress: developerUpdateProgress,
+  isDeveloperPreviewDownloading,
+  isDeveloperPreviewDownloaded,
   initialize: initializeAppUpdater,
   checkForUpdate,
   markCurrentReleaseNotesSeen,
-  installAvailableUpdate,
+  downloadAvailableUpdate,
+  installDownloadedUpdate,
   startDeveloperPreview: startDeveloperUpdatePreview,
   stopDeveloperPreview: stopDeveloperUpdatePreview,
   dispose: disposeAppUpdater,
@@ -721,8 +728,10 @@ const {
 const UPDATE_PROGRESS_TASK_KEY = 'app-update'
 const titleBarBrandLabel = computed(() => {
   if (titleBarTasks.value.length === 0) return 'OPENCARD'
-  if (titleBarTasks.value.length === 1) return titleBarTasks.value[0]!.title
-  return t('app.shell.activeTasks', { count: titleBarTasks.value.length })
+  const activeTasks = titleBarTasks.value.filter(task => task.active !== false)
+  const labelTasks = activeTasks.length > 0 ? activeTasks : titleBarTasks.value
+  if (labelTasks.length === 1) return labelTasks[0]!.title
+  return t('app.shell.activeTasks', { count: labelTasks.length })
 })
 
 const {
@@ -1308,24 +1317,37 @@ const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData
   TEMPLATE_COVER_REMOVE_ACTION_KEY,
 ))
 
-const updateOperationProgress = computed<number | null>(() => {
+const updateOperationTask = computed<{
+  phase: 'downloading' | 'waiting-install' | 'installing'
+  progress: number
+} | null>(() => {
   const isPreview = import.meta.env.DEV && developerMode.value && !availableUpdate.value
   if (!availableUpdate.value && !isPreview) return null
-  return availableUpdate.value
-    ? (isInstallingUpdate.value ? updateInstallProgress.value ?? 0 : null)
-    : developerUpdateProgress.value
+  if (isInstallingUpdate.value) return { phase: 'installing', progress: 0 }
+  if (availableUpdate.value) {
+    if (isDownloadingUpdate.value) {
+      return { phase: 'downloading', progress: updateDownloadProgress.value ?? 0 }
+    }
+    return isUpdateDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
+  }
+  if (isDeveloperPreviewDownloading.value) {
+    return { phase: 'downloading', progress: developerUpdateProgress.value ?? 0 }
+  }
+  return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
+const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
-watch([updateOperationProgress, locale], ([progress]) => {
-  if (progress == null) {
+watch([updateOperationTask, locale], ([task]) => {
+  if (!task) {
     removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
     return
   }
   setShellProgressTask({
     key: UPDATE_PROGRESS_TASK_KEY,
-    title: t('app.updater.installing'),
-    progress,
+    title: t(`app.updater.${task.phase === 'waiting-install' ? 'waitingInstall' : task.phase}`),
+    progress: task.progress,
     weight: 1,
+    active: task.phase !== 'waiting-install',
   })
 }, { immediate: true })
 
@@ -1335,18 +1357,25 @@ const titleBarAppActions = computed<ShellTitleBarAppAction[]>(() => {
 
   const progress = updateOperationProgress.value
   const disabled = availableUpdate.value
-    ? isInstallingUpdate.value
-    : progress !== null && progress < 1
+    ? isDownloadingUpdate.value || isInstallingUpdate.value
+    : isDeveloperPreviewDownloading.value
+  const downloaded = availableUpdate.value
+    ? isUpdateDownloaded.value
+    : isDeveloperPreviewDownloaded.value
 
   return [{
     key: 'install-update',
-    icon: 'action.download',
+    icon: downloaded ? 'action.restart' : 'action.download',
     disabled,
-    hoverTip: progress !== null
-      ? t('app.updater.installingProgress', { progress: Math.round(progress * 100) })
-      : isPreview
-        ? t('app.updater.previewAvailable')
-        : t('app.updater.available', { version: updateVersion.value }),
+    hoverTip: downloaded
+      ? isPreview
+        ? t('app.updater.previewInstall')
+        : t('app.updater.installVersion', { version: updateVersion.value })
+      : progress !== null
+        ? t('app.updater.downloadingProgress', { progress: Math.round(progress * 100) })
+        : isPreview
+          ? t('app.updater.previewAvailable')
+          : t('app.updater.available', { version: updateVersion.value }),
   }]
 })
 
@@ -1716,7 +1745,10 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
           ? t('app.updater.checking')
           : t('app.updater.check'),
         icon: 'action.refresh',
-        disabled: isCheckingForUpdate.value || isInstallingUpdate.value,
+        disabled: isCheckingForUpdate.value
+          || isDownloadingUpdate.value
+          || isUpdateDownloaded.value
+          || isInstallingUpdate.value,
       },
       ...developerModeMenuActions.value,
       { type: 'divider', key: 'help-feedback-divider' },
@@ -1809,7 +1841,6 @@ const workspaceActions = computed<ShellAction[]>(() => {
       hoverTip: t('cardDesigner.dataTable.exportWorkbook'),
       disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
     },
-    renderImageAction,
     modeAction,
   ]
 })
@@ -2137,7 +2168,15 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   await resetProjectWorkspaceState()
 }
 
-async function performApplicationClose(): Promise<void> {
+async function performApplicationClose(action: ApplicationCloseAction): Promise<void> {
+  if (action === 'install-update') {
+    if (availableUpdate.value) {
+      await installDownloadedUpdate()
+    } else if (import.meta.env.DEV && isDeveloperPreviewDownloaded.value) {
+      stopDeveloperUpdatePreview()
+    }
+    return
+  }
   await destroyWindow()
 }
 
@@ -2602,9 +2641,14 @@ async function closeReleaseNotesDialog(): Promise<void> {
   releaseNotesDialogMode.value = null
 }
 
-async function installAvailableRelease(): Promise<void> {
+async function handleAvailableReleaseAction(): Promise<void> {
   if (!availableUpdate.value) return
-  await installAvailableUpdate()
+  releaseNotesDialogMode.value = null
+  if (isUpdateDownloaded.value) {
+    await requestApplicationClose('install-update')
+    return
+  }
+  await downloadAvailableUpdate()
 }
 
 async function handleTitleBarAppAction(actionKey: string): Promise<void> {
@@ -2614,10 +2658,20 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
   }
   if (actionKey !== 'install-update') return
   if (availableUpdate.value) {
-    releaseNotesDialogMode.value = 'available'
+    if (isUpdateDownloaded.value) {
+      await requestApplicationClose('install-update')
+      return
+    }
+    await downloadAvailableUpdate()
     return
   }
-  if (import.meta.env.DEV && developerMode.value) startDeveloperUpdatePreview()
+  if (import.meta.env.DEV && developerMode.value) {
+    if (isDeveloperPreviewDownloaded.value) {
+      await requestApplicationClose('install-update')
+      return
+    }
+    startDeveloperUpdatePreview()
+  }
 }
 
 async function handleWorkspaceFrameAction(actionKey: string) {

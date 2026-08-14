@@ -82,7 +82,7 @@ const BUILTIN_THEME_DEFINITIONS: Partial<Record<AppThemePresetId, AppThemeDefini
     fontFamily: 'system',
   },
   'morning-mist': {
-    colors: { '--oc-accent': '#5B7CFA', '--oc-bg-base': '#F2F5FB', '--oc-fg-default': '#283044' },
+    colors: { '--oc-accent': '#5879FA', '--oc-bg-base': '#F2F5FB', '--oc-fg-default': '#283044' },
     accentNeighborAngle: -35,
     fontFamily: 'system',
   },

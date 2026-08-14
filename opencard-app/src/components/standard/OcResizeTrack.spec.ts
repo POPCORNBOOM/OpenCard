@@ -10,6 +10,7 @@ describe('OcResizeTrack', () => {
         maximum: 600,
         value: 280,
         label: 'Resize panel',
+        tooltip: 'Resize panel[br]Double-click to toggle',
         edge: 'top',
         placement: 'outside',
       },
@@ -19,6 +20,8 @@ describe('OcResizeTrack', () => {
     expect(wrapper.classes()).toContain('oc-resize-track--edge-top')
     expect(wrapper.classes()).toContain('oc-resize-track--placement-outside')
     expect(wrapper.get('[role="separator"]').attributes('aria-valuenow')).toBe('280')
+    expect(wrapper.get('[role="separator"]').attributes('data-tooltip'))
+      .toBe('Resize panel[br]Double-click to toggle')
 
     await wrapper.trigger('dblclick')
     expect(wrapper.emitted('double-click')).toHaveLength(1)

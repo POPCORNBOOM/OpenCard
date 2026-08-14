@@ -47,6 +47,7 @@ export interface ShellProgressTask {
   title: string;
   progress: number;
   weight?: number;
+  active?: boolean;
   detail?: string;
   cancellable?: boolean;
 }

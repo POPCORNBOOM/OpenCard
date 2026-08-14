@@ -155,7 +155,6 @@ export function prepareRichText(options: {
       if (depth === 0) rootParseCount += 1
       else nestedParseCount += 1
       const parsed = parseRichTextHtml(String((host.block as unknown as Record<string, unknown>).content ?? ''), {
-        allowUnresolvedBindings: false,
         resolveCustomBlock: key => {
           const catalogEntry = customBlockCatalog.get(key.toLowerCase())
           return catalogEntry

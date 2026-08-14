@@ -23,12 +23,12 @@ describe('projectIconCatalog', () => {
     expect(findProjectIcon(catalog, 'STATUS', 'WARNING')).toMatchObject({ imageWidth: 64, imageHeight: 32 })
   })
 
-  it('renders canonical rich-text icon tokens', async () => {
+  it('renders canonical rich-text icon elements', async () => {
     const catalog = await buildProjectIconCatalog([{
       name: 'Status icons', key: 'status', source: 'status.png',
       icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
     }], source => source, async () => ({ width: 16, height: 16 }))
-    const html = renderProjectIconsInRichText('<p>A [[icon:status/warning]] B</p>', catalog)
+    const html = renderProjectIconsInRichText('<p>A <span data-oc-icon-path="status/warning"></span> B</p>', catalog)
     expect(html).toContain('project-inline-icon oc-project-icon')
     expect(html).toContain('aria-label="Warning"')
     expect(html).toContain('--oc-project-icon-background-image: url(&quot;status.png&quot;)')
@@ -36,11 +36,11 @@ describe('projectIconCatalog', () => {
 
   it('renders missing rich-text icons as a stable placeholder instead of machine syntax', () => {
     const html = renderProjectIconsInRichText(
-      '<p>[[icon:status/missing]]</p>', EMPTY_PROJECT_ICON_CATALOG, { missingLabel: 'Unavailable icon' },
+      '<p><span data-oc-icon-path="status/missing"></span></p>', EMPTY_PROJECT_ICON_CATALOG, { missingLabel: 'Unavailable icon' },
     )
     expect(html).toContain('project-inline-icon--missing')
     expect(html).toContain('aria-label="Unavailable icon"')
-    expect(html).not.toContain('[[icon:status/missing]]')
+    expect(html).not.toContain('data-oc-icon-path="status/missing"></span>')
   })
 
   it('reports failed images and out-of-bounds records without exposing them', async () => {

@@ -12,7 +12,6 @@ import OcActionButton, { type OcActionButtonAction } from '../../../components/s
 import PropertyEditor from '../property-editor/PropertyEditor.vue'
 import PropertyFieldActionRail from '../property-editor/PropertyFieldActionRail.vue'
 import PropertyFieldRenderer from '../property-editor/PropertyFieldRenderer.vue'
-import { createProjectIconCompletionProvider } from '../../../features/workspace/services/projectIconCompletion'
 import OcRichTextEditor from './OcRichTextEditor.vue'
 import { clearRecentProjectIcons } from './recentProjectIcons'
 
@@ -253,10 +252,10 @@ describe('OcRichTextEditor', () => {
     wrapper.unmount()
   })
 
-  it('keeps project icons atomic and serializes only safe keys with fallback text', async () => {
+  it('keeps project icons atomic and serializes only the HTML path attribute', async () => {
     const wrapper = mount(OcRichTextEditor, {
       props: {
-        modelValue: '<p><span data-oc-icon-series="status" data-oc-icon-key="wide">ignored</span></p>',
+        modelValue: '<p><span data-oc-icon-path="status/wide">ignored</span></p>',
         projectIconCatalog: {
           series: [{ name: 'Status icons', key: 'status', source: 'status.png', src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
           entries: [{ seriesKey: 'status', iconKey: 'wide', name: 'Wide', source: 'status.png', src: 'asset://status', x: 0, y: 0, width: 8, height: 4, imageWidth: 16, imageHeight: 8 }],
@@ -270,10 +269,27 @@ describe('OcRichTextEditor', () => {
     let iconNode = null as ReturnType<typeof editor.state.doc.nodeAt>
     editor.state.doc.descendants((node) => { if (node.type.name === 'projectIcon') iconNode = node })
     expect(iconNode?.isAtom).toBe(true)
-    expect(editor.getHTML()).toBe('<p><span data-oc-icon-series="status" data-oc-icon-key="wide">[[icon:status/wide]]</span></p>')
-    expect(editor.getText()).toBe('[[icon:status/wide]]')
+    expect(editor.getHTML()).toBe('<p><span data-oc-icon-path="status/wide"></span></p>')
+    expect(editor.getText()).toBe('')
     expect(editor.getHTML()).not.toContain('asset://')
     expect(editor.view.dom.textContent).not.toContain('[[icon:')
+    wrapper.unmount()
+  })
+
+  it('keeps dynamic icon paths and treats markdown icon syntax as plain rich text', async () => {
+    const wrapper = mount(OcRichTextEditor, {
+      props: {
+        modelValue: '<p><span data-oc-icon-path="{{parent.suit}}"></span> [[icon:status/wide]]</p>',
+        projectIconCatalog: { series: [], entries: [], errors: [] },
+      },
+    })
+    const editor = (wrapper.vm as unknown as { editor: Editor }).editor
+    await nextTick()
+    let iconNode = null as ReturnType<typeof editor.state.doc.nodeAt>
+    editor.state.doc.descendants(node => { if (node.type.name === 'projectIcon') iconNode = node })
+    expect(iconNode?.attrs.iconPath).toBe('{{parent.suit}}')
+    expect(editor.getHTML()).toBe('<p><span data-oc-icon-path="{{parent.suit}}"></span> [[icon:status/wide]]</p>')
+    expect(editor.getText()).toContain('[[icon:status/wide]]')
     wrapper.unmount()
   })
 
@@ -297,6 +313,7 @@ describe('OcRichTextEditor', () => {
       .find(component => component.props('action').key === 'project-icon')!
     expect(iconAction.props('action')).toMatchObject({
       title: '插入项目图标',
+      icon: 'action.project-icon-plus',
       children: [{
         title: 'Status icons',
         children: [
@@ -311,7 +328,7 @@ describe('OcRichTextEditor', () => {
     editor.chain().focus().setMark('textStyle', { fontSize: '40px' }).run()
     iconAction.vm.$emit('select', { key: 'project-icon:status/wide' })
     await nextTick()
-    expect(editor.getHTML()).toContain('data-oc-icon-key="wide"')
+    expect(editor.getHTML()).toContain('data-oc-icon-path="status/wide"')
     let insertedIcon = null as ReturnType<typeof editor.state.doc.nodeAt>
     editor.state.doc.descendants(node => { if (node.type.name === 'projectIcon') insertedIcon = node })
     expect(insertedIcon?.marks.find(mark => mark.type.name === 'textStyle')?.attrs.fontSize).toBe('40px')
@@ -326,17 +343,17 @@ describe('OcRichTextEditor', () => {
     expect(iconAction.props('action').title).toBe('替换项目图标')
     iconAction.vm.$emit('select', { key: 'project-icon:status/narrow' })
     await nextTick()
-    expect(editor.getHTML()).toContain('data-oc-icon-key="narrow"')
+    expect(editor.getHTML()).toContain('data-oc-icon-path="status/narrow"')
     insertedIcon = (editor.state.selection as NodeSelection).node
     expect(insertedIcon?.marks.find(mark => mark.type.name === 'textStyle')?.attrs.fontSize).toBe('40px')
     expect(editor.view.dom.querySelector('.project-icon-node button')).toBeNull()
     expect(editor.view.dom.textContent).not.toContain('[[icon:')
     editor.commands.deleteSelection()
-    expect(editor.getHTML()).not.toContain('data-oc-icon-key')
+    expect(editor.getHTML()).not.toContain('data-oc-icon-path')
     wrapper.unmount()
   })
 
-  it('uses a two-row toolbar and caches five icons from menu and bracket completion', async () => {
+  it('uses a two-row toolbar and caches five icons selected from the menu', async () => {
     clearRecentProjectIcons()
     const icons = Array.from({ length: 6 }, (_, index) => ({
       iconKey: `icon-${index + 1}`,
@@ -346,7 +363,6 @@ describe('OcRichTextEditor', () => {
       width: 4,
       height: 4,
     }))
-    const series = [{ name: 'Status icons', key: 'status', source: 'status.png', icons }]
     const projectIconCatalog = {
       series: [{ name: 'Status icons', key: 'status', source: 'status.png', src: 'asset://status', imageWidth: 24, imageHeight: 4 }],
       entries: icons.map(icon => ({
@@ -363,7 +379,6 @@ describe('OcRichTextEditor', () => {
       props: {
         modelValue: '<p></p>',
         projectIconCatalog,
-        projectIconCompletion: createProjectIconCompletionProvider(series, projectIconCatalog),
       },
     })
     const editor = (wrapper.vm as unknown as { editor: Editor }).editor
@@ -380,15 +395,13 @@ describe('OcRichTextEditor', () => {
     expect(recentButton.find('.oc-button__label').exists()).toBe(false)
     expect(recentButton.find('.oc-rich-text-editor__recent-icon-image').exists()).toBe(true)
 
-    editor.chain().focus('end').setMark('textStyle', { fontSize: '32px' })
-      .insertContent(' [[status/Icon 6]]').run()
-    await vi.waitFor(() => expect(document.querySelector('.oc-autocomplete-popover')).not.toBeNull())
-    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    editor.chain().focus('end').setMark('textStyle', { fontSize: '32px' }).run()
+    iconAction.vm.$emit('select', { key: 'project-icon:status/icon-6' })
     await nextTick()
-    expect(editor.getHTML()).toContain('data-oc-icon-key="icon-6"')
+    expect(editor.getHTML()).toContain('data-oc-icon-path="status/icon-6"')
     let completedIcon = null as ReturnType<typeof editor.state.doc.nodeAt>
     editor.state.doc.descendants(node => {
-      if (node.type.name === 'projectIcon' && node.attrs.iconKey === 'icon-6') completedIcon = node
+      if (node.type.name === 'projectIcon' && node.attrs.iconPath === 'status/icon-6') completedIcon = node
     })
     expect(completedIcon?.marks.find(mark => mark.type.name === 'textStyle')?.attrs.fontSize).toBe('32px')
     expect(wrapper.findAll('.oc-rich-text-editor__recent-icon').map(button => button.attributes('aria-label')))
@@ -494,6 +507,7 @@ describe('OcRichTextEditor', () => {
     await nextTick()
     const actionButton = wrapper.findAllComponents(OcActionButton)
       .find(component => component.props('action').key === 'custom-block')!
+    expect(actionButton.props('action')).toMatchObject({ icon: 'action.custom-block-plus' })
     actionButton.vm.$emit('select', { key: 'custom-block:badge' })
     await nextTick()
     expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ disabled: true })
