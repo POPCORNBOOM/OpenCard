@@ -399,6 +399,7 @@ export default {
       previewFontKey: 'Key', previewFontSource: '源文件',
       previewSystemFallback: '系统回退字体', previewSystemFallbackDescription: '没有注册字体支持这段文字。',
       previewCoverageUnavailable: '无法分析字体覆盖', previewCoverageUnavailableDescription: '字体文件无法读取或解析，暂时不能确认这段文字使用的字体。',
+      previewLoadFailed: '无法从 {source} 加载 {key}。', previewCoverageFailed: '无法分析 {key} 中的任何字体文件。', previewMemberShadowed: '{key} 已被更靠前的组合成员完全覆盖。',
       previewText: '预览文字',
       previewSample: 'OpenCard 项目字体 Aa 0123',
       pickTitle: '选择字体文件',

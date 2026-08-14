@@ -37,6 +37,11 @@
         <header class="project-font-registry-workbench__preview-toolbar">
           <OcFieldInput full-width :value="previewText" :aria-label="t('projectConfig.fonts.previewText')"
             @input="updatePreviewText" />
+          <div v-if="previewDiagnostics.length" class="project-font-registry-workbench__preview-diagnostics" role="status">
+            <OcText v-for="diagnostic in previewDiagnostics" :key="diagnostic" tone="danger" size="xs">
+              {{ diagnostic }}
+            </OcText>
+          </div>
         </header>
         <div class="project-font-registry-workbench__preview" :style="previewStyle">
           <span class="project-font-registry-workbench__preview-content">
@@ -98,8 +103,11 @@ import type { ProjectFontComposition, ProjectFontFamily } from '../../features/w
 import { createProjectFontFamilyCssFamily } from '../../features/workspace/model/projectFonts'
 import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
 import {
+  characterSetToUnicodeRanges,
   createProjectFontPreviewRuns,
+  mergeUnicodeRanges,
   readProjectFontCharacterSet,
+  subtractUnicodeRanges,
   type ProjectFontPreviewCandidate,
 } from '../../features/workspace/services/projectFontCoverage'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
@@ -227,6 +235,43 @@ const hoveredFace = computed(() => hoveredFont.value?.faces.find(face => (
   previewFaceKey(hoveredFont.value!.key, face.source) === hoveredFaceKey.value
 )) ?? null)
 const coverageFailed = computed(() => previewFamilies.value.some(family => failedCoverageKeys.value.has(family.key)))
+const shadowedMemberKeys = computed(() => {
+  if (activePage.value !== 'compositions' || !selectedComposition.value) return []
+  const claimedByDescriptor = new Map<string, { start: number; end: number }[]>()
+  const shadowed: string[] = []
+  for (const member of selectedComposition.value.members) {
+    const family = props.families.find(candidate => candidate.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase())
+    let readable = false
+    let contributes = false
+    for (const face of family?.faces ?? []) {
+      const coverage = characterSets.value.get(previewFaceKey(member.familyKey, face.source))
+      if (!coverage) continue
+      readable = true
+      const descriptorKey = JSON.stringify([face.weight, face.stretch, face.style])
+      const claimed = claimedByDescriptor.get(descriptorKey) ?? []
+      const effective = subtractUnicodeRanges(characterSetToUnicodeRanges(coverage, member.ranges), claimed)
+      if (effective.length) contributes = true
+      claimedByDescriptor.set(descriptorKey, mergeUnicodeRanges([
+        ...claimed,
+        ...effective,
+      ]))
+    }
+    if (readable && !contributes) shadowed.push(member.familyKey)
+  }
+  return shadowed
+})
+const previewDiagnostics = computed(() => {
+  const selectedKeys = new Set(previewFamilies.value.map(family => family.key.toLocaleLowerCase()))
+  return [
+    ...props.loadErrors
+      .filter(error => selectedKeys.has(error.familyKey.toLocaleLowerCase()))
+      .map(error => t('projectConfig.fonts.previewLoadFailed', { key: error.familyKey, source: error.source })),
+    ...[...failedCoverageKeys.value]
+      .filter(key => selectedKeys.has(key.toLocaleLowerCase()))
+      .map(key => t('projectConfig.fonts.previewCoverageFailed', { key })),
+    ...shadowedMemberKeys.value.map(key => t('projectConfig.fonts.previewMemberShadowed', { key })),
+  ]
+})
 
 watch(() => props.families, families => {
   if (!families.some(family => family.key === selectedFamilyKey.value)) selectedFamilyKey.value = families[0]?.key ?? null
@@ -403,7 +448,8 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__list { position: relative; grid-row: 3; min-height: 0; overflow: hidden; }
 .project-font-registry-workbench__list > .oc-tree { position: absolute; inset: 0; }
 .project-font-registry-workbench__right { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-base); }
-.project-font-registry-workbench__preview-toolbar { padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-registry-workbench__preview-toolbar { display: grid; gap: var(--oc-space-2); padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-registry-workbench__preview-diagnostics { display: grid; gap: var(--oc-space-1); }
 .project-font-registry-workbench__preview { display: grid; place-items: center; min-width: 0; min-height: 0; padding: var(--oc-space-6); overflow: auto; overflow-wrap: anywhere; font-size: var(--oc-font-preview-size); text-align: center; }
 .project-font-registry-workbench__preview-content { white-space: pre-wrap; }
 .project-font-registry-workbench__preview-run {

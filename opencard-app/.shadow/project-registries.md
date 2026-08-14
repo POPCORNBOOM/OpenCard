@@ -81,6 +81,12 @@ content-deduplicates face bytes. Runtime composition loading intersects each
 member with actual glyph coverage and removes characters already claimed by an
 earlier member with the same face descriptors.
 
+The font workbench treats diagnostics as part of preview truth. It surfaces
+runtime loading failures and coverage-read failures for the selected entry, and
+marks a composition member as fully shadowed only after readable face coverage
+has contributed no characters beyond earlier members with matching descriptors.
+Invalid range text remains a blocking inline error in the composition dialog.
+
 The icon registry editor uses a controlled two-column workbench and must not
 mirror the registry array into a second draft. The left column owns the editor
 title and one expanded icon-set section; its body pairs the icon tree with a

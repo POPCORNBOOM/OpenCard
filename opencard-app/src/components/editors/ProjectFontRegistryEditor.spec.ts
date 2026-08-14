@@ -121,4 +121,26 @@ describe('ProjectFontRegistryEditor', () => {
     expect(info?.textContent).toContain('fonts/BrandCJK.woff2')
     wrapper.unmount()
   })
+
+  it('shows load failures and fully shadowed composition members in the preview', async () => {
+    const wrapper = mount(ProjectFontRegistryEditor, {
+      props: {
+        ...baseProps,
+        compositions: [{
+          key: 'body', name: 'Body',
+          members: [{ familyKey: 'brand-latin' }, { familyKey: 'brand-latin' }],
+        }],
+        loadErrors: [{ familyKey: 'brand-latin', source: 'fonts/Brand.woff2', message: 'decode failed' }],
+      },
+    })
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'selection.change', triggerKey: 'compositions:body', selectedKeys: ['compositions:body'], mode: 'replace', input: 'left',
+    })
+
+    await vi.waitFor(() => {
+      const diagnostics = wrapper.get('.project-font-registry-workbench__preview-diagnostics').text()
+      expect(diagnostics).toContain('projectConfig.fonts.previewLoadFailed')
+      expect(diagnostics).toContain('projectConfig.fonts.previewMemberShadowed')
+    })
+  })
 })

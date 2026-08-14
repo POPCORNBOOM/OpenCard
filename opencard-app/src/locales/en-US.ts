@@ -399,6 +399,7 @@ export default {
       previewFontKey: 'Key', previewFontSource: 'Source file',
       previewSystemFallback: 'System fallback font', previewSystemFallbackDescription: 'No registered font supports this text.',
       previewCoverageUnavailable: 'Font coverage unavailable', previewCoverageUnavailableDescription: 'The font file could not be read or parsed, so the font used for this text cannot be confirmed.',
+      previewLoadFailed: 'Could not load {key} from {source}.', previewCoverageFailed: 'Could not inspect any font file in {key}.', previewMemberShadowed: '{key} is fully covered by earlier composition members.',
       previewText: 'Preview Text',
       previewSample: 'OpenCard Project Fonts Aa 0123',
       pickTitle: 'Choose Font File',
