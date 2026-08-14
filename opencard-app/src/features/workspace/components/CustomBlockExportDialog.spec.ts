@@ -178,7 +178,13 @@ describe('CustomBlockExportDialog', () => {
       props: {
         ...baseProps,
         resourceIndex: {
-          fonts: [{ key: 'body', name: 'Body', source: 'resources/fonts/body.woff2' }],
+          fonts: [{
+            kind: 'family', key: 'body', name: 'Body',
+            faces: [{
+              source: 'resources/fonts/body.woff2',
+              weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' },
+            }],
+          }],
           images: [{ key: 'cover', source: 'resources/images/cover.png' }],
         },
         resourceImageLabels: new Map([['resources/images/cover.png', 'cover.png']]),

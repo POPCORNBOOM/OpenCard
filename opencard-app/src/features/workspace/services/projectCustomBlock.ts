@@ -166,7 +166,8 @@ function normalizeNativeRoot(root: unknown, manifest: ProjectCustomBlockManifest
 function indexedResourcePaths(manifest: ProjectCustomBlockManifest, issues: ProjectCustomBlockPackageIssue[]): string[] {
   const resources = manifest.resources
   const groups = [
-    { prefix: 'resources/fonts/', paths: (resources?.fonts ?? []).map(resource => resource.source) },
+    { prefix: 'resources/fonts/', paths: (resources?.fonts ?? [])
+      .flatMap(resource => resource.kind === 'family' ? resource.faces.map(face => face.source) : []) },
     { prefix: 'resources/images/', paths: (resources?.images ?? []).map(resource => resource.source) },
     { prefix: 'resources/icons/', paths: (resources?.iconSeries ?? []).map(series => series.source) },
   ]
@@ -176,10 +177,11 @@ function indexedResourcePaths(manifest: ProjectCustomBlockManifest, issues: Proj
     for (const rawPath of group.paths) {
       const path = normalizeArchivePath(rawPath)
       const identity = path?.toLowerCase()
-      if (!path || !path.toLowerCase().startsWith(group.prefix) || identities.has(identity!)) {
-        addIssue(issues, 'resource-unavailable', rawPath, 'Invalid or duplicate resource path was ignored')
+      if (!path || !path.toLowerCase().startsWith(group.prefix)) {
+        addIssue(issues, 'resource-unavailable', rawPath, 'Invalid resource path was ignored')
         continue
       }
+      if (identities.has(identity!)) continue
       identities.add(identity!)
       paths.push(path)
     }
@@ -202,10 +204,21 @@ function collectResourceReferenceIssues(manifest: ProjectCustomBlockManifest, ro
   const issues: ProjectCustomBlockPackageIssue[] = []
   const imageKeys = new Set((manifest.resources?.images ?? []).map(resource => resource.key.toLowerCase()))
   const fontKeys = new Set((manifest.resources?.fonts ?? []).map(resource => resource.key.toLowerCase()))
+  const fontFamilies = new Set((manifest.resources?.fonts ?? [])
+    .filter(resource => resource.kind === 'family')
+    .map(resource => resource.key.toLowerCase()))
   const iconSeries = new Map((manifest.resources?.iconSeries ?? []).map(series => [
     series.key.toLowerCase(),
     new Set(series.icons.map(icon => icon.iconKey.toLowerCase())),
   ]))
+  for (const font of manifest.resources?.fonts ?? []) {
+    if (font.kind !== 'composition') continue
+    for (const member of font.members) {
+      if (!fontFamilies.has(member.familyKey.toLowerCase())) {
+        addIssue(issues, 'resource-unavailable', member.familyKey, 'Font composition member is not an indexed family')
+      }
+    }
+  }
   const validateIconReference = (seriesKey: string, iconKey: string): void => {
     const icons = iconSeries.get(seriesKey.toLowerCase())
     if (!icons || !icons.has(iconKey.toLowerCase())) {

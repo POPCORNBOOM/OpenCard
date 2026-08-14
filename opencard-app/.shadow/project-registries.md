@@ -72,6 +72,15 @@ font files are selected for Recycle Bin cleanup by default, while sources still
 used by another family are always retained. Byte-identical imports reuse the
 existing managed file even when their incoming filename differs.
 
+Custom-block packages preserve the same font semantics rather than flattening a
+reference to one file. Their manifest font index contains discriminated family
+and composition resources: families retain every face descriptor and
+compositions retain ordered member ranges. Packaging copies the complete
+dependency closure, remaps package-local Keys case-insensitively, and
+content-deduplicates face bytes. Runtime composition loading intersects each
+member with actual glyph coverage and removes characters already claimed by an
+earlier member with the same face descriptors.
+
 The icon registry editor uses a controlled two-column workbench and must not
 mirror the registry array into a second draft. The left column owns the editor
 title and one expanded icon-set section; its body pairs the icon tree with a

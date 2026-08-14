@@ -57,6 +57,57 @@ describe('collectProjectCustomBlockResources', () => {
     })).rejects.toThrow('font:missing')
   })
 
+  it('packages every face and the ordered members of a project font composition', async () => {
+    const root = createBlock('text-block', { fontFamily: 'font:display' })
+    const readBinaryFile = vi.fn(async (path: string) => new TextEncoder().encode(path))
+    const result = await collectProjectCustomBlockResources({
+      root,
+      packageKey: 'display-card',
+      projectRootPath: 'D:/Cards',
+      projectFonts: {
+        latin: {
+          kind: 'family', name: 'Latin', family: {
+            key: 'latin', name: 'Latin', faces: [
+              { source: 'fonts/latin-regular.woff2', weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
+              { source: 'fonts/latin-bold.woff2', weight: { min: 700, max: 700 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
+            ],
+          },
+        },
+        cjk: {
+          kind: 'family', name: 'CJK', family: {
+            key: 'cjk', name: 'CJK', faces: [
+              { source: 'fonts/cjk.otf', weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
+            ],
+          },
+        },
+        display: {
+          kind: 'composition', name: 'Display', composition: {
+            key: 'display', name: 'Display', members: [
+              { familyKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
+              { familyKey: 'cjk' },
+            ],
+          },
+        },
+      },
+      fs: { readBinaryFile },
+    })
+
+    expect(readBinaryFile).toHaveBeenCalledTimes(3)
+    expect(result.files.size).toBe(3)
+    expect(result.index.fonts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'family', key: 'latin', faces: expect.arrayContaining([
+        expect.objectContaining({ weight: { min: 700, max: 700 } }),
+      ]) }),
+      expect.objectContaining({ kind: 'family', key: 'cjk' }),
+      expect.objectContaining({ kind: 'composition', key: 'display', members: [
+        { familyKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
+        { familyKey: 'cjk' },
+      ] }),
+    ]))
+    rewriteProjectCustomBlockResourceReferences(root, result)
+    expect(root.fontFamily).toBe('resource:font:display')
+  })
+
   it('uses one resource index entry for images with identical bytes', async () => {
     const root = createBlock('simple-container-block')
     root.children.push({

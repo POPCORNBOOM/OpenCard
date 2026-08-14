@@ -6,6 +6,11 @@ import {
   type ProjectCustomBlockFontRuntime,
 } from './projectCustomBlockFontLoader'
 
+vi.mock('./projectFontCoverage', async importOriginal => ({
+  ...await importOriginal<typeof import('./projectFontCoverage')>(),
+  readProjectFontCharacterSet: vi.fn(async () => new Set([0x41, 0x42, 0x4e00])),
+}))
+
 function createCatalog(): ProjectCustomBlockCatalog {
   return new Map([['square', {
     archivePath: 'assets/square.ocblock',
@@ -13,7 +18,15 @@ function createCatalog(): ProjectCustomBlockCatalog {
     manifest: {
       type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
       publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
-      resources: { fonts: [{ key: 'body', name: 'Body', source: 'resources/fonts/a.woff2' }] },
+      resources: { fonts: [{
+        kind: 'family', key: 'body', name: 'Body',
+        faces: [{
+          source: 'resources/fonts/a.woff2',
+          weight: { min: 400, max: 700 },
+          stretch: { min: 100, max: 100 },
+          style: { kind: 'normal' },
+        }],
+      }] },
     },
     block: createBlock('text-block', { id: 'root', fontFamily: 'resource:font:body' }),
   }]])
@@ -37,7 +50,9 @@ describe('project custom block font loader', () => {
     const session = await createProjectCustomBlockFontSession(createCatalog(), runtime)
 
     expect(runtime.createObjectUrl).toHaveBeenCalledWith(expect.objectContaining({ type: 'font/woff2' }))
-    expect(runtime.createFontFace).toHaveBeenCalledWith('OpenCardCustomBlock-square-body', 'url("blob:font")')
+    expect(runtime.createFontFace).toHaveBeenCalledWith('OpenCardCustomBlock-square-body', 'url("blob:font")', {
+      weight: '400 700', stretch: '100%', style: 'normal',
+    })
     expect(face.load).toHaveBeenCalled()
     expect(runtime.addFont).toHaveBeenCalledWith(face)
 
@@ -61,5 +76,34 @@ describe('project custom block font loader', () => {
     expect(failedRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
     first.release()
     expect(firstRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
+  })
+
+  it('loads compositions with preserved face descriptors and strict character fallback', async () => {
+    const catalog = createCatalog()
+    const entry = catalog.get('square')!
+    entry.manifest.resources = { fonts: [
+      ...entry.manifest.resources!.fonts!,
+      {
+        kind: 'composition', key: 'display', name: 'Display',
+        members: [
+          { familyKey: 'body', ranges: [{ start: 0x41, end: 0x41 }] },
+          { familyKey: 'body' },
+        ],
+      },
+    ] }
+    const { runtime } = createRuntime()
+    const session = await createProjectCustomBlockFontSession(catalog, runtime)
+
+    expect(session.errors).toEqual([])
+    expect(runtime.createFontFace).toHaveBeenCalledWith(
+      'OpenCardCustomBlock-square-display',
+      'url("blob:font")',
+      expect.objectContaining({ unicodeRange: 'U+41' }),
+    )
+    expect(runtime.createFontFace).toHaveBeenCalledWith(
+      'OpenCardCustomBlock-square-display',
+      'url("blob:font")',
+      expect.objectContaining({ unicodeRange: 'U+42, U+4E00' }),
+    )
   })
 })

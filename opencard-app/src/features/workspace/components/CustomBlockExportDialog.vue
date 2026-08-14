@@ -81,6 +81,11 @@ import type { ProjectCustomBlockResizePolicy } from '../model/projectCustomBlock
 import { normalizeProjectCustomBlockKey } from '../model/projectCustomBlocks'
 import { buildProjectIconCatalog, createProjectIconPreviewStyle, type ProjectIconCatalogEntry } from '../services/projectIconCatalog'
 import { toKeySlug } from '../../../shared/model/keySlug'
+import {
+  createProjectCustomBlockFontSession,
+  type ProjectCustomBlockFontSession,
+} from '../services/projectCustomBlockFontLoader'
+import { createProjectCustomBlockFontFamily } from '../services/projectCustomBlockResources'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -135,7 +140,7 @@ const selectedResourceKey = ref<string | null>(null)
 const resourceUrls = ref(new Map<string, string>())
 const resourceIconEntries = ref(new Map<string, ProjectIconCatalogEntry>())
 const resourceFontFamilies = ref(new Map<string, string>())
-const loadedFontFaces = ref<FontFace[]>([])
+let fontSession: ProjectCustomBlockFontSession | null = null
 let resourceLoadRequest = 0
 const groupKeys = ['group:exposed', 'group:private']
 const resourceGroupKeys = ['resource-group:fonts', 'resource-group:icons', 'resource-group:images']
@@ -157,11 +162,11 @@ watch(() => props.open, open => {
 watch(() => [props.resourceIndex, props.resourceFiles] as const, async ([index, files]) => {
   const request = ++resourceLoadRequest
   for (const url of resourceUrls.value.values()) URL.revokeObjectURL(url)
-  for (const face of loadedFontFaces.value) document.fonts.delete(face)
+  fontSession?.release()
+  fontSession = null
   resourceUrls.value = new Map()
   resourceIconEntries.value = new Map()
   resourceFontFamilies.value = new Map()
-  loadedFontFaces.value = []
   if (!index || !files) return
   const urls = new Map<string, string>()
   for (const [path, bytes] of files) {
@@ -177,25 +182,19 @@ watch(() => [props.resourceIndex, props.resourceFiles] as const, async ([index, 
   resourceIconEntries.value = new Map(catalog.entries.map(entry => [
     `resource:icon:${entry.seriesKey}:${entry.iconKey}`, entry,
   ]))
-  const fontFamilies = new Map<string, string>()
-  const faces: FontFace[] = []
-  for (const font of index.fonts ?? []) {
-    const src = urls.get(font.source)
-    if (!src) continue
-    const family = `CustomBlockPreview-${font.key}`
-    const face = new FontFace(family, `url(${JSON.stringify(src)})`)
-    try {
-      await face.load()
-      if (request !== resourceLoadRequest) return
-      document.fonts.add(face)
-      faces.push(face)
-      fontFamilies.set(`resource:font:${font.key}`, family)
-    } catch {
-      // Keep the resource visible even when the browser cannot decode the font.
-    }
+  const nextFontSession = await createProjectCustomBlockFontSession(new Map([['preview', {
+    manifest: { customBlockKey: 'preview', resources: index },
+    files,
+  }]]))
+  if (request !== resourceLoadRequest) {
+    nextFontSession.release()
+    return
   }
-  loadedFontFaces.value = faces
-  resourceFontFamilies.value = fontFamilies
+  fontSession = nextFontSession
+  resourceFontFamilies.value = new Map((index.fonts ?? []).map(font => [
+    `resource:font:${font.key}`,
+    createProjectCustomBlockFontFamily('preview', font.key),
+  ]))
   if (!selectedResourceKey.value || !resourceItemKeys.value.includes(selectedResourceKey.value)) {
     selectedResourceKey.value = resourceItemKeys.value[0] ?? null
   }
@@ -290,7 +289,10 @@ const resourcePreviewItem = computed(() => {
   if (!key) return null
   if (key.startsWith('resource:font:')) {
     const font = props.resourceIndex?.fonts?.find(item => `resource:font:${item.key}` === key)
-    return font ? { kind: 'font' as const, label: font.name || font.key, source: font.source, fontFamily: resourceFontFamilies.value.get(key) ?? 'sans-serif' } : null
+    const source = font?.kind === 'family'
+      ? font.faces.map(face => face.source).join(', ')
+      : font?.members.map(member => member.familyKey).join(' → ')
+    return font ? { kind: 'font' as const, label: font.name || font.key, source, fontFamily: resourceFontFamilies.value.get(key) ?? 'sans-serif' } : null
   }
   if (key.startsWith('resource:image:')) {
     const image = props.resourceIndex?.images?.find(item => `resource:image:${item.key}` === key)
@@ -309,7 +311,7 @@ const resourcePreviewItem = computed(() => {
 onBeforeUnmount(() => {
   resourceLoadRequest += 1
   for (const url of resourceUrls.value.values()) URL.revokeObjectURL(url)
-  for (const face of loadedFontFaces.value) document.fonts.delete(face)
+  fontSession?.release()
 })
 
 function move(fieldKey: string, target: 'exposed' | 'private') {
