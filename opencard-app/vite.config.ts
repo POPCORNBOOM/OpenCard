@@ -6,8 +6,11 @@ const host = process.env.TAURI_DEV_HOST;
 const devHost = host || "0.0.0.0";
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(async ({ command, mode }) => ({
   plugins: [vue()],
+  optimizeDeps: command === "serve" && mode !== "test" ? {
+    exclude: ["monaco-editor"],
+  } : undefined,
   test: {
     environment: "jsdom",
   },
