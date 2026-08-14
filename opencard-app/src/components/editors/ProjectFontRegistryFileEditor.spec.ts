@@ -1,11 +1,19 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ProjectFontRegistryFileEditor from './ProjectFontRegistryFileEditor.vue'
 import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
 import ProjectFontRegistrationDialog from './ProjectFontRegistrationDialog.vue'
+import OcButton from '../base/OcButton.vue'
 
+const mocks = vi.hoisted(() => ({ trashFile: vi.fn() }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
+vi.mock('../../features/workspace/services/fileSystemService', () => ({
+  fileSystemService: {
+    readBinaryFile: vi.fn(),
+    trashFile: mocks.trashFile,
+  },
+}))
 
 const face = (source: string) => ({
   source,
@@ -28,7 +36,7 @@ describe('ProjectFontRegistryFileEditor', () => {
     })
     const workbench = wrapper.getComponent(ProjectFontRegistryEditor)
     workbench.vm.$emit('configure-family', 'brand-regular')
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.getComponent(ProjectFontRegistrationDialog).props('originalKey')).toBe('brand-regular')
 
     workbench.vm.$emit('update:families', [
@@ -111,18 +119,51 @@ describe('ProjectFontRegistryFileEditor', () => {
       global: { stubs: { ProjectFontRegistryEditor: true } },
     })
     wrapper.getComponent(ProjectFontRegistrationDialog).vm.$emit('submit', {
-      originalKey: 'latin',
-      key: 'foundation',
-      name: 'Foundation',
-      sourcePath: 'fonts/Latin.woff2',
-      weight: { min: 400, max: 400 },
-      stretch: { min: 100, max: 100 },
-      style: { kind: 'normal' },
+      families: [{
+        originalKey: 'latin',
+        key: 'foundation',
+        name: 'Foundation',
+        faces: [{
+          originalSource: 'fonts/Latin.woff2',
+          sourcePath: 'fonts/Latin.woff2',
+          weight: { min: 400, max: 400 },
+          stretch: { min: 100, max: 100 },
+          style: { kind: 'normal' },
+        }],
+      }],
     })
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string).compositions).toEqual([
       { key: 'body', name: 'Body', members: [{ familyKey: 'foundation' }] },
     ])
+  })
+
+  it('confirms family removal and only trashes orphaned face files', async () => {
+    mocks.trashFile.mockResolvedValue(undefined)
+    const wrapper = mount(ProjectFontRegistryFileEditor, {
+      props: {
+        filePath: 'D:/Demo/.opencard/.ocfonts',
+        modelValue: JSON.stringify({
+          families: [
+            { key: 'a', name: 'A', faces: [face('fonts/Shared.woff2'), face('fonts/A.woff2')] },
+            { key: 'b', name: 'B', faces: [face('fonts/Shared.woff2')] },
+          ],
+        }),
+      },
+      global: { stubs: { ProjectFontRegistryEditor: true, Teleport: true } },
+    })
+    wrapper.getComponent(ProjectFontRegistryEditor).vm.$emit('remove-family', 'a')
+    await wrapper.vm.$nextTick()
+    const confirm = wrapper.findAllComponents(OcButton)
+      .find(candidate => candidate.text() === 'projectConfig.fonts.remove')
+    await confirm!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.trashFile).toHaveBeenCalledTimes(1)
+    expect(mocks.trashFile.mock.calls[0]?.[0]).toContain('.opencard/fonts/A.woff2')
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string).families.map((family: { key: string }) => family.key))
+      .toEqual(['b'])
   })
 })

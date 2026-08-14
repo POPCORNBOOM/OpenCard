@@ -26,9 +26,9 @@ describe('projectFontCoverage', () => {
     ]))
 
     expect(runs).toEqual([
-      { text: 'AB', familyKey: 'latin' },
-      { text: '中文', familyKey: 'cjk' },
-      { text: ' C', familyKey: 'latin' },
+      { text: 'AB', familyKey: 'latin', faceKey: null },
+      { text: '中文', familyKey: 'cjk', faceKey: null },
+      { text: ' C', familyKey: 'latin', faceKey: null },
     ])
   })
 
@@ -36,8 +36,21 @@ describe('projectFontCoverage', () => {
     expect(createProjectFontPreviewRuns('A🙂', [{ familyKey: 'latin' }], new Map([
       ['latin', new Set([65])],
     ]))).toEqual([
-      { text: 'A', familyKey: 'latin' },
-      { text: '🙂', familyKey: null },
+      { text: 'A', familyKey: 'latin', faceKey: null },
+      { text: '🙂', familyKey: null, faceKey: null },
+    ])
+  })
+
+  it('reports the exact face that carries a preview run', () => {
+    expect(createProjectFontPreviewRuns('A中', [
+      { familyKey: 'body', faceKey: 'body:latin' },
+      { familyKey: 'body', faceKey: 'body:cjk' },
+    ], new Map([
+      ['body:latin', new Set([65])],
+      ['body:cjk', new Set([0x4e2d])],
+    ]))).toEqual([
+      { text: 'A', familyKey: 'body', faceKey: 'body:latin' },
+      { text: '中', familyKey: 'body', faceKey: 'body:cjk' },
     ])
   })
 

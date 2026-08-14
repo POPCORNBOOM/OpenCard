@@ -59,6 +59,33 @@ const MAX_UNICODE_CODE_POINT = 0x10ffff
 const SURROGATE_START = 0xd800
 const SURROGATE_END = 0xdfff
 
+export function projectFontFacesOverlap(
+  left: Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>,
+  right: Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>,
+): boolean {
+  if (!numericRangesOverlap(left.weight, right.weight)
+    || !numericRangesOverlap(left.stretch, right.stretch)
+    || left.style.kind !== right.style.kind) return false
+  return left.style.kind !== 'oblique' || right.style.kind !== 'oblique'
+    || numericRangesOverlap(left.style.angle, right.style.angle)
+}
+
+export function findOverlappingProjectFontFaces(
+  faces: readonly Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>[],
+): readonly (readonly [number, number])[] {
+  const conflicts: Array<readonly [number, number]> = []
+  for (let left = 0; left < faces.length; left += 1) {
+    for (let right = left + 1; right < faces.length; right += 1) {
+      if (projectFontFacesOverlap(faces[left]!, faces[right]!)) conflicts.push([left, right])
+    }
+  }
+  return conflicts
+}
+
+function numericRangesOverlap(left: NumericRange, right: NumericRange): boolean {
+  return left.min <= right.max && right.min <= left.max
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

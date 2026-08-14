@@ -42,11 +42,12 @@
           <span class="project-font-registry-workbench__preview-content">
             <span
               v-for="(run, index) in previewRuns"
-              :key="`${index}:${run.familyKey ?? 'fallback'}`"
+              :key="`${index}:${run.faceKey ?? run.familyKey ?? 'fallback'}`"
               class="project-font-registry-workbench__preview-run"
               :data-font-key="run.familyKey ?? 'fallback'"
-              :style="runStyle(run.familyKey)"
-              @pointerenter="showFontInfo(run.familyKey, $event)"
+              :data-face-key="run.faceKey ?? 'fallback'"
+              :style="runStyle(run.familyKey, run.faceKey)"
+              @pointerenter="showFontInfo(run.familyKey, run.faceKey, $event)"
               @pointerleave="hideFontInfo"
             >{{ run.text }}</span>
           </span>
@@ -67,7 +68,7 @@
               </div>
               <div>
                 <dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
-                <dd>{{ hoveredFont.faces.map(face => face.source).join('; ') }}</dd>
+                <dd>{{ hoveredFace?.source ?? hoveredFont.faces.map(face => face.source).join('; ') }}</dd>
               </div>
             </dl>
           </section>
@@ -125,6 +126,7 @@ const emit = defineEmits<{
   'update:compositions': [compositions: ProjectFontComposition[]]
   'register-family': []
   'configure-family': [familyKey: string]
+  'remove-family': [familyKey: string]
   'register-composition': []
   'configure-composition': [compositionKey: string]
 }>()
@@ -136,6 +138,7 @@ const previewText = ref(t('projectConfig.fonts.previewSample'))
 const characterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
 const failedCoverageKeys = ref<ReadonlySet<string>>(new Set())
 const hoveredFontKey = ref<string | null>(null)
+const hoveredFaceKey = ref<string | null>(null)
 const hoveredFontAnchor = ref<HTMLElement | null>(null)
 let coverageGeneration = 0
 const selectedFamily = computed(() => props.families.find(family => family.key === selectedFamilyKey.value) ?? null)
@@ -198,11 +201,20 @@ const previewFamilies = computed(() => activePage.value === 'families'
       .map(member => props.families.find(family => family.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase()))
       .filter((family): family is ProjectFontFamily => Boolean(family)))
 const previewCandidates = computed<ProjectFontPreviewCandidate[]>(() => activePage.value === 'families'
-  ? selectedFamily.value ? [{ familyKey: selectedFamily.value.key }] : []
-  : (selectedComposition.value?.members ?? []).map(member => ({
-      familyKey: member.familyKey,
-      ...(member.ranges ? { ranges: member.ranges } : {}),
-    })))
+  ? selectedFamily.value ? selectedFamily.value.faces.map(face => ({
+      familyKey: selectedFamily.value!.key,
+      faceKey: previewFaceKey(selectedFamily.value!.key, face.source),
+    })) : []
+  : (selectedComposition.value?.members ?? []).flatMap(member => {
+      const family = props.families.find(candidate => (
+        candidate.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase()
+      ))
+      return (family?.faces ?? []).map(face => ({
+        familyKey: member.familyKey,
+        faceKey: previewFaceKey(member.familyKey, face.source),
+        ...(member.ranges ? { ranges: member.ranges } : {}),
+      }))
+    }))
 const previewRuns = computed(() => createProjectFontPreviewRuns(
   previewText.value,
   previewCandidates.value,
@@ -211,6 +223,9 @@ const previewRuns = computed(() => createProjectFontPreviewRuns(
 const hoveredFont = computed(() => hoveredFontKey.value
   ? props.families.find(family => family.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
   : null)
+const hoveredFace = computed(() => hoveredFont.value?.faces.find(face => (
+  previewFaceKey(hoveredFont.value!.key, face.source) === hoveredFaceKey.value
+)) ?? null)
 const coverageFailed = computed(() => previewFamilies.value.some(family => failedCoverageKeys.value.has(family.key)))
 
 watch(() => props.families, families => {
@@ -226,19 +241,17 @@ watch(
     const nextCharacterSets = new Map<string, ReadonlySet<number>>()
     const nextFailedKeys = new Set<string>()
     await Promise.all(previewFamilies.value.map(async family => {
-      const combined = new Set<number>()
       let loaded = false
       for (const face of family.faces) {
         try {
           const characterSet = await readProjectFontCharacterSet(await props.readFontBytes(face.source))
-          characterSet.forEach(codePoint => combined.add(codePoint))
+          nextCharacterSets.set(previewFaceKey(family.key, face.source), characterSet)
           loaded = true
         } catch {
           // A family remains previewable when at least one of its faces is readable.
         }
       }
-      if (loaded) nextCharacterSets.set(family.key, combined)
-      else nextFailedKeys.add(family.key)
+      if (!loaded) nextFailedKeys.add(family.key)
     }))
     if (generation !== coverageGeneration) return
     characterSets.value = nextCharacterSets
@@ -294,9 +307,12 @@ function removeFamily(index: number): void {
   if (index < 0) return
   const family = props.families[index]
   if (!family || referencedFamilyKeys.value.has(family.key.toLocaleLowerCase())) return
-  const next = props.families.filter((_, candidate) => candidate !== index)
-  if (family.key === selectedFamilyKey.value) selectedFamilyKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
-  emit('update:families', next)
+  selectedFamilyKey.value = props.families[
+    Math.min(index + 1, props.families.length - 1)
+  ]?.key === family.key
+    ? props.families[Math.max(0, index - 1)]?.key ?? null
+    : props.families[Math.min(index + 1, props.families.length - 1)]?.key ?? null
+  emit('remove-family', family.key)
 }
 function removeComposition(index: number): void {
   if (index < 0) return
@@ -307,15 +323,30 @@ function removeComposition(index: number): void {
   emit('update:compositions', next)
 }
 function updatePreviewText(event: Event): void { if (event.target instanceof HTMLInputElement) previewText.value = event.target.value }
-function runStyle(familyKey: string | null): CSSProperties | undefined {
-  return familyKey ? { fontFamily: JSON.stringify(createProjectFontFamilyCssFamily(familyKey)) } : undefined
+function previewFaceKey(familyKey: string, source: string): string {
+  return `${familyKey.toLocaleLowerCase()}\0${source}`
 }
-function showFontInfo(familyKey: string | null, event: PointerEvent): void {
+function runStyle(familyKey: string | null, faceKey: string | null): CSSProperties | undefined {
+  if (!familyKey) return undefined
+  const family = props.families.find(candidate => candidate.key.toLocaleLowerCase() === familyKey.toLocaleLowerCase())
+  const face = family?.faces.find(candidate => previewFaceKey(familyKey, candidate.source) === faceKey)
+  return {
+    fontFamily: JSON.stringify(createProjectFontFamilyCssFamily(familyKey)),
+    ...(face ? {
+      fontWeight: face.weight.min,
+      fontStretch: `${face.stretch.min}%`,
+      fontStyle: face.style.kind === 'oblique' ? `oblique ${face.style.angle.min}deg` : face.style.kind,
+    } : {}),
+  }
+}
+function showFontInfo(familyKey: string | null, faceKey: string | null, event: PointerEvent): void {
   hoveredFontKey.value = familyKey
+  hoveredFaceKey.value = faceKey
   hoveredFontAnchor.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
 }
 function hideFontInfo(): void {
   hoveredFontKey.value = null
+  hoveredFaceKey.value = null
   hoveredFontAnchor.value = null
 }
 async function navigateToFont(kind: 'family' | 'composition', key: string): Promise<boolean> {

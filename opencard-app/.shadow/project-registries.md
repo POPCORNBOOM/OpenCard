@@ -61,6 +61,17 @@ roots. Compositions may reference only families, and a referenced family is
 protected from deletion. Common registration stays small; face descriptors and
 member character ranges are exposed through explicit advanced controls.
 
+Font import reads embedded family, face, weight, width, style, and variable-axis
+metadata. Multi-file selections are grouped by embedded family name. Collection
+member indices exist only in the pending import request and are discarded after
+the chosen TTC/OTC members are extracted. A family editor may add, replace, and
+remove several faces, but overlapping face descriptor ranges cannot be saved.
+
+Removing an unreferenced family is a confirmation workflow. Orphaned managed
+font files are selected for Recycle Bin cleanup by default, while sources still
+used by another family are always retained. Byte-identical imports reuse the
+existing managed file even when their incoming filename differs.
+
 The icon registry editor uses a controlled two-column workbench and must not
 mirror the registry array into a second draft. The left column owns the editor
 title and one expanded icon-set section; its body pairs the icon tree with a

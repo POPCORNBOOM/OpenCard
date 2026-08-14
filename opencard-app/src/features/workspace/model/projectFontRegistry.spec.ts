@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  findOverlappingProjectFontFaces,
   normalizeUnicodeRanges,
   parseProjectFontRegistry,
   parseProjectFontRegistryText,
@@ -121,5 +122,18 @@ describe('project font registry', () => {
       }],
     })
     expect(parsed?.families?.[0]?.faces.map(face => face.source)).toEqual(['fonts/nested/Good.ttf'])
+  })
+
+  it('detects ambiguous face descriptor overlap within a family', () => {
+    const base = {
+      source: 'fonts/A.ttf',
+      stretch: { min: 100, max: 100 },
+      style: { kind: 'normal' as const },
+    }
+    expect(findOverlappingProjectFontFaces([
+      { ...base, weight: { min: 300, max: 600 } },
+      { ...base, source: 'fonts/B.ttf', weight: { min: 600, max: 900 } },
+      { ...base, source: 'fonts/C.ttf', weight: { min: 700, max: 800 } },
+    ])).toEqual([[0, 1], [1, 2]])
   })
 })

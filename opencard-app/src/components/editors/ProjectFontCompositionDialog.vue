@@ -50,11 +50,22 @@
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
               :aria-label="t('projectConfig.fonts.removeMember')" @click="removeMember(index)" />
           </span>
-          <OcFieldInput v-if="advancedOpen" full-width mono
-            :value="formatRanges(member.ranges)"
-            :placeholder="t('projectConfig.fonts.rangePlaceholder')"
-            :aria-invalid="invalidRangeIndexes.has(index)"
-            @input="updateMemberRanges(index, $event)" />
+          <div v-if="advancedOpen" class="project-font-set-dialog__range-editor">
+            <div class="project-font-set-dialog__range-presets">
+              <OcButton v-for="preset in rangePresets" :key="preset.key" type="button" size="sm" variant="soft"
+                @click="applyRangePreset(index, preset.ranges)">
+                {{ t(preset.labelKey) }}
+              </OcButton>
+            </div>
+            <OcFieldInput full-width :value="characterInputs[index] ?? ''"
+              :placeholder="t('projectConfig.fonts.characterInputPlaceholder')"
+              @input="updateMemberCharacters(index, $event)" />
+            <OcFieldInput full-width mono
+              :value="formatRanges(member.ranges)"
+              :placeholder="t('projectConfig.fonts.rangePlaceholder')"
+              :aria-invalid="invalidRangeIndexes.has(index)"
+              @input="updateMemberRanges(index, $event)" />
+          </div>
         </div>
       </div>
       <OcText v-else tone="muted" size="sm">{{ t('projectConfig.fonts.noMembers') }}</OcText>
@@ -77,6 +88,7 @@ import type {
   ProjectFontFamily,
   UnicodeRange,
 } from '../../features/workspace/model/projectFontRegistry'
+import { normalizeUnicodeRanges } from '../../features/workspace/model/projectFontRegistry'
 import { projectFontIdPattern } from '../../features/workspace/model/projectFonts'
 import { createAvailableKey } from '../../shared/model/keySlug'
 import OcButton from '../base/OcButton.vue'
@@ -106,6 +118,7 @@ const key = ref('')
 const selectedMembers = ref<ProjectFontCompositionMember[]>([])
 const advancedOpen = ref(false)
 const invalidRangeIndexes = ref<ReadonlySet<number>>(new Set())
+const characterInputs = ref<string[]>([])
 const memberQuery = ref('')
 const selectedCandidateKey = ref<string | null>(null)
 const memberPickerRef = ref<HTMLElement | null>(null)
@@ -113,6 +126,18 @@ const activeMemberInput = ref<HTMLInputElement | null>(null)
 const memberMenuOpen = ref(false)
 const activeMemberKey = ref<string | null>(null)
 const memberAutocompleteId = useId()
+const rangePresets = [
+  { key: 'latin', labelKey: 'projectConfig.fonts.rangePresetLatin', ranges: [{ start: 0x0000, end: 0x024f }] },
+  { key: 'cjk', labelKey: 'projectConfig.fonts.rangePresetCjk', ranges: [
+    { start: 0x3400, end: 0x4dbf }, { start: 0x4e00, end: 0x9fff }, { start: 0xf900, end: 0xfaff },
+  ] },
+  { key: 'kana', labelKey: 'projectConfig.fonts.rangePresetKana', ranges: [
+    { start: 0x3040, end: 0x30ff }, { start: 0x31f0, end: 0x31ff },
+  ] },
+  { key: 'hangul', labelKey: 'projectConfig.fonts.rangePresetHangul', ranges: [
+    { start: 0x1100, end: 0x11ff }, { start: 0x3130, end: 0x318f }, { start: 0xac00, end: 0xd7af },
+  ] },
+] as const
 const editing = computed(() => Boolean(props.originalKey))
 const usedKeys = computed(() => [...props.families, ...props.compositions]
   .map(entry => entry.key)
@@ -175,6 +200,7 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   }))
   advancedOpen.value = selectedMembers.value.some(member => member.ranges)
   invalidRangeIndexes.value = new Set()
+  characterInputs.value = selectedMembers.value.map(() => '')
   resetMemberPicker()
 }, { immediate: true })
 
@@ -223,6 +249,7 @@ function addCandidateMember(): void {
   const memberKey = candidateMemberKey.value
   if (!memberKey || selectedMembers.value.some(member => member.familyKey === memberKey)) return
   selectedMembers.value.push({ familyKey: memberKey })
+  characterInputs.value.push('')
   resetMemberPicker()
   void nextTick(() => activeMemberInput.value?.focus())
 }
@@ -258,9 +285,16 @@ function moveMember(from: number, to: number): void {
   if (!member) return
   members.splice(to, 0, member)
   selectedMembers.value = members
+  const characters = [...characterInputs.value]
+  const [characterInput] = characters.splice(from, 1)
+  characters.splice(to, 0, characterInput ?? '')
+  characterInputs.value = characters
+  invalidRangeIndexes.value = new Set()
 }
 function removeMember(index: number): void {
   selectedMembers.value = selectedMembers.value.filter((_, candidate) => candidate !== index)
+  characterInputs.value = characterInputs.value.filter((_, candidate) => candidate !== index)
+  invalidRangeIndexes.value = new Set()
 }
 function entryLabel(memberKey: string): string {
   return props.families.find(entry => entry.key === memberKey)?.name ?? memberKey
@@ -313,6 +347,35 @@ function updateMemberRanges(index: number, event: Event): void {
   }
   invalidRangeIndexes.value = invalid
 }
+
+function applyRangePreset(index: number, ranges: readonly UnicodeRange[]): void {
+  const member = selectedMembers.value[index]
+  if (!member) return
+  selectedMembers.value[index] = { familyKey: member.familyKey, ranges: ranges.map(range => ({ ...range })) }
+  characterInputs.value[index] = ''
+  const invalid = new Set(invalidRangeIndexes.value)
+  invalid.delete(index)
+  invalidRangeIndexes.value = invalid
+}
+
+function updateMemberCharacters(index: number, event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  characterInputs.value[index] = event.target.value
+  const member = selectedMembers.value[index]
+  if (!member) return
+  const codePoints = [...new Set([...event.target.value].flatMap(character => {
+    const codePoint = character.codePointAt(0)
+    return codePoint === undefined ? [] : [codePoint]
+  }))]
+  const ranges = normalizeUnicodeRanges(codePoints.map(codePoint => ({ start: codePoint, end: codePoint })))
+  selectedMembers.value[index] = {
+    familyKey: member.familyKey,
+    ...(ranges ? { ranges } : {}),
+  }
+  const invalid = new Set(invalidRangeIndexes.value)
+  invalid.delete(index)
+  invalidRangeIndexes.value = invalid
+}
 </script>
 
 <style scoped>
@@ -323,8 +386,10 @@ function updateMemberRanges(index: number, event: Event): void {
 .project-font-set-dialog__member-add,
 .project-font-set-dialog__member-row,
 .project-font-set-dialog__member-row > span { display: flex; align-items: center; min-width: 0; gap: var(--oc-space-2); }
-.project-font-set-dialog__member-row { justify-content: space-between; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-set-dialog__member-row { flex-wrap: wrap; justify-content: space-between; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .project-font-set-dialog__member-row > :first-child { flex: 1; }
 .project-font-set-dialog__member-add > :first-child { flex: 1; }
 .project-font-set-dialog__selected { max-height: var(--oc-list-max-height-sm); overflow-y: auto; }
+.project-font-set-dialog__range-editor { display: grid; flex: 0 0 100%; gap: var(--oc-space-2); }
+.project-font-set-dialog__range-presets { display: flex; flex-wrap: wrap; gap: var(--oc-space-1); }
 </style>

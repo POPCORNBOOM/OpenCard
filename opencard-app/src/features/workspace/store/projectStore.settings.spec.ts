@@ -400,6 +400,23 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('reuses a managed font file with identical imported bytes', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    mocks.readDirectoryEntries.mockResolvedValue([{
+      name: 'Existing.woff2',
+      isDirectory: false,
+      isFile: true,
+      isSymlink: false,
+    }])
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([1, 2, 3]))
+
+    await expect(store.importProjectFontFiles('D:/Downloads/DifferentName.woff2'))
+      .resolves.toEqual({ sources: ['fonts/Existing.woff2'], copied: false })
+    expect(mocks.copyFile).not.toHaveBeenCalled()
+    await store.setProjectPath('')
+  })
+
   it('copies custom block packages into the managed blocks directory', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')

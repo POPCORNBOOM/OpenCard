@@ -62,7 +62,7 @@ describe('ProjectFontCompositionDialog', () => {
     const advanced = wrapper.findAllComponents(OcButton)
       .find(button => button.text() === 'projectConfig.fonts.advancedRanges')
     await advanced!.trigger('click')
-    const rangeInput = wrapper.get('.project-font-set-dialog__member-row input')
+    const rangeInput = wrapper.findAll('.project-font-set-dialog__member-row input')[1]!
     await rangeInput.setValue('U+0000-007F, U+4E00-9FFF')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
@@ -88,5 +88,33 @@ describe('ProjectFontCompositionDialog', () => {
     })
     await wrapper.get('[role="combobox"]').trigger('focus')
     expect(wrapper.text()).not.toContain('Nested')
+  })
+
+  it('supports presets and direct character input in the advanced range editor', async () => {
+    const wrapper = mount(ProjectFontCompositionDialog, {
+      props: {
+        open: true,
+        families,
+        originalKey: 'body',
+        compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'latin' }] }],
+      },
+      global: { stubs: { Teleport: true, OcAutocompletePopover: true } },
+    })
+    const advanced = wrapper.findAllComponents(OcButton)
+      .find(button => button.text() === 'projectConfig.fonts.advancedRanges')
+    await advanced!.trigger('click')
+    const latinPreset = wrapper.findAllComponents(OcButton)
+      .find(candidate => candidate.text() === 'projectConfig.fonts.rangePresetLatin')
+    await latinPreset!.trigger('click')
+    expect((wrapper.findAll('.project-font-set-dialog__member-row input')[1]!.element as HTMLInputElement).value)
+      .toBe('U+0-24F')
+
+    await wrapper.findAll('.project-font-set-dialog__member-row input')[0]!.setValue('A中')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      members: [{
+        ranges: [{ start: 65, end: 65 }, { start: 0x4e2d, end: 0x4e2d }],
+      }],
+    })
   })
 })

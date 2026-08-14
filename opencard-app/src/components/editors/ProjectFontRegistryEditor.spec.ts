@@ -71,16 +71,16 @@ describe('ProjectFontRegistryEditor', () => {
     tree.vm.$emit('intent', { type: 'selection.change', selectedKeys: ['families:symbols'] })
     await wrapper.vm.$nextTick()
     tree.vm.$emit('intent', { type: 'action.invoke', key: 'families:symbols', actionKey: 'delete-family' })
-    const updates = wrapper.emitted('update:families') ?? []
-    const updated = updates[updates.length - 1]?.[0] as ProjectFontFamily[]
+    expect(wrapper.emitted('remove-family')).toEqual([['symbols']])
+    const updated = families.filter(family => family.key !== 'symbols')
     await wrapper.setProps({ families: updated })
     expect(wrapper.get('.project-font-registry-workbench__preview').text()).toContain('projectConfig.fonts.previewSample')
     expect(wrapper.getComponent(OcTree).props('selectedKeys')).toEqual(['families:brand-cjk'])
 
     await wrapper.setProps({ families: [families[0]!], compositions: [] })
     wrapper.getComponent(OcTree).vm.$emit('intent', { type: 'action.invoke', key: 'families:brand-latin', actionKey: 'delete-family' })
-    const finalUpdates = wrapper.emitted('update:families') ?? []
-    expect(finalUpdates[finalUpdates.length - 1]?.[0]).toEqual([])
+    const removals = wrapper.emitted('remove-family') ?? []
+    expect(removals[removals.length - 1]).toEqual(['brand-latin'])
   })
 
   it('provides both add commands and routes double-click activation', async () => {

@@ -4,10 +4,12 @@ import { unicodeRangeContains } from '../model/projectFonts'
 export type ProjectFontPreviewRun = {
   text: string
   familyKey: string | null
+  faceKey: string | null
 }
 
 export type ProjectFontPreviewCandidate = {
   familyKey: string
+  faceKey?: string
   ranges?: readonly UnicodeRange[]
 }
 
@@ -97,17 +99,20 @@ export function createProjectFontPreviewRuns(
       .filter((codePoint): codePoint is number => (
         codePoint !== undefined && !ignoredCoverageCodePoints.has(codePoint)
       ))
-    const familyKey = codePoints.length === 0
-      ? runs[runs.length - 1]?.familyKey ?? candidates[0]?.familyKey ?? null
+    const candidate = codePoints.length === 0
+      ? candidates.find(item => item.faceKey === runs[runs.length - 1]?.faceKey)
+        ?? candidates[0]
       : candidates.find(candidate => {
-          const characterSet = characterSets.get(candidate.familyKey)
+          const characterSet = characterSets.get(candidate.faceKey ?? candidate.familyKey)
           return characterSet !== undefined && codePoints.every(codePoint => (
             unicodeRangeContains(candidate.ranges, codePoint) && characterSet.has(codePoint)
           ))
-        })?.familyKey ?? null
+        })
+    const familyKey = candidate?.familyKey ?? null
+    const faceKey = candidate?.faceKey ?? null
     const previous = runs[runs.length - 1]
-    if (previous?.familyKey === familyKey) previous.text += segment
-    else runs.push({ text: segment, familyKey })
+    if (previous?.familyKey === familyKey && previous.faceKey === faceKey) previous.text += segment
+    else runs.push({ text: segment, familyKey, faceKey })
   }
   return runs
 }

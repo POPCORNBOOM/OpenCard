@@ -1081,6 +1081,7 @@ async function getProjectAssetImportConflict(
 async function importProjectFontFiles(
   sourcePath: string,
   conflictResolution?: ProjectAssetImportResolution,
+  collectionIndices?: readonly number[],
 ): Promise<ImportedProjectFontFiles> {
   const targetDirectory = DEFAULT_PROJECT_FONT_DIRECTORY
   const normalizedSourcePath = normalizePath(sourcePath)
@@ -1098,13 +1099,24 @@ async function importProjectFontFiles(
     const stem = fileName.slice(0, fileName.lastIndexOf('.'))
     const sources: string[] = []
     await fileSystemService.createDirectory(targetAbsoluteDirectory)
-    for (let index = 0; index < faces.length; index += 1) {
+    const selectedIndices = collectionIndices ?? faces.map((_, index) => index)
+    for (const index of selectedIndices) {
+      if (!Number.isInteger(index) || index < 0 || index >= faces.length) {
+        throw new Error('Invalid font collection member')
+      }
       const face = faces[index]!
-      const desiredName = `${stem}-${index + 1}.${face.extension}`
+      const extractedName = `${stem}-${index + 1}.${face.extension}`
+      const prepared = await ensureLoadableProjectFont(face.bytes, extractedName)
+      const duplicateName = await findMatchingProjectFontFile(targetAbsoluteDirectory, prepared.bytes)
+      if (duplicateName) {
+        sources.push(`${targetDirectory}/${duplicateName}`)
+        continue
+      }
+      const desiredName = prepared.repaired ? createRepairedFontName(extractedName) : extractedName
       const outputName = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${desiredName}`)
         ? await findAvailableProjectAssetName(targetAbsoluteDirectory, desiredName)
         : desiredName
-      await fileSystemService.writeBinaryFile(`${targetAbsoluteDirectory}/${outputName}`, face.bytes)
+      await fileSystemService.writeBinaryFile(`${targetAbsoluteDirectory}/${outputName}`, prepared.bytes)
       sources.push(`${targetDirectory}/${outputName}`)
     }
     await refreshIndexedEntries()
@@ -1119,6 +1131,8 @@ async function importProjectFontFiles(
     sourceBytes,
     fileName,
   )
+  const duplicateName = await findMatchingProjectFontFile(targetAbsoluteDirectory, prepared.bytes)
+  if (duplicateName) return { sources: [`${targetDirectory}/${duplicateName}`], copied: false }
   if (sourceInsideManagedDirectory && !prepared.repaired) {
     return {
       sources: [`${targetDirectory}/${normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1)}`],
@@ -1144,6 +1158,32 @@ async function inspectProjectDirectory(path: string) {
 
 async function initializeProjectDirectory(path: string): Promise<void> {
   await initializeProjectStructure(fileSystemService, normalizePath(path))
+}
+
+async function findMatchingProjectFontFile(
+  targetDirectory: string,
+  bytes: Uint8Array,
+): Promise<string | null> {
+  let entries: DirEntry[]
+  try {
+    entries = await fileSystemService.readDirectoryEntries(targetDirectory, 1)
+  } catch {
+    return null
+  }
+  for (const entry of entries) {
+    if (!entry.isFile || entry.isSymlink || !PROJECT_FONT_EXTENSIONS.has(
+      entry.name.split('.').pop()?.toLocaleLowerCase() ?? '',
+    )) continue
+    try {
+      const existing = await fileSystemService.readBinaryFile(`${targetDirectory}/${entry.name}`)
+      if (existing.length === bytes.length && existing.every((byte, index) => byte === bytes[index])) {
+        return entry.name
+      }
+    } catch {
+      // An unreadable candidate does not make the import itself fail.
+    }
+  }
+  return null
 }
 
 function createRepairedFontName(fileName: string): string {
