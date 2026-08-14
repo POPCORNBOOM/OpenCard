@@ -167,8 +167,17 @@ describe('projectStore settings actions', () => {
     mocks.readFile.mockImplementation(async (path: string) => {
       if (path.endsWith('.opencard/.ocfonts')) {
         return JSON.stringify({
-          fonts: [{ key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' }],
-          fontSets: [{ key: 'body', name: 'Body', fontKeys: ['brand'] }],
+          families: [{
+            key: 'brand',
+            name: 'Brand',
+            faces: [{
+              source: 'fonts/Brand.woff2',
+              weight: { min: 400, max: 400 },
+              stretch: { min: 100, max: 100 },
+              style: { kind: 'normal' },
+            }],
+          }],
+          compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] }],
         })
       }
       if (path.endsWith('.opencard/.ocicons')) {
@@ -182,13 +191,38 @@ describe('projectStore settings actions', () => {
 
     expect(store.resolvedProject.value?.name).toBe('Demo')
     expect(store.projectFonts.value).toEqual({
-      brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' },
-      body: { name: 'Body', source: 'font:brand' },
+      brand: {
+        kind: 'family',
+        name: 'Brand',
+        family: {
+          key: 'brand',
+          name: 'Brand',
+          faces: [{
+            source: 'fonts/Brand.woff2',
+            weight: { min: 400, max: 400 },
+            stretch: { min: 100, max: 100 },
+            style: { kind: 'normal' },
+          }],
+        },
+      },
+      body: {
+        kind: 'composition',
+        name: 'Body',
+        composition: { key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] },
+      },
     })
-    expect(store.projectFontFiles.value).toEqual([
-      { key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' },
-    ])
-    expect(store.projectFontSets.value).toEqual([{ key: 'body', name: 'Body', fontKeys: ['brand'] }])
+    expect(store.projectFontFamilies.value).toEqual([{
+      key: 'brand',
+      name: 'Brand',
+      faces: [{
+        source: 'fonts/Brand.woff2',
+        weight: { min: 400, max: 400 },
+        stretch: { min: 100, max: 100 },
+        style: { kind: 'normal' },
+      }],
+    }])
+    expect(store.projectFontCompositions.value)
+      .toEqual([{ key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] }])
     expect(store.projectIconSeries.value).toEqual([])
 
     await store.setProjectPath('')
@@ -322,14 +356,13 @@ describe('projectStore settings actions', () => {
       .toBe('assets/fonts/Brand.woff2')
     expect(store.getRelativeProjectPathIfInside('D:/other/Brand.woff2')).toBeNull()
 
-    await expect(store.importProjectFontFile(
+    await expect(store.importProjectFontFiles(
       'D:/Downloads/Brand.woff2',
-      'resources/typefaces',
-    )).resolves.toEqual({ source: 'resources/typefaces/Brand.woff2', copied: true })
-    expect(mocks.createDirectory).toHaveBeenCalledWith('D:/project/.opencard/resources/typefaces')
+    )).resolves.toEqual({ sources: ['fonts/Brand.woff2'], copied: true })
+    expect(mocks.createDirectory).toHaveBeenCalledWith('D:/project/.opencard/fonts')
     expect(mocks.copyFile).toHaveBeenCalledWith(
       'D:/Downloads/Brand.woff2',
-      'D:/project/.opencard/resources/typefaces/Brand.woff2',
+      'D:/project/.opencard/fonts/Brand.woff2',
     )
 
     await store.setProjectPath('')
@@ -344,27 +377,24 @@ describe('projectStore settings actions', () => {
 
     await expect(store.getProjectFontImportConflict(
       'D:/Downloads/Brand.woff2',
-      'assets/fonts',
     )).resolves.toEqual({
-      existingSource: 'assets/fonts/Brand.woff2',
-      availableCopySource: 'assets/fonts/Brand (11).woff2',
+      existingSource: 'fonts/Brand.woff2',
+      availableCopySource: 'fonts/Brand (11).woff2',
     })
 
-    await expect(store.importProjectFontFile(
+    await expect(store.importProjectFontFiles(
       'D:/Downloads/Brand.woff2',
-      'assets/fonts',
       'use-existing',
-    )).resolves.toEqual({ source: 'assets/fonts/Brand.woff2', copied: false })
+    )).resolves.toEqual({ sources: ['fonts/Brand.woff2'], copied: false })
     expect(mocks.copyFile).not.toHaveBeenCalled()
 
-    await expect(store.importProjectFontFile(
+    await expect(store.importProjectFontFiles(
       'D:/Downloads/Brand.woff2',
-      'assets/fonts',
       'rename-copy',
-    )).resolves.toEqual({ source: 'assets/fonts/Brand (11).woff2', copied: true })
+    )).resolves.toEqual({ sources: ['fonts/Brand (11).woff2'], copied: true })
     expect(mocks.copyFile).toHaveBeenCalledWith(
       'D:/Downloads/Brand.woff2',
-      'D:/project/.opencard/assets/fonts/Brand (11).woff2',
+      'D:/project/.opencard/fonts/Brand (11).woff2',
     )
 
     await store.setProjectPath('')

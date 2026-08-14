@@ -31,9 +31,9 @@ import {
   buildProjectFontRegistry,
   parseProjectFontRegistryText,
   serializeProjectFontRegistry,
-  type ProjectFont,
+  type ProjectFontComposition,
+  type ProjectFontFamily,
   type ProjectFontRegistry,
-  type ProjectFontSet,
 } from '../model/projectFontRegistry'
 import {
   PROJECT_ICON_REGISTRY_FILE_NAME,
@@ -58,7 +58,11 @@ import {
   syncProjectFonts,
   type ProjectFontLoadError,
 } from '../services/projectFontLoader'
-import { ensureLoadableProjectFont } from '../services/trueTypeFontRepair'
+import {
+  ensureLoadableProjectFont,
+  extractFontCollectionFaces,
+} from '../services/trueTypeFontRepair'
+import { readProjectFontCharacterSet } from '../services/projectFontCoverage'
 import {
   buildProjectIconCatalog,
   EMPTY_PROJECT_ICON_CATALOG,
@@ -74,7 +78,6 @@ import {
 } from '../model/projectIcons'
 import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
-  normalizeProjectFontDirectory,
 } from '../model/projectFonts'
 import {
   parseProjectCustomBlockRegistryText,
@@ -108,12 +111,16 @@ import {
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
 const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
-const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf'])
+const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])
 const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp'])
 const PROJECT_CUSTOM_BLOCK_EXTENSIONS = new Set(['ocblock'])
 
 export type ImportedProjectFontFile = {
   source: string
+  copied: boolean
+}
+export type ImportedProjectFontFiles = {
+  sources: readonly string[]
   copied: boolean
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
@@ -153,8 +160,8 @@ const expandedDirectories = ref(new Set<string>())
 const projectProfile = ref<ProjectProfile | null>(null)
 const resolvedProject = ref<ProjectInformation | null>(null)
 const profileError = ref<string | null>(null)
-const projectFontFiles = ref<readonly ProjectFont[]>([])
-const projectFontSets = ref<readonly ProjectFontSet[]>([])
+const projectFontFamilies = ref<readonly ProjectFontFamily[]>([])
+const projectFontCompositions = ref<readonly ProjectFontComposition[]>([])
 const projectFonts = ref<ProjectFontRegistry>({})
 const fontRegistryError = ref<string | null>(null)
 const projectFontLoadErrors = ref<readonly ProjectFontLoadError[]>([])
@@ -347,8 +354,8 @@ function clearProjectProfile() {
 
 function clearProjectFontRegistry() {
   clearProjectFonts()
-  projectFontFiles.value = []
-  projectFontSets.value = []
+  projectFontFamilies.value = []
+  projectFontCompositions.value = []
   projectFonts.value = {}
   fontRegistryError.value = null
   projectFontLoadErrors.value = []
@@ -363,10 +370,17 @@ function clearProjectIconRegistry() {
 }
 
 async function syncRegisteredProjectFonts(
-  fonts: readonly ProjectFont[],
-  fontSets: readonly ProjectFontSet[] = projectFontSets.value,
+  families: readonly ProjectFontFamily[],
+  compositions: readonly ProjectFontComposition[] = projectFontCompositions.value,
 ): Promise<void> {
-  const result = await syncProjectFonts(fonts, resolveProjectInternalAssetSrc, fontSets)
+  const result = await syncProjectFonts(
+    families,
+    resolveProjectInternalAssetSrc,
+    compositions,
+    async source => readProjectFontCharacterSet(
+      await fileSystemService.readBinaryFile(resolveProjectInternalPath(source)),
+    ),
+  )
   if (result.current) projectFontLoadErrors.value = result.errors
 }
 
@@ -587,10 +601,10 @@ async function reloadProjectFontRegistry(): Promise<boolean> {
   try {
     const document = parseProjectFontRegistryText(await fileSystemService.readFile(path))
     if (!document) throw new Error('Invalid project font registry')
-    projectFontFiles.value = document.fonts ?? []
-    projectFontSets.value = document.fontSets ?? []
-    projectFonts.value = buildProjectFontRegistry(projectFontFiles.value, projectFontSets.value)
-    await syncRegisteredProjectFonts(projectFontFiles.value, projectFontSets.value)
+    projectFontFamilies.value = document.families ?? []
+    projectFontCompositions.value = document.compositions ?? []
+    projectFonts.value = buildProjectFontRegistry(document)
+    await syncRegisteredProjectFonts(projectFontFamilies.value, projectFontCompositions.value)
     fontRegistryError.value = null
     return true
   } catch (error) {
@@ -852,10 +866,10 @@ async function startWatching() {
         || path.toLowerCase().endsWith('.ocblock')
       ))
       if (customBlockChanges.length > 0) scheduleProjectCustomBlockChanges(customBlockChanges)
-      const fontSources = projectFontFiles.value
-        .map(font => resolveProjectInternalPath(font.source))
+      const fontSources = projectFontFamilies.value
+        .flatMap(family => family.faces.map(face => resolveProjectInternalPath(face.source)))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
-        void syncRegisteredProjectFonts(projectFontFiles.value)
+        void syncRegisteredProjectFonts(projectFontFamilies.value)
       }
       const iconSources = projectIconSeries.value.map(series => resolveProjectInternalPath(series.source))
       if (changedPaths.some(path => iconSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
@@ -1064,13 +1078,11 @@ async function getProjectAssetImportConflict(
   }
 }
 
-async function importProjectFontFile(
+async function importProjectFontFiles(
   sourcePath: string,
-  targetDirectoryPath = DEFAULT_PROJECT_FONT_DIRECTORY,
   conflictResolution?: ProjectAssetImportResolution,
-): Promise<ImportedProjectFontFile> {
-  const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
-  if (!targetDirectory) throw new Error('Invalid project font directory')
+): Promise<ImportedProjectFontFiles> {
+  const targetDirectory = DEFAULT_PROJECT_FONT_DIRECTORY
   const normalizedSourcePath = normalizePath(sourcePath)
   ensureProjectOpen()
   const fileName = getPathBasename(normalizedSourcePath)
@@ -1080,17 +1092,38 @@ async function importProjectFontFile(
   const sourceIdentity = pathIdentity(normalizedSourcePath)
   const targetAbsoluteDirectory = resolveProjectInternalPath(targetDirectory)
   const sourceInsideManagedDirectory = sourceIdentity.startsWith(`${pathIdentity(targetAbsoluteDirectory)}/`)
+  const sourceBytes = await fileSystemService.readBinaryFile(normalizedSourcePath)
+  if (extension === 'ttc' || extension === 'otc') {
+    const faces = extractFontCollectionFaces(sourceBytes)
+    const stem = fileName.slice(0, fileName.lastIndexOf('.'))
+    const sources: string[] = []
+    await fileSystemService.createDirectory(targetAbsoluteDirectory)
+    for (let index = 0; index < faces.length; index += 1) {
+      const face = faces[index]!
+      const desiredName = `${stem}-${index + 1}.${face.extension}`
+      const outputName = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${desiredName}`)
+        ? await findAvailableProjectAssetName(targetAbsoluteDirectory, desiredName)
+        : desiredName
+      await fileSystemService.writeBinaryFile(`${targetAbsoluteDirectory}/${outputName}`, face.bytes)
+      sources.push(`${targetDirectory}/${outputName}`)
+    }
+    await refreshIndexedEntries()
+    return { sources, copied: true }
+  }
   const targetExists = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${fileName}`)
   if (!sourceInsideManagedDirectory && targetExists && conflictResolution === 'use-existing') {
-    return { source: `${targetDirectory}/${fileName}`, copied: false }
+    return { sources: [`${targetDirectory}/${fileName}`], copied: false }
   }
 
   const prepared = await ensureLoadableProjectFont(
-    await fileSystemService.readBinaryFile(normalizedSourcePath),
+    sourceBytes,
     fileName,
   )
   if (sourceInsideManagedDirectory && !prepared.repaired) {
-    return { source: `${targetDirectory}/${normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1)}`, copied: false }
+    return {
+      sources: [`${targetDirectory}/${normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1)}`],
+      copied: false,
+    }
   }
 
   const outputDirectory = targetAbsoluteDirectory
@@ -1102,7 +1135,7 @@ async function importProjectFontFile(
   if (prepared.repaired) await fileSystemService.writeBinaryFile(`${outputDirectory}/${outputName}`, prepared.bytes)
   else await fileSystemService.copyFile(normalizedSourcePath, `${outputDirectory}/${outputName}`)
   await refreshIndexedEntries()
-  return { source: `${targetDirectory}/${outputName}`, copied: true }
+  return { sources: [`${targetDirectory}/${outputName}`], copied: true }
 }
 
 async function inspectProjectDirectory(path: string) {
@@ -1121,10 +1154,9 @@ function createRepairedFontName(fileName: string): string {
 
 async function getProjectFontImportConflict(
   sourcePath: string,
-  targetDirectoryPath = DEFAULT_PROJECT_FONT_DIRECTORY,
 ): Promise<ProjectAssetImportConflict | null> {
-  const targetDirectory = normalizeProjectFontDirectory(targetDirectoryPath)
-  if (!targetDirectory) throw new Error('Invalid project font directory')
+  const targetDirectory = DEFAULT_PROJECT_FONT_DIRECTORY
+  if (/\.(?:ttc|otc)$/i.test(sourcePath)) return null
   return await getProjectAssetImportConflict(
     sourcePath,
     targetDirectory,
@@ -1532,8 +1564,8 @@ export function useProjectStore() {
     resolvedProject: readonly(resolvedProject),
     projectInformation: readonly(resolvedProject),
     profileError: readonly(profileError),
-    projectFontFiles: readonly(projectFontFiles),
-    projectFontSets: readonly(projectFontSets),
+    projectFontFamilies: readonly(projectFontFamilies),
+    projectFontCompositions: readonly(projectFontCompositions),
     projectFonts: readonly(projectFonts),
     fontRegistryError: readonly(fontRegistryError),
     projectFontLoadErrors: readonly(projectFontLoadErrors),
@@ -1593,7 +1625,7 @@ export function useProjectStore() {
     saveFile,
     createFolder,
     createFile,
-    importProjectFontFile,
+    importProjectFontFiles,
     getProjectFontImportConflict,
     importProjectIconFile,
     getProjectIconImportConflict,

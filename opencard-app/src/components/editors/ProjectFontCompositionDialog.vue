@@ -27,10 +27,13 @@
       </div>
       <OcAutocompletePopover :id="memberAutocompleteId" :open="memberMenuOpen" :anchor="memberPickerRef"
         :items="memberSuggestions" :active-key="activeMemberKey" @select="selectMemberSuggestion" />
+      <OcButton type="button" variant="ghost" icon="tool.settings" @click="advancedOpen = !advancedOpen">
+        {{ t('projectConfig.fonts.advancedRanges') }}
+      </OcButton>
       <div v-if="selectedMembers.length" class="project-font-set-dialog__selected">
-        <div v-for="(memberKey, index) in selectedMembers" :key="`${memberKey}:${index}`"
+        <div v-for="(member, index) in selectedMembers" :key="`${member.familyKey}:${index}`"
           class="project-font-set-dialog__member-row">
-          <span><OcIcon :name="entryIcon(memberKey)" size="sm" />{{ entryLabel(memberKey) }}</span>
+          <span><OcIcon name="file.font" size="sm" />{{ entryLabel(member.familyKey) }}</span>
           <span>
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-top"
               :disabled="index === 0" :aria-label="t('projectConfig.fonts.moveMemberToTop')"
@@ -47,6 +50,11 @@
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
               :aria-label="t('projectConfig.fonts.removeMember')" @click="removeMember(index)" />
           </span>
+          <OcFieldInput v-if="advancedOpen" full-width mono
+            :value="formatRanges(member.ranges)"
+            :placeholder="t('projectConfig.fonts.rangePlaceholder')"
+            :aria-invalid="invalidRangeIndexes.has(index)"
+            @input="updateMemberRanges(index, $event)" />
         </div>
       </div>
       <OcText v-else tone="muted" size="sm">{{ t('projectConfig.fonts.noMembers') }}</OcText>
@@ -63,10 +71,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ProjectFont, ProjectFontSet } from '../../features/workspace/model/projectFontRegistry'
+import type {
+  ProjectFontComposition,
+  ProjectFontCompositionMember,
+  ProjectFontFamily,
+  UnicodeRange,
+} from '../../features/workspace/model/projectFontRegistry'
 import { projectFontIdPattern } from '../../features/workspace/model/projectFonts'
 import { createAvailableKey } from '../../shared/model/keySlug'
-import type { IconResolvable } from '../../shared/ui/icon/iconRegistry'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -74,24 +86,26 @@ import OcText from '../base/OcText.vue'
 import OcAutocompletePopover from '../standard/OcAutocompletePopover.vue'
 import OcDialog from '../standard/OcDialog.vue'
 
-export type ProjectFontSetRequest = {
+export type ProjectFontCompositionRequest = {
   originalKey?: string
   key: string
   name: string
-  fontKeys: string[]
+  members: ProjectFontCompositionMember[]
 }
 
 const props = defineProps<{
   open: boolean
-  fonts: readonly ProjectFont[]
-  fontSets: readonly ProjectFontSet[]
+  families: readonly ProjectFontFamily[]
+  compositions: readonly ProjectFontComposition[]
   originalKey?: string
 }>()
-const emit = defineEmits<{ close: []; submit: [request: ProjectFontSetRequest] }>()
+const emit = defineEmits<{ close: []; submit: [request: ProjectFontCompositionRequest] }>()
 const { t } = useI18n()
 const name = ref('')
 const key = ref('')
-const selectedMembers = ref<string[]>([])
+const selectedMembers = ref<ProjectFontCompositionMember[]>([])
+const advancedOpen = ref(false)
+const invalidRangeIndexes = ref<ReadonlySet<number>>(new Set())
 const memberQuery = ref('')
 const selectedCandidateKey = ref<string | null>(null)
 const memberPickerRef = ref<HTMLElement | null>(null)
@@ -100,7 +114,7 @@ const memberMenuOpen = ref(false)
 const activeMemberKey = ref<string | null>(null)
 const memberAutocompleteId = useId()
 const editing = computed(() => Boolean(props.originalKey))
-const usedKeys = computed(() => [...props.fonts, ...props.fontSets]
+const usedKeys = computed(() => [...props.families, ...props.compositions]
   .map(entry => entry.key)
   .filter(candidate => candidate.toLocaleLowerCase() !== props.originalKey?.toLocaleLowerCase()))
 const generatedKey = computed(() => createAvailableKey(name.value, usedKeys.value, 'font-set'))
@@ -109,18 +123,9 @@ const validKey = computed(() => projectFontIdPattern.test(effectiveKey.value))
 const uniqueKey = computed(() => !usedKeys.value.some(candidate => (
   candidate.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
 )))
-const availableEntries = computed(() => [
-  ...props.fonts.map(font => ({ ...font, kind: 'font' as const, disabled: false })),
-  ...props.fontSets
-    .filter(fontSet => fontSet.key !== props.originalKey)
-    .map(fontSet => ({
-      ...fontSet,
-      kind: 'set' as const,
-      disabled: setReaches(fontSet.key, props.originalKey ?? effectiveKey.value),
-    })),
-])
+const availableEntries = computed(() => props.families)
 const selectableEntries = computed(() => availableEntries.value.filter(entry => (
-  !entry.disabled && !selectedMembers.value.includes(entry.key)
+  !selectedMembers.value.some(member => member.familyKey.toLocaleLowerCase() === entry.key.toLocaleLowerCase())
 )))
 const memberSuggestions = computed(() => {
   const query = memberQuery.value.trim().toLocaleLowerCase()
@@ -131,7 +136,7 @@ const memberSuggestions = computed(() => {
       key: entry.key,
       label: entry.name,
       detail: `font:${entry.key}`,
-      icon: entry.kind === 'font' ? 'file.font' as const : 'data.layers' as const,
+      icon: 'file.font' as const,
     }))
 })
 const candidateMemberKey = computed(() => {
@@ -145,7 +150,8 @@ const activeMemberOptionId = computed(() => activeMemberKey.value
   ? `${memberAutocompleteId}-option-${activeMemberKey.value.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   : undefined)
 const canSubmit = computed(() => Boolean(
-  name.value.trim() && validKey.value && uniqueKey.value && (editing.value || selectedMembers.value.length > 0),
+  name.value.trim() && validKey.value && uniqueKey.value
+    && selectedMembers.value.length > 0 && invalidRangeIndexes.value.size === 0,
 ))
 const dialogTitle = computed(() => editing.value
   ? t('projectConfig.fonts.configureSet') : t('projectConfig.fonts.addSet'))
@@ -153,16 +159,22 @@ const validationMessage = computed(() => {
   if (!uniqueKey.value) return t('projectConfig.fonts.keyExists')
   if (key.value && !validKey.value) return t('projectConfig.fonts.invalidKey')
   if (!name.value.trim()) return t('projectConfig.fonts.nameRequired')
-  if (!editing.value && selectedMembers.value.length === 0) return t('projectConfig.fonts.memberRequired')
+  if (selectedMembers.value.length === 0) return t('projectConfig.fonts.memberRequired')
+  if (invalidRangeIndexes.value.size) return t('projectConfig.fonts.invalidRange')
   return ''
 })
 
 watch([() => props.open, () => props.originalKey], ([open]) => {
   if (!open) return
-  const fontSet = props.fontSets.find(candidate => candidate.key === props.originalKey)
-  name.value = fontSet?.name ?? createDefaultSetName()
-  key.value = fontSet?.key ?? ''
-  selectedMembers.value = [...(fontSet?.fontKeys ?? [])]
+  const composition = props.compositions.find(candidate => candidate.key === props.originalKey)
+  name.value = composition?.name ?? createDefaultSetName()
+  key.value = composition?.key ?? ''
+  selectedMembers.value = (composition?.members ?? []).map(member => ({
+    familyKey: member.familyKey,
+    ...(member.ranges ? { ranges: member.ranges.map(range => ({ ...range })) } : {}),
+  }))
+  advancedOpen.value = selectedMembers.value.some(member => member.ranges)
+  invalidRangeIndexes.value = new Set()
   resetMemberPicker()
 }, { immediate: true })
 
@@ -173,7 +185,7 @@ watch(memberSuggestions, suggestions => {
 })
 
 function createDefaultSetName(): string {
-  const existingNames = new Set(props.fontSets.map(fontSet => fontSet.name.toLocaleLowerCase()))
+  const existingNames = new Set(props.compositions.map(composition => composition.name.toLocaleLowerCase()))
   let index = 1
   while (existingNames.has(t('projectConfig.fonts.defaultSetName', { index }).toLocaleLowerCase())) index += 1
   return t('projectConfig.fonts.defaultSetName', { index })
@@ -209,8 +221,8 @@ function selectMemberSuggestion(memberKey: string): void {
 }
 function addCandidateMember(): void {
   const memberKey = candidateMemberKey.value
-  if (!memberKey || selectedMembers.value.includes(memberKey)) return
-  selectedMembers.value.push(memberKey)
+  if (!memberKey || selectedMembers.value.some(member => member.familyKey === memberKey)) return
+  selectedMembers.value.push({ familyKey: memberKey })
   resetMemberPicker()
   void nextTick(() => activeMemberInput.value?.focus())
 }
@@ -251,18 +263,7 @@ function removeMember(index: number): void {
   selectedMembers.value = selectedMembers.value.filter((_, candidate) => candidate !== index)
 }
 function entryLabel(memberKey: string): string {
-  return [...props.fonts, ...props.fontSets].find(entry => entry.key === memberKey)?.name ?? memberKey
-}
-function entryIcon(memberKey: string): IconResolvable {
-  return props.fontSets.some(fontSet => fontSet.key === memberKey) ? 'data.layers' : 'file.font'
-}
-function setReaches(startKey: string, targetKey: string, visited = new Set<string>()): boolean {
-  const identity = startKey.toLocaleLowerCase()
-  if (identity === targetKey.toLocaleLowerCase()) return true
-  if (visited.has(identity)) return false
-  visited.add(identity)
-  const fontSet = props.fontSets.find(candidate => candidate.key.toLocaleLowerCase() === identity)
-  return Boolean(fontSet?.fontKeys.some(member => setReaches(member, targetKey, visited)))
+  return props.families.find(entry => entry.key === memberKey)?.name ?? memberKey
 }
 function submit(): void {
   if (!canSubmit.value) return
@@ -270,8 +271,47 @@ function submit(): void {
     ...(props.originalKey ? { originalKey: props.originalKey } : {}),
     key: effectiveKey.value,
     name: name.value.trim(),
-    fontKeys: [...selectedMembers.value],
+    members: selectedMembers.value.map(member => ({
+      familyKey: member.familyKey,
+      ...(member.ranges ? { ranges: member.ranges.map(range => ({ ...range })) } : {}),
+    })),
   })
+}
+
+function formatRanges(ranges: readonly UnicodeRange[] | undefined): string {
+  return ranges?.map(range => range.start === range.end
+    ? `U+${range.start.toString(16).toUpperCase()}`
+    : `U+${range.start.toString(16).toUpperCase()}-${range.end.toString(16).toUpperCase()}`).join(', ') ?? ''
+}
+
+function parseRanges(value: string): UnicodeRange[] | null | undefined {
+  if (!value.trim()) return undefined
+  const ranges: UnicodeRange[] = []
+  for (const part of value.split(',')) {
+    const match = /^\s*U\+([0-9a-f]{1,6})(?:-([0-9a-f]{1,6}))?\s*$/i.exec(part)
+    if (!match) return null
+    const start = Number.parseInt(match[1] ?? '', 16)
+    const end = Number.parseInt(match[2] ?? match[1] ?? '', 16)
+    if (start > end || end > 0x10ffff || (start <= 0xdfff && end >= 0xd800)) return null
+    ranges.push({ start, end })
+  }
+  return ranges
+}
+
+function updateMemberRanges(index: number, event: Event): void {
+  if (!(event.target instanceof HTMLInputElement)) return
+  const parsed = parseRanges(event.target.value)
+  const invalid = new Set(invalidRangeIndexes.value)
+  if (parsed === null) invalid.add(index)
+  else {
+    invalid.delete(index)
+    const member = selectedMembers.value[index]
+    if (member) selectedMembers.value[index] = {
+      familyKey: member.familyKey,
+      ...(parsed ? { ranges: parsed } : {}),
+    }
+  }
+  invalidRangeIndexes.value = invalid
 }
 </script>
 

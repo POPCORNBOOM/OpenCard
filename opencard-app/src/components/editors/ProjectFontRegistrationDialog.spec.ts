@@ -4,6 +4,20 @@ import ProjectFontRegistrationDialog from './ProjectFontRegistrationDialog.vue'
 import OcButton from '../base/OcButton.vue'
 
 const mocks = vi.hoisted(() => ({ pickFile: vi.fn(), resolveImportConflict: vi.fn() }))
+const registryEntry = (key: string, name: string, source: string) => ({
+  kind: 'family' as const,
+  name,
+  family: {
+    key,
+    name,
+    faces: [{
+      source,
+      weight: { min: 400, max: 400 },
+      stretch: { min: 100, max: 100 },
+      style: { kind: 'normal' as const },
+    }],
+  },
+})
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
@@ -59,6 +73,9 @@ describe('ProjectFontRegistrationDialog', () => {
       key: 'brand-sans-bold-italic',
       name: 'Brand Sans Bold Italic',
       sourcePath: 'D:/Downloads/BrandSans-BoldItalic.woff2',
+      weight: { min: 400, max: 400 },
+      stretch: { min: 100, max: 100 },
+      style: { kind: 'normal' },
     })
   })
 
@@ -66,11 +83,8 @@ describe('ProjectFontRegistrationDialog', () => {
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        fonts: {
-          'brand-sans': {
-            name: 'Brand Sans',
-            source: 'assets/fonts/BrandSans.woff2',
-          },
+        registry: {
+          'brand-sans': registryEntry('brand-sans', 'Brand Sans', 'fonts/BrandSans.woff2'),
         },
         originalKey: 'brand-sans',
         getRelativeProjectPath: () => null,
@@ -87,7 +101,10 @@ describe('ProjectFontRegistrationDialog', () => {
       originalKey: 'brand-sans',
       key: 'brand-display',
       name: 'Brand Display',
-      sourcePath: 'assets/fonts/BrandSans.woff2',
+      sourcePath: 'fonts/BrandSans.woff2',
+      weight: { min: 400, max: 400 },
+      stretch: { min: 100, max: 100 },
+      style: { kind: 'normal' },
     })
   })
 
@@ -96,9 +113,7 @@ describe('ProjectFontRegistrationDialog', () => {
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        fonts: {
-          brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' },
-        },
+        registry: { brand: registryEntry('brand', 'Brand', 'fonts/Brand.woff2') },
         getRelativeProjectPath: () => 'assets/fonts/Body.woff2',
         resolveImportConflict: mocks.resolveImportConflict,
       },
@@ -118,7 +133,7 @@ describe('ProjectFontRegistrationDialog', () => {
     const wrapper = mount(ProjectFontRegistrationDialog, {
       props: {
         open: true,
-        fonts: { brand: { name: 'Brand', source: 'assets/fonts/Brand.woff2' } },
+        registry: { brand: registryEntry('brand', 'Brand', 'fonts/Brand.woff2') },
         getRelativeProjectPath: () => 'assets/fonts/Brand.woff2',
         resolveImportConflict: mocks.resolveImportConflict,
       },

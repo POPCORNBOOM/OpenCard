@@ -1,6 +1,7 @@
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
 import type { ProjectFontRegistry } from '../model/projectFontRegistry'
+import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../model/projectStructure'
 import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
 import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import type { FileSystemService } from './fileSystemService'
@@ -178,13 +179,23 @@ export async function collectProjectCustomBlockResources(options: {
   }
 
   for (const key of fontKeys) {
-    const font = Object.entries(options.projectFonts ?? {}).find(([candidate]) => candidate.toLowerCase() === key)?.[1]
-    if (!font) throw new Error(`Custom block font is missing: font:${key}`)
-    const bytes = await options.fs.readBinaryFile(`${root}/${font.source.replace(/\\/g, '/')}`)
+    const entry = Object.entries(options.projectFonts ?? {}).find(([candidate]) => candidate.toLowerCase() === key)?.[1]
+    if (!entry) throw new Error(`Custom block font is missing: font:${key}`)
+    const family = entry.kind === 'family'
+      ? entry.family
+      : entry.composition.members
+          .map(member => Object.entries(options.projectFonts ?? {})
+            .find(([candidate]) => candidate.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase())?.[1])
+          .find(candidate => candidate?.kind === 'family')?.family
+    const face = family?.faces[0]
+    if (!family || !face) throw new Error(`Custom block font has no available face: font:${key}`)
+    const bytes = await options.fs.readBinaryFile(
+      `${root}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${face.source.replace(/\\/g, '/')}`,
+    )
     const hash = await sha256(bytes)
-    const archivePath = `resources/fonts/${hash}.${extensionOf(font.source, 'bin')}`
+    const archivePath = `resources/fonts/${hash}.${extensionOf(face.source, 'bin')}`
     if (!files.has(archivePath)) files.set(archivePath, bytes)
-    fonts.push({ key, name: font.name, source: archivePath })
+    fonts.push({ key, name: entry.name, source: archivePath })
     fontSourceMap.set(key, archivePath)
   }
 

@@ -4,6 +4,37 @@ type SfntTable = {
 }
 
 const SFNT_VERSION_TRUE_TYPE = 0x00010000
+const SFNT_VERSION_CFF = 0x4f54544f
+const TTC_SIGNATURE = 0x74746366
+
+export type ExtractedFontCollectionFace = {
+  bytes: Uint8Array
+  extension: 'ttf' | 'otf'
+}
+
+export function extractFontCollectionFaces(source: Uint8Array): ExtractedFontCollectionFace[] {
+  if (source.length < 12 || readU32(source, 0) !== TTC_SIGNATURE) {
+    throw new Error('Invalid TrueType/OpenType collection')
+  }
+  const count = readU32(source, 8)
+  if (count < 1 || count > 256 || source.length < 12 + count * 4) {
+    throw new Error('Invalid font collection directory')
+  }
+  const faces: ExtractedFontCollectionFace[] = []
+  for (let index = 0; index < count; index += 1) {
+    const directoryOffset = readU32(source, 12 + index * 4)
+    if (directoryOffset + 12 > source.length) throw new Error(`Invalid font collection face ${index + 1}`)
+    const version = readU32(source, directoryOffset)
+    if (version !== SFNT_VERSION_TRUE_TYPE && version !== SFNT_VERSION_CFF) {
+      throw new Error(`Unsupported font collection face ${index + 1}`)
+    }
+    faces.push({
+      bytes: writeSfnt(readSfntTablesAt(source, directoryOffset), version),
+      extension: version === SFNT_VERSION_CFF ? 'otf' : 'ttf',
+    })
+  }
+  return faces
+}
 
 export async function repairTrueTypeFont(source: Uint8Array): Promise<Uint8Array> {
   const tables = readSfntTables(source)
@@ -111,11 +142,16 @@ function readSfntTables(source: Uint8Array): SfntTable[] {
   if (source.length < 12 || readU32(source, 0) !== SFNT_VERSION_TRUE_TYPE) {
     throw new Error('Only TrueType .ttf fonts can be repaired automatically')
   }
-  const count = readU16(source, 4)
-  if (source.length < 12 + count * 16) throw new Error('Invalid TrueType table directory')
+  return readSfntTablesAt(source, 0)
+}
+
+function readSfntTablesAt(source: Uint8Array, directoryOffset: number): SfntTable[] {
+  if (directoryOffset < 0 || directoryOffset + 12 > source.length) throw new Error('Invalid font table directory')
+  const count = readU16(source, directoryOffset + 4)
+  if (source.length < directoryOffset + 12 + count * 16) throw new Error('Invalid TrueType table directory')
   const tables: SfntTable[] = []
   for (let index = 0; index < count; index += 1) {
-    const entry = 12 + index * 16
+    const entry = directoryOffset + 12 + index * 16
     const tag = String.fromCharCode(...source.slice(entry, entry + 4))
     const offset = readU32(source, entry + 8)
     const length = readU32(source, entry + 12)
@@ -167,7 +203,7 @@ function createCmap(mappings: readonly (readonly [number, number])[]): Uint8Arra
   return data
 }
 
-function writeSfnt(tables: SfntTable[]): Uint8Array {
+function writeSfnt(tables: SfntTable[], version = SFNT_VERSION_TRUE_TYPE): Uint8Array {
   const sorted = [...tables].sort((a, b) => a.tag.localeCompare(b.tag))
   const count = sorted.length
   const highestPower = 2 ** Math.floor(Math.log2(count))
@@ -175,7 +211,7 @@ function writeSfnt(tables: SfntTable[]): Uint8Array {
   let totalLength = headerLength
   for (const table of sorted) totalLength += align4(table.data.length)
   const output = new Uint8Array(totalLength)
-  writeU32(output, 0, SFNT_VERSION_TRUE_TYPE)
+  writeU32(output, 0, version)
   writeU16(output, 4, count)
   writeU16(output, 6, highestPower * 16)
   writeU16(output, 8, Math.log2(highestPower))

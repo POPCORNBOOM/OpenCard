@@ -73,7 +73,20 @@ function createHarness() {
     rawPropertyInputs,
     projectContext: computed(() => ({
       fonts: {
-        body: { name: 'Body Font', source: 'fonts/body.woff2' },
+        body: {
+          kind: 'family' as const,
+          name: 'Body Font',
+          family: {
+            key: 'body',
+            name: 'Body Font',
+            faces: [{
+              source: 'fonts/body.woff2',
+              weight: { min: 400, max: 400 },
+              stretch: { min: 100, max: 100 },
+              style: { kind: 'normal' as const },
+            }],
+          },
+        },
       },
       information: { name: 'Project', description: 'Description', version: '2.0.0' },
       dictionary: { greeting: 'Hello' },
@@ -116,17 +129,26 @@ describe('useCdePropertyEditorProjection', () => {
   })
 
   it('adds project fonts and rich-text base styles without owning UI state', async () => {
-    setProjectFonts([{ key: 'body', name: 'Body Font', source: 'fonts/body.woff2' }])
+    setProjectFonts([{
+      key: 'body',
+      name: 'Body Font',
+      faces: [{
+        source: 'fonts/body.woff2',
+        weight: { min: 400, max: 400 },
+        stretch: { min: 100, max: 100 },
+        style: { kind: 'normal' },
+      }],
+    }])
     const { state } = createHarness()
     const fields = state.propertyEditorInputs.value[0]!.fields
     const fontItems = await completionItems(fields.fontFamily?.completion?.provider, 'Body', 4)
 
     expect(fontItems.map(item => item.value)).toContain('font:body')
     expect(fontItems.find(item => item.value === 'font:body')?.labelStyle)
-      .toEqual({ fontFamily: '"OpenCardProjectFont-body"' })
+      .toEqual({ fontFamily: '"OpenCardProjectFontFamily-body"' })
     expect(fields.content?.fontOptions?.map(item => item.value)).toContain('font:body')
     expect(fields.content?.richTextBaseStyle).toEqual({
-      fontFamily: '"OpenCardProjectFont-body", Arial, sans-serif',
+      fontFamily: '"OpenCardProjectFontFamily-body", Arial, sans-serif',
       fontSize: '18px',
     })
 

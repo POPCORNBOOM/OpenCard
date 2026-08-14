@@ -1,47 +1,125 @@
 import { describe, expect, it } from 'vitest'
 import {
+  normalizeUnicodeRanges,
   parseProjectFontRegistry,
   parseProjectFontRegistryText,
   serializeProjectFontRegistry,
 } from './projectFontRegistry'
 
 describe('project font registry', () => {
-  it('normalizes independent font and font-set lists', () => {
+  it('normalizes font families, face defaults, and compositions', () => {
     expect(parseProjectFontRegistry({
-      fonts: [{ key: 'brand', name: ' Brand ', source: 'assets\\fonts\\Brand.woff2' }],
-      fontSets: [{ key: 'body', name: ' Body ', fontKeys: ['brand'] }],
+      families: [{
+        key: 'brand',
+        name: ' Brand ',
+        faces: [
+          { source: 'fonts\\Brand-Regular.woff2' },
+          {
+            source: 'fonts/Brand-Italic.ttf',
+            weight: { min: 300, max: 700 },
+            stretch: { min: 75, max: 125 },
+            style: { kind: 'italic' },
+          },
+        ],
+      }],
+      compositions: [{
+        key: 'body',
+        name: ' Body ',
+        members: [
+          { familyKey: 'brand', ranges: [{ start: 65, end: 90 }, { start: 91, end: 122 }] },
+          { familyKey: 'fallback' },
+        ],
+      }],
     })).toEqual({
-      fonts: [{ key: 'brand', name: 'Brand', source: 'assets/fonts/Brand.woff2' }],
-      fontSets: [{ key: 'body', name: 'Body', fontKeys: ['brand'] }],
+      families: [{
+        key: 'brand',
+        name: 'Brand',
+        faces: [
+          {
+            source: 'fonts/Brand-Regular.woff2',
+            weight: { min: 400, max: 400 },
+            stretch: { min: 100, max: 100 },
+            style: { kind: 'normal' },
+          },
+          {
+            source: 'fonts/Brand-Italic.ttf',
+            weight: { min: 300, max: 700 },
+            stretch: { min: 75, max: 125 },
+            style: { kind: 'italic' },
+          },
+        ],
+      }],
+      compositions: [{
+        key: 'body',
+        name: 'Body',
+        members: [
+          { familyKey: 'brand', ranges: [{ start: 65, end: 122 }] },
+          { familyKey: 'fallback' },
+        ],
+      }],
     })
   })
 
-  it('accepts empty documents but rejects unsafe sources and case-insensitive key conflicts', () => {
-    expect(parseProjectFontRegistry({})).toEqual({})
-    expect(parseProjectFontRegistry({ fonts: [] })).toEqual({})
-    expect(parseProjectFontRegistry({
-      fonts: [{ key: 'unsafe', name: 'Unsafe', source: '../Unsafe.ttf' }],
-    })).toBeNull()
-    expect(parseProjectFontRegistry({ fonts: [
-      { key: 'brand', name: 'Brand', source: 'brand.ttf' },
-      { key: 'BRAND', name: 'Brand 2', source: 'brand-2.ttf' },
-    ] })).toBeNull()
-    expect(parseProjectFontRegistry({
-      fonts: [{ key: 'brand', name: 'Brand', source: 'brand.ttf' }],
-      fontSets: [{ key: 'BRAND', name: 'Fallback', fontKeys: ['brand'] }],
-    })).toBeNull()
+  it('normalizes Unicode ranges and excludes surrogate code points', () => {
+    expect(normalizeUnicodeRanges([
+      { start: 0xe000, end: 0xe010 },
+      { start: 0xd7ff, end: 0xe001 },
+      { start: 0x41, end: 0x5a },
+      { start: 0x5b, end: 0x7a },
+    ])).toEqual([
+      { start: 0x41, end: 0x7a },
+      { start: 0xd7ff, end: 0xd7ff },
+      { start: 0xe000, end: 0xe010 },
+    ])
+    expect(normalizeUnicodeRanges([])).toBeNull()
+    expect(normalizeUnicodeRanges([{ start: -1, end: 1 }])).toBeNull()
   })
 
-  it('ignores unknown document fields and rejects invalid JSON', () => {
-    expect(parseProjectFontRegistry({ metadata: true })).toEqual({})
-    expect(parseProjectFontRegistry({ fontSets: [] })).toEqual({})
+  it('keeps a usable projection while ignoring damaged entries and duplicate Keys', () => {
     expect(parseProjectFontRegistry({
-      fontSets: [{ key: 'body', name: 'Body', fontKeys: ['missing', 'nested'] }],
-    })).toEqual({ fontSets: [{ key: 'body', name: 'Body', fontKeys: ['missing', 'nested'] }] })
+      families: [
+        { key: 'brand', name: 'Brand', faces: [{ source: 'fonts/Brand.ttf' }] },
+        { key: 'broken', name: 'Broken', faces: [{ source: '../Broken.ttf' }] },
+        { key: 'BRAND', name: 'Duplicate', faces: [] },
+      ],
+      compositions: [
+        { key: 'body', name: 'Body', members: [{ familyKey: 'brand' }, { familyKey: '?' }] },
+        { key: 'BRAND', name: 'Conflict', members: [] },
+      ],
+    })).toEqual({
+      families: [{
+        key: 'brand', name: 'Brand', faces: [{
+          source: 'fonts/Brand.ttf',
+          weight: { min: 400, max: 400 },
+          stretch: { min: 100, max: 100 },
+          style: { kind: 'normal' },
+        }],
+      }, { key: 'broken', name: 'Broken', faces: [] }],
+      compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] }],
+    })
+  })
+
+  it('ignores unknown fields and rejects invalid top-level values', () => {
+    expect(parseProjectFontRegistry({})).toEqual({})
+    expect(parseProjectFontRegistry({ fonts: [] })).toEqual({})
+    expect(parseProjectFontRegistry({ unrelated: [] })).toEqual({})
+    expect(parseProjectFontRegistry({ families: {} })).toBeNull()
     expect(parseProjectFontRegistryText('{broken')).toBeNull()
-    expect(JSON.parse(serializeProjectFontRegistry({
-      fonts: [{ key: 'brand', name: 'Brand', source: 'brand.ttf' }],
-    }))).toEqual({ fonts: [{ key: 'brand', name: 'Brand', source: 'brand.ttf' }] })
     expect(JSON.parse(serializeProjectFontRegistry({}))).toEqual({})
+  })
+
+  it('keeps face sources inside the managed fonts directory', () => {
+    const parsed = parseProjectFontRegistry({
+      families: [{
+        key: 'unsafe',
+        name: 'Unsafe',
+        faces: [
+          { source: 'fonts/../Escape.ttf' },
+          { source: 'fonts/nested/Good.ttf' },
+          { source: 'fonts/C:/Bad.ttf' },
+        ],
+      }],
+    })
+    expect(parsed?.families?.[0]?.faces.map(face => face.source)).toEqual(['fonts/nested/Good.ttf'])
   })
 })

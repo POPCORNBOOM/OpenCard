@@ -13,9 +13,9 @@
         </div>
         <div class="project-font-registry-workbench__title-actions">
           <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addFont')"
-            @click="emit('register-font')">{{ t('projectConfig.fonts.addFont') }}</OcButton>
+            @click="emit('register-family')">{{ t('projectConfig.fonts.addFont') }}</OcButton>
           <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addSet')"
-            @click="emit('register-font-set')">{{ t('projectConfig.fonts.addSet') }}</OcButton>
+            @click="emit('register-composition')">{{ t('projectConfig.fonts.addSet') }}</OcButton>
         </div>
       </header>
 
@@ -26,7 +26,7 @@
       <div class="project-font-registry-workbench__list">
         <OcTree fill role="listbox" selection-mode="single"
           activation-mode="double-click" scroll-to-selection :data="treeData" :actions="treeActions"
-          :expanded-keys="['fonts', 'sets']"
+          :expanded-keys="['families', 'compositions']"
           :selected-keys="selectedTreeKeys" :action-overflow-title="t('projectConfig.fonts.entryActions')"
           @intent="handleTreeIntent" />
       </div>
@@ -42,11 +42,11 @@
           <span class="project-font-registry-workbench__preview-content">
             <span
               v-for="(run, index) in previewRuns"
-              :key="`${index}:${run.fontKey ?? 'fallback'}`"
+              :key="`${index}:${run.familyKey ?? 'fallback'}`"
               class="project-font-registry-workbench__preview-run"
-              :data-font-key="run.fontKey ?? 'fallback'"
-              :style="runStyle(run.fontKey)"
-              @pointerenter="showFontInfo(run.fontKey, $event)"
+              :data-font-key="run.familyKey ?? 'fallback'"
+              :style="runStyle(run.familyKey)"
+              @pointerenter="showFontInfo(run.familyKey, $event)"
               @pointerleave="hideFontInfo"
             >{{ run.text }}</span>
           </span>
@@ -67,7 +67,7 @@
               </div>
               <div>
                 <dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
-                <dd>{{ hoveredFont.source }}</dd>
+                <dd>{{ hoveredFont.faces.map(face => face.source).join('; ') }}</dd>
               </div>
             </dl>
           </section>
@@ -81,9 +81,9 @@
         </OcFloatingLayer>
       </template>
       <div v-else class="project-font-registry-workbench__placeholder">
-        <OcIcon :name="activePage === 'fonts' ? 'file.font' : 'data.layers'" size="lg" tone="muted" />
+        <OcIcon :name="activePage === 'families' ? 'file.font' : 'data.layers'" size="lg" tone="muted" />
         <OcEmpty tone="muted" inset="none">
-          {{ activePage === 'fonts' ? t('projectConfig.fonts.noFontSelected') : t('projectConfig.fonts.noSetSelected') }}
+          {{ activePage === 'families' ? t('projectConfig.fonts.noFontSelected') : t('projectConfig.fonts.noSetSelected') }}
         </OcEmpty>
       </div>
     </section>
@@ -93,12 +93,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ProjectFont, ProjectFontSet } from '../../features/workspace/model/projectFontRegistry'
-import { createProjectFontCssFamily, resolveProjectFontExpression } from '../../features/workspace/model/projectFonts'
+import type { ProjectFontComposition, ProjectFontFamily } from '../../features/workspace/model/projectFontRegistry'
+import { createProjectFontFamilyCssFamily } from '../../features/workspace/model/projectFonts'
 import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
 import {
   createProjectFontPreviewRuns,
   readProjectFontCharacterSet,
+  type ProjectFontPreviewCandidate,
 } from '../../features/workspace/services/projectFontCoverage'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import OcButton from '../base/OcButton.vue'
@@ -112,109 +113,132 @@ import OcTree from '../standard/OcTree.vue'
 const props = withDefaults(defineProps<{
   heading: string
   description: string
-  fonts: readonly ProjectFont[]
-  fontSets?: readonly ProjectFontSet[]
+  families: readonly ProjectFontFamily[]
+  compositions?: readonly ProjectFontComposition[]
   resolveAssetSrc: (source: string) => string
   readFontBytes: (source: string) => Promise<Uint8Array>
   error?: string
   loadErrors?: readonly ProjectFontLoadError[]
-}>(), { fontSets: () => [], error: '', loadErrors: () => [] })
+}>(), { compositions: () => [], error: '', loadErrors: () => [] })
 const emit = defineEmits<{
-  'update:fonts': [fonts: ProjectFont[]]
-  'update:fontSets': [fontSets: ProjectFontSet[]]
-  'register-font': []
-  'configure-font': [fontKey: string]
-  'register-font-set': []
-  'configure-font-set': [fontSetKey: string]
+  'update:families': [families: ProjectFontFamily[]]
+  'update:compositions': [compositions: ProjectFontComposition[]]
+  'register-family': []
+  'configure-family': [familyKey: string]
+  'register-composition': []
+  'configure-composition': [compositionKey: string]
 }>()
 const { t } = useI18n()
-const activePage = ref<'fonts' | 'sets'>('fonts')
-const selectedFontKey = ref<string | null>(null)
-const selectedFontSetKey = ref<string | null>(null)
+const activePage = ref<'families' | 'compositions'>('families')
+const selectedFamilyKey = ref<string | null>(null)
+const selectedCompositionKey = ref<string | null>(null)
 const previewText = ref(t('projectConfig.fonts.previewSample'))
 const characterSets = ref<ReadonlyMap<string, ReadonlySet<number>>>(new Map())
 const failedCoverageKeys = ref<ReadonlySet<string>>(new Set())
 const hoveredFontKey = ref<string | null>(null)
 const hoveredFontAnchor = ref<HTMLElement | null>(null)
 let coverageGeneration = 0
-const selectedFont = computed(() => props.fonts.find(font => font.key === selectedFontKey.value) ?? null)
-const selectedFontSet = computed(() => props.fontSets.find(fontSet => fontSet.key === selectedFontSetKey.value) ?? null)
-const selectedEntry = computed(() => activePage.value === 'fonts' ? selectedFont.value : selectedFontSet.value)
+const selectedFamily = computed(() => props.families.find(family => family.key === selectedFamilyKey.value) ?? null)
+const selectedComposition = computed(() => props.compositions.find(entry => entry.key === selectedCompositionKey.value) ?? null)
+const selectedEntry = computed(() => activePage.value === 'families' ? selectedFamily.value : selectedComposition.value)
 const selectedTreeKeys = computed(() => {
-  const key = activePage.value === 'fonts' ? selectedFontKey.value : selectedFontSetKey.value
+  const key = activePage.value === 'families' ? selectedFamilyKey.value : selectedCompositionKey.value
   return key ? [treeKey(activePage.value, key)] : []
 })
+const referencedFamilyKeys = computed(() => new Set(
+  props.compositions.flatMap(composition => composition.members.map(member => member.familyKey.toLocaleLowerCase())),
+))
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['configure-font', { title: t('projectConfig.fonts.configure'), icon: 'tool.settings' }],
-  ['configure-set', { title: t('projectConfig.fonts.configureSet'), icon: 'tool.settings' }],
-  ['delete-font', { title: t('projectConfig.fonts.remove'), icon: 'action.delete', iconTone: 'danger' }],
-  ['delete-set', { title: t('projectConfig.fonts.removeSet'), icon: 'action.delete', iconTone: 'danger' }],
+  ['configure-family', { title: t('projectConfig.fonts.configure'), icon: 'tool.settings' }],
+  ['configure-composition', { title: t('projectConfig.fonts.configureSet'), icon: 'tool.settings' }],
+  ['delete-family', { title: t('projectConfig.fonts.remove'), icon: 'action.delete', iconTone: 'danger' }],
+  ['delete-composition', { title: t('projectConfig.fonts.removeSet'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 const treeData = computed<OcTreeData>(() => {
-  const fontRoot = 'fonts'
-  const setRoot = 'sets'
-  const rootKeys = [fontRoot, setRoot]
-  const fontKeys = props.fonts.map(entry => treeKey('fonts', entry.key))
-  const setKeys = props.fontSets.map(entry => treeKey('sets', entry.key))
+  const familyKeys = props.families.map(entry => treeKey('families', entry.key))
+  const compositionKeys = props.compositions.map(entry => treeKey('compositions', entry.key))
   const items = new Map<string, OcTreeItem>([
-    [fontRoot, { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
-    [setRoot, { label: t('projectConfig.fonts.fontSets'), icon: 'data.layers' }],
-    ...props.fonts.map(entry => [treeKey('fonts', entry.key), {
-      label: entry.name, icon: 'file.font', actions: ['configure-font', 'delete-font'], contextActions: ['configure-font', 'delete-font'],
-    }] as const),
-    ...props.fontSets.map(entry => [treeKey('sets', entry.key), {
-      label: entry.name, icon: 'data.layers', actions: ['configure-set', 'delete-set'], contextActions: ['configure-set', 'delete-set'],
+    ['families', { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
+    ['compositions', { label: t('projectConfig.fonts.compositions'), icon: 'data.layers' }],
+    ...props.families.map(entry => {
+      const actions = referencedFamilyKeys.value.has(entry.key.toLocaleLowerCase())
+        ? ['configure-family']
+        : ['configure-family', 'delete-family']
+      return [treeKey('families', entry.key), {
+        label: entry.name, icon: 'file.font', actions, contextActions: actions,
+      }] as const
+    }),
+    ...props.compositions.map(entry => [treeKey('compositions', entry.key), {
+      label: entry.name,
+      icon: 'data.layers',
+      actions: ['configure-composition', 'delete-composition'],
+      contextActions: ['configure-composition', 'delete-composition'],
     }] as const),
   ])
   return {
-    rootKeys,
+    rootKeys: ['families', 'compositions'],
     items,
-    children: new Map([[fontRoot, fontKeys], [setRoot, setKeys]]),
+    children: new Map([['families', familyKeys], ['compositions', compositionKeys]]),
   }
 })
-const resolvedSet = computed(() => selectedFontSet.value
-  ? resolveProjectFontExpression(`font:${selectedFontSet.value.key}`, { fonts: props.fonts, fontSets: props.fontSets })
-  : { fontKeys: [], cssFontFamily: '', issues: [] })
-const previewStyle = computed(() => ({ fontFamily: activePage.value === 'sets'
-  ? resolvedSet.value.cssFontFamily
-  : selectedFont.value ? JSON.stringify(createProjectFontCssFamily(selectedFont.value.key)) : '' }))
-const previewFontCss = computed(() => props.fonts.map(font => (
-  `@font-face { font-family: ${JSON.stringify(createProjectFontCssFamily(font.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(font.source))}); }`
-)).join('\n'))
-const previewFonts = computed(() => activePage.value === 'fonts'
-  ? selectedFont.value ? [selectedFont.value] : []
-  : resolvedSet.value.fontKeys
-      .map(key => props.fonts.find(font => font.key.toLocaleLowerCase() === key.toLocaleLowerCase()))
-      .filter((font): font is ProjectFont => Boolean(font)))
+const previewStyle = computed<CSSProperties>(() => ({
+  fontFamily: activePage.value === 'families' && selectedFamily.value
+    ? JSON.stringify(createProjectFontFamilyCssFamily(selectedFamily.value.key))
+    : '',
+}))
+const previewFontCss = computed(() => props.families.flatMap(family => family.faces.map(face => {
+  const style = face.style.kind === 'oblique'
+    ? `oblique ${face.style.angle.min}deg ${face.style.angle.max}deg`
+    : face.style.kind
+  return `@font-face { font-family: ${JSON.stringify(createProjectFontFamilyCssFamily(family.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(face.source))}); font-weight: ${face.weight.min} ${face.weight.max}; font-stretch: ${face.stretch.min}% ${face.stretch.max}%; font-style: ${style}; }`
+})).join('\n'))
+const previewFamilies = computed(() => activePage.value === 'families'
+  ? selectedFamily.value ? [selectedFamily.value] : []
+  : (selectedComposition.value?.members ?? [])
+      .map(member => props.families.find(family => family.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase()))
+      .filter((family): family is ProjectFontFamily => Boolean(family)))
+const previewCandidates = computed<ProjectFontPreviewCandidate[]>(() => activePage.value === 'families'
+  ? selectedFamily.value ? [{ familyKey: selectedFamily.value.key }] : []
+  : (selectedComposition.value?.members ?? []).map(member => ({
+      familyKey: member.familyKey,
+      ...(member.ranges ? { ranges: member.ranges } : {}),
+    })))
 const previewRuns = computed(() => createProjectFontPreviewRuns(
   previewText.value,
-  previewFonts.value.map(font => font.key),
+  previewCandidates.value,
   characterSets.value,
 ))
 const hoveredFont = computed(() => hoveredFontKey.value
-  ? props.fonts.find(font => font.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
+  ? props.families.find(family => family.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
   : null)
-const coverageFailed = computed(() => previewFonts.value.some(font => failedCoverageKeys.value.has(font.key)))
+const coverageFailed = computed(() => previewFamilies.value.some(family => failedCoverageKeys.value.has(family.key)))
 
-watch(() => props.fonts, fonts => {
-  if (!fonts.some(font => font.key === selectedFontKey.value)) selectedFontKey.value = fonts[0]?.key ?? null
+watch(() => props.families, families => {
+  if (!families.some(family => family.key === selectedFamilyKey.value)) selectedFamilyKey.value = families[0]?.key ?? null
 }, { immediate: true })
-watch(() => props.fontSets, fontSets => {
-  if (!fontSets.some(fontSet => fontSet.key === selectedFontSetKey.value)) selectedFontSetKey.value = fontSets[0]?.key ?? null
+watch(() => props.compositions, compositions => {
+  if (!compositions.some(entry => entry.key === selectedCompositionKey.value)) selectedCompositionKey.value = compositions[0]?.key ?? null
 }, { immediate: true })
 watch(
-  () => previewFonts.value.map(font => `${font.key}\0${font.source}`),
+  () => previewFamilies.value.map(family => `${family.key}\0${family.faces.map(face => face.source).join('\0')}`),
   async () => {
     const generation = ++coverageGeneration
     const nextCharacterSets = new Map<string, ReadonlySet<number>>()
     const nextFailedKeys = new Set<string>()
-    await Promise.all(previewFonts.value.map(async font => {
-      try {
-        const bytes = await props.readFontBytes(font.source)
-        nextCharacterSets.set(font.key, await readProjectFontCharacterSet(bytes))
-      } catch {
-        nextFailedKeys.add(font.key)
+    await Promise.all(previewFamilies.value.map(async family => {
+      const combined = new Set<number>()
+      let loaded = false
+      for (const face of family.faces) {
+        try {
+          const characterSet = await readProjectFontCharacterSet(await props.readFontBytes(face.source))
+          characterSet.forEach(codePoint => combined.add(codePoint))
+          loaded = true
+        } catch {
+          // A family remains previewable when at least one of its faces is readable.
+        }
       }
+      if (loaded) nextCharacterSets.set(family.key, combined)
+      else nextFailedKeys.add(family.key)
     }))
     if (generation !== coverageGeneration) return
     characterSets.value = nextCharacterSets
@@ -223,20 +247,20 @@ watch(
   { immediate: true },
 )
 
-function treeKey(page: 'fonts' | 'sets', key: string): string { return `${page}:${key}` }
+function treeKey(page: 'families' | 'compositions', key: string): string { return `${page}:${key}` }
 function entryKey(key: string): string { return key.slice(key.indexOf(':') + 1) }
-function entryPage(key: string): 'fonts' | 'sets' | null {
-  if (key === 'fonts' || key.startsWith('fonts:')) return 'fonts'
-  if (key === 'sets' || key.startsWith('sets:')) return 'sets'
+function entryPage(key: string): 'families' | 'compositions' | null {
+  if (key === 'families' || key.startsWith('families:')) return 'families'
+  if (key === 'compositions' || key.startsWith('compositions:')) return 'compositions'
   return null
 }
-function configureEntry(page: 'fonts' | 'sets', key: string): void {
-  if (page === 'fonts') emit('configure-font', key)
-  else emit('configure-font-set', key)
+function configureEntry(page: 'families' | 'compositions', key: string): void {
+  if (page === 'families') emit('configure-family', key)
+  else emit('configure-composition', key)
 }
-function removeEntry(page: 'fonts' | 'sets', key: string): void {
-  if (page === 'fonts') removeFont(props.fonts.findIndex(font => font.key === key))
-  else removeFontSet(props.fontSets.findIndex(fontSet => fontSet.key === key))
+function removeEntry(page: 'families' | 'compositions', key: string): void {
+  if (page === 'families') removeFamily(props.families.findIndex(family => family.key === key))
+  else removeComposition(props.compositions.findIndex(composition => composition.key === key))
 }
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
@@ -246,11 +270,11 @@ function handleTreeIntent(intent: OcTreeIntent): void {
     activePage.value = page
     if (selectedKey === page) return
     const key = entryKey(selectedKey)
-    if (page === 'fonts') selectedFontKey.value = key
-    else selectedFontSetKey.value = key
+    if (page === 'families') selectedFamilyKey.value = key
+    else selectedCompositionKey.value = key
     return
   }
-  if (intent.type === 'node.activate' && (intent.key === 'fonts' || intent.key === 'sets')) {
+  if (intent.type === 'node.activate' && (intent.key === 'families' || intent.key === 'compositions')) {
     activePage.value = intent.key
     return
   }
@@ -261,45 +285,49 @@ function handleTreeIntent(intent: OcTreeIntent): void {
   }
   if (intent.type !== 'action.invoke') return
   const key = entryKey(intent.key)
-  if (intent.actionKey === 'configure-font') configureEntry('fonts', key)
-  else if (intent.actionKey === 'configure-set') configureEntry('sets', key)
-  else if (intent.actionKey === 'delete-font') removeEntry('fonts', key)
-  else if (intent.actionKey === 'delete-set') removeEntry('sets', key)
+  if (intent.actionKey === 'configure-family') configureEntry('families', key)
+  else if (intent.actionKey === 'configure-composition') configureEntry('compositions', key)
+  else if (intent.actionKey === 'delete-family') removeEntry('families', key)
+  else if (intent.actionKey === 'delete-composition') removeEntry('compositions', key)
 }
-function removeFont(index: number): void {
+function removeFamily(index: number): void {
   if (index < 0) return
-  const next = props.fonts.filter((_, candidate) => candidate !== index)
-  if (props.fonts[index]?.key === selectedFontKey.value) selectedFontKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
-  emit('update:fonts', next)
+  const family = props.families[index]
+  if (!family || referencedFamilyKeys.value.has(family.key.toLocaleLowerCase())) return
+  const next = props.families.filter((_, candidate) => candidate !== index)
+  if (family.key === selectedFamilyKey.value) selectedFamilyKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
+  emit('update:families', next)
 }
-function removeFontSet(index: number): void {
+function removeComposition(index: number): void {
   if (index < 0) return
-  const next = props.fontSets.filter((_, candidate) => candidate !== index)
-  if (props.fontSets[index]?.key === selectedFontSetKey.value) selectedFontSetKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
-  emit('update:fontSets', next)
+  const next = props.compositions.filter((_, candidate) => candidate !== index)
+  if (props.compositions[index]?.key === selectedCompositionKey.value) {
+    selectedCompositionKey.value = next[Math.min(index, next.length - 1)]?.key ?? null
+  }
+  emit('update:compositions', next)
 }
 function updatePreviewText(event: Event): void { if (event.target instanceof HTMLInputElement) previewText.value = event.target.value }
-function runStyle(fontKey: string | null): CSSProperties | undefined {
-  return fontKey ? { fontFamily: JSON.stringify(createProjectFontCssFamily(fontKey)) } : undefined
+function runStyle(familyKey: string | null): CSSProperties | undefined {
+  return familyKey ? { fontFamily: JSON.stringify(createProjectFontFamilyCssFamily(familyKey)) } : undefined
 }
-function showFontInfo(fontKey: string | null, event: PointerEvent): void {
-  hoveredFontKey.value = fontKey
+function showFontInfo(familyKey: string | null, event: PointerEvent): void {
+  hoveredFontKey.value = familyKey
   hoveredFontAnchor.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
 }
 function hideFontInfo(): void {
   hoveredFontKey.value = null
   hoveredFontAnchor.value = null
 }
-async function navigateToFont(kind: 'font' | 'font-set', key: string): Promise<boolean> {
-  if (kind === 'font') {
-    if (!props.fonts.some(font => font.key === key)) return false
-    selectedFontKey.value = key
-    activePage.value = 'fonts'
+async function navigateToFont(kind: 'family' | 'composition', key: string): Promise<boolean> {
+  if (kind === 'family') {
+    if (!props.families.some(family => family.key === key)) return false
+    selectedFamilyKey.value = key
+    activePage.value = 'families'
     return true
   }
-  if (!props.fontSets.some(fontSet => fontSet.key === key)) return false
-  selectedFontSetKey.value = key
-  activePage.value = 'sets'
+  if (!props.compositions.some(composition => composition.key === key)) return false
+  selectedCompositionKey.value = key
+  activePage.value = 'compositions'
   return true
 }
 defineExpose({ navigateToFont })
@@ -370,3 +398,5 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__font-info dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .project-font-registry-workbench__placeholder { display: grid; grid-row: 1 / -1; place-content: center; justify-items: center; gap: var(--oc-space-3); min-width: 0; min-height: 0; }
 </style>
+
+(Background: j-xagavb exited 1.)

@@ -3,7 +3,7 @@
 ## Boundary
 
 `.opencard/.ocproject` owns project information and the remote-resource policy.
-`.opencard/.ocfonts` owns project fonts and font sets. `.opencard/.ocicons` owns
+`.opencard/.ocfonts` owns font families and font compositions. `.opencard/.ocicons` owns
 ordered icon sets. `.opencard/.oclocale` owns project localization, and
 `.opencard/.ocblocks` owns custom-block registrations. Sources inside these
 registries are relative to `.opencard`; managed files live in `fonts`, `icons`,
@@ -11,9 +11,10 @@ and `blocks` beneath that directory.
 
 ## Runtime Truth
 
-`useProjectStore` is the filesystem truth source. It exposes `projectFonts` and
-`projectIconSeries` separately from `projectProfile`. Font CSS loading and icon
-catalog construction consume those dedicated refs only.
+`useProjectStore` is the filesystem truth source. It exposes
+`projectFontFamilies`, `projectFontCompositions`, the resolved `projectFonts`
+catalog, and `projectIconSeries` separately from `projectProfile`. Font CSS
+loading and icon catalog construction consume those dedicated refs only.
 
 Opening or creating a project ensures all five documents and all three managed
 asset directories exist. A directory without `.opencard` requires explicit
@@ -24,9 +25,21 @@ without reloading unrelated project data.
 
 ## Document Contract
 
-`.ocfonts` uses `{ fonts?: ProjectFont[], fontSets?: ProjectFontSet[] }`.
+`.ocfonts` uses
+`{ families?: ProjectFontFamily[], compositions?: ProjectFontComposition[] }`.
+Each family has one or more file-backed faces with weight, stretch, and style
+descriptors. Each composition is an ordered, non-nesting list of family
+references; a member may restrict itself to normalized Unicode ranges. Family
+and composition Keys share one case-insensitive namespace.
+
+Font sources are relative to `.opencard` and must remain beneath `fonts/`.
+TTC/OTC imports are extracted into standalone TTF/OTF faces; collection indices
+never enter the persisted model. Composition fallback uses both the configured
+range and the face's actual glyph coverage. An omitted member range means the
+remaining glyphs that the family can provide after earlier members.
+
 `.ocicons` uses `{ iconSeries?: ProjectIconSeries[] }`.
-Unknown document-level fields are ignored on read. Known fields and nested
+Unknown and removed document-level fields are ignored on read. Known fields and nested
 resource records remain validated. Serialization writes only the canonical
 known fields and omits empty collections.
 
@@ -42,6 +55,11 @@ The managed editor ids are `font-registry` and `icon-registry`. Icon duplicate-k
 issues use the `icon-registry` navigation protocol, version 1, and carry stable
 indices plus the conflicting key. Editors own business state and commands;
 shared shell and repair components own only common document UI geometry.
+
+The font registry editor presents families and compositions as independent tree
+roots. Compositions may reference only families, and a referenced family is
+protected from deletion. Common registration stays small; face descriptors and
+member character ranges are exposed through explicit advanced controls.
 
 The icon registry editor uses a controlled two-column workbench and must not
 mirror the registry array into a second draft. The left column owns the editor

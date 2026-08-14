@@ -3,27 +3,28 @@
     :heading="t('fontRegistry.title')" :description="t('fontRegistry.description')"
     @keydown.ctrl.s.prevent="save">
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
-      :description="t('fontRegistry.description')" :fonts="document.fonts ?? []" :font-sets="document.fontSets ?? []"
+      :description="t('fontRegistry.description')" :families="document.families ?? []"
+      :compositions="document.compositions ?? []"
       :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
       :read-font-bytes="readFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
-      :error="importError" @update:fonts="updateFonts" @update:font-sets="updateFontSets"
-      @register-font="openRegistrationDialog()" @configure-font="openRegistrationDialog"
-      @register-font-set="openFontSetDialog()" @configure-font-set="openFontSetDialog" />
+      :error="importError" @update:families="updateFamilies" @update:compositions="updateCompositions"
+      @register-family="openRegistrationDialog()" @configure-family="openRegistrationDialog"
+      @register-composition="openCompositionDialog()" @configure-composition="openCompositionDialog" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
       :theme-overrides="themeOverrides" :heading="t('fontRegistry.invalid')" :description="t('fontRegistry.repair')"
       @update:model-value="updateRawSource" @save="save" />
 
-    <ProjectFontRegistrationDialog :open="registrationDialogOpen" :fonts="flatFonts"
-      :reserved-keys="(document?.fontSets ?? []).map(fontSet => fontSet.key)"
+    <ProjectFontRegistrationDialog :open="registrationDialogOpen" :registry="fontRegistry"
+      :reserved-keys="(document?.compositions ?? []).map(composition => composition.key)"
       :original-key="registrationOriginalKey" :busy="importBusy" :error="importError"
       :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
       :resolve-import-conflict="projectStore.getProjectFontImportConflict"
       @close="closeRegistrationDialog" @submit="registerFont" />
-    <ProjectFontSetDialog :open="fontSetDialogOpen" :fonts="document?.fonts ?? []"
-      :font-sets="document?.fontSets ?? []" :original-key="fontSetOriginalKey"
-      @close="closeFontSetDialog" @submit="saveFontSet" />
+    <ProjectFontCompositionDialog :open="compositionDialogOpen" :families="document?.families ?? []"
+      :compositions="document?.compositions ?? []" :original-key="compositionOriginalKey"
+      @close="closeCompositionDialog" @submit="saveComposition" />
   </ProjectRegistryEditorShell>
 </template>
 
@@ -35,22 +36,24 @@ import type { HistoryOperationMeta } from '../../features/editor-runtime/history
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import {
-  flattenProjectFonts,
+  buildProjectFontRegistry,
   parseProjectFontRegistryText,
   PROJECT_FONT_REGISTRY_FILE_NAME,
   serializeProjectFontRegistry,
-  type ProjectFont,
-  type ProjectFontSet,
+  type ProjectFontComposition,
+  type ProjectFontFamily,
   type ProjectFontRegistryDocument,
 } from '../../features/workspace/model/projectFontRegistry'
 import { findProjectFontRegistryIssues } from '../../features/workspace/model/projectFonts'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import ProjectFontRegistrationDialog, {
-  type ProjectFontRegistrationRequest,
+  type ProjectFontFamilyRegistrationRequest,
 } from './ProjectFontRegistrationDialog.vue'
 import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
-import ProjectFontSetDialog, { type ProjectFontSetRequest } from './ProjectFontSetDialog.vue'
+import ProjectFontCompositionDialog, {
+  type ProjectFontCompositionRequest,
+} from './ProjectFontCompositionDialog.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import ProjectRegistryRepairEditor from './ProjectRegistryRepairEditor.vue'
 
@@ -63,13 +66,13 @@ const importBusy = ref(false)
 const importError = ref('')
 const registrationDialogOpen = ref(false)
 const registrationOriginalKey = ref<string>()
-const fontSetDialogOpen = ref(false)
-const fontSetOriginalKey = ref<string>()
+const compositionDialogOpen = ref(false)
+const compositionOriginalKey = ref<string>()
 const workbenchRef = ref<InstanceType<typeof ProjectFontRegistryEditor> | null>(null)
 
 const themeId = computed(() => props.themeId ?? 'dark')
 const themeOverrides = computed(() => props.themeOverrides ?? {})
-const flatFonts = computed(() => flattenProjectFonts(document.value?.fonts))
+const fontRegistry = computed(() => buildProjectFontRegistry(document.value ?? {}))
 const projectDirectory = computed(() => {
   const source = projectStore.projectPath.value || props.filePath
   const normalized = source.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -79,28 +82,37 @@ const projectDirectory = computed(() => {
 })
 const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectInternalPath(source))
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
-  const fontSets = document.value?.fontSets ?? []
+  const families = document.value?.families ?? []
+  const compositions = document.value?.compositions ?? []
   const registryIssues: EditorIssue[] = document.value
-    ? findProjectFontRegistryIssues({ fonts: document.value.fonts ?? [], fontSets }).map((issue, index) => ({
-        id: `project-font-registry:${issue.kind}:${issue.fontSetKey}:${index}`,
+    ? findProjectFontRegistryIssues({ families, compositions }).map((issue, index) => ({
+        id: `project-font-registry:${issue.kind}:${index}`,
         type: `project-font-registry.${issue.kind}`,
-        severity: issue.kind === 'empty-set' ? 'warning' : 'error',
-        locationText: t('projectConfig.fonts.fontSetIssueLocation', { set: issue.fontSetKey }),
-        description: issue.kind === 'empty-set'
+        severity: issue.kind === 'empty-family' || issue.kind === 'empty-composition' ? 'warning' : 'error',
+        locationText: issue.kind === 'empty-family'
+          ? t('projectConfig.fonts.fontIssueLocation', { font: issue.familyKey })
+          : t('projectConfig.fonts.fontSetIssueLocation', { set: issue.compositionKey }),
+        description: issue.kind === 'empty-family'
+          ? t('projectConfig.fonts.emptyFamilyIssue')
+          : issue.kind === 'empty-composition'
           ? t('projectConfig.fonts.emptySetIssue')
-          : issue.kind === 'missing'
-            ? t('projectConfig.fonts.missingReferenceIssue', { key: issue.key })
-            : t('projectConfig.fonts.cycleIssue', { path: issue.path.join(' -> ') }),
-        navigationToken: { protocol: 'font-registry', version: 1, target: { kind: 'font-set', key: issue.fontSetKey } },
+          : t('projectConfig.fonts.missingReferenceIssue', { key: issue.familyKey }),
+        navigationToken: {
+          protocol: 'font-registry',
+          version: 1,
+          target: issue.kind === 'empty-family'
+            ? { kind: 'family', key: issue.familyKey }
+            : { kind: 'composition', key: issue.compositionKey },
+        },
       }))
     : []
   const loadIssues: EditorIssue[] = projectStore.projectFontLoadErrors.value.map((error, index) => ({
-    id: `project-font-load:${error.fontId}:${index}`,
+    id: `project-font-load:${error.familyKey}:${index}`,
     type: 'project-font-registry.load-failed',
     severity: 'error',
-    locationText: t('projectConfig.fonts.fontIssueLocation', { font: error.fontId }),
+    locationText: t('projectConfig.fonts.fontIssueLocation', { font: error.familyKey }),
     description: t('projectConfig.fonts.loadFailed', { message: error.message }),
-    navigationToken: { protocol: 'font-registry', version: 1, target: { kind: 'font', key: error.fontId } },
+    navigationToken: { protocol: 'font-registry', version: 1, target: { kind: 'family', key: error.familyKey } },
   }))
   return { scopeKey: 'project-font-registry', scopeOrder: ['project-font-registry'], issues: [...registryIssues, ...loadIssues] }
 })
@@ -120,17 +132,17 @@ function commit(next: ProjectFontRegistryDocument): void {
   }
 }
 
-function updateFonts(fonts: readonly ProjectFont[]): void {
-  commit({ ...(fonts.length ? { fonts } : {}), ...(document.value?.fontSets?.length ? { fontSets: document.value.fontSets } : {}) })
+function updateFamilies(families: readonly ProjectFontFamily[]): void {
+  commit({ ...(families.length ? { families } : {}), ...(document.value?.compositions?.length ? { compositions: document.value.compositions } : {}) })
 }
 
-function updateFontSets(fontSets: readonly ProjectFontSet[]): void {
-  commit({ ...(document.value?.fonts?.length ? { fonts: document.value.fonts } : {}), ...(fontSets.length ? { fontSets } : {}) })
+function updateCompositions(compositions: readonly ProjectFontComposition[]): void {
+  commit({ ...(document.value?.families?.length ? { families: document.value.families } : {}), ...(compositions.length ? { compositions } : {}) })
 }
 
 function openRegistrationDialog(originalKey?: string): void {
   if (!document.value || importBusy.value) return
-  if (originalKey && !document.value.fonts?.some(font => font.key === originalKey)) return
+  if (originalKey && !document.value.families?.some(family => family.key === originalKey)) return
   importError.value = ''
   registrationOriginalKey.value = originalKey
   registrationDialogOpen.value = true
@@ -143,27 +155,27 @@ function closeRegistrationDialog(): void {
   importError.value = ''
 }
 
-function openFontSetDialog(originalKey?: string): void {
+function openCompositionDialog(originalKey?: string): void {
   if (!document.value) return
-  if (originalKey && !document.value.fontSets?.some(fontSet => fontSet.key === originalKey)) return
-  fontSetOriginalKey.value = originalKey
-  fontSetDialogOpen.value = true
+  if (originalKey && !document.value.compositions?.some(composition => composition.key === originalKey)) return
+  compositionOriginalKey.value = originalKey
+  compositionDialogOpen.value = true
 }
 
-function closeFontSetDialog(): void {
-  fontSetDialogOpen.value = false
-  fontSetOriginalKey.value = undefined
+function closeCompositionDialog(): void {
+  compositionDialogOpen.value = false
+  compositionOriginalKey.value = undefined
 }
 
-async function registerFont(request: ProjectFontRegistrationRequest): Promise<void> {
+async function registerFont(request: ProjectFontFamilyRegistrationRequest): Promise<void> {
   if (!document.value || importBusy.value) return
   importError.value = ''
   importBusy.value = true
   try {
     const originalIdentity = request.originalKey?.toLocaleLowerCase()
-    const fonts = document.value.fonts ?? []
-    const fontSets = document.value.fontSets ?? []
-    if ([...fonts, ...fontSets].some(entry => (
+    const families = document.value.families ?? []
+    const compositions = document.value.compositions ?? []
+    if ([...families, ...compositions].some(entry => (
       entry.key.toLocaleLowerCase() === request.key.toLocaleLowerCase()
       && entry.key.toLocaleLowerCase() !== originalIdentity
     ))) {
@@ -171,23 +183,38 @@ async function registerFont(request: ProjectFontRegistrationRequest): Promise<vo
       return
     }
     const original = request.originalKey
-      ? fonts.find(font => font.key === request.originalKey)
+      ? families.find(family => family.key === request.originalKey)
       : undefined
-    const source = original && request.sourcePath === original.source
-      ? original.source
-      : (await projectStore.importProjectFontFile(
+    const originalFace = original?.faces[0]
+    const sources = originalFace && request.sourcePath === originalFace.source
+      ? [originalFace.source]
+      : (await projectStore.importProjectFontFiles(
           request.sourcePath,
-          undefined,
           request.conflictResolution,
-        )).source
-    const font = { key: request.key, name: request.name, source }
-    const nextFonts = request.originalKey
-      ? fonts.map(candidate => candidate.key === request.originalKey ? font : candidate)
-      : [...fonts, font]
-    const nextFontSets = request.originalKey && request.originalKey !== request.key
-      ? fontSets.map(fontSet => ({ ...fontSet, fontKeys: fontSet.fontKeys.map(key => key === request.originalKey ? request.key : key) }))
-      : fontSets
-    commit({ fonts: nextFonts, ...(nextFontSets.length ? { fontSets: nextFontSets } : {}) })
+        )).sources
+    const importedFaces = sources.map(source => ({
+      source,
+      weight: request.weight,
+      stretch: request.stretch,
+      style: request.style,
+    }))
+    const family = {
+      key: request.key,
+      name: request.name,
+      faces: original ? [...importedFaces, ...original.faces.slice(1)] : importedFaces,
+    }
+    const nextFamilies = request.originalKey
+      ? families.map(candidate => candidate.key === request.originalKey ? family : candidate)
+      : [...families, family]
+    const nextCompositions = request.originalKey && request.originalKey !== request.key
+      ? compositions.map(composition => ({
+          ...composition,
+          members: composition.members.map(member => member.familyKey === request.originalKey
+            ? { ...member, familyKey: request.key }
+            : member),
+        }))
+      : compositions
+    commit({ families: nextFamilies, ...(nextCompositions.length ? { compositions: nextCompositions } : {}) })
     registrationDialogOpen.value = false
     registrationOriginalKey.value = undefined
   } catch (error) {
@@ -200,28 +227,22 @@ async function registerFont(request: ProjectFontRegistrationRequest): Promise<vo
   }
 }
 
-function saveFontSet(request: ProjectFontSetRequest): void {
+function saveComposition(request: ProjectFontCompositionRequest): void {
   if (!document.value) return
-  const fonts = document.value.fonts ?? []
-  const fontSets = document.value.fontSets ?? []
+  const families = document.value.families ?? []
+  const compositions = document.value.compositions ?? []
   const originalIdentity = request.originalKey?.toLocaleLowerCase()
-  if ([...fonts, ...fontSets].some(entry => (
+  if ([...families, ...compositions].some(entry => (
     entry.key.toLocaleLowerCase() === request.key.toLocaleLowerCase()
     && entry.key.toLocaleLowerCase() !== originalIdentity
   ))) return
-  const nextEntry = { key: request.key, name: request.name, fontKeys: request.fontKeys }
-  let nextFontSets = request.originalKey
-    ? fontSets.map(fontSet => fontSet.key === request.originalKey ? nextEntry : fontSet)
-    : [...fontSets, nextEntry]
-  if (request.originalKey && request.originalKey !== request.key) {
-    nextFontSets = nextFontSets.map(fontSet => ({
-      ...fontSet,
-      fontKeys: fontSet.fontKeys.map(key => key === request.originalKey ? request.key : key),
-    }))
-  }
-  commit({ ...(fonts.length ? { fonts } : {}), fontSets: nextFontSets })
-  fontSetDialogOpen.value = false
-  fontSetOriginalKey.value = undefined
+  const nextEntry = { key: request.key, name: request.name, members: request.members }
+  const nextCompositions = request.originalKey
+    ? compositions.map(composition => composition.key === request.originalKey ? nextEntry : composition)
+    : [...compositions, nextEntry]
+  commit({ ...(families.length ? { families } : {}), compositions: nextCompositions })
+  compositionDialogOpen.value = false
+  compositionOriginalKey.value = undefined
 }
 
 function updateRawSource(content: string, history?: HistoryOperationMeta): void {
@@ -233,14 +254,14 @@ function save(): void {
 }
 
 function isNavigationToken(token: SessionNavigationToken): token is {
-  protocol: 'font-registry'; version: 1; target: { kind: 'font' | 'font-set'; key: string }
+  protocol: 'font-registry'; version: 1; target: { kind: 'family' | 'composition'; key: string }
 } {
   if (!token || typeof token !== 'object' || Array.isArray(token)) return false
   const candidate = token as Record<string, unknown>
   const target = candidate.target
   if (candidate.protocol !== 'font-registry' || candidate.version !== 1 || !target || typeof target !== 'object' || Array.isArray(target)) return false
   const value = target as Record<string, unknown>
-  return (value.kind === 'font' || value.kind === 'font-set') && typeof value.key === 'string'
+  return (value.kind === 'family' || value.kind === 'composition') && typeof value.key === 'string'
 }
 
 async function navigate(token: SessionNavigationToken): Promise<EditorNavigationResult> {

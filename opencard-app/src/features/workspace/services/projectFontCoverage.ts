@@ -1,6 +1,14 @@
+import type { UnicodeRange } from '../model/projectFontRegistry'
+import { unicodeRangeContains } from '../model/projectFonts'
+
 export type ProjectFontPreviewRun = {
   text: string
-  fontKey: string | null
+  familyKey: string | null
+}
+
+export type ProjectFontPreviewCandidate = {
+  familyKey: string
+  ranges?: readonly UnicodeRange[]
 }
 
 type FontKitFont = {
@@ -28,9 +36,58 @@ export async function readProjectFontCharacterSet(bytes: Uint8Array): Promise<Re
   return new Set(font.characterSet)
 }
 
+export function characterSetToUnicodeRanges(
+  characterSet: ReadonlySet<number>,
+  allowedRanges?: readonly UnicodeRange[],
+): UnicodeRange[] {
+  const codePoints = [...characterSet]
+    .filter(codePoint => Number.isInteger(codePoint)
+      && codePoint >= 0
+      && codePoint <= 0x10ffff
+      && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+      && unicodeRangeContains(allowedRanges, codePoint))
+    .sort((left, right) => left - right)
+  const ranges: UnicodeRange[] = []
+  for (const codePoint of codePoints) {
+    const previous = ranges[ranges.length - 1]
+    if (previous && codePoint <= previous.end + 1) previous.end = Math.max(previous.end, codePoint)
+    else ranges.push({ start: codePoint, end: codePoint })
+  }
+  return ranges
+}
+
+export function subtractUnicodeRanges(
+  source: readonly UnicodeRange[],
+  excluded: readonly UnicodeRange[],
+): UnicodeRange[] {
+  let remaining = source.map(range => ({ ...range }))
+  for (const blocked of excluded) {
+    remaining = remaining.flatMap(range => {
+      if (blocked.end < range.start || blocked.start > range.end) return [range]
+      const pieces: UnicodeRange[] = []
+      if (blocked.start > range.start) pieces.push({ start: range.start, end: blocked.start - 1 })
+      if (blocked.end < range.end) pieces.push({ start: blocked.end + 1, end: range.end })
+      return pieces
+    })
+  }
+  return remaining
+}
+
+export function mergeUnicodeRanges(ranges: readonly UnicodeRange[]): UnicodeRange[] {
+  const sorted = ranges.map(range => ({ ...range }))
+    .sort((left, right) => left.start - right.start || left.end - right.end)
+  const merged: UnicodeRange[] = []
+  for (const range of sorted) {
+    const previous = merged[merged.length - 1]
+    if (previous && range.start <= previous.end + 1) previous.end = Math.max(previous.end, range.end)
+    else merged.push(range)
+  }
+  return merged
+}
+
 export function createProjectFontPreviewRuns(
   text: string,
-  orderedFontKeys: readonly string[],
+  candidates: readonly ProjectFontPreviewCandidate[],
   characterSets: ReadonlyMap<string, ReadonlySet<number>>,
 ): ProjectFontPreviewRun[] {
   const runs: ProjectFontPreviewRun[] = []
@@ -40,15 +97,17 @@ export function createProjectFontPreviewRuns(
       .filter((codePoint): codePoint is number => (
         codePoint !== undefined && !ignoredCoverageCodePoints.has(codePoint)
       ))
-    const fontKey = codePoints.length === 0
-      ? runs[runs.length - 1]?.fontKey ?? orderedFontKeys[0] ?? null
-      : orderedFontKeys.find(key => {
-          const characterSet = characterSets.get(key)
-          return characterSet !== undefined && codePoints.every(codePoint => characterSet.has(codePoint))
-        }) ?? null
+    const familyKey = codePoints.length === 0
+      ? runs[runs.length - 1]?.familyKey ?? candidates[0]?.familyKey ?? null
+      : candidates.find(candidate => {
+          const characterSet = characterSets.get(candidate.familyKey)
+          return characterSet !== undefined && codePoints.every(codePoint => (
+            unicodeRangeContains(candidate.ranges, codePoint) && characterSet.has(codePoint)
+          ))
+        })?.familyKey ?? null
     const previous = runs[runs.length - 1]
-    if (previous?.fontKey === fontKey) previous.text += segment
-    else runs.push({ text: segment, fontKey })
+    if (previous?.familyKey === familyKey) previous.text += segment
+    else runs.push({ text: segment, familyKey })
   }
   return runs
 }

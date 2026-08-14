@@ -20,7 +20,22 @@ describe('collectProjectCustomBlockResources', () => {
       root,
       packageKey: 'square',
       projectRootPath: 'D:/Cards',
-      projectFonts: { body: { name: 'Body', source: 'assets/body.woff2' } },
+      projectFonts: {
+        body: {
+          kind: 'family',
+          name: 'Body',
+          family: {
+            key: 'body',
+            name: 'Body',
+            faces: [{
+              source: 'fonts/body.woff2',
+              weight: { min: 400, max: 400 },
+              stretch: { min: 100, max: 100 },
+              style: { kind: 'normal' },
+            }],
+          },
+        },
+      },
       fs: { readBinaryFile },
     })
     expect(readBinaryFile).toHaveBeenCalledTimes(2)

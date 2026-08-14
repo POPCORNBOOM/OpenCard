@@ -550,7 +550,7 @@ const {
   projectPath,
   projectProfile,
   projectInformation,
-  projectFontFiles,
+  projectFontFamilies,
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
@@ -984,7 +984,9 @@ const {
   activateSession,
   openPreviewFile,
   translate: t,
-  registeredFontSources: computed(() => projectFontFiles.value.map(font => font.source)),
+  registeredFontSources: computed(() => projectFontFamilies.value.flatMap(family => (
+    family.faces.map(face => face.source)
+  ))),
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
