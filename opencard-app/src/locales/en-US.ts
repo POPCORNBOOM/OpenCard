@@ -163,7 +163,6 @@ export default {
       newProject: 'New Project',
       closeAndNewProject: 'Close Project and Create New',
       newOpenCard: 'New OpenCard',
-      closeProjectFolder: 'Close Project Folder',
       closeProjectAndWelcome: 'Close Project and Return to Welcome',
       save: 'Save',
       undo: 'Undo',

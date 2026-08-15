@@ -618,7 +618,6 @@ const primaryShortcutParts = (key: string, shift = false): readonly string[] => 
 const shellShortcutParts = {
   fullscreen: [SHELL_SHORTCUT_KEYS.fullscreen],
   newProject: primaryShortcutParts(SHELL_SHORTCUT_KEYS.newProject),
-  newOpenCard: primaryShortcutParts(SHELL_SHORTCUT_KEYS.newOpenCard, true),
   save: primaryShortcutParts(SHELL_SHORTCUT_KEYS.save),
   undo: primaryShortcutParts(SHELL_SHORTCUT_KEYS.undo),
   redo: usesNativeMacosWindowControls
@@ -1614,20 +1613,8 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         icon: 'action.folder-plus',
         shortcut: shellShortcutParts.newProject,
       },
-      {
-        key: 'new-open-card',
-        title: t('app.menu.newOpenCard'),
-        icon: 'action.file-plus',
-        shortcut: shellShortcutParts.newOpenCard,
-      },
       { type: 'divider', key: 'file-open-divider' },
       { key: 'open-project', title: t('sidebar.openProject'), icon: 'status.folder-open' },
-      {
-        key: 'close-project-folder',
-        title: t('app.menu.closeProjectFolder'),
-        icon: 'action.close',
-        disabled: !projectPath.value,
-      },
       {
         key: 'close-project-and-welcome',
         title: t('app.menu.closeProjectAndWelcome'),
@@ -2473,11 +2460,6 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'open-project') {
     await openProject()
-    return
-  }
-
-  if (actionKey === 'close-project-folder') {
-    await closeProjectFolder()
     return
   }
 

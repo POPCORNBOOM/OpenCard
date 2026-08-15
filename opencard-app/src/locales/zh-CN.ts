@@ -163,7 +163,6 @@ export default {
       newProject: '新建项目',
       closeAndNewProject: '关闭并新建项目',
       newOpenCard: '新建 OpenCard',
-      closeProjectFolder: '关闭项目文件夹',
       closeProjectAndWelcome: '关闭项目并返回欢迎页',
       save: '保存',
       undo: '撤销',
