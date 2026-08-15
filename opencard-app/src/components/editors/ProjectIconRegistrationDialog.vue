@@ -153,7 +153,6 @@ const props = withDefaults(defineProps<{
   open: boolean
   series?: readonly ProjectIconSeries[]
   defaultOpenPath?: string
-  selectFileOnOpen?: boolean
   busy?: boolean
   error?: string
   getManagedIconSource: (path: string) => string | null
@@ -161,7 +160,6 @@ const props = withDefaults(defineProps<{
 }>(), {
   series: () => [],
   defaultOpenPath: undefined,
-  selectFileOnOpen: false,
   busy: false,
   error: '',
 })
@@ -281,9 +279,6 @@ watch(() => props.open, open => {
   localError.value = ''
   conflictCheckError.value = ''
   resetImportConflict()
-  if (props.selectFileOnOpen) void pickIconFile().then(selected => {
-    if (!selected && !hasSelectedInput.value) emit('close')
-  })
 }, { immediate: true })
 
 async function pickIconFile(): Promise<boolean> {

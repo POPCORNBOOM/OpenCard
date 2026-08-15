@@ -60,18 +60,21 @@ describe('ProjectIconRegistrationDialog', () => {
     })
   })
 
-  it('opens the managed icon directory immediately when requested', async () => {
+  it('waits for an explicit form action before opening the managed icon directory', async () => {
     mocks.pickFile.mockResolvedValue('D:/Project/.opencard/icons/status.png')
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        selectFileOnOpen: true,
         defaultOpenPath: 'D:/Project/.opencard/icons',
         getManagedIconSource: () => 'icons/status.png',
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
+    await flushPromises()
+
+    expect(mocks.pickFile).not.toHaveBeenCalled()
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
     await flushPromises()
 
     expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({

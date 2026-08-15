@@ -16,7 +16,7 @@
 
     <ProjectIconRegistrationDialog :open="registrationDialogOpen" :series="document?.iconSeries"
       :busy="importBusy" :error="importError"
-      select-file-on-open :default-open-path="iconDirectory" :get-managed-icon-source="getManagedIconSource"
+      :default-open-path="iconDirectory" :get-managed-icon-source="getManagedIconSource"
       :resolve-import-conflict="projectStore.getProjectIconImportConflict"
       @close="closeRegistrationDialog" @submit="registerIconSet" />
     <ProjectIconPackImportDialog :open="packImportDialogOpen" :series="document?.iconSeries"
