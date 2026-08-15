@@ -53,7 +53,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { ContentHistoryOperationMeta } from '../../features/editor-runtime/history/contentHistory'
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import {
@@ -71,6 +71,7 @@ import { DEFAULT_PROJECT_FONT_DIRECTORY } from '../../features/workspace/model/p
 import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../../features/workspace/model/projectStructure'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import { stageProjectFontFiles } from '../../features/workspace/services/projectFontFileHistory'
 import ProjectFontRegistrationDialog, {
   type ProjectFontFamilyRegistrationRequest,
   type ProjectFontSlotKey,
@@ -171,13 +172,17 @@ watch(() => props.modelValue, content => {
 }, { immediate: true })
 watch(issueSnapshot, snapshot => emit('issue-snapshot', snapshot), { immediate: true })
 
-function commit(next: ProjectFontRegistryDocument): void {
+function commit(next: ProjectFontRegistryDocument, history?: ContentHistoryOperationMeta): boolean {
+  const previous = document.value
   try {
     const content = serializeProjectFontRegistry(next)
     document.value = parseProjectFontRegistryText(content)
-    emit('update:modelValue', content)
+    emit('update:modelValue', content, history)
+    return true
   } catch (error) {
+    document.value = previous
     reportAppError('OC-E3012', error)
+    return false
   }
 }
 
@@ -319,17 +324,29 @@ async function confirmFamilyRemoval(): Promise<void> {
   if (!family || cleanupBusy.value || !document.value) return
   cleanupBusy.value = true
   cleanupError.value = ''
+  let stagedFiles: Awaited<ReturnType<typeof stageProjectFontFiles>> | undefined
   try {
-    if (cleanupOrphanedFiles.value) {
-      for (const source of orphanedRemovalSources.value) {
-        await fileSystemService.trashFile(
-          `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source}`,
-        )
-      }
+    if (cleanupOrphanedFiles.value && orphanedRemovalSources.value.length) {
+      stagedFiles = await stageProjectFontFiles(orphanedRemovalSources.value.map(source => (
+        `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source}`
+      )))
     }
-    updateFamilies((document.value.families ?? []).filter(candidate => candidate.key !== family.key))
+    const nextFamilies = (document.value.families ?? []).filter(candidate => candidate.key !== family.key)
+    const committed = commit({
+      ...(nextFamilies.length ? { families: nextFamilies } : {}),
+      ...(document.value.compositions?.length ? { compositions: document.value.compositions } : {}),
+    }, stagedFiles ? { mode: 'immediate', label: 'remove-project-font', structural: true, resource: stagedFiles } : undefined)
+    if (!committed) {
+      await stagedFiles?.undo()
+      await stagedFiles?.release()
+      return
+    }
     pendingRemovalKey.value = undefined
   } catch (error) {
+    if (stagedFiles) {
+      await stagedFiles.undo().catch(() => undefined)
+      await Promise.resolve(stagedFiles.release()).catch(() => undefined)
+    }
     cleanupError.value = t('projectConfig.fonts.cleanupFailed', {
       message: error instanceof Error ? error.message : String(error),
     })
@@ -356,7 +373,7 @@ function saveComposition(request: ProjectFontCompositionRequest): void {
   compositionOriginalKey.value = undefined
 }
 
-function updateRawSource(content: string, history?: HistoryOperationMeta): void {
+function updateRawSource(content: string, history?: ContentHistoryOperationMeta): void {
   emit('update:modelValue', content, history)
 }
 

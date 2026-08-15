@@ -16,7 +16,7 @@ import type { EditorIssueSnapshot } from '../model/editorIssue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import type { EditorHistoryKind } from '../history/editorHistoryManager'
-import type { HistoryOperationMeta } from '../history/structuredHistory'
+import type { ContentHistoryOperationMeta } from '../history/contentHistory'
 
 export interface EditorProps {
   sessionId?: string
@@ -43,7 +43,7 @@ export interface EditorProps {
 export interface EditorEmits {
   (e: 'save'): void
   (e: 'modified', isModified: boolean): void
-  (e: 'update:modelValue', value: string, history?: HistoryOperationMeta): void
+  (e: 'update:modelValue', value: string, history?: ContentHistoryOperationMeta): void
   (e: 'update-viewport-transform', value: EditorViewportTransform): void
   (e: 'update:pixelated', value: boolean): void
   (e: 'update:card-designer-mode', value: CardDesignerMode): void

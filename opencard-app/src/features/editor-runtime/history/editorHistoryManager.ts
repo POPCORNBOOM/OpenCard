@@ -1,7 +1,11 @@
 /** Owns undo/redo runtime state for every open editor session. */
 import { computed, reactive, ref, type ComputedRef } from 'vue'
 import type * as Monaco from 'monaco-editor'
-import { createContentHistory, type ContentHistoryPort } from './contentHistory'
+import {
+  createContentHistory,
+  type ContentHistoryOperationMeta,
+  type ContentHistoryPort,
+} from './contentHistory'
 import type { HistoryOperationMeta } from './structuredHistory'
 
 export type EditorHistoryKind = 'structured' | 'monaco' | 'none'
@@ -67,6 +71,7 @@ class EditorHistoryManager {
         entryLimit: this.entryLimit,
         onChange: publish,
         onStateChange: () => this.refreshState(sessionId),
+        onResourceError: error => console.error('Failed to release an editor history resource.', error),
       })
     }
     this.refreshState(sessionId)
@@ -89,7 +94,7 @@ class EditorHistoryManager {
     return computed(() => this.state(sessionId.value))
   }
 
-  recordContent(sessionId: string, content: string, meta: HistoryOperationMeta = DEFAULT_OPERATION): void {
+  recordContent(sessionId: string, content: string, meta: ContentHistoryOperationMeta = DEFAULT_OPERATION): void {
     const session = this.sessions.get(sessionId)
     if (!session || session.kind === 'none') return
     if (session.content) {
@@ -153,7 +158,7 @@ class EditorHistoryManager {
   async undo(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId)
     if (!session) return
-    if (session.content) session.content.undo()
+    if (session.content) await session.content.undo()
     else await session.model?.undo()
     this.refreshState(sessionId)
   }
@@ -161,7 +166,7 @@ class EditorHistoryManager {
   async redo(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId)
     if (!session) return
-    if (session.content) session.content.redo()
+    if (session.content) await session.content.redo()
     else await session.model?.redo()
     this.refreshState(sessionId)
   }

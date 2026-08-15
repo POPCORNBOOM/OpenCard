@@ -16,6 +16,7 @@ type ContentHistoryEntry = {
   beforeStateId: number
   afterStateId: number
   bytes: number
+  resources: HistoryResourceLifecycle[]
 }
 
 type PendingEntry = ContentHistoryEntry & { merge: HistoryMergeIdentity }
@@ -26,6 +27,17 @@ export type ContentHistoryOptions = {
   byteLimit?: number
   onChange: (content: string, dirty: boolean) => void
   onStateChange?: () => void
+  onResourceError?: (error: unknown) => void
+}
+
+export type HistoryResourceLifecycle = {
+  undo: () => Promise<void>
+  redo: () => Promise<void>
+  release: () => void | Promise<void>
+}
+
+export type ContentHistoryOperationMeta = HistoryOperationMeta & {
+  resource?: HistoryResourceLifecycle
 }
 
 export type ContentHistoryPort = {
@@ -33,9 +45,9 @@ export type ContentHistoryPort = {
   canRedo: ComputedRef<boolean>
   dirty: ComputedRef<boolean>
   getContent: () => string
-  record: (content: string, meta: HistoryOperationMeta) => boolean
-  undo: () => void
-  redo: () => void
+  record: (content: string, meta: ContentHistoryOperationMeta) => boolean
+  undo: () => Promise<void>
+  redo: () => Promise<void>
   flush: () => void
   markSaved: (content?: string) => void
   reset: (content: string) => void
@@ -59,12 +71,13 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
   let pending: PendingEntry | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
   let disposed = false
+  let applying = false
 
   const canUndo = computed(() => cursor.value > 0 || pending !== null)
   const canRedo = computed(() => cursor.value < entries.length && pending === null)
   const dirty = computed(() => dirtyValue.value)
 
-  function record(nextContent: string, meta: HistoryOperationMeta): boolean {
+  function record(nextContent: string, meta: ContentHistoryOperationMeta): boolean {
     assertActive()
     if (nextContent === content) return false
     if (meta.mode === 'immediate') flush()
@@ -83,6 +96,7 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
       beforeStateId,
       afterStateId,
       bytes: patchBytes(forwardPatch) + patchBytes(inversePatch),
+      resources: meta.resource ? [meta.resource] : [],
     }
 
     if (meta.mode === 'debounced') {
@@ -93,6 +107,7 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
             inverse: [inversePatch, ...pending.inverse],
             afterStateId,
             bytes: pending.bytes + entry.bytes,
+            resources: [...pending.resources, ...entry.resources],
           }
         : { ...entry, merge: meta.merge }
       scheduleFlush()
@@ -107,30 +122,44 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
     return true
   }
 
-  function undo(): void {
+  async function undo(): Promise<void> {
     assertActive()
+    if (applying) return
     flush()
     const entry = entries[cursor.value - 1]
     if (!entry) return
-    content = applyTextPatches(content, entry.inverse)
-    cursor.value -= 1
-    currentStateId.value = entry.beforeStateId
-    dirtyValue.value = content !== savedBaseline
-    options.onChange(content, dirty.value)
-    options.onStateChange?.()
+    applying = true
+    try {
+      for (const resource of [...entry.resources].reverse()) await resource.undo()
+      content = applyTextPatches(content, entry.inverse)
+      cursor.value -= 1
+      currentStateId.value = entry.beforeStateId
+      dirtyValue.value = content !== savedBaseline
+      options.onChange(content, dirty.value)
+      options.onStateChange?.()
+    } finally {
+      applying = false
+    }
   }
 
-  function redo(): void {
+  async function redo(): Promise<void> {
     assertActive()
+    if (applying) return
     flush()
     const entry = entries[cursor.value]
     if (!entry) return
-    content = applyTextPatches(content, entry.forward)
-    cursor.value += 1
-    currentStateId.value = entry.afterStateId
-    dirtyValue.value = content !== savedBaseline
-    options.onChange(content, dirty.value)
-    options.onStateChange?.()
+    applying = true
+    try {
+      for (const resource of entry.resources) await resource.redo()
+      content = applyTextPatches(content, entry.forward)
+      cursor.value += 1
+      currentStateId.value = entry.afterStateId
+      dirtyValue.value = content !== savedBaseline
+      options.onChange(content, dirty.value)
+      options.onStateChange?.()
+    } finally {
+      applying = false
+    }
   }
 
   function flush(): void {
@@ -154,7 +183,9 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
   function reset(nextContent: string): void {
     assertActive()
     clearTimer()
+    if (pending) releaseEntries([pending])
     pending = null
+    releaseEntries(entries)
     entries = []
     cursor.value = 0
     bytes = 0
@@ -178,8 +209,11 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
     if (cursor.value < entries.length) {
       const removed = entries.splice(cursor.value)
       bytes -= removed.reduce((total, item) => total + item.bytes, 0)
+      releaseEntries(removed)
     }
     if (entry.bytes > byteLimit) {
+      releaseEntries(entries)
+      releaseEntries([entry])
       entries = []
       cursor.value = 0
       bytes = 0
@@ -197,6 +231,7 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
       if (!removed) break
       bytes -= removed.bytes
       cursor.value = Math.max(0, cursor.value - 1)
+      releaseEntries([removed])
     }
   }
 
@@ -219,6 +254,7 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
     flush()
     disposed = true
     clearTimer()
+    releaseEntries(entries)
     entries = []
   }
 
@@ -228,12 +264,23 @@ export function createContentHistory(options: ContentHistoryOptions): ContentHis
     if (!removed) return false
     bytes -= removed.bytes
     cursor.value = Math.max(0, cursor.value - 1)
+    releaseEntries([removed])
     options.onStateChange?.()
     return true
   }
 
   function assertActive(): void {
     if (disposed) throw new Error('Content history has been disposed.')
+  }
+
+  function releaseEntries(releasedEntries: readonly ContentHistoryEntry[]): void {
+    for (const entry of releasedEntries) {
+      for (const resource of entry.resources) {
+        void Promise.resolve()
+          .then(() => resource.release())
+          .catch(error => options.onResourceError?.(error))
+      }
+    }
   }
 
   return {

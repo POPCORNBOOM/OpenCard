@@ -5,14 +5,19 @@ import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
 import ProjectFontRegistrationDialog from './ProjectFontRegistrationDialog.vue'
 import OcButton from '../base/OcButton.vue'
 
-const mocks = vi.hoisted(() => ({ trashFile: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  stageProjectFontFiles: vi.fn(),
+  historyResource: { undo: vi.fn(), redo: vi.fn(), release: vi.fn() },
+}))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
   fileSystemService: {
     readBinaryFile: vi.fn(),
-    trashFile: mocks.trashFile,
   },
+}))
+vi.mock('../../features/workspace/services/projectFontFileHistory', () => ({
+  stageProjectFontFiles: mocks.stageProjectFontFiles,
 }))
 
 const fontFiles = (source: string) => ({ files: { normal: { upright: source } } })
@@ -130,8 +135,8 @@ describe('ProjectFontRegistryFileEditor', () => {
     ])
   })
 
-  it('confirms family removal and only trashes orphaned face files', async () => {
-    mocks.trashFile.mockResolvedValue(undefined)
+  it('confirms family removal and binds orphaned files to the history entry', async () => {
+    mocks.stageProjectFontFiles.mockResolvedValue(mocks.historyResource)
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
         filePath: 'D:/Demo/.opencard/.ocfonts',
@@ -151,10 +156,13 @@ describe('ProjectFontRegistryFileEditor', () => {
     await confirm!.trigger('click')
     await flushPromises()
 
-    expect(mocks.trashFile).toHaveBeenCalledTimes(1)
-    expect(mocks.trashFile.mock.calls[0]?.[0]).toContain('.opencard/fonts/A.woff2')
+    expect(mocks.stageProjectFontFiles).toHaveBeenCalledWith(['D:/Demo/.opencard/fonts/A.woff2'])
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string).families.map((family: { key: string }) => family.key))
       .toEqual(['b'])
+    expect(updates[updates.length - 1]?.[1]).toMatchObject({
+      mode: 'immediate',
+      resource: mocks.historyResource,
+    })
   })
 })
