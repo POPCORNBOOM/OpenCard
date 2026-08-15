@@ -55,9 +55,7 @@ export async function repairTrueTypeFont(source: Uint8Array): Promise<Uint8Array
   const declaredGlyphCount = readU16(maxp.data, 4)
   const locatedGlyphCount = loca.data.length / locationSize - 1
   const repairedGlyphCount = Math.min(declaredGlyphCount, locatedGlyphCount)
-  if (repairedGlyphCount < 1 || repairedGlyphCount === declaredGlyphCount) {
-    throw new Error('No safely repairable glyph-count mismatch was found')
-  }
+  if (repairedGlyphCount < 1) throw new Error('No usable glyphs were found')
 
   const glyphEnd = readGlyphLocation(loca.data, repairedGlyphCount, longLocations)
   if (glyphEnd > glyf.data.length) throw new Error('Glyph data ends outside the font file')
@@ -204,7 +202,9 @@ function createCmap(mappings: readonly (readonly [number, number])[]): Uint8Arra
 }
 
 function writeSfnt(tables: SfntTable[], version = SFNT_VERSION_TRUE_TYPE): Uint8Array {
-  const sorted = [...tables].sort((a, b) => a.tag.localeCompare(b.tag))
+  const sorted = [...tables].sort((left, right) => (
+    left.tag < right.tag ? -1 : left.tag > right.tag ? 1 : 0
+  ))
   const count = sorted.length
   const highestPower = 2 ** Math.floor(Math.log2(count))
   const headerLength = 12 + count * 16
