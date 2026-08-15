@@ -138,7 +138,8 @@
             class="open-card-shell__sidebar-tree"
             :data="projectManagementTreeData"
             :selected-keys="selectedFileKeys"
-            role="listbox"
+            :expanded-keys="projectManagementExpandedKeys"
+            role="tree"
             selection-mode="single"
             activation-mode="none"
             @intent="handleProjectManagementTreeIntent"
@@ -533,6 +534,7 @@ const {
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
+  ensureProjectManagementStructure,
   isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
@@ -937,6 +939,7 @@ const {
 const {
   projectTreeData,
   projectManagementTreeData,
+  projectManagementExpandedKeys,
   projectExpandedKeys,
   openedEditorTreeData,
   selectedFileKeys,
@@ -954,6 +957,7 @@ const {
   isDirectoryExpanded,
   activateSession,
   openPreviewFile,
+  ensureProjectManagementStructure,
   translate: t,
   registeredFontSources: computed(() => projectFontFamilies.value.flatMap(family => (
     family.faces.map(face => face.source)

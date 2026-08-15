@@ -24,6 +24,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
     expect(openedEditorTreeData.value.items.get('session-1')?.actions)
@@ -40,6 +41,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
     expect(projectTreeData.value.items.get('D:/project/cards/main.ocdocument')).toMatchObject({
@@ -67,6 +69,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
     expect(projectTreeData.value.rootKeys).toEqual([`${projectPath}/notes.txt`])
@@ -76,15 +79,22 @@ describe('useShellFileTree opened editors', () => {
   it('provides fixed localized project-management entries that open managed files', async () => {
     const projectPath = 'D:/project'
     const openPreviewFile = vi.fn(async () => undefined)
+    const ensureProjectManagementStructure = vi.fn(async () => undefined)
     const result = useShellFileTree({
       projectPath: ref(projectPath),
-      indexedEntries: ref([]),
+      indexedEntries: ref([
+        { name: '.opencard/fonts/Brand.otf', isDirectory: false },
+        { name: '.opencard/icons/status.png', isDirectory: false },
+        { name: '.opencard/blocks/card.ocblock', isDirectory: false },
+      ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => `translated:${key}`,
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile,
+      ensureProjectManagementStructure,
+      registeredFontSources: ref(['fonts/Brand.otf']),
     })
 
     expect(result.projectManagementTreeData.value.rootKeys).toEqual([
@@ -96,9 +106,29 @@ describe('useShellFileTree opened editors', () => {
     ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`)?.label)
       .toBe('translated:fileTypes.opencardFontRegistry')
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`))
+      .toMatchObject({ icon: 'file.font', iconTone: 'config' })
+    expect(result.projectManagementTreeData.value.children.get(`${projectPath}/.opencard/.ocfonts`))
+      .toEqual([`${projectPath}/.opencard/fonts/Brand.otf`])
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/Brand.otf`))
+      .toMatchObject({ label: 'Brand.otf', icon: 'file.font', iconTone: 'active' })
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/status.png`))
+      .toMatchObject({ label: 'status.png', icon: 'file.image' })
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/card.ocblock`))
+      .toMatchObject({ label: 'card.ocblock', icon: 'file.custom-block' })
+    expect(result.projectManagementExpandedKeys.value).toEqual([
+      `${projectPath}/.opencard/.ocfonts`,
+      `${projectPath}/.opencard/.ocicons`,
+      `${projectPath}/.opencard/.ocblocks`,
+    ])
 
     await result.handleProjectManagementSelect([`${projectPath}/.opencard/.ocfonts`])
+    expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
     expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/.ocfonts`)
+
+    await result.handleProjectManagementSelect([`${projectPath}/.opencard/icons/status.png`])
+    expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
+    expect(openPreviewFile).toHaveBeenLastCalledWith(`${projectPath}/.opencard/icons/status.png`)
   })
 
   it('keeps selection references stable when active editor content changes', async () => {
@@ -129,6 +159,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
     const selectedFiles = result.selectedFileKeys.value
     const selectedEditors = result.openedEditorSelectedKeys.value
@@ -156,6 +187,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile,
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
     await result.handleFileTreeSelect([path])
@@ -179,6 +211,7 @@ describe('useShellFileTree opened editors', () => {
       isDirectoryExpanded: vi.fn(() => false),
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
     expect(result.projectTreeData.value.items.get(`${projectPath}/assets/fonts/Brand.otf`)).toMatchObject({

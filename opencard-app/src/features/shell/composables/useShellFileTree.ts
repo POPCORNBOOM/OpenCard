@@ -6,10 +6,14 @@ import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../sha
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   isProjectInternalRelativePath,
+  PROJECT_CUSTOM_BLOCK_DIRECTORY,
   PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   PROJECT_DICTIONARY_FILE_NAME,
+  PROJECT_FONT_DIRECTORY,
   PROJECT_FONT_REGISTRY_FILE_NAME,
+  PROJECT_ICON_DIRECTORY,
   PROJECT_ICON_REGISTRY_FILE_NAME,
+  PROJECT_INTERNAL_DIRECTORY_NAME,
   PROJECT_PROFILE_FILE_NAME,
 } from '../../workspace/model/projectStructure'
 
@@ -21,12 +25,18 @@ export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-a
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
 const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
 const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
-const PROJECT_MANAGEMENT_ENTRIES = [
+type ProjectManagementEntry = {
+  path: string
+  labelKey: string
+  assetDirectory?: string
+}
+
+const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
   { path: PROJECT_PROFILE_FILE_NAME, labelKey: 'fileTypes.opencardProjectProfile' },
   { path: PROJECT_DICTIONARY_FILE_NAME, labelKey: 'fileTypes.opencardDictionary' },
-  { path: PROJECT_FONT_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardFontRegistry' },
-  { path: PROJECT_ICON_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardIconRegistry' },
-  { path: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardCustomBlockRegistry' },
+  { path: PROJECT_FONT_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardFontRegistry', assetDirectory: PROJECT_FONT_DIRECTORY },
+  { path: PROJECT_ICON_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardIconRegistry', assetDirectory: PROJECT_ICON_DIRECTORY },
+  { path: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardCustomBlockRegistry', assetDirectory: PROJECT_CUSTOM_BLOCK_DIRECTORY },
 ] as const
 
 export function projectEntryMoreActionKey(entryKey: string): string {
@@ -67,6 +77,7 @@ type UseShellFileTreeOptions = {
   isDirectoryExpanded: (path: string) => boolean
   activateSession: (sessionId: string) => void
   openPreviewFile: (path: string) => Promise<unknown>
+  ensureProjectManagementStructure: () => Promise<void>
   translate: (key: string) => string
   registeredFontSources?: Readonly<Ref<readonly string[]>>
 }
@@ -85,6 +96,14 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
   const registeredFontSources = computed(() => new Set(options.registeredFontSources?.value ?? []))
+  const managedRegisteredFontSources = computed(() => new Set(
+    [...registeredFontSources.value].map((source) => {
+      const normalized = normalizeShellPath(source).replace(/^\/+/, '')
+      return normalized.startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`)
+        ? normalized
+        : `${PROJECT_INTERNAL_DIRECTORY_NAME}/${normalized}`
+    }),
+  ))
 
   function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
     if (target.value.length === nextKeys.length
@@ -169,6 +188,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   const projectManagementTreeData = computed<OcTreeData>(() => {
     if (!options.projectPath.value) return { rootKeys: [], items: new Map(), children: new Map() }
     const items = new Map<string, OcTreeItem>()
+    const children = new Map<string, readonly string[]>()
     const rootKeys = PROJECT_MANAGEMENT_ENTRIES.map((entry) => {
       const key = normalizeShellPath(`${options.projectPath.value}/${entry.path}`)
       const presentation = resolveEntryIcon(key, false, false, options.projectPath.value)
@@ -177,10 +197,40 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
+      if (entry.assetDirectory) {
+        const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
+        const childKeys = options.indexedEntries.value.flatMap((indexedEntry) => {
+          const relativePath = normalizeShellPath(indexedEntry.name)
+          if (indexedEntry.isDirectory || !relativePath.startsWith(`${directory}/`)) return []
+          const filename = relativePath.slice(directory.length + 1)
+          if (!filename || filename.includes('/')) return []
+          const childKey = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
+          const childPresentation = resolveEntryIcon(
+            childKey,
+            false,
+            false,
+            options.projectPath.value,
+            managedRegisteredFontSources.value,
+          )
+          items.set(childKey, {
+            label: filename,
+            icon: childPresentation.icon,
+            iconTone: childPresentation.tone,
+          })
+          return [childKey]
+        })
+        if (childKeys.length > 0) children.set(key, childKeys)
+      }
       return key
     })
-    return { rootKeys, items, children: new Map() }
+    return { rootKeys, items, children }
   })
+
+  const projectManagementExpandedKeys = computed(() => (
+    projectManagementTreeData.value.rootKeys.filter(
+      key => (projectManagementTreeData.value.children.get(key)?.length ?? 0) > 0,
+    )
+  ))
 
   const projectExpandedKeys = computed(() =>
     [...projectProjection.value.byKey.values()]
@@ -215,6 +265,9 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     const selectedKey = nextSelectedKeys[0]
     if (!selectedKey) return
     try {
+      if (projectManagementTreeData.value.rootKeys.includes(selectedKey)) {
+        await options.ensureProjectManagementStructure()
+      }
       await options.openPreviewFile(selectedKey)
     } catch (error) {
       reportAppError('OC-E4001', { path: selectedKey, error })
@@ -271,6 +324,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   return {
     projectTreeData,
     projectManagementTreeData,
+    projectManagementExpandedKeys,
     projectExpandedKeys,
     openedEditorTreeData,
     selectedFileKeys,

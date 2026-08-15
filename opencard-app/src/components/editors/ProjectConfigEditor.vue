@@ -87,77 +87,6 @@
             @update:model-value="updateDefaultExportTask" />
         </ProjectConfigSection>
 
-        <ProjectConfigSection section-id="project-profile-section-dictionary"
-          content-indent="single"
-          :heading="t('projectConfig.dictionary.title')" :description="t('projectConfig.dictionary.description')"
-          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.dictionary.title') })"
-          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.dictionary.title') })"
-          :collapsed="isProjectSectionCollapsed('dictionary')" @toggle="toggleProjectSection('dictionary')">
-          <div class="project-profile-editor__linked-file">
-            <div>
-              <OcText tone="muted" size="sm">{{ dictionaryExists
-                ? t('projectConfig.dictionary.available')
-                : t('projectConfig.dictionary.missing') }}</OcText>
-            </div>
-            <OcButton :icon="dictionaryExists ? 'nav.arrow-right' : 'action.add'" variant="soft"
-              @click="openOrCreateDictionary">
-              {{ dictionaryExists
-                ? t('projectConfig.dictionary.open')
-                : t('projectConfig.dictionary.create') }}
-            </OcButton>
-          </div>
-        </ProjectConfigSection>
-
-        <ProjectConfigSection section-id="project-profile-section-fonts" content-indent="single"
-          :heading="t('projectConfig.fonts.title')" :description="t('projectConfig.fonts.description')"
-          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.fonts.title') })"
-          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.fonts.title') })"
-          :collapsed="isProjectSectionCollapsed('fonts')" @toggle="toggleProjectSection('fonts')">
-          <div class="project-profile-editor__linked-file">
-            <OcText tone="muted" size="sm">{{ fontRegistryExists
-              ? t('projectConfig.fonts.registryAvailable')
-              : t('projectConfig.fonts.registryMissing') }}</OcText>
-            <OcButton data-linked-file="fonts" :icon="fontRegistryExists ? 'nav.arrow-right' : 'action.add'"
-              variant="soft" @click="openOrCreateFontRegistry">
-              {{ fontRegistryExists ? t('projectConfig.fonts.openRegistry') : t('projectConfig.fonts.createRegistry') }}
-            </OcButton>
-          </div>
-        </ProjectConfigSection>
-
-        <ProjectConfigSection section-id="project-profile-section-icons" content-indent="single"
-          :heading="t('projectConfig.icons.title')" :description="t('projectConfig.icons.description')"
-          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.icons.title') })"
-          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.icons.title') })"
-          :collapsed="isProjectSectionCollapsed('icons')" @toggle="toggleProjectSection('icons')">
-          <div class="project-profile-editor__linked-file">
-            <OcText tone="muted" size="sm">{{ iconRegistryExists
-              ? t('projectConfig.icons.registryAvailable')
-              : t('projectConfig.icons.registryMissing') }}</OcText>
-            <OcButton data-linked-file="icons" :icon="iconRegistryExists ? 'nav.arrow-right' : 'action.add'"
-              variant="soft" @click="openOrCreateIconRegistry">
-              {{ iconRegistryExists ? t('projectConfig.icons.openRegistry') : t('projectConfig.icons.createRegistry') }}
-            </OcButton>
-          </div>
-        </ProjectConfigSection>
-
-        <ProjectConfigSection section-id="project-profile-section-custom-blocks" content-indent="single"
-          :heading="t('projectConfig.customBlocks.title')" :description="t('projectConfig.customBlocks.description')"
-          :expand-label="t('projectConfig.sections.expand', { section: t('projectConfig.customBlocks.title') })"
-          :collapse-label="t('projectConfig.sections.collapse', { section: t('projectConfig.customBlocks.title') })"
-          :collapsed="isProjectSectionCollapsed('custom-blocks')" @toggle="toggleProjectSection('custom-blocks')">
-          <div class="project-profile-editor__linked-file">
-            <OcText tone="muted" size="sm">{{ customBlockRegistryExists
-              ? t('projectConfig.customBlocks.registryAvailable')
-              : t('projectConfig.customBlocks.registryMissing') }}</OcText>
-            <OcButton data-linked-file="custom-blocks"
-              :icon="customBlockRegistryExists ? 'nav.arrow-right' : 'action.add'"
-              variant="soft" @click="openOrCreateCustomBlockRegistry">
-              {{ customBlockRegistryExists
-                ? t('projectConfig.customBlocks.openRegistry')
-                : t('projectConfig.customBlocks.createRegistry') }}
-            </OcButton>
-          </div>
-        </ProjectConfigSection>
       </template>
 
       <section v-else class="project-profile-editor__repair" role="alert">
@@ -216,11 +145,6 @@ import {
 } from '../../features/workspace/model/projectMetadata'
 import { createDefaultProjectExportTask } from '../../features/exporting/exportTask'
 import { normalizeCardDocument } from '../../entities/card/storage'
-import { PROJECT_DICTIONARY_FILE_NAME } from '../../features/workspace/model/projectDictionary'
-import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectFontRegistry'
-import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectIconRegistry'
-import { PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME } from '../../features/workspace/model/projectCustomBlocks'
-import { resolveFileType } from '../../features/workspace/model/fileTypes'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
@@ -236,26 +160,18 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const profile = ref<ProjectProfile | null>(null)
-const dictionaryExists = ref(false)
-const fontRegistryExists = ref(false)
-const iconRegistryExists = ref(false)
-const customBlockRegistryExists = ref(false)
 const remoteHostDrafts = ref<string[]>([])
 const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
 let sectionObserver: IntersectionObserver | null = null
 
-type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export' | 'dictionary' | 'fonts' | 'icons' | 'custom-blocks'
+type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export'
 
 const projectProfileSections = [
   { key: 'information', labelKey: 'projectConfig.sections.information' },
   { key: 'remote-resources', labelKey: 'projectConfig.remoteResources.title' },
   { key: 'export', labelKey: 'projectConfig.export.title' },
-  { key: 'dictionary', labelKey: 'projectConfig.dictionary.title' },
-  { key: 'fonts', labelKey: 'projectConfig.fonts.title' },
-  { key: 'icons', labelKey: 'projectConfig.icons.title' },
-  { key: 'custom-blocks', labelKey: 'projectConfig.customBlocks.title' },
 ] as const satisfies readonly { key: ProjectProfileSectionKey, labelKey: string }[]
 
 const themeId = computed(() => props.themeId ?? 'dark')
@@ -288,20 +204,6 @@ watch(() => props.modelValue, content => {
     ? [...nextProfile.remoteResources.allowedHosts]
     : []
   void nextTick(connectSectionObserver)
-}, { immediate: true })
-
-watch(() => projectStore.indexedEntries.value, () => {
-  const fileTypeIds = new Set(projectStore.indexedEntries.value.flatMap(entry => {
-    if (entry.isDirectory) return []
-    return [resolveFileType(
-      projectStore.resolveProjectPath(entry.name),
-      projectStore.projectPath.value,
-    ).id]
-  }))
-  dictionaryExists.value = fileTypeIds.has('opencard-dictionary')
-  fontRegistryExists.value = fileTypeIds.has('opencard-font-registry')
-  iconRegistryExists.value = fileTypeIds.has('opencard-icon-registry')
-  customBlockRegistryExists.value = fileTypeIds.has('opencard-custom-block-registry')
 }, { immediate: true })
 
 watch(() => projectStore.indexedEntries.value, async entries => {
@@ -488,34 +390,6 @@ function updateRawSource(content: string, history?: HistoryOperationMeta) {
   emit('update:modelValue', content, history)
 }
 
-async function openOrCreateDictionary() {
-  await openManagedProjectFile(PROJECT_DICTIONARY_FILE_NAME, 'OC-E3008')
-}
-
-async function openOrCreateFontRegistry() {
-  await openManagedProjectFile(PROJECT_FONT_REGISTRY_FILE_NAME, 'OC-E3009')
-}
-
-async function openOrCreateIconRegistry() {
-  await openManagedProjectFile(PROJECT_ICON_REGISTRY_FILE_NAME, 'OC-E3010')
-}
-
-async function openOrCreateCustomBlockRegistry() {
-  await openManagedProjectFile(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, 'OC-E3013')
-}
-
-async function openManagedProjectFile(
-  fileName: string,
-  errorCode: 'OC-E3008' | 'OC-E3009' | 'OC-E3010' | 'OC-E3013',
-): Promise<void> {
-  const path = projectStore.resolveProjectPath(fileName)
-  try {
-    emit('open-file', path)
-  } catch (error) {
-    reportAppError(errorCode, { path, error })
-  }
-}
-
 function save() {
   if (profile.value && !hasInvalidRemoteHostDraft.value) emit('save')
 }
@@ -558,7 +432,6 @@ defineExpose({ save, navigate })
 }
 
 .project-profile-editor__header,
-.project-profile-editor__linked-file,
 .project-profile-editor__diagnostic {
   display: flex;
   align-items: center;
@@ -598,10 +471,6 @@ defineExpose({ save, navigate })
 
 .project-profile-editor__field textarea {
   min-height: 88px;
-}
-
-.project-profile-editor__linked-file {
-  justify-content: space-between;
 }
 
 .project-profile-editor__remote-resources {

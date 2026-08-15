@@ -19,8 +19,9 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })
 
-  it('restricts special files to the project root', () => {
-    expect(resolveFileType('D:/Cards/.oclocale', 'D:/Cards').id).toBe('opencard-dictionary')
+  it('restricts special files to the managed project directory', () => {
+    expect(resolveFileType('D:/Cards/.opencard/.oclocale', 'D:/Cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/Cards/.oclocale', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/locales/.oclocale', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocproject', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocfonts', 'D:/Cards').id).toBe('unsupported')
@@ -29,12 +30,12 @@ describe('project metadata file types', () => {
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {
-    expect(resolveFileType('D:/CARDS/.OCLOCALE', 'd:/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/CARDS/.OPENCARD/.OCLOCALE', 'd:/cards').id).toBe('opencard-dictionary')
   })
 
   it('keeps special file names case-sensitive on POSIX paths', () => {
-    expect(resolveFileType('/cards/.oclocale', '/cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('/cards/.OCLOCALE', '/cards').id).toBe('unsupported')
+    expect(resolveFileType('/cards/.opencard/.oclocale', '/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('/cards/.opencard/.OCLOCALE', '/cards').id).toBe('unsupported')
   })
 
   it('recognizes card documents only by the new extension', () => {
@@ -70,14 +71,14 @@ describe('workspace entry icon tokens', () => {
   })
 
   it('uses the project icon glyph for the project icon registry', () => {
-    expect(resolveEntryIcon('D:/Cards/.ocicons', false, false, 'D:/Cards')).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.opencard/.ocicons', false, false, 'D:/Cards')).toEqual({
       icon: 'file.project-icon',
       tone: 'config',
     })
   })
 
   it('uses the translate icon for the project dictionary', () => {
-    expect(resolveEntryIcon('D:/Cards/.oclocale', false, false, 'D:/Cards')).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.opencard/.oclocale', false, false, 'D:/Cards')).toEqual({
       icon: 'file.dictionary',
       tone: 'config',
     })

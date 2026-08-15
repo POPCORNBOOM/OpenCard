@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
@@ -6,7 +6,6 @@ import ProjectExportTaskEditor from './ProjectExportTaskEditor.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcButton from '../base/OcButton.vue'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
-import { useProjectStore } from '../../features/workspace/store/projectStore'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
@@ -119,10 +118,10 @@ describe('ProjectConfigEditor', () => {
       props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
     })
 
-    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(7)
-    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(7)
+    expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(3)
+    expect(wrapper.findAll('.project-profile-editor__outline-node')).toHaveLength(3)
     expect(wrapper.findAllComponents(ProjectConfigSection).map(section => section.props('contentIndent')))
-      .toEqual(['single', 'single', 'single', 'single', 'single', 'single', 'single'])
+      .toEqual(['single', 'single', 'single'])
     expect(wrapper.find('.project-profile-editor__outline').text()).not.toContain('projectConfig.outline.title')
     expect(wrapper.getComponent(ProjectConfigSection).getComponent(OcButton).props('icon')).toBe('tree.chevron-right')
     await wrapper.get('#project-profile-section-information .project-config-section__toggle').trigger('click')
@@ -134,41 +133,6 @@ describe('ProjectConfigEditor', () => {
       expandedDirectories: [],
       projectProfile: { collapsedSections: ['information'] },
     })
-  })
-
-  it('opens the managed font and icon registries directly', async () => {
-    const projectStore = useProjectStore()
-    vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
-    })
-
-    await wrapper.get('[data-linked-file="fonts"]').trigger('click')
-    await flushPromises()
-    await wrapper.get('[data-linked-file="icons"]').trigger('click')
-    await flushPromises()
-
-    const opened = (wrapper.emitted('open-file') ?? []).map(([path]) => String(path).replace(/\\/g, '/'))
-    expect(opened[0]).toBe('D:/Demo/.opencard/.ocfonts')
-    expect(opened[1]).toBe('D:/Demo/.opencard/.ocicons')
-    await wrapper.get('[data-linked-file="fonts"]').trigger('click')
-    await wrapper.get('[data-linked-file="icons"]').trigger('click')
-    await flushPromises()
-    expect(wrapper.emitted('open-file')).toHaveLength(4)
-  })
-
-  it('opens the managed custom block registry directly', async () => {
-    const projectStore = useProjectStore()
-    vi.spyOn(projectStore, 'resolveProjectPath').mockImplementation(name => `D:/Demo/${name}`)
-    const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
-    })
-
-    await wrapper.get('[data-linked-file="custom-blocks"]').trigger('click')
-    await flushPromises()
-
-    const openedFiles = wrapper.emitted('open-file') ?? []
-    expect(openedFiles[openedFiles.length - 1]?.[0]).toBe('D:/Demo/.opencard/.ocblocks')
   })
 
   it('expands a collapsed section when navigating from the outline', async () => {

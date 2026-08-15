@@ -111,6 +111,29 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
+  it('creates and indexes managed project resources only when requested', async () => {
+    mocks.readDirectoryEntries.mockImplementation(async (_path: string, _depth: number, relativePath: string) => {
+      if (relativePath === '.opencard/fonts') {
+        return [{ name: '.opencard/fonts/Brand.otf', isDirectory: false, isFile: true, isSymlink: false }]
+      }
+      return []
+    })
+    const store = useProjectStore()
+    await store.setProjectPath('D:/ordinary-folder')
+
+    await store.ensureProjectManagementStructure()
+
+    expect(mocks.initializeProjectStructure).toHaveBeenCalledOnce()
+    expect(store.registeredDirectories.value).toMatchObject(new Map([
+      ['', 2],
+      ['.opencard/fonts', 1],
+      ['.opencard/icons', 1],
+      ['.opencard/blocks', 1],
+    ]))
+    expect(store.indexedEntries.value.map(entry => entry.name)).toContain('.opencard/fonts/Brand.otf')
+    await store.setProjectPath('')
+  })
+
   it('recovers when a persisted expanded directory was deleted between sessions', async () => {
     useAppSettingsStore().updateProjectCreation({
       workspaceStates: {

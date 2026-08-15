@@ -11,7 +11,10 @@ vi.mock('./projectStore', () => ({
     readFile: vi.fn(),
     saveFile: vi.fn(),
     saveProjectConfiguration: vi.fn(),
+    saveProjectFontRegistry: vi.fn(),
+    saveProjectIconRegistry: vi.fn(),
     saveProjectDictionary: vi.fn(),
+    saveProjectCustomBlockRegistry: vi.fn(),
   }),
 }))
 
@@ -28,6 +31,18 @@ describe('editorSessionStore explicit save path', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.writeFile.mockResolvedValue(undefined)
+  })
+
+  it('opens managed project files with their dedicated editors', async () => {
+    const store = useEditorSessionStore()
+
+    const session = await store.openPreviewFile('D:/project/.opencard/.ocfonts')
+
+    expect(session).toMatchObject({
+      fileTypeId: 'opencard-font-registry',
+      editorId: 'font-registry',
+    })
+    store.closeSession(session.id)
   })
 
   it('persists a draft to the supplied path without opening Save As', async () => {

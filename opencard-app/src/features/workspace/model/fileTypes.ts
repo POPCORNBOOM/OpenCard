@@ -5,6 +5,7 @@
  * - 只返回文件语义结果 不处理编辑器渲染流程
  */
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
+import { PROJECT_INTERNAL_DIRECTORY_NAME } from './projectStructure'
 
 export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
 export const CARD_DOCUMENT_SUFFIX = `.${CARD_DOCUMENT_EXTENSION}`
@@ -210,7 +211,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'font',
     labelKey: 'fileTypes.font',
-    extensions: ['woff', 'woff2', 'ttf', 'otf'],
+    extensions: ['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'],
     icon: 'file.font',
     iconTone: 'active',
     editorId: 'font-preview',
@@ -281,12 +282,12 @@ function getExtension(path: string): string {
   return normalizeSegment(baseName.slice(dotIndex + 1))
 }
 
-function isProjectRootFile(path: string, projectRoot: string): boolean {
+function isProjectInternalFile(path: string, projectRoot: string): boolean {
   const normalizedPath = path.replace(/\\/g, '/')
   const separatorIndex = normalizedPath.lastIndexOf('/')
   if (separatorIndex < 0) return true
   const parentPath = normalizedPath.slice(0, separatorIndex).replace(/\/+$/, '')
-  const normalizedRoot = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+  const normalizedRoot = `${projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')}/${PROJECT_INTERNAL_DIRECTORY_NAME}`
   return isWindowsLikePath(projectRoot)
     ? parentPath.toLocaleLowerCase() === normalizedRoot.toLocaleLowerCase()
     : parentPath === normalizedRoot
@@ -335,7 +336,7 @@ export function resolveFileType(path: string, projectRoot?: string): FileTypeDef
         ? normalizeSegment(fileName) === baseName
         : fileName === getBaseName(path)
     ))
-    return fileNameMatches && (!projectRoot || !isProjectMetadata || isProjectRootFile(path, projectRoot))
+    return fileNameMatches && (!projectRoot || !isProjectMetadata || isProjectInternalFile(path, projectRoot))
   })
   if (fileNameMatch) {
     const specialPresentation = specialFileIcons[baseName]
