@@ -21,7 +21,7 @@
       :reserved-keys="(document?.compositions ?? []).map(composition => composition.key)"
       :original-key="registrationOriginalKey" :busy="importBusy" :error="importError"
       :select-files-on-open="!registrationOriginalKey"
-      :default-open-path="projectDirectory" :get-managed-font-source="getManagedFontSource"
+      :default-open-path="fontDirectory" :get-managed-font-source="getManagedFontSource"
       :resolve-import-conflict="projectStore.getProjectFontImportConflict"
       @close="closeRegistrationDialog" @submit="registerFont" />
     <ProjectFontCompositionDialog :open="compositionDialogOpen" :families="document?.families ?? []"
@@ -128,6 +128,7 @@ const projectDirectory = computed(() => {
     ? normalized.slice(0, -PROJECT_FONT_REGISTRY_FILE_NAME.length - 1)
     : normalized
 })
+const fontDirectory = computed(() => `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_FONT_DIRECTORY}`)
 const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectInternalPath(source))
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const families = document.value?.families ?? []

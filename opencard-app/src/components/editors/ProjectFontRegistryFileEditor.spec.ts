@@ -33,6 +33,7 @@ describe('ProjectFontRegistryFileEditor', () => {
     workbench.vm.$emit('configure-family', 'brand-regular')
     await flushPromises()
     expect(wrapper.getComponent(ProjectFontRegistrationDialog).props('originalKey')).toBe('brand-regular')
+    expect(wrapper.getComponent(ProjectFontRegistrationDialog).props('defaultOpenPath')).toBe('D:/Demo/.opencard/fonts')
 
     workbench.vm.$emit('update:families', [
       { key: 'display', name: 'Display', ...fontFiles('fonts/Display.woff2') },
