@@ -171,12 +171,10 @@ function closeRegistrationDialog(): void {
 }
 
 function getManagedIconSource(path: string): string | null {
-  const relative = projectStore.getRelativeProjectPathIfInside(path)?.replace(/\\/g, '/')
-  if (!relative) return null
-  const prefix = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_ICON_DIRECTORY}/`
-  return relative.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())
-    ? relative.slice(PROJECT_INTERNAL_DIRECTORY_NAME.length + 1)
-    : null
+  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '')
+  const managedDirectory = iconDirectory.value.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (!normalizedPath.toLocaleLowerCase().startsWith(`${managedDirectory.toLocaleLowerCase()}/`)) return null
+  return `${DEFAULT_PROJECT_ICON_DIRECTORY}/${normalizedPath.slice(managedDirectory.length + 1)}`
 }
 
 function closeImportPackDialog(): void {

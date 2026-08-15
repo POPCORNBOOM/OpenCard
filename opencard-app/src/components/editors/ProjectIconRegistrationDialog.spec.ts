@@ -43,12 +43,14 @@ describe('ProjectIconRegistrationDialog', () => {
     expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: 'D:/Project' }))
     expect(wrapper.text()).toContain('Status Icons.PNG')
     expect(wrapper.text()).toContain('Status Icons / status-icons')
-    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(false)
+    expect(wrapper.find('.project-icon-registration-dialog__field').exists()).toBe(false)
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     expect(wrapper.text()).toContain('projectConfig.icons.copyIntoProject')
     expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(true)
+    expect(wrapper.findAll('input')[0]!.element.value).toBe('Status Icons')
+    expect(wrapper.findAll('input')[1]!.element.value).toBe('status-icons')
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.simpleSettings')!.trigger('click')
-    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(false)
+    expect(wrapper.find('.project-icon-registration-dialog__field').exists()).toBe(false)
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
@@ -78,6 +80,37 @@ describe('ProjectIconRegistrationDialog', () => {
     expect(wrapper.text()).toContain('status.png')
   })
 
+  it('keeps spritesheet and composed-image forms independent', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Images/Status.png')
+    mocks.pickFiles.mockResolvedValue(['D:/Images/Warning.png'])
+    const wrapper = mount(ProjectIconRegistrationDialog, {
+      props: {
+        open: true,
+        getManagedIconSource: () => null,
+        resolveImportConflict: mocks.resolveImportConflict,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Status / status')
+
+    wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
+    await wrapper.vm.$nextTick()
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Warning / warning')
+
+    wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'spritesheet')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Status / status')
+    wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Warning / warning')
+    wrapper.unmount()
+  })
+
   it('always uses automatic packing without configuration controls', async () => {
     mocks.pickFiles.mockResolvedValue(['D:/Images/Warning.png'])
     const wrapper = mount(ProjectIconRegistrationDialog, {
@@ -88,7 +121,6 @@ describe('ProjectIconRegistrationDialog', () => {
       },
       global: { stubs: { Teleport: true } },
     })
-    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
     await wrapper.vm.$nextTick()
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')
@@ -180,7 +212,6 @@ describe('ProjectIconRegistrationDialog', () => {
       global: { stubs: { Teleport: true } },
     })
 
-    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
     await wrapper.vm.$nextTick()
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')
@@ -209,7 +240,6 @@ describe('ProjectIconRegistrationDialog', () => {
         },
         global: { stubs: { Teleport: true } },
       })
-      await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
       wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
       await wrapper.vm.$nextTick()
       await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')

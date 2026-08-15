@@ -19,7 +19,12 @@ describe('ProjectIconRegistryFileEditor', () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
       props: { filePath: 'D:/Demo/.opencard/.ocicons', modelValue: '{}' },
     })
-    expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('defaultOpenPath')).toBe('D:/Demo/.opencard/icons')
+    const registrationDialog = wrapper.getComponent(ProjectIconRegistrationDialog)
+    expect(registrationDialog.props('defaultOpenPath')).toBe('D:/Demo/.opencard/icons')
+    const getManagedIconSource = registrationDialog.props('getManagedIconSource') as (path: string) => string | null
+    expect(getManagedIconSource('D:/Demo/.opencard/icons/status.png')).toBe('icons/status.png')
+    expect(getManagedIconSource('D:/Demo/assets/status.png')).toBeNull()
+    expect(getManagedIconSource('D:/Downloads/status.png')).toBeNull()
     wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('update:series', [{
       name: 'Status icons', key: 'status', source: 'assets/icons/status.png', icons: [],
     }])
