@@ -31,7 +31,7 @@ function block(id: string, zIndex: number): RenderReadyCardBlock {
     content: id,
     fontSize: '16px',
     fontFamily: '',
-    fontWeight: '400',
+    fontWeight: 'normal',
     color: '#000000',
     textAlign: 'start',
     verticalAlign: 'top',

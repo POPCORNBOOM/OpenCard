@@ -387,11 +387,10 @@ export default {
       emptySets: 'No font compositions added', noSetSelected: 'No font composition selected', members: 'Composition Members', noMembers: 'No members', searchMembers: 'Search fonts', addMember: 'Add member', removeMember: 'Remove member', moveMemberToTop: 'Move to top', moveMemberToBottom: 'Move to bottom', memberRequired: 'A font composition needs at least one font.',
       advancedRanges: 'Advanced character ranges', rangePlaceholder: 'Empty means remaining available glyphs, e.g. U+4E00-9FFF', invalidRange: 'Invalid range. Use U+start-end and exclude the surrogate area.',
       characterInputPlaceholder: 'Type characters this family should handle', rangePresetLatin: 'Latin', rangePresetCjk: 'CJK ideographs', rangePresetKana: 'Kana', rangePresetHangul: 'Hangul',
-      advancedFace: 'Advanced settings', styleRelationshipHint: 'A font can include Regular, Bold, Italic, and other styles. Each style comes from a font file or one entry in a TTC collection.', weightRange: 'Weight range', stretchRange: 'Stretch range (%)', faceStyle: 'Style', styleNormal: 'Normal', styleItalic: 'Italic', styleOblique: 'Oblique', obliqueAngle: 'Oblique angle', invalidFaceDescriptors: 'The weight, stretch, or oblique angle range is invalid.',
+      advancedFace: 'Add weights and italics', styleRelationshipHint: 'A font can optionally provide upright and italic files for Light, Normal, and Bold.', weightLight: 'Light', weightNormal: 'Normal', weightBold: 'Bold', styleNormal: 'Upright', styleItalic: 'Italic', fallbackLabel: 'automatic fallback',
       selectedFiles: '{count} font file selected | {count} font files selected', detectedFamilies: 'Detected as {count} font | Detected as {count} fonts', chooseFilesHint: 'Choose one or more font files. OpenCard will detect their names, weights, and styles automatically.', chooseFiles: 'Choose font files', chooseAgain: 'Choose again', simpleSettings: 'Back to simple settings',
       faces: 'Font styles', addFace: 'Add font file', removeFace: 'Remove style', noFaces: 'No font styles added', replaceFaceFile: 'Replace file', faceRequired: 'Each font needs at least one style.',
       importedFamilies: 'Detected fonts', unnamedFamily: 'Unnamed font', metadataFailed: 'Could not read the font metadata: {message}',
-      overlappingFaces: 'Multiple styles in this font have overlapping weight, stretch, and type ranges. Adjust the advanced settings.',
       removeFamilyTitle: 'Remove Font', removeFamilyDescription: 'Remove “{name}” from this project?', cleanupOrphanedFiles: 'Also move {count} unused font files to the Recycle Bin', sharedFilesPreserved: '{count} files still used by another font will be preserved.', cleanupFailed: 'Could not clean up the font files: {message}',
       entryActions: 'Font entry actions',
       switchRegistry: 'Switch font registry page',
@@ -979,6 +978,7 @@ export default {
     },
   },
   propertyEditor: {
+    fontWeight: { light: 'Light', normal: 'Normal', bold: 'Bold' },
     richText: {
       sourceInvalid: 'HTML source contains unsupported content',
       insertCustomBlock: 'Insert Custom Block',

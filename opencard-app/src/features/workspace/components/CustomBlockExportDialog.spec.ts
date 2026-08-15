@@ -179,11 +179,8 @@ describe('CustomBlockExportDialog', () => {
         ...baseProps,
         resourceIndex: {
           fonts: [{
-            kind: 'family', key: 'body', name: 'Body',
-            faces: [{
-              source: 'resources/fonts/body.woff2',
-              weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' },
-            }],
+            kind: 'font', key: 'body', name: 'Body',
+            files: { normal: { upright: 'resources/fonts/body.woff2' } },
           }],
           images: [{ key: 'cover', source: 'resources/images/cover.png' }],
         },

@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, getCurrentInstance, ref, watch } from 'vue'
 import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
 import OcSelect from '../../../../components/standard/OcSelect.vue'
@@ -49,6 +49,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
 }>()
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as ((key: string) => string) | undefined
+const optionLabel = (option: string) => props.definition.optionLabelKeys?.[option]
+  ? translate?.(props.definition.optionLabelKeys[option]!) ?? option
+  : option
 
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
 const draftValue = ref(stringValue.value)
@@ -58,10 +62,10 @@ watch(stringValue, value => {
   draftValue.value = value
 })
 const selectOptions = computed(() => (
-  props.definition.options?.map(option => ({ value: option, label: option })) ?? []
+  props.definition.options?.map(option => ({ value: option, label: optionLabel(option) })) ?? []
 ))
 const enumOptions = computed(() => (
-  props.definition.options?.map(option => ({ value: option, label: option })) ?? []
+  props.definition.options?.map(option => ({ value: option, label: optionLabel(option) })) ?? []
 ))
 
 const autocompleteMatch = computed(() => {

@@ -19,13 +19,8 @@ function createCatalog(): ProjectCustomBlockCatalog {
       type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
       publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
       resources: { fonts: [{
-        kind: 'family', key: 'body', name: 'Body',
-        faces: [{
-          source: 'resources/fonts/a.woff2',
-          weight: { min: 400, max: 700 },
-          stretch: { min: 100, max: 100 },
-          style: { kind: 'normal' },
-        }],
+        kind: 'font', key: 'body', name: 'Body',
+        files: { normal: { upright: 'resources/fonts/a.woff2' } },
       }] },
     },
     block: createBlock('text-block', { id: 'root', fontFamily: 'resource:font:body' }),
@@ -51,7 +46,7 @@ describe('project custom block font loader', () => {
 
     expect(runtime.createObjectUrl).toHaveBeenCalledWith(expect.objectContaining({ type: 'font/woff2' }))
     expect(runtime.createFontFace).toHaveBeenCalledWith('OpenCardCustomBlock-square-body', 'url("blob:font")', {
-      weight: '400 700', stretch: '100%', style: 'normal',
+      weight: '400', style: 'normal',
     })
     expect(face.load).toHaveBeenCalled()
     expect(runtime.addFont).toHaveBeenCalledWith(face)
@@ -78,7 +73,7 @@ describe('project custom block font loader', () => {
     expect(firstRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
   })
 
-  it('loads compositions with preserved face descriptors and strict character fallback', async () => {
+  it('loads compositions per semantic slot and strict character fallback', async () => {
     const catalog = createCatalog()
     const entry = catalog.get('square')!
     entry.manifest.resources = { fonts: [
@@ -86,8 +81,8 @@ describe('project custom block font loader', () => {
       {
         kind: 'composition', key: 'display', name: 'Display',
         members: [
-          { familyKey: 'body', ranges: [{ start: 0x41, end: 0x41 }] },
-          { familyKey: 'body' },
+          { fontKey: 'body', ranges: [{ start: 0x41, end: 0x41 }] },
+          { fontKey: 'body' },
         ],
       },
     ] }

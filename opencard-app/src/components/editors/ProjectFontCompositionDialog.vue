@@ -31,9 +31,9 @@
         {{ t('projectConfig.fonts.advancedRanges') }}
       </OcButton>
       <div v-if="selectedMembers.length" class="project-font-set-dialog__selected">
-        <div v-for="(member, index) in selectedMembers" :key="`${member.familyKey}:${index}`"
+        <div v-for="(member, index) in selectedMembers" :key="`${member.fontKey}:${index}`"
           class="project-font-set-dialog__member-row">
-          <span><OcIcon name="file.font" size="sm" />{{ entryLabel(member.familyKey) }}</span>
+          <span><OcIcon name="file.font" size="sm" />{{ entryLabel(member.fontKey) }}</span>
           <span>
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-top"
               :disabled="index === 0" :aria-label="t('projectConfig.fonts.moveMemberToTop')"
@@ -85,7 +85,7 @@ import { useI18n } from 'vue-i18n'
 import type {
   ProjectFontComposition,
   ProjectFontCompositionMember,
-  ProjectFontFamily,
+  ProjectFont,
   UnicodeRange,
 } from '../../features/workspace/model/projectFontRegistry'
 import { normalizeUnicodeRanges } from '../../features/workspace/model/projectFontRegistry'
@@ -107,7 +107,7 @@ export type ProjectFontCompositionRequest = {
 
 const props = defineProps<{
   open: boolean
-  families: readonly ProjectFontFamily[]
+  families: readonly ProjectFont[]
   compositions: readonly ProjectFontComposition[]
   originalKey?: string
 }>()
@@ -150,7 +150,7 @@ const uniqueKey = computed(() => !usedKeys.value.some(candidate => (
 )))
 const availableEntries = computed(() => props.families)
 const selectableEntries = computed(() => availableEntries.value.filter(entry => (
-  !selectedMembers.value.some(member => member.familyKey.toLocaleLowerCase() === entry.key.toLocaleLowerCase())
+  !selectedMembers.value.some(member => member.fontKey.toLocaleLowerCase() === entry.key.toLocaleLowerCase())
 )))
 const memberSuggestions = computed(() => {
   const query = memberQuery.value.trim().toLocaleLowerCase()
@@ -195,7 +195,7 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   name.value = composition?.name ?? createDefaultSetName()
   key.value = composition?.key ?? ''
   selectedMembers.value = (composition?.members ?? []).map(member => ({
-    familyKey: member.familyKey,
+    fontKey: member.fontKey,
     ...(member.ranges ? { ranges: member.ranges.map(range => ({ ...range })) } : {}),
   }))
   advancedOpen.value = selectedMembers.value.some(member => member.ranges)
@@ -247,8 +247,8 @@ function selectMemberSuggestion(memberKey: string): void {
 }
 function addCandidateMember(): void {
   const memberKey = candidateMemberKey.value
-  if (!memberKey || selectedMembers.value.some(member => member.familyKey === memberKey)) return
-  selectedMembers.value.push({ familyKey: memberKey })
+  if (!memberKey || selectedMembers.value.some(member => member.fontKey === memberKey)) return
+  selectedMembers.value.push({ fontKey: memberKey })
   characterInputs.value.push('')
   resetMemberPicker()
   void nextTick(() => activeMemberInput.value?.focus())
@@ -306,7 +306,7 @@ function submit(): void {
     key: effectiveKey.value,
     name: name.value.trim(),
     members: selectedMembers.value.map(member => ({
-      familyKey: member.familyKey,
+      fontKey: member.fontKey,
       ...(member.ranges ? { ranges: member.ranges.map(range => ({ ...range })) } : {}),
     })),
   })
@@ -341,7 +341,7 @@ function updateMemberRanges(index: number, event: Event): void {
     invalid.delete(index)
     const member = selectedMembers.value[index]
     if (member) selectedMembers.value[index] = {
-      familyKey: member.familyKey,
+      fontKey: member.fontKey,
       ...(parsed ? { ranges: parsed } : {}),
     }
   }
@@ -351,7 +351,7 @@ function updateMemberRanges(index: number, event: Event): void {
 function applyRangePreset(index: number, ranges: readonly UnicodeRange[]): void {
   const member = selectedMembers.value[index]
   if (!member) return
-  selectedMembers.value[index] = { familyKey: member.familyKey, ranges: ranges.map(range => ({ ...range })) }
+  selectedMembers.value[index] = { fontKey: member.fontKey, ranges: ranges.map(range => ({ ...range })) }
   characterInputs.value[index] = ''
   const invalid = new Set(invalidRangeIndexes.value)
   invalid.delete(index)
@@ -369,7 +369,7 @@ function updateMemberCharacters(index: number, event: Event): void {
   }))]
   const ranges = normalizeUnicodeRanges(codePoints.map(codePoint => ({ start: codePoint, end: codePoint })))
   selectedMembers.value[index] = {
-    familyKey: member.familyKey,
+    fontKey: member.fontKey,
     ...(ranges ? { ranges } : {}),
   }
   const invalid = new Set(invalidRangeIndexes.value)

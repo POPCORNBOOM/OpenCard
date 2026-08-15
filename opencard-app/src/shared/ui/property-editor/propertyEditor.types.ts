@@ -52,6 +52,7 @@ export type PropertyFieldConstraintMap = {
     minLength?: number
     maxLength?: number
     options?: readonly string[]
+    optionLabelKeys?: Readonly<Record<string, string>>
     enumMode?: 'select' | 'stepper'
     multiline?: boolean
     richText?: boolean

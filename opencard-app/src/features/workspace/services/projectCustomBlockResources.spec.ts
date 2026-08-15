@@ -27,12 +27,7 @@ describe('collectProjectCustomBlockResources', () => {
           family: {
             key: 'body',
             name: 'Body',
-            faces: [{
-              source: 'fonts/body.woff2',
-              weight: { min: 400, max: 400 },
-              stretch: { min: 100, max: 100 },
-              style: { kind: 'normal' },
-            }],
+            files: { normal: { upright: 'fonts/body.woff2' } },
           },
         },
       },
@@ -67,24 +62,19 @@ describe('collectProjectCustomBlockResources', () => {
       projectFonts: {
         latin: {
           kind: 'family', name: 'Latin', family: {
-            key: 'latin', name: 'Latin', faces: [
-              { source: 'fonts/latin-regular.woff2', weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
-              { source: 'fonts/latin-bold.woff2', weight: { min: 700, max: 700 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
-            ],
+            key: 'latin', name: 'Latin', files: { normal: { upright: 'fonts/latin-regular.woff2' }, bold: { upright: 'fonts/latin-bold.woff2' } },
           },
         },
         cjk: {
           kind: 'family', name: 'CJK', family: {
-            key: 'cjk', name: 'CJK', faces: [
-              { source: 'fonts/cjk.otf', weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' } },
-            ],
+            key: 'cjk', name: 'CJK', files: { normal: { upright: 'fonts/cjk.otf' } },
           },
         },
         display: {
           kind: 'composition', name: 'Display', composition: {
             key: 'display', name: 'Display', members: [
-              { familyKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
-              { familyKey: 'cjk' },
+              { fontKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
+              { fontKey: 'cjk' },
             ],
           },
         },
@@ -95,13 +85,11 @@ describe('collectProjectCustomBlockResources', () => {
     expect(readBinaryFile).toHaveBeenCalledTimes(3)
     expect(result.files.size).toBe(3)
     expect(result.index.fonts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'family', key: 'latin', faces: expect.arrayContaining([
-        expect.objectContaining({ weight: { min: 700, max: 700 } }),
-      ]) }),
-      expect.objectContaining({ kind: 'family', key: 'cjk' }),
+      expect.objectContaining({ kind: 'font', key: 'latin', files: expect.objectContaining({ bold: expect.objectContaining({ upright: expect.any(String) }) }) }),
+      expect.objectContaining({ kind: 'font', key: 'cjk' }),
       expect.objectContaining({ kind: 'composition', key: 'display', members: [
-        { familyKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
-        { familyKey: 'cjk' },
+        { fontKey: 'latin', ranges: [{ start: 0x20, end: 0x7e }] },
+        { fontKey: 'cjk' },
       ] }),
     ]))
     rewriteProjectCustomBlockResourceReferences(root, result)

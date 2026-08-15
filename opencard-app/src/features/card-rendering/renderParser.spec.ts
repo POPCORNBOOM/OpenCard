@@ -84,6 +84,7 @@ describe('renderParser', () => {
     const block = document.faces.front.children[0]!.block
     ;(block as unknown as Record<string, unknown>).opacity = 'not-a-number'
     ;(block as unknown as Record<string, unknown>).verticalAlign = 'sideways'
+    ;(block as unknown as Record<string, unknown>).fontWeight = '400'
     ;(block as unknown as Record<string, unknown>).color = { invalid: true }
     ;(document.faces.front.children[0]!.location as unknown as Record<string, unknown>).x = { invalid: true }
     const sourceSnapshot = structuredClone(document)
@@ -91,7 +92,7 @@ describe('renderParser', () => {
     const result = parseRenderDocument(document)
     const parsed = result.document.faces.front.children[0]!.block
 
-    expect(parsed).toMatchObject({ opacity: 1, verticalAlign: 'top' })
+    expect(parsed).toMatchObject({ opacity: 1, verticalAlign: 'top', fontWeight: 'normal' })
     expect(result.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'card-designer.render-parse.conversion-failed',
@@ -106,6 +107,10 @@ describe('renderParser', () => {
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-option',
         location: expect.objectContaining({ blockId: 'text', fieldKey: 'verticalAlign' }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-option',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'fontWeight' }),
       }),
       expect.objectContaining({
         type: 'card-designer.render-parse.invalid-type',

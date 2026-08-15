@@ -1,14 +1,12 @@
 import type {
-  NumericRange,
   ProjectFontComposition,
-  ProjectFontFace,
-  ProjectFontFamily,
-  ProjectFontFaceStyle,
+  ProjectFont,
   UnicodeRange,
 } from '../model/projectFontRegistry'
+import { projectFontFileEntries, projectFontWeightValues } from '../model/projectFontRegistry'
 import {
   createProjectFontCompositionCssFamily,
-  createProjectFontFamilyCssFamily,
+  createProjectFontCssFamily,
   setProjectFonts,
 } from '../model/projectFonts'
 import {
@@ -24,7 +22,7 @@ let readiness: Promise<ProjectFontLoadResult> = Promise.resolve({ current: true,
 const PROJECT_FONT_STYLE_ATTRIBUTE = 'data-opencard-project-fonts'
 
 export type ProjectFontLoadError = {
-  familyKey: string
+  fontKey: string
   source: string
   message: string
 }
@@ -44,15 +42,6 @@ function removeProjectFontStyle(): void {
   }
 }
 
-function cssRange(value: NumericRange, suffix = ''): string {
-  return value.min === value.max ? `${value.min}${suffix}` : `${value.min}${suffix} ${value.max}${suffix}`
-}
-
-function cssStyle(value: ProjectFontFaceStyle): string {
-  if (value.kind !== 'oblique') return value.kind
-  return `oblique ${cssRange(value.angle, 'deg')}`
-}
-
 function cssUnicodeRanges(ranges: readonly UnicodeRange[]): string {
   return ranges.map(range => range.start === range.end
     ? `U+${range.start.toString(16).toUpperCase()}`
@@ -60,44 +49,45 @@ function cssUnicodeRanges(ranges: readonly UnicodeRange[]): string {
     .join(', ')
 }
 
-function faceDescriptorKey(face: ProjectFontFace): string {
-  return JSON.stringify([face.weight, face.stretch, face.style])
+function slotDescriptorKey(weight: string, style: string): string {
+  return `${weight}:${style}`
 }
 
 function createFaceRule(
   cssFamily: string,
-  face: ProjectFontFace,
   source: string,
+  weight: keyof typeof projectFontWeightValues,
+  style: 'upright' | 'italic',
   unicodeRanges?: readonly UnicodeRange[],
 ): string {
   const descriptors = [
     `font-family: ${JSON.stringify(cssFamily)}`,
     `src: url(${JSON.stringify(source)})`,
-    `font-weight: ${cssRange(face.weight)}`,
-    `font-stretch: ${cssRange(face.stretch, '%')}`,
-    `font-style: ${cssStyle(face.style)}`,
+    `font-weight: ${projectFontWeightValues[weight]}`,
+    `font-style: ${style === 'upright' ? 'normal' : 'italic'}`,
     ...(unicodeRanges?.length ? [`unicode-range: ${cssUnicodeRanges(unicodeRanges)}`] : []),
   ]
   return `@font-face { ${descriptors.join('; ')}; }`
 }
 
 export async function createProjectFontCss(
-  families: readonly ProjectFontFamily[] | null | undefined,
+  fonts: readonly ProjectFont[] | null | undefined,
   compositions: readonly ProjectFontComposition[] | null | undefined,
   resolveAssetSrc: (source: string) => string,
   loadCharacterSet?: ProjectFontCharacterSetLoader,
 ): Promise<{ cssText: string, errors: ProjectFontLoadError[] }> {
   const rules: string[] = []
   const errors: ProjectFontLoadError[] = []
-  const familiesByKey = new Map((families ?? []).map(family => [family.key.toLocaleLowerCase(), family]))
+  const fontsByKey = new Map((fonts ?? []).map(font => [font.key.toLocaleLowerCase(), font]))
   const characterSets = new Map<string, Promise<ReadonlySet<number>>>()
 
-  for (const family of families ?? []) {
-    for (const face of family.faces) {
+  for (const font of fonts ?? []) {
+    for (const slot of projectFontFileEntries(font)) {
       rules.push(createFaceRule(
-        createProjectFontFamilyCssFamily(family.key),
-        face,
-        resolveAssetSrc(face.source),
+        createProjectFontCssFamily(font.key),
+        resolveAssetSrc(slot.source),
+        slot.weight,
+        slot.style,
       ))
     }
   }
@@ -106,31 +96,32 @@ export async function createProjectFontCss(
     for (const composition of compositions ?? []) {
       const claimedByDescriptor = new Map<string, UnicodeRange[]>()
       for (const member of composition.members) {
-        const family = familiesByKey.get(member.familyKey.toLocaleLowerCase())
-        if (!family) continue
-        for (const face of family.faces) {
+        const font = fontsByKey.get(member.fontKey.toLocaleLowerCase())
+        if (!font) continue
+        for (const slot of projectFontFileEntries(font)) {
           try {
-            let pending = characterSets.get(face.source)
+            let pending = characterSets.get(slot.source)
             if (!pending) {
-              pending = loadCharacterSet(face.source)
-              characterSets.set(face.source, pending)
+              pending = loadCharacterSet(slot.source)
+              characterSets.set(slot.source, pending)
             }
             const available = characterSetToUnicodeRanges(await pending, member.ranges)
-            const descriptorKey = faceDescriptorKey(face)
+            const descriptorKey = slotDescriptorKey(slot.weight, slot.style)
             const claimed = claimedByDescriptor.get(descriptorKey) ?? []
             const effective = subtractUnicodeRanges(available, claimed)
             if (effective.length === 0) continue
             claimedByDescriptor.set(descriptorKey, mergeUnicodeRanges([...claimed, ...effective]))
             rules.push(createFaceRule(
               createProjectFontCompositionCssFamily(composition.key),
-              face,
-              resolveAssetSrc(face.source),
+              resolveAssetSrc(slot.source),
+              slot.weight,
+              slot.style,
               effective,
             ))
           } catch (error) {
             errors.push({
-              familyKey: family.key,
-              source: face.source,
+              fontKey: font.key,
+              source: slot.source,
               message: error instanceof Error ? error.message : String(error),
             })
           }
@@ -158,7 +149,7 @@ function replaceProjectFontStyle(cssText: string): void {
 
 async function loadCssFamilies(
   currentGeneration: number,
-  families: readonly ProjectFontFamily[],
+  fonts: readonly ProjectFont[],
   compositions: readonly ProjectFontComposition[],
   existingErrors: readonly ProjectFontLoadError[],
 ): Promise<ProjectFontLoadResult> {
@@ -167,7 +158,7 @@ async function loadCssFamilies(
   }
   const errors = [...existingErrors]
   for (const entry of [
-    ...families.map(family => ({ key: family.key, cssFamily: createProjectFontFamilyCssFamily(family.key), source: family.faces[0]?.source ?? '' })),
+    ...fonts.map(font => ({ key: font.key, cssFamily: createProjectFontCssFamily(font.key), source: projectFontFileEntries(font)[0]?.source ?? '' })),
     ...compositions.map(composition => ({ key: composition.key, cssFamily: createProjectFontCompositionCssFamily(composition.key), source: '' })),
   ]) {
     try {
@@ -177,7 +168,7 @@ async function loadCssFamilies(
     } catch (error) {
       if (currentGeneration !== generation) return { current: false, errors: [] }
       const message = error instanceof Error ? error.message : String(error)
-      errors.push({ familyKey: entry.key, source: entry.source, message })
+      errors.push({ fontKey: entry.key, source: entry.source, message })
       reportAppError('OC-E3005', { id: entry.key, source: entry.source, error })
     }
   }
@@ -185,26 +176,26 @@ async function loadCssFamilies(
 }
 
 export function syncProjectFonts(
-  families: readonly ProjectFontFamily[] | null | undefined,
+  fonts: readonly ProjectFont[] | null | undefined,
   resolveAssetSrc: (source: string) => string,
   compositions: readonly ProjectFontComposition[] | null | undefined = [],
   loadCharacterSet?: ProjectFontCharacterSetLoader,
 ): Promise<ProjectFontLoadResult> {
   generation += 1
   const currentGeneration = generation
-  const normalizedFamilies = families ?? []
+  const normalizedFonts = fonts ?? []
   const normalizedCompositions = compositions ?? []
-  setProjectFonts(normalizedFamilies, normalizedCompositions)
+  setProjectFonts(normalizedFonts, normalizedCompositions)
   readiness = (async () => {
     const generated = await createProjectFontCss(
-      normalizedFamilies,
+      normalizedFonts,
       normalizedCompositions,
       resolveAssetSrc,
       loadCharacterSet,
     )
     if (currentGeneration !== generation) return { current: false, errors: [] }
     replaceProjectFontStyle(generated.cssText)
-    return await loadCssFamilies(currentGeneration, normalizedFamilies, normalizedCompositions, generated.errors)
+    return await loadCssFamilies(currentGeneration, normalizedFonts, normalizedCompositions, generated.errors)
   })()
   return readiness
 }

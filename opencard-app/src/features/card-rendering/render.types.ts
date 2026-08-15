@@ -35,7 +35,7 @@ type RenderReadyTextContentBlock = RenderReadyBaseBlock & {
   content: string
   fontSize: string
   fontFamily: string
-  fontWeight: string
+  fontWeight: 'light' | 'normal' | 'bold'
   color: string
   textAlign: AlignmentPosition
   verticalAlign: VerticalAlignmentPosition

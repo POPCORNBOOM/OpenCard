@@ -362,6 +362,7 @@ import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
+import { projectFontSources } from '../workspace/model/projectFontRegistry'
 import {
   createDefaultOpenCardContent,
   useEditorSessionStore,
@@ -959,9 +960,7 @@ const {
   openPreviewFile,
   ensureProjectManagementStructure,
   translate: t,
-  registeredFontSources: computed(() => projectFontFamilies.value.flatMap(family => (
-    family.faces.map(face => face.source)
-  ))),
+  registeredFontSources: computed(() => projectFontFamilies.value.flatMap(projectFontSources)),
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {

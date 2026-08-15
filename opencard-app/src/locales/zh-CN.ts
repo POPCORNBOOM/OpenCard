@@ -387,11 +387,10 @@ export default {
       emptySets: '尚未添加字体组合', noSetSelected: '未选择字体组合', members: '组合成员', noMembers: '没有组合成员', searchMembers: '搜索字体', addMember: '添加成员', removeMember: '移除成员', moveMemberToTop: '置顶', moveMemberToBottom: '置底', memberRequired: '字体组合至少需要一套字体。',
       advancedRanges: '高级字符范围', rangePlaceholder: '留空表示其余可用字符，例如 U+4E00-9FFF', invalidRange: '字符范围无效，请使用 U+起始-结束并避开代理区。',
       characterInputPlaceholder: '直接输入要由该家族处理的字符', rangePresetLatin: '拉丁文', rangePresetCjk: '中日韩汉字', rangePresetKana: '假名', rangePresetHangul: '韩文',
-      advancedFace: '高级设置', styleRelationshipHint: '一套字体可以包含常规、粗体、斜体等多个样式；每个样式来自一个字体文件，或 TTC 字体集合中的一项。', weightRange: '字重范围', stretchRange: '字宽范围（%）', faceStyle: '样式', styleNormal: '常规', styleItalic: '斜体', styleOblique: '倾斜', obliqueAngle: '倾斜角度', invalidFaceDescriptors: '字重、字宽或倾斜角度范围无效。',
+      advancedFace: '补充字重与斜体', styleRelationshipHint: '一套字体可以按需补充细体、常规、粗体的正体和斜体文件。', weightLight: '细体', weightNormal: '常规', weightBold: '粗体', styleNormal: '正体', styleItalic: '斜体', fallbackLabel: '自动回退',
       selectedFiles: '已选择 {count} 个字体文件', detectedFamilies: '识别为 {count} 套字体', chooseFilesHint: '选择一个或多个字体文件，OpenCard 会自动识别名称、字重和样式。', chooseFiles: '选择字体文件', chooseAgain: '重新选择', simpleSettings: '返回简洁设置',
       faces: '字体样式', addFace: '添加字体文件', removeFace: '移除样式', noFaces: '尚未添加字体样式', replaceFaceFile: '更换文件', faceRequired: '每套字体至少需要一个字体样式。',
       importedFamilies: '识别到的字体', unnamedFamily: '未命名字体', metadataFailed: '无法读取字体内部信息：{message}',
-      overlappingFaces: '同一套字体中有多个样式的字重、字宽和类型重叠，请调整高级设置。',
       removeFamilyTitle: '移除字体', removeFamilyDescription: '确定从项目中移除“{name}”吗？', cleanupOrphanedFiles: '同时将 {count} 个不再使用的字体文件移入回收站', sharedFilesPreserved: '{count} 个仍被其他字体使用的文件会保留。', cleanupFailed: '无法清理字体文件：{message}',
       entryActions: '字体条目操作',
       switchRegistry: '切换字体注册页面',
@@ -978,6 +977,7 @@ export default {
     },
   },
   propertyEditor: {
+    fontWeight: { light: '细体', normal: '常规', bold: '粗体' },
     richText: {
       sourceInvalid: 'HTML 源码包含不支持的内容',
       insertCustomBlock: '插入自定义块',

@@ -203,14 +203,9 @@ describe('projectStore settings actions', () => {
           families: [{
             key: 'brand',
             name: 'Brand',
-            faces: [{
-              source: 'fonts/Brand.woff2',
-              weight: { min: 400, max: 400 },
-              stretch: { min: 100, max: 100 },
-              style: { kind: 'normal' },
-            }],
+            files: { normal: { upright: 'fonts/Brand.woff2' } },
           }],
-          compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] }],
+          compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'brand' }] }],
         })
       }
       if (path.endsWith('.opencard/.ocicons')) {
@@ -230,32 +225,22 @@ describe('projectStore settings actions', () => {
         family: {
           key: 'brand',
           name: 'Brand',
-          faces: [{
-            source: 'fonts/Brand.woff2',
-            weight: { min: 400, max: 400 },
-            stretch: { min: 100, max: 100 },
-            style: { kind: 'normal' },
-          }],
+          files: { normal: { upright: 'fonts/Brand.woff2' } },
         },
       },
       body: {
         kind: 'composition',
         name: 'Body',
-        composition: { key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] },
+        composition: { key: 'body', name: 'Body', members: [{ fontKey: 'brand' }] },
       },
     })
     expect(store.projectFontFamilies.value).toEqual([{
       key: 'brand',
       name: 'Brand',
-      faces: [{
-        source: 'fonts/Brand.woff2',
-        weight: { min: 400, max: 400 },
-        stretch: { min: 100, max: 100 },
-        style: { kind: 'normal' },
-      }],
+      files: { normal: { upright: 'fonts/Brand.woff2' } },
     }])
     expect(store.projectFontCompositions.value)
-      .toEqual([{ key: 'body', name: 'Body', members: [{ familyKey: 'brand' }] }])
+      .toEqual([{ key: 'body', name: 'Body', members: [{ fontKey: 'brand' }] }])
     expect(store.projectIconSeries.value).toEqual([])
 
     await store.setProjectPath('')

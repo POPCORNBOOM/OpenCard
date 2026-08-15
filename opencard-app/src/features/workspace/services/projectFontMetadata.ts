@@ -1,7 +1,8 @@
-import type {
-  NumericRange,
-  ProjectFontFaceStyle,
-} from '../model/projectFontRegistry'
+type NumericRange = { min: number; max: number }
+type ProjectFontFaceStyle =
+  | { kind: 'normal' }
+  | { kind: 'italic' }
+  | { kind: 'oblique', angle: NumericRange }
 
 export type InspectedProjectFontFace = {
   collectionIndex?: number

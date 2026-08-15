@@ -171,7 +171,7 @@ function parseBlock(
 	        content: fields.string('content'),
         fontSize: fields.cssLength('fontSize'),
         fontFamily: fields.string('fontFamily'),
-        fontWeight: fields.string('fontWeight'),
+        fontWeight: fields.option('fontWeight'),
         color: fields.string('color'),
         textAlign: fields.option('textAlign'),
         verticalAlign: fields.option('verticalAlign'),

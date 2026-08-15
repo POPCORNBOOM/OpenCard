@@ -1,30 +1,28 @@
 export { PROJECT_FONT_REGISTRY_FILE_NAME } from './projectStructure'
 
 export const projectFontKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
+export const projectFontIdPattern = projectFontKeyPattern
 export const projectFontSourcePattern = /^fonts\/.+\.(?:woff2?|ttf|otf)$/i
 
-export type NumericRange = {
-  min: number
-  max: number
+export const projectFontWeights = ['light', 'normal', 'bold'] as const
+export const projectFontStyles = ['upright', 'italic'] as const
+export const projectFontWeightValues = { light: 300, normal: 400, bold: 700 } as const
+export type ProjectFontWeight = typeof projectFontWeights[number]
+export type ProjectFontStyle = typeof projectFontStyles[number]
+
+export type ProjectFontWeightFiles = {
+  upright?: string
+  italic?: string
 }
 
-export type ProjectFontFaceStyle =
-  | { kind: 'normal' }
-  | { kind: 'italic' }
-  | { kind: 'oblique', angle: NumericRange }
+export type ProjectFontFiles = Partial<Record<ProjectFontWeight, ProjectFontWeightFiles>>
 
-export type ProjectFontFace = {
-  source: string
-  weight: NumericRange
-  stretch: NumericRange
-  style: ProjectFontFaceStyle
-}
-
-export type ProjectFontFamily = {
+export type ProjectFont = {
   key: string
   name: string
-  faces: readonly ProjectFontFace[]
+  files: ProjectFontFiles
 }
+export type ProjectFontFamily = ProjectFont
 
 export type UnicodeRange = {
   start: number
@@ -32,7 +30,7 @@ export type UnicodeRange = {
 }
 
 export type ProjectFontCompositionMember = {
-  familyKey: string
+  fontKey: string
   ranges?: readonly UnicodeRange[]
 }
 
@@ -43,48 +41,19 @@ export type ProjectFontComposition = {
 }
 
 export type ProjectFontRegistryDocument = {
-  families?: readonly ProjectFontFamily[]
+  families?: readonly ProjectFont[]
   compositions?: readonly ProjectFontComposition[]
 }
 
 export type ProjectFontRegistryEntry =
-  | { kind: 'family', name: string, family: ProjectFontFamily }
+  | { kind: 'family', name: string, family: ProjectFont }
   | { kind: 'composition', name: string, composition: ProjectFontComposition }
 
 export type ProjectFontRegistry = Readonly<Record<string, ProjectFontRegistryEntry>>
 
-const DEFAULT_WEIGHT: NumericRange = { min: 400, max: 400 }
-const DEFAULT_STRETCH: NumericRange = { min: 100, max: 100 }
 const MAX_UNICODE_CODE_POINT = 0x10ffff
 const SURROGATE_START = 0xd800
 const SURROGATE_END = 0xdfff
-
-export function projectFontFacesOverlap(
-  left: Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>,
-  right: Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>,
-): boolean {
-  if (!numericRangesOverlap(left.weight, right.weight)
-    || !numericRangesOverlap(left.stretch, right.stretch)
-    || left.style.kind !== right.style.kind) return false
-  return left.style.kind !== 'oblique' || right.style.kind !== 'oblique'
-    || numericRangesOverlap(left.style.angle, right.style.angle)
-}
-
-export function findOverlappingProjectFontFaces(
-  faces: readonly Pick<ProjectFontFace, 'weight' | 'stretch' | 'style'>[],
-): readonly (readonly [number, number])[] {
-  const conflicts: Array<readonly [number, number]> = []
-  for (let left = 0; left < faces.length; left += 1) {
-    for (let right = left + 1; right < faces.length; right += 1) {
-      if (projectFontFacesOverlap(faces[left]!, faces[right]!)) conflicts.push([left, right])
-    }
-  }
-  return conflicts
-}
-
-function numericRangesOverlap(left: NumericRange, right: NumericRange): boolean {
-  return left.min <= right.max && right.min <= left.max
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -112,48 +81,46 @@ function normalizeSource(value: unknown): string | null {
     : null
 }
 
-function normalizeNumericRange(
-  value: unknown,
-  fallback: NumericRange,
-  minimum: number,
-  maximum: number,
-): NumericRange | null {
-  if (value === undefined) return { ...fallback }
-  if (!isRecord(value) || typeof value.min !== 'number' || typeof value.max !== 'number') return null
-  if (!Number.isFinite(value.min) || !Number.isFinite(value.max)
-    || value.min < minimum || value.max > maximum || value.min > value.max) return null
-  return { min: value.min, max: value.max }
+export function projectFontSources(font: Pick<ProjectFont, 'files'>): string[] {
+  return projectFontWeights.flatMap(weight => projectFontStyles.flatMap(style => {
+    const source = font.files[weight]?.[style]
+    return source ? [source] : []
+  }))
 }
 
-function normalizeFaceStyle(value: unknown): ProjectFontFaceStyle | null {
-  if (value === undefined) return { kind: 'normal' }
-  if (!isRecord(value) || typeof value.kind !== 'string') return null
-  if (value.kind === 'normal' || value.kind === 'italic') return { kind: value.kind }
-  if (value.kind !== 'oblique') return null
-  const angle = normalizeNumericRange(value.angle, { min: 14, max: 14 }, -90, 90)
-  return angle ? { kind: 'oblique', angle } : null
+export function projectFontFileEntries(font: Pick<ProjectFont, 'files'>): Array<{
+  weight: ProjectFontWeight
+  style: ProjectFontStyle
+  source: string
+}> {
+  return projectFontWeights.flatMap(weight => projectFontStyles.flatMap(style => {
+    const source = font.files[weight]?.[style]
+    return source ? [{ weight, style, source }] : []
+  }))
 }
 
-function normalizeFace(value: unknown): ProjectFontFace | null {
+function normalizeFontFiles(value: unknown): ProjectFontFiles | null {
   if (!isRecord(value)) return null
-  const source = normalizeSource(value.source)
-  const weight = normalizeNumericRange(value.weight, DEFAULT_WEIGHT, 1, 1000)
-  const stretch = normalizeNumericRange(value.stretch, DEFAULT_STRETCH, 0.01, 1000)
-  const style = normalizeFaceStyle(value.style)
-  return source && weight && stretch && style ? { source, weight, stretch, style } : null
+  const files: ProjectFontFiles = {}
+  for (const weight of projectFontWeights) {
+    const candidate = value[weight]
+    if (!isRecord(candidate)) continue
+    const upright = normalizeSource(candidate.upright)
+    const italic = normalizeSource(candidate.italic)
+    if (upright || italic) files[weight] = {
+      ...(upright ? { upright } : {}),
+      ...(italic ? { italic } : {}),
+    }
+  }
+  return Object.keys(files).length ? files : null
 }
 
-function normalizeFamily(value: unknown): ProjectFontFamily | null {
+function normalizeFont(value: unknown): ProjectFont | null {
   if (!isRecord(value)) return null
   const key = normalizeKey(value.key)
   const name = normalizeName(value.name)
-  if (!key || !name) return null
-  const faces = value.faces === undefined
-    ? []
-    : Array.isArray(value.faces)
-      ? value.faces.map(normalizeFace).filter((face): face is ProjectFontFace => Boolean(face))
-      : null
-  return faces ? { key, name, faces } : null
+  const files = normalizeFontFiles(value.files)
+  return key && name && files ? { key, name, files } : null
 }
 
 export function normalizeUnicodeRanges(value: unknown): UnicodeRange[] | null {
@@ -183,11 +150,11 @@ export function normalizeUnicodeRanges(value: unknown): UnicodeRange[] | null {
 
 function normalizeCompositionMember(value: unknown): ProjectFontCompositionMember | null {
   if (!isRecord(value)) return null
-  const familyKey = normalizeKey(value.familyKey)
-  if (!familyKey) return null
-  if (value.ranges === undefined) return { familyKey }
+  const fontKey = normalizeKey(value.fontKey)
+  if (!fontKey) return null
+  if (value.ranges === undefined) return { fontKey }
   const ranges = normalizeUnicodeRanges(value.ranges)
-  return ranges ? { familyKey, ranges } : null
+  return ranges ? { fontKey, ranges } : null
 }
 
 function normalizeComposition(value: unknown): ProjectFontComposition | null {
@@ -206,10 +173,10 @@ function normalizeComposition(value: unknown): ProjectFontComposition | null {
 
 export function buildProjectFontRegistry(document: ProjectFontRegistryDocument): ProjectFontRegistry {
   return Object.fromEntries([
-    ...(document.families ?? []).map(family => [family.key, {
+    ...(document.families ?? []).map(font => [font.key, {
       kind: 'family' as const,
-      name: family.name,
-      family,
+      name: font.name,
+      family: font,
     }] as const),
     ...(document.compositions ?? []).map(composition => [composition.key, {
       kind: 'composition' as const,
@@ -223,13 +190,13 @@ export function parseProjectFontRegistry(value: unknown): ProjectFontRegistryDoc
   if (!isRecord(value)) return null
   if (value.families !== undefined && !Array.isArray(value.families)) return null
   if (value.compositions !== undefined && !Array.isArray(value.compositions)) return null
-  const families = (value.families ?? []).map(normalizeFamily)
-    .filter((family): family is ProjectFontFamily => Boolean(family))
+  const fonts = (value.families ?? []).map(normalizeFont)
+    .filter((font): font is ProjectFont => Boolean(font))
   const compositions = (value.compositions ?? []).map(normalizeComposition)
     .filter((composition): composition is ProjectFontComposition => Boolean(composition))
   const keys = new Set<string>()
-  const uniqueFamilies = families.filter(family => {
-    const key = family.key.toLocaleLowerCase()
+  const uniqueFonts = fonts.filter(font => {
+    const key = font.key.toLocaleLowerCase()
     if (keys.has(key)) return false
     keys.add(key)
     return true
@@ -241,7 +208,7 @@ export function parseProjectFontRegistry(value: unknown): ProjectFontRegistryDoc
     return true
   })
   return {
-    ...(uniqueFamilies.length ? { families: uniqueFamilies } : {}),
+    ...(uniqueFonts.length ? { families: uniqueFonts } : {}),
     ...(uniqueCompositions.length ? { compositions: uniqueCompositions } : {}),
   }
 }

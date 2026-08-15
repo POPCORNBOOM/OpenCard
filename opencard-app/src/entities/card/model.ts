@@ -57,6 +57,7 @@ export type BaseBlock = {
 }
 
 export type CssValue = string
+export type TextFontWeight = 'light' | 'normal' | 'bold'
 
 export type AnchorPosition =
     | 'lt' | 'ct' | 'rt'
@@ -71,7 +72,7 @@ type TextContentBlock = BaseBlock & {
     content: string
     fontSize?: CssValue
     fontFamily?: string
-    fontWeight?: string
+    fontWeight?: TextFontWeight
     color?: string
     textAlign?: AlignmentPosition
     verticalAlign?: VerticalAlignmentPosition

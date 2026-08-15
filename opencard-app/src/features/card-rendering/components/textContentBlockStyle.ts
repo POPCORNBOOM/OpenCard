@@ -9,6 +9,7 @@ const verticalJustifyMap: Record<RenderReadyTextContentBlock['verticalAlign'], s
   center: 'center',
   bottom: 'flex-end',
 }
+const fontWeightMap: Record<string, number> = { light: 300, normal: 400, bold: 700 }
 
 export function getTextContentBlockStyle(
   block: RenderReadyTextContentBlock,
@@ -23,7 +24,7 @@ export function getTextContentBlockStyle(
   style += `; justify-content: ${verticalJustifyMap[block.verticalAlign]}`
   style += `; font-size: ${block.fontSize}`
   style += `; font-family: ${resolveFontFamily(block.fontFamily)}`
-  style += `; font-weight: ${block.fontWeight}`
+  style += `; font-weight: ${fontWeightMap[block.fontWeight] ?? 400}`
   style += `; color: ${block.color}`
   style += `; text-align: ${block.textAlign}`
   style += `; line-height: ${block.lineHeight}`

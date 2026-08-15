@@ -1,9 +1,10 @@
 import type {
   ProjectFontComposition,
-  ProjectFontFamily,
+  ProjectFont,
   ProjectFontRegistry,
   UnicodeRange,
 } from './projectFontRegistry'
+import { projectFontSources } from './projectFontRegistry'
 
 export const DEFAULT_PROJECT_FONT_DIRECTORY = 'fonts'
 export const projectFontIdPattern = /^[a-z0-9][a-z0-9._-]*$/
@@ -34,14 +35,14 @@ export const SYSTEM_FONT_CATALOG: readonly FontCatalogEntry[] = [
   { value: 'SimSun', label: '宋体', source: 'system' },
 ]
 
-let projectFamiliesByKey = new Map<string, ProjectFontFamily>()
+let projectFamiliesByKey = new Map<string, ProjectFont>()
 let projectCompositionsByKey = new Map<string, ProjectFontComposition>()
 
 export function setProjectFonts(
-  families: readonly ProjectFontFamily[] | null | undefined,
+  families: readonly ProjectFont[] | null | undefined,
   compositions: readonly ProjectFontComposition[] | null | undefined = [],
 ): void {
-  projectFamiliesByKey = new Map((families ?? []).map(family => [family.key.toLocaleLowerCase(), family]))
+  projectFamiliesByKey = new Map((families ?? []).map(font => [font.key.toLocaleLowerCase(), font]))
   projectCompositionsByKey = new Map((compositions ?? []).map(composition => (
     [composition.key.toLocaleLowerCase(), composition]
   )))
@@ -60,28 +61,28 @@ export type ProjectFontResolution = {
 }
 
 export type ProjectFontResolutionContext = {
-  families: readonly ProjectFontFamily[]
+  families: readonly ProjectFont[]
   compositions: readonly ProjectFontComposition[]
 }
 
 export type ProjectFontRegistryIssue =
-  | { kind: 'empty-family', familyKey: string }
+  | { kind: 'empty-font', fontKey: string }
   | { kind: 'empty-composition', compositionKey: string }
-  | { kind: 'missing-family', compositionKey: string, familyKey: string }
+  | { kind: 'missing-font', compositionKey: string, fontKey: string }
 
 export function findProjectFontRegistryIssues(context: ProjectFontResolutionContext): ProjectFontRegistryIssue[] {
-  const familyKeys = new Set(context.families.map(family => family.key.toLocaleLowerCase()))
+  const fontKeys = new Set(context.families.map(font => font.key.toLocaleLowerCase()))
   const issues: ProjectFontRegistryIssue[] = context.families
-      .filter(family => family.faces.length === 0)
-      .map(family => ({ kind: 'empty-family', familyKey: family.key }))
+      .filter(font => projectFontSources(font).length === 0)
+      .map(font => ({ kind: 'empty-font', fontKey: font.key }))
   issues.push(...context.compositions.flatMap<ProjectFontRegistryIssue>(composition => composition.members.length === 0
       ? [{ kind: 'empty-composition' as const, compositionKey: composition.key }]
       : composition.members
-        .filter(member => !familyKeys.has(member.familyKey.toLocaleLowerCase()))
+        .filter(member => !fontKeys.has(member.fontKey.toLocaleLowerCase()))
         .map(member => ({
-          kind: 'missing-family' as const,
+          kind: 'missing-font' as const,
           compositionKey: composition.key,
-          familyKey: member.familyKey,
+          fontKey: member.fontKey,
         }))))
   return issues
 }
@@ -90,8 +91,8 @@ export function createProjectFontReference(key: string): string {
   return `font:${key}`
 }
 
-export function createProjectFontFamilyCssFamily(key: string): string {
-  return `OpenCardProjectFontFamily-${key}`
+export function createProjectFontCssFamily(key: string): string {
+  return `OpenCardProjectFont-${key}`
 }
 
 export function createProjectFontCompositionCssFamily(key: string): string {
@@ -106,8 +107,8 @@ export function resolveProjectFontExpression(
   reference: string,
   context?: ProjectFontResolutionContext,
 ): ProjectFontResolution {
-  const familiesByKey = context
-    ? new Map(context.families.map(family => [family.key.toLocaleLowerCase(), family]))
+  const fontsByKey = context
+    ? new Map(context.families.map(font => [font.key.toLocaleLowerCase(), font]))
     : projectFamiliesByKey
   const compositionsByKey = context
     ? new Map(context.compositions.map(composition => [composition.key.toLocaleLowerCase(), composition]))
@@ -129,13 +130,13 @@ export function resolveProjectFontExpression(
     }
     const key = value.slice('font:'.length)
     const identity = key.toLocaleLowerCase()
-    const family = familiesByKey.get(identity)
-    if (family) {
+    const font = fontsByKey.get(identity)
+    if (font) {
       if (!seenFamilies.has(identity)) {
         seenFamilies.add(identity)
-        familyKeys.push(family.key)
+        familyKeys.push(font.key)
       }
-      cssFamilies.push(JSON.stringify(createProjectFontFamilyCssFamily(family.key)))
+      cssFamilies.push(JSON.stringify(createProjectFontCssFamily(font.key)))
       continue
     }
     const composition = compositionsByKey.get(identity)
@@ -145,13 +146,13 @@ export function resolveProjectFontExpression(
     }
     cssFamilies.push(JSON.stringify(createProjectFontCompositionCssFamily(composition.key)))
     for (const member of composition.members) {
-      const memberIdentity = member.familyKey.toLocaleLowerCase()
-      const memberFamily = familiesByKey.get(memberIdentity)
-      if (!memberFamily) {
-        issues.push({ kind: 'missing', key: member.familyKey, path: [composition.key] })
+      const memberIdentity = member.fontKey.toLocaleLowerCase()
+      const memberFont = fontsByKey.get(memberIdentity)
+      if (!memberFont) {
+        issues.push({ kind: 'missing', key: member.fontKey, path: [composition.key] })
       } else if (!seenFamilies.has(memberIdentity)) {
         seenFamilies.add(memberIdentity)
-        familyKeys.push(memberFamily.key)
+        familyKeys.push(memberFont.key)
       }
     }
   }
@@ -162,8 +163,8 @@ export function fromCssFontFamily(value: string): string {
   const references: string[] = []
   for (const candidate of splitCssFontFamilies(value)) {
     const family = unquoteCssFamily(candidate)
-    if (family.startsWith('OpenCardProjectFontFamily-')) {
-      references.push(createProjectFontReference(family.slice('OpenCardProjectFontFamily-'.length)))
+    if (family.startsWith('OpenCardProjectFont-')) {
+      references.push(createProjectFontReference(family.slice('OpenCardProjectFont-'.length)))
     } else if (family.startsWith('OpenCardProjectFontComposition-')) {
       references.push(createProjectFontReference(family.slice('OpenCardProjectFontComposition-'.length)))
     } else if (family) references.push(family)
@@ -177,8 +178,8 @@ export function buildFontCatalog(fonts: ProjectFontRegistry | null | undefined):
     label: definition.name,
     source: 'project' as const,
     detail: definition.kind === 'family'
-      ? definition.family.faces.map(face => face.source).join('; ')
-      : definition.composition.members.map(member => member.familyKey).join(' → '),
+      ? projectFontSources(definition.family).join('; ')
+      : definition.composition.members.map(member => member.fontKey).join(' → '),
   }))
   return [...SYSTEM_FONT_CATALOG, ...projectEntries]
 }

@@ -73,7 +73,7 @@
               </div>
               <div>
                 <dt>{{ t('projectConfig.fonts.previewFontSource') }}</dt>
-                <dd>{{ hoveredFace?.source ?? hoveredFont.faces.map(face => face.source).join('; ') }}</dd>
+                <dd>{{ hoveredFace?.source ?? projectFontFileEntries(hoveredFont ?? { files: {} }).map(slot => slot.source).join('; ') }}</dd>
               </div>
             </dl>
           </section>
@@ -99,8 +99,9 @@
 <script setup lang="ts">
 import { computed, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ProjectFontComposition, ProjectFontFamily } from '../../features/workspace/model/projectFontRegistry'
-import { createProjectFontFamilyCssFamily } from '../../features/workspace/model/projectFonts'
+import type { ProjectFont, ProjectFontComposition } from '../../features/workspace/model/projectFontRegistry'
+import { createProjectFontCssFamily } from '../../features/workspace/model/projectFonts'
+import { projectFontFileEntries, projectFontWeightValues } from '../../features/workspace/model/projectFontRegistry'
 import type { ProjectFontLoadError } from '../../features/workspace/services/projectFontLoader'
 import {
   characterSetToUnicodeRanges,
@@ -122,7 +123,7 @@ import OcTree from '../standard/OcTree.vue'
 const props = withDefaults(defineProps<{
   heading: string
   description: string
-  families: readonly ProjectFontFamily[]
+  families: readonly ProjectFont[]
   compositions?: readonly ProjectFontComposition[]
   resolveAssetSrc: (source: string) => string
   readFontBytes: (source: string) => Promise<Uint8Array>
@@ -130,7 +131,7 @@ const props = withDefaults(defineProps<{
   loadErrors?: readonly ProjectFontLoadError[]
 }>(), { compositions: () => [], error: '', loadErrors: () => [] })
 const emit = defineEmits<{
-  'update:families': [families: ProjectFontFamily[]]
+  'update:families': [families: ProjectFont[]]
   'update:compositions': [compositions: ProjectFontComposition[]]
   'register-family': []
   'configure-family': [familyKey: string]
@@ -157,7 +158,7 @@ const selectedTreeKeys = computed(() => {
   return key ? [treeKey(activePage.value, key)] : []
 })
 const referencedFamilyKeys = computed(() => new Set(
-  props.compositions.flatMap(composition => composition.members.map(member => member.familyKey.toLocaleLowerCase())),
+  props.compositions.flatMap(composition => composition.members.map(member => member.fontKey.toLocaleLowerCase())),
 ))
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   ['configure-family', { title: t('projectConfig.fonts.configure'), icon: 'tool.settings' }],
@@ -194,32 +195,29 @@ const treeData = computed<OcTreeData>(() => {
 })
 const previewStyle = computed<CSSProperties>(() => ({
   fontFamily: activePage.value === 'families' && selectedFamily.value
-    ? JSON.stringify(createProjectFontFamilyCssFamily(selectedFamily.value.key))
+    ? JSON.stringify(createProjectFontCssFamily(selectedFamily.value.key))
     : '',
 }))
-const previewFontCss = computed(() => props.families.flatMap(family => family.faces.map(face => {
-  const style = face.style.kind === 'oblique'
-    ? `oblique ${face.style.angle.min}deg ${face.style.angle.max}deg`
-    : face.style.kind
-  return `@font-face { font-family: ${JSON.stringify(createProjectFontFamilyCssFamily(family.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(face.source))}); font-weight: ${face.weight.min} ${face.weight.max}; font-stretch: ${face.stretch.min}% ${face.stretch.max}%; font-style: ${style}; }`
-})).join('\n'))
+const previewFontCss = computed(() => props.families.flatMap(font => projectFontFileEntries(font).map(slot => (
+  `@font-face { font-family: ${JSON.stringify(createProjectFontCssFamily(font.key))}; src: url(${JSON.stringify(props.resolveAssetSrc(slot.source))}); font-weight: ${projectFontWeightValues[slot.weight]}; font-style: ${slot.style === 'upright' ? 'normal' : 'italic'}; }`
+))).join('\n'))
 const previewFamilies = computed(() => activePage.value === 'families'
   ? selectedFamily.value ? [selectedFamily.value] : []
   : (selectedComposition.value?.members ?? [])
-      .map(member => props.families.find(family => family.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase()))
-      .filter((family): family is ProjectFontFamily => Boolean(family)))
+      .map(member => props.families.find(font => font.key.toLocaleLowerCase() === member.fontKey.toLocaleLowerCase()))
+      .filter((font): font is ProjectFont => Boolean(font)))
 const previewCandidates = computed<ProjectFontPreviewCandidate[]>(() => activePage.value === 'families'
-  ? selectedFamily.value ? selectedFamily.value.faces.map(face => ({
+  ? selectedFamily.value ? projectFontFileEntries(selectedFamily.value).map(slot => ({
       familyKey: selectedFamily.value!.key,
-      faceKey: previewFaceKey(selectedFamily.value!.key, face.source),
+      faceKey: previewFaceKey(selectedFamily.value!.key, slot.source),
     })) : []
   : (selectedComposition.value?.members ?? []).flatMap(member => {
       const family = props.families.find(candidate => (
-        candidate.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase()
+        candidate.key.toLocaleLowerCase() === member.fontKey.toLocaleLowerCase()
       ))
-      return (family?.faces ?? []).map(face => ({
-        familyKey: member.familyKey,
-        faceKey: previewFaceKey(member.familyKey, face.source),
+      return projectFontFileEntries(family ?? { files: {} }).map(slot => ({
+        familyKey: member.fontKey,
+        faceKey: previewFaceKey(member.fontKey, slot.source),
         ...(member.ranges ? { ranges: member.ranges } : {}),
       }))
     }))
@@ -231,8 +229,8 @@ const previewRuns = computed(() => createProjectFontPreviewRuns(
 const hoveredFont = computed(() => hoveredFontKey.value
   ? props.families.find(family => family.key.toLocaleLowerCase() === hoveredFontKey.value?.toLocaleLowerCase()) ?? null
   : null)
-const hoveredFace = computed(() => hoveredFont.value?.faces.find(face => (
-  previewFaceKey(hoveredFont.value!.key, face.source) === hoveredFaceKey.value
+const hoveredFace = computed(() => projectFontFileEntries(hoveredFont.value ?? { files: {} }).find(slot => (
+  previewFaceKey(hoveredFont.value!.key, slot.source) === hoveredFaceKey.value
 )) ?? null)
 const coverageFailed = computed(() => previewFamilies.value.some(family => failedCoverageKeys.value.has(family.key)))
 const shadowedMemberKeys = computed(() => {
@@ -240,14 +238,14 @@ const shadowedMemberKeys = computed(() => {
   const claimedByDescriptor = new Map<string, { start: number; end: number }[]>()
   const shadowed: string[] = []
   for (const member of selectedComposition.value.members) {
-    const family = props.families.find(candidate => candidate.key.toLocaleLowerCase() === member.familyKey.toLocaleLowerCase())
+    const family = props.families.find(candidate => candidate.key.toLocaleLowerCase() === member.fontKey.toLocaleLowerCase())
     let readable = false
     let contributes = false
-    for (const face of family?.faces ?? []) {
-      const coverage = characterSets.value.get(previewFaceKey(member.familyKey, face.source))
+    for (const slot of projectFontFileEntries(family ?? { files: {} })) {
+      const coverage = characterSets.value.get(previewFaceKey(member.fontKey, slot.source))
       if (!coverage) continue
       readable = true
-      const descriptorKey = JSON.stringify([face.weight, face.stretch, face.style])
+      const descriptorKey = `${slot.weight}:${slot.style}`
       const claimed = claimedByDescriptor.get(descriptorKey) ?? []
       const effective = subtractUnicodeRanges(characterSetToUnicodeRanges(coverage, member.ranges), claimed)
       if (effective.length) contributes = true
@@ -256,7 +254,7 @@ const shadowedMemberKeys = computed(() => {
         ...effective,
       ]))
     }
-    if (readable && !contributes) shadowed.push(member.familyKey)
+    if (readable && !contributes) shadowed.push(member.fontKey)
   }
   return shadowed
 })
@@ -264,8 +262,8 @@ const previewDiagnostics = computed(() => {
   const selectedKeys = new Set(previewFamilies.value.map(family => family.key.toLocaleLowerCase()))
   return [
     ...props.loadErrors
-      .filter(error => selectedKeys.has(error.familyKey.toLocaleLowerCase()))
-      .map(error => t('projectConfig.fonts.previewLoadFailed', { key: error.familyKey, source: error.source })),
+      .filter(error => selectedKeys.has(error.fontKey.toLocaleLowerCase()))
+      .map(error => t('projectConfig.fonts.previewLoadFailed', { key: error.fontKey, source: error.source })),
     ...[...failedCoverageKeys.value]
       .filter(key => selectedKeys.has(key.toLocaleLowerCase()))
       .map(key => t('projectConfig.fonts.previewCoverageFailed', { key })),
@@ -280,17 +278,17 @@ watch(() => props.compositions, compositions => {
   if (!compositions.some(entry => entry.key === selectedCompositionKey.value)) selectedCompositionKey.value = compositions[0]?.key ?? null
 }, { immediate: true })
 watch(
-  () => previewFamilies.value.map(family => `${family.key}\0${family.faces.map(face => face.source).join('\0')}`),
+  () => previewFamilies.value.map(family => `${family.key}\0${projectFontFileEntries(family).map(slot => slot.source).join('\0')}`),
   async () => {
     const generation = ++coverageGeneration
     const nextCharacterSets = new Map<string, ReadonlySet<number>>()
     const nextFailedKeys = new Set<string>()
     await Promise.all(previewFamilies.value.map(async family => {
       let loaded = false
-      for (const face of family.faces) {
+      for (const slot of projectFontFileEntries(family)) {
         try {
-          const characterSet = await readProjectFontCharacterSet(await props.readFontBytes(face.source))
-          nextCharacterSets.set(previewFaceKey(family.key, face.source), characterSet)
+          const characterSet = await readProjectFontCharacterSet(await props.readFontBytes(slot.source))
+          nextCharacterSets.set(previewFaceKey(family.key, slot.source), characterSet)
           loaded = true
         } catch {
           // A family remains previewable when at least one of its faces is readable.
@@ -374,13 +372,12 @@ function previewFaceKey(familyKey: string, source: string): string {
 function runStyle(familyKey: string | null, faceKey: string | null): CSSProperties | undefined {
   if (!familyKey) return undefined
   const family = props.families.find(candidate => candidate.key.toLocaleLowerCase() === familyKey.toLocaleLowerCase())
-  const face = family?.faces.find(candidate => previewFaceKey(familyKey, candidate.source) === faceKey)
+  const face = projectFontFileEntries(family ?? { files: {} }).find(candidate => previewFaceKey(familyKey, candidate.source) === faceKey)
   return {
-    fontFamily: JSON.stringify(createProjectFontFamilyCssFamily(familyKey)),
+    fontFamily: JSON.stringify(createProjectFontCssFamily(familyKey)),
     ...(face ? {
-      fontWeight: face.weight.min,
-      fontStretch: `${face.stretch.min}%`,
-      fontStyle: face.style.kind === 'oblique' ? `oblique ${face.style.angle.min}deg` : face.style.kind,
+      fontWeight: projectFontWeightValues[face.weight],
+      fontStyle: face.style === 'italic' ? 'italic' : 'normal',
     } : {}),
   }
 }

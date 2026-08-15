@@ -15,12 +15,7 @@ vi.mock('../../features/workspace/services/fileSystemService', () => ({
   },
 }))
 
-const face = (source: string) => ({
-  source,
-  weight: { min: 400, max: 400 },
-  stretch: { min: 100, max: 100 },
-  style: { kind: 'normal' as const },
-})
+const fontFiles = (source: string) => ({ files: { normal: { upright: source } } })
 
 describe('ProjectFontRegistryFileEditor', () => {
   it('owns independent family and composition edits and targets family configuration', async () => {
@@ -28,8 +23,8 @@ describe('ProjectFontRegistryFileEditor', () => {
       props: {
         filePath: 'D:/Demo/.opencard/.ocfonts',
         modelValue: JSON.stringify({
-          families: [{ key: 'brand-regular', name: 'Regular', faces: [face('fonts/Brand.woff2')] }],
-          compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'brand-regular' }] }],
+          families: [{ key: 'brand-regular', name: 'Regular', ...fontFiles('fonts/Brand.woff2') }],
+          compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'brand-regular' }] }],
         }),
       },
       global: { stubs: { ProjectFontRegistryEditor: true } },
@@ -40,23 +35,23 @@ describe('ProjectFontRegistryFileEditor', () => {
     expect(wrapper.getComponent(ProjectFontRegistrationDialog).props('originalKey')).toBe('brand-regular')
 
     workbench.vm.$emit('update:families', [
-      { key: 'display', name: 'Display', faces: [face('fonts/Display.woff2')] },
+      { key: 'display', name: 'Display', ...fontFiles('fonts/Display.woff2') },
     ])
     await wrapper.vm.$nextTick()
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({
-      families: [{ key: 'display', name: 'Display', faces: [face('fonts/Display.woff2')] }],
-      compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'brand-regular' }] }],
+      families: [{ key: 'display', name: 'Display', ...fontFiles('fonts/Display.woff2') }],
+      compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'brand-regular' }] }],
     })
 
     workbench.vm.$emit('update:compositions', [
-      { key: 'heading', name: 'Heading', members: [{ familyKey: 'display' }] },
+      { key: 'heading', name: 'Heading', members: [{ fontKey: 'display' }] },
     ])
     await wrapper.vm.$nextTick()
     const modelUpdates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(modelUpdates[modelUpdates.length - 1]?.[0] as string)).toEqual({
-      families: [{ key: 'display', name: 'Display', faces: [face('fonts/Display.woff2')] }],
-      compositions: [{ key: 'heading', name: 'Heading', members: [{ familyKey: 'display' }] }],
+      families: [{ key: 'display', name: 'Display', ...fontFiles('fonts/Display.woff2') }],
+      compositions: [{ key: 'heading', name: 'Heading', members: [{ fontKey: 'display' }] }],
     })
   })
 
@@ -82,15 +77,14 @@ describe('ProjectFontRegistryFileEditor', () => {
     expect(empty.emitted('save')).toHaveLength(1)
   })
 
-  it('reports empty entries and missing family references without blocking save', async () => {
+  it('reports empty compositions and missing font references without blocking save', async () => {
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
         filePath: 'D:/Demo/.opencard/.ocfonts',
         modelValue: JSON.stringify({
-          families: [{ key: 'empty', name: 'Empty', faces: [] }],
           compositions: [
             { key: 'unused', name: 'Unused', members: [] },
-            { key: 'body', name: 'Body', members: [{ familyKey: 'missing' }] },
+            { key: 'body', name: 'Body', members: [{ fontKey: 'missing' }] },
           ],
         }),
       },
@@ -99,9 +93,8 @@ describe('ProjectFontRegistryFileEditor', () => {
     const snapshots = wrapper.emitted('issue-snapshot') ?? []
     const snapshot = snapshots[snapshots.length - 1]?.[0] as { issues: { type: string }[] }
     expect(snapshot.issues.map(issue => issue.type)).toEqual(expect.arrayContaining([
-      'project-font-registry.empty-family',
       'project-font-registry.empty-composition',
-      'project-font-registry.missing-family',
+      'project-font-registry.missing-font',
     ]))
     await wrapper.get('.project-registry-shell').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)
@@ -112,8 +105,8 @@ describe('ProjectFontRegistryFileEditor', () => {
       props: {
         filePath: 'D:/Demo/.opencard/.ocfonts',
         modelValue: JSON.stringify({
-          families: [{ key: 'latin', name: 'Latin', faces: [face('fonts/Latin.woff2')] }],
-          compositions: [{ key: 'body', name: 'Body', members: [{ familyKey: 'latin' }] }],
+          families: [{ key: 'latin', name: 'Latin', ...fontFiles('fonts/Latin.woff2') }],
+          compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'latin' }] }],
         }),
       },
       global: { stubs: { ProjectFontRegistryEditor: true } },
@@ -123,19 +116,16 @@ describe('ProjectFontRegistryFileEditor', () => {
         originalKey: 'latin',
         key: 'foundation',
         name: 'Foundation',
-        faces: [{
+        slots: { 'normal.upright': {
           originalSource: 'fonts/Latin.woff2',
           sourcePath: 'fonts/Latin.woff2',
-          weight: { min: 400, max: 400 },
-          stretch: { min: 100, max: 100 },
-          style: { kind: 'normal' },
-        }],
+        } },
       }],
     })
     await flushPromises()
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string).compositions).toEqual([
-      { key: 'body', name: 'Body', members: [{ familyKey: 'foundation' }] },
+      { key: 'body', name: 'Body', members: [{ fontKey: 'foundation' }] },
     ])
   })
 
@@ -146,8 +136,8 @@ describe('ProjectFontRegistryFileEditor', () => {
         filePath: 'D:/Demo/.opencard/.ocfonts',
         modelValue: JSON.stringify({
           families: [
-            { key: 'a', name: 'A', faces: [face('fonts/Shared.woff2'), face('fonts/A.woff2')] },
-            { key: 'b', name: 'B', faces: [face('fonts/Shared.woff2')] },
+            { key: 'a', name: 'A', files: { normal: { upright: 'fonts/Shared.woff2' }, bold: { upright: 'fonts/A.woff2' } } },
+            { key: 'b', name: 'B', ...fontFiles('fonts/Shared.woff2') },
           ],
         }),
       },

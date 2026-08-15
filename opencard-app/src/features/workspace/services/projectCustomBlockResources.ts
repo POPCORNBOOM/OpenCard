@@ -1,14 +1,12 @@
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
-import type { ProjectFontFace, ProjectFontRegistry } from '../model/projectFontRegistry'
+import type { ProjectFont, ProjectFontRegistry } from '../model/projectFontRegistry'
+import { projectFontFileEntries } from '../model/projectFontRegistry'
 import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../model/projectStructure'
 import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
 import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import type { FileSystemService } from './fileSystemService'
-import type {
-  ProjectCustomBlockFontResource,
-  ProjectCustomBlockResourceIndex,
-} from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockFontResource, ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
 import { findProjectCustomBlockFile } from './projectCustomBlock'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import { findProjectIcon, projectIconIdentity, type ProjectIconCatalog, type ProjectIconCatalogEntry } from './projectIconCatalog'
@@ -148,15 +146,26 @@ export async function collectProjectCustomBlockResources(options: {
     resourceKeys.add(key.toLowerCase())
     return key
   }
-  const archiveFontFace = async (
-    face: ProjectFontFace,
+  const archiveFont = async (
+    font: ProjectFont,
     loadBytes: (source: string) => Promise<Uint8Array>,
-  ): Promise<ProjectFontFace> => {
-    const bytes = await loadBytes(face.source)
-    const hash = await sha256(bytes)
-    const archivePath = `resources/fonts/${hash}.${extensionOf(face.source, 'bin')}`
-    if (!files.has(archivePath)) files.set(archivePath, bytes)
-    return { ...face, source: archivePath }
+  ): Promise<ProjectFont> => {
+    const archivedSources = new Map<string, string>()
+    for (const slot of projectFontFileEntries(font)) {
+      const bytes = await loadBytes(slot.source)
+      const hash = await sha256(bytes)
+      const archivePath = `resources/fonts/${hash}.${extensionOf(slot.source, 'bin')}`
+      archivedSources.set(slot.source, archivePath)
+      if (!files.has(archivePath)) files.set(archivePath, bytes)
+    }
+    const archivedFiles = Object.fromEntries(Object.entries(font.files).map(([weight, styles]) => [
+      weight,
+      Object.fromEntries(Object.entries(styles ?? {}).flatMap(([style, source]) => {
+        const archivePath = archivedSources.get(source)
+        return archivePath ? [[style, archivePath]] : []
+      })),
+    ])) as ProjectFont['files']
+    return { ...font, files: archivedFiles }
   }
   const findProjectFont = (key: string) => Object.entries(options.projectFonts ?? {})
     .find(([candidate]) => candidate.toLowerCase() === key.toLowerCase())?.[1]
@@ -169,17 +178,15 @@ export async function collectProjectCustomBlockResources(options: {
     const key = availableResourceKey(entry.kind === 'family' ? entry.family.key : entry.composition.key)
     projectFontKeys.set(identity, key)
     if (entry.kind === 'family') {
-      const faces = await Promise.all(entry.family.faces.map(face => archiveFontFace(
-        face,
-        source => options.fs.readBinaryFile(`${root}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source.replace(/\\/g, '/')}`),
-      )))
-      if (faces.length === 0) throw new Error(`Custom block font has no available face: font:${sourceKey}`)
-      fonts.push({ kind: 'family', key, name: entry.family.name, faces })
+      const archived = await archiveFont({ ...entry.family, key }, source => options.fs.readBinaryFile(
+        `${root}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source.replace(/\\/g, '/')}`,
+      ))
+      fonts.push({ kind: 'font', key, name: archived.name, files: archived.files })
       return key
     }
     const members = []
     for (const member of entry.composition.members) {
-      members.push({ ...member, familyKey: await ensureProjectFont(member.familyKey) })
+      members.push({ ...member, fontKey: await ensureProjectFont(member.fontKey) })
     }
     fonts.push({ kind: 'composition', key, name: entry.composition.name, members })
     return key
@@ -193,18 +200,18 @@ export async function collectProjectCustomBlockResources(options: {
     if (!entry || !font) throw new Error(`Custom block font resource is missing: ${owner}/${sourceKey}`)
     const key = availableResourceKey(`${owner}-${font.key}`)
     packagedFontKeys.set(identity, key)
-    if (font.kind === 'family') {
-      const faces = await Promise.all(font.faces.map(face => archiveFontFace(face, async source => {
+    if (font.kind === 'font') {
+      const archived = await archiveFont({ ...font, key }, async source => {
         const bytes = entry.files && findProjectCustomBlockFile(entry.files, source)
         if (!bytes) throw new Error(`Custom block font resource is missing: ${source}`)
         return bytes
-      })))
-      fonts.push({ kind: 'family', key, name: font.name, faces })
+      })
+      fonts.push({ kind: 'font', key, name: archived.name, files: archived.files })
       return key
     }
     const members = []
     for (const member of font.members) {
-      members.push({ ...member, familyKey: await ensurePackagedFont(owner, member.familyKey) })
+      members.push({ ...member, fontKey: await ensurePackagedFont(owner, member.fontKey) })
     }
     fonts.push({ kind: 'composition', key, name: font.name, members })
     return key

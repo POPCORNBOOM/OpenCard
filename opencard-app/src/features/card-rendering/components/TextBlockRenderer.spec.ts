@@ -88,12 +88,7 @@ describe('TextBlockRenderer', () => {
     setProjectFonts([{
       key: 'brand-sans',
       name: 'Brand Sans',
-      faces: [{
-        source: 'fonts/BrandSans.woff2',
-        weight: { min: 400, max: 400 },
-        stretch: { min: 100, max: 100 },
-        style: { kind: 'normal' },
-      }],
+      files: { normal: { upright: 'fonts/BrandSans.woff2' } },
     }])
     const block = parseRenderReadyBlockForTest({
       id: 'project-font-block',
@@ -108,7 +103,7 @@ describe('TextBlockRenderer', () => {
     })
 
     expect(wrapper.element.style.fontFamily)
-      .toBe('"OpenCardProjectFontFamily-brand-sans", "Microsoft YaHei", sans-serif')
+      .toBe('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
   })
 
   it('does not render HTML that has no prepared safe document', () => {

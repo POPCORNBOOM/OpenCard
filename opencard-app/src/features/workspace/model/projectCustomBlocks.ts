@@ -1,6 +1,6 @@
 import type { CardBlock } from '../../../entities/card/model'
 import type { PropertyFieldType } from '../../../entities/card/schema'
-import type { ProjectFontCompositionMember, ProjectFontFace } from './projectFontRegistry'
+import type { ProjectFontCompositionMember, ProjectFontFiles } from './projectFontRegistry'
 import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 export { PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME } from './projectStructure'
 export const PROJECT_CUSTOM_BLOCK_EXTENSION = 'ocblock'
@@ -13,11 +13,11 @@ export const PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS = ['name', 'notes'] a
 export type ProjectCustomBlockPublicField = { key: string; fieldType: PropertyFieldType
   title?: string; defaultValue?: string }
 export type ProjectCustomBlockResizePolicy = { widthLocked: boolean; heightLocked: boolean }
-export type ProjectCustomBlockFontFamilyResource = {
-  kind: 'family'
+export type ProjectCustomBlockFontResourceFile = {
+  kind: 'font'
   key: string
   name: string
-  faces: readonly ProjectFontFace[]
+  files: ProjectFontFiles
 }
 export type ProjectCustomBlockFontCompositionResource = {
   kind: 'composition'
@@ -26,7 +26,7 @@ export type ProjectCustomBlockFontCompositionResource = {
   members: readonly ProjectFontCompositionMember[]
 }
 export type ProjectCustomBlockFontResource =
-  | ProjectCustomBlockFontFamilyResource
+  | ProjectCustomBlockFontResourceFile
   | ProjectCustomBlockFontCompositionResource
 export type ProjectCustomBlockImageResource = { key: string; source: string }
 export type ProjectCustomBlockResourceIndex = { fonts?: readonly ProjectCustomBlockFontResource[]
@@ -120,35 +120,27 @@ function parseResources(value: unknown, issues: ProjectCustomBlockPackageIssue[]
     }
     return result
   }
-  const parseRange = (candidate: unknown, minimum: number, maximum: number): { min: number; max: number } | null => (
-    isRecord(candidate)
-      && typeof candidate.min === 'number'
-      && typeof candidate.max === 'number'
-      && Number.isFinite(candidate.min)
-      && Number.isFinite(candidate.max)
-      && candidate.min >= minimum
-      && candidate.max <= maximum
-      && candidate.min <= candidate.max
-      ? { min: candidate.min, max: candidate.max }
-      : null
-  )
   const parseFont = (item: Record<string, unknown>): boolean => {
     if (typeof item.name !== 'string' || !item.name.trim()) return false
-    if (item.kind === 'family') {
-      if (!Array.isArray(item.faces)) return false
-      return item.faces.every(face => {
-        if (!isRecord(face) || typeof face.source !== 'string'
-          || !face.source.replace(/\\/g, '/').toLowerCase().startsWith('resources/fonts/')) return false
-        const weight = parseRange(face.weight, 1, 1000)
-        const stretch = parseRange(face.stretch, 0.01, 1000)
-        if (!weight || !stretch || !isRecord(face.style)) return false
-        if (face.style.kind === 'normal' || face.style.kind === 'italic') return true
-        return face.style.kind === 'oblique' && Boolean(parseRange(face.style.angle, -90, 90))
-      })
+    if (item.kind === 'font') {
+      if (!isRecord(item.files)) return false
+      let count = 0
+      for (const weight of ['light', 'normal', 'bold']) {
+        const slots = item.files[weight]
+        if (!isRecord(slots)) continue
+        for (const style of ['upright', 'italic']) {
+          const source = slots[style]
+          if (source === undefined) continue
+          if (typeof source !== 'string'
+            || !source.replace(/\\/g, '/').toLowerCase().startsWith('resources/fonts/')) return false
+          count += 1
+        }
+      }
+      return count > 0
     }
     if (item.kind !== 'composition' || !Array.isArray(item.members)) return false
     return item.members.every(member => {
-      if (!isRecord(member) || typeof member.familyKey !== 'string' || !member.familyKey.trim()) return false
+      if (!isRecord(member) || typeof member.fontKey !== 'string' || !member.fontKey.trim()) return false
       if (member.ranges === undefined) return true
       return Array.isArray(member.ranges) && member.ranges.length > 0 && member.ranges.every(range => (
         isRecord(range)

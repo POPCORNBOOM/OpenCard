@@ -76,15 +76,10 @@ function createHarness() {
         body: {
           kind: 'family' as const,
           name: 'Body Font',
-          family: {
-            key: 'body',
-            name: 'Body Font',
-            faces: [{
-              source: 'fonts/body.woff2',
-              weight: { min: 400, max: 400 },
-              stretch: { min: 100, max: 100 },
-              style: { kind: 'normal' as const },
-            }],
+            family: {
+              key: 'body',
+              name: 'Body Font',
+              files: { normal: { upright: 'fonts/body.woff2' } },
           },
         },
       },
@@ -132,12 +127,7 @@ describe('useCdePropertyEditorProjection', () => {
     setProjectFonts([{
       key: 'body',
       name: 'Body Font',
-      faces: [{
-        source: 'fonts/body.woff2',
-        weight: { min: 400, max: 400 },
-        stretch: { min: 100, max: 100 },
-        style: { kind: 'normal' },
-      }],
+      files: { normal: { upright: 'fonts/body.woff2' } },
     }])
     const { state } = createHarness()
     const fields = state.propertyEditorInputs.value[0]!.fields
@@ -145,10 +135,10 @@ describe('useCdePropertyEditorProjection', () => {
 
     expect(fontItems.map(item => item.value)).toContain('font:body')
     expect(fontItems.find(item => item.value === 'font:body')?.labelStyle)
-      .toEqual({ fontFamily: '"OpenCardProjectFontFamily-body"' })
+      .toEqual({ fontFamily: '"OpenCardProjectFont-body"' })
     expect(fields.content?.fontOptions?.map(item => item.value)).toContain('font:body')
     expect(fields.content?.richTextBaseStyle).toEqual({
-      fontFamily: '"OpenCardProjectFontFamily-body", Arial, sans-serif',
+      fontFamily: '"OpenCardProjectFont-body", Arial, sans-serif',
       fontSize: '18px',
     })
 

@@ -56,13 +56,8 @@ describe('project custom block package projection', () => {
     const manifest = await buildProjectCustomBlockManifest({ root: block, key: 'badge' })
     manifest.resources = {
       fonts: [{
-        kind: 'family', key: 'heading', name: 'Heading',
-        faces: [{
-          source: 'resources/fonts/heading.woff2',
-          weight: { min: 400, max: 400 },
-          stretch: { min: 100, max: 100 },
-          style: { kind: 'normal' },
-        }],
+        kind: 'font', key: 'heading', name: 'Heading',
+        files: { normal: { upright: 'resources/fonts/heading.woff2' } },
       }],
       images: [{ key: 'badge', source: 'resources/images/badge.png' }],
       iconSeries: [{

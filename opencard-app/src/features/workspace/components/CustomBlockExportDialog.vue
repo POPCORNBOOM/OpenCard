@@ -76,6 +76,7 @@ import OcText from '../../../components/base/OcText.vue'
 import ProjectIconView from './ProjectIconView.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
+import { projectFontSources } from '../model/projectFontRegistry'
 import type { ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
 import type { ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
 import { normalizeProjectCustomBlockKey } from '../model/projectCustomBlocks'
@@ -289,9 +290,9 @@ const resourcePreviewItem = computed(() => {
   if (!key) return null
   if (key.startsWith('resource:font:')) {
     const font = props.resourceIndex?.fonts?.find(item => `resource:font:${item.key}` === key)
-    const source = font?.kind === 'family'
-      ? font.faces.map(face => face.source).join(', ')
-      : font?.members.map(member => member.familyKey).join(' → ')
+    const source = font?.kind === 'font'
+      ? projectFontSources(font).join(', ')
+      : font?.members.map(member => member.fontKey).join(' → ')
     return font ? { kind: 'font' as const, label: font.name || font.key, source, fontFamily: resourceFontFamilies.value.get(key) ?? 'sans-serif' } : null
   }
   if (key.startsWith('resource:image:')) {

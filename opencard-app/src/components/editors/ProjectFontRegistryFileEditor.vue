@@ -62,7 +62,8 @@ import {
   PROJECT_FONT_REGISTRY_FILE_NAME,
   serializeProjectFontRegistry,
   type ProjectFontComposition,
-  type ProjectFontFamily,
+  type ProjectFont,
+  projectFontSources,
   type ProjectFontRegistryDocument,
 } from '../../features/workspace/model/projectFontRegistry'
 import { findProjectFontRegistryIssues } from '../../features/workspace/model/projectFonts'
@@ -72,6 +73,7 @@ import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import ProjectFontRegistrationDialog, {
   type ProjectFontFamilyRegistrationRequest,
+  type ProjectFontSlotKey,
 } from './ProjectFontRegistrationDialog.vue'
 import ProjectFontRegistryEditor from './ProjectFontRegistryEditor.vue'
 import ProjectFontCompositionDialog, {
@@ -112,12 +114,12 @@ const orphanedRemovalSources = computed(() => {
   if (!family) return []
   const remainingSources = new Set((document.value?.families ?? [])
     .filter(candidate => candidate.key !== family.key)
-    .flatMap(candidate => candidate.faces.map(face => face.source.toLocaleLowerCase())))
-  return [...new Set(family.faces.map(face => face.source))]
+    .flatMap(candidate => projectFontSources(candidate).map(source => source.toLocaleLowerCase())))
+  return [...new Set(projectFontSources(family))]
     .filter(source => !remainingSources.has(source.toLocaleLowerCase()))
 })
 const sharedRemovalSourceCount = computed(() => (
-  new Set(pendingRemovalFamily.value?.faces.map(face => face.source)).size - orphanedRemovalSources.value.length
+  new Set(pendingRemovalFamily.value ? projectFontSources(pendingRemovalFamily.value) : []).size - orphanedRemovalSources.value.length
 ))
 const projectDirectory = computed(() => {
   const source = projectStore.projectPath.value || props.filePath
@@ -134,31 +136,31 @@ const issueSnapshot = computed<EditorIssueSnapshot>(() => {
     ? findProjectFontRegistryIssues({ families, compositions }).map((issue, index) => ({
         id: `project-font-registry:${issue.kind}:${index}`,
         type: `project-font-registry.${issue.kind}`,
-        severity: issue.kind === 'empty-family' || issue.kind === 'empty-composition' ? 'warning' : 'error',
-        locationText: issue.kind === 'empty-family'
-          ? t('projectConfig.fonts.fontIssueLocation', { font: issue.familyKey })
+        severity: issue.kind === 'empty-font' || issue.kind === 'empty-composition' ? 'warning' : 'error',
+        locationText: issue.kind === 'empty-font'
+          ? t('projectConfig.fonts.fontIssueLocation', { font: issue.fontKey })
           : t('projectConfig.fonts.fontSetIssueLocation', { set: issue.compositionKey }),
-        description: issue.kind === 'empty-family'
+        description: issue.kind === 'empty-font'
           ? t('projectConfig.fonts.emptyFamilyIssue')
           : issue.kind === 'empty-composition'
           ? t('projectConfig.fonts.emptySetIssue')
-          : t('projectConfig.fonts.missingReferenceIssue', { key: issue.familyKey }),
+          : t('projectConfig.fonts.missingReferenceIssue', { key: issue.fontKey }),
         navigationToken: {
           protocol: 'font-registry',
           version: 1,
-          target: issue.kind === 'empty-family'
-            ? { kind: 'family', key: issue.familyKey }
+          target: issue.kind === 'empty-font'
+            ? { kind: 'family', key: issue.fontKey }
             : { kind: 'composition', key: issue.compositionKey },
         },
       }))
     : []
   const loadIssues: EditorIssue[] = projectStore.projectFontLoadErrors.value.map((error, index) => ({
-    id: `project-font-load:${error.familyKey}:${index}`,
+    id: `project-font-load:${error.fontKey}:${index}`,
     type: 'project-font-registry.load-failed',
     severity: 'error',
-    locationText: t('projectConfig.fonts.fontIssueLocation', { font: error.familyKey }),
+    locationText: t('projectConfig.fonts.fontIssueLocation', { font: error.fontKey }),
     description: t('projectConfig.fonts.loadFailed', { message: error.message }),
-    navigationToken: { protocol: 'font-registry', version: 1, target: { kind: 'family', key: error.familyKey } },
+    navigationToken: { protocol: 'font-registry', version: 1, target: { kind: 'family', key: error.fontKey } },
   }))
   return { scopeKey: 'project-font-registry', scopeOrder: ['project-font-registry'], issues: [...registryIssues, ...loadIssues] }
 })
@@ -178,7 +180,7 @@ function commit(next: ProjectFontRegistryDocument): void {
   }
 }
 
-function updateFamilies(families: readonly ProjectFontFamily[]): void {
+function updateFamilies(families: readonly ProjectFont[]): void {
   commit({ ...(families.length ? { families } : {}), ...(document.value?.compositions?.length ? { compositions: document.value.compositions } : {}) })
 }
 
@@ -235,21 +237,22 @@ async function registerFont(request: ProjectFontFamilyRegistrationRequest): Prom
     const importedFamilies = await Promise.all(request.families.map(async requestedFamily => ({
       key: requestedFamily.key,
       name: requestedFamily.name,
-      faces: (await Promise.all(requestedFamily.faces.map(async face => {
-        const sources = face.originalSource && face.sourcePath === face.originalSource
-          ? [face.originalSource]
+      files: await (async () => {
+        const files: ProjectFont['files'] = {}
+        for (const [slotKey, slot] of Object.entries(requestedFamily.slots) as [ProjectFontSlotKey, NonNullable<typeof requestedFamily.slots[ProjectFontSlotKey]>][]) {
+          const sources = slot.originalSource && slot.sourcePath === slot.originalSource
+          ? [slot.originalSource]
           : (await projectStore.importProjectFontFiles(
-              face.sourcePath,
-              face.conflictResolution,
-              face.collectionIndex === undefined ? undefined : [face.collectionIndex],
+              slot.sourcePath,
+              slot.conflictResolution,
+              slot.collectionIndex === undefined ? undefined : [slot.collectionIndex],
             )).sources
-        return sources.map(source => ({
-          source,
-          weight: face.weight,
-          stretch: face.stretch,
-          style: face.style,
-        }))
-      }))).flat(),
+          const [weight, style] = slotKey.split('.') as [keyof typeof files, 'upright' | 'italic']
+          const source = sources[0]
+          if (source) files[weight] = { ...(files[weight] ?? {}), [style]: source }
+        }
+        return files
+      })(),
     })))
     const replacements = new Map(request.families.flatMap((family, index) => family.originalKey
       ? [[family.originalKey.toLocaleLowerCase(), importedFamilies[index]!] as const]
@@ -267,8 +270,8 @@ async function registerFont(request: ProjectFontFamilyRegistrationRequest): Prom
       ? compositions.map(composition => ({
           ...composition,
           members: composition.members.map(member => {
-            const nextKey = renamedKeys.get(member.familyKey.toLocaleLowerCase())
-            return nextKey ? { ...member, familyKey: nextKey } : member
+            const nextKey = renamedKeys.get(member.fontKey.toLocaleLowerCase())
+            return nextKey ? { ...member, fontKey: nextKey } : member
           }),
         }))
       : compositions
@@ -297,7 +300,7 @@ function getManagedFontSource(path: string): string | null {
 function openFamilyRemovalDialog(key: string): void {
   const family = document.value?.families?.find(candidate => candidate.key === key)
   if (!family || document.value?.compositions?.some(composition => (
-    composition.members.some(member => member.familyKey.toLocaleLowerCase() === key.toLocaleLowerCase())
+    composition.members.some(member => member.fontKey.toLocaleLowerCase() === key.toLocaleLowerCase())
   ))) return
   pendingRemovalKey.value = key
   cleanupOrphanedFiles.value = true

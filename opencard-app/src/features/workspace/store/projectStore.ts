@@ -29,7 +29,7 @@ import {
   parseProjectFontRegistryText,
   serializeProjectFontRegistry,
   type ProjectFontComposition,
-  type ProjectFontFamily,
+  type ProjectFont,
   type ProjectFontRegistry,
 } from '../model/projectFontRegistry'
 import {
@@ -157,7 +157,7 @@ const expandedDirectories = ref(new Set<string>())
 const projectProfile = ref<ProjectProfile | null>(null)
 const resolvedProject = ref<ProjectInformation | null>(null)
 const profileError = ref<string | null>(null)
-const projectFontFamilies = ref<readonly ProjectFontFamily[]>([])
+const projectFontFamilies = ref<readonly ProjectFont[]>([])
 const projectFontCompositions = ref<readonly ProjectFontComposition[]>([])
 const projectFonts = ref<ProjectFontRegistry>({})
 const fontRegistryError = ref<string | null>(null)
@@ -367,11 +367,11 @@ function clearProjectIconRegistry() {
 }
 
 async function syncRegisteredProjectFonts(
-  families: readonly ProjectFontFamily[],
+  fonts: readonly ProjectFont[],
   compositions: readonly ProjectFontComposition[] = projectFontCompositions.value,
 ): Promise<void> {
   const result = await syncProjectFonts(
-    families,
+    fonts,
     resolveProjectInternalAssetSrc,
     compositions,
     async source => readProjectFontCharacterSet(
@@ -863,8 +863,9 @@ async function startWatching() {
         || path.toLowerCase().endsWith('.ocblock')
       ))
       if (customBlockChanges.length > 0) scheduleProjectCustomBlockChanges(customBlockChanges)
-      const fontSources = projectFontFamilies.value
-        .flatMap(family => family.faces.map(face => resolveProjectInternalPath(face.source)))
+      const fontSources = projectFontFamilies.value.flatMap(font => Object.values(font.files)
+        .flatMap(styles => Object.values(styles ?? {}))
+        .map(source => resolveProjectInternalPath(source)))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectFonts(projectFontFamilies.value)
       }

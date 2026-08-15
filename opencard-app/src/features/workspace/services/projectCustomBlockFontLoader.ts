@@ -1,6 +1,7 @@
-import type { ProjectFontFace, UnicodeRange } from '../model/projectFontRegistry'
+import type { ProjectFont, UnicodeRange } from '../model/projectFontRegistry'
+import { projectFontFileEntries, projectFontWeightValues } from '../model/projectFontRegistry'
 import type {
-  ProjectCustomBlockFontFamilyResource,
+  ProjectCustomBlockFontResourceFile,
   ProjectCustomBlockResourceIndex,
 } from '../model/projectCustomBlocks'
 import { createProjectCustomBlockFontFamily } from './projectCustomBlockResources'
@@ -61,25 +62,11 @@ export type ProjectCustomBlockFontCatalog = ReadonlyMap<string, {
   readonly files: ReadonlyMap<string, Uint8Array>
 }>
 
-function cssRange(value: { min: number; max: number }, suffix = ''): string {
-  return value.min === value.max ? `${value.min}${suffix}` : `${value.min}${suffix} ${value.max}${suffix}`
-}
-
-function cssStyle(face: ProjectFontFace): string {
-  return face.style.kind === 'oblique'
-    ? `oblique ${cssRange(face.style.angle, 'deg')}`
-    : face.style.kind
-}
-
 function cssUnicodeRanges(ranges: readonly UnicodeRange[]): string {
   return ranges.map(range => range.start === range.end
     ? `U+${range.start.toString(16).toUpperCase()}`
     : `U+${range.start.toString(16).toUpperCase()}-${range.end.toString(16).toUpperCase()}`)
     .join(', ')
-}
-
-function faceDescriptorKey(face: ProjectFontFace): string {
-  return JSON.stringify([face.weight, face.stretch, face.style])
 }
 
 export async function createProjectCustomBlockFontSession(
@@ -91,26 +78,25 @@ export async function createProjectCustomBlockFontSession(
   const errors: ProjectCustomBlockFontLoadError[] = []
   for (const entry of catalog.values()) {
     const fonts = entry.manifest.resources?.fonts ?? []
-    const families = new Map(fonts.flatMap(font => font.kind === 'family'
+    const projectFonts = new Map(fonts.flatMap(font => font.kind === 'font'
       ? [[font.key.toLowerCase(), font] as const]
       : []))
     const characterSets = new Map<string, Promise<ReadonlySet<number>>>()
     const loadFace = async (
       fontKey: string,
       familyName: string,
-      faceResource: ProjectFontFace,
+      slot: ReturnType<typeof projectFontFileEntries>[number],
       unicodeRanges?: readonly UnicodeRange[],
     ): Promise<void> => {
       let url: string | null = null
       let face: FontFace | null = null
       try {
-        const bytes = findProjectCustomBlockFile(entry.files, faceResource.source)
-        if (!bytes) throw new Error(`Custom block font resource is missing: ${faceResource.source}`)
-        url = runtime.createObjectUrl(new Blob([bytes.slice().buffer], { type: fontMimeForPath(faceResource.source) }))
+        const bytes = findProjectCustomBlockFile(entry.files, slot.source)
+        if (!bytes) throw new Error(`Custom block font resource is missing: ${slot.source}`)
+        url = runtime.createObjectUrl(new Blob([bytes.slice().buffer], { type: fontMimeForPath(slot.source) }))
         face = runtime.createFontFace(familyName, `url(${JSON.stringify(url)})`, {
-          weight: cssRange(faceResource.weight),
-          stretch: cssRange(faceResource.stretch, '%'),
-          style: cssStyle(faceResource),
+          weight: String(projectFontWeightValues[slot.weight]),
+          style: slot.style === 'upright' ? 'normal' : 'italic',
           ...(unicodeRanges?.length ? { unicodeRange: cssUnicodeRanges(unicodeRanges) } : {}),
         })
         await face.load()
@@ -122,44 +108,44 @@ export async function createProjectCustomBlockFontSession(
         errors.push({
           packageKey: entry.manifest.customBlockKey,
           fontKey,
-          source: faceResource.source,
+          source: slot.source,
           reason: 'load-failed',
         })
       }
     }
     for (const font of fonts) {
-      if (font.kind !== 'family') continue
+      if (font.kind !== 'font') continue
       const familyName = createProjectCustomBlockFontFamily(entry.manifest.customBlockKey, font.key)
-      for (const face of font.faces) await loadFace(font.key, familyName, face)
+      for (const slot of projectFontFileEntries(font)) await loadFace(font.key, familyName, slot)
     }
     for (const font of fonts) {
       if (font.kind !== 'composition') continue
       const familyName = createProjectCustomBlockFontFamily(entry.manifest.customBlockKey, font.key)
       const claimedByDescriptor = new Map<string, UnicodeRange[]>()
       for (const member of font.members) {
-        const family: ProjectCustomBlockFontFamilyResource | undefined = families.get(member.familyKey.toLowerCase())
-        if (!family) continue
-        for (const face of family.faces) {
+        const font: ProjectCustomBlockFontResourceFile | undefined = projectFonts.get(member.fontKey.toLowerCase())
+        if (!font) continue
+        for (const slot of projectFontFileEntries(font as ProjectFont)) {
           try {
-            const bytes = findProjectCustomBlockFile(entry.files, face.source)
-            if (!bytes) throw new Error(`Custom block font resource is missing: ${face.source}`)
-            let characterSet = characterSets.get(face.source)
+            const bytes = findProjectCustomBlockFile(entry.files, slot.source)
+            if (!bytes) throw new Error(`Custom block font resource is missing: ${slot.source}`)
+            let characterSet = characterSets.get(slot.source)
             if (!characterSet) {
               characterSet = readProjectFontCharacterSet(bytes)
-              characterSets.set(face.source, characterSet)
+              characterSets.set(slot.source, characterSet)
             }
             const available = characterSetToUnicodeRanges(await characterSet, member.ranges)
-            const descriptorKey = faceDescriptorKey(face)
+            const descriptorKey = `${slot.weight}:${slot.style}`
             const claimed = claimedByDescriptor.get(descriptorKey) ?? []
             const effective = subtractUnicodeRanges(available, claimed)
             if (effective.length === 0) continue
             claimedByDescriptor.set(descriptorKey, mergeUnicodeRanges([...claimed, ...effective]))
-            await loadFace(font.key, familyName, face, effective)
+            await loadFace(font.key, familyName, slot, effective)
           } catch {
             errors.push({
               packageKey: entry.manifest.customBlockKey,
               fontKey: font.key,
-              source: face.source,
+              source: slot.source,
               reason: 'load-failed',
             })
           }

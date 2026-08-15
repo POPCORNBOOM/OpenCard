@@ -31,6 +31,7 @@ export type PropertyConstraintMap = {
         minLength?: number
         maxLength?: number
         options?: readonly string[]
+        optionLabelKeys?: Readonly<Record<string, string>>
         enumMode?: 'select' | 'stepper'
         autocomplete?: readonly string[]
         multiline?: boolean
@@ -260,6 +261,7 @@ export const propertyEditorCategoryDefinitions: Record<PropertyEditorCategoryId,
 }
 
 const textWritingModeOptions = ['horizontal-tb', 'vertical-rl', 'vertical-lr'] as const
+const textFontWeightOptions = ['light', 'normal', 'bold'] as const
 const imageFitOptions = ['cover', 'contain', 'fill'] as const
 const qrErrorCorrectionOptions = ['L', 'M', 'Q', 'H'] as const
 const shapeOptions = ['rectangle', 'ellipse', 'line', 'triangle', 'diamond'] as const
@@ -328,7 +330,16 @@ function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<s
         },
         fontFamily: { fieldType: 'string', categoryId: 'textStyle' },
         fontSize: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'textStyle' },
-        fontWeight: { fieldType: 'string', categoryId: 'textStyle' },
+        fontWeight: {
+            fieldType: 'string',
+            options: textFontWeightOptions,
+            optionLabelKeys: {
+                light: 'propertyEditor.fontWeight.light',
+                normal: 'propertyEditor.fontWeight.normal',
+                bold: 'propertyEditor.fontWeight.bold',
+            },
+            categoryId: 'textStyle',
+        },
         color: { fieldType: 'color', categoryId: 'textStyle', displayFieldKey: 'textColor' },
         lineHeight: { fieldType: 'string', autocomplete: cssLengthAutocomplete, categoryId: 'textLayout' },
         textAlign: { fieldType: 'alignPosition', categoryId: 'textLayout' },

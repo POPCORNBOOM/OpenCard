@@ -50,6 +50,10 @@ function handleClick(event: MouseEvent) {
 
 .text-block-content--richtext :deep(p) { margin: 0; }
 .text-block-content--richtext :deep(p + p) { margin-top: 0.35em; }
+.text-block-content--richtext :deep(strong),
+.text-block-content--richtext :deep(b) { font-weight: 700; }
+.text-block-content--richtext :deep(em),
+.text-block-content--richtext :deep(i) { font-style: italic; }
 .text-block-content--richtext {
     paint-order: stroke fill;
     white-space: break-spaces;
