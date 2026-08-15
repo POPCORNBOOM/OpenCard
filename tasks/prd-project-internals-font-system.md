@@ -70,27 +70,13 @@
 删除 `ProjectFont`、`ProjectFontSet`、递归字体集和旧解析兼容，替换为以下模型：
 
 ```ts
-type NumericRange = {
-  min: number
-  max: number
-}
-
-type ProjectFontFaceStyle =
-  | { kind: 'normal' }
-  | { kind: 'italic' }
-  | { kind: 'oblique'; angle: NumericRange }
-
-type ProjectFontFace = {
-  source: string
-  weight: NumericRange
-  stretch: NumericRange
-  style: ProjectFontFaceStyle
-}
-
 type ProjectFontFamily = {
   key: string
   name: string
-  faces: ProjectFontFace[]
+  files: Partial<Record<'light' | 'normal' | 'bold', {
+    upright?: string
+    italic?: string
+  }>>
 }
 
 type UnicodeRange = {
@@ -99,7 +85,7 @@ type UnicodeRange = {
 }
 
 type ProjectFontCompositionMember = {
-  familyKey: string
+  fontKey: string
   ranges?: UnicodeRange[]
 }
 
@@ -117,19 +103,18 @@ type ProjectFontRegistryDocument = {
 
 - 字体家族与字体组合的 Key 在同一命名空间内不区分大小写唯一。
 - 字体组合只能引用字体家族，不允许嵌套组合。
-- 字体面源路径必须安全、相对 `.opencard` 且位于 `fonts/`。
-- 固定字体使用相同的 `min/max`；可变字体保存检测到的字重、字宽和 oblique 角度范围。
-- 同一家族中重叠且无法确定优先级的字体面描述由编辑器阻止保存。
+- 六个字体槽位源路径必须安全、相对 `.opencard` 且位于 `fonts/`，并且至少填写一个槽位。
+- 文档字重只保存 `light | normal | bold`，运行时固定映射为 `300 | 400 | 700`；字体元数据只用于导入时自动分槽，不进入注册表。
 - Unicode 范围规范化为排序、去重、合并后的有效码点区间并排除代理项；空数组无效，省略 `ranges` 才表示不限范围。
 - 解析器对缺失字段使用当前默认值，对未知或损坏条目给出诊断并忽略可恢复部分；不读取旧 `fonts/fontSets` 格式。
 
 ### 导入与管理体验
 
-- 字体管理器只显示“字体家族”和“字体组合”，不显示独立字体文件记录。
+- 字体管理器只显示“项目字体”和“字体组合”，不显示独立字体文件记录。
 - “导入字体”支持选择单个或多个 WOFF、WOFF2、TTF、OTF、TTC、OTC：
   - 单文件自动建立一个字体家族。
-  - 多文件读取内部家族名、字体面名称、字重、样式、字宽和可变轴，并自动分组。
-  - 默认页面只展示家族名称、Key 和常用字体面；“高级设置”展开完整描述、重新分组和元数据。
+  - 多文件读取内部名称、字重和样式，并自动分配到三档字重的正体/斜体槽位。
+  - 默认页面只展示第一个文件；“补充字重与斜体”入口展开完整六槽，空槽只显示自动回退提示。
 - TTC/OTC 显示集合成员摘要并支持单选或多选；所选成员提取为独立 TTF/OTF 后写入 `fonts/`，不持久化集合索引。
 - 外部或项目普通目录中的字体经过解析、字体引擎验证及可用时的安全修复，再复制到内部目录。
 - 已位于 `.opencard/fonts` 的文件不复制、不改写，但仍须能解析后才能记录。
@@ -142,9 +127,9 @@ type ProjectFontRegistryDocument = {
 - 组合成员严格自上而下匹配：第一个“范围匹配且所选字体面实际含有字形”的家族生效。
 - 未指定范围的成员只接管前面成员未命中且自身字体面具有的字符；缺字继续向后回退，全部失败后使用系统后备字体。
 - 范围编辑器提供常用文字系统预设、直接输入字符和高级 Unicode 区间三种入口，统一保存为 `UnicodeRange[]`。
-- 为每个字体面按实际字形覆盖计算互不重叠的有效范围，并生成包含 `font-weight`、`font-style`、`font-stretch` 和 `unicode-range` 的 `@font-face`。
+- 为每个真实槽位按实际字形覆盖计算互不重叠的有效范围，并生成固定 `font-weight`、`font-style` 和 `unicode-range` 的 `@font-face`；空槽交给浏览器匹配或合成。
 - `font:<key>` 可以引用字体家族或字体组合；所有编辑器、预览、卡牌渲染、导出和富文本共用同一解析与加载服务。
-- 字体预览显示实际承载每段文字的家族和字体面，并诊断缺字、无效范围、被前项完全遮蔽的成员、缺失文件和加载失败。
+- 字体预览显示实际承载每段文字的项目字体和槽位，并诊断缺字、无效范围、被前项完全遮蔽的成员、缺失文件和加载失败。
 - 自定义块打包同步升级为携带所需家族、组合及实际字体文件，确保项目预览、模板和导出结果一致。
 - 该里程碑完成后更新用户向发布说明，描述多字体面家族、TTC/OTC、字符范围回退和简洁/高级双层操作体验。
 
