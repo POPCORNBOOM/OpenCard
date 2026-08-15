@@ -13,6 +13,10 @@ const emit = defineEmits<{
   'open-project': []
 }>()
 
+defineProps<{
+  activationError?: string
+}>()
+
 const { t } = useI18n()
 </script>
 
@@ -37,6 +41,7 @@ const { t } = useI18n()
       />
     </h1>
     <p>{{ t('app.welcome.subtitle') }}</p>
+    <p v-if="activationError" class="workspace-empty-state__error" role="alert">{{ activationError }}</p>
     <div class="workspace-empty-state__actions">
       <OcButton icon="action.add" variant="solid" size="lg" @click="emit('new-project')">
         {{ t('app.menu.newProject') }}
@@ -99,6 +104,10 @@ const { t } = useI18n()
   color: var(--oc-fg-subtle);
   font-size: var(--oc-text-base);
   line-height: 1.5;
+}
+
+.workspace-empty-state .workspace-empty-state__error {
+  color: var(--oc-fg-danger);
 }
 
 .workspace-empty-state__actions {

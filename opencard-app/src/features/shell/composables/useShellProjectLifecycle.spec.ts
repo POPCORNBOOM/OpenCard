@@ -103,6 +103,7 @@ describe('useShellProjectLifecycle', () => {
 
     expect(harness.events).toEqual([
       'detach:D:/old-project',
+      'initialize:D:/new-project',
       'set:D:/new-project',
       'remember:D:/new-project',
     ])
@@ -120,6 +121,7 @@ describe('useShellProjectLifecycle', () => {
 
     expect(harness.events).toEqual([
       'detach:D:/old-project',
+      'initialize:D:/new-project',
       'set:D:/new-project',
       'remember:D:/new-project',
       'open-entry:cards/main.ocdocument',
@@ -207,6 +209,19 @@ describe('useShellProjectLifecycle', () => {
     await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
 
     expect(harness.lifecycle.isActivating.value).toBe(false)
+    expect(harness.lifecycle.activationError.value).toBe(
+      'translated:projectTemplates.errors.activationFailed',
+    )
+    expect(harness.shellPage.value).toEqual({ type: 'welcome' })
+  })
+
+  it('keeps the welcome page and exposes an error when project structure repair fails', async () => {
+    const harness = createHarness()
+    harness.initializeProjectDirectory.mockRejectedValueOnce(new Error('unsafe project structure'))
+
+    await expect(harness.lifecycle.openProject()).resolves.toBe(false)
+
+    expect(harness.setProjectPath).not.toHaveBeenCalled()
     expect(harness.lifecycle.activationError.value).toBe(
       'translated:projectTemplates.errors.activationFailed',
     )

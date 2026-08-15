@@ -48,7 +48,11 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
     await options.project.readDirectoryEntries('', Number.POSITIVE_INFINITY)
   }
 
-  async function activatePreparedProject(path: string, entryPath?: string): Promise<boolean> {
+  async function activatePreparedProject(
+    path: string,
+    entryPath?: string,
+    ensureStructure = false,
+  ): Promise<boolean> {
     if (isActivating.value) return false
 
     isActivating.value = true
@@ -60,6 +64,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
         options.sessions.detachWorkspaceSessions(previousProjectPath)
       }
 
+      if (ensureStructure) await options.project.initializeProjectDirectory(path)
       await options.project.setProjectPath(path)
       options.settings.rememberRecentProject(options.project.projectPath.value)
       if (entryPath) {
@@ -93,7 +98,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
         activationError.value = options.translate('projectInitialization.errors.invalid')
         return false
       }
-      return await activatePreparedProject(path, entryPath)
+      return await activatePreparedProject(path, entryPath, true)
     } catch (error) {
       activationError.value = options.translate('projectTemplates.errors.activationFailed')
       reportAppError('OC-E3001', error)

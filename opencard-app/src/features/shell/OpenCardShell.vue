@@ -215,6 +215,7 @@
             />
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
+              :activation-error="projectActivationError"
               @new-project="openCreateProject"
               @open-project="openProject"
             />
