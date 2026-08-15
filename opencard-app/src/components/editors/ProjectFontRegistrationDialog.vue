@@ -102,7 +102,7 @@ import OcText from '../base/OcText.vue'
 import OcDialog from '../standard/OcDialog.vue'
 import '../../shared/ui/data-grid/dataGrid.css'
 
-type SlotDraft = ProjectFontSlotRequest & { faceName: string; copyRequired: boolean; conflict?: ProjectAssetImportConflict | null; pending?: boolean; failed?: boolean }
+type SlotDraft = ProjectFontSlotRequest & { faceName: string; copyRequired: boolean; conflict?: ProjectAssetImportConflict | null; pending?: boolean }
 type FamilyDraft = { originalKey?: string; key: string; name: string; slots: Partial<Record<ProjectFontSlotKey, SlotDraft>> }
 const props = withDefaults(defineProps<{
   open: boolean; registry?: ProjectFontRegistry; reservedKeys?: readonly string[]; originalKey?: string
@@ -124,7 +124,7 @@ const generatedKey = computed(() => createAvailableKey(fontName.value, [...Objec
 const effectiveKey = computed(() => fontKey.value || generatedKey.value)
 const validKey = computed(() => projectFontIdPattern.test(effectiveKey.value))
 const uniqueKey = computed(() => ![...Object.keys(props.registry), ...props.reservedKeys].some(key => key.toLowerCase() === effectiveKey.value.toLowerCase() && key.toLowerCase() !== props.originalKey?.toLowerCase()))
-const canSubmit = computed(() => Boolean(activeFamily.value && fontName.value.trim() && validKey.value && uniqueKey.value && selectedSourceCount.value && Object.values(activeFamily.value.slots).every(slot => !slot?.pending && !slot?.failed && (!slot?.conflict || slot.conflictResolution))))
+const canSubmit = computed(() => Boolean(activeFamily.value && fontName.value.trim() && validKey.value && uniqueKey.value && selectedSourceCount.value && Object.values(activeFamily.value.slots).every(isSlotReady)))
 const validationMessage = computed(() => !selectedSourceCount.value ? t('projectConfig.fonts.faceRequired') : !fontName.value.trim() ? t('projectConfig.fonts.nameRequired') : !uniqueKey.value ? t('projectConfig.fonts.keyExists') : '')
 const dialogTitle = computed(() => editing.value ? t('projectConfig.fonts.configure') : t('projectConfig.fonts.register'))
 
@@ -208,6 +208,9 @@ async function pickSlot(key: ProjectFontSlotKey): Promise<void> {
   }
 }
 function clearSlot(key: ProjectFontSlotKey): void { if (activeFamily.value) delete activeFamily.value.slots[key] }
+function isSlotReady(slot: SlotDraft | undefined): boolean {
+  return !slot?.pending && (slot?.conflict === undefined || slot.conflict === null || Boolean(slot.conflictResolution))
+}
 function slotKey(weight: ProjectFontWeight, style: ProjectFontStyle): ProjectFontSlotKey { return `${weight}.${style}` as ProjectFontSlotKey }
 function slotFor(weight: ProjectFontWeight, style: ProjectFontStyle): SlotDraft | undefined { return activeFamily.value?.slots[slotKey(weight, style)] }
 function fontWeightLabel(weight: ProjectFontWeight): string {
@@ -232,12 +235,19 @@ function fallbackLabel(key: ProjectFontSlotKey): string {
   }
   return ''
 }
-async function checkConflict(_key: ProjectFontSlotKey, slot: SlotDraft): Promise<void> {
+async function checkConflict(key: ProjectFontSlotKey, slot: SlotDraft): Promise<void> {
   if (!slot.copyRequired) return
-  slot.pending = true
-  try { slot.conflict = await props.resolveImportConflict(slot.sourcePath, DEFAULT_PROJECT_FONT_DIRECTORY); slot.conflictResolution = slot.conflict ? 'rename-copy' : undefined }
-  catch { slot.failed = true }
-  finally { slot.pending = false }
+  const reactiveSlot = activeFamily.value?.slots[key] ?? slot
+  reactiveSlot.pending = true
+  try {
+    reactiveSlot.conflict = await props.resolveImportConflict(reactiveSlot.sourcePath, DEFAULT_PROJECT_FONT_DIRECTORY)
+    reactiveSlot.conflictResolution = reactiveSlot.conflict ? 'rename-copy' : undefined
+  } catch (error) {
+    metadataError.value = t('projectConfig.fonts.importCheckFailed', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+  finally { reactiveSlot.pending = false }
 }
 function updateText(field: 'key' | 'name', event: Event): void {
   if (!(event.target instanceof HTMLInputElement) || !activeFamily.value) return

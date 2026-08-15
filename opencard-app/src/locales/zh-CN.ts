@@ -390,7 +390,7 @@ export default {
       advancedFace: '补充字重与斜体', styleRelationshipHint: '一套字体可以按需补充细体、常规、粗体的正体和斜体文件。', weight: '字重', weightLight: '细体', weightNormal: '常规', weightBold: '粗体', styleNormal: '正体', styleItalic: '斜体',
       selectedFiles: '已选择 {count} 个字体文件', detectedFamilies: '识别为 {count} 套字体', chooseFilesHint: '选择一个或多个字体文件，OpenCard 会自动识别名称、字重和样式。', chooseFiles: '选择字体文件', chooseAgain: '重新选择', simpleSettings: '返回简洁设置',
       faces: '字体样式', addFace: '添加字体文件', removeFace: '移除样式', noFaces: '尚未添加字体样式', replaceFaceFile: '更换文件', faceRequired: '每套字体至少需要一个字体样式。',
-      importedFamilies: '识别到的字体', unnamedFamily: '未命名字体', metadataFailed: '无法读取字体内部信息：{message}',
+      importedFamilies: '识别到的字体', unnamedFamily: '未命名字体', metadataFailed: '无法读取字体内部信息：{message}', importCheckFailed: '无法预检字体文件的导入位置，将在确认时重试：{message}',
       removeFamilyTitle: '移除字体', removeFamilyDescription: '确定从项目中移除“{name}”吗？', cleanupOrphanedFiles: '同时将 {count} 个不再使用的字体文件移入回收站', sharedFilesPreserved: '{count} 个仍被其他字体使用的文件会保留。', cleanupFailed: '无法清理字体文件：{message}',
       entryActions: '字体条目操作',
       switchRegistry: '切换字体注册页面',

@@ -390,7 +390,7 @@ export default {
       advancedFace: 'Add weights and italics', styleRelationshipHint: 'A font can optionally provide upright and italic files for Light, Normal, and Bold.', weight: 'Weight', weightLight: 'Light', weightNormal: 'Normal', weightBold: 'Bold', styleNormal: 'Upright', styleItalic: 'Italic',
       selectedFiles: '{count} font file selected | {count} font files selected', detectedFamilies: 'Detected as {count} font | Detected as {count} fonts', chooseFilesHint: 'Choose one or more font files. OpenCard will detect their names, weights, and styles automatically.', chooseFiles: 'Choose font files', chooseAgain: 'Choose again', simpleSettings: 'Back to simple settings',
       faces: 'Font styles', addFace: 'Add font file', removeFace: 'Remove style', noFaces: 'No font styles added', replaceFaceFile: 'Replace file', faceRequired: 'Each font needs at least one style.',
-      importedFamilies: 'Detected fonts', unnamedFamily: 'Unnamed font', metadataFailed: 'Could not read the font metadata: {message}',
+      importedFamilies: 'Detected fonts', unnamedFamily: 'Unnamed font', metadataFailed: 'Could not read the font metadata: {message}', importCheckFailed: 'Could not preflight the font import location. OpenCard will retry when you confirm: {message}',
       removeFamilyTitle: 'Remove Font', removeFamilyDescription: 'Remove “{name}” from this project?', cleanupOrphanedFiles: 'Also move {count} unused font files to the Recycle Bin', sharedFilesPreserved: '{count} files still used by another font will be preserved.', cleanupFailed: 'Could not clean up the font files: {message}',
       entryActions: 'Font entry actions',
       switchRegistry: 'Switch font registry page',
