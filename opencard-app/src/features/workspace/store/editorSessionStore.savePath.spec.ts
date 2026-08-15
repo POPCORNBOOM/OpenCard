@@ -81,7 +81,7 @@ describe('editorSessionStore explicit save path', () => {
 
     await expect(store.saveSession(session.id)).resolves.toBe('cancelled')
     expect(mocks.pickSavePath).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPath: 'Current Card.ocdocument',
+      defaultPath: 'D:/project/Current Card.ocdocument',
     }))
 
     store.closeSession(session.id)

@@ -558,7 +558,7 @@ export function useEditorSessionStore() {
     if (!nextPath) {
       const fileType = resolveSessionFileType(session)
       const selectedPath = await fileSystemService.pickSavePath({
-        defaultPath: session.name,
+        defaultPath: projectPath.value ? `${normalizePath(projectPath.value)}/${session.name}` : session.name,
         title: '保存文件',
         fileTypeName: fileType.id,
         extensions: fileType.extensions,
