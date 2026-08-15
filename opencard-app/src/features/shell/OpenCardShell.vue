@@ -500,6 +500,7 @@ const REGISTERED_ICON_PACK_ACTION_KEY = 'registered-icon-pack'
 const REGISTER_CUSTOM_BLOCK_ACTION_KEY = 'register-custom-block'
 const REGISTERED_CUSTOM_BLOCK_ACTION_KEY = 'registered-custom-block'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
+const RECENT_PROJECT_REVEAL_ACTION_KEY = 'recent-project.reveal'
 const RECENT_PROJECT_RELOCATE_ACTION_KEY = 'recent-project.relocate'
 const RECENT_PROJECT_REMOVE_ACTION_KEY = 'recent-project.remove'
 const TEMPLATE_EXCLUDE_ACTION_KEY = 'template.exclude'
@@ -994,6 +995,7 @@ function createRecentProjectTreeData(
       iconTone: isMissing ? 'warning' : undefined,
       actions: [
         isMissing ? RECENT_PROJECT_RELOCATE_ACTION_KEY : RECENT_PROJECT_OPEN_ACTION_KEY,
+        ...(!isMissing ? [RECENT_PROJECT_REVEAL_ACTION_KEY] : []),
         RECENT_PROJECT_REMOVE_ACTION_KEY,
       ],
     })
@@ -1186,6 +1188,10 @@ const recentProjectActions = computed<ReadonlyMap<string, OcTreeActionDefinition
   }],
   [RECENT_PROJECT_RELOCATE_ACTION_KEY, {
     title: t('sidebar.relocateRecentProject'),
+    icon: 'status.folder-open',
+  }],
+  [RECENT_PROJECT_REVEAL_ACTION_KEY, {
+    title: t('sidebar.fileActions.reveal'),
     icon: 'status.folder-open',
   }],
   [RECENT_PROJECT_REMOVE_ACTION_KEY, {
@@ -1906,11 +1912,24 @@ function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
     return
   }
 
+  if (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_REVEAL_ACTION_KEY) {
+    void revealRecentProject(path)
+    return
+  }
+
   if (recentProjectAvailability.value.get(intent.key) === false) return
 
   const shouldOpen = intent.type === 'node.activate'
     || (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_OPEN_ACTION_KEY)
   if (shouldOpen) void openRecentProject(path)
+}
+
+async function revealRecentProject(path: string): Promise<void> {
+  try {
+    await fileSystemService.revealInFileManager(path)
+  } catch (error) {
+    reportAppError('OC-E2004', { actionKey: RECENT_PROJECT_REVEAL_ACTION_KEY, path, error })
+  }
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
