@@ -20,6 +20,7 @@
     <ProjectFontRegistrationDialog :open="registrationDialogOpen" :registry="fontRegistry"
       :reserved-keys="(document?.compositions ?? []).map(composition => composition.key)"
       :original-key="registrationOriginalKey" :busy="importBusy" :error="importError"
+      :select-files-on-open="!registrationOriginalKey"
       :default-open-path="projectDirectory" :get-managed-font-source="getManagedFontSource"
       :resolve-import-conflict="projectStore.getProjectFontImportConflict"
       @close="closeRegistrationDialog" @submit="registerFont" />

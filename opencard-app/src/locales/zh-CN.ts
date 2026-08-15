@@ -388,6 +388,7 @@ export default {
       advancedRanges: '高级字符范围', rangePlaceholder: '留空表示其余可用字符，例如 U+4E00-9FFF', invalidRange: '字符范围无效，请使用 U+起始-结束并避开代理区。',
       characterInputPlaceholder: '直接输入要由该家族处理的字符', rangePresetLatin: '拉丁文', rangePresetCjk: '中日韩汉字', rangePresetKana: '假名', rangePresetHangul: '韩文',
       advancedFace: '高级字形属性', weightRange: '字重范围', stretchRange: '字宽范围（%）', faceStyle: '样式', styleNormal: '常规', styleItalic: '斜体', styleOblique: '倾斜', obliqueAngle: '倾斜角度', invalidFaceDescriptors: '字重、字宽或倾斜角度范围无效。',
+      selectedFiles: '已选择 {count} 个字体文件', detectedFamilies: '识别为 {count} 个字体家族', chooseFilesHint: '选择一个或多个字体文件，OpenCard 会自动识别名称、字重和样式。', chooseFiles: '选择字体文件', chooseAgain: '重新选择', simpleSettings: '返回简洁设置',
       faces: '字形文件', addFace: '添加字形', removeFace: '移除字形', noFaces: '尚未添加字形文件', replaceFaceFile: '更换文件', faceRequired: '字体家族至少需要一个字形文件。',
       importedFamilies: '识别到的字体家族', unnamedFamily: '未命名字体家族', metadataFailed: '无法读取字体内部信息：{message}',
       overlappingFaces: '同一家族中有多个字形的字重、字宽和样式范围重叠，请调整高级属性。',

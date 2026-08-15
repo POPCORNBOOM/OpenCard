@@ -68,8 +68,20 @@ describe('ProjectFontRegistrationDialog', () => {
 
   it('requires at least one face file', () => {
     const wrapper = mountDialog()
-    expect(wrapper.text()).toContain('projectConfig.fonts.faceRequired')
+    expect(wrapper.text()).toContain('projectConfig.fonts.chooseFilesHint')
     expect(button(wrapper, 'projectConfig.fonts.confirmRegister').props('disabled')).toBe(true)
+  })
+
+  it('opens the file picker immediately for the simple add-font flow', async () => {
+    mocks.pickFiles.mockResolvedValue(['D:/Downloads/Brand-Regular.woff2'])
+    const wrapper = mountDialog({ selectFilesOnOpen: true })
+
+    await flushPromises()
+
+    expect(mocks.pickFiles).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('projectConfig.fonts.selectedFiles')
+    expect(wrapper.text()).toContain('Brand Sans')
+    expect(wrapper.find('input').exists()).toBe(false)
   })
 
   it('builds one family from multiple face files and exposes descriptors through advanced controls', async () => {
@@ -88,10 +100,10 @@ describe('ProjectFontRegistrationDialog', () => {
       }])
     const wrapper = mountDialog()
 
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
-    await wrapper.findAll('input')[1]!.setValue('brand-sans')
     await button(wrapper, 'projectConfig.fonts.advancedFace').trigger('click')
+    await wrapper.findAll('input')[1]!.setValue('brand-sans')
     const numbers = wrapper.findAll('input[type="number"]')
     await numbers[0]!.setValue('700')
     await numbers[1]!.setValue('700')
@@ -151,27 +163,27 @@ describe('ProjectFontRegistrationDialog', () => {
       registry: { brand: registryEntry('brand', 'Brand', ['fonts/Brand.woff2']) },
       reservedKeys: ['body'],
     })
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
+    await button(wrapper, 'projectConfig.fonts.advancedFace').trigger('click')
     await wrapper.findAll('input')[1]!.setValue('BRAND')
     expect(wrapper.text()).toContain('projectConfig.fonts.keyExists')
     await wrapper.findAll('input')[1]!.setValue('BODY')
     expect(button(wrapper, 'projectConfig.fonts.confirmRegister').props('disabled')).toBe(true)
   })
 
-  it('requires an import conflict choice for each external face', async () => {
+  it('keeps both files by default when an imported filename conflicts', async () => {
     mocks.pickFiles.mockResolvedValue(['D:/Downloads/Brand.woff2'])
     mocks.resolveImportConflict.mockResolvedValue({
       existingSource: 'fonts/Brand.woff2',
       availableCopySource: 'fonts/Brand (2).woff2',
     })
     const wrapper = mountDialog()
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
 
-    expect(wrapper.findAll('[role="radio"]')).toHaveLength(2)
-    expect(button(wrapper, 'projectConfig.fonts.confirmRegister').props('disabled')).toBe(true)
-    await wrapper.get('[role="radio"]').trigger('click')
+    expect(wrapper.findAll('[role="radio"]')).toHaveLength(0)
+    expect(button(wrapper, 'projectConfig.fonts.confirmRegister').props('disabled')).toBe(false)
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       families: [{ faces: [{ conflictResolution: 'rename-copy' }] }],
@@ -190,7 +202,7 @@ describe('ProjectFontRegistrationDialog', () => {
         weight: { min: 400, max: 400 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' },
       }])
     const wrapper = mountDialog()
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Alpha Sans')
@@ -218,8 +230,9 @@ describe('ProjectFontRegistrationDialog', () => {
       weight: { min: 700, max: 700 }, stretch: { min: 100, max: 100 }, style: { kind: 'normal' },
     }])
     const wrapper = mountDialog()
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
+    await button(wrapper, 'projectConfig.fonts.advancedFace').trigger('click')
     await wrapper.findAll('[aria-label="projectConfig.fonts.removeFace"]')[0]!.trigger('click')
     await wrapper.get('form').trigger('submit')
 
@@ -233,7 +246,7 @@ describe('ProjectFontRegistrationDialog', () => {
   it('blocks ambiguous face descriptor overlap', async () => {
     mocks.pickFiles.mockResolvedValue(['D:/Regular.ttf', 'D:/Alternate.ttf'])
     const wrapper = mountDialog()
-    await button(wrapper, 'projectConfig.fonts.addFace').trigger('click')
+    await button(wrapper, 'projectConfig.fonts.chooseFiles').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('projectConfig.fonts.overlappingFaces')
     expect(button(wrapper, 'projectConfig.fonts.confirmRegister').props('disabled')).toBe(true)

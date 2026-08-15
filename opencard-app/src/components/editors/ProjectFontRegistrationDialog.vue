@@ -1,7 +1,43 @@
 <template>
-  <OcDialog class="project-font-dialog" :open="open" :title="dialogTitle" as="form" size="md" min-height="md"
+  <OcDialog class="project-font-dialog" :open="open" :title="dialogTitle" as="form" size="md"
     close-on-backdrop :dismissible="!busy" @request-close="close" @submit="submit">
-    <section v-if="familyDrafts.length > 1" class="project-font-dialog__families">
+    <section v-if="!advancedOpen" class="project-font-dialog__summary">
+      <template v-if="selectedSourceCount > 0">
+        <div class="project-font-dialog__summary-heading">
+          <OcIcon name="action.check" tone="success" />
+          <div>
+            <OcText as="strong">{{ t('projectConfig.fonts.selectedFiles', { count: selectedSourceCount }) }}</OcText>
+            <OcText as="div" tone="muted" size="sm">{{ t('projectConfig.fonts.detectedFamilies', { count: familyDrafts.length }) }}</OcText>
+          </div>
+        </div>
+        <div class="project-font-dialog__summary-list">
+          <div v-for="family in familyDrafts" :key="family.id" class="project-font-dialog__summary-family">
+            <OcText as="strong" size="sm">{{ family.name || t('projectConfig.fonts.unnamedFamily') }}</OcText>
+            <OcText as="span" tone="muted" size="sm">
+              {{ family.faces.map(face => face.faceName || projectAssetName(face.sourcePath)).join(' · ') }}
+            </OcText>
+          </div>
+        </div>
+      </template>
+      <OcText v-else tone="muted" size="sm">{{ t('projectConfig.fonts.chooseFilesHint') }}</OcText>
+      <div class="project-font-dialog__summary-actions">
+        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy"
+          @click="pickFontFile(true, selectedSourceCount > 0)">
+          {{ selectedSourceCount > 0 ? t('projectConfig.fonts.chooseAgain') : t('projectConfig.fonts.chooseFiles') }}
+        </OcButton>
+        <OcButton v-if="selectedSourceCount > 0" type="button" variant="ghost" icon="tool.settings"
+          @click="advancedOpen = true">
+          {{ t('projectConfig.fonts.advancedFace') }}
+        </OcButton>
+      </div>
+    </section>
+
+    <OcButton v-if="advancedOpen && !editing" type="button" variant="ghost" icon="nav.arrow-left"
+      @click="advancedOpen = false">
+      {{ t('projectConfig.fonts.simpleSettings') }}
+    </OcButton>
+
+    <section v-if="advancedOpen && familyDrafts.length > 1" class="project-font-dialog__families">
       <OcText as="strong" size="sm">{{ t('projectConfig.fonts.importedFamilies') }}</OcText>
       <div class="project-font-dialog__family-list">
         <OcButton v-for="(family, index) in familyDrafts" :key="family.id" type="button" variant="ghost"
@@ -11,20 +47,22 @@
       </div>
     </section>
 
-    <label class="project-font-dialog__field">
-      <span>{{ t('projectConfig.fonts.name') }}</span>
-      <OcFieldInput full-width :value="fontName" :aria-invalid="Boolean(faces.length) && !fontName.trim()"
-        @input="updateText('name', $event)" />
-    </label>
+    <template v-if="advancedOpen">
+      <label class="project-font-dialog__field">
+        <span>{{ t('projectConfig.fonts.name') }}</span>
+        <OcFieldInput full-width :value="fontName" :aria-invalid="Boolean(faces.length) && !fontName.trim()"
+          @input="updateText('name', $event)" />
+      </label>
 
-    <label class="project-font-dialog__field">
-      <span>{{ t('projectConfig.fonts.key') }}</span>
-      <OcFieldInput full-width mono :value="fontKey" :placeholder="generatedKey"
-        :aria-invalid="Boolean(fontKey) && (!validKey || !uniqueKey)"
-        @input="updateText('key', $event)" />
-    </label>
+      <label class="project-font-dialog__field">
+        <span>{{ t('projectConfig.fonts.key') }}</span>
+        <OcFieldInput full-width mono :value="fontKey" :placeholder="generatedKey"
+          :aria-invalid="Boolean(fontKey) && (!validKey || !uniqueKey)"
+          @input="updateText('key', $event)" />
+      </label>
+    </template>
 
-    <section class="project-font-dialog__faces">
+    <section v-if="advancedOpen" class="project-font-dialog__faces">
       <header class="project-font-dialog__faces-header">
         <OcText as="strong" size="sm">{{ t('projectConfig.fonts.faces') }}</OcText>
         <OcButton type="button" icon="action.add" variant="soft" :disabled="busy" @click="pickFontFile(true)">
@@ -44,7 +82,7 @@
       <OcText v-else tone="muted" size="sm">{{ t('projectConfig.fonts.noFaces') }}</OcText>
     </section>
 
-    <template v-if="activeFace">
+    <template v-if="advancedOpen && activeFace">
       <label class="project-font-dialog__field">
         <span>{{ t('projectConfig.fonts.file') }}</span>
         <span class="project-font-dialog__file-control">
@@ -65,10 +103,7 @@
         </OcText>
       </div>
 
-      <OcButton type="button" variant="ghost" icon="tool.settings" @click="advancedOpen = !advancedOpen">
-        {{ t('projectConfig.fonts.advancedFace') }}
-      </OcButton>
-      <div v-if="advancedOpen" class="project-font-dialog__advanced">
+      <div class="project-font-dialog__advanced">
         <label class="project-font-dialog__field">
           <span>{{ t('projectConfig.fonts.weightRange') }}</span>
           <span class="project-font-dialog__range">
@@ -116,7 +151,8 @@
       </div>
     </template>
 
-    <OcText v-if="validationMessage" class="project-font-dialog__error" tone="danger" size="sm" role="alert">
+    <OcText v-if="validationMessage && (advancedOpen || selectedSourceCount > 0 || metadataError)"
+      class="project-font-dialog__error" tone="danger" size="sm" role="alert">
       {{ validationMessage }}
     </OcText>
     <OcText v-if="error" class="project-font-dialog__error" tone="danger" size="sm" role="alert">
@@ -205,6 +241,7 @@ const props = withDefaults(defineProps<{
   registry?: ProjectFontRegistry
   reservedKeys?: readonly string[]
   originalKey?: string
+  selectFilesOnOpen?: boolean
   defaultOpenPath?: string
   busy?: boolean
   error?: string
@@ -214,6 +251,7 @@ const props = withDefaults(defineProps<{
   registry: () => ({}),
   reservedKeys: () => [],
   originalKey: undefined,
+  selectFilesOnOpen: false,
   defaultOpenPath: undefined,
   busy: false,
   error: '',
@@ -248,6 +286,9 @@ let nextFaceId = 1
 let nextFamilyId = 1
 
 const editing = computed(() => Boolean(props.originalKey))
+const selectedSourceCount = computed(() => new Set(
+  familyDrafts.value.flatMap(family => family.faces.map(face => face.sourcePath)),
+).size)
 const activeFace = computed(() => faces.value[activeFaceIndex.value] ?? null)
 const generatedKey = computed(() => createAvailableKey(
   fontName.value,
@@ -366,13 +407,16 @@ watch([() => props.open, () => props.originalKey], ([open]) => {
   }]
   activeFamilyIndex.value = 0
   metadataError.value = ''
-  advancedOpen.value = faces.value.some(face => (
-    face.weight.min !== 400 || face.weight.max !== 400
-    || face.stretch.min !== 100 || face.stretch.max !== 100 || face.style.kind !== 'normal'
-  ))
+  advancedOpen.value = editing.value
+  if (!editing.value && props.selectFilesOnOpen) void pickInitialFontFiles()
 }, { immediate: true })
 
-async function pickFontFile(append: boolean): Promise<void> {
+async function pickInitialFontFiles(): Promise<void> {
+  const selected = await pickFontFile(true)
+  if (!selected && selectedSourceCount.value === 0) emit('close')
+}
+
+async function pickFontFile(append: boolean, replaceAll = false): Promise<boolean> {
   const options = {
     title: t('projectConfig.fonts.pickTitle'),
     fileTypeName: t('projectConfig.fonts.fileType'),
@@ -382,7 +426,17 @@ async function pickFontFile(append: boolean): Promise<void> {
   const paths = append && fileSystemService.pickFiles
     ? await fileSystemService.pickFiles(options)
     : [await fileSystemService.pickFile(options)].filter((path): path is string => Boolean(path))
-  if (!paths.length) return
+  if (!paths.length) return false
+  if (replaceAll) {
+    familyDrafts.value = [{
+      id: nextFamilyId++,
+      key: '',
+      name: '',
+      faces: [],
+      activeFaceIndex: -1,
+    }]
+    activeFamilyIndex.value = 0
+  }
   metadataError.value = ''
   const affected: Array<{ familyId: number; faceId: number }> = []
   try {
@@ -449,11 +503,12 @@ async function pickFontFile(append: boolean): Promise<void> {
     metadataError.value = t('projectConfig.fonts.metadataFailed', {
       message: error instanceof Error ? error.message : String(error),
     })
-    return
+    return true
   }
   const firstAffectedFamily = familyDrafts.value.findIndex(family => family.id === affected[0]?.familyId)
   if (firstAffectedFamily >= 0) activeFamilyIndex.value = firstAffectedFamily
   await Promise.all(affected.map(item => checkImportConflict(item.familyId, item.faceId)))
+  return true
 }
 
 function removeFace(index: number): void {
@@ -541,7 +596,7 @@ async function checkImportConflict(familyId: number, faceId: number): Promise<vo
     currentFamily.faces[currentIndex] = {
       ...currentFamily.faces[currentIndex]!,
       importConflict: conflict,
-      conflictResolution: undefined,
+      conflictResolution: conflict ? 'rename-copy' : undefined,
       conflictCheckPending: false,
     }
   } catch {
@@ -566,10 +621,6 @@ function selectConflictResolution(value: string): void {
 function selectFamily(index: number): void {
   if (!familyDrafts.value[index]) return
   activeFamilyIndex.value = index
-  advancedOpen.value = familyDrafts.value[index]!.faces.some(face => (
-    face.weight.min !== 400 || face.weight.max !== 400
-    || face.stretch.min !== 100 || face.stretch.max !== 100 || face.style.kind !== 'normal'
-  ))
 }
 
 function validFace(face: FaceDraft): boolean {
@@ -623,10 +674,24 @@ function fontNameFromPath(path: string): string {
 .project-font-dialog__families,
 .project-font-dialog__faces,
 .project-font-dialog__face-list,
-.project-font-dialog__advanced {
+.project-font-dialog__advanced,
+.project-font-dialog__summary,
+.project-font-dialog__summary-list,
+.project-font-dialog__summary-family {
   display: grid;
   min-width: 0;
   gap: var(--oc-space-2);
+}
+.project-font-dialog__summary-heading,
+.project-font-dialog__summary-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--oc-space-2);
+}
+.project-font-dialog__summary-actions { flex-wrap: wrap; }
+.project-font-dialog__summary-family {
+  padding-block: var(--oc-space-2);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
 }
 .project-font-dialog__family-list { display: flex; flex-wrap: wrap; gap: var(--oc-space-1); }
 .project-font-dialog__family-list [aria-current="true"] { background: var(--oc-bg-selected); color: var(--oc-fg-accent); }
