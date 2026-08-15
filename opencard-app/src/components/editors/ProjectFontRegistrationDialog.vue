@@ -36,6 +36,9 @@
       @click="advancedOpen = false">
       {{ t('projectConfig.fonts.simpleSettings') }}
     </OcButton>
+    <OcText v-if="advancedOpen" as="div" tone="muted" size="sm">
+      {{ t('projectConfig.fonts.styleRelationshipHint') }}
+    </OcText>
 
     <section v-if="advancedOpen && familyDrafts.length > 1" class="project-font-dialog__families">
       <OcText as="strong" size="sm">{{ t('projectConfig.fonts.importedFamilies') }}</OcText>
