@@ -558,7 +558,6 @@ export default {
     cancel: '取消',
     confirm: '初始化并打开',
     errors: {
-      legacy: '此文件夹使用旧版根目录项目结构，当前版本不支持直接打开或自动迁移。',
       invalid: '.opencard 路径不是安全的项目目录。',
       failed: '无法初始化 OpenCard 项目。',
     },

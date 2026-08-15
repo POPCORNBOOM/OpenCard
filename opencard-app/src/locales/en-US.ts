@@ -559,7 +559,6 @@ export default {
     cancel: 'Cancel',
     confirm: 'Initialize and Open',
     errors: {
-      legacy: 'This folder uses the legacy root-level project structure, which cannot be opened or migrated automatically.',
       invalid: 'The .opencard path is not a safe project directory.',
       failed: 'OpenCard could not initialize this project.',
     },

@@ -18,10 +18,11 @@ loading and icon catalog construction consume those dedicated refs only.
 
 Opening or creating a project ensures all five documents and all three managed
 asset directories exist. A directory without `.opencard` requires explicit
-initialization; legacy root-level `.oc*` project files are rejected rather than
-migrated. Invalid registry files clear only their own runtime domain and report a
-domain-specific error. Asset file changes reload the affected registry resources
-without reloading unrelated project data.
+initialization; extra root-level `.oc*` files are outside the current model and
+are ignored without blocking activation or being moved. Missing current entries
+receive their defaults. Invalid registry files clear only their own runtime
+domain and report a domain-specific error. Asset file changes reload the
+affected registry resources without reloading unrelated project data.
 
 ## Document Contract
 

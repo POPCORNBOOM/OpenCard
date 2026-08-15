@@ -165,12 +165,13 @@ describe('useShellProjectLifecycle', () => {
     expect(harness.lifecycle.projectInitializationOpen.value).toBe(false)
   })
 
-  it('does not initialize a legacy root project', async () => {
-    const harness = createHarness({ directoryKind: 'legacy' })
+  it('initializes a directory containing extra root files', async () => {
+    const harness = createHarness({ directoryKind: 'uninitialized' })
 
     await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
-    expect(harness.initializeProjectDirectory).not.toHaveBeenCalled()
-    expect(harness.lifecycle.activationError.value).toBe('translated:projectInitialization.errors.legacy')
+    expect(harness.lifecycle.projectInitializationOpen.value).toBe(true)
+    await expect(harness.lifecycle.confirmProjectInitialization()).resolves.toBe(true)
+    expect(harness.initializeProjectDirectory).toHaveBeenCalledWith('D:/new-project')
   })
 
   it('rejects a second activation while the first one is still running', async () => {

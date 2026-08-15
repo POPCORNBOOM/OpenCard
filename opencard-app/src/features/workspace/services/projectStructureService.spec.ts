@@ -36,14 +36,14 @@ function createFileSystem(initial: Record<string, 'file' | 'directory' | 'symlin
 }
 
 describe('projectStructureService', () => {
-  it('distinguishes current, legacy, ordinary, and unsafe project directories', async () => {
+  it('distinguishes current, incomplete, and unsafe project directories', async () => {
     expect(await classifyProjectDirectory(createFileSystem({
       'D:/Cards/.opencard': 'directory',
       'D:/Cards/.opencard/.ocproject': 'file',
     }).fs, 'D:/Cards')).toBe('project')
     expect(await classifyProjectDirectory(createFileSystem({
       'D:/Cards/.ocproject': 'file',
-    }).fs, 'D:/Cards')).toBe('legacy')
+    }).fs, 'D:/Cards')).toBe('uninitialized')
     expect(await classifyProjectDirectory(createFileSystem().fs, 'D:/Cards')).toBe('uninitialized')
     expect(await classifyProjectDirectory(createFileSystem({
       'D:/Cards/.opencard': 'symlink',
@@ -74,10 +74,11 @@ describe('projectStructureService', () => {
     expect(fs.writeFile).not.toHaveBeenCalledWith('D:/Cards/.opencard/.ocproject', expect.anything())
   })
 
-  it('rejects legacy roots and unsafe managed paths without writing', async () => {
-    const legacy = createFileSystem({ 'D:/Cards/.ocfonts': 'file' })
-    await expect(initializeProjectStructure(legacy.fs, 'D:/Cards')).rejects.toThrow('Legacy')
-    expect(legacy.fs.createDirectory).not.toHaveBeenCalled()
+  it('ignores extra root files and rejects unsafe managed paths without writing', async () => {
+    const extra = createFileSystem({ 'D:/Cards/.ocfonts': 'file' })
+    await initializeProjectStructure(extra.fs, 'D:/Cards')
+    expect(extra.entries.get('D:/Cards/.ocfonts')).toBe('file')
+    expect(extra.entries.get('D:/Cards/.opencard/.ocfonts')).toBe('file')
 
     const unsafe = createFileSystem({ 'D:/Cards/.opencard': 'symlink' })
     await expect(initializeProjectStructure(unsafe.fs, 'D:/Cards')).rejects.toThrow('safe directory')

@@ -6,9 +6,7 @@ import {
   PROJECT_PROFILE_FILE_NAME,
 } from '../model/projectStructure'
 
-const LEGACY_PROJECT_FILE_NAMES = ['.ocproject', '.ocfonts', '.ocicons', '.ocblocks', '.oclocale'] as const
-
-export type ProjectDirectoryKind = 'project' | 'legacy' | 'uninitialized' | 'invalid'
+export type ProjectDirectoryKind = 'project' | 'uninitialized' | 'invalid'
 
 function joinPath(root: string, relativePath: string): string {
   return `${root.replace(/[\\/]+$/, '')}/${relativePath}`
@@ -36,9 +34,6 @@ export async function classifyProjectDirectory(
     return await fs.fileExists(joinPath(projectRoot, PROJECT_PROFILE_FILE_NAME))
       ? 'project'
       : 'uninitialized'
-  }
-  for (const fileName of LEGACY_PROJECT_FILE_NAMES) {
-    if (await fs.fileExists(joinPath(projectRoot, fileName))) return 'legacy'
   }
   return 'uninitialized'
 }
@@ -73,7 +68,6 @@ export async function initializeProjectStructure(
   createId: () => string = () => crypto.randomUUID(),
 ): Promise<void> {
   const kind = await classifyProjectDirectory(fs, projectRoot)
-  if (kind === 'legacy') throw new Error('Legacy root-level OpenCard project files are not supported')
   if (kind === 'invalid') throw new Error('The .opencard path is not a safe directory')
   if (await fs.fileExists(joinPath(projectRoot, PROJECT_INTERNAL_DIRECTORY_NAME))) {
     await ensureProjectStructure(fs, projectRoot)

@@ -90,10 +90,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
         pendingInitialization.value = { path, ...(entryPath ? { entryPath } : {}) }
         return false
       }
-      if (kind === 'legacy') {
-        activationError.value = options.translate('projectInitialization.errors.legacy')
-        return false
-      }
       if (kind === 'invalid') {
         activationError.value = options.translate('projectInitialization.errors.invalid')
         return false
