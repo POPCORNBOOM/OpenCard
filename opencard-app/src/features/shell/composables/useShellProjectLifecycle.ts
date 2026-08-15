@@ -1,5 +1,4 @@
-import { computed, readonly, ref, type Ref } from 'vue'
-import type { ProjectDirectoryKind } from '../../workspace/services/projectStructureService'
+import { readonly, ref, type Ref } from 'vue'
 import type { CreatedProject } from '../../project-templates/model/projectTemplate'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
@@ -15,8 +14,6 @@ type ProjectLifecycleOptions = {
     chooseProjectDirectory: () => Promise<string | null>
     setProjectPath: (path: string) => Promise<void>
     readDirectoryEntries: (path?: string, depth?: number) => Promise<void>
-    classifyProjectDirectory: (path: string) => Promise<ProjectDirectoryKind>
-    initializeProjectDirectory: (path: string) => Promise<void>
   }
   sessions: {
     detachWorkspaceSessions: (oldProjectRoot: string) => void
@@ -41,7 +38,6 @@ function normalizePath(path: string): string {
 export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   const isActivating = ref(false)
   const activationError = ref('')
-  const pendingInitialization = ref<{ path: string; entryPath?: string } | null>(null)
 
   async function ensureProjectTreeLoaded(): Promise<void> {
     if (!options.project.projectPath.value) return
@@ -51,7 +47,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   async function activatePreparedProject(
     path: string,
     entryPath?: string,
-    ensureStructure = false,
   ): Promise<boolean> {
     if (isActivating.value) return false
 
@@ -64,7 +59,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
         options.sessions.detachWorkspaceSessions(previousProjectPath)
       }
 
-      if (ensureStructure) await options.project.initializeProjectDirectory(path)
       await options.project.setProjectPath(path)
       options.settings.rememberRecentProject(options.project.projectPath.value)
       if (entryPath) {
@@ -82,46 +76,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   }
 
   async function activateProject(path: string, entryPath?: string): Promise<boolean> {
-    if (isActivating.value) return false
-    activationError.value = ''
-    try {
-      const kind = await options.project.classifyProjectDirectory(path)
-      if (kind === 'uninitialized') {
-        pendingInitialization.value = { path, ...(entryPath ? { entryPath } : {}) }
-        return false
-      }
-      if (kind === 'invalid') {
-        activationError.value = options.translate('projectInitialization.errors.invalid')
-        return false
-      }
-      return await activatePreparedProject(path, entryPath, true)
-    } catch (error) {
-      activationError.value = options.translate('projectTemplates.errors.activationFailed')
-      reportAppError('OC-E3001', error)
-      return false
-    }
-  }
-
-  async function confirmProjectInitialization(): Promise<boolean> {
-    const pending = pendingInitialization.value
-    if (!pending || isActivating.value) return false
-    isActivating.value = true
-    activationError.value = ''
-    try {
-      await options.project.initializeProjectDirectory(pending.path)
-      pendingInitialization.value = null
-    } catch (error) {
-      activationError.value = options.translate('projectInitialization.errors.failed')
-      reportAppError('OC-E3001', error)
-      return false
-    } finally {
-      isActivating.value = false
-    }
-    return await activatePreparedProject(pending.path, pending.entryPath)
-  }
-
-  function cancelProjectInitialization(): void {
-    if (!isActivating.value) pendingInitialization.value = null
+    return await activatePreparedProject(path, entryPath)
   }
 
   async function openProject(): Promise<boolean> {
@@ -169,10 +124,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   return {
     isActivating: readonly(isActivating),
     activationError: readonly(activationError),
-    projectInitializationOpen: computed(() => pendingInitialization.value !== null),
-    projectInitializationPath: computed(() => pendingInitialization.value?.path ?? ''),
-    confirmProjectInitialization,
-    cancelProjectInitialization,
     openProject,
     openRecentProject,
     relocateRecentProject,

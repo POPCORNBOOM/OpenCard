@@ -2,13 +2,10 @@ import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShellPage } from '../shellPage'
 import { useShellProjectLifecycle } from './useShellProjectLifecycle'
-import type { ProjectDirectoryKind } from '../../workspace/services/projectStructureService'
-
 function createHarness(options?: {
   currentProject?: string
   selectedProject?: string | null
   page?: ShellPage
-  directoryKind?: ProjectDirectoryKind
 }) {
   const events: string[] = []
   const projectPath = ref(options?.currentProject ?? 'D:/old-project')
@@ -22,10 +19,6 @@ function createHarness(options?: {
   })
   const readDirectoryEntries = vi.fn(async () => {
     events.push('load-tree')
-  })
-  const classifyProjectDirectory = vi.fn(async () => options?.directoryKind ?? 'project')
-  const initializeProjectDirectory = vi.fn(async (path: string) => {
-    events.push(`initialize:${path}`)
   })
   const detachWorkspaceSessions = vi.fn((path: string) => {
     events.push(`detach:${path}`)
@@ -48,8 +41,6 @@ function createHarness(options?: {
       chooseProjectDirectory,
       setProjectPath,
       readDirectoryEntries,
-      classifyProjectDirectory,
-      initializeProjectDirectory,
     },
     sessions: {
       detachWorkspaceSessions,
@@ -73,8 +64,6 @@ function createHarness(options?: {
     chooseProjectDirectory,
     setProjectPath,
     readDirectoryEntries,
-    classifyProjectDirectory,
-    initializeProjectDirectory,
     detachWorkspaceSessions,
     closeWorkspaceSessions,
     openFile,
@@ -103,7 +92,6 @@ describe('useShellProjectLifecycle', () => {
 
     expect(harness.events).toEqual([
       'detach:D:/old-project',
-      'initialize:D:/new-project',
       'set:D:/new-project',
       'remember:D:/new-project',
     ])
@@ -121,7 +109,6 @@ describe('useShellProjectLifecycle', () => {
 
     expect(harness.events).toEqual([
       'detach:D:/old-project',
-      'initialize:D:/new-project',
       'set:D:/new-project',
       'remember:D:/new-project',
       'open-entry:cards/main.ocdocument',
@@ -147,31 +134,17 @@ describe('useShellProjectLifecycle', () => {
     expect(harness.shellPage.value).toEqual({ type: 'welcome' })
   })
 
-  it('requests confirmation before initializing an ordinary directory', async () => {
-    const harness = createHarness({ directoryKind: 'uninitialized' })
+  it('opens an ordinary directory directly without initializing project internals', async () => {
+    const harness = createHarness()
 
-    await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
-    expect(harness.lifecycle.projectInitializationOpen.value).toBe(true)
-    expect(harness.lifecycle.projectInitializationPath.value).toBe('D:/new-project')
-    expect(harness.setProjectPath).not.toHaveBeenCalled()
+    await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(true)
 
-    await expect(harness.lifecycle.confirmProjectInitialization()).resolves.toBe(true)
     expect(harness.events).toEqual([
-      'initialize:D:/new-project',
       'detach:D:/old-project',
       'set:D:/new-project',
       'remember:D:/new-project',
     ])
-    expect(harness.lifecycle.projectInitializationOpen.value).toBe(false)
-  })
-
-  it('initializes a directory containing extra root files', async () => {
-    const harness = createHarness({ directoryKind: 'uninitialized' })
-
-    await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
-    expect(harness.lifecycle.projectInitializationOpen.value).toBe(true)
-    await expect(harness.lifecycle.confirmProjectInitialization()).resolves.toBe(true)
-    expect(harness.initializeProjectDirectory).toHaveBeenCalledWith('D:/new-project')
+    expect(harness.shellPage.value).toEqual({ type: 'workbench' })
   })
 
   it('rejects a second activation while the first one is still running', async () => {
@@ -210,19 +183,6 @@ describe('useShellProjectLifecycle', () => {
     await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
 
     expect(harness.lifecycle.isActivating.value).toBe(false)
-    expect(harness.lifecycle.activationError.value).toBe(
-      'translated:projectTemplates.errors.activationFailed',
-    )
-    expect(harness.shellPage.value).toEqual({ type: 'welcome' })
-  })
-
-  it('keeps the welcome page and exposes an error when project structure repair fails', async () => {
-    const harness = createHarness()
-    harness.initializeProjectDirectory.mockRejectedValueOnce(new Error('unsafe project structure'))
-
-    await expect(harness.lifecycle.openProject()).resolves.toBe(false)
-
-    expect(harness.setProjectPath).not.toHaveBeenCalled()
     expect(harness.lifecycle.activationError.value).toBe(
       'translated:projectTemplates.errors.activationFailed',
     )

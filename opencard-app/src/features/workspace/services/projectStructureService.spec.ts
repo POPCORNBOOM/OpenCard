@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FileSystemService } from './fileSystemService'
 import {
-  classifyProjectDirectory,
   ensureProjectStructure,
   initializeProjectStructure,
 } from './projectStructureService'
@@ -36,20 +35,6 @@ function createFileSystem(initial: Record<string, 'file' | 'directory' | 'symlin
 }
 
 describe('projectStructureService', () => {
-  it('distinguishes current, incomplete, and unsafe project directories', async () => {
-    expect(await classifyProjectDirectory(createFileSystem({
-      'D:/Cards/.opencard': 'directory',
-      'D:/Cards/.opencard/.ocproject': 'file',
-    }).fs, 'D:/Cards')).toBe('project')
-    expect(await classifyProjectDirectory(createFileSystem({
-      'D:/Cards/.ocproject': 'file',
-    }).fs, 'D:/Cards')).toBe('uninitialized')
-    expect(await classifyProjectDirectory(createFileSystem().fs, 'D:/Cards')).toBe('uninitialized')
-    expect(await classifyProjectDirectory(createFileSystem({
-      'D:/Cards/.opencard': 'symlink',
-    }).fs, 'D:/Cards')).toBe('invalid')
-  })
-
   it('builds a complete project internally and commits it with one rename', async () => {
     const { fs, entries, writes } = createFileSystem()
     await initializeProjectStructure(fs, 'D:/Cards', () => 'test')
@@ -81,7 +66,7 @@ describe('projectStructureService', () => {
     expect(extra.entries.get('D:/Cards/.opencard/.ocfonts')).toBe('file')
 
     const unsafe = createFileSystem({ 'D:/Cards/.opencard': 'symlink' })
-    await expect(initializeProjectStructure(unsafe.fs, 'D:/Cards')).rejects.toThrow('safe directory')
+    await expect(initializeProjectStructure(unsafe.fs, 'D:/Cards')).rejects.toThrow('Invalid OpenCard project directory')
     expect(unsafe.fs.createDirectory).not.toHaveBeenCalled()
   })
 

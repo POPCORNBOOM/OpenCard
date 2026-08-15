@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   stopWatching: vi.fn(),
   readProjectCustomBlockPackage: vi.fn(),
   readProjectCustomBlockManifest: vi.fn(),
+  initializeProjectStructure: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: vi.fn(), isTauri: () => false }))
@@ -46,9 +47,7 @@ vi.mock('../services/fileSystemService', () => ({
   },
 }))
 vi.mock('../services/projectStructureService', () => ({
-  classifyProjectDirectory: vi.fn(async () => 'project'),
-  ensureProjectStructure: vi.fn(async () => undefined),
-  initializeProjectStructure: vi.fn(async () => undefined),
+  initializeProjectStructure: mocks.initializeProjectStructure,
 }))
 vi.mock('../services/projectIconCatalog', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/projectIconCatalog')>()
@@ -83,6 +82,7 @@ describe('projectStore settings actions', () => {
     mocks.stopWatching.mockResolvedValue(undefined)
     mocks.readProjectCustomBlockPackage.mockResolvedValue(packageResultForTest())
     mocks.readProjectCustomBlockManifest.mockResolvedValue({ manifest: packageResultForTest().manifest, issues: [] })
+    mocks.initializeProjectStructure.mockResolvedValue(undefined)
     useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
 
@@ -98,6 +98,16 @@ describe('projectStore settings actions', () => {
     expect(store.registeredDirectories.value).toEqual(new Map([['', 2]]))
     expect(mocks.writeFile).not.toHaveBeenCalled()
 
+    await store.setProjectPath('')
+  })
+
+  it('opens an ordinary folder without creating project internals', async () => {
+    const store = useProjectStore()
+
+    await store.setProjectPath('D:/ordinary-folder')
+
+    expect(store.projectPath.value).toBe('D:/ordinary-folder')
+    expect(mocks.initializeProjectStructure).not.toHaveBeenCalled()
     await store.setProjectPath('')
   })
 

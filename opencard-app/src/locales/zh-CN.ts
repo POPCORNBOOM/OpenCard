@@ -552,16 +552,6 @@ export default {
       cancel: '取消', confirm: '应用导入',
     },
   },
-  projectInitialization: {
-    title: '初始化 OpenCard 项目',
-    description: '此文件夹还不是 OpenCard 项目。初始化后，项目配置和专属资源将由软件统一存放在 .opencard 中。',
-    cancel: '取消',
-    confirm: '初始化并打开',
-    errors: {
-      invalid: '.opencard 路径不是安全的项目目录。',
-      failed: '无法初始化 OpenCard 项目。',
-    },
-  },
   projectTemplates: {
     title: '新建项目',
     subtitle: '选择模板，并在新文件夹中创建项目。',

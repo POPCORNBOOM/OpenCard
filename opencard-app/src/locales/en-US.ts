@@ -553,16 +553,6 @@ export default {
       cancel: 'Cancel', confirm: 'Apply Import',
     },
   },
-  projectInitialization: {
-    title: 'Initialize OpenCard Project',
-    description: 'This folder is not an OpenCard project yet. Initialization stores project settings and managed resources inside .opencard.',
-    cancel: 'Cancel',
-    confirm: 'Initialize and Open',
-    errors: {
-      invalid: 'The .opencard path is not a safe project directory.',
-      failed: 'OpenCard could not initialize this project.',
-    },
-  },
   projectTemplates: {
     title: 'New Project',
     subtitle: 'Choose a template and create the project in a new folder.',

@@ -9,13 +9,10 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { fileSystemService } from '../services/fileSystemService'
-import {
-  classifyProjectDirectory,
-  ensureProjectStructure,
-  initializeProjectStructure,
-} from '../services/projectStructureService'
+import { initializeProjectStructure } from '../services/projectStructureService'
 import {
   isProjectInternalRelativePath,
+  PROJECT_INTERNAL_DIRECTORIES,
   resolveProjectInternalRelativePath,
 } from '../model/projectStructure'
 import {
@@ -907,12 +904,6 @@ async function setProjectPath(path: string) {
     return
   }
 
-  if (normalizedPath) {
-    const projectKind = await classifyProjectDirectory(fileSystemService, normalizedPath)
-    if (projectKind !== 'project') throw new Error('The selected directory is not an initialized OpenCard project')
-    await ensureProjectStructure(fileSystemService, normalizedPath)
-  }
-
   if (isWatching.value) {
     await stopWatching()
   }
@@ -1152,12 +1143,20 @@ async function importProjectFontFiles(
   return { sources: [`${targetDirectory}/${outputName}`], copied: true }
 }
 
-async function inspectProjectDirectory(path: string) {
-  return await classifyProjectDirectory(fileSystemService, normalizePath(path))
-}
-
-async function initializeProjectDirectory(path: string): Promise<void> {
-  await initializeProjectStructure(fileSystemService, normalizePath(path))
+async function ensureProjectManagementStructure(): Promise<void> {
+  const root = ensureProjectOpen()
+  await initializeProjectStructure(fileSystemService, root)
+  for (const directory of PROJECT_INTERNAL_DIRECTORIES) {
+    registeredDirectories.value.set(directory, 1)
+  }
+  await refreshIndexedEntries({ persist: false })
+  await Promise.all([
+    reloadProjectProfile(),
+    reloadProjectFontRegistry(),
+    reloadProjectIconRegistry(),
+    reloadProjectDictionary(),
+    reloadProjectCustomBlockRegistry(),
+  ])
 }
 
 async function findMatchingProjectFontFile(
@@ -1630,8 +1629,7 @@ export function useProjectStore() {
     expandedDirectories: readonly(expandedDirectories),
     isWatching: readonly(isWatching),
     chooseProjectDirectory,
-    inspectProjectDirectory,
-    initializeProjectDirectory,
+    ensureProjectManagementStructure,
     openProject,
     resetProjectWorkspaceState,
     saveProjectConfiguration,

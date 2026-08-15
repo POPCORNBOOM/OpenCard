@@ -3,10 +3,7 @@ import {
   PROJECT_INTERNAL_DIRECTORIES,
   PROJECT_INTERNAL_DIRECTORY_NAME,
   PROJECT_INTERNAL_FILE_DEFAULTS,
-  PROJECT_PROFILE_FILE_NAME,
 } from '../model/projectStructure'
-
-export type ProjectDirectoryKind = 'project' | 'uninitialized' | 'invalid'
 
 function joinPath(root: string, relativePath: string): string {
   return `${root.replace(/[\\/]+$/, '')}/${relativePath}`
@@ -21,21 +18,6 @@ async function assertExistingPathKind(
   const info = await fs.getFileInfo(path)
   const matches = expected === 'file' ? info.isFile : info.isDirectory
   if (info.isSymlink || !matches) throw new Error(`Invalid OpenCard project ${expected}: ${path}`)
-}
-
-export async function classifyProjectDirectory(
-  fs: FileSystemService,
-  projectRoot: string,
-): Promise<ProjectDirectoryKind> {
-  const internalDirectory = joinPath(projectRoot, PROJECT_INTERNAL_DIRECTORY_NAME)
-  if (await fs.fileExists(internalDirectory)) {
-    const info = await fs.getFileInfo(internalDirectory)
-    if (info.isSymlink || !info.isDirectory) return 'invalid'
-    return await fs.fileExists(joinPath(projectRoot, PROJECT_PROFILE_FILE_NAME))
-      ? 'project'
-      : 'uninitialized'
-  }
-  return 'uninitialized'
 }
 
 export async function ensureProjectStructure(
@@ -67,8 +49,6 @@ export async function initializeProjectStructure(
   projectRoot: string,
   createId: () => string = () => crypto.randomUUID(),
 ): Promise<void> {
-  const kind = await classifyProjectDirectory(fs, projectRoot)
-  if (kind === 'invalid') throw new Error('The .opencard path is not a safe directory')
   if (await fs.fileExists(joinPath(projectRoot, PROJECT_INTERNAL_DIRECTORY_NAME))) {
     await ensureProjectStructure(fs, projectRoot)
     return

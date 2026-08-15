@@ -295,26 +295,6 @@
       @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
       @submit="startProjectExport" />
 
-    <OcDialog
-      :open="projectInitializationOpen"
-      :title="t('projectInitialization.title')"
-      :description="t('projectInitialization.description')"
-      size="sm"
-      close-on-backdrop
-      :dismissible="!isActivatingProject"
-      @request-close="cancelProjectInitialization"
-    >
-      <OcText mono>{{ projectInitializationPath }}</OcText>
-      <template #footer>
-        <OcButton :disabled="isActivatingProject" @click="cancelProjectInitialization">
-          {{ t('projectInitialization.cancel') }}
-        </OcButton>
-        <OcButton variant="solid" :disabled="isActivatingProject" @click="confirmProjectInitialization">
-          {{ t('projectInitialization.confirm') }}
-        </OcButton>
-      </template>
-    </OcDialog>
-
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
       <span>{{ t('app.shell.dropFilesToOpen') }}</span>
@@ -387,11 +367,9 @@ import {
 } from '../workspace/store/editorSessionStore'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
-import OcDialog from '../../components/standard/OcDialog.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
-import OcText from '../../components/base/OcText.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
@@ -555,8 +533,6 @@ const {
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
-  inspectProjectDirectory,
-  initializeProjectDirectory,
   isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
@@ -828,10 +804,6 @@ const {
 const {
   isActivating: isActivatingProject,
   activationError: projectActivationError,
-  projectInitializationOpen,
-  projectInitializationPath,
-  confirmProjectInitialization,
-  cancelProjectInitialization,
   openProject,
   openRecentProject,
   relocateRecentProject: relocateRecentProjectPath,
@@ -845,8 +817,6 @@ const {
     chooseProjectDirectory,
     setProjectPath,
     readDirectoryEntries,
-    classifyProjectDirectory: inspectProjectDirectory,
-    initializeProjectDirectory,
   },
   sessions: {
     detachWorkspaceSessions,
