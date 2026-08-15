@@ -30,14 +30,19 @@
         <div v-for="slot in slotDefinitions" :key="slot.key" class="project-font-dialog__slot">
           <div class="project-font-dialog__slot-heading">
             <span>{{ slot.label }}</span>
+          </div>
+          <div class="project-font-dialog__slot-control">
+            <OcButton class="project-font-dialog__slot-source"
+              :class="{ 'project-font-dialog__slot-source--fallback': !activeFamily?.slots[slot.key] && Boolean(fallbackLabel(slot.key)) }"
+              type="button" variant="outline" block :disabled="busy" @click="pickSlot(slot.key)">
+              {{ activeFamily?.slots[slot.key]
+                ? slotSourceLabel(activeFamily.slots[slot.key]!)
+                : fallbackLabel(slot.key)
+                  || t('projectConfig.fonts.chooseFiles') }}
+            </OcButton>
             <OcButton v-if="activeFamily?.slots[slot.key]" type="button" variant="ghost" icon="action.delete"
               icon-only :aria-label="t('projectConfig.fonts.removeFace')" @click="clearSlot(slot.key)" />
           </div>
-          <OcButton type="button" variant="outline" full-width :disabled="busy" @click="pickSlot(slot.key)">
-            {{ activeFamily?.slots[slot.key]?.faceName
-              || fallbackLabel(slot.key)
-              || t('projectConfig.fonts.chooseFiles') }}
-          </OcButton>
         </div>
       </div>
       <OcText v-if="metadataError" tone="danger" size="sm" role="alert">{{ metadataError }}</OcText>
@@ -197,14 +202,21 @@ async function pickSlot(key: ProjectFontSlotKey): Promise<void> {
   }
 }
 function clearSlot(key: ProjectFontSlotKey): void { if (activeFamily.value) delete activeFamily.value.slots[key] }
+function slotSourceLabel(slot: SlotDraft): string {
+  const fileName = projectAssetName(slot.sourcePath)
+  const faceName = slot.faceName.trim()
+  return faceName && faceName.toLowerCase() !== 'regular' && faceName.toLowerCase() !== fileName.toLowerCase()
+    ? `${fileName} · ${faceName}`
+    : fileName
+}
 function fallbackLabel(key: ProjectFontSlotKey): string {
   const [weight, style] = key.split('.') as [ProjectFontWeight, ProjectFontStyle]
   for (const posture of [style, style === 'italic' ? 'upright' : 'italic'] as const) {
     const candidates = projectFontWeights.flatMap(candidate => {
       const slot = activeFamily.value?.slots[`${candidate}.${posture}` as ProjectFontSlotKey]
-      return slot ? [{ source: slot.faceName, distance: Math.abs(weightValue(candidate) - weightValue(weight)) }] : []
+      return slot ? [{ source: slotSourceLabel(slot), distance: Math.abs(weightValue(candidate) - weightValue(weight)) }] : []
     }).sort((a, b) => a.distance - b.distance)
-    if (candidates[0]) return `${candidates[0].source} · ${t('projectConfig.fonts.fallbackLabel')}`
+    if (candidates[0]) return candidates[0].source
   }
   return ''
 }
@@ -238,5 +250,10 @@ function fontNameFromPath(path: string): string { return projectAssetName(path).
 .project-font-dialog__field { display: grid; gap: var(--oc-space-1); margin-top: var(--oc-space-3); }
 .project-font-dialog__slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--oc-space-2); margin-top: var(--oc-space-4); }
 .project-font-dialog__slot { min-width: 0; }
-.project-font-dialog__slot-heading { display: flex; justify-content: space-between; align-items: center; color: var(--oc-text-muted); font-size: var(--oc-font-size-sm); margin-bottom: var(--oc-space-1); }
+.project-font-dialog__slot-heading { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); margin-bottom: var(--oc-space-1); }
+.project-font-dialog__slot-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--oc-space-1); min-width: 0; }
+.project-font-dialog__slot-source { width: 100%; min-width: 0; overflow: hidden; }
+.project-font-dialog__slot-source--fallback { color: var(--oc-fg-muted); }
+:deep(.project-font-dialog__slot-source .oc-button__content) { width: 100%; justify-content: flex-start; overflow: hidden; }
+:deep(.project-font-dialog__slot-source .oc-button__label) { display: block; width: 100%; text-align: left; }
 </style>
