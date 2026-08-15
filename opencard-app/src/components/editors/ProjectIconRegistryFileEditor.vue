@@ -16,7 +16,7 @@
 
     <ProjectIconRegistrationDialog :open="registrationDialogOpen" :series="document?.iconSeries"
       :busy="importBusy" :error="importError"
-      :default-open-path="projectDirectory" :get-relative-project-path="projectStore.getRelativeProjectPathIfInside"
+      select-file-on-open :default-open-path="iconDirectory" :get-managed-icon-source="getManagedIconSource"
       :resolve-import-conflict="projectStore.getProjectIconImportConflict"
       @close="closeRegistrationDialog" @submit="registerIconSet" />
     <ProjectIconPackImportDialog :open="packImportDialogOpen" :series="document?.iconSeries"
@@ -49,6 +49,7 @@ import {
   type ProjectIconKeyConflict,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
+import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../../features/workspace/model/projectStructure'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import {
@@ -89,6 +90,7 @@ const projectDirectory = computed(() => {
     ? normalized.slice(0, -PROJECT_ICON_REGISTRY_FILE_NAME.length - 1)
     : normalized
 })
+const iconDirectory = computed(() => `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_ICON_DIRECTORY}`)
 const issueSnapshot = computed<EditorIssueSnapshot>(() => ({
   scopeKey: 'project-icon-registry',
   scopeOrder: ['project-icon-registry'],
@@ -166,6 +168,15 @@ function closeRegistrationDialog(): void {
   if (importBusy.value) return
   registrationDialogOpen.value = false
   importError.value = ''
+}
+
+function getManagedIconSource(path: string): string | null {
+  const relative = projectStore.getRelativeProjectPathIfInside(path)?.replace(/\\/g, '/')
+  if (!relative) return null
+  const prefix = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_ICON_DIRECTORY}/`
+  return relative.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())
+    ? relative.slice(PROJECT_INTERNAL_DIRECTORY_NAME.length + 1)
+    : null
 }
 
 function closeImportPackDialog(): void {

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ProjectIconRegistryFileEditor from './ProjectIconRegistryFileEditor.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
+import ProjectIconRegistrationDialog from './ProjectIconRegistrationDialog.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
@@ -16,8 +17,9 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
 describe('ProjectIconRegistryFileEditor', () => {
   it('owns icon-series edits', async () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.ocicons', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/.ocicons', modelValue: '{}' },
     })
+    expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('defaultOpenPath')).toBe('D:/Demo/.opencard/icons')
     wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('update:series', [{
       name: 'Status icons', key: 'status', source: 'assets/icons/status.png', icons: [],
     }])
@@ -33,7 +35,7 @@ describe('ProjectIconRegistryFileEditor', () => {
     const icon = { iconKey: 'same', name: '', x: 0, y: 0, width: 8, height: 8 }
     const wrapper = mount(ProjectIconRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.ocicons',
+        filePath: 'D:/Demo/.opencard/.ocicons',
         modelValue: JSON.stringify({
           iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', icons: [icon, { ...icon, x: 8 }] }],
         }),
@@ -55,7 +57,7 @@ describe('ProjectIconRegistryFileEditor', () => {
 
   it('uses raw repair mode for invalid JSON', () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.ocicons', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/.ocicons', modelValue: '{broken' },
     })
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
   })

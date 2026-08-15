@@ -32,7 +32,7 @@ describe('ProjectIconRegistrationDialog', () => {
       props: {
         open: true,
         defaultOpenPath: 'D:/Project',
-        getRelativeProjectPath: () => null,
+        getManagedIconSource: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
@@ -41,11 +41,14 @@ describe('ProjectIconRegistrationDialog', () => {
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
     await flushPromises()
     expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: 'D:/Project' }))
-    expect(wrapper.findAll('input')[0]!.element.value).toBe('D:/Downloads/Status Icons.PNG')
-    expect(wrapper.findAll('input')[1]!.element.value).toBe('Status Icons')
-    expect(wrapper.findAll('input')[2]!.element.value).toBe('')
-    expect(wrapper.findAll('input')[2]!.attributes('placeholder')).toBe('status-icons')
+    expect(wrapper.text()).toContain('Status Icons.PNG')
+    expect(wrapper.text()).toContain('Status Icons / status-icons')
+    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(false)
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     expect(wrapper.text()).toContain('projectConfig.icons.copyIntoProject')
+    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(true)
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.simpleSettings')!.trigger('click')
+    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(false)
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
@@ -55,16 +58,37 @@ describe('ProjectIconRegistrationDialog', () => {
     })
   })
 
+  it('opens the managed icon directory immediately when requested', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Project/.opencard/icons/status.png')
+    const wrapper = mount(ProjectIconRegistrationDialog, {
+      props: {
+        open: true,
+        selectFileOnOpen: true,
+        defaultOpenPath: 'D:/Project/.opencard/icons',
+        getManagedIconSource: () => 'icons/status.png',
+        resolveImportConflict: mocks.resolveImportConflict,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+    await flushPromises()
+
+    expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({
+      defaultPath: 'D:/Project/.opencard/icons',
+    }))
+    expect(wrapper.text()).toContain('status.png')
+  })
+
   it('always uses automatic packing without configuration controls', async () => {
     mocks.pickFiles.mockResolvedValue(['D:/Images/Warning.png'])
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        getRelativeProjectPath: () => null,
+        getManagedIconSource: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
     await wrapper.vm.$nextTick()
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')
@@ -74,29 +98,28 @@ describe('ProjectIconRegistrationDialog', () => {
   })
 
   it('registers a project image directly and resolves duplicate names', async () => {
-    mocks.pickFile.mockResolvedValue('D:/Project/assets/icons/status.png')
+    mocks.pickFile.mockResolvedValue('D:/Project/.opencard/icons/status.png')
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        series: [{ name: 'Existing status', key: 'status', source: 'assets/icons/status.png', icons: [] }],
-        getRelativeProjectPath: () => 'assets/icons/status.png',
+        series: [{ name: 'Existing status', key: 'status', source: 'icons/status.png', icons: [] }],
+        getManagedIconSource: () => 'icons/status.png',
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
     await flushPromises()
-    expect(wrapper.findAll('input')[0]!.element.value).toBe('D:/Project/assets/icons/status.png')
-    expect(wrapper.findAll('input')[1]!.element.value).toBe('status')
-    expect(wrapper.findAll('input')[2]!.element.value).toBe('')
-    expect(wrapper.findAll('input')[2]!.attributes('placeholder')).toBe('status-2')
+    expect(wrapper.text()).toContain('status.png')
+    expect(wrapper.text()).toContain('status / status-2')
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     expect(wrapper.text()).toContain('projectConfig.icons.registerProjectFile')
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
       name: 'status',
       key: 'status-2',
-      sourcePath: 'D:/Project/assets/icons/status.png',
+      sourcePath: 'D:/Project/.opencard/icons/status.png',
     })
   })
 
@@ -109,7 +132,7 @@ describe('ProjectIconRegistrationDialog', () => {
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        getRelativeProjectPath: () => null,
+        getManagedIconSource: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
@@ -117,6 +140,8 @@ describe('ProjectIconRegistrationDialog', () => {
 
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
     await flushPromises()
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
+    await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.project-icon-registration-dialog__conflict [role="radio"]')).toHaveLength(2)
     await wrapper.findAll('.project-icon-registration-dialog__conflict [role="radio"]')[1]!.trigger('click')
     await wrapper.get('form').trigger('submit')
@@ -125,17 +150,37 @@ describe('ProjectIconRegistrationDialog', () => {
     })
   })
 
-  it('composes multiple selected images before submitting the generated spritesheet', async () => {
-    mocks.pickFiles.mockResolvedValue(['D:/Images/Warning.png', 'D:/Images/Info.png'])
+  it('shows a failed import preflight without permanently disabling confirmation', async () => {
+    mocks.pickFile.mockResolvedValue('D:/Downloads/status.png')
+    mocks.resolveImportConflict.mockRejectedValue(new Error('preflight failed'))
     const wrapper = mount(ProjectIconRegistrationDialog, {
       props: {
         open: true,
-        getRelativeProjectPath: () => null,
+        getManagedIconSource: () => null,
         resolveImportConflict: mocks.resolveImportConflict,
       },
       global: { stubs: { Teleport: true } },
     })
 
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseFile')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('projectConfig.importConflict.checkFailedWithReason')
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('composes multiple selected images before submitting the generated spritesheet', async () => {
+    mocks.pickFiles.mockResolvedValue(['D:/Images/Warning.png', 'D:/Images/Info.png'])
+    const wrapper = mount(ProjectIconRegistrationDialog, {
+      props: {
+        open: true,
+        getManagedIconSource: () => null,
+        resolveImportConflict: mocks.resolveImportConflict,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+
+    await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
     await wrapper.vm.$nextTick()
     await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')
@@ -159,11 +204,12 @@ describe('ProjectIconRegistrationDialog', () => {
       const wrapper = mount(ProjectIconRegistrationDialog, {
         props: {
           open: true,
-          getRelativeProjectPath: () => null,
+          getManagedIconSource: () => null,
           resolveImportConflict: mocks.resolveImportConflict,
         },
         global: { stubs: { Teleport: true } },
       })
+      await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.advancedSettings')!.trigger('click')
       wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'images')
       await wrapper.vm.$nextTick()
       await wrapper.findAllComponents(OcButton).find(button => button.text() === 'projectConfig.icons.chooseImages')!.trigger('click')

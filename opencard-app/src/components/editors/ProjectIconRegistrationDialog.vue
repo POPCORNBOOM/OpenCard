@@ -1,67 +1,84 @@
 <template>
   <OcDialog class="project-icon-registration-dialog" :open="open"
     :title="t('projectConfig.icons.createPack')" as="form" size="md"
-    min-height="md"
     close-on-backdrop :dismissible="!busy" @request-close="close" @submit="submit">
-    <OcOptionGroup
-      class="project-icon-registration-dialog__mode-switch"
-      :model-value="inputMode"
-      :options="inputModeOptions"
-      fill
-      :columns="2"
-      :disabled="busy || isComposing"
-      @update:model-value="selectInputMode"
-    />
-
-    <label v-if="inputMode === 'spritesheet'" class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.file') }}</span>
-      <span class="project-icon-registration-dialog__file-control">
-        <OcFieldInput full-width mono readonly :value="selectedPath"
-          :placeholder="t('projectConfig.icons.noFileSelected')" />
-        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy || isComposing" @click="pickIconFile">
-          {{ t('projectConfig.icons.chooseFile') }}
+    <section class="project-icon-registration-dialog__summary">
+      <template v-if="hasSelectedInput">
+        <OcText as="strong">{{ selectedInputSummary }}</OcText>
+        <OcText tone="muted" size="sm">{{ iconSetName }} / {{ effectiveKey }}</OcText>
+      </template>
+      <OcText v-else tone="muted" size="sm">{{ t('projectConfig.icons.chooseFileHint') }}</OcText>
+      <div class="project-icon-registration-dialog__summary-actions">
+        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy || isComposing" @click="pickInput">
+          {{ hasSelectedInput ? t('projectConfig.icons.chooseAgain') : t('projectConfig.icons.chooseFile') }}
         </OcButton>
-      </span>
-    </label>
-    <div v-else class="project-icon-registration-dialog__field">
-      <span class="project-icon-registration-dialog__field-label">
-        <span>{{ t('projectConfig.icons.imageFiles') }}</span>
-        <OcButton icon-only size="sm" variant="ghost" icon="status.unknown"
-          :data-tooltip="t('projectConfig.icons.automaticPackingHelp')"
-          :aria-label="t('projectConfig.icons.automaticPackingHelp')" />
-      </span>
-      <span class="project-icon-registration-dialog__file-control">
-        <OcFieldInput full-width mono readonly :value="selectedImageSummary"
-          :placeholder="t('projectConfig.icons.noImagesSelected')" />
-        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy || isComposing" @click="pickIconFiles">
-          {{ t('projectConfig.icons.chooseImages') }}
+        <OcButton type="button" variant="ghost" icon="tool.settings"
+          :disabled="busy || isComposing" @click="advancedOpen = !advancedOpen">
+          {{ advancedOpen ? t('projectConfig.icons.simpleSettings') : t('projectConfig.icons.advancedSettings') }}
         </OcButton>
-      </span>
-      <ul v-if="selectedImagePaths.length" class="project-icon-registration-dialog__image-list">
-        <li v-for="path in selectedImagePaths" :key="path">{{ fileName(path) }}</li>
-      </ul>
-    </div>
+      </div>
+    </section>
 
-    <label class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.packName') }}</span>
-      <OcFieldInput full-width autofocus :value="iconSetName"
-        :aria-invalid="Boolean(selectedPath) && !validName" @input="updateText('name', $event)" />
-    </label>
-    <label class="project-icon-registration-dialog__field">
-      <span>{{ t('projectConfig.icons.packKey') }}</span>
-      <OcFieldInput full-width mono :value="iconSetKey" :placeholder="generatedKey"
-        :aria-invalid="Boolean(iconSetKey) && (!validKey || !uniqueKey)" @input="updateText('key', $event)" />
-    </label>
+    <template v-if="advancedOpen">
+      <OcOptionGroup
+        class="project-icon-registration-dialog__mode-switch"
+        :model-value="inputMode"
+        :options="inputModeOptions"
+        fill
+        :columns="2"
+        :disabled="busy || isComposing"
+        @update:model-value="selectInputMode"
+      />
 
-    <div v-if="inputMode === 'spritesheet' && hasSelectedInput" class="project-icon-registration-dialog__mode" role="status">
-      <OcIcon :name="copyRequired ? 'action.copy' : 'action.check'" size="sm" tone="muted" />
-      <OcText as="span" tone="muted" size="sm">
-        {{ copyRequired ? t('projectConfig.icons.copyIntoProject') : t('projectConfig.icons.registerProjectFile') }}
-      </OcText>
-    </div>
+      <label v-if="inputMode === 'spritesheet'" class="project-icon-registration-dialog__field">
+        <span>{{ t('projectConfig.icons.file') }}</span>
+        <span class="project-icon-registration-dialog__file-control">
+          <OcFieldInput full-width mono readonly :value="selectedPath"
+            :placeholder="t('projectConfig.icons.noFileSelected')" />
+          <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy || isComposing" @click="pickIconFile">
+            {{ t('projectConfig.icons.chooseFile') }}
+          </OcButton>
+        </span>
+      </label>
+      <div v-else class="project-icon-registration-dialog__field">
+        <span class="project-icon-registration-dialog__field-label">
+          <span>{{ t('projectConfig.icons.imageFiles') }}</span>
+          <OcButton icon-only size="sm" variant="ghost" icon="status.unknown"
+            :data-tooltip="t('projectConfig.icons.automaticPackingHelp')"
+            :aria-label="t('projectConfig.icons.automaticPackingHelp')" />
+        </span>
+        <span class="project-icon-registration-dialog__file-control">
+          <OcFieldInput full-width mono readonly :value="selectedImageSummary"
+            :placeholder="t('projectConfig.icons.noImagesSelected')" />
+          <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy || isComposing" @click="pickIconFiles">
+            {{ t('projectConfig.icons.chooseImages') }}
+          </OcButton>
+        </span>
+        <ul v-if="selectedImagePaths.length" class="project-icon-registration-dialog__image-list">
+          <li v-for="path in selectedImagePaths" :key="path">{{ fileName(path) }}</li>
+        </ul>
+      </div>
 
-    <section v-if="inputMode === 'images' && selectedImagePaths.length"
-      class="project-icon-registration-dialog__preview" aria-live="polite">
+      <label class="project-icon-registration-dialog__field">
+        <span>{{ t('projectConfig.icons.packName') }}</span>
+        <OcFieldInput full-width autofocus :value="iconSetName"
+          :aria-invalid="Boolean(selectedPath) && !validName" @input="updateText('name', $event)" />
+      </label>
+      <label class="project-icon-registration-dialog__field">
+        <span>{{ t('projectConfig.icons.packKey') }}</span>
+        <OcFieldInput full-width mono :value="iconSetKey" :placeholder="generatedKey"
+          :aria-invalid="Boolean(iconSetKey) && (!validKey || !uniqueKey)" @input="updateText('key', $event)" />
+      </label>
+
+      <div v-if="inputMode === 'spritesheet' && hasSelectedInput" class="project-icon-registration-dialog__mode" role="status">
+        <OcIcon :name="copyRequired ? 'action.copy' : 'action.check'" size="sm" tone="muted" />
+        <OcText as="span" tone="muted" size="sm">
+          {{ copyRequired ? t('projectConfig.icons.copyIntoProject') : t('projectConfig.icons.registerProjectFile') }}
+        </OcText>
+      </div>
+
+      <section v-if="inputMode === 'images' && selectedImagePaths.length"
+        class="project-icon-registration-dialog__preview" aria-live="polite">
       <div class="project-icon-registration-dialog__preview-heading">
         <OcText as="strong">{{ t('projectConfig.icons.previewTitle') }}</OcText>
         <OcText v-if="previewPending" tone="muted" size="sm">
@@ -83,9 +100,10 @@
       <OcText v-else-if="previewError" tone="danger" size="sm" role="alert">
         {{ previewError }}
       </OcText>
-    </section>
+      </section>
+    </template>
 
-    <div v-if="importConflict && inputMode === 'spritesheet'" class="project-icon-registration-dialog__conflict" role="group"
+    <div v-if="advancedOpen && importConflict && inputMode === 'spritesheet'" class="project-icon-registration-dialog__conflict" role="group"
       :aria-label="t('projectConfig.importConflict.title')">
       <OcText as="p" size="sm">
         {{ t('projectConfig.importConflict.message', { path: importConflict.existingSource }) }}
@@ -97,6 +115,7 @@
       </OcText>
     </div>
 
+    <OcText v-if="conflictCheckError" tone="danger" size="sm" role="alert">{{ conflictCheckError }}</OcText>
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">
       {{ validationMessage }}
     </OcText>
@@ -160,13 +179,15 @@ const props = withDefaults(defineProps<{
   open: boolean
   series?: readonly ProjectIconSeries[]
   defaultOpenPath?: string
+  selectFileOnOpen?: boolean
   busy?: boolean
   error?: string
-  getRelativeProjectPath: (path: string) => string | null
+  getManagedIconSource: (path: string) => string | null
   resolveImportConflict: (sourcePath: string, targetDirectory: string) => Promise<ProjectAssetImportConflict | null>
 }>(), {
   series: () => [],
   defaultOpenPath: undefined,
+  selectFileOnOpen: false,
   busy: false,
   error: '',
 })
@@ -176,6 +197,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const inputMode = ref<'spritesheet' | 'images'>('spritesheet')
+const advancedOpen = ref(false)
 const selectedPath = ref('')
 const selectedImagePaths = ref<string[]>([])
 const projectSource = ref<string | null>(null)
@@ -186,7 +208,7 @@ const keyEdited = ref(false)
 const importConflict = ref<ProjectAssetImportConflict | null>(null)
 const conflictResolution = ref<ProjectAssetImportResolution | null>(null)
 const conflictCheckPending = ref(false)
-const conflictCheckFailed = ref(false)
+const conflictCheckError = ref('')
 const isComposing = ref(false)
 const localError = ref('')
 const previewComposition = shallowRef<ProjectIconSpritesheetComposition | null>(null)
@@ -209,6 +231,9 @@ const hasSelectedInput = computed(() => inputMode.value === 'spritesheet'
 const selectedImageSummary = computed(() => selectedImagePaths.value.length
   ? t('projectConfig.icons.selectedImagesCount', { count: selectedImagePaths.value.length })
   : '')
+const selectedInputSummary = computed(() => inputMode.value === 'images'
+  ? selectedImageSummary.value
+  : fileName(selectedPath.value))
 const validName = computed(() => normalizedName.value.length > 0)
 const generatedKey = computed(() => createAvailableProjectIconSeriesKey(iconSetName.value, props.series))
 const effectiveKey = computed(() => iconSetKey.value || generatedKey.value)
@@ -248,21 +273,20 @@ const canSubmit = computed(() => Boolean(
   && validKey.value
   && uniqueKey.value
   && !conflictCheckPending.value
-  && !conflictCheckFailed.value
   && (inputMode.value === 'images' || !importConflict.value || conflictResolution.value)
 ))
 const validationMessage = computed(() => {
+  if (!hasSelectedInput.value) return ''
   if (!validName.value) return t('projectConfig.icons.invalidIconSetName')
   if (!validKey.value) return t('projectConfig.icons.invalidIconSetKey')
   if (!uniqueKey.value) return t('projectConfig.icons.iconSetKeyExists')
-  if (!hasSelectedInput.value) return ''
-  if (conflictCheckFailed.value) return t('projectConfig.importConflict.checkFailed')
   return ''
 })
 
 watch(() => props.open, open => {
   if (!open) return
   inputMode.value = 'spritesheet'
+  advancedOpen.value = false
   selectedPath.value = ''
   selectedImagePaths.value = []
   projectSource.value = null
@@ -273,26 +297,36 @@ watch(() => props.open, open => {
   isComposing.value = false
   clearPreview()
   localError.value = ''
+  conflictCheckError.value = ''
   resetImportConflict()
+  if (props.selectFileOnOpen) void pickIconFile().then(selected => {
+    if (!selected && !hasSelectedInput.value) emit('close')
+  })
 }, { immediate: true })
 
-async function pickIconFile(): Promise<void> {
+async function pickIconFile(): Promise<boolean> {
   const path = await fileSystemService.pickFile({
     title: t('projectConfig.icons.pickTitle'),
     fileTypeName: t('projectConfig.icons.fileType'),
     extensions: ['png', 'jpg', 'jpeg', 'webp'],
     defaultPath: props.defaultOpenPath,
   })
-  if (!path) return
+  if (!path) return false
   selectedPath.value = path
   selectedImagePaths.value = []
   localError.value = ''
-  projectSource.value = props.getRelativeProjectPath(path)
+  projectSource.value = props.getManagedIconSource(path)
   copyRequired.value = projectSource.value === null
   const derivedName = fileName(path).replace(/\.(?:png|jpe?g|webp)$/i, '')
   iconSetName.value = derivedName
   if (!keyEdited.value) iconSetKey.value = ''
   await checkImportConflict()
+  return true
+}
+
+async function pickInput(): Promise<void> {
+  if (inputMode.value === 'images') await pickIconFiles()
+  else await pickIconFile()
 }
 
 async function pickIconFiles(): Promise<void> {
@@ -451,7 +485,7 @@ function resetImportConflict(pending = false): void {
   importConflict.value = null
   conflictResolution.value = null
   conflictCheckPending.value = pending
-  conflictCheckFailed.value = false
+  conflictCheckError.value = ''
 }
 
 async function checkImportConflict(): Promise<void> {
@@ -461,17 +495,18 @@ async function checkImportConflict(): Promise<void> {
   }
   const version = ++conflictCheckVersion
   conflictCheckPending.value = true
-  conflictCheckFailed.value = false
   try {
     const conflict = await props.resolveImportConflict(selectedPath.value, DEFAULT_PROJECT_ICON_DIRECTORY)
     if (version !== conflictCheckVersion) return
     importConflict.value = conflict
-    conflictResolution.value = null
-  } catch {
+    conflictResolution.value = conflict ? 'rename-copy' : null
+  } catch (error) {
     if (version !== conflictCheckVersion) return
     importConflict.value = null
     conflictResolution.value = null
-    conflictCheckFailed.value = true
+    conflictCheckError.value = t('projectConfig.importConflict.checkFailedWithReason', {
+      message: error instanceof Error ? error.message : String(error),
+    })
   } finally {
     if (version === conflictCheckVersion) conflictCheckPending.value = false
   }
@@ -485,6 +520,8 @@ onBeforeUnmount(clearPreview)
 </script>
 
 <style scoped>
+.project-icon-registration-dialog__summary { display: grid; gap: var(--oc-space-1); }
+.project-icon-registration-dialog__summary-actions { display: flex; gap: var(--oc-space-2); margin-top: var(--oc-space-2); }
 .project-icon-registration-dialog__mode-switch { margin-bottom: var(--oc-space-2); }
 .project-icon-registration-dialog__spinner {
   animation: project-icon-registration-dialog-spin calc(var(--oc-duration-slow) * 4) linear infinite;
