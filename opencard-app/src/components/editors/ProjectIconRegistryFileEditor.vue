@@ -5,6 +5,7 @@
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
       :description="t('iconRegistry.description')" :series="document.iconSeries"
       :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
+      :default-open-path="iconDirectory" :import-icon-source="importIconSource"
       :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
@@ -175,6 +176,13 @@ function getManagedIconSource(path: string): string | null {
   const managedDirectory = iconDirectory.value.replace(/\\/g, '/').replace(/\/+$/, '')
   if (!normalizedPath.toLocaleLowerCase().startsWith(`${managedDirectory.toLocaleLowerCase()}/`)) return null
   return `${DEFAULT_PROJECT_ICON_DIRECTORY}/${normalizedPath.slice(managedDirectory.length + 1)}`
+}
+
+async function importIconSource(sourcePath: string, currentSource: string): Promise<string> {
+  if (sourcePath === currentSource) return currentSource
+  const managedSource = getManagedIconSource(sourcePath)
+  if (managedSource) return managedSource
+  return (await projectStore.importProjectIconFile(sourcePath)).source
 }
 
 function closeImportPackDialog(): void {

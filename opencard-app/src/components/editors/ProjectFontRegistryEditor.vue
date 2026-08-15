@@ -173,9 +173,8 @@ const treeData = computed<OcTreeData>(() => {
     ['families', { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
     ['compositions', { label: t('projectConfig.fonts.compositions'), icon: 'data.layers' }],
     ...props.families.map(entry => {
-      const actions = referencedFamilyKeys.value.has(entry.key.toLocaleLowerCase())
-        ? ['configure-family']
-        : ['configure-family', 'delete-family']
+      const referenced = referencedFamilyKeys.value.has(entry.key.toLocaleLowerCase())
+      const actions = referenced ? ['configure-family'] : ['configure-family', 'delete-family']
       return [treeKey('families', entry.key), {
         label: entry.name, icon: 'file.font', actions, contextActions: actions,
       }] as const

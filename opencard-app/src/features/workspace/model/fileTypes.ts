@@ -293,12 +293,12 @@ function isProjectInternalFile(path: string, projectRoot: string): boolean {
     : parentPath === normalizedRoot
 }
 
-function isRegisteredFontSource(
+function isRegisteredManagedSource(
   path: string,
   projectRoot: string | undefined,
-  registeredFontSources: ReadonlySet<string> | undefined,
+  registeredSources: ReadonlySet<string> | undefined,
 ): boolean {
-  if (!projectRoot || !registeredFontSources) return false
+  if (!projectRoot || !registeredSources) return false
 
   const normalizedPath = path.replace(/\\/g, '/')
   const normalizedRoot = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -312,7 +312,7 @@ function isRegisteredFontSource(
       : null
   if (!relativePath) return false
 
-  return [...registeredFontSources].some((source) => {
+  return [...registeredSources].some((source) => {
     const normalizedSource = source.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
     return isWindowsLikePath(projectRoot)
       ? normalizedSource.toLocaleLowerCase() === relativePath.toLocaleLowerCase()
@@ -390,6 +390,7 @@ export function resolveEntryIcon(
   isExpanded = false,
   projectRoot?: string,
   registeredFontSources?: ReadonlySet<string>,
+  registeredIconSources?: ReadonlySet<string>,
 ): EntryIconPresentation {
   if (isDirectory) {
     return resolveDirectoryIcon(path, isExpanded)
@@ -399,11 +400,17 @@ export function resolveEntryIcon(
   if (fileType.id === 'font'
     && projectRoot
     && registeredFontSources
-    && !isRegisteredFontSource(path, projectRoot, registeredFontSources)) {
+    && !isRegisteredManagedSource(path, projectRoot, registeredFontSources)) {
     return {
       icon: 'file.font',
       tone: 'muted',
     }
+  }
+  if (fileType.id === 'image'
+    && projectRoot
+    && registeredIconSources
+    && !isRegisteredManagedSource(path, projectRoot, registeredIconSources)) {
+    return { icon: 'file.image', tone: 'muted' }
   }
   return {
     icon: fileType.icon,

@@ -347,6 +347,12 @@ export function useSettingsWorkspace(
         },
         {
           type: 'switch',
+          key: 'workspace.hideDotFiles',
+          label: options.translate('settings.fields.hideDotFiles', 'Hide files and folders whose names start with a dot'),
+          checked: settings.workspace.hideDotFiles,
+        },
+        {
+          type: 'switch',
           key: 'workspace.showSelectionPositionOnMove',
           label: options.translate(
             'settings.fields.showSelectionPositionOnMove',

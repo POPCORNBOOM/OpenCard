@@ -137,6 +137,7 @@
             v-else-if="list.key === PROJECT_MANAGEMENT_LIST_KEY && projectManagementTreeData.rootKeys.length > 0"
             class="open-card-shell__sidebar-tree"
             :data="projectManagementTreeData"
+            :actions="projectManagementActions"
             :selected-keys="selectedFileKeys"
             :expanded-keys="projectManagementExpandedKeys"
             role="tree"
@@ -362,7 +363,15 @@ import { useI18n } from 'vue-i18n'
 import { message as showMessage } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
-import { projectFontSources } from '../workspace/model/projectFontRegistry'
+import {
+  parseProjectFontRegistryText,
+  PROJECT_FONT_REGISTRY_FILE_NAME,
+  projectFontSources,
+} from '../workspace/model/projectFontRegistry'
+import {
+  parseProjectIconRegistryText,
+  PROJECT_ICON_REGISTRY_FILE_NAME,
+} from '../workspace/model/projectIconRegistry'
 import {
   createDefaultOpenCardContent,
   useEditorSessionStore,
@@ -449,6 +458,10 @@ import {
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
   PROJECT_ENTRY_REVEAL_ACTION_KEY,
+  PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY,
+  PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY,
+  PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY,
+  PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY,
   isProjectEntryConfirmDeleteActionKey,
   projectEntryConfirmDeleteActionKey,
   projectEntryDeleteActionKey,
@@ -533,6 +546,9 @@ const {
   projectProfile,
   projectInformation,
   projectFontFamilies,
+  fontRegistryReady,
+  projectIconSeries,
+  iconRegistryReady,
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   chooseProjectDirectory,
@@ -547,6 +563,8 @@ const {
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
   trashFile,
+  trashUnusedProjectFontFiles,
+  trashUnusedProjectIconFiles,
   revealEntryInFileManager,
   getRelativeProjectPath,
   moveEntryByDrop,
@@ -937,10 +955,35 @@ const {
   translate: t,
 })
 
+const registeredFontSourcesForManagement = computed<readonly string[] | null>(() => {
+  const registryPath = resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME).replace(/\\/g, '/').toLocaleLowerCase()
+  const openRegistrySession = sessions.value.find(session => (
+    session.path?.replace(/\\/g, '/').toLocaleLowerCase() === registryPath
+  ))
+  if (!openRegistrySession) return fontRegistryReady.value
+    ? projectFontFamilies.value.flatMap(projectFontSources)
+    : null
+  const draft = parseProjectFontRegistryText(openRegistrySession.draftContent)
+  return draft ? (draft.families ?? []).flatMap(projectFontSources) : null
+})
+const registeredIconSourcesForManagement = computed<readonly string[] | null>(() => {
+  const registryPath = resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME).replace(/\\/g, '/').toLocaleLowerCase()
+  const openRegistrySession = sessions.value.find(session => (
+    session.path?.replace(/\\/g, '/').toLocaleLowerCase() === registryPath
+  ))
+  if (!openRegistrySession) return iconRegistryReady.value
+    ? projectIconSeries.value.map(series => series.source)
+    : null
+  const draft = parseProjectIconRegistryText(openRegistrySession.draftContent)
+  return draft ? (draft.iconSeries ?? []).map(series => series.source) : null
+})
+
 const {
   projectTreeData,
   projectManagementTreeData,
   projectManagementExpandedKeys,
+  unusedProjectFontFileKeys,
+  unusedProjectIconFileKeys,
   projectExpandedKeys,
   openedEditorTreeData,
   selectedFileKeys,
@@ -948,11 +991,13 @@ const {
   handleOpenedEditorsSelect,
   handleFileTreeSelect,
   handleProjectManagementSelect,
+  setProjectManagementEntryExpanded,
   findProjectEntryByKey,
   setProjectEntryExpanded,
 } = useShellFileTree({
   projectPath,
   indexedEntries,
+  hideDotFiles: computed(() => settingsStore.settings.value.workspace.hideDotFiles),
   openedEditorItems: localizedOpenedEditorItems,
   activeSession,
   isDirectoryExpanded,
@@ -960,7 +1005,8 @@ const {
   openPreviewFile,
   ensureProjectManagementStructure,
   translate: t,
-  registeredFontSources: computed(() => projectFontFamilies.value.flatMap(projectFontSources)),
+  registeredFontSources: registeredFontSourcesForManagement,
+  registeredIconSources: registeredIconSourcesForManagement,
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
@@ -1346,6 +1392,25 @@ const updateOperationTask = computed<{
   }
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
+
+const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY, {
+    title: t('sidebar.fileActions.removeUnusedFont'),
+    icon: 'action.close',
+  }],
+  [PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY, {
+    title: t('sidebar.fileActions.cleanUnusedFonts'),
+    icon: 'action.clean',
+  }],
+  [PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY, {
+    title: t('sidebar.fileActions.removeUnusedIcon'),
+    icon: 'action.close',
+  }],
+  [PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY, {
+    title: t('sidebar.fileActions.cleanUnusedIcons'),
+    icon: 'action.clean',
+  }],
+]))
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -2166,6 +2231,38 @@ async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
 async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'selection.change') {
     await handleProjectManagementSelect(intent.selectedKeys)
+    return
+  }
+
+  if (intent.type === 'expansion.change') {
+    setProjectManagementEntryExpanded(intent.key, intent.expanded)
+    return
+  }
+
+  if (intent.type === 'action.invoke') {
+    const fontTargets = intent.actionKey === PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY
+      ? unusedProjectFontFileKeys.value.includes(intent.key) ? [intent.key] : []
+      : intent.actionKey === PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY
+        ? [...unusedProjectFontFileKeys.value]
+        : []
+    const iconTargets = intent.actionKey === PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY
+      ? unusedProjectIconFileKeys.value.includes(intent.key) ? [intent.key] : []
+      : intent.actionKey === PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY
+        ? [...unusedProjectIconFileKeys.value]
+        : []
+    const targets = fontTargets.length ? fontTargets : iconTargets
+    const registeredSources = fontTargets.length
+      ? registeredFontSourcesForManagement.value
+      : registeredIconSourcesForManagement.value
+    if (targets.length === 0 || registeredSources === null) return
+    try {
+      if (fontTargets.length) await trashUnusedProjectFontFiles(targets, registeredSources)
+      else await trashUnusedProjectIconFiles(targets, registeredSources)
+      for (const path of targets) closeSessionsByPath(path)
+      selectedFileKeys.value = selectedFileKeys.value.filter(key => !targets.includes(key))
+    } catch (error) {
+      reportAppError('OC-E4001', { actionKey: intent.actionKey, paths: targets, error })
+    }
   }
 }
 

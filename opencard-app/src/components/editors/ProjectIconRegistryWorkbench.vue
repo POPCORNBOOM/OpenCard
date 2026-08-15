@@ -122,7 +122,8 @@
     </section>
 
     <ProjectIconSetSettingsDialog :open="settingsSeriesIndex !== null" :name="settingsSeries?.name"
-      :series-key="settingsSeries?.key" :source="settingsSeries?.source"
+      :series-key="settingsSeries?.key" :source="settingsSeries?.source" :default-open-path="defaultOpenPath"
+      :busy="settingsBusy"
       :existing-keys="series.map(candidate => candidate.key)"
       @close="settingsSeriesIndex = null" @submit="saveIconSetSettings" />
     <ProjectIconGridDialog :open="gridDialogOpen" :has-icons="Boolean(selectedSeries?.icons.length)"
@@ -172,6 +173,8 @@ const props = withDefaults(defineProps<{
   description: string
   series?: readonly ProjectIconSeries[]
   resolveAssetSrc: (source: string) => string
+  defaultOpenPath?: string
+  importIconSource?: (sourcePath: string, currentSource: string) => Promise<string>
   projectIconCatalog?: ProjectIconCatalog
   error?: string
 }>(), { series: () => [], error: '' })
@@ -186,6 +189,7 @@ const { t } = useI18n()
 const selectedSeriesKey = ref<string | null>(null)
 const selectedIconIndexes = ref<Record<string, number[]>>({})
 const settingsSeriesIndex = ref<number | null>(null)
+const settingsBusy = ref(false)
 const gridDialogOpen = ref(false)
 const previewPanelExpanded = ref(true)
 const previewPanelHeight = ref<number | null>(null)
@@ -361,19 +365,27 @@ function generateIcons(request: ProjectIconGridRequest): void {
 function openSettingsDialog(index: number): void {
   if (props.series[index]) settingsSeriesIndex.value = index
 }
-function saveIconSetSettings(request: ProjectIconSetSettingsRequest): void {
+async function saveIconSetSettings(request: ProjectIconSetSettingsRequest): Promise<void> {
   const index = settingsSeriesIndex.value
   const current = index === null ? null : props.series[index]
   if (index === null || !current) return
-  const next = [...props.series]
-  next[index] = { ...current, name: request.name, key: request.key }
-  if (selectedSeriesKey.value === current.key) {
-    selectedSeriesKey.value = request.key
-    selectedIconIndexes.value[request.key] = selectedIconIndexes.value[current.key] ?? []
-    delete selectedIconIndexes.value[current.key]
+  settingsBusy.value = true
+  try {
+    const source = props.importIconSource
+      ? await props.importIconSource(request.sourcePath, current.source)
+      : request.sourcePath
+    const next = [...props.series]
+    next[index] = { ...current, name: request.name, key: request.key, source }
+    if (selectedSeriesKey.value === current.key) {
+      selectedSeriesKey.value = request.key
+      selectedIconIndexes.value[request.key] = selectedIconIndexes.value[current.key] ?? []
+      delete selectedIconIndexes.value[current.key]
+    }
+    settingsSeriesIndex.value = null
+    emit('update:series', next)
+  } finally {
+    settingsBusy.value = false
   }
-  settingsSeriesIndex.value = null
-  emit('update:series', next)
 }
 function removeSeries(index: number): void {
   const removed = props.series[index]

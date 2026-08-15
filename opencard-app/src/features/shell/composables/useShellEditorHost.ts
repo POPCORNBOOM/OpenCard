@@ -59,6 +59,8 @@ type UseShellEditorHostOptions = {
   sessionActions: SessionActions
 }
 
+const AUTO_SAVE_REGISTRY_EDITOR_IDS = new Set(['font-registry', 'icon-registry'])
+
 type PendingViewportTransform = {
   sessionId: string
   editorId: 'card-designer' | 'image-preview'
@@ -83,6 +85,14 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   let viewportTransformPersistTimer: number | null = null
   let pendingViewportTransform: PendingViewportTransform | null = null
   let disposed = false
+
+  function recordDraftContent(sessionId: string, value: string, history?: HistoryOperationMeta): void {
+    editorHistoryManager.recordContent(sessionId, value, history)
+    const session = options.activeSession.value
+    if (session?.id === sessionId && AUTO_SAVE_REGISTRY_EDITOR_IDS.has(session.editorId)) {
+      void options.sessionActions.saveActiveSession()
+    }
+  }
 
   const resourceRootPath = computed<string | null>(() => {
     const session = options.activeSession.value
@@ -134,7 +144,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
         themeId: themeId.value,
         themeOverrides: themeOverrides.value,
         'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
-          editorHistoryManager.recordContent(sessionId, value, history)
+          recordDraftContent(sessionId, value, history)
         },
       }
 
@@ -179,7 +189,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
       modelValue: session.draftContent,
       savedContent: session.savedContent,
       'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
-        editorHistoryManager.recordContent(sessionId, value, history)
+        recordDraftContent(sessionId, value, history)
       },
       language: fileType.language ?? 'plaintext',
       themeId: themeId.value,

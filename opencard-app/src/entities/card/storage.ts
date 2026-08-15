@@ -17,6 +17,7 @@ export type SerializeCardDocumentOptions = {
 }
 
 type ProjectionOptions = { preserveCustomBlockExtras: boolean
+  materializeRequiredDefaults: boolean
   resolveCustomBlockPublicFieldKeys?: SerializeCardDocumentOptions['resolveCustomBlockPublicFieldKeys'] }
 
 const structuralFields = new Set(['children', 'faces', 'instances', 'data', 'dataTable', 'additionalFieldDefinition'])
@@ -27,7 +28,7 @@ export function normalizeCardDocument(value: unknown): { document: CardDocument,
   if (!isRecord(value)) throw new Error('Card document must be a JSON object')
   const warnings: CardStorageWarning[] = []
   return {
-    document: projectDocument(value, warnings, { preserveCustomBlockExtras: true }),
+    document: projectDocument(value, warnings, { preserveCustomBlockExtras: true, materializeRequiredDefaults: true }),
     warnings,
   }
 }
@@ -35,7 +36,7 @@ export function normalizeCardDocument(value: unknown): { document: CardDocument,
 export function normalizeStoredCardBlock(value: unknown): { block: CardBlock | null, warnings: readonly CardStorageWarning[] } {
   const warnings: CardStorageWarning[] = []
   return {
-    block: projectBlock(value, '$', warnings, { preserveCustomBlockExtras: true }),
+    block: projectBlock(value, '$', warnings, { preserveCustomBlockExtras: true, materializeRequiredDefaults: true }),
     warnings,
   }
 }
@@ -44,13 +45,14 @@ export function serializeCardDocument(document: CardDocument, options: Serialize
   const warnings: CardStorageWarning[] = []
   const normalized = projectDocument(document as unknown as SourceRecord, warnings, {
     preserveCustomBlockExtras: false,
+    materializeRequiredDefaults: false,
     resolveCustomBlockPublicFieldKeys: options.resolveCustomBlockPublicFieldKeys,
   })
   return JSON.stringify(normalized, null, 2)
 }
 
 function projectDocument(source: SourceRecord, warnings: CardStorageWarning[], options: ProjectionOptions): CardDocument {
-  const document = projectKnownFields('card-document', source, '$', warnings)
+  const document = projectKnownFields('card-document', source, '$', warnings, options.materializeRequiredDefaults)
   document.type = 'card-document'
   document.id = nonEmptyString(document.id) ?? 'document'
   document.faces = {
@@ -58,7 +60,7 @@ function projectDocument(source: SourceRecord, warnings: CardStorageWarning[], o
     back: projectFace(isRecord(source.faces) ? source.faces.back : undefined, 'back', warnings, options),
   }
   document.instances = projectArray(source.instances, '$.instances', warnings, (value, path) => (
-    projectInstance(value, path, warnings)
+    projectInstance(value, path, warnings, options.materializeRequiredDefaults)
   ))
   const dataTable = projectDataTable(source.dataTable, warnings)
   if (dataTable) document.dataTable = dataTable
@@ -70,13 +72,22 @@ function projectFace(value: unknown, faceKey: 'front' | 'back', warnings: CardSt
   const path = `$.faces.${faceKey}`
   const source = isRecord(value) ? value : {}
   if (value !== undefined && !isRecord(value)) warnIgnored(warnings, path, 'Invalid Card Face was replaced with defaults')
-  const face = projectKnownFields('card-face', source, path, warnings)
+  const face = projectKnownFields('card-face', source, path, warnings, options.materializeRequiredDefaults)
   face.type = 'card-face'
   face.id = nonEmptyString(face.id) ?? faceKey
   face.children = projectArray(source.children, `${path}.children`, warnings, (child, childPath): RootChild | null => {
     if (!isRecord(child)) return ignored(warnings, childPath, 'Invalid root child was ignored')
     const block = projectBlock(child.block, `${childPath}.block`, warnings, options)
-    return block ? { block, location: projectLocation(child.location, 'simple-container-location', `${childPath}.location`, warnings) as SimpleContainerLocationInfo } : null
+    return block ? {
+      block,
+      location: projectLocation(
+        child.location,
+        'simple-container-location',
+        `${childPath}.location`,
+        warnings,
+        options.materializeRequiredDefaults,
+      ) as SimpleContainerLocationInfo,
+    } : null
   })
   return face as CardFace
 }
@@ -86,7 +97,7 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
   const type = typeof value.type === 'string' ? value.type : ''
   if (!blockTypes.has(type as CardBlock['type'])) return ignored(warnings, path, `Unknown Block type ${type || '(missing)'} was ignored`)
 
-  const block = projectKnownFields(type, value, path, warnings)
+  const block = projectKnownFields(type, value, path, warnings, options.materializeRequiredDefaults)
   block.type = type
   block.id = nonEmptyString(block.id) ?? `${type}@${path}`
   const definitions = parseAdditionalFieldDefinitions(value.additionalFieldDefinition)
@@ -94,9 +105,8 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
 
   for (const [fieldKey, definition] of Object.entries(definitions)) {
     const fieldValue = value[fieldKey]
-    block[fieldKey] = isCardStoredValue(fieldValue)
-      ? structuredClone(fieldValue)
-      : additionalFieldDefault(definition.fieldType)
+    if (isCardStoredValue(fieldValue)) block[fieldKey] = structuredClone(fieldValue)
+    else if (options.materializeRequiredDefaults) block[fieldKey] = additionalFieldDefault(definition.fieldType)
   }
 
   if (type === 'custom-block') {
@@ -124,6 +134,7 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
           type === 'flow-container-block' ? 'flow-container-location' : 'simple-container-location',
           `${childPath}.location`,
           warnings,
+          options.materializeRequiredDefaults,
         ),
       }
     })
@@ -131,18 +142,29 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
   return block as unknown as CardBlock
 }
 
-function projectLocation(value: unknown, type: CardLocation['type'], path: string, warnings: CardStorageWarning[]): CardLocation {
+function projectLocation(
+  value: unknown,
+  type: CardLocation['type'],
+  path: string,
+  warnings: CardStorageWarning[],
+  materializeRequiredDefaults: boolean,
+): CardLocation {
   const source = isRecord(value) ? value : {}
   if (value !== undefined && !isRecord(value)) warnIgnored(warnings, path, 'Invalid location was replaced with defaults')
-  const location = projectKnownFields(type, source, path, warnings)
+  const location = projectKnownFields(type, source, path, warnings, materializeRequiredDefaults)
   location.type = type
   location.id = nonEmptyString(location.id) ?? `${type}@${path}`
   return location as CardLocation
 }
 
-function projectInstance(value: unknown, path: string, warnings: CardStorageWarning[]): CardInstanceRecord | null {
+function projectInstance(
+  value: unknown,
+  path: string,
+  warnings: CardStorageWarning[],
+  materializeRequiredDefaults: boolean,
+): CardInstanceRecord | null {
   if (!isRecord(value)) return ignored(warnings, path, 'Invalid card instance was ignored')
-  const instance = projectKnownFields('card-instance', value, path, warnings)
+  const instance = projectKnownFields('card-instance', value, path, warnings, materializeRequiredDefaults)
   instance.type = 'card-instance'
   instance.id = nonEmptyString(instance.id) ?? `instance@${path}`
   const data: CardInstanceRecord['data'] = {}
@@ -181,7 +203,13 @@ function projectDataTable(value: unknown, warnings: CardStorageWarning[]): CardD
   return { blocks, ...(exportInstanceIds ? { exportInstanceIds } : {}) }
 }
 
-function projectKnownFields(type: string, source: SourceRecord, path: string, warnings: CardStorageWarning[]): SourceRecord {
+function projectKnownFields(
+  type: string,
+  source: SourceRecord,
+  path: string,
+  warnings: CardStorageWarning[],
+  materializeRequiredDefaults: boolean,
+): SourceRecord {
   const defaults = fillDefaults(type, {})
   const schema = getTypePropertyEditorSchema(type)
   const projected: SourceRecord = {}
@@ -189,11 +217,13 @@ function projectKnownFields(type: string, source: SourceRecord, path: string, wa
     if (structuralFields.has(fieldKey)) continue
     const value = source[fieldKey]
     if (isCardStoredValue(value)) projected[fieldKey] = structuredClone(value)
-    else if (defaults[fieldKey] !== undefined) {
+    else if (materializeRequiredDefaults && schema[fieldKey]?.required === true && defaults[fieldKey] !== undefined) {
       projected[fieldKey] = structuredClone(defaults[fieldKey])
       if (value !== undefined && value !== null) {
         warnings.push({ code: 'field-defaulted', path: `${path}.${fieldKey}`, message: 'Invalid field value was replaced with its default' })
       }
+    } else if (value !== undefined && value !== null) {
+      warnIgnored(warnings, `${path}.${fieldKey}`, 'Invalid optional field was ignored')
     }
   }
   return projected

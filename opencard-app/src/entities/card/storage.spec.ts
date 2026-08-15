@@ -33,7 +33,18 @@ describe('card document storage projection', () => {
     expect(JSON.parse(serialized)).not.toHaveProperty('extra')
   })
 
-  it('fills missing document, face, Block, Location and Instance fields', () => {
+  it('does not materialize missing schema fields while serializing', () => {
+    const stored = JSON.parse(serializeCardDocument(createDocument()))
+    const block = stored.faces.front.children[0].block
+
+    expect(stored).not.toHaveProperty('description')
+    expect(block).toMatchObject({ type: 'text-block', id: 'text', content: 'Hello' })
+    expect(block).not.toHaveProperty('width')
+    expect(block).not.toHaveProperty('fontSize')
+    expect(block).not.toHaveProperty('visible')
+  })
+
+  it('fills required fields while preserving missing optional fields', () => {
     const result = normalizeCardDocument({
       faces: { front: { children: [{ block: { type: 'text-block' }, location: {} }] } },
       instances: [{}],
@@ -43,8 +54,16 @@ describe('card document storage projection', () => {
     expect(result.document.faces.front.type).toBe('card-face')
     expect(result.document.faces.back.type).toBe('card-face')
     expect(result.document.faces.front.children[0]?.block.type).toBe('text-block')
+    const block = result.document.faces.front.children[0]?.block as unknown as Record<string, unknown>
+    expect(block.content).toBe('')
+    expect(block).not.toHaveProperty('width')
+    expect(result.document).not.toHaveProperty('description')
     expect(result.document.faces.front.children[0]?.location.type).toBe('simple-container-location')
     expect(result.document.instances[0]?.type).toBe('card-instance')
+
+    const stored = JSON.parse(serializeCardDocument(result.document))
+    expect(stored).not.toHaveProperty('description')
+    expect(stored.faces.front.children[0].block).not.toHaveProperty('width')
   })
 
   it('ignores unknown Blocks and invalid collection entries without losing siblings', () => {

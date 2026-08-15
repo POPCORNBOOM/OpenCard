@@ -168,6 +168,22 @@ describe('useShellEditorHost', () => {
     host.dispose()
   })
 
+  it('auto-saves structured font and icon registry draft updates', async () => {
+    const { host, saveActiveSession } = createHost(createSession({
+      editorId: 'font-registry',
+      fileTypeId: 'font-registry',
+      name: '.ocfonts',
+      path: 'D:/project/.opencard/.ocfonts',
+    }))
+    const update = host.props.value['onUpdate:modelValue'] as (value: string) => void
+
+    update('{"families":[]}')
+    await nextTick()
+
+    expect(saveActiveSession).toHaveBeenCalledTimes(1)
+    host.dispose()
+  })
+
   it('coalesces viewport updates and persists the latest value', () => {
     vi.useFakeTimers()
     const { host, updateSessionUiState } = createHost()

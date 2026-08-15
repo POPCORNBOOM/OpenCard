@@ -112,6 +112,8 @@ export function createAppSettingsStore(
       candidate.workspace.structureTreeSelectionBehavior = value as AppSettings['workspace']['structureTreeSelectionBehavior']
     } else if (key === 'workspace.structureTreeScrollToSelection') {
       candidate.workspace.structureTreeScrollToSelection = value as boolean
+    } else if (key === 'workspace.hideDotFiles') {
+      candidate.workspace.hideDotFiles = value as boolean
     } else if (key === 'workspace.showSelectionPositionOnMove') {
       candidate.workspace.showSelectionPositionOnMove = value as boolean
     } else if (key === 'workspace.showSelectionSizeOnResize') {

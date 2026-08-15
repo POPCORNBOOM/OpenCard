@@ -130,6 +130,16 @@ describe('workspace entry icon tokens', () => {
     })
   })
 
+  it('separates registered and unregistered project icon images', () => {
+    const registeredSources = new Set(['.opencard/icons/status.png'])
+    expect(resolveEntryIcon(
+      'D:/Cards/.opencard/icons/status.png', false, false, 'D:/Cards', undefined, registeredSources,
+    ).tone).not.toBe('muted')
+    expect(resolveEntryIcon(
+      'D:/Cards/.opencard/icons/unused.png', false, false, 'D:/Cards', undefined, registeredSources,
+    )).toEqual({ icon: 'file.image', tone: 'muted' })
+  })
+
   it('keeps known text files editable and routes unknown extensions to the unsupported-file session', () => {
     expect(resolveFileType('D:/Cards/notes.txt')).toMatchObject({
       id: 'plaintext',

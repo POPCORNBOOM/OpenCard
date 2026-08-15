@@ -102,6 +102,7 @@ export type AppSettingKey =
   | 'updates.suppressReleaseNotesAfterUpdate'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
+  | 'workspace.hideDotFiles'
   | 'workspace.showSelectionPositionOnMove'
   | 'workspace.showSelectionSizeOnResize'
   | 'workspace.alignmentSnappingEnabledByDefault'
@@ -129,6 +130,7 @@ export interface AppSettings {
   workspace: {
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
     structureTreeScrollToSelection: boolean
+    hideDotFiles: boolean
     showSelectionPositionOnMove: boolean
     showSelectionSizeOnResize: boolean
     alignmentSnappingEnabledByDefault: boolean
@@ -201,6 +203,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   workspace: Object.freeze({
     structureTreeSelectionBehavior: 'expand-exclusive',
     structureTreeScrollToSelection: true,
+    hideDotFiles: true,
     showSelectionPositionOnMove: true,
     showSelectionSizeOnResize: true,
     alignmentSnappingEnabledByDefault: true,
@@ -549,6 +552,9 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       structureTreeScrollToSelection: typeof workspace.structureTreeScrollToSelection === 'boolean'
         ? workspace.structureTreeScrollToSelection
         : DEFAULT_APP_SETTINGS.workspace.structureTreeScrollToSelection,
+      hideDotFiles: typeof workspace.hideDotFiles === 'boolean'
+        ? workspace.hideDotFiles
+        : DEFAULT_APP_SETTINGS.workspace.hideDotFiles,
       showSelectionPositionOnMove: typeof workspace.showSelectionPositionOnMove === 'boolean'
         ? workspace.showSelectionPositionOnMove
         : DEFAULT_APP_SETTINGS.workspace.showSelectionPositionOnMove,

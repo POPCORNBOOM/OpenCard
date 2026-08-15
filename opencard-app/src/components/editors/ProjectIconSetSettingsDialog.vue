@@ -13,7 +13,12 @@
     </label>
     <label class="project-icon-set-dialog__field">
       <OcText as="span" size="sm">{{ t('projectConfig.icons.projectFile') }}</OcText>
-      <OcFieldInput full-width mono readonly :value="source" />
+      <div class="project-icon-set-dialog__source-row">
+        <OcFieldInput full-width mono readonly :value="draftSource" />
+        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy" @click="pickSource">
+          {{ draftSource ? t('projectConfig.icons.chooseAgain') : t('projectConfig.icons.chooseFile') }}
+        </OcButton>
+      </div>
     </label>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">
@@ -21,7 +26,7 @@
     </OcText>
 
     <template #footer>
-      <OcButton type="button" @click="emit('close')">{{ t('projectConfig.icons.cancel') }}</OcButton>
+      <OcButton type="button" :disabled="busy" @click="emit('close')">{{ t('projectConfig.icons.cancel') }}</OcButton>
       <OcButton type="submit" variant="solid" :disabled="!validName || !validKey || !uniqueKey">
         {{ t('projectConfig.icons.save') }}
       </OcButton>
@@ -33,6 +38,7 @@
 export type ProjectIconSetSettingsRequest = {
   name: string
   key: string
+  sourcePath: string
 }
 </script>
 
@@ -44,17 +50,22 @@ import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcText from '../base/OcText.vue'
 import OcDialog from '../standard/OcDialog.vue'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 
 const props = withDefaults(defineProps<{
   open: boolean
   name?: string
   seriesKey?: string
   source?: string
+  defaultOpenPath?: string
+  busy?: boolean
   existingKeys?: readonly string[]
 }>(), {
   name: '',
   seriesKey: '',
   source: '',
+  defaultOpenPath: undefined,
+  busy: false,
   existingKeys: () => [],
 })
 const emit = defineEmits<{
@@ -64,6 +75,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const draftName = ref('')
 const draftKey = ref('')
+const draftSource = ref('')
 
 const normalizedName = computed(() => draftName.value.trim())
 const normalizedKey = computed(() => draftKey.value.trim())
@@ -80,12 +92,23 @@ const validationMessage = computed(() => {
   return ''
 })
 
-watch([() => props.open, () => props.name, () => props.seriesKey], ([open, name, seriesKey]) => {
+watch([() => props.open, () => props.name, () => props.seriesKey, () => props.source], ([open, name, seriesKey, source]) => {
   if (open) {
     draftName.value = name
     draftKey.value = seriesKey
+    draftSource.value = source
   }
 }, { immediate: true })
+
+async function pickSource(): Promise<void> {
+  const path = await fileSystemService.pickFile({
+    title: t('projectConfig.icons.chooseFile'),
+    fileTypeName: t('projectConfig.icons.fileType'),
+    extensions: ['png', 'jpg', 'jpeg', 'webp'],
+    defaultPath: props.defaultOpenPath,
+  })
+  if (path) draftSource.value = path
+}
 
 function updateName(event: Event): void {
   if (event.target instanceof HTMLInputElement) draftName.value = event.target.value
@@ -96,13 +119,19 @@ function updateKey(event: Event): void {
 
 function submit(): void {
   if (!validName.value || !validKey.value || !uniqueKey.value) return
-  emit('submit', { name: normalizedName.value, key: normalizedKey.value })
+  if (!draftSource.value.trim()) return
+  emit('submit', { name: normalizedName.value, key: normalizedKey.value, sourcePath: draftSource.value })
 }
 </script>
 
 <style scoped>
 .project-icon-set-dialog__field {
   display: grid;
+  min-width: 0;
+  gap: var(--oc-space-2);
+}
+.project-icon-set-dialog__source-row {
+  display: flex;
   min-width: 0;
   gap: var(--oc-space-2);
 }

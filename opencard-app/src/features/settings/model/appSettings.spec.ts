@@ -50,6 +50,7 @@ describe('appSettings', () => {
         historyEntryLimit: 100,
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
+        hideDotFiles: true,
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
         alignmentSnappingEnabledByDefault: true,

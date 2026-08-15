@@ -7,6 +7,7 @@
 export const iconTokens = {
   'action.add': true,
   'action.check': true,
+  'action.clean': true,
   'action.close': true,
   'action.copy': true,
   'action.custom-block-plus': true,

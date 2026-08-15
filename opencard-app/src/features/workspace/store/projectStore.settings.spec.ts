@@ -215,6 +215,8 @@ describe('projectStore settings actions', () => {
     })
 
     const store = useProjectStore()
+    expect(store.fontRegistryReady.value).toBe(false)
+    expect(store.iconRegistryReady.value).toBe(false)
     await store.setProjectPath('D:/project')
 
     expect(store.resolvedProject.value?.name).toBe('Demo')
@@ -242,8 +244,12 @@ describe('projectStore settings actions', () => {
     expect(store.projectFontCompositions.value)
       .toEqual([{ key: 'body', name: 'Body', members: [{ fontKey: 'brand' }] }])
     expect(store.projectIconSeries.value).toEqual([])
+    expect(store.fontRegistryReady.value).toBe(true)
+    expect(store.iconRegistryReady.value).toBe(true)
 
     await store.setProjectPath('')
+    expect(store.fontRegistryReady.value).toBe(false)
+    expect(store.iconRegistryReady.value).toBe(false)
   })
 
   it('preserves project-profile editor state when saving expanded directories', async () => {
@@ -606,6 +612,49 @@ describe('projectStore settings actions', () => {
       .rejects.toThrow('Managed project files cannot be moved to trash')
     expect(store.resolvedProject.value).not.toBeNull()
     expect(mocks.trashFile).not.toHaveBeenCalled()
+
+    await store.setProjectPath('')
+  })
+
+  it('trashes only managed font files absent from the current registry draft', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    await store.trashUnusedProjectFontFiles(
+      ['D:/project/.opencard/fonts/Unused.otf'],
+      ['fonts/Brand.otf'],
+    )
+    expect(mocks.trashFile).toHaveBeenCalledWith('D:/project/.opencard/fonts/Unused.otf')
+
+    await expect(store.trashUnusedProjectFontFiles(
+      ['D:/project/.opencard/fonts/Brand.otf'],
+      ['fonts/Brand.otf'],
+    )).rejects.toThrow('still registered')
+    await expect(store.trashUnusedProjectFontFiles(
+      ['D:/project/card.ocdocument'],
+      [],
+    )).rejects.toThrow('Only managed project font files')
+    await expect(store.trashUnusedProjectFontFiles(
+      ['.opencard/fonts/../../outside.otf'],
+      [],
+    )).rejects.toThrow('Unsafe project font path')
+
+    await store.setProjectPath('')
+  })
+
+  it('trashes only managed icon images absent from the current registry draft', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+
+    await store.trashUnusedProjectIconFiles(
+      ['D:/project/.opencard/icons/unused.png'],
+      ['icons/status.png'],
+    )
+    expect(mocks.trashFile).toHaveBeenCalledWith('D:/project/.opencard/icons/unused.png')
+    await expect(store.trashUnusedProjectIconFiles(
+      ['D:/project/.opencard/icons/status.png'],
+      ['icons/status.png'],
+    )).rejects.toThrow('still registered')
 
     await store.setProjectPath('')
   })

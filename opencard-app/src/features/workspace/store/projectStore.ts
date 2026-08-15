@@ -13,6 +13,7 @@ import { initializeProjectStructure } from '../services/projectStructureService'
 import {
   isProjectInternalRelativePath,
   PROJECT_INTERNAL_DIRECTORIES,
+  PROJECT_INTERNAL_DIRECTORY_NAME,
   resolveProjectInternalRelativePath,
 } from '../model/projectStructure'
 import {
@@ -161,9 +162,11 @@ const projectFontFamilies = ref<readonly ProjectFont[]>([])
 const projectFontCompositions = ref<readonly ProjectFontComposition[]>([])
 const projectFonts = ref<ProjectFontRegistry>({})
 const fontRegistryError = ref<string | null>(null)
+const fontRegistryReady = ref(false)
 const projectFontLoadErrors = ref<readonly ProjectFontLoadError[]>([])
 const projectIconSeries = ref<readonly ProjectIconSeries[]>([])
 const iconRegistryError = ref<string | null>(null)
+const iconRegistryReady = ref(false)
 const projectIconCatalog = ref<ProjectIconCatalog>(EMPTY_PROJECT_ICON_CATALOG)
 const projectIconLoadErrors = ref<readonly ProjectIconLoadError[]>([])
 const projectDictionary = ref<ProjectDictionary | null>(null)
@@ -187,6 +190,7 @@ let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
 let customBlockReloadVersion = 0
 let customBlockReloadQueue: Promise<boolean> = Promise.resolve(false)
+let projectManagementStructurePromise: Promise<void> | null = null
 let customBlockWatchTimer: ReturnType<typeof setTimeout> | null = null
 const pendingCustomBlockChanges = new Set<string>()
 let activeCustomBlockKeys = new Set<string>()
@@ -356,6 +360,7 @@ function clearProjectFontRegistry() {
   projectFonts.value = {}
   fontRegistryError.value = null
   projectFontLoadErrors.value = []
+  fontRegistryReady.value = false
 }
 
 function clearProjectIconRegistry() {
@@ -364,6 +369,7 @@ function clearProjectIconRegistry() {
   iconRegistryError.value = null
   projectIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
   projectIconLoadErrors.value = []
+  iconRegistryReady.value = false
 }
 
 async function syncRegisteredProjectFonts(
@@ -593,6 +599,7 @@ async function reloadProjectFontRegistry(): Promise<boolean> {
   const path = resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME)
   if (!await fileSystemService.fileExists(path)) {
     clearProjectFontRegistry()
+    fontRegistryReady.value = true
     return false
   }
   try {
@@ -603,6 +610,7 @@ async function reloadProjectFontRegistry(): Promise<boolean> {
     projectFonts.value = buildProjectFontRegistry(document)
     await syncRegisteredProjectFonts(projectFontFamilies.value, projectFontCompositions.value)
     fontRegistryError.value = null
+    fontRegistryReady.value = true
     return true
   } catch (error) {
     clearProjectFontRegistry()
@@ -617,6 +625,7 @@ async function reloadProjectIconRegistry(): Promise<boolean> {
   const path = resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME)
   if (!await fileSystemService.fileExists(path)) {
     clearProjectIconRegistry()
+    iconRegistryReady.value = true
     return false
   }
   try {
@@ -627,6 +636,7 @@ async function reloadProjectIconRegistry(): Promise<boolean> {
     projectIconSeries.value = document.iconSeries ?? []
     await syncRegisteredProjectIcons(projectIconSeries.value)
     iconRegistryError.value = null
+    iconRegistryReady.value = true
     return true
   } catch (error) {
     clearProjectIconRegistry()
@@ -669,6 +679,9 @@ function loadProjectWorkspaceState() {
     .find(([path]) => pathIdentity(path) === identity)
   expandedDirectories.value = new Set(entry?.[1].expandedDirectories ?? [])
   registeredDirectories.value = new Map([['', PROJECT_TREE_LOOKAHEAD_DEPTH]])
+  for (const directory of PROJECT_INTERNAL_DIRECTORIES) {
+    registeredDirectories.value.set(directory, 1)
+  }
   for (const relativePath of expandedDirectories.value) {
     registeredDirectories.value.set(relativePath, PROJECT_TREE_LOOKAHEAD_DEPTH)
   }
@@ -911,6 +924,7 @@ async function setProjectPath(path: string) {
 
   customBlockReloadVersion += 1
   projectPath.value = normalizedPath
+  projectManagementStructurePromise = null
   indexedEntries.value = []
   registeredDirectories.value = new Map()
   expandedDirectories.value = new Set()
@@ -934,6 +948,9 @@ async function setProjectPath(path: string) {
     reloadProjectCustomBlockRegistry(),
   ])
   await startWatching()
+  if (await fileSystemService.fileExists(resolveProjectPath(PROJECT_INTERNAL_DIRECTORY_NAME))) {
+    void ensureProjectManagementStructure()
+  }
   scheduleProjectMetadataSave()
 }
 
@@ -1145,19 +1162,17 @@ async function importProjectFontFiles(
 }
 
 async function ensureProjectManagementStructure(): Promise<void> {
+  if (projectManagementStructurePromise) return await projectManagementStructurePromise
   const root = ensureProjectOpen()
-  await initializeProjectStructure(fileSystemService, root)
-  for (const directory of PROJECT_INTERNAL_DIRECTORIES) {
-    registeredDirectories.value.set(directory, 1)
-  }
-  await refreshIndexedEntries({ persist: false })
-  await Promise.all([
-    reloadProjectProfile(),
-    reloadProjectFontRegistry(),
-    reloadProjectIconRegistry(),
-    reloadProjectDictionary(),
-    reloadProjectCustomBlockRegistry(),
-  ])
+  projectManagementStructurePromise = (async () => {
+    await initializeProjectStructure(fileSystemService, root)
+    for (const directory of PROJECT_INTERNAL_DIRECTORIES) {
+      registeredDirectories.value.set(directory, 1)
+    }
+    if (projectPath.value !== root) return
+    await refreshIndexedEntries({ persist: false })
+  })()
+  await projectManagementStructurePromise
 }
 
 async function findMatchingProjectFontFile(
@@ -1333,6 +1348,69 @@ async function trashFile(relativePath: string) {
   if (pathIdentity(resolvedPath) === pathIdentity(resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME))) clearProjectIconRegistry()
   if (pathIdentity(resolvedPath) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME))) clearProjectDictionary()
   await refreshIndexedEntries()
+}
+
+async function trashUnusedProjectFontFiles(
+  paths: readonly string[],
+  registeredSources: readonly string[],
+): Promise<void> {
+  await trashUnusedProjectAssetFiles(
+    paths,
+    registeredSources,
+    DEFAULT_PROJECT_FONT_DIRECTORY,
+    PROJECT_FONT_EXTENSIONS,
+    'font',
+  )
+}
+
+async function trashUnusedProjectIconFiles(
+  paths: readonly string[],
+  registeredSources: readonly string[],
+): Promise<void> {
+  await trashUnusedProjectAssetFiles(
+    paths,
+    registeredSources,
+    DEFAULT_PROJECT_ICON_DIRECTORY,
+    PROJECT_ICON_EXTENSIONS,
+    'icon',
+  )
+}
+
+async function trashUnusedProjectAssetFiles(
+  paths: readonly string[],
+  registeredSources: readonly string[],
+  directory: string,
+  extensions: ReadonlySet<string>,
+  assetKind: 'font' | 'icon',
+): Promise<void> {
+  const registered = new Set(registeredSources
+    .map(source => normalizePath(source).replace(/^\/+/, '').toLocaleLowerCase()))
+  const directoryPrefix = `${resolveProjectInternalRelativePath(directory)}/`
+  const candidates = [...new Set(paths.map(path => normalizePath(toRelativeProjectPath(path))))]
+
+  for (const relativePath of candidates) {
+    const normalizedIdentity = relativePath.toLocaleLowerCase()
+    if (relativePath.split('/').some(segment => segment === '.' || segment === '..')) {
+      throw new Error(`Unsafe project ${assetKind} path`)
+    }
+    if (!normalizedIdentity.startsWith(directoryPrefix.toLocaleLowerCase())) {
+      throw new Error(`Only managed project ${assetKind} files can be cleaned up`)
+    }
+    const source = relativePath.slice(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`.length)
+    const extension = source.split('.').pop()?.toLocaleLowerCase() ?? ''
+    if (!extensions.has(extension)) throw new Error(`Unsupported project ${assetKind} file`)
+    if (registered.has(source.toLocaleLowerCase())) throw new Error(`Project ${assetKind} file is still registered: ${source}`)
+  }
+
+  let changed = false
+  try {
+    for (const relativePath of candidates) {
+      await fileSystemService.trashFile(resolveProjectPath(relativePath))
+      changed = true
+    }
+  } finally {
+    if (changed) await refreshIndexedEntries()
+  }
 }
 
 async function revealEntryInFileManager(path: string) {
@@ -1608,9 +1686,11 @@ export function useProjectStore() {
     projectFontCompositions: readonly(projectFontCompositions),
     projectFonts: readonly(projectFonts),
     fontRegistryError: readonly(fontRegistryError),
+    fontRegistryReady: readonly(fontRegistryReady),
     projectFontLoadErrors: readonly(projectFontLoadErrors),
     projectIconSeries: readonly(projectIconSeries),
     iconRegistryError: readonly(iconRegistryError),
+    iconRegistryReady: readonly(iconRegistryReady),
     projectIconCatalog: readonly(projectIconCatalog),
     renderEnvironment: readonly(renderEnvironment),
     projectIconLoadErrors: readonly(projectIconLoadErrors),
@@ -1673,6 +1753,8 @@ export function useProjectStore() {
     registerProjectCustomBlockFile,
     createEntryWithAvailableName,
     trashFile,
+    trashUnusedProjectFontFiles,
+    trashUnusedProjectIconFiles,
     revealEntryInFileManager,
     getRelativeProjectPath,
     getRelativeProjectPathIfInside,

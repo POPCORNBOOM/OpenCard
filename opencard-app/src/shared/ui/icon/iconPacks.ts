@@ -29,6 +29,7 @@ import {
   mdiArrowUpThin,
   mdiBoxCutter,
   mdiBoxCutterOff,
+  mdiBroom,
   mdiCardTextOutline,
   mdiCardsOutline,
   mdiCheck,
@@ -176,6 +177,7 @@ function glyph(path: string, viewBox?: string): IconGlyph {
 export const iconGlyphs = {
   'action.add': glyph(mdiPlus),
   'action.check': glyph(mdiCheck),
+  'action.clean': glyph(mdiBroom),
   'action.close': glyph(mdiClose),
   'action.copy': glyph(mdiContentCopy, '-1 -1 26 26'),
   'action.custom-block-plus': glyph(mdiToyBrickPlus),

@@ -34,6 +34,7 @@ describe('appSettingsStore', () => {
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
     store.updateSetting('workspace.structureTreeScrollToSelection', false)
+    store.updateSetting('workspace.hideDotFiles', false)
     store.updateSetting('workspace.showSelectionPositionOnMove', false)
     store.updateSetting('workspace.showSelectionSizeOnResize', false)
     store.updateSetting('workspace.alignmentSnappingEnabledByDefault', false)
@@ -55,6 +56,7 @@ describe('appSettingsStore', () => {
       workspace: {
         structureTreeSelectionBehavior: 'expand',
         structureTreeScrollToSelection: false,
+        hideDotFiles: false,
         showSelectionPositionOnMove: false,
         showSelectionSizeOnResize: false,
         alignmentSnappingEnabledByDefault: false,

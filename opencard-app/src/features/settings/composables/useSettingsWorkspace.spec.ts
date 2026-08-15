@@ -99,6 +99,7 @@ describe('useSettingsWorkspace', () => {
       'workspace.historyEntryLimit',
       'workspace.structureTreeSelectionBehavior',
       'workspace.structureTreeScrollToSelection',
+      'workspace.hideDotFiles',
       'workspace.showSelectionPositionOnMove',
       'workspace.showSelectionSizeOnResize',
       'workspace.alignmentSnappingEnabledByDefault',
@@ -113,6 +114,11 @@ describe('useSettingsWorkspace', () => {
       expect.objectContaining({
         type: 'switch',
         key: 'workspace.structureTreeScrollToSelection',
+        checked: true,
+      }),
+      expect.objectContaining({
+        type: 'switch',
+        key: 'workspace.hideDotFiles',
         checked: true,
       }),
       expect.objectContaining({
