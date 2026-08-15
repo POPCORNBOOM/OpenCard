@@ -26,24 +26,33 @@
         <OcFieldInput full-width mono :value="fontKey" :placeholder="generatedKey"
           :aria-invalid="Boolean(fontKey) && (!validKey || !uniqueKey)" @input="updateText('key', $event)" />
       </label>
-      <div class="project-font-dialog__slot-grid">
-        <div v-for="slot in slotDefinitions" :key="slot.key" class="project-font-dialog__slot">
-          <div class="project-font-dialog__slot-heading">
-            <span>{{ slot.label }}</span>
-          </div>
-          <div class="project-font-dialog__slot-control">
-            <OcButton class="project-font-dialog__slot-source"
-              :class="{ 'project-font-dialog__slot-source--fallback': !activeFamily?.slots[slot.key] && Boolean(fallbackLabel(slot.key)) }"
-              type="button" variant="outline" block :disabled="busy" @click="pickSlot(slot.key)">
-              {{ activeFamily?.slots[slot.key]
-                ? slotSourceLabel(activeFamily.slots[slot.key]!)
-                : fallbackLabel(slot.key)
-                  || t('projectConfig.fonts.chooseFiles') }}
-            </OcButton>
-            <OcButton v-if="activeFamily?.slots[slot.key]" type="button" variant="ghost" icon="action.delete"
-              icon-only :aria-label="t('projectConfig.fonts.removeFace')" @click="clearSlot(slot.key)" />
-          </div>
-        </div>
+      <div class="project-font-dialog__slot-table-wrap oc-data-grid">
+        <table class="project-font-dialog__slot-table oc-data-grid__table">
+          <thead>
+            <tr>
+              <th class="project-font-dialog__slot-corner oc-data-grid__corner" scope="col">{{ t('projectConfig.fonts.weight') }}</th>
+              <th v-for="style in projectFontStyles" :key="style" scope="col">{{ fontStyleLabel(style) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="weight in projectFontWeights" :key="weight">
+              <th class="project-font-dialog__slot-weight" scope="row">{{ fontWeightLabel(weight) }}</th>
+              <td v-for="style in projectFontStyles" :key="style" class="project-font-dialog__slot-cell">
+                <div class="project-font-dialog__slot-control">
+                  <OcButton class="project-font-dialog__slot-source"
+                    :class="{ 'project-font-dialog__slot-source--fallback': !slotFor(weight, style) && Boolean(fallbackLabel(slotKey(weight, style))) }"
+                    type="button" variant="outline" block :disabled="busy" @click="pickSlot(slotKey(weight, style))">
+                    {{ slotFor(weight, style)
+                      ? slotSourceLabel(slotFor(weight, style)!)
+                      : fallbackLabel(slotKey(weight, style)) || t('projectConfig.fonts.chooseFiles') }}
+                  </OcButton>
+                  <OcButton v-if="slotFor(weight, style)" type="button" variant="ghost" icon="action.delete"
+                    icon-only :aria-label="t('projectConfig.fonts.removeFace')" @click="clearSlot(slotKey(weight, style))" />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <OcText v-if="metadataError" tone="danger" size="sm" role="alert">{{ metadataError }}</OcText>
       <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">{{ validationMessage }}</OcText>
@@ -91,6 +100,7 @@ import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcText from '../base/OcText.vue'
 import OcDialog from '../standard/OcDialog.vue'
+import '../../shared/ui/data-grid/dataGrid.css'
 
 type SlotDraft = ProjectFontSlotRequest & { faceName: string; copyRequired: boolean; conflict?: ProjectAssetImportConflict | null; pending?: boolean; failed?: boolean }
 type FamilyDraft = { originalKey?: string; key: string; name: string; slots: Partial<Record<ProjectFontSlotKey, SlotDraft>> }
@@ -110,10 +120,6 @@ const editing = computed(() => Boolean(props.originalKey))
 const fontName = computed(() => activeFamily.value?.name ?? '')
 const fontKey = computed(() => activeFamily.value?.key ?? '')
 const selectedSourceCount = computed(() => new Set(familyDrafts.value.flatMap(family => Object.values(family.slots).map(slot => slot?.sourcePath))).size)
-const slotDefinitions = computed(() => projectFontWeights.flatMap(weight => projectFontStyles.map(style => ({
-  key: `${weight}.${style}` as ProjectFontSlotKey,
-  label: `${weight === 'light' ? t('projectConfig.fonts.weightLight') : weight === 'normal' ? t('projectConfig.fonts.weightNormal') : t('projectConfig.fonts.weightBold')} · ${style === 'upright' ? t('projectConfig.fonts.styleNormal') : t('projectConfig.fonts.styleItalic')}`,
-}))))
 const generatedKey = computed(() => createAvailableKey(fontName.value, [...Object.keys(props.registry), ...props.reservedKeys], 'font'))
 const effectiveKey = computed(() => fontKey.value || generatedKey.value)
 const validKey = computed(() => projectFontIdPattern.test(effectiveKey.value))
@@ -202,11 +208,17 @@ async function pickSlot(key: ProjectFontSlotKey): Promise<void> {
   }
 }
 function clearSlot(key: ProjectFontSlotKey): void { if (activeFamily.value) delete activeFamily.value.slots[key] }
+function slotKey(weight: ProjectFontWeight, style: ProjectFontStyle): ProjectFontSlotKey { return `${weight}.${style}` as ProjectFontSlotKey }
+function slotFor(weight: ProjectFontWeight, style: ProjectFontStyle): SlotDraft | undefined { return activeFamily.value?.slots[slotKey(weight, style)] }
+function fontWeightLabel(weight: ProjectFontWeight): string {
+  return weight === 'light' ? t('projectConfig.fonts.weightLight') : weight === 'normal' ? t('projectConfig.fonts.weightNormal') : t('projectConfig.fonts.weightBold')
+}
+function fontStyleLabel(style: ProjectFontStyle): string { return style === 'upright' ? t('projectConfig.fonts.styleNormal') : t('projectConfig.fonts.styleItalic') }
 function slotSourceLabel(slot: SlotDraft): string {
   const fileName = projectAssetName(slot.sourcePath)
   const faceName = slot.faceName.trim()
   return faceName && faceName.toLowerCase() !== 'regular' && faceName.toLowerCase() !== fileName.toLowerCase()
-    ? `${fileName} · ${faceName}`
+    ? `${fileName} (${faceName})`
     : fileName
 }
 function fallbackLabel(key: ProjectFontSlotKey): string {
@@ -248,9 +260,14 @@ function fontNameFromPath(path: string): string { return projectAssetName(path).
 <style scoped>
 .project-font-dialog__summary-actions { display: flex; gap: var(--oc-space-2); margin-top: var(--oc-space-3); }
 .project-font-dialog__field { display: grid; gap: var(--oc-space-1); margin-top: var(--oc-space-3); }
-.project-font-dialog__slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--oc-space-2); margin-top: var(--oc-space-4); }
-.project-font-dialog__slot { min-width: 0; }
-.project-font-dialog__slot-heading { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); margin-bottom: var(--oc-space-1); }
+.project-font-dialog__slot-table-wrap { width: 100%; max-width: var(--oc-content-width-md); height: auto; margin-top: var(--oc-space-4); overflow: hidden; }
+.project-font-dialog__slot-table { width: 100%; }
+.project-font-dialog__slot-table th,
+.project-font-dialog__slot-table td { min-width: 0; }
+.project-font-dialog__slot-table th { color: var(--oc-fg-muted); font-size: var(--oc-text-sm); }
+.project-font-dialog__slot-corner,
+.project-font-dialog__slot-weight { white-space: nowrap; }
+.project-font-dialog__slot-cell { min-width: 0; }
 .project-font-dialog__slot-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--oc-space-1); min-width: 0; }
 .project-font-dialog__slot-source { width: 100%; min-width: 0; overflow: hidden; }
 .project-font-dialog__slot-source--fallback { color: var(--oc-fg-muted); }

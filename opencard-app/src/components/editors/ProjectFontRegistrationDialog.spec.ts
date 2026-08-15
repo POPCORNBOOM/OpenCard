@@ -23,6 +23,8 @@ describe('ProjectFontRegistrationDialog', () => {
     } })
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ families: [{ slots: { 'normal.upright': { sourcePath: 'fonts/Regular.ttf' } } }] })
+    expect(wrapper.findAll('.project-font-dialog__slot-table thead th')).toHaveLength(3)
+    expect(wrapper.findAll('.project-font-dialog__slot-table tbody tr')).toHaveLength(3)
     expect(wrapper.text()).toContain('projectConfig.fonts.weightLight')
   })
 })
