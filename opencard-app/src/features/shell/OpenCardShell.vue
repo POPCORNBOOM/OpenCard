@@ -1946,8 +1946,8 @@ const workspaceActions = computed<ShellAction[]>(() => {
       icon: option.commitId === selectedId ? 'action.check' as const : 'file.git' as const,
     }))
     return [
-      { key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', hoverTip: t('sidebar.diffViewer.versionA'), children: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
-      { key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', hoverTip: t('sidebar.diffViewer.versionB'), children: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
+      { type: 'selection', key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', value: timelineRevisionOptions.value.find(option => option.commitId === beforeId)?.label ?? t('sidebar.diffViewer.versionA'), hoverTip: t('sidebar.diffViewer.versionA'), options: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
+      { type: 'selection', key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', value: timelineRevisionOptions.value.find(option => option.commitId === afterId)?.label ?? t('sidebar.diffViewer.versionB'), hoverTip: t('sidebar.diffViewer.versionB'), options: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
       { key: DIFF_EXIT_ACTION_KEY, icon: 'nav.arrow-left', hoverTip: t('settings.actions.back', 'Back') },
     ]
   }

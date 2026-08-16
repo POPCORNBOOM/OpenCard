@@ -2,7 +2,10 @@ import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 
 export interface ShellAction {
+  type?: 'action' | 'selection';
   key?: string;
+  value?: string;
+  options?: readonly OcActionMenuEntry[];
   hoverTip?: string;
   icon: IconToken;
   disabled?: boolean;

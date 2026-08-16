@@ -21,12 +21,12 @@ const emit = defineEmits<{
 
 const actionDefinitions = computed<OcActionButtonAction[]>(() => props.actions.map(action => ({
   key: action.key ?? action.icon,
-  title: action.hoverTip,
+  title: action.hoverTip ?? action.value,
   icon: action.icon,
   disabled: action.disabled,
   badge: action.badge,
   badgeLabel: action.badgeLabel,
-  children: action.children,
+  children: action.options ?? action.children,
 })))
 
 </script>
