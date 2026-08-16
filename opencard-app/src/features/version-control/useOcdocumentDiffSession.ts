@@ -152,13 +152,17 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
       if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')
       resourceRootPath = materialized.value.rootPath
     }
-    const cacheKey = `${root.toLowerCase()}|${commitId ?? 'working-tree'}`
-    let contextPromise = snapshotContextCache.get(cacheKey)
-    if (!contextPromise) {
-      contextPromise = loadSnapshotContext(resourceRootPath)
-      snapshotContextCache.set(cacheKey, contextPromise)
-    }
-    const context = await contextPromise
+    const context = commitId === null
+      ? await loadSnapshotContext(resourceRootPath)
+      : await (async () => {
+        const cacheKey = `${root.toLowerCase()}|${commitId}`
+        let contextPromise = snapshotContextCache.get(cacheKey)
+        if (!contextPromise) {
+          contextPromise = loadSnapshotContext(resourceRootPath)
+          snapshotContextCache.set(cacheKey, contextPromise)
+        }
+        return await contextPromise
+      })()
     return { commitId, label, content, resourceRootPath, ...context }
   }
 
