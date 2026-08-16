@@ -1934,8 +1934,12 @@ const workspaceTitle = computed(() => {
 const workspaceActions = computed<ShellAction[]>(() => {
   if (!isWorkbenchMode.value) return []
   if (isDiffMode.value) {
-    const beforeId = diffSessionState.before.value?.commitId ?? null
-    const afterId = diffSessionState.after.value?.commitId ?? null
+    const beforeId = activeSession.value?.diff
+      ? activeSession.value.diff.beforeRevisionId
+      : diffSessionState.before.value?.commitId ?? null
+    const afterId = activeSession.value?.diff
+      ? activeSession.value.diff.afterRevisionId
+      : diffSessionState.after.value?.commitId ?? null
     const createRevisionMenu = (prefix: string, selectedId: string | null) => timelineRevisionOptions.value.map(option => ({
       key: `${prefix}:${option.commitId ?? 'current'}`,
       title: option.label,
@@ -2865,7 +2869,7 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     const nextBefore = isBefore ? revisionId : currentBefore
     const nextAfter = isBefore ? currentAfter : revisionId
     if (nextBefore !== nextAfter) await diffSessionState.selectComparison(nextBefore, nextAfter)
-    if (activeSession.value) setSessionMode(activeSession.value.id, 'diff', { beforeRevisionId: nextBefore ?? '', afterRevisionId: nextAfter })
+    if (activeSession.value) setSessionMode(activeSession.value.id, 'diff', { beforeRevisionId: nextBefore, afterRevisionId: nextAfter })
     return
   }
   if (actionKey.startsWith(CARD_RENDER_IMAGE_OPTION_PREFIX)) {
