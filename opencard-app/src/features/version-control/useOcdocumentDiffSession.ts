@@ -9,8 +9,7 @@ import { compareOcdocuments, type OcdocumentDiffModel } from './ocdocumentDiff'
 import { PROJECT_PROFILE_FILE_NAME, parseProjectMetadataText, toProjectInformation } from '../workspace/model/projectMetadata'
 import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjectDictionary } from '../workspace/model/projectDictionary'
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
-import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText } from '../workspace/model/projectFontRegistry'
-import { resolveProjectFontExpression } from '../workspace/model/projectFonts'
+import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import { parseProjectCustomBlockRegistryText, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, type ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
@@ -29,6 +28,26 @@ function resolveProjectFile(root: string, path: string): string {
 }
 
 const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
+
+function createSnapshotFontResolver(root: string, fontDocument: NonNullable<ReturnType<typeof parseProjectFontRegistryText>>, namespace: string): (references: string) => string {
+  const families = new Map((fontDocument.families ?? []).map(font => [font.key.toLowerCase(), `OpenCardSnapshot-${namespace}-${font.key}`]))
+  const compositions = new Map((fontDocument.compositions ?? []).map(composition => [composition.key.toLowerCase(), composition.members[0]?.fontKey?.toLowerCase()]))
+  if (typeof document !== 'undefined') {
+    const style = document.createElement('style')
+    style.dataset.opencardDiffFonts = namespace
+    style.textContent = (fontDocument.families ?? []).flatMap(font => projectFontFileEntries(font).map(entry => (
+      `@font-face{font-family:${JSON.stringify(families.get(font.key.toLowerCase()) ?? font.key)};src:url(${JSON.stringify(convertFileSrc(resolveProjectFile(root, entry.source)))});font-weight:${projectFontWeightValues[entry.weight]};font-style:${entry.style === 'italic' ? 'italic' : 'normal'};}`
+    ))).join('')
+    document.head.appendChild(style)
+  }
+  return references => references.split(';').map(reference => {
+    const value = reference.trim()
+    if (!value.toLowerCase().startsWith('font:')) return value
+    const key = value.slice(5).trim().toLowerCase()
+    const family = families.get(key) ?? (compositions.get(key) ? families.get(compositions.get(key)!) : undefined)
+    return family ? JSON.stringify(family) : ''
+  }).filter(Boolean).join(', ')
+}
 
 async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>> {
   const readOptional = async (relativePath: string): Promise<string | null> => {
@@ -54,10 +73,7 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
   if (fontText) {
     const document = parseProjectFontRegistryText(fontText)
     if (document) {
-      resolveFontFamily = references => resolveProjectFontExpression(references, {
-        families: document.families ?? [],
-        compositions: document.compositions ?? [],
-      }).cssFontFamily
+      resolveFontFamily = createSnapshotFontResolver(root, document, root.replace(/[^a-z0-9]+/gi, '-').slice(-24))
     }
   }
   const iconText = await readOptional(PROJECT_ICON_REGISTRY_FILE_NAME)
