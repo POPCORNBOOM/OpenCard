@@ -24,11 +24,11 @@
             <div v-for="fieldKey in Object.keys(source.fields)" :key="`${source.key}:${fieldKey}`" class="property-editor__row">
               <div class="property-editor__row-label"><OcText class="property-editor__row-label-text" :truncate="true">{{ source.fields[fieldKey]?.title ?? fieldKey }}</OcText></div>
               <div class="property-editor__value property-editor__comparison-value">
-                <div v-if="comparisonValueKind(source, fieldKey) === 'before-only'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><code>{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code></div>
-                <div v-else-if="comparisonValueKind(source, fieldKey) === 'after-only'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><code>{{ formatComparisonValue(source.afterRecord?.[fieldKey]) }}</code></div>
-                <div v-else-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><code>{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code></div>
-                <div v-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><code>{{ formatComparisonValue(source.afterRecord?.[fieldKey]) }}</code></div>
-                <code v-if="comparisonValueKind(source, fieldKey) === 'same'">{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code>
+                <div v-if="comparisonValueKind(source, fieldKey) === 'before-only'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span></div>
+                <div v-else-if="comparisonValueKind(source, fieldKey) === 'after-only'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) }}</span></div>
+                <div v-else-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span></div>
+                <div v-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) }}</span></div>
+                <span v-if="comparisonValueKind(source, fieldKey) === 'same'">{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span>
               </div>
             </div>
           </div>
@@ -134,6 +134,7 @@ import {
   usePropertyFieldEditorModes,
 } from './propertyFieldEditorMode'
 import { getPropertyFieldIcon } from './propertyFieldRegistry'
+import { formatPropertyFieldReadonlyValue } from './propertyFieldRegistry'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 
 // 输出事件协议。
@@ -158,17 +159,16 @@ const props = defineProps<{
 const { t, te } = useI18n()
 const { openContextMenu } = useFloatingMenu()
 const fieldEditorModes = usePropertyFieldEditorModes()
-function formatComparisonValue(value: unknown): string {
-  if (value === undefined) return ''
-  if (typeof value === 'string') return value
-  try { return JSON.stringify(value) ?? String(value) } catch { return String(value) }
+function formatComparisonValue(definition: PropertyEditorFieldDefinition | undefined, value: unknown): string {
+  if (!definition) return value === undefined ? '' : String(value)
+  return formatPropertyFieldReadonlyValue(definition, value)
 }
 function comparisonValueKind(source: PropertyEditorComparisonInput, fieldKey: string): 'same' | 'changed' | 'before-only' | 'after-only' {
   const hasBefore = Object.prototype.hasOwnProperty.call(source.beforeRecord ?? {}, fieldKey)
   const hasAfter = Object.prototype.hasOwnProperty.call(source.afterRecord ?? {}, fieldKey)
   if (!hasBefore) return 'after-only'
   if (!hasAfter) return 'before-only'
-  return formatComparisonValue(source.beforeRecord?.[fieldKey]) === formatComparisonValue(source.afterRecord?.[fieldKey]) ? 'same' : 'changed'
+  return formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) === formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) ? 'same' : 'changed'
 }
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {

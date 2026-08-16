@@ -25,23 +25,31 @@ import VerticalAlignPositionPropertyField from './fields/VerticalAlignPositionPr
 type PropertyFieldEditorRegistration = {
   component: Component
   icon: IconToken
+  readonlyPresenter: (value: unknown) => string
 }
+
+const formatReadonlyValue = (value: unknown): string => {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value
+  try { return JSON.stringify(value) ?? String(value) } catch { return String(value) }
+}
+const formatReadonlyBoolean = (value: unknown): string => value === true ? 'true' : value === false ? 'false' : formatReadonlyValue(value)
 
 const RichTextStringPropertyField = defineAsyncComponent(
   () => import('./fields/RichTextStringPropertyField.vue'),
 )
 
 const propertyFieldEditorMap: Record<BasePropertyFieldType, PropertyFieldEditorRegistration> = {
-  string: { component: StringPropertyField, icon: 'data.symbol-string' },
-  anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass' },
-  alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection' },
-  verticalAlignPosition: { component: VerticalAlignPositionPropertyField, icon: 'data.layers' },
-  flowDirection: { component: FlowDirectionPropertyField, icon: 'nav.arrow-right' },
-  number: { component: NumberPropertyField, icon: 'data.symbol-number' },
-  boolean: { component: BooleanPropertyField, icon: 'data.symbol-boolean' },
-  color: { component: ColorPropertyField, icon: 'data.symbol-color' },
-  filePath: { component: FilePathPropertyField, icon: 'file.generic' },
-  object: { component: ObjectPropertyField, icon: 'data.symbol-class' },
+  string: { component: StringPropertyField, icon: 'data.symbol-string', readonlyPresenter: formatReadonlyValue },
+  anchorPosition: { component: AnchorPositionPropertyField, icon: 'nav.compass', readonlyPresenter: formatReadonlyValue },
+  alignPosition: { component: AlignPositionPropertyField, icon: 'data.list-selection', readonlyPresenter: formatReadonlyValue },
+  verticalAlignPosition: { component: VerticalAlignPositionPropertyField, icon: 'data.layers', readonlyPresenter: formatReadonlyValue },
+  flowDirection: { component: FlowDirectionPropertyField, icon: 'nav.arrow-right', readonlyPresenter: formatReadonlyValue },
+  number: { component: NumberPropertyField, icon: 'data.symbol-number', readonlyPresenter: formatReadonlyValue },
+  boolean: { component: BooleanPropertyField, icon: 'data.symbol-boolean', readonlyPresenter: formatReadonlyBoolean },
+  color: { component: ColorPropertyField, icon: 'data.symbol-color', readonlyPresenter: formatReadonlyValue },
+  filePath: { component: FilePathPropertyField, icon: 'file.generic', readonlyPresenter: formatReadonlyValue },
+  object: { component: ObjectPropertyField, icon: 'data.symbol-class', readonlyPresenter: formatReadonlyValue },
 }
 
 export function getPropertyFieldIcon(fieldType: PropertyFieldType): IconToken {
@@ -49,6 +57,13 @@ export function getPropertyFieldIcon(fieldType: PropertyFieldType): IconToken {
     ? getArrayElementFieldType(fieldType)
     : fieldType
   return (propertyFieldEditorMap[resolvedType] ?? propertyFieldEditorMap.string).icon
+}
+
+export function formatPropertyFieldReadonlyValue(definition: PropertyEditorFieldDefinition, value: unknown): string {
+  const resolvedType = isArrayPropertyFieldType(definition.fieldType)
+    ? getArrayElementFieldType(definition.fieldType)
+    : definition.fieldType
+  return (propertyFieldEditorMap[resolvedType] ?? propertyFieldEditorMap.string).readonlyPresenter(value)
 }
 
 export function getPropertyFieldComponent(definition: PropertyEditorFieldDefinition): Component {
