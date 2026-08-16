@@ -1921,7 +1921,6 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
 ])
 
 const workspaceTitle = computed(() => {
-  if (isDiffMode.value) return `差异：${timelineFileName.value}`
   if (isCreateProjectMode.value) return t('projectTemplates.title')
   if (isExportTemplateMode.value) return t('templateExport.title')
   if (isSettingsMode.value) return activeSettingsCategory.value.title

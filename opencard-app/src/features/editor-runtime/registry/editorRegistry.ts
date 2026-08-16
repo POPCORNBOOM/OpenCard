@@ -185,6 +185,7 @@ editorRegistry.register({
   component: FontPreviewEditor,
   history: 'none',
   hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({

@@ -1,6 +1,7 @@
 /** Adapts the active editor session to a registered editor without owning session truth. */
 import { computed, ref, watch, type Component, type DeepReadonly, type Ref } from 'vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
+import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import { getOcTheme } from '../../../shared/ui/foundation'
 import type { AppSettings } from '../../settings/model/appSettings'
 import type {
@@ -115,7 +116,10 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   const component = computed<Component | null>(() => {
     const session = options.activeSession.value
     if (!session) return null
-    return editorRegistry.getEditor(session.editorId)?.component ?? UnsupportedFileEditor
+    const editor = editorRegistry.getEditor(session.editorId)
+    const fileType = resolveSessionFileType(session)
+    if (session.mode === 'diff' && editor && !editor.supportsDiff && fileType.language) return MonacoEditor
+    return editor?.component ?? UnsupportedFileEditor
   })
 
   const historyState = computed(() => editorHistoryManager.state(options.activeSession.value?.id))
@@ -138,6 +142,17 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     const fileType = resolveSessionFileType(session)
     const filePath = session.path ?? `draft://${session.id}`
     const editor = editorRegistry.getEditor(session.editorId) ?? editorRegistry.getEditor('unsupported-file')
+    if (session.mode === 'diff' && editor && !editor.supportsDiff && fileType.language) {
+      return {
+        sessionId,
+        mode: 'diff',
+        comparison: options.comparison?.value ?? undefined,
+        modelValue: session.draftContent,
+        language: fileType.language,
+        themeId: themeId.value,
+        themeOverrides: themeOverrides.value,
+      }
+    }
     if (editor && editor.id !== 'monaco') {
       const baseProps = {
         sessionId,
@@ -196,11 +211,14 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     return {
       sessionId,
       mode: session.mode,
+      comparison: options.comparison?.value ?? undefined,
       modelValue: session.draftContent,
       savedContent: session.savedContent,
-      'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
-        recordDraftContent(sessionId, value, history)
-      },
+      ...(session.mode === 'diff' ? {} : {
+        'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
+          recordDraftContent(sessionId, value, history)
+        },
+      }),
       language: fileType.language ?? 'plaintext',
       themeId: themeId.value,
       themeOverrides: themeOverrides.value,
