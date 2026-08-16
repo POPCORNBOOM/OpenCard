@@ -822,7 +822,26 @@ const diffSessionState = useOcdocumentDiffSession({
   fileName: timelineFileName,
   revisions: projectTimeline.revisionOptions,
 })
+let synchronizedDiffSessionKey = ''
+watch(
+  () => [
+    activeSession.value?.id ?? '',
+    activeSession.value?.mode ?? 'edit',
+    activeSession.value?.diff?.beforeRevisionId ?? '',
+    activeSession.value?.diff?.afterRevisionId ?? '',
+  ] as const,
+  ([sessionId, mode, beforeId, afterId]) => {
+    if (mode !== 'diff' || !sessionId || !activeSession.value?.diff) return
+    if (beforeId === afterId) return
+    const key = `${sessionId}|${beforeId ?? 'current'}|${afterId ?? 'current'}`
+    if (key === synchronizedDiffSessionKey) return
+    synchronizedDiffSessionKey = key
+    void diffSessionState.selectComparison(beforeId, afterId)
+  },
+  { immediate: true },
+)
 const editorComparison = computed(() => {
+  if (activeSession.value?.mode !== 'diff') return null
   const session = diffSessionState.diffSession.value
   if (!session) return null
   return {

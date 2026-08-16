@@ -99,6 +99,7 @@
       <CardDataTable
         v-else
         ref="cardDataTableRef"
+        :readonly="props.mode === 'diff'"
         :columns="dataTableColumns"
         :catalog-face-groups="dataTableCatalogFaceGroups"
         :face-groups="dataTableFaceGroups"
@@ -154,7 +155,7 @@
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                   data-cde-shortcut-scope="instance-tree"
                   tab-navigation="none"
-                  :data="instanceTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
+                  :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
                   selection-mode="single" @intent="handleInstanceTreeIntent" />
               </OcPanel>
             </OcCard>
@@ -235,6 +236,8 @@
                   {{ t('cardDesigner.selectionSummary.multipleBlocks', { count: selectedBlockKeys.length }) }}
                 </OcEmpty>
                 <PropertyEditor v-else ref="propertyEditorRef" :inputs="propertyEditorInputs"
+                  :mode="props.mode === 'diff' ? 'comparison' : 'edit'"
+                  :comparison-inputs="props.mode === 'diff' ? diffPropertyInputs : undefined"
                   :categories="propertyCategories" :sort-mode="propertySortMode"
                   :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
                   @update-property="updateBlockProp" @add-property="addBlockProp"
@@ -416,12 +419,13 @@ import {
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
-import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { compareOcdocuments } from '../version-control/ocdocumentDiff'
 import { prepareCardRender } from '../card-rendering/renderPipeline'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
@@ -470,15 +474,15 @@ const diffBeforeRender = computed<PreparedCardRender | null>(() => {
   if (!model || !snapshot) return null
   return prepareCardRender({
     document: model.beforeDocument,
-    instance: null,
+              instance: diffBeforeInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
-      project: snapshot.project ?? projectStore.renderEnvironment.value.project,
-      dictionary: snapshot.dictionary ?? projectStore.renderEnvironment.value.dictionary,
-      projectIconCatalog: snapshot.projectIconCatalog ?? projectStore.renderEnvironment.value.projectIconCatalog,
-      customBlockCatalog: snapshot.customBlockCatalog ?? projectStore.renderEnvironment.value.customBlockCatalog,
-      remoteResourcePolicy: snapshot.remoteResourcePolicy ?? projectStore.renderEnvironment.value.remoteResourcePolicy,
+      project: snapshot.project ?? null,
+      dictionary: snapshot.dictionary,
+      projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
+      customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
+      remoteResourcePolicy: snapshot.remoteResourcePolicy,
     },
   })
 })
@@ -488,15 +492,15 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
   if (!model || !snapshot) return null
   return prepareCardRender({
     document: model.afterDocument,
-    instance: null,
+              instance: diffAfterInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
-      project: snapshot.project ?? projectStore.renderEnvironment.value.project,
-      dictionary: snapshot.dictionary ?? projectStore.renderEnvironment.value.dictionary,
-      projectIconCatalog: snapshot.projectIconCatalog ?? projectStore.renderEnvironment.value.projectIconCatalog,
-      customBlockCatalog: snapshot.customBlockCatalog ?? projectStore.renderEnvironment.value.customBlockCatalog,
-      remoteResourcePolicy: snapshot.remoteResourcePolicy ?? projectStore.renderEnvironment.value.remoteResourcePolicy,
+      project: snapshot.project ?? null,
+      dictionary: snapshot.dictionary,
+      projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
+      customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
+      remoteResourcePolicy: snapshot.remoteResourcePolicy,
     },
   })
 })
@@ -850,6 +854,43 @@ const selectedCardId = ref<string | null>(
   props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
 )
 const forceStructureTreeReveal = ref(false)
+const diffSelectedInstanceId = computed(() => (
+  props.mode === 'diff' && selectedCardId.value !== BLUEPRINT_CARD_ID
+    ? selectedCardId.value
+    : null
+))
+const diffBeforeInstance = computed(() => diffSelectedInstanceId.value
+  ? diffModel.value?.beforeDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
+  : null)
+const diffAfterInstance = computed(() => diffSelectedInstanceId.value
+  ? diffModel.value?.afterDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
+  : null)
+const diffInstanceTreeData = computed<OcTreeData>(() => {
+  const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+  const rootKeys = ['__blueprint__']
+  items.set('__blueprint__', { label: t('cardDesigner.dataTable.blueprint'), icon: 'file.opencard' })
+  const ids = new Set([
+    ...(diffModel.value?.beforeDocument.instances ?? []).map(instance => instance.id),
+    ...(diffModel.value?.afterDocument.instances ?? []).map(instance => instance.id),
+  ])
+  for (const id of ids) {
+    const before = diffModel.value?.beforeDocument.instances.find(instance => instance.id === id)
+    const after = diffModel.value?.afterDocument.instances.find(instance => instance.id === id)
+    items.set(id, {
+      label: after?.name || before?.name || id,
+      icon: 'file.opencard',
+      displayActions: {
+        leading: [{
+          key: `diff:${id}`,
+          icon: before && after ? 'action.check' : after ? 'action.add' : 'action.delete',
+          tone: before && after ? 'muted' : after ? 'success' : 'danger',
+        }],
+      },
+    })
+    rootKeys.push(id)
+  }
+  return { rootKeys, items, children: new Map() }
+})
 
 // 文档状态与读写协议。
 const {
@@ -909,7 +950,9 @@ const activeCustomBlockKeys = computed(() => {
   return keys
 })
 
-watch(activeCustomBlockKeys, keys => projectStore.setActiveProjectCustomBlockKeys(keys), { immediate: true })
+watch(activeCustomBlockKeys, keys => {
+  if (props.mode !== 'diff') projectStore.setActiveProjectCustomBlockKeys(keys)
+}, { immediate: true })
 
 const blockFieldCommands = useCdeBlockFieldCommands({
   cardDoc,
@@ -1035,6 +1078,14 @@ const canMutateSelectedInstance = computed(() =>
 )
 
 function handleInstanceTreeIntent(intent: OcTreeIntent): void {
+  if (props.mode === 'diff') {
+    if (intent.type === 'selection.change') {
+      const key = intent.selectedKeys[0] ?? BLUEPRINT_CARD_ID
+      selectedCardId.value = key
+      selectedCardKeys.value = [key]
+    }
+    return
+  }
   handleInstanceModelTreeIntent(intent)
   if (intent.type === 'rename.request'
     || (intent.type === 'action.invoke' && intent.actionKey === 'rename')) {
@@ -1477,6 +1528,14 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
 })
+const diffPropertyInputs = computed(() => propertyEditorInputs.value.map(input => ({
+  key: input.key,
+  title: input.title,
+  beforeRecord: input.record,
+  afterRecord: input.record,
+  fields: input.fields,
+  displayActions: input.displayActions,
+})))
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
   documentRevision,

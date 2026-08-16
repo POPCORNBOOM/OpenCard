@@ -36,7 +36,7 @@
                   size="md" tone="muted" />
                 <span>{{ column.title }}</span>
                 <OcButton
-                  v-if="column.kind === 'instance'"
+                  v-if="!props.readonly && column.kind === 'instance'"
                   icon-only
                   size="sm"
                   variant="ghost"
@@ -49,7 +49,7 @@
                     ? t('cardDesigner.dataTable.excludeInstanceFromExport')
                     : t('cardDesigner.dataTable.includeInstanceInExport')"
                   @click="emit('set-instance-exported', column.key, !column.exported)" />
-                <OcActionButton :action="columnAction(column)" size="sm" variant="ghost"
+                <OcActionButton v-if="!props.readonly" :action="columnAction(column)" size="sm" variant="ghost"
                   @select="handleColumnAction(column, $event.key)" />
               </div>
               <OcDataGridColumnResizeHandle class="card-data-table__column-resize"
@@ -60,7 +60,7 @@
                 @resize-keydown="handleColumnResizeKeydown($event, column.key)" />
             </th>
             <th class="card-data-table__add-column oc-data-grid__tail" scope="col">
-              <OcButton icon-only size="sm" variant="ghost" icon="action.add"
+              <OcButton v-if="!props.readonly" icon-only size="sm" variant="ghost" icon="action.add"
                 :data-tooltip="t('cardDesigner.dataTable.addInstance')"
                 :aria-label="t('cardDesigner.dataTable.addInstance')" @click="emit('add-instance')" />
             </th>
@@ -76,7 +76,7 @@
                   @keydown="openFaceKeyboardMenu($event, face)">
                   <OcIcon name="file.opencard" size="md" tone="muted" />
                   <span>{{ face.title }}</span>
-                  <OcActionButton v-if="faceBlockAction(face)" :action="faceBlockAction(face)!"
+                  <OcActionButton v-if="!props.readonly && faceBlockAction(face)" :action="faceBlockAction(face)!"
                     size="sm" variant="ghost" @select="emit('add-block', $event.key)" />
                 </span>
               </th>
@@ -93,9 +93,9 @@
                   <OcIcon :name="getBlockPresentation(block.type).icon" size="md"
                     :tone="getBlockPresentation(block.type).iconTone" />
                   <span>{{ block.title }}</span>
-                  <OcActionButton :action="blockFieldAction(block)" size="sm" variant="ghost"
+                  <OcActionButton v-if="!props.readonly" :action="blockFieldAction(block)" size="sm" variant="ghost"
                     @select="handleBlockAction(block.key, $event.key)" />
-                  <OcActionButton :action="removeBlockAction()" size="sm" variant="ghost"
+                  <OcActionButton v-if="!props.readonly" :action="removeBlockAction()" size="sm" variant="ghost"
                     @select="handleBlockAction(block.key, $event.key)" />
                 </span>
               </th>
@@ -111,10 +111,10 @@
                   @keydown="openFieldKeyboardMenu($event, block, field)">
                   <OcIcon :name="getPropertyFieldIcon(field.definition.fieldType)" size="sm" tone="muted" />
                   <span>{{ field.title }}</span>
-                  <OcActionButton v-if="field.deletable" :action="deleteFieldAction()"
+                  <OcActionButton v-if="!props.readonly && field.deletable" :action="deleteFieldAction()"
                     size="sm" variant="ghost"
                     @select="handleFieldAction(block.key, field.key, $event.key)" />
-                  <OcActionButton :action="excludeFieldAction()" size="sm" variant="ghost"
+                  <OcActionButton v-if="!props.readonly" :action="excludeFieldAction()" size="sm" variant="ghost"
                     @select="handleFieldAction(block.key, field.key, $event.key)" />
                 </span>
               </th>
@@ -122,7 +122,7 @@
                 class="card-data-table__cell oc-data-grid__cell" :class="{ 'is-inherited': cell.inherited }"
                 :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)">
                 <template v-if="shouldMountCell(cell.identity)">
-                  <span v-if="cell.readonly" class="card-data-table__cell-preview oc-data-grid__cell-preview">
+                  <span v-if="props.readonly || cell.readonly" class="card-data-table__cell-preview oc-data-grid__cell-preview">
                     {{ formatCellPreview(cell.value) }}
                   </span>
                   <template v-else>
@@ -197,6 +197,7 @@ const props = defineProps<{
     field: CdeDataTableFieldRow,
     cell: CdeDataTableCell,
   ) => PropertyEditorFieldDefinition
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
