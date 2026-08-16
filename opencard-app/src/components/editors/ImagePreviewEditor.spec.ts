@@ -5,6 +5,10 @@ import { createI18n } from 'vue-i18n'
 import enUS from '../../locales/en-US'
 import ImagePreviewEditor from './ImagePreviewEditor.vue'
 
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (path: string) => `asset://${path}`,
+}))
+
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
     resolveAssetSrc: (path: string) => `asset://${path}`,
@@ -102,5 +106,25 @@ describe('ImagePreviewEditor', () => {
       y: 20,
       scale: 1,
     }])
+  })
+
+  it('renders two synchronized snapshot viewports in diff mode', () => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    const wrapper = mount(ImagePreviewEditor, {
+      props: {
+        filePath: 'assets/example.png',
+        mode: 'diff',
+        comparison: {
+          before: { revisionId: 'a', label: 'A', content: '', resourceRootPath: 'D:/snapshot-a' },
+          after: { revisionId: null, label: 'Current', content: '', resourceRootPath: 'D:/project' },
+        },
+      },
+      global: {
+        plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
+      },
+    })
+    expect(wrapper.findAll('.image-preview-editor__diff-viewport')).toHaveLength(2)
+    expect(wrapper.findAll('.image-preview-editor__diff-viewport img')).toHaveLength(2)
+    expect(wrapper.find('img[src*="snapshot-a"]').exists()).toBe(true)
   })
 })

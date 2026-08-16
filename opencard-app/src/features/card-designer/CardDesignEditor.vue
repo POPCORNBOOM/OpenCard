@@ -23,13 +23,16 @@
         <div :key="workspaceMode" class="card-design-editor__mode-view">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
-          <div v-if="props.mode === 'diff' && diffBeforeRender && diffAfterRender" class="card-design-editor__diff-stage">
+          <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
+            <div v-if="diffBeforeRender && diffAfterRender" class="card-design-editor__diff-stage">
             <CardViewport class="card-design-editor__diff-viewport" :face="diffBeforeRender.document.faces[activeFaceKey]"
               :resource-context="diffBeforeRender.resources" readonly :transform="viewportTransform"
               :diff-highlights="diffBeforeHighlights" @viewport-transform-change="handleViewportTransformChange" />
             <CardViewport class="card-design-editor__diff-viewport" :face="diffAfterRender.document.faces[activeFaceKey]"
               :resource-context="diffAfterRender.resources" readonly :transform="viewportTransform"
               :diff-highlights="diffAfterHighlights" @viewport-transform-change="handleViewportTransformChange" />
+            </div>
+            <OcEmpty v-else>无法解析 .ocdocument 差异版本</OcEmpty>
           </div>
           <template v-else>
           <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
@@ -249,7 +252,7 @@
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools"
           :class="{ 'is-resizing': isDockResizing }" orientation="vertical"
-          :style="faceToolsStyle" label="卡牌画布控制" :items="faceToolbarItems"
+          :style="faceToolsStyle" label="卡牌画布控制" :items="props.mode === 'diff' ? diffFaceToolbarItems : faceToolbarItems"
           @select="handleFaceToolbarSelect" />
       </div>
         </div>
@@ -341,6 +344,7 @@ import {
   getCardFieldDefinition,
   type AdditionalFieldDefinition,
   type CardBlock,
+  type CardDocument,
   type CardFaceKey,
   type FlowDirection,
 } from '../../entities/card/model'
@@ -642,6 +646,7 @@ const faceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [
   },
   faceSwitchAction.value,
 ])
+const diffFaceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [faceSwitchAction.value])
 
 function handleFaceToolbarSelect({ key }: { key: string }): void {
   if (key === 'viewport.zoom-out') zoomViewportOut()
@@ -867,6 +872,17 @@ const diffBeforeInstance = computed(() => diffSelectedInstanceId.value
 const diffAfterInstance = computed(() => diffSelectedInstanceId.value
   ? diffModel.value?.afterDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
   : null)
+function findDiffBlock(document: CardDocument | null | undefined, blockId: string): CardBlock | null {
+  if (!document) return null
+  for (const face of Object.values(document.faces)) {
+    for (const child of face.children) {
+      let found: CardBlock | null = null
+      visitCardBlockTree(child.block, block => { if (block.id === blockId) found = block })
+      if (found) return found
+    }
+  }
+  return null
+}
 const diffInstanceTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
   const rootKeys = ['__blueprint__']
@@ -1533,8 +1549,8 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
 const diffPropertyInputs = computed(() => propertyEditorInputs.value.map(input => ({
   key: input.key,
   title: input.title,
-  beforeRecord: input.record,
-  afterRecord: input.record,
+  beforeRecord: findDiffBlock(diffModel.value?.beforeDocument, input.key) ?? input.record,
+  afterRecord: findDiffBlock(diffModel.value?.afterDocument, input.key) ?? input.record,
   fields: input.fields,
   displayActions: input.displayActions,
 })))
@@ -2519,6 +2535,13 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   gap: var(--oc-space-2);
+}
+
+.card-design-editor__diff-mode-stage {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .card-design-editor__diff-viewport {

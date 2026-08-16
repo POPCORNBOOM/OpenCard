@@ -15,8 +15,8 @@
     @keydown="handleKeydown"
   >
     <div v-if="isDiff" class="image-preview-editor__diff-viewports">
-      <div class="image-preview-editor__diff-viewport"><img v-if="beforeImageSrc" class="image-preview-editor__image" :src="beforeImageSrc" :alt="`${fileName} (before)`" :style="imageStyle" draggable="false" /></div>
-      <div class="image-preview-editor__diff-viewport"><img v-if="afterImageSrc" class="image-preview-editor__image" :src="afterImageSrc" :alt="`${fileName} (after)`" :style="imageStyle" draggable="false" /></div>
+      <div class="image-preview-editor__diff-viewport"><img v-if="beforeImageSrc" class="image-preview-editor__image" :src="beforeImageSrc" :alt="`${fileName} (before)`" :style="imageStyle" draggable="false" @load="handleLoad" @error="handleError" /></div>
+      <div class="image-preview-editor__diff-viewport"><img v-if="afterImageSrc" class="image-preview-editor__image" :src="afterImageSrc" :alt="`${fileName} (after)`" :style="imageStyle" draggable="false" @load="handleLoad" @error="handleError" /></div>
     </div>
     <img
       v-else-if="imageSrc && !loadError"
