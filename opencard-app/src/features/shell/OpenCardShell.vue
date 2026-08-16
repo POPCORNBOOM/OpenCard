@@ -158,6 +158,16 @@
             :activation-mode="isExportTemplateMode ? 'none' : 'double-click'"
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
+          <OcTree
+            v-else-if="list.key === TIMELINE_LIST_KEY && timelineTreeData.rootKeys.length > 0"
+            class="open-card-shell__sidebar-tree"
+            :data="timelineTreeData"
+            :selected-keys="timelineSelectedKeys"
+            role="listbox"
+            selection-mode="single"
+            activation-mode="none"
+            @intent="handleTimelineTreeIntent"
+          />
           <div v-else class="shell-sidebar-empty">
             <OcButton
               v-if="list.key === PROJECT_FILES_LIST_KEY && !projectPath && !effectiveSidebarCollapsed"
@@ -490,6 +500,7 @@ import {
   type PrimaryShellPage,
   type ShellPage,
 } from './shellPage'
+import { useProjectTimeline } from '../version-control/useProjectTimeline'
 
 const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
@@ -498,7 +509,8 @@ const PROJECT_FILES_LIST_KEY = 'project-files'
 const PROJECT_MANAGEMENT_LIST_KEY = 'project-management'
 const OPENED_EDITORS_LIST_KEY = 'opened-editors'
 const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
-const CHANGES_LIST_KEY = 'changes'
+const TIMELINE_LIST_KEY = 'timeline'
+const TIMELINE_REFRESH_ACTION_KEY = 'timeline.refresh'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
 const ICON_PACKS_LIST_KEY = 'icon-packs'
@@ -570,6 +582,26 @@ const {
   moveEntryByDrop,
   renameEntry,
 } = projectStore
+
+const projectTimeline = useProjectTimeline(projectPath, locale)
+const {
+  treeData: timelineTreeData,
+  selectedKeys: timelineSelectedKeys,
+  loading: timelineLoading,
+  initialized: timelineInitialized,
+  errorKind: timelineErrorKind,
+  refresh: refreshTimeline,
+  handleTreeIntent: handleTimelineTreeIntent,
+} = projectTimeline
+const timelinePlaceholder = computed(() => {
+  if (timelineLoading.value) return t('sidebar.timelineLoading')
+  if (timelineErrorKind.value) return t('sidebar.timelineFailed')
+  if (timelineInitialized.value === false) return t('sidebar.timelineNotInitialized')
+  if (timelineInitialized.value === true && !projectTimeline.hasHistory.value) {
+    return t('sidebar.timelineNoCommits')
+  }
+  return t('sidebar.noProjectOpen')
+})
 
 const settingsStore = useAppSettingsStore()
 watch(
@@ -1652,10 +1684,15 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       ],
     },
     {
-      key: CHANGES_LIST_KEY,
-      title: t('sidebar.changes'),
-      placeholder: t('sidebar.comingSoon'),
-      actions: [],
+      key: TIMELINE_LIST_KEY,
+      title: t('sidebar.timeline'),
+      placeholder: timelinePlaceholder.value,
+      actions: [{
+        key: TIMELINE_REFRESH_ACTION_KEY,
+        icon: 'action.refresh',
+        hoverTip: t('sidebar.timelineRefresh'),
+        disabled: !projectPath.value || timelineLoading.value,
+      }],
     },
   ]
 })
@@ -1997,6 +2034,10 @@ async function revealRecentProject(path: string): Promise<void> {
 }
 
 async function handleSidebarListAction(listKey: string, actionKey: string): Promise<void> {
+  if (listKey === TIMELINE_LIST_KEY && actionKey === TIMELINE_REFRESH_ACTION_KEY) {
+    await refreshTimeline()
+    return
+  }
   if (shellPage.value.type === 'workbench' && listKey === PROJECT_FILES_LIST_KEY) {
     if (actionKey === PROJECT_NEW_OPENCARD_ACTION_KEY) {
       await createProjectEntry('opencard')
