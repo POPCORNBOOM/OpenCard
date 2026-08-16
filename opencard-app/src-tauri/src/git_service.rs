@@ -1,13 +1,15 @@
 use git2::{
     build::{CheckoutBuilder, RepoBuilder},
     BranchType, Cred, DiffFormat, DiffOptions, ErrorClass, ErrorCode, FetchOptions, IndexAddOption,
-    Oid, PushOptions, RemoteCallbacks, Repository, RepositoryState, ResetType, Sort,
+    ObjectType, Oid, PushOptions, RemoteCallbacks, Repository, RepositoryState, ResetType, Sort,
     StashApplyOptions, StashFlags, Status, StatusOptions,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{hash_map::DefaultHasher, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Mutex, TryLockError};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const DEFAULT_GITIGNORE: &str = ".opencard-init-*\n";
 static GIT_OPERATION_LOCK: Mutex<()> = Mutex::new(());
@@ -460,6 +462,34 @@ pub struct FileHistoryRequest {
     pub limit: Option<usize>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionFileRequest {
+    pub revision: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionFileContent {
+    pub path: String,
+    pub content: String,
+    pub binary: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaterializeRevisionRequest {
+    pub revision: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionSnapshot {
+    pub revision: String,
+    pub root_path: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictSide {
@@ -504,6 +534,10 @@ fn canonical_project_root(project_root: &str) -> GitServiceResult<PathBuf> {
         ));
     }
     Ok(root)
+}
+
+fn normalized_path_string(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn open_exact_repository(project_root: &str) -> GitServiceResult<(PathBuf, Repository)> {
@@ -1422,6 +1456,138 @@ pub fn read_file_history(
     Ok(result)
 }
 
+pub fn read_file_at_revision(
+    project_root: &str,
+    request: &RevisionFileRequest,
+) -> GitServiceResult<RevisionFileContent> {
+    let relative_path = validate_relative_path(&request.path)?;
+    let (_, repository) = open_exact_repository(project_root)?;
+    let object = repository
+        .revparse_single(request.revision.trim())
+        .map_err(GitServiceError::from_git)?;
+    let commit = object.peel_to_commit().map_err(GitServiceError::from_git)?;
+    let tree = commit.tree().map_err(GitServiceError::from_git)?;
+    let entry = tree
+        .get_path(relative_path)
+        .map_err(GitServiceError::from_git)?;
+    let blob = repository
+        .find_blob(entry.id())
+        .map_err(GitServiceError::from_git)?;
+    let binary = blob.is_binary();
+    let content = if binary {
+        String::new()
+    } else {
+        match std::str::from_utf8(blob.content()) {
+            Ok(content) => content.to_string(),
+            Err(_) => String::new(),
+        }
+    };
+    Ok(RevisionFileContent {
+        path: request.path.replace('\\', "/"),
+        binary: binary || (content.is_empty() && !blob.content().is_empty()),
+        content,
+    })
+}
+
+fn revision_snapshot_cache_root(project_root: &Path, revision: Oid) -> PathBuf {
+    let mut hasher = DefaultHasher::new();
+    project_root.hash(&mut hasher);
+    std::env::temp_dir()
+        .join("opencard")
+        .join("git-snapshots")
+        .join(format!("{:016x}", hasher.finish()))
+        .join(revision.to_string())
+}
+
+fn materialize_tree(
+    repository: &Repository,
+    tree: &git2::Tree<'_>,
+    destination: &Path,
+) -> GitServiceResult<()> {
+    for entry in tree.iter() {
+        let name = entry.name().map_err(|_| {
+            GitServiceError::new(
+                GitErrorKind::InvalidInput,
+                "Revision contains a path that is not valid UTF-8",
+            )
+        })?;
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(GitServiceError::new(
+                GitErrorKind::PathOutsideProject,
+                "Revision contains an unsafe path",
+            ));
+        }
+        let target = destination.join(name);
+        match entry.kind() {
+            Some(ObjectType::Tree) => {
+                std::fs::create_dir_all(&target).map_err(GitServiceError::from_io)?;
+                let child = repository
+                    .find_tree(entry.id())
+                    .map_err(GitServiceError::from_git)?;
+                materialize_tree(repository, &child, &target)?;
+            }
+            Some(ObjectType::Blob) if entry.filemode() != 0o120000 => {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(GitServiceError::from_io)?;
+                }
+                let blob = repository
+                    .find_blob(entry.id())
+                    .map_err(GitServiceError::from_git)?;
+                std::fs::write(&target, blob.content()).map_err(GitServiceError::from_io)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+pub fn materialize_revision(
+    project_root: &str,
+    request: &MaterializeRevisionRequest,
+) -> GitServiceResult<RevisionSnapshot> {
+    let (root, repository) = open_exact_repository(project_root)?;
+    let object = repository
+        .revparse_single(request.revision.trim())
+        .map_err(GitServiceError::from_git)?;
+    let commit = object.peel_to_commit().map_err(GitServiceError::from_git)?;
+    let revision = commit.id();
+    let destination = revision_snapshot_cache_root(&root, revision);
+    if destination.is_dir() {
+        return Ok(RevisionSnapshot {
+            revision: revision.to_string(),
+            root_path: normalized_path_string(&destination),
+        });
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temporary = destination.with_extension(format!("partial-{}-{nonce}", std::process::id()));
+    std::fs::create_dir_all(&temporary).map_err(GitServiceError::from_io)?;
+    let result = commit
+        .tree()
+        .map_err(GitServiceError::from_git)
+        .and_then(|tree| materialize_tree(&repository, &tree, &temporary));
+    if let Err(error) = result {
+        let _ = std::fs::remove_dir_all(&temporary);
+        return Err(error);
+    }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent).map_err(GitServiceError::from_io)?;
+    }
+    if let Err(error) = std::fs::rename(&temporary, &destination) {
+        let _ = std::fs::remove_dir_all(&temporary);
+        if !destination.is_dir() {
+            return Err(GitServiceError::from_io(error));
+        }
+    }
+    Ok(RevisionSnapshot {
+        revision: revision.to_string(),
+        root_path: normalized_path_string(&destination),
+    })
+}
+
 fn conflict_side(entry: Option<&git2::IndexEntry>) -> ConflictSide {
     ConflictSide {
         path: entry.map(|entry| String::from_utf8_lossy(&entry.path).replace('\\', "/")),
@@ -2248,6 +2414,22 @@ pub fn git_file_history(
 }
 
 #[tauri::command]
+pub fn git_read_file_at_revision(
+    project_root: String,
+    request: RevisionFileRequest,
+) -> GitCommandResult<RevisionFileContent> {
+    run_exclusive(|| read_file_at_revision(&project_root, &request)).into()
+}
+
+#[tauri::command]
+pub fn git_materialize_revision(
+    project_root: String,
+    request: MaterializeRevisionRequest,
+) -> GitCommandResult<RevisionSnapshot> {
+    run_exclusive(|| materialize_revision(&project_root, &request)).into()
+}
+
+#[tauri::command]
 pub fn git_conflicts(project_root: String) -> GitCommandResult<Vec<ConflictEntry>> {
     command_result_with_conflicts(run_exclusive(|| read_conflicts(&project_root)), |value| {
         !value.is_empty()
@@ -2456,6 +2638,77 @@ mod tests {
                 .collect::<Vec<_>>(),
             [second.id, first.id]
         );
+    }
+
+    #[test]
+    fn reads_text_and_materializes_tracked_files_at_revision() {
+        let directory = initialized_repository();
+        let root = directory.path().to_str().unwrap();
+        std::fs::create_dir_all(directory.path().join("assets")).unwrap();
+        std::fs::write(directory.path().join("assets/icon.bin"), [0_u8, 159, 255]).unwrap();
+        stage_all(root).unwrap();
+        let commit = create_commit(
+            root,
+            &CommitRequest {
+                message: "resources".into(),
+            },
+        )
+        .unwrap();
+
+        let text = read_file_at_revision(
+            root,
+            &RevisionFileRequest {
+                revision: commit.id.clone(),
+                path: "card.txt".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(text.content, "first\n");
+        assert!(!text.binary);
+
+        let binary = read_file_at_revision(
+            root,
+            &RevisionFileRequest {
+                revision: commit.id.clone(),
+                path: "assets/icon.bin".into(),
+            },
+        )
+        .unwrap();
+        assert!(binary.binary);
+        assert!(binary.content.is_empty());
+
+        let snapshot = materialize_revision(
+            root,
+            &MaterializeRevisionRequest {
+                revision: commit.id.clone(),
+            },
+        )
+        .unwrap();
+        let snapshot_root = PathBuf::from(&snapshot.root_path);
+        assert_eq!(snapshot.revision, commit.id);
+        assert_eq!(
+            std::fs::read_to_string(snapshot_root.join("card.txt")).unwrap(),
+            "first\n"
+        );
+        assert_eq!(
+            std::fs::read(snapshot_root.join("assets/icon.bin")).unwrap(),
+            [0_u8, 159, 255]
+        );
+        std::fs::remove_dir_all(snapshot_root).unwrap();
+    }
+
+    #[test]
+    fn revision_file_read_rejects_paths_outside_project() {
+        let directory = initialized_repository();
+        let error = read_file_at_revision(
+            directory.path().to_str().unwrap(),
+            &RevisionFileRequest {
+                revision: "HEAD".into(),
+                path: "../outside".into(),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, GitErrorKind::PathOutsideProject);
     }
 
     #[test]

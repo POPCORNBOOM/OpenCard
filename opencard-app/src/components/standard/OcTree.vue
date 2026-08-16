@@ -63,6 +63,10 @@
           @mousedown="handleIconMouseDown($event, entry.key)"
           @click="handleIconClick($event, entry.key)"
         >
+          <span v-for="action in entry.item.displayActions?.leading ?? []" :key="`leading:${action.key}`"
+            class="oc-tree__display-action" :data-tooltip="action.tooltip" aria-hidden="true">
+            <OcIcon :name="action.icon" :tone="action.tone" size="sm" />
+          </span>
           <span v-if="entry.item.thumbnailStyle" class="oc-tree__thumbnail"
             :class="{ 'oc-project-icon': entry.item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
             :style="entry.item.thumbnailStyle" role="img"
@@ -114,6 +118,10 @@
             @mousedown.stop
             @select="emitActionIntent(entry.key, $event.key)"
           />
+        </span>
+        <span v-for="action in entry.item.displayActions?.trailing ?? []" :key="`trailing:${action.key}`"
+          class="oc-tree__display-action" :data-tooltip="action.tooltip" aria-hidden="true">
+          <OcIcon :name="action.icon" :tone="action.tone" size="sm" />
         </span>
 
         <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
@@ -1090,6 +1098,8 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
   visibility: hidden;
 }
+
+.oc-tree__display-action { display: inline-flex; align-items: center; flex: 0 0 auto; }
 
 .oc-tree__row:hover .oc-tree__controls,
 .oc-tree__row:focus-within .oc-tree__controls,

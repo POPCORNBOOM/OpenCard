@@ -1,5 +1,6 @@
 /** Key-only UI contract for OcTree data, actions, and emitted intent. */
 import type { IconToken, IconTone } from '../icon/iconRegistry'
+import type { OcDisplayActionSlots } from '../display-action.types'
 
 export type OcTreeKey = string
 export type OcTreeActionKey = string
@@ -32,6 +33,7 @@ export interface OcTreeItem {
   draggable?: boolean
   actions?: readonly OcTreeActionKey[]
   contextActions?: readonly OcTreeActionKey[]
+  displayActions?: OcDisplayActionSlots
   disabledActions?: ReadonlyMap<OcTreeActionKey, string>
 }
 

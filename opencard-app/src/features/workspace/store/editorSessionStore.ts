@@ -31,6 +31,12 @@ const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
+export type EditorSessionMode = 'edit' | 'diff'
+export interface EditorSessionDiffState {
+  beforeRevisionId: string | null
+  afterRevisionId: string | null
+  uiState?: Record<string, unknown>
+}
 
 export type EditorSession = {
   id: string
@@ -43,6 +49,8 @@ export type EditorSession = {
   draftContent: string
   isDirty: boolean
   isPreview: boolean
+  mode?: EditorSessionMode
+  diff?: EditorSessionDiffState
   uiState?: EditorSessionUiState
 }
 
@@ -310,7 +318,8 @@ export function useEditorSessionStore() {
       savedContent: content,
       draftContent: content,
       isDirty: false,
-      isPreview: preview,
+          isPreview: preview,
+          mode: 'edit',
     }
 
     const nextSessions = preview
@@ -355,6 +364,7 @@ export function useEditorSessionStore() {
       draftContent: content,
       isDirty: false,
       isPreview: false,
+      mode: 'edit',
     }
 
     sessions.value = [...sessions.value, session]
@@ -446,6 +456,12 @@ export function useEditorSessionStore() {
         },
       }
     })
+  }
+
+  function setSessionMode(sessionId: string, mode: EditorSessionMode, diff?: EditorSessionDiffState): void {
+    sessions.value = sessions.value.map(session => session.id === sessionId
+      ? { ...session, mode, diff: mode === 'diff' ? diff ?? session.diff : session.diff }
+      : session)
   }
 
   function closeSession(sessionId: string) {
@@ -707,6 +723,7 @@ export function useEditorSessionStore() {
     updateDraftContent,
     setSessionDirtyState,
     updateSessionUiState,
+    setSessionMode,
     closeSession,
     closeWorkspaceSessions,
     detachWorkspaceSessions,

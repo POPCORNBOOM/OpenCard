@@ -16,6 +16,25 @@
 <template>
   <div ref="propertyEditorRoot" class="property-editor" :class="{ 'is-delete-mode': deleteMode }">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
+    <template v-else-if="props.mode === 'comparison'">
+      <OcPanel padding="none" border="none" tone="transparent" gap="none">
+        <section v-for="source in props.comparisonInputs ?? []" :key="source.key" class="property-editor__source">
+          <header class="property-editor__source-header"><OcText class="property-editor__source-title" :truncate="true">{{ source.title ?? source.key }}</OcText></header>
+          <div class="property-editor__fields">
+            <div v-for="fieldKey in Object.keys(source.fields)" :key="`${source.key}:${fieldKey}`" class="property-editor__row">
+              <div class="property-editor__row-label"><OcText class="property-editor__row-label-text" :truncate="true">{{ source.fields[fieldKey]?.title ?? fieldKey }}</OcText></div>
+              <div class="property-editor__value property-editor__comparison-value">
+                <div v-if="comparisonValueKind(source, fieldKey) === 'before-only'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><code>{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code></div>
+                <div v-else-if="comparisonValueKind(source, fieldKey) === 'after-only'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><code>{{ formatComparisonValue(source.afterRecord?.[fieldKey]) }}</code></div>
+                <div v-else-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><code>{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code></div>
+                <div v-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><code>{{ formatComparisonValue(source.afterRecord?.[fieldKey]) }}</code></div>
+                <code v-if="comparisonValueKind(source, fieldKey) === 'same'">{{ formatComparisonValue(source.beforeRecord?.[fieldKey]) }}</code>
+              </div>
+            </div>
+          </div>
+        </section>
+      </OcPanel>
+    </template>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
         <section v-for="source in displaySources" :key="source.key" class="property-editor__source">
@@ -93,6 +112,7 @@ import type {
   PropertyEditorFieldDefinition,
   PropertyEditorFieldIntent,
   PropertyEditorInput,
+  PropertyEditorComparisonInput,
   PropertyEditorMutation,
   PropertyEditorSortMode,
 } from './propertyEditor.types'
@@ -131,11 +151,25 @@ const props = defineProps<{
   sortMode: PropertyEditorSortMode
   bindingInterpreter?: PropertyEditorBindingInterpreter
   deleteMode?: boolean
+  mode?: 'edit' | 'comparison'
+  comparisonInputs?: readonly PropertyEditorComparisonInput[]
 }>()
 
 const { t, te } = useI18n()
 const { openContextMenu } = useFloatingMenu()
 const fieldEditorModes = usePropertyFieldEditorModes()
+function formatComparisonValue(value: unknown): string {
+  if (value === undefined) return ''
+  if (typeof value === 'string') return value
+  try { return JSON.stringify(value) ?? String(value) } catch { return String(value) }
+}
+function comparisonValueKind(source: PropertyEditorComparisonInput, fieldKey: string): 'same' | 'changed' | 'before-only' | 'after-only' {
+  const hasBefore = Object.prototype.hasOwnProperty.call(source.beforeRecord ?? {}, fieldKey)
+  const hasAfter = Object.prototype.hasOwnProperty.call(source.afterRecord ?? {}, fieldKey)
+  if (!hasBefore) return 'after-only'
+  if (!hasAfter) return 'before-only'
+  return formatComparisonValue(source.beforeRecord?.[fieldKey]) === formatComparisonValue(source.afterRecord?.[fieldKey]) ? 'same' : 'changed'
+}
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
   if (te(messageKey)) {
@@ -384,6 +418,14 @@ onBeforeUnmount(() => {
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
 })
 </script>
+
+<style scoped>
+.property-editor__comparison-value { display: grid; gap: var(--oc-space-1); }
+.property-editor__comparison-before, .property-editor__comparison-after { display: flex; gap: var(--oc-space-2); min-width: 0; align-items: baseline; }
+.property-editor__comparison-before { color: var(--oc-fg-danger); }
+.property-editor__comparison-after { color: var(--oc-icon-success); }
+.property-editor__comparison-value code { min-width: 0; overflow-wrap: anywhere; color: var(--oc-fg-default); font: inherit; }
+</style>
 
 <style scoped>
 .property-editor {

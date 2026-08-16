@@ -2,6 +2,7 @@
   <div ref="viewportRef" class="card-viewport" :class="{
     'card-viewport-panning': isPanning,
     'card-viewport--layer-view': effectiveLayerViewActive,
+    'card-viewport--readonly': props.readonly,
   }"
     @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
     @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
@@ -9,6 +10,7 @@
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace"
         :resource-context="resourceContext"
+        :diff-highlights="diffHighlights"
         @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
@@ -310,6 +312,8 @@ const props = withDefaults(defineProps<{
   heightLocked?: boolean
   resourceContext: CardRenderResourceContext
   viewportInsets?: ViewportInsets
+  readonly?: boolean
+  diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -345,6 +349,8 @@ const props = withDefaults(defineProps<{
   heightLocked: false,
   clipToFace: false,
   viewportInsets: () => ({}),
+  readonly: false,
+  diffHighlights: () => [],
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -1638,6 +1644,11 @@ watch(
 </script>
 
 <style scoped>
+.card-viewport--readonly .card-viewport-stage { pointer-events: none; }
+.card-viewport--readonly :deep([data-diff-kind]) { outline: var(--oc-border-width) solid var(--oc-diff-changed-border); outline-offset: 0; }
+.card-viewport--readonly :deep([data-diff-kind="added"]) { outline-color: var(--oc-diff-added-border); }
+.card-viewport--readonly :deep([data-diff-kind="removed"]) { outline-color: var(--oc-diff-removed-border); }
+.card-viewport--readonly :deep([data-diff-kind="moved"]) { outline-color: var(--oc-diff-moved-border); }
 .card-viewport {
   flex: 1 1 auto;
   width: 100%;

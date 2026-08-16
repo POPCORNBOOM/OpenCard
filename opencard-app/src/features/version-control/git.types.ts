@@ -169,6 +169,10 @@ export interface RemoteOperationResult {
 export interface ConfigRequest { key: string; value: string }
 export interface ConfigEntry { key: string; value: string }
 export interface FileHistoryRequest { path: string; limit?: number | null }
+export interface RevisionFileRequest { revision: string; path: string }
+export interface RevisionFileContent { path: string; content: string; binary: boolean }
+export interface MaterializeRevisionRequest { revision: string }
+export interface RevisionSnapshot { revision: string; rootPath: string }
 export interface ConflictSide { path: string | null; id: string | null }
 export interface ConflictEntry {
   ancestor: ConflictSide

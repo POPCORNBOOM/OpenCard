@@ -501,6 +501,7 @@ import {
   type ShellPage,
 } from './shellPage'
 import { useProjectTimeline } from '../version-control/useProjectTimeline'
+import { useOcdocumentDiffSession } from '../version-control/useOcdocumentDiffSession'
 
 const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
@@ -511,6 +512,9 @@ const OPENED_EDITORS_LIST_KEY = 'opened-editors'
 const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
 const TIMELINE_LIST_KEY = 'timeline'
 const TIMELINE_REFRESH_ACTION_KEY = 'timeline.refresh'
+const DIFF_EXIT_ACTION_KEY = 'diff.exit'
+const DIFF_BEFORE_ACTION_KEY = 'diff.before'
+const DIFF_AFTER_ACTION_KEY = 'diff.after'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
 const ICON_PACKS_LIST_KEY = 'icon-packs'
@@ -583,26 +587,6 @@ const {
   renameEntry,
 } = projectStore
 
-const projectTimeline = useProjectTimeline(projectPath, locale)
-const {
-  treeData: timelineTreeData,
-  selectedKeys: timelineSelectedKeys,
-  loading: timelineLoading,
-  initialized: timelineInitialized,
-  errorKind: timelineErrorKind,
-  refresh: refreshTimeline,
-  handleTreeIntent: handleTimelineTreeIntent,
-} = projectTimeline
-const timelinePlaceholder = computed(() => {
-  if (timelineLoading.value) return t('sidebar.timelineLoading')
-  if (timelineErrorKind.value) return t('sidebar.timelineFailed')
-  if (timelineInitialized.value === false) return t('sidebar.timelineNotInitialized')
-  if (timelineInitialized.value === true && !projectTimeline.hasHistory.value) {
-    return t('sidebar.timelineNoCommits')
-  }
-  return t('sidebar.noProjectOpen')
-})
-
 const settingsStore = useAppSettingsStore()
 watch(
   () => settingsStore.settings.value.workspace.historyEntryLimit,
@@ -618,6 +602,7 @@ const isCreateProjectMode = computed(() => shellPage.value.type === 'create-proj
 const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
 const isAboutMode = computed(() => shellPage.value.type === 'about')
 const isWelcomeMode = computed(() => shellPage.value.type === 'welcome')
+const isDiffMode = ref(false)
 const isWorkbenchMode = computed(() => shellPage.value.type === 'workbench')
 const isAuxiliaryMode = computed(() => (
   isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isAboutMode.value
@@ -804,6 +789,7 @@ const {
   updateDraftContent,
   setSessionDirtyState,
   updateSessionUiState,
+  setSessionMode,
   closeSession,
   closeWorkspaceSessions,
   detachWorkspaceSessions,
@@ -812,6 +798,63 @@ const {
   saveActiveSession,
   remapSessionPaths,
 } = useEditorSessionStore()
+
+const timelineFilePath = computed(() => {
+  const session = activeSession.value
+  if (!projectPath.value || session?.resourceKind !== 'workspace' || !session.path) return null
+  return getRelativeProjectPath(session.path)
+})
+const projectTimeline = useProjectTimeline(projectPath, timelineFilePath, locale)
+const {
+  treeData: timelineTreeData,
+  selectedKeys: timelineSelectedKeys,
+  loading: timelineLoading,
+  initialized: timelineInitialized,
+  errorKind: timelineErrorKind,
+  refresh: refreshTimeline,
+  handleTreeIntent: timelineHandleTreeIntent,
+  revisionOptions: timelineRevisionOptions,
+} = projectTimeline
+const timelineFileName = computed(() => activeSession.value?.name ?? timelineFilePath.value?.split(/[\\/]/).pop() ?? 'ocdocument')
+const diffSessionState = useOcdocumentDiffSession({
+  projectRoot: projectPath,
+  filePath: timelineFilePath,
+  fileName: timelineFileName,
+  revisions: projectTimeline.revisionOptions,
+})
+const editorComparison = computed(() => {
+  const session = diffSessionState.diffSession.value
+  if (!session) return null
+  return {
+    before: { revisionId: session.before.commitId, label: session.before.label, content: session.before.content, resourceRootPath: diffSessionState.beforeSnapshotRoot.value },
+    after: { revisionId: session.after.commitId, label: session.after.label, content: session.after.content, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
+  }
+})
+function handleTimelineTreeIntent(intent: OcTreeIntent) {
+  timelineHandleTreeIntent(intent)
+  if (intent.type !== 'selection.change' || !timelineFilePath.value) return
+  const key = intent.selectedKeys[0]
+  const commitId = key?.startsWith('timeline:') ? key.slice('timeline:'.length) : null
+  if (!commitId) return
+  if (activeSession.value) {
+    setSessionMode(activeSession.value.id, 'diff', {
+      beforeRevisionId: commitId,
+      afterRevisionId: null,
+    })
+  }
+  isDiffMode.value = true
+  void diffSessionState.selectComparison(commitId, null)
+}
+const timelinePlaceholder = computed(() => {
+  if (!timelineFilePath.value) return t('sidebar.timelineNoFile')
+  if (timelineLoading.value) return t('sidebar.timelineLoading')
+  if (timelineErrorKind.value) return t('sidebar.timelineFailed')
+  if (timelineInitialized.value === false) return t('sidebar.timelineNotInitialized')
+  if (timelineInitialized.value === true && !projectTimeline.hasHistory.value) {
+    return t('sidebar.timelineNoCommits')
+  }
+  return t('sidebar.timelineNoFile')
+})
 
 const {
   editorRef: currentEditorRef,
@@ -846,6 +889,7 @@ const {
   projectPath,
   projectProfile,
   settings: settingsStore.settings,
+  comparison: editorComparison,
   sessionActions: {
     updateDraftContent,
     setSessionDirtyState,
@@ -1691,7 +1735,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         key: TIMELINE_REFRESH_ACTION_KEY,
         icon: 'action.refresh',
         hoverTip: t('sidebar.timelineRefresh'),
-        disabled: !projectPath.value || timelineLoading.value,
+        disabled: !timelineFilePath.value || timelineLoading.value,
       }],
     },
   ]
@@ -1859,6 +1903,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
 ])
 
 const workspaceTitle = computed(() => {
+  if (isDiffMode.value) return `差异：${timelineFileName.value}`
   if (isCreateProjectMode.value) return t('projectTemplates.title')
   if (isExportTemplateMode.value) return t('templateExport.title')
   if (isSettingsMode.value) return activeSettingsCategory.value.title
@@ -1871,6 +1916,20 @@ const workspaceTitle = computed(() => {
 
 const workspaceActions = computed<ShellAction[]>(() => {
   if (!isWorkbenchMode.value) return []
+  if (isDiffMode.value) {
+    const beforeId = diffSessionState.before.value?.commitId ?? null
+    const afterId = diffSessionState.after.value?.commitId ?? null
+    const createRevisionMenu = (prefix: string, selectedId: string | null) => timelineRevisionOptions.value.map(option => ({
+      key: `${prefix}:${option.commitId ?? 'current'}`,
+      title: option.label,
+      icon: option.commitId === selectedId ? 'action.check' as const : 'file.git' as const,
+    }))
+    return [
+      { key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', hoverTip: t('sidebar.diffViewer.versionA'), children: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
+      { key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', hoverTip: t('sidebar.diffViewer.versionB'), children: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
+      { key: DIFF_EXIT_ACTION_KEY, icon: 'nav.arrow-left', hoverTip: t('settings.actions.back', 'Back') },
+    ]
+  }
   if (isActiveDictionaryEditor.value) return [
     {
       key: DICTIONARY_IMPORT_ACTION_KEY,
@@ -2776,6 +2835,23 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
 }
 
 async function handleWorkspaceFrameAction(actionKey: string) {
+  if (actionKey === DIFF_EXIT_ACTION_KEY) {
+    isDiffMode.value = false
+    if (activeSession.value) setSessionMode(activeSession.value.id, 'edit')
+    return
+  }
+  if (actionKey.startsWith(`${DIFF_BEFORE_ACTION_KEY}:`) || actionKey.startsWith(`${DIFF_AFTER_ACTION_KEY}:`)) {
+    const isBefore = actionKey.startsWith(`${DIFF_BEFORE_ACTION_KEY}:`)
+    const rawId = actionKey.slice((isBefore ? DIFF_BEFORE_ACTION_KEY : DIFF_AFTER_ACTION_KEY).length + 1)
+    const revisionId = rawId === 'current' ? null : rawId
+    const currentBefore = diffSessionState.before.value?.commitId ?? null
+    const currentAfter = diffSessionState.after.value?.commitId ?? null
+    const nextBefore = isBefore ? revisionId : currentBefore
+    const nextAfter = isBefore ? currentAfter : revisionId
+    if (nextBefore !== nextAfter) await diffSessionState.selectComparison(nextBefore, nextAfter)
+    if (activeSession.value) setSessionMode(activeSession.value.id, 'diff', { beforeRevisionId: nextBefore ?? '', afterRevisionId: nextAfter })
+    return
+  }
   if (actionKey.startsWith(CARD_RENDER_IMAGE_OPTION_PREFIX)) {
     await handleRenderCardImageAction(actionKey)
     return

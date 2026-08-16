@@ -13,7 +13,8 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
+  <CardDesignDiffView v-if="props.mode === 'diff' && props.comparison" :comparison="props.comparison" :environment="projectStore.renderEnvironment.value" />
+  <div v-else ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
     tabindex="-1" @keydown="handleCdeKeydown">
     <div
       class="card-design-editor__stage"
@@ -410,6 +411,7 @@ import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
+import CardDesignDiffView from './CardDesignDiffView.vue'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'

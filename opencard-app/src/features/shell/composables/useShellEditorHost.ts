@@ -26,6 +26,7 @@ import { editorHistoryManager } from '../../editor-runtime/history/editorHistory
 import type { HistoryOperationMeta } from '../../editor-runtime/history/structuredHistory'
 import type { CardFaceKey } from '../../../entities/card/model'
 import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
+import type { EditorComparisonInput } from '../../editor-runtime/registry/editorRegistry'
 
 const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
@@ -57,6 +58,7 @@ type UseShellEditorHostOptions = {
   projectProfile: Readonly<Ref<ProjectProfile | null>>
   settings: Readonly<Ref<DeepReadonly<AppSettings>>>
   sessionActions: SessionActions
+  comparison?: Readonly<Ref<EditorComparisonInput | null>>
 }
 
 const AUTO_SAVE_REGISTRY_EDITOR_IDS = new Set(['font-registry', 'icon-registry'])
@@ -87,8 +89,9 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   let disposed = false
 
   function recordDraftContent(sessionId: string, value: string, history?: HistoryOperationMeta): void {
-    editorHistoryManager.recordContent(sessionId, value, history)
     const session = options.activeSession.value
+    if (session?.mode === 'diff') return
+    editorHistoryManager.recordContent(sessionId, value, history)
     if (session?.id === sessionId && AUTO_SAVE_REGISTRY_EDITOR_IDS.has(session.editorId)) {
       void options.sessionActions.saveActiveSession()
     }
@@ -122,7 +125,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   const key = computed(() => {
     const session = options.activeSession.value
     if (!session) return 'none'
-    return [session.id, session.path ?? `draft://${session.id}`, session.editorId].join('|')
+    return [session.id, session.path ?? `draft://${session.id}`, session.editorId, session.mode ?? 'edit', session.diff?.beforeRevisionId ?? '', session.diff?.afterRevisionId ?? ''].join('|')
   })
 
   const props = computed<Record<string, unknown>>(() => {
@@ -136,6 +139,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     if (editor && editor.id !== 'monaco') {
       const baseProps = {
         sessionId,
+        mode: session.mode,
+        comparison: options.comparison?.value ?? undefined,
         filePath,
         fileName: session.name,
         resourceRootPath: resourceRootPath.value,
@@ -186,6 +191,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
 
     return {
       sessionId,
+      mode: session.mode,
       modelValue: session.draftContent,
       savedContent: session.savedContent,
       'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {

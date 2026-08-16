@@ -8,6 +8,8 @@ import {
   fetchRemote,
   initializeRepository,
   inspectRepository,
+  materializeRevision,
+  readFileAtRevision,
   readHistory,
 } from './gitService'
 
@@ -44,6 +46,20 @@ describe('gitService', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('git_initialize', {
       projectRoot: 'D:/Cards/demo',
       identity,
+    })
+  })
+
+  it('maps revision file and snapshot requests without exposing output paths', async () => {
+    await readFileAtRevision('D:/Cards/demo', { revision: 'abc', path: 'cards/main.ocdocument' })
+    await materializeRevision('D:/Cards/demo', { revision: 'abc' })
+
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, 'git_read_file_at_revision', {
+      projectRoot: 'D:/Cards/demo',
+      request: { revision: 'abc', path: 'cards/main.ocdocument' },
+    })
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, 'git_materialize_revision', {
+      projectRoot: 'D:/Cards/demo',
+      request: { revision: 'abc' },
     })
   })
 

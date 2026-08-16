@@ -22,6 +22,7 @@ import type {
   GitStatusResult,
   HistoryRequest,
   MergeRequest,
+  MaterializeRevisionRequest,
   NamedRequest,
   OperationState,
   PathRequest,
@@ -34,6 +35,9 @@ import type {
   RepositorySummary,
   ResetRequest,
   RevisionRequest,
+  RevisionFileContent,
+  RevisionFileRequest,
+  RevisionSnapshot,
   StashIndexRequest,
   StashSummary,
   TagSummary,
@@ -80,6 +84,10 @@ export const readDiff = (projectRoot: string, request: DiffRequest) =>
   invokeRequest<DiffResult, DiffRequest>('git_diff', projectRoot, request)
 export const readFileHistory = (projectRoot: string, request: FileHistoryRequest) =>
   invokeRequest<CommitSummary[], FileHistoryRequest>('git_file_history', projectRoot, request)
+export const readFileAtRevision = (projectRoot: string, request: RevisionFileRequest) =>
+  invokeRequest<RevisionFileContent, RevisionFileRequest>('git_read_file_at_revision', projectRoot, request)
+export const materializeRevision = (projectRoot: string, request: MaterializeRevisionRequest) =>
+  invokeRequest<RevisionSnapshot, MaterializeRevisionRequest>('git_materialize_revision', projectRoot, request)
 
 export const listBranches = (projectRoot: string) =>
   invokeProject<BranchSummary[]>('git_branches', projectRoot)

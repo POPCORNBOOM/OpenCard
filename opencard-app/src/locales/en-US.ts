@@ -707,9 +707,11 @@ export default {
     timeline: 'Timeline',
     timelineRefresh: 'Refresh timeline',
     timelineLoading: 'Reading timeline...',
+    timelineNoFile: 'Open a project file to view its timeline',
     timelineNotInitialized: 'Git is not initialized for this project',
-    timelineNoCommits: 'No commits yet',
+    timelineNoCommits: 'No commits for this file yet',
     timelineFailed: 'Unable to read timeline',
+    diffViewer: { compare: 'Compare', versionA: 'Version A', versionB: 'Version B', blueprint: 'Blueprint', instance: 'Instance', front: 'Front', back: 'Back', changes: 'Structured changes', warnings: '{count} warnings', parseFailed: 'Unable to parse this version: {message}', noChanges: 'No changes', sameVersion: 'The same version cannot be compared', resourcesUnavailable: 'Card resources are unavailable' },
     openProject: 'Open Project Folder',
     fileActions: {
       more: 'More Actions',

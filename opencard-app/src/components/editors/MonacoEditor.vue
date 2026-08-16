@@ -11,6 +11,7 @@ import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundatio
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
 import { editorHistoryManager } from '../../features/editor-runtime/history/editorHistoryManager'
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { EditorComparisonInput } from '../../features/editor-runtime/registry/editorRegistry'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -19,6 +20,8 @@ const props = withDefaults(defineProps<{
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
   readOnly?: boolean
+  mode?: 'edit' | 'diff'
+  comparison?: EditorComparisonInput
 }>(), {
   language: 'plaintext',
   themeId: 'dark',
@@ -31,11 +34,33 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLElement>()
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
+let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null
+let diffModels: monaco.editor.ITextModel[] = []
 
 onMounted(() => {
   if (!editorContainer.value) return
 
   const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
+  if (props.mode === 'diff' && props.comparison) {
+    const before = props.comparison.before
+    const after = props.comparison.after
+    const beforeModel = monaco.editor.createModel(before.content, props.language, monaco.Uri.parse(`inmemory://opencard/diff/${before.revisionId ?? 'current'}/before`))
+    const afterModel = monaco.editor.createModel(after.content, props.language, monaco.Uri.parse(`inmemory://opencard/diff/${after.revisionId ?? 'current'}/after`))
+    diffModels = [beforeModel, afterModel]
+    diffEditor = monaco.editor.createDiffEditor(editorContainer.value, {
+      theme: appearance.themeName,
+      automaticLayout: true,
+      readOnly: true,
+      originalEditable: false,
+      renderSideBySide: true,
+      minimap: { enabled: true },
+      scrollBeyondLastLine: false,
+      overviewRulerBorder: false,
+      fontFamily: appearance.fontFamily,
+    })
+    diffEditor.setModel({ original: beforeModel, modified: afterModel })
+    return
+  }
   const sessionModel = props.sessionId ? editorHistoryManager.getMonacoModel(props.sessionId) : null
   const managedModel = sessionModel ?? (props.sessionId
     ? monaco.editor.createModel(
@@ -120,6 +145,8 @@ watch(() => props.modelValue, (newValue) => {
 })
 
 onUnmounted(() => {
+  diffEditor?.dispose()
+  diffModels.forEach(model => model.dispose())
   const model = editor?.getModel()
   if (props.sessionId) editorHistoryManager.setMonacoViewState(props.sessionId, editor?.saveViewState() ?? null)
   editor?.dispose()

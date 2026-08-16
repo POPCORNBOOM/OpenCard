@@ -17,8 +17,12 @@ fn profile_output_directory() -> Option<PathBuf> {
 fn remove_staged_resource_directory(profile: &Path, name: &str) {
     let path = profile.join(name);
     if path.is_dir() {
-        std::fs::remove_dir_all(&path)
-            .unwrap_or_else(|error| panic!("failed to clear staged resource '{}': {error}", path.display()));
+        std::fs::remove_dir_all(&path).unwrap_or_else(|error| {
+            panic!(
+                "failed to clear staged resource '{}': {error}",
+                path.display()
+            )
+        });
     }
 }
 

@@ -15,10 +15,15 @@ import type {
 import type { EditorIssueSnapshot } from '../model/editorIssue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/foundation'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
+import type { ProjectInformation } from '../../workspace/model/projectMetadata'
+import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 import type { EditorHistoryKind } from '../history/editorHistoryManager'
 import type { ContentHistoryOperationMeta } from '../history/contentHistory'
 
 export interface EditorProps {
+  mode?: 'edit' | 'diff'
+  comparison?: EditorComparisonInput
   sessionId?: string
   filePath: string
   fileName?: string
@@ -38,6 +43,24 @@ export interface EditorProps {
   alignmentSnappingEnabledByDefault?: boolean
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
+}
+
+export interface EditorSnapshotContext {
+  revisionId: string | null
+  label: string
+  content: string
+  resourceRootPath?: string | null
+  project?: Readonly<ProjectInformation> | null
+  dictionary?: Readonly<Record<string, string>>
+  projectIconCatalog?: ProjectIconCatalog
+  customBlockCatalog?: CustomBlockRuntimeCatalog
+  resolveFontFamily?: (references: string) => string
+  remoteResourcePolicy?: ProjectRemoteResourcePolicy
+}
+
+export interface EditorComparisonInput {
+  before: EditorSnapshotContext
+  after: EditorSnapshotContext
 }
 
 export interface EditorEmits {
@@ -64,6 +87,7 @@ export interface IEditor {
   history: EditorHistoryKind
   // 是否支持预览
   hasPreview?: boolean
+  supportsDiff?: boolean
   // 预览组件名称
   previewComponent?: string
 }
@@ -108,7 +132,8 @@ editorRegistry.register({
   name: 'Monaco Editor',
   component: MonacoEditor,
   history: 'monaco',
-  hasPreview: false
+  hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({
@@ -116,7 +141,8 @@ editorRegistry.register({
   name: 'Card Designer',
   component: CardDesignEditor,
   history: 'structured',
-  hasPreview: false
+  hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({
@@ -141,6 +167,7 @@ editorRegistry.register({
   component: ProjectFontRegistryFileEditor,
   history: 'structured',
   hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({
@@ -149,6 +176,7 @@ editorRegistry.register({
   component: ProjectIconRegistryFileEditor,
   history: 'structured',
   hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({

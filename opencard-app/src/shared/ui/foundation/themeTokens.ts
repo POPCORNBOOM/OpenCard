@@ -47,6 +47,10 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-border-muted',
   '--oc-border-strong',
   '--oc-border-accent',
+  '--oc-diff-added-border',
+  '--oc-diff-removed-border',
+  '--oc-diff-changed-border',
+  '--oc-diff-moved-border',
 
   // 强调色
   '--oc-accent',

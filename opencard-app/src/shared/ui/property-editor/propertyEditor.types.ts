@@ -3,6 +3,7 @@ import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/file
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
 import type { DeepReadonly } from 'vue'
 import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../../../features/workspace/model/projectCustomBlocks'
+import type { OcDisplayActionSlots } from '../display-action.types'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
 
@@ -159,6 +160,16 @@ export type PropertyEditorInput = {
   title?: string
   record: PropertyEditorRecord
   fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
+  displayActions?: OcDisplayActionSlots
+}
+
+export type PropertyEditorComparisonInput = {
+  key: string
+  title?: string
+  beforeRecord?: PropertyEditorRecord
+  afterRecord?: PropertyEditorRecord
+  fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
+  displayActions?: OcDisplayActionSlots
 }
 
 export type PropertyEditorCategoryDefinition = {

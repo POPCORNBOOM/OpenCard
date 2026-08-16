@@ -706,9 +706,11 @@ export default {
     timeline: '时间线',
     timelineRefresh: '刷新时间线',
     timelineLoading: '正在读取时间线...',
+    timelineNoFile: '打开项目文件以查看时间线',
     timelineNotInitialized: '项目尚未初始化 Git',
-    timelineNoCommits: '还没有提交记录',
+    timelineNoCommits: '当前文件还没有提交记录',
     timelineFailed: '读取时间线失败',
+    diffViewer: { compare: '对比', versionA: '版本 A', versionB: '版本 B', blueprint: '蓝图', instance: '实例', front: '正面', back: '背面', changes: '结构化变化', warnings: '警告 {count}', parseFailed: '无法解析该版本：{message}', noChanges: '没有变化', sameVersion: '不能比较相同版本', resourcesUnavailable: '卡面资源不可用' },
     openProject: '打开项目文件夹',
     fileActions: {
       more: '更多操作',

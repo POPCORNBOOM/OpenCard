@@ -14,8 +14,12 @@
     @wheel.prevent="handleWheel"
     @keydown="handleKeydown"
   >
+    <div v-if="isDiff" class="image-preview-editor__diff-viewports">
+      <div class="image-preview-editor__diff-viewport"><img v-if="beforeImageSrc" class="image-preview-editor__image" :src="beforeImageSrc" :alt="`${fileName} (before)`" :style="imageStyle" draggable="false" /></div>
+      <div class="image-preview-editor__diff-viewport"><img v-if="afterImageSrc" class="image-preview-editor__image" :src="afterImageSrc" :alt="`${fileName} (after)`" :style="imageStyle" draggable="false" /></div>
+    </div>
     <img
-      v-if="imageSrc && !loadError"
+      v-else-if="imageSrc && !loadError"
       class="image-preview-editor__image"
       :class="{ 'is-pixelated': pixelated }"
       :src="imageSrc"
@@ -46,6 +50,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcText from '../base/OcText.vue'
@@ -94,6 +99,15 @@ let lastEmittedTransform: ViewportTransform | null = props.viewportTransform
   : null
 
 const imageSrc = computed(() => resolveAssetSrc(props.filePath))
+const isDiff = computed(() => props.mode === 'diff' && Boolean(props.comparison))
+function snapshotAssetSrc(root: string | null | undefined): string {
+  if (!root) return ''
+  const normalizedRoot = root.replace(/[\\/]+$/, '')
+  const relativePath = props.filePath.replace(/^[/\\]+/, '').replace(/\\/g, '/')
+  return convertFileSrc(`${normalizedRoot}/${relativePath}`)
+}
+const beforeImageSrc = computed(() => snapshotAssetSrc(props.comparison?.before.resourceRootPath))
+const afterImageSrc = computed(() => snapshotAssetSrc(props.comparison?.after.resourceRootPath))
 const fileName = computed(() => props.filePath.split(/[/\\]/).pop() || props.filePath)
 const loadError = computed(() => !imageSrc.value || loadFailed.value)
 const isImageReady = computed(() => naturalWidth.value > 0 && naturalHeight.value > 0 && !loadError.value)
@@ -418,6 +432,21 @@ defineExpose({ save, resetView })
 
 .image-preview-editor__image.is-pixelated {
   image-rendering: pixelated;
+}
+
+.image-preview-editor__diff-viewports {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  height: 100%;
+}
+
+.image-preview-editor__diff-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-right: var(--oc-border-width) solid var(--oc-border-muted);
 }
 
 .image-preview-editor__empty {

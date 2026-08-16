@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, ref } from 'vue'
+import { computed, provide, ref, watch, nextTick, onMounted } from 'vue'
 import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
@@ -29,14 +29,28 @@ const props = withDefaults(defineProps<{
     /** 是否裁切超出卡面尺寸的内容。 */
     clipToFace?: boolean
     /** 卡面资源唯一解析上下文。 */
-    resourceContext: CardRenderResourceContext
+  resourceContext: CardRenderResourceContext
+  diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
-    clipToFace: false,
+  clipToFace: false,
+  diffHighlights: () => [],
 })
 
 const cardCanvasRef = ref<HTMLElement>()
+async function applyDiffHighlights(highlights: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]) {
+  await nextTick()
+  const root = cardCanvasRef.value
+  if (!root) return
+  root.querySelectorAll<HTMLElement>('[data-block-id]').forEach(element => {
+    const match = highlights.find(item => item.blockId === element.dataset.blockId)
+    if (match) element.dataset.diffKind = match.kind
+    else delete element.dataset.diffKind
+  })
+}
+watch(() => props.diffHighlights, applyDiffHighlights, { deep: true })
+onMounted(() => { void applyDiffHighlights(props.diffHighlights) })
 
 const normalizedTransformDisabledBlockIds = computed(() => new Set(props.transformDisabledBlockIds))
 const normalizedVisibleRootBlockIds = computed(() => new Set(props.visibleRootBlockIds))

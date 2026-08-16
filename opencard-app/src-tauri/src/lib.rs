@@ -305,6 +305,8 @@ pub fn run() {
             git_service::git_read_config,
             git_service::git_write_config,
             git_service::git_file_history,
+            git_service::git_read_file_at_revision,
+            git_service::git_materialize_revision,
             git_service::git_conflicts,
             git_service::git_merge,
             git_service::git_rebase_start,

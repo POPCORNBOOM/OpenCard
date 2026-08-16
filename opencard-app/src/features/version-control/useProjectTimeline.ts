@@ -1,12 +1,17 @@
 import { computed, ref, watch, type Ref } from 'vue'
 
 import type { OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
-import { inspectRepository, readHistory } from './gitService'
+import { inspectRepository, readFileHistory } from './gitService'
 import type { CommitSummary, GitErrorKind } from './git.types'
+import type { DiffRevisionOption } from './diff.types'
 
 const HISTORY_LIMIT = 50
 
-export function useProjectTimeline(projectPath: Ref<string | null | undefined>, locale: Ref<string>) {
+export function useProjectTimeline(
+  projectPath: Ref<string | null | undefined>,
+  currentFilePath: Ref<string | null | undefined>,
+  locale: Ref<string>,
+) {
   const commits = ref<CommitSummary[]>([])
   const selectedKeys = ref<string[]>([])
   const loading = ref(false)
@@ -32,14 +37,24 @@ export function useProjectTimeline(projectPath: Ref<string | null | undefined>, 
     return { rootKeys: keys, items, children: new Map() }
   })
 
+  const revisionOptions = computed<DiffRevisionOption[]>(() => [
+    { commitId: null, label: '当前文件' },
+    ...commits.value.map(commit => ({
+      commitId: commit.id,
+      label: commit.summary.trim() || commit.shortId,
+      authoredAtSeconds: commit.authoredAtSeconds,
+    })),
+  ])
+
   async function refresh() {
     const revision = ++requestRevision
     const root = projectPath.value
+    const filePath = currentFilePath.value
     commits.value = []
     selectedKeys.value = []
     initialized.value = null
     errorKind.value = null
-    if (!root) return
+    if (!root || !filePath) return
 
     loading.value = true
     try {
@@ -53,7 +68,7 @@ export function useProjectTimeline(projectPath: Ref<string | null | undefined>, 
       initialized.value = inspection.value.initialized
       if (!inspection.value.initialized) return
 
-      const history = await readHistory(root, { limit: HISTORY_LIMIT, start: null })
+      const history = await readFileHistory(root, { path: filePath, limit: HISTORY_LIMIT })
       if (revision !== requestRevision) return
       if (!history.ok || !history.value) {
         errorKind.value = history.error?.kind ?? 'git'
@@ -75,7 +90,7 @@ export function useProjectTimeline(projectPath: Ref<string | null | undefined>, 
     selectedKeys.value = intent.selectedKeys
   }
 
-  watch(projectPath, () => { void refresh() }, { immediate: true })
+  watch([projectPath, currentFilePath], () => { void refresh() }, { immediate: true })
 
   return {
     treeData,
@@ -86,5 +101,6 @@ export function useProjectTimeline(projectPath: Ref<string | null | undefined>, 
     refresh,
     handleTreeIntent,
     hasHistory: computed(() => commits.value.length > 0),
+    revisionOptions,
   }
 }
