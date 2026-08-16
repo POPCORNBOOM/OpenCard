@@ -112,6 +112,16 @@ describe('useShellEditorHost', () => {
     dataTable.host.dispose()
   })
 
+  it('does not provide a content write callback in diff mode', () => {
+    const workspace = createHost(createSession({
+      mode: 'diff',
+      diff: { beforeRevisionId: 'abc', afterRevisionId: null },
+    }))
+    expect(workspace.host.props.value.mode).toBe('diff')
+    expect(workspace.host.props.value['onUpdate:modelValue']).toBeUndefined()
+    workspace.host.dispose()
+  })
+
   it('uses Monaco only for explicitly supported text files', () => {
     const { host } = createHost(createSession({
       fileTypeId: 'plaintext',

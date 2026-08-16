@@ -483,6 +483,7 @@ const diffBeforeRender = computed<PreparedCardRender | null>(() => {
       projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
       customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
       remoteResourcePolicy: snapshot.remoteResourcePolicy,
+      resolveFontFamily: snapshot.resolveFontFamily,
     },
   })
 })
@@ -501,6 +502,7 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
       projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
       customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
       remoteResourcePolicy: snapshot.remoteResourcePolicy,
+      resolveFontFamily: snapshot.resolveFontFamily,
     },
   })
 })

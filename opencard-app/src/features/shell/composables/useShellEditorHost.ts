@@ -150,9 +150,11 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
         savedContent: session.savedContent,
         themeId: themeId.value,
         themeOverrides: themeOverrides.value,
-        'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
-          recordDraftContent(sessionId, value, history)
-        },
+        ...(session.mode === 'diff' ? {} : {
+          'onUpdate:modelValue': (value: string, history?: HistoryOperationMeta) => {
+            recordDraftContent(sessionId, value, history)
+          },
+        }),
       }
 
       if (editor.id === 'card-designer') {

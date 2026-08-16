@@ -845,8 +845,8 @@ const editorComparison = computed(() => {
   const session = diffSessionState.diffSession.value
   if (!session) return null
   return {
-    before: { revisionId: session.before.commitId, label: session.before.label, content: session.before.content, resourceRootPath: diffSessionState.beforeSnapshotRoot.value },
-    after: { revisionId: session.after.commitId, label: session.after.label, content: session.after.content, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
+    before: { ...session.before, revisionId: session.before.commitId, resourceRootPath: diffSessionState.beforeSnapshotRoot.value },
+    after: { ...session.after, revisionId: session.after.commitId, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
   }
 })
 function handleTimelineTreeIntent(intent: OcTreeIntent) {

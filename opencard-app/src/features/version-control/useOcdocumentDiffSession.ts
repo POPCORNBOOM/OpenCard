@@ -2,9 +2,19 @@ import { computed, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { fileSystemService } from '../workspace/services/fileSystemService'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { materializeRevision, readFileAtRevision } from './gitService'
 import type { DiffRevisionOption, DiffSession, DiffSnapshot } from './diff.types'
 import { compareOcdocuments, type OcdocumentDiffModel } from './ocdocumentDiff'
+import { PROJECT_PROFILE_FILE_NAME, parseProjectMetadataText, toProjectInformation } from '../workspace/model/projectMetadata'
+import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjectDictionary } from '../workspace/model/projectDictionary'
+import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
+import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText } from '../workspace/model/projectFontRegistry'
+import { resolveProjectFontExpression } from '../workspace/model/projectFonts'
+import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import { parseProjectCustomBlockRegistryText, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, type ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
+import { readProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
+import { createProjectCustomBlockAssetSession } from '../workspace/services/projectCustomBlockAssetLoader'
 
 export interface OcdocumentDiffSessionOptions {
   projectRoot: Ref<string | null | undefined>
@@ -16,6 +26,69 @@ export interface OcdocumentDiffSessionOptions {
 function resolveProjectFile(root: string, path: string): string {
   const normalizedRoot = root.replace(/[\\/]$/, '')
   return `${normalizedRoot}/${path.replace(/^[\\/]+/, '').replace(/\\/g, '/')}`
+}
+
+const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
+
+async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>> {
+  const readOptional = async (relativePath: string): Promise<string | null> => {
+    const path = resolveProjectFile(root, relativePath)
+    return await fileSystemService.fileExists(path) ? await fileSystemService.readFile(path) : null
+  }
+  let project: DiffSnapshot['project'] = null
+  let dictionary: DiffSnapshot['dictionary']
+  let projectIconCatalog = EMPTY_PROJECT_ICON_CATALOG
+  let customBlockCatalog: DiffSnapshot['customBlockCatalog'] = new Map()
+  let resolveFontFamily: DiffSnapshot['resolveFontFamily']
+  const profileText = await readOptional(PROJECT_PROFILE_FILE_NAME)
+  if (profileText) {
+    const profile = parseProjectMetadataText(profileText)
+    if (profile) project = toProjectInformation(profile)
+  }
+  const dictionaryText = await readOptional(PROJECT_DICTIONARY_FILE_NAME)
+  if (dictionaryText) {
+    const document = parseProjectDictionaryText(dictionaryText)
+    if (document) dictionary = resolveProjectDictionary(document).values
+  }
+  const fontText = await readOptional(PROJECT_FONT_REGISTRY_FILE_NAME)
+  if (fontText) {
+    const document = parseProjectFontRegistryText(fontText)
+    if (document) {
+      resolveFontFamily = references => resolveProjectFontExpression(references, {
+        families: document.families ?? [],
+        compositions: document.compositions ?? [],
+      }).cssFontFamily
+    }
+  }
+  const iconText = await readOptional(PROJECT_ICON_REGISTRY_FILE_NAME)
+  if (iconText) {
+    const document = parseProjectIconRegistryText(iconText)
+    if (document) {
+      projectIconCatalog = await buildProjectIconCatalog(document.iconSeries, source => (
+        convertFileSrc(resolveProjectFile(root, source))
+      ))
+    }
+  }
+  const customBlockText = await readOptional(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
+  if (customBlockText) {
+    const registry = parseProjectCustomBlockRegistryText(customBlockText)
+    if (registry) {
+      const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
+      for (const relativePath of registry.blocks ?? []) {
+        const archivePath = relativePath.replace(/\\/g, '/').replace(/^[/]+/, '')
+        const packageEntry = await readProjectCustomBlockPackage(fileSystemService, resolveProjectFile(root, archivePath))
+        const block = packageEntry.block
+        if (!block) continue
+        const key = packageEntry.manifest.customBlockKey.toLowerCase()
+        catalog.set(key, { ...packageEntry, block, archivePath })
+      }
+      if (catalog.size > 0) {
+        const assets = await createProjectCustomBlockAssetSession(catalog)
+        customBlockCatalog = assets.customBlockCatalog
+      }
+    }
+  }
+  return { project, dictionary, projectIconCatalog, customBlockCatalog, resolveFontFamily }
 }
 
 export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) {
@@ -49,18 +122,33 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
     const root = options.projectRoot.value
     const path = options.filePath.value
     if (!root || !path) throw new Error('项目或文件不可用')
+    let content: string
+    let resourceRootPath: string
     if (commitId === null) {
-      return { commitId, label, content: await fileSystemService.readFile(resolveProjectFile(root, path)) }
+      resourceRootPath = root
+      content = await fileSystemService.readFile(resolveProjectFile(root, path))
+    } else {
+      const result = await readFileAtRevision(root, { revision: commitId, path })
+      if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法读取历史版本')
+      if (result.value.binary) throw new Error('该版本不是文本文件')
+      content = result.value.content
+      const materialized = await materializeRevision(root, { revision: commitId })
+      if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')
+      resourceRootPath = materialized.value.rootPath
     }
-    const result = await readFileAtRevision(root, { revision: commitId, path })
-    if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法读取历史版本')
-    if (result.value.binary) throw new Error('该版本不是文本文件')
-    return { commitId, label, content: result.value.content }
+    const cacheKey = `${root.toLowerCase()}|${commitId ?? 'working-tree'}`
+    let contextPromise = snapshotContextCache.get(cacheKey)
+    if (!contextPromise) {
+      contextPromise = loadSnapshotContext(resourceRootPath)
+      snapshotContextCache.set(cacheKey, contextPromise)
+    }
+    const context = await contextPromise
+    return { commitId, label, content, resourceRootPath, ...context }
   }
 
   async function loadSnapshotRoot(commitId: string | null): Promise<string | null> {
     const root = options.projectRoot.value
-    if (!root || !commitId) return null
+    if (!root || !commitId) return root ?? null
     const result = await materializeRevision(root, { revision: commitId })
     if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法准备历史资源')
     return result.value.rootPath

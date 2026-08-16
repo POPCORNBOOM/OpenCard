@@ -48,6 +48,7 @@ export type RenderPipelineContext = {
 export type CardRenderEnvironment = RenderPipelineContext & {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   projectIconCatalog: ProjectIconCatalog
+  resolveFontFamily?: (references: string) => string
 }
 
 export type CardRenderRequest = {
@@ -70,6 +71,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
       customBlockCatalog: request.environment.customBlockCatalog,
       projectIconCatalog: request.environment.projectIconCatalog,
+      resolveFontFamily: request.environment.resolveFontFamily,
       richText: result.richText,
     }),
   }

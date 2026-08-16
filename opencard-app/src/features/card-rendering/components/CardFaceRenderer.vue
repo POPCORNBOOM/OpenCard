@@ -105,7 +105,7 @@ provide(cardEditorContextKey, {
         emit('block-click', blockId, event)
     },
     resolveAssetSrc: path => resolveCardAssetSrc(path, props.resourceContext),
-    resolveFontFamily: toCssFontFamily,
+    resolveFontFamily: props.resourceContext.resolveFontFamily ?? toCssFontFamily,
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
     customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
 	    richText: computed(() => props.resourceContext.richText ?? new Map()),

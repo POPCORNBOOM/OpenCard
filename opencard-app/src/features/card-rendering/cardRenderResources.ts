@@ -18,6 +18,7 @@ export type CardRenderResourceContext = {
   readonly customBlockCatalog: CustomBlockRuntimeCatalog
   readonly projectIconCatalog: ProjectIconCatalog
   readonly richText?: PreparedRichTextCatalog
+  readonly resolveFontFamily?: (references: string) => string
 }
 
 export function createCardRenderResourceContext(options: {
@@ -26,6 +27,7 @@ export function createCardRenderResourceContext(options: {
   customBlockCatalog?: CustomBlockRuntimeCatalog
   projectIconCatalog?: ProjectIconCatalog
   richText?: PreparedRichTextCatalog
+  resolveFontFamily?: (references: string) => string
 }): CardRenderResourceContext {
   return {
     resourceRootPath: options.resourceRootPath ?? null,
@@ -33,6 +35,7 @@ export function createCardRenderResourceContext(options: {
     customBlockCatalog: options.customBlockCatalog ?? new Map(),
     projectIconCatalog: options.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
     richText: options.richText ?? new Map(),
+    resolveFontFamily: options.resolveFontFamily,
   }
 }
 
