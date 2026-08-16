@@ -223,7 +223,7 @@
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
                   tab-navigation="none"
-                  :data="blockTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
+                  :data="props.mode === 'diff' ? diffBlockTreeData : blockTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
                   :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
@@ -909,6 +909,59 @@ const diffInstanceTreeData = computed<OcTreeData>(() => {
   }
   return { rootKeys, items, children: new Map() }
 })
+const diffBlockTreeData = computed<OcTreeData>(() => {
+  const model = diffModel.value
+  const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+  const children = new Map<string, string[]>()
+  const beforeBlocks = new Map<string, CardBlock>()
+  const afterBlocks = new Map<string, CardBlock>()
+  const collect = (document: CardDocument | null | undefined, target: Map<string, CardBlock>) => {
+    const face = document?.faces[activeFaceKey.value]
+    for (const child of face?.children ?? []) visitCardBlockTree(child.block, block => target.set(block.id, block))
+  }
+  collect(model?.beforeDocument, beforeBlocks)
+  collect(model?.afterDocument, afterBlocks)
+  const rootKeys: string[] = []
+  const addTopology = (document: CardDocument | null | undefined) => {
+    for (const child of document?.faces[activeFaceKey.value]?.children ?? []) {
+      const add = (block: CardBlock, parent: string) => {
+        const list = children.get(parent) ?? []
+        if (!list.includes(block.id)) list.push(block.id)
+        children.set(parent, list)
+        if (isBlockContainer(block)) for (const nested of block.children) add(nested.block, block.id)
+      }
+      add(child.block, '__face__')
+    }
+  }
+  addTopology(model?.beforeDocument)
+  addTopology(model?.afterDocument)
+  const statusById = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
+  for (const change of model?.changes ?? []) {
+    if (!change.blockId || change.faceKey !== activeFaceKey.value) continue
+    const previous = statusById.get(change.blockId)
+    if (previous === 'moved' || (previous === 'changed' && change.kind !== 'moved')) continue
+    statusById.set(change.blockId, change.kind)
+  }
+  const allIds = new Set([...beforeBlocks.keys(), ...afterBlocks.keys()])
+  for (const id of allIds) {
+    const block = afterBlocks.get(id) ?? beforeBlocks.get(id)
+    if (!block) continue
+    const kind = statusById.get(id)
+    items.set(id, {
+      label: block.name || id,
+      icon: getBlockPresentation(block.type).icon,
+      iconTone: getBlockPresentation(block.type).iconTone,
+      displayActions: kind ? { leading: [{
+        key: `diff:${id}:${kind}`,
+        icon: kind === 'added' ? 'action.add' : kind === 'removed' ? 'action.delete' : 'action.edit',
+        tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
+      }] } : undefined,
+    })
+  }
+  rootKeys.push(...(children.get('__face__') ?? []))
+  children.delete('__face__')
+  return { rootKeys, items, children }
+})
 
 // 文档状态与读写协议。
 const {
@@ -1317,6 +1370,17 @@ async function refreshCustomBlockExportResourcePreview(root: CardBlock): Promise
 }
 
 async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
+  if (props.mode === 'diff') {
+    if (intent.type === 'selection.change') selectedBlockKeys.value = intent.selectedKeys
+    if (intent.type === 'expansion.sync') expandedBlockKeys.value = intent.expandedKeys
+    if (intent.type === 'expansion.change') {
+      const next = new Set(expandedBlockKeys.value)
+      if (intent.expanded) next.add(intent.key)
+      else next.delete(intent.key)
+      expandedBlockKeys.value = [...next]
+    }
+    return
+  }
   if (intent.type === 'expansion.sync') {
     expandedBlockKeys.value = intent.expandedKeys
     return
