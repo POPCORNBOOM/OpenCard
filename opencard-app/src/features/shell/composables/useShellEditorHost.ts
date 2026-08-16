@@ -125,7 +125,9 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
   const key = computed(() => {
     const session = options.activeSession.value
     if (!session) return 'none'
-    return [session.id, session.path ?? `draft://${session.id}`, session.editorId, session.mode ?? 'edit', session.diff?.beforeRevisionId ?? '', session.diff?.afterRevisionId ?? ''].join('|')
+    const base = [session.id, session.path ?? `draft://${session.id}`, session.editorId]
+    if (session.mode !== 'diff') return base.join('|')
+    return [...base, 'diff', session.diff?.beforeRevisionId ?? '', session.diff?.afterRevisionId ?? ''].join('|')
   })
 
   const props = computed<Record<string, unknown>>(() => {

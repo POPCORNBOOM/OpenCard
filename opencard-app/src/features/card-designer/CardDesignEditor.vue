@@ -13,8 +13,7 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <CardDesignDiffView v-if="props.mode === 'diff' && props.comparison" :comparison="props.comparison" :environment="projectStore.renderEnvironment.value" />
-  <div v-else ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
+  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
     tabindex="-1" @keydown="handleCdeKeydown">
     <div
       class="card-design-editor__stage"
@@ -24,6 +23,15 @@
         <div :key="workspaceMode" class="card-design-editor__mode-view">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
+          <div v-if="props.mode === 'diff' && diffBeforeRender && diffAfterRender" class="card-design-editor__diff-stage">
+            <CardViewport class="card-design-editor__diff-viewport" :face="diffBeforeRender.document.faces[activeFaceKey]"
+              :resource-context="diffBeforeRender.resources" readonly :transform="viewportTransform"
+              :diff-highlights="diffBeforeHighlights" @viewport-transform-change="handleViewportTransformChange" />
+            <CardViewport class="card-design-editor__diff-viewport" :face="diffAfterRender.document.faces[activeFaceKey]"
+              :resource-context="diffAfterRender.resources" readonly :transform="viewportTransform"
+              :diff-highlights="diffAfterHighlights" @viewport-transform-change="handleViewportTransformChange" />
+          </div>
+          <template v-else>
           <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
           :clip-to-face="clipToFace"
           :resource-context="renderResources"
@@ -84,6 +92,7 @@
           </template>
         </CardViewport>
         <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
+          </template>
         </OcPanel>
       </div>
 
@@ -139,13 +148,13 @@
           @resize-end="handleDockResizeEnd('left', $event)"
         >
           <template #top>
-            <OcCard fill variant="glass" title="卡牌树" :actions="instanceCardActions"
+            <OcCard fill variant="glass" title="卡牌树" :actions="props.mode === 'diff' ? [] : instanceCardActions"
               :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                   data-cde-shortcut-scope="instance-tree"
                   tab-navigation="none"
-                  :data="instanceTreeData" :actions="treeActions" :selected-keys="selectedCardKeys"
+                  :data="instanceTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
                   selection-mode="single" @intent="handleInstanceTreeIntent" />
               </OcPanel>
             </OcCard>
@@ -205,12 +214,12 @@
           @resize-end="handleDockResizeEnd('right', $event)"
         >
           <template #top>
-            <OcCard fill variant="glass" title="结构树" :actions="structureTreeCardActions"
+            <OcCard fill variant="glass" title="结构树" :actions="props.mode === 'diff' ? [] : structureTreeCardActions"
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
                   tab-navigation="none"
-                  :data="blockTreeData" :actions="treeActions"
+                  :data="blockTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
                   :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
@@ -219,7 +228,7 @@
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" title="属性" :actions="propertyCardActions"
+            <OcCard fill variant="glass" title="属性" :actions="props.mode === 'diff' ? [] : propertyCardActions"
               :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcEmpty v-if="isMultiBlockSelection" class="card-design-editor__multi-selection-summary">
@@ -411,7 +420,8 @@ import type { OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
-import CardDesignDiffView from './CardDesignDiffView.vue'
+import { compareOcdocuments } from '../version-control/ocdocumentDiff'
+import { prepareCardRender } from '../card-rendering/renderPipeline'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
@@ -448,6 +458,64 @@ const emit = defineEmits<EditorEmits>()
 const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
+
+const diffModel = computed(() => {
+  if (props.mode !== 'diff' || !props.comparison) return null
+  const result = compareOcdocuments(props.comparison.before.content, props.comparison.after.content)
+  return result.ok ? result : null
+})
+const diffBeforeRender = computed<PreparedCardRender | null>(() => {
+  const model = diffModel.value
+  const snapshot = props.comparison?.before
+  if (!model || !snapshot) return null
+  return prepareCardRender({
+    document: model.beforeDocument,
+    instance: null,
+    resourceRootPath: snapshot.resourceRootPath ?? null,
+    environment: {
+      ...projectStore.renderEnvironment.value,
+      project: snapshot.project ?? projectStore.renderEnvironment.value.project,
+      dictionary: snapshot.dictionary ?? projectStore.renderEnvironment.value.dictionary,
+      projectIconCatalog: snapshot.projectIconCatalog ?? projectStore.renderEnvironment.value.projectIconCatalog,
+      customBlockCatalog: snapshot.customBlockCatalog ?? projectStore.renderEnvironment.value.customBlockCatalog,
+      remoteResourcePolicy: snapshot.remoteResourcePolicy ?? projectStore.renderEnvironment.value.remoteResourcePolicy,
+    },
+  })
+})
+const diffAfterRender = computed<PreparedCardRender | null>(() => {
+  const model = diffModel.value
+  const snapshot = props.comparison?.after
+  if (!model || !snapshot) return null
+  return prepareCardRender({
+    document: model.afterDocument,
+    instance: null,
+    resourceRootPath: snapshot.resourceRootPath ?? null,
+    environment: {
+      ...projectStore.renderEnvironment.value,
+      project: snapshot.project ?? projectStore.renderEnvironment.value.project,
+      dictionary: snapshot.dictionary ?? projectStore.renderEnvironment.value.dictionary,
+      projectIconCatalog: snapshot.projectIconCatalog ?? projectStore.renderEnvironment.value.projectIconCatalog,
+      customBlockCatalog: snapshot.customBlockCatalog ?? projectStore.renderEnvironment.value.customBlockCatalog,
+      remoteResourcePolicy: snapshot.remoteResourcePolicy ?? projectStore.renderEnvironment.value.remoteResourcePolicy,
+    },
+  })
+})
+const diffBeforeHighlights = computed(() => {
+  const result = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
+  for (const change of diffModel.value?.changes ?? []) {
+    if (!change.blockId || change.faceKey !== activeFaceKey.value || change.kind === 'added') continue
+    result.set(change.blockId, change.kind)
+  }
+  return [...result].map(([blockId, kind]) => ({ blockId, kind }))
+})
+const diffAfterHighlights = computed(() => {
+  const result = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
+  for (const change of diffModel.value?.changes ?? []) {
+    if (!change.blockId || change.faceKey !== activeFaceKey.value || change.kind === 'removed') continue
+    result.set(change.blockId, change.kind)
+  }
+  return [...result].map(([blockId, kind]) => ({ blockId, kind }))
+})
 
 const editorRootRef = ref<HTMLElement | null>(null)
 const overlayGeometryConfig = CDE_OVERLAY_GEOMETRY_CONFIG
@@ -747,6 +815,7 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
   ...customBlockActions,
   ])
 })
+const emptyTreeActions = new Map<string, OcTreeActionDefinition>()
 const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
 
 function toCardActionDefinition(actionKey: string, disabled = false): OcCardAction | null {
@@ -795,9 +864,15 @@ const {
   loadRawDoc,
   saveFile: saveDocumentFile,
 } = useCdeDocumentState({
-  emitModelValueUpdate: (content, history) => emit('update:modelValue', content, history),
-  emitModified: (modified) => emit('modified', modified),
-  emitSave: () => emit('save'),
+  emitModelValueUpdate: (content, history) => {
+    if (props.mode !== 'diff') emit('update:modelValue', content, history)
+  },
+  emitModified: (modified) => {
+    if (props.mode !== 'diff') emit('modified', modified)
+  },
+  emitSave: () => {
+    if (props.mode !== 'diff') emit('save')
+  },
   resetSelection: () => {
     selectedBlockKeys.value = []
     selectedCardKeys.value = []
@@ -2373,5 +2448,20 @@ onUnmounted(() => {
 .card-design-editor__transform-preview-frame.is-dragging {
   background: color-mix(in srgb, var(--oc-bg-accent) 24%, transparent);
   cursor: grabbing;
+}
+
+.card-design-editor__diff-stage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: var(--oc-space-2);
+}
+
+.card-design-editor__diff-viewport {
+  min-width: 0;
+  min-height: 0;
 }
 </style>

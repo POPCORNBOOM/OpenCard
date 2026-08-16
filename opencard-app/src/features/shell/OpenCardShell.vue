@@ -602,7 +602,7 @@ const isCreateProjectMode = computed(() => shellPage.value.type === 'create-proj
 const isExportTemplateMode = computed(() => shellPage.value.type === 'export-template')
 const isAboutMode = computed(() => shellPage.value.type === 'about')
 const isWelcomeMode = computed(() => shellPage.value.type === 'welcome')
-const isDiffMode = ref(false)
+const isDiffMode = computed(() => activeSession.value?.mode === 'diff')
 const isWorkbenchMode = computed(() => shellPage.value.type === 'workbench')
 const isAuxiliaryMode = computed(() => (
   isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isAboutMode.value
@@ -842,7 +842,6 @@ function handleTimelineTreeIntent(intent: OcTreeIntent) {
       afterRevisionId: null,
     })
   }
-  isDiffMode.value = true
   void diffSessionState.selectComparison(commitId, null)
 }
 const timelinePlaceholder = computed(() => {
@@ -2836,7 +2835,6 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
 
 async function handleWorkspaceFrameAction(actionKey: string) {
   if (actionKey === DIFF_EXIT_ACTION_KEY) {
-    isDiffMode.value = false
     if (activeSession.value) setSessionMode(activeSession.value.id, 'edit')
     return
   }
