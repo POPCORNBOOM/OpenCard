@@ -14,7 +14,7 @@
 -->
 <template>
   <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
-    tabindex="-1" @keydown="handleCdeKeydown">
+    tabindex="-1" @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
@@ -34,7 +34,8 @@
               @diff-divider-change="handleDiffDividerChange"
               @blank-click="clearSelection"
               @viewport-transform-change="handleViewportTransformChange" />
-            <OcEmpty v-else>无法解析 .ocdocument 差异版本</OcEmpty>
+            <OcEmpty v-else-if="props.comparison">{{ t('sidebar.diffViewer.parseFailedGeneric') }}</OcEmpty>
+            <OcEmpty v-else tone="muted">{{ t('sidebar.diffViewer.loading') }}</OcEmpty>
           </div>
           <template v-else>
           <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
@@ -2213,15 +2214,10 @@ const cdeShortcutCommands = [
   },
 ] as const satisfies readonly CdeShortcutCommand[]
 
-const { handleKeydown: handleShortcutKeydown } = useCdeShortcuts({
+useCdeShortcuts({
   rootElement: editorRootRef,
   commands: cdeShortcutCommands,
 })
-
-function handleCdeKeydown(event: KeyboardEvent): void {
-  handleRootKeydown(event)
-  handleShortcutKeydown(event)
-}
 
 const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   const block = selectedBlock.value

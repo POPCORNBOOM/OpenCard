@@ -1,5 +1,5 @@
-/** CDE-local command table and keyboard routing. */
-import type { Ref } from 'vue'
+/** CDE-local command table and global keyboard routing. */
+import { onMounted, onUnmounted, type Ref } from 'vue'
 import type { OcShortcutPart } from '../../components/standard/OcShortcut.vue'
 
 export type CdeShortcutCommandKey =
@@ -41,6 +41,15 @@ type UseCdeShortcutsOptions = {
   commands: readonly CdeShortcutCommand[]
 }
 
+type ShortcutContext = {
+  rootElement: Readonly<Ref<HTMLElement | null>>
+  commands: readonly CdeShortcutCommand[]
+  scope: CdeShortcutScope
+}
+
+const contexts: ShortcutContext[] = []
+let globalListeners = 0
+
 const commandBindings: Readonly<Record<CdeShortcutCommandKey, readonly CdeShortcutBinding[]>> = {
   'block.rename': [{ key: 'F2' }],
   'block.duplicate': [{ key: 'd', mod: true }],
@@ -81,39 +90,89 @@ export function formatCdeShortcutMarkup(key: CdeShortcutCommandKey): string {
 }
 
 export function useCdeShortcuts(options: UseCdeShortcutsOptions) {
-  function handleKeydown(event: KeyboardEvent): void {
-    const root = options.rootElement.value
-    if (
-      !root
-      || event.defaultPrevented
-      || event.isComposing
-      || event.altKey
-      || !event.composedPath().includes(root)
-      || isEditableEventPath(event.composedPath())
-    ) return
-
-    const scope = resolveScope(event, root)
-    for (const command of options.commands) {
-      if (command.scopes && (!scope || !command.scopes.includes(scope))) continue
-      if (!command.shortcut.some(binding => matchesBinding(event, binding))) continue
-      if (!command.canRun()) continue
-      event.preventDefault()
-      event.stopPropagation()
-      command.run()
-      return
-    }
+  const context: ShortcutContext = {
+    rootElement: options.rootElement,
+    commands: options.commands,
+    scope: 'canvas',
   }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    dispatchShortcut(event, context)
+  }
+
+  function handlePointerdown(event: PointerEvent): void {
+    const root = options.rootElement.value
+    if (!root || !(event.target instanceof Node) || !root.contains(event.target)) return
+    context.scope = resolveScopeFromPath(event.composedPath()) ?? 'canvas'
+  }
+
+  onMounted(() => {
+    contexts.push(context)
+    globalListeners += 1
+    if (globalListeners === 1) {
+      window.addEventListener('keydown', handleGlobalKeydown, true)
+      window.addEventListener('pointerdown', handleGlobalPointerdown, true)
+    }
+    window.addEventListener('pointerdown', handlePointerdown, true)
+  })
+
+  onUnmounted(() => {
+    const index = contexts.indexOf(context)
+    if (index >= 0) contexts.splice(index, 1)
+    globalListeners -= 1
+    window.removeEventListener('pointerdown', handlePointerdown, true)
+    if (globalListeners === 0) {
+      window.removeEventListener('keydown', handleGlobalKeydown, true)
+      window.removeEventListener('pointerdown', handleGlobalPointerdown, true)
+    }
+  })
 
   return { handleKeydown }
 }
 
-function resolveScope(event: KeyboardEvent, root: HTMLElement): CdeShortcutScope | null {
-  if (event.target === root) return 'canvas'
-  for (const target of event.composedPath()) {
+function handleGlobalKeydown(event: KeyboardEvent): void {
+  for (let index = contexts.length - 1; index >= 0; index -= 1) {
+    if (dispatchShortcut(event, contexts[index]!)) return
+  }
+}
+
+function handleGlobalPointerdown(event: PointerEvent): void {
+  for (let index = contexts.length - 1; index >= 0; index -= 1) {
+    const context = contexts[index]!
+    const root = context.rootElement.value
+    if (!root || !(event.target instanceof Node) || !root.contains(event.target)) continue
+    context.scope = resolveScopeFromPath(event.composedPath()) ?? 'canvas'
+    return
+  }
+}
+
+function dispatchShortcut(event: KeyboardEvent, context: ShortcutContext): boolean {
+  const root = context.rootElement.value
+  if (!root || event.defaultPrevented || event.isComposing || event.altKey) return false
+  if (event.target instanceof Node && !root.contains(event.target)) return false
+  const path = event.composedPath()
+  if (isEditableEventPath(path)) return false
+  if (event.target instanceof Node && root.contains(event.target)) {
+    context.scope = resolveScopeFromPath(path) ?? context.scope
+  }
+
+  for (const command of context.commands) {
+    if (command.scopes && !command.scopes.includes(context.scope)) continue
+    if (!command.shortcut.some(binding => matchesBinding(event, binding))) continue
+    if (!command.canRun()) continue
+    event.preventDefault()
+    event.stopPropagation()
+    command.run()
+    return true
+  }
+  return false
+}
+
+function resolveScopeFromPath(path: readonly EventTarget[]): CdeShortcutScope | null {
+  for (const target of path) {
     if (!(target instanceof HTMLElement)) continue
     const scope = target.dataset.cdeShortcutScope
     if (scope === 'canvas' || scope === 'instance-tree' || scope === 'structure-tree') return scope
-    if (target === root) break
   }
   return null
 }
