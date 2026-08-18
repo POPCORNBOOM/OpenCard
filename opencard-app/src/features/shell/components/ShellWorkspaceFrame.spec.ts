@@ -40,6 +40,23 @@ describe('ShellWorkspaceFrame', () => {
     expect(wrapper.emitted('action')).toEqual([['card-designer.toggle-mode']])
   })
 
+  it('renders string entries as visible non-interactive workspace text', () => {
+    const wrapper = mount(ShellWorkspaceFrame, {
+      props: {
+        title: 'Diff',
+        actions: [
+          'abc1234',
+          { key: 'diff.before', icon: 'file.git', hoverTip: 'Version A' },
+          'def5678',
+        ],
+      },
+    })
+
+    const labels = wrapper.findAll('.workspace-action-text')
+    expect(labels.map(label => label.text())).toEqual(['abc1234', 'def5678'])
+    expect(wrapper.find('button[aria-label="abc1234"]').exists()).toBe(false)
+  })
+
   it('does not emit disabled workspace actions', async () => {
     const wrapper = mount(ShellWorkspaceFrame, {
       props: {

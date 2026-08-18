@@ -8,6 +8,7 @@ import type {
   CardDesignerLayoutState,
   CardDesignerMode,
   CardDesignerViewState,
+  EditorDiffUiState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
 import type {
@@ -50,6 +51,7 @@ type SessionActions = {
   updateDraftContent: (sessionId: string, content: string) => void
   setSessionDirtyState: (sessionId: string, isDirty: boolean) => void
   updateSessionUiState: (sessionId: string, patch: EditorSessionUiState) => void
+  updateSessionDiffUiState?: (sessionId: string, value: EditorDiffUiState) => void
   saveActiveSession: () => Promise<SessionSaveResult>
 }
 
@@ -163,6 +165,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
         resourceRootPath: resourceRootPath.value,
         modelValue: session.draftContent,
         savedContent: session.savedContent,
+        diffUiState: session.diff?.uiState,
         themeId: themeId.value,
         themeOverrides: themeOverrides.value,
         ...(session.mode === 'diff' ? {} : {
@@ -304,6 +307,12 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     options.sessionActions.updateSessionUiState(session.id, { cardDesigner: { view: value } })
   }
 
+  function handleDiffUiState(value: EditorDiffUiState): void {
+    const session = options.activeSession.value
+    if (!session || session.mode !== 'diff') return
+    options.sessionActions.updateSessionDiffUiState?.(session.id, value)
+  }
+
   function handleImagePreviewPixelated(value: boolean): void {
     const session = options.activeSession.value
     if (!session || session.editorId !== 'image-preview') return
@@ -402,6 +411,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     handleCardDesignerMode,
     handleCardDesignerLayout,
     handleCardDesignerView,
+    handleDiffUiState,
     handleImagePreviewPixelated,
     handleModified,
     handleSaveEvent,

@@ -710,7 +710,7 @@ export default {
     timelineNotInitialized: '项目尚未初始化 Git',
     timelineNoCommits: '当前文件还没有提交记录',
     timelineFailed: '读取时间线失败',
-    diffViewer: { compare: '对比', versionA: '版本 A', versionB: '版本 B', blueprint: '蓝图', instance: '实例', front: '正面', back: '背面', changes: '结构化变化', warnings: '警告 {count}', parseFailed: '无法解析该版本：{message}', noChanges: '没有变化', sameVersion: '不能比较相同版本', resourcesUnavailable: '卡面资源不可用' },
+    diffViewer: { compare: '对比', versionA: '版本 A', versionB: '版本 B', blueprint: '蓝图', instance: '实例', front: '正面', back: '背面', changes: '结构化变化', warnings: '警告 {count}', parseFailed: '无法解析该版本：{message}', noChanges: '没有变化', sameVersion: '不能比较相同版本', resourcesUnavailable: '卡面资源不可用', added: '新增', removed: '删除', changed: '修改', divider: '调整版本分视位置 [key]A[/key] 左 [key]S[/key] 中 [key]D[/key] 右', switchToSideBySide: '切换到双视图', switchToSplit: '切换到分裂视图' },
     openProject: '打开项目文件夹',
     fileActions: {
       more: '更多操作',
@@ -894,6 +894,8 @@ export default {
       clipDisabled: '已关闭边缘裁切',
       switchedToFront: '已切换到正面',
       switchedToBack: '已切换到反面',
+      diffSplit: '已切换到分裂视图',
+      diffSideBySide: '已切换到双视图',
     },
     renderImage: {
       title: '渲染图片',

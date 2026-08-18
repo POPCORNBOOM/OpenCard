@@ -13,12 +13,11 @@
     </label>
     <label class="project-icon-set-dialog__field">
       <OcText as="span" size="sm">{{ t('projectConfig.icons.projectFile') }}</OcText>
-      <div class="project-icon-set-dialog__source-row">
-        <OcFieldInput full-width mono readonly :value="draftSource" />
-        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy" @click="pickSource">
-          {{ draftSource ? t('projectConfig.icons.chooseAgain') : t('projectConfig.icons.chooseFile') }}
-        </OcButton>
-      </div>
+      <OcButton class="project-icon-set-dialog__source" type="button" variant="outline" block
+        :disabled="busy" :aria-label="draftSource ? t('projectConfig.icons.chooseAgain') : t('projectConfig.icons.chooseFile')"
+        @click="pickSource">
+        <OcText as="span" size="sm" mono>{{ draftSource || t('projectConfig.icons.chooseFile') }}</OcText>
+      </OcButton>
     </label>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">
@@ -130,9 +129,21 @@ function submit(): void {
   min-width: 0;
   gap: var(--oc-space-2);
 }
-.project-icon-set-dialog__source-row {
-  display: flex;
+.project-icon-set-dialog__source {
+  width: 100%;
   min-width: 0;
-  gap: var(--oc-space-2);
+  justify-content: flex-start;
+  overflow: hidden;
+}
+:deep(.project-icon-set-dialog__source .oc-button__content),
+:deep(.project-icon-set-dialog__source .oc-button__label) {
+  min-width: 0;
+  overflow: hidden;
+}
+:deep(.project-icon-set-dialog__source .oc-button__label) {
+  display: block;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

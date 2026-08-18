@@ -1,17 +1,24 @@
 import { computed, type Ref } from 'vue'
-import type {
-  PropertyEditorCategoryDefinition,
-  PropertyEditorFieldDefinition,
-  PropertyEditorInput,
-  PropertyEditorSortMode,
+import {
+  createPropertyEditorInput,
+  type PropertyEditorAddableItem,
+  type PropertyEditorCategoryDefinition,
+  type PropertyEditorFieldDefinition,
+  type PropertyEditorInput,
+  type PropertyEditorItem,
+  type PropertyEditorSortMode,
 } from './propertyEditor.types'
 import type { IconToken } from '../icon/iconRegistry'
 
 export type PropertyEditorEntry = {
   key: string
+  fieldKey: string
   label: string
   value: unknown
   definition: PropertyEditorFieldDefinition
+  readonly?: boolean
+  action?: PropertyEditorItem['action']
+  tail?: PropertyEditorItem['tail']
 }
 
 export type PropertyEditorAddableField = {
@@ -62,13 +69,16 @@ function buildCategories(
   source: PropertyEditorInput,
   options: UsePropertyEditorViewOptions,
 ): PropertyEditorCategoryView[] {
-  const existingEntries = Object.keys(source.record)
-    .map((fieldKey) => createEntry(source, fieldKey))
-    .filter((entry): entry is PropertyEditorEntry => entry !== null)
-  const addableFields = Object.entries(source.fields)
-    .filter(([, definition]) => !definition.isHidden)
-    .filter(([fieldKey]) => !Object.prototype.hasOwnProperty.call(source.record, fieldKey))
-    .map(([key, definition]) => ({ key, label: definition.title, definition }))
+  const normalized = source.items
+    ? source
+    : createPropertyEditorInput({
+      key: source.key,
+      title: source.title,
+      record: source.record ?? {},
+      fields: source.fields ?? {},
+    })
+  const existingEntries = (normalized.items ?? []).map(createEntry)
+  const addableFields = (normalized.addableItems ?? []).map(createAddableField)
 
   if (options.sortMode.value === 'alphabetical') {
     const entries = sortByLabel(existingEntries)
@@ -109,24 +119,21 @@ function buildCategories(
     })
 }
 
-function createEntry(
-  source: PropertyEditorInput,
-  fieldKey: string,
-): PropertyEditorEntry | null {
-  const definition = source.fields[fieldKey]
-  if (!definition) {
-    if (import.meta.env.DEV) {
-      console.warn(`[PropertyEditor] Missing field definition for ${source.key}.${fieldKey}`)
-    }
-    return null
-  }
-  if (definition.isHidden) return null
+function createEntry(item: PropertyEditorItem): PropertyEditorEntry {
   return {
-    key: fieldKey,
-    label: definition.title,
-    value: source.record[fieldKey],
-    definition,
+    key: item.key,
+    fieldKey: item.fieldKey,
+    label: item.title,
+    value: item.value,
+    definition: item.definition,
+    readonly: item.readonly,
+    action: item.action,
+    tail: item.tail,
   }
+}
+
+function createAddableField(item: PropertyEditorAddableItem): PropertyEditorAddableField {
+  return { key: item.fieldKey, label: item.title, definition: item.definition }
 }
 
 function ensureCategory(
@@ -172,6 +179,5 @@ function sortByLabel<T extends { key: string, label: string }>(items: readonly T
 }
 
 function compareByLabel<T extends { key: string, label: string }>(left: T, right: T): number {
-  const labelCompare = left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })
-  return labelCompare || left.key.localeCompare(right.key, undefined, { sensitivity: 'base' })
+  return left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })
 }

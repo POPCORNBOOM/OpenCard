@@ -22,6 +22,8 @@ export interface ShellButton {
   disabled?: boolean;
 }
 
+export type ShellWorkspaceAction = ShellAction | string
+
 export interface ShellList {
   title: string;
   placeholder: string;

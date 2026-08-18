@@ -16,25 +16,6 @@
 <template>
   <div ref="propertyEditorRoot" class="property-editor" :class="{ 'is-delete-mode': deleteMode }">
     <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
-    <template v-else-if="props.mode === 'comparison'">
-      <OcPanel padding="none" border="none" tone="transparent" gap="none">
-        <section v-for="source in props.comparisonInputs ?? []" :key="source.key" class="property-editor__source">
-          <header class="property-editor__source-header"><OcText class="property-editor__source-title" :truncate="true">{{ source.title ?? source.key }}</OcText></header>
-          <div class="property-editor__fields">
-            <div v-for="fieldKey in Object.keys(source.fields)" :key="`${source.key}:${fieldKey}`" class="property-editor__row">
-              <div class="property-editor__row-label"><OcText class="property-editor__row-label-text" :truncate="true">{{ source.fields[fieldKey]?.title ?? fieldKey }}</OcText></div>
-              <div class="property-editor__value property-editor__comparison-value">
-                <div v-if="comparisonValueKind(source, fieldKey) === 'before-only'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span></div>
-                <div v-else-if="comparisonValueKind(source, fieldKey) === 'after-only'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) }}</span></div>
-                <div v-else-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-before"><span aria-hidden="true">-</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span></div>
-                <div v-if="comparisonValueKind(source, fieldKey) === 'changed'" class="property-editor__comparison-after"><span aria-hidden="true">+</span><span>{{ formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) }}</span></div>
-                <span v-if="comparisonValueKind(source, fieldKey) === 'same'">{{ formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) }}</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </OcPanel>
-    </template>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
         <section v-for="source in displaySources" :key="source.key" class="property-editor__source">
@@ -69,7 +50,8 @@
               :class="{ 'is-revealed': revealedFieldIdentity === fieldIdentity(category.inputKey, entry.key) }"
               :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
-                <OcIcon :name="getPropertyFieldIcon(entry.definition.fieldType)" size="md" tone="muted" />
+                <OcIcon :name="entry.action?.icon ?? getPropertyFieldIcon(entry.definition.fieldType)"
+                  :tone="entry.action?.iconTone ?? 'muted'" size="md" />
                 <button type="button" class="property-editor__field-key-button"
                   :data-tooltip="t('propertyEditor.actions.copyFieldKeyTooltip', { key: entry.key })"
                   :aria-label="t('propertyEditor.actions.copyFieldKey', { key: entry.key })"
@@ -78,7 +60,10 @@
                 </button>
               </div>
               <div class="property-editor__value">
-                <PropertyFieldRenderer
+                <span v-if="entry.readonly" class="property-editor__readonly-value">
+                  {{ formatPropertyFieldReadonlyValue(entry.definition, entry.value) }}
+                </span>
+                <PropertyFieldRenderer v-else
                   :ref="component => setFieldRendererRef(fieldIdentity(category.inputKey, entry.key), component)"
                   class="entry-control"
                   :definition="entry.definition"
@@ -86,10 +71,19 @@
                   :editor-id="resolveFieldEditorState(category.inputKey, entry).editorId"
                   @update:value="handleFieldValueUpdate(category.inputKey, entry, $event)"
                 />
-                <PropertyFieldActionRail
+                <PropertyFieldActionRail v-if="!entry.readonly"
                   :actions="resolveFieldActions(category.inputKey, entry)"
                   @action="handleFieldAction(category.inputKey, entry, $event)"
                 />
+                <span v-if="entry.tail" class="property-editor__tail">
+                  <template v-for="(part, index) in normalizeItemTail(entry.tail)"
+                    :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
+                    <OcText v-if="typeof part === 'string'" tone="muted" size="xs">{{ part }}</OcText>
+                    <span v-else class="property-editor__tail-action" :data-tooltip="part.title" aria-hidden="true">
+                      <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
+                    </span>
+                  </template>
+                </span>
               </div>
             </div>
             </div>
@@ -112,7 +106,6 @@ import type {
   PropertyEditorFieldDefinition,
   PropertyEditorFieldIntent,
   PropertyEditorInput,
-  PropertyEditorComparisonInput,
   PropertyEditorMutation,
   PropertyEditorSortMode,
 } from './propertyEditor.types'
@@ -136,6 +129,7 @@ import {
 import { getPropertyFieldIcon } from './propertyFieldRegistry'
 import { formatPropertyFieldReadonlyValue } from './propertyFieldRegistry'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
+import { normalizeItemTail } from '../itemViewModel.types'
 
 // 输出事件协议。
 const emit = defineEmits<{
@@ -152,24 +146,11 @@ const props = defineProps<{
   sortMode: PropertyEditorSortMode
   bindingInterpreter?: PropertyEditorBindingInterpreter
   deleteMode?: boolean
-  mode?: 'edit' | 'comparison'
-  comparisonInputs?: readonly PropertyEditorComparisonInput[]
 }>()
 
 const { t, te } = useI18n()
 const { openContextMenu } = useFloatingMenu()
 const fieldEditorModes = usePropertyFieldEditorModes()
-function formatComparisonValue(definition: PropertyEditorFieldDefinition | undefined, value: unknown): string {
-  if (!definition) return value === undefined ? '' : String(value)
-  return formatPropertyFieldReadonlyValue(definition, value)
-}
-function comparisonValueKind(source: PropertyEditorComparisonInput, fieldKey: string): 'same' | 'changed' | 'before-only' | 'after-only' {
-  const hasBefore = Object.prototype.hasOwnProperty.call(source.beforeRecord ?? {}, fieldKey)
-  const hasAfter = Object.prototype.hasOwnProperty.call(source.afterRecord ?? {}, fieldKey)
-  if (!hasBefore) return 'after-only'
-  if (!hasAfter) return 'before-only'
-  return formatComparisonValue(source.fields[fieldKey], source.beforeRecord?.[fieldKey]) === formatComparisonValue(source.fields[fieldKey], source.afterRecord?.[fieldKey]) ? 'same' : 'changed'
-}
 
 function resolveLocalizedText(messageKey: string, fallback: string): string {
   if (te(messageKey)) {
@@ -262,8 +243,8 @@ function resolveFieldActions(inputKey: string, entry: PropertyEditorEntry): OcAc
 function handleFieldAction(inputKey: string, entry: PropertyEditorEntry, actionKey: string): void {
   const identity = fieldIdentity(inputKey, entry.key)
   if (fieldEditorModes.select(identity, actionKey)) return
-  if (actionKey === 'reset-property') emitResetProperty(inputKey, entry.key)
-  else if (actionKey === 'delete-property') emitDeleteProperty(inputKey, entry.key)
+  if (actionKey === 'reset-property') emitResetProperty(inputKey, entry.fieldKey)
+  else if (actionKey === 'delete-property') emitDeleteProperty(inputKey, entry.fieldKey)
 }
 
 function handleFieldValueUpdate(inputKey: string, entry: PropertyEditorEntry, value: unknown): void {
@@ -271,7 +252,7 @@ function handleFieldValueUpdate(inputKey: string, entry: PropertyEditorEntry, va
   if (resolveFieldEditorState(inputKey, entry).editorId === 'raw-string') {
     fieldEditorModes.preserveRawString(identity)
   }
-  emitPropertyValue(inputKey, entry.key, value)
+  emitPropertyValue(inputKey, entry.fieldKey, value)
 }
 
 // 添加字段与重置交互。
@@ -418,14 +399,6 @@ onBeforeUnmount(() => {
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
 })
 </script>
-
-<style scoped>
-.property-editor__comparison-value { display: grid; gap: var(--oc-space-1); }
-.property-editor__comparison-before, .property-editor__comparison-after { display: flex; gap: var(--oc-space-2); min-width: 0; align-items: baseline; }
-.property-editor__comparison-before { color: var(--oc-fg-danger); }
-.property-editor__comparison-after { color: var(--oc-icon-success); }
-.property-editor__comparison-value code { min-width: 0; overflow-wrap: anywhere; color: var(--oc-fg-default); font: inherit; }
-</style>
 
 <style scoped>
 .property-editor {
@@ -586,6 +559,21 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
   min-width: 0;
 }
+
+.property-editor__readonly-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--oc-fg-default);
+}
+
+.property-editor__tail {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--oc-space-1);
+}
+
+.property-editor__tail-action { display: inline-flex; align-items: center; }
 
 @media (hover: none) {
   .property-editor__category-actions {

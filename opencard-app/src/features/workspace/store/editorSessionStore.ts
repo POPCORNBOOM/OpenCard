@@ -18,6 +18,7 @@ import type {
   CardDesignerLayoutState,
   CardDesignerMode,
   CardDesignerViewState,
+  EditorDiffUiState,
   EditorViewportTransform,
 } from '../../editor-runtime/model/editorUiState'
 import { taskScheduler } from '../../../utils/taskScheduler'
@@ -35,7 +36,7 @@ export type EditorSessionMode = 'edit' | 'diff'
 export interface EditorSessionDiffState {
   beforeRevisionId: string | null
   afterRevisionId: string | null
-  uiState?: Record<string, unknown>
+  uiState?: EditorDiffUiState
 }
 
 export type EditorSession = {
@@ -464,6 +465,12 @@ export function useEditorSessionStore() {
       : session)
   }
 
+  function updateSessionDiffUiState(sessionId: string, uiState: EditorDiffUiState): void {
+    sessions.value = sessions.value.map(session => session.id === sessionId && session.diff
+      ? { ...session, diff: { ...session.diff, uiState } }
+      : session)
+  }
+
   function closeSession(sessionId: string) {
     const index = sessions.value.findIndex((session) => session.id === sessionId)
     if (index === -1) {
@@ -723,6 +730,7 @@ export function useEditorSessionStore() {
     updateDraftContent,
     setSessionDirtyState,
     updateSessionUiState,
+    updateSessionDiffUiState,
     setSessionMode,
     closeSession,
     closeWorkspaceSessions,

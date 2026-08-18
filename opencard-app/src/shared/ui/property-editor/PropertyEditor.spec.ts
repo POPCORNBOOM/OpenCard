@@ -14,6 +14,31 @@ vi.mock('vue-i18n', () => ({
 }))
 
 describe('PropertyEditor records protocol', () => {
+  it('renders caller-projected readonly diff rows with static tail actions', () => {
+    const definition = { title: 'Height', fieldType: 'number' } as const
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        inputs: [{
+          key: 'block',
+          record: {},
+          fields: { height: definition },
+          items: [
+            { key: 'height:before', fieldKey: 'height', title: 'Height', definition, value: 759, readonly: true,
+              tail: { key: 'removed', icon: 'action.delete', iconTone: 'danger', title: 'Removed' } },
+            { key: 'height:after', fieldKey: 'height', title: 'Height', definition, value: 760, readonly: true,
+              tail: { key: 'added', icon: 'action.add', iconTone: 'success', title: 'Added' } },
+          ],
+        }],
+      },
+    })
+
+    expect(wrapper.findAll('.property-editor__row')).toHaveLength(2)
+    expect(wrapper.findAll('.property-editor__readonly-value').map(item => item.text())).toEqual(['759', '760'])
+    expect(wrapper.findAll('.property-editor__tail-action')).toHaveLength(2)
+    expect(wrapper.findAllComponents(OcActionButton)).toHaveLength(0)
+  })
+
   it('uses the category action definitions for its context menu', async () => {
     const wrapper = mount(PropertyEditor, {
       props: {

@@ -246,6 +246,7 @@
                 @update:card-designer-mode="handleCardDesignerModeUpdate"
                 @update-card-designer-layout="handleCardDesignerLayoutUpdate"
                 @update-card-designer-view="handleCardDesignerViewUpdate"
+                @update-diff-ui-state="handleDiffUiStateUpdate"
                 @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
               />
             </WorkbenchWorkspace>
@@ -489,6 +490,7 @@ import type {
   ShellButton,
   ShellAction,
   ShellList,
+  ShellWorkspaceAction,
   ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
   ShellTitleBarWindowControl,
@@ -789,6 +791,7 @@ const {
   updateDraftContent,
   setSessionDirtyState,
   updateSessionUiState,
+  updateSessionDiffUiState,
   setSessionMode,
   closeSession,
   closeWorkspaceSessions,
@@ -849,19 +852,27 @@ const editorComparison = computed(() => {
     after: { ...session.after, revisionId: session.after.commitId, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
   }
 })
-function handleTimelineTreeIntent(intent: OcTreeIntent) {
+async function handleTimelineTreeIntent(intent: OcTreeIntent) {
   timelineHandleTreeIntent(intent)
   if (intent.type !== 'selection.change' || !timelineFilePath.value) return
   const key = intent.selectedKeys[0]
   const commitId = key?.startsWith('timeline:') ? key.slice('timeline:'.length) : null
-  if (!commitId) return
-  if (activeSession.value) {
-    setSessionMode(activeSession.value.id, 'diff', {
-      beforeRevisionId: commitId,
-      afterRevisionId: null,
-    })
-  }
-  void diffSessionState.selectComparison(commitId, null)
+  const sessionId = activeSession.value?.id
+  if (!commitId || !sessionId) return
+
+  await diffSessionState.selectComparison(commitId, null)
+  if (
+    diffSessionState.error.value
+    || diffSessionState.before.value?.commitId !== commitId
+    || diffSessionState.after.value?.commitId !== null
+    || activeSession.value?.id !== sessionId
+  ) return
+
+  synchronizedDiffSessionKey = `${sessionId}|${commitId}|current`
+  setSessionMode(sessionId, 'diff', {
+    beforeRevisionId: commitId,
+    afterRevisionId: null,
+  })
 }
 const timelinePlaceholder = computed(() => {
   if (!timelineFilePath.value) return t('sidebar.timelineNoFile')
@@ -895,6 +906,7 @@ const {
   handleCardDesignerMode: handleCardDesignerModeUpdate,
   handleCardDesignerLayout: handleCardDesignerLayoutUpdate,
   handleCardDesignerView: handleCardDesignerViewUpdate,
+  handleDiffUiState: handleDiffUiStateUpdate,
   handleModified: handleEditorModified,
   handleSaveEvent: handleEditorSave,
   save: triggerCurrentEditorSave,
@@ -912,6 +924,7 @@ const {
     updateDraftContent,
     setSessionDirtyState,
     updateSessionUiState,
+    updateSessionDiffUiState,
     saveActiveSession,
   },
 })
@@ -1931,7 +1944,7 @@ const workspaceTitle = computed(() => {
     : projectName.value || t('app.menu.workbench')
 })
 
-const workspaceActions = computed<ShellAction[]>(() => {
+const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
   if (!isWorkbenchMode.value) return []
   if (isDiffMode.value) {
     const beforeId = activeSession.value?.diff
@@ -1940,14 +1953,22 @@ const workspaceActions = computed<ShellAction[]>(() => {
     const afterId = activeSession.value?.diff
       ? activeSession.value.diff.afterRevisionId
       : diffSessionState.after.value?.commitId ?? null
+    const formatRevisionLabel = (option: typeof timelineRevisionOptions.value[number] | undefined, fallback: string) => {
+      if (!option) return fallback
+      return option.shortId ? `${option.label} · ${option.shortId}` : option.label
+    }
     const createRevisionMenu = (prefix: string, selectedId: string | null) => timelineRevisionOptions.value.map(option => ({
       key: `${prefix}:${option.commitId ?? 'current'}`,
-      title: option.label,
+      title: formatRevisionLabel(option, option.label),
       icon: option.commitId === selectedId ? 'action.check' as const : 'file.git' as const,
     }))
+    const beforeOption = timelineRevisionOptions.value.find(option => option.commitId === beforeId)
+    const afterOption = timelineRevisionOptions.value.find(option => option.commitId === afterId)
     return [
-      { type: 'selection', key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', value: timelineRevisionOptions.value.find(option => option.commitId === beforeId)?.label ?? t('sidebar.diffViewer.versionA'), hoverTip: t('sidebar.diffViewer.versionA'), options: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
-      { type: 'selection', key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', value: timelineRevisionOptions.value.find(option => option.commitId === afterId)?.label ?? t('sidebar.diffViewer.versionB'), hoverTip: t('sidebar.diffViewer.versionB'), options: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
+      beforeOption?.shortId ?? t('sidebar.diffViewer.versionA'),
+      { type: 'selection', key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', value: formatRevisionLabel(beforeOption, t('sidebar.diffViewer.versionA')), hoverTip: t('sidebar.diffViewer.versionA'), options: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
+      afterOption?.shortId ?? t('sidebar.diffViewer.versionB'),
+      { type: 'selection', key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', value: formatRevisionLabel(afterOption, t('sidebar.diffViewer.versionB')), hoverTip: t('sidebar.diffViewer.versionB'), options: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
       { key: DIFF_EXIT_ACTION_KEY, icon: 'nav.arrow-left', hoverTip: t('settings.actions.back', 'Back') },
     ]
   }

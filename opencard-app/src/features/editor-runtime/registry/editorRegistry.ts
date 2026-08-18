@@ -10,6 +10,7 @@ import type {
   CardDesignerLayoutState,
   CardDesignerMode,
   CardDesignerViewState,
+  EditorDiffUiState,
   EditorViewportTransform,
 } from '../model/editorUiState'
 import type { EditorIssueSnapshot } from '../model/editorIssue'
@@ -24,6 +25,7 @@ import type { ContentHistoryOperationMeta } from '../history/contentHistory'
 export interface EditorProps {
   mode?: 'edit' | 'diff'
   comparison?: EditorComparisonInput
+  diffUiState?: EditorDiffUiState
   sessionId?: string
   filePath: string
   fileName?: string
@@ -72,6 +74,7 @@ export interface EditorEmits {
   (e: 'update:card-designer-mode', value: CardDesignerMode): void
   (e: 'update-card-designer-layout', value: CardDesignerLayoutState): void
   (e: 'update-card-designer-view', value: CardDesignerViewState): void
+  (e: 'update-diff-ui-state', value: EditorDiffUiState): void
   (e: 'issue-snapshot', snapshot: EditorIssueSnapshot): void
   (e: 'open-file', path: string): void
 }

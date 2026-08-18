@@ -109,4 +109,19 @@ describe('editorSessionStore card designer layout', () => {
 
     store.closeSession(session.id)
   })
+
+  it('persists the diff divider independently for each session', () => {
+    const store = useEditorSessionStore()
+    const first = store.createDraftSession({ fileTypeId: 'opencard' })
+    const second = store.createDraftSession({ fileTypeId: 'opencard' })
+    store.setSessionMode(first.id, 'diff', { beforeRevisionId: 'a', afterRevisionId: null })
+    store.setSessionMode(second.id, 'diff', { beforeRevisionId: 'b', afterRevisionId: null })
+
+    store.updateSessionDiffUiState(first.id, { divider: 0.35 })
+
+    expect(store.sessions.value.find(session => session.id === first.id)?.diff?.uiState).toEqual({ divider: 0.35 })
+    expect(store.sessions.value.find(session => session.id === second.id)?.diff?.uiState).toBeUndefined()
+    store.closeSession(first.id)
+    store.closeSession(second.id)
+  })
 })

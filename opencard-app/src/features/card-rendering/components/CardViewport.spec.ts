@@ -175,6 +175,107 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('.card-canvas').classes()).toContain('card-canvas--clipped')
   })
 
+  it('renders comparison revisions inside one viewport stage and preserves blank selection', async () => {
+    const wrapper = mount(CardViewport, {
+      props: {
+        resourceContext,
+        face,
+        comparison: {
+          before: { face, resourceContext, placeholder: true },
+          after: { face: { ...face, background: '#000000' }, resourceContext },
+          divider: 0.4,
+          viewMode: 'split',
+        },
+      },
+      global: { stubs: { CardFaceRenderer: defineComponent({ name: 'CardFaceRenderer', render: () => h('div') }) } },
+    })
+
+    expect(wrapper.findAllComponents({ name: 'CardFaceRenderer' })).toHaveLength(1)
+    expect(wrapper.find('.card-comparison-placeholder').exists()).toBe(true)
+    expect(wrapper.findAll('.card-viewport')).toHaveLength(1)
+    expect(wrapper.findAll('.card-viewport-comparison-layer')).toHaveLength(2)
+    expect(wrapper.findAll('.card-viewport-comparison-layer')[1]!.attributes('style')).toContain('inset(0 0 0 40%)')
+    expect(wrapper.find('.card-viewport-stage--before').exists()).toBe(true)
+    expect(wrapper.find('.card-viewport-stage--after').exists()).toBe(true)
+    expect(wrapper.find('.card-viewport-comparison-divider').exists()).toBe(true)
+    wrapper.element.dispatchEvent(new MouseEvent('pointerdown', { button: 0, bubbles: true }))
+    await nextTick()
+    expect(wrapper.emitted('blank-click')).toHaveLength(1)
+  })
+
+  it('keeps the comparison divider inside the viewport safe region', async () => {
+    const wrapper = mount(CardViewport, {
+      props: {
+        resourceContext,
+        face,
+        viewportInsets: { left: 200, right: 300 },
+        comparison: {
+          before: { face, resourceContext },
+          after: { face, resourceContext },
+          divider: 0.5,
+          viewMode: 'split',
+        },
+      },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    await nextTick()
+    expect(wrapper.find('.card-viewport-comparison-divider').attributes('style')).toContain('left: 450px')
+  })
+
+  it('centers side-by-side revisions inside equal safe-region halves', async () => {
+    const wrapper = mount(CardViewport, {
+      props: {
+        resourceContext,
+        face,
+        viewportInsets: { left: 200, right: 300 },
+        comparison: {
+          before: { face, resourceContext },
+          after: { face, resourceContext },
+          divider: 0.2,
+          viewMode: 'side-by-side',
+        },
+      },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    await nextTick()
+    const stages = wrapper.findAll('.card-viewport-comparison-layer .card-viewport-stage')
+    expect(stages[0]!.attributes('style')).toContain('translate(10px, -40px)')
+    expect(stages[1]!.attributes('style')).toContain('translate(260px, -40px)')
+    expect(wrapper.get('.card-viewport-comparison-divider').classes()).toContain('is-static')
+    expect(wrapper.get('.card-viewport-comparison-divider').attributes('style')).toContain('left: 450px')
+  })
+
+  it('zooms around the pointer within the active side-by-side half', async () => {
+    const wrapper = mount(CardViewport, {
+      props: {
+        resourceContext,
+        face,
+        viewportInsets: { left: 200, right: 300 },
+        comparison: {
+          before: { face, resourceContext },
+          after: { face, resourceContext },
+          divider: 0.5,
+          viewMode: 'side-by-side',
+        },
+      },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    const viewport = wrapper.vm as unknown as {
+      zoomByWheelAt(deltaY: number, deltaMode: number, viewportX: number, viewportY: number): void
+    }
+    const anchorX = 325
+    const anchorY = 400
+    viewport.zoomByWheelAt(-120, WheelEvent.DOM_DELTA_PIXEL, anchorX, anchorY)
+    await flushAnimation()
+
+    const events = wrapper.emitted('viewport-transform-change') ?? []
+    const zoomed = events[events.length - 1]?.[0] as { x: number; y: number; scale: number }
+    const leftOrigin = 200 + 125 - face.width * zoomed.scale / 2
+    const preservedWorldX = (anchorX - leftOrigin - zoomed.x) / zoomed.scale
+    const initialWorldX = (anchorX - (200 + 125 - face.width / 2))
+    expect(preservedWorldX).toBeCloseTo(initialWorldX, 3)
+  })
+
   it('flashes and replaces centered viewport status feedback', async () => {
     const wrapper = mount(CardViewport, {
       props: { resourceContext, face },

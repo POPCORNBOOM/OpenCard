@@ -6,12 +6,34 @@
   }"
     @pointerdown.self="handleViewportPointerDown" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
     @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel.prevent="handleWheel">
-    <div ref="stageRef" class="card-viewport-stage" :style="stageStyle">
+    <template v-if="props.comparison">
+      <div class="card-viewport-comparison-layer" :class="{ 'is-transitioning': comparisonTransitioning }"
+        :style="comparisonBeforeLayerStyle" @transitionend="finishComparisonTransition">
+        <div ref="stageRef" class="card-viewport-stage card-viewport-stage--before" :class="{ 'is-transitioning': comparisonTransitioning }"
+          :style="comparisonBeforeStageStyle" @transitionend="finishComparisonTransition">
+          <div v-if="props.comparison.before.placeholder" class="card-comparison-placeholder" :style="placeholderStyle(props.comparison.before.face)" />
+          <CardFaceRenderer v-else :face="props.comparison.before.face"
+            :transform-disabled-block-ids="transformDisabledBlockIds" :clip-to-face="clipToFace"
+            :resource-context="props.comparison.before.resourceContext"
+            :diff-highlights="props.comparison.before.diffHighlights ?? []" @block-click="handleBlockClick" />
+        </div>
+      </div>
+      <div ref="comparisonAfterLayerRef" class="card-viewport-comparison-layer" :class="{ 'is-transitioning': comparisonTransitioning }"
+        :style="comparisonAfterLayerStyle">
+        <div ref="comparisonAfterStageRef" class="card-viewport-stage card-viewport-stage--after" :class="{ 'is-transitioning': comparisonTransitioning }"
+          :style="comparisonAfterStageStyle">
+          <div v-if="props.comparison.after.placeholder" class="card-comparison-placeholder" :style="placeholderStyle(props.comparison.after.face)" />
+          <CardFaceRenderer v-else :face="props.comparison.after.face"
+            :transform-disabled-block-ids="transformDisabledBlockIds" :clip-to-face="clipToFace"
+            :resource-context="props.comparison.after.resourceContext"
+            :diff-highlights="props.comparison.after.diffHighlights ?? []" @block-click="handleBlockClick" />
+        </div>
+      </div>
+    </template>
+    <div v-else ref="stageRef" class="card-viewport-stage" :style="stageStyle">
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
-        :clip-to-face="clipToFace"
-        :resource-context="resourceContext"
-        :diff-highlights="diffHighlights"
-        @block-click="handleBlockClick" />
+        :clip-to-face="clipToFace" :resource-context="resourceContext"
+        :diff-highlights="diffHighlights" @block-click="handleBlockClick" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
           <slot name="info" />
@@ -40,6 +62,19 @@
         </aside>
       </Transition>
     </div>
+    <button v-if="props.comparison" type="button" class="card-viewport-comparison-divider"
+      :class="{
+        'is-static': props.comparison.viewMode === 'side-by-side',
+        'is-dragging': comparisonDividerDragging,
+      }"
+      :disabled="props.comparison.viewMode === 'side-by-side'"
+      :style="comparisonDividerStyle" :aria-label="props.comparisonDividerLabel"
+      :data-tooltip="props.comparisonDividerLabel"
+      @pointerdown.stop.prevent="startComparisonDividerDrag">
+      <span class="card-viewport-comparison-grip" aria-hidden="true">
+        <span v-for="line in 3" :key="line" />
+      </span>
+    </button>
     <CardLayerView
       v-if="effectiveLayerViewActive"
       ref="layerViewRef"
@@ -68,6 +103,18 @@
       <span>{{ statusFlash.message }}</span>
     </div>
     <div v-if="!effectiveLayerViewActive" class="card-selection-layer">
+      <div v-if="props.comparison" class="card-diff-overlay-layer card-diff-overlay-layer--before" :class="{ 'is-hidden': !diffOverlayVisible }" :style="comparisonBeforeLayerStyle" aria-hidden="true">
+        <div v-for="highlight in diffOverlayBeforeHighlights" :key="highlight.key" class="card-diff-overlay"
+          :class="[`card-diff-overlay--${highlight.kind}`, `card-diff-overlay--${highlight.side}`]" :style="highlight.style">
+          <span class="card-diff-overlay__label"><OcIcon :name="highlight.icon" size="sm" /></span>
+        </div>
+      </div>
+      <div v-if="props.comparison" class="card-diff-overlay-layer card-diff-overlay-layer--after" :class="{ 'is-hidden': !diffOverlayVisible }" :style="comparisonAfterLayerStyle" aria-hidden="true">
+        <div v-for="highlight in diffOverlayAfterHighlights" :key="highlight.key" class="card-diff-overlay"
+          :class="[`card-diff-overlay--${highlight.kind}`, `card-diff-overlay--${highlight.side}`]" :style="highlight.style">
+          <span class="card-diff-overlay__label"><OcIcon :name="highlight.icon" size="sm" /></span>
+        </div>
+      </div>
       <svg v-if="alignmentSnapGuides.length > 0" class="selection-alignment-guides" aria-hidden="true">
         <line v-for="guide in alignmentSnapGuides" :key="guide.axis"
           :x1="guide.x1" :y1="guide.y1" :x2="guide.x2" :y2="guide.y2" />
@@ -146,6 +193,8 @@
 
 <script lang="ts">
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
+import type { RenderReadyCardFace as ComparisonCardFace } from '../render.types'
+import type { CardRenderResourceContext as ComparisonResourceContext } from '../cardRenderResources'
 
 export type CardViewportSelectionAction =
   | { type: 'fill-parent'; blockId: string; width: boolean; height: boolean }
@@ -187,6 +236,26 @@ export type CardViewportStatusFlash = {
   icon: IconToken
   message: string
 }
+
+export type CardDiffHighlight = {
+  blockId: string
+  kind: 'added' | 'removed' | 'changed' | 'moved'
+}
+
+export interface CardViewportComparisonLayer {
+  face: ComparisonCardFace
+  resourceContext: ComparisonResourceContext
+  diffHighlights?: readonly CardDiffHighlight[]
+  placeholder?: boolean
+}
+
+export interface CardViewportComparison {
+  before: CardViewportComparisonLayer
+  after: CardViewportComparisonLayer
+  divider: number
+  viewMode: 'split' | 'side-by-side'
+  transitionRevision?: number
+}
 </script>
 
 <script setup lang="ts">
@@ -227,6 +296,14 @@ type SelectionFrame = {
   top: number
   width: number
   height: number
+}
+
+type DiffOverlayHighlight = SelectionFrame & {
+  key: string
+  kind: CardDiffHighlight['kind']
+  icon: 'action.add' | 'action.minus' | 'status.circle-medium'
+  side: 'before' | 'after'
+  style: Record<string, string>
 }
 type SelectionMeasurement = {
   frame: SelectionFrame
@@ -278,6 +355,7 @@ const emit = defineEmits<{
   (e: 'viewport-size-change', payload: { width: number; height: number }): void
   (e: 'face-dimension-change', payload: { dimension: FaceDimension; value: number; final: boolean }): void
   (e: 'z-index-step', payload: { delta: -1 | 1; existingLayersOnly: boolean }): void
+  (e: 'diff-divider-change', value: number): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -313,7 +391,9 @@ const props = withDefaults(defineProps<{
   resourceContext: CardRenderResourceContext
   viewportInsets?: ViewportInsets
   readonly?: boolean
-  diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]
+  diffHighlights?: readonly CardDiffHighlight[]
+  comparison?: CardViewportComparison
+  comparisonDividerLabel?: string
 }>(), {
   restoreKey: undefined,
   selectedBlockId: null,
@@ -351,10 +431,14 @@ const props = withDefaults(defineProps<{
   viewportInsets: () => ({}),
   readonly: false,
   diffHighlights: () => [],
+  comparison: undefined,
+  comparisonDividerLabel: 'Comparison divider',
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
 const stageRef = ref<HTMLElement | null>(null)
+const comparisonAfterStageRef = ref<HTMLElement | null>(null)
+const comparisonAfterLayerRef = ref<HTMLElement | null>(null)
 const layerViewRef = ref<{
   stepLayer: (direction: -1 | 1, wholeLayer?: boolean) => void
   focusBlock: (blockId: string) => void
@@ -373,6 +457,10 @@ const isPanning = ref(false)
 const lastPointerX = ref(0)
 const lastPointerY = ref(0)
 const selectionFrame = ref<SelectionFrame | null>(null)
+const diffOverlayHighlights = ref<DiffOverlayHighlight[]>([])
+const diffOverlayVisible = ref(true)
+const diffOverlayBeforeHighlights = computed(() => diffOverlayHighlights.value.filter(highlight => highlight.side === 'before'))
+const diffOverlayAfterHighlights = computed(() => diffOverlayHighlights.value.filter(highlight => highlight.side === 'after'))
 const activeHandle = ref<ResizeHandle | null>(null)
 const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
@@ -392,6 +480,7 @@ const statusFlash = ref<(CardViewportStatusFlash & { sequence: number }) | null>
 let statusFlashSequence = 0
 
 let resizeObserver: ResizeObserver | null = null
+let diffOverlayMutationObserver: MutationObserver | null = null
 let zoomAnimationFrame: number | null = null
 let lastEmittedTransform: ViewportTransform | null = null
 let pendingTransformEchoes: ViewportTransform[] = []
@@ -432,7 +521,115 @@ const translateY = computed(() => baseOffsetY.value + panY.value)
 
 const stageStyle = computed(() => ({
   transform: `translate(${translateX.value}px, ${translateY.value}px) scale(${scale.value})`,
+  '--oc-viewport-inverse-scale': String(1 / scale.value),
 }))
+const comparisonDivider = computed(() => Math.min(1, Math.max(0, props.comparison?.divider ?? 0.5)))
+const comparisonTransitioning = ref(false)
+const comparisonDividerDragging = ref(false)
+watch(() => props.comparison?.viewMode, (next, previous) => {
+  if (next && previous && next !== previous) comparisonTransitioning.value = true
+})
+watch(() => props.comparison?.transitionRevision, (next, previous) => {
+  if (next !== undefined && previous !== undefined && next !== previous && !comparisonDividerDragging.value) {
+    comparisonTransitioning.value = true
+  }
+})
+function finishComparisonTransition(event: TransitionEvent): void {
+  if (event.propertyName === 'transform' || event.propertyName === 'clip-path') {
+    comparisonTransitioning.value = false
+  }
+}
+const comparisonSafeRegion = computed(() => resolveViewportSafeRegion(
+  viewportWidth.value,
+  viewportHeight.value,
+  props.viewportInsets,
+))
+const comparisonDividerPosition = computed(() => (
+  comparisonSafeRegion.value.left + comparisonSafeRegion.value.width * (
+    props.comparison?.viewMode === 'side-by-side' ? 0.5 : comparisonDivider.value
+  )
+))
+function resolveComparisonZoomLayer(viewportX: number): CardViewportComparisonLayer | null {
+  if (props.comparison?.viewMode !== 'side-by-side') return null
+  const safeRegion = comparisonSafeRegion.value
+  return viewportX < safeRegion.left + safeRegion.width / 2
+    ? props.comparison.before
+    : props.comparison.after
+}
+
+function resolveZoomOrigin(layer: CardViewportComparisonLayer | null, value: number): { x: number; y: number } {
+  if (!layer || props.comparison?.viewMode !== 'side-by-side') {
+    return { x: getBaseOffsetXForScale(value), y: getBaseOffsetYForScale(value) }
+  }
+  const safeRegion = comparisonSafeRegion.value
+  const halfWidth = safeRegion.width / 2
+  const regionLeft = layer === props.comparison.after ? safeRegion.left + halfWidth : safeRegion.left
+  return {
+    x: regionLeft + halfWidth / 2 - layer.face.width * value / 2,
+    y: safeRegion.top + safeRegion.height / 2 - layer.face.height * value / 2,
+  }
+}
+
+function resolveComparisonStageStyle(layer: CardViewportComparisonLayer) {
+  if (props.comparison?.viewMode !== 'side-by-side') return stageStyle.value
+  const origin = resolveZoomOrigin(layer, scale.value)
+  return {
+    transform: `translate(${origin.x + panX.value}px, ${origin.y + panY.value}px) scale(${scale.value})`,
+    '--oc-viewport-inverse-scale': String(1 / scale.value),
+  }
+}
+const comparisonBeforeStageStyle = computed(() => props.comparison
+  ? resolveComparisonStageStyle(props.comparison.before)
+  : stageStyle.value)
+const comparisonAfterStageStyle = computed(() => props.comparison
+  ? resolveComparisonStageStyle(props.comparison.after)
+  : stageStyle.value)
+function placeholderStyle(face: ComparisonCardFace): Record<string, string> {
+  return {
+    width: `${face.width}px`,
+    height: `${face.height}px`,
+  }
+}
+const comparisonBeforeLayerStyle = computed(() => ({
+  clipPath: `inset(0 ${Math.max(0, viewportWidth.value - comparisonDividerPosition.value) / Math.max(1, viewportWidth.value) * 100}% 0 0)`,
+}))
+const comparisonAfterLayerStyle = computed(() => ({
+  clipPath: `inset(0 0 0 ${comparisonDividerPosition.value / Math.max(1, viewportWidth.value) * 100}%)`,
+}))
+const comparisonDividerStyle = computed(() => ({
+  left: `${comparisonDividerPosition.value}px`,
+  top: '0',
+  height: '100%',
+}))
+
+function startComparisonDividerDrag(event: PointerEvent): void {
+  if (props.comparison?.viewMode !== 'split') return
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  comparisonTransitioning.value = false
+  comparisonDividerDragging.value = true
+  target.setPointerCapture(event.pointerId)
+  const update = (clientX: number) => {
+    const rect = viewportRef.value?.getBoundingClientRect()
+    if (!rect || rect.width <= 0) return
+    const safeRegion = resolveViewportSafeRegion(rect.width, rect.height, props.viewportInsets)
+    emit('diff-divider-change', Math.min(1, Math.max(0,
+      (clientX - rect.left - safeRegion.left) / safeRegion.width,
+    )))
+  }
+  const move = (moveEvent: PointerEvent) => update(moveEvent.clientX)
+  const finish = (upEvent: PointerEvent) => {
+    update(upEvent.clientX)
+    comparisonDividerDragging.value = false
+    target.removeEventListener('pointermove', move)
+    target.removeEventListener('pointerup', finish)
+    target.removeEventListener('pointercancel', finish)
+  }
+  target.addEventListener('pointermove', move)
+  target.addEventListener('pointerup', finish)
+  target.addEventListener('pointercancel', finish)
+  update(event.clientX)
+}
 const viewportInfoStyle = computed(() => {
   const safeScale = scale.value || 1
   return {
@@ -849,16 +1046,17 @@ function zoomAt(nextValue: number, viewportX: number, viewportY: number): void {
   const nextScale = clamp(nextValue, VIEWPORT_MIN_SCALE, VIEWPORT_MAX_SCALE)
   if (Math.abs(nextScale - previousScale) < 0.0001) return
 
-  const previousTranslateX = getBaseOffsetXForScale(previousScale) + targetPanX.value
-  const previousTranslateY = getBaseOffsetYForScale(previousScale) + targetPanY.value
+  const comparisonLayer = resolveComparisonZoomLayer(viewportX)
+  const previousOrigin = resolveZoomOrigin(comparisonLayer, previousScale)
+  const nextOrigin = resolveZoomOrigin(comparisonLayer, nextScale)
+  const previousTranslateX = previousOrigin.x + targetPanX.value
+  const previousTranslateY = previousOrigin.y + targetPanY.value
   const worldX = (viewportX - previousTranslateX) / previousScale
   const worldY = (viewportY - previousTranslateY) / previousScale
-  const nextBaseOffsetX = getBaseOffsetXForScale(nextScale)
-  const nextBaseOffsetY = getBaseOffsetYForScale(nextScale)
 
   targetScale.value = nextScale
-  targetPanX.value = viewportX - nextBaseOffsetX - worldX * nextScale
-  targetPanY.value = viewportY - nextBaseOffsetY - worldY * nextScale
+  targetPanX.value = viewportX - nextOrigin.x - worldX * nextScale
+  targetPanY.value = viewportY - nextOrigin.y - worldY * nextScale
   startZoomAnimation()
 }
 
@@ -1067,6 +1265,58 @@ function getElementFrame(element: Element, viewportRect: DOMRect): SelectionFram
   }
 }
 
+async function refreshDiffOverlay(): Promise<void> {
+  await nextTick()
+  await nextTick()
+  syncDiffOverlayHighlights()
+  await nextTick()
+  syncDiffOverlayHighlights()
+}
+
+function observeDiffOverlayStages(): void {
+  diffOverlayMutationObserver?.disconnect()
+  diffOverlayMutationObserver = null
+  if (!props.comparison || typeof MutationObserver === 'undefined') return
+  diffOverlayMutationObserver = new MutationObserver(() => {
+    syncDiffOverlayHighlights()
+  })
+  for (const root of [stageRef.value, comparisonAfterStageRef.value]) {
+    if (root) diffOverlayMutationObserver.observe(root, { childList: true, subtree: true, attributes: true })
+  }
+}
+
+function syncDiffOverlayHighlights(): void {
+  const viewport = viewportRef.value
+  const comparison = props.comparison
+  if (!viewport || !comparison) {
+    diffOverlayHighlights.value = []
+    return
+  }
+  const viewportRect = viewport.getBoundingClientRect()
+  const layers = [
+    { side: 'before', root: stageRef.value, highlights: comparison.before.diffHighlights ?? [] },
+    { side: 'after', root: comparisonAfterStageRef.value, highlights: comparison.after.diffHighlights ?? [] },
+  ] as const
+  diffOverlayHighlights.value = layers.flatMap(({ side, root, highlights }) => {
+    if (!root) return []
+    return highlights.flatMap(highlight => {
+      const element = root.querySelector(`[data-block-id="${CSS.escape(highlight.blockId)}"]`)
+      if (!element) return []
+      const frame = getElementFrame(element, viewportRect)
+      return [{
+        ...frame,
+        key: `${side}:${highlight.blockId}`,
+        kind: highlight.kind,
+        icon: highlight.kind === 'added' ? 'action.add' : highlight.kind === 'removed' ? 'action.minus' : 'status.circle-medium',
+        side,
+        style: {
+          left: `${frame.left}px`, top: `${frame.top}px`, width: `${frame.width}px`, height: `${frame.height}px`,
+        },
+      }]
+    })
+  })
+}
+
 function measureSelection(): SelectionMeasurement | null {
   const viewport = viewportRef.value
   const stage = stageRef.value
@@ -1176,6 +1426,11 @@ function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: strin
 
 async function syncSelectionFrame() {
   await nextTick()
+  if (props.comparison) {
+    observeDiffOverlayStages()
+    await nextTick()
+  }
+  syncDiffOverlayHighlights()
   const measurement = measureSelection()
   selectionFrame.value = measurement?.frame ?? null
 }
@@ -1572,11 +1827,13 @@ onMounted(() => {
   if (viewportRef.value) {
     resizeObserver = new ResizeObserver(() => {
       updateViewportSize()
+      void syncSelectionFrame()
     })
     resizeObserver.observe(viewportRef.value)
   }
 
   void syncSelectionFrame()
+  void nextTick().then(observeDiffOverlayStages)
 })
 
 onBeforeUnmount(() => {
@@ -1585,6 +1842,8 @@ onBeforeUnmount(() => {
   stopZoomAnimation()
   resizeObserver?.disconnect()
   resizeObserver = null
+  diffOverlayMutationObserver?.disconnect()
+  diffOverlayMutationObserver = null
   statusFlash.value = null
 })
 
@@ -1610,6 +1869,7 @@ defineExpose({
   getFocusedLayerBlockId,
   cycleLayerByInitial,
   flashStatus,
+  refreshDiffOverlay,
 })
 
 watch(
@@ -1632,6 +1892,26 @@ watch(
 )
 
 watch(
+  () => props.comparison,
+  async () => {
+    if (!props.comparison) {
+      diffOverlayVisible.value = false
+      diffOverlayHighlights.value = []
+      return
+    }
+
+    diffOverlayVisible.value = false
+    await nextTick()
+    await nextTick()
+    observeDiffOverlayStages()
+    syncDiffOverlayHighlights()
+    await nextTick()
+    diffOverlayVisible.value = true
+  },
+  { deep: true },
+)
+
+watch(
   () => props.face,
   () => {
     if (activeHandle.value || isMovingSelection.value) {
@@ -1645,10 +1925,155 @@ watch(
 
 <style scoped>
 .card-viewport--readonly .card-viewport-stage { pointer-events: none; }
-.card-viewport--readonly :deep([data-diff-kind]) { outline: var(--oc-border-width) solid var(--oc-diff-changed-border); outline-offset: 0; }
-.card-viewport--readonly :deep([data-diff-kind="added"]) { outline-color: var(--oc-diff-added-border); }
-.card-viewport--readonly :deep([data-diff-kind="removed"]) { outline-color: var(--oc-diff-removed-border); }
-.card-viewport--readonly :deep([data-diff-kind="moved"]) { outline-color: var(--oc-diff-moved-border); }
+.card-diff-overlay-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--oc-duration-fast) var(--oc-ease);
+}
+
+.card-diff-overlay-layer.is-hidden {
+  opacity: 0;
+}
+
+.card-diff-overlay {
+  position: absolute;
+  z-index: var(--oc-z-overlay-toolbar);
+  box-sizing: border-box;
+  border: var(--oc-border-width) solid var(--oc-diff-changed-border);
+  border-radius: var(--oc-radius-sm);
+  pointer-events: none;
+}
+.card-diff-overlay--added { border-color: var(--oc-diff-added-border); }
+.card-diff-overlay--removed { border-color: var(--oc-diff-removed-border); }
+.card-diff-overlay__label {
+  position: absolute;
+  top: calc(var(--oc-border-width) * -1);
+  left: calc(var(--oc-border-width) * -1);
+  display: grid;
+  width: var(--oc-icon-size-md);
+  height: var(--oc-icon-size-md);
+  place-items: center;
+  border-radius: var(--oc-radius-sm) 0 var(--oc-radius-sm) 0;
+  background: var(--oc-diff-changed-border);
+  color: var(--oc-fg-default);
+}
+.card-diff-overlay--added .card-diff-overlay__label { background: var(--oc-diff-added-border); }
+.card-diff-overlay--removed .card-diff-overlay__label { background: var(--oc-diff-removed-border); }
+.card-diff-overlay--after .card-diff-overlay__label {
+  right: calc(var(--oc-border-width) * -1);
+  left: auto;
+  border-radius: 0 var(--oc-radius-sm) 0 var(--oc-radius-sm);
+}
+.card-diff-overlay--before { border-top-left-radius: 0; }
+.card-diff-overlay--after { border-top-right-radius: 0; }
+.card-diff-overlay__label .oc-icon { flex: none; }
+
+.card-viewport-comparison-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.card-viewport-comparison-layer.is-transitioning {
+  transition: clip-path var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-viewport-comparison-layer .card-viewport-stage.is-transitioning {
+  transition: transform var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-comparison-placeholder {
+  position: absolute;
+  inset: 0 auto auto 0;
+  box-sizing: border-box;
+  border: calc(var(--oc-border-width) * var(--oc-viewport-inverse-scale, 1)) dashed var(--oc-fg-default);
+  background: transparent;
+  pointer-events: none;
+}
+
+.card-viewport-comparison-divider {
+  position: absolute;
+  z-index: 0;
+  width: var(--oc-size-sm);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  touch-action: none;
+  transition: left var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-viewport-comparison-divider::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--oc-diff-divider-width);
+  border-radius: var(--oc-radius-sm);
+  background: var(--oc-diff-divider);
+  transform: translateX(-50%);
+}
+
+.card-viewport-comparison-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--oc-icon-size-md);
+  height: var(--oc-size-md);
+  border: var(--oc-border-width) solid var(--oc-border-muted);
+  border-radius: var(--oc-radius-full);
+  background: var(--oc-bg-glass);
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+  box-shadow: var(--oc-shadow-md);
+  transform: translateX(-50%);
+  transition:
+    border-color var(--oc-duration-fast) var(--oc-ease),
+    box-shadow var(--oc-duration-fast) var(--oc-ease);
+}
+
+.card-viewport-comparison-grip {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 50%;
+  display: flex;
+  width: var(--oc-space-3);
+  height: var(--oc-size-md);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oc-space-1);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.card-viewport-comparison-grip > span {
+  display: block;
+  width: var(--oc-space-2);
+  height: var(--oc-border-width);
+  border-radius: var(--oc-radius-full);
+  background: var(--oc-fg-muted);
+}
+
+.card-viewport-comparison-divider:hover::after,
+.card-viewport-comparison-divider:focus-visible::after {
+  border-color: var(--oc-border-accent);
+  box-shadow: var(--oc-shadow-md), var(--oc-focus-ring);
+}
+
+.card-viewport-comparison-divider.is-static { cursor: default; }
+.card-viewport-comparison-divider.is-static::after { display: none; }
+.card-viewport-comparison-divider.is-static .card-viewport-comparison-grip { display: none; }
+.card-viewport-comparison-divider.is-static { pointer-events: none; }
+.card-viewport-comparison-divider.is-dragging { transition: none; }
 .card-viewport {
   flex: 1 1 auto;
   width: 100%;

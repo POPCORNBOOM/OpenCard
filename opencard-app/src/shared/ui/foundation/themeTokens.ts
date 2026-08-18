@@ -51,6 +51,8 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-diff-removed-border',
   '--oc-diff-changed-border',
   '--oc-diff-moved-border',
+  '--oc-diff-divider',
+  '--oc-diff-divider-width',
 
   // 强调色
   '--oc-accent',
@@ -67,6 +69,8 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-fg-subtle',
   '--oc-fg-disabled',
   '--oc-fg-accent',
+  '--oc-fg-success',
+  '--oc-fg-warning',
   '--oc-fg-danger',
 
   // 图标

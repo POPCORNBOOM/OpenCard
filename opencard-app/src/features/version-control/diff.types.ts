@@ -18,6 +18,7 @@ export interface DiffSnapshot {
 export interface DiffRevisionOption {
   commitId: string | null
   label: string
+  shortId?: string
   authoredAtSeconds?: number
 }
 

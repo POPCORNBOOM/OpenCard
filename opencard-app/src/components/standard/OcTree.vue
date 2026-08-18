@@ -63,17 +63,13 @@
           @mousedown="handleIconMouseDown($event, entry.key)"
           @click="handleIconClick($event, entry.key)"
         >
-          <span v-for="action in entry.item.displayActions?.leading ?? []" :key="`leading:${action.key}`"
-            class="oc-tree__display-action" :data-tooltip="action.tooltip" aria-hidden="true">
-            <OcIcon :name="action.icon" :tone="action.tone" size="sm" />
-          </span>
           <span v-if="entry.item.thumbnailStyle" class="oc-tree__thumbnail"
             :class="{ 'oc-project-icon': entry.item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
             :style="entry.item.thumbnailStyle" role="img"
             :aria-label="entry.item.thumbnailLabel ?? entry.item.label" />
           <OcIcon v-else
-            :name="entry.item.icon ?? 'tree.chevron-right'"
-            :tone="entry.item.iconTone"
+            :name="entry.item.action?.icon ?? entry.item.icon ?? 'tree.chevron-right'"
+            :tone="entry.item.action?.iconTone ?? entry.item.iconTone"
             size="md"
             class="oc-tree__node-icon"
             :class="{ 'is-expanded': isExpandable(entry.key) && isExpanded(entry.key) }"
@@ -103,7 +99,7 @@
           @keydown.stop="handleRenameKeydown($event, entry.key)"
           @blur="commitRename(entry.key)"
         />
-        <OcText v-else class="oc-tree__label" :truncate="true">
+        <OcText v-else class="oc-tree__label" :tone="entry.item.tone" :truncate="true">
           {{ entry.item.label }}
         </OcText>
 
@@ -119,14 +115,14 @@
             @select="emitActionIntent(entry.key, $event.key)"
           />
         </span>
-        <span v-for="action in entry.item.displayActions?.trailing ?? []" :key="`trailing:${action.key}`"
-          class="oc-tree__display-action" :data-tooltip="action.tooltip" aria-hidden="true">
-          <OcIcon :name="action.icon" :tone="action.tone" size="sm" />
+        <span v-if="entry.item.tail" class="oc-tree__tail">
+          <template v-for="(part, index) in normalizeItemTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
+            <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
+            <span v-else class="oc-tree__tail-action" :data-tooltip="part.title" aria-hidden="true">
+              <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
+            </span>
+          </template>
         </span>
-
-        <OcText v-if="entry.item.tail" class="oc-tree__tail" tone="muted" size="xs" :truncate="true">
-          {{ entry.item.tail }}
-        </OcText>
       </div>
     </div>
     </div>
@@ -141,6 +137,7 @@ import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import { normalizeItemTail } from '../../shared/ui/itemViewModel.types'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 import type {
   OcTreeActionDefinition,
@@ -1081,9 +1078,14 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__tail {
+  display: inline-flex;
   flex: 0 1 auto;
   min-width: 0;
+  align-items: center;
+  gap: var(--oc-space-1);
 }
+
+.oc-tree__tail-action { display: inline-flex; align-items: center; flex: 0 0 auto; }
 
 .oc-tree__rename-input {
   flex: 1 1 auto;
@@ -1098,8 +1100,6 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
   visibility: hidden;
 }
-
-.oc-tree__display-action { display: inline-flex; align-items: center; flex: 0 0 auto; }
 
 .oc-tree__row:hover .oc-tree__controls,
 .oc-tree__row:focus-within .oc-tree__controls,

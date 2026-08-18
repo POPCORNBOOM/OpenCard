@@ -1,6 +1,6 @@
 /** Key-only UI contract for OcTree data, actions, and emitted intent. */
 import type { IconToken, IconTone } from '../icon/iconRegistry'
-import type { OcDisplayActionSlots } from '../display-action.types'
+import type { OcItemViewModel } from '../itemViewModel.types'
 
 export type OcTreeKey = string
 export type OcTreeActionKey = string
@@ -19,9 +19,8 @@ export interface OcTreeData {
   children: ReadonlyMap<OcTreeKey, readonly OcTreeKey[]>
 }
 
-export interface OcTreeItem {
+export interface OcTreeItem extends Omit<OcItemViewModel, 'key' | 'title'> {
   label: string
-  tail?: string
   renameSelection?: OcTreeRenameSelection
   icon?: IconToken
   iconTone?: IconTone
@@ -33,7 +32,6 @@ export interface OcTreeItem {
   draggable?: boolean
   actions?: readonly OcTreeActionKey[]
   contextActions?: readonly OcTreeActionKey[]
-  displayActions?: OcDisplayActionSlots
   disabledActions?: ReadonlyMap<OcTreeActionKey, string>
 }
 

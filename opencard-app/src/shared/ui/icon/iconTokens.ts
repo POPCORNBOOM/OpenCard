@@ -6,6 +6,7 @@
  */
 export const iconTokens = {
   'action.add': true,
+  'action.minus': true,
   'action.check': true,
   'action.clean': true,
   'action.close': true,
@@ -155,6 +156,7 @@ export const iconTokens = {
   'status.folder-alert': true,
   'status.unknown': true,
   'status.warning': true,
+  'status.circle-medium': true,
 
   'file.css': true,
   'file.custom-block': true,

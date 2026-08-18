@@ -7,6 +7,13 @@ export interface EditorViewportTransform {
   scale: number
 }
 
+export type EditorDiffViewMode = 'split' | 'side-by-side'
+
+export interface EditorDiffUiState {
+  divider: number
+  viewMode?: EditorDiffViewMode
+}
+
 export interface CardDesignerPanelState {
   instanceExpanded: boolean
   previewExpanded: boolean

@@ -11,7 +11,7 @@ import { computed } from 'vue'
 /**
  * Text tone options for semantic color control.
  */
-type OcTextTone = 'default' | 'muted' | 'subtle' | 'accent' | 'danger'
+type OcTextTone = 'default' | 'muted' | 'subtle' | 'accent' | 'success' | 'warning' | 'danger'
 
 /**
  * Text size options for typography hierarchy.
@@ -88,6 +88,14 @@ const textClass = computed(() => [
 
 .oc-text--tone-accent {
   color: var(--oc-fg-accent);
+}
+
+.oc-text--tone-success {
+  color: var(--oc-fg-success);
+}
+
+.oc-text--tone-warning {
+  color: var(--oc-fg-warning);
 }
 
 .oc-text--tone-danger {

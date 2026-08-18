@@ -139,6 +139,7 @@ import {
   mdiPinOutline,
   mdiPlayOutline,
   mdiPlus,
+  mdiMinus,
   mdiRefresh,
   mdiRedoVariant,
   mdiRestart,
@@ -188,6 +189,7 @@ export const iconGlyphs = {
   'action.edit': glyph(mdiPencilOutline),
   'action.export': glyph(mdiExport),
   'action.folder-plus': glyph(mdiFolderPlusOutline),
+  'action.minus': glyph(mdiMinus),
   'action.file-minus': glyph(mdiFileMinusOutline),
   'action.file-plus': glyph(mdiFilePlusOutline),
   'action.image-minus': glyph(mdiImageMinusOutline),
@@ -325,6 +327,7 @@ export const iconGlyphs = {
   'status.folder-alert': glyph(mdiFolderAlertOutline),
   'status.unknown': glyph(mdiHelpCircleOutline),
   'status.warning': glyph(mdiAlertOutline),
+  'status.circle-medium': glyph(mdiCircleMedium),
 
   'file.css': glyph(mdiLanguageCss3),
   'file.custom-block': glyph(mdiToyBrickOutline),

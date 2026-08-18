@@ -42,6 +42,7 @@ export function useProjectTimeline(
     ...commits.value.map(commit => ({
       commitId: commit.id,
       label: commit.summary.trim() || commit.shortId,
+      shortId: commit.shortId,
       authoredAtSeconds: commit.authoredAtSeconds,
     })),
   ])

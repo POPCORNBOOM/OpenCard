@@ -711,7 +711,7 @@ export default {
     timelineNotInitialized: 'Git is not initialized for this project',
     timelineNoCommits: 'No commits for this file yet',
     timelineFailed: 'Unable to read timeline',
-    diffViewer: { compare: 'Compare', versionA: 'Version A', versionB: 'Version B', blueprint: 'Blueprint', instance: 'Instance', front: 'Front', back: 'Back', changes: 'Structured changes', warnings: '{count} warnings', parseFailed: 'Unable to parse this version: {message}', noChanges: 'No changes', sameVersion: 'The same version cannot be compared', resourcesUnavailable: 'Card resources are unavailable' },
+    diffViewer: { compare: 'Compare', versionA: 'Version A', versionB: 'Version B', blueprint: 'Blueprint', instance: 'Instance', front: 'Front', back: 'Back', changes: 'Structured changes', warnings: '{count} warnings', parseFailed: 'Unable to parse this version: {message}', noChanges: 'No changes', sameVersion: 'The same version cannot be compared', resourcesUnavailable: 'Card resources are unavailable', added: 'Added', removed: 'Removed', changed: 'Changed', divider: 'Adjust version divider [key]A[/key] left [key]S[/key] center [key]D[/key] right', switchToSideBySide: 'Switch to side-by-side view', switchToSplit: 'Switch to split view' },
     openProject: 'Open Project Folder',
     fileActions: {
       more: 'More Actions',
@@ -895,6 +895,8 @@ export default {
       clipDisabled: 'Face clipping disabled',
       switchedToFront: 'Switched to front face',
       switchedToBack: 'Switched to back face',
+      diffSplit: 'Switched to split view',
+      diffSideBySide: 'Switched to side-by-side view',
     },
     renderImage: {
       title: 'Render images',

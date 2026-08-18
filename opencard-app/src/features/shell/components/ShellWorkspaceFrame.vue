@@ -1,34 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import OcActionRail from '../../../components/standard/OcActionRail.vue'
+import OcActionButton from '../../../components/standard/OcActionButton.vue'
+import OcText from '../../../components/base/OcText.vue'
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
-import type { ShellAction } from '../shell.types';
+import type { ShellAction, ShellWorkspaceAction } from '../shell.types'
 
 const props = defineProps<{
-  title: string;
-  actions: ShellAction[];
-  lockBodyScroll?: boolean;
-  flushBody?: boolean;
-}>();
+  title: string
+  actions: ShellWorkspaceAction[]
+  lockBodyScroll?: boolean
+  flushBody?: boolean
+}>()
 
 defineSlots<{
-  default: () => unknown;
-}>();
+  default: () => unknown
+}>()
 
 const emit = defineEmits<{
-  action: [actionKey: string];
-}>();
+  action: [actionKey: string]
+}>()
 
-const actionDefinitions = computed<OcActionButtonAction[]>(() => props.actions.map(action => ({
-  key: action.key ?? action.icon,
-  title: action.hoverTip ?? action.value,
-  icon: action.icon,
-  disabled: action.disabled,
-  badge: action.badge,
-  badgeLabel: action.badgeLabel,
-  children: action.options ?? action.children,
-})))
-
+function toActionDefinition(action: ShellAction): OcActionButtonAction {
+  return {
+    key: action.key ?? action.icon,
+    title: action.hoverTip ?? action.value,
+    icon: action.icon,
+    disabled: action.disabled,
+    badge: action.badge,
+    badgeLabel: action.badgeLabel,
+    children: action.options ?? action.children,
+  }
+}
 </script>
 
 <template>
@@ -37,11 +38,15 @@ const actionDefinitions = computed<OcActionButtonAction[]>(() => props.actions.m
       <div>
         <h1 class="workspace-title">{{ title }}</h1>
       </div>
-      <OcActionRail
-        class="workspace-actions"
-        :actions="actionDefinitions"
-        @select="emit('action', $event.key)"
-      />
+      <div class="workspace-actions">
+        <template v-for="(action, index) in props.actions" :key="typeof action === 'string' ? `text:${index}:${action}` : action.key ?? action.icon">
+          <OcText v-if="typeof action === 'string'" class="workspace-action-text" size="xs" tone="muted" mono>
+            {{ action }}
+          </OcText>
+          <OcActionButton v-else :action="toActionDefinition(action)" size="sm" variant="ghost"
+            @select="emit('action', $event.key)" />
+        </template>
+      </div>
     </header>
 
     <div class="workspace-body" :class="{ locked: lockBodyScroll, flush: flushBody }">

@@ -15,6 +15,10 @@ export type CdeShortcutCommandKey =
   | 'view.toggle-snapping'
   | 'view.toggle-clip'
   | 'view.switch-face'
+  | 'view.toggle-diff-mode'
+  | 'view.diff-divider-left'
+  | 'view.diff-divider-center'
+  | 'view.diff-divider-right'
 
 type CdeShortcutScope = 'canvas' | 'instance-tree' | 'structure-tree'
 
@@ -50,6 +54,10 @@ const commandBindings: Readonly<Record<CdeShortcutCommandKey, readonly CdeShortc
   'view.toggle-snapping': [{ key: 's' }],
   'view.toggle-clip': [{ key: 'x' }],
   'view.switch-face': [{ key: 'b' }],
+  'view.toggle-diff-mode': [{ key: 'v' }],
+  'view.diff-divider-left': [{ key: 'a' }],
+  'view.diff-divider-center': [{ key: 's' }],
+  'view.diff-divider-right': [{ key: 'd' }],
 }
 
 export function getCdeShortcutBindings(key: CdeShortcutCommandKey): readonly CdeShortcutBinding[] {
@@ -88,7 +96,7 @@ export function useCdeShortcuts(options: UseCdeShortcutsOptions) {
     for (const command of options.commands) {
       if (command.scopes && (!scope || !command.scopes.includes(scope))) continue
       if (!command.shortcut.some(binding => matchesBinding(event, binding))) continue
-      if (!command.canRun()) return
+      if (!command.canRun()) continue
       event.preventDefault()
       event.stopPropagation()
       command.run()

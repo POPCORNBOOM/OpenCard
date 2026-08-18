@@ -24,14 +24,16 @@
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
           <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
-            <div v-if="diffBeforeRender && diffAfterRender" class="card-design-editor__diff-stage">
-            <CardViewport class="card-design-editor__diff-viewport" :face="diffBeforeRender.document.faces[activeFaceKey]"
-              :resource-context="diffBeforeRender.resources" readonly :transform="viewportTransform"
-              :diff-highlights="diffBeforeHighlights" @viewport-transform-change="handleViewportTransformChange" />
-            <CardViewport class="card-design-editor__diff-viewport" :face="diffAfterRender.document.faces[activeFaceKey]"
+            <CardViewport v-if="diffBeforeRender && diffAfterRender" ref="cardViewportRef"
+              class="card-design-editor__viewport"
+              :face="diffAfterRender.document.faces[activeFaceKey]"
               :resource-context="diffAfterRender.resources" readonly :transform="viewportTransform"
-              :diff-highlights="diffAfterHighlights" @viewport-transform-change="handleViewportTransformChange" />
-            </div>
+              :viewport-insets="diffViewportInsets"
+              :comparison="diffViewportComparison"
+              :comparison-divider-label="t('sidebar.diffViewer.divider')"
+              @diff-divider-change="handleDiffDividerChange"
+              @blank-click="clearSelection"
+              @viewport-transform-change="handleViewportTransformChange" />
             <OcEmpty v-else>无法解析 .ocdocument 差异版本</OcEmpty>
           </div>
           <template v-else>
@@ -238,9 +240,8 @@
                 <OcEmpty v-if="isMultiBlockSelection" class="card-design-editor__multi-selection-summary">
                   {{ t('cardDesigner.selectionSummary.multipleBlocks', { count: selectedBlockKeys.length }) }}
                 </OcEmpty>
-                <PropertyEditor v-else ref="propertyEditorRef" :inputs="propertyEditorInputs"
-                  :mode="props.mode === 'diff' ? 'comparison' : 'edit'"
-                  :comparison-inputs="props.mode === 'diff' ? diffPropertyInputs : undefined"
+                <PropertyEditor v-else ref="propertyEditorRef"
+                  :inputs="props.mode === 'diff' ? diffPropertyInputs : propertyEditorInputs"
                   :categories="propertyCategories" :sort-mode="propertySortMode"
                   :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
                   @update-property="updateBlockProp" @add-property="addBlockProp"
@@ -352,6 +353,7 @@ import { getBlockPresentation } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
+  type CardViewportComparison,
   type CardViewportSelectionActionLabels,
   type CardViewportSelectionCommand,
   type CardViewportSelectionInfo,
@@ -359,6 +361,7 @@ import CardViewport, {
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
+import type { PropertyEditorInput, PropertyEditorItem } from '../../shared/ui/property-editor/propertyEditor.types'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
@@ -425,8 +428,9 @@ import {
 } from './useCdeBlockFieldCommands'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
+import { applyInstance } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
-import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
+import type { CardDesignerViewState, EditorDiffViewMode } from '../editor-runtime/model/editorUiState'
 import { compareOcdocuments } from '../version-control/ocdocumentDiff'
 import { prepareCardRender } from '../card-rendering/renderPipeline'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
@@ -510,21 +514,111 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
     },
   })
 })
-const diffBeforeHighlights = computed(() => {
-  const result = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
-  for (const change of diffModel.value?.changes ?? []) {
-    if (!change.blockId || change.faceKey !== activeFaceKey.value || change.kind === 'added') continue
-    result.set(change.blockId, change.kind)
+const diffDivider = ref(Math.min(1, Math.max(0, props.diffUiState?.divider ?? 0.5)))
+const diffViewMode = ref<EditorDiffViewMode>(props.diffUiState?.viewMode ?? 'split')
+const diffDividerTransitionRevision = ref(0)
+watch(() => props.diffUiState, value => {
+  diffDivider.value = Math.min(1, Math.max(0, value?.divider ?? 0.5))
+  diffViewMode.value = value?.viewMode ?? 'split'
+})
+const diffViewportComparison = computed<CardViewportComparison | undefined>(() => {
+  const before = diffBeforeRender.value
+  const after = diffAfterRender.value
+  if (!before || !after) return undefined
+  const addedInstance = Boolean(diffSelectedInstanceId.value && !diffBeforeInstance.value && diffAfterInstance.value)
+  const removedInstance = Boolean(diffSelectedInstanceId.value && diffBeforeInstance.value && !diffAfterInstance.value)
+  const beforeFace = before.document.faces[activeFaceKey.value]
+  const afterFace = after.document.faces[activeFaceKey.value]
+  return {
+    before: {
+      face: addedInstance ? afterFace : beforeFace,
+      resourceContext: before.resources,
+      placeholder: addedInstance,
+      diffHighlights: diffBeforeHighlights.value,
+    },
+    after: {
+      face: removedInstance ? beforeFace : afterFace,
+      resourceContext: after.resources,
+      placeholder: removedInstance,
+      diffHighlights: diffAfterHighlights.value,
+    },
+    divider: diffDivider.value,
+    viewMode: diffViewMode.value,
+    transitionRevision: diffDividerTransitionRevision.value,
   }
-  return [...result].map(([blockId, kind]) => ({ blockId, kind }))
+})
+
+function handleDiffDividerChange(value: number): void {
+  diffDivider.value = Math.min(1, Math.max(0, value))
+  commitDiffUiState()
+}
+
+function commitDiffUiState(): void {
+  emit('update-diff-ui-state', { divider: diffDivider.value, viewMode: diffViewMode.value })
+}
+
+function toggleDiffViewMode(): void {
+  diffViewMode.value = diffViewMode.value === 'split' ? 'side-by-side' : 'split'
+  commitDiffUiState()
+  cardViewportRef.value?.flashStatus?.({
+    icon: 'layout.columns',
+    message: diffViewMode.value === 'side-by-side'
+      ? t('cardDesigner.viewportStatus.diffSideBySide')
+      : t('cardDesigner.viewportStatus.diffSplit'),
+  })
+}
+
+function setDiffDividerPreset(divider: 0 | 0.5 | 1): void {
+  const switchedFromSideBySide = diffViewMode.value === 'side-by-side'
+  diffViewMode.value = 'split'
+  diffDivider.value = divider
+  diffDividerTransitionRevision.value += 1
+  commitDiffUiState()
+  if (switchedFromSideBySide) {
+    cardViewportRef.value?.flashStatus?.({
+      icon: 'layout.columns',
+      message: t('cardDesigner.viewportStatus.diffSplit'),
+    })
+  }
+}
+function collectDiffBlocks(document: CardDocument | null | undefined): Map<string, { block: CardBlock; faceKey: 'front' | 'back' }> {
+  const result = new Map<string, { block: CardBlock; faceKey: 'front' | 'back' }>()
+  if (!document) return result
+  for (const faceKey of ['front', 'back'] as const) {
+    for (const child of document.faces[faceKey].children) {
+      visitCardBlockTree(child.block, block => result.set(block.id, { block, faceKey }))
+    }
+  }
+  return result
+}
+function collectChangedDiffBlockIds(
+  beforeDocument: CardDocument | null | undefined = diffModel.value?.beforeDocument,
+  afterDocument: CardDocument | null | undefined = diffModel.value?.afterDocument,
+): Set<string> {
+  const before = collectDiffBlocks(beforeDocument)
+  const after = collectDiffBlocks(afterDocument)
+  return new Set([...before].flatMap(([blockId, descriptor]) => {
+    const afterDescriptor = after.get(blockId)
+    return afterDescriptor && JSON.stringify(descriptor.block) !== JSON.stringify(afterDescriptor.block) ? [blockId] : []
+  }))
+}
+const diffBeforeHighlights = computed(() => {
+  const before = collectDiffBlocks(diffBeforeProjectedDocument.value)
+  const after = collectDiffBlocks(diffAfterProjectedDocument.value)
+  const changed = collectChangedDiffBlockIds(diffBeforeProjectedDocument.value, diffAfterProjectedDocument.value)
+  return [...before].flatMap(([blockId, descriptor]) => descriptor.faceKey !== activeFaceKey.value
+    ? []
+    : [{ blockId, kind: !after.has(blockId) ? 'removed' as const : changed.has(blockId) ? 'changed' as const : undefined }]
+  ).filter((item): item is { blockId: string; kind: 'removed' | 'changed' } => Boolean(item.kind))
 })
 const diffAfterHighlights = computed(() => {
-  const result = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
-  for (const change of diffModel.value?.changes ?? []) {
-    if (!change.blockId || change.faceKey !== activeFaceKey.value || change.kind === 'removed') continue
-    result.set(change.blockId, change.kind)
-  }
-  return [...result].map(([blockId, kind]) => ({ blockId, kind }))
+  const before = collectDiffBlocks(diffBeforeProjectedDocument.value)
+  const after = collectDiffBlocks(diffAfterProjectedDocument.value)
+  const changed = collectChangedDiffBlockIds(diffBeforeProjectedDocument.value, diffAfterProjectedDocument.value)
+  return [...after].flatMap(([blockId, descriptor]) => descriptor.faceKey !== activeFaceKey.value
+    ? []
+    : [{ blockId, kind: !before.has(blockId) ? 'added' as const : changed.has(blockId) ? 'changed' as const : undefined }]
+  ).filter((item): item is { blockId: string; kind: 'added' | 'changed' } => Boolean(item.kind))
 })
 
 const editorRootRef = ref<HTMLElement | null>(null)
@@ -557,6 +651,11 @@ const {
   topMinHeight: overlayTopMinHeight,
   commitLayout: layout => emit('update-card-designer-layout', layout),
 })
+const diffViewportInsets = computed(() => ({
+  ...viewportInsets.value,
+  left: (viewportInsets.value.left ?? 0) + overlaySplitGap,
+  right: (viewportInsets.value.right ?? 0) + overlaySplitGap,
+}))
 const faceToolsStyle = computed(() => ({
   right: `${(viewportInsets.value.right ?? 0) + overlayGeometryConfig.floatingGap}px`,
   bottom: `${overlayGeometryConfig.floatingGap}px`,
@@ -646,7 +745,19 @@ const faceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [
   },
   faceSwitchAction.value,
 ])
-const diffFaceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [faceSwitchAction.value])
+const diffViewModeAction = computed<OcOverlayToolbarItem>(() => ({
+  key: 'toggle-diff-view-mode',
+  icon: 'layout.columns',
+  title: diffViewMode.value === 'split'
+    ? `${t('sidebar.diffViewer.switchToSideBySide')} ${formatCdeShortcutMarkup('view.toggle-diff-mode')}`
+    : `${t('sidebar.diffViewer.switchToSplit')} ${formatCdeShortcutMarkup('view.toggle-diff-mode')}`,
+  active: diffViewMode.value === 'side-by-side',
+  variant: diffViewMode.value === 'side-by-side' ? 'soft' : 'ghost',
+}))
+const diffFaceToolbarItems = computed<readonly OcOverlayToolbarItem[]>(() => [
+  diffViewModeAction.value,
+  faceSwitchAction.value,
+])
 
 function handleFaceToolbarSelect({ key }: { key: string }): void {
   if (key === 'viewport.zoom-out') zoomViewportOut()
@@ -654,6 +765,7 @@ function handleFaceToolbarSelect({ key }: { key: string }): void {
   else if (key === 'viewport.zoom-in') zoomViewportIn()
   else if (key === 'toggle-alignment-snapping') toggleAlignmentSnapping()
   else if (key === 'toggle-face-clip') toggleFaceClip()
+  else if (key === 'toggle-diff-view-mode') toggleDiffViewMode()
   else if (key === 'switch-face') toggleActiveFace()
 }
 
@@ -872,16 +984,35 @@ const diffBeforeInstance = computed(() => diffSelectedInstanceId.value
 const diffAfterInstance = computed(() => diffSelectedInstanceId.value
   ? diffModel.value?.afterDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
   : null)
-function findDiffBlock(document: CardDocument | null | undefined, blockId: string): CardBlock | null {
+const diffBeforeProjectedDocument = computed(() => {
+  const document = diffModel.value?.beforeDocument
+  return document ? applyInstance(document, diffBeforeInstance.value) : null
+})
+const diffAfterProjectedDocument = computed(() => {
+  const document = diffModel.value?.afterDocument
+  return document ? applyInstance(document, diffAfterInstance.value) : null
+})
+function findDiffRecord(document: CardDocument | null | undefined, key: string): Readonly<Record<string, unknown>> | null {
   if (!document) return null
+  if (document.id === key) return document as unknown as Readonly<Record<string, unknown>>
   for (const face of Object.values(document.faces)) {
+    if (face.id === key) return face as unknown as Readonly<Record<string, unknown>>
     for (const child of face.children) {
+      if (child.location.id === key) {
+        return child.location as unknown as Readonly<Record<string, unknown>>
+      }
       let found: CardBlock | null = null
-      visitCardBlockTree(child.block, block => { if (block.id === blockId) found = block })
-      if (found) return found
+      let foundLocation: Readonly<Record<string, unknown>> | null = null
+      visitCardBlockTree(child.block, (block, _depth, location) => {
+        if (block.id === key) found = block
+        if (location?.id === key) foundLocation = location as unknown as Readonly<Record<string, unknown>>
+      })
+      if (foundLocation) return foundLocation
+      if (found) return found as unknown as Readonly<Record<string, unknown>>
     }
   }
-  return null
+  const instance = document.instances.find(candidate => candidate.id === key)
+  return instance ? instance as unknown as Readonly<Record<string, unknown>> : null
 }
 const diffInstanceTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
@@ -894,23 +1025,24 @@ const diffInstanceTreeData = computed<OcTreeData>(() => {
   for (const id of ids) {
     const before = diffModel.value?.beforeDocument.instances.find(instance => instance.id === id)
     const after = diffModel.value?.afterDocument.instances.find(instance => instance.id === id)
+    const changed = Boolean(before && after && JSON.stringify(before) !== JSON.stringify(after))
     items.set(id, {
       label: after?.name || before?.name || id,
       icon: 'file.opencard',
-      displayActions: {
-        leading: [{
-          key: `diff:${id}`,
-          icon: before && after ? 'action.check' : after ? 'action.add' : 'action.delete',
-          tone: before && after ? 'muted' : after ? 'success' : 'danger',
-        }],
-      },
+      tone: after && !before ? 'success' : before && !after ? 'danger' : changed ? 'warning' : undefined,
+      tail: after && !before
+        ? { key: `diff:${id}:added`, icon: 'action.add', iconTone: 'success', title: t('sidebar.diffViewer.added') }
+        : before && !after
+          ? { key: `diff:${id}:removed`, icon: 'action.minus', iconTone: 'danger', title: t('sidebar.diffViewer.removed') }
+          : changed
+            ? { key: `diff:${id}:changed`, icon: 'status.circle-medium', iconTone: 'warning', title: t('sidebar.diffViewer.changed') }
+            : undefined,
     })
     rootKeys.push(id)
   }
   return { rootKeys, items, children: new Map() }
 })
 const diffBlockTreeData = computed<OcTreeData>(() => {
-  const model = diffModel.value
   const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
   const children = new Map<string, string[]>()
   const beforeBlocks = new Map<string, CardBlock>()
@@ -919,8 +1051,16 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
     const face = document?.faces[activeFaceKey.value]
     for (const child of face?.children ?? []) visitCardBlockTree(child.block, block => target.set(block.id, block))
   }
-  collect(model?.beforeDocument, beforeBlocks)
-  collect(model?.afterDocument, afterBlocks)
+  const beforeDocument = diffBeforeProjectedDocument.value
+  const afterDocument = diffAfterProjectedDocument.value
+  collect(beforeDocument, beforeBlocks)
+  collect(afterDocument, afterBlocks)
+  const allBeforeBlocks = collectDiffBlocks(beforeDocument)
+  const allAfterBlocks = collectDiffBlocks(afterDocument)
+  const changedBlockIds = new Set([...beforeBlocks].flatMap(([id, block]) => {
+    const after = afterBlocks.get(id)
+    return after && JSON.stringify(block) !== JSON.stringify(after) ? [id] : []
+  }))
   const rootKeys: string[] = []
   const addTopology = (document: CardDocument | null | undefined) => {
     for (const child of document?.faces[activeFaceKey.value]?.children ?? []) {
@@ -933,29 +1073,32 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
       add(child.block, '__face__')
     }
   }
-  addTopology(model?.beforeDocument)
-  addTopology(model?.afterDocument)
-  const statusById = new Map<string, 'added' | 'removed' | 'changed' | 'moved'>()
-  for (const change of model?.changes ?? []) {
-    if (!change.blockId || change.faceKey !== activeFaceKey.value) continue
-    const previous = statusById.get(change.blockId)
-    if (previous === 'moved' || (previous === 'changed' && change.kind !== 'moved')) continue
-    statusById.set(change.blockId, change.kind)
-  }
+  addTopology(beforeDocument)
+  addTopology(afterDocument)
+  const statusById = new Map<string, 'added' | 'removed' | 'changed'>()
   const allIds = new Set([...beforeBlocks.keys(), ...afterBlocks.keys()])
   for (const id of allIds) {
     const block = afterBlocks.get(id) ?? beforeBlocks.get(id)
     if (!block) continue
-    const kind = statusById.get(id)
+    const kind = !allBeforeBlocks.has(id)
+      ? 'added'
+      : !allAfterBlocks.has(id)
+        ? 'removed'
+        : changedBlockIds.has(id)
+          ? 'changed'
+          : undefined
+    if (kind) statusById.set(id, kind)
     items.set(id, {
       label: block.name || id,
       icon: getBlockPresentation(block.type).icon,
       iconTone: getBlockPresentation(block.type).iconTone,
-      displayActions: kind ? { leading: [{
+      tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : kind === 'changed' ? 'warning' : undefined,
+      tail: kind ? {
         key: `diff:${id}:${kind}`,
-        icon: kind === 'added' ? 'action.add' : kind === 'removed' ? 'action.delete' : 'action.edit',
-        tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
-      }] } : undefined,
+        icon: kind === 'added' ? 'action.add' : kind === 'removed' ? 'action.minus' : 'status.circle-medium',
+        iconTone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
+        title: t(`sidebar.diffViewer.${kind}`),
+      } : undefined,
     })
   }
   rootKeys.push(...(children.get('__face__') ?? []))
@@ -1610,14 +1753,34 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
 })
-const diffPropertyInputs = computed(() => propertyEditorInputs.value.map(input => ({
-  key: input.key,
-  title: input.title,
-  beforeRecord: findDiffBlock(diffModel.value?.beforeDocument, input.key) ?? input.record,
-  afterRecord: findDiffBlock(diffModel.value?.afterDocument, input.key) ?? input.record,
-  fields: input.fields,
-  displayActions: input.displayActions,
-})))
+const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => propertyEditorInputs.value.map(input => {
+  const beforeRecord = findDiffRecord(diffBeforeProjectedDocument.value, input.key) ?? input.record
+  const afterRecord = findDiffRecord(diffAfterProjectedDocument.value, input.key) ?? input.record
+  const fieldKeys = new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)])
+  const items: PropertyEditorItem[] = []
+  for (const fieldKey of fieldKeys) {
+    const definition = input.fields[fieldKey]
+    if (!definition || definition.isHidden) continue
+    const hasBefore = Object.prototype.hasOwnProperty.call(beforeRecord, fieldKey)
+    const hasAfter = Object.prototype.hasOwnProperty.call(afterRecord, fieldKey)
+    const beforeValue = beforeRecord[fieldKey]
+    const afterValue = afterRecord[fieldKey]
+    const same = hasBefore && hasAfter && JSON.stringify(beforeValue) === JSON.stringify(afterValue)
+    if (same) {
+      items.push({ key: fieldKey, fieldKey, title: definition.title, definition, value: afterValue, readonly: true })
+      continue
+    }
+    if (hasBefore) items.push({
+      key: `${fieldKey}:before`, fieldKey, title: definition.title, definition, value: beforeValue, readonly: true,
+      tail: { key: `diff:${fieldKey}:removed`, icon: 'action.minus', iconTone: 'danger', title: t('sidebar.diffViewer.removed') },
+    })
+    if (hasAfter) items.push({
+      key: `${fieldKey}:after`, fieldKey, title: definition.title, definition, value: afterValue, readonly: true,
+      tail: { key: `diff:${fieldKey}:added`, icon: 'action.add', iconTone: 'success', title: t('sidebar.diffViewer.added') },
+    })
+  }
+  return { key: input.key, title: input.title, record: afterRecord, fields: input.fields, items }
+}))
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
   documentRevision,
@@ -2000,6 +2163,27 @@ const cdeShortcutCommands = [
     run: zoomViewportOut,
   },
   {
+    key: 'view.diff-divider-left',
+    shortcut: getCdeShortcutBindings('view.diff-divider-left'),
+    scopes: ['canvas'],
+    canRun: () => props.mode === 'diff' && hasRenderableFace.value,
+    run: () => setDiffDividerPreset(0),
+  },
+  {
+    key: 'view.diff-divider-center',
+    shortcut: getCdeShortcutBindings('view.diff-divider-center'),
+    scopes: ['canvas'],
+    canRun: () => props.mode === 'diff' && hasRenderableFace.value,
+    run: () => setDiffDividerPreset(0.5),
+  },
+  {
+    key: 'view.diff-divider-right',
+    shortcut: getCdeShortcutBindings('view.diff-divider-right'),
+    scopes: ['canvas'],
+    canRun: () => props.mode === 'diff' && hasRenderableFace.value,
+    run: () => setDiffDividerPreset(1),
+  },
+  {
     key: 'view.toggle-snapping',
     shortcut: getCdeShortcutBindings('view.toggle-snapping'),
     scopes: ['canvas'],
@@ -2019,6 +2203,13 @@ const cdeShortcutCommands = [
     scopes: ['canvas'],
     canRun: () => workspaceMode.value === 'design' && hasRenderableFace.value,
     run: toggleActiveFace,
+  },
+  {
+    key: 'view.toggle-diff-mode',
+    shortcut: getCdeShortcutBindings('view.toggle-diff-mode'),
+    scopes: ['canvas'],
+    canRun: () => props.mode === 'diff' && hasRenderableFace.value,
+    run: toggleDiffViewMode,
   },
 ] as const satisfies readonly CdeShortcutCommand[]
 
@@ -2591,16 +2782,6 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 
-.card-design-editor__diff-stage {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  gap: var(--oc-space-2);
-}
-
 .card-design-editor__diff-mode-stage {
   width: 100%;
   height: 100%;
@@ -2608,8 +2789,4 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.card-design-editor__diff-viewport {
-  min-width: 0;
-  min-height: 0;
-}
 </style>
