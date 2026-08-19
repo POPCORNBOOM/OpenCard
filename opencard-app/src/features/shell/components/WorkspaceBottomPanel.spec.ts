@@ -44,6 +44,7 @@ function mountPanel(
       issuesLabel: 'Problems',
       outputLabel: 'Output',
       issueEmptyLabel: 'No problems',
+      issueFilterLabel: 'Filter problems',
       outputEmptyLabel: 'No output',
       outputFilterEmptyLabel: 'No matching output',
       outputClearLabel: 'Clear',
@@ -77,6 +78,17 @@ describe('WorkspaceBottomPanel', () => {
     expect(wrapper.emitted('issue-navigate')).toEqual([[
       { sessionId: 'a', token: navigationToken },
     ]])
+  })
+
+  it('filters diagnostics by their instance, Block, or field label text', async () => {
+    const wrapper = mountPanel()
+    const filter = wrapper.get('input[type="search"]')
+    await filter.setValue('invalid binding')
+    expect(wrapper.findComponent(OcTree).props('data').rootKeys).toEqual(['session:a'])
+    await filter.setValue('missing field')
+    await flushPromises()
+    expect(wrapper.findComponent(OcTree).exists()).toBe(false)
+    expect(wrapper.text()).toContain('No problems')
   })
 
   it('emits controlled expansion changes without interpreting the node key', () => {
@@ -133,6 +145,27 @@ describe('WorkspaceBottomPanel', () => {
     await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
 
     expect(wrapper.emitted('expanded-change')).toEqual([[false], [true]])
+  })
+
+  it('moves focus to the toggle before making the panel content inert', async () => {
+    const wrapper = mountPanel(true)
+    document.body.appendChild(wrapper.element)
+
+    try {
+      const activeTab = wrapper.get('#workspace-bottom-tab-issues')
+      const toggle = wrapper.get('.workspace-bottom-panel__toggle')
+
+      ;(activeTab.element as HTMLButtonElement).focus()
+      expect(document.activeElement).toBe(activeTab.element)
+
+      await wrapper.setProps({ expanded: false })
+
+      expect(document.activeElement).toBe(toggle.element)
+      expect(wrapper.get('.workspace-bottom-panel__content').attributes()).not.toHaveProperty('aria-hidden')
+      expect(wrapper.get('.workspace-bottom-panel__content').attributes()).toHaveProperty('inert')
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('exposes the highest issue severity on the center control only when issues exist', async () => {

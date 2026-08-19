@@ -3,6 +3,7 @@
     @mouseleave="scheduleCollapse"
     @focusin="requestExpansion" @focusout="handlePanelFocusOut">
     <button
+      ref="toggleRef"
       class="workspace-bottom-panel__toggle"
       type="button"
       :aria-expanded="expanded"
@@ -16,8 +17,8 @@
     </button>
 
     <div
+      ref="contentRef"
       class="workspace-bottom-panel__content"
-      :aria-hidden="!expanded"
       :inert="!expanded || undefined"
     >
       <div class="workspace-bottom-panel__tabs">
@@ -62,9 +63,12 @@
         role="tabpanel"
         aria-labelledby="workspace-bottom-tab-issues"
       >
+        <OcFieldInput :value="issueFilter" class="workspace-bottom-panel__issue-filter"
+          type="search" :placeholder="issueFilterLabel" :aria-label="issueFilterLabel" full-width
+          @input="issueFilter = ($event.target as HTMLInputElement).value" />
         <OcTree
-          v-if="issueTreeData.rootKeys.length > 0"
-          :data="issueTreeData"
+          v-if="filteredIssueTreeData.rootKeys.length > 0"
+          :data="filteredIssueTreeData"
           :expanded-keys="expandedIssueKeys"
           activation-mode="double-click"
           selection-mode="none"
@@ -143,6 +147,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
@@ -171,6 +176,7 @@ const props = defineProps<{
   issuesLabel: string
   outputLabel: string
   issueEmptyLabel: string
+  issueFilterLabel: string
   outputEmptyLabel: string
   outputFilterEmptyLabel: string
   outputClearLabel: string
@@ -194,6 +200,24 @@ const emit = defineEmits<{
 
 const HOVER_COLLAPSE_DELAY_MS = 180
 const pinned = ref(false)
+const toggleRef = ref<HTMLButtonElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
+const issueFilter = ref('')
+const filteredIssueTreeData = computed<OcTreeData>(() => {
+  const query = issueFilter.value.trim().toLocaleLowerCase()
+  if (!query) return props.issueTreeData
+  const items = new Map(props.issueTreeData.items)
+  const children = new Map<string, readonly string[]>()
+  const rootKeys = props.issueTreeData.rootKeys.filter((rootKey) => {
+    const root = items.get(rootKey)
+    const matchingChildren = (props.issueTreeData.children.get(rootKey) ?? []).filter((childKey) =>
+      items.get(childKey)?.label.toLocaleLowerCase().includes(query),
+    )
+    if (matchingChildren.length) children.set(rootKey, matchingChildren)
+    return Boolean(root?.label.toLocaleLowerCase().includes(query) || matchingChildren.length)
+  })
+  return { rootKeys, items, children }
+})
 const outputScrollRef = ref<HTMLElement | null>(null)
 const enabledSeverities = ref<ReadonlySet<AppConsoleSeverity>>(new Set(APP_CONSOLE_SEVERITIES))
 const shouldFollowOutput = ref(true)
@@ -288,6 +312,9 @@ async function scrollOutputToEnd(): Promise<void> {
   if (element) element.scrollTop = element.scrollHeight
 }
 
+watch(() => props.expanded, (expanded) => {
+  if (!expanded && contentRef.value?.contains(document.activeElement)) toggleRef.value?.focus()
+}, { flush: 'sync' })
 watch(() => [props.expanded, props.activeTab] as const, scrollOutputToEnd)
 watch(visibleOutputEntries, scrollOutputToEnd)
 

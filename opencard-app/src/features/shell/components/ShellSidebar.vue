@@ -39,6 +39,7 @@ const resizingListPair = ref(false);
 
 const listGroups = computed<ShellListGroup[]>(() => props.bodyGroups);
 const activeGroup = computed(() => listGroups.value.find(group => group.key === activeGroupKey.value) ?? listGroups.value[0]);
+const activeHeadButtons = computed(() => activeGroup.value?.headButtons ?? []);
 const activeLists = computed(() => activeGroup.value?.lists ?? []);
 
 function ensureListState(lists: ShellList[]): void {
@@ -143,7 +144,7 @@ function toActionDefinitions(actions: ShellList['actions']): OcActionButtonActio
     <Transition :name="`shell-sidebar-group-slide-${transitionDirection}`" mode="out-in">
       <div :key="activeGroup?.key ?? 'empty'" class="shell-sidebar-active-group">
         <div class="shell-sidebar-group shell-sidebar-group-top">
-          <button v-for="button in activeGroup?.headButtons ?? []" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('head-button-clicked', button.key)">
+          <button v-for="button in activeHeadButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('head-button-clicked', button.key)">
             <OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span>
           </button>
         </div>
