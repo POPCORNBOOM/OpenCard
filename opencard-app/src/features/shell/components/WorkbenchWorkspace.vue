@@ -13,8 +13,10 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <OcPanel v-if="hasActiveEditor" fill tone="transparent" border="none" padding="none" overflow="auto">
-    <slot />
+  <OcPanel v-if="hasActiveEditor" fill tone="transparent" border="none" padding="none" overflow="hidden">
+    <div class="workbench-workspace__editor-stage">
+      <slot />
+    </div>
   </OcPanel>
   <section v-else class="workspace-empty-state" :aria-label="t('app.editorEmpty.title')">
     <OcIcon class="workspace-empty-state__icon" name="file.generic" size="lg" />
@@ -24,6 +26,15 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
+.workbench-workspace__editor-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .workspace-empty-state {
   width: 100%;
   height: 100%;

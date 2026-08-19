@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { fileSystemService } from '../workspace/services/fileSystemService'
@@ -10,10 +10,12 @@ import { PROJECT_PROFILE_FILE_NAME, parseProjectMetadataText, toProjectInformati
 import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjectDictionary } from '../workspace/model/projectDictionary'
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
 import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
-import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG, loadProjectImageDimensions } from '../workspace/services/projectIconCatalog'
 import { parseProjectCustomBlockRegistryText, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, type ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
 import { createProjectCustomBlockAssetSession } from '../workspace/services/projectCustomBlockAssetLoader'
+import { createProjectCustomBlockFontSession } from '../workspace/services/projectCustomBlockFontLoader'
+import { resolveProjectInternalRelativePath } from '../workspace/model/projectStructure'
 
 export interface OcdocumentDiffSessionOptions {
   projectRoot: Ref<string | null | undefined>
@@ -28,6 +30,21 @@ function resolveProjectFile(root: string, path: string): string {
 }
 
 const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
+const SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS = 2_000
+
+async function loadSnapshotImageDimensions(src: string): Promise<{ width: number; height: number }> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      loadProjectImageDimensions(src),
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('Project image dimensions timed out')), SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle)
+  }
+}
 
 function createSnapshotFontResolver(root: string, fontDocument: NonNullable<ReturnType<typeof parseProjectFontRegistryText>>, namespace: string): (references: string) => string {
   const families = new Map((fontDocument.families ?? []).map(font => [font.key.toLowerCase(), `OpenCardSnapshot-${namespace}-${font.key}`]))
@@ -36,7 +53,7 @@ function createSnapshotFontResolver(root: string, fontDocument: NonNullable<Retu
     const style = document.createElement('style')
     style.dataset.opencardDiffFonts = namespace
     style.textContent = (fontDocument.families ?? []).flatMap(font => projectFontFileEntries(font).map(entry => (
-      `@font-face{font-family:${JSON.stringify(families.get(font.key.toLowerCase()) ?? font.key)};src:url(${JSON.stringify(convertFileSrc(resolveProjectFile(root, entry.source)))});font-weight:${projectFontWeightValues[entry.weight]};font-style:${entry.style === 'italic' ? 'italic' : 'normal'};}`
+      `@font-face{font-family:${JSON.stringify(families.get(font.key.toLowerCase()) ?? font.key)};src:url(${JSON.stringify(convertFileSrc(resolveProjectFile(root, resolveProjectInternalRelativePath(entry.source))))});font-weight:${projectFontWeightValues[entry.weight]};font-style:${entry.style === 'italic' ? 'italic' : 'normal'};}`
     ))).join('')
     document.head.appendChild(style)
   }
@@ -80,9 +97,11 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
   if (iconText) {
     const document = parseProjectIconRegistryText(iconText)
     if (document) {
-      projectIconCatalog = await buildProjectIconCatalog(document.iconSeries, source => (
-        convertFileSrc(resolveProjectFile(root, source))
-      ))
+      projectIconCatalog = await buildProjectIconCatalog(
+        document.iconSeries,
+        source => convertFileSrc(resolveProjectFile(root, resolveProjectInternalRelativePath(source))),
+        loadSnapshotImageDimensions,
+      )
     }
   }
   const customBlockText = await readOptional(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
@@ -92,14 +111,22 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
       const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
       for (const relativePath of registry.blocks ?? []) {
         const archivePath = relativePath.replace(/\\/g, '/').replace(/^[/]+/, '')
-        const packageEntry = await readProjectCustomBlockPackage(fileSystemService, resolveProjectFile(root, archivePath))
+        const packageEntry = await readProjectCustomBlockPackage(
+          fileSystemService,
+          resolveProjectFile(root, resolveProjectInternalRelativePath(archivePath)),
+        )
         const block = packageEntry.block
         if (!block) continue
         const key = packageEntry.manifest.customBlockKey.toLowerCase()
         catalog.set(key, { ...packageEntry, block, archivePath })
       }
       if (catalog.size > 0) {
-        const assets = await createProjectCustomBlockAssetSession(catalog)
+        await createProjectCustomBlockFontSession(catalog)
+        const assets = await createProjectCustomBlockAssetSession(
+          catalog,
+          undefined,
+          loadSnapshotImageDimensions,
+        )
         customBlockCatalog = assets.customBlockCatalog
       }
     }
@@ -115,12 +142,13 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
   const error = ref<string | null>(null)
   const beforeSnapshotRoot = ref<string | null>(null)
   const afterSnapshotRoot = ref<string | null>(null)
+  const loadedPath = ref<string | null>(null)
   let requestRevision = 0
 
   const diffSession = computed<DiffSession | null>(() => {
     const path = options.filePath.value
     const fileName = options.fileName.value
-    if (!path || !fileName || !before.value || !after.value) return null
+    if (!path || path !== loadedPath.value || !fileName || !before.value || !after.value) return null
     return {
       id: `diff:${path}`,
       fileTypeId: 'ocdocument',
@@ -134,10 +162,7 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
     before.value && after.value ? compareOcdocuments(before.value.content, after.value.content) : null
   ))
 
-  async function loadSnapshot(commitId: string | null, label: string): Promise<DiffSnapshot> {
-    const root = options.projectRoot.value
-    const path = options.filePath.value
-    if (!root || !path) throw new Error('项目或文件不可用')
+  async function loadSnapshot(root: string, path: string, commitId: string | null, label: string): Promise<DiffSnapshot> {
     let content: string
     let resourceRootPath: string
     if (commitId === null) {
@@ -152,26 +177,19 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
       if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')
       resourceRootPath = materialized.value.rootPath
     }
-    const context = commitId === null
-      ? await loadSnapshotContext(resourceRootPath)
-      : await (async () => {
-        const cacheKey = `${root.toLowerCase()}|${commitId}`
-        let contextPromise = snapshotContextCache.get(cacheKey)
-        if (!contextPromise) {
-          contextPromise = loadSnapshotContext(resourceRootPath)
-          snapshotContextCache.set(cacheKey, contextPromise)
-        }
-        return await contextPromise
-      })()
+    const contextLoad = commitId === null
+      ? loadSnapshotContext(resourceRootPath)
+      : (() => {
+          const cacheKey = `${root.toLowerCase()}|${commitId}`
+          let contextPromise = snapshotContextCache.get(cacheKey)
+          if (!contextPromise) {
+            contextPromise = loadSnapshotContext(resourceRootPath)
+            snapshotContextCache.set(cacheKey, contextPromise)
+          }
+          return contextPromise
+        })()
+    const context = await contextLoad
     return { commitId, label, content, resourceRootPath, ...context }
-  }
-
-  async function loadSnapshotRoot(commitId: string | null): Promise<string | null> {
-    const root = options.projectRoot.value
-    if (!root || !commitId) return root ?? null
-    const result = await materializeRevision(root, { revision: commitId })
-    if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法准备历史资源')
-    return result.value.rootPath
   }
 
   async function selectComparison(beforeCommitId: string | null, afterCommitId: string | null) {
@@ -179,22 +197,28 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
       error.value = t('sidebar.diffViewer.sameVersion')
       return
     }
+    const root = options.projectRoot.value
+    const path = options.filePath.value
+    if (!root || !path) {
+      error.value = '项目或文件不可用'
+      return
+    }
     const revision = ++requestRevision
     loading.value = true
     error.value = null
+    loadedPath.value = null
     const optionById = new Map(options.revisions.value.map(item => [item.commitId, item]))
     try {
-      const [nextBefore, nextAfter, nextBeforeRoot, nextAfterRoot] = await Promise.all([
-        loadSnapshot(beforeCommitId, optionById.get(beforeCommitId)?.label ?? '版本 A'),
-        loadSnapshot(afterCommitId, optionById.get(afterCommitId)?.label ?? '版本 B'),
-        loadSnapshotRoot(beforeCommitId),
-        loadSnapshotRoot(afterCommitId),
+      const [nextBefore, nextAfter] = await Promise.all([
+        loadSnapshot(root, path, beforeCommitId, optionById.get(beforeCommitId)?.label ?? '版本 A'),
+        loadSnapshot(root, path, afterCommitId, optionById.get(afterCommitId)?.label ?? '版本 B'),
       ])
       if (revision !== requestRevision) return
       before.value = nextBefore
       after.value = nextAfter
-      beforeSnapshotRoot.value = nextBeforeRoot
-      afterSnapshotRoot.value = nextAfterRoot
+      beforeSnapshotRoot.value = nextBefore.resourceRootPath ?? null
+      afterSnapshotRoot.value = nextAfter.resourceRootPath ?? null
+      loadedPath.value = path
     } catch (cause) {
       if (revision === requestRevision) error.value = cause instanceof Error ? cause.message : '差异版本读取失败'
     } finally {
@@ -207,6 +231,17 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
     const beforeId = history[0]?.commitId ?? null
     await selectComparison(beforeId, null)
   }
+
+  watch([options.projectRoot, options.filePath], () => {
+    requestRevision += 1
+    before.value = null
+    after.value = null
+    beforeSnapshotRoot.value = null
+    afterSnapshotRoot.value = null
+    loadedPath.value = null
+    loading.value = false
+    error.value = null
+  }, { flush: 'sync' })
 
   return {
     before,
