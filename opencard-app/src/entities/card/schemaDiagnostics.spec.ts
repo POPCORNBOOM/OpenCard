@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validateCardSchemaField } from './schemaDiagnostics'
+import type { EditorPropertyDefinition } from './schema'
 
 describe('card schema diagnostics', () => {
   it('allows storage while diagnosing required, color, path, and CSS length values', () => {
@@ -28,7 +29,7 @@ describe('card schema diagnostics', () => {
   })
 
   it('reports indexes for invalid scalar array elements', () => {
-    const result = validateCardSchemaField(['1', 'oops'], { fieldType: 'number[]' })
+    const result = validateCardSchemaField(['1', 'oops'], { fieldType: 'number[]' } as unknown as EditorPropertyDefinition)
     expect(result).toMatchObject({
       ok: false,
       diagnostics: [{ code: 'conversion-failed', path: [1] }],
