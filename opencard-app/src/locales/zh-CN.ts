@@ -97,6 +97,7 @@ export default {
       tab: '问题',
       outputTab: '输出',
       empty: '没有问题',
+      filter: '按实例、Block 或字段筛选',
       outputEmpty: '暂无输出',
       outputFilterEmpty: '当前严重度筛选下没有输出',
       clearOutput: '清除',
@@ -117,6 +118,11 @@ export default {
         CONVERSION_FAILED: '字段“{fieldName}”的值无法转换，已使用默认值：{defaultValue}',
         INVALID_OPTION: '字段“{fieldName}”的选项值无效，已使用默认值：{defaultValue}',
         OUT_OF_RANGE: '字段“{fieldName}”的值超出允许范围，已使用默认值：{defaultValue}',
+        REQUIRED: '必填字段“{fieldName}”缺失或为空，已使用默认值：{defaultValue}',
+        INVALID_COLOR: '字段“{fieldName}”不是有效颜色，已使用默认值：{defaultValue}',
+        INVALID_CSS_LENGTH: '字段“{fieldName}”不是有效的 CSS 长度，已使用默认值：{defaultValue}',
+        INVALID_FILE_PATH: '字段“{fieldName}”不是有效且受支持的项目路径，已使用默认值：{defaultValue}',
+        INVALID_OBJECT: '字段“{fieldName}”不符合所需结构，已使用默认值：{defaultValue}',
       },
       customBlockCodes: {
         UNAVAILABLE: '自定义块包不可用或接口不兼容',
@@ -126,6 +132,7 @@ export default {
       storageCodes: {
         'field-defaulted': '字段值无法解释，已使用当前默认值',
         'entry-ignored': '此项不属于当前数据模型，已忽略',
+        'schema-warning': '保存的值不符合渲染约束，渲染时将使用回退值',
       },
       locations: {
         blueprint: '蓝图',
@@ -688,6 +695,11 @@ export default {
     files: '文件浏览器',
     git: '版本管理',
     publish: '发布',
+    versionControlGroup: '版本管理',
+    commitVersion: '提交版本',
+    versionGraph: '版本图表',
+    stagedChanges: '已暂存更改',
+    workspaceGroup: '工作区',
     openedEditors: '打开的编辑器',
     closeEditor: '关闭编辑器',
     noOpenedEditors: '没有打开的编辑器',
@@ -710,7 +722,7 @@ export default {
     timelineNotInitialized: '项目尚未初始化 Git',
     timelineNoCommits: '当前文件还没有提交记录',
     timelineFailed: '读取时间线失败',
-    diffViewer: { compare: '对比', versionA: '版本 A', versionB: '版本 B', blueprint: '蓝图', instance: '实例', front: '正面', back: '背面', changes: '结构化变化', warnings: '警告 {count}', parseFailed: '无法解析该版本：{message}', noChanges: '没有变化', sameVersion: '不能比较相同版本', resourcesUnavailable: '卡面资源不可用', added: '新增', removed: '删除', changed: '修改', divider: '调整版本分视位置 [key]A[/key] 左 [key]S[/key] 中 [key]D[/key] 右', switchToSideBySide: '切换到双视图', switchToSplit: '切换到分裂视图' },
+    diffViewer: { compare: '对比', versionA: '版本 A', versionB: '版本 B', diskVersion: '磁盘版本', loading: '正在加载差异版本…', parseFailedGeneric: '无法解析 .ocdocument 差异版本', blueprint: '蓝图', instance: '实例', front: '正面', back: '背面', changes: '结构化变化', warnings: '警告 {count}', parseFailed: '无法解析该版本：{message}', noChanges: '没有变化', sameVersion: '不能比较相同版本', resourcesUnavailable: '卡面资源不可用', added: '新增', removed: '删除', changed: '修改', divider: '调整版本分视位置 [key]A[/key] 左 [key]S[/key] 中 [key]D[/key] 右', switchToSideBySide: '切换到双视图', switchToSplit: '切换到分裂视图' },
     openProject: '打开项目文件夹',
     fileActions: {
       more: '更多操作',
@@ -748,6 +760,7 @@ export default {
     fields: {
       language: '语言',
       suppressReleaseNotesAfterUpdate: '更新后不显示新版本说明',
+      openCdeWorkbookAfterExport: '导出 CDE 表格后自动打开',
       theme: '主题',
       themePreset: '预设',
       baseFontSize: '基准字号',
@@ -861,6 +874,7 @@ export default {
       resizeLeftSidebar: '调整左侧栏宽度',
       resizeRightSidebar: '调整右侧栏宽度',
       resizeSidebarTooltip: '{label}[br]双击快速切换展开折叠',
+      resizePreview: '调整预览大小',
     },
     blockNames: {
       'text-block': '文本块',
@@ -910,6 +924,11 @@ export default {
     },
     dataTable: {
       title: '卡牌数据表',
+      previewTitle: '预览',
+      previewEmpty: '选择字段单元格以预览对应卡牌',
+      fitPreview: '适应预览窗口',
+      minimizePreview: '最小化预览',
+      restorePreview: '还原预览',
       switchToDesignMode: '切换到设计视图',
       switchToTableMode: '切换到数据表视图',
       fieldColumn: '块名 / 字段',
@@ -937,6 +956,7 @@ export default {
       importNoChanges: '表格内容没有产生变更。',
       importFailed: '无法导入表格。',
       exportFailed: '无法导出表格。',
+      openExportedWorkbookFailed: '表格已导出，但无法使用系统默认程序自动打开。',
       workbookFaceColumn: '卡面',
       workbookBlockColumn: '块名',
       workbookFieldColumn: '字段',
@@ -990,6 +1010,7 @@ export default {
     },
   },
   propertyEditor: {
+    currentValueRenderWarning: '当前值存在渲染警告',
     fontWeight: { light: '细体', normal: '常规', bold: '粗体' },
     richText: {
       sourceInvalid: 'HTML 源码包含不支持的内容',

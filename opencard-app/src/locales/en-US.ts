@@ -97,6 +97,7 @@ export default {
       tab: 'Problems',
       outputTab: 'Output',
       empty: 'No problems╮(╯-╰)╭',
+      filter: 'Filter by instance, Block, or field',
       outputEmpty: 'No output',
       outputFilterEmpty: 'No output matches the selected severities',
       clearOutput: 'Clear',
@@ -117,6 +118,11 @@ export default {
         CONVERSION_FAILED: 'Field "{fieldName}" could not be converted; the default was used: {defaultValue}',
         INVALID_OPTION: 'Field "{fieldName}" has an invalid option; the default was used: {defaultValue}',
         OUT_OF_RANGE: 'Field "{fieldName}" is outside the allowed range; the default was used: {defaultValue}',
+        REQUIRED: 'Required field "{fieldName}" is missing or empty; the default was used: {defaultValue}',
+        INVALID_COLOR: 'Field "{fieldName}" is not a valid color; the default was used: {defaultValue}',
+        INVALID_CSS_LENGTH: 'Field "{fieldName}" is not a valid CSS length; the default was used: {defaultValue}',
+        INVALID_FILE_PATH: 'Field "{fieldName}" is not a valid supported project path; the default was used: {defaultValue}',
+        INVALID_OBJECT: 'Field "{fieldName}" does not match the required structure; the default was used: {defaultValue}',
       },
       customBlockCodes: {
         UNAVAILABLE: 'The custom block package is unavailable or incompatible',
@@ -126,6 +132,7 @@ export default {
       storageCodes: {
         'field-defaulted': 'The field value could not be interpreted, so the current default was used',
         'entry-ignored': 'This item is not part of the current data model and was ignored',
+        'schema-warning': 'This saved value does not satisfy its rendering constraints and will use a fallback when rendered',
       },
       locations: {
         blueprint: 'the blueprint',
@@ -689,6 +696,11 @@ export default {
     files: 'Explorer',
     git: 'Source Control',
     publish: 'Publish',
+    versionControlGroup: 'Version Control',
+    commitVersion: 'Commit version',
+    versionGraph: 'Version graph',
+    stagedChanges: 'Staged changes',
+    workspaceGroup: 'Workspace',
     openedEditors: 'Open Editors',
     closeEditor: 'Close editor',
     noOpenedEditors: 'No open editors',
@@ -711,7 +723,7 @@ export default {
     timelineNotInitialized: 'Git is not initialized for this project',
     timelineNoCommits: 'No commits for this file yet',
     timelineFailed: 'Unable to read timeline',
-    diffViewer: { compare: 'Compare', versionA: 'Version A', versionB: 'Version B', blueprint: 'Blueprint', instance: 'Instance', front: 'Front', back: 'Back', changes: 'Structured changes', warnings: '{count} warnings', parseFailed: 'Unable to parse this version: {message}', noChanges: 'No changes', sameVersion: 'The same version cannot be compared', resourcesUnavailable: 'Card resources are unavailable', added: 'Added', removed: 'Removed', changed: 'Changed', divider: 'Adjust version divider [key]A[/key] left [key]S[/key] center [key]D[/key] right', switchToSideBySide: 'Switch to side-by-side view', switchToSplit: 'Switch to split view' },
+    diffViewer: { compare: 'Compare', versionA: 'Version A', versionB: 'Version B', diskVersion: 'Disk version', loading: 'Loading versions…', parseFailedGeneric: 'Unable to parse the .ocdocument versions', blueprint: 'Blueprint', instance: 'Instance', front: 'Front', back: 'Back', changes: 'Structured changes', warnings: '{count} warnings', parseFailed: 'Unable to parse this version: {message}', noChanges: 'No changes', sameVersion: 'The same version cannot be compared', resourcesUnavailable: 'Card resources are unavailable', added: 'Added', removed: 'Removed', changed: 'Changed', divider: 'Adjust version divider [key]A[/key] left [key]S[/key] center [key]D[/key] right', switchToSideBySide: 'Switch to side-by-side view', switchToSplit: 'Switch to split view' },
     openProject: 'Open Project Folder',
     fileActions: {
       more: 'More Actions',
@@ -749,6 +761,7 @@ export default {
     fields: {
       language: 'Language',
       suppressReleaseNotesAfterUpdate: 'Do not show release notes after an update',
+      openCdeWorkbookAfterExport: 'Open CDE workbook after export',
       theme: 'Theme',
       themePreset: 'Preset',
       baseFontSize: 'Base font size',
@@ -862,6 +875,7 @@ export default {
       resizeLeftSidebar: 'Resize left sidebar',
       resizeRightSidebar: 'Resize right sidebar',
       resizeSidebarTooltip: '{label}[br]Double-click to quickly toggle expand or collapse',
+      resizePreview: 'Resize preview',
     },
     blockNames: {
       'text-block': 'Text Block',
@@ -911,6 +925,11 @@ export default {
     },
     dataTable: {
       title: 'Card data table',
+      previewTitle: 'Preview',
+      previewEmpty: 'Select a field cell to preview its card',
+      fitPreview: 'Fit preview to window',
+      minimizePreview: 'Minimize preview',
+      restorePreview: 'Restore preview',
       switchToDesignMode: 'Switch to design view',
       switchToTableMode: 'Switch to data table view',
       fieldColumn: 'Block Name / Field',
@@ -938,6 +957,7 @@ export default {
       importNoChanges: 'The workbook did not change any values.',
       importFailed: 'Could not import the workbook.',
       exportFailed: 'Could not export the workbook.',
+      openExportedWorkbookFailed: 'The workbook was exported, but the system default app could not open it automatically.',
       workbookFaceColumn: 'Face',
       workbookBlockColumn: 'Block Name',
       workbookFieldColumn: 'Field',
@@ -991,6 +1011,7 @@ export default {
     },
   },
   propertyEditor: {
+    currentValueRenderWarning: 'The current value has a rendering warning',
     fontWeight: { light: 'Light', normal: 'Normal', bold: 'Bold' },
     richText: {
       sourceInvalid: 'HTML source contains unsupported content',

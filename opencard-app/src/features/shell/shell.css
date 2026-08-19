@@ -439,7 +439,42 @@
 
 .shell-sidebar-body {
   padding: 6px 0;
-  overflow: auto;
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.shell-sidebar-group-switcher {
+  grid-row: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--oc-space-1);
+  min-width: 0;
+}
+
+.shell-sidebar-group-switch.compact .shell-sidebar-group-switch-title {
+  display: none;
+}
+
+ .shell-sidebar-group-switch {
+  min-width: 0;
+  justify-content: center;
+}
+
+ .shell-sidebar-group-switch.active {
+  background: var(--oc-bg-selected);
+  color: var(--oc-fg-default);
+}
+
+.shell-sidebar-active-group {
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.shell-sidebar-group-bottom {
+  grid-row: 3;
 }
 
 .shell-sidebar-button {
@@ -459,6 +494,12 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-height: var(--oc-sidebar-tree-min-height);
+  overflow: hidden;
+  transition:
+    flex-grow var(--oc-duration-slow) var(--oc-ease),
+    flex-basis var(--oc-duration-slow) var(--oc-ease),
+    min-height var(--oc-duration-slow) var(--oc-ease);
 }
 
 .shell-sidebar-list-head {
@@ -512,7 +553,9 @@
 }
 
 .shell-sidebar-list-content-wrap {
+  min-height: 0;
   display: grid;
+  flex: 1 1 auto;
   grid-template-rows: 1fr;
   transition: grid-template-rows 220ms ease;
 }
@@ -523,9 +566,60 @@
 
 .shell-sidebar-list-content {
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   display: grid;
   gap: 2px;
+}
+.shell-sidebar-list-resizer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--oc-space-3);
+  cursor: ns-resize;
+  z-index: var(--oc-z-overlay-toolbar);
+}
+
+ .shell-sidebar-list {
+  position: relative;
+}
+
+ .shell-sidebar-list.collapsed {
+  min-height: 0;
+}
+
+ .shell-sidebar-body.is-resizing-list .shell-sidebar-list {
+  transition: none;
+}
+
+ .shell-sidebar-group-slide-forward-enter-active,
+ .shell-sidebar-group-slide-forward-leave-active,
+ .shell-sidebar-group-slide-backward-enter-active,
+ .shell-sidebar-group-slide-backward-leave-active {
+  transition: transform var(--oc-duration-normal) var(--oc-ease), opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+ .shell-sidebar-group-slide-forward-enter-from,
+ .shell-sidebar-group-slide-backward-leave-to {
+  opacity: 0;
+  transform: translateX(var(--oc-space-3));
+}
+
+ .shell-sidebar-group-slide-forward-leave-to,
+ .shell-sidebar-group-slide-backward-enter-from {
+  opacity: 0;
+  transform: translateX(calc(var(--oc-space-3) * -1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-sidebar-list,
+  .shell-sidebar-list-content-wrap,
+  .shell-sidebar-group-slide-forward-enter-active,
+  .shell-sidebar-group-slide-forward-leave-active,
+  .shell-sidebar-group-slide-backward-enter-active,
+  .shell-sidebar-group-slide-backward-leave-active {
+    transition-duration: 0.01ms;
+  }
 }
 
 .shell-sidebar-empty {

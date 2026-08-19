@@ -1,8 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import ShellSidebar from './ShellSidebar.vue'
+import type { ShellButton, ShellList, ShellListGroup } from '../shell.types'
 
-describe('ShellSidebar list actions', () => {
+function primaryGroup(lists: ShellList[], headButtons: ShellButton[] = []): ShellListGroup[] {
+  return [{ key: 'primary', title: '', headButtons, lists }]
+}
+
+describe('ShellSidebar', () => {
   afterEach(() => {
     document.body.innerHTML = ''
   })
@@ -13,9 +18,8 @@ describe('ShellSidebar list actions', () => {
       props: {
         collapsed: false,
         width: 260,
-        headButtons: [],
         tailButtons: [],
-        bodyLists: [{
+        bodyGroups: primaryGroup([{
           key: 'project-files',
           title: 'Files',
           placeholder: 'Empty',
@@ -28,34 +32,163 @@ describe('ShellSidebar list actions', () => {
               { key: 'project.new-file.ocproject', title: 'Project Configuration' },
             ],
           }],
-        }],
+        }]),
       },
     })
 
     const action = wrapper.get('button[aria-label="New File"]')
     expect(action.classes()).toContain('oc-button')
-    expect(action.element.parentElement?.classList).not.toContain('shell-sidebar-action')
     await action.trigger('click')
     await flushPromises()
-    document.body.querySelector<HTMLButtonElement>(
-      '.oc-action-menu__button[aria-label="OpenCard (.ocdocument)"]',
-    )?.click()
+    document.body.querySelector<HTMLButtonElement>('.oc-action-menu__button[aria-label="OpenCard (.ocdocument)"]')?.click()
     await flushPromises()
 
-    expect(wrapper.emitted('list-button-clicked')).toEqual([[
-      'project-files',
-      'project.new-file.ocdocument',
-    ]])
+    expect(wrapper.emitted('list-button-clicked')).toEqual([['project-files', 'project.new-file.ocdocument']])
   })
 
-  it('uses the same medium icon size as sidebar trees for primary buttons', () => {
+  it('uses one declarative group path and hides the switcher for a single group', () => {
     const wrapper = mount(ShellSidebar, {
       props: {
         collapsed: false,
         width: 260,
-        headButtons: [{ key: 'open', title: 'Open', icon: 'status.folder-open' }],
+        tailButtons: [],
+        bodyGroups: primaryGroup(
+          [{ key: 'recent', title: 'Recent Projects', placeholder: 'Empty', actions: [] }],
+          [{ key: 'open', title: 'Open Project', icon: 'status.folder-open' }],
+        ),
+      },
+    })
+
+    expect(wrapper.find('.shell-sidebar-group-switcher').exists()).toBe(false)
+    expect(wrapper.get('.shell-sidebar-group-top .shell-sidebar-button').text()).toBe('Open Project')
+    expect(wrapper.get('.shell-sidebar-list-title').text()).toBe('Recent Projects')
+  })
+
+  it('shares available height across expanded lists and keeps scrolling inside each list', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([
+          { key: 'files', title: 'Files', placeholder: 'Empty', actions: [] },
+          { key: 'timeline', title: 'Timeline', placeholder: 'Empty', actions: [] },
+        ]),
+      },
+      slots: { 'list-content': '<div class="tree-content">Tree</div>' },
+    })
+
+    const sections = wrapper.findAll('.shell-sidebar-list')
+    expect(sections).toHaveLength(2)
+    expect(sections.every(section => section.attributes('style')?.includes('flex-grow: 1'))).toBe(true)
+    expect(wrapper.findAll('.shell-sidebar-list-content')).toHaveLength(2)
+    expect(wrapper.find('.shell-sidebar-list-resizer').exists()).toBe(true)
+  })
+
+  it('stores resized list proportions and restores them after collapsing', async () => {
+    const wrapper = mount(ShellSidebar, {
+      attachTo: document.body,
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([
+          { key: 'files', title: 'Files', placeholder: 'Empty', actions: [] },
+          { key: 'timeline', title: 'Timeline', placeholder: 'Empty', actions: [] },
+        ]),
+      },
+    })
+    const sections = wrapper.findAll('.shell-sidebar-list')
+    sections[0]!.element.getBoundingClientRect = () => ({ height: 200 } as DOMRect)
+    sections[1]!.element.getBoundingClientRect = () => ({ height: 200 } as DOMRect)
+
+    wrapper.find('.shell-sidebar-list-resizer').element.dispatchEvent(new PointerEvent('pointerdown', { clientY: 200, bubbles: true }))
+    await wrapper.vm.$nextTick()
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 250 }))
+    await wrapper.vm.$nextTick()
+    const resizedGrow = sections[0]!.attributes('style')
+    expect(resizedGrow).not.toContain('flex-grow: 1;')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    await wrapper.findAll('.shell-sidebar-list-toggle')[0]!.trigger('click')
+    await wrapper.findAll('.shell-sidebar-list-toggle')[0]!.trigger('click')
+    expect(sections[0]!.attributes('style')).toBe(resizedGrow)
+  })
+
+  it('animates a collapsed list to the shared collapsed height', async () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([
+          { key: 'files', title: 'Files', placeholder: 'Empty', actions: [] },
+          { key: 'timeline', title: 'Timeline', placeholder: 'Empty', actions: [] },
+        ]),
+      },
+    })
+
+    await wrapper.find('.shell-sidebar-list-toggle').trigger('click')
+    const firstSection = wrapper.find('.shell-sidebar-list')
+    expect(firstSection.classes()).toContain('collapsed')
+    expect(firstSection.attributes('style')).toContain('flex-basis: var(--oc-size-md)')
+    expect(firstSection.find('.shell-sidebar-list-content-wrap').classes()).toContain('collapsed')
+  })
+
+  it('switches configured groups, animates the whole active group, and emits the selected key', async () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: [
+          {
+            key: 'workspace', title: 'Workspace', icon: 'status.folder-open',
+            headButtons: [{ key: 'new', title: 'New OpenCard', icon: 'action.file-plus' }],
+            lists: [{ key: 'files', title: 'Files', placeholder: 'Empty', actions: [] }],
+          },
+          {
+            key: 'history', title: 'History', icon: 'file.git',
+            headButtons: [{ key: 'commit', title: 'Commit', icon: 'action.publish' }],
+            lists: [{ key: 'timeline', title: 'Timeline', placeholder: 'No history', actions: [] }],
+          },
+        ],
+      },
+    })
+
+    expect(wrapper.findAll('.shell-sidebar-group-switch')).toHaveLength(2)
+    expect(wrapper.get('.shell-sidebar-group-top .shell-sidebar-button').text()).toBe('New OpenCard')
+    await wrapper.findAll('.shell-sidebar-group-switch')[1]!.trigger('click')
+    expect(wrapper.get('.shell-sidebar-group-top .shell-sidebar-button').text()).toBe('Commit')
+    expect(wrapper.get('.shell-sidebar-list-title').text()).toBe('Timeline')
+    expect(wrapper.emitted('body-group-changed')).toEqual([['history']])
+  })
+
+  it('hides group titles below the configured compact width while retaining tooltips', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 200,
+        compactGroupWidth: 220,
+        tailButtons: [],
+        bodyGroups: [
+          { key: 'workspace', title: 'Workspace', icon: 'status.folder-open', lists: [] },
+          { key: 'history', title: 'History', icon: 'file.git', lists: [] },
+        ],
+      },
+    })
+
+    const switches = wrapper.findAll('.shell-sidebar-group-switch')
+    expect(switches.every(button => button.classes().includes('compact'))).toBe(true)
+    expect(switches.map(button => button.attributes('data-tooltip'))).toEqual(['Workspace', 'History'])
+  })
+
+  it('uses medium icons for group, group action, and bottom buttons', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
         tailButtons: [{ key: 'settings', title: 'Settings', icon: 'tool.settings' }],
-        bodyLists: [],
+        bodyGroups: primaryGroup([], [{ key: 'open', title: 'Open', icon: 'status.folder-open' }]),
       },
     })
 

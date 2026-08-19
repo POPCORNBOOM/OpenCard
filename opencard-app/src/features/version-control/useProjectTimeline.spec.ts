@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   inspectRepository: vi.fn(),
   readFileHistory: vi.fn(),
+  listBranches: vi.fn(),
+  readStatus: vi.fn(),
 }))
-
 vi.mock('./gitService', () => mocks)
 
 import { useProjectTimeline } from './useProjectTimeline'
@@ -36,6 +37,8 @@ describe('useProjectTimeline', () => {
     vi.clearAllMocks()
     mocks.inspectRepository.mockResolvedValue(ok(repository))
     mocks.readFileHistory.mockResolvedValue(ok([]))
+    mocks.listBranches.mockResolvedValue(ok([]))
+    mocks.readStatus.mockResolvedValue(ok({ entries: [] }))
   })
 
   it('stays empty without a current project file', async () => {
@@ -63,23 +66,37 @@ describe('useProjectTimeline', () => {
     expect(mocks.readFileHistory).not.toHaveBeenCalled()
   })
 
-  it('maps the current file history into tree items and formats the authored time', async () => {
+  it('maps branches and the current file history into an expanded version tree', async () => {
     mocks.readFileHistory.mockResolvedValueOnce(ok([{
       id: 'abcdef123', shortId: 'abcdef1', summary: 'First card', message: 'First card',
       authorName: 'Author', authorEmail: 'author@example.com', authoredAtSeconds: 0, parentIds: [],
     }]))
+    mocks.listBranches.mockResolvedValueOnce(ok([
+      { name: 'main', target: 'abcdef123', local: true, current: true },
+      { name: 'feature/cards', target: '123456789', local: true, current: false },
+    ]))
     const state = useProjectTimeline(
       ref('D:/Cards/demo'),
       ref('cards/main.ocdocument'),
       ref('en-US'),
     )
-    await vi.waitFor(() => expect(state.treeData.value.rootKeys).toEqual(['timeline:abcdef123']))
+    await vi.waitFor(() => expect(state.treeData.value.rootKeys).toEqual(['timeline:branches', 'timeline:commits']))
     expect(mocks.readFileHistory).toHaveBeenCalledWith('D:/Cards/demo', {
       path: 'cards/main.ocdocument',
       limit: 50,
     })
+    expect(mocks.listBranches).toHaveBeenCalledWith('D:/Cards/demo')
+    expect(state.expandedKeys.value).toEqual(['timeline:branches', 'timeline:commits'])
+    expect(state.treeData.value.children.get('timeline:branches')).toEqual([
+      'timeline:branch:main',
+      'timeline:branch:feature/cards',
+    ])
+    const branch = state.treeData.value.items.get('timeline:branch:main')
+    expect(branch?.label).toBe('main')
+    expect(branch?.tail).toBe('Current · abcdef1')
+    expect(branch?.iconTone).toBe('muted')
     const item = state.treeData.value.items.get('timeline:abcdef123')
-    expect(item?.label).toBe('First card')
+    expect(item?.label).toBe('First card · abcdef1')
     expect(item?.icon).toBe('file.git')
     expect(item?.tail).toContain('1970')
   })
@@ -97,7 +114,8 @@ describe('useProjectTimeline', () => {
       authorName: 'Author', authorEmail: 'author@example.com', authoredAtSeconds: 0, parentIds: [],
     }]))
     await nextTick()
-    expect(state.treeData.value.rootKeys).toEqual([])
+    expect(state.treeData.value.items.has('timeline:stale')).toBe(false)
+    expect(state.treeData.value.rootKeys).toEqual(['timeline:branches', 'timeline:commits'])
   })
 
   it('turns an IPC rejection into a retryable timeline error state', async () => {

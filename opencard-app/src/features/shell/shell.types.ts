@@ -29,9 +29,15 @@ export interface ShellList {
   placeholder: string;
   key: string;
   actions: ShellAction[];
-  maxHeight?: string;
 }
 
+export interface ShellListGroup {
+  key: string;
+  title: string;
+  icon?: IconToken;
+  headButtons?: ShellButton[];
+  lists: ShellList[];
+}
 export interface ShellTitleBarMenuGroup {
   key: string;
   label: string;

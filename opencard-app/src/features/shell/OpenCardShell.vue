@@ -37,14 +37,16 @@
       <ShellSidebar
         :collapsed="effectiveSidebarCollapsed"
         :width="sidebarWidth"
-        :head-buttons="sidebarHeadButtons"
-        :body-lists="sidebarBodyLists"
+        :body-groups="sidebarBodyGroups"
         :tail-buttons="sidebarTailButtons"
         :min-resize-width="SIDEBAR_AUTO_COLLAPSE_WIDTH"
+        :compact-group-width="SIDEBAR_MIN_WIDTH"
+        :persisted-layout="sidebarPersistedLayout"
         @head-button-clicked="runShellCommand"
         @list-button-clicked="handleSidebarListAction"
         @tail-button-clicked="runShellCommand"
         @resize="handleSidebarResize"
+        @layout-change="handleSidebarLayoutChange"
       >
         <template #list-content="{ list }">
           <OcTree
@@ -110,6 +112,7 @@
             selection-mode="single"
             activation-mode="none"
             @intent="handleOpenedEditorTreeIntent"
+            @auxclick="handleOpenedEditorAuxClick"
           />
           <OcTree
             v-else-if="list.key === TEMPLATE_ENTRIES_LIST_KEY && exportTemplateEntryTreeData.rootKeys.length > 0"
@@ -159,26 +162,27 @@
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
           <OcTree
-            v-else-if="list.key === TIMELINE_LIST_KEY && timelineTreeData.rootKeys.length > 0"
+            v-else-if="(list.key === TIMELINE_LIST_KEY || list.key === 'version-graph') && timelineTreeData.rootKeys.length > 0"
             class="open-card-shell__sidebar-tree"
             :data="timelineTreeData"
             :selected-keys="timelineSelectedKeys"
-            role="listbox"
+            :expanded-keys="timelineExpandedKeys"
+            role="tree"
             selection-mode="single"
             activation-mode="none"
             @intent="handleTimelineTreeIntent"
           />
-          <div v-else class="shell-sidebar-empty">
-            <OcButton
-              v-if="list.key === PROJECT_FILES_LIST_KEY && !projectPath && !effectiveSidebarCollapsed"
-              icon="status.folder-open"
-              size="sm"
-              variant="ghost"
-              @click="openProject"
-            >
-              {{ list.placeholder }}
-            </OcButton>
-            <span v-else>{{ list.placeholder }}</span>
+          <OcTree
+            v-else-if="list.key === 'staged-changes'"
+            class="open-card-shell__sidebar-tree"
+            :data="stagedChangesTreeData"
+            :selected-keys="[]"
+            role="tree"
+            selection-mode="none"
+            activation-mode="none"
+          />
+          <div v-else-if="list.key === 'version-graph' || list.key === 'staged-changes'" class="shell-sidebar-empty">
+            <span>{{ list.placeholder }}</span>
           </div>
         </template>
       </ShellSidebar>
@@ -232,23 +236,25 @@
               @open-project="openProject"
             />
             <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession)">
-              <component
-                v-if="activeSession"
-                :is="currentEditorComponent"
-                :key="currentEditorKey"
-                ref="currentEditorRef"
-                v-bind="currentEditorProps"
-                @modified="handleEditorModified"
-                @save="handleEditorSave"
-                @open-file="handleOpenFile"
-                @update-viewport-transform="handleViewportTransformUpdate"
-                @update:pixelated="handleImagePreviewPixelatedUpdate"
-                @update:card-designer-mode="handleCardDesignerModeUpdate"
-                @update-card-designer-layout="handleCardDesignerLayoutUpdate"
-                @update-card-designer-view="handleCardDesignerViewUpdate"
-                @update-diff-ui-state="handleDiffUiStateUpdate"
-                @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
-              />
+              <Transition name="shell-editor-fade" mode="out-in">
+                <component
+                  v-if="activeSession"
+                  :is="currentEditorComponent"
+                  :key="currentEditorKey"
+                  ref="currentEditorRef"
+                  v-bind="currentEditorProps"
+                  @modified="handleEditorModified"
+                  @save="handleEditorSave"
+                  @open-file="handleOpenFile"
+                  @update-viewport-transform="handleViewportTransformUpdate"
+                  @update:pixelated="handleImagePreviewPixelatedUpdate"
+                  @update:card-designer-mode="handleCardDesignerModeUpdate"
+                  @update-card-designer-layout="handleCardDesignerLayoutUpdate"
+                  @update-card-designer-view="handleCardDesignerViewUpdate"
+                  @update-diff-ui-state="handleDiffUiStateUpdate"
+                  @issue-snapshot="handleEditorIssueSnapshot(activeSession.id, $event)"
+                />
+              </Transition>
             </WorkbenchWorkspace>
           </div>
 
@@ -264,6 +270,7 @@
             :issues-label="t('app.problems.tab')"
             :output-label="t('app.problems.outputTab')"
             :issue-empty-label="t('app.problems.empty')"
+            :issue-filter-label="t('app.problems.filter')"
             :output-empty-label="t('app.problems.outputEmpty')"
             :output-filter-empty-label="t('app.problems.outputFilterEmpty')"
             :output-clear-label="t('app.problems.clearOutput')"
@@ -390,9 +397,9 @@ import {
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import OcTree from '../../components/standard/OcTree.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
-import OcButton from '../../components/base/OcButton.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type { ProjectWorkspaceSidebarState, ProjectWorkspaceState } from '../settings/model/appSettings'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -490,6 +497,7 @@ import type {
   ShellButton,
   ShellAction,
   ShellList,
+  ShellListGroup,
   ShellWorkspaceAction,
   ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
@@ -705,6 +713,39 @@ const effectiveSidebarCollapsed = computed(() => (
 ))
 const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWidth)
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
+const sidebarWorkspaceStateKey = computed(() => projectPath.value.replace(/\\/g, '/').replace(/\/+$/, ''))
+const sidebarPersistedLayout = computed<ProjectWorkspaceSidebarState | undefined>(() => {
+  const key = sidebarWorkspaceStateKey.value
+  const sidebar = key ? settingsStore.settings.value.projectCreation.workspaceStates[key]?.sidebar : undefined
+  return sidebar ? {
+    collapsedLists: [...sidebar.collapsedLists],
+    listWeights: { ...sidebar.listWeights },
+  } : undefined
+})
+function handleSidebarLayoutChange(layout: ProjectWorkspaceSidebarState): void {
+  const key = sidebarWorkspaceStateKey.value
+  if (!key) return
+  const states = settingsStore.settings.value.projectCreation.workspaceStates
+  const current = states[key]
+  const nextState: ProjectWorkspaceState = {
+    ...(current ? {
+      projectProfile: current.projectProfile
+        ? { collapsedSections: [...current.projectProfile.collapsedSections] }
+        : undefined,
+    } : {}),
+    expandedDirectories: [...(current?.expandedDirectories ?? [])],
+    sidebar: {
+      collapsedLists: [...layout.collapsedLists],
+      listWeights: { ...layout.listWeights },
+    },
+  }
+  settingsStore.updateProjectCreation({
+    workspaceStates: {
+      ...states,
+      [key]: nextState,
+    } as Record<string, ProjectWorkspaceState>,
+  })
+}
 const exportRendererRef = ref<InstanceType<typeof CardFaceRenderer>>()
 const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 
@@ -811,6 +852,8 @@ const projectTimeline = useProjectTimeline(projectPath, timelineFilePath, locale
 const {
   treeData: timelineTreeData,
   selectedKeys: timelineSelectedKeys,
+  expandedKeys: timelineExpandedKeys,
+  stagedChangesTreeData,
   loading: timelineLoading,
   initialized: timelineInitialized,
   errorKind: timelineErrorKind,
@@ -830,8 +873,8 @@ watch(
   () => [
     activeSession.value?.id ?? '',
     activeSession.value?.mode ?? 'edit',
-    activeSession.value?.diff?.beforeRevisionId ?? '',
-    activeSession.value?.diff?.afterRevisionId ?? '',
+    activeSession.value?.diff?.beforeRevisionId ?? null,
+    activeSession.value?.diff?.afterRevisionId ?? null,
   ] as const,
   ([sessionId, mode, beforeId, afterId]) => {
     if (mode !== 'diff' || !sessionId || !activeSession.value?.diff) return
@@ -1615,15 +1658,7 @@ const sidebarHeadButtons = computed<ShellButton[]>(() => {
       { key: 'open-project', icon: 'status.folder-open', title: t('sidebar.openProject') },
     ]
   }
-  return [
-    { key: 'new-open-card', icon: 'action.file-plus', title: t('app.menu.newOpenCard') },
-    {
-      key: 'publish-version',
-      icon: 'action.publish',
-      title: t('app.menu.publishVersion'),
-      disabled: true,
-    },
-  ]
+  return []
 })
 
 const sidebarTailButtons = computed<ShellButton[]>(() => {
@@ -1689,21 +1724,18 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         title: projectFolderName.value || t('sidebar.files'),
         placeholder: t('sidebar.emptyProject', 'Folder is empty'),
         actions: [],
-        maxHeight: 'var(--oc-list-max-height-lg)',
       },
       {
         key: TEMPLATE_ENTRIES_LIST_KEY,
         title: t('projectTemplates.fields.entry'),
         placeholder: t('templateExport.noSelectedEntries'),
         actions: [],
-        maxHeight: 'var(--oc-list-max-height-md)',
       },
       {
         key: TEMPLATE_COVERS_LIST_KEY,
         title: t('projectTemplates.fields.covers'),
         placeholder: t('templateExport.noSelectedCovers'),
         actions: [],
-        maxHeight: 'var(--oc-list-max-height-md)',
       },
     ]
   }
@@ -1772,6 +1804,33 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
   ]
 })
 
+const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
+  if (isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isWelcomeMode.value || isAboutMode.value) {
+    return [{ key: 'primary', title: '', headButtons: sidebarHeadButtons.value, lists: sidebarBodyLists.value }];
+  }
+  const lists = sidebarBodyLists.value;
+  const groups: ShellListGroup[] = [
+    {
+      key: 'workspace',
+      title: t('sidebar.workspaceGroup', 'Workspace'),
+      icon: 'status.folder-open',
+      headButtons: [{ key: 'new-open-card', icon: 'action.file-plus', title: t('app.menu.newOpenCard') }],
+      lists,
+    },
+    {
+      key: 'version-control',
+      title: t('sidebar.versionControlGroup', 'Version Control'),
+      icon: 'file.git',
+      headButtons: [{ key: 'publish-version', icon: 'action.publish', title: t('sidebar.commitVersion', 'Commit version') }],
+      lists: [
+        { key: 'version-graph', title: t('sidebar.versionGraph', 'Version graph'), placeholder: '', actions: [] },
+        { key: 'staged-changes', title: t('sidebar.stagedChanges', 'Staged changes'), placeholder: '', actions: [] },
+      ],
+    },
+  ];
+  return groups.filter(group => group.lists.length > 0);
+});
+
 const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
   import.meta.env.DEV
     ? [{
@@ -1835,14 +1894,14 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         title: t('app.menu.undo'),
         icon: 'action.undo',
         shortcut: shellShortcutParts.undo,
-        disabled: !canUndoActiveEditor.value,
+        disabled: isDiffMode.value || !canUndoActiveEditor.value,
       },
       {
         key: 'redo-active-editor',
         title: t('app.menu.redo'),
         icon: 'action.redo',
         shortcut: shellShortcutParts.redo,
-        disabled: !canRedoActiveEditor.value,
+        disabled: isDiffMode.value || !canRedoActiveEditor.value,
       },
       { type: 'divider', key: 'edit-settings-divider' },
       { key: 'open-settings', title: t('settings.title'), icon: 'tool.settings' },
@@ -1965,9 +2024,9 @@ const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
     const beforeOption = timelineRevisionOptions.value.find(option => option.commitId === beforeId)
     const afterOption = timelineRevisionOptions.value.find(option => option.commitId === afterId)
     return [
-      beforeOption?.shortId ?? t('sidebar.diffViewer.versionA'),
+      beforeOption?.shortId ?? beforeOption?.label ?? t('sidebar.diffViewer.diskVersion'),
       { type: 'selection', key: DIFF_BEFORE_ACTION_KEY, icon: 'file.git', value: formatRevisionLabel(beforeOption, t('sidebar.diffViewer.versionA')), hoverTip: t('sidebar.diffViewer.versionA'), options: createRevisionMenu(DIFF_BEFORE_ACTION_KEY, beforeId) },
-      afterOption?.shortId ?? t('sidebar.diffViewer.versionB'),
+      afterOption?.shortId ?? afterOption?.label ?? t('sidebar.diffViewer.diskVersion'),
       { type: 'selection', key: DIFF_AFTER_ACTION_KEY, icon: 'file.git', value: formatRevisionLabel(afterOption, t('sidebar.diffViewer.versionB')), hoverTip: t('sidebar.diffViewer.versionB'), options: createRevisionMenu(DIFF_AFTER_ACTION_KEY, afterId) },
       { key: DIFF_EXIT_ACTION_KEY, icon: 'nav.arrow-left', hoverTip: t('settings.actions.back', 'Back') },
     ]
@@ -2370,6 +2429,16 @@ async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
   }
 }
 
+async function handleOpenedEditorAuxClick(event: MouseEvent): Promise<void> {
+  if (event.button !== 1) return
+  const target = event.target
+  if (!(target instanceof Element)) return
+  const key = target.closest<HTMLElement>('[data-oc-tree-key]')?.dataset.ocTreeKey
+  if (!key || !openedEditorTreeData.value.items.has(key)) return
+  event.preventDefault()
+  await requestSessionClose([key])
+}
+
 async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'selection.change') {
     await handleProjectManagementSelect(intent.selectedKeys)
@@ -2662,12 +2731,12 @@ async function runShellCommand(actionKey: string) {
   }
 
   if (actionKey === 'undo-active-editor') {
-    await triggerCurrentEditorUndo()
+    if (!isDiffMode.value) await triggerCurrentEditorUndo()
     return
   }
 
   if (actionKey === 'redo-active-editor') {
-    await triggerCurrentEditorRedo()
+    if (!isDiffMode.value) await triggerCurrentEditorRedo()
     return
   }
 
@@ -2889,8 +2958,17 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     const currentAfter = diffSessionState.after.value?.commitId ?? null
     const nextBefore = isBefore ? revisionId : currentBefore
     const nextAfter = isBefore ? currentAfter : revisionId
-    if (nextBefore !== nextAfter) await diffSessionState.selectComparison(nextBefore, nextAfter)
-    if (activeSession.value) setSessionMode(activeSession.value.id, 'diff', { beforeRevisionId: nextBefore, afterRevisionId: nextAfter })
+    const sessionId = activeSession.value?.id
+    if (nextBefore === nextAfter || !sessionId) return
+    await diffSessionState.selectComparison(nextBefore, nextAfter)
+    if (
+      diffSessionState.error.value
+      || diffSessionState.before.value?.commitId !== nextBefore
+      || diffSessionState.after.value?.commitId !== nextAfter
+      || activeSession.value?.id !== sessionId
+    ) return
+    synchronizedDiffSessionKey = `${sessionId}|${nextBefore ?? 'current'}|${nextAfter ?? 'current'}`
+    setSessionMode(sessionId, 'diff', { beforeRevisionId: nextBefore, afterRevisionId: nextAfter })
     return
   }
   if (actionKey.startsWith(CARD_RENDER_IMAGE_OPTION_PREFIX)) {
@@ -3039,7 +3117,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.undo) {
-    if (isNativeHistoryTarget(event.target)) return
+    if (isDiffMode.value || isNativeHistoryTarget(event.target)) return
     if (!canUndoActiveEditor.value && !(event.shiftKey && canRedoActiveEditor.value)) {
       return
     }
@@ -3055,7 +3133,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
   }
 
   if (key === SHELL_SHORTCUT_KEYS.redo) {
-    if (isNativeHistoryTarget(event.target)) return
+    if (isDiffMode.value || isNativeHistoryTarget(event.target)) return
     if (!canRedoActiveEditor.value) {
       return
     }

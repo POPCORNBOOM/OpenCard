@@ -1,182 +1,165 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcActionRail from '../../../components/standard/OcActionRail.vue';
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue';
-import type {
-  ShellButton,
-  ShellList,
-} from '../shell.types';
+import type { ShellButton, ShellList, ShellListGroup } from '../shell.types';
+import type { ProjectWorkspaceSidebarState } from '../../settings/model/appSettings';
 
 const props = defineProps<{
   collapsed: boolean;
   width: number;
-  headButtons: ShellButton[];
-  bodyLists: ShellList[];
+  bodyGroups: ShellListGroup[];
   tailButtons: ShellButton[];
   collapseListTooltip?: string;
   expandListTooltip?: string;
   minResizeWidth?: number;
+  compactGroupWidth?: number;
+  persistedLayout?: ProjectWorkspaceSidebarState;
 }>();
 
 const emit = defineEmits<{
   'head-button-clicked': [buttonKey: string];
   'list-button-clicked': [listKey: string, actionKey: string];
+  'body-group-changed': [groupKey: string];
   'tail-button-clicked': [buttonKey: string];
   resize: [width: number];
+  'layout-change': [layout: ProjectWorkspaceSidebarState];
 }>();
 
-defineSlots<{
-  'list-content': (props: { list: ShellList }) => unknown;
-}>();
+defineSlots<{ 'list-content': (props: { list: ShellList }) => unknown }>();
 
 const sidebarElement = ref<HTMLElement | null>(null);
 const resizing = ref(false);
+const activeGroupKey = ref<string | null>(null);
+const transitionDirection = ref<'forward' | 'backward'>('forward');
 const collapsedLists = ref<Record<string, boolean>>({});
+const listWeights = ref<Record<string, number>>({});
+const resizingListPair = ref(false);
+
+const listGroups = computed<ShellListGroup[]>(() => props.bodyGroups);
+const activeGroup = computed(() => listGroups.value.find(group => group.key === activeGroupKey.value) ?? listGroups.value[0]);
+const activeLists = computed(() => activeGroup.value?.lists ?? []);
 
 function ensureListState(lists: ShellList[]): void {
-  const next: Record<string, boolean> = {};
+  const persisted = props.persistedLayout;
+  const next = { ...collapsedLists.value };
+  const weights = { ...listWeights.value };
   for (const list of lists) {
-    next[list.key] = collapsedLists.value[list.key] ?? false;
+    next[list.key] = persisted ? persisted.collapsedLists.includes(list.key) : (next[list.key] ?? false);
+    weights[list.key] = persisted?.listWeights[list.key] ?? weights[list.key] ?? 1;
   }
   collapsedLists.value = next;
+  listWeights.value = weights;
 }
 
-watch(
-  () => props.bodyLists,
-  (lists) => {
-    ensureListState(lists);
-  },
-  { immediate: true }
-);
+watch([listGroups, () => props.persistedLayout], ([groups]) => {
+  if (!activeGroupKey.value || !groups.some(group => group.key === activeGroupKey.value)) activeGroupKey.value = groups[0]?.key ?? null;
+  groups.forEach(group => ensureListState(group.lists));
+}, { immediate: true });
+
+function selectGroup(key: string): void {
+  if (key === activeGroupKey.value) return;
+  const current = listGroups.value.findIndex(group => group.key === activeGroupKey.value);
+  const next = listGroups.value.findIndex(group => group.key === key);
+  transitionDirection.value = next >= current ? 'forward' : 'backward';
+  activeGroupKey.value = key;
+  emit('body-group-changed', key);
+}
+
+function emitLayoutChange(): void {
+  emit('layout-change', {
+    collapsedLists: Object.entries(collapsedLists.value).filter(([, collapsed]) => collapsed).map(([key]) => key),
+    listWeights: { ...listWeights.value },
+  });
+}
+
+function toggleListCollapsed(key: string): void {
+  collapsedLists.value[key] = !collapsedLists.value[key];
+  emitLayoutChange();
+}
+function isListCollapsed(key: string): boolean { return collapsedLists.value[key] === true; }
+
+function listSectionStyle(list: ShellList): { flexGrow: string; flexShrink: string; flexBasis: string } {
+  return isListCollapsed(list.key)
+    ? { flexGrow: '0', flexShrink: '0', flexBasis: 'var(--oc-size-md)' }
+    : { flexGrow: String(listWeights.value[list.key] ?? 1), flexShrink: '1', flexBasis: 'var(--oc-sidebar-tree-min-height)' };
+}
+function findNextExpandedList(index: number): ShellList | null { return activeLists.value.slice(index + 1).find(list => !isListCollapsed(list.key)) ?? null; }
+function canResizeAfter(index: number): boolean { return !isListCollapsed(activeLists.value[index]?.key ?? '') && findNextExpandedList(index) !== null; }
+
+function onListResizePointerDown(event: PointerEvent, index: number): void {
+  const current = activeLists.value[index];
+  const next = findNextExpandedList(index);
+  const body = sidebarElement.value?.querySelector<HTMLElement>('.shell-sidebar-body');
+  if (!current || !next || !body) return;
+  const startY = event.clientY;
+  const sections = [...body.querySelectorAll<HTMLElement>('.shell-sidebar-list')];
+  const currentElement = sections[index];
+  const nextElement = sections[activeLists.value.indexOf(next)];
+  if (!currentElement || !nextElement) return;
+  resizingListPair.value = true;
+  const currentHeight = currentElement.getBoundingClientRect().height;
+  const nextHeight = nextElement.getBoundingClientRect().height;
+  const minimum = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--oc-sidebar-tree-min-height')) || 0;
+  const total = Math.max(0, currentHeight + nextHeight - minimum * 2);
+  const pairWeight = (listWeights.value[current.key] ?? 1) + (listWeights.value[next.key] ?? 1);
+  const move = (moveEvent: PointerEvent): void => {
+    const height = Math.max(minimum, Math.min(currentHeight + moveEvent.clientY - startY, currentHeight + nextHeight - minimum));
+    const share = total > 0 ? (height - minimum) / total : 0.5;
+    listWeights.value = { ...listWeights.value, [current.key]: pairWeight * share, [next.key]: pairWeight * (1 - share) };
+    emitLayoutChange();
+  };
+  const stop = (): void => { resizingListPair.value = false; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', stop);
+}
 
 function onResizePointerDown(event: PointerEvent): void {
-  if (props.collapsed) {
-    return;
-  }
-
+  if (props.collapsed) return;
   resizing.value = true;
   const pointerId = event.pointerId;
   const startLeft = sidebarElement.value?.getBoundingClientRect().left ?? 0;
-  const minResizeWidth = props.minResizeWidth ?? 78;
-
-  const onPointerMove = (moveEvent: PointerEvent): void => {
-    if (!resizing.value) {
-      return;
-    }
-
-    emit('resize', Math.max(minResizeWidth, Math.round(moveEvent.clientX - startLeft)));
-  };
-
-  const onPointerUp = (): void => {
-    resizing.value = false;
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    if (sidebarElement.value?.hasPointerCapture(pointerId)) {
-      sidebarElement.value.releasePointerCapture(pointerId);
-    }
-  };
-
+  const minWidth = props.minResizeWidth ?? 78;
+  const move = (moveEvent: PointerEvent): void => { if (resizing.value) emit('resize', Math.max(minWidth, Math.round(moveEvent.clientX - startLeft))); };
+  const stop = (): void => { resizing.value = false; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); if (sidebarElement.value?.hasPointerCapture(pointerId)) sidebarElement.value.releasePointerCapture(pointerId); };
   sidebarElement.value?.setPointerCapture(pointerId);
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-}
-
-function toggleListCollapsed(listKey: string): void {
-  collapsedLists.value[listKey] = !collapsedLists.value[listKey];
-}
-
-function isListCollapsed(listKey: string): boolean {
-  return collapsedLists.value[listKey] === true;
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', stop);
 }
 
 function toActionDefinitions(actions: ShellList['actions']): OcActionButtonAction[] {
-  return actions.map(action => ({
-    key: action.key ?? action.icon,
-    title: action.hoverTip,
-    icon: action.icon,
-    disabled: action.disabled,
-    badge: action.badge,
-    badgeLabel: action.badgeLabel,
-    children: action.children,
-  }))
+  return actions.map(action => ({ key: action.key ?? action.icon, title: action.hoverTip, icon: action.icon, disabled: action.disabled, badge: action.badge, badgeLabel: action.badgeLabel, children: action.children }));
 }
-
-function listContentStyle(list: ShellList): { maxHeight: string; overflowY: 'auto' } | undefined {
-  if (list.maxHeight === undefined) return undefined;
-  return {
-    maxHeight: list.maxHeight,
-    overflowY: 'auto',
-  };
-}
-
 </script>
 
 <template>
   <aside ref="sidebarElement" class="shell-sidebar" :class="{ collapsed }" :style="{ width: `${width}px` }">
-    <div class="shell-sidebar-group shell-sidebar-group-top">
-      <button
-        v-for="button in headButtons"
-        :key="button.key"
-        class="shell-sidebar-button"
-        type="button"
-        :disabled="button.disabled"
-        :data-tooltip="button.hoverTip || null"
-        @click="emit('head-button-clicked', button.key)"
-      >
-        <OcIcon v-if="button.icon" :name="button.icon" size="md" />
-        <span v-if="!collapsed">{{ button.title }}</span>
+    <div v-if="listGroups.length > 1" class="shell-sidebar-group-switcher" role="tablist">
+      <button v-for="group in listGroups" :key="group.key" class="shell-sidebar-button shell-sidebar-group-switch" :class="{ active: group.key === activeGroup?.key, compact: width < (compactGroupWidth ?? 0) }" type="button" role="tab" :aria-selected="group.key === activeGroup?.key" :data-tooltip="group.title" @click="selectGroup(group.key)">
+        <OcIcon v-if="group.icon" :name="group.icon" size="md" /><span v-if="!collapsed" class="shell-sidebar-group-switch-title">{{ group.title }}</span>
       </button>
     </div>
-
-    <div class="shell-sidebar-body">
-      <section v-for="list in bodyLists" :key="list.key" class="shell-sidebar-list">
-        <div class="shell-sidebar-list-head">
-          <button
-            v-if="!collapsed"
-            class="shell-sidebar-list-toggle"
-            type="button"
-            :data-tooltip="isListCollapsed(list.key) ? props.expandListTooltip || null : props.collapseListTooltip || null"
-            @click.stop="toggleListCollapsed(list.key)"
-          >
-            <span class="shell-sidebar-list-title">{{ list.title }}</span>
-            <OcIcon class="shell-sidebar-list-chevron" name="nav.chevron-down" size="sm"
-              :class="{ collapsed: isListCollapsed(list.key) }" />
+    <Transition :name="`shell-sidebar-group-slide-${transitionDirection}`" mode="out-in">
+      <div :key="activeGroup?.key ?? 'empty'" class="shell-sidebar-active-group">
+        <div class="shell-sidebar-group shell-sidebar-group-top">
+          <button v-for="button in activeGroup?.headButtons ?? []" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('head-button-clicked', button.key)">
+            <OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span>
           </button>
-
-          <OcActionRail
-            :actions="toActionDefinitions(list.actions)"
-            @select="emit('list-button-clicked', list.key, $event.key)"
-          />
         </div>
-
-        <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }">
-          <div class="shell-sidebar-list-content" :style="listContentStyle(list)">
-            <slot name="list-content" :list="list">
-              <div class="shell-sidebar-empty">
-                <span v-if="!collapsed">{{ list.placeholder }}</span>
-              </div>
-            </slot>
-          </div>
+        <div class="shell-sidebar-body" :class="{ 'is-resizing-list': resizingListPair }">
+          <section v-for="(list, index) in activeLists" :key="list.key" class="shell-sidebar-list" :class="{ collapsed: isListCollapsed(list.key) }" :style="listSectionStyle(list)">
+            <div class="shell-sidebar-list-head">
+              <button v-if="!collapsed" class="shell-sidebar-list-toggle" type="button" :data-tooltip="isListCollapsed(list.key) ? expandListTooltip || null : collapseListTooltip || null" @click.stop="toggleListCollapsed(list.key)"><span class="shell-sidebar-list-title">{{ list.title }}</span><OcIcon class="shell-sidebar-list-chevron" name="nav.chevron-down" size="sm" :class="{ collapsed: isListCollapsed(list.key) }" /></button>
+              <OcActionRail :actions="toActionDefinitions(list.actions)" @select="emit('list-button-clicked', list.key, $event.key)" />
+            </div>
+            <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }"><div class="shell-sidebar-list-content"><slot name="list-content" :list="list"><div class="shell-sidebar-empty"><span v-if="!collapsed">{{ list.placeholder }}</span></div></slot></div></div>
+            <div v-if="canResizeAfter(index)" class="shell-sidebar-list-resizer" @pointerdown.prevent="onListResizePointerDown($event, index)" />
+          </section>
         </div>
-      </section>
-    </div>
-
-    <div class="shell-sidebar-group shell-sidebar-group-bottom">
-      <button
-        v-for="button in tailButtons"
-        :key="button.key"
-        class="shell-sidebar-button"
-        type="button"
-        :disabled="button.disabled"
-        :data-tooltip="button.hoverTip || null"
-        @click="emit('tail-button-clicked', button.key)"
-      >
-        <OcIcon v-if="button.icon" :name="button.icon" size="md" />
-        <span v-if="!collapsed">{{ button.title }}</span>
-      </button>
-    </div>
-
+      </div>
+    </Transition>
+    <div class="shell-sidebar-group shell-sidebar-group-bottom"><button v-for="button in tailButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('tail-button-clicked', button.key)"><OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span></button></div>
     <div v-if="!collapsed" class="shell-sidebar-resizer" @pointerdown.prevent="onResizePointerDown" />
   </aside>
 </template>

@@ -1094,18 +1094,17 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__controls {
-  display: flex;
+  display: none;
   flex: 0 0 auto;
   align-items: center;
   gap: var(--oc-space-1);
-  visibility: hidden;
 }
 
 .oc-tree__row:hover .oc-tree__controls,
-.oc-tree__row:focus-within .oc-tree__controls,
-.oc-tree__node.is-selected .oc-tree__controls,
-.oc-tree.are-actions-always-visible .oc-tree__controls {
-  visibility: visible;
+ .oc-tree__row:focus-within .oc-tree__controls,
+ .oc-tree__node.is-selected .oc-tree__controls,
+ .oc-tree.are-actions-always-visible .oc-tree__controls {
+  display: flex;
 }
 
 .oc-tree__node.is-drag-source {
