@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CardDocument } from './model'
-import { normalizeCardDocument, serializeCardDocument } from './storage'
+import { normalizeCardDocument, serializeCardDocument, serializeCardDocumentWithWarnings } from './storage'
 
 function createDocument(): CardDocument {
   return {
@@ -127,6 +127,23 @@ describe('card document storage projection', () => {
     expect(stored.faces.front.children[0].block.title).toBe('Visible')
     expect(stored.faces.front.children[0].block).not.toHaveProperty('source')
     expect(stored.faces.front.children[0].block).not.toHaveProperty('mystery')
+  })
+
+  it('preserves constraint-breaking values while returning schema warnings on save', () => {
+    const document = createDocument()
+    const block = document.faces.front.children[0]!.block as unknown as Record<string, unknown>
+    block.color = 'not a color!'
+    block.opacity = '2'
+
+    const result = serializeCardDocumentWithWarnings(document)
+    const stored = JSON.parse(result.text)
+    expect(stored.faces.front.children[0].block).toMatchObject({
+      color: 'not a color!', opacity: '2',
+    })
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'schema-warning', path: expect.stringContaining('.color'), message: 'invalid-color' }),
+      expect.objectContaining({ code: 'schema-warning', path: expect.stringContaining('.opacity'), message: 'out-of-range' }),
+    ]))
   })
 
   it('hard-fails only when the root cannot form a document', () => {

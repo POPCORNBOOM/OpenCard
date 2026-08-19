@@ -17,6 +17,7 @@ export type CardIssueLocation = {
   blockId?: string
   blockPath?: string
   fieldKey: string
+  valuePath?: readonly (string | number)[]
   characterOffset?: number
 }
 
@@ -34,7 +35,11 @@ export type CardRenderParseIssueType =
   | 'card-designer.render-parse.conversion-failed'
   | 'card-designer.render-parse.invalid-option'
   | 'card-designer.render-parse.out-of-range'
-
+  | 'card-designer.render-parse.required'
+  | 'card-designer.render-parse.invalid-color'
+  | 'card-designer.render-parse.invalid-css-length'
+  | 'card-designer.render-parse.invalid-file-path'
+  | 'card-designer.render-parse.invalid-object'
 export type CardCustomBlockIssueType =
   | 'card-designer.custom-block.unavailable'
   | 'card-designer.custom-block.content-error'
@@ -71,6 +76,7 @@ export function createCardPipelineIssue(
       input.location.owner.id,
       input.location.blockId ?? null,
       input.location.fieldKey,
+      input.location.valuePath ?? null,
       input.location.characterOffset ?? null,
       input.token ?? null,
     ]),

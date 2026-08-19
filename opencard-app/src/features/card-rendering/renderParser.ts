@@ -1,9 +1,13 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import {
-  getPropertyAllowedValues,
   getTypePropertyEditorSchema,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
+import {
+  validateCardSchemaField,
+  type CardSchemaDiagnosticCode,
+  type CardSchemaValidationOptions,
+} from '../../entities/card/schemaDiagnostics'
 import {
   createCardPipelineIssue,
   type CardIssueOwner,
@@ -37,12 +41,7 @@ export type ParseRenderDocumentOptions = {
   instanceId?: string | null
 }
 
-type RenderParseFailure =
-  | 'invalid-type'
-  | 'conversion-failed'
-  | 'invalid-option'
-  | 'out-of-range'
-
+type RenderParseFailure = CardSchemaDiagnosticCode
 const blockTypes: readonly BlockType[] = [
   'text-block',
   'markdown-text-block',
@@ -372,19 +371,22 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
     return definition
   }
 
-  function value(fieldKey: string): unknown {
+  function value(fieldKey: string, validationOptions: CardSchemaValidationOptions = {}): unknown {
     const definition = definitionFor(fieldKey)
     const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
       && source[fieldKey] !== null
       && source[fieldKey] !== undefined
 
     if (!hasValue) {
+      if (definition.required) pushIssue(context, fieldKey, definition, 'required', issues)
       return parseSchemaDefault(context.typeName, fieldKey, definition)
     }
 
-    const parsed = convertValue(source[fieldKey], definition)
+    const parsed = validateCardSchemaField(source[fieldKey], definition, validationOptions)
     if (!parsed.ok) {
-      pushIssue(context, fieldKey, definition, parsed.reasonCode, issues)
+      for (const diagnostic of parsed.diagnostics) {
+        pushIssue(context, fieldKey, definition, diagnostic.code, issues, diagnostic.path)
+      }
       return parseSchemaDefault(context.typeName, fieldKey, definition)
     }
     return parsed.value
@@ -401,9 +403,11 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
         && source[fieldKey] !== undefined
       if (!hasValue) return fallback
 
-      const parsed = convertValue(source[fieldKey], definition)
+      const parsed = validateCardSchemaField(source[fieldKey], definition)
       if (!parsed.ok) {
-        pushIssue(context, fieldKey, definition, parsed.reasonCode, issues)
+        for (const diagnostic of parsed.diagnostics) {
+          pushIssue(context, fieldKey, definition, diagnostic.code, issues, diagnostic.path)
+        }
         return fallback
       }
       return parsed.value as string
@@ -421,7 +425,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
       return value(fieldKey) as T
     },
     cssLength(fieldKey: string): string {
-      return normalizeCssLength(value(fieldKey) as string)
+      return normalizeCssLength(value(fieldKey, { cssLength: true }) as string)
     },
     expectedLiteral(fieldKey: string, expected: string): void {
       const definition = definitionFor(fieldKey)
@@ -429,6 +433,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
         && source[fieldKey] !== null
         && source[fieldKey] !== undefined
       if (!hasValue) {
+        if (definition.required) pushIssue(context, fieldKey, definition, 'required', issues)
         return
       }
       if (source[fieldKey] !== expected) {
@@ -438,77 +443,8 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
   }
 }
 
-type ConversionResult =
-  | { ok: true, value: unknown }
-  | { ok: false, reasonCode: RenderParseFailure }
-
-function convertValue(value: unknown, definition: EditorPropertyDefinition): ConversionResult {
-  let converted: unknown
-
-  switch (definition.fieldType) {
-    case 'number': {
-      let numericValue: number
-      if (typeof value === 'string') {
-        const parsed = value.trim() === '' ? Number.NaN : Number(value)
-        if (!Number.isFinite(parsed)) return { ok: false, reasonCode: 'conversion-failed' }
-        numericValue = parsed
-      } else {
-        return { ok: false, reasonCode: 'invalid-type' }
-      }
-
-      if ((definition.min !== undefined && numericValue < definition.min)
-        || (definition.max !== undefined && numericValue > definition.max)) {
-        return { ok: false, reasonCode: 'out-of-range' }
-      }
-      converted = numericValue
-      break
-    }
-    case 'boolean':
-      if (value === 'true' || value === 'false') {
-        converted = value === 'true'
-      } else {
-        return {
-          ok: false,
-          reasonCode: typeof value === 'string' ? 'conversion-failed' : 'invalid-type',
-        }
-      }
-      break
-    case 'object':
-      if (definition.isArray ? Array.isArray(value) : isRecord(value)) {
-        converted = value
-      } else {
-        return { ok: false, reasonCode: 'invalid-type' }
-      }
-      break
-    default:
-      let stringValue: string
-      if (typeof value === 'string') {
-        stringValue = value
-      } else {
-        return { ok: false, reasonCode: 'invalid-type' }
-      }
-
-      if ('minLength' in definition && definition.minLength !== undefined
-        && stringValue.length < definition.minLength) {
-        return { ok: false, reasonCode: 'out-of-range' }
-      }
-      if ('maxLength' in definition && definition.maxLength !== undefined
-        && stringValue.length > definition.maxLength) {
-        return { ok: false, reasonCode: 'out-of-range' }
-      }
-      converted = stringValue
-  }
-
-  const allowedValues = getPropertyAllowedValues(definition)
-  if (allowedValues && (typeof converted !== 'string' || !allowedValues.includes(converted))) {
-    return { ok: false, reasonCode: 'invalid-option' }
-  }
-
-  return { ok: true, value: converted }
-}
-
 export function isRenderFieldValueValid(value: unknown, definition: EditorPropertyDefinition): boolean {
-  return convertValue(value, definition).ok
+  return validateCardSchemaField(value, definition).ok
 }
 
 function parseSchemaDefault(
@@ -516,9 +452,9 @@ function parseSchemaDefault(
   fieldKey: string,
   definition: EditorPropertyDefinition,
 ): unknown {
-  const parsed = convertValue(definition.defaultValue, definition)
+  const parsed = validateCardSchemaField(definition.defaultValue, { ...definition, required: false })
   if (!parsed.ok) {
-    throw new Error(`Invalid schema default for ${typeName}.${fieldKey}: ${parsed.reasonCode}`)
+    throw new Error(`Invalid schema default for ${typeName}.${fieldKey}: ${parsed.diagnostics[0]?.code}`)
   }
   return parsed.value
 }
@@ -560,6 +496,7 @@ function pushIssue(
   definition: EditorPropertyDefinition,
   reasonCode: RenderParseFailure,
   issues: CardPipelineIssue[],
+  valuePath: readonly (string | number)[] = [],
 ): void {
   const defaultValue = formatIssueValue(parseSchemaDefault(context.typeName, fieldKey, definition))
   issues.push(createCardPipelineIssue({
@@ -572,6 +509,7 @@ function pushIssue(
       ...(context.blockId ? { blockId: context.blockId } : {}),
       ...(context.blockPath ? { blockPath: context.blockPath } : {}),
       fieldKey,
+      ...(valuePath.length ? { valuePath } : {}),
     },
     parameters: {
       ...(definition.displayFieldKey ? { fieldName: definition.displayFieldKey } : {}),

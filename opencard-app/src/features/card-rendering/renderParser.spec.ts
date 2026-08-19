@@ -178,4 +178,34 @@ describe('renderParser', () => {
       }),
     }))
   })
+
+  it('keeps invalid raw values, emits warnings, and renders schema fallbacks', () => {
+    const document = createDocument()
+    const block = document.faces.front.children[0]!.block as unknown as Record<string, unknown>
+    block.color = 'not a color!'
+    block.width = 'wide-ish'
+    block.content = ''
+    const sourceSnapshot = structuredClone(document)
+
+    const result = parseRenderDocument(document)
+    const rendered = result.document.faces.front.children[0]!.block
+
+    expect(rendered).toMatchObject({ color: '#000000', width: '32%', content: '' })
+    expect(result.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-color',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'color' }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-css-length',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'width' }),
+      }),
+      expect.objectContaining({
+        type: 'card-designer.render-parse.required',
+        location: expect.objectContaining({ blockId: 'text', fieldKey: 'content' }),
+      }),
+    ]))
+    expect(document).toEqual(sourceSnapshot)
+    expect(block).toMatchObject({ color: 'not a color!', width: 'wide-ish', content: '' })
+  })
 })

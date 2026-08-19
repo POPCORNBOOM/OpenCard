@@ -2,12 +2,13 @@ import { isCardStoredValue, type CardBlock, type CardDataTableConfiguration, typ
   type CardInstanceRecord, type CardStoredValue, type FlowContainerLocationInfo, type RootChild,
   type SimpleContainerLocationInfo } from './model'
 import { fillDefaults, getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from './schema'
+import { validateCardSchemaField } from './schemaDiagnostics'
 
 type SourceRecord = Record<string, unknown>
 type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 export type CardStorageWarning = {
-  code: 'field-defaulted' | 'entry-ignored'
+  code: 'field-defaulted' | 'entry-ignored' | 'schema-warning'
   path: string
   message: string
 }
@@ -42,13 +43,20 @@ export function normalizeStoredCardBlock(value: unknown): { block: CardBlock | n
 }
 
 export function serializeCardDocument(document: CardDocument, options: SerializeCardDocumentOptions = {}): string {
+  return serializeCardDocumentWithWarnings(document, options).text
+}
+
+export function serializeCardDocumentWithWarnings(
+  document: CardDocument,
+  options: SerializeCardDocumentOptions = {},
+): { text: string, warnings: readonly CardStorageWarning[] } {
   const warnings: CardStorageWarning[] = []
   const normalized = projectDocument(document as unknown as SourceRecord, warnings, {
     preserveCustomBlockExtras: false,
     materializeRequiredDefaults: false,
     resolveCustomBlockPublicFieldKeys: options.resolveCustomBlockPublicFieldKeys,
   })
-  return JSON.stringify(normalized, null, 2)
+  return { text: JSON.stringify(normalized, null, 2), warnings }
 }
 
 function projectDocument(source: SourceRecord, warnings: CardStorageWarning[], options: ProjectionOptions): CardDocument {
@@ -216,12 +224,32 @@ function projectKnownFields(
   for (const fieldKey of Object.keys(schema)) {
     if (structuralFields.has(fieldKey)) continue
     const value = source[fieldKey]
-    if (isCardStoredValue(value)) projected[fieldKey] = structuredClone(value)
+    if (isCardStoredValue(value)) {
+      projected[fieldKey] = structuredClone(value)
+      const definition = schema[fieldKey]
+      if (definition) {
+        const validation = validateCardSchemaField(value, definition)
+        if (!validation.ok) {
+          for (const diagnostic of validation.diagnostics) {
+            const suffix = diagnostic.path.map(part => typeof part === 'number' ? `[${part}]` : `.${part}`).join('')
+            warnings.push({
+              code: 'schema-warning',
+              path: `${path}.${fieldKey}${suffix}`,
+              message: diagnostic.code,
+            })
+          }
+        }
+      }
+    }
     else if (materializeRequiredDefaults && schema[fieldKey]?.required === true && defaults[fieldKey] !== undefined) {
       projected[fieldKey] = structuredClone(defaults[fieldKey])
-      if (value !== undefined && value !== null) {
-        warnings.push({ code: 'field-defaulted', path: `${path}.${fieldKey}`, message: 'Invalid field value was replaced with its default' })
-      }
+      warnings.push({
+        code: value === undefined || value === null ? 'schema-warning' : 'field-defaulted',
+        path: `${path}.${fieldKey}`,
+        message: value === undefined || value === null ? 'required' : 'Invalid field value was replaced with its default',
+      })
+    } else if (schema[fieldKey]?.required === true && (value === undefined || value === null)) {
+      warnings.push({ code: 'schema-warning', path: `${path}.${fieldKey}`, message: 'required' })
     } else if (value !== undefined && value !== null) {
       warnIgnored(warnings, `${path}.${fieldKey}`, 'Invalid optional field was ignored')
     }
