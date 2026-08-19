@@ -393,7 +393,13 @@ $versionFiles = @(
 
 Write-Host 'Creating release commit and tag...' -ForegroundColor Cyan
 Invoke-NativeCommand -Command 'git' -Arguments (@('add', '--') + $versionFiles) -WorkingDirectory $repoRoot
-Invoke-NativeCommand -Command 'git' -Arguments @('diff', '--cached', '--check') -WorkingDirectory $repoRoot
+Invoke-NativeCommand -Command 'git' -Arguments @(
+  '-c',
+  'core.whitespace=cr-at-eol',
+  'diff',
+  '--cached',
+  '--check'
+) -WorkingDirectory $repoRoot
 Invoke-NativeCommand -Command 'git' -Arguments @('commit', '-m', "chore(release): $tag") -WorkingDirectory $repoRoot
 Invoke-NativeCommand -Command 'git' -Arguments @('tag', '-a', $tag, '-m', "OpenCard $tag") -WorkingDirectory $repoRoot
 
