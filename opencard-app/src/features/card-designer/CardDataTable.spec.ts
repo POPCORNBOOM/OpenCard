@@ -381,6 +381,25 @@ describe('CardDataTable', () => {
     )
   })
 
+  it('selects the corresponding card target when a Cell is clicked or focused', async () => {
+    const wrapper = mount(CardDataTable, {
+      props: { columns, catalogFaceGroups, faceGroups },
+    })
+    const instanceCell = wrapper.get('[data-card-id="instance"]')
+
+    await instanceCell.trigger('pointerdown')
+
+    expect(wrapper.emitted('cell-select')).toEqual([[
+      { faceKey: 'front', cardId: 'instance', blockId: 'text', fieldKey: 'content' },
+    ]])
+    expect(instanceCell.classes()).toContain('is-selected')
+
+    await wrapper.get('[data-card-id="__blueprint__"] input').trigger('focusin')
+    expect(wrapper.emitted('cell-select')?.[1]).toEqual([
+      { faceKey: 'front', cardId: '__blueprint__', blockId: 'text', fieldKey: 'content' },
+    ])
+  })
+
   it('refreshes mounted Cell definitions when the parent context changes', async () => {
     let definition: CdeDataTableFieldRow['definition'] = {
       title: 'Initial definition',

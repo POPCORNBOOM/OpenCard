@@ -5,7 +5,7 @@ import {
 import { buildParentLookup, type ParentLookup } from '../../entities/card/tree'
 import {
   normalizeCardDocument,
-  serializeCardDocument,
+  serializeCardDocumentWithWarnings,
   type CardStorageWarning,
 } from '../../entities/card/storage'
 import { reportAppError } from '../logging/appErrorCatalog'
@@ -33,9 +33,11 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const hasDocument = computed(() => Boolean(cardDoc.value))
 
   function serializeCurrentDocument(document: CardDocument): string {
-    return serializeCardDocument(document, {
+    const serialized = serializeCardDocumentWithWarnings(document, {
       resolveCustomBlockPublicFieldKeys: options.resolveCustomBlockPublicFieldKeys,
     })
+    storageWarnings.value = serialized.warnings
+    return serialized.text
   }
 
   function updateModifiedState(nextContent: string) {

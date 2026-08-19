@@ -315,3 +315,8 @@ export const OC_THEME_REGISTRY: Record<OcThemeId, OcThemeTokens> = {
   dark: darkTheme,
   light: lightTheme,
 }
+  '--oc-data-table-preview-min-width': '280px',
+  '--oc-data-table-preview-min-height': '220px',
+  '--oc-data-table-preview-default-width': '320px',
+  '--oc-data-table-preview-default-height': '280px',
+  '--oc-z-data-table-preview': '4',

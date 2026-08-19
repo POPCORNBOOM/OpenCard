@@ -19,6 +19,7 @@ type UseCdeDataTableWorkbookOptions = {
   exportInstanceIds: Readonly<Ref<readonly string[]>>
   flushPendingChanges: () => Promise<void>
   applyImport: (result: CardDataWorkbookImportResult) => boolean
+  openAfterExport: Readonly<Ref<boolean>>
   translate: (key: string, parameters?: Record<string, unknown>) => string
 }
 
@@ -56,6 +57,13 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
         },
       })
       await fileSystemService.writeBinaryFile(path, bytes)
+      if (options.openAfterExport.value) {
+        try {
+          await fileSystemService.openWithDefaultApp(path)
+        } catch {
+          await notifyError(options.translate('cardDesigner.dataTable.openExportedWorkbookFailed'))
+        }
+      }
     } catch (error) {
       await notifyError(errorMessage(error, options.translate('cardDesigner.dataTable.exportFailed')))
     } finally {

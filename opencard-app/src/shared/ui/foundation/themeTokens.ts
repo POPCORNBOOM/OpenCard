@@ -289,3 +289,8 @@ export const OC_EDITABLE_THEME_COLOR_KEYS = [
 
 export type OcEditableThemeColorKey = (typeof OC_EDITABLE_THEME_COLOR_KEYS)[number]
 export type OcThemeColorOverrides = Partial<Record<OcEditableThemeColorKey, string>>
+  '--oc-data-table-preview-min-width',
+  '--oc-data-table-preview-min-height',
+  '--oc-data-table-preview-default-width',
+  '--oc-data-table-preview-default-height',
+  '--oc-z-data-table-preview',

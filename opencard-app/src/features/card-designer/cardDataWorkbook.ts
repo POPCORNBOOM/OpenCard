@@ -1,5 +1,6 @@
 import type { CardStoredValue, CardDocument, CardInstanceRecord } from '../../entities/card/model'
-import { getPropertyFieldTypeOptions } from '../../entities/card/schema'
+import { getPropertyFieldTypeOptions, type EditorPropertyDefinition } from '../../entities/card/schema'
+import { validateCardSchemaField } from '../../entities/card/schemaDiagnostics'
 import type { PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
 import type {
   CdeDataTableCell,
@@ -151,6 +152,7 @@ export async function importCardDataWorkbook(
 
   const visibleFields = new Set<string>()
   const blockSamples = new Map<string, unknown>()
+  const fieldDefinitions = new Map<string, EditorPropertyDefinition>()
   const currentCells = new Map<string, CdeDataTableCell>()
   for (const face of faceGroups) {
     for (const block of face.blocks) {
@@ -159,6 +161,7 @@ export async function importCardDataWorkbook(
         visibleFields.add(key)
         const blueprintCell = field.cells.find(cell => cell.cardId === BLUEPRINT_CARD_ID)
         blockSamples.set(key, blueprintCell?.value)
+        fieldDefinitions.set(key, field.definition as unknown as EditorPropertyDefinition)
         for (const cell of field.cells) currentCells.set(`${key}\u0000${cell.cardId}`, cell)
       }
     }
@@ -239,11 +242,22 @@ export async function importCardDataWorkbook(
         appendUpdate({ cardId, blockId, fieldKey, reset: true })
         return
       }
+      const decodedValue = decodeCellValue(cell.value, sample, cell.address)
+      const definition = fieldDefinitions.get(fieldIdentity)
+      if (definition) {
+        const validation = validateCardSchemaField(decodedValue, definition)
+        if (!validation.ok) {
+          for (const diagnostic of validation.diagnostics) {
+            const suffix = diagnostic.path.map(part => `[${part}]`).join('')
+            warnings.push(`${cell.address} ${blockId}.${fieldKey}${suffix}: ${diagnostic.code}`)
+          }
+        }
+      }
       appendUpdate({
         cardId,
         blockId,
         fieldKey,
-        value: decodeCellValue(cell.value, sample, cell.address),
+        value: decodedValue,
         reset: false,
       })
     })
@@ -371,7 +385,7 @@ function applyCellValidation(
     type: 'list',
     allowBlank: true,
     showErrorMessage: true,
-    errorStyle: 'stop',
+    errorStyle: 'information',
     formulae: [`"${values.join(',').replace(/"/g, '""')}"`],
   }
 }

@@ -147,7 +147,7 @@ describe('card data workbook', () => {
     expect(workbook.getWorksheet('Card Data')!.getCell('F3').dataValidation).toMatchObject({
       type: 'list',
       showErrorMessage: true,
-      errorStyle: 'stop',
+      errorStyle: 'information',
       formulae: ['"true,false"'],
     })
   })
@@ -268,6 +268,29 @@ describe('card data workbook', () => {
 
     await expect(importCardDataWorkbook(new Uint8Array(modified), document, createFaceGroups()))
       .rejects.toThrow('Workbook contains duplicate card column instance-1')
+  })
+
+  it('keeps invalid enum values and reports a shared schema warning', async () => {
+    const groups = createFaceGroups()
+    groups[0]!.blocks[0]!.fields[0]!.definition = {
+      title: 'Fit', fieldType: 'string', options: ['cover', 'contain'],
+    }
+    const document = createDocument()
+    const bytes = await exportCardDataWorkbook({
+      document, columns: createColumns(), faceGroups: groups, exportInstanceIds: ['instance-1'],
+      labels: { face: 'Face', block: 'Block', field: 'Field' },
+    })
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(bytes)
+    workbook.getWorksheet('Card Data')!.getCell('G3').value = 'unexpected'
+    const modified = await workbook.xlsx.writeBuffer()
+
+    const result = await importCardDataWorkbook(new Uint8Array(modified), document, groups)
+    expect(result.updates).toContainEqual(expect.objectContaining({
+      cardId: 'instance-1', blockId: 'block-1', fieldKey: 'content', value: 'unexpected',
+    }))
+    expect(result.warnings).toContain('G3 block-1.content: invalid-option')
   })
 })
 

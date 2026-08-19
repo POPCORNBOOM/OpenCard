@@ -13,18 +13,19 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :style="editorShellStyle"
+  <div ref="editorRootRef" class="card-design-editor" :class="{ 'is-content-pending': editorContentPending }" :style="editorShellStyle"
     tabindex="-1" @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
       :class="{ 'is-layer-view-active': layerViewActive }"
     >
-      <Transition name="card-designer-view-fade">
-        <div :key="workspaceMode" class="card-design-editor__mode-view">
+      <div class="card-design-editor__mode-view">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
           <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
-            <CardViewport v-if="diffBeforeRender && diffAfterRender" ref="cardViewportRef"
+            <OcEmpty v-if="!props.comparison" tone="muted">{{ t('sidebar.diffViewer.loading') }}</OcEmpty>
+            <OcEmpty v-else-if="!diffBeforeRender || !diffAfterRender">{{ t('sidebar.diffViewer.parseFailedGeneric') }}</OcEmpty>
+            <CardViewport v-else ref="cardViewportRef"
               class="card-design-editor__viewport"
               :face="diffAfterRender.document.faces[activeFaceKey]"
               :resource-context="diffAfterRender.resources" readonly :transform="viewportTransform"
@@ -32,10 +33,9 @@
               :comparison="diffViewportComparison"
               :comparison-divider-label="t('sidebar.diffViewer.divider')"
               @diff-divider-change="handleDiffDividerChange"
-              @blank-click="clearSelection"
-              @viewport-transform-change="handleViewportTransformChange" />
-            <OcEmpty v-else-if="props.comparison">{{ t('sidebar.diffViewer.parseFailedGeneric') }}</OcEmpty>
-            <OcEmpty v-else tone="muted">{{ t('sidebar.diffViewer.loading') }}</OcEmpty>
+              @blank-click="clearEffectiveBlockSelection"
+              @viewport-transform-change="handleViewportTransformChange"
+              @render-readiness-change="handleRenderReadinessChange" />
           </div>
           <template v-else>
           <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
@@ -65,13 +65,14 @@
           :transform-disabled-block-ids="transformDisabledBlockIds"
           @pointerdown.capture="handleCanvasPointerDown"
           @block-click="handleViewportBlockClick"
-          @blank-click="clearSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
+          @blank-click="clearEffectiveBlockSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
           @selection-action="handleSelectionAction"
           @selection-command="handleSelectionCommand"
           @z-index-step="handleLayerZIndexStep"
           @face-dimension-change="handleFaceDimensionChange"
           @viewport-transform-change="handleViewportTransformChange"
-          @viewport-size-change="handleViewportSizeChange">
+          @viewport-size-change="handleViewportSizeChange"
+          @render-readiness-change="handleRenderReadinessChange">
           <template #info>
             <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
               <span v-for="item in viewportCardInfo" :key="item.key"
@@ -124,7 +125,49 @@
         @delete-field="deleteDataTableField"
         @update-cell="updateDataTableCell"
         @reset-cell="resetDataTableCell"
+        @cell-select="handleDataTableCellSelect"
       />
+
+      <div v-if="workspaceMode === 'data-table'" class="card-design-editor__data-table-preview-layer">
+        <OcButton
+          v-if="dataTablePreviewMinimized"
+          class="card-design-editor__data-table-preview-restore"
+          icon="window.restore"
+          icon-only
+          variant="solid"
+          :aria-label="t('cardDesigner.dataTable.restorePreview')"
+          :data-tooltip="t('cardDesigner.dataTable.restorePreview')"
+          @click="restoreDataTablePreview"
+        />
+        <div
+          v-else
+          ref="dataTablePreviewPanelRef"
+          class="card-design-editor__data-table-preview-panel"
+          :style="dataTablePreviewPanelStyle"
+          :class="{ 'is-dragging': dataTablePreviewDrag }"
+          @pointerdown="startDataTablePreviewDrag"
+          @pointermove="handleDataTablePreviewDrag"
+          @pointerup="stopDataTablePreviewDrag"
+          @pointercancel="stopDataTablePreviewDrag"
+        >
+          <OcCard fill variant="glass" :title="t('cardDesigner.dataTable.previewTitle')"
+            :actions="dataTablePreviewActions" @action="handleDataTablePreviewAction">
+            <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
+              <CardViewport
+                v-if="viewFace && renderResources"
+                ref="dataTablePreviewViewportRef"
+                class="card-design-editor__data-table-preview-viewport"
+                :face="viewFace"
+                :resource-context="renderResources"
+                readonly
+                :selected-block-id="dataTablePreviewTarget?.blockId ?? null"
+                :restore-key="`${props.filePath}:data-table-preview`"
+              />
+              <OcEmpty v-else tone="muted">{{ t('cardDesigner.dataTable.previewEmpty') }}</OcEmpty>
+            </OcPanel>
+          </OcCard>
+        </div>
+      </div>
 
       <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer">
         <CdeOverlayDock
@@ -162,7 +205,7 @@
                   data-cde-shortcut-scope="instance-tree"
                   tab-navigation="none"
                   :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
-                  selection-mode="single" @intent="handleInstanceTreeIntent" />
+                  selection-mode="multiple" @intent="handleInstanceTreeIntent" />
               </OcPanel>
             </OcCard>
           </template>
@@ -227,7 +270,7 @@
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
                   tab-navigation="none"
                   :data="props.mode === 'diff' ? diffBlockTreeData : blockTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
-                  :selected-keys="selectedBlockKeys" :expanded-keys="expandedBlockKeys"
+                  :selected-keys="props.mode === 'diff' ? diffSelectedBlockKeys : selectedBlockKeys" :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
                   selection-mode="multiple" activation-mode="double-click" @intent="handleStructureTreeIntent" />
@@ -239,12 +282,13 @@
               :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcEmpty v-if="isMultiBlockSelection" class="card-design-editor__multi-selection-summary">
-                  {{ t('cardDesigner.selectionSummary.multipleBlocks', { count: selectedBlockKeys.length }) }}
+                  {{ t('cardDesigner.selectionSummary.multipleBlocks', { count: effectiveSelectedBlockKeys.length }) }}
                 </OcEmpty>
                 <PropertyEditor v-else ref="propertyEditorRef"
                   :inputs="props.mode === 'diff' ? diffPropertyInputs : propertyEditorInputs"
                   :categories="propertyCategories" :sort-mode="propertySortMode"
                   :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
+                  :field-warnings="propertyFieldWarnings"
                   @update-property="updateBlockProp" @add-property="addBlockProp"
                   @reset-property="resetBlockProp" @delete-property="deleteProperty" />
               </OcPanel>
@@ -258,7 +302,6 @@
           @select="handleFaceToolbarSelect" />
       </div>
         </div>
-      </Transition>
     </div>
 
     <AdditionalFieldCreateDialog
@@ -340,7 +383,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
+import type { EditorEmits, EditorProps, EditorSnapshotContext } from '../editor-runtime/registry/editorRegistry'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
   getCardFieldDefinition,
@@ -406,6 +449,7 @@ import type { ProjectCustomBlockResizePolicy, ProjectCustomBlockResourceIndex } 
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
+import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
 import type { PreparedCardRender } from '../card-rendering/renderPipeline'
 import {
@@ -433,6 +477,7 @@ import { applyInstance } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
 import type { CardDesignerViewState, EditorDiffViewMode } from '../editor-runtime/model/editorUiState'
 import { compareOcdocuments } from '../version-control/ocdocumentDiff'
+import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
 import { prepareCardRender } from '../card-rendering/renderPipeline'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
@@ -522,6 +567,12 @@ watch(() => props.diffUiState, value => {
   diffDivider.value = Math.min(1, Math.max(0, value?.divider ?? 0.5))
   diffViewMode.value = value?.viewMode ?? 'split'
 })
+function formatDiffRevisionLabel(snapshot: EditorSnapshotContext | undefined): string {
+  if (!snapshot) return ''
+  const hash = snapshot.revisionId?.slice(0, 7)
+  return hash ? `${hash} ${snapshot.label}` : t('sidebar.diffViewer.diskVersion')
+}
+
 const diffViewportComparison = computed<CardViewportComparison | undefined>(() => {
   const before = diffBeforeRender.value
   const after = diffAfterRender.value
@@ -546,6 +597,8 @@ const diffViewportComparison = computed<CardViewportComparison | undefined>(() =
     divider: diffDivider.value,
     viewMode: diffViewMode.value,
     transitionRevision: diffDividerTransitionRevision.value,
+    beforeLabel: formatDiffRevisionLabel(props.comparison?.before),
+    afterLabel: formatDiffRevisionLabel(props.comparison?.after),
   }
 })
 
@@ -582,15 +635,31 @@ function setDiffDividerPreset(divider: 0 | 0.5 | 1): void {
     })
   }
 }
-function collectDiffBlocks(document: CardDocument | null | undefined): Map<string, { block: CardBlock; faceKey: 'front' | 'back' }> {
-  const result = new Map<string, { block: CardBlock; faceKey: 'front' | 'back' }>()
+type CdeDiffBlockDescriptor = {
+  block: CardBlock
+  faceKey: 'front' | 'back'
+  parentId: string
+  order: number
+  location: unknown
+}
+function collectDiffBlocks(document: CardDocument | null | undefined): Map<string, CdeDiffBlockDescriptor> {
+  const result = new Map<string, CdeDiffBlockDescriptor>()
   if (!document) return result
+  const visit = (block: CardBlock, faceKey: 'front' | 'back', parentId: string, order: number, location: unknown) => {
+    result.set(block.id, { block, faceKey, parentId, order, location })
+    if (!isBlockContainer(block)) return
+    block.children.forEach((child, index) => visit(child.block, faceKey, block.id, index, child.location))
+  }
   for (const faceKey of ['front', 'back'] as const) {
-    for (const child of document.faces[faceKey].children) {
-      visitCardBlockTree(child.block, block => result.set(block.id, { block, faceKey }))
-    }
+    document.faces[faceKey].children.forEach((child, index) => {
+      visit(child.block, faceKey, `face:${faceKey}`, index, child.location)
+    })
   }
   return result
+}
+function diffBlockOwnRecord(block: CardBlock): Record<string, unknown> {
+  const { children: _children, ...record } = block as CardBlock & { children?: unknown }
+  return record
 }
 function collectChangedDiffBlockIds(
   beforeDocument: CardDocument | null | undefined = diffModel.value?.beforeDocument,
@@ -600,7 +669,16 @@ function collectChangedDiffBlockIds(
   const after = collectDiffBlocks(afterDocument)
   return new Set([...before].flatMap(([blockId, descriptor]) => {
     const afterDescriptor = after.get(blockId)
-    return afterDescriptor && JSON.stringify(descriptor.block) !== JSON.stringify(afterDescriptor.block) ? [blockId] : []
+    if (!afterDescriptor) return []
+    const ownBlockChanged = !diffValuesEqual(
+      diffBlockOwnRecord(descriptor.block),
+      diffBlockOwnRecord(afterDescriptor.block),
+    )
+    const layoutChanged = descriptor.parentId !== afterDescriptor.parentId
+      || descriptor.faceKey !== afterDescriptor.faceKey
+      || descriptor.order !== afterDescriptor.order
+      || !diffValuesEqual(descriptor.location, afterDescriptor.location)
+    return ownBlockChanged || layoutChanged ? [blockId] : []
   }))
 }
 const diffBeforeHighlights = computed(() => {
@@ -673,11 +751,146 @@ function handleDockResizeEnd(side: 'left' | 'right', axis: 'width' | 'split'): v
   else commitOverlayLayout()
 }
 
+function handleDataTableCellSelect(payload: {
+  faceKey: CardFaceKey
+  cardId: string
+  blockId: string
+  fieldKey: string
+}): void {
+  dataTablePreviewTarget.value = payload
+  activeFaceKey.value = payload.faceKey
+  selectedCardId.value = payload.cardId
+  selectedCardKeys.value = [payload.cardId]
+  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
+}
+
+const dataTablePreviewMinimized = ref(false)
+const dataTablePreviewPanelRef = ref<HTMLElement | null>(null)
+const dataTablePreviewPosition = ref({ x: 0, y: 0 })
+const dataTablePreviewPositionInitialized = ref(false)
+const dataTablePreviewDrag = ref<{ pointerId: number; offsetX: number; offsetY: number } | null>(null)
+const dataTablePreviewPanelStyle = computed(() => ({
+  transform: `translate(${dataTablePreviewPosition.value.x}px, ${dataTablePreviewPosition.value.y}px)`,
+}))
+const dataTablePreviewActions = computed<OcActionButtonAction[]>(() => [
+  {
+    key: 'fit-preview',
+    icon: 'tool.fit-screen',
+    title: t('cardDesigner.dataTable.fitPreview'),
+  },
+  {
+    key: 'minimize-preview',
+    icon: 'window.minimize',
+    title: t('cardDesigner.dataTable.minimizePreview'),
+  },
+])
+
+function handleDataTablePreviewAction(payload: { key: string }): void {
+  if (payload.key === 'fit-preview') dataTablePreviewViewportRef.value?.fitView()
+  else if (payload.key === 'minimize-preview') dataTablePreviewMinimized.value = true
+}
+
+function restoreDataTablePreview(): void {
+  dataTablePreviewMinimized.value = false
+  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
+}
+
+function clampDataTablePreviewPosition(x: number, y: number): { x: number; y: number } {
+  const root = editorRootRef.value
+  const panel = dataTablePreviewPanelRef.value
+  if (!root || !panel) return { x, y }
+  const rootRect = root.getBoundingClientRect()
+  const panelRect = panel.getBoundingClientRect()
+  const maxX = Math.max(0, rootRect.width - panelRect.width)
+  const maxY = Math.max(0, rootRect.height - panelRect.height)
+  return {
+    x: Math.min(maxX, Math.max(0, x)),
+    y: Math.min(maxY, Math.max(0, y)),
+  }
+}
+
+function startDataTablePreviewDrag(event: PointerEvent): void {
+  const target = event.target
+  if (!(target instanceof HTMLElement) || !target.closest('.oc-card__header')) return
+  if (event.button !== 0) return
+  const panel = dataTablePreviewPanelRef.value
+  if (!panel) return
+  const rect = panel.getBoundingClientRect()
+  dataTablePreviewDrag.value = {
+    pointerId: event.pointerId,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+  }
+  panel.setPointerCapture(event.pointerId)
+  event.preventDefault()
+}
+
+function handleDataTablePreviewDrag(event: PointerEvent): void {
+  const drag = dataTablePreviewDrag.value
+  if (!drag || drag.pointerId !== event.pointerId) return
+  const root = editorRootRef.value
+  const panel = dataTablePreviewPanelRef.value
+  if (!root || !panel) return
+  const rootRect = root.getBoundingClientRect()
+  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
+    event.clientX - rootRect.left - drag.offsetX,
+    event.clientY - rootRect.top - drag.offsetY,
+  )
+}
+
+function stopDataTablePreviewDrag(event: PointerEvent): void {
+  if (dataTablePreviewDrag.value?.pointerId === event.pointerId) dataTablePreviewDrag.value = null
+  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
+    dataTablePreviewPosition.value.x,
+    dataTablePreviewPosition.value.y,
+  )
+}
+
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
 const propertyDeleteMode = ref(false)
 const workspaceMode = computed(() => props.cardDesignerMode ?? 'design')
+const renderContentReady = ref(false)
+const hasRenderableViewport = computed(() => props.mode === 'diff'
+  ? Boolean(props.comparison && diffBeforeRender.value && diffAfterRender.value)
+  : Boolean(viewFace.value && renderResources.value))
+const editorContentPending = computed(() => (
+  workspaceMode.value === 'design' && hasRenderableViewport.value && !renderContentReady.value
+))
+
+function handleRenderReadinessChange(state: { revision: number; status: 'pending' | 'ready' }): void {
+  if (state.status === 'ready') renderContentReady.value = true
+}
+
+function positionDataTablePreviewAtBottomRight(): void {
+  const root = editorRootRef.value
+  const panel = dataTablePreviewPanelRef.value
+  if (!root || !panel) return
+  const rootRect = root.getBoundingClientRect()
+  const panelRect = panel.getBoundingClientRect()
+  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
+    rootRect.width - panelRect.width - overlayGeometryConfig.floatingGap,
+    rootRect.height - panelRect.height - overlayGeometryConfig.floatingGap,
+  )
+  dataTablePreviewPositionInitialized.value = true
+}
+
+watch(workspaceMode, mode => {
+  if (mode === 'design') renderContentReady.value = false
+  if (mode === 'data-table') {
+    void nextTick(() => {
+      if (!dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
+      dataTablePreviewViewportRef.value?.fitView()
+    })
+  }
+})
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
+const dataTablePreviewTarget = ref<{
+  cardId: string
+  faceKey: CardFaceKey
+  blockId: string
+  fieldKey: string
+} | null>(null)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
 const alignmentSnappingEnabled = ref(
@@ -824,6 +1037,7 @@ type CardDataTableHandle = {
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
+const dataTablePreviewViewportRef = ref<CardViewportHandle | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
@@ -968,7 +1182,9 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
 
 // 当前选择状态
 const selectedBlockKeys = ref<string[]>([])
-const isMultiBlockSelection = computed(() => selectedBlockKeys.value.length > 1)
+const diffSelectedBlockKeys = ref<string[]>([])
+const effectiveSelectedBlockKeys = computed(() => props.mode === 'diff' ? diffSelectedBlockKeys.value : selectedBlockKeys.value)
+const isMultiBlockSelection = computed(() => effectiveSelectedBlockKeys.value.length > 1)
 const selectedCardKeys = ref<string[]>([])
 const selectedCardId = ref<string | null>(
   props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
@@ -993,28 +1209,6 @@ const diffAfterProjectedDocument = computed(() => {
   const document = diffModel.value?.afterDocument
   return document ? applyInstance(document, diffAfterInstance.value) : null
 })
-function findDiffRecord(document: CardDocument | null | undefined, key: string): Readonly<Record<string, unknown>> | null {
-  if (!document) return null
-  if (document.id === key) return document as unknown as Readonly<Record<string, unknown>>
-  for (const face of Object.values(document.faces)) {
-    if (face.id === key) return face as unknown as Readonly<Record<string, unknown>>
-    for (const child of face.children) {
-      if (child.location.id === key) {
-        return child.location as unknown as Readonly<Record<string, unknown>>
-      }
-      let found: CardBlock | null = null
-      let foundLocation: Readonly<Record<string, unknown>> | null = null
-      visitCardBlockTree(child.block, (block, _depth, location) => {
-        if (block.id === key) found = block
-        if (location?.id === key) foundLocation = location as unknown as Readonly<Record<string, unknown>>
-      })
-      if (foundLocation) return foundLocation
-      if (found) return found as unknown as Readonly<Record<string, unknown>>
-    }
-  }
-  const instance = document.instances.find(candidate => candidate.id === key)
-  return instance ? instance as unknown as Readonly<Record<string, unknown>> : null
-}
 const diffInstanceTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
   const rootKeys = ['__blueprint__']
@@ -1058,10 +1252,7 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
   collect(afterDocument, afterBlocks)
   const allBeforeBlocks = collectDiffBlocks(beforeDocument)
   const allAfterBlocks = collectDiffBlocks(afterDocument)
-  const changedBlockIds = new Set([...beforeBlocks].flatMap(([id, block]) => {
-    const after = afterBlocks.get(id)
-    return after && JSON.stringify(block) !== JSON.stringify(after) ? [id] : []
-  }))
+  const changedBlockIds = collectChangedDiffBlockIds(beforeDocument, afterDocument)
   const rootKeys: string[] = []
   const addTopology = (document: CardDocument | null | undefined) => {
     for (const child of document?.faces[activeFaceKey.value]?.children ?? []) {
@@ -1219,6 +1410,8 @@ const {
   hasMessage: messageKey => te(messageKey),
 })
 
+const appSettingsStore = useAppSettingsStore()
+
 const {
   busy: dataTableWorkbookBusy,
   canExport: canExportDataTableWorkbook,
@@ -1234,6 +1427,7 @@ const {
   exportInstanceIds: dataTableExportInstanceIds,
   flushPendingChanges,
   applyImport: applyDataTableWorkbookImport,
+  openAfterExport: computed(() => appSettingsStore.settings.value.exporting.openCdeWorkbookAfterExport),
   translate: (key, parameters) => t(key, parameters ?? {}),
 })
 
@@ -1288,9 +1482,9 @@ function submitAdditionalFieldDialog(definition: AdditionalFieldDefinition): voi
   closeAdditionalFieldCreateDialog()
 }
 
-const canMutateSelectedInstance = computed(() =>
-  Boolean(selectedCardKeys.value[0] && selectedCardKeys.value[0] !== BLUEPRINT_CARD_ID),
-)
+const canMutateSelectedInstance = computed(() => selectedCardKeys.value.some(
+  key => key !== BLUEPRINT_CARD_ID && instanceTreeData.value.items.has(key),
+))
 
 function handleInstanceTreeIntent(intent: OcTreeIntent): void {
   if (props.mode === 'diff') {
@@ -1439,6 +1633,11 @@ const {
   refreshDocumentState,
   markDocumentChanged,
 })
+function clearEffectiveBlockSelection(): void {
+  if (props.mode === 'diff') diffSelectedBlockKeys.value = []
+  else clearSelection()
+}
+
 const expandedBlockKeys = ref<string[]>([])
 const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
@@ -1515,7 +1714,7 @@ async function refreshCustomBlockExportResourcePreview(root: CardBlock): Promise
 
 async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
   if (props.mode === 'diff') {
-    if (intent.type === 'selection.change') selectedBlockKeys.value = intent.selectedKeys
+    if (intent.type === 'selection.change') diffSelectedBlockKeys.value = intent.selectedKeys
     if (intent.type === 'expansion.sync') expandedBlockKeys.value = intent.expandedKeys
     if (intent.type === 'expansion.change') {
       const next = new Set(expandedBlockKeys.value)
@@ -1754,23 +1953,38 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
 })
-const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => propertyEditorInputs.value.map(input => {
-  const beforeRecord = findDiffRecord(diffBeforeProjectedDocument.value, input.key) ?? input.record
-  const afterRecord = findDiffRecord(diffAfterProjectedDocument.value, input.key) ?? input.record
-  const fieldKeys = new Set([...Object.keys(beforeRecord), ...Object.keys(afterRecord)])
+function diffValuesEqual(before: unknown, after: unknown): boolean {
+  if (Object.is(before, after)) return true
+  if (Array.isArray(before) || Array.isArray(after)) {
+    return Array.isArray(before) && Array.isArray(after)
+      && before.length === after.length
+      && before.every((value, index) => diffValuesEqual(value, after[index]))
+  }
+  if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return false
+  const beforeRecord = before as Readonly<Record<string, unknown>>
+  const afterRecord = after as Readonly<Record<string, unknown>>
+  const beforeKeys = Object.keys(beforeRecord).sort()
+  const afterKeys = Object.keys(afterRecord).sort()
+  return diffValuesEqual(beforeKeys, afterKeys)
+    && beforeKeys.every(key => diffValuesEqual(beforeRecord[key], afterRecord[key]))
+}
+
+function createDiffItems(
+  beforeRecord: Readonly<Record<string, unknown>> | null,
+  afterRecord: Readonly<Record<string, unknown>> | null,
+  fields: PropertyEditorInput['fields'],
+): PropertyEditorItem[] {
   const items: PropertyEditorItem[] = []
+  const fieldKeys = new Set([...Object.keys(beforeRecord ?? {}), ...Object.keys(afterRecord ?? {})])
+  const wholeRecordAddedOrRemoved = !beforeRecord || !afterRecord
   for (const fieldKey of fieldKeys) {
-    const definition = input.fields[fieldKey]
+    const definition = fields[fieldKey]
     if (!definition || definition.isHidden) continue
-    const hasBefore = Object.prototype.hasOwnProperty.call(beforeRecord, fieldKey)
-    const hasAfter = Object.prototype.hasOwnProperty.call(afterRecord, fieldKey)
-    const beforeValue = beforeRecord[fieldKey]
-    const afterValue = afterRecord[fieldKey]
-    const same = hasBefore && hasAfter && JSON.stringify(beforeValue) === JSON.stringify(afterValue)
-    if (same) {
-      items.push({ key: fieldKey, fieldKey, title: definition.title, definition, value: afterValue, readonly: true })
-      continue
-    }
+    const hasBefore = Boolean(beforeRecord && Object.prototype.hasOwnProperty.call(beforeRecord, fieldKey))
+    const hasAfter = Boolean(afterRecord && Object.prototype.hasOwnProperty.call(afterRecord, fieldKey))
+    const beforeValue = beforeRecord?.[fieldKey]
+    const afterValue = afterRecord?.[fieldKey]
+    if (!wholeRecordAddedOrRemoved && hasBefore && hasAfter && diffValuesEqual(beforeValue, afterValue)) continue
     if (hasBefore) items.push({
       key: `${fieldKey}:before`, fieldKey, title: definition.title, definition, value: beforeValue, readonly: true,
       tail: { key: `diff:${fieldKey}:removed`, icon: 'action.minus', iconTone: 'danger', title: t('sidebar.diffViewer.removed') },
@@ -1780,8 +1994,62 @@ const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => proper
       tail: { key: `diff:${fieldKey}:added`, icon: 'action.add', iconTone: 'success', title: t('sidebar.diffViewer.added') },
     })
   }
-  return { key: input.key, title: input.title, record: afterRecord, fields: input.fields, items }
-}))
+  return items
+}
+
+const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
+  const blockId = diffSelectedBlockKeys.value[0]
+  if (!blockId) return []
+  const beforeDescriptor = collectDiffBlocks(diffBeforeProjectedDocument.value).get(blockId)
+  const afterDescriptor = collectDiffBlocks(diffAfterProjectedDocument.value).get(blockId)
+  if (!beforeDescriptor && !afterDescriptor) return []
+  const block = afterDescriptor?.block ?? beforeDescriptor!.block
+  const blockRecord = block as unknown as Readonly<Record<string, unknown>>
+  const blockFields = resolveCardPropertyFields(blockRecord, {
+    allowDelete: false,
+    translate: key => t(key),
+    hasMessage: key => te(key),
+  })
+  const inputs: PropertyEditorInput[] = [{
+    key: blockId,
+    title: block.name?.trim() || blockId,
+    record: (afterDescriptor?.block ?? beforeDescriptor!.block) as unknown as Readonly<Record<string, unknown>>,
+    fields: blockFields,
+    items: createDiffItems(
+      beforeDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
+      afterDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
+      blockFields,
+    ),
+  }]
+  const beforeLayout = beforeDescriptor ? {
+    parent: beforeDescriptor.parentId,
+    order: beforeDescriptor.order,
+    face: beforeDescriptor.faceKey,
+    ...(beforeDescriptor.location as Readonly<Record<string, unknown>>),
+  } : null
+  const afterLayout = afterDescriptor ? {
+    parent: afterDescriptor.parentId,
+    order: afterDescriptor.order,
+    face: afterDescriptor.faceKey,
+    ...(afterDescriptor.location as Readonly<Record<string, unknown>>),
+  } : null
+  if (!diffValuesEqual(beforeLayout, afterLayout)) {
+    const layoutRecord = afterLayout ?? beforeLayout!
+    const layoutFields = resolveCardPropertyFields(layoutRecord, {
+      allowDelete: false,
+      translate: key => t(key),
+      hasMessage: key => te(key),
+    })
+    inputs.push({
+      key: `${blockId}:layout`,
+      title: 'Layout',
+      record: layoutRecord,
+      fields: layoutFields,
+      items: createDiffItems(beforeLayout, afterLayout, layoutFields),
+    })
+  }
+  return inputs.filter(input => (input.items?.length ?? 0) > 0)
+})
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
   documentRevision,
@@ -2347,6 +2615,15 @@ watch(viewportCardDimensions, (dimensions) => {
     highlightInfoValue(key)
   }
 }, { immediate: true })
+const propertyFieldWarnings = computed<ReadonlyMap<string, string>>(() => {
+  const warnings = new Map<string, string>()
+  const message = t('propertyEditor.currentValueRenderWarning')
+  for (const issue of renderPipelineResult.value?.issues ?? []) {
+    const inputIds = new Set([issue.location.owner.id, issue.location.blockId].filter((id): id is string => Boolean(id)))
+    for (const inputId of inputIds) warnings.set(`${inputId}\u0000${issue.location.fieldKey}`, message)
+  }
+  return warnings
+})
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
@@ -2555,6 +2832,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.card-design-editor {
+  opacity: 1;
+  transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-design-editor.is-content-pending {
+  opacity: 0;
+}
+
 .card-design-editor__multi-selection-summary {
   margin: auto;
 }
@@ -2665,6 +2951,29 @@ onUnmounted(() => {
   }
 }
 
+.card-designer-diff-status-enter-active,
+.card-designer-diff-status-leave-active {
+  transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-designer-diff-status-enter-from,
+.card-designer-diff-status-leave-to {
+  opacity: 0;
+}
+
+.card-designer-diff-status-leave-active {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-designer-diff-status-enter-active,
+  .card-designer-diff-status-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+
 .card-design-editor__stage-base {
   width: 100%;
   height: 100%;
@@ -2676,6 +2985,7 @@ onUnmounted(() => {
   z-index: var(--oc-z-overlay-toolbar);
 }
 
+.card-design-editor__data-table-preview-layer,
 .card-design-editor__stage-layer {
   position: absolute;
   inset: 0;
@@ -2686,6 +2996,57 @@ onUnmounted(() => {
   z-index: 2;
   opacity: 1;
   transition: opacity var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-design-editor__data-table-preview-layer {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: var(--oc-z-data-table-preview);
+}
+
+.card-design-editor__data-table-preview-panel {
+  position: absolute;
+  top: var(--oc-floating-surface-gap);
+  left: var(--oc-floating-surface-gap);
+  width: var(--oc-data-table-preview-default-width);
+  height: var(--oc-data-table-preview-default-height);
+  min-width: var(--oc-data-table-preview-min-width);
+  min-height: var(--oc-data-table-preview-min-height);
+  max-width: calc(100% - var(--oc-floating-surface-gap) * 2);
+  max-height: calc(100% - var(--oc-floating-surface-gap) * 2);
+  overflow: hidden;
+  pointer-events: auto;
+  resize: both;
+  touch-action: none;
+  cursor: grab;
+  transition: transform var(--oc-duration-normal) var(--oc-ease);
+}
+
+.card-design-editor__data-table-preview-panel.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.card-design-editor__data-table-preview-panel :deep(.oc-card__header) {
+  cursor: grab;
+}
+
+.card-design-editor__data-table-preview-panel.is-dragging :deep(.oc-card__header) {
+  cursor: grabbing;
+}
+
+.card-design-editor__data-table-preview-restore {
+  position: absolute;
+  right: var(--oc-floating-surface-gap);
+  bottom: var(--oc-floating-surface-gap);
+  pointer-events: auto;
+  z-index: var(--oc-z-data-table-preview);
+}
+
+.card-design-editor__data-table-preview-viewport {
+  width: 100%;
+  height: 100%;
 }
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer {

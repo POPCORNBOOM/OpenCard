@@ -52,9 +52,11 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   })
 
   function selectInstance(keys: readonly string[]): void {
-    const key = keys[0] ?? null
-    options.selectedCardKeys.value = key ? [key] : []
-    options.selectedCardId.value = key
+    const selectedKeys = keys.filter(key => key !== options.blueprintCardId && instanceTreeData.value.items.has(key))
+    options.selectedCardKeys.value = selectedKeys.length > 0
+      ? selectedKeys
+      : keys.includes(options.blueprintCardId) ? [options.blueprintCardId] : []
+    options.selectedCardId.value = options.selectedCardKeys.value[0] ?? null
   }
 
   function handleInstanceTreeIntent(intent: OcTreeIntent): void {
@@ -63,7 +65,9 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         selectInstance(intent.selectedKeys)
         return
       case 'action.invoke':
-        selectInstance([intent.key])
+        if (intent.source !== 'context' || !options.selectedCardKeys.value.includes(intent.key)) {
+          selectInstance([intent.key])
+        }
         if (intent.actionKey === 'duplicate-instance') duplicateInstance(intent.key)
         else if (intent.actionKey === 'delete-instance') deleteInstance(intent.key)
         return
@@ -141,48 +145,68 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
   function duplicateInstance(instanceId: string): void {
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
-    const source = options.cardDoc.value.instances.find((item) => item.id === instanceId)
-    if (!source) return
-    const duplicated: CardInstanceRecord = {
+    const sourceIds = options.selectedCardKeys.value.length > 1
+      ? options.selectedCardKeys.value
+      : [instanceId]
+    const sources = sourceIds
+      .map(id => options.cardDoc.value?.instances.find(instance => instance.id === id))
+      .filter((instance): instance is CardInstanceRecord => Boolean(instance))
+    if (sources.length === 0) return
+
+    const duplicated = sources.map(source => ({
       ...structuredClone(toRaw(source)),
-      type: 'card-instance',
+      type: 'card-instance' as const,
       id: `instance-${crypto.randomUUID()}`,
       name: `${source.name} 副本`,
-    }
-    const sourceIndex = options.cardDoc.value.instances.findIndex((item) => item.id === instanceId)
+    }))
+    const sourceIndexes = sources
+      .map(source => options.cardDoc.value!.instances.findIndex(instance => instance.id === source.id))
+      .sort((a, b) => a - b)
+    const insertionIndex = sourceIndexes[sourceIndexes.length - 1] + 1
     const nextInstances = [...options.cardDoc.value.instances]
-    nextInstances.splice(sourceIndex + 1, 0, duplicated)
+    nextInstances.splice(insertionIndex, 0, ...duplicated)
     options.cardDoc.value.instances = nextInstances
-    includeNewInstanceInDataTableExport(options.cardDoc.value, duplicated.id)
-    options.selectedCardId.value = duplicated.id
-    options.selectedCardKeys.value = [duplicated.id]
+    for (const instance of duplicated) includeNewInstanceInDataTableExport(options.cardDoc.value, instance.id)
+    selectInstance(duplicated.map(instance => instance.id))
     options.refreshDocumentState(true)
     options.markDocumentChanged('action', 'instances', true)
   }
 
   function deleteInstance(instanceId: string): void {
     if (!options.cardDoc.value?.instances || instanceId === options.blueprintCardId) return
-    if (!options.cardDoc.value.instances.some((item) => item.id === instanceId)) return
-    options.cardDoc.value.instances = options.cardDoc.value.instances.filter((item) => item.id !== instanceId)
+    const selectedIds = options.selectedCardKeys.value.length > 1
+      ? options.selectedCardKeys.value
+      : [instanceId]
+    const deleteIds = new Set(selectedIds.filter(id => id !== options.blueprintCardId))
+    if (deleteIds.size === 0) return
+    const existingIds = new Set(options.cardDoc.value.instances.map(instance => instance.id))
+    for (const id of deleteIds) {
+      if (!existingIds.has(id)) deleteIds.delete(id)
+    }
+    if (deleteIds.size === 0) return
+    options.cardDoc.value.instances = options.cardDoc.value.instances.filter(instance => !deleteIds.has(instance.id))
     if (options.cardDoc.value.dataTable?.exportInstanceIds) {
       options.cardDoc.value.dataTable.exportInstanceIds = options.cardDoc.value.dataTable.exportInstanceIds
-        .filter(candidate => candidate !== instanceId)
+        .filter(candidate => !deleteIds.has(candidate))
     }
-    if (options.selectedCardId.value === instanceId) {
-      options.selectedCardId.value = options.blueprintCardId
-      options.selectedCardKeys.value = [options.blueprintCardId]
-    }
+    selectInstance([options.blueprintCardId])
     options.refreshDocumentState(true)
     options.markDocumentChanged('action', 'instances', true)
   }
 
   watch(
-    [instanceTreeData, options.selectedCardId],
-    ([treeData, selectedId]) => {
+    [instanceTreeData, options.selectedCardId, options.selectedCardKeys],
+    ([treeData, selectedId, selectedKeys]) => {
+      const validKeys = selectedKeys.filter(key => treeData.items.has(key) && key !== options.blueprintCardId)
+      if (validKeys.length > 0) {
+        if (selectedId !== validKeys[0]) options.selectedCardId.value = validKeys[0]
+        if (validKeys.length !== selectedKeys.length) options.selectedCardKeys.value = validKeys
+        return
+      }
       const nextKey = selectedId && treeData.items.has(selectedId) ? selectedId : null
-      const currentKey = options.selectedCardKeys.value[0] ?? null
-      if (currentKey === nextKey && options.selectedCardKeys.value.length === (nextKey ? 1 : 0)) return
-      options.selectedCardKeys.value = nextKey ? [nextKey] : []
+      const nextKeys = nextKey ? [nextKey] : []
+      if (selectedKeys.length === nextKeys.length && selectedKeys.every((key, index) => key === nextKeys[index])) return
+      options.selectedCardKeys.value = nextKeys
     },
     { immediate: true },
   )

@@ -119,8 +119,11 @@
                 </span>
               </th>
               <td v-for="cell in field.cells" :key="cell.identity"
-                class="card-data-table__cell oc-data-grid__cell" :class="{ 'is-inherited': cell.inherited }"
-                :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)">
+                class="card-data-table__cell oc-data-grid__cell"
+                :class="{ 'is-inherited': cell.inherited, 'is-selected': selectedCellIdentity === cell.identity }"
+                :data-card-id="cell.cardId" :ref="element => setCellElement(cell.identity, element)"
+                @pointerdown="selectCell(face.key, block.key, field.key, cell)"
+                @focusin="selectCell(face.key, block.key, field.key, cell)">
                 <template v-if="shouldMountCell(cell.identity)">
                   <span v-if="props.readonly || cell.readonly" class="card-data-table__cell-preview oc-data-grid__cell-preview">
                     {{ formatCellPreview(cell.value) }}
@@ -185,6 +188,10 @@ import type {
 } from './useCdeDataTableModel'
 import type { CdeBlockFieldTarget } from './useCdeBlockFieldCommands'
 
+export type CdeDataTableCellSelection = CdeBlockFieldTarget & {
+  faceKey: CdeDataTableFaceGroup['key']
+}
+
 defineOptions({ name: 'CardDataTable' })
 
 const props = defineProps<{
@@ -214,6 +221,7 @@ const emit = defineEmits<{
   'delete-field': [blockId: string, fieldKey: string]
   'update-cell': [payload: CdeBlockFieldTarget & { value: unknown }]
   'reset-cell': [payload: CdeBlockFieldTarget]
+  'cell-select': [payload: CdeDataTableCellSelection]
 }>()
 
 const { t } = useI18n()
@@ -223,6 +231,7 @@ const rootRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const renamingColumnKey = ref<string | null>(null)
 const renameDraft = ref('')
+const selectedCellIdentity = ref<string | null>(null)
 const FIELD_COLUMN_KEY = '__field-column__'
 const INCLUDE_FIELD_PREFIX = 'include-field:'
 let revealHighlightTimer: ReturnType<typeof setTimeout> | null = null
@@ -307,6 +316,17 @@ function resolveCellActions(
   ]
 }
 
+function selectCell(
+  faceKey: CdeDataTableFaceGroup['key'],
+  blockId: string,
+  fieldKey: string,
+  cell: CdeDataTableCell,
+): void {
+  if (selectedCellIdentity.value === cell.identity) return
+  selectedCellIdentity.value = cell.identity
+  emit('cell-select', { faceKey, cardId: cell.cardId, blockId, fieldKey })
+}
+
 function handleCellAction(
   blockId: string,
   field: CdeDataTableFieldRow,
@@ -325,6 +345,7 @@ function handleCellValueUpdate(
   cell: CdeDataTableCell,
   value: unknown,
 ): void {
+  selectedCellIdentity.value = cell.identity
   if (resolveCellEditorState(blockId, field, cell).editorId === 'raw-string') {
     fieldEditorModes.preserveRawString(cell.identity)
   }
@@ -578,6 +599,7 @@ async function revealCell(
       // Some non-text input types reject text selection.
     }
   }
+  await nextTick()
   cell.classList.add('is-revealed')
   if (revealHighlightTimer) clearTimeout(revealHighlightTimer)
   revealHighlightTimer = setTimeout(() => {
@@ -655,6 +677,7 @@ onBeforeUnmount(() => {
   font-size: var(--oc-text-sm);
 }
 
+.card-data-table__cell.is-selected,
 .card-data-table__cell.is-revealed {
   background: var(--oc-bg-selected);
   outline: 2px solid var(--oc-fg-accent);

@@ -38,6 +38,47 @@ describe('useCdeInstanceOps tree actions', () => {
     expect(state.instanceTreeData.value.items.get('instance-1')?.actions).toEqual(['instance-more'])
   })
 
+  it('duplicates and deletes the complete selected instance set', () => {
+    const document: CardDocument = {
+      type: 'card-document',
+      id: 'document',
+      version: '1.0.0',
+      width: '540',
+      height: '850',
+      faces: {
+        front: { type: 'card-face', id: 'front', background: '#FFFFFF', children: [] },
+        back: { type: 'card-face', id: 'back', background: '#FFFFFF', children: [] },
+      },
+      instances: [
+        { type: 'card-instance', id: 'one', name: 'One', amount: '1', data: {} },
+        { type: 'card-instance', id: 'two', name: 'Two', amount: '1', data: {} },
+      ],
+      dataTable: { blocks: {}, exportInstanceIds: ['one', 'two'] },
+    }
+    const selectedCardId = ref('one')
+    const selectedCardKeys = ref(['one', 'two'])
+    const state = useCdeInstanceOps({
+      cardDoc: ref(document),
+      documentRevision: ref(0),
+      blueprintCardId: '__blueprint__',
+      selectedCardId,
+      selectedCardKeys,
+      refreshDocumentState: vi.fn(),
+      markDocumentChanged: vi.fn(),
+    })
+
+    state.handleInstanceTreeIntent({
+      type: 'action.invoke', key: 'one', actionKey: 'duplicate-instance', source: 'context',
+    })
+    expect(document.instances).toHaveLength(4)
+    expect(selectedCardKeys.value).toHaveLength(2)
+    state.handleInstanceTreeIntent({
+      type: 'action.invoke', key: selectedCardKeys.value[0]!, actionKey: 'delete-instance', source: 'context',
+    })
+    expect(document.instances).toHaveLength(2)
+    expect(document.dataTable?.exportInstanceIds).toEqual(['one', 'two'])
+  })
+
   it('keeps explicit data-table export selection aligned with Instance lifecycle', () => {
     const document: CardDocument = {
       type: 'card-document',
