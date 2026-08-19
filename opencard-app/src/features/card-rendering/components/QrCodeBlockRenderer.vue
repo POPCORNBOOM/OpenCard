@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
@@ -33,6 +33,7 @@ const isTransformDisabled = computed(() => editorContext.transformDisabledBlockI
 const svgMarkup = ref('')
 const renderState = ref<'empty' | 'loading' | 'ready' | 'error'>('empty')
 let renderRevision = 0
+const readinessSlot = editorContext.visualReadiness?.createSlot()
 
 const blockStyle = computed(() => {
   const style = props.layoutMode === 'absolute'
@@ -51,9 +52,11 @@ watch(
   ],
   async ([content, errorCorrection, foreground, backgroundColor, quietZone]) => {
     const revision = ++renderRevision
+    const readinessTicket = readinessSlot?.begin()
     if (!content) {
       svgMarkup.value = ''
       renderState.value = 'empty'
+      readinessTicket?.settle()
       return
     }
 
@@ -68,14 +71,18 @@ watch(
       if (revision !== renderRevision) return
       svgMarkup.value = markup
       renderState.value = 'ready'
+      readinessTicket?.settle()
     } catch {
       if (revision !== renderRevision) return
       svgMarkup.value = ''
       renderState.value = 'error'
+      readinessTicket?.settle()
     }
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => readinessSlot?.dispose())
 
 function handleClick(event: MouseEvent): void {
   editorContext.handleBlockClick(props.block.id, event)

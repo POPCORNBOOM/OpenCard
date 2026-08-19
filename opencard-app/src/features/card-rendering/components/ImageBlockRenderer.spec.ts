@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils'
+import { computed } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { ImageBlock as ImageBlockModel } from '../../../entities/card/model'
 import ImageBlockRenderer from './ImageBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 import type { RenderReadyImageBlock } from '../render.types'
+import { cardEditorContextKey } from './cardEditorContext'
 
 vi.mock('../../workspace/store/projectStore', () => ({
   useProjectStore: () => ({ resolveAssetSrc: (path: string) => path }),
@@ -27,6 +29,28 @@ describe('ImageBlockRenderer', () => {
     })
 
     expect((wrapper.get('.image-block__image').element as HTMLImageElement).style.objectFit).toBe(fit)
+  })
+
+  it('settles visual readiness after the image loads or fails', async () => {
+    const settle = vi.fn()
+    const begin = vi.fn(() => ({ settle }))
+    const wrapper = mount(ImageBlockRenderer, {
+      props: { block: createBlock('/image.png'), layoutMode: 'static' },
+      global: {
+        provide: {
+          [cardEditorContextKey as symbol]: {
+            transformDisabledBlockIds: computed(() => new Set<string>()),
+            handleBlockClick: () => undefined,
+            resolveAssetSrc: (path: string) => `asset://${path}`,
+            visualReadiness: { createSlot: () => ({ begin, dispose: vi.fn() }) },
+          },
+        },
+      },
+    })
+
+    expect(begin).toHaveBeenCalledOnce()
+    await wrapper.get('.image-block__image').trigger('load')
+    expect(settle).toHaveBeenCalledOnce()
   })
 
   it('replaces the native broken-image state and retries when the source changes', async () => {

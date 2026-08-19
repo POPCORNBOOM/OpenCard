@@ -12,6 +12,7 @@ import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
 import { resolveCardAssetSrc, type CardRenderResourceContext } from '../cardRenderResources'
+import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
 import { toCssFontFamily } from '../../workspace/model/projectFonts'
 
 const emit = defineEmits<{
@@ -31,6 +32,7 @@ const props = withDefaults(defineProps<{
     /** 卡面资源唯一解析上下文。 */
   resourceContext: CardRenderResourceContext
   diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]
+  visualReadiness?: CardVisualReadinessRegistrar
 }>(), {
     transformDisabledBlockIds: () => [],
     visibleRootBlockIds: () => [],
@@ -109,6 +111,7 @@ provide(cardEditorContextKey, {
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
     customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
 	    richText: computed(() => props.resourceContext.richText ?? new Map()),
+    visualReadiness: props.visualReadiness,
 })
 
 defineExpose({

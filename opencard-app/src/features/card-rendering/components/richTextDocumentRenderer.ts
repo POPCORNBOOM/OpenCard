@@ -24,8 +24,7 @@ export default defineComponent({
       }
       if (node.type === 'customBlock') {
         const block = props.prepared.embeddedBlocks.get(node.embedId)
-        const tag = node.layout === 'block' ? 'div' : 'span'
-        return h(tag, { class: `rich-text-custom-block rich-text-custom-block--${node.layout}` }, block
+        return h('div', { class: `rich-text-custom-block rich-text-custom-block--${node.layout}` }, block
           ? [h(CardBlockRenderer, { block: block as RenderReadyCustomBlock, layoutMode: 'static' })]
           : [h(OcIcon, { name: 'status.warning', tone: 'warning', size: 'md' })])
       }

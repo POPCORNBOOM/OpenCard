@@ -9,6 +9,7 @@ import type { PreparedRichTextCatalog } from '../prepareRichText'
 import { cardEditorContextKey } from './cardEditorContext'
 import { computed } from 'vue'
 import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
+import { createI18n } from 'vue-i18n'
 
 describe('TextBlockRenderer', () => {
   it('promotes plain-text line breaks to rich-text paragraphs', () => {
@@ -184,19 +185,25 @@ describe('TextBlockRenderer', () => {
       diagnostics: [],
       valid: true,
     }]])
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: {
+      'en-US': { cardDesigner: { customBlock: { unavailable: 'Unavailable' } } },
+    } })
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
       global: {
+        plugins: [i18n],
         stubs: { CardBlockRenderer: true },
         provide: { [cardEditorContextKey as symbol]: {
           transformDisabledBlockIds: computed(() => new Set<string>()),
           handleBlockClick: () => undefined,
           resolveAssetSrc: (path: string) => path,
+          resolveFontFamily: (value: string) => value,
           richText: computed(() => richText),
         } },
       },
     })
 
+    expect(wrapper.get('.rich-text-custom-block--inline').element.tagName).toBe('DIV')
     expect(wrapper.getComponent(CardBlockRenderer).props('block')).toBe(embedded)
     expect(wrapper.getComponent(CardBlockRenderer).props('layoutMode')).toBe('static')
   })

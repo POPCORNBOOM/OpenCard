@@ -63,4 +63,13 @@ function handleClick(event: MouseEvent) {
     background-repeat: no-repeat;
     vertical-align: text-bottom;
 }
+.text-block-content--richtext :deep(.rich-text-custom-block--inline) {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: text-bottom;
+}
+.text-block-content--richtext :deep(.rich-text-custom-block--block) {
+    display: block;
+    max-width: 100%;
+}
 </style>

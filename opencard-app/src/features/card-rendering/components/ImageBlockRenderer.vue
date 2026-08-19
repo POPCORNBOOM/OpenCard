@@ -32,13 +32,13 @@
             :src="imageSrc"
             :alt="block.name"
             :style="imgStyle"
-            @load="handleImageLoad"
-            @error="handleImageError"
+            @load="handleImageLoad($event)"
+            @error="handleImageError($event)"
         />
     </div>
 </template>
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
@@ -55,6 +55,9 @@ const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
 const imageLoadState = ref<'empty' | 'loading' | 'loaded' | 'error'>('empty')
+const readinessSlot = editorContext.visualReadiness?.createSlot()
+let readinessTicket: ReturnType<NonNullable<typeof readinessSlot>['begin']> | null = null
+let expectedImageSrc = ''
 
 const wrapStyle = computed(() => {
     const style = props.layoutMode === 'absolute'
@@ -74,16 +77,30 @@ const imageSrc = computed(() => {
 })
 
 watch(imageSrc, (src) => {
+    readinessTicket = readinessSlot?.begin() ?? null
+    expectedImageSrc = src
     imageLoadState.value = src ? 'loading' : 'empty'
+    if (!src) readinessTicket?.settle()
 }, { immediate: true })
 
-function handleImageLoad(): void {
-    imageLoadState.value = 'loaded'
+function isCurrentImageEvent(event: Event): boolean {
+    const image = event.currentTarget
+    return image instanceof HTMLImageElement && image.src === expectedImageSrc
 }
 
-function handleImageError(): void {
-    imageLoadState.value = 'error'
+function handleImageLoad(event: Event): void {
+    if (!isCurrentImageEvent(event)) return
+    imageLoadState.value = 'loaded'
+    readinessTicket?.settle()
 }
+
+function handleImageError(event: Event): void {
+    if (!isCurrentImageEvent(event)) return
+    imageLoadState.value = 'error'
+    readinessTicket?.settle()
+}
+
+onBeforeUnmount(() => readinessSlot?.dispose())
 
 function handleClick(event: MouseEvent) {
     editorContext.handleBlockClick(props.block.id, event)
