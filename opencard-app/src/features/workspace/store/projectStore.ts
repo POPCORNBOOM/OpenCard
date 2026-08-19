@@ -267,6 +267,12 @@ async function saveProjectWorkspaceState() {
     Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
     .map(([path, state]) => [path, {
       expandedDirectories: [...state.expandedDirectories],
+      ...(state.sidebar ? {
+        sidebar: {
+          collapsedLists: [...state.sidebar.collapsedLists],
+          listWeights: { ...state.sidebar.listWeights },
+        },
+      } : {}),
       ...(state.projectProfile
         ? { projectProfile: { collapsedSections: [...state.projectProfile.collapsedSections] } }
         : {}),

@@ -129,6 +129,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-viewport-alignment-snap-release-distance': '12px',
   '--oc-property-row-height': '28px',
   '--oc-property-row-expanded-height': '112px',
+  '--oc-sidebar-tree-min-height': '96px',
   '--oc-table-row-height': '32px',
   '--oc-data-grid-key-column-width': '232px',
   '--oc-data-grid-column-width': '260px',

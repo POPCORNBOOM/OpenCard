@@ -236,6 +236,7 @@ export const OC_THEME_TOKEN_KEYS = [
   // 属性编辑器行高
   '--oc-property-row-height',
   '--oc-property-row-expanded-height',
+  '--oc-sidebar-tree-min-height',
 
   // 数据表行高
   '--oc-table-row-height',

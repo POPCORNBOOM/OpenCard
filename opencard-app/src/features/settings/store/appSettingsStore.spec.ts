@@ -31,6 +31,7 @@ describe('appSettingsStore', () => {
     store.updateThemeAngle('light', -72)
     store.updateThemeFont('light', 'serif')
     store.updateSetting('updates.suppressReleaseNotesAfterUpdate', true)
+    store.updateSetting('exporting.openCdeWorkbookAfterExport', false)
     store.updateShell({ sidebarWidth: 9999, sidebarCollapsed: true })
     store.updateSetting('workspace.structureTreeSelectionBehavior', 'expand')
     store.updateSetting('workspace.structureTreeScrollToSelection', false)
@@ -53,6 +54,7 @@ describe('appSettingsStore', () => {
       },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: true },
+      exporting: { openCdeWorkbookAfterExport: false },
       workspace: {
         structureTreeSelectionBehavior: 'expand',
         structureTreeScrollToSelection: false,

@@ -46,6 +46,7 @@ describe('appSettings', () => {
       },
       shell: { sidebarWidth: 640, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: false },
+      exporting: { openCdeWorkbookAfterExport: true },
       workspace: {
         historyEntryLimit: 100,
         structureTreeSelectionBehavior: 'expand-exclusive',
@@ -111,6 +112,7 @@ describe('appSettings', () => {
 
     expect(settings.workspace).toEqual(createDefaultAppSettings().workspace)
     expect(settings.updates).toEqual(createDefaultAppSettings().updates)
+    expect(settings.exporting).toEqual(createDefaultAppSettings().exporting)
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
     expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })

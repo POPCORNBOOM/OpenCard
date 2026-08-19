@@ -167,6 +167,15 @@ export function useSettingsWorkspace(
             ),
             checked: settings.updates.suppressReleaseNotesAfterUpdate,
           },
+          {
+            type: 'switch',
+            key: 'exporting.openCdeWorkbookAfterExport',
+            label: options.translate(
+              'settings.fields.openCdeWorkbookAfterExport',
+              'Open CDE workbook after export',
+            ),
+            checked: settings.exporting.openCdeWorkbookAfterExport,
+          },
         ],
       }
     }

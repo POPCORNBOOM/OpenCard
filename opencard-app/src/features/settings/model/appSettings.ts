@@ -36,8 +36,14 @@ export type AppThemeDefinition = {
   accentNeighborAngle: number
   fontFamily: string
 }
+export type ProjectWorkspaceSidebarState = {
+  collapsedLists: string[]
+  listWeights: Record<string, number>
+}
+
 export type ProjectWorkspaceState = {
   expandedDirectories: string[]
+  sidebar?: ProjectWorkspaceSidebarState
   projectProfile?: {
     collapsedSections: string[]
   }
@@ -100,6 +106,7 @@ export type AppSettingKey =
   | 'appearance.glassIntensity'
   | 'appearance.baseFontSize'
   | 'updates.suppressReleaseNotesAfterUpdate'
+  | 'exporting.openCdeWorkbookAfterExport'
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
   | 'workspace.hideDotFiles'
@@ -126,6 +133,9 @@ export interface AppSettings {
   }
   updates: {
     suppressReleaseNotesAfterUpdate: boolean
+  }
+  exporting: {
+    openCdeWorkbookAfterExport: boolean
   }
   workspace: {
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
@@ -199,6 +209,9 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   }),
   updates: Object.freeze({
     suppressReleaseNotesAfterUpdate: false,
+  }),
+  exporting: Object.freeze({
+    openCdeWorkbookAfterExport: true,
   }),
   workspace: Object.freeze({
     structureTreeSelectionBehavior: 'expand-exclusive',
@@ -441,11 +454,24 @@ function normalizeWorkspaceStates(value: unknown): Record<string, ProjectWorkspa
           typeof item === 'string' && item.trim() !== ''
         )).map(item => item.trim()))]
       : []
+    const sidebar = isRecord(state.sidebar)
+      ? {
+          collapsedLists: Array.isArray(state.sidebar.collapsedLists)
+            ? [...new Set(state.sidebar.collapsedLists.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map(item => item.trim()))]
+            : [],
+          listWeights: isRecord(state.sidebar.listWeights)
+            ? Object.fromEntries(Object.entries(state.sidebar.listWeights).flatMap(([key, weight]) => (
+                typeof weight === 'number' && Number.isFinite(weight) && weight > 0 ? [[key, weight]] : []
+              ))) as Record<string, number>
+            : {},
+        }
+      : null
     result[path] = {
       expandedDirectories: state.expandedDirectories
         .filter((item): item is string => typeof item === 'string')
         .map(item => item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
         .filter(Boolean),
+      ...(sidebar && (sidebar.collapsedLists.length > 0 || Object.keys(sidebar.listWeights).length > 0) ? { sidebar } : {}),
       ...(collapsedSections.length > 0 ? { projectProfile: { collapsedSections } } : {}),
     }
   }
@@ -464,6 +490,7 @@ export function createDefaultAppSettings(): AppSettings {
     },
     shell: { ...DEFAULT_APP_SETTINGS.shell },
     updates: { ...DEFAULT_APP_SETTINGS.updates },
+    exporting: { ...DEFAULT_APP_SETTINGS.exporting },
     workspace: { ...DEFAULT_APP_SETTINGS.workspace },
     projectCreation: {
       ...DEFAULT_APP_SETTINGS.projectCreation,
@@ -482,6 +509,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
   const legacyAccentNeighborAngle = clampAngle(appearance.accentNeighborAngle)
   const shell = isRecord(value.shell) ? value.shell : {}
   const updates = isRecord(value.updates) ? value.updates : {}
+  const exporting = isRecord(value.exporting) ? value.exporting : {}
   const workspace = isRecord(value.workspace) ? value.workspace : {}
   const projectCreation = isRecord(value.projectCreation) ? value.projectCreation : {}
 
@@ -542,6 +570,11 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       suppressReleaseNotesAfterUpdate: typeof updates.suppressReleaseNotesAfterUpdate === 'boolean'
         ? updates.suppressReleaseNotesAfterUpdate
         : DEFAULT_APP_SETTINGS.updates.suppressReleaseNotesAfterUpdate,
+    },
+    exporting: {
+      openCdeWorkbookAfterExport: typeof exporting.openCdeWorkbookAfterExport === 'boolean'
+        ? exporting.openCdeWorkbookAfterExport
+        : DEFAULT_APP_SETTINGS.exporting.openCdeWorkbookAfterExport,
     },
     workspace: {
       structureTreeSelectionBehavior: workspace.structureTreeSelectionBehavior === 'none'

@@ -15,7 +15,7 @@ import {
   type SettingsPersistence,
 } from '../services/settingsPersistence'
 
-type SettingsSection = keyof Pick<AppSettings, 'appearance' | 'shell' | 'workspace'>
+type SettingsSection = keyof Pick<AppSettings, 'appearance' | 'shell' | 'exporting' | 'workspace'>
 
 export interface AppSettingsStore {
   settings: Readonly<Ref<DeepReadonly<AppSettings>>>
@@ -108,6 +108,8 @@ export function createAppSettingsStore(
     else if (key === 'appearance.baseFontSize') candidate.appearance.baseFontSize = value as number
     else if (key === 'updates.suppressReleaseNotesAfterUpdate') {
       candidate.updates.suppressReleaseNotesAfterUpdate = value as boolean
+    } else if (key === 'exporting.openCdeWorkbookAfterExport') {
+      candidate.exporting.openCdeWorkbookAfterExport = value as boolean
     } else if (key === 'workspace.structureTreeSelectionBehavior') {
       candidate.workspace.structureTreeSelectionBehavior = value as AppSettings['workspace']['structureTreeSelectionBehavior']
     } else if (key === 'workspace.structureTreeScrollToSelection') {

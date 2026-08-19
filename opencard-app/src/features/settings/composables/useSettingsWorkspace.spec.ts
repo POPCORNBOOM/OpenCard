@@ -26,6 +26,11 @@ describe('useSettingsWorkspace', () => {
       key: 'updates.suppressReleaseNotesAfterUpdate',
       checked: false,
     })
+    expect(activeCategory.value.fields[2]).toMatchObject({
+      type: 'switch',
+      key: 'exporting.openCdeWorkbookAfterExport',
+      checked: true,
+    })
 
     categoryKey.value = 'appearance'
     expect(activeCategory.value.preview).toEqual({ glassIntensity: 60 })
