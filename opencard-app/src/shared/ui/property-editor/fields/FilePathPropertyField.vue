@@ -13,8 +13,6 @@
       as="input"
       full-width
       :value="stringValue"
-      :minlength="definition.minLength"
-      :maxlength="definition.maxLength"
       :readonly="definition.isReadonly"
       autocomplete="off"
       spellcheck="false"

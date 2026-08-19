@@ -30,12 +30,9 @@ type PropertyFieldEditorModeLabels = {
 }
 
 function supportsRawStringEditor(definition: PropertyEditorFieldDefinition): boolean {
-  const usesInlineBindingEditor = definition.fieldType === 'string'
-    && !definition.options
-    && Boolean(definition.completion?.provider)
-  return !isArrayPropertyFieldType(definition.fieldType)
-    && Boolean(definition.binding?.provider)
-    && !usesInlineBindingEditor
+  return !definition.isReadonly
+    && !isArrayPropertyFieldType(definition.fieldType)
+    && definition.fieldType !== 'object'
 }
 
 export function usePropertyFieldEditorModes() {

@@ -8,7 +8,7 @@
     :options="selectOptions" full-width @update:model-value="emit('update:value', $event)" />
   <OcFieldFrame v-else-if="definition.multiline" class="multiline-field" full-width>
     <OcFieldInput as="textarea" variant="plain" full-width class="multiline-field__input"
-      :value="draftValue" :minlength="definition.minLength" :maxlength="definition.maxLength"
+      :value="draftValue"
       resize="none" @input="handleInput" @blur="handleBlur" @keydown="handleKeydown" />
   </OcFieldFrame>
   <OcFieldFrame v-else class="autocomplete-field" full-width>
@@ -20,8 +20,7 @@
       input-class="autocomplete-input"
       type="text"
       :value="draftValue"
-      :minlength="definition.minLength"
-      :maxlength="definition.maxLength" :readonly="definition.isReadonly"
+      :readonly="definition.isReadonly"
       @input="handleInput"
       @blur="handleBlur"
       @keydown="handleKeydown"

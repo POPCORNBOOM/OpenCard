@@ -52,6 +52,9 @@
               <div class="property-editor__row-label">
                 <OcIcon :name="entry.action?.icon ?? getPropertyFieldIcon(entry.definition.fieldType)"
                   :tone="entry.action?.iconTone ?? 'muted'" size="md" />
+                <OcIcon v-if="fieldWarnings?.has(fieldIdentity(category.inputKey, entry.key))"
+                  name="status.warning" tone="warning" size="sm"
+                  :data-tooltip="fieldWarnings.get(fieldIdentity(category.inputKey, entry.key))" />
                 <button type="button" class="property-editor__field-key-button"
                   :data-tooltip="t('propertyEditor.actions.copyFieldKeyTooltip', { key: entry.key })"
                   :aria-label="t('propertyEditor.actions.copyFieldKey', { key: entry.key })"
@@ -146,6 +149,7 @@ const props = defineProps<{
   sortMode: PropertyEditorSortMode
   bindingInterpreter?: PropertyEditorBindingInterpreter
   deleteMode?: boolean
+  fieldWarnings?: ReadonlyMap<string, string>
 }>()
 
 const { t, te } = useI18n()

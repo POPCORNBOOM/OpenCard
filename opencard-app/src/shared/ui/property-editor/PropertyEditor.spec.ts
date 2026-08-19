@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import OcIcon from '../../../components/base/OcIcon.vue'
 import OcActionButton from '../../../components/standard/OcActionButton.vue'
 import PropertyEditor from './PropertyEditor.vue'
 import PropertyFieldActionRail from './PropertyFieldActionRail.vue'
@@ -312,6 +313,22 @@ describe('PropertyEditor records protocol', () => {
     expect(wrapper.emitted('update-property')).toEqual([[
       { key: 'block', fieldKey: 'opacity', value: '{{self:score}}' },
     ]])
+  })
+
+  it('shows a field rendering warning beside the affected editor row', () => {
+    const warningKey = `block\u0000opacity`
+    const wrapper = mount(PropertyEditor, {
+      props: {
+        sortMode: 'category',
+        fieldWarnings: new Map([[warningKey, 'The current value has a rendering warning']]),
+        inputs: [{
+          key: 'block', record: { opacity: '2' },
+          fields: { opacity: { title: 'Opacity', fieldType: 'number' } },
+        }],
+      },
+    })
+    const warning = wrapper.get('[data-tooltip="The current value has a rendering warning"]')
+    expect(warning.getComponent(OcIcon).props()).toMatchObject({ name: 'status.warning', tone: 'warning' })
   })
 
   it('shows an existing binding in the raw string editor without the legacy binding field', () => {

@@ -41,23 +41,25 @@ describe('property field editor modes', () => {
     })).toBeNull()
   })
 
-  it('does not offer raw-string for arrays or inline binding editors', () => {
+  it('offers raw-string for every editable scalar while excluding arrays, objects, and readonly fields', () => {
     const modes = usePropertyFieldEditorModes()
-    const arrayDefinition = {
-      title: 'Values',
-      fieldType: 'number[]' as const,
-      binding: { provider: () => null },
+    const scalarDefinitions = [
+      { title: 'Enum', fieldType: 'string' as const, options: ['a', 'b'] },
+      { title: 'Boolean', fieldType: 'boolean' as const },
+      { title: 'Color', fieldType: 'color' as const },
+      { title: 'Anchor', fieldType: 'anchorPosition' as const },
+      { title: 'Path', fieldType: 'filePath' as const },
+      { title: 'Number', fieldType: 'number' as const },
+    ]
+    for (const definition of scalarDefinitions) {
+      expect(modes.resolve({ identity: definition.title, definition, value: '' }).switchTarget)
+        .toBe('raw-string')
     }
-    const inlineDefinition = {
-      title: 'Content',
-      fieldType: 'string' as const,
-      completion: { provider: () => null },
-      binding: { provider: () => null },
-    }
-
-    expect(modes.resolve({ identity: 'array', definition: arrayDefinition, value: [] }).switchTarget)
+    expect(modes.resolve({ identity: 'array', definition: { title: 'Values', fieldType: 'number[]' }, value: [] }).switchTarget)
       .toBeNull()
-    expect(modes.resolve({ identity: 'inline', definition: inlineDefinition, value: '' }).switchTarget)
+    expect(modes.resolve({ identity: 'object', definition: { title: 'Data', fieldType: 'object' }, value: {} }).switchTarget)
+      .toBeNull()
+    expect(modes.resolve({ identity: 'readonly', definition: { title: 'Id', fieldType: 'string', isReadonly: true }, value: 'id' }).switchTarget)
       .toBeNull()
   })
 
