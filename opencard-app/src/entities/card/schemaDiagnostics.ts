@@ -90,19 +90,27 @@ export function validateCardSchemaField(
       converted = value
       break
     default: {
-      if (typeof value !== 'string') return invalid('invalid-type')
-      if ('minLength' in definition && definition.minLength !== undefined && value.length < definition.minLength) {
+      const stringValue = options.cssLength && typeof value === 'number' && Number.isFinite(value)
+        ? String(value)
+        : value
+      if (typeof stringValue !== 'string') return invalid('invalid-type')
+      if ('minLength' in definition && definition.minLength !== undefined && stringValue.length < definition.minLength) {
         return invalid('out-of-range')
       }
-      if ('maxLength' in definition && definition.maxLength !== undefined && value.length > definition.maxLength) {
+      if ('maxLength' in definition && definition.maxLength !== undefined && stringValue.length > definition.maxLength) {
         return invalid('out-of-range')
       }
-      if (definition.fieldType === 'color' && value && !isCssColor(value)) return invalid('invalid-color')
-      if (definition.fieldType === 'filePath' && value && !isValidFilePath(value, definition.filter?.extensions)) {
+      if (definition.fieldType === 'color' && stringValue && !isCssColor(stringValue)) return invalid('invalid-color')
+      if (definition.fieldType === 'filePath' && stringValue && !isValidFilePath(stringValue, definition.filter?.extensions)) {
         return invalid('invalid-file-path')
       }
-      if (options.cssLength && value && !isCssLength(value)) return invalid('invalid-css-length')
-      converted = value
+      if (options.cssLength && stringValue) {
+        const normalized = normalizeCssLength(stringValue)
+        if (!isCssLength(normalized)) return invalid('invalid-css-length')
+        converted = normalized
+        break
+      }
+      converted = stringValue
     }
   }
 
@@ -122,6 +130,14 @@ export function isCssColor(value: string): boolean {
     || cssNamedColor.test(candidate)
     || candidate === 'transparent'
     || candidate === 'currentColor'
+}
+
+export function normalizeCssLength(value: string): string {
+  const trimmed = value.trim()
+  if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(trimmed)) return `${trimmed}px`
+  if (/^calc\(.+\)$/i.test(trimmed)) return trimmed
+  if (/\S\s+[+\-*/]\s+\S/.test(trimmed)) return `calc(${trimmed})`
+  return trimmed
 }
 
 export function isCssLength(value: string): boolean {

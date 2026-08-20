@@ -4,6 +4,7 @@ import {
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
 import {
+  normalizeCssLength,
   validateCardSchemaField,
   type CardSchemaDiagnosticCode,
   type CardSchemaValidationOptions,
@@ -524,13 +525,6 @@ function formatIssueValue(value: unknown): string {
   return JSON.stringify(value) ?? String(value)
 }
 
-function normalizeCssLength(value: string): string {
-  const trimmed = value.trim()
-  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return `${trimmed}px`
-  if (/^calc\(.+\)$/i.test(trimmed)) return trimmed
-  if (/\S\s+[+\-*/]\s+\S/.test(trimmed)) return `calc(${trimmed})`
-  return trimmed
-}
 
 function joinBlockPath(parentPath: string, blockName: string): string {
   if (!blockName) return parentPath

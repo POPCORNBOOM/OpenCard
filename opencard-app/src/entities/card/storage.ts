@@ -2,13 +2,12 @@ import { isCardStoredValue, type CardBlock, type CardDataTableConfiguration, typ
   type CardInstanceRecord, type CardStoredValue, type FlowContainerLocationInfo, type RootChild,
   type SimpleContainerLocationInfo } from './model'
 import { fillDefaults, getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from './schema'
-import { validateCardSchemaField } from './schemaDiagnostics'
 
 type SourceRecord = Record<string, unknown>
 type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 export type CardStorageWarning = {
-  code: 'field-defaulted' | 'entry-ignored' | 'schema-warning'
+  code: 'field-defaulted' | 'entry-ignored'
   path: string
   message: string
 }
@@ -226,30 +225,14 @@ function projectKnownFields(
     const value = source[fieldKey]
     if (isCardStoredValue(value)) {
       projected[fieldKey] = structuredClone(value)
-      const definition = schema[fieldKey]
-      if (definition) {
-        const validation = validateCardSchemaField(value, definition)
-        if (!validation.ok) {
-          for (const diagnostic of validation.diagnostics) {
-            const suffix = diagnostic.path.map(part => typeof part === 'number' ? `[${part}]` : `.${part}`).join('')
-            warnings.push({
-              code: 'schema-warning',
-              path: `${path}.${fieldKey}${suffix}`,
-              message: diagnostic.code,
-            })
-          }
-        }
-      }
     }
     else if (materializeRequiredDefaults && schema[fieldKey]?.required === true && defaults[fieldKey] !== undefined) {
       projected[fieldKey] = structuredClone(defaults[fieldKey])
       warnings.push({
-        code: value === undefined || value === null ? 'schema-warning' : 'field-defaulted',
+        code: 'field-defaulted',
         path: `${path}.${fieldKey}`,
-        message: value === undefined || value === null ? 'required' : 'Invalid field value was replaced with its default',
+        message: value === undefined || value === null ? 'Required field was defaulted' : 'Invalid field value was replaced with its default',
       })
-    } else if (schema[fieldKey]?.required === true && (value === undefined || value === null)) {
-      warnings.push({ code: 'schema-warning', path: `${path}.${fieldKey}`, message: 'required' })
     } else if (value !== undefined && value !== null) {
       warnIgnored(warnings, `${path}.${fieldKey}`, 'Invalid optional field was ignored')
     }

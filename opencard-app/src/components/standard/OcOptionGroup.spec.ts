@@ -46,6 +46,7 @@ describe('OcOptionGroup', () => {
     const radios = wrapper.findAll('[role="radio"]')
     expect(radios.map((radio) => radio.attributes('tabindex'))).toEqual(['-1', '0', '-1', '-1'])
     expect(radios[1].attributes('aria-checked')).toBe('true')
+    expect(radios.every(radio => radio.attributes('data-tooltip') == null)).toBe(true)
 
     await radios[1].trigger('keydown', { key: 'ArrowDown' })
     expect(wrapper.emitted('update:modelValue')).toEqual([['left']])
@@ -55,6 +56,28 @@ describe('OcOptionGroup', () => {
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(updates[updates.length - 1]).toEqual(['bottom-left'])
     wrapper.unmount()
+  })
+
+  it('supports tab semantics and exposes tooltips only for hidden labels', async () => {
+    const wrapper = mount(OcOptionGroup, {
+      props: {
+        modelValue: 'workspace',
+        semantics: 'tabs',
+        options: [
+          { value: 'workspace', label: 'Workspace', icon: 'status.folder-open' },
+          { value: 'history', label: 'History', icon: 'file.git' },
+        ],
+      },
+    })
+
+    expect(wrapper.attributes('role')).toBe('tablist')
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs.map(tab => tab.attributes('aria-selected'))).toEqual(['true', 'false'])
+    expect(tabs.every(tab => tab.attributes('aria-checked') == null)).toBe(true)
+    expect(tabs.every(tab => tab.attributes('data-tooltip') == null)).toBe(true)
+
+    await wrapper.setProps({ iconOnly: true })
+    expect(tabs.map(tab => tab.attributes('data-tooltip'))).toEqual(['Workspace', 'History'])
   })
 
   it('moves a transparent selection outline between options', async () => {

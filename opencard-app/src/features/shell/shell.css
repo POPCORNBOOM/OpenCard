@@ -445,25 +445,8 @@
 
 .shell-sidebar-group-switcher {
   grid-row: 1;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: var(--oc-space-1);
   min-width: 0;
-}
-
-.shell-sidebar-group-switch.compact .shell-sidebar-group-switch-title {
-  display: none;
-}
-
- .shell-sidebar-group-switch {
-  min-width: 0;
-  justify-content: center;
-}
-
- .shell-sidebar-group-switch.active {
-  background: var(--oc-bg-selected);
-  color: var(--oc-fg-default);
+  margin-bottom: var(--oc-space-2);
 }
 
 .shell-sidebar-active-group {

@@ -21,6 +21,7 @@ export const iconTokens = {
   'action.folder-plus': true,
   'action.file-minus': true,
   'action.file-plus': true,
+  'action.file-arrow-up-down': true,
   'action.image-minus': true,
   'action.image-plus': true,
   'action.import': true,

@@ -75,6 +75,7 @@ export interface CommitSummary {
   authorEmail: string
   authoredAtSeconds: number
   parentIds: string[]
+  changedPaths: string[]
 }
 
 export interface HistoryRequest { limit?: number | null; start?: string | null }

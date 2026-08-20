@@ -17,6 +17,18 @@ describe('card schema diagnostics', () => {
       .toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-css-length', path: [] }] })
   })
 
+  it('normalizes unitless CSS lengths before browser validation', () => {
+    expect(validateCardSchemaField('12', { fieldType: 'string' }, { cssLength: true }))
+      .toEqual({ ok: true, value: '12px', diagnostics: [] })
+    expect(validateCardSchemaField(12, { fieldType: 'string' }, { cssLength: true }))
+      .toEqual({ ok: true, value: '12px', diagnostics: [] })
+    expect(validateCardSchemaField('-.5', { fieldType: 'string' }, { cssLength: true }))
+      .toEqual({ ok: true, value: '-.5px', diagnostics: [] })
+    expect(validateCardSchemaField('100% - 8', { fieldType: 'string' }, { cssLength: true }))
+      .toEqual({ ok: true, value: 'calc(100% - 8)', diagnostics: [] })
+  })
+
+
   it('validates objectType array elements and reports their index', () => {
     const result = validateCardSchemaField([
       { block: { id: 'a' }, location: { id: 'l' } },

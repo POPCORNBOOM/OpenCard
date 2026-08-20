@@ -45,6 +45,7 @@
         @head-button-clicked="runShellCommand"
         @list-button-clicked="handleSidebarListAction"
         @tail-button-clicked="runShellCommand"
+        @body-group-changed="handleSidebarBodyGroupChanged"
         @resize="handleSidebarResize"
         @layout-change="handleSidebarLayoutChange"
       >
@@ -162,26 +163,37 @@
             @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
           />
           <OcTree
-            v-else-if="(list.key === TIMELINE_LIST_KEY || list.key === 'version-graph') && timelineTreeData.rootKeys.length > 0"
+            v-else-if="list.key === TIMELINE_LIST_KEY && timelineTreeData.rootKeys.length > 0"
             class="open-card-shell__sidebar-tree"
             :data="timelineTreeData"
-            :selected-keys="timelineSelectedKeys"
-            :expanded-keys="timelineExpandedKeys"
+            :actions="timelineTreeActions"
+            :selected-keys="[]"
             role="tree"
-            selection-mode="single"
+            selection-mode="none"
             activation-mode="none"
             @intent="handleTimelineTreeIntent"
           />
           <OcTree
-            v-else-if="list.key === 'staged-changes'"
+            v-else-if="list.key === 'version-graph' && timelineProjectTreeData.rootKeys.length > 0"
             class="open-card-shell__sidebar-tree"
-            :data="stagedChangesTreeData"
+            :data="timelineProjectTreeData"
+            :selected-keys="[]"
+            :expanded-keys="versionGraphExpandedKeys"
+            role="tree"
+            selection-mode="none"
+            activation-mode="none"
+            @intent="handleVersionGraphTreeIntent"
+          />
+          <OcTree
+            v-else-if="list.key === 'changes'"
+            class="open-card-shell__sidebar-tree"
+            :data="changesTreeData"
             :selected-keys="[]"
             role="tree"
             selection-mode="none"
             activation-mode="none"
           />
-          <div v-else-if="list.key === 'version-graph' || list.key === 'staged-changes'" class="shell-sidebar-empty">
+          <div v-else-if="list.key === 'version-graph' || list.key === 'changes'" class="shell-sidebar-empty">
             <span>{{ list.placeholder }}</span>
           </div>
         </template>
@@ -314,6 +326,13 @@
       :preparation-issues="exportPreparationIssues"
       @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
       @submit="startProjectExport" />
+    <CommitVersionDialog
+      :open="commitVersionDialogOpen"
+      :busy="isCommittingVersion"
+      :error="commitVersionError"
+      @close="closeCommitVersionDialog"
+      @submit="commitVersion"
+    />
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -456,6 +475,7 @@ import type {
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
+import CommitVersionDialog from '../version-control/components/CommitVersionDialog.vue'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -510,8 +530,9 @@ import {
   type PrimaryShellPage,
   type ShellPage,
 } from './shellPage'
-import { useProjectTimeline } from '../version-control/useProjectTimeline'
+import { TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, useProjectTimeline } from '../version-control/useProjectTimeline'
 import { useOcdocumentDiffSession } from '../version-control/useOcdocumentDiffSession'
+import { createCommit, stageAll } from '../version-control/gitService'
 
 const { t, locale } = useI18n()
 const SIDEBAR_MIN_WIDTH = 220
@@ -577,6 +598,7 @@ const {
   iconRegistryReady,
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
+  fileChangeRevision,
   chooseProjectDirectory,
   ensureProjectManagementStructure,
   isProjectAvailable,
@@ -776,6 +798,9 @@ const {
 const releaseNotesDialogMode = ref<'current' | 'available' | null>(null)
 const feedbackDialogKind = ref<FeedbackKind>('suggestion')
 const feedbackCenterPage = ref<FeedbackPage | null>(null)
+const commitVersionDialogOpen = ref(false)
+const isCommittingVersion = ref(false)
+const commitVersionError = ref('')
 const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
 const {
   unreadReplyCount: unreadFeedbackReplyCount,
@@ -851,16 +876,28 @@ const timelineFilePath = computed(() => {
 const projectTimeline = useProjectTimeline(projectPath, timelineFilePath, locale)
 const {
   treeData: timelineTreeData,
-  selectedKeys: timelineSelectedKeys,
-  expandedKeys: timelineExpandedKeys,
-  stagedChangesTreeData,
+  projectTreeData: timelineProjectTreeData,
+  changesTreeData,
   loading: timelineLoading,
   initialized: timelineInitialized,
   errorKind: timelineErrorKind,
   refresh: refreshTimeline,
-  handleTreeIntent: timelineHandleTreeIntent,
+  refreshStatus: refreshTimelineStatus,
   revisionOptions: timelineRevisionOptions,
 } = projectTimeline
+const versionGraphExpandedKeys = ref<string[]>([])
+watch(timelineProjectTreeData, data => {
+  versionGraphExpandedKeys.value = versionGraphExpandedKeys.value.filter(key => data.children.has(key))
+})
+let changeStatusRefreshTimer: ReturnType<typeof setTimeout> | null = null
+watch(fileChangeRevision, () => {
+  if (!projectPath.value) return
+  if (changeStatusRefreshTimer) clearTimeout(changeStatusRefreshTimer)
+  changeStatusRefreshTimer = setTimeout(() => {
+    changeStatusRefreshTimer = null
+    void refreshTimelineStatus()
+  }, 120)
+})
 const timelineFileName = computed(() => activeSession.value?.name ?? timelineFilePath.value?.split(/[\\/]/).pop() ?? 'ocdocument')
 const diffSessionState = useOcdocumentDiffSession({
   projectRoot: projectPath,
@@ -895,11 +932,28 @@ const editorComparison = computed(() => {
     after: { ...session.after, revisionId: session.after.commitId, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
   }
 })
+const timelineTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, {
+    title: t('sidebar.timelineCompareWithDisk'),
+    icon: 'action.file-arrow-up-down',
+  }],
+]))
+function handleVersionGraphTreeIntent(intent: OcTreeIntent): void {
+  if (intent.type === 'expansion.change') {
+    versionGraphExpandedKeys.value = intent.expanded
+      ? [...new Set([...versionGraphExpandedKeys.value, intent.key])]
+      : versionGraphExpandedKeys.value.filter(key => key !== intent.key)
+    return
+  }
+  if (intent.type === 'expansion.sync') versionGraphExpandedKeys.value = intent.expandedKeys
+}
 async function handleTimelineTreeIntent(intent: OcTreeIntent) {
-  timelineHandleTreeIntent(intent)
-  if (intent.type !== 'selection.change' || !timelineFilePath.value) return
-  const key = intent.selectedKeys[0]
-  const commitId = key?.startsWith('timeline:') ? key.slice('timeline:'.length) : null
+  if (
+    intent.type !== 'action.invoke'
+    || intent.actionKey !== TIMELINE_COMPARE_WITH_DISK_ACTION_KEY
+    || !timelineFilePath.value
+  ) return
+  const commitId = intent.key.startsWith('timeline:') ? intent.key.slice('timeline:'.length) : null
   const sessionId = activeSession.value?.id
   if (!commitId || !sessionId) return
 
@@ -1806,7 +1860,13 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
 
 const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
   if (isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isWelcomeMode.value || isAboutMode.value) {
-    return [{ key: 'primary', title: '', headButtons: sidebarHeadButtons.value, lists: sidebarBodyLists.value }];
+    return [{
+      key: 'primary',
+      transitionKey: `page:${shellPage.value.type}`,
+      title: '',
+      headButtons: sidebarHeadButtons.value,
+      lists: sidebarBodyLists.value,
+    }];
   }
   const lists = sidebarBodyLists.value;
   const groups: ShellListGroup[] = [
@@ -1821,10 +1881,15 @@ const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
       key: 'version-control',
       title: t('sidebar.versionControlGroup', 'Version Control'),
       icon: 'file.git',
-      headButtons: [{ key: 'publish-version', icon: 'action.publish', title: t('sidebar.commitVersion', 'Commit version') }],
+      headButtons: [{
+        key: 'publish-version',
+        icon: 'action.publish',
+        title: t('sidebar.commitVersion', 'Commit version'),
+        disabled: changesTreeData.value.rootKeys.length === 0 || isCommittingVersion.value,
+      }],
       lists: [
+        { key: 'changes', title: t('sidebar.changes', 'Changes'), placeholder: '', actions: [] },
         { key: 'version-graph', title: t('sidebar.versionGraph', 'Version graph'), placeholder: '', actions: [] },
-        { key: 'staged-changes', title: t('sidebar.stagedChanges', 'Staged changes'), placeholder: '', actions: [] },
       ],
     },
   ];
@@ -2190,6 +2255,16 @@ async function revealRecentProject(path: string): Promise<void> {
     await fileSystemService.revealInFileManager(path)
   } catch (error) {
     reportAppError('OC-E2004', { actionKey: RECENT_PROJECT_REVEAL_ACTION_KEY, path, error })
+  }
+}
+
+function handleSidebarBodyGroupChanged(groupKey: string): void {
+  if (groupKey === 'version-control') void refreshTimelineStatus()
+}
+
+function handleWindowFocus(): void {
+  if (shellPage.value.type === 'workbench' && projectPath.value && timelineInitialized.value !== false) {
+    void refreshTimelineStatus()
   }
 }
 
@@ -2794,6 +2869,14 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'publish-version') {
+    if (projectPath.value && changesTreeData.value.rootKeys.length > 0) {
+      commitVersionError.value = ''
+      commitVersionDialogOpen.value = true
+    }
+    return
+  }
+
   if (actionKey === 'export-project-template') {
     if (projectPath.value) {
       const returnPage = getCurrentPrimaryShellPage()
@@ -2806,6 +2889,38 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'export-card-documents' && projectPath.value) {
     await openProjectExportDialog()
+  }
+  return
+}
+
+function closeCommitVersionDialog(): void {
+  if (isCommittingVersion.value) return
+  commitVersionDialogOpen.value = false
+  commitVersionError.value = ''
+}
+
+async function commitVersion(message: string): Promise<void> {
+  const root = projectPath.value
+  if (!root || isCommittingVersion.value) return
+  isCommittingVersion.value = true
+  commitVersionError.value = ''
+  try {
+    const staged = await stageAll(root)
+    if (!staged.ok || !staged.value) {
+      commitVersionError.value = staged.error?.message ?? t('sidebar.commitDialog.failed')
+      return
+    }
+    const result = await createCommit(root, { message })
+    if (!result.ok || !result.value) {
+      commitVersionError.value = result.error?.message ?? t('sidebar.commitDialog.failed')
+      return
+    }
+    commitVersionDialogOpen.value = false
+    await refreshTimeline()
+  } catch (error) {
+    commitVersionError.value = error instanceof Error ? error.message : t('sidebar.commitDialog.failed')
+  } finally {
+    isCommittingVersion.value = false
   }
 }
 
@@ -3163,6 +3278,7 @@ async function loadSystemFontFamilies(): Promise<void> {
 
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
+  window.addEventListener('focus', handleWindowFocus)
   void startShellWindow()
   void startAppUpdater()
   void startFeedbackInbox()
@@ -3172,10 +3288,13 @@ onMounted(() => {
   }
 })
 
+
 onUnmounted(() => {
+  if (changeStatusRefreshTimer) clearTimeout(changeStatusRefreshTimer)
   removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('focus', handleWindowFocus)
   disposeShellWindow()
   disposeAppUpdater()
   disposeFeedbackInbox()

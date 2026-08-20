@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import OcIcon from '../../../components/base/OcIcon.vue';
 import OcActionRail from '../../../components/standard/OcActionRail.vue';
+import OcOptionGroup, { type OcOption } from '../../../components/standard/OcOptionGroup.vue';
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue';
 import type { ShellButton, ShellList, ShellListGroup } from '../shell.types';
 import type { ProjectWorkspaceSidebarState } from '../../settings/model/appSettings';
@@ -39,8 +40,15 @@ const resizingListPair = ref(false);
 
 const listGroups = computed<ShellListGroup[]>(() => props.bodyGroups);
 const activeGroup = computed(() => listGroups.value.find(group => group.key === activeGroupKey.value) ?? listGroups.value[0]);
+const activeTransitionKey = computed(() => activeGroup.value?.transitionKey ?? activeGroup.value?.key ?? 'empty');
 const activeHeadButtons = computed(() => activeGroup.value?.headButtons ?? []);
 const activeLists = computed(() => activeGroup.value?.lists ?? []);
+const groupOptions = computed<readonly OcOption[]>(() => listGroups.value.map(group => ({
+  value: group.key,
+  label: group.title,
+  icon: group.icon,
+})));
+const groupTitlesHidden = computed(() => props.collapsed || props.width < (props.compactGroupWidth ?? 0));
 
 function ensureListState(lists: ShellList[]): void {
   const persisted = props.persistedLayout;
@@ -129,6 +137,7 @@ function onResizePointerDown(event: PointerEvent): void {
   window.addEventListener('pointerup', stop);
 }
 
+
 function toActionDefinitions(actions: ShellList['actions']): OcActionButtonAction[] {
   return actions.map(action => ({ key: action.key ?? action.icon, title: action.hoverTip, icon: action.icon, disabled: action.disabled, badge: action.badge, badgeLabel: action.badgeLabel, children: action.children }));
 }
@@ -136,13 +145,20 @@ function toActionDefinitions(actions: ShellList['actions']): OcActionButtonActio
 
 <template>
   <aside ref="sidebarElement" class="shell-sidebar" :class="{ collapsed }" :style="{ width: `${width}px` }">
-    <div v-if="listGroups.length > 1" class="shell-sidebar-group-switcher" role="tablist">
-      <button v-for="group in listGroups" :key="group.key" class="shell-sidebar-button shell-sidebar-group-switch" :class="{ active: group.key === activeGroup?.key, compact: width < (compactGroupWidth ?? 0) }" type="button" role="tab" :aria-selected="group.key === activeGroup?.key" :data-tooltip="group.title" @click="selectGroup(group.key)">
-        <OcIcon v-if="group.icon" :name="group.icon" size="md" /><span v-if="!collapsed" class="shell-sidebar-group-switch-title">{{ group.title }}</span>
-      </button>
-    </div>
+    <OcOptionGroup
+      v-if="listGroups.length > 1"
+      class="shell-sidebar-group-switcher"
+      :model-value="activeGroup?.key"
+      :options="groupOptions"
+      :icon-only="groupTitlesHidden"
+      appearance="sliding-outline"
+      semantics="tabs"
+      size="md"
+      fill
+      @update:model-value="selectGroup"
+    />
     <Transition :name="`shell-sidebar-group-slide-${transitionDirection}`" mode="out-in">
-      <div :key="activeGroup?.key ?? 'empty'" class="shell-sidebar-active-group">
+      <div :key="activeTransitionKey" class="shell-sidebar-active-group" :data-transition-key="activeTransitionKey">
         <div class="shell-sidebar-group shell-sidebar-group-top">
           <button v-for="button in activeHeadButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('head-button-clicked', button.key)">
             <OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span>

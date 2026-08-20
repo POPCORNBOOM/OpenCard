@@ -270,7 +270,7 @@ describe('card data workbook', () => {
       .rejects.toThrow('Workbook contains duplicate card column instance-1')
   })
 
-  it('keeps invalid enum values and reports a shared schema warning', async () => {
+  it('imports field values without pre-empting binding or render diagnostics', async () => {
     const groups = createFaceGroups()
     groups[0]!.blocks[0]!.fields[0]!.definition = {
       title: 'Fit', fieldType: 'string', options: ['cover', 'contain'],
@@ -290,7 +290,7 @@ describe('card data workbook', () => {
     expect(result.updates).toContainEqual(expect.objectContaining({
       cardId: 'instance-1', blockId: 'block-1', fieldKey: 'content', value: 'unexpected',
     }))
-    expect(result.warnings).toContain('G3 block-1.content: invalid-option')
+    expect(result.warnings).toEqual([])
   })
 })
 

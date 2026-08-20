@@ -24,6 +24,7 @@ interface Props {
   square?: boolean
   iconOnly?: boolean
   appearance?: 'buttons' | 'sliding-outline'
+  semantics?: 'radio' | 'tabs'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,6 +35,7 @@ const props = withDefaults(defineProps<Props>(), {
   square: false,
   iconOnly: false,
   appearance: 'buttons',
+  semantics: 'radio',
 })
 
 const emit = defineEmits<{
@@ -97,7 +99,8 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
   if (nextIndex == null) return
   event.preventDefault()
   const nextOption = props.options[nextIndex]
-  rootRef.value?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]?.focus()
+  const optionRole = props.semantics === 'tabs' ? 'tab' : 'radio'
+  rootRef.value?.querySelectorAll<HTMLButtonElement>(`[role="${optionRole}"]`)[nextIndex]?.focus()
   emit('update:modelValue', nextOption.value)
 }
 </script>
@@ -113,7 +116,7 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
       'oc-option-group--sliding-outline': appearance === 'sliding-outline',
     }"
     :style="containerStyle"
-    role="radiogroup"
+    :role="semantics === 'tabs' ? 'tablist' : 'radiogroup'"
     :aria-disabled="disabled || undefined"
   >
     <span v-if="appearance === 'sliding-outline'" class="oc-option-group__indicator" aria-hidden="true" />
@@ -126,10 +129,11 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
       :variant="appearance === 'sliding-outline' ? 'ghost' : isSelected(option.value) ? 'solid' : 'soft'"
       :block="fill"
       :icon-only="iconOnly"
-      :data-tooltip="option.label"
+      :data-tooltip="iconOnly ? option.label : null"
       :aria-label="option.label"
-      role="radio"
-      :aria-checked="isSelected(option.value)"
+      :role="semantics === 'tabs' ? 'tab' : 'radio'"
+      :aria-checked="semantics === 'radio' ? isSelected(option.value) : undefined"
+      :aria-selected="semantics === 'tabs' ? isSelected(option.value) : undefined"
       :tabindex="index === selectedIndex ? 0 : -1"
       @click="handleSelect(option.value)"
       @keydown="handleKeydown($event, index)"

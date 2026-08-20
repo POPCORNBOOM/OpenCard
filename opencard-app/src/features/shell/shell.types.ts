@@ -33,6 +33,7 @@ export interface ShellList {
 
 export interface ShellListGroup {
   key: string;
+  transitionKey?: string;
   title: string;
   icon?: IconToken;
   headButtons?: ShellButton[];

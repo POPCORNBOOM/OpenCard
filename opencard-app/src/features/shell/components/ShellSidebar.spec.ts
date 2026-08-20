@@ -64,6 +64,36 @@ describe('ShellSidebar', () => {
     expect(wrapper.get('.shell-sidebar-list-title').text()).toBe('Recent Projects')
   })
 
+  it('animates single-group content when its transition identity changes', async () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: [{
+          key: 'primary',
+          transitionKey: 'page:welcome',
+          title: '',
+          lists: [{ key: 'recent', title: 'Recent Projects', placeholder: 'Empty', actions: [] }],
+        }],
+      },
+    })
+
+    expect(wrapper.get('.shell-sidebar-active-group').attributes('data-transition-key')).toBe('page:welcome')
+    await wrapper.setProps({
+      bodyGroups: [{
+        key: 'primary',
+        transitionKey: 'page:settings',
+        title: '',
+        lists: [{ key: 'settings', title: 'Settings', placeholder: 'Empty', actions: [] }],
+      }],
+    })
+    await flushPromises()
+
+    expect(wrapper.get('.shell-sidebar-active-group').attributes('data-transition-key')).toBe('page:settings')
+    expect(wrapper.get('.shell-sidebar-list-title').text()).toBe('Settings')
+  })
+
   it('shares available height across expanded lists and keeps scrolling inside each list', () => {
     const wrapper = mount(ShellSidebar, {
       props: {
@@ -155,15 +185,18 @@ describe('ShellSidebar', () => {
       },
     })
 
-    expect(wrapper.findAll('.shell-sidebar-group-switch')).toHaveLength(2)
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs).toHaveLength(2)
+    expect(tabs.map(button => button.attributes('data-tooltip'))).toEqual([undefined, undefined])
+    expect(tabs.map(button => button.attributes('aria-selected'))).toEqual(['true', 'false'])
     expect(wrapper.get('.shell-sidebar-group-top .shell-sidebar-button').text()).toBe('New OpenCard')
-    await wrapper.findAll('.shell-sidebar-group-switch')[1]!.trigger('click')
+    await tabs[1]!.trigger('click')
     expect(wrapper.get('.shell-sidebar-group-top .shell-sidebar-button').text()).toBe('Commit')
     expect(wrapper.get('.shell-sidebar-list-title').text()).toBe('Timeline')
     expect(wrapper.emitted('body-group-changed')).toEqual([['history']])
   })
 
-  it('hides group titles below the configured compact width while retaining tooltips', () => {
+  it('uses tooltips only when compact width hides group titles', () => {
     const wrapper = mount(ShellSidebar, {
       props: {
         collapsed: false,
@@ -177,8 +210,8 @@ describe('ShellSidebar', () => {
       },
     })
 
-    const switches = wrapper.findAll('.shell-sidebar-group-switch')
-    expect(switches.every(button => button.classes().includes('compact'))).toBe(true)
+    const switches = wrapper.findAll('[role="tab"]')
+    expect(wrapper.get('.shell-sidebar-group-switcher').classes()).toContain('oc-option-group--icon-only')
     expect(switches.map(button => button.attributes('data-tooltip'))).toEqual(['Workspace', 'History'])
   })
 

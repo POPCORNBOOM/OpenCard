@@ -103,6 +103,14 @@
           {{ entry.item.label }}
         </OcText>
 
+        <span v-if="entry.item.tail" class="oc-tree__tail">
+          <template v-for="(part, index) in normalizeItemTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
+            <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
+            <span v-else class="oc-tree__tail-action" :data-tooltip="part.title" aria-hidden="true">
+              <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
+            </span>
+          </template>
+        </span>
         <span class="oc-tree__controls" data-tree-interactive="true">
           <OcActionButton
             v-for="action in resolveItemActions(entry.key)"
@@ -114,14 +122,6 @@
             @mousedown.stop
             @select="emitActionIntent(entry.key, $event.key)"
           />
-        </span>
-        <span v-if="entry.item.tail" class="oc-tree__tail">
-          <template v-for="(part, index) in normalizeItemTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
-            <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
-            <span v-else class="oc-tree__tail-action" :data-tooltip="part.title" aria-hidden="true">
-              <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
-            </span>
-          </template>
         </span>
       </div>
     </div>

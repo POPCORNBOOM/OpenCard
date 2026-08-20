@@ -603,7 +603,7 @@ describe('OcTree', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
-          items: [['root', { label: 'Root', actions: ['move'] }]],
+          items: [['root', { label: 'Root', tail: '2 weeks', actions: ['move'] }]],
         }),
         actions: new Map<string, OcTreeActionDefinition>([
           ['move', { title: 'Move up', icon: 'nav.arrow-up' }],
@@ -614,6 +614,9 @@ describe('OcTree', () => {
 
     expect(wrapper.classes()).toContain('are-actions-always-visible')
     expect(getComputedStyle(wrapper.get('.oc-tree__controls').element).visibility).toBe('visible')
+    const rowChildren = Array.from(wrapper.get('.oc-tree__row').element.children)
+    expect(rowChildren.indexOf(wrapper.get('.oc-tree__tail').element))
+      .toBeLessThan(rowChildren.indexOf(wrapper.get('.oc-tree__controls').element))
   })
 
   it('opens direct context actions without exposing the inline more wrapper', async () => {
