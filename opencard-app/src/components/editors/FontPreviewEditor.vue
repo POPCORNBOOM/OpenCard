@@ -1,5 +1,7 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.font" content-mode="workspace"
+  <FontDiffView v-if="props.mode === 'diff'" :comparison="props.comparison" :file-path="props.filePath"
+    :project-root-path="props.resourceRootPath" />
+  <ProjectRegistryEditorShell v-else icon="file.font" content-mode="workspace"
     :heading="displayName" :description="t('fontPreview.subtitle')">
     <section class="font-preview-editor" :aria-label="t('fontPreview.title', { name: displayName })">
       <div v-if="loading" class="font-preview-editor__status">
@@ -38,6 +40,7 @@ import { repairTrueTypeFont } from '../../features/workspace/services/trueTypeFo
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcText from '../base/OcText.vue'
+import FontDiffView from './FontDiffView.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 
 defineOptions({ name: 'FontPreviewEditor' })

@@ -29,6 +29,13 @@ function resolveProjectFile(root: string, path: string): string {
   return `${normalizedRoot}/${path.replace(/^[\\/]+/, '').replace(/\\/g, '/')}`
 }
 
+const DIFF_BINARY_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])
+
+export function isBinaryFontDiffPath(path: string): boolean {
+  const extension = path.split('.').pop()?.toLocaleLowerCase()
+  return Boolean(extension && DIFF_BINARY_FONT_EXTENSIONS.has(extension))
+}
+
 const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
 const SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS = 2_000
 
@@ -163,16 +170,19 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
   ))
 
   async function loadSnapshot(root: string, path: string, commitId: string | null, label: string): Promise<DiffSnapshot> {
-    let content: string
+    const binaryFont = isBinaryFontDiffPath(path)
+    let content = ''
     let resourceRootPath: string
     if (commitId === null) {
       resourceRootPath = root
-      content = await fileSystemService.readFile(resolveProjectFile(root, path))
+      const filePath = resolveProjectFile(root, path)
+      if (binaryFont) await fileSystemService.readBinaryFile(filePath)
+      else content = await fileSystemService.readFile(filePath)
     } else {
       const result = await readFileAtRevision(root, { revision: commitId, path })
       if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法读取历史版本')
-      if (result.value.binary) throw new Error('该版本不是文本文件')
-      content = result.value.content
+      if (result.value.binary && !binaryFont) throw new Error('该版本不是文本文件')
+      if (!result.value.binary) content = result.value.content
       const materialized = await materializeRevision(root, { revision: commitId })
       if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')
       resourceRootPath = materialized.value.rootPath

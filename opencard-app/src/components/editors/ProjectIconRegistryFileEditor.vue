@@ -1,5 +1,7 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.project-icon" content-mode="workspace" header-mode="hidden"
+  <MonacoEditor v-if="props.mode === 'diff'" :model-value="props.modelValue ?? ''" language="json"
+    :mode="props.mode" :comparison="props.comparison" :theme-id="themeId" :theme-overrides="themeOverrides" />
+  <ProjectRegistryEditorShell v-else icon="file.project-icon" content-mode="workspace" header-mode="hidden"
     :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
@@ -58,6 +60,7 @@ import {
   exportProjectIconPack,
   readProjectIconPack,
 } from '../../features/workspace/services/projectIconPack'
+import MonacoEditor from './MonacoEditor.vue'
 import ProjectIconRegistrationDialog, {
   type ProjectIconRegistrationRequest,
 } from './ProjectIconRegistrationDialog.vue'
