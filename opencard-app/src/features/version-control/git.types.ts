@@ -66,6 +66,9 @@ export interface CommitRequest { message: string }
 export interface RevisionRequest { revision: string }
 export interface NamedRequest { name: string }
 
+export type CommitChangedFileStatus = 'added' | 'modified' | 'deleted'
+export interface CommitChangedFile { path: string; status: CommitChangedFileStatus }
+
 export interface CommitSummary {
   id: string
   shortId: string
@@ -75,7 +78,7 @@ export interface CommitSummary {
   authorEmail: string
   authoredAtSeconds: number
   parentIds: string[]
-  changedPaths: string[]
+  changedFiles: CommitChangedFile[]
 }
 
 export interface HistoryRequest { limit?: number | null; start?: string | null }

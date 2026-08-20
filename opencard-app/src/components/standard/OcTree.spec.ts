@@ -599,6 +599,19 @@ describe('OcTree', () => {
       .toEqual(['top', 'up', 'delete'])
   })
 
+  it('does not render an empty inline-action container', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'Root', tail: '2 weeks', actions: [] }]],
+        }),
+      },
+    })
+
+    expect(wrapper.find('.oc-tree__tail').exists()).toBe(true)
+    expect(wrapper.find('.oc-tree__controls').exists()).toBe(false)
+  })
+
   it('can keep inline actions visible without row interaction', () => {
     const wrapper = mount(OcTree, {
       props: {

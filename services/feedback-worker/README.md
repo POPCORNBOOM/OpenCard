@@ -10,7 +10,7 @@ This Cloudflare Worker accepts bounded feedback from the OpenCard desktop app an
 4. In Cloudflare, choose an unused positive integer for the rate-limit `namespace_id` in `wrangler.jsonc` if `61001` is already used by another Worker in the account.
 5. Create the `opencard-feedback-receipts` D1 database, set its ID in `wrangler.jsonc`, and apply the checked-in migrations.
 
-The Worker accepts the production Tauri origins and `http://localhost:1420` for local development. Remove the development origin from `ALLOWED_ORIGINS` if remote development submissions are not needed.
+The Worker accepts the production Tauri origins and `http://localhost:5280` for local development. Remove the development origin from `ALLOWED_ORIGINS` if remote development submissions are not needed.
 
 ## Deploy
 

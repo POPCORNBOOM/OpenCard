@@ -13,9 +13,9 @@ import { useProjectTimeline } from './useProjectTimeline'
 
 const ok = <T>(value: T) => ({ ok: true, value, error: null, retryable: false, authenticationRequired: false, conflicted: false, continuable: false, abortable: false })
 const repository = { initialized: true, projectRoot: 'D:/Cards/demo', head: 'abc', currentBranch: 'main', state: 'clean', hasConflicts: false, hasChanges: false }
-const commit = (id: string, summary: string, changedPaths: string[] = []) => ({
+const commit = (id: string, summary: string, changedFiles: Array<{ path: string; status: 'added' | 'modified' | 'deleted' }> = []) => ({
   id, shortId: id.slice(0, 7), summary, message: summary, authorName: 'Author',
-  authorEmail: 'author@example.com', authoredAtSeconds: 0, parentIds: [], changedPaths,
+  authorEmail: 'author@example.com', authoredAtSeconds: 0, parentIds: [], changedFiles,
 })
 const statusEntry = (path: string, overrides: Partial<{
   indexNew: boolean; indexModified: boolean; indexDeleted: boolean
@@ -57,19 +57,28 @@ describe('useProjectTimeline', () => {
     mocks.readHistory.mockResolvedValueOnce(ok([commit(
       'project1',
       'Project commit',
-      ['cards/main.ocdocument', 'assets/cover.png'],
+      [
+        { path: 'cards/main.ocdocument', status: 'added' },
+        { path: 'assets/cover.png', status: 'modified' },
+        { path: 'notes/old.md', status: 'deleted' },
+      ],
     )]))
     mocks.readFileHistory.mockResolvedValueOnce(ok([commit(
       'project1',
       'Project commit',
-      ['cards/main.ocdocument'],
+      [{ path: 'cards/main.ocdocument', status: 'modified' }],
     )]))
     const state = useTimeline(ref('D:/Cards/demo'))
-    await vi.waitFor(() => expect(state.projectTreeData.value.children.get('project-timeline:project1')).toHaveLength(2))
+    await vi.waitFor(() => expect(state.projectTreeData.value.children.get('project-timeline:project1')).toHaveLength(3))
 
     const childKeys = state.projectTreeData.value.children.get('project-timeline:project1')!
     expect(childKeys.map(key => state.projectTreeData.value.items.get(key)?.label))
-      .toEqual(['cards/main.ocdocument', 'assets/cover.png'])
+      .toEqual(['cards/main.ocdocument', 'assets/cover.png', 'notes/old.md'])
+    expect(childKeys.map(key => state.projectTreeData.value.items.get(key)?.tail)).toEqual([
+      { key: 'status', title: 'Added', icon: 'action.add', iconTone: 'success' },
+      { key: 'status', title: 'Modified', icon: 'status.circle-medium', iconTone: 'warning' },
+      { key: 'status', title: 'Deleted', icon: 'action.minus', iconTone: 'danger' },
+    ])
     expect(state.treeData.value.children.size).toBe(0)
   })
 

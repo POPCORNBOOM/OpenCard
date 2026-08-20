@@ -13,23 +13,34 @@
   >
     <div class="commit-version-dialog" :inert="busy ? true : undefined">
       <label class="commit-version-dialog__field">
-        <OcText as="span" size="sm">{{ t('sidebar.commitDialog.messageLabel') }}</OcText>
+        <OcText as="span" size="sm">{{ t('sidebar.commitDialog.summaryLabel') }}</OcText>
+        <OcFieldInput
+          full-width
+          autofocus
+          required
+          :value="summary"
+          :placeholder="t('sidebar.commitDialog.summaryPlaceholder')"
+          :aria-invalid="submitted && !summary.trim()"
+          :disabled="busy"
+          @input="summary = fieldValue($event)"
+        />
+      </label>
+      <OcText v-if="submitted && !summary.trim()" as="p" size="sm" tone="danger" role="alert">
+        {{ t('sidebar.commitDialog.summaryRequired') }}
+      </OcText>
+      <label class="commit-version-dialog__field">
+        <OcText as="span" size="sm">{{ t('sidebar.commitDialog.descriptionLabel') }}</OcText>
         <OcFieldInput
           as="textarea"
           full-width
-          autofocus
           resize="vertical"
-          :value="message"
-          :placeholder="t('sidebar.commitDialog.messagePlaceholder')"
-          :aria-invalid="submitted && !message.trim()"
+          :value="description"
+          :placeholder="t('sidebar.commitDialog.descriptionPlaceholder')"
           :disabled="busy"
-          @input="message = fieldValue($event)"
+          @input="description = fieldValue($event)"
         />
       </label>
-      <OcText v-if="submitted && !message.trim()" as="p" size="sm" tone="danger" role="alert">
-        {{ t('sidebar.commitDialog.messageRequired') }}
-      </OcText>
-      <OcText v-else-if="error" as="p" size="sm" tone="danger" role="alert">
+      <OcText v-if="error" as="p" size="sm" tone="danger" role="alert">
         {{ error }}
       </OcText>
     </div>
@@ -38,7 +49,7 @@
       <OcButton type="button" variant="ghost" :disabled="busy" @click="requestClose">
         {{ t('sidebar.commitDialog.cancel') }}
       </OcButton>
-      <OcButton type="submit" variant="solid" :disabled="busy || !message.trim()">
+      <OcButton type="submit" variant="solid" :disabled="busy || !summary.trim()">
         {{ busy ? t('sidebar.commitDialog.committing') : t('sidebar.commitDialog.commit') }}
       </OcButton>
     </template>
@@ -63,15 +74,17 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{
   close: []
-  submit: [message: string]
+  submit: [value: { summary: string; description: string }]
 }>()
 const { t } = useI18n()
-const message = ref('')
+const summary = ref('')
+const description = ref('')
 const submitted = ref(false)
 
 watch(() => props.open, open => {
   if (!open) return
-  message.value = ''
+  summary.value = ''
+  description.value = ''
   submitted.value = false
 })
 
@@ -85,8 +98,10 @@ function requestClose(): void {
 
 function submit(): void {
   submitted.value = true
-  const normalizedMessage = message.value.trim()
-  if (!props.busy && normalizedMessage) emit('submit', normalizedMessage)
+  const normalizedSummary = summary.value.trim()
+  if (!props.busy && normalizedSummary) {
+    emit('submit', { summary: normalizedSummary, description: description.value.trim() })
+  }
 }
 </script>
 

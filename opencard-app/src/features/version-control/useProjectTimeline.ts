@@ -3,7 +3,7 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type { OcTreeData } from '../../shared/ui/tree/tree.types'
 import { inspectRepository, readFileHistory, readHistory, readStatus } from './gitService'
 import { formatRelativeTime } from '../../shared/i18n/relativeTime'
-import type { CommitSummary, GitErrorKind, GitStatusEntry } from './git.types'
+import type { CommitChangedFile, CommitSummary, GitErrorKind, GitStatusEntry } from './git.types'
 import type { DiffRevisionOption } from './diff.types'
 import { resolveEntryIcon } from '../workspace/model/fileTypes'
 
@@ -36,6 +36,15 @@ export function useProjectTimeline(
   let requestRevision = 0
   let statusRequestRevision = 0
 
+  function changedFileTail(file: CommitChangedFile) {
+    const titles = locale.value === 'zh-CN'
+      ? { added: '新增', modified: '修改', deleted: '删除' }
+      : { added: 'Added', modified: 'Modified', deleted: 'Deleted' }
+    if (file.status === 'added') return { key: 'status', title: titles.added, icon: 'action.add' as const, iconTone: 'success' as const }
+    if (file.status === 'deleted') return { key: 'status', title: titles.deleted, icon: 'action.minus' as const, iconTone: 'danger' as const }
+    return { key: 'status', title: titles.modified, icon: 'status.circle-medium' as const, iconTone: 'warning' as const }
+  }
+
   function createCommitTree(
     commits: CommitSummary[],
     keyPrefix: string,
@@ -55,16 +64,17 @@ export function useProjectTimeline(
         icon: 'file.git',
         actions,
       })
-      const changedPaths = Array.isArray(commit.changedPaths) ? commit.changedPaths : []
-      if (!includeChangedPaths || changedPaths.length === 0) continue
-      const childKeys = changedPaths.map((path, index) => `${key}:file:${index}:${path}`)
+      const changedFiles = Array.isArray(commit.changedFiles) ? commit.changedFiles : []
+      if (!includeChangedPaths || changedFiles.length === 0) continue
+      const childKeys = changedFiles.map((file, index) => `${key}:file:${index}:${file.path}`)
       children.set(key, childKeys)
-      changedPaths.forEach((path, index) => {
-        const presentation = resolveEntryIcon(path, false)
+      changedFiles.forEach((file, index) => {
+        const presentation = resolveEntryIcon(file.path, false)
         items.set(childKeys[index]!, {
-          label: path,
+          label: file.path,
           icon: presentation.icon,
           iconTone: presentation.tone,
+          tail: changedFileTail(file),
         })
       })
     }

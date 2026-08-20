@@ -21,7 +21,7 @@
   "vars": {
     "GITHUB_OWNER": "POPCORNBOOM",
     "GITHUB_REPO": "OpenCard-reports",
-    "ALLOWED_ORIGINS": "http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://localhost:1420"
+    "ALLOWED_ORIGINS": "http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://localhost:5280"
   },
   "d1_databases": [
     {

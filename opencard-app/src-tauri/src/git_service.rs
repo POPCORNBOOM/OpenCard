@@ -211,6 +211,13 @@ pub struct CommitRequest {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CommitChangedFile {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitSummary {
     pub id: String,
     pub short_id: String,
@@ -220,7 +227,7 @@ pub struct CommitSummary {
     pub author_email: String,
     pub authored_at_seconds: i64,
     pub parent_ids: Vec<String>,
-    pub changed_paths: Vec<String>,
+    pub changed_files: Vec<CommitChangedFile>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -749,14 +756,14 @@ fn commit_summary(commit: &git2::Commit<'_>) -> CommitSummary {
         author_email: author.email().unwrap_or_default().to_string(),
         authored_at_seconds: author.when().seconds(),
         parent_ids: commit.parent_ids().map(|id| id.to_string()).collect(),
-        changed_paths: Vec::new(),
+        changed_files: Vec::new(),
     }
 }
 
-fn commit_changed_paths(
+fn commit_changed_files(
     repository: &Repository,
     commit: &git2::Commit<'_>,
-) -> GitServiceResult<Vec<String>> {
+) -> GitServiceResult<Vec<CommitChangedFile>> {
     let tree = commit.tree().map_err(GitServiceError::from_git)?;
     let parent_tree = commit
         .parent(0)
@@ -765,14 +772,24 @@ fn commit_changed_paths(
     let diff = repository
         .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)
         .map_err(GitServiceError::from_git)?;
-    let mut paths = diff
+    let mut files = diff
         .deltas()
-        .filter_map(|delta| delta.new_file().path().or_else(|| delta.old_file().path()))
-        .map(normalized_path_string)
+        .filter_map(|delta| {
+            let path = delta.new_file().path().or_else(|| delta.old_file().path())?;
+            let status = match delta.status() {
+                git2::Delta::Added | git2::Delta::Untracked => "added",
+                git2::Delta::Deleted => "deleted",
+                _ => "modified",
+            };
+            Some(CommitChangedFile {
+                path: normalized_path_string(path),
+                status: status.to_string(),
+            })
+        })
         .collect::<Vec<_>>();
-    paths.sort();
-    paths.dedup();
-    Ok(paths)
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    files.dedup_by(|left, right| left.path == right.path);
+    Ok(files)
 }
 
 pub fn stage_paths(
@@ -1019,7 +1036,7 @@ pub fn read_history(
                 .find_commit(oid.map_err(GitServiceError::from_git)?)
                 .map_err(GitServiceError::from_git)?;
             let mut summary = commit_summary(&commit);
-            summary.changed_paths = commit_changed_paths(&repository, &commit)?;
+            summary.changed_files = commit_changed_files(&repository, &commit)?;
             Ok(summary)
         })
         .collect()

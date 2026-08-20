@@ -111,7 +111,7 @@
             </span>
           </template>
         </span>
-        <span class="oc-tree__controls" data-tree-interactive="true">
+        <span v-if="resolveItemActions(entry.key).length > 0" class="oc-tree__controls" data-tree-interactive="true">
           <OcActionButton
             v-for="action in resolveItemActions(entry.key)"
             :key="action.key"
@@ -1101,9 +1101,9 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__row:hover .oc-tree__controls,
- .oc-tree__row:focus-within .oc-tree__controls,
- .oc-tree__node.is-selected .oc-tree__controls,
- .oc-tree.are-actions-always-visible .oc-tree__controls {
+.oc-tree__row:focus-within .oc-tree__controls,
+.oc-tree__node.is-selected .oc-tree__controls,
+.oc-tree.are-actions-always-visible .oc-tree__controls {
   display: flex;
 }
 

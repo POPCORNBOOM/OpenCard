@@ -2907,7 +2907,7 @@ function closeCommitVersionDialog(): void {
   commitVersionError.value = ''
 }
 
-async function commitVersion(message: string): Promise<void> {
+async function commitVersion(value: { summary: string; description: string }): Promise<void> {
   const root = projectPath.value
   if (!root || isCommittingVersion.value) return
   isCommittingVersion.value = true
@@ -2918,6 +2918,7 @@ async function commitVersion(message: string): Promise<void> {
       commitVersionError.value = staged.error?.message ?? t('sidebar.commitDialog.failed')
       return
     }
+    const message = value.description ? `${value.summary}\n\n${value.description}` : value.summary
     const result = await createCommit(root, { message })
     if (!result.ok || !result.value) {
       commitVersionError.value = result.error?.message ?? t('sidebar.commitDialog.failed')
