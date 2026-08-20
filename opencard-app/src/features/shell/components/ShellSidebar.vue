@@ -6,6 +6,7 @@ import OcOptionGroup, { type OcOption } from '../../../components/standard/OcOpt
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue';
 import type { ShellButton, ShellList, ShellListGroup } from '../shell.types';
 import type { ProjectWorkspaceSidebarState } from '../../settings/model/appSettings';
+import ShellSidebarContent from './ShellSidebarContent.vue';
 
 const props = defineProps<{
   collapsed: boolean;
@@ -49,6 +50,18 @@ const groupOptions = computed<readonly OcOption[]>(() => listGroups.value.map(gr
   icon: group.icon,
 })));
 const groupTitlesHidden = computed(() => props.collapsed || props.width < (props.compactGroupWidth ?? 0));
+const actionDefinitionsByList = computed(() => new Map(activeLists.value.map(list => [
+  list.key,
+  list.actions.map<OcActionButtonAction>(action => ({
+    key: action.key ?? action.icon,
+    title: action.hoverTip,
+    icon: action.icon,
+    disabled: action.disabled,
+    badge: action.badge,
+    badgeLabel: action.badgeLabel,
+    children: action.children,
+  })),
+])));
 
 function ensureListState(lists: ShellList[]): void {
   const persisted = props.persistedLayout;
@@ -136,11 +149,6 @@ function onResizePointerDown(event: PointerEvent): void {
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', stop);
 }
-
-
-function toActionDefinitions(actions: ShellList['actions']): OcActionButtonAction[] {
-  return actions.map(action => ({ key: action.key ?? action.icon, title: action.hoverTip, icon: action.icon, disabled: action.disabled, badge: action.badge, badgeLabel: action.badgeLabel, children: action.children }));
-}
 </script>
 
 <template>
@@ -168,9 +176,9 @@ function toActionDefinitions(actions: ShellList['actions']): OcActionButtonActio
           <section v-for="(list, index) in activeLists" :key="list.key" class="shell-sidebar-list" :class="{ collapsed: isListCollapsed(list.key) }" :style="listSectionStyle(list)">
             <div class="shell-sidebar-list-head">
               <button v-if="!collapsed" class="shell-sidebar-list-toggle" type="button" :data-tooltip="isListCollapsed(list.key) ? expandListTooltip || null : collapseListTooltip || null" @click.stop="toggleListCollapsed(list.key)"><span class="shell-sidebar-list-title">{{ list.title }}</span><OcIcon class="shell-sidebar-list-chevron" name="nav.chevron-down" size="sm" :class="{ collapsed: isListCollapsed(list.key) }" /></button>
-              <OcActionRail :actions="toActionDefinitions(list.actions)" @select="emit('list-button-clicked', list.key, $event.key)" />
+              <OcActionRail :actions="actionDefinitionsByList.get(list.key) ?? []" @select="emit('list-button-clicked', list.key, $event.key)" />
             </div>
-            <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }"><div class="shell-sidebar-list-content"><slot name="list-content" :list="list"><div class="shell-sidebar-empty"><span v-if="!collapsed">{{ list.placeholder }}</span></div></slot></div></div>
+            <div class="shell-sidebar-list-content-wrap" :class="{ collapsed: isListCollapsed(list.key) }"><div class="shell-sidebar-list-content"><slot name="list-content" :list="list"><ShellSidebarContent :list="list" /></slot></div></div>
             <div v-if="canResizeAfter(index)" class="shell-sidebar-list-resizer" @pointerdown.prevent="onListResizePointerDown($event, index)" />
           </section>
         </div>

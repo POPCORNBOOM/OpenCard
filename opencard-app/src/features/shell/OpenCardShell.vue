@@ -48,156 +48,7 @@
         @body-group-changed="handleSidebarBodyGroupChanged"
         @resize="handleSidebarResize"
         @layout-change="handleSidebarLayoutChange"
-      >
-        <template #list-content="{ list }">
-          <OcTree
-            v-if="list.key === TEMPLATES_LIST_KEY"
-            class="open-card-shell__sidebar-tree"
-            :data="templateTreeData"
-            :actions="templateCatalogActions"
-            :selected-keys="selectedTemplateKey ? [selectedTemplateKey] : []"
-            :expanded-keys="[USER_TEMPLATES_GROUP_KEY]"
-            role="tree"
-            selection-mode="single"
-            activation-mode="none"
-            @intent="handleTemplateTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === ICON_PACKS_LIST_KEY && iconPackTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="iconPackTreeData"
-            :actions="iconPackActions"
-            role="listbox"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleIconPackTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === CUSTOM_BLOCKS_LIST_KEY && customBlockTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="customBlockTreeData"
-            :actions="customBlockActions"
-            role="listbox"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleCustomBlockTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === SETTINGS_CATEGORIES_LIST_KEY"
-            class="open-card-shell__sidebar-tree"
-            :data="settingsCategoryTreeData"
-            :selected-keys="[settingsCategoryKey]"
-            role="listbox"
-            selection-mode="single"
-            activation-mode="none"
-            @intent="handleSettingsCategoryTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === RECENT_PROJECTS_LIST_KEY && recentProjectTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="recentProjectTreeData"
-            :actions="recentProjectActions"
-            :selected-keys="selectedRecentProjectKeys"
-            role="listbox"
-            selection-mode="single"
-            activation-mode="double-click"
-            @intent="handleRecentProjectTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === OPENED_EDITORS_LIST_KEY && openedEditorTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="openedEditorTreeData"
-            :actions="openedEditorActions"
-            :selected-keys="openedEditorSelectedKeys"
-            role="listbox"
-            selection-mode="single"
-            activation-mode="none"
-            @intent="handleOpenedEditorTreeIntent"
-            @auxclick="handleOpenedEditorAuxClick"
-          />
-          <OcTree
-            v-else-if="list.key === TEMPLATE_ENTRIES_LIST_KEY && exportTemplateEntryTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="exportTemplateEntryTreeData"
-            :actions="exportTemplateTreeActions"
-            :selected-keys="[]"
-            role="listbox"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleExportSelectionTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === TEMPLATE_COVERS_LIST_KEY && exportTemplateCoverTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="exportTemplateCoverTreeData"
-            :actions="exportTemplateTreeActions"
-            :selected-keys="[]"
-            role="listbox"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleExportSelectionTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === PROJECT_MANAGEMENT_LIST_KEY && projectManagementTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="projectManagementTreeData"
-            :actions="projectManagementActions"
-            :selected-keys="selectedFileKeys"
-            :expanded-keys="projectManagementExpandedKeys"
-            role="tree"
-            selection-mode="single"
-            activation-mode="none"
-            @intent="handleProjectManagementTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === PROJECT_FILES_LIST_KEY && projectTreeData.rootKeys.length > 0"
-            ref="projectTreeRef"
-            class="open-card-shell__sidebar-tree"
-            :data="isExportTemplateMode ? exportTemplateTreeData : projectTreeData"
-            :actions="isExportTemplateMode ? exportTemplateTreeActions : projectEntryActions"
-            :selected-keys="selectedFileKeys"
-            :expanded-keys="isExportTemplateMode ? exportTemplateExpandedKeys : projectExpandedKeys"
-            role="tree"
-            selection-mode="single"
-            :activation-mode="isExportTemplateMode ? 'none' : 'double-click'"
-            @intent="isExportTemplateMode ? handleExportTemplateTreeIntent($event) : handleProjectTreeIntent($event)"
-          />
-          <OcTree
-            v-else-if="list.key === TIMELINE_LIST_KEY && timelineTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="timelineTreeData"
-            :actions="timelineTreeActions"
-            :selected-keys="[]"
-            role="tree"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleTimelineTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === 'version-graph' && timelineProjectTreeData.rootKeys.length > 0"
-            class="open-card-shell__sidebar-tree"
-            :data="timelineProjectTreeData"
-            :selected-keys="[]"
-            :expanded-keys="versionGraphExpandedKeys"
-            role="tree"
-            selection-mode="none"
-            activation-mode="none"
-            @intent="handleVersionGraphTreeIntent"
-          />
-          <OcTree
-            v-else-if="list.key === 'changes'"
-            class="open-card-shell__sidebar-tree"
-            :data="changesTreeData"
-            :selected-keys="[]"
-            role="tree"
-            selection-mode="none"
-            activation-mode="none"
-          />
-          <div v-else-if="list.key === 'version-graph' || list.key === 'changes'" class="shell-sidebar-empty">
-            <span>{{ list.placeholder }}</span>
-          </div>
-        </template>
-      </ShellSidebar>
+      />
 
       <ShellWorkspaceFrame
         :title="workspaceTitle"
@@ -414,7 +265,6 @@ import {
   useEditorSessionStore,
 } from '../workspace/store/editorSessionStore'
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
-import OcTree from '../../components/standard/OcTree.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
@@ -1720,6 +1570,13 @@ const sidebarTailButtons = computed<ShellButton[]>(() => {
   return [{ key: 'open-settings', icon: 'tool.settings', title: t('settings.title', 'Settings') }]
 })
 
+function captureProjectTreeInstance(instance: unknown): void {
+  const tree = instance as { beginRename?: (key: string) => Promise<void> } | null
+  projectTreeRef.value = typeof tree?.beginRename === 'function'
+    ? { beginRename: tree.beginRename.bind(tree) }
+    : null
+}
+
 const sidebarBodyLists = computed<ShellList[]>(() => {
   if (isAboutMode.value) return []
 
@@ -1729,6 +1586,15 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('settings.title', 'Settings'),
       placeholder: '',
       actions: [],
+      content: {
+        type: 'tree',
+        data: settingsCategoryTreeData.value,
+        selectedKeys: [settingsCategoryKey.value],
+        role: 'listbox',
+        selectionMode: 'single',
+        activationMode: 'none',
+        onIntent: handleSettingsCategoryTreeIntent,
+      },
     }]
   }
 
@@ -1739,6 +1605,17 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         title: t('projectTemplates.sections.templates'),
         placeholder: '',
         actions: [],
+        content: {
+          type: 'tree',
+          data: templateTreeData.value,
+          actions: templateCatalogActions.value,
+          selectedKeys: selectedTemplateKey.value ? [selectedTemplateKey.value] : [],
+          expandedKeys: [USER_TEMPLATES_GROUP_KEY],
+          role: 'tree',
+          selectionMode: 'single',
+          activationMode: 'none',
+          onIntent: handleTemplateTreeIntent,
+        },
       },
       {
         key: ICON_PACKS_LIST_KEY,
@@ -1752,6 +1629,15 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           hoverTip: t('projectTemplates.actions.importIconPack'),
           disabled: isProjectTemplateBusy.value || iconPackStore.isLoading.value,
         }],
+        content: iconPackTreeData.value.rootKeys.length > 0 ? {
+          type: 'tree',
+          data: iconPackTreeData.value,
+          actions: iconPackActions.value,
+          role: 'listbox',
+          selectionMode: 'none',
+          activationMode: 'none',
+          onIntent: handleIconPackTreeIntent,
+        } : { type: 'none' },
       },
       {
         key: CUSTOM_BLOCKS_LIST_KEY,
@@ -1767,29 +1653,71 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           hoverTip: t('projectTemplates.actions.importCustomBlock'),
           disabled: isProjectTemplateBusy.value || customBlockCatalogStore.isLoading.value,
         }],
+        content: customBlockTreeData.value.rootKeys.length > 0 ? {
+          type: 'tree',
+          data: customBlockTreeData.value,
+          actions: customBlockActions.value,
+          role: 'listbox',
+          selectionMode: 'none',
+          activationMode: 'none',
+          onIntent: handleCustomBlockTreeIntent,
+        } : { type: 'none' },
       },
     ]
   }
 
   if (isExportTemplateMode.value) {
+    const projectContent = projectTreeData.value.rootKeys.length > 0 ? {
+      type: 'tree' as const,
+      data: exportTemplateTreeData.value,
+      actions: exportTemplateTreeActions.value,
+      selectedKeys: selectedFileKeys.value,
+      expandedKeys: exportTemplateExpandedKeys.value,
+      role: 'tree' as const,
+      selectionMode: 'single' as const,
+      activationMode: 'none' as const,
+      onIntent: handleExportTemplateTreeIntent,
+      captureInstance: captureProjectTreeInstance,
+    } : { type: 'none' as const }
     return [
       {
         key: PROJECT_FILES_LIST_KEY,
         title: projectFolderName.value || t('sidebar.files'),
         placeholder: t('sidebar.emptyProject', 'Folder is empty'),
         actions: [],
+        content: projectContent,
       },
       {
         key: TEMPLATE_ENTRIES_LIST_KEY,
         title: t('projectTemplates.fields.entry'),
         placeholder: t('templateExport.noSelectedEntries'),
         actions: [],
+        content: exportTemplateEntryTreeData.value.rootKeys.length > 0 ? {
+          type: 'tree',
+          data: exportTemplateEntryTreeData.value,
+          actions: exportTemplateTreeActions.value,
+          selectedKeys: [],
+          role: 'listbox',
+          selectionMode: 'none',
+          activationMode: 'none',
+          onIntent: handleExportSelectionTreeIntent,
+        } : { type: 'none' },
       },
       {
         key: TEMPLATE_COVERS_LIST_KEY,
         title: t('projectTemplates.fields.covers'),
         placeholder: t('templateExport.noSelectedCovers'),
         actions: [],
+        content: exportTemplateCoverTreeData.value.rootKeys.length > 0 ? {
+          type: 'tree',
+          data: exportTemplateCoverTreeData.value,
+          actions: exportTemplateTreeActions.value,
+          selectedKeys: [],
+          role: 'listbox',
+          selectionMode: 'none',
+          activationMode: 'none',
+          onIntent: handleExportSelectionTreeIntent,
+        } : { type: 'none' },
       },
     ]
   }
@@ -1800,6 +1728,16 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('sidebar.recentProjects'),
       placeholder: t('sidebar.noRecentProjects'),
       actions: [],
+      content: recentProjectTreeData.value.rootKeys.length > 0 ? {
+        type: 'tree',
+        data: recentProjectTreeData.value,
+        actions: recentProjectActions.value,
+        selectedKeys: selectedRecentProjectKeys.value,
+        role: 'listbox',
+        selectionMode: 'single',
+        activationMode: 'double-click',
+        onIntent: handleRecentProjectTreeIntent,
+      } : { type: 'none' },
     }]
   }
 
@@ -1809,12 +1747,34 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('sidebar.openedEditors'),
       placeholder: t('sidebar.noOpenedEditors', 'No open editors'),
       actions: [],
+      content: openedEditorTreeData.value.rootKeys.length > 0 ? {
+        type: 'tree',
+        data: openedEditorTreeData.value,
+        actions: openedEditorActions.value,
+        selectedKeys: openedEditorSelectedKeys.value,
+        role: 'listbox',
+        selectionMode: 'single',
+        activationMode: 'none',
+        onIntent: handleOpenedEditorTreeIntent,
+        onAuxclick: handleOpenedEditorAuxClick,
+      } : { type: 'none' },
     },
     {
       key: PROJECT_MANAGEMENT_LIST_KEY,
       title: t('sidebar.projectManagement'),
       placeholder: '',
       actions: [],
+      content: projectManagementTreeData.value.rootKeys.length > 0 ? {
+        type: 'tree',
+        data: projectManagementTreeData.value,
+        actions: projectManagementActions.value,
+        selectedKeys: selectedFileKeys.value,
+        expandedKeys: projectManagementExpandedKeys.value,
+        role: 'tree',
+        selectionMode: 'single',
+        activationMode: 'none',
+        onIntent: handleProjectManagementTreeIntent,
+      } : { type: 'none' },
     },
     {
       key: PROJECT_FILES_LIST_KEY,
@@ -1828,13 +1788,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           icon: 'action.file-plus',
           hoverTip: t('sidebar.fileActions.newFile'),
           disabled: !projectPath.value,
-          children: [
-            {
-              key: PROJECT_NEW_OPENCARD_ACTION_KEY,
-              title: t('sidebar.fileActions.newOpenCard'),
-              icon: 'file.opencard',
-            },
-          ],
+          children: [{
+            key: PROJECT_NEW_OPENCARD_ACTION_KEY,
+            title: t('sidebar.fileActions.newOpenCard'),
+            icon: 'file.opencard',
+          }],
         },
         {
           key: PROJECT_NEW_FOLDER_ACTION_KEY,
@@ -1843,6 +1801,18 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           disabled: !projectPath.value,
         },
       ],
+      content: projectTreeData.value.rootKeys.length > 0 ? {
+        type: 'tree',
+        data: projectTreeData.value,
+        actions: projectEntryActions.value,
+        selectedKeys: selectedFileKeys.value,
+        expandedKeys: projectExpandedKeys.value,
+        role: 'tree',
+        selectionMode: 'single',
+        activationMode: 'double-click',
+        onIntent: handleProjectTreeIntent,
+        captureInstance: captureProjectTreeInstance,
+      } : { type: 'none' },
     },
     {
       key: TIMELINE_LIST_KEY,
@@ -1854,6 +1824,16 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         hoverTip: t('sidebar.timelineRefresh'),
         disabled: !timelineFilePath.value || timelineLoading.value,
       }],
+      content: timelineTreeData.value.rootKeys.length > 0 ? {
+        type: 'tree',
+        data: timelineTreeData.value,
+        actions: timelineTreeActions.value,
+        selectedKeys: [],
+        role: 'tree',
+        selectionMode: 'none',
+        activationMode: 'none',
+        onIntent: handleTimelineTreeIntent,
+      } : { type: 'none' },
     },
   ]
 })
@@ -1888,8 +1868,36 @@ const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
         disabled: changesTreeData.value.rootKeys.length === 0 || isCommittingVersion.value,
       }],
       lists: [
-        { key: 'changes', title: t('sidebar.changes', 'Changes'), placeholder: '', actions: [] },
-        { key: 'version-graph', title: t('sidebar.versionGraph', 'Version graph'), placeholder: '', actions: [] },
+        {
+          key: 'changes',
+          title: t('sidebar.changes', 'Changes'),
+          placeholder: '',
+          actions: [],
+          content: {
+            type: 'tree',
+            data: changesTreeData.value,
+            selectedKeys: [],
+            role: 'tree',
+            selectionMode: 'none',
+            activationMode: 'none',
+          },
+        },
+        {
+          key: 'version-graph',
+          title: t('sidebar.versionGraph', 'Version graph'),
+          placeholder: '',
+          actions: [],
+          content: timelineProjectTreeData.value.rootKeys.length > 0 ? {
+            type: 'tree',
+            data: timelineProjectTreeData.value,
+            selectedKeys: [],
+            expandedKeys: versionGraphExpandedKeys.value,
+            role: 'tree',
+            selectionMode: 'none',
+            activationMode: 'none',
+            onIntent: handleVersionGraphTreeIntent,
+          } : { type: 'empty' },
+        },
       ],
     },
   ];

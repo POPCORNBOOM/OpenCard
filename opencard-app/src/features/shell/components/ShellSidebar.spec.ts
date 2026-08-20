@@ -215,6 +215,85 @@ describe('ShellSidebar', () => {
     expect(switches.map(button => button.attributes('data-tooltip'))).toEqual(['Workspace', 'History'])
   })
 
+  it('renders declarative tree content and forwards its intent handler', async () => {
+    const intents: unknown[] = []
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([{
+          key: 'files',
+          title: 'Files',
+          placeholder: 'Empty',
+          actions: [],
+          content: {
+            type: 'tree',
+            data: {
+              rootKeys: ['file'],
+              items: new Map([['file', { label: 'Card', icon: 'file.opencard' }]]),
+              children: new Map(),
+            },
+            role: 'tree',
+            selectionMode: 'single',
+            activationMode: 'none',
+            onIntent: intent => intents.push(intent),
+          },
+        }]),
+      },
+    })
+
+    expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(true)
+    await wrapper.get('.oc-tree__row').trigger('click')
+    expect(intents).toEqual([{
+      type: 'selection.change',
+      triggerKey: 'file',
+      selectedKeys: ['file'],
+      mode: 'replace',
+      input: 'left',
+    }])
+  })
+
+  it('renders declarative empty content without mounting a tree', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([{
+          key: 'files',
+          title: 'Files',
+          placeholder: 'No files',
+          actions: [],
+          content: { type: 'empty' },
+        }]),
+      },
+    })
+
+    expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(false)
+    expect(wrapper.get('.shell-sidebar-empty').text()).toBe('No files')
+  })
+
+  it('renders no fallback element for declarative none content', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([{
+          key: 'files',
+          title: 'Files',
+          placeholder: 'No files',
+          actions: [],
+          content: { type: 'none' },
+        }]),
+      },
+    })
+
+    expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(false)
+    expect(wrapper.find('.shell-sidebar-empty').exists()).toBe(false)
+  })
+
   it('uses medium icons for group, group action, and bottom buttons', () => {
     const wrapper = mount(ShellSidebar, {
       props: {
