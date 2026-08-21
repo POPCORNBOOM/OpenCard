@@ -13,7 +13,7 @@ export type CardStorageWarning = {
 }
 
 export type SerializeCardDocumentOptions = {
-  resolveCustomBlockPublicFieldKeys?: (customBlockKey: string) => readonly string[] | undefined
+  resolveCustomBlockPublicFieldKeys?: (packageId: string) => readonly string[] | undefined
 }
 
 type ProjectionOptions = { preserveCustomBlockExtras: boolean
@@ -117,12 +117,12 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
   }
 
   if (type === 'custom-block') {
-    const customBlockKey = typeof value.customBlockKey === 'string' ? value.customBlockKey : ''
-    block.customBlockKey = customBlockKey
+    const packageId = typeof value.packageId === 'string' ? value.packageId : ''
+    block.packageId = packageId
     const publicKeys = options.preserveCustomBlockExtras
       ? Object.keys(value).filter(key => !structuralFields.has(key)
         && !Object.prototype.hasOwnProperty.call(getTypePropertyEditorSchema(type), key))
-      : [...(options.resolveCustomBlockPublicFieldKeys?.(customBlockKey) ?? [])]
+      : [...(options.resolveCustomBlockPublicFieldKeys?.(packageId) ?? [])]
     for (const fieldKey of publicKeys) {
       if (isCardStoredValue(value[fieldKey])) block[fieldKey] = structuredClone(value[fieldKey])
     }

@@ -11,7 +11,6 @@ import type { RenderReadyMarkdownTextBlock } from '../render.types'
 import { renderMarkdown } from '../markdown/renderMarkdown'
 import { useCardEditorContext } from './cardEditorContext'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
-import { EMPTY_PROJECT_ICON_CATALOG } from '../../workspace/services/projectIconCatalog'
 
 const props = withDefaults(defineProps<{
   block: RenderReadyMarkdownTextBlock
@@ -23,14 +22,14 @@ const props = withDefaults(defineProps<{
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
-  resolveImageSrc: editorContext.resolveAssetSrc,
-  projectIconCatalog: editorContext.projectIconCatalog?.value ?? EMPTY_PROJECT_ICON_CATALOG,
+  resolveImageSrc: source => editorContext.resolveAssetSrc(source, props.block.id, 'content'),
+  projectIconCatalog: editorContext.resolveIconCatalog(props.block.id, 'content'),
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,
   props.layoutMode,
   isTransformDisabled.value,
-  editorContext.resolveFontFamily,
+  value => editorContext.resolveFontFamily(value, props.block.id, 'fontFamily'),
 ))
 
 function handleClick(event: MouseEvent): void {

@@ -38,7 +38,7 @@ export function createCustomBlockNode(layout: RichTextCustomBlockLayout) {
     addAttributes() {
       return {
         embedId: { default: '' },
-        customBlockKey: { default: '' },
+        packageId: { default: '' },
         properties: { default: {} },
       }
     },
@@ -47,7 +47,7 @@ export function createCustomBlockNode(layout: RichTextCustomBlockLayout) {
         tag: `oc-custom-block[data-oc-layout="${layout}"]`,
         getAttrs: element => element instanceof HTMLElement ? {
           embedId: element.getAttribute('data-oc-id') ?? '',
-          customBlockKey: element.getAttribute('data-oc-key') ?? '',
+          packageId: element.getAttribute('data-oc-package') ?? '',
           properties: parseProperties(element),
         } : false,
       }]
@@ -55,14 +55,14 @@ export function createCustomBlockNode(layout: RichTextCustomBlockLayout) {
     renderHTML({ node, HTMLAttributes }) {
       const properties = Object.entries(node.attrs.properties as Record<string, string>)
         .map(([key, value]) => ['oc-prop', { 'data-oc-key': key }, value])
-      const { embedId: _embedId, customBlockKey: _customBlockKey, properties: _properties, ...safeAttributes } = HTMLAttributes
+      const { embedId: _embedId, packageId: _packageId, properties: _properties, ...safeAttributes } = HTMLAttributes
       return ['oc-custom-block', mergeAttributes(safeAttributes, {
         'data-oc-id': node.attrs.embedId,
-        'data-oc-key': node.attrs.customBlockKey,
+        'data-oc-package': node.attrs.packageId,
         'data-oc-layout': layout,
       }), ...properties]
     },
-    renderText({ node }) { return `[${String(node.attrs.customBlockKey)}]` },
+    renderText({ node }) { return `[${String(node.attrs.packageId)}]` },
     addNodeView() { return VueNodeViewRenderer(CustomBlockNodeView) },
   })
 }

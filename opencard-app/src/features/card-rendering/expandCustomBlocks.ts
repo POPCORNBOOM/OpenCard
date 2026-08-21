@@ -1,36 +1,39 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import { toRaw } from 'vue'
+import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
 import type {
-  ProjectCustomBlockResizePolicy,
-  ProjectCustomBlockResourceIndex,
-} from '../workspace/model/projectCustomBlocks'
-import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+  ProjectResourceEnvironment,
+  ProjectResourceScopeMap,
+} from '../workspace/services/projectResourceEnvironment'
+import { projectResourceScopeIdentity } from '../workspace/services/projectResourceEnvironment'
 import { visitCardBlockTree } from '../../entities/card/tree'
 import type { RenderReadyCardBlock, RenderReadyCardDocument, RenderReadyCustomBlock } from './render.types'
 
-export type CustomBlockRuntimeCatalog = ReadonlyMap<string, {
+export type CustomBlockRuntimeEntry = {
   readonly manifest: {
-    readonly customBlockKey: string
+    readonly packageId: string
     readonly publicFieldKeys: readonly string[]
     readonly resize: Readonly<ProjectCustomBlockResizePolicy>
-    readonly resources?: ProjectCustomBlockResourceIndex
   }
-  readonly block: unknown
-  readonly files?: ReadonlyMap<string, Uint8Array>
-  readonly resourceUrls?: ReadonlyMap<string, string>
-  readonly iconCatalog?: ProjectIconCatalog
+  readonly block: CardBlock
+  readonly environment: ProjectResourceEnvironment
+  readonly dependencies: CustomBlockRuntimeCatalog
   readonly hasResourceErrors?: boolean
-}>
-
-export type CustomBlockExpansionIssue = { blockId: string; faceKey: CardFaceKey; reason: 'missing' | 'cycle'; customBlockKey: string }
-export type CustomBlockExpansionHost = {
-  customBlockKey: string
-  faceKey: CardFaceKey
-  hasResourceErrors: boolean
 }
 
-export function customBlockResourceOwnerIdentity(blockId: string, fieldKey: string): string {
-  return `${blockId}\u0000${fieldKey}`
+export type CustomBlockRuntimeCatalog = ReadonlyMap<string, CustomBlockRuntimeEntry>
+
+export type CustomBlockExpansionIssue = {
+  blockId: string
+  faceKey: CardFaceKey
+  reason: 'missing' | 'cycle'
+  packageId: string
+}
+
+export type CustomBlockExpansionHost = {
+  packageId: string
+  faceKey: CardFaceKey
+  hasResourceErrors: boolean
 }
 
 function clone<T>(value: T): T {
@@ -52,77 +55,133 @@ function namespaceDescendantIds(block: CardBlock, instanceId: string, root = tru
   }
 }
 
+function scopeStrings(
+  block: CardBlock,
+  environment: ProjectResourceEnvironment,
+  scopes: Map<string, ProjectResourceEnvironment>,
+): void {
+  visitCardBlockTree(block, candidate => {
+    for (const [fieldKey, value] of Object.entries(candidate)) {
+      if (typeof value === 'string') {
+        scopes.set(projectResourceScopeIdentity(candidate.id, fieldKey), environment)
+      }
+    }
+  })
+}
+
 export function expandCustomBlocks(
   document: CardDocument,
   catalog: CustomBlockRuntimeCatalog | undefined,
+  hostEnvironment?: ProjectResourceEnvironment,
+  initialResourceScopes?: ProjectResourceScopeMap,
 ): {
   document: CardDocument
   issues: CustomBlockExpansionIssue[]
   hosts: ReadonlyMap<string, CustomBlockExpansionHost>
-  resourceOwners: ReadonlyMap<string, string>
+  resourceScopes: ProjectResourceScopeMap
 } {
   const activeCatalog: CustomBlockRuntimeCatalog = catalog ?? new Map()
   const issues: CustomBlockExpansionIssue[] = []
   const hosts = new Map<string, CustomBlockExpansionHost>()
-  const resourceOwners = new Map<string, string>()
+  const resourceScopes = new Map<string, ProjectResourceEnvironment>(initialResourceScopes)
 
-  function expand(block: CardBlock, ancestors: Set<string>, faceKey: CardFaceKey): CardBlock {
+  function expand(
+    block: CardBlock,
+    scopedCatalog: CustomBlockRuntimeCatalog,
+    ancestors: Set<string>,
+    faceKey: CardFaceKey,
+    currentEnvironment: ProjectResourceEnvironment | undefined,
+  ): CardBlock {
     if (block.type !== 'custom-block') {
       if (block.type === 'simple-container-block') {
-        const children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
-        return children.some((child, index) => child.block !== block.children[index].block)
+        const children = block.children.map(child => ({
+          ...child,
+          block: expand(child.block, scopedCatalog, ancestors, faceKey, currentEnvironment),
+        }))
+        return children.some((child, index) => child.block !== block.children[index]!.block)
           ? { ...block, children }
           : block
       }
       if (block.type === 'flow-container-block') {
-        const children = block.children.map(child => ({ ...child, block: expand(child.block, ancestors, faceKey) }))
-        return children.some((child, index) => child.block !== block.children[index].block)
+        const children = block.children.map(child => ({
+          ...child,
+          block: expand(child.block, scopedCatalog, ancestors, faceKey, currentEnvironment),
+        }))
+        return children.some((child, index) => child.block !== block.children[index]!.block)
           ? { ...block, children }
           : block
       }
       return block
     }
-    const key = block.customBlockKey
-    const entry = activeCatalog.get(key.toLowerCase())
+
+    const packageId = block.packageId
+    const identity = packageId.toLocaleLowerCase()
+    const referenceEnvironment = resourceScopes.get(projectResourceScopeIdentity(block.id, 'packageId'))
+      ?? currentEnvironment
+    const effectiveCatalog = referenceEnvironment?.customBlockCatalog ?? scopedCatalog
+    const entry = effectiveCatalog.get(identity)
     if (!entry) {
-      issues.push({ blockId: block.id, faceKey, reason: 'missing', customBlockKey: key })
+      issues.push({ blockId: block.id, faceKey, reason: 'missing', packageId })
       return block
     }
-    if (ancestors.has(key.toLowerCase())) {
-      issues.push({ blockId: block.id, faceKey, reason: 'cycle', customBlockKey: key })
+    if (ancestors.has(identity)) {
+      issues.push({ blockId: block.id, faceKey, reason: 'cycle', packageId })
       return block
     }
+
     hosts.set(block.id, {
-      customBlockKey: key,
+      packageId,
       faceKey,
-      hasResourceErrors: entry.hasResourceErrors === true,
+      hasResourceErrors: entry.hasResourceErrors === true || entry.environment.issues.length > 0,
     })
+    const inheritedScopes = new Map<string, ProjectResourceEnvironment>()
+    for (const fieldKey of [...entry.manifest.publicFieldKeys, 'width', 'height']) {
+      const inherited = resourceScopes.get(projectResourceScopeIdentity(block.id, fieldKey))
+        ?? currentEnvironment
+        ?? hostEnvironment
+      if (inherited) inheritedScopes.set(fieldKey, inherited)
+    }
     const root = clone(entry.block) as CardBlock
     namespaceDescendantIds(root, block.id)
-    visitCardBlockTree(root, candidate => {
-      for (const [fieldKey, value] of Object.entries(candidate)) {
-        if (typeof value === 'string') resourceOwners.set(customBlockResourceOwnerIdentity(candidate.id, fieldKey), key.toLowerCase())
-      }
-    })
+    scopeStrings(root, entry.environment, resourceScopes)
+
     for (const fieldKey of entry.manifest.publicFieldKeys) {
-      if (Object.prototype.hasOwnProperty.call(block, fieldKey)) {
-        ;(root as Record<string, unknown>)[fieldKey] = (block as Record<string, unknown>)[fieldKey]
-        resourceOwners.delete(customBlockResourceOwnerIdentity(root.id, fieldKey))
-      }
+      if (!Object.prototype.hasOwnProperty.call(block, fieldKey)) continue
+      ;(root as Record<string, unknown>)[fieldKey] = (block as Record<string, unknown>)[fieldKey]
+      const inherited = inheritedScopes.get(fieldKey)
+      if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, fieldKey), inherited)
     }
-    if (!entry.manifest.resize.widthLocked && block.width !== undefined) root.width = block.width
-    if (!entry.manifest.resize.heightLocked && block.height !== undefined) root.height = block.height
+    if (!entry.manifest.resize.widthLocked && block.width !== undefined) {
+      root.width = block.width
+      const inherited = inheritedScopes.get('width')
+      if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'width'), inherited)
+    }
+    if (!entry.manifest.resize.heightLocked && block.height !== undefined) {
+      root.height = block.height
+      const inherited = inheritedScopes.get('height')
+      if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'height'), inherited)
+    }
+
     const nextAncestors = new Set(ancestors)
-    nextAncestors.add(key.toLowerCase())
-    return expand(root, nextAncestors, faceKey)
+    nextAncestors.add(identity)
+    return expand(root, entry.dependencies, nextAncestors, faceKey, entry.environment)
   }
 
   const faces = Object.fromEntries((Object.entries(document.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][])
     .map(([faceKey, face]) => [faceKey, {
       ...face,
-      children: face.children.map(child => ({ ...child, block: expand(child.block, new Set(), faceKey) })),
+      children: face.children.map(child => ({
+        ...child,
+        block: expand(child.block, activeCatalog, new Set(), faceKey, hostEnvironment),
+      })),
     }])) as CardDocument['faces']
-  return { document: { ...document, faces }, issues, hosts, resourceOwners }
+
+  return {
+    document: { ...document, faces },
+    issues,
+    hosts,
+    resourceScopes,
+  }
 }
 
 export function wrapExpandedCustomBlocks(
@@ -147,7 +206,7 @@ export function wrapExpandedCustomBlocks(
     return {
       ...content,
       type: 'custom-block',
-      customBlockKey: host.customBlockKey,
+      packageId: host.packageId,
       content,
     } satisfies RenderReadyCustomBlock
   }

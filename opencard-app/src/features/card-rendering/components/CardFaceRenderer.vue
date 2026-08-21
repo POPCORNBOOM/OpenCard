@@ -11,7 +11,12 @@ import { computed, provide, ref, watch, nextTick, onMounted } from 'vue'
 import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
-import { resolveCardAssetSrc, type CardRenderResourceContext } from '../cardRenderResources'
+import {
+    resolveCardAssetSrc,
+    resolveCardFontFamily,
+    resolveCardIconCatalog,
+    type CardRenderResourceContext,
+} from '../cardRenderResources'
 import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
 import { toCssFontFamily } from '../../workspace/model/projectFonts'
 
@@ -106,8 +111,12 @@ provide(cardEditorContextKey, {
     handleBlockClick: (blockId, event) => {
         emit('block-click', blockId, event)
     },
-    resolveAssetSrc: path => resolveCardAssetSrc(path, props.resourceContext),
-    resolveFontFamily: props.resourceContext.resolveFontFamily ?? toCssFontFamily,
+    resolveAssetSrc: (path, blockId, fieldKey) => resolveCardAssetSrc(path, props.resourceContext, blockId, fieldKey),
+    resolveFontFamily: (value, blockId, fieldKey) => resolveCardFontFamily(value, {
+        ...props.resourceContext,
+        resolveFontFamily: props.resourceContext.resolveFontFamily ?? toCssFontFamily,
+    }, blockId, fieldKey),
+    resolveIconCatalog: (blockId, fieldKey) => resolveCardIconCatalog(props.resourceContext, blockId, fieldKey),
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
     customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
 	    richText: computed(() => props.resourceContext.richText ?? new Map()),

@@ -1,380 +1,423 @@
+import { strToU8 } from 'fflate'
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
-import type { ProjectFont, ProjectFontRegistry } from '../model/projectFontRegistry'
-import { projectFontFileEntries } from '../model/projectFontRegistry'
-import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../model/projectStructure'
-import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
-import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
-import type { FileSystemService } from './fileSystemService'
-import type { ProjectCustomBlockFontResource, ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
-import { findProjectCustomBlockFile } from './projectCustomBlock'
+import { collectProjectIconReferences } from '../../../shared/rich-text/projectIconReference'
+import type { ProjectFontRegistry, ProjectFontRegistryDocument } from '../model/projectFontRegistry'
+import { projectFontFileEntries, serializeProjectFontRegistry } from '../model/projectFontRegistry'
 import type { ProjectIconSeries } from '../model/projectIcons'
-import { findProjectIcon, projectIconIdentity, type ProjectIconCatalog, type ProjectIconCatalogEntry } from './projectIconCatalog'
+import { serializeProjectIconRegistry } from '../model/projectIconRegistry'
+import type {
+  ProjectCustomBlockManifestCatalog,
+  ProjectCustomBlockPackageIssue,
+} from '../model/projectCustomBlocks'
 import {
-  composeProjectCustomBlockIconAtlas,
-  createProjectCustomBlockIconSeries,
-  type ProjectCustomBlockIconAtlas,
-} from './projectCustomBlockIconAtlas'
-import {
-  collectProjectIconReferences,
-  rewriteProjectIconReferences,
-} from '../../../shared/rich-text/projectIconReference'
-import { customBlockResourceOwnerIdentity } from '../../card-rendering/expandCustomBlocks'
+  MAX_CUSTOM_BLOCK_ENTRIES,
+  MAX_CUSTOM_BLOCK_UNPACKED_BYTES,
+} from './projectCustomBlock'
+import type { FileSystemService } from './fileSystemService'
+import { normalizeProjectResourcePath } from './projectResourceEnvironment'
 
-export type CollectedCustomBlockResources = {
+export type ProjectCustomBlockResourceCandidateKind = 'image' | 'font' | 'icon' | 'custom-block'
+
+export type ProjectCustomBlockResourceCandidate = {
+  id: string
+  kind: ProjectCustomBlockResourceCandidateKind
+  path: string
+  label: string
+  automatic: boolean
+  suggested: boolean
+  referenceCount: number
+  references: readonly string[]
+  fontKey?: string
+  iconSeriesKey?: string
+  packageId?: string
+  iconKeys?: readonly string[]
+  missing?: boolean
+}
+
+export type ProjectCustomBlockResourceAnalysis = {
+  candidates: readonly ProjectCustomBlockResourceCandidate[]
+  defaultSelectedIds: ReadonlySet<string>
+  issues: readonly ProjectCustomBlockPackageIssue[]
+}
+
+export type MaterializedProjectCustomBlockResources = {
   files: ReadonlyMap<string, Uint8Array>
-  index: ProjectCustomBlockResourceIndex
-  imageSources: ReadonlyMap<string, string>
-  fontSources: ReadonlyMap<string, string>
-  fontFamilyReplacements: ReadonlyMap<string, string>
-  localFontReplacements: ReadonlyMap<string, string>
-  iconReplacements: ReadonlyMap<string, { seriesKey: string; iconKey: string }>
-  resourceOwners?: ReadonlyMap<string, string>
+  issues: readonly ProjectCustomBlockPackageIssue[]
+  selectedCandidates: readonly ProjectCustomBlockResourceCandidate[]
 }
 
-type CustomBlockResourceCatalog = ReadonlyMap<string, {
-  readonly manifest: {
-    readonly customBlockKey: string
-    readonly resources?: ProjectCustomBlockResourceIndex
+const imageExtensionPattern = /\.(?:png|jpe?g|webp|gif|svg|avif)$/i
+const dynamicTokenPattern = /\{\{[^{}]+\}\}/
+const dynamicIconSeriesPattern = /data-oc-icon-path\s*=\s*["']([a-z0-9][a-z0-9._-]*)\/[^{"']*\{\{/gi
+
+function normalizeRelativeProjectPath(path: string): string | null {
+  return normalizeProjectResourcePath(path.replace(/^[/\\]+/, ''))
+}
+
+function basename(path: string): string {
+  return path.split('/').pop() ?? path
+}
+
+function issue(
+  code: ProjectCustomBlockPackageIssue['code'],
+  path: string,
+  message: string,
+): ProjectCustomBlockPackageIssue {
+  return { code, path, message }
+}
+
+function stringValues(root: CardBlock): Array<{ blockId: string, fieldKey: string, value: string }> {
+  const values: Array<{ blockId: string, fieldKey: string, value: string }> = []
+  const seen = new Set<object>()
+  const scan = (value: unknown, blockId: string, fieldKey: string): void => {
+    if (typeof value === 'string') {
+      values.push({ blockId, fieldKey, value })
+      return
+    }
+    if (!value || typeof value !== 'object' || seen.has(value)) return
+    seen.add(value)
+    if (Array.isArray(value)) value.forEach(item => scan(item, blockId, fieldKey))
+    else Object.values(value).forEach(item => scan(item, blockId, fieldKey))
   }
-  readonly files?: ReadonlyMap<string, Uint8Array>
-  readonly iconCatalog?: ProjectIconCatalog
-}>
-
-function ownedResourceIdentity(owner: string | undefined, value: string): string {
-  return `${owner?.toLowerCase() ?? ''}\u0000${value.toLowerCase()}`
+  visitCardBlockTree(root, block => {
+    for (const [fieldKey, value] of Object.entries(block)) {
+      if (fieldKey !== 'children') scan(value, block.id, fieldKey)
+    }
+  })
+  return values
 }
 
-export function createProjectCustomBlockFontFamily(packageKey: string, fontKey: string): string {
-  return `OpenCardCustomBlock-${packageKey}-${fontKey}`
+function addReference(
+  references: Map<string, Set<string>>,
+  id: string,
+  reference: string,
+): void {
+  const current = references.get(id) ?? new Set<string>()
+  current.add(reference)
+  references.set(id, current)
 }
 
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+function collectFontSources(
+  key: string,
+  registry: ProjectFontRegistry,
+  seen: Set<string> = new Set(),
+): Array<{ fontKey: string, source: string }> {
+  const identity = key.toLocaleLowerCase()
+  if (seen.has(identity)) return []
+  seen.add(identity)
+  const located = Object.entries(registry).find(([candidate]) => candidate.toLocaleLowerCase() === identity)?.[1]
+  if (!located) return []
+  if (located.kind === 'family') {
+    return projectFontFileEntries(located.family).map(slot => ({ fontKey: located.family.key, source: slot.source }))
+  }
+  return located.composition.members.flatMap(member => collectFontSources(member.fontKey, registry, seen))
 }
 
-function decodeDataUrl(source: string): { bytes: Uint8Array; extension: string } | null {
-  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(source)
-  if (!match) return null
-  const mime = match[1] ?? 'application/octet-stream'
-  const decoded = match[2]
-    ? Uint8Array.from(atob(match[3]), char => char.charCodeAt(0))
-    : new TextEncoder().encode(decodeURIComponent(match[3]))
-  const extension = mime === 'image/png' ? 'png'
-    : mime === 'image/jpeg' ? 'jpg'
-      : mime === 'image/webp' ? 'webp'
-        : 'bin'
-  return { bytes: decoded, extension }
-}
-
-function extensionOf(source: string, fallback: string): string {
-  const path = source.split(/[?#]/, 1)[0]
-  return /\.([a-z0-9]+)$/i.exec(path)?.[1].toLowerCase() ?? fallback
-}
-
-export async function collectProjectCustomBlockResources(options: {
+export async function analyzeProjectCustomBlockResources(options: {
   root: CardBlock
   projectRootPath: string
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'fileExists'>
   projectFonts?: ProjectFontRegistry
-  remoteResourcePolicy?: ProjectRemoteResourcePolicy
-  fs: Pick<FileSystemService, 'readBinaryFile'>
-  fetchBytes?: (url: string) => Promise<Uint8Array>
-  packageKey: string
-  projectIconCatalog?: ProjectIconCatalog
-  customBlockCatalog?: CustomBlockResourceCatalog
-  resourceOwners?: ReadonlyMap<string, string>
-  composeIconAtlas?: (
-    entries: readonly ProjectIconCatalogEntry[],
-    loadSourceBytes: (entry: ProjectIconCatalogEntry) => Promise<Uint8Array>,
-  ) => Promise<ProjectCustomBlockIconAtlas>
-}): Promise<CollectedCustomBlockResources> {
-  const imageSources = new Map<string, { source: string; owner?: string }>()
-  const fontKeys = new Set<string>()
-  const localFontKeys = new Map<string, { key: string; owner: string }>()
-  const iconIdentities = new Map<string, { seriesKey: string; iconKey: string; owner?: string }>()
-  const packagedFontFamilies = new Set<string>()
-  visitCardBlockTree(options.root, block => {
-    const imageOwner = options.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, 'image'))
-    if (block.type === 'image-block' && block.image?.trim()) {
-      const source = block.image.trim()
-      imageSources.set(ownedResourceIdentity(imageOwner, source), { source, owner: imageOwner })
+  projectIconSeries?: readonly ProjectIconSeries[]
+  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+}): Promise<ProjectCustomBlockResourceAnalysis> {
+  const root = options.projectRootPath.replace(/[\\/]+$/, '')
+  const issues: ProjectCustomBlockPackageIssue[] = []
+  const allEntries = await options.fs.readDirectoryEntries(root, Number.POSITIVE_INFINITY)
+  const iconSources = new Set((options.projectIconSeries ?? []).map(series => (
+    `.opencard/${series.source}`.toLocaleLowerCase()
+  )))
+  const fontSources = new Map<string, string>()
+  for (const entry of Object.values(options.projectFonts ?? {})) {
+    if (entry.kind !== 'family') continue
+    for (const slot of projectFontFileEntries(entry.family)) {
+      fontSources.set(`.opencard/${slot.source}`.toLocaleLowerCase(), entry.family.key)
     }
-    const fontFamily = 'fontFamily' in block ? block.fontFamily : undefined
-    const fontOwner = options.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, 'fontFamily'))
-    for (const entry of fontFamily?.split(';') ?? []) {
-      const value = entry.trim()
-      if (value.toLowerCase().startsWith('resource:font:') && fontOwner) {
-        const key = value.slice('resource:font:'.length)
-        localFontKeys.set(ownedResourceIdentity(fontOwner, key), { key, owner: fontOwner })
-      } else if (value.toLowerCase().startsWith('font:')) fontKeys.add(value.slice(5).toLowerCase())
-      else if (value.toLowerCase().startsWith('opencardcustomblock-')) packagedFontFamilies.add(value.toLowerCase())
+  }
+
+  const candidates = new Map<string, ProjectCustomBlockResourceCandidate>()
+  const candidateByPath = new Map<string, string>()
+  for (const entry of allEntries) {
+    if (!entry.isFile || entry.isSymlink) continue
+    const path = normalizeRelativeProjectPath(entry.name)
+    if (!path) continue
+    const identity = path.toLocaleLowerCase()
+    if (identity.startsWith('.opencard/blocks/')) continue
+    if (fontSources.has(identity)) {
+      const fontKey = fontSources.get(identity)!
+      const id = `font:${identity}`
+      candidates.set(id, {
+        id, kind: 'font', path, label: basename(path), automatic: false, suggested: false,
+        referenceCount: 0, references: [], fontKey,
+      })
+      candidateByPath.set(identity, id)
+      continue
     }
-    for (const [fieldKey, value] of Object.entries(block)) {
-      if (typeof value !== 'string') continue
-      const owner = options.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, fieldKey))
-      for (const reference of collectProjectIconReferences(value)) {
-        iconIdentities.set(ownedResourceIdentity(owner, projectIconIdentity(reference.seriesKey, reference.iconKey)), { ...reference, owner })
+    if (iconSources.has(identity)) continue
+    if (!imageExtensionPattern.test(path)) continue
+    const id = `image:${identity}`
+    candidates.set(id, {
+      id, kind: 'image', path, label: basename(path), automatic: false, suggested: false,
+      referenceCount: 0, references: [],
+    })
+    candidateByPath.set(identity, id)
+  }
+
+  for (const series of options.projectIconSeries ?? []) {
+    const path = `.opencard/${series.source}`
+    const id = `icon:${series.key.toLocaleLowerCase()}`
+    candidates.set(id, {
+      id, kind: 'icon', path, label: series.name || series.key, automatic: false, suggested: false,
+      referenceCount: 0, references: [], iconSeriesKey: series.key,
+    })
+  }
+  for (const descriptor of options.customBlockManifestCatalog?.values() ?? []) {
+    const packageId = descriptor.manifest.packageId
+    const id = `custom-block:${packageId.toLocaleLowerCase()}`
+    candidates.set(id, {
+      id,
+      kind: 'custom-block',
+      path: `.opencard/blocks/${packageId}`,
+      label: descriptor.manifest.name,
+      automatic: false,
+      suggested: false,
+      referenceCount: 0,
+      references: [],
+      packageId,
+    })
+  }
+
+  const references = new Map<string, Set<string>>()
+  const automatic = new Set<string>()
+  const suggested = new Set<string>()
+  const referencedIconKeys = new Map<string, Set<string>>()
+  const values = stringValues(options.root)
+  for (const { blockId, fieldKey, value } of values) {
+    const referenceLabel = `${blockId}.${fieldKey}`
+    const directPath = !dynamicTokenPattern.test(value) ? normalizeRelativeProjectPath(value) : null
+    let directId = directPath ? candidateByPath.get(directPath.toLocaleLowerCase()) : undefined
+    if (!directId && directPath && imageExtensionPattern.test(directPath)) {
+      const identity = directPath.toLocaleLowerCase()
+      directId = `image:${identity}`
+      candidates.set(directId, {
+        id: directId, kind: 'image', path: directPath, label: basename(directPath),
+        automatic: false, suggested: false, referenceCount: 0, references: [], missing: true,
+      })
+      candidateByPath.set(identity, directId)
+    }
+    if (directId) {
+      automatic.add(directId)
+      addReference(references, directId, referenceLabel)
+    } else if (dynamicTokenPattern.test(value)) {
+      const prefix = value.split('{{', 1)[0]!.replace(/[/\\]+$/, '').toLocaleLowerCase()
+      if (prefix) {
+        for (const [path, candidateId] of candidateByPath) {
+          if (path.startsWith(prefix)) {
+            suggested.add(candidateId)
+            addReference(references, candidateId, referenceLabel)
+          }
+        }
       }
     }
+
+    if (fieldKey === 'fontFamily') {
+      for (const family of value.split(';').map(item => item.trim())) {
+        if (!family.toLocaleLowerCase().startsWith('font:')) continue
+        const fontKey = family.slice('font:'.length)
+        const sources = collectFontSources(fontKey, options.projectFonts ?? {})
+        if (sources.length === 0) {
+          issues.push(issue('resource-unavailable', family, 'Referenced project font is unavailable'))
+        }
+        for (const source of sources) {
+          const candidateId = candidateByPath.get(`.opencard/${source.source}`.toLocaleLowerCase())
+          if (!candidateId) continue
+          automatic.add(candidateId)
+          addReference(references, candidateId, referenceLabel)
+        }
+      }
+    }
+
+    for (const iconReference of collectProjectIconReferences(value)) {
+      const candidateId = `icon:${iconReference.seriesKey.toLocaleLowerCase()}`
+      const series = (options.projectIconSeries ?? []).find(candidate => (
+        candidate.key.toLocaleLowerCase() === iconReference.seriesKey.toLocaleLowerCase()
+      ))
+      const iconExists = series?.icons.some(icon => (
+        icon.iconKey.toLocaleLowerCase() === iconReference.iconKey.toLocaleLowerCase()
+      ))
+      if (!candidates.has(candidateId) || !iconExists) {
+        issues.push(issue('resource-unavailable', `${iconReference.seriesKey}/${iconReference.iconKey}`, 'Referenced project icon is unavailable'))
+        continue
+      }
+      automatic.add(candidateId)
+      addReference(references, candidateId, referenceLabel)
+      const iconKeys = referencedIconKeys.get(candidateId) ?? new Set<string>()
+      iconKeys.add(iconReference.iconKey.toLocaleLowerCase())
+      referencedIconKeys.set(candidateId, iconKeys)
+    }
+    for (const match of value.matchAll(dynamicIconSeriesPattern)) {
+      const candidateId = `icon:${match[1]!.toLocaleLowerCase()}`
+      if (!candidates.has(candidateId)) continue
+      suggested.add(candidateId)
+      addReference(references, candidateId, referenceLabel)
+    }
+  }
+
+  visitCardBlockTree(options.root, block => {
+    if (block.type !== 'custom-block') return
+    const candidateId = `custom-block:${block.packageId.toLocaleLowerCase()}`
+    if (!candidates.has(candidateId)) {
+      issues.push(issue('dependency-unavailable', block.packageId, 'Nested custom block is not installed'))
+      return
+    }
+    automatic.add(candidateId)
+    addReference(references, candidateId, block.id)
   })
 
-  const files = new Map<string, Uint8Array>()
-  const images: { key: string; source: string }[] = []
-  const imageArchivePaths = new Map<string, string>()
-  const fonts: ProjectCustomBlockFontResource[] = []
-  const imageSourceMap = new Map<string, string>()
-  const fontSourceMap = new Map<string, string>()
-  const fontFamilyReplacements = new Map<string, string>()
-  const localFontReplacements = new Map<string, string>()
-  const iconReplacements = new Map<string, { seriesKey: string; iconKey: string }>()
-  let resourcesIconSeries: ProjectIconSeries[] = []
-  const root = options.projectRootPath.replace(/\\/g, '/').replace(/\/$/, '')
-
-  const resourceKeys = new Set<string>()
-  const projectFontKeys = new Map<string, string>()
-  const packagedFontKeys = new Map<string, string>()
-  const availableResourceKey = (preferred: string): string => {
-    const base = preferred.toLowerCase()
-    if (!resourceKeys.has(base)) {
-      resourceKeys.add(base)
-      return preferred
+  const enriched = [...candidates.values()].map(candidate => {
+    const candidateReferences = [...(references.get(candidate.id) ?? [])]
+    return {
+      ...(candidate.kind === 'icon' ? { iconKeys: [...(referencedIconKeys.get(candidate.id) ?? [])] } : {}),
+      ...candidate,
+      automatic: automatic.has(candidate.id),
+      suggested: !automatic.has(candidate.id) && suggested.has(candidate.id),
+      referenceCount: candidateReferences.length,
+      references: candidateReferences,
     }
-    let suffix = 2
-    while (resourceKeys.has(`${base}-${suffix}`)) suffix += 1
-    const key = `${preferred}-${suffix}`
-    resourceKeys.add(key.toLowerCase())
-    return key
-  }
-  const archiveFont = async (
-    font: ProjectFont,
-    loadBytes: (source: string) => Promise<Uint8Array>,
-  ): Promise<ProjectFont> => {
-    const archivedSources = new Map<string, string>()
-    for (const slot of projectFontFileEntries(font)) {
-      const bytes = await loadBytes(slot.source)
-      const hash = await sha256(bytes)
-      const archivePath = `resources/fonts/${hash}.${extensionOf(slot.source, 'bin')}`
-      archivedSources.set(slot.source, archivePath)
-      if (!files.has(archivePath)) files.set(archivePath, bytes)
-    }
-    const archivedFiles = Object.fromEntries(Object.entries(font.files).map(([weight, styles]) => [
-      weight,
-      Object.fromEntries(Object.entries(styles ?? {}).flatMap(([style, source]) => {
-        const archivePath = archivedSources.get(source)
-        return archivePath ? [[style, archivePath]] : []
-      })),
-    ])) as ProjectFont['files']
-    return { ...font, files: archivedFiles }
-  }
-  const findProjectFont = (key: string) => Object.entries(options.projectFonts ?? {})
-    .find(([candidate]) => candidate.toLowerCase() === key.toLowerCase())?.[1]
-  const ensureProjectFont = async (sourceKey: string): Promise<string> => {
-    const identity = sourceKey.toLowerCase()
-    const existing = projectFontKeys.get(identity)
-    if (existing) return existing
-    const entry = findProjectFont(sourceKey)
-    if (!entry) throw new Error(`Custom block font is missing: font:${sourceKey}`)
-    const key = availableResourceKey(entry.kind === 'family' ? entry.family.key : entry.composition.key)
-    projectFontKeys.set(identity, key)
-    if (entry.kind === 'family') {
-      const archived = await archiveFont({ ...entry.family, key }, source => options.fs.readBinaryFile(
-        `${root}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source.replace(/\\/g, '/')}`,
-      ))
-      fonts.push({ kind: 'font', key, name: archived.name, files: archived.files })
-      return key
-    }
-    const members = []
-    for (const member of entry.composition.members) {
-      members.push({ ...member, fontKey: await ensureProjectFont(member.fontKey) })
-    }
-    fonts.push({ kind: 'composition', key, name: entry.composition.name, members })
-    return key
-  }
-  const ensurePackagedFont = async (owner: string, sourceKey: string): Promise<string> => {
-    const identity = ownedResourceIdentity(owner, sourceKey)
-    const existing = packagedFontKeys.get(identity)
-    if (existing) return existing
-    const entry = options.customBlockCatalog?.get(owner)
-    const font = entry?.manifest.resources?.fonts?.find(candidate => candidate.key.toLowerCase() === sourceKey.toLowerCase())
-    if (!entry || !font) throw new Error(`Custom block font resource is missing: ${owner}/${sourceKey}`)
-    const key = availableResourceKey(`${owner}-${font.key}`)
-    packagedFontKeys.set(identity, key)
-    if (font.kind === 'font') {
-      const archived = await archiveFont({ ...font, key }, async source => {
-        const bytes = entry.files && findProjectCustomBlockFile(entry.files, source)
-        if (!bytes) throw new Error(`Custom block font resource is missing: ${source}`)
-        return bytes
-      })
-      fonts.push({ kind: 'font', key, name: archived.name, files: archived.files })
-      return key
-    }
-    const members = []
-    for (const member of font.members) {
-      members.push({ ...member, fontKey: await ensurePackagedFont(owner, member.fontKey) })
-    }
-    fonts.push({ kind: 'composition', key, name: font.name, members })
-    return key
-  }
-
-  for (const { source, owner } of imageSources.values()) {
-    let bytes: Uint8Array
-    let extension = extensionOf(source, 'bin')
-    const data = decodeDataUrl(source)
-    if (data) {
-      bytes = data.bytes
-      extension = data.extension
-    } else if (/^https?:\/\//i.test(source)) {
-      if (!isRemoteResourceAllowed(source, options.remoteResourcePolicy) || !options.fetchBytes) {
-        throw new Error(`Custom block image cannot be downloaded: ${source}`)
-      }
-      bytes = await options.fetchBytes(source)
-    } else if (source.toLowerCase().startsWith('resource:image:') && owner) {
-      const key = source.slice('resource:image:'.length).toLowerCase()
-      const entry = options.customBlockCatalog?.get(owner)
-      const resourcePath = entry?.manifest.resources?.images?.find(image => image.key.toLowerCase() === key)?.source
-      const resourceBytes = entry?.files && resourcePath ? findProjectCustomBlockFile(entry.files, resourcePath) : undefined
-      if (!resourceBytes) {
-        throw new Error(`Custom block image resource is missing: ${source}`)
-      }
-      bytes = resourceBytes
-      extension = extensionOf(resourcePath!, 'bin')
-    } else {
-      const relative = source.replace(/\\/g, '/').replace(/^\/+/, '')
-      if (relative.split('/').includes('..')) throw new Error(`Invalid custom block image path: ${source}`)
-      bytes = await options.fs.readBinaryFile(`${root}/${relative}`)
-    }
-    const hash = await sha256(bytes)
-    const archivePath = imageArchivePaths.get(hash) ?? `resources/images/${hash}.${extension}`
-    imageArchivePaths.set(hash, archivePath)
-    if (!files.has(archivePath)) files.set(archivePath, bytes)
-    if (!images.some(image => image.key === hash)) images.push({ key: hash, source: archivePath })
-    imageSourceMap.set(ownedResourceIdentity(owner, source), archivePath)
-  }
-
-  for (const { key: sourceKey, owner } of localFontKeys.values()) {
-    const key = await ensurePackagedFont(owner, sourceKey)
-    localFontReplacements.set(ownedResourceIdentity(owner, sourceKey), `resource:font:${key}`)
-  }
-
-  for (const key of fontKeys) {
-    const packagedKey = await ensureProjectFont(key)
-    fontSourceMap.set(key, packagedKey)
-  }
-
-  for (const family of packagedFontFamilies) {
-    let match: { owner: string; key: string } | null = null
-    for (const entry of options.customBlockCatalog?.values() ?? []) {
-      for (const font of entry.manifest.resources?.fonts ?? []) {
-        if (createProjectCustomBlockFontFamily(entry.manifest.customBlockKey, font.key).toLowerCase() !== family) continue
-        match = { owner: entry.manifest.customBlockKey, key: font.key }
-      }
-    }
-    if (!match) throw new Error(`Custom block font is missing: ${family}`)
-    const key = await ensurePackagedFont(match.owner, match.key)
-    fontFamilyReplacements.set(family, `resource:font:${key}`)
-  }
-
-  if (iconIdentities.size > 0) {
-    const iconEntryOwners = new Map<ProjectIconCatalogEntry, string | undefined>()
-    const entries = [...iconIdentities.values()].map(reference => {
-      const scopedCatalog = reference.owner ? options.customBlockCatalog?.get(reference.owner)?.iconCatalog : undefined
-      const entry = findProjectIcon(scopedCatalog ?? options.projectIconCatalog, reference.seriesKey, reference.iconKey)
-      if (!entry) throw new Error(`Custom block icon is missing: ${reference.seriesKey}/${reference.iconKey}`)
-      iconEntryOwners.set(entry, reference.owner)
-      return entry
-    })
-    const loadIconSourceBytes = async (icon: ProjectIconCatalogEntry): Promise<Uint8Array> => {
-      const owner = iconEntryOwners.get(icon)
-      if (owner) {
-        const customBlock = options.customBlockCatalog?.get(owner)
-        const series = customBlock?.manifest.resources?.iconSeries?.find(candidate => (
-          candidate.key.toLowerCase() === icon.seriesKey.toLowerCase()
-        ))
-        const bytes = customBlock?.files && series
-          ? findProjectCustomBlockFile(customBlock.files, series.source)
-          : undefined
-        if (!bytes) throw new Error(`Custom block icon resource is missing: ${owner}/${icon.seriesKey}`)
-        return bytes
-      }
-      for (const customBlock of options.customBlockCatalog?.values() ?? []) {
-        const series = customBlock.manifest.resources?.iconSeries?.find(candidate => (
-          candidate.key.toLowerCase() === icon.seriesKey.toLowerCase()
-        ))
-        if (!series) continue
-        const bytes = customBlock.files ? findProjectCustomBlockFile(customBlock.files, series.source) : undefined
-        if (!bytes) throw new Error(`Custom block icon resource is missing: ${series.source}`)
-        return bytes
-      }
-      const relative = icon.source.replace(/\\/g, '/').replace(/^\/+/, '')
-      if (!relative || relative.split('/').includes('..')) {
-        throw new Error(`Invalid project icon path: ${icon.source}`)
-      }
-      return await options.fs.readBinaryFile(`${root}/${relative}`)
-    }
-    const atlas = await (options.composeIconAtlas ?? composeProjectCustomBlockIconAtlas)(entries, loadIconSourceBytes)
-    const hash = await sha256(atlas.bytes)
-    const archivePath = `resources/icons/${hash}.png`
-    files.set(archivePath, atlas.bytes)
-    const series = createProjectCustomBlockIconSeries({ packageKey: options.packageKey, source: archivePath, icons: atlas.icons })
-    ;[...iconIdentities.entries()].forEach(([identity], index) => {
-      iconReplacements.set(identity, { seriesKey: series.key, iconKey: atlas.icons[index]!.iconKey })
-    })
-    resourcesIconSeries = [series]
-  }
-
+  }).sort((left, right) => left.path.localeCompare(right.path))
   return {
-    files,
-    index: {
-      ...(images.length ? { images } : {}),
-      ...(fonts.length ? { fonts } : {}),
-      ...(resourcesIconSeries.length ? { iconSeries: resourcesIconSeries } : {}),
-    },
-    imageSources: imageSourceMap,
-    fontSources: fontSourceMap,
-    fontFamilyReplacements,
-    localFontReplacements,
-    iconReplacements,
-    resourceOwners: options.resourceOwners,
+    candidates: enriched,
+    defaultSelectedIds: new Set(enriched.filter(candidate => candidate.automatic || candidate.suggested).map(candidate => candidate.id)),
+    issues,
   }
 }
 
-export function rewriteProjectCustomBlockResourceReferences(
-  root: CardBlock,
-  resources: CollectedCustomBlockResources,
-): void {
-  visitCardBlockTree(root, block => {
-    if (block.type === 'image-block') {
-      const owner = resources.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, 'image'))
-      const archivePath = resources.imageSources.get(ownedResourceIdentity(owner, block.image))
-      const resource = resources.index.images?.find(image => image.source === archivePath)
-      if (resource) block.image = `resource:image:${resource.key}`
-    }
-    if ('fontFamily' in block && block.fontFamily) {
-      block.fontFamily = block.fontFamily.split(';').map(entry => {
-        const value = entry.trim()
-        const owner = resources.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, 'fontFamily'))
-        const localReplacement = value.toLowerCase().startsWith('resource:font:')
-          ? resources.localFontReplacements.get(ownedResourceIdentity(owner, value.slice('resource:font:'.length)))
-          : undefined
-        if (localReplacement) return localReplacement
-        const packagedReplacement = resources.fontFamilyReplacements.get(value.toLowerCase())
-        if (packagedReplacement) return packagedReplacement
-        if (!value.toLowerCase().startsWith('font:')) return value
-        const key = value.slice(5).toLowerCase()
-        const packagedKey = resources.fontSources.get(key)
-        return packagedKey ? `resource:font:${packagedKey}` : value
-      }).join('; ')
-    }
-    for (const [fieldKey, fieldValue] of Object.entries(block)) {
-      if (typeof fieldValue !== 'string') continue
-      const rewritten = rewriteProjectIconReferences(fieldValue, reference => (
-        resources.iconReplacements.get(ownedResourceIdentity(
-          resources.resourceOwners?.get(customBlockResourceOwnerIdentity(block.id, fieldKey)),
-          projectIconIdentity(reference.seriesKey, reference.iconKey),
-        )) ?? reference
-      ))
-      if (rewritten !== fieldValue) (block as unknown as Record<string, unknown>)[fieldKey] = rewritten
-    }
+function selectedFontDocument(
+  selected: readonly ProjectCustomBlockResourceCandidate[],
+  registry: ProjectFontRegistry,
+): ProjectFontRegistryDocument {
+  const selectedSources = new Set(selected.filter(candidate => candidate.kind === 'font')
+    .map(candidate => candidate.path.replace(/^\.opencard\//, '').toLocaleLowerCase()))
+  const families = Object.values(registry).flatMap(entry => {
+    if (entry.kind !== 'family') return []
+    const files = Object.fromEntries(Object.entries(entry.family.files).flatMap(([weight, styles]) => {
+      const selectedStyles = Object.fromEntries(Object.entries(styles ?? {}).filter(([, source]) => (
+        selectedSources.has(source.toLocaleLowerCase())
+      )))
+      return Object.keys(selectedStyles).length ? [[weight, selectedStyles]] : []
+    })) as typeof entry.family.files
+    return Object.keys(files).length ? [{ ...entry.family, files }] : []
   })
+  const familyKeys = new Set(families.map(font => font.key.toLocaleLowerCase()))
+  const compositions = Object.values(registry).flatMap(entry => (
+    entry.kind === 'composition' && entry.composition.members.every(member => familyKeys.has(member.fontKey.toLocaleLowerCase()))
+      ? [entry.composition]
+      : []
+  ))
+  return {
+    ...(families.length ? { families } : {}),
+    ...(compositions.length ? { compositions } : {}),
+  }
+}
+
+async function copyDirectoryToArchive(options: {
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readBinaryFile'>
+  sourceRoot: string
+  archiveRoot: string
+  files: Map<string, Uint8Array>
+  budget: { entries: number, bytes: number }
+}): Promise<void> {
+  const entries = await options.fs.readDirectoryEntries(options.sourceRoot, Number.POSITIVE_INFINITY)
+  for (const entry of entries) {
+    if (entry.isSymlink) throw new Error('Custom block dependency contains a symbolic link')
+    if (!entry.isFile) continue
+    const relative = normalizeProjectResourcePath(entry.name)
+    if (!relative) throw new Error('Custom block dependency contains an unsafe path')
+    const bytes = await options.fs.readBinaryFile(`${options.sourceRoot}/${relative}`)
+    options.budget.entries += 1
+    options.budget.bytes += bytes.byteLength
+    if (options.budget.entries > MAX_CUSTOM_BLOCK_ENTRIES
+      || options.budget.bytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) {
+      throw new Error('Custom block resources exceed package limits')
+    }
+    options.files.set(`${options.archiveRoot}/${relative}`, bytes)
+  }
+}
+
+export async function materializeProjectCustomBlockResources(options: {
+  analysis: ProjectCustomBlockResourceAnalysis
+  selectedIds: ReadonlySet<string>
+  projectRootPath: string
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readBinaryFile'>
+  projectFonts?: ProjectFontRegistry
+  projectIconSeries?: readonly ProjectIconSeries[]
+  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+}): Promise<MaterializedProjectCustomBlockResources> {
+  const root = options.projectRootPath.replace(/[\\/]+$/, '')
+  const files = new Map<string, Uint8Array>()
+  const issues: ProjectCustomBlockPackageIssue[] = []
+  const selected = options.analysis.candidates.filter(candidate => options.selectedIds.has(candidate.id))
+  const budget = { entries: 0, bytes: 0 }
+
+  for (const candidate of selected) {
+    try {
+      if (candidate.kind === 'custom-block') {
+        const descriptor = candidate.packageId
+          ? options.customBlockManifestCatalog?.get(candidate.packageId.toLocaleLowerCase())
+          : undefined
+        if (!descriptor || !candidate.packageId) throw new Error('Nested custom block is unavailable')
+        await copyDirectoryToArchive({
+          fs: options.fs,
+          sourceRoot: descriptor.installationPath,
+          archiveRoot: `resources/.opencard/blocks/${candidate.packageId}`,
+          files,
+          budget,
+        })
+        continue
+      }
+      const path = normalizeProjectResourcePath(candidate.path)
+      if (!path) throw new Error('Resource path is unsafe')
+      const bytes = await options.fs.readBinaryFile(`${root}/${path}`)
+      budget.entries += 1
+      budget.bytes += bytes.byteLength
+      if (budget.entries > MAX_CUSTOM_BLOCK_ENTRIES || budget.bytes > MAX_CUSTOM_BLOCK_UNPACKED_BYTES) {
+        throw new Error('Custom block resources exceed package limits')
+      }
+      files.set(`resources/${path}`, bytes)
+    } catch (cause) {
+      issues.push(issue(
+        candidate.kind === 'custom-block' ? 'dependency-unavailable' : 'resource-unavailable',
+        candidate.path,
+        cause instanceof Error ? cause.message : String(cause),
+      ))
+    }
+  }
+
+  const fontDocument = selectedFontDocument(selected, options.projectFonts ?? {})
+  if (Object.keys(fontDocument).length > 0) {
+    files.set('resources/.opencard/.ocfonts', strToU8(serializeProjectFontRegistry(fontDocument)))
+  }
+  const selectedIconCandidates = new Map(selected.filter(candidate => candidate.kind === 'icon')
+    .map(candidate => [candidate.iconSeriesKey?.toLocaleLowerCase(), candidate]))
+  const iconSeries = (options.projectIconSeries ?? []).flatMap(series => {
+    const candidate = selectedIconCandidates.get(series.key.toLocaleLowerCase())
+    if (!candidate) return []
+    const iconKeys = new Set(candidate.iconKeys ?? [])
+    return [{
+      ...series,
+      icons: iconKeys.size > 0
+        ? series.icons.filter(icon => iconKeys.has(icon.iconKey.toLocaleLowerCase()))
+        : series.icons,
+    }]
+  })
+  if (iconSeries.length > 0) {
+    files.set('resources/.opencard/.ocicons', strToU8(serializeProjectIconRegistry({ iconSeries })))
+  }
+
+  for (const candidate of options.analysis.candidates) {
+    if (!candidate.automatic || options.selectedIds.has(candidate.id)) continue
+    issues.push(issue('resource-unavailable', candidate.path, 'Automatically detected resource was excluded by the author'))
+  }
+  return { files, issues: [...options.analysis.issues, ...issues], selectedCandidates: selected }
 }

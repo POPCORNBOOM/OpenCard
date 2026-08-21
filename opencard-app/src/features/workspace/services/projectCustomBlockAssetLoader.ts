@@ -1,102 +1,158 @@
-import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
-import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
-import { findProjectCustomBlockFile } from './projectCustomBlock'
+import type { CustomBlockRuntimeCatalog, CustomBlockRuntimeEntry } from '../../card-rendering/expandCustomBlocks'
+import type { ProjectCustomBlockCatalogEntry, ProjectCustomBlockPackageIssue } from '../model/projectCustomBlocks'
 import {
-  buildProjectIconCatalog,
-  EMPTY_PROJECT_ICON_CATALOG,
-  type ProjectIconCatalog,
-  type ProjectImageDimensionLoader,
-} from './projectIconCatalog'
+  discoverInstalledProjectCustomBlocks,
+  MAX_CUSTOM_BLOCK_DEPENDENCIES,
+  MAX_CUSTOM_BLOCK_DEPENDENCY_DEPTH,
+  readInstalledProjectCustomBlockPackage,
+} from './projectCustomBlock'
+import type { FileSystemService } from './fileSystemService'
+import type { ProjectImageDimensionLoader } from './projectIconCatalog'
+import {
+  loadProjectResourceEnvironment,
+  type ProjectResourceEnvironment,
+} from './projectResourceEnvironment'
 
-export type ProjectCustomBlockAssetRuntime = {
-  createObjectUrl: (blob: Blob) => string
-  revokeObjectUrl: (url: string) => void
+export type InstalledProjectCustomBlockRuntime = {
+  entry: ProjectCustomBlockCatalogEntry
+  runtimeEntry: CustomBlockRuntimeEntry
+  environments: readonly ProjectResourceEnvironment[]
+  issues: readonly ProjectCustomBlockPackageIssue[]
 }
 
-export type ProjectCustomBlockRuntimeAssets = {
-  customBlockCatalog: CustomBlockRuntimeCatalog
-  iconCatalog: ProjectIconCatalog
+type RuntimeLoadState = {
+  dependencyCount: number
+  readonly loadDimensions?: ProjectImageDimensionLoader
 }
 
-export type ProjectCustomBlockAssetSession = ProjectCustomBlockRuntimeAssets & {
-  release: () => void
+function dependencyIssue(
+  code: 'dependency-unavailable' | 'dependency-cycle',
+  path: string,
+  message: string,
+): ProjectCustomBlockPackageIssue {
+  return { code, path, message }
 }
 
-function defaultRuntime(): ProjectCustomBlockAssetRuntime | null {
-  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return null
-  return {
-    createObjectUrl: blob => URL.createObjectURL(blob),
-    revokeObjectUrl: url => URL.revokeObjectURL(url),
-  }
-}
+async function loadRuntime(options: {
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readFile' | 'fileExists'>
+  installationPath: string
+  ancestors: readonly string[]
+  depth: number
+  state: RuntimeLoadState
+}): Promise<InstalledProjectCustomBlockRuntime> {
+  const pkg = await readInstalledProjectCustomBlockPackage(options.fs, options.installationPath)
+  if (!pkg.block) throw new Error(`Custom block is unavailable: ${pkg.manifest.packageId}`)
+  const packageId = pkg.manifest.packageId.toLocaleLowerCase()
+  const resourceRootPath = `${options.installationPath.replace(/[\\/]+$/, '')}/resources`
+  const issues: ProjectCustomBlockPackageIssue[] = [...pkg.issues]
+  const baseEnvironment = await loadProjectResourceEnvironment({
+    fs: options.fs,
+    rootPath: resourceRootPath,
+    kind: 'package',
+    identity: pkg.manifest.packageId,
+    loadDimensions: options.state.loadDimensions,
+  })
 
-function mimeForPath(path: string): string {
-  if (/\.png$/i.test(path)) return 'image/png'
-  if (/\.jpe?g$/i.test(path)) return 'image/jpeg'
-  if (/\.webp$/i.test(path)) return 'image/webp'
-  if (/\.gif$/i.test(path)) return 'image/gif'
-  return 'application/octet-stream'
-}
-
-export async function createProjectCustomBlockAssetSession(
-  catalog: ProjectCustomBlockCatalog,
-  runtime = defaultRuntime(),
-  loadDimensions?: ProjectImageDimensionLoader,
-): Promise<ProjectCustomBlockAssetSession> {
-  if (!runtime) {
-    return {
-      customBlockCatalog: catalog,
-      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
-      release: () => undefined,
-    }
-  }
-  const nextUrls: string[] = []
-  const runtimeCatalog = new Map<string, CustomBlockRuntimeCatalog extends ReadonlyMap<string, infer T> ? T : never>()
-  const iconCatalogs: ProjectIconCatalog[] = []
-  try {
-    for (const [key, entry] of catalog) {
-      const resourceUrls = new Map<string, string>()
-      const indexedPaths = [
-        ...(entry.manifest.resources?.images ?? []).map(resource => resource.source),
-        ...(entry.manifest.resources?.iconSeries ?? []).map(series => series.source),
-      ]
-      for (const path of indexedPaths) {
-        const identity = path.toLowerCase()
-        if (resourceUrls.has(identity)) continue
-        const bytes = findProjectCustomBlockFile(entry.files, path)
-        if (!bytes) throw new Error(`Custom block resource is missing: ${path}`)
-        const url = runtime.createObjectUrl(new Blob([bytes.slice().buffer], { type: mimeForPath(path) }))
-        nextUrls.push(url)
-        resourceUrls.set(identity, url)
+  const dependencies = new Map<string, CustomBlockRuntimeEntry>()
+  const environments: ProjectResourceEnvironment[] = []
+  if (options.depth >= MAX_CUSTOM_BLOCK_DEPENDENCY_DEPTH) {
+    issues.push(dependencyIssue(
+      'dependency-unavailable',
+      pkg.manifest.packageId,
+      'Custom block dependency depth limit was reached',
+    ))
+  } else {
+    const descriptors = await discoverInstalledProjectCustomBlocks(options.fs, resourceRootPath)
+    for (const descriptor of descriptors.values()) {
+      const dependencyId = descriptor.manifest.packageId.toLocaleLowerCase()
+      if (options.ancestors.includes(dependencyId) || dependencyId === packageId) {
+        issues.push(dependencyIssue(
+          'dependency-cycle',
+          descriptor.manifest.packageId,
+          `Custom block dependency cycle: ${[...options.ancestors, packageId, dependencyId].join(' -> ')}`,
+        ))
+        continue
       }
-      const iconSeries = entry.manifest.resources?.iconSeries ?? []
-      let iconCatalog = EMPTY_PROJECT_ICON_CATALOG
-      if (iconSeries.length > 0) {
-        iconCatalog = await buildProjectIconCatalog(
-          iconSeries,
-          source => resourceUrls.get(source.toLowerCase()) ?? '',
-          loadDimensions,
-        )
-        iconCatalogs.push(iconCatalog)
+      options.state.dependencyCount += 1
+      if (options.state.dependencyCount > MAX_CUSTOM_BLOCK_DEPENDENCIES) {
+        issues.push(dependencyIssue(
+          'dependency-unavailable',
+          descriptor.manifest.packageId,
+          'Custom block dependency count limit was reached',
+        ))
+        break
       }
-      runtimeCatalog.set(key, { ...entry, resourceUrls, iconCatalog })
+      try {
+        const loaded = await loadRuntime({
+          ...options,
+          installationPath: descriptor.installationPath,
+          ancestors: [...options.ancestors, packageId],
+          depth: options.depth + 1,
+        })
+        dependencies.set(dependencyId, loaded.runtimeEntry)
+        environments.push(...loaded.environments)
+        issues.push(...loaded.issues)
+      } catch (cause) {
+        issues.push(dependencyIssue(
+          'dependency-unavailable',
+          descriptor.installationPath,
+          cause instanceof Error ? cause.message : String(cause),
+        ))
+      }
     }
-    let released = false
-    return {
-      customBlockCatalog: runtimeCatalog,
-      iconCatalog: {
-        series: iconCatalogs.flatMap(catalog => catalog.series),
-        entries: iconCatalogs.flatMap(catalog => catalog.entries),
-        errors: iconCatalogs.flatMap(catalog => catalog.errors),
-      },
-      release: () => {
-        if (released) return
-        released = true
-        nextUrls.forEach(url => runtime.revokeObjectUrl(url))
-      },
-    }
-  } catch (error) {
-    nextUrls.forEach(url => runtime.revokeObjectUrl(url))
-    throw error
   }
+
+  const environment: ProjectResourceEnvironment = {
+    ...baseEnvironment,
+    customBlockCatalog: dependencies,
+  }
+  environments.unshift(environment)
+  const hasResourceErrors = issues.some(issue => (
+    issue.code === 'resource-unavailable'
+    || issue.code === 'dependency-unavailable'
+    || issue.code === 'dependency-cycle'
+  )) || environment.issues.length > 0
+  const entry: ProjectCustomBlockCatalogEntry = {
+    manifest: pkg.manifest,
+    block: pkg.block,
+    installationPath: options.installationPath,
+    resourceRootPath,
+    issues,
+    ...(hasResourceErrors ? { hasResourceErrors: true } : {}),
+  }
+  const runtimeEntry: CustomBlockRuntimeEntry = {
+    manifest: pkg.manifest,
+    block: pkg.block,
+    environment,
+    dependencies,
+    ...(hasResourceErrors ? { hasResourceErrors: true } : {}),
+  }
+  return { entry, runtimeEntry, environments, issues }
+}
+
+export async function loadInstalledProjectCustomBlockRuntime(options: {
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readFile' | 'fileExists'>
+  installationPath: string
+  loadDimensions?: ProjectImageDimensionLoader
+}): Promise<InstalledProjectCustomBlockRuntime> {
+  return await loadRuntime({
+    fs: options.fs,
+    installationPath: options.installationPath,
+    ancestors: [],
+    depth: 0,
+    state: { dependencyCount: 0, loadDimensions: options.loadDimensions },
+  })
+}
+
+/** Flattens all lexical package catalogs for diagnostics and session lifecycle only. */
+export function flattenCustomBlockRuntimeCatalog(catalog: CustomBlockRuntimeCatalog): CustomBlockRuntimeCatalog {
+  const flattened = new Map<string, CustomBlockRuntimeEntry>()
+  const visit = (scope: CustomBlockRuntimeCatalog): void => {
+    for (const [packageId, entry] of scope) {
+      if (!flattened.has(packageId)) flattened.set(packageId, entry)
+      visit(entry.dependencies)
+    }
+  }
+  visit(catalog)
+  return flattened
 }

@@ -73,7 +73,7 @@ const imgStyle = computed(() => {
 
 const imageSrc = computed(() => {
     const imagePath = props.block.image
-    return editorContext.resolveAssetSrc(imagePath)
+    return editorContext.resolveAssetSrc(imagePath, props.block.id, 'image')
 })
 
 watch(imageSrc, (src) => {

@@ -1,8 +1,8 @@
 <!-- 文本块组件：根据块属性渲染文本内容并映射文本布局样式。 -->
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
-	        <RichTextDocumentRenderer v-if="preparedRichText" class="text-block-content text-block-content--richtext"
-	          :prepared="preparedRichText" />
+        <RichTextDocumentRenderer v-if="preparedRichText" class="text-block-content text-block-content--richtext"
+          :prepared="preparedRichText" :owner-block-id="block.id" />
 	        <div v-else class="text-block-content text-block-content--richtext" />
     </div>
 </template>
@@ -29,7 +29,7 @@ const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
     props.layoutMode,
     isTransformDisabled.value,
-    editorContext.resolveFontFamily,
+    value => editorContext.resolveFontFamily(value, props.block.id, 'fontFamily'),
 ))
 
 function handleClick(event: MouseEvent) {

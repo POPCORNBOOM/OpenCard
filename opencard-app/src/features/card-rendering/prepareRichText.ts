@@ -3,6 +3,11 @@ import { visitCardBlockTree } from '../../entities/card/tree'
 import { parseRichTextHtml, type RichTextCustomBlockNode, type RichTextDocument, type RichTextNode } from '../../shared/rich-text/richTextHtml'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import { getProjectCustomBlockPublicFields } from '../workspace/services/projectCustomBlockPublicFields'
+import {
+  projectResourceScopeIdentity,
+  type ProjectResourceEnvironment,
+  type ProjectResourceScopeMap,
+} from '../workspace/services/projectResourceEnvironment'
 import { createCardPipelineIssue, type CardPipelineIssue } from './cardPipelineIssue'
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { isRenderFieldValueValid, parseRenderDocument } from './renderParser'
@@ -60,8 +65,8 @@ function createProxy(host: RichTextHost, embeds: readonly EmbedWork[]): CardBloc
   proxy.children = embeds.map((embed, index) => {
     const instance = createCustomBlock({
       id: embed.identity,
-      customBlockKey: embed.node.customBlockKey,
-      name: embed.node.customBlockKey,
+      packageId: embed.node.packageId,
+      name: embed.node.packageId,
     })
     Object.assign(instance, embed.node.properties)
     return {
@@ -120,8 +125,17 @@ export function prepareRichText(options: {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
   customBlockCatalog?: CustomBlockRuntimeCatalog
+  hostEnvironment?: ProjectResourceEnvironment
+  resourceScopes?: ProjectResourceScopeMap
 }): { catalog: PreparedRichTextCatalog, issues: CardPipelineIssue[], rootParseCount: number, nestedParseCount: number, batchCount: number } {
   const customBlockCatalog = options.customBlockCatalog ?? new Map()
+  const resourceScopes = new Map(options.resourceScopes)
+  const environmentForHost = (host: RichTextHost): ProjectResourceEnvironment | undefined => (
+    resourceScopes.get(projectResourceScopeIdentity(host.block.id, 'content')) ?? options.hostEnvironment
+  )
+  const catalogForHost = (host: RichTextHost): CustomBlockRuntimeCatalog => (
+    environmentForHost(host)?.customBlockCatalog ?? customBlockCatalog
+  )
   const prepared = new Map<string, { document: RichTextDocument, embeddedBlocks: Map<string, RenderReadyCustomBlock>, diagnostics: CardPipelineIssue[], valid: boolean }>()
   const issues: CardPipelineIssue[] = []
   let rootParseCount = 0
@@ -154,9 +168,10 @@ export function prepareRichText(options: {
     for (const host of hosts) {
       if (depth === 0) rootParseCount += 1
       else nestedParseCount += 1
+      const hostCatalog = catalogForHost(host)
       const parsed = parseRichTextHtml(String((host.block as unknown as Record<string, unknown>).content ?? ''), {
-        resolveCustomBlock: key => {
-          const catalogEntry = customBlockCatalog.get(key.toLowerCase())
+        resolveCustomBlock: packageId => {
+          const catalogEntry = hostCatalog.get(packageId.toLowerCase())
           return catalogEntry
             ? { publicFieldKeys: Object.keys(getProjectCustomBlockPublicFields(catalogEntry)) }
             : null
@@ -178,7 +193,7 @@ export function prepareRichText(options: {
           reportHost(host, 'card-designer.rich-text.limit-exceeded')
           continue
         }
-        const keyIdentity = node.customBlockKey.toLowerCase()
+        const keyIdentity = node.packageId.toLowerCase()
         if (host.ancestors.includes(keyIdentity)) {
           reportHost(host, 'card-designer.custom-block.content-error')
           continue
@@ -209,7 +224,22 @@ export function prepareRichText(options: {
         }])) as CardDocument['faces'],
       instances: [],
     }
-    const expanded = expandCustomBlocks(workDocument, customBlockCatalog)
+    const workScopes = new Map(resourceScopes)
+    for (const embed of work) {
+      const environment = environmentForHost(embed.host)
+      if (!environment) continue
+      workScopes.set(projectResourceScopeIdentity(embed.identity, 'packageId'), environment)
+      for (const fieldKey of Object.keys(embed.node.properties)) {
+        workScopes.set(projectResourceScopeIdentity(embed.identity, fieldKey), environment)
+      }
+    }
+    const expanded = expandCustomBlocks(
+      workDocument,
+      customBlockCatalog,
+      options.hostEnvironment,
+      workScopes,
+    )
+    for (const [identity, environment] of expanded.resourceScopes) resourceScopes.set(identity, environment)
     const resolved = resolveReferences(expanded.document, {
       currentCard: options.currentCard,
       project: options.project,
@@ -240,9 +270,9 @@ export function prepareRichText(options: {
     }
 
     for (const embed of work) {
-      const catalogEntry = customBlockCatalog.get(embed.node.customBlockKey.toLowerCase())
+      const catalogEntry = catalogForHost(embed.host).get(embed.node.packageId.toLowerCase())
       if (catalogEntry) {
-        const projectedProperties = createCustomBlock({ id: embed.identity, customBlockKey: embed.node.customBlockKey })
+        const projectedProperties = createCustomBlock({ id: embed.identity, packageId: embed.node.packageId })
         Object.assign(projectedProperties, embed.node.properties)
         if (hasInvalidPublicFieldValue(projectedProperties, catalogEntry)) {
           reportHost(embed.host, 'card-designer.custom-block.content-error')
@@ -265,7 +295,7 @@ export function prepareRichText(options: {
         if (candidate.type === 'text-block') nextHosts.push({
           block: candidate,
           faceKey: embed.host.faceKey,
-          ancestors: [...embed.host.ancestors, embed.node.customBlockKey.toLowerCase()],
+          ancestors: [...embed.host.ancestors, embed.node.packageId.toLowerCase()],
         })
       })
     }

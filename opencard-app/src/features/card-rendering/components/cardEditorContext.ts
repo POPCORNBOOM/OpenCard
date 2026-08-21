@@ -7,8 +7,9 @@ import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
 export interface CardEditorContext {
   transformDisabledBlockIds: ComputedRef<Set<string>>
   handleBlockClick: (blockId: string, event: MouseEvent) => void
-  resolveAssetSrc: (path: string) => string
-  resolveFontFamily: (value: string) => string
+  resolveAssetSrc: (path: string, blockId?: string, fieldKey?: string) => string
+  resolveFontFamily: (value: string, blockId?: string, fieldKey?: string) => string
+  resolveIconCatalog: (blockId?: string, fieldKey?: string) => ProjectIconCatalog
   projectIconCatalog?: ComputedRef<ProjectIconCatalog>
   customBlockCatalog?: ComputedRef<CustomBlockRuntimeCatalog>
   richText?: ComputedRef<PreparedRichTextCatalog>

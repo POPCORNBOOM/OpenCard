@@ -1,8 +1,8 @@
 <template>
   <NodeViewWrapper as="span" class="rich-text-custom-block-node" :class="`is-${layout}`"
-    :data-oc-key="node.attrs.customBlockKey" contenteditable="false">
+    :data-oc-package="node.attrs.packageId" contenteditable="false">
     <OcIcon name="data.symbol-class" size="md" tone="muted" />
-    <span>{{ node.attrs.customBlockKey }}</span>
+    <span>{{ node.attrs.packageId }}</span>
   </NodeViewWrapper>
 </template>
 

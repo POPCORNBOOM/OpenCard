@@ -120,7 +120,7 @@ export type RenderReadyFlowContainerBlock = RenderReadyBaseBlock & {
 
 export type RenderReadyCustomBlock = RenderReadyBaseBlock & {
   type: 'custom-block'
-  customBlockKey: string
+  packageId: string
   content: RenderReadyCardBlock | null
 }
 

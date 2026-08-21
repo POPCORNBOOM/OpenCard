@@ -6,6 +6,7 @@ export type ProjectIconReference = {
 export const PROJECT_ICON_ELEMENT_SELECTOR = '[data-oc-icon-path]'
 
 const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
+const canonicalProjectIconPattern = /\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]/gi
 
 export function formatProjectIconPath(seriesKey: string, iconKey: string): string {
   return `${seriesKey}/${iconKey}`
@@ -37,6 +38,10 @@ export function collectProjectIconReferences(source: string): ProjectIconReferen
   for (const element of iconElements) {
     const reference = readProjectIconElement(element)
     if (reference) references.push(reference)
+  }
+
+  for (const match of source.matchAll(canonicalProjectIconPattern)) {
+    references.push({ seriesKey: match[1]!, iconKey: match[2]! })
   }
 
   return references

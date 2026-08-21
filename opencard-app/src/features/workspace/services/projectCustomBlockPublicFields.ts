@@ -1,10 +1,12 @@
-import { getAdditionalFieldPropertyDefinition } from '../../../entities/card/model'
+import { getAdditionalFieldPropertyDefinition, type CardBlock } from '../../../entities/card/model'
 import { getTypePropertyEditorSchema, type EditorPropertyDefinition } from '../../../entities/card/schema'
 import type { DeepReadonly } from 'vue'
-import type { ProjectCustomBlockCatalogEntry } from '../model/projectCustomBlocks'
 
 export function getProjectCustomBlockPublicFields(
-  entry: Pick<DeepReadonly<ProjectCustomBlockCatalogEntry>, 'manifest' | 'block'>,
+  entry: {
+    manifest: { publicFieldKeys: readonly string[] }
+    block: DeepReadonly<CardBlock>
+  },
 ): Readonly<Record<string, EditorPropertyDefinition>> {
   const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
   const additional = entry.block.additionalFieldDefinition ?? {}

@@ -11,13 +11,14 @@ export default defineComponent({
   name: 'RichTextDocumentRenderer',
   props: {
     prepared: { type: Object as PropType<PreparedRichText>, required: true },
+    ownerBlockId: { type: String, required: true },
   },
   setup(props) {
     const context = useCardEditorContext()
     function renderNode(node: RichTextNode): VNodeChild {
       if (node.type === 'text') return node.value
       if (node.type === 'icon') {
-        const entry = findProjectIcon(context.projectIconCatalog?.value, node.seriesKey, node.iconKey)
+        const entry = findProjectIcon(context.resolveIconCatalog(props.ownerBlockId, 'content'), node.seriesKey, node.iconKey)
         return entry
           ? h('span', { class: 'project-inline-icon oc-project-icon', style: createProjectIconStyle(entry), role: 'img', 'aria-label': entry.name })
           : h(OcIcon, { name: 'status.warning', tone: 'warning', size: 'md' })

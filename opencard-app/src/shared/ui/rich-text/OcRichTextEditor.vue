@@ -236,8 +236,8 @@ const tr = (key: string, fallback: string) => translate?.(key) ?? fallback
 
 const lastEmittedValue = ref<string | null>(null)
 const toolbarRevision = ref(0)
-const loadingCustomBlockKey = ref<string | null>(null)
-const failedCustomBlockKeys = ref(new Set<string>())
+const loadingCustomBlockPackageId = ref<string | null>(null)
+const failedCustomBlockPackageIds = ref(new Set<string>())
 const selectedNodeEditorOpen = ref(false)
 const dialogBindingExpression = ref('')
 const dialogIconPath = ref<string | null>(null)
@@ -436,10 +436,10 @@ const projectIconAction = computed<OcActionButtonAction>(() => {
 const customBlockAction = computed<OcActionButtonAction>(() => ({
   key: 'custom-block', icon: 'action.custom-block-plus', title: '插入自定义块',
   children: [...(props.customBlockCatalog?.manifests.values() ?? [])].map(item => ({
-    key: `custom-block:${item.manifest.customBlockKey}`,
+    key: `custom-block:${item.manifest.packageId}`,
     title: item.manifest.name,
-    disabled: loadingCustomBlockKey.value === item.manifest.customBlockKey,
-    icon: failedCustomBlockKeys.value.has(item.manifest.customBlockKey.toLowerCase())
+    disabled: loadingCustomBlockPackageId.value === item.manifest.packageId,
+    icon: failedCustomBlockPackageIds.value.has(item.manifest.packageId.toLowerCase())
       ? 'status.warning' as const : 'data.symbol-custom-block' as const,
   })),
 }))
@@ -472,12 +472,12 @@ const selectedCustomBlock = computed(() => {
   const selection = currentEditor?.state.selection
   if (!currentEditor || !(selection instanceof NodeSelection)
     || !['inlineCustomBlock', 'blockCustomBlock'].includes(selection.node.type.name)) return null
-  const key = String(selection.node.attrs.customBlockKey ?? '')
-  const entry = props.customBlockCatalog?.catalog.get(key.toLowerCase())
+  const packageId = String(selection.node.attrs.packageId ?? '')
+  const entry = props.customBlockCatalog?.catalog.get(packageId.toLowerCase())
   const definitions = entry ? getProjectCustomBlockPublicFields(entry) : {}
   const properties = selection.node.attrs.properties as Record<string, string>
   return {
-    key, entry, position: selection.from, nodeType: selection.node.type.name,
+    key: packageId, entry, position: selection.from, nodeType: selection.node.type.name,
     fields: Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => {
       const value = properties[fieldKey] ?? (entry?.block as unknown as Record<string, unknown>)?.[fieldKey] ?? definition.defaultValue ?? ''
       const projectedDefinition: PropertyEditorFieldDefinition = {
@@ -733,29 +733,29 @@ function handleTableAction(payload: OcActionButtonSelectPayload): void {
 }
 
 async function insertCustomBlock(payload: OcActionButtonSelectPayload): Promise<void> {
-  const key = payload.key.startsWith('custom-block:') ? payload.key.slice('custom-block:'.length) : ''
-  if (!key || !props.customBlockCatalog) return
-  loadingCustomBlockKey.value = key
+  const packageId = payload.key.startsWith('custom-block:') ? payload.key.slice('custom-block:'.length) : ''
+  if (!packageId || !props.customBlockCatalog) return
+  loadingCustomBlockPackageId.value = packageId
   try {
-    await props.customBlockCatalog.ensureLoaded(key)
+    await props.customBlockCatalog.ensureLoaded(packageId)
   } catch {
-    failedCustomBlockKeys.value = new Set(failedCustomBlockKeys.value).add(key.toLowerCase())
+    failedCustomBlockPackageIds.value = new Set(failedCustomBlockPackageIds.value).add(packageId.toLowerCase())
     return
   } finally {
-    loadingCustomBlockKey.value = null
+    loadingCustomBlockPackageId.value = null
   }
-  if (!props.customBlockCatalog.catalog.has(key.toLowerCase())) {
-    failedCustomBlockKeys.value = new Set(failedCustomBlockKeys.value).add(key.toLowerCase())
+  if (!props.customBlockCatalog.catalog.has(packageId.toLowerCase())) {
+    failedCustomBlockPackageIds.value = new Set(failedCustomBlockPackageIds.value).add(packageId.toLowerCase())
     return
   }
-  if (failedCustomBlockKeys.value.has(key.toLowerCase())) {
-    const nextFailedKeys = new Set(failedCustomBlockKeys.value)
-    nextFailedKeys.delete(key.toLowerCase())
-    failedCustomBlockKeys.value = nextFailedKeys
+  if (failedCustomBlockPackageIds.value.has(packageId.toLowerCase())) {
+    const nextFailedPackageIds = new Set(failedCustomBlockPackageIds.value)
+    nextFailedPackageIds.delete(packageId.toLowerCase())
+    failedCustomBlockPackageIds.value = nextFailedPackageIds
   }
   editor.value?.chain().focus().insertContent({
     type: 'inlineCustomBlock',
-    attrs: { embedId: crypto.randomUUID(), customBlockKey: key, properties: {} },
+    attrs: { embedId: crypto.randomUUID(), packageId, properties: {} },
   }).run()
 }
 

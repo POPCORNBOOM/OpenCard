@@ -13,6 +13,7 @@ const allowedStyleProperties = [
 ] as const
 const tableStyleProperties = ['min-width', 'width'] as const
 const keyPattern = /^[a-z0-9][a-z0-9._-]*$/i
+const packageIdPattern = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i
 const embedIdPattern = /^[a-z0-9][a-z0-9._:-]*$/i
 const tableParents: Readonly<Record<string, ReadonlySet<string>>> = {
   COL: new Set(['COLGROUP']), COLGROUP: new Set(['TABLE']), THEAD: new Set(['TABLE']),
@@ -41,14 +42,14 @@ export type RichTextIconNode = { type: 'icon', seriesKey: string, iconKey: strin
 export type RichTextCustomBlockNode = {
   type: 'customBlock'
   embedId: string
-  customBlockKey: string
+  packageId: string
   layout: 'inline' | 'block'
   properties: Readonly<Record<string, string>>
 }
 export type RichTextNode = RichTextTextNode | RichTextElementNode | RichTextIconNode | RichTextCustomBlockNode
 export type RichTextDocument = { html: string, children: readonly RichTextNode[] }
 export type RichTextParseContext = {
-  resolveCustomBlock?: (key: string) => { publicFieldKeys: readonly string[] } | null | undefined
+  resolveCustomBlock?: (packageId: string) => { publicFieldKeys: readonly string[] } | null | undefined
 }
 export type RichTextParseResult = {
   document: RichTextDocument
@@ -96,14 +97,14 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
     }
     if (element.tagName === 'OC-CUSTOM-BLOCK') {
       const id = element.getAttribute('data-oc-id')?.trim() ?? ''
-      const key = element.getAttribute('data-oc-key')?.trim() ?? ''
+      const packageId = element.getAttribute('data-oc-package')?.trim() ?? ''
       const layout = element.getAttribute('data-oc-layout')?.trim() ?? ''
-      if (!embedIdPattern.test(id) || !keyPattern.test(key) || (layout !== 'inline' && layout !== 'block')) {
-        pushDiagnostic(diagnostics, element, 'invalid-custom-block', 'Custom Block requires a valid ID, Key, and layout')
+      if (!embedIdPattern.test(id) || !packageIdPattern.test(packageId) || (layout !== 'inline' && layout !== 'block')) {
+        pushDiagnostic(diagnostics, element, 'invalid-custom-block', 'Custom Block requires a valid ID, Package ID, and layout')
       }
       if (id && embedIds.has(id.toLowerCase())) pushDiagnostic(diagnostics, element, 'duplicate-embed-id', `Duplicate embed ID: ${id}`)
       if (id) embedIds.add(id.toLowerCase())
-      const contract = key ? context.resolveCustomBlock?.(key) : undefined
+      const contract = packageId ? context.resolveCustomBlock?.(packageId) : undefined
       const publicKeys = contract ? new Set(contract.publicFieldKeys.map(item => item.toLowerCase())) : null
       for (const child of Array.from(element.children)) {
         if (child.tagName !== 'OC-PROP') {
@@ -136,7 +137,7 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
       return {
         type: 'customBlock',
         embedId: node.getAttribute('data-oc-id') ?? '',
-        customBlockKey: node.getAttribute('data-oc-key') ?? '',
+        packageId: node.getAttribute('data-oc-package') ?? '',
         layout: node.getAttribute('data-oc-layout') === 'block' ? 'block' : 'inline',
         properties: Object.fromEntries(Array.from(node.children).flatMap(child => child.tagName === 'OC-PROP'
           ? [[child.getAttribute('data-oc-key') ?? '', child.textContent ?? '']] : [])),
@@ -209,7 +210,8 @@ export function sanitizeRichTextHtml(source: string): string {
     const bindingExpression = element.tagName === 'SPAN' ? sanitizeBindingExpression(element.getAttribute('data-oc-binding')) : null
     const iconPath = element.tagName === 'SPAN' ? sanitizeIconPath(element.getAttribute('data-oc-icon-path')) : null
     const embed = element.tagName === 'OC-CUSTOM-BLOCK' ? {
-      id: sanitizeEmbedId(element.getAttribute('data-oc-id')), key: sanitizeKey(element.getAttribute('data-oc-key')),
+      id: sanitizeEmbedId(element.getAttribute('data-oc-id')),
+      packageId: sanitizePackageId(element.getAttribute('data-oc-package')),
       layout: element.getAttribute('data-oc-layout') === 'block' ? 'block' : 'inline',
     } : null
     const propertyKey = element.tagName === 'OC-PROP' ? sanitizeKey(element.getAttribute('data-oc-key')) : null
@@ -225,8 +227,10 @@ export function sanitizeRichTextHtml(source: string): string {
       element.setAttribute('data-oc-icon-path', iconPath)
       element.replaceChildren()
     }
-    if (embed?.id && embed.key) {
-      element.setAttribute('data-oc-id', embed.id); element.setAttribute('data-oc-key', embed.key); element.setAttribute('data-oc-layout', embed.layout)
+    if (embed?.id && embed.packageId) {
+      element.setAttribute('data-oc-id', embed.id)
+      element.setAttribute('data-oc-package', embed.packageId)
+      element.setAttribute('data-oc-layout', embed.layout)
     }
     if (propertyKey) element.setAttribute('data-oc-key', propertyKey)
   }
@@ -251,6 +255,7 @@ function sanitizeIconPath(value: string | null): string | null {
   return parseProjectIconPath(path) || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
 }
 function sanitizeKey(value: string | null): string | null { const key = value?.trim() ?? ''; return keyPattern.test(key) ? key : null }
+function sanitizePackageId(value: string | null): string | null { const id = value?.trim() ?? ''; return packageIdPattern.test(id) ? id.toLocaleLowerCase() : null }
 function sanitizeEmbedId(value: string | null): string | null { const id = value?.trim() ?? ''; return embedIdPattern.test(id) ? id : null }
 
 export function normalizeRichTextHtml(source: string): string {

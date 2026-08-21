@@ -159,7 +159,7 @@ export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
 
 export type CustomBlock = BaseBlock & {
     type: 'custom-block'
-    customBlockKey: string
+    packageId: string
 }
 
 export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QrCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock | CustomBlock
@@ -567,7 +567,7 @@ export function createCustomBlock(init: CustomBlockInit = {}): CustomBlock {
             ...init,
         }),
         type: 'custom-block',
-        customBlockKey: init.customBlockKey ?? '',
+        packageId: init.packageId ?? '',
     }
 }
 

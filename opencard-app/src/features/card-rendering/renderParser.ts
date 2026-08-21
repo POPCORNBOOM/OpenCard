@@ -259,7 +259,7 @@ function parseBlock(
       return {
         ...base,
         type,
-        customBlockKey: fields.string('customBlockKey'),
+        packageId: fields.string('packageId'),
         content: null,
       }
   }

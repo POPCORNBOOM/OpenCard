@@ -7,6 +7,7 @@ import { resolveReferences } from './resolveCardBindings'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
 import { createCardPipelineIssue } from './cardPipelineIssue'
 import {
@@ -37,12 +38,14 @@ export type RenderPipelineResult = {
   document: RenderReadyCardDocument
   issues: CardPipelineIssue[]
   richText?: PreparedRichTextCatalog
+  resourceScopes?: ProjectResourceScopeMap
 }
 
 export type RenderPipelineContext = {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
   customBlockCatalog?: CustomBlockRuntimeCatalog
+  projectResourceEnvironment?: ProjectResourceEnvironment
 }
 
 export type CardRenderEnvironment = RenderPipelineContext & {
@@ -68,9 +71,11 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     ...result,
     resources: createCardRenderResourceContext({
       resourceRootPath: request.resourceRootPath,
+      hostEnvironment: request.environment.projectResourceEnvironment,
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
       customBlockCatalog: request.environment.customBlockCatalog,
       projectIconCatalog: request.environment.projectIconCatalog,
+      resourceScopes: result.resourceScopes ?? new Map(),
       resolveFontFamily: request.environment.resolveFontFamily,
       richText: result.richText,
     }),
@@ -83,7 +88,11 @@ function runRenderPipeline(
   context: RenderPipelineContext = {},
 ): RenderPipelineResult {
   const projected = applyInstance(document, instance)
-  const expanded = expandCustomBlocks(projected, context.customBlockCatalog)
+  const expanded = expandCustomBlocks(
+    projected,
+    context.customBlockCatalog,
+    context.projectResourceEnvironment,
+  )
   const resolved = resolveReferences(expanded.document, {
     currentCard: instance,
     project: context.project,
@@ -95,6 +104,8 @@ function runRenderPipeline(
     project: context.project,
     dictionary: context.dictionary,
     customBlockCatalog: context.customBlockCatalog,
+    hostEnvironment: context.projectResourceEnvironment,
+    resourceScopes: expanded.resourceScopes,
   })
   const parsed = parseRenderDocument(resolved.document, {
     instanceId: instance?.id ?? null,
@@ -159,5 +170,6 @@ function runRenderPipeline(
     document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
     issues: pipelineIssues,
     richText: richText.catalog,
+    resourceScopes: expanded.resourceScopes,
   }
 }
