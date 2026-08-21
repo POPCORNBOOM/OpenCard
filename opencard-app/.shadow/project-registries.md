@@ -4,10 +4,10 @@
 
 `.opencard/.ocproject` owns project information and the remote-resource policy.
 `.opencard/.ocfonts` owns font families and font compositions. `.opencard/.ocicons` owns
-ordered icon sets. `.opencard/.oclocale` owns project localization, and
-`.opencard/.ocblocks` owns custom-block registrations. Sources inside these
-registries are relative to `.opencard`; managed files live in `fonts`, `icons`,
-and `blocks` beneath that directory.
+ordered icon sets, and `.opencard/.oclocale` owns project localization. Installed custom
+blocks are discovered directly from `.opencard/blocks/<publisher>/<block>/`; there is no
+custom-block registry document. Registry sources are relative to `.opencard`; managed
+files live in `fonts`, `icons`, and `blocks` beneath that directory.
 
 ## Runtime Truth
 
@@ -16,7 +16,7 @@ and `blocks` beneath that directory.
 catalog, and `projectIconSeries` separately from `projectProfile`. Font CSS
 loading and icon catalog construction consume those dedicated refs only.
 
-Opening or creating a project ensures all five documents and all three managed
+Opening or creating a project ensures all four documents and all three managed
 asset directories exist. A directory without `.opencard` requires explicit
 initialization; extra root-level `.oc*` files are outside the current model and
 are ignored without blocking activation or being moved. Missing current entries

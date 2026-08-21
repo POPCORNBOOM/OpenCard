@@ -150,7 +150,7 @@ describe('project custom block resource analysis', () => {
     expect(fontRegistry?.families?.map(font => font.key)).toEqual(['body', 'symbols'])
     expect(fontRegistry?.compositions?.map(composition => composition.key)).toEqual(['mixed'])
     const iconRegistry = parseProjectIconRegistryText(strFromU8(result.files.get('resources/.opencard/.ocicons')!))
-    expect(iconRegistry?.iconSeries[0]?.icons.map(icon => icon.iconKey)).toEqual(['star'])
+    expect(iconRegistry?.iconSeries?.[0]?.icons.map(icon => icon.iconKey)).toEqual(['star'])
     expect(result.issues).toContainEqual(expect.objectContaining({
       code: 'resource-unavailable', path: 'assets/background.png',
     }))

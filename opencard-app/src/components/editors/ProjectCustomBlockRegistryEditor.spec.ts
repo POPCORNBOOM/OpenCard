@@ -1,12 +1,16 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../features/workspace/services/projectIconCatalog'
 import OcTree from '../standard/OcTree.vue'
 import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectCustomBlockRegistryEditor from './ProjectCustomBlockRegistryEditor.vue'
 
 const mocks = vi.hoisted(() => ({
   pickFile: vi.fn(),
-  importProjectCustomBlockFile: vi.fn(),
+  installProjectCustomBlockFile: vi.fn(),
+  uninstallProjectCustomBlock: vi.fn(),
+  revealProjectCustomBlock: vi.fn(),
+  reloadProjectCustomBlocks: vi.fn(),
   projectCustomBlockCatalog: { value: new Map() },
   projectCustomBlockManifestCatalog: { value: new Map() },
   ensureProjectCustomBlockLoaded: vi.fn(),
@@ -20,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }))
 vi.mock('../../features/workspace/services/fileSystemService', () => ({
   fileSystemService: { pickFile: mocks.pickFile },
 }))
@@ -31,10 +35,66 @@ vi.mock('../../features/workspace/store/projectStore', () => ({
     projectCustomBlockManifestCatalog: mocks.projectCustomBlockManifestCatalog,
     ensureProjectCustomBlockLoaded: mocks.ensureProjectCustomBlockLoaded,
     renderEnvironment: mocks.renderEnvironment,
-    importProjectCustomBlockFile: mocks.importProjectCustomBlockFile,
+    installProjectCustomBlockFile: mocks.installProjectCustomBlockFile,
+    uninstallProjectCustomBlock: mocks.uninstallProjectCustomBlock,
+    revealProjectCustomBlock: mocks.revealProjectCustomBlock,
+    reloadProjectCustomBlocks: mocks.reloadProjectCustomBlocks,
   }),
 }))
-vi.mock('./MonacoEditor.vue', () => ({ default: { template: '<div class="monaco-stub" />' } }))
+
+function createEntry() {
+  const manifest = {
+    type: 'opencard-custom-block' as const,
+    packageId: 'alice/square',
+    version: '0.1.0',
+    name: 'Square',
+    publicFieldKeys: ['label'],
+    resize: { widthLocked: false, heightLocked: false },
+  }
+  const block = {
+    type: 'text-block' as const, id: 'root', content: '{{self:label}}', label: 'Ready',
+    additionalFieldDefinition: { label: { fieldType: 'string', title: 'Label' } },
+  }
+  const installationPath = 'D:/Demo/.opencard/blocks/alice/square'
+  const resourceRootPath = `${installationPath}/resources`
+  const environment = {
+    kind: 'package' as const,
+    namespace: 'package-alice-square',
+    rootPath: resourceRootPath,
+    fontDocument: { fonts: [] },
+    fonts: { families: [], compositions: [], errors: [] },
+    iconDocument: { iconSeries: [] },
+    iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+    issues: [],
+    customBlockCatalog: new Map(),
+  }
+  return {
+    entry: { manifest, block, installationPath, resourceRootPath },
+    descriptor: { manifest, installationPath, resourceRootPath, loadState: 'ready' as const },
+    runtime: { manifest, block, environment, dependencies: new Map() },
+  }
+}
+
+function mountEditor() {
+  return mount(ProjectCustomBlockRegistryEditor, {
+    props: { filePath: 'D:/Demo/.opencard/blocks', modelValue: '' },
+    global: {
+      stubs: {
+        CardViewport: {
+          name: 'CardViewport',
+          props: ['face', 'viewportInsets'],
+          template: '<div class="viewport-stub" />',
+        },
+        PropertyEditor: {
+          name: 'PropertyEditor',
+          props: ['inputs'],
+          emits: ['update-property'],
+          template: '<div class="property-editor-stub" />',
+        },
+      },
+    },
+  })
+}
 
 describe('ProjectCustomBlockRegistryEditor', () => {
   beforeEach(() => {
@@ -47,142 +107,71 @@ describe('ProjectCustomBlockRegistryEditor', () => {
       customBlockCatalog: new Map(),
       projectIconCatalog: { entries: [], errors: [] },
     }
+    mocks.reloadProjectCustomBlocks.mockResolvedValue(undefined)
+    mocks.uninstallProjectCustomBlock.mockResolvedValue(true)
+    mocks.revealProjectCustomBlock.mockResolvedValue(undefined)
   })
 
-  it('replaces a compatible same-key path and requests an immediate save', async () => {
+  it('lists discovered Package IDs, versions, status, and installation metadata', async () => {
+    const fixture = createEntry()
+    mocks.projectCustomBlockManifestCatalog.value = new Map([['alice/square', fixture.descriptor]])
+    mocks.projectCustomBlockCatalog.value = new Map([['alice/square', fixture.entry]])
+    mocks.renderEnvironment.value.customBlockCatalog = new Map([['alice/square', fixture.runtime]])
+    mocks.ensureProjectCustomBlockLoaded.mockResolvedValue(fixture.entry)
+
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(mocks.reloadProjectCustomBlocks).toHaveBeenCalledOnce()
+    expect(wrapper.getComponent(OcTree).text()).toContain('Square')
+    expect(wrapper.getComponent(OcTree).text()).toContain('alice/square · 0.1.0')
+  })
+
+  it('installs a selected transport package into the project', async () => {
     mocks.pickFile.mockResolvedValue('D:/Downloads/square.ocblock')
-    mocks.importProjectCustomBlockFile.mockResolvedValue({
-      source: 'assets/blocks/square.ocblock',
-      copied: true,
-      replacedSource: 'library/old-square.ocblock',
+    mocks.installProjectCustomBlockFile.mockResolvedValue({
+      packageId: 'alice/square',
+      installationPath: '.opencard/blocks/alice/square',
+      resourceRootPath: '.opencard/blocks/alice/square/resources',
+      replaced: false,
     })
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: {
-        filePath: 'D:/Demo/.ocblocks',
-        modelValue: JSON.stringify({
-          blocks: ['library/old-square.ocblock', 'library/circle.ocblock'],
-        }),
-      },
-    })
+    const wrapper = mountEditor()
 
     await wrapper.get('button').trigger('click')
     await flushPromises()
 
-    const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({
-      blocks: ['library/circle.ocblock', 'assets/blocks/square.ocblock'],
-    })
-    expect(wrapper.emitted('save')).toHaveLength(1)
+    expect(mocks.installProjectCustomBlockFile).toHaveBeenCalledWith('D:/Downloads/square.ocblock')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
   })
 
-  it('removes a registered path through the standard tree action', async () => {
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: {
-        filePath: 'D:/Demo/.ocblocks',
-        modelValue: '{"blocks":["assets/blocks/square.ocblock"]}',
-      },
-    })
+  it('reveals and uninstalls the whole Package ID through tree actions', async () => {
+    const fixture = createEntry()
+    mocks.projectCustomBlockManifestCatalog.value = new Map([['alice/square', fixture.descriptor]])
+    mocks.ensureProjectCustomBlockLoaded.mockResolvedValue(fixture.entry)
+    const wrapper = mountEditor()
+    await flushPromises()
 
     wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke',
-      key: 'assets/blocks/square.ocblock',
-      actionKey: 'remove',
+      type: 'action.invoke', key: 'alice/square', actionKey: 'reveal',
+    })
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'action.invoke', key: 'alice/square', actionKey: 'remove',
     })
     await flushPromises()
 
-    const updates = wrapper.emitted('update:modelValue') ?? []
-    expect(JSON.parse(updates[updates.length - 1]?.[0] as string)).toEqual({ blocks: [] })
-    expect(wrapper.emitted('save')).toHaveLength(1)
+    expect(mocks.revealProjectCustomBlock).toHaveBeenCalledWith('alice/square')
+    expect(mocks.uninstallProjectCustomBlock).toHaveBeenCalledWith('alice/square')
   })
 
-  it('uses the shared repair editor for invalid registry JSON', () => {
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: { filePath: 'D:/Demo/.ocblocks', modelValue: '{broken' },
-    })
-
-    expect(wrapper.find('.monaco-stub').exists()).toBe(true)
-    expect(wrapper.findComponent(OcTree).exists()).toBe(false)
-  })
-
-  it('announces a sanitized import failure and clears it after a successful retry', async () => {
-    mocks.pickFile.mockResolvedValue('D:/Downloads/square.ocblock')
-    mocks.importProjectCustomBlockFile.mockRejectedValueOnce(new Error('D:/private/package.ocblock is corrupt'))
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: { filePath: 'D:/Demo/.ocblocks', modelValue: '{"blocks":[]}' },
-    })
-
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toBe('customBlockRegistry.importFailed')
-    expect(wrapper.text()).not.toContain('D:/private/package.ocblock')
-
-    mocks.importProjectCustomBlockFile.mockResolvedValueOnce({
-      source: 'assets/blocks/square.ocblock',
-      copied: true,
-    })
-    await wrapper.get('button').trigger('click')
+  it('renders the shared runtime and keeps property edits in preview state', async () => {
+    const fixture = createEntry()
+    mocks.projectCustomBlockCatalog.value = new Map([['alice/square', fixture.entry]])
+    mocks.projectCustomBlockManifestCatalog.value = new Map([['alice/square', fixture.descriptor]])
+    mocks.ensureProjectCustomBlockLoaded.mockResolvedValue(fixture.entry)
+    mocks.renderEnvironment.value.customBlockCatalog = new Map([['alice/square', fixture.runtime]])
+    const wrapper = mountEditor()
     await flushPromises()
 
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-    expect(wrapper.emitted('save')).toHaveLength(1)
-  })
-
-  it('does not report cancellation as an import error', async () => {
-    mocks.pickFile.mockResolvedValue(null)
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: { filePath: 'D:/Demo/.ocblocks', modelValue: '{"blocks":[]}' },
-    })
-
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-    expect(mocks.importProjectCustomBlockFile).not.toHaveBeenCalled()
-  })
-
-  it('renders a catalog block and keeps property edits inside preview state', async () => {
-    const entry = {
-      archivePath: 'assets/blocks/square.ocblock',
-      files: new Map(),
-      manifest: {
-        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
-        publicFieldKeys: ['label'],
-        resize: { widthLocked: false, heightLocked: false },
-      },
-      block: {
-        type: 'text-block', id: 'root', content: '{{self:label}}', label: 'Ready',
-        additionalFieldDefinition: { label: { fieldType: 'string', title: 'Label' } },
-      },
-    }
-    mocks.projectCustomBlockCatalog.value = new Map([['square', entry]])
-    mocks.projectCustomBlockManifestCatalog.value = new Map([['square', {
-      manifest: entry.manifest,
-      archivePath: entry.archivePath,
-    }]])
-    mocks.ensureProjectCustomBlockLoaded.mockResolvedValue(entry)
-    mocks.renderEnvironment.value = {
-      ...mocks.renderEnvironment.value,
-      customBlockCatalog: new Map([['square', entry]]),
-    }
-    const wrapper = mount(ProjectCustomBlockRegistryEditor, {
-      props: {
-        filePath: 'D:/Demo/.ocblocks',
-        modelValue: '{"blocks":["assets/blocks/square.ocblock"]}',
-      },
-      global: {
-        stubs: {
-          CardViewport: {
-            name: 'CardViewport',
-            props: ['face', 'viewportInsets'],
-            template: '<div class="viewport-stub" />',
-          },
-          PropertyEditor: { name: 'PropertyEditor', props: ['inputs'], emits: ['update-property'], template: '<div class="property-editor-stub" />' },
-        },
-      },
-    })
-    await flushPromises()
-
-    expect(wrapper.getComponent(OcTree).text()).toContain('Square')
     const propertyEditor = wrapper.getComponent({ name: 'PropertyEditor' })
     expect(propertyEditor.props('inputs')[0].record).toEqual({ label: 'Ready' })
     propertyEditor.vm.$emit('update-property', {
@@ -195,11 +184,8 @@ describe('ProjectCustomBlockRegistryEditor', () => {
     expect(wrapper.emitted('save')).toBeUndefined()
 
     const inspector = wrapper.getComponent(OcViewportInspector)
-    inspector.vm.$emit('update:height', 360)
-    inspector.vm.$emit('update:expanded', false)
     inspector.vm.$emit('occlusion-change', 42)
     await wrapper.vm.$nextTick()
-    expect(inspector.props()).toMatchObject({ height: 360, expanded: false })
     expect(wrapper.getComponent({ name: 'CardViewport' }).props('viewportInsets')).toEqual({ bottom: 42 })
   })
 })

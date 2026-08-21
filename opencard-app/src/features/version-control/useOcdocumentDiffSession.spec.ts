@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { isBinaryFontDiffPath } from './useOcdocumentDiffSession'
+import { isResourceSnapshotDiffPath } from './useOcdocumentDiffSession'
 
-describe('isBinaryFontDiffPath', () => {
+describe('isResourceSnapshotDiffPath', () => {
   it.each(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])('accepts .%s font snapshots', extension => {
-    expect(isBinaryFontDiffPath(`.opencard/fonts/Brand.${extension}`)).toBe(true)
+    expect(isResourceSnapshotDiffPath(`.opencard/fonts/Brand.${extension}`)).toBe(true)
   })
 
-  it('keeps unrelated binary files on the unsupported path', () => {
-    expect(isBinaryFontDiffPath('assets/cover.png')).toBe(false)
-    expect(isBinaryFontDiffPath('packages/block.ocblock')).toBe(false)
+  it.each(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])('accepts .%s image snapshots', extension => {
+    expect(isResourceSnapshotDiffPath(`assets/cover.${extension}`)).toBe(true)
+  })
+
+  it('keeps unsupported binary packages on the unsupported path', () => {
+    expect(isResourceSnapshotDiffPath('packages/block.ocblock')).toBe(false)
   })
 })

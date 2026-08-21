@@ -16,7 +16,7 @@ function packageEnvironment(packageId: string): ProjectResourceEnvironment {
     namespace,
     rootPath: `/packages/${packageId}/resources`,
     fontDocument: {},
-    fonts: { body: { kind: 'font', key: 'body', name: 'Body', files: {} } },
+    fonts: { body: { kind: 'family', name: 'Body', family: { key: 'body', name: 'Body', files: {} } } },
     iconDocument: {},
     iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
     issues: [],

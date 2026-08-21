@@ -1,8 +1,7 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { TextBlock as TextBlockModel } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
-import { setProjectFonts } from '../../workspace/model/projectFonts'
 import { parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
 import CardBlockRenderer from './CardBlockRenderer.vue'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
@@ -86,11 +85,7 @@ describe('TextBlockRenderer', () => {
   })
 
   it('renders semicolon-separated project and system font fallbacks', () => {
-    setProjectFonts([{
-      key: 'brand-sans',
-      name: 'Brand Sans',
-      files: { normal: { upright: 'fonts/BrandSans.woff2' } },
-    }])
+    const resolveFontFamily = vi.fn(() => '"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
     const block = parseRenderReadyBlockForTest({
       id: 'project-font-block',
       type: 'text-block',
@@ -100,9 +95,20 @@ describe('TextBlockRenderer', () => {
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
-      global: rendererTestGlobal,
+      global: {
+        provide: {
+          ...rendererTestGlobal.provide,
+          [cardEditorContextKey as symbol]: {
+            ...rendererTestGlobal.provide[cardEditorContextKey as symbol],
+            resolveFontFamily,
+          },
+        },
+      },
     })
 
+    expect(resolveFontFamily).toHaveBeenCalledWith(
+      'font:brand-sans; Microsoft YaHei; sans-serif', 'project-font-block', 'fontFamily',
+    )
     expect(wrapper.element.style.fontFamily)
       .toBe('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
   })
@@ -170,12 +176,12 @@ describe('TextBlockRenderer', () => {
   it('passes prepared embeds to the existing card block renderer without runtime preparation', () => {
     const block = parseRenderReadyBlockForTest({
       id: 'host', type: 'text-block',
-      content: '<p><oc-custom-block data-oc-id="badge" data-oc-key="badge" data-oc-layout="inline"></oc-custom-block></p>',
+      content: '<p><oc-custom-block data-oc-id="badge" data-oc-package="alice/badge" data-oc-layout="inline"></oc-custom-block></p>',
     })
     const embedded = {
       ...parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
       type: 'custom-block' as const,
-      customBlockKey: 'badge',
+      packageId: 'alice/badge',
       content: parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
     }
     const parsed = parseRichTextHtml(block.content)

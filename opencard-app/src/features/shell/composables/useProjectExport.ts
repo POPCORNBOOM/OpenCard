@@ -162,19 +162,19 @@ export function useProjectExport(options: UseProjectExportOptions) {
 
   async function prepare(task: ProjectExportTask): Promise<ExportPreparationResult> {
     const snapshots = new Map<string, ExportDocumentSnapshot>()
-    const customBlockKeys = new Set<string>()
+    const packageIds = new Set<string>()
     for (const path of task.documentPaths) {
       const snapshot = await loadDocumentSnapshot(path)
       snapshots.set(normalizePath(path).toLowerCase(), snapshot)
       for (const face of Object.values(snapshot.document.faces)) {
         for (const child of face.children) {
           visitCardBlockTree(child.block, block => {
-            if (block.type === 'custom-block') customBlockKeys.add(block.customBlockKey)
+            if (block.type === 'custom-block') packageIds.add(block.packageId)
           })
         }
       }
     }
-    await options.ensureCustomBlocksLoaded?.(customBlockKeys)
+    await options.ensureCustomBlocksLoaded?.(packageIds)
     const environment = options.renderEnvironment.value
     return await prepareExportTask({
       task,

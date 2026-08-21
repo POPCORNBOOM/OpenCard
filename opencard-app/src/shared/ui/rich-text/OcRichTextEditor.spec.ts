@@ -14,6 +14,11 @@ import PropertyFieldActionRail from '../property-editor/PropertyFieldActionRail.
 import PropertyFieldRenderer from '../property-editor/PropertyFieldRenderer.vue'
 import OcRichTextEditor from './OcRichTextEditor.vue'
 import { clearRecentProjectIcons } from './recentProjectIcons'
+import { createBlock, type CardBlock } from '../../../entities/card/model'
+import type {
+  ProjectCustomBlockCatalogEntry,
+  ProjectCustomBlockManifestCatalogEntry,
+} from '../../../features/workspace/model/projectCustomBlocks'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -21,6 +26,40 @@ vi.mock('vue-i18n', () => ({
     te: () => false,
   }),
 }))
+
+function customBlockEntry(
+  packageId: string,
+  name: string,
+  block: CardBlock,
+  publicFieldKeys: readonly string[],
+): ProjectCustomBlockCatalogEntry {
+  const installationPath = `D:/Project/.opencard/blocks/${packageId}`
+  return {
+    manifest: {
+      type: 'opencard-custom-block',
+      packageId,
+      version: '0.1.0',
+      name,
+      publicFieldKeys,
+      resize: { widthLocked: true, heightLocked: true },
+    },
+    block,
+    installationPath,
+    resourceRootPath: `${installationPath}/resources`,
+  }
+}
+
+function manifestEntry(
+  entry: ProjectCustomBlockCatalogEntry,
+  loadState: ProjectCustomBlockManifestCatalogEntry['loadState'],
+): ProjectCustomBlockManifestCatalogEntry {
+  return {
+    manifest: entry.manifest,
+    installationPath: entry.installationPath,
+    resourceRootPath: entry.resourceRootPath,
+    loadState,
+  }
+}
 
 describe('OcRichTextEditor', () => {
   it('round-trips unresolved style bindings without CSSOM loss', async () => {
@@ -444,30 +483,29 @@ describe('OcRichTextEditor', () => {
 
   it('loads and edits only public fields on embedded custom blocks', async () => {
     const ensureLoaded = vi.fn(async (_key: string) => undefined)
-    const root = Object.assign({
-      type: 'text-block' as const, id: 'root', content: '', label: 'Default', secret: 'Private',
+    const root = Object.assign(createBlock('text-block', { id: 'root', content: '' }), {
+      label: 'Default',
+      secret: 'Private',
       additionalFieldDefinition: {
         label: { fieldType: 'string' as const, title: 'Label' },
         secret: { fieldType: 'string' as const, title: 'Secret' },
       },
     })
-    const entry = {
-      manifest: {
-        type: 'opencard-custom-block' as const, customBlockKey: 'badge', name: 'Badge',
-        publicFieldKeys: ['label'], resize: { widthLocked: true, heightLocked: true },
-      }, block: root, archivePath: 'badge.ocblock', files: new Map(),
-    }
-    const catalog = new Map([['badge', entry]])
-    const manifests = new Map([['badge', { manifest: entry.manifest, archivePath: 'badge.ocblock', loadState: 'ready' as const }]])
+    const entry = customBlockEntry('alice/badge', 'Badge', root, ['label'])
+    const catalog = new Map([['alice/badge', entry]])
+    const manifests = new Map([['alice/badge', manifestEntry(entry, 'ready')]])
     const wrapper = mount(OcRichTextEditor, {
       props: { modelValue: '<p></p>', customBlockCatalog: { catalog, manifests, ensureLoaded } },
     })
     const editor = (wrapper.vm as unknown as { editor: Editor }).editor
-    await ensureLoaded('badge')
-    editor.chain().focus().insertContent({ type: 'inlineCustomBlock', attrs: { embedId: 'badge-1', customBlockKey: 'badge', properties: {} } }).run()
+    await ensureLoaded('alice/badge')
+    editor.chain().focus().insertContent({
+      type: 'inlineCustomBlock',
+      attrs: { embedId: 'badge-1', packageId: 'alice/badge', properties: {} },
+    }).run()
     editor.commands.setNodeSelection(editor.state.selection.from - 1)
     await nextTick()
-    expect(editor.getHTML()).toContain('data-oc-key="badge"')
+    expect(editor.getHTML()).toContain('data-oc-package="alice/badge"')
     ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
     await nextTick()
     expect(wrapper.findComponent(PropertyEditor).exists()).toBe(true)
@@ -479,18 +517,13 @@ describe('OcRichTextEditor', () => {
   it('exposes custom block loading and failure states and clears them after a successful retry', async () => {
     let settleLoad = (): void => undefined
     let rejectFirst = true
-    const root = Object.assign({ type: 'text-block' as const, id: 'root', content: 'Ready' })
-    const entry = {
-      manifest: {
-        type: 'opencard-custom-block' as const, customBlockKey: 'badge', name: 'Badge',
-        publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true },
-      }, block: root, archivePath: 'badge.ocblock', files: new Map(),
-    }
-    const catalog = new Map<string, typeof entry>()
+    const root = createBlock('text-block', { id: 'root', content: 'Ready' })
+    const entry = customBlockEntry('alice/badge', 'Badge', root, [])
+    const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
     const ensureLoaded = vi.fn(() => new Promise<void>((resolve, reject) => {
       settleLoad = () => {
         if (rejectFirst) reject(new Error('load failed'))
-        else { catalog.set('badge', entry); resolve() }
+        else { catalog.set('alice/badge', entry); resolve() }
       }
     }))
     const wrapper = mount(OcRichTextEditor, {
@@ -498,7 +531,7 @@ describe('OcRichTextEditor', () => {
         modelValue: '<p></p>',
         customBlockCatalog: {
           catalog,
-          manifests: new Map([['badge', { manifest: entry.manifest, archivePath: 'badge.ocblock', loadState: 'unloaded' as const }]]),
+          manifests: new Map([['alice/badge', manifestEntry(entry, 'unloaded')]]),
           ensureLoaded,
         },
       },
@@ -508,7 +541,7 @@ describe('OcRichTextEditor', () => {
     const actionButton = wrapper.findAllComponents(OcActionButton)
       .find(component => component.props('action').key === 'custom-block')!
     expect(actionButton.props('action')).toMatchObject({ icon: 'action.custom-block-plus' })
-    actionButton.vm.$emit('select', { key: 'custom-block:badge' })
+    actionButton.vm.$emit('select', { key: 'custom-block:alice/badge' })
     await nextTick()
     expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ disabled: true })
     settleLoad()
@@ -519,35 +552,30 @@ describe('OcRichTextEditor', () => {
     expect((wrapper.vm as unknown as { editor: Editor }).editor.getHTML()).not.toContain('oc-custom-block')
 
     rejectFirst = false
-    actionButton.vm.$emit('select', { key: 'custom-block:badge' })
+    actionButton.vm.$emit('select', { key: 'custom-block:alice/badge' })
     await nextTick()
     settleLoad()
-    await vi.waitFor(() => expect((wrapper.vm as unknown as { editor: Editor }).editor.getHTML()).toContain('data-oc-key="badge"'))
+    await vi.waitFor(() => expect((wrapper.vm as unknown as { editor: Editor }).editor.getHTML()).toContain('data-oc-package="alice/badge"'))
     await nextTick()
     expect((actionButton.props('action') as OcActionButtonAction).children?.[0]).toMatchObject({ icon: 'data.symbol-custom-block' })
     wrapper.unmount()
   })
 
   it('switches bindable custom block fields between typed and binding editors', async () => {
-    const root = Object.assign({
-      type: 'text-block' as const, id: 'root', content: '', amount: '2',
+    const root = Object.assign(createBlock('text-block', { id: 'root', content: '' }), {
+      amount: '2',
       additionalFieldDefinition: {
         amount: { fieldType: 'number' as const, title: 'Amount', min: 1, max: 10 },
       },
     })
-    const entry = {
-      manifest: {
-        type: 'opencard-custom-block' as const, customBlockKey: 'counter', name: 'Counter',
-        publicFieldKeys: ['amount'], resize: { widthLocked: true, heightLocked: true },
-      }, block: root, archivePath: 'counter.ocblock', files: new Map(),
-    }
+    const entry = customBlockEntry('alice/counter', 'Counter', root, ['amount'])
     const wrapper = mount(OcRichTextEditor, {
       props: {
-        modelValue: '<p><oc-custom-block data-oc-id="counter-1" data-oc-key="counter" data-oc-layout="inline"></oc-custom-block></p>',
+        modelValue: '<p><oc-custom-block data-oc-id="counter-1" data-oc-package="alice/counter" data-oc-layout="inline"></oc-custom-block></p>',
         bindingCompletion: () => null,
         customBlockCatalog: {
-          catalog: new Map([['counter', entry]]),
-          manifests: new Map([['counter', { manifest: entry.manifest, archivePath: 'counter.ocblock', loadState: 'ready' as const }]]),
+          catalog: new Map([['alice/counter', entry]]),
+          manifests: new Map([['alice/counter', manifestEntry(entry, 'ready')]]),
           ensureLoaded: async () => undefined,
         },
       },
@@ -584,7 +612,7 @@ describe('OcRichTextEditor', () => {
   })
 
   it('regenerates embed IDs on paste while undo keeps the pasted ID stable', async () => {
-    const source = '<p><oc-custom-block data-oc-id="original" data-oc-key="badge" data-oc-layout="inline"></oc-custom-block></p>'
+    const source = '<p><oc-custom-block data-oc-id="original" data-oc-package="alice/badge" data-oc-layout="inline"></oc-custom-block></p>'
     const wrapper = mount(OcRichTextEditor, { props: { modelValue: source } })
     const editor = (wrapper.vm as unknown as { editor: Editor }).editor
     const original = editor.state.doc.firstChild!.firstChild!

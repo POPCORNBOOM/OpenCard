@@ -29,8 +29,8 @@ function isCustomBlockFile(entry: { isFile: boolean; name: string }): boolean {
   return entry.isFile && entry.name.toLocaleLowerCase().endsWith(USER_CUSTOM_BLOCK_CATALOG_SUFFIX)
 }
 
-function safeCustomBlockFileName(blockKey: string): string {
-  const safe = blockKey.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
+function safeCustomBlockFileName(packageId: string): string {
+  const safe = packageId.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
   return `${safe || 'custom-block'}${USER_CUSTOM_BLOCK_CATALOG_SUFFIX}`
 }
 
@@ -54,9 +54,9 @@ export class UserCustomBlockCatalogService {
       const path = await this.paths.join(root, entry.name)
       try {
         const customBlock = await readProjectCustomBlockPackage(this.fs, path)
-        const identity = customBlock.manifest.customBlockKey.toLocaleLowerCase()
+        const identity = customBlock.manifest.packageId.toLocaleLowerCase()
         if (identities.has(identity)) {
-          warnings.push({ path, reason: `Duplicate custom block Key: ${customBlock.manifest.customBlockKey}` })
+          warnings.push({ path, reason: `Duplicate custom block Package ID: ${customBlock.manifest.packageId}` })
           continue
         }
         identities.add(identity)
@@ -82,7 +82,7 @@ export class UserCustomBlockCatalogService {
     const customBlock = await readProjectCustomBlockPackage(this.fs, sourcePath)
     const catalog = await this.loadCatalog()
     const existing = catalog.blocks.find(block => (
-      block.customBlockKey.toLocaleLowerCase() === customBlock.manifest.customBlockKey.toLocaleLowerCase()
+      block.packageId.toLocaleLowerCase() === customBlock.manifest.packageId.toLocaleLowerCase()
     ))
 
     const root = await this.resolveUserRoot()
@@ -92,7 +92,7 @@ export class UserCustomBlockCatalogService {
       return existing.path
     }
 
-    const baseName = safeCustomBlockFileName(customBlock.manifest.customBlockKey)
+    const baseName = safeCustomBlockFileName(customBlock.manifest.packageId)
     let candidateName = baseName
     let candidatePath = await this.paths.join(root, candidateName)
     let suffix = 2

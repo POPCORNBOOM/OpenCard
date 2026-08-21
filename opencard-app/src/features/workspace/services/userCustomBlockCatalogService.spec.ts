@@ -12,7 +12,9 @@ async function blockBytes(key: string, name: string, fieldKey = 'label'): Promis
   const root = createBlock('text-block', { id: 'root' })
   root.additionalFieldDefinition = { [fieldKey]: { fieldType: 'string' } }
   ;(root as unknown as Record<string, unknown>)[fieldKey] = 'Default'
-  const manifest = await buildProjectCustomBlockManifest({ root, key, exposedFieldKeys: [fieldKey] })
+  const manifest = await buildProjectCustomBlockManifest({
+    root, publisherKey: 'alice', blockKey: key, exposedFieldKeys: [fieldKey],
+  })
   manifest.name = name
   return createProjectCustomBlockArchive(manifest, root)
 }
@@ -59,7 +61,9 @@ describe('UserCustomBlockCatalogService', () => {
     const catalog = await service.loadCatalog()
 
     expect(catalog.blocks).toHaveLength(1)
-    expect(catalog.blocks[0]).toMatchObject({ key: 'user:badge', customBlockKey: 'Badge', name: 'Badge' })
+    expect(catalog.blocks[0]).toMatchObject({
+      key: 'user:alice/badge', packageId: 'alice/badge', name: 'Badge',
+    })
     expect(catalog.warnings).toHaveLength(2)
   })
 
@@ -68,8 +72,8 @@ describe('UserCustomBlockCatalogService', () => {
     const { files, service } = createHarness(new Map([['/incoming/badge.ocblock', incoming]]))
 
     await expect(service.importUserCustomBlock('/incoming/badge.ocblock'))
-      .resolves.toBe('/app/custom-blocks/badge.ocblock')
-    expect(files.get('/app/custom-blocks/badge.ocblock')).toEqual(incoming)
+      .resolves.toBe('/app/custom-blocks/alice_badge.ocblock')
+    expect(files.get('/app/custom-blocks/alice_badge.ocblock')).toEqual(incoming)
   })
 
   it('updates an existing Key in place using the new package schema', async () => {

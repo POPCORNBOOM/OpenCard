@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCardRenderResourceContext, resolveCardAssetSrc, resolveCustomBlockAssetSrc } from './cardRenderResources'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import {
+  projectResourceScopeIdentity,
+  type ProjectResourceEnvironment,
+} from '../workspace/services/projectResourceEnvironment'
+import { createCardRenderResourceContext, resolveCardAssetSrc } from './cardRenderResources'
 
 const { convertFileSrc } = vi.hoisted(() => ({
   convertFileSrc: vi.fn((path: string) => `asset://${path}`),
@@ -10,22 +15,27 @@ vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc }))
 describe('cardRenderResources', () => {
   beforeEach(() => convertFileSrc.mockClear())
 
-  it('resolves package-local logical keys only through an explicit package scope', () => {
+  it('resolves package-local paths only through an explicit field scope', () => {
+    const packageEnvironment: ProjectResourceEnvironment = {
+      kind: 'package',
+      namespace: 'package-alice-picture',
+      rootPath: 'D:/Cards/.opencard/blocks/alice/picture/resources',
+      fontDocument: {},
+      fonts: {},
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      issues: [],
+    }
     const context = createCardRenderResourceContext({
-      customBlockCatalog: new Map([['picture', {
-        manifest: {
-          customBlockKey: 'picture', publicFieldKeys: [],
-          resize: { widthLocked: false, heightLocked: false },
-          resources: { images: [{ key: 'a', source: 'resources/images/a.png' }] },
-        },
-        block: {},
-        resourceUrls: new Map([['resources/images/a.png', 'blob:controlled']]),
-      }]]),
+      resourceScopes: new Map([[
+        projectResourceScopeIdentity('package-image', 'image'),
+        packageEnvironment,
+      ]]),
     })
 
-    expect(resolveCustomBlockAssetSrc('resource:image:A', 'PICTURE', context))
-      .toBe('blob:controlled')
-    expect(resolveCardAssetSrc('resource:image:a', context)).toBe('')
+    expect(resolveCardAssetSrc('assets/a.png', context, 'package-image'))
+      .toBe('asset://D:/Cards/.opencard/blocks/alice/picture/resources/assets/a.png')
+    expect(resolveCardAssetSrc('assets/a.png', context)).toBe('')
   })
 
   it('resolves local files and applies the remote HTTPS policy', () => {

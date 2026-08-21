@@ -167,7 +167,7 @@ describe('property binding schema policy', () => {
       'custom-block': {
         general: ['name', 'notes'],
         layer: ['visible'],
-        advanced: ['customBlockKey'],
+        advanced: ['packageId'],
       },
       'simple-container-location': {
         advanced: ['id', 'type'],

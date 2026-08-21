@@ -11,9 +11,8 @@ import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjec
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
 import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG, loadProjectImageDimensions } from '../workspace/services/projectIconCatalog'
-import { parseProjectCustomBlockRegistryText, PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, type ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
-import { readProjectCustomBlockPackage } from '../workspace/services/projectCustomBlock'
-import { createProjectCustomBlockAssetSession } from '../workspace/services/projectCustomBlockAssetLoader'
+import { discoverInstalledProjectCustomBlocks } from '../workspace/services/projectCustomBlock'
+import { loadInstalledProjectCustomBlockRuntime } from '../workspace/services/projectCustomBlockAssetLoader'
 import { createProjectCustomBlockFontSession } from '../workspace/services/projectCustomBlockFontLoader'
 import { resolveProjectInternalRelativePath } from '../workspace/model/projectStructure'
 
@@ -29,11 +28,14 @@ function resolveProjectFile(root: string, path: string): string {
   return `${normalizedRoot}/${path.replace(/^[\\/]+/, '').replace(/\\/g, '/')}`
 }
 
-const DIFF_BINARY_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])
+const DIFF_RESOURCE_SNAPSHOT_EXTENSIONS = new Set([
+  'woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+])
 
-export function isBinaryFontDiffPath(path: string): boolean {
+export function isResourceSnapshotDiffPath(path: string): boolean {
   const extension = path.split('.').pop()?.toLocaleLowerCase()
-  return Boolean(extension && DIFF_BINARY_FONT_EXTENSIONS.has(extension))
+  return Boolean(extension && DIFF_RESOURCE_SNAPSHOT_EXTENSIONS.has(extension))
 }
 
 const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
@@ -111,32 +113,21 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
       )
     }
   }
-  const customBlockText = await readOptional(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
-  if (customBlockText) {
-    const registry = parseProjectCustomBlockRegistryText(customBlockText)
-    if (registry) {
-      const catalog = new Map<string, ProjectCustomBlockCatalogEntry>()
-      for (const relativePath of registry.blocks ?? []) {
-        const archivePath = relativePath.replace(/\\/g, '/').replace(/^[/]+/, '')
-        const packageEntry = await readProjectCustomBlockPackage(
-          fileSystemService,
-          resolveProjectFile(root, resolveProjectInternalRelativePath(archivePath)),
-        )
-        const block = packageEntry.block
-        if (!block) continue
-        const key = packageEntry.manifest.customBlockKey.toLowerCase()
-        catalog.set(key, { ...packageEntry, block, archivePath })
-      }
-      if (catalog.size > 0) {
-        await createProjectCustomBlockFontSession(catalog)
-        const assets = await createProjectCustomBlockAssetSession(
-          catalog,
-          undefined,
-          loadSnapshotImageDimensions,
-        )
-        customBlockCatalog = assets.customBlockCatalog
-      }
+  const customBlockDescriptors = await discoverInstalledProjectCustomBlocks(fileSystemService, root)
+  if (customBlockDescriptors.size > 0) {
+    const catalog = new Map()
+    const environments = []
+    for (const descriptor of customBlockDescriptors.values()) {
+      const loaded = await loadInstalledProjectCustomBlockRuntime({
+        fs: fileSystemService,
+        installationPath: descriptor.installationPath,
+        loadDimensions: loadSnapshotImageDimensions,
+      })
+      catalog.set(descriptor.manifest.packageId.toLocaleLowerCase(), loaded.runtimeEntry)
+      environments.push(...loaded.environments)
     }
+    await createProjectCustomBlockFontSession(environments)
+    customBlockCatalog = catalog
   }
   return { project, dictionary, projectIconCatalog, customBlockCatalog, resolveFontFamily }
 }
@@ -170,18 +161,18 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
   ))
 
   async function loadSnapshot(root: string, path: string, commitId: string | null, label: string): Promise<DiffSnapshot> {
-    const binaryFont = isBinaryFontDiffPath(path)
+    const resourceSnapshot = isResourceSnapshotDiffPath(path)
     let content = ''
     let resourceRootPath: string
     if (commitId === null) {
       resourceRootPath = root
       const filePath = resolveProjectFile(root, path)
-      if (binaryFont) await fileSystemService.readBinaryFile(filePath)
+      if (resourceSnapshot) await fileSystemService.readBinaryFile(filePath)
       else content = await fileSystemService.readFile(filePath)
     } else {
       const result = await readFileAtRevision(root, { revision: commitId, path })
       if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法读取历史版本')
-      if (result.value.binary && !binaryFont) throw new Error('该版本不是文本文件')
+      if (result.value.binary && !resourceSnapshot) throw new Error('该版本不是文本文件')
       if (!result.value.binary) content = result.value.content
       const materialized = await materializeRevision(root, { revision: commitId })
       if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')

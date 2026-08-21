@@ -1,18 +1,17 @@
 <template>
   <ProjectRegistryEditorShell icon="file.custom-block" content-mode="workspace"
-    :heading="t('customBlockRegistry.title')" :description="t('customBlockRegistry.description')"
-    @keydown.ctrl.s.prevent="save">
+    :heading="t('customBlockRegistry.title')" :description="t('customBlockRegistry.description')">
     <template #actions>
       <OcButton icon="action.import" variant="soft" :disabled="busy" @click="addBlock">
         {{ t('customBlockRegistry.add') }}
       </OcButton>
     </template>
-    <div v-if="document" class="custom-block-registry-editor">
+    <div class="custom-block-registry-editor">
       <OcText v-if="error" as="p" size="sm" tone="danger" role="alert">{{ error }}</OcText>
       <div class="custom-block-registry-editor__workbench">
         <aside class="custom-block-registry-editor__list">
           <OcTree v-if="treeData.rootKeys.length" fill :data="treeData" :actions="actions"
-            :selected-keys="selectedPath ? [selectedPath] : []" selection-mode="single"
+            :selected-keys="selectedPackageId ? [selectedPackageId] : []" selection-mode="single"
             :aria-label="t('customBlockRegistry.title')" @intent="handleIntent" />
           <OcEmpty v-else tone="muted" inset="comfortable">
             {{ t('customBlockRegistry.empty') }}
@@ -22,12 +21,12 @@
         <section class="custom-block-registry-editor__right"
           :style="{ '--oc-custom-block-preview-occlusion': `${propertyOcclusion}px` }">
           <main class="custom-block-registry-editor__preview">
-            <CardViewport v-if="previewFace && previewResources" ref="viewportRef" class="custom-block-registry-editor__viewport"
-              :face="previewFace" :restore-key="selectedPath ?? undefined" :show-info="false"
-              :viewport-insets="previewViewportInsets"
-              :resource-context="previewResources"
+            <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
+              class="custom-block-registry-editor__viewport" :face="previewFace"
+              :restore-key="selectedPackageId ?? undefined" :show-info="false"
+              :viewport-insets="previewViewportInsets" :resource-context="previewResources"
               @viewport-transform-change="handleViewportTransformChange"
-              @viewport-size-change="handleViewportSizeChange" />
+              @viewport-size-change="fitPreview" />
             <OcEmpty v-else tone="muted" inset="comfortable">
               {{ selectedEntry ? t('customBlockRegistry.preview.unavailable')
                 : t('customBlockRegistry.preview.selectBlock') }}
@@ -35,8 +34,7 @@
             <OcOverlayToolbar v-if="previewFace" class="custom-block-registry-editor__viewport-tools"
               :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
               @select="handlePreviewToolbarSelect" />
-            <OcCard v-if="issues.length" class="custom-block-registry-editor__issues"
-              variant="glass" role="status">
+            <OcCard v-if="issues.length" class="custom-block-registry-editor__issues" variant="glass" role="status">
               <OcText size="sm" tone="muted">
                 {{ t('customBlockRegistry.preview.issues', { count: issues.length }) }}
               </OcText>
@@ -62,66 +60,48 @@
         </section>
       </div>
     </div>
-    <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
-      :theme-overrides="themeOverrides" :heading="t('customBlockRegistry.invalid')"
-      :description="t('customBlockRegistry.repair')" @update:model-value="updateRawSource" @save="save" />
   </ProjectRegistryEditorShell>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import CardViewport from '../../features/card-rendering/components/CardViewport.vue'
+import { fileSystemService } from '../../features/workspace/services/fileSystemService'
+import { useProjectStore } from '../../features/workspace/store/projectStore'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import { VIEWPORT_ZOOM_STEP } from '../../shared/ui/viewport/viewportNavigation'
+import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcPanel from '../base/OcPanel.vue'
 import OcText from '../base/OcText.vue'
-import OcTree from '../standard/OcTree.vue'
-import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
-import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
-import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
-import CardViewport from '../../features/card-rendering/components/CardViewport.vue'
-import { VIEWPORT_ZOOM_STEP } from '../../shared/ui/viewport/viewportNavigation'
-import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
-import {
-  parseProjectCustomBlockRegistryText,
-  serializeProjectCustomBlockRegistry,
-  type ProjectCustomBlockRegistryDocument,
-} from '../../features/workspace/model/projectCustomBlocks'
-import { registerProjectCustomBlockPath, unregisterProjectCustomBlockPath } from '../../features/workspace/services/projectCustomBlockRegistry'
-import { fileSystemService } from '../../features/workspace/services/fileSystemService'
-import { useProjectStore } from '../../features/workspace/store/projectStore'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
+import OcTree from '../standard/OcTree.vue'
+import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
-import ProjectRegistryRepairEditor from './ProjectRegistryRepairEditor.vue'
 import { useCustomBlockPreview } from './useCustomBlockPreview'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
-const { t } = useI18n()
+const { t, te } = useI18n()
 const projectStore = useProjectStore()
-const document = ref<ProjectCustomBlockRegistryDocument | null>(null)
 const busy = ref(false)
 const error = ref('')
-const themeId = computed(() => props.themeId ?? 'dark')
-const themeOverrides = computed(() => props.themeOverrides ?? {})
-const viewportRef = ref<{
-  zoomBy: (factor: number) => void
-  fitView?: (targetRect?: { left: number; top: number; width: number; height: number }) => void
-  fitContent?: (contentRect: { left: number; top: number; width: number; height: number }) => void
-} | null>(null)
+const viewportRef = ref<{ zoomBy: (factor: number) => void, fitView?: () => void, fitContent?: (rect: { left: number, top: number, width: number, height: number }) => void } | null>(null)
 const viewportScale = ref(1)
 const propertyPanelExpanded = ref(true)
 const propertyPanelHeight = ref<number | null>(null)
 const propertyOcclusion = ref(0)
-const viewportScaleLabel = computed(() => `${Math.round(viewportScale.value * 100)}%`)
-const previewToolbarItems = computed(() => createViewportToolbarItems(viewportScaleLabel.value))
+const resourceRootPath = computed(() => props.resourceRootPath ?? projectStore.projectPath.value ?? null)
 const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
-const resourceRootPath = computed(() => props.resourceRootPath ?? null)
+const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
+
 const {
-  entries: previewEntries,
-  selectedPath,
+  entries,
+  selectedPackageId,
   selectedEntry,
   previewFace,
   previewResources,
@@ -129,20 +109,21 @@ const {
   issues,
   propertyInputs,
   propertyCategories,
-  selectPath,
+  selectPackage,
   updateProperty,
   resetActiveValues,
 } = useCustomBlockPreview({
-  document,
   catalog: projectStore.projectCustomBlockCatalog,
   manifestCatalog: projectStore.projectCustomBlockManifestCatalog,
   ensureLoaded: projectStore.ensureProjectCustomBlockLoaded,
   renderEnvironment: projectStore.renderEnvironment,
   resourceRootPath,
   translate: t,
-  hasMessage: () => false,
+  hasMessage: te,
 })
+
 const actions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  ['reveal', { title: t('customBlockRegistry.reveal'), icon: 'status.folder-open' }],
   ['remove', { title: t('customBlockRegistry.remove'), icon: 'action.delete', iconTone: 'danger' }],
 ]))
 const propertyCardActions = computed<OcCardAction[]>(() => [{
@@ -151,38 +132,28 @@ const propertyCardActions = computed<OcCardAction[]>(() => [{
   title: t('customBlockRegistry.preview.reset'),
   disabled: propertyInputs.value.length === 0,
 }])
-const treeData = computed<OcTreeData>(() => {
-  return {
-    rootKeys: previewEntries.value.map(entry => entry.path),
-    items: new Map(previewEntries.value.map(entry => [entry.path, {
-      label: entry.catalogEntry?.manifest.name ?? entry.path.split('/').pop() ?? entry.path,
-      tail: entry.path,
-      icon: 'file.custom-block',
-      actions: ['remove'],
-      contextActions: ['remove'],
-    }])),
-    children: new Map(),
-  }
-})
+const treeData = computed<OcTreeData>(() => ({
+  rootKeys: entries.value.map(entry => entry.packageId),
+  items: new Map(entries.value.map(entry => [entry.packageId, {
+    label: entry.descriptor.manifest.name,
+    tail: [
+      `${entry.packageId} · ${entry.descriptor.manifest.version} · ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
+      entry.descriptor.installationPath,
+    ],
+    icon: entry.descriptor.unavailable ? 'status.warning' : 'file.custom-block',
+    actions: ['reveal', 'remove'],
+    contextActions: ['reveal', 'remove'],
+  }])),
+  children: new Map(),
+}))
 
-watch(() => props.modelValue, content => {
-  document.value = parseProjectCustomBlockRegistryText(content ?? '')
+watch(() => props.filePath, () => {
+  emit('modified', false)
+  void projectStore.reloadProjectCustomBlocks()
 }, { immediate: true })
 
-function commit(next: ProjectCustomBlockRegistryDocument): void {
-  const content = serializeProjectCustomBlockRegistry(next)
-  document.value = parseProjectCustomBlockRegistryText(content)
-  emit('update:modelValue', content)
-}
-
-async function commitAndSave(next: ProjectCustomBlockRegistryDocument): Promise<void> {
-  commit(next)
-  await nextTick()
-  emit('save')
-}
-
 async function addBlock(): Promise<void> {
-  if (!document.value || busy.value) return
+  if (busy.value) return
   error.value = ''
   const source = await fileSystemService.pickFile({
     title: t('customBlockRegistry.choose'),
@@ -193,11 +164,8 @@ async function addBlock(): Promise<void> {
   if (!source) return
   busy.value = true
   try {
-    const imported = await projectStore.importProjectCustomBlockFile(source)
-    const current = imported.replacedSource
-      ? unregisterProjectCustomBlockPath(document.value, imported.replacedSource)
-      : document.value
-    await commitAndSave(registerProjectCustomBlockPath(current, imported.source))
+    const installed = await projectStore.installProjectCustomBlockFile(source)
+    selectPackage(installed.packageId)
   } catch {
     error.value = t('customBlockRegistry.importFailed')
   } finally {
@@ -207,148 +175,41 @@ async function addBlock(): Promise<void> {
 
 function handleIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
-    const path = intent.selectedKeys[0]
-    if (path) selectPath(path)
+    const packageId = intent.selectedKeys[0]
+    if (packageId) selectPackage(packageId)
     return
   }
-  if (!document.value || intent.type !== 'action.invoke' || intent.actionKey !== 'remove') return
-  void commitAndSave(unregisterProjectCustomBlockPath(document.value, intent.key))
+  if (intent.type !== 'action.invoke') return
+  if (intent.actionKey === 'reveal') void projectStore.revealProjectCustomBlock(intent.key)
+  if (intent.actionKey === 'remove') void projectStore.uninstallProjectCustomBlock(intent.key)
 }
 
-function handleViewportTransformChange(transform: { scale: number }): void {
-  viewportScale.value = transform.scale
-}
-
-function handleViewportSizeChange(): void {
-  fitPreview()
-}
-
+function handleViewportTransformChange(transform: { scale: number }): void { viewportScale.value = transform.scale }
 function fitPreview(): void {
-  const viewport = viewportRef.value
-  if (!viewport) return
-  if (previewFitRect.value && viewport.fitContent) viewport.fitContent(previewFitRect.value)
-  else viewport.fitView?.()
+  if (previewFitRect.value && viewportRef.value?.fitContent) viewportRef.value.fitContent(previewFitRect.value)
+  else viewportRef.value?.fitView?.()
 }
-
-function zoomIn(): void {
-  viewportRef.value?.zoomBy(VIEWPORT_ZOOM_STEP)
-}
-
-function zoomOut(): void {
-  viewportRef.value?.zoomBy(1 / VIEWPORT_ZOOM_STEP)
-}
-
 function handlePreviewToolbarSelect({ key }: { key: string }): void {
-  if (key === 'viewport.zoom-out') zoomOut()
+  if (key === 'viewport.zoom-out') viewportRef.value?.zoomBy(1 / VIEWPORT_ZOOM_STEP)
   else if (key === 'viewport.fit') fitPreview()
-  else if (key === 'viewport.zoom-in') zoomIn()
+  else if (key === 'viewport.zoom-in') viewportRef.value?.zoomBy(VIEWPORT_ZOOM_STEP)
 }
-
-watch(selectedPath, async () => {
-  viewportScale.value = 1
-  await nextTick()
-  fitPreview()
-})
-
 function handlePropertyCardAction(payload: { key: string }): void {
   if (payload.key === 'reset-preview-values') resetActiveValues()
 }
-
-function updateRawSource(content: string, history?: HistoryOperationMeta): void {
-  emit('update:modelValue', content, history)
-}
-
-function save(): void {
-  emit('save')
-}
-
-defineExpose({ save })
+watch(selectedPackageId, async () => { viewportScale.value = 1; await nextTick(); fitPreview() })
 </script>
 
 <style scoped>
-.custom-block-registry-editor {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas:
-    "error"
-    "workbench";
-  background: var(--oc-bg-inset);
-}
-
-.custom-block-registry-editor > [role="alert"] {
-  grid-area: error;
-  padding: var(--oc-space-2) var(--oc-space-4);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
-}
-
-.custom-block-registry-editor__workbench {
-  grid-area: workbench;
-  display: grid;
-  grid-template-columns:
-    minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width))
-    minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
-}
-
-.custom-block-registry-editor__list,
-.custom-block-registry-editor__right,
-.custom-block-registry-editor__preview {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.custom-block-registry-editor__properties {
-  min-width: 0;
-  min-height: 0;
-}
-
-.custom-block-registry-editor__list {
-  border-right: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
-}
-
-.custom-block-registry-editor__preview {
-  position: relative;
-  display: grid;
-  place-items: center;
-  background-color: var(--oc-bg-raised);
-  background-image: var(--oc-viewport-dot-pattern);
-  background-size: var(--oc-viewport-dot-size);
-  background-position: var(--oc-viewport-dot-position);
-  width: 100%;
-  height: 100%;
-}
-
-.custom-block-registry-editor__right {
-  position: relative;
-}
-
-.custom-block-registry-editor__viewport {
-  width: 100%;
-  height: 100%;
-}
-
-.custom-block-registry-editor__viewport-tools {
-  position: absolute;
-  right: var(--oc-floating-surface-gap);
-  bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap));
-  z-index: var(--oc-z-overlay-toolbar);
-}
-
-.custom-block-registry-editor__issues {
-  position: absolute;
-  left: var(--oc-floating-surface-gap);
-  bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap));
-  max-width: var(--oc-content-width-md);
-}
-
-.custom-block-registry-editor__properties {
-  --oc-viewport-inspector-default-height: var(--oc-custom-block-property-height);
-}
+.custom-block-registry-editor { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-inset); }
+.custom-block-registry-editor > [role="alert"] { padding: var(--oc-space-2) var(--oc-space-4); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-registry-editor__workbench { display: grid; grid-template-columns: minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width)) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.custom-block-registry-editor__list { min-width: 0; min-height: 0; overflow: hidden; border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-registry-editor__right, .custom-block-registry-editor__preview { min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-registry-editor__right { position: relative; }
+.custom-block-registry-editor__preview { position: relative; display: grid; place-items: center; width: 100%; height: 100%; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
+.custom-block-registry-editor__viewport { width: 100%; height: 100%; }
+.custom-block-registry-editor__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); z-index: var(--oc-z-overlay-toolbar); }
+.custom-block-registry-editor__issues { position: absolute; left: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); max-width: var(--oc-content-width-md); }
+.custom-block-registry-editor__properties { --oc-viewport-inspector-default-height: var(--oc-custom-block-property-height); min-width: 0; min-height: 0; }
 </style>

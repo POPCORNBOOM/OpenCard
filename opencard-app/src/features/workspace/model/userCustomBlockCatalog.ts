@@ -9,7 +9,7 @@ export type UserCustomBlockCatalogKey = `user:${string}`
 export type UserCustomBlockCatalogEntry = {
   key: UserCustomBlockCatalogKey
   id: string
-  customBlockKey: string
+  packageId: string
   name: string
   description?: string
   path: string
@@ -25,8 +25,8 @@ export type UserCustomBlockCatalogSnapshot = {
   warnings: UserCustomBlockCatalogWarning[]
 }
 
-export function userCustomBlockCatalogKey(customBlockKey: string): UserCustomBlockCatalogKey {
-  return `user:${customBlockKey.toLocaleLowerCase()}`
+export function userCustomBlockCatalogKey(packageId: string): UserCustomBlockCatalogKey {
+  return `user:${packageId.toLocaleLowerCase()}`
 }
 
 export function createUserCustomBlockCatalogEntry(
@@ -34,9 +34,9 @@ export function createUserCustomBlockCatalogEntry(
   path: string,
 ): UserCustomBlockCatalogEntry {
   return {
-    key: userCustomBlockCatalogKey(manifest.customBlockKey),
-    id: manifest.customBlockKey,
-    customBlockKey: manifest.customBlockKey,
+    key: userCustomBlockCatalogKey(manifest.packageId),
+    id: manifest.packageId,
+    packageId: manifest.packageId,
     name: manifest.name,
     ...(manifest.description ? { description: manifest.description } : {}),
     path,

@@ -1354,7 +1354,6 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
       '.ocproject',
       '.ocfonts',
       '.ocicons',
-      '.ocblocks',
       '.oclocale',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')

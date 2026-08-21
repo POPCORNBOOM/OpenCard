@@ -28,7 +28,7 @@ import {
 } from '../../editor-runtime/history/editorHistoryManager'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
-const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'unsupported-file'])
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'custom-block-manager', 'unsupported-file'])
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
@@ -207,7 +207,6 @@ export function useEditorSessionStore() {
     saveProjectFontRegistry,
     saveProjectIconRegistry,
     saveProjectDictionary,
-    saveProjectCustomBlockRegistry,
   } = useProjectStore()
   let openedEditorItemCache: OpenedEditorItem[] = []
 
@@ -608,7 +607,6 @@ export function useEditorSessionStore() {
       'opencard-font-registry': saveProjectFontRegistry,
       'opencard-icon-registry': saveProjectIconRegistry,
       'opencard-dictionary': saveProjectDictionary,
-      'opencard-custom-block-registry': saveProjectCustomBlockRegistry,
     } as const
     const structuredSaver = nextResourceKind === 'workspace'
       ? structuredProjectSavers[nextFileType.id as keyof typeof structuredProjectSavers]

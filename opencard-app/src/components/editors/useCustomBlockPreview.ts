@@ -17,7 +17,6 @@ import type { RenderReadyCardFace } from '../../features/card-rendering/render.t
 import type {
   ProjectCustomBlockCatalogEntry,
   ProjectCustomBlockManifestCatalogEntry,
-  ProjectCustomBlockRegistryDocument,
 } from '../../features/workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockInstance } from '../../features/workspace/services/createProjectCustomBlockInstance'
 import type {
@@ -31,7 +30,8 @@ const PREVIEW_BLOCK_ID = 'custom-block-preview-host'
 const PUBLIC_FIELDS_CATEGORY_KEY = 'publicFields'
 
 export type CustomBlockPreviewEntry = {
-  path: string
+  packageId: string
+  descriptor: DeepReadonly<ProjectCustomBlockManifestCatalogEntry>
   catalogEntry: DeepReadonly<ProjectCustomBlockCatalogEntry> | null
 }
 
@@ -44,29 +44,24 @@ export type CustomBlockPreviewFitRect = {
 
 type PreviewValueState = {
   block: DeepReadonly<ProjectCustomBlockCatalogEntry['block']>
-  values: Record<string, unknown>
+  overrides: Record<string, unknown>
 }
 
 type UseCustomBlockPreviewOptions = {
-  document: Readonly<Ref<ProjectCustomBlockRegistryDocument | null>>
   catalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   manifestCatalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockManifestCatalogEntry>>>>
-  ensureLoaded: (customBlockKey: string) => Promise<ProjectCustomBlockCatalogEntry | null>
+  ensureLoaded: (packageId: string) => Promise<ProjectCustomBlockCatalogEntry | null>
   renderEnvironment: Readonly<Ref<CardRenderEnvironment>>
   resourceRootPath: Readonly<Ref<string | null>>
   translate: (messageKey: string) => string
   hasMessage: (messageKey: string) => boolean
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\.\//, '').toLocaleLowerCase()
-}
-
 function createDefaultValues(entry: DeepReadonly<ProjectCustomBlockCatalogEntry>): Record<string, unknown> {
-  const rootDefinitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
+  const definitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
   const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
   return Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => {
-    const additional = rootDefinitions[fieldKey]
+    const additional = definitions[fieldKey]
     const editorDefinition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[fieldKey]
     return [fieldKey, Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
       ? structuredClone((entry.block as Readonly<Record<string, unknown>>)[fieldKey])
@@ -76,10 +71,10 @@ function createDefaultValues(entry: DeepReadonly<ProjectCustomBlockCatalogEntry>
 
 function createPreviewDocument(
   entry: DeepReadonly<ProjectCustomBlockCatalogEntry>,
-  values: Readonly<Record<string, unknown>>,
+  overrides: Readonly<Record<string, unknown>>,
 ): CardDocument {
   const host = createProjectCustomBlockInstance(entry, { id: PREVIEW_BLOCK_ID })
-  Object.assign(host, values)
+  Object.assign(host, overrides)
   const front = createCardFace({
     id: 'custom-block-preview-front',
     background: 'transparent',
@@ -97,7 +92,7 @@ function createPreviewDocument(
   const back = createCardFace({ id: 'custom-block-preview-back', background: 'transparent' })
   return fillDefaults('card-document', {
     type: 'card-document',
-    id: `custom-block-preview-${entry.manifest.customBlockKey}`,
+    id: `custom-block-preview-${entry.manifest.packageId.replace('/', '-')}`,
     name: entry.manifest.name,
     faces: { front, back },
     instances: [],
@@ -112,82 +107,67 @@ function resolvePreviewLength(value: string, parentSize: number): number | null 
 }
 
 export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
-  const selectedPath = ref<string | null>(null)
+  const selectedPackageId = ref<string | null>(null)
   const valueStates = shallowRef(new Map<string, PreviewValueState>())
 
-  const entries = computed<CustomBlockPreviewEntry[]>(() => {
-    const catalogByPath = new Map([...options.catalog.value.values()].map(entry => [
-      normalizePath(entry.archivePath),
-      entry,
-    ]))
-    return (options.document.value?.blocks ?? []).map(path => ({
-      path,
-      catalogEntry: catalogByPath.get(normalizePath(path)) ?? null,
+  const entries = computed<CustomBlockPreviewEntry[]>(() => [...options.manifestCatalog.value.entries()]
+    .map(([packageId, descriptor]) => ({
+      packageId,
+      descriptor,
+      catalogEntry: options.catalog.value.get(packageId) ?? null,
     }))
-  })
+    .sort((left, right) => left.packageId.localeCompare(right.packageId)))
 
-  watch(selectedPath, path => {
-    if (!path) return
-    const descriptor = [...options.manifestCatalog.value.values()].find(
-      entry => normalizePath(entry.archivePath) === normalizePath(path),
-    )
-    if (descriptor) void options.ensureLoaded(descriptor.manifest.customBlockKey)
+  watch(selectedPackageId, packageId => {
+    if (packageId) void options.ensureLoaded(packageId)
   }, { immediate: true })
 
   watch(
-    () => entries.value.map(entry => entry.path),
-    (paths, previousPaths = []) => {
-      if (selectedPath.value && paths.includes(selectedPath.value)) return
-      if (paths.length === 0) {
-        selectedPath.value = null
-        return
-      }
-      const previousIndex = selectedPath.value ? previousPaths.indexOf(selectedPath.value) : -1
-      selectedPath.value = paths[Math.min(Math.max(previousIndex, 0), paths.length - 1)] ?? paths[0]!
+    () => entries.value.map(entry => entry.packageId),
+    packageIds => {
+      if (selectedPackageId.value && packageIds.includes(selectedPackageId.value)) return
+      selectedPackageId.value = packageIds[0] ?? null
     },
     { immediate: true },
   )
 
   const selectedEntry = computed(() => (
-    entries.value.find(entry => entry.path === selectedPath.value) ?? null
+    entries.value.find(entry => entry.packageId === selectedPackageId.value) ?? null
   ))
 
   watch(
     () => selectedEntry.value?.catalogEntry,
     entry => {
-      if (!entry || !selectedPath.value) return
-      const identity = normalizePath(selectedPath.value)
-      const current = valueStates.value.get(identity)
+      if (!entry || !selectedPackageId.value) return
+      const current = valueStates.value.get(selectedPackageId.value)
       if (current?.block === entry.block) return
       const next = new Map(valueStates.value)
-      next.set(identity, {
-        block: entry.block,
-        values: createDefaultValues(entry),
-      })
+      next.set(selectedPackageId.value, { block: entry.block, overrides: {} })
       valueStates.value = next
     },
     { immediate: true },
   )
 
+  const activeOverrides = computed<Readonly<Record<string, unknown>>>(() => (
+    selectedPackageId.value ? valueStates.value.get(selectedPackageId.value)?.overrides ?? {} : {}
+  ))
   const activeValues = computed<Readonly<Record<string, unknown>>>(() => {
-    if (!selectedPath.value) return {}
-    return valueStates.value.get(normalizePath(selectedPath.value))?.values ?? {}
+    const entry = selectedEntry.value?.catalogEntry
+    return entry ? { ...createDefaultValues(entry), ...activeOverrides.value } : {}
   })
 
   const pipelineResult = computed(() => {
     const entry = selectedEntry.value?.catalogEntry
     if (!entry) return null
     return prepareCardRender({
-      document: createPreviewDocument(entry, activeValues.value),
+      document: createPreviewDocument(entry, activeOverrides.value),
       instance: null,
       resourceRootPath: options.resourceRootPath.value,
       environment: options.renderEnvironment.value,
     })
   })
 
-  const previewFace = computed<RenderReadyCardFace | null>(() => (
-    pipelineResult.value?.document.faces.front ?? null
-  ))
+  const previewFace = computed<RenderReadyCardFace | null>(() => pipelineResult.value?.document.faces.front ?? null)
   const previewResources = computed(() => pipelineResult.value?.resources ?? null)
   const previewFitRect = computed<CustomBlockPreviewFitRect | undefined>(() => {
     const face = previewFace.value
@@ -217,7 +197,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
       return definition ? [[fieldKey, {
         ...definition,
         required: true,
-        resettable: false,
+        resettable: Object.prototype.hasOwnProperty.call(activeOverrides.value, fieldKey),
       } satisfies Partial<EditorPropertyDefinition>] as const] : []
     }))
     const labels = Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => [
@@ -227,10 +207,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
           ? options.translate(`propertyEditor.fields.${fieldKey}`)
           : fieldKey),
     ]))
-    const fields = resolveCardPropertyFields({
-      type: 'custom-block',
-      ...activeValues.value,
-    }, {
+    const fields = resolveCardPropertyFields({ type: 'custom-block', ...activeValues.value }, {
       allowDelete: false,
       translate: options.translate,
       hasMessage: options.hasMessage,
@@ -244,10 +221,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
       record: activeValues.value,
       fields: Object.fromEntries(Object.entries(fields)
         .filter(([fieldKey]) => publicKeys.has(fieldKey))
-        .map(([fieldKey, definition]) => [fieldKey, {
-          ...definition,
-          category: PUBLIC_FIELDS_CATEGORY_KEY,
-        }])),
+        .map(([fieldKey, definition]) => [fieldKey, { ...definition, category: PUBLIC_FIELDS_CATEGORY_KEY }])),
     }]
   })
 
@@ -258,48 +232,47 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     }],
   ]))
 
-  function selectPath(path: string): void {
-    if (entries.value.some(entry => entry.path === path)) selectedPath.value = path
+  function selectPackage(packageId: string): void {
+    if (entries.value.some(entry => entry.packageId === packageId)) selectedPackageId.value = packageId
   }
 
   function updateProperty(mutation: PropertyEditorMutation): void {
     const entry = selectedEntry.value?.catalogEntry
-    const path = selectedPath.value
-    if (!entry || !path || mutation.key !== PREVIEW_INPUT_KEY
+    const packageId = selectedPackageId.value
+    if (!entry || !packageId || mutation.key !== PREVIEW_INPUT_KEY
       || !entry.manifest.publicFieldKeys.includes(mutation.fieldKey)) return
-    const identity = normalizePath(path)
     const next = new Map(valueStates.value)
-    next.set(identity, {
-      block: entry.block,
-      values: { ...activeValues.value, [mutation.fieldKey]: mutation.value },
-    })
+    const overrides = { ...activeOverrides.value }
+    if (mutation.value === undefined) delete overrides[mutation.fieldKey]
+    else overrides[mutation.fieldKey] = mutation.value
+    next.set(packageId, { block: entry.block, overrides })
     valueStates.value = next
   }
 
   function resetActiveValues(): void {
     const entry = selectedEntry.value?.catalogEntry
-    const path = selectedPath.value
-    if (!entry || !path) return
+    const packageId = selectedPackageId.value
+    if (!entry || !packageId) return
     const next = new Map(valueStates.value)
-    next.set(normalizePath(path), {
-      block: entry.block,
-      values: createDefaultValues(entry),
-    })
+    next.set(packageId, { block: entry.block, overrides: {} })
     valueStates.value = next
   }
 
   return {
     entries,
-    selectedPath,
+    selectedPath: selectedPackageId,
+    selectedPackageId,
     selectedEntry,
     activeValues,
+    activeOverrides,
     previewFace,
     previewResources,
     previewFitRect,
     issues,
     propertyInputs,
     propertyCategories,
-    selectPath,
+    selectPath: selectPackage,
+    selectPackage,
     updateProperty,
     resetActiveValues,
   }

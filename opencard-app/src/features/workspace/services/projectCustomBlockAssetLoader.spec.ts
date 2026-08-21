@@ -1,71 +1,98 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
+import { describe, expect, it } from 'vitest'
 import { createBlock } from '../../../entities/card/model'
 import {
-  createProjectCustomBlockAssetSession,
-  type ProjectCustomBlockAssetRuntime,
+  flattenCustomBlockRuntimeCatalog,
+  loadInstalledProjectCustomBlockRuntime,
 } from './projectCustomBlockAssetLoader'
 
-function createCatalog(): ProjectCustomBlockCatalog {
-  return new Map([['picture', {
-    archivePath: 'assets/picture.ocblock',
-    files: new Map([
-      ['resources/images/A.PNG', new Uint8Array([1])],
-      ['resources/icons/ATLAS.PNG', new Uint8Array([2])],
-    ]),
-    manifest: {
-      type: 'opencard-custom-block', customBlockKey: 'picture', name: 'Picture',
-      publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
-      resources: {
-        images: [{ key: 'a', source: 'resources/images/a.png' }],
-        iconSeries: [{
-          name: 'Picture', key: 'icons', source: 'resources/icons/atlas.png',
-          icons: [{ iconKey: 'icon-1', name: 'One', x: 0, y: 0, width: 8, height: 8 }],
-        }],
-      },
-    },
-    block: createBlock('image-block', { id: 'root', image: 'resource:image:a' }),
-  }]])
+type Entry = { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
+
+function manifest(packageId: string, name: string): string {
+  return JSON.stringify({
+    type: 'opencard-custom-block',
+    packageId,
+    version: '1.2.0',
+    name,
+    publicFieldKeys: [],
+    resize: { widthLocked: false, heightLocked: false },
+  })
 }
 
-function createRuntime(): ProjectCustomBlockAssetRuntime {
-  let index = 0
+function createInstalledPackageFileSystem() {
+  const files = new Map<string, string>([
+    ['/project/.opencard/blocks/alice/picture/manifest.json', manifest('alice/picture', 'Picture')],
+    ['/project/.opencard/blocks/alice/picture/block.json', JSON.stringify(
+      createBlock('image-block', { id: 'root', image: 'assets/picture.png' }),
+    )],
+    ['/project/.opencard/blocks/alice/picture/resources/.opencard/.ocfonts', '{}'],
+    ['/project/.opencard/blocks/alice/picture/resources/.opencard/.ocicons', '{}'],
+    ['/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame/manifest.json',
+      manifest('bob/frame', 'Frame')],
+    ['/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame/block.json',
+      JSON.stringify(createBlock('simple-container-block', { id: 'frame' }))],
+  ])
+  const directories = new Set([
+    '/project/.opencard/blocks/alice/picture/resources',
+    '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks',
+    '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame',
+    '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame/resources',
+  ])
+  const entries: Record<string, Entry[]> = {
+    '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks': [
+      { name: 'bob', isFile: false, isDirectory: true, isSymlink: false },
+      { name: 'bob/frame', isFile: false, isDirectory: true, isSymlink: false },
+    ],
+    '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame/resources/.opencard/blocks': [],
+  }
   return {
-    createObjectUrl: vi.fn(() => `blob:resource-${++index}`),
-    revokeObjectUrl: vi.fn(),
+    fileExists: async (path: string) => files.has(path) || directories.has(path),
+    readFile: async (path: string) => {
+      const value = files.get(path)
+      if (value === undefined) throw new Error(`Missing file: ${path}`)
+      return value
+    },
+    readDirectoryEntries: async (path: string) => entries[path] ?? [],
   }
 }
 
-describe('project custom block asset loader', () => {
-  it('creates controlled image/icon URLs and releases them', async () => {
-    const runtime = createRuntime()
-    const result = await createProjectCustomBlockAssetSession(
-      createCatalog(), runtime, async () => ({ width: 8, height: 8 }),
-    )
-    const entry = result.customBlockCatalog.get('picture')!
+describe('installed project custom block runtime loader', () => {
+  it('loads a package from its installation directory into a unified resource environment', async () => {
+    const result = await loadInstalledProjectCustomBlockRuntime({
+      fs: createInstalledPackageFileSystem(),
+      installationPath: '/project/.opencard/blocks/alice/picture',
+    })
 
-    expect(entry.resourceUrls?.get('resources/images/a.png')).toBe('blob:resource-1')
-    expect(result.iconCatalog.entries[0]).toMatchObject({ seriesKey: 'icons', src: 'blob:resource-2' })
-
-    result.release()
-    result.release()
-    expect(runtime.revokeObjectUrl).toHaveBeenCalledTimes(2)
+    expect(result.entry).toMatchObject({
+      manifest: { packageId: 'alice/picture', version: '1.2.0' },
+      installationPath: '/project/.opencard/blocks/alice/picture',
+      resourceRootPath: '/project/.opencard/blocks/alice/picture/resources',
+    })
+    expect(result.runtimeEntry.environment).toMatchObject({
+      kind: 'package',
+      namespace: 'package-alice-picture',
+      rootPath: '/project/.opencard/blocks/alice/picture/resources',
+    })
+    expect(result.runtimeEntry.block).toMatchObject({ id: 'root', image: 'assets/picture.png' })
   })
 
-  it('keeps independent generations isolated until their owner releases them', async () => {
-    const runtime = createRuntime()
-    const first = await createProjectCustomBlockAssetSession(
-      createCatalog(), runtime, async () => ({ width: 8, height: 8 }),
-    )
-    const second = await createProjectCustomBlockAssetSession(
-      createCatalog(), runtime, async () => ({ width: 8, height: 8 }),
-    )
+  it('loads nested installed packages in lexical environments and flattens them for lifecycle use', async () => {
+    const result = await loadInstalledProjectCustomBlockRuntime({
+      fs: createInstalledPackageFileSystem(),
+      installationPath: '/project/.opencard/blocks/alice/picture',
+    })
 
-    expect(runtime.revokeObjectUrl).not.toHaveBeenCalled()
-    second.release()
-    expect(runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:resource-3')
-    expect(runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:resource-4')
-    first.release()
-    expect(runtime.revokeObjectUrl).toHaveBeenCalledTimes(4)
+    expect(result.runtimeEntry.dependencies.get('bob/frame')).toMatchObject({
+      manifest: { packageId: 'bob/frame', version: '1.2.0' },
+      environment: {
+        rootPath: '/project/.opencard/blocks/alice/picture/resources/.opencard/blocks/bob/frame/resources',
+      },
+    })
+    expect(result.environments.map(environment => environment.namespace)).toEqual([
+      'package-alice-picture',
+      'package-bob-frame',
+    ])
+    expect([...flattenCustomBlockRuntimeCatalog(new Map([
+      ['alice/picture', result.runtimeEntry],
+    ])).keys()]).toEqual(['alice/picture', 'bob/frame'])
   })
 })

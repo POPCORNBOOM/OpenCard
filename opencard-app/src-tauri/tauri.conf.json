@@ -126,22 +126,6 @@
       },
       {
         "ext": [
-          "ocblocks"
-        ],
-        "name": "OpenCard Custom Block Registry",
-        "description": "OpenCard custom block registry",
-        "mimeType": "application/vnd.opencard.custom-block-registry+json",
-        "role": "Editor",
-        "rank": "Owner",
-        "exportedType": {
-          "identifier": "per.yiguwang.opencard.custom-block-registry",
-          "conformsTo": [
-            "public.json"
-          ]
-        }
-      },
-      {
-        "ext": [
           "ocblock"
         ],
         "name": "OpenCard Custom Block",

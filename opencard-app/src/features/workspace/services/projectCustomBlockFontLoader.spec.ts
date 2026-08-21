@@ -1,37 +1,54 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
-import { createBlock } from '../../../entities/card/model'
+import { buildProjectFontRegistry, type ProjectFontRegistryDocument } from '../model/projectFontRegistry'
+import { EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import {
   createProjectCustomBlockFontSession,
   type ProjectCustomBlockFontRuntime,
 } from './projectCustomBlockFontLoader'
+import { createProjectResourceNamespace, type ProjectResourceEnvironment } from './projectResourceEnvironment'
+
+vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: (path: string) => `asset://${path}`,
+}))
 
 vi.mock('./projectFontCoverage', async importOriginal => ({
   ...await importOriginal<typeof import('./projectFontCoverage')>(),
   readProjectFontCharacterSet: vi.fn(async () => new Set([0x41, 0x42, 0x4e00])),
 }))
 
-function createCatalog(): ProjectCustomBlockCatalog {
-  return new Map([['square', {
-    archivePath: 'assets/square.ocblock',
-    files: new Map([['resources/fonts/a.woff2', new Uint8Array([1, 2, 3])]]),
-    manifest: {
-      type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
-      publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
-      resources: { fonts: [{
-        kind: 'font', key: 'body', name: 'Body',
-        files: { normal: { upright: 'resources/fonts/a.woff2' } },
-      }] },
-    },
-    block: createBlock('text-block', { id: 'root', fontFamily: 'resource:font:body' }),
-  }]])
+function createEnvironment(withComposition = false): ProjectResourceEnvironment {
+  const fontDocument: ProjectFontRegistryDocument = {
+    families: [{
+      key: 'body',
+      name: 'Body',
+      files: { normal: { upright: 'fonts/a.woff2' } },
+    }],
+    ...(withComposition ? {
+      compositions: [{
+        key: 'display',
+        name: 'Display',
+        members: [
+          { fontKey: 'body', ranges: [{ start: 0x41, end: 0x41 }] },
+          { fontKey: 'body' },
+        ],
+      }],
+    } : {}),
+  }
+  return {
+    kind: 'package',
+    namespace: createProjectResourceNamespace('package', 'alice/square'),
+    rootPath: '/project/.opencard/blocks/alice/square/resources',
+    fontDocument,
+    fonts: buildProjectFontRegistry(fontDocument),
+    iconDocument: {},
+    iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+    issues: [],
+  }
 }
 
 function createRuntime() {
   const face = { load: vi.fn(async () => face) } as unknown as FontFace
   const runtime: ProjectCustomBlockFontRuntime = {
-    createObjectUrl: vi.fn(() => 'blob:font'),
-    revokeObjectUrl: vi.fn(),
     createFontFace: vi.fn(() => face),
     addFont: vi.fn(),
     deleteFont: vi.fn(),
@@ -40,64 +57,60 @@ function createRuntime() {
 }
 
 describe('project custom block font loader', () => {
-  it('loads hidden FontFace resources and releases them on clear', async () => {
+  it('loads installed package fonts from the resource environment and releases them', async () => {
     const { runtime, face } = createRuntime()
-    const session = await createProjectCustomBlockFontSession(createCatalog(), runtime)
+    const session = await createProjectCustomBlockFontSession([createEnvironment()], runtime)
 
-    expect(runtime.createObjectUrl).toHaveBeenCalledWith(expect.objectContaining({ type: 'font/woff2' }))
-    expect(runtime.createFontFace).toHaveBeenCalledWith('OpenCardCustomBlock-square-body', 'url("blob:font")', {
-      weight: '400', style: 'normal',
-    })
+    expect(runtime.createFontFace).toHaveBeenCalledWith(
+      'OpenCardResource-package-alice-square-body',
+      'url("asset:///project/.opencard/blocks/alice/square/resources/.opencard/fonts/a.woff2")',
+      { weight: '400', style: 'normal' },
+    )
     expect(face.load).toHaveBeenCalled()
     expect(runtime.addFont).toHaveBeenCalledWith(face)
 
     session.release()
     session.release()
+    expect(runtime.deleteFont).toHaveBeenCalledTimes(1)
     expect(runtime.deleteFont).toHaveBeenCalledWith(face)
-    expect(runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
   })
 
-  it('isolates generations and degrades when one font cannot be decoded', async () => {
+  it('isolates sessions and reports a package-scoped load failure', async () => {
     const firstRuntime = createRuntime()
-    const first = await createProjectCustomBlockFontSession(createCatalog(), firstRuntime.runtime)
+    const first = await createProjectCustomBlockFontSession([createEnvironment()], firstRuntime.runtime)
     const failedRuntime = createRuntime()
     vi.mocked(failedRuntime.face.load).mockRejectedValueOnce(new Error('invalid font'))
-    const failed = await createProjectCustomBlockFontSession(createCatalog(), failedRuntime.runtime)
+    const failed = await createProjectCustomBlockFontSession([createEnvironment()], failedRuntime.runtime)
 
-    expect(firstRuntime.runtime.revokeObjectUrl).not.toHaveBeenCalled()
+    expect(firstRuntime.runtime.deleteFont).not.toHaveBeenCalled()
     expect(failed.errors).toEqual([expect.objectContaining({
-      packageKey: 'square', fontKey: 'body', reason: 'load-failed',
+      packageId: 'alice-square',
+      fontKey: 'body',
+      source: 'fonts/a.woff2',
+      reason: 'load-failed',
     })])
-    expect(failedRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
+    expect(failedRuntime.runtime.deleteFont).toHaveBeenCalledWith(failedRuntime.face)
     first.release()
-    expect(firstRuntime.runtime.revokeObjectUrl).toHaveBeenCalledWith('blob:font')
+    expect(firstRuntime.runtime.deleteFont).toHaveBeenCalledWith(firstRuntime.face)
   })
 
   it('loads compositions per semantic slot and strict character fallback', async () => {
-    const catalog = createCatalog()
-    const entry = catalog.get('square')!
-    entry.manifest.resources = { fonts: [
-      ...entry.manifest.resources!.fonts!,
-      {
-        kind: 'composition', key: 'display', name: 'Display',
-        members: [
-          { fontKey: 'body', ranges: [{ start: 0x41, end: 0x41 }] },
-          { fontKey: 'body' },
-        ],
-      },
-    ] }
     const { runtime } = createRuntime()
-    const session = await createProjectCustomBlockFontSession(catalog, runtime)
+    const session = await createProjectCustomBlockFontSession(
+      [createEnvironment(true)],
+      runtime,
+      async () => new Uint8Array([1, 2, 3]),
+    )
 
     expect(session.errors).toEqual([])
     expect(runtime.createFontFace).toHaveBeenCalledWith(
-      'OpenCardCustomBlock-square-display',
-      'url("blob:font")',
+      'OpenCardResource-package-alice-square-display',
+      expect.stringContaining('/project/.opencard/blocks/alice/square/resources/.opencard/fonts/a.woff2'),
       expect.objectContaining({ unicodeRange: 'U+41' }),
     )
     expect(runtime.createFontFace).toHaveBeenCalledWith(
-      'OpenCardCustomBlock-square-display',
-      'url("blob:font")',
+      'OpenCardResource-package-alice-square-display',
+      expect.stringContaining('/project/.opencard/blocks/alice/square/resources/.opencard/fonts/a.woff2'),
       expect.objectContaining({ unicodeRange: 'U+42, U+4E00' }),
     )
   })

@@ -7,9 +7,9 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/.oclocale').id).toBe('opencard-dictionary')
     expect(resolveFileType('D:/Cards/.ocfonts').id).toBe('opencard-font-registry')
     expect(resolveFileType('D:/Cards/.ocicons').id).toBe('opencard-icon-registry')
-    expect(resolveFileType('D:/Cards/.ocblocks')).toMatchObject({
-      id: 'opencard-custom-block-registry',
-      editorId: 'custom-block-registry',
+    expect(resolveFileType('D:/Cards/.opencard/blocks', 'D:/Cards')).toMatchObject({
+      id: 'opencard-custom-block-manager',
+      editorId: 'custom-block-manager',
     })
     expect(resolveFileType('D:/Cards/assets/square.ocblock')).toMatchObject({
       id: 'opencard-custom-block',
@@ -26,7 +26,7 @@ describe('project metadata file types', () => {
     expect(resolveFileType('D:/Cards/nested/.ocproject', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocfonts', 'D:/Cards').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/nested/.ocicons', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.ocblocks', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/nested/blocks', 'D:/Cards').id).toBe('unsupported')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {

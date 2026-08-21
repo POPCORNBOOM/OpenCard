@@ -11,6 +11,39 @@ import {
   createDefaultProjectInformation,
 } from '../workspace/model/projectMetadata'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
+import type { CustomBlockRuntimeEntry } from './expandCustomBlocks'
+
+function runtime(
+  packageId: string,
+  block: CardBlock,
+  publicFieldKeys: readonly string[] = [],
+  hasResourceErrors = false,
+): CustomBlockRuntimeEntry {
+  const dependencies = new Map()
+  const environment: ProjectResourceEnvironment = {
+    kind: 'package',
+    namespace: `package-${packageId.replace('/', '-')}`,
+    rootPath: `D:/Project/.opencard/blocks/${packageId}/resources`,
+    fontDocument: {},
+    fonts: {},
+    iconDocument: {},
+    iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+    issues: [],
+    customBlockCatalog: dependencies,
+  }
+  return {
+    manifest: {
+      packageId,
+      publicFieldKeys,
+      resize: { widthLocked: false, heightLocked: false },
+    },
+    block,
+    environment,
+    dependencies,
+    ...(hasResourceErrors ? { hasResourceErrors: true } : {}),
+  }
+}
 
 function render(
   document: CardDocument,
@@ -192,22 +225,18 @@ describe('renderPipeline', () => {
 
   it('wraps an expanded custom block around its resolved native content', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', customBlockKey: 'label', label: 'Ready' })
+    Object.assign(host, { type: 'custom-block', packageId: 'alice/label', label: 'Ready' })
     const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
     root.additionalFieldDefinition = { label: { fieldType: 'string' } }
     const result = render(createDocument(host), null, {
-      customBlockCatalog: new Map([['label', {
-        manifest: {
-          customBlockKey: 'label', publicFieldKeys: ['label'],
-          resize: { widthLocked: false, heightLocked: false },
-        },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/label', runtime('alice/label', root, ['label'])],
+      ]),
     })
     const rendered = result.document.faces.front.children[0]!.block
 
     expect(rendered).toMatchObject({
-      type: 'custom-block', id: 'host', customBlockKey: 'label',
+      type: 'custom-block', id: 'host', packageId: 'alice/label',
       content: { type: 'text-block', id: 'host', content: 'Ready' },
     })
   })
@@ -215,20 +244,16 @@ describe('renderPipeline', () => {
   it('prepares embedded rich-text blocks once and shares the catalog with renderer resources', () => {
     const host = createTextBlock({
       id: 'host',
-      content: '<p><oc-custom-block data-oc-id="badge-1" data-oc-key="badge" data-oc-layout="inline">'
+      content: '<p><oc-custom-block data-oc-id="badge-1" data-oc-package="alice/badge" data-oc-layout="inline">'
         + '<oc-prop data-oc-key="label">Ready</oc-prop></oc-custom-block></p>',
     })
     const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
     root.additionalFieldDefinition = { label: { fieldType: 'string' } }
 
     const result = render(createDocument(host), null, {
-      customBlockCatalog: new Map([['badge', {
-        manifest: {
-          customBlockKey: 'badge', publicFieldKeys: ['label'],
-          resize: { widthLocked: true, heightLocked: true },
-        },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/badge', runtime('alice/badge', root, ['label'])],
+      ]),
     })
 
     expect(result.resources.richText).toBe(result.richText)
@@ -238,15 +263,16 @@ describe('renderPipeline', () => {
 
   it('reports packaged resource degradation on the host without exposing resource identity', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', customBlockKey: 'label' })
+    Object.assign(host, { type: 'custom-block', packageId: 'alice/label' })
     const result = render(createDocument(host), null, {
-      customBlockCatalog: new Map([['label', {
-        manifest: {
-          customBlockKey: 'label', publicFieldKeys: [], resize: { widthLocked: false, heightLocked: false },
-        },
-        block: createTextBlock({ id: 'root', content: 'Fallback' }),
-        hasResourceErrors: true,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/label', runtime(
+          'alice/label',
+          createTextBlock({ id: 'root', content: 'Fallback' }),
+          [],
+          true,
+        )],
+      ]),
     })
 
     expect(result.issues).toEqual([
@@ -261,7 +287,7 @@ describe('renderPipeline', () => {
 
   it('collapses internal custom block issues onto the opaque host', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', customBlockKey: 'label' })
+    Object.assign(host, { type: 'custom-block', packageId: 'alice/label' })
     const root = createSimpleContainerBlock({
       id: 'root',
       children: [{
@@ -271,13 +297,9 @@ describe('renderPipeline', () => {
     })
 
     const result = render(createDocument(host), null, {
-      customBlockCatalog: new Map([['label', {
-        manifest: {
-          customBlockKey: 'label', publicFieldKeys: [],
-          resize: { widthLocked: false, heightLocked: false },
-        },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/label', runtime('alice/label', root)],
+      ]),
     })
 
     expect(result.issues).toEqual([
@@ -297,7 +319,7 @@ describe('renderPipeline', () => {
 
   it('reports an unavailable custom block without exposing its source', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', customBlockKey: 'private-package' })
+    Object.assign(host, { type: 'custom-block', packageId: 'alice/private-package' })
     const result = render(createDocument(host), null)
 
     expect(result.issues).toEqual([

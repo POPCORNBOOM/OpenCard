@@ -113,13 +113,12 @@ const fileTypes: FileTypeDefinition[] = [
     projectTreePriority: 3,
   },
   {
-    id: 'opencard-custom-block-registry',
+    id: 'opencard-custom-block-manager',
     labelKey: 'fileTypes.opencardCustomBlockRegistry',
-    fileNames: ['.ocblocks'],
+    fileNames: ['blocks'],
     icon: 'file.custom-block',
     iconTone: iconTone.config,
-    language: 'json',
-    editorId: 'custom-block-registry',
+    editorId: 'custom-block-manager',
     previewable: true,
     projectTreePriority: 4,
   },
@@ -248,7 +247,6 @@ const specialFileIcons: Record<string, EntryIconPresentation> = {
   '.ocproject': { icon: 'file.opencard-project', tone: iconTone.config },
   '.ocfonts': { icon: 'file.font', tone: iconTone.config },
   '.ocicons': { icon: 'file.project-icon', tone: iconTone.config },
-  '.ocblocks': { icon: 'file.custom-block', tone: iconTone.config },
   '.oclocale': { icon: 'file.dictionary', tone: iconTone.config },
   'package.json': { icon: 'file.package', tone: iconTone.config },
   'package-lock.json': { icon: 'file.lock', tone: 'warning' },
@@ -328,7 +326,7 @@ export function resolveFileType(path: string, projectRoot?: string): FileTypeDef
       || definition.id === 'opencard-font-registry'
       || definition.id === 'opencard-icon-registry'
       || definition.id === 'opencard-dictionary'
-      || definition.id === 'opencard-custom-block-registry'
+      || definition.id === 'opencard-custom-block-manager'
     const compareCaseInsensitive = !isProjectMetadata
       || isWindowsLikePath(projectRoot ?? path)
     const fileNameMatches = definition.fileNames?.some((fileName) => (

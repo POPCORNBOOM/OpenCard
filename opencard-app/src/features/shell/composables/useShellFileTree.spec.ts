@@ -119,7 +119,9 @@ describe('useShellFileTree opened editors', () => {
         { name: '.opencard/fonts/Unused.otf', isDirectory: false },
         { name: '.opencard/icons/status.png', isDirectory: false },
         { name: '.opencard/icons/unused.png', isDirectory: false },
-        { name: '.opencard/blocks/card.ocblock', isDirectory: false },
+        { name: '.opencard/blocks/alice', isDirectory: true },
+        { name: '.opencard/blocks/alice/square', isDirectory: true },
+        { name: '.opencard/blocks/alice/square/manifest.json', isDirectory: false },
       ]),
       openedEditorItems: ref([]),
       activeSession: ref(null),
@@ -137,7 +139,7 @@ describe('useShellFileTree opened editors', () => {
       `${projectPath}/.opencard/.oclocale`,
       `${projectPath}/.opencard/.ocfonts`,
       `${projectPath}/.opencard/.ocicons`,
-      `${projectPath}/.opencard/.ocblocks`,
+      `${projectPath}/.opencard/blocks`,
     ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`)?.label)
       .toBe('translated:fileTypes.opencardFontRegistry')
@@ -168,12 +170,14 @@ describe('useShellFileTree opened editors', () => {
       .toEqual([PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY])
     expect(result.unusedProjectIconFileKeys.value)
       .toEqual([`${projectPath}/.opencard/icons/unused.png`])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/card.ocblock`))
-      .toMatchObject({ label: 'card.ocblock', icon: 'file.custom-block' })
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/alice/square`))
+      .toMatchObject({ label: 'square', icon: 'file.custom-block' })
     expect(result.projectManagementExpandedKeys.value).toEqual([
       `${projectPath}/.opencard/.ocfonts`,
       `${projectPath}/.opencard/.ocicons`,
-      `${projectPath}/.opencard/.ocblocks`,
+      `${projectPath}/.opencard/blocks`,
+      `${projectPath}/.opencard/blocks/alice`,
+      `${projectPath}/.opencard/blocks/alice/square`,
     ])
 
     const fontRegistryKey = `${projectPath}/.opencard/.ocfonts`

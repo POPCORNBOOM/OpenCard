@@ -16,7 +16,6 @@ export function resolveEditorHistoryKind(editorId: string): EditorHistoryKind {
     || editorId === 'project-config'
     || editorId === 'font-registry'
     || editorId === 'icon-registry'
-    || editorId === 'custom-block-registry'
     || editorId === 'dictionary') return 'structured'
   return 'none'
 }

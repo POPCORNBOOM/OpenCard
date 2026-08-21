@@ -28,7 +28,7 @@ describe('externalOpenService', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.ocdocument')).toBe('card')
     expect(classifyExternalOpenPath('D:/Cards/.opencard/.ocproject')).toBe('project-resource')
     expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCLOCALE')).toBe('project-resource')
-    expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCBLOCKS')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCBLOCKS')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeNull()
     expect(classifyExternalOpenPath('/cards/.opencard/.OCLOCALE')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/demo.octemplate')).toBe('template')

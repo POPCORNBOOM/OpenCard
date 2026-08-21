@@ -10,14 +10,10 @@ import { parseProjectFontRegistryText } from '../../workspace/model/projectFontR
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import {
-  DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
-  parseProjectCustomBlockRegistryText,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  PROJECT_CUSTOM_BLOCK_SUFFIX,
-  serializeProjectCustomBlockRegistry,
-} from '../../workspace/model/projectCustomBlocks'
-import { readProjectCustomBlockPackage } from '../../workspace/services/projectCustomBlock'
-import { registerProjectCustomBlockPath } from '../../workspace/services/projectCustomBlockRegistry'
+  discoverInstalledProjectCustomBlocks,
+  installProjectCustomBlockPackage,
+  readProjectCustomBlockPackage,
+} from '../../workspace/services/projectCustomBlock'
 import { initializeProjectStructure } from '../../workspace/services/projectStructureService'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -65,11 +61,6 @@ const STRUCTURED_PROJECT_FILES = [
   { name: PROJECT_FONT_REGISTRY_FILE_NAME, parse: parseProjectFontRegistryText, label: 'font registry' },
   { name: PROJECT_ICON_REGISTRY_FILE_NAME, parse: parseProjectIconRegistryText, label: 'icon registry' },
   { name: PROJECT_DICTIONARY_FILE_NAME, parse: parseProjectDictionaryText, label: 'dictionary' },
-  {
-    name: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-    parse: parseProjectCustomBlockRegistryText,
-    label: 'custom block registry',
-  },
 ] as const
 const TEMPLATE_PACKAGE_EXTENSIONS = [PROJECT_TEMPLATE_PACKAGE_EXTENSION, 'zip']
 const MAX_TEMPLATE_PACKAGE_BYTES = 128 * 1024 * 1024
@@ -526,73 +517,31 @@ export class ProjectTemplateService {
   ): Promise<void> {
     if (blocks.length === 0) return
     try {
-      const registryPath = await this.paths.join(
-        projectPath,
-        ...pathSegments(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME),
-      )
-      let registry = await this.fs.fileExists(registryPath)
-        ? parseProjectCustomBlockRegistryText(await this.fs.readFile(registryPath))
-        : {}
-      if (!registry) throw new Error('The project custom block registry is invalid')
-
-      const existingKeys = new Set<string>()
-      for (const archivePath of registry.blocks ?? []) {
-        const absolutePath = await this.paths.join(
-          projectPath,
-          ...pathSegments(resolveProjectInternalRelativePath(archivePath)),
-        )
-        const existing = await readProjectCustomBlockPackage(this.fs, absolutePath)
-        const identity = existing.manifest.customBlockKey.toLocaleLowerCase()
-        if (existingKeys.has(identity)) {
-          throw new Error(`Template contains a duplicate custom block Key: ${existing.manifest.customBlockKey}`)
-        }
-        existingKeys.add(identity)
-      }
-
+      const existingKeys = new Set((await discoverInstalledProjectCustomBlocks(this.fs, projectPath)).keys())
       const selectedKeys = new Set<string>()
-      const customBlockDirectory = await this.paths.join(
-        projectPath,
-        ...pathSegments(resolveProjectInternalRelativePath(DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY)),
-      )
-      await this.fs.createDirectory(customBlockDirectory)
-
       for (const block of blocks) {
         const customBlock = await readProjectCustomBlockPackage(this.fs, block.path)
-        const identity = customBlock.manifest.customBlockKey.toLocaleLowerCase()
-        if (identity !== block.customBlockKey.toLocaleLowerCase()) {
-          throw new Error(`Installed custom block changed after selection: ${block.customBlockKey}`)
+        const identity = customBlock.manifest.packageId.toLocaleLowerCase()
+        if (identity !== block.packageId.toLocaleLowerCase()) {
+          throw new Error(`Installed custom block changed after selection: ${block.packageId}`)
         }
         if (selectedKeys.has(identity)) {
-          throw new Error(`Selected custom block Key is duplicated: ${customBlock.manifest.customBlockKey}`)
+          throw new Error(`Selected custom block Package ID is duplicated: ${customBlock.manifest.packageId}`)
         }
         if (existingKeys.has(identity)) {
-          throw new Error(`Custom block Key already exists in the template: ${customBlock.manifest.customBlockKey}`)
+          throw new Error(`Custom block Package ID already exists in the template: ${customBlock.manifest.packageId}`)
         }
         selectedKeys.add(identity)
-
-        const sourceName = await this.paths.basename(block.path)
-        const baseName = sourceName.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)
-          ? sourceName
-          : `${customBlock.manifest.customBlockKey}${PROJECT_CUSTOM_BLOCK_SUFFIX}`
-        let fileName = baseName
-        let relativePath = `${DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY}/${fileName}`
-        let absolutePath = await this.paths.join(customBlockDirectory, fileName)
-        let suffix = 2
-        while (await this.fs.fileExists(absolutePath)) {
-          const stem = baseName.slice(0, -PROJECT_CUSTOM_BLOCK_SUFFIX.length)
-          fileName = `${stem} (${suffix})${PROJECT_CUSTOM_BLOCK_SUFFIX}`
-          relativePath = `${DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY}/${fileName}`
-          absolutePath = await this.paths.join(customBlockDirectory, fileName)
-          suffix += 1
-        }
-        await this.fs.copyFile(block.path, absolutePath)
-        registry = registerProjectCustomBlockPath(registry, relativePath)
+        await installProjectCustomBlockPackage({
+          fs: this.fs,
+          projectRootPath: projectPath,
+          sourcePath: block.path,
+          createId: this.createId,
+        })
       }
-
-      await this.fs.writeFile(registryPath, serializeProjectCustomBlockRegistry(registry))
     } catch (cause) {
       if (cause instanceof TemplateServiceError) throw cause
-      throw new TemplateServiceError('custom-block-failed', 'Could not register selected custom blocks', { cause })
+      throw new TemplateServiceError('custom-block-failed', 'Could not install selected custom blocks', { cause })
     }
   }
 

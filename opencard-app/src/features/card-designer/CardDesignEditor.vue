@@ -1758,12 +1758,12 @@ function closeCustomBlockExportDialog(): void {
 }
 
 async function confirmCustomBlockRegistration(): Promise<void> {
-  const archivePath = pendingCustomBlockRegistrationPath.value
-  if (!archivePath || customBlockRegistrationBusy.value) return
+  const sourcePath = pendingCustomBlockRegistrationPath.value
+  if (!sourcePath || customBlockRegistrationBusy.value) return
   customBlockRegistrationBusy.value = true
   customBlockRegistrationError.value = ''
   try {
-    await projectStore.installProjectCustomBlockFile(archivePath)
+    await projectStore.installProjectCustomBlockFile(sourcePath)
     pendingCustomBlockRegistrationPath.value = null
   } catch (cause) {
     customBlockRegistrationError.value = cause instanceof Error ? cause.message : String(cause)

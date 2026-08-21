@@ -24,6 +24,7 @@ import type {
 } from '../render.types'
 import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
+import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
 
 export const rendererTestGlobal = {
   provide: {
@@ -31,6 +32,8 @@ export const rendererTestGlobal = {
       transformDisabledBlockIds: computed(() => new Set<string>()),
       handleBlockClick: () => undefined,
       resolveAssetSrc: (path: string) => `asset://${path}`,
+      resolveFontFamily: (value: string) => value,
+      resolveIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
     },
   },
 }
@@ -49,6 +52,8 @@ export function richTextRendererTestGlobal(block: RenderReadyTextBlock, projectI
         transformDisabledBlockIds: computed(() => new Set<string>()),
         handleBlockClick: () => undefined,
         resolveAssetSrc: (path: string) => `asset://${path}`,
+        resolveFontFamily: (value: string) => value,
+        resolveIconCatalog: () => (projectIconCatalog as ProjectIconCatalog | undefined) ?? EMPTY_PROJECT_ICON_CATALOG,
         richText: computed(() => prepared),
         ...(projectIconCatalog ? { projectIconCatalog: computed(() => projectIconCatalog) } : {}),
       },

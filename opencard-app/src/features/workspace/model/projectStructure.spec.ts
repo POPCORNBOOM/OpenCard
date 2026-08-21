@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   isProjectInternalRelativePath,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   PROJECT_DICTIONARY_FILE_NAME,
   PROJECT_FONT_REGISTRY_FILE_NAME,
   PROJECT_ICON_REGISTRY_FILE_NAME,
@@ -17,14 +16,12 @@ describe('projectStructure', () => {
       PROJECT_FONT_REGISTRY_FILE_NAME,
       PROJECT_ICON_REGISTRY_FILE_NAME,
       PROJECT_DICTIONARY_FILE_NAME,
-      PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
       ...PROJECT_INTERNAL_DIRECTORIES,
     ]).toEqual([
       '.opencard/.ocproject',
       '.opencard/.ocfonts',
       '.opencard/.ocicons',
       '.opencard/.oclocale',
-      '.opencard/.ocblocks',
       '.opencard/fonts',
       '.opencard/icons',
       '.opencard/blocks',

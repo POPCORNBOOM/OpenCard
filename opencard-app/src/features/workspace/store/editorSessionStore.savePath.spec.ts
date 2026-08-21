@@ -14,7 +14,6 @@ vi.mock('./projectStore', () => ({
     saveProjectFontRegistry: vi.fn(),
     saveProjectIconRegistry: vi.fn(),
     saveProjectDictionary: vi.fn(),
-    saveProjectCustomBlockRegistry: vi.fn(),
   }),
 }))
 

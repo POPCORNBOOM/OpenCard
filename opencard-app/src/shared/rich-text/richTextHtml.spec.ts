@@ -81,9 +81,9 @@ describe('parseRichTextHtml', () => {
       '<p><span data-oc-binding="parent:name">{{parent:name}}</span></p>'
         + '<ul><li>One</li></ul><table><tbody><tr><td>Cell</td></tr></tbody></table>'
         + '<p><span data-oc-icon-path="status/ok"></span></p>'
-        + '<oc-custom-block data-oc-id="badge-1" data-oc-key="badge" data-oc-layout="inline">'
+        + '<oc-custom-block data-oc-id="badge-1" data-oc-package="alice/badge" data-oc-layout="inline">'
         + '<oc-prop data-oc-key="label">Ready</oc-prop></oc-custom-block>',
-      { resolveCustomBlock: key => key === 'badge' ? { publicFieldKeys: ['label'] } : null },
+      { resolveCustomBlock: packageId => packageId === 'alice/badge' ? { publicFieldKeys: ['label'] } : null },
     )
     expect(result.canEnterVisualMode).toBe(true)
     expect(result.diagnostics).toEqual([])
@@ -99,9 +99,9 @@ describe('parseRichTextHtml', () => {
 
   it('rejects private custom block fields and duplicate IDs', () => {
     const result = parseRichTextHtml(
-      '<oc-custom-block data-oc-id="same" data-oc-key="badge" data-oc-layout="block">'
+      '<oc-custom-block data-oc-id="same" data-oc-package="alice/badge" data-oc-layout="block">'
         + '<oc-prop data-oc-key="private">x</oc-prop></oc-custom-block>'
-        + '<oc-custom-block data-oc-id="same" data-oc-key="badge" data-oc-layout="block" />',
+        + '<oc-custom-block data-oc-id="same" data-oc-package="alice/badge" data-oc-layout="block" />',
       { resolveCustomBlock: () => ({ publicFieldKeys: ['label'] }) },
     )
     expect(result.canEnterVisualMode).toBe(false)

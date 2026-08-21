@@ -116,7 +116,7 @@ describe('card document storage projection', () => {
   it('keeps custom instance extras in memory and writes only resolvable public fields', () => {
     const source = createDocument() as unknown as Record<string, unknown>
     const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>
-    Object.assign(block, { type: 'custom-block', customBlockKey: 'badge', title: 'Visible', source: 'old', mystery: 'value' })
+    Object.assign(block, { type: 'custom-block', packageId: 'alice/badge', title: 'Visible', source: 'old', mystery: 'value' })
     const normalized = normalizeCardDocument(source).document
     const projected = normalized.faces.front.children[0]!.block as unknown as Record<string, unknown>
     expect(projected.mystery).toBe('value')

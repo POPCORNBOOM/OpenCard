@@ -371,20 +371,48 @@ function templateFixture(contentPath = '/template/content', entry = 'main.ocdocu
 async function customBlockFixture(
   fs: MemoryFileSystem,
   path: string,
-  key: string,
-  name = key,
+  packageId: string,
+  name = packageId,
+  version = '0.1.0',
 ): Promise<UserCustomBlockCatalogEntry> {
+  const [publisherKey, blockKey] = packageId.split('/') as [string, string]
   const root = createBlock('text-block', { id: 'root' })
-  const manifest = await buildProjectCustomBlockManifest({ root, key })
+  const manifest = await buildProjectCustomBlockManifest({
+    root,
+    publisherKey,
+    blockKey,
+    version,
+  })
   manifest.name = name
   fs.putFile(path, createProjectCustomBlockArchive(manifest, root))
   return {
-    key: `user:${key.toLocaleLowerCase()}`,
-    id: key,
-    customBlockKey: key,
+    key: `user:${packageId.toLocaleLowerCase()}`,
+    id: packageId,
+    packageId,
     name,
     path,
   }
+}
+
+async function addInstalledCustomBlock(
+  fs: MemoryFileSystem,
+  projectRoot: string,
+  packageId: string,
+  name = packageId,
+): Promise<void> {
+  const [publisherKey, blockKey] = packageId.split('/') as [string, string]
+  const root = createBlock('text-block', { id: 'root' })
+  const manifest = await buildProjectCustomBlockManifest({
+    root,
+    publisherKey,
+    blockKey,
+    version: '1.0.0',
+    name,
+  })
+  const installationPath = `${projectRoot}/.opencard/blocks/${packageId}`
+  fs.putFile(`${installationPath}/manifest.json`, JSON.stringify(manifest))
+  fs.putFile(`${installationPath}/block.json`, JSON.stringify(root))
+  fs.putDirectory(`${installationPath}/resources`)
 }
 
 describe('ProjectTemplateService catalog', () => {
@@ -489,22 +517,44 @@ describe('ProjectTemplateService prepared package import', () => {
     await expect(createService(fs).importUserTemplate('/unsafe.rar')).rejects.toMatchObject({ code: 'invalid-package' })
   })
 
-  it('rejects an invalid custom block registry inside a template package', async () => {
+  it('imports expanded installed custom block packages as ordinary template content', async () => {
     const fs = new MemoryFileSystem()
-    fs.putFile('/invalid-registry.octemplate', zipSync({
+    const packageManifest = {
+      type: 'opencard-custom-block',
+      packageId: 'alice/badge',
+      version: '1.0.0',
+      name: 'Badge',
+      publicFieldKeys: [],
+      resize: { widthLocked: false, heightLocked: false },
+    }
+    fs.putFile('/installed-package.octemplate', zipSync({
       'template.json': strToU8(JSON.stringify({
         schemaVersion: 1,
-        id: 'invalid-registry',
-        name: 'Invalid registry',
+        id: 'installed-package',
+        name: 'Installed package',
         description: '',
         entry: 'main.ocdocument',
       })),
       'content/main.ocdocument': strToU8(cardDocument()),
-      'content/.opencard/.ocblocks': strToU8('{"blocks":["../outside.ocblock"]}'),
+      'content/.opencard/blocks/alice/badge/manifest.json': strToU8(JSON.stringify(packageManifest)),
+      'content/.opencard/blocks/alice/badge/block.json': strToU8(JSON.stringify(
+        createBlock('text-block', { id: 'badge-root' }),
+      )),
+      'content/.opencard/blocks/alice/badge/resources/assets/badge.png': new Uint8Array([1, 2, 3]),
     }))
 
-    await expect(createService(fs).importUserTemplate('/invalid-registry.octemplate'))
-      .rejects.toMatchObject({ code: 'invalid-package' })
+    const imported = await createService(fs).importUserTemplate('/installed-package.octemplate')
+
+    const installedManifest = fs.rawFile(
+      `${imported.contentPath}/.opencard/blocks/alice/badge/manifest.json`,
+    ) as Uint8Array
+    expect(JSON.parse(strFromU8(installedManifest))).toMatchObject({
+      packageId: 'alice/badge',
+      version: '1.0.0',
+    })
+    expect(fs.rawFile(
+      '/appdata/templates/installed-package/content/.opencard/blocks/alice/badge/resources/assets/badge.png',
+    )).toEqual(new Uint8Array([1, 2, 3]))
   })
 })
 
@@ -515,8 +565,8 @@ describe('ProjectTemplateService package export', () => {
     fs.putFile('/source/alternate.ocdocument', cardDocument())
     fs.putFile('/source/notes/private.txt', 'private')
     fs.putFile('/source/.opencard/.oclocale', JSON.stringify({ base: { title: 'Hello' } }))
-    fs.putFile('/source/.opencard/.ocblocks', JSON.stringify({ blocks: ['blocks/square.ocblock'] }))
-    fs.putFile('/source/.opencard/blocks/square.ocblock', new Uint8Array([5, 6]))
+    await addInstalledCustomBlock(fs, '/source', 'alice/square', 'Square')
+    fs.putFile('/source/.opencard/blocks/alice/square/resources/assets/square.png', new Uint8Array([5, 6]))
 
     const outputPath = await createService(fs, 'portable').exportProjectTemplate({
       sourcePath: '/source',
@@ -535,8 +585,9 @@ describe('ProjectTemplateService package export', () => {
       'template.json',
       'content/.opencard/.ocproject',
       'content/.opencard/.oclocale',
-      'content/.opencard/.ocblocks',
-      'content/.opencard/blocks/square.ocblock',
+      'content/.opencard/blocks/alice/square/manifest.json',
+      'content/.opencard/blocks/alice/square/block.json',
+      'content/.opencard/blocks/alice/square/resources/assets/square.png',
       'content/main.ocdocument',
       'content/alternate.ocdocument',
       'content/assets/portrait.png',
@@ -669,7 +720,6 @@ describe('ProjectTemplateService project creation', () => {
     expect(fs.allPaths().filter(path => path.startsWith('/projects/Empty'))).toEqual([
       '/projects/Empty',
       '/projects/Empty/.opencard',
-      '/projects/Empty/.opencard/.ocblocks',
       '/projects/Empty/.opencard/.ocfonts',
       '/projects/Empty/.opencard/.ocicons',
       '/projects/Empty/.opencard/.oclocale',
@@ -767,12 +817,18 @@ describe('ProjectTemplateService project creation', () => {
     expect(fs.rawFile('/projects/Demo/.opencard/icons/Status.png')).toEqual(new Uint8Array([7, 8, 9]))
   })
 
-  it('copies selected custom blocks and creates the project registry', async () => {
+  it('installs selected custom block packages into namespaced project directories', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencard/.ocproject', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
-    const block = await customBlockFixture(fs, '/library/badge.ocblock', 'badge', 'Badge')
+    const block = await customBlockFixture(
+      fs,
+      '/library/badge.ocblock',
+      'alice/badge',
+      'Badge',
+      '1.2.0',
+    )
 
     await createService(fs).createProject({
       template: templateFixture(),
@@ -781,23 +837,28 @@ describe('ProjectTemplateService project creation', () => {
       customBlocks: [block],
     })
 
-    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencard/.ocblocks') as string)).toEqual({
-      blocks: ['blocks/badge.ocblock'],
+    const installationPath = '/projects/Demo/.opencard/blocks/alice/badge'
+    expect(JSON.parse(fs.rawFile(`${installationPath}/manifest.json`) as string)).toMatchObject({
+      packageId: 'alice/badge',
+      version: '1.2.0',
+      name: 'Badge',
     })
-    expect(fs.rawFile('/projects/Demo/.opencard/blocks/badge.ocblock'))
-      .toEqual(fs.rawFile('/library/badge.ocblock'))
+    expect(await fs.fileExists(`${installationPath}/block.json`)).toBe(true)
+    expect(await fs.fileExists(`${installationPath}/resources`)).toBe(true)
   })
 
-  it('preserves template registrations and renames a selected package on filename collision', async () => {
+  it('preserves template packages and installs a selected package with a distinct Package ID', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencard/.ocproject', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
-    await customBlockFixture(fs, '/template/content/.opencard/blocks/badge.ocblock', 'template-badge')
-    fs.putFile('/template/content/.opencard/.ocblocks', JSON.stringify({
-      blocks: ['blocks/badge.ocblock'],
-    }))
-    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'selected-badge')
+    await addInstalledCustomBlock(fs, '/template/content', 'template/badge', 'Template Badge')
+    const selected = await customBlockFixture(
+      fs,
+      '/library/badge.ocblock',
+      'alice/badge',
+      'Selected Badge',
+    )
 
     await createService(fs).createProject({
       template: templateFixture(),
@@ -806,20 +867,21 @@ describe('ProjectTemplateService project creation', () => {
       customBlocks: [selected],
     })
 
-    expect(JSON.parse(fs.rawFile('/projects/Demo/.opencard/.ocblocks') as string)).toEqual({
-      blocks: ['blocks/badge.ocblock', 'blocks/badge (2).ocblock'],
-    })
-    expect(await fs.fileExists('/projects/Demo/.opencard/blocks/badge (2).ocblock')).toBe(true)
+    expect(await fs.fileExists(
+      '/projects/Demo/.opencard/blocks/template/badge/manifest.json',
+    )).toBe(true)
+    expect(await fs.fileExists(
+      '/projects/Demo/.opencard/blocks/alice/badge/manifest.json',
+    )).toBe(true)
   })
 
-  it('rejects a selected custom block Key already owned by the template and cleans the temporary project', async () => {
+  it('rejects a selected Package ID already installed by the template and cleans the temporary project', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
     fs.putFile('/template/content/.opencard/.ocproject', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
-    await customBlockFixture(fs, '/template/content/.opencard/blocks/badge.ocblock', 'badge')
-    fs.putFile('/template/content/.opencard/.ocblocks', JSON.stringify({ blocks: ['blocks/badge.ocblock'] }))
-    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'Badge')
+    await addInstalledCustomBlock(fs, '/template/content', 'alice/badge', 'Template Badge')
+    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'alice/badge', 'Selected Badge')
 
     await expect(createService(fs, 'custom-block-conflict').createProject({
       template: templateFixture(),

@@ -1,7 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { createBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
+import { createBlock, type CardBlock, type CardDocument, type CardInstanceRecord } from '../../entities/card/model'
 import { prepareRichText } from './prepareRichText'
 import { createDefaultProjectInformation } from '../workspace/model/projectMetadata'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
+import type { CustomBlockRuntimeCatalog, CustomBlockRuntimeEntry } from './expandCustomBlocks'
+
+function runtime(
+  packageId: string,
+  block: CardBlock,
+  publicFieldKeys: readonly string[] = [],
+  dependencies: CustomBlockRuntimeCatalog = new Map(),
+): CustomBlockRuntimeEntry {
+  const environment: ProjectResourceEnvironment = {
+    kind: 'package',
+    namespace: `package-${packageId.replace('/', '-')}`,
+    rootPath: `D:/Project/.opencard/blocks/${packageId}/resources`,
+    fontDocument: {},
+    fonts: {},
+    iconDocument: {},
+    iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+    issues: [],
+    customBlockCatalog: dependencies,
+  }
+  return {
+    manifest: {
+      packageId,
+      publicFieldKeys,
+      resize: { widthLocked: true, heightLocked: true },
+    },
+    block,
+    environment,
+    dependencies,
+  }
+}
 
 function documentWithContent(content: string): CardDocument {
   const host = createBlock('text-block', { id: 'host', content })
@@ -20,7 +52,7 @@ function documentWithContent(content: string): CardDocument {
 describe('prepareRichText', () => {
   it('parses one host once and prepares fifty embedded blocks as one batch', () => {
     const embeds = Array.from({ length: 50 }, (_, index) => (
-      `<oc-custom-block data-oc-id="badge-${index}" data-oc-key="badge" data-oc-layout="inline">`
+      `<oc-custom-block data-oc-id="badge-${index}" data-oc-package="alice/badge" data-oc-layout="inline">`
       + `<oc-prop data-oc-key="label">Item ${index}</oc-prop></oc-custom-block>`
     )).join('')
     const root = createBlock('text-block', { id: 'badge-root', content: '{{self:label}}' })
@@ -29,10 +61,9 @@ describe('prepareRichText', () => {
 
     const result = prepareRichText({
       document: documentWithContent(`<p>${embeds}</p>`),
-      customBlockCatalog: new Map([['badge', {
-        manifest: { customBlockKey: 'badge', publicFieldKeys: ['label'], resize: { widthLocked: true, heightLocked: true } },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/badge', runtime('alice/badge', root, ['label'])],
+      ]),
     })
 
     expect(result.rootParseCount).toBe(1)
@@ -45,13 +76,13 @@ describe('prepareRichText', () => {
 
   it('keeps source HTML when a private field fails validation', () => {
     const root = createBlock('text-block', { id: 'badge-root', content: 'Ready' })
-    const source = '<p>Before</p><oc-custom-block data-oc-id="badge" data-oc-key="badge" data-oc-layout="block">'
+    const source = '<p>Before</p><oc-custom-block data-oc-id="badge" data-oc-package="alice/badge" data-oc-layout="block">'
       + '<oc-prop data-oc-key="private">No</oc-prop></oc-custom-block><p>After</p>'
     const result = prepareRichText({
       document: documentWithContent(source),
-      customBlockCatalog: new Map([['badge', {
-        manifest: { customBlockKey: 'badge', publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true } }, block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/badge', runtime('alice/badge', root)],
+      ]),
     })
     expect(result.catalog.get('host')?.document.html).toBe(source)
     expect(result.catalog.get('host')?.embeddedBlocks).toHaveLength(0)
@@ -63,18 +94,14 @@ describe('prepareRichText', () => {
 
   it('never materializes structural or private native fields even when a manifest exposes them', () => {
     const root = createBlock('simple-container-block', { id: 'unsafe-root' })
-    const source = '<p><oc-custom-block data-oc-id="unsafe" data-oc-key="unsafe" data-oc-layout="inline">'
+    const source = '<p><oc-custom-block data-oc-id="unsafe" data-oc-package="alice/unsafe" data-oc-layout="inline">'
       + '<oc-prop data-oc-key="customCss">position:fixed</oc-prop>'
       + '<oc-prop data-oc-key="children">bad</oc-prop></oc-custom-block></p>'
     const result = prepareRichText({
       document: documentWithContent(source),
-      customBlockCatalog: new Map([['unsafe', {
-        manifest: {
-          customBlockKey: 'unsafe', publicFieldKeys: ['customCss', 'children'],
-          resize: { widthLocked: true, heightLocked: true },
-        },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/unsafe', runtime('alice/unsafe', root, ['customCss', 'children'])],
+      ]),
     })
     expect(result.catalog.get('host')?.embeddedBlocks).toHaveLength(0)
     expect(result.catalog.get('host')?.diagnostics).toContainEqual(expect.objectContaining({
@@ -83,7 +110,7 @@ describe('prepareRichText', () => {
   })
 
   it('preserves every ordinary binding scope inside an embedded package', () => {
-    const document = documentWithContent('<p><oc-custom-block data-oc-id="scope" data-oc-key="scope" data-oc-layout="inline">'
+    const document = documentWithContent('<p><oc-custom-block data-oc-id="scope" data-oc-package="alice/scope" data-oc-layout="inline">'
       + '<oc-prop data-oc-key="own">Embed</oc-prop></oc-custom-block></p>')
     document.name = 'Document'
     document.faces.front.background = '#front'
@@ -103,10 +130,9 @@ describe('prepareRichText', () => {
 
     const result = prepareRichText({
       document, currentCard, project, dictionary: { word: 'Dictionary' },
-      customBlockCatalog: new Map([['scope', {
-        manifest: { customBlockKey: 'scope', publicFieldKeys: ['own'], resize: { widthLocked: true, heightLocked: true } },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/scope', runtime('alice/scope', root, ['own'])],
+      ]),
     })
 
     expect(result.issues).toEqual([])
@@ -121,16 +147,12 @@ describe('prepareRichText', () => {
       active: { fieldType: 'boolean' },
     }
     const result = prepareRichText({
-      document: documentWithContent('<p><oc-custom-block data-oc-id="typed" data-oc-key="typed" data-oc-layout="inline">'
+      document: documentWithContent('<p><oc-custom-block data-oc-id="typed" data-oc-package="alice/typed" data-oc-layout="inline">'
         + '<oc-prop data-oc-key="amount">99</oc-prop><oc-prop data-oc-key="active">maybe</oc-prop>'
         + '</oc-custom-block></p>'),
-      customBlockCatalog: new Map([['typed', {
-        manifest: {
-          customBlockKey: 'typed', publicFieldKeys: ['amount', 'active'],
-          resize: { widthLocked: true, heightLocked: true },
-        },
-        block: root,
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/typed', runtime('alice/typed', root, ['amount', 'active'])],
+      ]),
     })
     expect(result.catalog.get('host')?.diagnostics).toEqual([
       expect.objectContaining({ type: 'card-designer.custom-block.content-error' }),
@@ -142,24 +164,26 @@ describe('prepareRichText', () => {
   it('prepares nested rich text by depth and blocks package cycles', () => {
     const a = createBlock('text-block', {
       id: 'a-root',
-      content: '<p><oc-custom-block data-oc-id="b-1" data-oc-key="b" data-oc-layout="inline"></oc-custom-block></p>',
+      content: '<p><oc-custom-block data-oc-id="b-1" data-oc-package="alice/b" data-oc-layout="inline"></oc-custom-block></p>',
     })
     const b = createBlock('text-block', { id: 'b-root', content: 'Nested' })
-    const catalog = new Map([
-      ['a', { manifest: { customBlockKey: 'a', publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true } }, block: a }],
-      ['b', { manifest: { customBlockKey: 'b', publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true } }, block: b }],
+    const bEntry = runtime('alice/b', b)
+    const dependencies: CustomBlockRuntimeCatalog = new Map([['alice/b', bEntry]])
+    const catalog: CustomBlockRuntimeCatalog = new Map([
+      ['alice/a', runtime('alice/a', a, [], dependencies)],
+      ['alice/b', bEntry],
     ])
     const nested = prepareRichText({
-      document: documentWithContent('<p><oc-custom-block data-oc-id="a-1" data-oc-key="a" data-oc-layout="inline"></oc-custom-block></p>'),
+      document: documentWithContent('<p><oc-custom-block data-oc-id="a-1" data-oc-package="alice/a" data-oc-layout="inline"></oc-custom-block></p>'),
       customBlockCatalog: catalog,
     })
     expect(nested.batchCount).toBe(2)
     expect(nested.catalog.get('host::embed:a-1')?.embeddedBlocks.get('b-1')?.content)
       .toMatchObject({ content: 'Nested' })
 
-    a.content = '<p><oc-custom-block data-oc-id="a-2" data-oc-key="a" data-oc-layout="inline"></oc-custom-block></p>'
+    a.content = '<p><oc-custom-block data-oc-id="a-2" data-oc-package="alice/a" data-oc-layout="inline"></oc-custom-block></p>'
     const cyclic = prepareRichText({
-      document: documentWithContent('<p><oc-custom-block data-oc-id="a-1" data-oc-key="a" data-oc-layout="inline"></oc-custom-block></p>'),
+      document: documentWithContent('<p><oc-custom-block data-oc-id="a-1" data-oc-package="alice/a" data-oc-layout="inline"></oc-custom-block></p>'),
       customBlockCatalog: catalog,
     })
     expect(cyclic.batchCount).toBe(1)
@@ -171,7 +195,7 @@ describe('prepareRichText', () => {
 
   it('reports missing packages and total embed limits on the rich-text host', () => {
     const missing = prepareRichText({
-      document: documentWithContent('<p><oc-custom-block data-oc-id="missing" data-oc-key="missing" data-oc-layout="inline"></oc-custom-block></p>'),
+      document: documentWithContent('<p><oc-custom-block data-oc-id="missing" data-oc-package="alice/missing" data-oc-layout="inline"></oc-custom-block></p>'),
     })
     expect(missing.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.custom-block.unavailable',
@@ -179,14 +203,13 @@ describe('prepareRichText', () => {
     }))
 
     const embeds = Array.from({ length: 513 }, (_, index) => (
-      `<oc-custom-block data-oc-id="item-${index}" data-oc-key="item" data-oc-layout="inline"></oc-custom-block>`
+      `<oc-custom-block data-oc-id="item-${index}" data-oc-package="alice/item" data-oc-layout="inline"></oc-custom-block>`
     )).join('')
     const limited = prepareRichText({
       document: documentWithContent(`<p>${embeds}</p>`),
-      customBlockCatalog: new Map([['item', {
-        manifest: { customBlockKey: 'item', publicFieldKeys: [], resize: { widthLocked: true, heightLocked: true } },
-        block: createBlock('text-block', { id: 'item-root', content: 'Item' }),
-      }]]),
+      customBlockCatalog: new Map([
+        ['alice/item', runtime('alice/item', createBlock('text-block', { id: 'item-root', content: 'Item' }))],
+      ]),
     })
     expect(limited.catalog.get('host')?.embeddedBlocks).toHaveLength(512)
     expect(limited.issues.filter(issue => issue.type === 'card-designer.rich-text.limit-exceeded')).toHaveLength(1)

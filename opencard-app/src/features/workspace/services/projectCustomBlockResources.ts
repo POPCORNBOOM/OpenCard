@@ -155,6 +155,7 @@ export async function analyzeProjectCustomBlockResources(options: {
       continue
     }
     if (iconSources.has(identity)) continue
+    if (identity.startsWith('.opencard/')) continue
     if (!imageExtensionPattern.test(path)) continue
     const id = `image:${identity}`
     candidates.set(id, {

@@ -6,7 +6,6 @@ import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../sha
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   PROJECT_CUSTOM_BLOCK_DIRECTORY,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   PROJECT_DICTIONARY_FILE_NAME,
   PROJECT_FONT_DIRECTORY,
   PROJECT_FONT_REGISTRY_FILE_NAME,
@@ -32,6 +31,7 @@ type ProjectManagementEntry = {
   path: string
   labelKey: string
   assetDirectory?: string
+  packageDirectory?: boolean
 }
 
 const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
@@ -39,7 +39,12 @@ const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
   { path: PROJECT_DICTIONARY_FILE_NAME, labelKey: 'fileTypes.opencardDictionary' },
   { path: PROJECT_FONT_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardFontRegistry', assetDirectory: PROJECT_FONT_DIRECTORY },
   { path: PROJECT_ICON_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardIconRegistry', assetDirectory: PROJECT_ICON_DIRECTORY },
-  { path: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardCustomBlockRegistry', assetDirectory: PROJECT_CUSTOM_BLOCK_DIRECTORY },
+  {
+    path: `${PROJECT_INTERNAL_DIRECTORY_NAME}/${PROJECT_CUSTOM_BLOCK_DIRECTORY}`,
+    labelKey: 'fileTypes.opencardCustomBlockRegistry',
+    assetDirectory: PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    packageDirectory: true,
+  },
 ] as const
 
 export function projectEntryMoreActionKey(entryKey: string): string {
@@ -211,7 +216,36 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
-      if (entry.assetDirectory) {
+      if (entry.packageDirectory && entry.assetDirectory) {
+        const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
+        const childSets = new Map<string, Set<string>>()
+        for (const indexedEntry of options.indexedEntries.value) {
+          const relativePath = normalizeShellPath(indexedEntry.name)
+          if (!relativePath.startsWith(`${directory}/`)) continue
+          const segments = relativePath.slice(directory.length + 1).split('/').filter(Boolean)
+          let parentKey = key
+          segments.forEach((segment, index) => {
+            const nodeRelativePath = `${directory}/${segments.slice(0, index + 1).join('/')}`
+            const nodeKey = normalizeShellPath(`${options.projectPath.value}/${nodeRelativePath}`)
+            const isDirectory = index < segments.length - 1 || Boolean(indexedEntry.isDirectory)
+            if (!items.has(nodeKey)) {
+              const nodePresentation = resolveEntryIcon(nodeKey, isDirectory, false, options.projectPath.value)
+              items.set(nodeKey, {
+                label: segment,
+                icon: index === 1 && isDirectory ? 'file.custom-block' : nodePresentation.icon,
+                iconTone: nodePresentation.tone,
+                ...(index === 1 ? { tail: `${segments[0]}/${segments[1]}` } : {}),
+              })
+            }
+            if (!childSets.has(parentKey)) childSets.set(parentKey, new Set())
+            childSets.get(parentKey)!.add(nodeKey)
+            parentKey = nodeKey
+          })
+        }
+        for (const [parentKey, childKeys] of childSets) {
+          children.set(parentKey, [...childKeys].sort())
+        }
+      } else if (entry.assetDirectory) {
         const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
         const isFontRegistry = entry.path === PROJECT_FONT_REGISTRY_FILE_NAME
         const isIconRegistry = entry.path === PROJECT_ICON_REGISTRY_FILE_NAME
@@ -273,9 +307,8 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   })
 
   const projectManagementExpandedKeys = computed(() => (
-    projectManagementTreeData.value.rootKeys.filter(
-      key => (projectManagementTreeData.value.children.get(key)?.length ?? 0) > 0
-        && !collapsedProjectManagementKeys.value.has(key),
+    [...projectManagementTreeData.value.children.keys()].filter(
+      key => !collapsedProjectManagementKeys.value.has(key),
     )
   ))
 
@@ -328,9 +361,9 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     const selectedKey = nextSelectedKeys[0]
     if (!selectedKey) return
     try {
-      if (projectManagementTreeData.value.rootKeys.includes(selectedKey)) {
-        await options.ensureProjectManagementStructure()
-      }
+      const isManagementRoot = projectManagementTreeData.value.rootKeys.includes(selectedKey)
+      if (isManagementRoot) await options.ensureProjectManagementStructure()
+      if (!isManagementRoot && projectManagementTreeData.value.children.has(selectedKey)) return
       await options.openPreviewFile(selectedKey)
     } catch (error) {
       reportAppError('OC-E4001', { path: selectedKey, error })

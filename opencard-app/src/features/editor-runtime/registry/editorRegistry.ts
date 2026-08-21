@@ -200,10 +200,10 @@ editorRegistry.register({
 })
 
 editorRegistry.register({
-  id: 'custom-block-registry',
-  name: 'Custom Block Registry',
+  id: 'custom-block-manager',
+  name: 'Custom Block Manager',
   component: ProjectCustomBlockRegistryEditor,
-  history: 'structured',
+  history: 'none',
   hasPreview: false,
 })
 

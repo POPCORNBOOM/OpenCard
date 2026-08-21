@@ -7,10 +7,7 @@ import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../workspace/model/projectIc
 import { PROJECT_DICTIONARY_FILE_NAME } from '../../workspace/model/projectDictionary'
 import { PROJECT_TEMPLATE_PACKAGE_SUFFIX } from '../../project-templates/model/projectTemplate'
 import { PROJECT_ICON_PACK_PACKAGE_SUFFIX } from '../../workspace/model/projectIconPackCatalog'
-import {
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  PROJECT_CUSTOM_BLOCK_SUFFIX,
-} from '../../workspace/model/projectCustomBlocks'
+import { PROJECT_CUSTOM_BLOCK_SUFFIX } from '../../workspace/model/projectCustomBlocks'
 
 const EXTERNAL_OPEN_EVENT = 'external-open-requested'
 const TAKE_EXTERNAL_OPEN_REQUESTS_COMMAND = 'take_external_open_requests'
@@ -28,7 +25,6 @@ export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | n
     PROJECT_FONT_REGISTRY_FILE_NAME,
     PROJECT_ICON_REGISTRY_FILE_NAME,
     PROJECT_DICTIONARY_FILE_NAME,
-    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   ].some(resourcePath => comparablePath.endsWith(`/${resourcePath}`))) return 'project-resource'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_TEMPLATE_PACKAGE_SUFFIX)) return 'template'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_ICON_PACK_PACKAGE_SUFFIX)) return 'icon-pack'

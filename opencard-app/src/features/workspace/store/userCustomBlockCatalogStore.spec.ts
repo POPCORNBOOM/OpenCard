@@ -4,9 +4,9 @@ import type { UserCustomBlockCatalogService } from '../services/userCustomBlockC
 import { createUserCustomBlockCatalogStore } from './userCustomBlockCatalogStore'
 
 const badge: UserCustomBlockCatalogEntry = {
-  key: 'user:badge',
-  id: 'badge',
-  customBlockKey: 'badge',
+  key: 'user:alice/badge',
+  id: 'alice/badge',
+  packageId: 'alice/badge',
   name: 'Badge',
   path: '/app/custom-blocks/badge.ocblock',
 }
@@ -27,7 +27,7 @@ describe('UserCustomBlockCatalogStore', () => {
     await Promise.all([store.load(), store.load()])
 
     expect(service.loadCatalog).toHaveBeenCalledOnce()
-    expect(store.findBlock('user:badge')).toEqual(badge)
+    expect(store.findBlock('user:alice/badge')).toEqual(badge)
   })
 
   it('refreshes after import and clears a previous load error on retry', async () => {
