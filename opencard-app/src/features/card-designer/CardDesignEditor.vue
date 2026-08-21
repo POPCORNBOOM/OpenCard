@@ -326,35 +326,14 @@
     <CustomBlockExportDialog
       :open="customBlockExportDialogOpen"
       :dialog-title="t('cardDesigner.customBlock.exportTitle')"
+      :document="cardDoc"
+      :root-block-id="customBlockExportBlock?.id ?? null"
       :fields="customBlockExportFields"
       :resize="customBlockExportResize"
-      :width-label="t('propertyEditor.fields.width')"
-      :height-label="t('propertyEditor.fields.height')"
       :default-name="customBlockExportBlock?.name ?? ''"
       :default-key="customBlockExportDefaultKey"
-      :name-label="t('cardDesigner.customBlock.name')"
-      :key-label="t('cardDesigner.customBlock.key')"
-      :cancel-label="t('cardDesigner.customBlock.cancel')"
-      :export-label="t('cardDesigner.customBlock.export')"
-      :busy-label="t('cardDesigner.customBlock.exporting')"
+      :project-root-path="props.resourceRootPath || projectStore.projectPath.value"
       :busy="customBlockExportBusy"
-      :fields-label="t('cardDesigner.customBlock.fields')"
-      :exposed-label="t('cardDesigner.customBlock.exposed')"
-      :private-label="t('cardDesigner.customBlock.private')"
-      :resources-label="t('cardDesigner.customBlock.resources')"
-      :fonts-label="t('cardDesigner.customBlock.fonts')"
-      :icons-label="t('cardDesigner.customBlock.icons')"
-      :images-label="t('cardDesigner.customBlock.images')"
-      :resources-loading-label="t('cardDesigner.customBlock.resourcesLoading')"
-      :resource-empty-label="t('cardDesigner.customBlock.resourceEmpty')"
-      :font-preview-text="t('cardDesigner.customBlock.fontPreview')"
-      :resource-index="customBlockExportResourceIndex"
-      :resource-files="customBlockExportResourceFiles"
-      :resource-image-labels="customBlockExportResourceImageLabels"
-      :resource-preview-loading="customBlockExportResourceLoading"
-      :move-to-exposed-label="t('cardDesigner.customBlock.moveToExposed')"
-      :move-to-private-label="t('cardDesigner.customBlock.moveToPrivate')"
-      :format-reference-count="formatCustomBlockReferenceCount"
       :error-text="customBlockExportErrorText"
       @close="closeCustomBlockExportDialog"
       @submit="handleCustomBlockExport"
@@ -442,10 +421,8 @@ import OcText from '../../components/base/OcText.vue'
 import { toKeySlug } from '../../shared/model/keySlug'
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
-import { exportProjectCustomBlock, fetchProjectCustomBlockImageBytes } from '../workspace/services/exportProjectCustomBlock'
-import { collectProjectCustomBlockResources } from '../workspace/services/projectCustomBlockResources'
-import { materializeProjectCustomBlockExport } from '../workspace/services/materializeProjectCustomBlockExport'
-import type { ProjectCustomBlockResizePolicy, ProjectCustomBlockResourceIndex } from '../workspace/model/projectCustomBlocks'
+import { exportProjectCustomBlock } from '../workspace/services/exportProjectCustomBlock'
+import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -1325,8 +1302,8 @@ const {
     selectedCardKeys.value = []
     selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
-  resolveCustomBlockPublicFieldKeys: customBlockKey => (
-    projectStore.projectCustomBlockManifestCatalog.value.get(customBlockKey.toLowerCase())?.manifest.publicFieldKeys
+  resolveCustomBlockPublicFieldKeys: packageId => (
+    projectStore.projectCustomBlockManifestCatalog.value.get(packageId.toLowerCase())?.manifest.publicFieldKeys
   ),
 })
 
@@ -1337,7 +1314,7 @@ const activeCustomBlockKeys = computed(() => {
   const keys = new Set<string>()
   const collectRichTextKeys = (content: unknown): void => {
     if (typeof content !== 'string') return
-    const pattern = /<oc-custom-block\b[^>]*\bdata-oc-key\s*=\s*(["'])([^"']+)\1/gi
+    const pattern = /<oc-custom-block\b[^>]*\bdata-oc-package\s*=\s*(["'])([^"']+)\1/gi
     for (const match of content.matchAll(pattern)) {
       const key = match[2]?.trim().toLowerCase()
       if (key) keys.add(key)
@@ -1348,7 +1325,7 @@ const activeCustomBlockKeys = computed(() => {
   for (const face of Object.values(document.faces)) {
     for (const child of face.children) {
       visitCardBlockTree(child.block, block => {
-        if (block.type === 'custom-block') keys.add(block.customBlockKey.toLowerCase())
+        if (block.type === 'custom-block') keys.add(block.packageId.toLowerCase())
         if (block.type === 'text-block') collectRichTextKeys(block.content)
       })
     }
@@ -1643,11 +1620,6 @@ const customBlockExportDialogOpen = ref(false)
 const customBlockExportBlock = ref<CardBlock | null>(null)
 const customBlockExportErrorText = ref('')
 const customBlockExportBusy = ref(false)
-const customBlockExportResourceLoading = ref(false)
-const customBlockExportResourceIndex = ref<ProjectCustomBlockResourceIndex | null>(null)
-const customBlockExportResourceFiles = ref<ReadonlyMap<string, Uint8Array> | null>(null)
-const customBlockExportResourceImageLabels = ref<ReadonlyMap<string, string> | null>(null)
-let customBlockExportResourceRequest = 0
 const pendingCustomBlockRegistrationPath = ref<string | null>(null)
 const customBlockRegistrationBusy = ref(false)
 const customBlockRegistrationError = ref('')
@@ -1666,51 +1638,6 @@ const customBlockExportDefaultKey = computed(() => toKeySlug(
   'custom-block',
 ))
 
-function formatCustomBlockReferenceCount(count: number): string {
-  return t(count === 1
-    ? 'cardDesigner.customBlock.referenceCountOne'
-    : 'cardDesigner.customBlock.referenceCountOther', { count })
-}
-
-async function refreshCustomBlockExportResourcePreview(root: CardBlock): Promise<void> {
-  const request = ++customBlockExportResourceRequest
-  customBlockExportResourceLoading.value = true
-  customBlockExportResourceIndex.value = null
-  customBlockExportResourceFiles.value = null
-  customBlockExportResourceImageLabels.value = null
-  try {
-    const materialized = materializeProjectCustomBlockExport({
-      document: cardDoc.value!,
-      rootBlockId: root.id,
-      environment: { project: projectStore.resolvedProject.value, dictionary: projectStore.resolvedDictionary.value },
-      customBlockCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
-    })
-    if (materialized.issues.length > 0 || materialized.expansionIssues.length > 0) return
-    const resources = await collectProjectCustomBlockResources({
-      root: materialized.root,
-      packageKey: customBlockExportDefaultKey.value,
-      projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
-      projectFonts: projectStore.projectFonts.value,
-      projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
-      customBlockCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
-      resourceOwners: materialized.resourceOwners,
-      remoteResourcePolicy: props.remoteResourcePolicy,
-      fs: fileSystemService,
-      fetchBytes: url => fetchProjectCustomBlockImageBytes(url),
-    })
-    if (request !== customBlockExportResourceRequest) return
-    customBlockExportResourceIndex.value = resources.index
-    customBlockExportResourceFiles.value = resources.files
-    customBlockExportResourceImageLabels.value = new Map([...resources.imageSources.entries()].map(([source, path]) => [
-      path,
-      source.split(/[\\/]/).pop() || source,
-    ]))
-  } catch {
-    // The export action still reports the detailed resource failure when submitted.
-  } finally {
-    if (request === customBlockExportResourceRequest) customBlockExportResourceLoading.value = false
-  }
-}
 
 async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
   if (props.mode === 'diff') {
@@ -1764,7 +1691,6 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
     customBlockExportBlock.value = getBlockById(intent.key)
     customBlockExportErrorText.value = ''
     customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
-    if (customBlockExportBlock.value) void refreshCustomBlockExportResourcePreview(customBlockExportBlock.value)
     return
   }
   if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {
@@ -1781,9 +1707,12 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
 
 async function handleCustomBlockExport(payload: {
   name: string
-  key: string
+  publisherKey: string
+  blockKey: string
+  version: string
   exposedFieldKeys: string[]
   resize: ProjectCustomBlockResizePolicy
+  selectedResourceIds: Set<string>
 }): Promise<void> {
   const root = customBlockExportBlock.value
   const document = cardDoc.value
@@ -1795,35 +1724,28 @@ async function handleCustomBlockExport(payload: {
       document,
       rootBlockId: root.id,
       name: payload.name,
-      key: payload.key,
+      publisherKey: payload.publisherKey,
+      blockKey: payload.blockKey,
+      version: payload.version,
       exposedFieldKeys: payload.exposedFieldKeys,
       resize: payload.resize,
+      selectedResourceIds: payload.selectedResourceIds,
       projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
       project: projectStore.resolvedProject.value,
       dictionary: projectStore.resolvedDictionary.value,
       projectFonts: projectStore.projectFonts.value,
-      projectIconCatalog: projectStore.renderEnvironment.value.projectIconCatalog,
-      customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-      customBlockRuntimeCatalog: projectStore.renderEnvironment.value.customBlockCatalog,
-      remoteResourcePolicy: props.remoteResourcePolicy,
+      projectIconSeries: projectStore.projectIconSeries.value,
+      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
       fs: fileSystemService,
     })
     if (result.status === 'cancelled') return
     if (result.status === 'blocked') {
-      if (result.reason === 'expansion') {
-        customBlockExportErrorText.value = t('cardDesigner.customBlock.exportPackageError')
-      } else if (result.reason === 'binding') {
-        customBlockExportErrorText.value = t('cardDesigner.customBlock.exportBindingError')
-      }
+      customBlockExportErrorText.value = t('cardDesigner.customBlock.exportBindingError')
       return
     }
     customBlockExportDialogOpen.value = false
-    const projectPath = projectStore.projectPath.value.replace(/\\/g, '/').replace(/\/$/, '')
-    const normalizedOutputPath = result.outputPath.replace(/\\/g, '/')
-    if (projectPath && normalizedOutputPath.toLocaleLowerCase().startsWith(`${projectPath.toLocaleLowerCase()}/`)) {
-      customBlockRegistrationError.value = ''
-      pendingCustomBlockRegistrationPath.value = normalizedOutputPath.slice(projectPath.length + 1)
-    }
+    customBlockRegistrationError.value = ''
+    pendingCustomBlockRegistrationPath.value = result.outputPath
   } catch {
     customBlockExportErrorText.value = t('cardDesigner.customBlock.exportFailed')
   } finally {
@@ -1832,22 +1754,16 @@ async function handleCustomBlockExport(payload: {
 }
 
 function closeCustomBlockExportDialog(): void {
-  if (customBlockExportBusy.value) return
-  customBlockExportResourceRequest += 1
-  customBlockExportDialogOpen.value = false
-  customBlockExportResourceIndex.value = null
-  customBlockExportResourceFiles.value = null
-  customBlockExportResourceImageLabels.value = null
+  if (!customBlockExportBusy.value) customBlockExportDialogOpen.value = false
 }
 
 async function confirmCustomBlockRegistration(): Promise<void> {
   const archivePath = pendingCustomBlockRegistrationPath.value
-  const projectPath = projectStore.projectPath.value.replace(/[/\\]+$/, '')
-  if (!archivePath || !projectPath || customBlockRegistrationBusy.value) return
+  if (!archivePath || customBlockRegistrationBusy.value) return
   customBlockRegistrationBusy.value = true
   customBlockRegistrationError.value = ''
   try {
-    await projectStore.registerProjectCustomBlockFile(`${projectPath}/${archivePath}`)
+    await projectStore.installProjectCustomBlockFile(archivePath)
     pendingCustomBlockRegistrationPath.value = null
   } catch (cause) {
     customBlockRegistrationError.value = cause instanceof Error ? cause.message : String(cause)
@@ -2246,7 +2162,7 @@ const transformDisabledBlockIds = computed(() => {
 const selectedCustomBlockResize = computed(() => {
   const block = selectedBlock.value
   if (!block || block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
-  const key = block.customBlockKey.toLowerCase()
+  const key = block.packageId.toLowerCase()
   return projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
     ?? { widthLocked: false, heightLocked: false }
 })
@@ -2329,7 +2245,7 @@ const {
   isResizeAxisLocked: (blockId: string, axis: 'width' | 'height') => {
     const block = getBlockById(blockId)
     if (!block || block.type !== 'custom-block') return false
-    const key = block.customBlockKey.toLowerCase()
+    const key = block.packageId.toLowerCase()
     const policy = projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
     return axis === 'width' ? Boolean(policy?.widthLocked) : Boolean(policy?.heightLocked)
   },

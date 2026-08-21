@@ -1,381 +1,559 @@
 <template>
-  <OcDialog :open="open" :title="dialogTitle" as="form" size="lg" min-height="md" max-height="viewport"
+  <OcDialog :open="open" :title="dialogTitle" as="form" size="xl"
+    height-mode="fixed" height="workspace" :padded="false" :scrollable="false"
     :dismissible="!busy" :close-on-backdrop="!busy" :aria-busy="busy"
     @request-close="requestClose" @submit="submit">
     <div class="custom-block-export-dialog" :inert="busy ? true : undefined">
-      <OcText as="h3" size="sm">{{ fieldsLabel }}</OcText>
-      <OcPanel class="custom-block-export-dialog__fields" fill padding="none" overflow="auto">
-        <OcTree fill :data="treeData" :actions="treeActions" :selected-keys="[]"
-          :expanded-keys="groupKeys" :aria-label="fieldsLabel"
-          selection-mode="none" action-visibility="always" @intent="handleTreeIntent" />
-      </OcPanel>
-      <section class="custom-block-export-dialog__resources" :aria-label="resourcesLabel">
-        <OcText as="h3" size="sm">{{ resourcesLabel }}</OcText>
-        <div class="custom-block-export-dialog__resource-workspace">
-          <OcPanel class="custom-block-export-dialog__resource-tree" fill padding="none" overflow="auto">
-            <OcTree fill :data="resourceTreeData" :selected-keys="selectedResourceKeys"
-              :expanded-keys="resourceGroupKeys" :aria-label="resourcesLabel"
-              selection-mode="single" activation-mode="single-click" @intent="handleResourceTreeIntent" />
+      <aside class="custom-block-export-dialog__sidebar">
+        <section class="custom-block-export-dialog__section">
+          <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.packageInformation') }}</OcText>
+          <div class="custom-block-export-dialog__metadata">
+            <label class="custom-block-export-dialog__field">
+              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.name') }}</OcText>
+              <OcFieldInput full-width autofocus :value="name" :aria-invalid="!name.trim()"
+                @input="name = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label class="custom-block-export-dialog__field">
+              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.publisherKey') }}</OcText>
+              <OcFieldInput full-width mono :value="publisherKey" :aria-invalid="!validPackageId"
+                @input="publisherKey = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label class="custom-block-export-dialog__field">
+              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.key') }}</OcText>
+              <OcFieldInput full-width mono :value="blockKey" :placeholder="suggestedBlockKey"
+                :aria-invalid="!validPackageId" @input="blockKey = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label class="custom-block-export-dialog__field">
+              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.version') }}</OcText>
+              <OcFieldInput full-width mono :value="version" :aria-invalid="!validVersion"
+                @input="version = ($event.target as HTMLInputElement).value" />
+            </label>
+          </div>
+          <OcText mono size="xs" tone="muted">{{ resolvedPackageId || t('cardDesigner.customBlock.invalidPackageId') }}</OcText>
+        </section>
+
+        <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
+          <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
+          <OcPanel fill padding="none" overflow="auto">
+            <OcTree fill :data="fieldTreeData" :actions="fieldTreeActions" :selected-keys="[]"
+              :expanded-keys="fieldGroupKeys" :aria-label="t('cardDesigner.customBlock.fields')"
+              selection-mode="none" action-visibility="always" @intent="handleFieldTreeIntent" />
           </OcPanel>
-          <OcPanel class="custom-block-export-dialog__resource-preview" fill padding="3" overflow="hidden">
-            <template v-if="resourcePreviewItem">
-              <OcText as="h4" size="sm" class="custom-block-export-dialog__preview-title">
-                {{ resourcePreviewItem.label }}
-              </OcText>
-              <div v-if="resourcePreviewItem.kind === 'image'" class="custom-block-export-dialog__image-preview">
-                <img :src="resourcePreviewItem.src" :alt="resourcePreviewItem.label" />
-              </div>
-              <div v-else-if="resourcePreviewItem.kind === 'font'"
-                class="custom-block-export-dialog__font-preview" :style="{ fontFamily: resourcePreviewItem.fontFamily }">
-                {{ fontPreviewText }}
-              </div>
-              <div v-else class="custom-block-export-dialog__icon-preview">
-                <ProjectIconView v-if="resourcePreviewItem.entry" :entry="resourcePreviewItem.entry" mode="preview" />
-              </div>
-              <OcText as="p" size="xs" tone="muted" class="custom-block-export-dialog__preview-source">
-                {{ resourcePreviewItem.source }}
-              </OcText>
-            </template>
-            <OcText v-else-if="resourcePreviewLoading" size="sm" tone="muted">{{ resourcesLoadingLabel }}</OcText>
-            <OcText v-else size="sm" tone="muted">{{ resourceEmptyLabel }}</OcText>
+        </section>
+
+        <section class="custom-block-export-dialog__section custom-block-export-dialog__resources-section">
+          <div class="custom-block-export-dialog__section-heading">
+            <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.resources') }}</OcText>
+            <OcText size="xs" tone="muted">{{ selectedResourceIds.size }}/{{ resourceCandidates.length }}</OcText>
+          </div>
+          <OcPanel fill padding="none" overflow="auto">
+            <CustomBlockResourceTree v-if="resourceCandidates.length"
+              :candidates="resourceCandidates" :selected-ids="[...selectedResourceIds]"
+              :ariaLabel="t('cardDesigner.customBlock.resources')"
+              :automatic-label="t('cardDesigner.customBlock.resourceAutomatic')"
+              :suggested-label="t('cardDesigner.customBlock.resourceSuggested')"
+              :manual-label="t('cardDesigner.customBlock.resourceManual')"
+              :excluded-label="t('cardDesigner.customBlock.resourceExcluded')"
+              :missing-label="t('cardDesigner.customBlock.resourceMissing')"
+              :nested-label="t('cardDesigner.customBlock.resourceNested')"
+              @update:selected-ids="selectedResourceIds = $event" />
+            <OcEmpty v-else tone="muted" inset="comfortable">
+              {{ preparing ? t('cardDesigner.customBlock.resourcesLoading') : t('cardDesigner.customBlock.resourceEmpty') }}
+            </OcEmpty>
           </OcPanel>
-        </div>
+        </section>
+      </aside>
+
+      <section class="custom-block-export-dialog__preview"
+        :style="{ '--oc-custom-block-export-preview-occlusion': `${propertyOcclusion}px` }">
+        <main class="custom-block-export-dialog__viewport-area">
+          <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
+            class="custom-block-export-dialog__viewport" :face="previewFace"
+            :show-info="false" :viewport-insets="previewViewportInsets"
+            :resource-context="previewResources"
+            @viewport-transform-change="viewportScale = $event.scale"
+            @viewport-size-change="fitPreview" />
+          <OcEmpty v-else tone="muted" inset="comfortable">
+            {{ previewError || (preparing ? t('cardDesigner.customBlock.previewPreparing') : t('cardDesigner.customBlock.previewUnavailable')) }}
+          </OcEmpty>
+          <OcOverlayToolbar v-if="previewFace" class="custom-block-export-dialog__viewport-tools"
+            :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
+            @select="handleViewportToolbar" />
+          <OcCard v-if="diagnostics.length" class="custom-block-export-dialog__diagnostics" variant="glass" role="status">
+            <OcText size="sm" tone="warning">{{ t('cardDesigner.customBlock.previewDiagnostics', { count: diagnostics.length }) }}</OcText>
+            <OcText v-for="diagnostic in diagnostics.slice(0, 3)" :key="diagnostic" size="xs" tone="muted">
+              {{ diagnostic }}
+            </OcText>
+          </OcCard>
+        </main>
+
+        <OcViewportInspector v-model:expanded="propertyPanelExpanded" v-model:height="propertyPanelHeight"
+          :heading="t('customBlockRegistry.preview.publicFields')" :actions="propertyActions"
+          :expand-label="t('app.shell.expandBottomPanel')" :collapse-label="t('app.shell.collapseBottomPanel')"
+          :resize-label="t('customBlockRegistry.preview.resizeProperties')"
+          @action="resetPreviewOverrides" @occlusion-change="propertyOcclusion = $event">
+          <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
+            <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
+              @update-property="updatePreviewProperty" />
+          </OcPanel>
+          <OcEmpty v-else tone="muted" inset="comfortable">
+            {{ t('customBlockRegistry.preview.noPublicFields') }}
+          </OcEmpty>
+        </OcViewportInspector>
       </section>
-      <div class="custom-block-export-dialog__metadata">
-        <label class="custom-block-export-dialog__field">
-          <OcText as="span" size="sm">{{ nameLabel }}</OcText>
-          <OcFieldInput full-width autofocus :value="name" :aria-invalid="!name.trim()" :disabled="busy"
-            @input="name = ($event.target as HTMLInputElement).value" />
-        </label>
-        <label class="custom-block-export-dialog__field">
-          <OcText as="span" size="sm">{{ keyLabel }}</OcText>
-          <OcFieldInput full-width mono :value="key" :placeholder="suggestedKey"
-            :aria-invalid="!validKey" :disabled="busy"
-            @input="key = ($event.target as HTMLInputElement).value" />
-        </label>
-      </div>
-      <OcText v-if="errorText" as="p" size="sm" tone="danger" role="alert">{{ errorText }}</OcText>
     </div>
+
     <template #footer>
-      <OcButton type="button" :disabled="busy" @click="requestClose">{{ cancelLabel }}</OcButton>
-      <OcButton type="submit" variant="solid" :disabled="busy || !name.trim() || !validKey">
-        {{ busy ? busyLabel : exportLabel }}
+      <OcButton type="button" :disabled="busy" @click="requestClose">{{ t('cardDesigner.customBlock.cancel') }}</OcButton>
+      <OcButton type="submit" variant="solid"
+        :disabled="busy || preparing || !name.trim() || !validPackageId || !validVersion || !prepared">
+        {{ busy ? t('cardDesigner.customBlock.exporting') : t('cardDesigner.customBlock.export') }}
+      </OcButton>
+    </template>
+  </OcDialog>
+  <OcDialog :open="confirmingDiagnostics" :title="t('cardDesigner.customBlock.confirmDiagnosticsTitle')"
+    :description="t('cardDesigner.customBlock.confirmDiagnosticsDescription', { count: diagnostics.length })"
+    size="sm" @request-close="confirmingDiagnostics = false">
+    <OcText tone="warning">{{ t('cardDesigner.customBlock.confirmDiagnosticsHint') }}</OcText>
+    <template #footer>
+      <OcButton type="button" @click="confirmingDiagnostics = false">{{ t('cardDesigner.customBlock.cancel') }}</OcButton>
+      <OcButton type="button" variant="solid" @click="confirmDiagnosticExport">
+        {{ t('cardDesigner.customBlock.exportAnyway') }}
       </OcButton>
     </template>
   </OcDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import OcDialog from '../../../components/standard/OcDialog.vue'
-import OcTree from '../../../components/standard/OcTree.vue'
-import OcPanel from '../../../components/base/OcPanel.vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { CardDocument } from '../../../entities/card/model'
+import { getAdditionalFieldPropertyDefinition } from '../../../entities/card/model'
+import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import { resolveCardPropertyFields } from '../../card-properties/cardPropertyFieldDefinitions'
+import CardViewport from '../../card-rendering/components/CardViewport.vue'
+import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
+import type { RenderReadyCardFace } from '../../card-rendering/render.types'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcEmpty from '../../../components/base/OcEmpty.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
+import OcPanel from '../../../components/base/OcPanel.vue'
 import OcText from '../../../components/base/OcText.vue'
-import ProjectIconView from './ProjectIconView.vue'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
-import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
-import { projectFontSources } from '../model/projectFontRegistry'
-import type { ProjectCustomBlockResourceIndex } from '../model/projectCustomBlocks'
-import type { ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
-import { normalizeProjectCustomBlockKey } from '../model/projectCustomBlocks'
-import { buildProjectIconCatalog, createProjectIconPreviewStyle, type ProjectIconCatalogEntry } from '../services/projectIconCatalog'
+import OcCard, { type OcCardAction } from '../../../components/standard/OcCard.vue'
+import OcDialog from '../../../components/standard/OcDialog.vue'
+import OcOverlayToolbar, { createViewportToolbarItems } from '../../../components/standard/OcOverlayToolbar.vue'
+import OcTree from '../../../components/standard/OcTree.vue'
+import OcViewportInspector from '../../../components/standard/OcViewportInspector.vue'
 import { toKeySlug } from '../../../shared/model/keySlug'
+import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEditorMutation } from '../../../shared/ui/property-editor/propertyEditor.types'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
+import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'
 import {
-  createProjectCustomBlockFontSession,
-  type ProjectCustomBlockFontSession,
-} from '../services/projectCustomBlockFontLoader'
-import { createProjectCustomBlockFontFamily } from '../services/projectCustomBlockResources'
+  createProjectCustomBlockPackageId,
+  normalizeProjectCustomBlockVersion,
+  PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION,
+  type ProjectCustomBlockResizePolicy,
+} from '../model/projectCustomBlocks'
+import { fileSystemService } from '../services/fileSystemService'
+import {
+  buildProjectCustomBlockCandidate,
+  prepareProjectCustomBlockExport,
+  type PreparedProjectCustomBlockExport,
+  type ProjectCustomBlockCandidate,
+} from '../services/exportProjectCustomBlock'
+import { createProjectCustomBlockCandidatePreview, type ProjectCustomBlockCandidatePreview } from '../services/projectCustomBlockCandidatePreview'
+import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
+import type { ProjectCustomBlockResourceCandidate } from '../services/projectCustomBlockResources'
+import { useProjectStore } from '../store/projectStore'
+import CustomBlockResourceTree from './CustomBlockResourceTree.vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
   dialogTitle: string
+  document: CardDocument | null
+  rootBlockId: string | null
   fields: readonly CustomBlockFieldAnalysis[]
   resize: ProjectCustomBlockResizePolicy
-  widthLabel: string
-  heightLabel: string
   defaultName?: string
   defaultKey?: string
-  nameLabel: string
-  keyLabel: string
-  cancelLabel: string
-  exportLabel: string
-  busyLabel: string
+  projectRootPath: string
   busy?: boolean
-  fieldsLabel: string
-  exposedLabel: string
-  privateLabel: string
-  resourcesLabel?: string
-  fontsLabel?: string
-  iconsLabel?: string
-  imagesLabel?: string
-  resourcesLoadingLabel?: string
-  resourceEmptyLabel?: string
-  fontPreviewText?: string
-  moveToExposedLabel: string
-  moveToPrivateLabel: string
-  formatReferenceCount: (count: number) => string
   errorText?: string
-  resourceIndex?: ProjectCustomBlockResourceIndex | null
-  resourceFiles?: ReadonlyMap<string, Uint8Array> | null
-  resourceImageLabels?: ReadonlyMap<string, string> | null
-  resourcePreviewLoading?: boolean
-}>(), {
-  defaultName: '', defaultKey: '', errorText: '', busy: false,
-  resourcesLabel: 'Written resources', fontsLabel: 'Fonts', iconsLabel: 'Icons', imagesLabel: 'Images',
-  resourcesLoadingLabel: 'Analyzing resources…', resourceEmptyLabel: 'No resources to write.',
-  fontPreviewText: 'Aa Font preview',
-  resourcePreviewLoading: false,
-})
-
+}>(), { defaultName: '', defaultKey: '', busy: false, errorText: '' })
 const emit = defineEmits<{
   close: []
-  submit: [payload: { name: string; key: string; exposedFieldKeys: string[]; resize: ProjectCustomBlockResizePolicy }]
+  submit: [payload: {
+    name: string
+    publisherKey: string
+    blockKey: string
+    version: string
+    exposedFieldKeys: string[]
+    resize: ProjectCustomBlockResizePolicy
+    selectedResourceIds: Set<string>
+  }]
 }>()
-
-const name = ref(props.defaultName)
-const key = ref('')
+const { t, te } = useI18n()
+const projectStore = useProjectStore()
+const name = ref('')
+const publisherKey = ref('local')
+const blockKey = ref('')
+const version = ref(PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION)
 const exposed = ref(new Set<string>())
-const selectedResourceKey = ref<string | null>(null)
-const resourceUrls = ref(new Map<string, string>())
-const resourceIconEntries = ref(new Map<string, ProjectIconCatalogEntry>())
-const resourceFontFamilies = ref(new Map<string, string>())
-let fontSession: ProjectCustomBlockFontSession | null = null
-let resourceLoadRequest = 0
-const groupKeys = ['group:exposed', 'group:private']
-const resourceGroupKeys = ['resource-group:fonts', 'resource-group:icons', 'resource-group:images']
-const suggestedKey = computed(() => toKeySlug(name.value, props.defaultKey || 'custom-block'))
-const resolvedKey = computed(() => normalizeProjectCustomBlockKey(key.value.trim() || suggestedKey.value) ?? '')
-const validKey = computed(() => Boolean(resolvedKey.value))
+const selectedResourceIds = ref(new Set<string>())
+const selectionInitialized = ref(false)
+const prepared = ref<PreparedProjectCustomBlockExport | null>(null)
+const candidate = ref<ProjectCustomBlockCandidate | null>(null)
+const previewSession = ref<ProjectCustomBlockCandidatePreview | null>(null)
+const previewFace = ref<RenderReadyCardFace | null>(null)
+const previewResources = ref<CardRenderResourceContext | null>(null)
+const previewOverrides = ref<Record<string, unknown>>({})
+const previewError = ref('')
+const preparing = ref(false)
+const packageDiagnostics = ref<string[]>([])
+const confirmingDiagnostics = ref(false)
+const viewportRef = ref<{ zoomBy: (factor: number) => void, fitView?: () => void, fitContent?: (rect: { left: number, top: number, width: number, height: number }) => void } | null>(null)
+const viewportScale = ref(1)
+const propertyPanelExpanded = ref(true)
+const propertyPanelHeight = ref<number | null>(null)
+const propertyOcclusion = ref(0)
+let prepareTimer: ReturnType<typeof setTimeout> | null = null
+let previewTimer: ReturnType<typeof setTimeout> | null = null
+let revision = 0
+const fieldGroupKeys = ['group:exposed', 'group:private']
+
+const suggestedBlockKey = computed(() => toKeySlug(name.value, props.defaultKey || 'custom-block'))
+const resolvedPackageId = computed(() => createProjectCustomBlockPackageId(
+  publisherKey.value,
+  blockKey.value.trim() || suggestedBlockKey.value,
+) ?? '')
+const validPackageId = computed(() => Boolean(resolvedPackageId.value))
+const validVersion = computed(() => Boolean(normalizeProjectCustomBlockVersion(version.value)))
+const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => prepared.value?.resourceAnalysis.candidates ?? [])
+const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
+const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
+const diagnostics = computed(() => [
+  ...(props.errorText ? [props.errorText] : []),
+  ...packageDiagnostics.value,
+])
+const effectiveResize = computed<ProjectCustomBlockResizePolicy>(() => ({
+  widthLocked: !exposed.value.has('resize:width'),
+  heightLocked: !exposed.value.has('resize:height'),
+}))
+const exposedFieldKeys = computed(() => props.fields.map(field => field.key).filter(key => exposed.value.has(key)))
+
+const fieldTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  ['move-exposed', { title: t('cardDesigner.customBlock.moveToExposed'), icon: 'nav.arrow-up' }],
+  ['move-private', { title: t('cardDesigner.customBlock.moveToPrivate'), icon: 'nav.arrow-down' }],
+]))
+const fieldTreeData = computed<OcTreeData>(() => {
+  const items = new Map<string, OcTreeItem>()
+  const children = new Map<string, readonly string[]>()
+  const publicKeys: string[] = []
+  const privateKeys: string[] = []
+  for (const [axis, label] of [['width', t('propertyEditor.fields.width')], ['height', t('propertyEditor.fields.height')]] as const) {
+    const key = `resize:${axis}`
+    const isPublic = exposed.value.has(key)
+    ;(isPublic ? publicKeys : privateKeys).push(key)
+    items.set(key, { label, icon: 'layout.fill', draggable: true, actions: [isPublic ? 'move-private' : 'move-exposed'] })
+  }
+  for (const field of props.fields) {
+    const key = `field:${field.key}`
+    const isPublic = exposed.value.has(field.key)
+    ;(isPublic ? publicKeys : privateKeys).push(key)
+    items.set(key, {
+      label: field.title || (te(`propertyEditor.fields.${field.key}`) ? t(`propertyEditor.fields.${field.key}`) : field.key),
+      tail: t(field.referenceCount === 1 ? 'cardDesigner.customBlock.referenceCountOne' : 'cardDesigner.customBlock.referenceCountOther', { count: field.referenceCount }),
+      icon: 'entity.block-custom',
+      draggable: true,
+      actions: [isPublic ? 'move-private' : 'move-exposed'],
+    })
+  }
+  items.set('group:exposed', { label: t('cardDesigner.customBlock.exposed'), icon: 'entity.block-custom' })
+  items.set('group:private', { label: t('cardDesigner.customBlock.private'), icon: 'entity.block-custom' })
+  children.set('group:exposed', publicKeys)
+  children.set('group:private', privateKeys)
+  return { rootKeys: fieldGroupKeys, items, children }
+})
+
+const propertyActions = computed<OcCardAction[]>(() => [{
+  key: 'reset-preview-values', icon: 'action.discard',
+  title: t('customBlockRegistry.preview.reset'), disabled: Object.keys(previewOverrides.value).length === 0,
+}])
+const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
+  const current = candidate.value
+  if (!current || exposedFieldKeys.value.length === 0) return []
+  const definitions = parseAdditionalFieldDefinitions(current.block.additionalFieldDefinition)
+  const nativeSchema = getTypePropertyEditorSchema(current.block.type)
+  const defaults = Object.fromEntries(exposedFieldKeys.value.map(key => [
+    key,
+    Object.prototype.hasOwnProperty.call(current.block, key)
+      ? structuredClone((current.block as Record<string, unknown>)[key])
+      : '',
+  ]))
+  const values = { ...defaults, ...previewOverrides.value }
+  const publicKeys = new Set(exposedFieldKeys.value)
+  const override = Object.fromEntries(exposedFieldKeys.value.flatMap(key => {
+    const additional = definitions[key]
+    const definition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[key]
+    return definition ? [[key, { ...definition, required: true, resettable: Object.prototype.hasOwnProperty.call(previewOverrides.value, key) }]] : []
+  }))
+  const fields = resolveCardPropertyFields({ type: 'custom-block', ...values }, {
+    allowDelete: false,
+    translate: t,
+    hasMessage: te,
+    override,
+    labels: Object.fromEntries(exposedFieldKeys.value.map(key => [key, definitions[key]?.title ?? key])),
+    customKeys: new Set(exposedFieldKeys.value.filter(key => Boolean(definitions[key]))),
+  })
+  return [{
+    key: 'custom-block-export-preview', title: current.manifest.name, record: values,
+    fields: Object.fromEntries(Object.entries(fields).filter(([key]) => publicKeys.has(key)).map(([key, definition]) => [key, { ...definition, category: 'publicFields' }])),
+  }]
+})
+const propertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
+  ['publicFields', { title: t('customBlockRegistry.preview.publicFields'), icon: 'entity.block-custom' }],
+]))
+
+function releasePreviewSession(): Promise<void> {
+  const previous = previewSession.value
+  previewSession.value = null
+  candidate.value = null
+  previewFace.value = null
+  previewResources.value = null
+  return previous?.release() ?? Promise.resolve()
+}
 
 watch(() => props.open, open => {
-  if (!open) return
+  revision += 1
+  if (prepareTimer) {
+    clearTimeout(prepareTimer)
+    prepareTimer = null
+  }
+  if (previewTimer) {
+    clearTimeout(previewTimer)
+    previewTimer = null
+  }
+  if (!open) {
+    preparing.value = false
+    confirmingDiagnostics.value = false
+    void releasePreviewSession()
+    return
+  }
+  void releasePreviewSession()
   name.value = props.defaultName
-  key.value = ''
+  publisherKey.value = 'local'
+  blockKey.value = ''
+  version.value = PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION
   exposed.value = new Set([
     ...(!props.resize.widthLocked ? ['resize:width'] : []),
     ...(!props.resize.heightLocked ? ['resize:height'] : []),
   ])
-  selectedResourceKey.value = null
+  selectedResourceIds.value = new Set()
+  selectionInitialized.value = false
+  previewOverrides.value = {}
+  prepared.value = null
+  packageDiagnostics.value = []
+  confirmingDiagnostics.value = false
+  schedulePrepare()
 }, { immediate: true })
+watch([name, publisherKey, blockKey, version, exposedFieldKeys, effectiveResize], schedulePrepare, { deep: true })
+watch(selectedResourceIds, scheduleCandidatePreview, { deep: true })
+watch(previewOverrides, schedulePreviewOnly, { deep: true })
 
-watch(() => [props.resourceIndex, props.resourceFiles] as const, async ([index, files]) => {
-  const request = ++resourceLoadRequest
-  for (const url of resourceUrls.value.values()) URL.revokeObjectURL(url)
-  fontSession?.release()
-  fontSession = null
-  resourceUrls.value = new Map()
-  resourceIconEntries.value = new Map()
-  resourceFontFamilies.value = new Map()
-  if (!index || !files) return
-  const urls = new Map<string, string>()
-  for (const [path, bytes] of files) {
-    const mime = path.toLowerCase().endsWith('.png') ? 'image/png'
-      : path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg') ? 'image/jpeg'
-        : path.toLowerCase().endsWith('.webp') ? 'image/webp'
-          : 'application/octet-stream'
-    urls.set(path, URL.createObjectURL(new Blob([bytes], { type: mime })))
-  }
-  resourceUrls.value = urls
-  const catalog = await buildProjectIconCatalog(index.iconSeries, source => urls.get(source) ?? '')
-  if (request !== resourceLoadRequest) return
-  resourceIconEntries.value = new Map(catalog.entries.map(entry => [
-    `resource:icon:${entry.seriesKey}:${entry.iconKey}`, entry,
-  ]))
-  const nextFontSession = await createProjectCustomBlockFontSession(new Map([['preview', {
-    manifest: { customBlockKey: 'preview', resources: index },
-    files,
-  }]]))
-  if (request !== resourceLoadRequest) {
-    nextFontSession.release()
+function schedulePrepare(): void {
+  if (!props.open) return
+  if (prepareTimer) clearTimeout(prepareTimer)
+  prepareTimer = setTimeout(() => void rebuildPrepared(), 180)
+}
+async function rebuildPrepared(): Promise<void> {
+  const currentRevision = ++revision
+  if (!props.document || !props.rootBlockId || !validPackageId.value || !validVersion.value) {
+    prepared.value = null
+    void releasePreviewSession()
     return
   }
-  fontSession = nextFontSession
-  resourceFontFamilies.value = new Map((index.fonts ?? []).map(font => [
-    `resource:font:${font.key}`,
-    createProjectCustomBlockFontFamily('preview', font.key),
-  ]))
-  if (!selectedResourceKey.value || !resourceItemKeys.value.includes(selectedResourceKey.value)) {
-    selectedResourceKey.value = resourceItemKeys.value[0] ?? null
-  }
-}, { immediate: true })
-
-const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['move-exposed', { title: props.moveToExposedLabel, icon: 'nav.arrow-up' }],
-  ['move-private', { title: props.moveToPrivateLabel, icon: 'nav.arrow-down' }],
-]))
-
-const treeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeItem>()
-  const children = new Map<string, readonly string[]>()
-  const exposedKeys: string[] = []
-  const privateKeys: string[] = []
-  for (const [axis, label] of [['width', props.widthLabel], ['height', props.heightLabel]] as const) {
-    const fieldKey = `resize:${axis}`
-    const isExposed = exposed.value.has(fieldKey)
-    ;(isExposed ? exposedKeys : privateKeys).push(fieldKey)
-    items.set(fieldKey, {
-      label,
-      icon: 'layout.fill',
-      draggable: true,
-      actions: [isExposed ? 'move-private' : 'move-exposed'],
-      contextActions: [isExposed ? 'move-private' : 'move-exposed'],
+  preparing.value = true
+  previewError.value = ''
+  try {
+    const result = await prepareProjectCustomBlockExport({
+      document: props.document,
+      rootBlockId: props.rootBlockId,
+      name: name.value,
+      publisherKey: publisherKey.value,
+      blockKey: blockKey.value.trim() || suggestedBlockKey.value,
+      version: version.value,
+      exposedFieldKeys: exposedFieldKeys.value,
+      resize: effectiveResize.value,
+      projectRootPath: props.projectRootPath,
+      project: projectStore.resolvedProject.value,
+      dictionary: projectStore.resolvedDictionary.value,
+      projectFonts: projectStore.projectFonts.value,
+      projectIconSeries: projectStore.projectIconSeries.value,
+      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+      fs: fileSystemService,
     })
+    if (currentRevision !== revision) return
+    if ('blocked' in result) {
+      prepared.value = null
+      previewError.value = t('cardDesigner.customBlock.exportBindingError')
+      void releasePreviewSession()
+      return
+    }
+    prepared.value = result
+    if (!selectionInitialized.value) {
+      selectedResourceIds.value = new Set(result.resourceAnalysis.defaultSelectedIds)
+      selectionInitialized.value = true
+    } else {
+      const available = new Set(result.resourceAnalysis.candidates.map(item => item.id))
+      selectedResourceIds.value = new Set([...selectedResourceIds.value].filter(id => available.has(id)))
+    }
+  } catch (cause) {
+    if (currentRevision === revision) {
+      prepared.value = null
+      previewError.value = cause instanceof Error ? cause.message : String(cause)
+      void releasePreviewSession()
+    }
+  } finally {
+    if (currentRevision === revision) preparing.value = false
   }
-  for (const field of props.fields) {
-    const fieldKey = `field:${field.key}`
-    const isExposed = exposed.value.has(field.key)
-    ;(isExposed ? exposedKeys : privateKeys).push(fieldKey)
-    items.set(fieldKey, {
-      label: field.title || field.key,
-      tail: props.formatReferenceCount(field.referenceCount),
-      icon: 'entity.block-custom',
-      draggable: true,
-      actions: [isExposed ? 'move-private' : 'move-exposed'],
-      contextActions: [isExposed ? 'move-private' : 'move-exposed'],
+}
+function scheduleCandidatePreview(): void {
+  if (!props.open || !prepared.value) return
+  const currentRevision = ++revision
+  if (previewTimer) clearTimeout(previewTimer)
+  previewTimer = setTimeout(() => void rebuildCandidatePreview(currentRevision), 120)
+}
+function schedulePreviewOnly(): void { scheduleCandidatePreview() }
+async function rebuildCandidatePreview(currentRevision = ++revision): Promise<void> {
+  const base = prepared.value
+  if (!base) return
+  preparing.value = true
+  previewError.value = ''
+  try {
+    const nextCandidate = await buildProjectCustomBlockCandidate({
+      prepared: base,
+      selectedResourceIds: selectedResourceIds.value,
+      projectRootPath: props.projectRootPath,
+      projectFonts: projectStore.projectFonts.value,
+      projectIconSeries: projectStore.projectIconSeries.value,
+      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+      fs: fileSystemService,
     })
-  }
-  const exposedRoot = 'group:exposed'
-  const privateRoot = 'group:private'
-  items.set(exposedRoot, { label: props.exposedLabel, icon: 'entity.block-custom', draggable: false })
-  items.set(privateRoot, { label: props.privateLabel, icon: 'entity.block-custom', draggable: false })
-  children.set(exposedRoot, exposedKeys)
-  children.set(privateRoot, privateKeys)
-  return { rootKeys: [exposedRoot, privateRoot], items, children }
-})
-
-const resourceTreeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeItem>()
-  const children = new Map<string, readonly string[]>()
-  const fonts = (props.resourceIndex?.fonts ?? []).map(font => `resource:font:${font.key}`)
-  const icons = [...resourceIconEntries.value.keys()]
-  const images = (props.resourceIndex?.images ?? []).map(image => `resource:image:${image.key}`)
-  items.set('resource-group:fonts', { label: props.fontsLabel, icon: 'file.font' })
-  items.set('resource-group:icons', { label: props.iconsLabel, icon: 'file.image' })
-  items.set('resource-group:images', { label: props.imagesLabel, icon: 'file.image' })
-  children.set('resource-group:fonts', fonts)
-  children.set('resource-group:icons', icons)
-  children.set('resource-group:images', images)
-  for (const font of props.resourceIndex?.fonts ?? []) {
-    items.set(`resource:font:${font.key}`, { label: font.name || font.key, tail: font.key, icon: 'file.font' })
-  }
-  for (const entry of resourceIconEntries.value.values()) {
-    items.set(`resource:icon:${entry.seriesKey}:${entry.iconKey}`, {
-      label: entry.name || entry.iconKey,
-      tail: entry.iconKey,
-      icon: 'file.image',
-      thumbnailStyle: createProjectIconPreviewStyle(entry),
-      thumbnailLabel: entry.name || entry.iconKey,
+    const nextPreview = await createProjectCustomBlockCandidatePreview({
+      candidate: nextCandidate,
+      overrides: previewOverrides.value,
+      sourceProjectRootPath: props.projectRootPath,
+      fs: fileSystemService,
     })
+    if (currentRevision !== revision) {
+      await nextPreview.release()
+      return
+    }
+    const previous = previewSession.value
+    candidate.value = nextCandidate
+    previewSession.value = nextPreview
+    previewFace.value = nextPreview.render.document.faces.front
+    previewResources.value = nextPreview.render.resources
+    packageDiagnostics.value = [
+      ...nextPreview.packageIssues.map(item => `${item.path}: ${item.message}`),
+      ...nextPreview.render.issues.map(item => item.type),
+    ]
+    await previous?.release()
+    await nextTick()
+    fitPreview()
+  } catch (cause) {
+    if (currentRevision === revision) {
+      previewError.value = cause instanceof Error ? cause.message : String(cause)
+      void releasePreviewSession()
+    }
+  } finally {
+    if (currentRevision === revision) preparing.value = false
   }
-  for (const image of props.resourceIndex?.images ?? []) {
-    items.set(`resource:image:${image.key}`, {
-      label: props.resourceImageLabels?.get(image.source) ?? image.key,
-      tail: image.source,
-      icon: 'file.image',
-    })
-  }
-  return { rootKeys: resourceGroupKeys, items, children }
-})
-
-const resourceItemKeys = computed(() => [
-  ...(props.resourceIndex?.fonts ?? []).map(font => `resource:font:${font.key}`),
-  ...resourceIconEntries.value.keys(),
-  ...(props.resourceIndex?.images ?? []).map(image => `resource:image:${image.key}`),
-])
-const selectedResourceKeys = computed(() => selectedResourceKey.value ? [selectedResourceKey.value] : [])
-const resourcePreviewItem = computed(() => {
-  const key = selectedResourceKey.value
-  if (!key) return null
-  if (key.startsWith('resource:font:')) {
-    const font = props.resourceIndex?.fonts?.find(item => `resource:font:${item.key}` === key)
-    const source = font?.kind === 'font'
-      ? projectFontSources(font).join(', ')
-      : font?.members.map(member => member.fontKey).join(' → ')
-    return font ? { kind: 'font' as const, label: font.name || font.key, source, fontFamily: resourceFontFamilies.value.get(key) ?? 'sans-serif' } : null
-  }
-  if (key.startsWith('resource:image:')) {
-    const image = props.resourceIndex?.images?.find(item => `resource:image:${item.key}` === key)
-    const src = image ? resourceUrls.value.get(image.source) : undefined
-    return image && src ? {
-      kind: 'image' as const,
-      label: props.resourceImageLabels?.get(image.source) ?? image.key,
-      source: image.source,
-      src,
-    } : null
-  }
-  const entry = resourceIconEntries.value.get(key)
-  return entry ? { kind: 'icon' as const, label: entry.name || entry.iconKey, source: entry.source, entry } : null
-})
-
-onBeforeUnmount(() => {
-  resourceLoadRequest += 1
-  for (const url of resourceUrls.value.values()) URL.revokeObjectURL(url)
-  fontSession?.release()
-})
-
-function move(fieldKey: string, target: 'exposed' | 'private') {
-  const next = new Set(exposed.value)
-  if (target === 'exposed') next.add(fieldKey)
-  else next.delete(fieldKey)
-  exposed.value = next
 }
 
-function exposedKey(treeKey: string): string | null {
+function fieldKey(treeKey: string): string | null {
   if (treeKey.startsWith('field:')) return treeKey.slice(6)
-  return treeKey === 'resize:width' || treeKey === 'resize:height' ? treeKey : null
+  return treeKey.startsWith('resize:') ? treeKey : null
 }
-
-function handleTreeIntent(intent: OcTreeIntent) {
-  const fieldKey = 'key' in intent ? exposedKey(intent.key) : null
-  if (intent.type === 'action.invoke' && fieldKey) {
-    move(fieldKey, intent.actionKey === 'move-exposed' ? 'exposed' : 'private')
-  }
-  if (intent.type === 'move.request' && fieldKey) {
-    if (intent.targetKey === 'group:exposed') move(fieldKey, 'exposed')
-    if (intent.targetKey === 'group:private') move(fieldKey, 'private')
-    const targetFieldKey = intent.targetKey ? exposedKey(intent.targetKey) : null
-    if (targetFieldKey) move(fieldKey, exposed.value.has(targetFieldKey) ? 'exposed' : 'private')
+function moveField(key: string, makePublic: boolean): void {
+  const next = new Set(exposed.value)
+  if (makePublic) next.add(key)
+  else next.delete(key)
+  exposed.value = next
+  if (!makePublic && !key.startsWith('resize:')) {
+    const overrides = { ...previewOverrides.value }
+    delete overrides[key]
+    previewOverrides.value = overrides
   }
 }
-
-function handleResourceTreeIntent(intent: OcTreeIntent) {
-  if (intent.type === 'selection.change') selectedResourceKey.value = intent.selectedKeys[0] ?? null
-  if (intent.type === 'node.activate' && resourceItemKeys.value.includes(intent.key)) selectedResourceKey.value = intent.key
+function handleFieldTreeIntent(intent: OcTreeIntent): void {
+  const key = 'key' in intent ? fieldKey(intent.key) : null
+  if (intent.type === 'action.invoke' && key) moveField(key, intent.actionKey === 'move-exposed')
+  if (intent.type === 'move.request' && key) {
+    if (intent.targetKey === 'group:exposed') moveField(key, true)
+    else if (intent.targetKey === 'group:private') moveField(key, false)
+  }
 }
-
-function submit() {
-  if (props.busy) return
+function updatePreviewProperty(mutation: PropertyEditorMutation): void {
+  if (mutation.key !== 'custom-block-export-preview' || !exposedFieldKeys.value.includes(mutation.fieldKey)) return
+  const next = { ...previewOverrides.value }
+  if (mutation.value === undefined) delete next[mutation.fieldKey]
+  else next[mutation.fieldKey] = mutation.value
+  previewOverrides.value = next
+}
+function resetPreviewOverrides(): void { previewOverrides.value = {} }
+function fitPreview(): void { viewportRef.value?.fitView?.() }
+function handleViewportToolbar({ key }: { key: string }): void {
+  if (key === 'viewport.zoom-out') viewportRef.value?.zoomBy(1 / VIEWPORT_ZOOM_STEP)
+  else if (key === 'viewport.fit') fitPreview()
+  else if (key === 'viewport.zoom-in') viewportRef.value?.zoomBy(VIEWPORT_ZOOM_STEP)
+}
+function emitExport(): void {
   emit('submit', {
     name: name.value.trim(),
-    key: resolvedKey.value,
-    exposedFieldKeys: props.fields.map(field => field.key).filter(fieldKey => exposed.value.has(fieldKey)),
-    resize: {
-      widthLocked: !exposed.value.has('resize:width'),
-      heightLocked: !exposed.value.has('resize:height'),
-    },
+    publisherKey: publisherKey.value.trim().toLocaleLowerCase(),
+    blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
+    version: version.value.trim(),
+    exposedFieldKeys: exposedFieldKeys.value,
+    resize: effectiveResize.value,
+    selectedResourceIds: new Set(selectedResourceIds.value),
   })
 }
-
-function requestClose() {
-  if (!props.busy) emit('close')
+function submit(): void {
+  if (props.busy || preparing.value || !prepared.value || !validPackageId.value || !validVersion.value) return
+  if (diagnostics.value.length > 0) {
+    confirmingDiagnostics.value = true
+    return
+  }
+  emitExport()
 }
+function confirmDiagnosticExport(): void {
+  confirmingDiagnostics.value = false
+  emitExport()
+}
+function requestClose(): void { if (!props.busy) emit('close') }
+
+onBeforeUnmount(() => {
+  revision += 1
+  if (prepareTimer) clearTimeout(prepareTimer)
+  if (previewTimer) clearTimeout(previewTimer)
+  void releasePreviewSession()
+})
 </script>
 
 <style scoped>
-.custom-block-export-dialog { display: grid; gap: var(--oc-space-4); }
-.custom-block-export-dialog__fields { max-height: var(--oc-custom-block-export-fields-max-height); }
-.custom-block-export-dialog__metadata { display: grid; grid-template-columns: 1fr 1fr; gap: var(--oc-space-3); }
-.custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); }
-.custom-block-export-dialog__resources { display: grid; gap: var(--oc-space-2); min-height: 0; }
-.custom-block-export-dialog__resource-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--oc-space-3); min-height: var(--oc-size-lg); }
-.custom-block-export-dialog__resource-tree, .custom-block-export-dialog__resource-preview { min-height: 0; }
-.custom-block-export-dialog__resource-preview { display: grid; align-content: start; gap: var(--oc-space-3); }
-.custom-block-export-dialog__preview-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.custom-block-export-dialog__preview-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.custom-block-export-dialog__image-preview, .custom-block-export-dialog__icon-preview { display: grid; place-items: center; min-height: var(--oc-size-lg); overflow: hidden; background: var(--oc-bg-raised); }
-.custom-block-export-dialog__icon-preview { font-size: var(--oc-size-lg); }
-.custom-block-export-dialog__image-preview img { max-width: 100%; max-height: var(--oc-size-lg); object-fit: contain; }
-.custom-block-export-dialog__font-preview { display: grid; place-items: center; min-height: var(--oc-size-lg); font-size: var(--oc-text-xl); background: var(--oc-bg-raised); }
+.custom-block-export-dialog { display: grid; grid-template-columns: minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width)) minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
+.custom-block-export-dialog__sidebar { display: grid; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-export-dialog__section { display: grid; align-content: start; gap: var(--oc-space-2); min-width: 0; min-height: 0; padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.custom-block-export-dialog__section h3 { margin: 0; }
+.custom-block-export-dialog__section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-2); }
+.custom-block-export-dialog__metadata { display: grid; grid-template-columns: 1fr 1fr; gap: var(--oc-space-2); }
+.custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); min-width: 0; }
+.custom-block-export-dialog__fields-section, .custom-block-export-dialog__resources-section { grid-template-rows: auto minmax(0, 1fr); }
+.custom-block-export-dialog__preview, .custom-block-export-dialog__viewport-area { min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__preview { position: relative; }
+.custom-block-export-dialog__viewport-area { position: relative; display: grid; place-items: center; width: 100%; height: 100%; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
+.custom-block-export-dialog__viewport { width: 100%; height: 100%; }
+.custom-block-export-dialog__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-export-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); z-index: var(--oc-z-overlay-toolbar); }
+.custom-block-export-dialog__diagnostics { position: absolute; left: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-export-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); display: grid; gap: var(--oc-space-1); max-width: var(--oc-content-width-md); }
 </style>
