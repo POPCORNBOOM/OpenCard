@@ -2,25 +2,22 @@ import { createCustomBlock, type CustomBlock } from '../../../entities/card/mode
 
 type CustomBlockInstanceSource = {
   readonly manifest: {
-    readonly customBlockKey: string
+    readonly packageId: string
     readonly name: string
-    readonly publicFieldKeys: readonly string[]
   }
-  readonly block: Readonly<Record<string, unknown>>
 }
 
+/**
+ * Creates a lightweight host reference. Package defaults remain in block.json;
+ * only values explicitly edited on this instance are persisted on the host.
+ */
 export function createProjectCustomBlockInstance(
   entry: CustomBlockInstanceSource,
   init: Partial<Pick<CustomBlock, 'id' | 'name'>> = {},
 ): CustomBlock {
-  const values = Object.fromEntries(entry.manifest.publicFieldKeys
-    .filter(fieldKey => typeof entry.block[fieldKey] === 'string')
-    .map(fieldKey => [fieldKey, entry.block[fieldKey]]))
-  const block = createCustomBlock({
+  return createCustomBlock({
     id: init.id,
     name: init.name ?? entry.manifest.name,
-    customBlockKey: entry.manifest.customBlockKey,
+    packageId: entry.manifest.packageId,
   })
-  Object.assign(block, values)
-  return block
 }

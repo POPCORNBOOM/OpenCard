@@ -19,6 +19,15 @@ export function toKeySlug(value: string, fallback = 'item'): string {
   return normalized || fallback
 }
 
+export function normalizeKeySlug(value: string): string | null {
+  const normalized = value.trim().toLocaleLowerCase()
+  return normalized && toKeySlug(normalized, '') === normalized ? normalized : null
+}
+
+export function isKeySlug(value: string): boolean {
+  return normalizeKeySlug(value) !== null
+}
+
 export function createAvailableKey(
   value: string,
   existingKeys: Iterable<string>,

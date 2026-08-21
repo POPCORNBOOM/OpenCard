@@ -3,68 +3,56 @@ import { createBlock } from '../../../entities/card/model'
 import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
 
 describe('buildProjectCustomBlockManifest', () => {
-  it('projects only exposed root fields and keeps the blueprint tree', async () => {
-    const root = createBlock('text-block', { width: '{{self:size}}', height: '{{self:size}}' })
-    root.additionalFieldDefinition = {
-      size: { fieldType: 'number', title: '尺寸' },
-      label: { fieldType: 'string', title: '标签' },
-    }
-    ;(root as unknown as Record<string, unknown>).size = '120'
-    const manifest = await buildProjectCustomBlockManifest({ root, key: 'square', exposedFieldKeys: ['size'] })
-    expect(manifest).toMatchObject({ customBlockKey: 'square', publicFieldKeys: ['name', 'notes', 'size'] })
-    expect(manifest.resize).toEqual({ widthLocked: true, heightLocked: true })
+  it('builds the package identity, SemVer, public fields, and resize contract', async () => {
+    const root = createBlock('text-block', { id: 'root', name: 'Badge', content: 'Default' })
+    const manifest = await buildProjectCustomBlockManifest({
+      root,
+      publisherKey: 'Alice',
+      blockKey: 'Status-Badge',
+      exposedFieldKeys: ['content'],
+      resize: { widthLocked: true, heightLocked: false },
+    })
+    expect(manifest).toEqual({
+      type: 'opencard-custom-block',
+      packageId: 'alice/status-badge',
+      version: '0.1.0',
+      name: 'Badge',
+      publicFieldKeys: ['name', 'notes', 'content'],
+      resize: { widthLocked: true, heightLocked: false },
+    })
   })
 
-  it('removes editor packaging state without removing container children', async () => {
-    const root = createBlock('simple-container-block', { packaged: 'true' })
+  it('requires shared Key slugs and a valid semantic version', async () => {
+    const root = createBlock('text-block', { id: 'root' })
+    await expect(buildProjectCustomBlockManifest({
+      root, publisherKey: 'bad key', blockKey: 'badge',
+    })).rejects.toThrow('Package ID')
+    await expect(buildProjectCustomBlockManifest({
+      root, publisherKey: 'alice', blockKey: 'badge', version: '1',
+    })).rejects.toThrow('version')
+  })
+
+  it('rejects fields that are not exposed by the root schema', async () => {
+    const root = createBlock('text-block', { id: 'root' })
+    await expect(buildProjectCustomBlockManifest({
+      root,
+      publisherKey: 'alice',
+      blockKey: 'badge',
+      exposedFieldKeys: ['missing'],
+    })).rejects.toThrow('not available on the root')
+  })
+
+  it('removes editor packaging state without flattening nested custom blocks', () => {
+    const root = createBlock('simple-container-block', { id: 'root' })
+    root.packaged = 'true'
     root.children.push({
-      block: createBlock('flow-container-block', { packaged: 'true' }),
+      block: createBlock('custom-block', { id: 'nested', packageId: 'bob/label' }),
       location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
     })
-
-    await buildProjectCustomBlockManifest({ root, key: 'container' })
-    const block = buildProjectCustomBlockRoot(root)
-
-    expect(block).not.toHaveProperty('packaged')
-    if (block.type !== 'simple-container-block') throw new Error('Expected container')
-    expect(block.children).toHaveLength(1)
-    expect(block.children[0]!.block).not.toHaveProperty('packaged')
-  })
-
-  it('uses the explicitly exposed standard dimensions as the resize policy', async () => {
-    const root = createBlock('text-block')
-    const manifest = await buildProjectCustomBlockManifest({
-      root, key: 'sized', resize: { widthLocked: true, heightLocked: false },
+    const projected = buildProjectCustomBlockRoot(root)
+    expect(projected).not.toHaveProperty('packaged')
+    expect(projected.type === 'simple-container-block' && projected.children[0]?.block).toMatchObject({
+      type: 'custom-block', packageId: 'bob/label',
     })
-    expect(manifest.publicFieldKeys).toEqual(['name', 'notes'])
-    expect(manifest.resize).toEqual({ widthLocked: true, heightLocked: false })
-  })
-
-  it('allows an editable native root field to be public', async () => {
-    const root = createBlock('text-block', { content: 'Default' })
-    const manifest = await buildProjectCustomBlockManifest({ root, key: 'text', exposedFieldKeys: ['content'] })
-    expect(manifest.publicFieldKeys).toEqual(['name', 'notes', 'content'])
-  })
-
-  it('normalizes exported field definitions to the portable contract', async () => {
-    const root = createBlock('text-block')
-    ;(root as unknown as Record<string, unknown>).additionalFieldDefinition = {
-      size: { fieldType: 'number', title: 'Size', editorOnly: false },
-      invalid: false,
-    }
-
-    const block = buildProjectCustomBlockRoot(root)
-
-    expect(block.additionalFieldDefinition).toEqual({
-      size: { fieldType: 'number', title: 'Size' },
-    })
-  })
-
-  it('rejects an exposed field that cannot be normalized', async () => {
-    const root = createBlock('text-block')
-    ;(root as unknown as Record<string, unknown>).additionalFieldDefinition = { broken: false }
-
-    await expect(buildProjectCustomBlockManifest({ root, key: 'invalid', exposedFieldKeys: ['broken'] }))
-      .rejects.toThrow('not available on the root')
   })
 })
