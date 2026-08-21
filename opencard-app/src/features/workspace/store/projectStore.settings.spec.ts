@@ -10,19 +10,30 @@ const mocks = vi.hoisted(() => ({
   readBinaryFile: vi.fn(),
   writeBinaryFile: vi.fn(),
   createDirectory: vi.fn(),
-    copyFile: vi.fn(),
-    renameFile: vi.fn(),
+  copyFile: vi.fn(),
+  renameFile: vi.fn(),
   readFile: vi.fn(),
   trashFile: vi.fn(),
+  revealInFileManager: vi.fn(),
   startWatching: vi.fn(),
   stopWatching: vi.fn(),
-  readProjectCustomBlockPackage: vi.fn(),
-  readProjectCustomBlockManifest: vi.fn(),
+  discoverInstalledProjectCustomBlocks: vi.fn(),
+  installProjectCustomBlockPackage: vi.fn(),
+  uninstallProjectCustomBlockPackage: vi.fn(),
+  loadInstalledProjectCustomBlockRuntime: vi.fn(),
+  createProjectCustomBlockFontSession: vi.fn(),
+  fontSessionRelease: vi.fn(),
+  eventListener: null as null | ((event: { payload: { kind: string, paths: string[] } }) => void),
   initializeProjectStructure: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: vi.fn(), isTauri: () => false }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => vi.fn()) }))
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(async (_event: string, listener: typeof mocks.eventListener) => {
+    mocks.eventListener = listener
+    return vi.fn()
+  }),
+}))
 vi.mock('../../../utils/taskScheduler', () => ({
   taskScheduler: {
     cancel: mocks.cancel,
@@ -42,6 +53,7 @@ vi.mock('../services/fileSystemService', () => ({
     renameFile: mocks.renameFile,
     readFile: mocks.readFile,
     trashFile: mocks.trashFile,
+    revealInFileManager: mocks.revealInFileManager,
     startWatching: mocks.startWatching,
     stopWatching: mocks.stopWatching,
   },
@@ -57,8 +69,15 @@ vi.mock('../services/projectIconCatalog', async (importOriginal) => {
   }
 })
 vi.mock('../services/projectCustomBlock', () => ({
-  readProjectCustomBlockPackage: mocks.readProjectCustomBlockPackage,
-  readProjectCustomBlockManifest: mocks.readProjectCustomBlockManifest,
+  discoverInstalledProjectCustomBlocks: mocks.discoverInstalledProjectCustomBlocks,
+  installProjectCustomBlockPackage: mocks.installProjectCustomBlockPackage,
+  uninstallProjectCustomBlockPackage: mocks.uninstallProjectCustomBlockPackage,
+}))
+vi.mock('../services/projectCustomBlockAssetLoader', () => ({
+  loadInstalledProjectCustomBlockRuntime: mocks.loadInstalledProjectCustomBlockRuntime,
+}))
+vi.mock('../services/projectCustomBlockFontLoader', () => ({
+  createProjectCustomBlockFontSession: mocks.createProjectCustomBlockFontSession,
 }))
 
 import { useProjectStore } from './projectStore'
@@ -67,6 +86,7 @@ import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 describe('projectStore settings actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.eventListener = null
     mocks.openProject.mockResolvedValue(null)
     mocks.fileExists.mockResolvedValue(false)
     mocks.readDirectoryEntries.mockResolvedValue([])
@@ -80,8 +100,14 @@ describe('projectStore settings actions', () => {
     mocks.trashFile.mockResolvedValue(undefined)
     mocks.startWatching.mockResolvedValue(undefined)
     mocks.stopWatching.mockResolvedValue(undefined)
-    mocks.readProjectCustomBlockPackage.mockResolvedValue(packageResultForTest())
-    mocks.readProjectCustomBlockManifest.mockResolvedValue({ manifest: packageResultForTest().manifest, issues: [] })
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map())
+    mocks.installProjectCustomBlockPackage.mockResolvedValue({
+      manifest: packageResultForTest().manifest, installationPath: '.opencard/blocks/alice/square',
+      resourceRootPath: '.opencard/blocks/alice/square/resources', replaced: false, issues: [],
+    })
+    mocks.uninstallProjectCustomBlockPackage.mockResolvedValue(true)
+    mocks.loadInstalledProjectCustomBlockRuntime.mockResolvedValue(runtimeResultForTest())
+    mocks.createProjectCustomBlockFontSession.mockResolvedValue({ errors: [], release: mocks.fontSessionRelease })
     mocks.initializeProjectStructure.mockResolvedValue(undefined)
     useAppSettingsStore().updateProjectCreation({ workspaceStates: {} })
   })
@@ -441,120 +467,116 @@ describe('projectStore settings actions', () => {
     await store.setProjectPath('')
   })
 
-  it('copies custom block packages into the managed blocks directory', async () => {
+  it('discovers installed manifests without loading block definitions or resources', async () => {
+    const descriptor = manifestDescriptorForTest()
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map([['alice/square', descriptor]]))
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
 
-    await expect(store.importProjectCustomBlockFile(
-      'D:/project/library/square.ocblock',
-    )).resolves.toEqual({ source: 'blocks/square.ocblock', copied: true })
-    await expect(store.importProjectCustomBlockFile(
-      'D:/Downloads/square.ocblock',
-    )).resolves.toEqual({ source: 'blocks/square.ocblock', copied: true })
-    expect(mocks.copyFile).toHaveBeenCalledWith(
-      'D:/Downloads/square.ocblock',
-      'D:/project/.opencard/blocks/square.ocblock',
-    )
-
+    expect(store.projectCustomBlockManifestCatalog.value.get('alice/square')).toEqual(descriptor)
+    expect(mocks.loadInstalledProjectCustomBlockRuntime).not.toHaveBeenCalled()
     await store.setProjectPath('')
   })
 
-  it('replaces a compatible same-key registration and rejects an incompatible package before copying', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => path.endsWith('.opencard/.ocblocks'))
-    mocks.readFile.mockResolvedValue('{"blocks":["blocks/old-square.ocblock"]}')
+  it('deduplicates concurrent on-demand package loads and owns a releasable runtime session', async () => {
+    const descriptor = manifestDescriptorForTest()
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map([['alice/square', descriptor]]))
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
 
-    await expect(store.importProjectCustomBlockFile(
-      'D:/Downloads/new-square.ocblock',
-    )).resolves.toEqual({
-      source: 'blocks/new-square.ocblock',
-      copied: true,
-      replacedSource: 'blocks/old-square.ocblock',
-    })
-
-    mocks.copyFile.mockClear()
-    mocks.readProjectCustomBlockPackage.mockResolvedValueOnce({
-      manifest: {
-        type: 'opencard-custom-block',
-
-        customBlockKey: 'square',
-        name: 'Square v2',
-        publicFieldKeys: [],
-        resize: { widthLocked: false, heightLocked: false },
-      },
-      block: { type: 'text-block', id: 'root', content: '' },
-      archivePath: '',
-      files: new Map(),
-    })
-    await expect(store.importProjectCustomBlockFile(
-      'D:/Downloads/incompatible.ocblock',
-    )).resolves.toMatchObject({ replacedSource: 'blocks/old-square.ocblock' })
+    const [first, second] = await Promise.all([
+      store.ensureProjectCustomBlockLoaded('alice/square'),
+      store.ensureProjectCustomBlockLoaded('ALICE/SQUARE'),
+    ])
+    expect(first?.manifest.packageId).toBe('alice/square')
+    expect(second).toBe(first)
+    expect(mocks.loadInstalledProjectCustomBlockRuntime).toHaveBeenCalledOnce()
+    expect(store.projectCustomBlockManifestCatalog.value.get('alice/square')?.loadState).toBe('ready')
+    expect(store.renderEnvironment.value.customBlockCatalog?.has('alice/square')).toBe(true)
 
     await store.setProjectPath('')
+    expect(mocks.fontSessionRelease).toHaveBeenCalledOnce()
   })
 
-  it('creates the explicit registry only when a custom block is registered', async () => {
+  it('installs directly into the Package ID directory and never writes a legacy registry', async () => {
     const store = useProjectStore()
     await store.setProjectPath('D:/project')
+    mocks.writeFile.mockClear()
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map([
+      ['alice/square', manifestDescriptorForTest()],
+    ]))
 
-    await expect(store.registerProjectCustomBlockFile(
-      'D:/Downloads/square.ocblock',
-    )).resolves.toMatchObject({
-      source: 'blocks/square.ocblock',
-      copied: true,
+    await expect(store.installProjectCustomBlockFile('D:/Downloads/square.ocblock')).resolves.toEqual({
+      packageId: 'alice/square',
+      installationPath: '.opencard/blocks/alice/square',
+      resourceRootPath: '.opencard/blocks/alice/square/resources',
+      replaced: false,
     })
-
-    const registryWrite = mocks.writeFile.mock.calls.find(([path]) => path === 'D:/project/.opencard/.ocblocks')
-    expect(registryWrite).toBeDefined()
-    expect(JSON.parse(registryWrite?.[1] as string)).toEqual({
-      blocks: ['blocks/square.ocblock'],
-    })
-    await store.setProjectPath('')
-  })
-
-  it('does not let an older custom block reload overwrite a newer catalog', async () => {
-    const store = useProjectStore()
-    await store.setProjectPath('D:/project')
-    mocks.fileExists.mockImplementation(async path => path.endsWith('.opencard/.ocblocks'))
-    type ManifestResult = { manifest: ReturnType<typeof packageResultForTest>['manifest'], issues: readonly never[] }
-    let resolveOld: (value: ManifestResult) => void = () => undefined
-    const oldPackage = new Promise<ManifestResult>(resolve => { resolveOld = resolve })
-    mocks.readFile.mockImplementation(async () => '{"blocks":["old.ocblock"]}')
-    mocks.readProjectCustomBlockManifest.mockImplementationOnce(async () => await oldPackage)
-
-    const oldReload = store.reloadProjectCustomBlockRegistry()
-    await vi.waitFor(() => expect(mocks.readProjectCustomBlockManifest).toHaveBeenCalled())
-    mocks.readProjectCustomBlockManifest.mockClear()
-    mocks.readFile.mockImplementation(async () => '{"blocks":["new.ocblock"]}')
-    mocks.readProjectCustomBlockManifest.mockImplementationOnce(async () => ({
-      manifest: { ...packageResultForTest().manifest, customBlockKey: 'new' }, issues: [],
+    expect(mocks.installProjectCustomBlockPackage).toHaveBeenCalledWith(expect.objectContaining({
+      projectRootPath: 'D:/project', sourcePath: 'D:/Downloads/square.ocblock',
     }))
-    const newReload = store.reloadProjectCustomBlockRegistry()
-    resolveOld({ manifest: { ...packageResultForTest().manifest, customBlockKey: 'old' }, issues: [] })
+    expect(mocks.writeFile.mock.calls.some(([path]) => String(path).endsWith('.ocblocks'))).toBe(false)
+    await store.setProjectPath('')
+  })
+
+  it('uninstalls the whole package and releases its runtime session', async () => {
+    const descriptor = manifestDescriptorForTest()
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map([['alice/square', descriptor]]))
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    await store.ensureProjectCustomBlockLoaded('alice/square')
+    mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map())
+
+    await expect(store.uninstallProjectCustomBlock('alice/square')).resolves.toBe(true)
+    expect(mocks.uninstallProjectCustomBlockPackage).toHaveBeenCalledWith(expect.objectContaining({
+      projectRootPath: 'D:/project', packageId: 'alice/square',
+    }))
+    expect(mocks.fontSessionRelease).toHaveBeenCalledOnce()
+    expect(store.renderEnvironment.value.customBlockCatalog?.has('alice/square')).toBe(false)
+    expect(store.projectCustomBlockManifestCatalog.value.has('alice/square')).toBe(false)
+    await store.setProjectPath('')
+  })
+
+  it('does not let an older directory discovery overwrite a newer catalog', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    let resolveOld: (value: Map<string, ReturnType<typeof manifestDescriptorForTest>>) => void = () => undefined
+    const oldDiscovery = new Promise<Map<string, ReturnType<typeof manifestDescriptorForTest>>>(resolve => { resolveOld = resolve })
+    mocks.discoverInstalledProjectCustomBlocks.mockClear()
+    mocks.discoverInstalledProjectCustomBlocks
+      .mockImplementationOnce(async () => await oldDiscovery)
+      .mockResolvedValueOnce(new Map([['alice/new', manifestDescriptorForTest('alice/new')]]))
+
+    const oldReload = store.reloadProjectCustomBlocks()
+    await vi.waitFor(() => expect(mocks.discoverInstalledProjectCustomBlocks).toHaveBeenCalledOnce())
+    const newReload = store.reloadProjectCustomBlocks()
+    resolveOld(new Map([['alice/old', manifestDescriptorForTest('alice/old')]]))
 
     await Promise.all([oldReload, newReload])
-    expect([...store.projectCustomBlockManifestCatalog.value.keys()]).toEqual(['new'])
+    expect([...store.projectCustomBlockManifestCatalog.value.keys()]).toEqual(['alice/new'])
     await store.setProjectPath('')
   })
 
-  it('uses the actual project package selected by use-existing', async () => {
-    mocks.fileExists.mockImplementation(async (path: string) => (
-      path.endsWith('.opencard/.ocblocks') || path.endsWith('/.opencard/blocks/square.ocblock')
-    ))
-    mocks.readFile.mockResolvedValue('{"blocks":["blocks/old-square.ocblock"]}')
-    const store = useProjectStore()
-    await store.setProjectPath('D:/project')
-    mocks.readProjectCustomBlockPackage
-      .mockResolvedValueOnce({ ...packageResultForTest() })
-      .mockResolvedValueOnce({ ...packageResultForTest() })
+  it('invalidates loaded sessions when the installed package root changes', async () => {
+    vi.useFakeTimers()
+    try {
+      const descriptor = manifestDescriptorForTest()
+      mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map([['alice/square', descriptor]]))
+      const store = useProjectStore()
+      await store.setProjectPath('D:/project')
+      await store.ensureProjectCustomBlockLoaded('alice/square')
+      mocks.discoverInstalledProjectCustomBlocks.mockResolvedValue(new Map())
 
-    await expect(store.importProjectCustomBlockFile(
-      'D:/Downloads/square.ocblock',
-      'use-existing',
-    )).resolves.toMatchObject({ copied: false })
-    expect(mocks.copyFile).not.toHaveBeenCalled()
-    await store.setProjectPath('')
+      mocks.eventListener?.({ payload: { kind: 'remove', paths: ['D:/project/.opencard/blocks'] } })
+      await vi.advanceTimersByTimeAsync(121)
+      await Promise.resolve()
+      expect(mocks.fontSessionRelease).toHaveBeenCalledOnce()
+      expect(store.renderEnvironment.value.customBlockCatalog?.has('alice/square')).toBe(false)
+      expect(store.projectCustomBlockManifestCatalog.value.has('alice/square')).toBe(false)
+      await store.setProjectPath('')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refreshes the workspace index after saving a new file into the project', async () => {
@@ -661,18 +683,43 @@ describe('projectStore settings actions', () => {
 
 })
 
-function packageResultForTest() {
+function packageResultForTest(packageId = 'alice/square') {
   return {
     manifest: {
-      type: 'opencard-custom-block',
-
-      customBlockKey: 'square',
-      name: 'Square',
-      publicFieldKeys: [],
+      type: 'opencard-custom-block' as const,
+      packageId,
+      version: '0.1.0',
+      name: packageId.split('/').pop() ?? packageId,
+      publicFieldKeys: ['name', 'notes'],
       resize: { widthLocked: false, heightLocked: false },
     },
-    block: { type: 'text-block', id: 'root', content: '' },
-    archivePath: '',
-    files: new Map(),
+    block: { type: 'text-block' as const, id: 'root', content: '' },
+    installationPath: `D:/project/.opencard/blocks/${packageId}`,
+    resourceRootPath: `D:/project/.opencard/blocks/${packageId}/resources`,
+  }
+}
+
+function manifestDescriptorForTest(packageId = 'alice/square') {
+  const fixture = packageResultForTest(packageId)
+  return {
+    manifest: fixture.manifest,
+    installationPath: fixture.installationPath,
+    resourceRootPath: fixture.resourceRootPath,
+    loadState: 'unloaded' as const,
+  }
+}
+
+function runtimeResultForTest(packageId = 'alice/square') {
+  const fixture = packageResultForTest(packageId)
+  const environment = {
+    kind: 'package' as const, namespace: `package-${packageId.replace('/', '-')}`,
+    rootPath: fixture.resourceRootPath, fontDocument: {}, fonts: {}, iconDocument: {},
+    iconCatalog: { series: [], entries: [], errors: [] }, issues: [], customBlockCatalog: new Map(),
+  }
+  const runtimeEntry = {
+    manifest: fixture.manifest, block: fixture.block, environment, dependencies: new Map(),
+  }
+  return {
+    entry: { ...fixture, issues: [] }, runtimeEntry, environments: [environment], issues: [],
   }
 }

@@ -78,40 +78,32 @@ import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
 } from '../model/projectFonts'
 import {
-  parseProjectCustomBlockRegistryText,
-  DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-  serializeProjectCustomBlockRegistry,
   type ProjectCustomBlockCatalog,
   type ProjectCustomBlockCatalogEntry,
   type ProjectCustomBlockManifestCatalog,
-  type ProjectCustomBlockManifestCatalogEntry,
 } from '../model/projectCustomBlocks'
-import { readProjectCustomBlockManifest, readProjectCustomBlockPackage } from '../services/projectCustomBlock'
 import {
-  registerProjectCustomBlockPath,
-  unregisterProjectCustomBlockPath,
-} from '../services/projectCustomBlockRegistry'
+  discoverInstalledProjectCustomBlocks,
+  installProjectCustomBlockPackage,
+  uninstallProjectCustomBlockPackage,
+} from '../services/projectCustomBlock'
 import {
   createProjectCustomBlockFontSession,
   type ProjectCustomBlockFontLoadError,
   type ProjectCustomBlockFontSession,
 } from '../services/projectCustomBlockFontLoader'
-import {
-  createProjectCustomBlockAssetSession,
-} from '../services/projectCustomBlockAssetLoader'
+import { loadInstalledProjectCustomBlockRuntime } from '../services/projectCustomBlockAssetLoader'
 import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 import {
-  estimateProjectCustomBlockUnpackedBytes,
-  ProjectCustomBlockResourceCache,
-} from '../services/projectCustomBlockCache'
+  createProjectResourceNamespace,
+  type ProjectResourceEnvironment,
+} from '../services/projectResourceEnvironment'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
 const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
 const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])
 const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp'])
-const PROJECT_CUSTOM_BLOCK_EXTENSIONS = new Set(['ocblock'])
 
 export type ImportedProjectFontFile = {
   source: string
@@ -122,8 +114,11 @@ export type ImportedProjectFontFiles = {
   copied: boolean
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
-export type ImportedProjectCustomBlockFile = ImportedProjectFontFile & {
-  replacedSource?: string
+export type ImportedProjectCustomBlockFile = {
+  packageId: string
+  installationPath: string
+  resourceRootPath: string
+  replaced: boolean
 }
 export type ProjectAssetImportConflict = {
   existingSource: string
@@ -176,14 +171,29 @@ const dictionaryError = ref<string | null>(null)
 const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
 const projectCustomBlockManifestCatalog = shallowRef<ProjectCustomBlockManifestCatalog>(new Map())
 const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
-const customBlockRegistryError = ref<string | null>(null)
+const customBlockCatalogError = ref<string | null>(null)
 const customBlockFontLoadErrors = ref<readonly ProjectCustomBlockFontLoadError[]>([])
 const settingsStore = useAppSettingsStore()
+const projectResourceEnvironment = computed<ProjectResourceEnvironment>(() => ({
+  kind: 'project',
+  namespace: createProjectResourceNamespace('project', projectPath.value || 'root'),
+  rootPath: projectPath.value || null,
+  fontDocument: {
+    families: projectFontFamilies.value,
+    compositions: projectFontCompositions.value,
+  },
+  fonts: projectFonts.value,
+  iconDocument: { iconSeries: projectIconSeries.value },
+  iconCatalog: projectIconCatalog.value,
+  issues: [],
+  customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
+}))
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
   projectIconCatalog: projectIconCatalog.value,
+  projectResourceEnvironment: projectResourceEnvironment.value,
   customBlockCatalog: projectCustomBlockRuntimeCatalog.value,
 }) as CardRenderEnvironment)
 
@@ -196,17 +206,25 @@ let customBlockWatchTimer: ReturnType<typeof setTimeout> | null = null
 const pendingCustomBlockChanges = new Set<string>()
 let activeCustomBlockKeys = new Set<string>()
 
-const customBlockResourceCache = new ProjectCustomBlockResourceCache(undefined, (key) => {
+const customBlockSessions = new Map<string, {
+  fontSession: ProjectCustomBlockFontSession
+  errors: readonly ProjectCustomBlockFontLoadError[]
+}>()
+const customBlockLoadPromises = new Map<string, Promise<ProjectCustomBlockCatalogEntry | null>>()
+
+function releaseProjectCustomBlock(key: string): void {
+  const identity = key.toLocaleLowerCase()
+  customBlockSessions.get(identity)?.fontSession.release()
+  customBlockSessions.delete(identity)
+  customBlockLoadPromises.delete(identity)
   const catalog = new Map(projectCustomBlockCatalog.value)
-  catalog.delete(key)
+  catalog.delete(identity)
   projectCustomBlockCatalog.value = catalog
   const runtimeCatalog = new Map(projectCustomBlockRuntimeCatalog.value)
-  runtimeCatalog.delete(key)
+  runtimeCatalog.delete(identity)
   projectCustomBlockRuntimeCatalog.value = runtimeCatalog
-  customBlockFontLoadErrors.value = customBlockFontLoadErrors.value.filter(
-    error => error.packageKey.toLowerCase() !== key,
-  )
-})
+  customBlockFontLoadErrors.value = [...customBlockSessions.values()].flatMap(session => session.errors)
+}
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -340,20 +358,6 @@ async function saveProjectDictionary(path: string, content: string): Promise<str
   return canonicalContent
 }
 
-async function saveProjectCustomBlockRegistry(path: string, content: string): Promise<string> {
-  const document = JSON.parse(content) as unknown
-  const normalized = parseProjectCustomBlockRegistryText(JSON.stringify(document))
-  if (!normalized) throw new Error('Invalid .ocblocks content')
-  const resolvedPath = resolveProjectPath(path)
-  if (pathIdentity(resolvedPath) !== pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))) {
-    throw new Error('Custom block registry must be stored at the project root')
-  }
-  const canonicalContent = serializeProjectCustomBlockRegistry(normalized)
-  await fileSystemService.writeFile(resolvedPath, canonicalContent)
-  await reloadProjectCustomBlockRegistry()
-  return canonicalContent
-}
-
 function clearProjectProfile() {
   projectProfile.value = null
   resolvedProject.value = null
@@ -410,108 +414,70 @@ function clearProjectDictionary() {
 
 function clearProjectCustomBlocks() {
   activeCustomBlockKeys = new Set()
-  customBlockResourceCache.clear()
+  for (const session of customBlockSessions.values()) session.fontSession.release()
+  customBlockSessions.clear()
+  customBlockLoadPromises.clear()
   projectCustomBlockManifestCatalog.value = new Map()
   projectCustomBlockCatalog.value = new Map()
   projectCustomBlockRuntimeCatalog.value = new Map()
-  customBlockRegistryError.value = null
+  customBlockCatalogError.value = null
   customBlockFontLoadErrors.value = []
 }
 
-async function ensureProjectCustomBlockLoaded(customBlockKey: string): Promise<ProjectCustomBlockCatalogEntry | null> {
-  const key = customBlockKey.toLowerCase()
+async function ensureProjectCustomBlockLoaded(packageId: string): Promise<ProjectCustomBlockCatalogEntry | null> {
+  const key = packageId.toLocaleLowerCase()
   const descriptor = projectCustomBlockManifestCatalog.value.get(key)
   if (!descriptor || !projectPath.value) return null
   const ready = projectCustomBlockCatalog.value.get(key)
   if (ready) return ready
+  const pending = customBlockLoadPromises.get(key)
+  if (pending) return await pending
   projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
-    ...descriptor, loadState: 'loading',
+    ...descriptor,
+    loadState: 'loading',
   })
-  try {
-    return await customBlockResourceCache.load(key, async () => {
-      const packageEntry = await readProjectCustomBlockPackage(
-        fileSystemService,
-        resolveProjectInternalPath(descriptor.archivePath),
+  let promise!: Promise<ProjectCustomBlockCatalogEntry | null>
+  promise = (async (): Promise<ProjectCustomBlockCatalogEntry | null> => {
+    try {
+      const loaded = await loadInstalledProjectCustomBlockRuntime({
+        fs: fileSystemService,
+        installationPath: descriptor.installationPath,
+      })
+      if (loaded.entry.manifest.packageId.toLocaleLowerCase() !== key) {
+        throw new Error(`Custom block Package ID changed while loading: ${packageId}`)
+      }
+      const fontSession = await createProjectCustomBlockFontSession(loaded.environments)
+      releaseProjectCustomBlock(key)
+      customBlockSessions.set(key, { fontSession, errors: fontSession.errors })
+      projectCustomBlockCatalog.value = new Map(projectCustomBlockCatalog.value).set(key, loaded.entry)
+      projectCustomBlockRuntimeCatalog.value = new Map(projectCustomBlockRuntimeCatalog.value).set(
+        key,
+        fontSession.errors.length > 0
+          ? { ...loaded.runtimeEntry, hasResourceErrors: true }
+          : loaded.runtimeEntry,
       )
-      if (packageEntry.manifest.customBlockKey.toLowerCase() !== key) {
-        throw new Error(`Custom block key changed while loading: ${customBlockKey}`)
-      }
-      if (!packageEntry.block) {
-        const descriptors = new Map(projectCustomBlockManifestCatalog.value)
-        descriptors.set(key, {
-          manifest: packageEntry.manifest,
-          archivePath: descriptor.archivePath,
-          issues: packageEntry.issues,
-          unavailable: true,
-          loadState: 'error',
-        })
-        projectCustomBlockManifestCatalog.value = descriptors
-        throw new Error(`Custom block is unavailable: ${customBlockKey}`)
-      }
-      const entry: ProjectCustomBlockCatalogEntry = {
-        ...packageEntry,
-        block: packageEntry.block,
-        archivePath: descriptor.archivePath,
-      }
-      const singleCatalog: ProjectCustomBlockCatalog = new Map([[key, entry]])
-      const assetSession = await createProjectCustomBlockAssetSession(singleCatalog)
-      let fontSession: ProjectCustomBlockFontSession
-      try {
-        fontSession = await createProjectCustomBlockFontSession(singleCatalog)
-      } catch (error) {
-        assetSession.release()
-        throw error
-      }
-      const runtimeEntry = assetSession.customBlockCatalog.get(key)
-      if (!runtimeEntry) {
-        assetSession.release()
-        fontSession.release()
-        throw new Error(`Custom block runtime entry is missing: ${customBlockKey}`)
-      }
-      const hasResourceErrors = packageEntry.hasResourceErrors
-        || fontSession.errors.length > 0
-        || assetSession.iconCatalog.errors.length > 0
-      const catalog = new Map(projectCustomBlockCatalog.value)
-      catalog.set(key, entry)
-      projectCustomBlockCatalog.value = catalog
-      const descriptors = new Map(projectCustomBlockManifestCatalog.value)
-      descriptors.set(key, {
-        manifest: packageEntry.manifest,
-        archivePath: descriptor.archivePath,
-        issues: packageEntry.issues,
+      projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
+        ...descriptor,
+        manifest: loaded.entry.manifest,
+        issues: loaded.issues,
         loadState: 'ready',
       })
-      projectCustomBlockManifestCatalog.value = descriptors
-      const runtimeCatalog = new Map(projectCustomBlockRuntimeCatalog.value)
-      runtimeCatalog.set(key, hasResourceErrors ? { ...runtimeEntry, hasResourceErrors: true } : runtimeEntry)
-      projectCustomBlockRuntimeCatalog.value = runtimeCatalog
-      customBlockFontLoadErrors.value = [
-        ...customBlockFontLoadErrors.value.filter(error => error.packageKey.toLowerCase() !== key),
-        ...fontSession.errors,
-      ]
-      const decodedIconBytes = assetSession.iconCatalog.series.reduce(
-        (total, series) => total + series.imageWidth * series.imageHeight * 4,
-        0,
-      )
-      return {
-        entry,
-        byteSize: estimateProjectCustomBlockUnpackedBytes(entry) + decodedIconBytes,
-        release: () => {
-          fontSession.release()
-          assetSession.release()
-        },
-      }
-    })
-  } catch (error) {
-    const current = projectCustomBlockManifestCatalog.value.get(key)
-    if (!current?.unavailable) {
+      customBlockFontLoadErrors.value = [...customBlockSessions.values()].flatMap(session => session.errors)
+      return loaded.entry
+    } catch (error) {
       projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
-        ...descriptor, loadState: 'error',
+        ...descriptor,
+        loadState: 'error',
+        unavailable: true,
       })
-      reportAppError('OC-E3011', { path: descriptor.archivePath, error })
+      reportAppError('OC-E3011', { path: descriptor.installationPath, error })
+      return null
+    } finally {
+      if (customBlockLoadPromises.get(key) === promise) customBlockLoadPromises.delete(key)
     }
-    return null
-  }
+  })()
+  customBlockLoadPromises.set(key, promise)
+  return await promise
 }
 
 async function ensureProjectCustomBlocksLoaded(keys: Iterable<string>): Promise<void> {
@@ -520,57 +486,34 @@ async function ensureProjectCustomBlocksLoaded(keys: Iterable<string>): Promise<
 }
 
 function setActiveProjectCustomBlockKeys(keys: Iterable<string>): void {
-  const normalized = [...new Set([...keys].map(key => key.toLowerCase()))]
+  const normalized = [...new Set([...keys].map(key => key.toLocaleLowerCase()))]
   activeCustomBlockKeys = new Set(normalized)
-  customBlockResourceCache.setPinnedKeys(normalized)
   void ensureProjectCustomBlocksLoaded(normalized)
 }
 
-function reloadProjectCustomBlockRegistry(): Promise<boolean> {
+function reloadProjectCustomBlocks(): Promise<boolean> {
   const expectedVersion = ++customBlockReloadVersion
   const expectedProjectPath = projectPath.value
   const reload = async (): Promise<boolean> => {
     const isCurrent = () => expectedVersion === customBlockReloadVersion
       && expectedProjectPath === projectPath.value
     if (!expectedProjectPath || !isCurrent()) return false
-
-    const registryPath = `${expectedProjectPath}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
+    const blocksPath = `${expectedProjectPath}/.opencard/blocks`
     try {
-      if (!await fileSystemService.fileExists(registryPath)) {
-        if (isCurrent()) clearProjectCustomBlocks()
-        return false
-      }
-      const registry = parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
-      if (!registry) throw new Error('Invalid .ocblocks registry')
-      const catalog = new Map<string, ProjectCustomBlockManifestCatalogEntry>()
-      for (const relativePath of registry.blocks ?? []) {
-        if (!isCurrent()) return false
-        const result = await readProjectCustomBlockManifest(
-          fileSystemService,
-          `${expectedProjectPath}/${resolveProjectInternalRelativePath(relativePath)}`,
-        )
-        const key = result.manifest.customBlockKey.toLowerCase()
-        const duplicate = catalog.get(key)
-        if (duplicate) {
-          catalog.set(key, { ...duplicate, issues: [...(duplicate.issues ?? []), {
-            code: 'manifest-field-ignored', path: relativePath, message: 'Duplicate custom Block Key was ignored',
-          }] })
-          continue
-        }
-        catalog.set(key, { manifest: result.manifest, archivePath: relativePath, loadState: 'unloaded', issues: result.issues })
-      }
+      const catalog = await discoverInstalledProjectCustomBlocks(fileSystemService, expectedProjectPath)
       if (!isCurrent()) return false
-      customBlockResourceCache.clear()
+      for (const key of [...customBlockSessions.keys()]) releaseProjectCustomBlock(key)
       projectCustomBlockManifestCatalog.value = catalog
       projectCustomBlockCatalog.value = new Map()
       projectCustomBlockRuntimeCatalog.value = new Map()
       customBlockFontLoadErrors.value = []
-      customBlockRegistryError.value = null
+      customBlockCatalogError.value = null
+      if (activeCustomBlockKeys.size > 0) void ensureProjectCustomBlocksLoaded(activeCustomBlockKeys)
       return true
     } catch (error) {
       if (!isCurrent()) return false
-      customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
-      reportAppError('OC-E3011', { path: registryPath, error })
+      customBlockCatalogError.value = error instanceof Error ? error.message : String(error)
+      reportAppError('OC-E3011', { path: blocksPath, error })
       return false
     }
   }
@@ -811,46 +754,51 @@ async function loadFiles() {
   await readDirectoryEntries('', Number.POSITIVE_INFINITY)
 }
 
+function installedPackageIdForPath(path: string): string | null {
+  if (!projectPath.value) return null
+  const blocksRoot = pathIdentity(resolveProjectPath('.opencard/blocks'))
+  const identity = pathIdentity(path)
+  if (identity !== blocksRoot && !identity.startsWith(`${blocksRoot}/`)) return null
+  const relative = normalizePath(path).slice(normalizePath(resolveProjectPath('.opencard/blocks')).length + 1)
+  const segments = relative.split('/').filter(Boolean)
+  return segments.length >= 2 ? `${segments[0]}/${segments[1]}`.toLocaleLowerCase() : null
+}
+
 async function flushProjectCustomBlockChanges(): Promise<void> {
   customBlockWatchTimer = null
   const paths = [...pendingCustomBlockChanges]
   pendingCustomBlockChanges.clear()
   if (!projectPath.value || paths.length === 0) return
-  const registryPath = pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
-  if (paths.some(path => pathIdentity(path) === registryPath)) {
-    await reloadProjectCustomBlockRegistry()
-    if (activeCustomBlockKeys.size > 0) await ensureProjectCustomBlocksLoaded(activeCustomBlockKeys)
-    return
-  }
-
-  for (const changedPath of paths) {
-    if (!changedPath.toLowerCase().endsWith('.ocblock')) continue
-    const descriptors = new Map(projectCustomBlockManifestCatalog.value)
-    const previous = [...descriptors.entries()].find(([, entry]) => (
-      pathIdentity(resolveProjectPath(entry.archivePath)) === pathIdentity(changedPath)
-    ))
-    if (previous) {
-      descriptors.delete(previous[0])
-      customBlockResourceCache.invalidate(previous[0])
+  const blocksRoot = pathIdentity(resolveProjectPath('.opencard/blocks'))
+  const rootChanged = paths.some(path => pathIdentity(path) === blocksRoot)
+  const affected = new Set(paths.flatMap(path => {
+    const packageId = installedPackageIdForPath(path)
+    return packageId ? [packageId] : []
+  }))
+  try {
+    const previousCatalog = projectCustomBlockManifestCatalog.value
+    const discovered = await discoverInstalledProjectCustomBlocks(fileSystemService, projectPath.value)
+    if (rootChanged) {
+      for (const packageId of previousCatalog.keys()) affected.add(packageId)
+      for (const packageId of discovered.keys()) affected.add(packageId)
     }
-    if (await fileSystemService.fileExists(changedPath)) {
-      try {
-        const result = await readProjectCustomBlockManifest(fileSystemService, changedPath)
-        const key = result.manifest.customBlockKey.toLowerCase()
-        customBlockResourceCache.invalidate(key)
-        descriptors.set(key, {
-          manifest: result.manifest,
-          archivePath: toRelativeProjectPath(changedPath),
-          loadState: 'unloaded',
-          issues: result.issues,
-        })
-        if (activeCustomBlockKeys.has(key)) void ensureProjectCustomBlockLoaded(key)
-      } catch (error) {
-        customBlockRegistryError.value = error instanceof Error ? error.message : String(error)
-        reportAppError('OC-E3011', { path: changedPath, error })
+    for (const packageId of affected) releaseProjectCustomBlock(packageId)
+    const next = new Map(discovered)
+    for (const [packageId, descriptor] of next) {
+      const previous = previousCatalog.get(packageId)
+      if (!affected.has(packageId) && previous?.loadState === 'ready') next.set(packageId, previous)
+      else next.set(packageId, { ...descriptor, loadState: 'unloaded' })
+    }
+    projectCustomBlockManifestCatalog.value = next
+    for (const packageId of affected) {
+      if (next.has(packageId) && activeCustomBlockKeys.has(packageId)) {
+        void ensureProjectCustomBlockLoaded(packageId)
       }
     }
-    projectCustomBlockManifestCatalog.value = descriptors
+    customBlockCatalogError.value = null
+  } catch (error) {
+    customBlockCatalogError.value = error instanceof Error ? error.message : String(error)
+    reportAppError('OC-E3011', { path: resolveProjectPath('.opencard/blocks'), error })
   }
 }
 
@@ -879,10 +827,11 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
-      const customBlockChanges = changedPaths.filter(path => (
-        pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME))
-        || path.toLowerCase().endsWith('.ocblock')
-      ))
+      const blocksRoot = pathIdentity(resolveProjectPath('.opencard/blocks'))
+      const customBlockChanges = changedPaths.filter(path => {
+        const identity = pathIdentity(path)
+        return identity === blocksRoot || identity.startsWith(`${blocksRoot}/`)
+      })
       if (customBlockChanges.length > 0) scheduleProjectCustomBlockChanges(customBlockChanges)
       const fontSources = projectFontFamilies.value.flatMap(font => Object.values(font.files)
         .flatMap(styles => Object.values(styles ?? {}))
@@ -953,7 +902,7 @@ async function setProjectPath(path: string) {
     reloadProjectFontRegistry(),
     reloadProjectIconRegistry(),
     reloadProjectDictionary(),
-    reloadProjectCustomBlockRegistry(),
+    reloadProjectCustomBlocks(),
   ])
   await startWatching()
   if (await fileSystemService.fileExists(resolveProjectPath(PROJECT_INTERNAL_DIRECTORY_NAME))) {
@@ -1244,64 +1193,44 @@ async function importProjectIconFile(
   )
 }
 
-async function importProjectCustomBlockFile(
-  sourcePath: string,
-  conflictResolution?: ProjectAssetImportResolution,
-): Promise<ImportedProjectCustomBlockFile> {
-  const sourcePackage = await readProjectCustomBlockPackage(fileSystemService, normalizePath(sourcePath))
-  findRegisteredProjectCustomBlock(sourcePackage.manifest.customBlockKey)
-  const imported = await importProjectAssetFile(
-    sourcePath,
-    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
-    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
-    'Unsupported custom block file',
-    conflictResolution,
-  )
-  const effectivePackage = conflictResolution === 'use-existing'
-    ? await readProjectCustomBlockPackage(fileSystemService, resolveProjectInternalPath(imported.source))
-    : sourcePackage
-  const existing = findRegisteredProjectCustomBlock(effectivePackage.manifest.customBlockKey)
+async function installProjectCustomBlockFile(sourcePath: string): Promise<ImportedProjectCustomBlockFile> {
+  const installed = await installProjectCustomBlockPackage({
+    fs: fileSystemService,
+    projectRootPath: ensureProjectOpen(),
+    sourcePath: normalizePath(sourcePath),
+  })
+  releaseProjectCustomBlock(installed.manifest.packageId)
+  await reloadProjectCustomBlocks()
+  await refreshIndexedEntries()
   return {
-    ...imported,
-    ...(existing && pathIdentity(existing.archivePath) !== pathIdentity(imported.source)
-      ? { replacedSource: existing.archivePath }
-      : {}),
+    packageId: installed.manifest.packageId,
+    installationPath: installed.installationPath,
+    resourceRootPath: installed.resourceRootPath,
+    replaced: installed.replaced,
   }
 }
 
-function findRegisteredProjectCustomBlock(key: string): ProjectCustomBlockManifestCatalogEntry | undefined {
-  const existing = projectCustomBlockManifestCatalog.value.get(key.toLowerCase())
-  return existing
+function findInstalledProjectCustomBlock(packageId: string) {
+  return projectCustomBlockManifestCatalog.value.get(packageId.toLocaleLowerCase())
 }
 
-async function getProjectCustomBlockImportConflict(sourcePath: string): Promise<ProjectAssetImportConflict | null> {
-  return await getProjectAssetImportConflict(
-    sourcePath,
-    DEFAULT_PROJECT_CUSTOM_BLOCK_DIRECTORY,
-    PROJECT_CUSTOM_BLOCK_EXTENSIONS,
-    'Unsupported custom block file',
-  )
+async function uninstallProjectCustomBlock(packageId: string): Promise<boolean> {
+  const removed = await uninstallProjectCustomBlockPackage({
+    fs: fileSystemService,
+    projectRootPath: ensureProjectOpen(),
+    packageId,
+  })
+  if (!removed) return false
+  releaseProjectCustomBlock(packageId)
+  await reloadProjectCustomBlocks()
+  await refreshIndexedEntries()
+  return true
 }
 
-async function registerProjectCustomBlockFile(
-  sourcePath: string,
-  conflictResolution?: ProjectAssetImportResolution,
-): Promise<ImportedProjectCustomBlockFile> {
-  const imported = await importProjectCustomBlockFile(sourcePath, conflictResolution)
-  const registryPath = resolveProjectPath(PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME)
-  const current = await fileSystemService.fileExists(registryPath)
-    ? parseProjectCustomBlockRegistryText(await fileSystemService.readFile(registryPath))
-    : {}
-  if (!current) throw new Error('Invalid .ocblocks registry')
-  const withoutReplaced = imported.replacedSource
-    ? unregisterProjectCustomBlockPath(current, imported.replacedSource)
-    : current
-  const updated = registerProjectCustomBlockPath(withoutReplaced, imported.source)
-  await saveProjectCustomBlockRegistry(
-    PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-    serializeProjectCustomBlockRegistry(updated),
-  )
-  return imported
+async function revealProjectCustomBlock(packageId: string): Promise<void> {
+  const descriptor = findInstalledProjectCustomBlock(packageId)
+  if (!descriptor) throw new Error('Custom block is not installed')
+  await fileSystemService.revealInFileManager(descriptor.installationPath)
 }
 
 async function getProjectIconImportConflict(
@@ -1700,12 +1629,13 @@ export function useProjectStore() {
     iconRegistryError: readonly(iconRegistryError),
     iconRegistryReady: readonly(iconRegistryReady),
     projectIconCatalog: readonly(projectIconCatalog),
-    renderEnvironment: readonly(renderEnvironment),
+    renderEnvironment,
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
-    projectCustomBlockManifestCatalog: readonly(projectCustomBlockManifestCatalog),
-    projectCustomBlockCatalog: readonly(projectCustomBlockCatalog),
-    customBlockRegistryError: readonly(customBlockRegistryError),
+    projectCustomBlockManifestCatalog,
+    projectCustomBlockCatalog,
+    customBlockCatalogError: readonly(customBlockCatalogError),
+    projectResourceEnvironment,
     customBlockFontLoadErrors: readonly(customBlockFontLoadErrors),
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),
@@ -1726,12 +1656,11 @@ export function useProjectStore() {
     saveProjectFontRegistry,
     saveProjectIconRegistry,
     saveProjectDictionary,
-    saveProjectCustomBlockRegistry,
     reloadProjectProfile,
     reloadProjectFontRegistry,
     reloadProjectIconRegistry,
     reloadProjectDictionary,
-    reloadProjectCustomBlockRegistry,
+    reloadProjectCustomBlocks,
     ensureProjectCustomBlockLoaded,
     ensureProjectCustomBlocksLoaded,
     setActiveProjectCustomBlockKeys,
@@ -1757,9 +1686,10 @@ export function useProjectStore() {
     getProjectFontImportConflict,
     importProjectIconFile,
     getProjectIconImportConflict,
-    importProjectCustomBlockFile,
-    getProjectCustomBlockImportConflict,
-    registerProjectCustomBlockFile,
+    installProjectCustomBlockFile,
+    uninstallProjectCustomBlock,
+    revealProjectCustomBlock,
+    findInstalledProjectCustomBlock,
     createEntryWithAvailableName,
     trashFile,
     trashUnusedProjectFontFiles,
