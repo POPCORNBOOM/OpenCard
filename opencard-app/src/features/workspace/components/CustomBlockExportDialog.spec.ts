@@ -20,6 +20,9 @@ vi.mock('../services/projectCustomBlockCandidatePreview', () => ({
   createProjectCustomBlockCandidatePreview: mocks.createPreview,
 }))
 vi.mock('../services/fileSystemService', () => ({ fileSystemService: {} }))
+vi.mock('../../settings/store/appSettingsStore', () => ({
+  useAppSettingsStore: () => ({ settings: { value: { identity: { publisherKey: 'publisher-test' } } } }),
+}))
 vi.mock('../store/projectStore', () => ({
   useProjectStore: () => ({
     resolvedProject: { value: null }, resolvedDictionary: { value: null },
@@ -137,7 +140,7 @@ describe('CustomBlockExportDialog', () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
     const tree = wrapper.getComponent(OcTree)
-    expect(wrapper.text()).toContain('local/square')
+    expect(wrapper.text()).not.toContain('publisher-test')
     expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height'])
     expect(tree.props('data').children.get('group:private')).toEqual(['field:content'])
     expect(wrapper.getComponent(CustomBlockResourceTree).props('selectedIds')).toEqual([resourceCandidate.id])
@@ -158,7 +161,7 @@ describe('CustomBlockExportDialog', () => {
     await wrapper.get('form').trigger('submit')
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>
     expect(payload).toMatchObject({
-      name: 'Square', publisherKey: 'local', blockKey: 'square', version: '0.1.0',
+      name: 'Square', publisherKey: 'publisher-test', blockKey: 'square', version: '0.1.0',
       exposedFieldKeys: ['content'], resize: { widthLocked: true, heightLocked: false },
     })
     expect(payload.selectedResourceIds).toEqual(new Set([resourceCandidate.id]))

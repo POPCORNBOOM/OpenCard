@@ -34,6 +34,7 @@ describe('appSettings', () => {
       shell: { sidebarWidth: 9999, sidebarCollapsed: true },
     })).toEqual({
       version: APP_SETTINGS_VERSION,
+      identity: createDefaultAppSettings().identity,
       appearance: {
         theme: 'light',
         locale: 'zh-CN',

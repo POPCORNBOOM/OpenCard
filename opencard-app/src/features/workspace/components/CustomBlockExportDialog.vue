@@ -4,19 +4,20 @@
     :dismissible="!busy" :close-on-backdrop="!busy" :aria-busy="busy"
     @request-close="requestClose" @submit="submit">
     <div class="custom-block-export-dialog" :inert="busy ? true : undefined">
-      <aside class="custom-block-export-dialog__sidebar">
-        <section class="custom-block-export-dialog__section">
+      <nav class="custom-block-export-dialog__pages" :aria-label="t('cardDesigner.customBlock.pages')">
+        <OcOptionGroup v-model="activePage" :options="pageOptions" appearance="sliding-outline"
+          semantics="tabs" fill />
+      </nav>
+
+      <section v-show="activePage === 'package'" class="custom-block-export-dialog__package"
+        role="tabpanel">
+        <section class="custom-block-export-dialog__section custom-block-export-dialog__information">
           <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.packageInformation') }}</OcText>
           <div class="custom-block-export-dialog__metadata">
             <label class="custom-block-export-dialog__field">
               <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.name') }}</OcText>
               <OcFieldInput full-width autofocus :value="name" :aria-invalid="!name.trim()"
                 @input="name = ($event.target as HTMLInputElement).value" />
-            </label>
-            <label class="custom-block-export-dialog__field">
-              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.publisherKey') }}</OcText>
-              <OcFieldInput full-width mono :value="publisherKey" :aria-invalid="!validPackageId"
-                @input="publisherKey = ($event.target as HTMLInputElement).value" />
             </label>
             <label class="custom-block-export-dialog__field">
               <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.key') }}</OcText>
@@ -29,48 +30,50 @@
                 @input="version = ($event.target as HTMLInputElement).value" />
             </label>
           </div>
-          <OcText mono size="xs" tone="muted">{{ resolvedPackageId || t('cardDesigner.customBlock.invalidPackageId') }}</OcText>
         </section>
 
-        <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
-          <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
-          <OcPanel fill padding="none" overflow="auto">
-            <OcTree fill :data="fieldTreeData" :actions="fieldTreeActions" :selected-keys="[]"
-              :expanded-keys="fieldGroupKeys" :aria-label="t('cardDesigner.customBlock.fields')"
-              selection-mode="none" action-visibility="always" @intent="handleFieldTreeIntent" />
-          </OcPanel>
-        </section>
+        <div class="custom-block-export-dialog__package-columns">
+          <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
+            <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
+            <OcPanel fill padding="none" overflow="auto">
+              <OcTree fill :data="fieldTreeData" :actions="fieldTreeActions" :selected-keys="[]"
+                :expanded-keys="fieldGroupKeys" :aria-label="t('cardDesigner.customBlock.fields')"
+                selection-mode="none" action-visibility="always" @intent="handleFieldTreeIntent" />
+            </OcPanel>
+          </section>
 
-        <section class="custom-block-export-dialog__section custom-block-export-dialog__resources-section">
-          <div class="custom-block-export-dialog__section-heading">
-            <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.resources') }}</OcText>
-            <OcText size="xs" tone="muted">{{ selectedResourceIds.size }}/{{ resourceCandidates.length }}</OcText>
-          </div>
-          <OcPanel fill padding="none" overflow="auto">
-            <CustomBlockResourceTree v-if="resourceCandidates.length"
-              :candidates="resourceCandidates" :selected-ids="[...selectedResourceIds]"
-              :ariaLabel="t('cardDesigner.customBlock.resources')"
-              :automatic-label="t('cardDesigner.customBlock.resourceAutomatic')"
-              :suggested-label="t('cardDesigner.customBlock.resourceSuggested')"
-              :manual-label="t('cardDesigner.customBlock.resourceManual')"
-              :excluded-label="t('cardDesigner.customBlock.resourceExcluded')"
-              :missing-label="t('cardDesigner.customBlock.resourceMissing')"
-              :nested-label="t('cardDesigner.customBlock.resourceNested')"
-              @update:selected-ids="selectedResourceIds = $event" />
-            <OcEmpty v-else tone="muted" inset="comfortable">
-              {{ preparing ? t('cardDesigner.customBlock.resourcesLoading') : t('cardDesigner.customBlock.resourceEmpty') }}
-            </OcEmpty>
-          </OcPanel>
-        </section>
-      </aside>
+          <section class="custom-block-export-dialog__section custom-block-export-dialog__resources-section">
+            <div class="custom-block-export-dialog__section-heading">
+              <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.resources') }}</OcText>
+              <OcText size="xs" tone="muted">{{ selectedResourceIds.size }}/{{ resourceCandidates.length }}</OcText>
+            </div>
+            <OcPanel fill padding="none" overflow="auto">
+              <CustomBlockResourceTree
+                :candidates="resourceCandidates" :selected-ids="[...selectedResourceIds]"
+                :ariaLabel="t('cardDesigner.customBlock.resources')"
+                :automatic-label="t('cardDesigner.customBlock.resourceAutomatic')"
+                :suggested-label="t('cardDesigner.customBlock.resourceSuggested')"
+                :manual-label="t('cardDesigner.customBlock.resourceManual')"
+                :excluded-label="t('cardDesigner.customBlock.resourceExcluded')"
+                :missing-label="t('cardDesigner.customBlock.resourceMissing')"
+                :nested-label="t('cardDesigner.customBlock.resourceNested')"
+                :font-label="t('cardDesigner.customBlock.fonts')"
+                :icon-label="t('cardDesigner.customBlock.icons')"
+                :package-label="t('cardDesigner.customBlock.nestedPackages')"
+                :image-label="t('cardDesigner.customBlock.otherImages')"
+                :select-label="t('cardDesigner.customBlock.resourceSelect')"
+                :deselect-label="t('cardDesigner.customBlock.resourceDeselect')"
+                @update:selected-ids="selectedResourceIds = $event" />
+            </OcPanel>
+          </section>
+        </div>
+      </section>
 
-      <section class="custom-block-export-dialog__preview"
-        :style="{ '--oc-custom-block-export-preview-occlusion': `${propertyOcclusion}px` }">
+      <section v-show="activePage === 'preview'" class="custom-block-export-dialog__preview" role="tabpanel">
         <main class="custom-block-export-dialog__viewport-area">
           <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
             class="custom-block-export-dialog__viewport" :face="previewFace"
-            :show-info="false" :viewport-insets="previewViewportInsets"
-            :resource-context="previewResources"
+            :show-info="false" :resource-context="previewResources"
             @viewport-transform-change="viewportScale = $event.scale"
             @viewport-size-change="fitPreview" />
           <OcEmpty v-else tone="muted" inset="comfortable">
@@ -87,19 +90,18 @@
           </OcCard>
         </main>
 
-        <OcViewportInspector v-model:expanded="propertyPanelExpanded" v-model:height="propertyPanelHeight"
-          :heading="t('customBlockRegistry.preview.publicFields')" :actions="propertyActions"
-          :expand-label="t('app.shell.expandBottomPanel')" :collapse-label="t('app.shell.collapseBottomPanel')"
-          :resize-label="t('customBlockRegistry.preview.resizeProperties')"
-          @action="resetPreviewOverrides" @occlusion-change="propertyOcclusion = $event">
-          <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
-            <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
-              @update-property="updatePreviewProperty" />
-          </OcPanel>
-          <OcEmpty v-else tone="muted" inset="comfortable">
-            {{ t('customBlockRegistry.preview.noPublicFields') }}
-          </OcEmpty>
-        </OcViewportInspector>
+        <aside class="custom-block-export-dialog__properties">
+          <OcCard fill :title="t('customBlockRegistry.preview.publicFields')" :actions="propertyActions"
+            @action="resetPreviewOverrides">
+            <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
+              <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
+                @update-property="updatePreviewProperty" />
+            </OcPanel>
+            <OcEmpty v-else tone="muted" inset="comfortable">
+              {{ t('customBlockRegistry.preview.noPublicFields') }}
+            </OcEmpty>
+          </OcCard>
+        </aside>
       </section>
     </div>
 
@@ -125,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CardDocument } from '../../../entities/card/model'
 import { getAdditionalFieldPropertyDefinition } from '../../../entities/card/model'
@@ -143,11 +145,12 @@ import OcCard, { type OcCardAction } from '../../../components/standard/OcCard.v
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcOverlayToolbar, { createViewportToolbarItems } from '../../../components/standard/OcOverlayToolbar.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
-import OcViewportInspector from '../../../components/standard/OcViewportInspector.vue'
+import OcOptionGroup, { type OcOption } from '../../../components/standard/OcOptionGroup.vue'
 import { toKeySlug } from '../../../shared/model/keySlug'
 import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEditorMutation } from '../../../shared/ui/property-editor/propertyEditor.types'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'
+import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import {
   createProjectCustomBlockPackageId,
   normalizeProjectCustomBlockVersion,
@@ -194,8 +197,9 @@ const emit = defineEmits<{
 }>()
 const { t, te } = useI18n()
 const projectStore = useProjectStore()
+const appSettingsStore = useAppSettingsStore()
 const name = ref('')
-const publisherKey = ref('local')
+const publisherKey = computed(() => appSettingsStore.settings.value.identity.publisherKey)
 const blockKey = ref('')
 const version = ref(PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION)
 const exposed = ref(new Set<string>())
@@ -213,12 +217,14 @@ const packageDiagnostics = ref<string[]>([])
 const confirmingDiagnostics = ref(false)
 const viewportRef = ref<{ zoomBy: (factor: number) => void, fitView?: () => void, fitContent?: (rect: { left: number, top: number, width: number, height: number }) => void } | null>(null)
 const viewportScale = ref(1)
-const propertyPanelExpanded = ref(true)
-const propertyPanelHeight = ref<number | null>(null)
-const propertyOcclusion = ref(0)
 let prepareTimer: ReturnType<typeof setTimeout> | null = null
 let previewTimer: ReturnType<typeof setTimeout> | null = null
 let revision = 0
+const activePage = ref<'package' | 'preview'>('package')
+const pageOptions = computed<readonly OcOption[]>(() => [
+  { value: 'package', label: t('cardDesigner.customBlock.packagePage') },
+  { value: 'preview', label: t('cardDesigner.customBlock.previewPage') },
+])
 const fieldGroupKeys = ['group:exposed', 'group:private']
 
 const suggestedBlockKey = computed(() => toKeySlug(name.value, props.defaultKey || 'custom-block'))
@@ -229,7 +235,6 @@ const resolvedPackageId = computed(() => createProjectCustomBlockPackageId(
 const validPackageId = computed(() => Boolean(resolvedPackageId.value))
 const validVersion = computed(() => Boolean(normalizeProjectCustomBlockVersion(version.value)))
 const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => prepared.value?.resourceAnalysis.candidates ?? [])
-const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
 const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
 const diagnostics = computed(() => [
   ...(props.errorText ? [props.errorText] : []),
@@ -240,6 +245,20 @@ const effectiveResize = computed<ProjectCustomBlockResizePolicy>(() => ({
   heightLocked: !exposed.value.has('resize:height'),
 }))
 const exposedFieldKeys = computed(() => props.fields.map(field => field.key).filter(key => exposed.value.has(key)))
+const previewFitRect = computed(() => {
+  const face = previewFace.value
+  const child = face?.children?.[0]
+  if (!face || !child) return null
+  const width = resolvePreviewLength(child.block.width, face.width)
+  const height = resolvePreviewLength(child.block.height, face.height)
+  if (width === null || height === null || width <= 0 || height <= 0) return null
+  return {
+    left: resolvePreviewLength(child.location.x, face.width) ?? 0,
+    top: resolvePreviewLength(child.location.y, face.height) ?? 0,
+    width,
+    height,
+  }
+})
 
 const fieldTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   ['move-exposed', { title: t('cardDesigner.customBlock.moveToExposed'), icon: 'nav.arrow-up' }],
@@ -287,7 +306,7 @@ const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   const defaults = Object.fromEntries(exposedFieldKeys.value.map(key => [
     key,
     Object.prototype.hasOwnProperty.call(current.block, key)
-      ? structuredClone((current.block as Record<string, unknown>)[key])
+      ? structuredClone(toRaw((current.block as Record<string, unknown>)[key]))
       : '',
   ]))
   const values = { ...defaults, ...previewOverrides.value }
@@ -341,7 +360,7 @@ watch(() => props.open, open => {
   }
   void releasePreviewSession()
   name.value = props.defaultName
-  publisherKey.value = 'local'
+  activePage.value = 'package'
   blockKey.value = ''
   version.value = PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION
   exposed.value = new Set([
@@ -356,7 +375,10 @@ watch(() => props.open, open => {
   confirmingDiagnostics.value = false
   schedulePrepare()
 }, { immediate: true })
-watch([name, publisherKey, blockKey, version, exposedFieldKeys, effectiveResize], schedulePrepare, { deep: true })
+watch([name, blockKey, version, exposedFieldKeys, effectiveResize], schedulePrepare, { deep: true })
+watch(activePage, page => {
+  if (page === 'preview') void nextTick().then(fitPreview)
+})
 watch(selectedResourceIds, scheduleCandidatePreview, { deep: true })
 watch(previewOverrides, schedulePreviewOnly, { deep: true })
 
@@ -471,6 +493,12 @@ async function rebuildCandidatePreview(currentRevision = ++revision): Promise<vo
   }
 }
 
+function resolvePreviewLength(value: string, parentSize: number): number | null {
+  const normalized = value.trim()
+  const numeric = Number.parseFloat(normalized)
+  if (!Number.isFinite(numeric)) return null
+  return normalized.endsWith('%') ? parentSize * numeric / 100 : numeric
+}
 function fieldKey(treeKey: string): string | null {
   if (treeKey.startsWith('field:')) return treeKey.slice(6)
   return treeKey.startsWith('resize:') ? treeKey : null
@@ -502,7 +530,10 @@ function updatePreviewProperty(mutation: PropertyEditorMutation): void {
   previewOverrides.value = next
 }
 function resetPreviewOverrides(): void { previewOverrides.value = {} }
-function fitPreview(): void { viewportRef.value?.fitView?.() }
+function fitPreview(): void {
+  if (previewFitRect.value && viewportRef.value?.fitContent) viewportRef.value.fitContent(previewFitRect.value)
+  else viewportRef.value?.fitView?.()
+}
 function handleViewportToolbar({ key }: { key: string }): void {
   if (key === 'viewport.zoom-out') viewportRef.value?.zoomBy(1 / VIEWPORT_ZOOM_STEP)
   else if (key === 'viewport.fit') fitPreview()
@@ -542,18 +573,23 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.custom-block-export-dialog { display: grid; grid-template-columns: minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width)) minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
-.custom-block-export-dialog__sidebar { display: grid; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
-.custom-block-export-dialog__section { display: grid; align-content: start; gap: var(--oc-space-2); min-width: 0; min-height: 0; padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.custom-block-export-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
+.custom-block-export-dialog__pages { padding: var(--oc-space-2) var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-export-dialog__package { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__information { border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.custom-block-export-dialog__package-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__section { display: grid; align-content: start; gap: var(--oc-space-2); min-width: 0; min-height: 0; padding: var(--oc-space-3); background: var(--oc-bg-base); }
 .custom-block-export-dialog__section h3 { margin: 0; }
 .custom-block-export-dialog__section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-2); }
-.custom-block-export-dialog__metadata { display: grid; grid-template-columns: 1fr 1fr; gap: var(--oc-space-2); }
+.custom-block-export-dialog__metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--oc-space-3); }
 .custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); min-width: 0; }
 .custom-block-export-dialog__fields-section, .custom-block-export-dialog__resources-section { grid-template-rows: auto minmax(0, 1fr); }
-.custom-block-export-dialog__preview, .custom-block-export-dialog__viewport-area { min-width: 0; min-height: 0; overflow: hidden; }
-.custom-block-export-dialog__preview { position: relative; }
-.custom-block-export-dialog__viewport-area { position: relative; display: grid; place-items: center; width: 100%; height: 100%; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
+.custom-block-export-dialog__fields-section { border-right: var(--oc-border-width) solid var(--oc-border-muted); }
+.custom-block-export-dialog__preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-preview-properties-width)); min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__viewport-area { position: relative; display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
+.custom-block-export-dialog__properties { min-width: 0; min-height: 0; overflow: hidden; border-left: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-export-dialog__properties > :deep(.oc-card) { border: 0; border-radius: 0; }
 .custom-block-export-dialog__viewport { width: 100%; height: 100%; }
-.custom-block-export-dialog__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-export-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); z-index: var(--oc-z-overlay-toolbar); }
-.custom-block-export-dialog__diagnostics { position: absolute; left: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-export-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); display: grid; gap: var(--oc-space-1); max-width: var(--oc-content-width-md); }
+.custom-block-export-dialog__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); z-index: var(--oc-z-overlay-toolbar); }
+.custom-block-export-dialog__diagnostics { position: absolute; left: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); display: grid; gap: var(--oc-space-1); max-width: var(--oc-content-width-md); }
 </style>

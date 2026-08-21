@@ -1,4 +1,5 @@
 /** Versioned application settings contract and normalization boundary. */
+import { normalizeKeySlug } from '../../../shared/model/keySlug'
 import {
   OC_EDITABLE_THEME_COLOR_KEYS,
   OC_THEME_REGISTRY,
@@ -117,6 +118,9 @@ export type AppSettingKey =
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
+  identity: {
+    publisherKey: string
+  }
   appearance: {
     theme: AppThemePreference
     locale: AppLocale
@@ -188,8 +192,10 @@ export type SettingsIntent =
       type: 'project-workspace.reset'
     }
 
+const DEFAULT_PUBLISHER_KEY = createPublisherKey()
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   version: APP_SETTINGS_VERSION,
+  identity: Object.freeze({ publisherKey: DEFAULT_PUBLISHER_KEY }),
   appearance: Object.freeze({
     theme: 'system',
     locale: 'system',
@@ -478,9 +484,13 @@ function normalizeWorkspaceStates(value: unknown): Record<string, ProjectWorkspa
   return result
 }
 
+function createPublisherKey(): string {
+  return `publisher-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+}
 export function createDefaultAppSettings(): AppSettings {
   return {
     version: APP_SETTINGS_VERSION,
+    identity: { ...DEFAULT_APP_SETTINGS.identity },
     appearance: {
       ...DEFAULT_APP_SETTINGS.appearance,
       themeOverrides: { dark: {}, light: {} },
@@ -505,6 +515,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     return createDefaultAppSettings()
   }
 
+  const identity = isRecord(value.identity) ? value.identity : {}
   const appearance = isRecord(value.appearance) ? value.appearance : {}
   const legacyAccentNeighborAngle = clampAngle(appearance.accentNeighborAngle)
   const shell = isRecord(value.shell) ? value.shell : {}
@@ -515,6 +526,11 @@ export function normalizeAppSettings(value: unknown): AppSettings {
 
   return {
     version: APP_SETTINGS_VERSION,
+    identity: {
+      publisherKey: typeof identity.publisherKey === 'string'
+        ? normalizeKeySlug(identity.publisherKey) ?? DEFAULT_APP_SETTINGS.identity.publisherKey
+        : DEFAULT_APP_SETTINGS.identity.publisherKey,
+    },
     appearance: {
       theme: appearance.theme === 'system' || appearance.theme === 'light' || appearance.theme === 'dark'
         ? appearance.theme

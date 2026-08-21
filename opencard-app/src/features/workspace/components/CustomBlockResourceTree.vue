@@ -1,28 +1,19 @@
 <template>
-  <div class="custom-block-resource-tree" role="tree" :aria-label="ariaLabel">
-    <label v-for="row in rows" :key="row.id" class="custom-block-resource-tree__row"
-      :class="{ 'is-automatic': row.automatic, 'is-suggested': row.suggested }"
-      :style="{ '--oc-resource-tree-depth': String(row.depth) }" role="treeitem"
-      :aria-level="row.depth + 1">
-      <OcCheckbox :checked="row.checked" :indeterminate="row.indeterminate"
-        @update:checked="toggleRow(row, $event)" />
-      <OcIcon :name="row.isFolder ? 'status.folder-open' : iconForKind(row.kind)" size="sm" />
-      <OcText class="custom-block-resource-tree__label" size="sm" truncate>
-        {{ row.label }}
-      </OcText>
-      <OcText v-if="row.status" size="xs" :tone="row.suggested ? 'warning' : row.automatic ? 'accent' : 'muted'">
-        {{ row.status }}
-      </OcText>
-    </label>
-  </div>
+  <OcTree fill :data="treeData" :actions="actions" :selected-keys="[]"
+    :expanded-keys="expandedKeys" :aria-label="ariaLabel" selection-mode="none"
+    action-visibility="always" @intent="handleIntent" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import OcCheckbox from '../../../components/base/OcCheckbox.vue'
-import OcIcon from '../../../components/base/OcIcon.vue'
-import OcText from '../../../components/base/OcText.vue'
+import OcTree from '../../../components/standard/OcTree.vue'
 import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+import type {
+  OcTreeActionDefinition,
+  OcTreeData,
+  OcTreeIntent,
+  OcTreeItem,
+} from '../../../shared/ui/tree/tree.types'
 import type {
   ProjectCustomBlockResourceCandidate,
   ProjectCustomBlockResourceCandidateKind,
@@ -38,99 +29,136 @@ const props = defineProps<{
   excludedLabel: string
   missingLabel: string
   nestedLabel: string
+  fontLabel: string
+  iconLabel: string
+  packageLabel: string
+  imageLabel: string
+  selectLabel: string
+  deselectLabel: string
 }>()
 const emit = defineEmits<{ 'update:selectedIds': [value: Set<string>] }>()
 
-type ResourceTreeNode = {
-  id: string
+const SELECT_ACTION = 'resource.select'
+const DESELECT_ACTION = 'resource.deselect'
+
+type ResourceNode = {
+  key: string
   label: string
-  children: Map<string, ResourceTreeNode>
-  candidate?: ProjectCustomBlockResourceCandidate
-}
-type ResourceTreeRow = {
-  id: string
-  label: string
-  depth: number
-  isFolder: boolean
-  descendantIds: readonly string[]
-  checked: boolean
-  indeterminate: boolean
-  automatic: boolean
-  suggested: boolean
-  status: string
   kind?: ProjectCustomBlockResourceCandidateKind
+  candidate?: ProjectCustomBlockResourceCandidate
+  children: Map<string, ResourceNode>
 }
 
-const selectedIdSet = computed(() => new Set(props.selectedIds))
+const categoryDefinitions = computed(() => [
+  ['font', props.fontLabel],
+  ['icon', props.iconLabel],
+  ['custom-block', props.packageLabel],
+  ['image', props.imageLabel],
+] as const)
+const selectedSet = computed(() => new Set(props.selectedIds))
+const actions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [SELECT_ACTION, { title: props.selectLabel, icon: 'action.add', iconTone: 'success' }],
+  [DESELECT_ACTION, { title: props.deselectLabel, icon: 'action.minus', iconTone: 'danger' }],
+]))
 
-const rows = computed<ResourceTreeRow[]>(() => {
-  const root: ResourceTreeNode = { id: 'root', label: '', children: new Map() }
+const projection = computed(() => {
+  const root: ResourceNode = { key: 'resource:root', label: '', children: new Map() }
+  for (const [kind, label] of categoryDefinitions.value) {
+    root.children.set(kind, { key: `resource:category:${kind}`, label, kind, children: new Map() })
+  }
   for (const candidate of props.candidates) {
-    const segments = candidate.path.split('/').filter(Boolean)
-    let parent = root
+    const category = root.children.get(candidate.kind)!
+    const relativePath = candidate.kind === 'font'
+      ? candidate.path.replace(/^\.opencard\/fonts\//i, '')
+      : candidate.kind === 'custom-block'
+        ? candidate.packageId ?? candidate.path.replace(/^\.opencard\/blocks\//i, '')
+        : candidate.kind === 'icon' ? candidate.label : candidate.path
+    const segments = relativePath.split('/').filter(Boolean)
+    let parent = category
     segments.forEach((segment, index) => {
-      const path = segments.slice(0, index + 1).join('/')
+      const identity = `${candidate.kind}:${segments.slice(0, index + 1).join('/')}`
       let node = parent.children.get(segment)
       if (!node) {
-        node = { id: `path:${path}`, label: segment, children: new Map() }
+        node = { key: `resource:path:${identity}`, label: segment, kind: candidate.kind, children: new Map() }
         parent.children.set(segment, node)
       }
       if (index === segments.length - 1) {
-        node.id = candidate.id
-        node.candidate = candidate
+        node.key = candidate.id
         node.label = candidate.label
+        node.candidate = candidate
       }
       parent = node
     })
   }
-
-  const result: ResourceTreeRow[] = []
-  const collectCandidateIds = (node: ResourceTreeNode): string[] => [
-    ...(node.candidate ? [node.candidate.id] : []),
-    ...[...node.children.values()].flatMap(collectCandidateIds),
-  ]
-  const visit = (node: ResourceTreeNode, depth: number): void => {
-    const descendantIds = collectCandidateIds(node)
-    const selectedCount = descendantIds.filter(id => selectedIdSet.value.has(id)).length
-    const candidate = node.candidate
-    result.push({
-      id: node.id,
-      label: node.label,
-      depth,
-      isFolder: node.children.size > 0 && !candidate,
-      descendantIds,
-      checked: descendantIds.length > 0 && selectedCount === descendantIds.length,
-      indeterminate: selectedCount > 0 && selectedCount < descendantIds.length,
-      automatic: candidate?.automatic ?? false,
-      suggested: candidate?.suggested ?? false,
-      status: candidate?.missing
-        ? props.missingLabel
-        : candidate?.kind === 'custom-block'
-          ? props.nestedLabel
-          : candidate?.automatic
-            ? selectedCount > 0 ? props.automaticLabel : props.excludedLabel
-            : candidate?.suggested
-              ? props.suggestedLabel
-              : candidate && selectedCount > 0 ? props.manualLabel : '',
-      kind: candidate?.kind,
-    })
-    for (const child of [...node.children.values()].sort((left, right) => left.label.localeCompare(right.label))) {
-      visit(child, depth + 1)
-    }
-  }
-  for (const child of [...root.children.values()].sort((left, right) => left.label.localeCompare(right.label))) {
-    visit(child, 0)
-  }
-  return result
+  return root
 })
 
-function toggleRow(row: ResourceTreeRow, checked: boolean): void {
-  const next = new Set(selectedIdSet.value)
-  for (const id of row.descendantIds) {
-    if (checked) next.add(id)
-    else next.delete(id)
+function candidateIds(node: ResourceNode): string[] {
+  return [
+    ...(node.candidate ? [node.candidate.id] : []),
+    ...[...node.children.values()].flatMap(candidateIds),
+  ]
+}
+
+const treeData = computed<OcTreeData>(() => {
+  const items = new Map<string, OcTreeItem>()
+  const children = new Map<string, readonly string[]>()
+  const visit = (node: ResourceNode): void => {
+    const descendants = candidateIds(node)
+    const selectedCount = descendants.filter(id => selectedSet.value.has(id)).length
+    const selectedAll = descendants.length > 0 && selectedCount === descendants.length
+    const candidate = node.candidate
+    const status = candidate?.missing
+      ? props.missingLabel
+      : candidate?.kind === 'custom-block'
+        ? props.nestedLabel
+        : candidate?.automatic
+          ? selectedCount > 0 ? props.automaticLabel : props.excludedLabel
+          : candidate?.suggested
+            ? props.suggestedLabel
+            : candidate && selectedCount > 0 ? props.manualLabel : ''
+    items.set(node.key, {
+      label: node.label,
+      icon: node.children.size > 0 ? 'status.folder-open' : iconForKind(node.kind),
+      ...(status ? { tail: status } : node.children.size > 0 && descendants.length > 0
+        ? { tail: `${selectedCount}/${descendants.length}` } : {}),
+      ...(descendants.length > 0 ? {
+        actions: [selectedAll ? DESELECT_ACTION : SELECT_ACTION],
+        contextActions: [selectedAll ? DESELECT_ACTION : SELECT_ACTION],
+      } : {}),
+    })
+    const childNodes = [...node.children.values()].sort((left, right) => left.label.localeCompare(right.label))
+    if (childNodes.length > 0) children.set(node.key, childNodes.map(child => child.key))
+    childNodes.forEach(visit)
+  }
+  for (const [kind] of categoryDefinitions.value) visit(projection.value.children.get(kind)!)
+  return {
+    rootKeys: categoryDefinitions.value.map(([kind]) => projection.value.children.get(kind)!.key),
+    items,
+    children,
+  }
+})
+const expandedKeys = computed(() => [...treeData.value.items.keys()].filter(key => treeData.value.children.has(key)))
+
+function handleIntent(intent: OcTreeIntent): void {
+  if (intent.type !== 'action.invoke') return
+  const node = findNode(projection.value, intent.key)
+  if (!node) return
+  const next = new Set(selectedSet.value)
+  for (const id of candidateIds(node)) {
+    if (intent.actionKey === SELECT_ACTION) next.add(id)
+    else if (intent.actionKey === DESELECT_ACTION) next.delete(id)
   }
   emit('update:selectedIds', next)
+}
+
+function findNode(node: ResourceNode, key: string): ResourceNode | null {
+  if (node.key === key) return node
+  for (const child of node.children.values()) {
+    const found = findNode(child, key)
+    if (found) return found
+  }
+  return null
 }
 
 function iconForKind(kind?: ProjectCustomBlockResourceCandidateKind): IconToken {
@@ -139,11 +167,3 @@ function iconForKind(kind?: ProjectCustomBlockResourceCandidateKind): IconToken 
   return 'file.image'
 }
 </script>
-
-<style scoped>
-.custom-block-resource-tree { display: grid; align-content: start; min-width: 0; }
-.custom-block-resource-tree__row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: var(--oc-space-2); min-height: var(--oc-property-row-height); padding-inline: calc(var(--oc-space-2) + var(--oc-resource-tree-depth) * var(--oc-tree-indent)); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.custom-block-resource-tree__row.is-automatic { background: var(--oc-bg-accent-subtle); }
-.custom-block-resource-tree__row.is-suggested { background: var(--oc-bg-warning-subtle); }
-.custom-block-resource-tree__label { min-width: 0; }
-</style>

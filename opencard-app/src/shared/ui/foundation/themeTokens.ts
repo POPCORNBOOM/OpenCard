@@ -193,6 +193,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-custom-block-list-width',
   '--oc-custom-block-property-height',
   '--oc-custom-block-export-fields-max-height',
+  '--oc-custom-block-preview-properties-width',
   '--oc-viewport-inspector-min-height',
   '--oc-viewport-inspector-visible-min-height',
   '--oc-z-viewport-inspector',

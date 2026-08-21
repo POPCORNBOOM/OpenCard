@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { ProjectCustomBlockResourceCandidate } from '../services/projectCustomBlockResources'
+import OcTree from '../../../components/standard/OcTree.vue'
 import CustomBlockResourceTree from './CustomBlockResourceTree.vue'
 
 const candidates: ProjectCustomBlockResourceCandidate[] = [
@@ -38,6 +39,12 @@ function mountTree(selectedIds: string[]) {
       excludedLabel: 'Excluded',
       missingLabel: 'Missing',
       nestedLabel: 'Nested',
+      fontLabel: 'Fonts',
+      iconLabel: 'Icons',
+      packageLabel: 'Packages',
+      imageLabel: 'Images',
+      selectLabel: 'Select',
+      deselectLabel: 'Deselect',
     },
   })
 }
@@ -59,15 +66,26 @@ describe('CustomBlockResourceTree', () => {
       expect.stringContaining('missing.pngMissing'),
       expect.stringContaining('ChildNested'),
     ]))
-    const assetsRow = rows.find(row => row.text() === 'assets')
-    expect(assetsRow?.find('input').attributes('aria-checked')).toBe('mixed')
+    const tree = wrapper.getComponent(OcTree)
+    expect(tree.props('data').items.get('resource:path:image:assets')?.actions).toEqual(['resource.select'])
+  })
+
+  it('keeps all package resource categories visible when they are empty', () => {
+    const tree = mountTree([]).getComponent(OcTree)
+    expect(tree.props('data').rootKeys).toEqual([
+      'resource:category:font', 'resource:category:icon',
+      'resource:category:custom-block', 'resource:category:image',
+    ])
+    expect(tree.props('data').rootKeys.map((key: string) => tree.props('data').items.get(key)?.label))
+      .toEqual(['Fonts', 'Icons', 'Packages', 'Images'])
   })
 
   it('toggles all descendants from a folder without restoring unrelated resources', async () => {
     const wrapper = mountTree(['custom-block:bob/child'])
-    const assetsRow = wrapper.findAll('[role="treeitem"]').find(row => row.text() === 'assets')
-    if (!assetsRow) throw new Error('Missing assets folder')
-    await assetsRow.find('input').setValue(true)
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
+      type: 'action.invoke', key: 'resource:path:image:assets', actionKey: 'resource.select', source: 'inline',
+    })
+    await wrapper.vm.$nextTick()
     const emitted = wrapper.emitted('update:selectedIds')?.[0]?.[0]
     expect(emitted).toBeInstanceOf(Set)
     expect([...(emitted as Set<string>)]).toEqual(expect.arrayContaining([
