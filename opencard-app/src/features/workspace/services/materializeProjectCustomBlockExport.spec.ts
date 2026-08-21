@@ -38,7 +38,6 @@ describe('materializeProjectCustomBlockExport', () => {
     })
 
     expect(result.issues).toEqual([])
-    expect(result.expansionIssues).toEqual([])
     expect(result.root).toMatchObject({ width: '{{self:size}}', size: '540' })
     if (result.root.type !== 'simple-container-block') throw new Error('Expected container')
     expect(result.root.children[0]).toMatchObject({
@@ -47,10 +46,8 @@ describe('materializeProjectCustomBlockExport', () => {
     })
   })
 
-  it('bakes nested custom blocks with their public values and no package dependency', () => {
-    const packagedRoot = createBlock('text-block', { id: 'package-root', content: '{{self:label}}' })
-    packagedRoot.additionalFieldDefinition = { label: { fieldType: 'string' } }
-    const host = createBlock('custom-block', { id: 'nested', customBlockKey: 'label' })
+  it('preserves nested custom block nodes for recursive vendoring', () => {
+    const host = createBlock('custom-block', { id: 'nested', packageId: 'bob/label' })
     ;(host as unknown as Record<string, unknown>).label = 'Exported'
     const root = createBlock('simple-container-block', { id: 'root' })
     root.children.push({
@@ -61,40 +58,13 @@ describe('materializeProjectCustomBlockExport', () => {
     const result = materializeProjectCustomBlockExport({
       document: createDocument(root),
       rootBlockId: root.id,
-      customBlockCatalog: new Map([['label', {
-        manifest: {
-          customBlockKey: 'label', publicFieldKeys: ['label'],
-          resize: { widthLocked: false, heightLocked: false },
-        },
-        block: packagedRoot,
-      }]]),
     })
 
-    expect(result.expansionIssues).toEqual([])
+    expect(result.issues).toEqual([])
     if (result.root.type !== 'simple-container-block') throw new Error('Expected container')
     expect(result.root.children[0]!.block).toMatchObject({
-      type: 'text-block', id: 'nested', content: '{{self:label}}', label: 'Exported',
+      type: 'custom-block', id: 'nested', packageId: 'bob/label', label: 'Exported',
     })
-    expect(result.root.children[0]!.block.type).not.toBe('custom-block')
-  })
-
-  it('reports only nested custom block failures inside the exported subtree', () => {
-    const root = createBlock('simple-container-block', { id: 'root' })
-    root.children.push({
-      block: createBlock('custom-block', { id: 'missing-inside', customBlockKey: 'missing' }),
-      location: { id: 'inside-location', type: 'simple-container-location', anchor: 'lt' },
-    })
-    const document = createDocument(root)
-    document.faces.back.children.push({
-      block: createBlock('custom-block', { id: 'missing-outside', customBlockKey: 'missing' }),
-      location: { id: 'outside-location', type: 'simple-container-location', anchor: 'lt' },
-    })
-
-    const result = materializeProjectCustomBlockExport({ document, rootBlockId: root.id, customBlockCatalog: new Map() })
-
-    expect(result.expansionIssues).toEqual([
-      { blockId: 'missing-inside', faceKey: 'front', reason: 'missing', customBlockKey: 'missing' },
-    ])
   })
 
   it('materializes references that cross the export root and reports failures at their field', () => {
@@ -105,8 +75,9 @@ describe('materializeProjectCustomBlockExport', () => {
       block: createBlock('text-block', { id: 'root', content: '{{parent:tone}}' }),
       location: { id: 'root-location', type: 'simple-container-location', anchor: 'lt' },
     })
-    const document = createDocument(parent)
-    const result = materializeProjectCustomBlockExport({ document, rootBlockId: 'root', environment: { dictionary: {} } })
+    const result = materializeProjectCustomBlockExport({
+      document: createDocument(parent), rootBlockId: 'root', environment: { dictionary: {} },
+    })
 
     expect(result.root).toMatchObject({ content: '{{parent:tone}}' })
     expect(result.issues).toContainEqual(expect.objectContaining({

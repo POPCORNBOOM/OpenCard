@@ -1,158 +1,151 @@
-import type { CardDocument } from '../../../entities/card/model'
+import type { CardBlock, CardDocument } from '../../../entities/card/model'
 import type { CardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
-import type { CustomBlockExpansionIssue, CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 import type { ProjectFontRegistry } from '../model/projectFontRegistry'
-import type { ResolvedProjectDictionary } from '../model/projectDictionary'
-import type { ProjectInformation, ProjectRemoteResourcePolicy } from '../model/projectMetadata'
+import type { ProjectInformation } from '../model/projectMetadata'
 import type {
   ProjectCustomBlockManifest,
+  ProjectCustomBlockManifestCatalog,
+  ProjectCustomBlockPackageIssue,
   ProjectCustomBlockResizePolicy,
-  ProjectCustomBlockResourceIndex,
 } from '../model/projectCustomBlocks'
-import type { ProjectIconCatalog } from './projectIconCatalog'
+import type { ProjectIconSeries } from '../model/projectIcons'
+import type { ResolvedProjectDictionary } from '../model/projectDictionary'
 import type { FileSystemService } from './fileSystemService'
 import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
 import { exportProjectCustomBlockPackage } from './projectCustomBlock'
 import {
-  collectProjectCustomBlockResources,
-  rewriteProjectCustomBlockResourceReferences,
+  analyzeProjectCustomBlockResources,
+  materializeProjectCustomBlockResources,
+  type MaterializedProjectCustomBlockResources,
+  type ProjectCustomBlockResourceAnalysis,
 } from './projectCustomBlockResources'
 import { materializeProjectCustomBlockExport } from './materializeProjectCustomBlockExport'
 
-const CUSTOM_BLOCK_REMOTE_RESOURCE_TIMEOUT_MS = 15_000
-const MAX_CUSTOM_BLOCK_REMOTE_RESOURCE_BYTES = 32 * 1024 * 1024
+export type PreparedProjectCustomBlockExport = {
+  manifest: ProjectCustomBlockManifest
+  block: CardBlock
+  resourceAnalysis: ProjectCustomBlockResourceAnalysis
+}
+
+export type ProjectCustomBlockCandidate = PreparedProjectCustomBlockExport & {
+  resources: MaterializedProjectCustomBlockResources
+}
+
+export type ProjectCustomBlockExportResult =
+  | { status: 'exported', outputPath: string, manifest: ProjectCustomBlockManifest, issues: readonly ProjectCustomBlockPackageIssue[] }
+  | { status: 'cancelled' }
+  | { status: 'blocked', reason: 'binding', issue: CardPipelineIssue }
 
 type CustomBlockExportFileSystem = Pick<
   FileSystemService,
-  'pickSavePath' | 'readBinaryFile' | 'writeBinaryFile'
+  'pickSavePath' | 'readBinaryFile' | 'readDirectoryEntries' | 'fileExists' | 'writeBinaryFile'
 >
 
-type ExportCustomBlockCatalog = ReadonlyMap<string, {
-  readonly manifest: {
-    readonly customBlockKey: string
-    readonly resources?: ProjectCustomBlockResourceIndex
-  }
-  readonly files: ReadonlyMap<string, Uint8Array>
-}>
-
-export type ProjectCustomBlockExportResult =
-  | { status: 'exported'; outputPath: string; manifest: ProjectCustomBlockManifest }
-  | { status: 'cancelled' }
-  | { status: 'blocked'; reason: 'expansion'; issue: CustomBlockExpansionIssue }
-  | { status: 'blocked'; reason: 'binding'; issue: CardPipelineIssue }
-
-export async function fetchProjectCustomBlockImageBytes(
-  url: string,
-  fetchResponse: typeof fetch = fetch,
-): Promise<Uint8Array> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), CUSTOM_BLOCK_REMOTE_RESOURCE_TIMEOUT_MS)
-  try {
-    const response = await fetchResponse(url, { signal: controller.signal })
-    if (!response.ok) throw new Error(`Custom block image download failed: ${response.status}`)
-    const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
-    if (!mime.startsWith('image/')) throw new Error('Custom block remote resource is not an image')
-    const declaredLength = Number(response.headers.get('content-length') ?? '')
-    if (Number.isFinite(declaredLength) && declaredLength > MAX_CUSTOM_BLOCK_REMOTE_RESOURCE_BYTES) {
-      throw new Error('Custom block remote image exceeds the size limit')
-    }
-    if (!response.body) {
-      const bytes = new Uint8Array(await response.arrayBuffer())
-      if (bytes.byteLength > MAX_CUSTOM_BLOCK_REMOTE_RESOURCE_BYTES) {
-        throw new Error('Custom block remote image exceeds the size limit')
-      }
-      return bytes
-    }
-    const reader = response.body.getReader()
-    const chunks: Uint8Array[] = []
-    let totalBytes = 0
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      totalBytes += value.byteLength
-      if (totalBytes > MAX_CUSTOM_BLOCK_REMOTE_RESOURCE_BYTES) {
-        await reader.cancel()
-        throw new Error('Custom block remote image exceeds the size limit')
-      }
-      chunks.push(value)
-    }
-    const bytes = new Uint8Array(totalBytes)
-    let offset = 0
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-    return bytes
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-export async function exportProjectCustomBlock(options: {
+export async function prepareProjectCustomBlockExport(options: {
   document: CardDocument
   rootBlockId: string
   name: string
-  key: string
+  publisherKey: string
+  blockKey: string
+  version?: string
   exposedFieldKeys: readonly string[]
   resize: ProjectCustomBlockResizePolicy
   projectRootPath: string
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<ResolvedProjectDictionary> | null
   projectFonts?: ProjectFontRegistry
-  projectIconCatalog?: ProjectIconCatalog
-  customBlockCatalog?: ExportCustomBlockCatalog
-  customBlockRuntimeCatalog?: CustomBlockRuntimeCatalog
-  remoteResourcePolicy?: ProjectRemoteResourcePolicy
-  fs: CustomBlockExportFileSystem
-  fetchResponse?: typeof fetch
-}): Promise<ProjectCustomBlockExportResult> {
+  projectIconSeries?: readonly ProjectIconSeries[]
+  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'fileExists'>
+}): Promise<PreparedProjectCustomBlockExport | { blocked: CardPipelineIssue }> {
   const materialized = materializeProjectCustomBlockExport({
     document: options.document,
     rootBlockId: options.rootBlockId,
     environment: { project: options.project, dictionary: options.dictionary },
-    customBlockCatalog: options.customBlockRuntimeCatalog,
   })
-  const expansionIssue = materialized.expansionIssues[0]
-  if (expansionIssue) return { status: 'blocked', reason: 'expansion', issue: expansionIssue }
   const bindingIssue = materialized.issues[0]
-  if (bindingIssue) return { status: 'blocked', reason: 'binding', issue: bindingIssue }
+  if (bindingIssue) return { blocked: bindingIssue }
 
   const manifest = await buildProjectCustomBlockManifest({
     root: materialized.root,
-    key: options.key,
+    publisherKey: options.publisherKey,
+    blockKey: options.blockKey,
+    version: options.version,
     name: options.name,
     exposedFieldKeys: options.exposedFieldKeys,
     resize: options.resize,
   })
   const block = buildProjectCustomBlockRoot(materialized.root)
-
-  const resources = await collectProjectCustomBlockResources({
+  const resourceAnalysis = await analyzeProjectCustomBlockResources({
     root: block,
-    packageKey: manifest.customBlockKey,
     projectRootPath: options.projectRootPath,
-    projectFonts: options.projectFonts,
-    projectIconCatalog: options.projectIconCatalog,
-    customBlockCatalog: options.customBlockRuntimeCatalog ?? options.customBlockCatalog,
-    resourceOwners: materialized.resourceOwners,
-    remoteResourcePolicy: options.remoteResourcePolicy,
     fs: options.fs,
-    fetchBytes: url => fetchProjectCustomBlockImageBytes(url, options.fetchResponse),
+    projectFonts: options.projectFonts,
+    projectIconSeries: options.projectIconSeries,
+    customBlockManifestCatalog: options.customBlockManifestCatalog,
   })
-  if (Object.keys(resources.index).length > 0) manifest.resources = resources.index
-  rewriteProjectCustomBlockResourceReferences(block, resources)
+  return { manifest, block, resourceAnalysis }
+}
 
+export async function buildProjectCustomBlockCandidate(options: {
+  prepared: PreparedProjectCustomBlockExport
+  selectedResourceIds?: ReadonlySet<string>
+  projectRootPath: string
+  projectFonts?: ProjectFontRegistry
+  projectIconSeries?: readonly ProjectIconSeries[]
+  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readBinaryFile'>
+}): Promise<ProjectCustomBlockCandidate> {
+  const resources = await materializeProjectCustomBlockResources({
+    analysis: options.prepared.resourceAnalysis,
+    selectedIds: options.selectedResourceIds ?? options.prepared.resourceAnalysis.defaultSelectedIds,
+    projectRootPath: options.projectRootPath,
+    fs: options.fs,
+    projectFonts: options.projectFonts,
+    projectIconSeries: options.projectIconSeries,
+    customBlockManifestCatalog: options.customBlockManifestCatalog,
+  })
+  return { ...options.prepared, resources }
+}
+
+export async function exportProjectCustomBlock(options: {
+  document: CardDocument
+  rootBlockId: string
+  name: string
+  publisherKey: string
+  blockKey: string
+  version?: string
+  exposedFieldKeys: readonly string[]
+  resize: ProjectCustomBlockResizePolicy
+  selectedResourceIds?: ReadonlySet<string>
+  projectRootPath: string
+  project?: Readonly<ProjectInformation> | null
+  dictionary?: Readonly<ResolvedProjectDictionary> | null
+  projectFonts?: ProjectFontRegistry
+  projectIconSeries?: readonly ProjectIconSeries[]
+  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  fs: CustomBlockExportFileSystem
+}): Promise<ProjectCustomBlockExportResult> {
+  const prepared = await prepareProjectCustomBlockExport(options)
+  if ('blocked' in prepared) return { status: 'blocked', reason: 'binding', issue: prepared.blocked }
+  const candidate = await buildProjectCustomBlockCandidate({ ...options, prepared })
   const outputPath = await options.fs.pickSavePath({
-    defaultPath: `${options.key}.ocblock`,
+    defaultPath: `${options.blockKey}.ocblock`,
     fileTypeName: 'OpenCard custom block',
     extensions: ['ocblock'],
   })
   if (!outputPath) return { status: 'cancelled' }
   const writtenPath = await exportProjectCustomBlockPackage({
     fs: options.fs,
-    manifest,
-    block,
-    files: resources.files,
+    manifest: candidate.manifest,
+    block: candidate.block,
+    files: candidate.resources.files,
     outputPath,
   })
-  return { status: 'exported', outputPath: writtenPath, manifest }
+  return {
+    status: 'exported',
+    outputPath: writtenPath,
+    manifest: candidate.manifest,
+    issues: candidate.resources.issues,
+  }
 }
