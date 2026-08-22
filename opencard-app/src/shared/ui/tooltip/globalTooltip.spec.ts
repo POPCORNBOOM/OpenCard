@@ -12,6 +12,8 @@ describe('globalTooltip', () => {
       <button id="first" data-tooltip="First tooltip">First</button>
       <button id="second" data-tooltip="Second tooltip">Second</button>
       <button id="rich" data-tooltip="[b]Before[/b][br][i]Now[/i] [code]copy[/code] [icon:action.copy] [key]Alt[/key]">Rich</button>
+      <span id="fitting" data-tooltip="Fits" data-tooltip-overflow>Fits</span>
+      <span id="overflowing" data-tooltip="Complete clipped text" data-tooltip-overflow>Clipped</span>
     `
     setupGlobalTooltip()
 
@@ -51,5 +53,18 @@ describe('globalTooltip', () => {
     expect(layer.querySelector('code')?.textContent).toBe('copy')
     expect(layer.querySelector('.oc-key')?.textContent).toBe('Alt')
     expect(layer.querySelector('.oc-inline-markup__icon path')).not.toBeNull()
+
+    const fitting = document.getElementById('fitting')!
+    Object.defineProperty(fitting, 'clientWidth', { configurable: true, value: 80 })
+    Object.defineProperty(fitting, 'scrollWidth', { configurable: true, value: 80 })
+    fitting.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    expect(layer.getAttribute('aria-hidden')).toBe('true')
+
+    const overflowing = document.getElementById('overflowing')!
+    Object.defineProperty(overflowing, 'clientWidth', { configurable: true, value: 80 })
+    Object.defineProperty(overflowing, 'scrollWidth', { configurable: true, value: 160 })
+    overflowing.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    expect(layer.getAttribute('aria-hidden')).toBe('false')
+    expect(layer.textContent).toBe('Complete clipped text')
   })
 })

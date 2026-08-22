@@ -222,7 +222,7 @@ export function useSettingsWorkspace(
             })),
             ...settings.appearance.userThemePresets[themeId].map(preset => ({
               value: `user:${preset.name}`,
-              label: `${preset.name} · ${options.translate('settings.values.importedTheme', 'Imported')}`,
+              label: `${preset.name} ${options.translate('settings.values.importedTheme', 'Imported')}`,
             })),
           ],
           importLabel: options.translate('settings.actions.importTheme', 'Import theme'),

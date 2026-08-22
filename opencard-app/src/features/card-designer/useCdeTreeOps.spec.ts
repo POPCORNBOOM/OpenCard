@@ -47,7 +47,7 @@ function createDocument(): CardDocument {
 describe('useCdeTreeOps active face boundary', () => {
   it('maps namespaced custom block descendants back to their host', () => {
     const document = createDocument()
-    const host = createCustomBlock({ id: 'custom-host', customBlockKey: 'item' })
+    const host = createCustomBlock({ id: 'custom-host', packageId: 'alice/item' })
     document.faces.front.children = [{
       block: host,
       location: { type: 'simple-container-location', id: 'custom-location', anchor: 'lt' },
@@ -167,7 +167,15 @@ describe('useCdeTreeOps active face boundary', () => {
     expect(state.blockTreeData.value.items.get('outer')).toMatchObject({
       icon: 'entity.block-package',
       actions: ['hide-block', 'packaged-container-more'],
-      contextActions: ['hide-block', 'rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
+      contextActions: [
+        'hide-block',
+        { type: 'divider', key: 'block-edit-divider' },
+        'copy-block', 'paste-block', 'rename', 'duplicate',
+        { type: 'divider', key: 'block-structure-divider' },
+        'export-custom-block', 'unpackage',
+        { type: 'divider', key: 'block-delete-divider' },
+        'delete',
+      ],
     })
 
     state.handleViewportBlockClick('inner-text')
@@ -241,7 +249,7 @@ describe('useCdeTreeOps active face boundary', () => {
       parentLookup,
       selectedBlockKeys: ref([]),
       getDefaultBlockName: type => type,
-      createCustomBlock: key => createCustomBlock({ customBlockKey: key }),
+      createCustomBlock: packageId => createCustomBlock({ packageId }),
       refreshDocumentState: () => {
         documentRevision.value += 1
         parentLookup.value = buildParentLookup(document)
@@ -249,16 +257,16 @@ describe('useCdeTreeOps active face boundary', () => {
       markDocumentChanged: vi.fn(),
     })
 
-    state.handleRootAction('add-custom-block:square')
+    state.handleRootAction('add-custom-block:alice/square')
     expect(document.faces.front.children[2]?.block).toMatchObject({
       type: 'custom-block',
-      customBlockKey: 'square',
+      packageId: 'alice/square',
     })
 
     state.handleTreeIntent({
       type: 'action.invoke',
       key: 'open-container',
-      actionKey: 'add-custom-block:square',
+      actionKey: 'add-custom-block:alice/square',
       source: 'context',
     })
     expect(openContainer.children[0]?.block.type).toBe('custom-block')
@@ -266,7 +274,7 @@ describe('useCdeTreeOps active face boundary', () => {
     state.handleTreeIntent({
       type: 'action.invoke',
       key: 'packaged-container',
-      actionKey: 'add-custom-block:square',
+      actionKey: 'add-custom-block:alice/square',
       source: 'context',
     })
     expect(packagedContainer.children).toHaveLength(0)

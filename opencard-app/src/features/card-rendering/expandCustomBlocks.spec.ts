@@ -28,7 +28,7 @@ function runtime(
   publicFieldKeys: readonly string[] = [],
 ): CustomBlockRuntimeEntry {
   return {
-    manifest: { packageId, publicFieldKeys, resize: { widthLocked: false, heightLocked: false } },
+    manifest: { packageId, publicFieldKeys },
     block,
     environment: { ...resourceEnvironment, customBlockCatalog: dependencies },
     dependencies,

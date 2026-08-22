@@ -1,5 +1,5 @@
 import type { CardBlock, FlowContainerBlock, SimpleContainerBlock } from '../../../entities/card/model'
-import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import { resolvePropertyEditorSchema } from '../../../entities/card/schema'
 import { isBindingStartEscaped, parseFieldReference } from '../../editor-runtime/model/bindingExpression'
 import { PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
   type ProjectCustomBlockPublicField, type ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
@@ -55,16 +55,13 @@ function scanRecord(value: unknown, rootFields: ReadonlySet<string>, depth: numb
 
 export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExportAnalysis {
   const alwaysPublicKeys = new Set(PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS.map(key => key.toLowerCase()))
-  const nativeFields = Object.entries(getTypePropertyEditorSchema(root.type)).flatMap(([key, definition]) => (
+  const resolved = resolvePropertyEditorSchema(root as Readonly<Record<string, unknown>>)
+  const definitions = Object.entries(resolved.fields).flatMap(([key, definition]) => (
     key === 'width' || key === 'height' || alwaysPublicKeys.has(key.toLowerCase())
       || definition.isHidden || definition.isReadonly || definition.fieldType === 'object'
       ? []
-      : [{ key, fieldType: definition.fieldType, title: undefined }]
+      : [{ key, fieldType: definition.fieldType, title: resolved.labels[key] }]
   ))
-  const nativeKeys = new Set(nativeFields.map(field => field.key.toLowerCase()))
-  const additionalFields = Object.entries(parseAdditionalFieldDefinitions(root.additionalFieldDefinition))
-    .flatMap(([key, definition]) => nativeKeys.has(key.toLowerCase()) ? [] : [{ key, ...definition }])
-  const definitions = [...nativeFields, ...additionalFields]
   const keys = new Set(definitions.map(definition => definition.key))
   const counts = new Map<string, number>(definitions.map(definition => [definition.key, 0]))
   const seen = new Set<object>()
@@ -86,7 +83,7 @@ export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExp
     definitionOrder,
     exposed: false,
   })).sort((a, b) => b.referenceCount - a.referenceCount || a.definitionOrder - b.definitionOrder)
-  const widthLocked = (scanValue(root.width, keys, 0).size > 0)
-  const heightLocked = (scanValue(root.height, keys, 0).size > 0)
+  const widthLocked = resolved.fields.width?.isReadonly === true || scanValue(root.width, keys, 0).size > 0
+  const heightLocked = resolved.fields.height?.isReadonly === true || scanValue(root.height, keys, 0).size > 0
   return { fields, resize: { widthLocked, heightLocked } }
 }

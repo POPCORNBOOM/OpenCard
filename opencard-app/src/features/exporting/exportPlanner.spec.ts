@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createTextBlock, type CardDocument } from '../../entities/card/model'
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
+import type { CustomBlockRuntimeCatalog, CustomBlockRuntimeEntry } from '../card-rendering/expandCustomBlocks'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
 import { prepareExportTask } from './exportPlanner'
 import { validateExportTask, type ExportDestination, type ExportDocumentSource } from './exportTask'
 
@@ -82,14 +84,29 @@ describe('prepareExportTask', () => {
   })
 
   it('keeps the custom-block runtime catalog in the prepared renderer resources', async () => {
-    const customBlockCatalog = new Map([['picture', {
+    const packageEnvironment: ProjectResourceEnvironment = {
+      kind: 'package',
+      namespace: 'package-alice-picture',
+      rootPath: 'D:/project/.opencard/blocks/alice/picture/resources',
+      fontDocument: {},
+      fonts: {},
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      issues: [],
+      customBlockCatalog: new Map(),
+    }
+    const runtimeEntry: CustomBlockRuntimeEntry = {
       manifest: {
-        customBlockKey: 'picture', publicFieldKeys: [],
-        resize: { widthLocked: false, heightLocked: false },
+        packageId: 'alice/picture',
+        publicFieldKeys: [],
       },
-      block: {},
-      resourceUrls: new Map([['resources/images/a.png', 'blob:export-picture']]),
-    }]])
+      block: createTextBlock({ id: 'picture-root', content: 'Picture' }),
+      environment: packageEnvironment,
+      dependencies: new Map(),
+    }
+    const customBlockCatalog: CustomBlockRuntimeCatalog = new Map([
+      ['alice/picture', runtimeEntry],
+    ])
     const source: ExportDocumentSource = {
       load: async sourcePath => ({ sourcePath, resourceRootPath: 'D:/project/cards', document: document() }),
     }
@@ -102,7 +119,7 @@ describe('prepareExportTask', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.plan.entries[0]?.render.resources.customBlockCatalog).toBe(customBlockCatalog)
-    expect(result.plan.entries[0]?.render.resources.resourceRootPath).toBe('D:/project/cards')
+    expect(result.plan.entries[0]?.render.resources.hostEnvironment.rootPath).toBe('D:/project/cards')
   })
 
   it('carries the same prepared rich-text catalog into every export renderer entry', async () => {

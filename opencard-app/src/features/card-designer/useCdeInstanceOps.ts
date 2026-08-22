@@ -40,7 +40,12 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         renamable: true,
         draggable: true,
         actions: ['instance-more'],
-        contextActions: ['rename', 'duplicate-instance', 'delete-instance'],
+        contextActions: [
+          'rename',
+          'duplicate-instance',
+          { type: 'divider', key: 'instance-delete-divider' },
+          'delete-instance',
+        ],
       })
     }
 

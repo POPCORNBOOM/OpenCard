@@ -1,6 +1,12 @@
 <!-- Base 文本：语义化文本渲染，控制色调、字号与截断。 -->
 <template>
-  <component :is="as" class="oc-text" :class="textClass">
+  <component
+    :is="as"
+    class="oc-text"
+    :class="textClass"
+    :data-tooltip="truncate ? tooltipOnOverflow : undefined"
+    :data-tooltip-overflow="truncate && tooltipOnOverflow ? '' : undefined"
+  >
     <slot />
   </component>
 </template>
@@ -46,6 +52,8 @@ interface OcTextProps {
    * 是否单行省略，默认 false
    */
   truncate?: boolean
+  /** 仅在单行文本实际溢出时显示的完整内容提示。 */
+  tooltipOnOverflow?: string
 }
 
 defineOptions({ name: 'OcText' })
@@ -56,6 +64,7 @@ const props = withDefaults(defineProps<OcTextProps>(), {
   mono: false,
   bold: false,
   truncate: false,
+  tooltipOnOverflow: undefined,
 })
 
 const textClass = computed(() => [

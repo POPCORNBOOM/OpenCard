@@ -180,6 +180,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-settings-preview-glass-opacity-max',
   '--oc-z-settings-preview',
   '--oc-project-outline-width',
+  '--oc-shell-sidebar-collapse-threshold',
   '--oc-project-font-list-min-width',
   '--oc-project-font-list-width',
   '--oc-project-icon-atlas-height',

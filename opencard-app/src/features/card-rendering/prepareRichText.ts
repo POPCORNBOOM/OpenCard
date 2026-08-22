@@ -2,7 +2,6 @@ import { createBlock, createCustomBlock, type CardBlock, type CardDocument, type
 import { visitCardBlockTree } from '../../entities/card/tree'
 import { parseRichTextHtml, type RichTextCustomBlockNode, type RichTextDocument, type RichTextNode } from '../../shared/rich-text/richTextHtml'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
-import { getProjectCustomBlockPublicFields } from '../workspace/services/projectCustomBlockPublicFields'
 import {
   projectResourceScopeIdentity,
   type ProjectResourceEnvironment,
@@ -10,7 +9,7 @@ import {
 } from '../workspace/services/projectResourceEnvironment'
 import { createCardPipelineIssue, type CardPipelineIssue } from './cardPipelineIssue'
 import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
-import { isRenderFieldValueValid, parseRenderDocument } from './renderParser'
+import { parseRenderDocument } from './renderParser'
 import type { RenderReadyCardBlock, RenderReadyCustomBlock } from './render.types'
 import { resolveReferences } from './resolveCardBindings'
 import type { DeepReadonly } from 'vue'
@@ -90,19 +89,6 @@ function findRenderBlock(root: RenderReadyCardBlock, id: string): RenderReadyCar
   return null
 }
 
-function hasInvalidPublicFieldValue(
-  block: CardBlock,
-  catalogEntry: NonNullable<ReturnType<CustomBlockRuntimeCatalog['get']>>,
-): boolean {
-  const definitions = getProjectCustomBlockPublicFields(
-    catalogEntry as unknown as Parameters<typeof getProjectCustomBlockPublicFields>[0],
-  )
-  const source = block as unknown as Record<string, unknown>
-  return Object.entries(definitions).some(([fieldKey, definition]) => (
-    Object.prototype.hasOwnProperty.call(source, fieldKey)
-      && !isRenderFieldValueValid(source[fieldKey], definition)
-  ))
-}
 
 function issueForHost(
   document: CardDocument,
@@ -173,7 +159,7 @@ export function prepareRichText(options: {
         resolveCustomBlock: packageId => {
           const catalogEntry = hostCatalog.get(packageId.toLowerCase())
           return catalogEntry
-            ? { publicFieldKeys: Object.keys(getProjectCustomBlockPublicFields(catalogEntry)) }
+            ? { publicFieldKeys: catalogEntry.manifest.publicFieldKeys }
             : null
         },
       })
@@ -270,15 +256,6 @@ export function prepareRichText(options: {
     }
 
     for (const embed of work) {
-      const catalogEntry = catalogForHost(embed.host).get(embed.node.packageId.toLowerCase())
-      if (catalogEntry) {
-        const projectedProperties = createCustomBlock({ id: embed.identity, packageId: embed.node.packageId })
-        Object.assign(projectedProperties, embed.node.properties)
-        if (hasInvalidPublicFieldValue(projectedProperties, catalogEntry)) {
-          reportHost(embed.host, 'card-designer.custom-block.content-error')
-          continue
-        }
-      }
       const face = wrapped.faces[embed.host.faceKey]
       const proxy = face.children.map(child => child.block).find(block => block.id === `rich-host:${embed.host.block.id}`)
       const block = proxy ? findRenderBlock(proxy, embed.identity) : null

@@ -47,7 +47,7 @@
           <OcActionButton :action="projectIconAction" size="md" variant="ghost"
             @mousedown.prevent @select="handleProjectIconAction" />
           <OcButton v-for="entry in recentProjectIconEntries" :key="projectIconActionKey(entry)" size="md" icon-only
-            class="oc-rich-text-editor__recent-icon" :data-tooltip="`${entry.name} · ${entry.seriesKey}`"
+            class="oc-rich-text-editor__recent-icon" :data-tooltip="`${entry.name} ${entry.seriesKey}`"
             :aria-label="`插入最近图标：${entry.name}`" @mousedown.prevent @click="insertRecentProjectIcon(entry)">
             <template #icon>
               <span class="oc-rich-text-editor__recent-icon-image oc-project-icon"
@@ -126,9 +126,10 @@
           <OcButton size="sm" icon-only icon="layout.rows" data-tooltip="切换行内/独占行"
             aria-label="切换行内/独占行" @click="toggleDialogCustomBlockLayout" />
         </header>
-        <PropertyEditor :inputs="dialogCustomBlockInputs" sort-mode="category"
+        <PropertyEditor :inputs="dialogCustomBlockInputs" :categories="dialogCustomBlockCategories" sort-mode="category"
           :binding-interpreter="customBlockBindingInterpreter"
           @update-property="updateDialogCustomBlockProperty"
+          @add-property="updateDialogCustomBlockProperty"
           @reset-property="resetDialogCustomBlockProperty" />
       </div>
       <template #footer>
@@ -172,14 +173,15 @@ import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue'
 import PropertyEditor from '../property-editor/PropertyEditor.vue'
 import type {
   PropertyEditorBindingInterpreter,
-  PropertyEditorFieldDefinition,
+  PropertyEditorCategoryDefinition,
   PropertyEditorFieldIntent,
   PropertyEditorInput,
   PropertyEditorMutation,
 } from '../property-editor/propertyEditor.types'
 import type { DeepReadonly } from 'vue'
 import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../../../features/workspace/model/projectCustomBlocks'
-import { getProjectCustomBlockPublicFields } from '../../../features/workspace/services/projectCustomBlockPublicFields'
+import { createProjectCustomBlockPropertySchema } from '../../../features/workspace/services/projectCustomBlockPublicFields'
+import { resolveCardPropertyFields } from '../../../features/card-properties/cardPropertyFieldDefinitions'
 import { InlineCustomBlockNode, BlockCustomBlockNode, remapPastedEmbedIds } from './customBlockNode'
 import { normalizeRichTextHtml, parseRichTextHtml } from '../../rich-text/richTextHtml'
 import type { IconToken } from '../icon/iconRegistry'
@@ -474,23 +476,12 @@ const selectedCustomBlock = computed(() => {
     || !['inlineCustomBlock', 'blockCustomBlock'].includes(selection.node.type.name)) return null
   const packageId = String(selection.node.attrs.packageId ?? '')
   const entry = props.customBlockCatalog?.catalog.get(packageId.toLowerCase())
-  const definitions = entry ? getProjectCustomBlockPublicFields(entry) : {}
-  const properties = selection.node.attrs.properties as Record<string, string>
   return {
-    key: packageId, entry, position: selection.from, nodeType: selection.node.type.name,
-    fields: Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition]) => {
-      const value = properties[fieldKey] ?? (entry?.block as unknown as Record<string, unknown>)?.[fieldKey] ?? definition.defaultValue ?? ''
-      const projectedDefinition: PropertyEditorFieldDefinition = {
-        ...definition,
-        title: fieldKey,
-        resettable: Object.prototype.hasOwnProperty.call(properties, fieldKey),
-        ...(props.bindingCompletion ? {
-          binding: { provider: props.bindingCompletion },
-          completion: { provider: props.bindingCompletion },
-        } : {}),
-      }
-      return [fieldKey, { value, definition: projectedDefinition }] as const
-    })),
+    key: packageId,
+    entry,
+    position: selection.from,
+    nodeType: selection.node.type.name,
+    schema: entry ? createProjectCustomBlockPropertySchema(entry) : null,
   }
 })
 
@@ -524,21 +515,41 @@ const selectedNodeDialogTitle = computed(() => dialogNodeTarget.value?.kind === 
   : dialogNodeTarget.value?.kind === 'projectIcon'
     ? tr('propertyEditor.richText.editProjectIcon', '编辑项目图标')
     : tr('propertyEditor.richText.editCustomBlock', '编辑自定义块'))
+const dialogCustomBlockCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
+  ['customFields', {
+    title: tr('propertyEditor.categories.customFields', 'Custom fields'),
+    icon: 'data.variable',
+  }],
+]))
 const dialogCustomBlockInputs = computed<readonly PropertyEditorInput[]>(() => {
   const selected = selectedCustomBlock.value
-  if (!selected) return []
-  const record: Record<string, unknown> = {}
-  const fields: Record<string, PropertyEditorFieldDefinition> = {}
-  for (const [fieldKey, field] of Object.entries(selected.fields)) {
-    const overridden = Object.prototype.hasOwnProperty.call(dialogCustomBlockProperties.value, fieldKey)
-    record[fieldKey] = overridden ? dialogCustomBlockProperties.value[fieldKey] : field.value
-    fields[fieldKey] = { ...field.definition, resettable: overridden }
-  }
+  if (!selected?.schema) return []
+  const record = { ...dialogCustomBlockProperties.value }
+  const override = Object.fromEntries(Object.entries(selected.schema.fields).map(([fieldKey, definition]) => [
+    fieldKey,
+    {
+      ...definition,
+      resettable: Object.prototype.hasOwnProperty.call(record, fieldKey),
+      ...(props.bindingCompletion ? {
+        binding: { provider: props.bindingCompletion },
+        completion: { provider: props.bindingCompletion },
+      } : {}),
+    },
+  ]))
+  const resolved = resolveCardPropertyFields({ type: 'custom-block', ...record }, {
+    allowDelete: false,
+    translate: key => tr(key, key),
+    hasMessage: () => false,
+    override,
+    labels: selected.schema.labels,
+    customKeys: selected.schema.customKeys,
+  })
+  const included = new Set([...Object.keys(selected.schema.fields), ...Object.keys(record)])
   return [{
     key: String(selected.position),
     title: selected.entry?.manifest.name ?? selected.key,
     record,
-    fields,
+    fields: Object.fromEntries(Object.entries(resolved).filter(([fieldKey]) => included.has(fieldKey))),
   }]
 })
 const dialogProjectIconAction = computed<OcActionButtonAction>(() => ({

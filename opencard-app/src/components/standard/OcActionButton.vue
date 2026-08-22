@@ -5,6 +5,7 @@
     class="oc-action-button"
     :class="{
       'is-disabled': action.disabled === true,
+      'is-menu-open': isMenuOpen,
       'has-children': hasActionChildren(action),
     }"
     v-bind="$attrs"

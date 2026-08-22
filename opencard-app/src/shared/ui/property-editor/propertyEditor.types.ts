@@ -3,7 +3,6 @@ import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/file
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
 import type { DeepReadonly } from 'vue'
 import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../../../features/workspace/model/projectCustomBlocks'
-import type { OcActionDefinition } from '../../../components/standard/OcActionMenu.vue'
 import type { OcItemTailPart } from '../itemViewModel.types'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
@@ -124,6 +123,7 @@ type PropertyEditorFieldBase = {
     manifests: DeepReadonly<ProjectCustomBlockManifestCatalog>
     ensureLoaded: (key: string) => Promise<unknown>
   }
+  tail?: OcItemTailPart | readonly OcItemTailPart[]
 }
 
 type ScalarPropertyEditorFieldDefinition = {
@@ -159,65 +159,12 @@ export type PropertyEditorRecord = Readonly<Record<string, unknown>>
 export type PropertyEditorInput = {
   key: string
   title?: string
-  items?: readonly PropertyEditorItem[]
-  addableItems?: readonly PropertyEditorAddableItem[]
   record: PropertyEditorRecord
   fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
 }
 
-export type PropertyEditorItem = {
-  key: string
-  fieldKey: string
-  title: string
-  definition: PropertyEditorFieldDefinition
-  value: unknown
-  readonly?: boolean
-  action?: OcActionDefinition
-  tail?: OcActionDefinition | readonly OcItemTailPart[]
-}
-
-export type PropertyEditorAddableItem = {
-  fieldKey: string
-  title: string
-  definition: PropertyEditorFieldDefinition
-}
-
-export function createPropertyEditorInput(input: {
-  key: string
-  title?: string
-  record: PropertyEditorRecord
-  fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
-}): PropertyEditorInput {
-  const items = Object.keys(input.record).flatMap((fieldKey) => {
-    const definition = input.fields[fieldKey]
-    if (!definition) {
-      if (import.meta.env.DEV) {
-        console.warn(`[PropertyEditor] Missing field definition for ${input.key}.${fieldKey}`)
-      }
-      return []
-    }
-    if (definition.isHidden) return []
-    return [{
-      key: fieldKey,
-      fieldKey,
-      title: definition.title,
-      definition,
-      value: input.record[fieldKey],
-    } satisfies PropertyEditorItem]
-  })
-  const addableItems = Object.entries(input.fields).flatMap(([fieldKey, definition]) => (
-    definition.isHidden || Object.prototype.hasOwnProperty.call(input.record, fieldKey)
-      ? []
-      : [{ fieldKey, title: definition.title, definition } satisfies PropertyEditorAddableItem]
-  ))
-  return {
-    key: input.key,
-    title: input.title,
-    record: input.record,
-    fields: input.fields,
-    items,
-    addableItems,
-  }
+export type PropertyEditorTailActionIntent = PropertyEditorFieldIntent & {
+  actionKey: string
 }
 
 export type PropertyEditorCategoryDefinition = {

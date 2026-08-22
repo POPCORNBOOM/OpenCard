@@ -1,0 +1,171 @@
+
+ RUN  v4.1.11 /mnt/d/Projects/OpenCard/opencard-app
+
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > derives an accent neighbor at the configurable hue offset 4ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > biases the foreground boundary toward the active theme near the midpoint 1ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > uses the theme-aware foreground tone on primary accent surfaces 38ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > applies dark tokens and native color scheme 32ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > applies light tokens and native color scheme 28ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > uses distinct OKLCH file and Block icon colors in dark 1ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > uses distinct OKLCH file and Block icon colors in light 0ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > keeps light-theme file and Block icons within a balanced lightness range 1ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > falls back unknown themes to the default theme 27ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > applies editable overrides after the built-in theme 31ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > derives surface, border, and muted text families from background and foreground 27ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > ignores child targets, handled events, and command modifiers 48ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > owns Tab activation and clears transient state on keyup, blur, and unmount 10ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > routes Layer View arrows and Unicode initials before normal shortcuts 7ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > selects the focused plane once per Space press and shares the zIndex route 7ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > routes normal movement without invoking selection quick actions 7ms
+ ✓ src/features/card-designer/useCdeLayerViewInteraction.spec.ts > useCdeLayerViewInteraction > focuses the canvas without stealing focus from interactive controls 8ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > keeps Block surfaces in the selected dark background family 32ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > OC theme runtime > derives the type scale and font family from typography preferences 27ms
+ ✓ src/shared/ui/foundation/theme.spec.ts > theme source boundary > does not restore legacy Shell color aliases or theme classes 2234ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > starts at the selected block layer and lays same-z blocks in one level 164ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > places the non-focusable Face after Layer 0 and before negative layers 40ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > cycles matching name initials with wraparound and optional layer scope 32ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > cycles Chinese block names by their Pinyin initial 32ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > centers the selected plane or the middle plane when selection is empty 51ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > normalizes oversized card planes to the viewport 21ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > renders the localized shortcut legend through the shared shortcut contract 37ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > scrolls between block planes that share the same zIndex 35ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > steps across an entire zIndex layer when requested 36ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > maps Space-modified wheel input to zIndex intents without scrolling 32ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > maps Space-modified wheel input with only one plane 11ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > switches layers by wheel and rail click without canvas drag navigation 37ms
+ ✓ src/features/card-rendering/components/CardLayerView.spec.ts > CardLayerView > emits clicks only from the active layer 15ms
+ ✓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > does not add row, column, or cell selection states 331ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > round-trips unresolved style bindings without CSSOM loss 177ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > preserves consecutive spaces when parsing initial and external HTML 351ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > zooms in around the supplied viewport anchor 77ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > fits the face into a supplied visible region instead of resetting to 100% 17ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > fits content inside viewport insets without centering it behind an inspector 15ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > forwards face clipping to the face renderer 69ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > renders comparison revisions inside one viewport stage and preserves blank selection 67ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > serializes selection formatting as controlled HTML 48ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > maps project font references to CSS-safe rich-text values 321ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > keeps the comparison divider inside the viewport safe region 139ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > centers side-by-side revisions inside equal safe-region halves 122ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > uses semantic icons and changes font size by stable steps 239ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > zooms around the pointer within the active side-by-side half 119ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > preserves the selection when the parent echoes an editor update 159ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > flashes and replaces centered viewport status feedback 132ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > restores an absent color mark when a picker preview is cancelled 142ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > shows package identity and keeps dimensions public while additional fields start private 895ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > pauses viewport zoom while layer view is active and restores it on exit 167ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > keeps a binding atomic while applying marks to its rendered value 275ms
+ ✓ src/features/card-rendering/components/CardViewport.spec.ts > CardViewport wheel zoom API > anchors supplemental information to the top-right of the face 114ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > keeps project icons atomic and serializes only the HTML path attribute 144ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > emits current package metadata, public fields, resize policy, and final resource selection 475ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > keeps dynamic icon paths and treats markdown icon syntax as plain rich text 126ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > requires explicit confirmation when the real candidate preview reports diagnostics 303ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > inserts and replaces selected project icons through a hierarchical action menu 241ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > uses a two-row toolbar and caches five icons selected from the menu 263ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > supports lists and basic table editing 146ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > keeps public-field edits on the preview instance and removes overrides on privatization 554ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > loads and edits only public fields on embedded custom blocks 241ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > releases the temporary candidate when the dialog closes 273ms
+ ✓ src/features/workspace/components/CustomBlockExportDialog.spec.ts > CustomBlockExportDialog > releases stale async preview results instead of replacing newer settings 328ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > exposes custom block loading and failure states and clears them after a successful retry 205ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > switches bindable custom block fields between typed and binding editors 349ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > regenerates embed IDs on paste while undo keeps the pasted ID stable 46ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > reuses property binding completion inside a new capsule 210ms
+ ✓ src/shared/ui/rich-text/OcRichTextEditor.spec.ts > OcRichTextEditor > edits and removes a complete binding capsule 336ms
+ × src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > exports hidden identity metadata and an inherit formula 35289ms
+   → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > imports a renamed Block and a new instance column
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > adds portable dropdown validation for boolean fields
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > imports exact Blueprint references as reset operations
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > treats an empty existing Instance cell as no override
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > rejects imports for another document
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > rejects formulas other than the generated Blueprint reference
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > rejects duplicate hidden card identities
+ · src/features/card-designer/cardDataWorkbook.spec.ts > card data workbook > imports field values without pre-empting binding or render diagnostics
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > shows a dashed crop placeholder instead of empty inspector panes
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > keeps the icon tree and property editor side by side inside an expanded set
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > filters by icon name or key while preserving original icon indexes
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > keeps a 992-icon set windowed in the DOM
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > emits controlled selection and immutable series updates
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > uses the first selected icon for inspection and all selected icons for context moves and deletes
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > moves an icon directly to the top or bottom
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > duplicates an icon after its source and selects the copy
+ · src/components/editors/ProjectIconSetWorkspace.spec.ts > ProjectIconSetWorkspace > selects the next neighboring icon after deleting a middle icon
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > resets workspace state through the store and rewrites project metadata
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > opens an ordinary folder without creating project internals
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > creates and indexes managed project resources only when requested
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > recovers when a persisted expanded directory was deleted between sessions
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > merges edited project information with the current workspace state
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > rejects duplicate project icon keys at the icon-registry save boundary
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > loads font and icon registries independently from the profile
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > preserves project-profile editor state when saving expanded directories
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > loads and saves the dictionary independently from the project profile
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > keeps the project file visible in the workspace index
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > prefetches one level below an expanded directory
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > detects a recent project by its project file
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > chooses a project directory without opening it
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > keeps numeric suffixes before a file extension
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > distinguishes project font files from external files and keeps imports under .opencard
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > plans numbered import copies and can use the existing project file
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > reuses a managed font file with identical imported bytes
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > discovers installed manifests without loading block definitions or resources
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > deduplicates concurrent on-demand package loads and owns a releasable runtime session
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > installs directly into the Package ID directory and never writes a legacy registry
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > uninstalls the whole package and releases its runtime session
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > does not let an older directory discovery overwrite a newer catalog
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > invalidates loaded sessions when the installed package root changes
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > refreshes the workspace index after saving a new file into the project
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > treats a nested legacy-named file as an ordinary workspace entry
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > protects managed project files from ordinary trash operations
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > trashes only managed font files absent from the current registry draft
+ · src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > trashes only managed icon images absent from the current registry draft
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > imports and exports dictionary workbooks through the exposed shell boundary 33952ms [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > adds records and language columns in place inside the grid [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > leaves inline editing instead of stranding an invalid blurred draft [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > uses embedded fields, shows inheritance, creates overrides, and resets them [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > sets and clears the active language in the draft [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > keeps language header actions together in one trailing group [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > routes rename and confirmed deletion through standard action buttons [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > copies record keys and language keys from their action menus [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > uses source repair mode for invalid content [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > reports a missing active language without changing the draft [The test run was aborted by the user.]
+ ✓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > does not add row, column, or cell selection states 331ms
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > imports and exports dictionary workbooks through the exposed shell boundary 33952ms [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > adds records and language columns in place inside the grid [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > leaves inline editing instead of stranding an invalid blurred draft [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > uses embedded fields, shows inheritance, creates overrides, and resets them [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > sets and clears the active language in the draft [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > keeps language header actions together in one trailing group [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > routes rename and confirmed deletion through standard action buttons [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > copies record keys and language keys from their action menus [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > uses source repair mode for invalid content [The test run was aborted by the user.]
+ ↓ src/components/editors/DictionaryEditor.spec.ts > DictionaryEditor > reports a missing active language without changing the draft [The test run was aborted by the user.]
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > renders both face groups and emits key-only field and cell intents 380ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > keeps Block and Field indentation fixed regardless of Block depth 94ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > renders readonly instance cells as non-focusable text 60ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > marks multiline Field rows so focus expands every instance Cell together 80ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > supports blueprint duplication and instance rename, copy, delete and reset actions 272ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > projects editor mode and Instance reset through the same Cell Action Rail 94ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > resizes columns with pointer and keyboard input within the supported bounds 89ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > routes header and row context menus through the same command handlers 69ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > reveals a Cell and places the caret at the issue character offset 77ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > mounts field editors only when their Cell enters the lazy overscan area 68ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > selects the corresponding card target when a Cell is clicked or focused 56ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > refreshes mounted Cell definitions when the parent context changes 52ms
+ ✓ src/features/card-designer/CardDataTable.spec.ts > CardDataTable > emits Instance export selection without owning workbook actions 60ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > parses one host once and prepares fifty embedded blocks as one batch 138ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > keeps source HTML when a private field fails validation 4ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > never materializes structural or private native fields even when a manifest exposes them 3ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > preserves every ordinary binding scope inside an embedded package 5ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > validates embedded number and boolean properties through the ordinary render parser 4ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > prepares nested rich text by depth and blocks package cycles 14ms
+ ✓ src/features/card-rendering/prepareRichText.spec.ts > prepareRichText > reports missing packages and total embed limits on the rich-text host 636ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > forwards the declared icon tone to the action icon 47ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > renders an action badge without changing the button contract 8ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > keeps marked-up tooltip copy but exposes a plain accessible label 6ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > decouples the action icon size from the button target size 8ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > forwards the active highlight without changing the icon tone 6ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > mounts floating behavior and the outside listener only when needed 261ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > uses the shared floating layer and flips above the anchor 72ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > keeps a hover-opened menu open when the action button is clicked 203ms
+ ✓ src/components/standard/OcActionButton.spec.ts > OcActionButton > selects a leaf through four teleported menu levels without dismissing its ancestors 390ms

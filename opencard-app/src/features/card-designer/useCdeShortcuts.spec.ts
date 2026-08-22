@@ -9,6 +9,7 @@ function createHarness() {
   const fitViewport = vi.fn()
   const toggleSnapping = vi.fn()
   const enabled = ref(true)
+  const fillParent = vi.fn()
 
   const Host = defineComponent({
     setup() {
@@ -43,6 +44,13 @@ function createHarness() {
             canRun: () => enabled.value,
             run: toggleSnapping,
           },
+          {
+            key: 'selection.fill-parent',
+            shortcut: getCdeShortcutBindings('selection.fill-parent'),
+            scopes: ['canvas', 'structure-tree'],
+            canRun: () => enabled.value,
+            run: fillParent,
+          },
         ],
       })
       return () => h('div', {
@@ -63,7 +71,7 @@ function createHarness() {
     },
   })
 
-  return { deleteInstance, duplicateBlock, enabled, fitViewport, toggleSnapping, wrapper: mount(Host) }
+  return { deleteInstance, duplicateBlock, enabled, fillParent, fitViewport, toggleSnapping, wrapper: mount(Host) }
 }
 
 describe('useCdeShortcuts', () => {
@@ -75,6 +83,12 @@ describe('useCdeShortcuts', () => {
 
     expect(deleteInstance).toHaveBeenCalledTimes(1)
     expect(duplicateBlock).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes selection quick actions from the structure tree', async () => {
+    const { fillParent, wrapper } = createHarness()
+    await wrapper.get('.block-row').trigger('keydown', { key: 'f' })
+    expect(fillParent).toHaveBeenCalledTimes(1)
   })
 
   it('runs unscoped viewport commands from the CDE root', async () => {

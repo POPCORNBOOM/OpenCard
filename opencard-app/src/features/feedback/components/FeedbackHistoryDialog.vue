@@ -45,7 +45,7 @@
                   {{ t(`app.feedback.history.status.${record.status}`) }}
                 </span>
               </span>
-              <span>{{ t(`app.feedback.kind.${record.kind}`) }} · {{ formatDate(record.submittedAt) }}</span>
+              <span>{{ t(`app.feedback.kind.${record.kind}`) }} {{ formatDate(record.submittedAt) }}</span>
             </button>
           </nav>
 

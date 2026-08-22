@@ -215,6 +215,7 @@ import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import OcActionButton, { type OcActionButtonAction } from '../standard/OcActionButton.vue'
+import type { OcActionMenuEntry } from '../standard/OcActionMenu.vue'
 
 const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
@@ -437,10 +438,11 @@ async function copyDictionaryKey(key: string, kind: 'record' | 'language'): Prom
   }
 }
 
-function recordCommands(): OcActionButtonAction[] {
+function recordCommands(): OcActionMenuEntry[] {
   return [
     { key: 'copy', icon: 'action.copy', title: t('dictionaryEditor.actions.copyRecordKey') },
     { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameRecord') },
+    { type: 'divider', key: 'record-delete-divider' },
     {
       key: 'delete',
       icon: 'action.delete',
@@ -473,11 +475,12 @@ function handleRecordAction(recordKey: string, actionKey: string): void {
   }
 }
 
-function languageCommands(): OcActionButtonAction[] {
+function languageCommands(): OcActionMenuEntry[] {
   return [
     { key: 'copy', icon: 'action.copy', title: t('dictionaryEditor.actions.copyLanguage') },
     { key: 'set-active', icon: 'action.check', title: t('dictionaryEditor.actions.setActive') },
     { key: 'rename', icon: 'action.edit', title: t('dictionaryEditor.actions.renameLanguage') },
+    { type: 'divider', key: 'language-delete-divider' },
     {
       key: 'delete',
       icon: 'action.delete',
@@ -513,7 +516,7 @@ function handleLanguageAction(language: string, actionKey: string): void {
 
 function openKeyboardContextMenu(
   event: KeyboardEvent,
-  items: readonly OcActionButtonAction[],
+  items: readonly OcActionMenuEntry[],
   onSelect: (key: string) => void,
 ): void {
   if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return

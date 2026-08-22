@@ -246,10 +246,7 @@ export function getCardFieldDefinition(
     fieldKey: string,
 ): EditorPropertyDefinition | undefined {
     const typeName = typeof record.type === 'string' ? record.type : undefined
-    const nativeDefinition = getTypePropertyEditorSchema(typeName)[fieldKey]
-    if (nativeDefinition) return nativeDefinition
-    const additionalField = materializeAdditionalFieldDefinitions(record.additionalFieldDefinition)[fieldKey]
-    return additionalField ? getAdditionalFieldPropertyDefinition(additionalField) : undefined
+    return getTypePropertyEditorSchema(typeName)[fieldKey]
 }
 
 export function getCardFieldKeys(record: Record<string, unknown>): string[] {

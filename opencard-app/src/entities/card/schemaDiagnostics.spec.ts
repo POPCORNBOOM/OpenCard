@@ -24,6 +24,8 @@ describe('card schema diagnostics', () => {
       .toEqual({ ok: true, value: '12px', diagnostics: [] })
     expect(validateCardSchemaField('-.5', { fieldType: 'string' }, { cssLength: true }))
       .toEqual({ ok: true, value: '-.5px', diagnostics: [] })
+    expect(validateCardSchemaField('-12px', { fieldType: 'string' }, { cssLength: true }))
+      .toEqual({ ok: true, value: '-12px', diagnostics: [] })
     expect(validateCardSchemaField('100% - 8', { fieldType: 'string' }, { cssLength: true }))
       .toEqual({ ok: true, value: 'calc(100% - 8)', diagnostics: [] })
   })

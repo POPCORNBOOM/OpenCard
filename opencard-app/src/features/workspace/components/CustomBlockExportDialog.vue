@@ -130,8 +130,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CardDocument } from '../../../entities/card/model'
-import { getAdditionalFieldPropertyDefinition } from '../../../entities/card/model'
-import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
 import { resolveCardPropertyFields } from '../../card-properties/cardPropertyFieldDefinitions'
 import CardViewport from '../../card-rendering/components/CardViewport.vue'
 import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
@@ -161,7 +159,7 @@ import {
   type ProjectCustomBlockResizePolicy,
 } from '../model/projectCustomBlocks'
 import { fileSystemService } from '../services/fileSystemService'
-import { buildProjectCustomBlockManifest } from '../services/buildProjectCustomBlockManifest'
+import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from '../services/buildProjectCustomBlockManifest'
 import {
   prepareProjectCustomBlockExport,
   type PreparedProjectCustomBlockExport,
@@ -172,6 +170,7 @@ import {
 } from '../services/projectCustomBlockPreview'
 import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
 import type { ProjectCustomBlockResourceCandidate } from '../services/projectCustomBlockResources'
+import { createProjectCustomBlockPropertySchema } from '../services/projectCustomBlockPublicFields'
 import { useProjectStore } from '../store/projectStore'
 import CustomBlockResourceTree from './CustomBlockResourceTree.vue'
 
@@ -196,7 +195,6 @@ const emit = defineEmits<{
     blockKey: string
     version: string
     exposedFieldKeys: string[]
-    resize: ProjectCustomBlockResizePolicy
     selectedResourceIds: Set<string>
     prepared: PreparedProjectCustomBlockExport
   }]
@@ -335,32 +333,30 @@ function clonePreviewValue<T>(value: T, seen = new WeakMap<object, object>()): T
 const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   const current = prepared.value
   if (!current || previewPropertyFieldKeys.value.length === 0) return []
-  const definitions = parseAdditionalFieldDefinitions(current.block.additionalFieldDefinition)
-  const nativeSchema = getTypePropertyEditorSchema(current.block.type)
-  const defaults = Object.fromEntries(previewPropertyFieldKeys.value.map(key => [
+  const schema = createProjectCustomBlockPropertySchema(current, previewPropertyFieldKeys.value)
+  const fieldKeys = Object.keys(schema.fields)
+  const defaults = Object.fromEntries(fieldKeys.map(key => [
     key,
     Object.prototype.hasOwnProperty.call(current.block, key)
       ? clonePreviewValue((current.block as Record<string, unknown>)[key])
       : '',
   ]))
   const values = { ...defaults, ...previewOverrides.value }
-  const publicKeys = new Set(previewPropertyFieldKeys.value)
-  const override = Object.fromEntries(previewPropertyFieldKeys.value.flatMap(key => {
-    const additional = definitions[key]
-    const definition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[key]
-    return definition ? [[key, { ...definition, required: true, resettable: Object.prototype.hasOwnProperty.call(previewOverrides.value, key) }]] : []
-  }))
+  const override = Object.fromEntries(Object.entries(schema.fields).map(([key, definition]) => [
+    key,
+    { ...definition, required: true, resettable: Object.prototype.hasOwnProperty.call(previewOverrides.value, key) },
+  ]))
   const fields = resolveCardPropertyFields({ type: 'custom-block', ...values }, {
     allowDelete: false,
     translate: t,
     hasMessage: te,
     override,
-    labels: Object.fromEntries(previewPropertyFieldKeys.value.map(key => [key, definitions[key]?.title ?? key])),
-    customKeys: new Set(exposedFieldKeys.value.filter(key => Boolean(definitions[key]))),
+    labels: schema.labels,
+    customKeys: schema.customKeys,
   })
   return [{
     key: 'custom-block-export-preview', title: current.manifest.name, record: values,
-    fields: Object.fromEntries(Object.entries(fields).filter(([key]) => publicKeys.has(key)).map(([key, definition]) => [key, { ...definition, category: 'publicFields' }])),
+    fields: Object.fromEntries(Object.entries(fields).filter(([key]) => schema.fields[key]).map(([key, definition]) => [key, { ...definition, category: 'publicFields' }])),
   }]
 })
 const propertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
@@ -486,17 +482,17 @@ async function refreshPreparedManifest(currentRevision: number): Promise<void> {
   const base = prepared.value
   if (!base || !validPackageId.value || !validVersion.value) return
   try {
+    const block = buildProjectCustomBlockRoot(base.block, effectiveResize.value)
     const manifest = await buildProjectCustomBlockManifest({
-      root: base.block,
+      root: block,
       publisherKey: publisherKey.value,
       blockKey: blockKey.value.trim() || suggestedBlockKey.value,
       version: version.value,
       name: name.value,
       exposedFieldKeys: exposedFieldKeys.value,
-      resize: effectiveResize.value,
     })
     if (currentRevision !== manifestRevision) return
-    prepared.value = { ...base, manifest }
+    prepared.value = { ...base, block, manifest }
     schedulePreview()
   } catch (cause) {
     if (currentRevision === manifestRevision) {
@@ -611,14 +607,14 @@ async function emitExport(): Promise<void> {
   const base = prepared.value
   if (!base) return
   try {
+    const block = buildProjectCustomBlockRoot(base.block, effectiveResize.value)
     const manifest = await buildProjectCustomBlockManifest({
-      root: base.block,
+      root: block,
       publisherKey: publisherKey.value,
       blockKey: blockKey.value.trim() || suggestedBlockKey.value,
       version: version.value,
       name: name.value,
       exposedFieldKeys: exposedFieldKeys.value,
-      resize: effectiveResize.value,
     })
     emit('submit', {
       name: name.value.trim(),
@@ -626,9 +622,8 @@ async function emitExport(): Promise<void> {
       blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
       version: version.value.trim(),
       exposedFieldKeys: exposedFieldKeys.value,
-      resize: effectiveResize.value,
       selectedResourceIds: new Set(selectedResourceIds.value),
-      prepared: { ...base, manifest },
+      prepared: { ...base, block, manifest },
     })
   } catch (cause) {
     previewError.value = cause instanceof Error ? cause.message : String(cause)

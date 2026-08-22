@@ -186,10 +186,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         actions: [projectEntryMoreActionKey(entry.key)],
         contextActions: [
           PROJECT_ENTRY_RENAME_ACTION_KEY,
-          projectEntryDeleteActionKey(entry.key),
           PROJECT_ENTRY_REVEAL_ACTION_KEY,
           PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
           PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+          { type: 'divider', key: 'project-entry-delete-divider' },
+          projectEntryDeleteActionKey(entry.key),
         ],
       })
       if (entry.children.length > 0) {

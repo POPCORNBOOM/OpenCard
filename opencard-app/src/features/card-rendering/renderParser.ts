@@ -1,20 +1,12 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
-import {
-  getTypePropertyEditorSchema,
-  type EditorPropertyDefinition,
-} from '../../entities/card/schema'
-import {
-  normalizeCssLength,
-  validateCardSchemaField,
-  type CardSchemaDiagnosticCode,
-  type CardSchemaValidationOptions,
-} from '../../entities/card/schemaDiagnostics'
+import { isRenderCssColor, isRenderCssLength, normalizeRenderCssLength } from './renderValueSyntax'
 import {
   createCardPipelineIssue,
   type CardIssueOwner,
   type CardPipelineIssue,
   type CardRenderParseIssueType,
 } from './cardPipelineIssue'
+import { getRenderFieldContract, type RenderFieldContract } from './renderFieldContracts'
 import type {
   RenderParseResult,
   RenderReadyBaseBlock,
@@ -42,7 +34,16 @@ export type ParseRenderDocumentOptions = {
   instanceId?: string | null
 }
 
-type RenderParseFailure = CardSchemaDiagnosticCode
+type RenderParseFailure =
+  | 'invalid-type'
+  | 'conversion-failed'
+  | 'invalid-option'
+  | 'out-of-range'
+  | 'required'
+  | 'invalid-color'
+  | 'invalid-css-length'
+  | 'invalid-file-path'
+  | 'invalid-object'
 const blockTypes: readonly BlockType[] = [
   'text-block',
   'markdown-text-block',
@@ -362,33 +363,29 @@ function createLocationContext(
 type FieldReader = ReturnType<typeof createFieldReader>
 
 function createFieldReader(source: SourceRecord, context: IssueContext, issues: CardPipelineIssue[]) {
-  const schema = getTypePropertyEditorSchema(context.typeName)
-
-  function definitionFor(fieldKey: string): EditorPropertyDefinition {
-    const definition = schema[fieldKey]
-    if (!definition) {
-      throw new Error(`Missing schema definition for ${context.typeName}.${fieldKey}`)
-    }
-    return definition
+  function contractFor(fieldKey: string): RenderFieldContract {
+    const contract = getRenderFieldContract(context.typeName, fieldKey)
+    if (!contract) throw new Error(`Missing render contract for ${context.typeName}.${fieldKey}`)
+    return contract
   }
 
-  function value(fieldKey: string, validationOptions: CardSchemaValidationOptions = {}): unknown {
-    const definition = definitionFor(fieldKey)
+  function value(fieldKey: string): unknown {
+    const contract = contractFor(fieldKey)
     const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
       && source[fieldKey] !== null
       && source[fieldKey] !== undefined
 
     if (!hasValue) {
-      if (definition.required) pushIssue(context, fieldKey, definition, 'required', issues)
-      return parseSchemaDefault(context.typeName, fieldKey, definition)
+      if (contract.required) pushIssue(context, fieldKey, contract, 'required', issues)
+      return parseRenderDefault(context.typeName, fieldKey, contract)
     }
 
-    const parsed = validateCardSchemaField(source[fieldKey], definition, validationOptions)
+    const parsed = parseRenderField(source[fieldKey], contract)
     if (!parsed.ok) {
       for (const diagnostic of parsed.diagnostics) {
-        pushIssue(context, fieldKey, definition, diagnostic.code, issues, diagnostic.path)
+        pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
       }
-      return parseSchemaDefault(context.typeName, fieldKey, definition)
+      return parseRenderDefault(context.typeName, fieldKey, contract)
     }
     return parsed.value
   }
@@ -398,16 +395,16 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
       return value(fieldKey) as string
     },
     optionalString(fieldKey: string, fallback = ''): string {
-      const definition = definitionFor(fieldKey)
+      const contract = contractFor(fieldKey)
       const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
         && source[fieldKey] !== null
         && source[fieldKey] !== undefined
       if (!hasValue) return fallback
 
-      const parsed = validateCardSchemaField(source[fieldKey], definition)
+      const parsed = parseRenderField(source[fieldKey], contract)
       if (!parsed.ok) {
         for (const diagnostic of parsed.diagnostics) {
-          pushIssue(context, fieldKey, definition, diagnostic.code, issues, diagnostic.path)
+          pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
         }
         return fallback
       }
@@ -426,38 +423,115 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
       return value(fieldKey) as T
     },
     cssLength(fieldKey: string): string {
-      return normalizeCssLength(value(fieldKey, { cssLength: true }) as string)
+      return value(fieldKey) as string
     },
     expectedLiteral(fieldKey: string, expected: string): void {
-      const definition = definitionFor(fieldKey)
+      const contract = contractFor(fieldKey)
       const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
         && source[fieldKey] !== null
         && source[fieldKey] !== undefined
       if (!hasValue) {
-        if (definition.required) pushIssue(context, fieldKey, definition, 'required', issues)
+        if (contract.required) pushIssue(context, fieldKey, contract, 'required', issues)
         return
       }
       if (source[fieldKey] !== expected) {
-        pushIssue(context, fieldKey, definition, 'invalid-option', issues)
+        pushIssue(context, fieldKey, contract, 'invalid-option', issues)
       }
     },
   }
 }
 
-export function isRenderFieldValueValid(value: unknown, definition: EditorPropertyDefinition): boolean {
-  return validateCardSchemaField(value, definition).ok
+type RenderFieldDiagnostic = {
+  code: RenderParseFailure
+  path: readonly (string | number)[]
+}
+type RenderFieldResult =
+  | { ok: true, value: unknown }
+  | { ok: false, diagnostics: readonly RenderFieldDiagnostic[] }
+
+function parseRenderField(
+  value: unknown,
+  contract: RenderFieldContract,
+  ignoreRequired = false,
+): RenderFieldResult {
+  if (!ignoreRequired && contract.required && value === '') return invalidRenderField('required')
+
+  if (contract.kind === 'array') {
+    if (!Array.isArray(value)) return invalidRenderField('invalid-type')
+    if (contract.itemShape === 'root-child') {
+      const diagnostics = value.flatMap((item, index) => (
+        isRecord(item) && isRecord(item.block) && isRecord(item.location)
+          ? []
+          : [{ code: 'invalid-object' as const, path: [index] }]
+      ))
+      if (diagnostics.length > 0) return { ok: false, diagnostics }
+    }
+    return { ok: true, value }
+  }
+
+  if (contract.kind === 'number') {
+    if (typeof value !== 'string') return invalidRenderField('invalid-type')
+    const parsed = value.trim() === '' ? Number.NaN : Number(value)
+    if (!Number.isFinite(parsed)) return invalidRenderField('conversion-failed')
+    if ((contract.min !== undefined && parsed < contract.min)
+      || (contract.max !== undefined && parsed > contract.max)) return invalidRenderField('out-of-range')
+    return { ok: true, value: parsed }
+  }
+
+  if (contract.kind === 'boolean') {
+    if (value !== 'true' && value !== 'false') {
+      return invalidRenderField(typeof value === 'string' ? 'conversion-failed' : 'invalid-type')
+    }
+    return { ok: true, value: value === 'true' }
+  }
+
+  const stringValue = contract.kind === 'css-length' && typeof value === 'number' && Number.isFinite(value)
+    ? String(value)
+    : value
+  if (typeof stringValue !== 'string') return invalidRenderField('invalid-type')
+  if (contract.kind === 'color' && stringValue && !isRenderCssColor(stringValue)) {
+    return invalidRenderField('invalid-color')
+  }
+  if (contract.kind === 'file-path' && stringValue
+    && !isValidRenderFilePath(stringValue, contract.extensions)) {
+    return invalidRenderField('invalid-file-path')
+  }
+  const converted = contract.kind === 'css-length' ? normalizeRenderCssLength(stringValue) : stringValue
+  if (contract.kind === 'css-length' && converted && !isRenderCssLength(converted)) {
+    return invalidRenderField('invalid-css-length')
+  }
+  if (contract.options && !contract.options.includes(converted)) return invalidRenderField('invalid-option')
+  return { ok: true, value: converted }
 }
 
-function parseSchemaDefault(
-  typeName: string,
-  fieldKey: string,
-  definition: EditorPropertyDefinition,
-): unknown {
-  const parsed = validateCardSchemaField(definition.defaultValue, { ...definition, required: false })
+function parseRenderDefault(typeName: string, fieldKey: string, contract: RenderFieldContract): unknown {
+  const parsed = parseRenderField(cloneRenderValue(contract.defaultValue), contract, true)
   if (!parsed.ok) {
-    throw new Error(`Invalid schema default for ${typeName}.${fieldKey}: ${parsed.diagnostics[0]?.code}`)
+    throw new Error(`Invalid render default for ${typeName}.${fieldKey}: ${parsed.diagnostics[0]?.code}`)
   }
   return parsed.value
+}
+
+function invalidRenderField(code: RenderParseFailure): RenderFieldResult {
+  return { ok: false, diagnostics: [{ code, path: [] }] }
+}
+
+function cloneRenderValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneRenderValue)
+  if (isRecord(value)) return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, cloneRenderValue(child)]),
+  )
+  return value
+}
+
+function isValidRenderFilePath(value: string, extensions?: readonly string[]): boolean {
+  const normalized = value.replace(/\\/g, '/')
+  if (normalized.includes('\0') || /(^|\/)\.\.(?:\/|$)/.test(normalized) || /[<>:"|?*]/.test(normalized)) {
+    return false
+  }
+  if (!extensions?.length || normalized.endsWith('/')) return true
+  const extension = normalized.split('.').pop()?.toLocaleLowerCase()
+  return Boolean(extension && extensions.some(candidate => candidate.toLocaleLowerCase() === extension))
 }
 
 function resolveBlockType(
@@ -483,10 +557,10 @@ function resolveBlockType(
     blockId: primitiveString(source.id) || undefined,
     typeName: fallbackType,
   }
-  const definition = getTypePropertyEditorSchema(fallbackType).type
-  if (!definition) throw new Error(`Missing schema definition for ${fallbackType}.type`)
+  const contract = getRenderFieldContract(fallbackType, 'type')
+  if (!contract) throw new Error(`Missing render contract for ${fallbackType}.type`)
   if (rawType !== null && rawType !== undefined) {
-    pushIssue(context, 'type', definition, 'invalid-option', issues)
+    pushIssue(context, 'type', contract, 'invalid-option', issues)
   }
   return fallbackType
 }
@@ -494,12 +568,12 @@ function resolveBlockType(
 function pushIssue(
   context: IssueContext,
   fieldKey: string,
-  definition: EditorPropertyDefinition,
+  contract: RenderFieldContract,
   reasonCode: RenderParseFailure,
   issues: CardPipelineIssue[],
   valuePath: readonly (string | number)[] = [],
 ): void {
-  const defaultValue = formatIssueValue(parseSchemaDefault(context.typeName, fieldKey, definition))
+  const defaultValue = formatIssueValue(parseRenderDefault(context.typeName, fieldKey, contract))
   issues.push(createCardPipelineIssue({
     type: `card-designer.render-parse.${reasonCode}` as CardRenderParseIssueType,
     location: {
@@ -513,7 +587,7 @@ function pushIssue(
       ...(valuePath.length ? { valuePath } : {}),
     },
     parameters: {
-      ...(definition.displayFieldKey ? { fieldName: definition.displayFieldKey } : {}),
+      ...(contract.displayFieldKey ? { fieldName: contract.displayFieldKey } : {}),
       defaultValue,
     },
   }))

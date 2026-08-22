@@ -1,0 +1,95 @@
+
+ RUN  v4.1.11 /mnt/d/Projects/OpenCard/opencard-app
+
+····x····x·····································stderr | src/features/workspace/store/projectStore.settings.spec.ts > projectStore settings actions > recovers when a persisted expanded directory was deleted between sessions
+Error [OpenCardError]: [OC-E2005] 无法刷新项目目录索引
+    at createAppErrorReport (/mnt/d/Projects/OpenCard/opencard-app/src/features/logging/appErrorCatalog.ts:218:24)
+    at reportAppError (/mnt/d/Projects/OpenCard/opencard-app/src/features/logging/appErrorCatalog.ts:235:17)
+    at refreshIndexedEntries (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:696:5)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at /mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:1130:5
+    at ensureProjectManagementStructure (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:1132:3) {
+  code: 'OC-E2005',
+  details: Error: Project is not open
+      at ensureProjectOpen (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:242:11)
+      at resolveProjectPath (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:253:33)
+      at refreshIndexedEntries (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:669:44)
+      at processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at /mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:1130:5
+      at ensureProjectManagementStructure (/mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/store/projectStore.ts:1132:3),
+  [Symbol(opencard.app-error-report)]: true
+}
+
+·······································
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/shell/services/externalOpenService.spec.ts > externalOpenService > classifies only OpenCard file types
+AssertionError: expected null to be 'project-resource' // Object.is equality
+
+- Expected:
+"project-resource"
+
++ Received:
+null
+
+ ❯ src/features/shell/services/externalOpenService.spec.ts:31:70
+     29|     expect(classifyExternalOpenPath('D:/Cards/.opencard/.ocproject')).…
+     30|     expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCLOCALE')).t…
+     31|     expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCBLOCKS')).t…
+       |                                                                      ^
+     32|     expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeN…
+     33|     expect(classifyExternalOpenPath('/cards/.opencard/.OCLOCALE')).toB…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/features/shell/composables/useShellFileTree.spec.ts > useShellFileTree opened editors > provides fixed localized project-management entries that open managed files
+AssertionError: expected [ …(5) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+    "D:/project/.opencard/.ocfonts",
+    "D:/project/.opencard/.ocicons",
+    "D:/project/.opencard/blocks",
++   "D:/project/.opencard/blocks/alice",
++   "D:/project/.opencard/blocks/alice/square",
+  ]
+
+ ❯ src/features/shell/composables/useShellFileTree.spec.ts:175:56
+    173|     expect(result.projectManagementTreeData.value.items.get(`${project…
+    174|       .toMatchObject({ label: 'square', icon: 'file.custom-block' })
+    175|     expect(result.projectManagementExpandedKeys.value).toEqual([
+       |                                                        ^
+    176|       `${projectPath}/.opencard/.ocfonts`,
+    177|       `${projectPath}/.opencard/.ocicons`,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files /mnt/d/Projects/OpenCard/opencard-app/src/features/version-control/useOcdocumentDiffSession.spec.ts.
+ ❯ node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ runNextTicks node:internal/process/task_queues:64:5
+ ❯ processTimers node:internal/timers:518:9
+ ❯ Pool.schedule node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: [vitest-pool-runner]: Timeout waiting for worker to respond
+ ❯ Timeout.<anonymous> node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3108:58
+ ❯ listOnTimeout node:internal/timers:585:17
+ ❯ processTimers node:internal/timers:521:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  2 failed | 7 passed (9)
+      Tests  2 failed | 84 passed (86)
+     Errors  1 error
+   Start at  04:03:28
+   Duration  63.15s (transform 37.88s, setup 0ms, import 71.45s, tests 2.62s, environment 309.76s)
+

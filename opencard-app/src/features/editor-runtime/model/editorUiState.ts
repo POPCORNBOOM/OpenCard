@@ -38,4 +38,6 @@ export interface CardDesignerViewState {
   clipToFace: boolean
   alignmentSnappingEnabled?: boolean
   selectedInstanceId: string | null
+  /** The most recent design-mode block selection for each face in this editor session. */
+  selectedBlockIdsByFace?: Partial<Record<CardFaceKey, readonly string[]>>
 }

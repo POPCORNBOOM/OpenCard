@@ -470,6 +470,8 @@ defineExpose({ selectSeries, navigateToKeyConflict })
 }
 .project-icon-registry-workbench__right {
   position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 .project-icon-registry-workbench__atlas-pane {
   position: relative;

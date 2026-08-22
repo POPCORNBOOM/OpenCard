@@ -1,3 +1,4 @@
+import type { CardBlockPayload } from '../../shared/model/clipboard/cardBlockClipboard'
 /** Card structure operations and their key-only tree view projection. */
 import { computed, toRaw, watch, type Ref } from 'vue'
 import {
@@ -82,10 +83,15 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         ],
         contextActions: [
           visibility === 'hidden' ? 'show-block' : 'hide-block',
+          { type: 'divider', key: 'block-edit-divider' },
+          'copy-block',
+          'paste-block',
           'rename',
+          'duplicate',
+          { type: 'divider', key: 'block-structure-divider' },
           'export-custom-block',
           ...(isBlockContainer(block) ? (packaged ? ['unpackage'] : ['add', 'package']) : []),
-          'duplicate',
+          { type: 'divider', key: 'block-delete-divider' },
           'delete',
         ],
       })
@@ -451,6 +457,39 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return true
   }
 
+  function exportSelectedBlockPayloads(): CardBlockPayload[] {
+    const keys = resolveTopLevelSelectionKeys(
+      normalizeVisibleSelectionKeys(options.selectedBlockKeys.value, blockIndex.value),
+    )
+    return keys.flatMap(key => {
+      const entry = blockIndex.value.get(key)
+      return entry ? [{
+        block: structuredClone(toRaw(entry.block)),
+        location: structuredClone(toRaw(entry.location)),
+      }] : []
+    })
+  }
+
+  function pasteBlockPayloads(payloads: readonly CardBlockPayload[]): string[] {
+    if (payloads.length === 0) return []
+    const target = selectedBlock.value
+    const container = target && isBlockContainer(target) && !isBlockPackaged(target)
+      ? target
+      : target ? options.parentLookup.value.get(target.id) ?? null : options.activeFace.value
+    if (!container || isBlockPackaged(container)) return []
+    const insertionIndex = container.children.length
+    const pastedIds: string[] = []
+    payloads.forEach((payload, offset) => {
+      const location = createDropLocation(payload.location, container, insertionIndex + offset)
+      addBlockToContainer(container, payload.block, options.parentLookup.value, location, insertionIndex + offset)
+      pastedIds.push(payload.block.id)
+    })
+    options.refreshDocumentState(true)
+    options.selectedBlockKeys.value = pastedIds
+    options.markDocumentChanged('action', 'clipboard-paste', true)
+    return pastedIds
+  }
+
   function deleteBlocks(requestedKeys: readonly string[]): void {
     const keys = resolveTopLevelSelectionKeys(
       normalizeVisibleSelectionKeys(requestedKeys, blockIndex.value),
@@ -537,6 +576,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     selectedLocation,
     getBlockById,
     insertBlockAtRoot,
+    exportSelectedBlockPayloads,
+    pasteBlockPayloads,
     handleTreeIntent,
     handleRootAction,
     handleViewportBlockClick,

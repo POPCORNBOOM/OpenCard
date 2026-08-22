@@ -1,0 +1,31 @@
+
+ RUN  v4.1.11 /mnt/d/Projects/OpenCard/opencard-app
+
+···························x··························
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/card-rendering/components/TextBlockRenderer.spec.ts > TextBlockRenderer > renders semicolon-separated project and system font fallbacks
+AssertionError: expected '' to be '"OpenCardProjectFont-brand-sans", "Mi…' // Object.is equality
+
+- Expected
++ Received
+
+- "OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif
+
+ ❯ src/features/card-rendering/components/TextBlockRenderer.spec.ts:107:8
+    105|
+    106|     expect(wrapper.element.style.fontFamily)
+    107|       .toBe('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans…
+       |        ^
+    108|   })
+    109|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  1 failed | 53 passed (54)
+   Start at  04:07:45
+   Duration  55.62s (transform 39.67s, setup 0ms, import 82.37s, tests 4.64s, environment 238.95s)
+

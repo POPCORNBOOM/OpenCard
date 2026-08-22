@@ -4,7 +4,7 @@ import type {
 } from '../../shared/ui/property-editor/propertyEditor.types'
 import {
   createPropertyDefaultValue,
-  getTypePropertyEditorSchema,
+  resolvePropertyEditorSchema,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
 import type { BindingScopeKind } from '../editor-runtime/model/bindingExpression'
@@ -31,8 +31,10 @@ export function resolveCardPropertyFields(
   record: Readonly<Record<string, unknown>>,
   options: CardPropertyFieldDefinitionOptions,
 ): Record<string, CardPropertyFieldDefinition> {
-  const typeName = typeof record.type === 'string' ? record.type : undefined
-  const definitions: Record<string, EditorPropertyDefinition> = { ...getTypePropertyEditorSchema(typeName) }
+  const resolved = resolvePropertyEditorSchema(record)
+  const definitions: Record<string, EditorPropertyDefinition> = { ...resolved.fields }
+  const labels = { ...resolved.labels, ...options.labels }
+  const customKeys = new Set([...resolved.customKeys, ...(options.customKeys ?? [])])
   for (const [fieldKey, fieldOverride] of Object.entries(options.override ?? {})) {
     const base = definitions[fieldKey]
     if (base) definitions[fieldKey] = { ...base, ...fieldOverride } as EditorPropertyDefinition
@@ -45,13 +47,13 @@ export function resolveCardPropertyFields(
   return Object.fromEntries(Object.entries(definitions).map(([fieldKey, definition], order) => {
     const displayKey = definition.displayFieldKey ?? fieldKey
     const messageKey = `propertyEditor.fields.${displayKey}`
-    const title = options.labels?.[fieldKey]
+    const title = labels[fieldKey]
       ?? (options.hasMessage(messageKey) ? options.translate(messageKey) : fieldKey)
     return [fieldKey, {
       ...definition,
       defaultValue: createPropertyDefaultValue(definition),
       title,
-      category: options.customKeys?.has(fieldKey) ? 'customFields' : definition.categoryId,
+      category: customKeys.has(fieldKey) ? 'customFields' : definition.categoryId,
       order,
       deletable: options.allowDelete
         && definition.isReadonly !== true

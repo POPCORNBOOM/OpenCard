@@ -130,7 +130,7 @@ describe('SettingsWorkspace', () => {
               placeholder: 'Select preset',
               options: [
                 { value: 'default', label: 'OpenCard' },
-                { value: 'user:Forest', label: 'Forest · Imported' },
+                { value: 'user:Forest', label: 'Forest Imported' },
               ],
               importLabel: 'Import theme',
               exportLabel: 'Export theme',

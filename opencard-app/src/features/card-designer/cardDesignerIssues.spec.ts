@@ -80,7 +80,7 @@ describe('cardDesignerIssues', () => {
         id: 'issue-1',
         type: 'card-designer.render-parse.out-of-range',
         severity: 'warning',
-        locationText: '在实例“Instance 1” · 正面中，块“Container.Title”（title）的 不透明度（opacity）字段',
+        locationText: '在实例“Instance 1” 正面中，块“Container.Title”（title）的 不透明度（opacity）字段',
         description: '字段“不透明度”的值超出允许范围，已使用默认值：1',
         navigationToken: {
           protocol: 'card-designer',
@@ -183,7 +183,7 @@ describe('cardDesignerIssues', () => {
 
     const issue = createCardDesignerIssues(result, null, translate, resolveFieldLabel)[0]!
     expect(issue.locationText).toBe(
-      '在蓝图 · 正面中，块“Container.Title”（text…7890）的 内容（content）字段，第 7 个字符',
+      '在蓝图 正面中，块“Container.Title”（text…7890）的 内容（content）字段，第 7 个字符',
     )
     expect(issue.description).toBe('引用字段“分数”不存在')
     expect(issue.navigationToken).toEqual(expect.objectContaining({
@@ -197,7 +197,7 @@ describe('cardDesignerIssues', () => {
       (key) => key,
     )[0]!
     expect(englishIssue.locationText).toBe(
-      'In the blueprint · front, block "Container.Title" (text…7890), field content (content), character 7',
+      'In the blueprint front, block "Container.Title" (text…7890), field content (content), character 7',
     )
     expect(englishIssue.description).toBe('Referenced field "score" does not exist')
   })

@@ -1,0 +1,22 @@
+
+> opencard-app@0.4.7 dev
+> vite --host 127.0.0.1 --port 5399
+
+
+  [32m[1mVITE[22m v6.4.3[39m  [2mready in [0m[1m730[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5399[22m/[39m
+[2m14:27:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/shell/OpenCardShell.vue, /src/features/card-designer/CardDesignEditor.vue, /src/components/editors/ProjectCustomBlockRegistryEditor.vue, /src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m14:28:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/card-designer/CardDesignEditor.vue[22m
+[2m14:29:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m14:30:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m14:30:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/card-designer/CardDesignEditor.vue, /src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m14:44:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m14:49:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m15:00:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m15:25:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m15:26:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockExportDialog.vue[22m
+[2m15:27:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/standard/OcInlineMarkup.vue, /src/components/standard/OcActionMenu.vue, /src/components/standard/OcActionButton.vue, /src/components/base/OcIcon.vue[22m
+[2m15:28:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/workspace/components/CustomBlockResourceTree.vue[22m
+[2m15:37:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/standard/OcInlineMarkup.vue, /src/components/standard/OcActionMenu.vue, /src/components/standard/OcActionButton.vue, /src/components/base/OcIcon.vue, /src/components/base/OcButton.vue, /src/components/editors/ProjectRegistryEditorShell.vue, /src/components/standard/OcCard.vue, /src/components/standard/OcBar.vue[22m
+[2m15:41:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/features/shell/OpenCardShell.vue[22m

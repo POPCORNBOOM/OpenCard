@@ -11,9 +11,6 @@ type LayerViewInteraction = ReturnType<typeof useCdeLayerViewInteraction>
 function createHarness() {
   const hasRenderableFace = ref(true)
   const selectedBlockId = ref<string | null>('selected')
-  const selectedLocationType = ref<
-    'simple-container-location' | 'flow-container-location' | null
-  >('simple-container-location')
   const nudgeSelection = vi.fn(() => true)
   const runSelectionQuickAction = vi.fn(() => true)
   const stepLayer = vi.fn()
@@ -41,7 +38,6 @@ function createHarness() {
         rootElement,
         hasRenderableFace,
         selectedBlockId,
-        selectedLocationType,
         viewportPort,
         selectBlock,
         changeZIndex,
@@ -69,10 +65,8 @@ function createHarness() {
     hasRenderableFace,
     interaction,
     nudgeSelection,
-    runSelectionQuickAction,
     selectBlock,
     selectedBlockId,
-    selectedLocationType,
     stepLayer,
     wrapper,
   }
@@ -130,7 +124,6 @@ describe('useCdeLayerViewInteraction', () => {
   it('routes Layer View arrows and Unicode initials before normal shortcuts', async () => {
     const {
       cycleLayerByInitial,
-      runSelectionQuickAction,
       stepLayer,
       wrapper,
     } = createHarness()
@@ -149,7 +142,6 @@ describe('useCdeLayerViewInteraction', () => {
 
     expect(stepLayer.mock.calls).toEqual([[-1, false], [1, true]])
     expect(cycleLayerByInitial.mock.calls).toEqual([['f', false], ['花', true]])
-    expect(runSelectionQuickAction).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -202,39 +194,18 @@ describe('useCdeLayerViewInteraction', () => {
     wrapper.unmount()
   })
 
-  it('routes normal movement and Simple or Flow quick actions', async () => {
+  it('routes normal movement without invoking selection quick actions', async () => {
     const {
       nudgeSelection,
-      runSelectionQuickAction,
       selectedBlockId,
-      selectedLocationType,
       wrapper,
     } = createHarness()
     const root = wrapper.get('.root')
-
     await root.trigger('keydown', { key: 'ArrowRight' })
     await root.trigger('keydown', { key: 'ArrowUp', shiftKey: true })
-    for (const key of ['f', 'C', 'i', 'o']) await root.trigger('keydown', { key })
-    expect(nudgeSelection.mock.calls).toEqual([[1, 0], [0, -10]])
-    expect(runSelectionQuickAction.mock.calls).toEqual([
-      ['fill-parent'],
-      ['center'],
-      ['inset'],
-      ['outset'],
-    ])
-
-    runSelectionQuickAction.mockClear()
-    selectedLocationType.value = 'flow-container-location'
     await root.trigger('keydown', { key: 'f' })
-    await root.trigger('keydown', { key: 'c' })
-    expect(runSelectionQuickAction.mock.calls).toEqual([
-      ['fill-cross-axis'],
-      ['center-cross-axis'],
-    ])
-
-    selectedBlockId.value = null
-    await root.trigger('keydown', { key: 'ArrowLeft' })
-    expect(nudgeSelection).toHaveBeenCalledTimes(2)
+    expect(nudgeSelection.mock.calls).toEqual([[1, 0], [0, -10]])
+    expect(selectedBlockId.value).toBe('selected')
     wrapper.unmount()
   })
 

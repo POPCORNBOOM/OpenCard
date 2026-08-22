@@ -4,14 +4,13 @@ import { createBlock } from '../../../entities/card/model'
 import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
 
 describe('buildProjectCustomBlockManifest', () => {
-  it('builds the package identity, SemVer, public fields, and resize contract', async () => {
+  it('builds the package identity, SemVer, and public fields', async () => {
     const root = createBlock('text-block', { id: 'root', name: 'Badge', content: 'Default' })
     const manifest = await buildProjectCustomBlockManifest({
       root,
       publisherKey: 'Alice',
       blockKey: 'Status-Badge',
       exposedFieldKeys: ['content'],
-      resize: { widthLocked: true, heightLocked: false },
     })
     expect(manifest).toEqual({
       type: 'opencard-custom-block',
@@ -19,7 +18,6 @@ describe('buildProjectCustomBlockManifest', () => {
       version: '0.1.0',
       name: 'Badge',
       publicFieldKeys: ['name', 'notes', 'content'],
-      resize: { widthLocked: true, heightLocked: false },
     })
   })
 

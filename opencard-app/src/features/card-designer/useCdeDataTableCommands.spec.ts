@@ -242,19 +242,19 @@ describe('useCdeDataTableCommands', () => {
   it('allows custom-block public values but protects its interface definition', () => {
     const { cardDoc, createBlockField, customBlockCatalog, deleteBlockField, state, updateBlockField } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', customBlockKey: 'square', notes: 'Protected',
+      id: 'custom', packageId: 'alice/square', notes: 'Protected',
     })
     ;(custom as unknown as Record<string, unknown>).size = '120'
     const packageRoot = createBlock('text-block')
     packageRoot.additionalFieldDefinition = { size: { fieldType: 'number' } }
-    customBlockCatalog.value = new Map([['square', {
+    customBlockCatalog.value = new Map([['alice/square', {
       manifest: {
-        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+        type: 'opencard-custom-block', packageId: 'alice/square', version: '0.1.0', name: 'Square',
         publicFieldKeys: ['size'], resize: { widthLocked: false, heightLocked: false },
       },
       block: packageRoot,
-      archivePath: 'square.ocblock',
-      files: new Map(),
+      installationPath: 'D:/Project/.opencard/blocks/alice/square',
+      resourceRootPath: 'D:/Project/.opencard/blocks/alice/square/resources',
     }]])
     cardDoc.value!.faces.front.children = [{
       block: custom,

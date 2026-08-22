@@ -36,7 +36,6 @@ function runtime(
     manifest: {
       packageId,
       publicFieldKeys,
-      resize: { widthLocked: false, heightLocked: false },
     },
     block,
     environment,

@@ -12,6 +12,7 @@ import {
   loadProjectResourceEnvironment,
   type ProjectResourceEnvironment,
 } from './projectResourceEnvironment'
+import { resolveProjectCustomBlockSizeEditPolicy } from './projectCustomBlockPublicFields'
 
 export type InstalledProjectCustomBlockRuntime = {
   entry: ProjectCustomBlockCatalogEntry
@@ -123,6 +124,7 @@ async function loadRuntime(options: {
   const runtimeEntry: CustomBlockRuntimeEntry = {
     manifest: pkg.manifest,
     block: pkg.block,
+    sizeEditPolicy: resolveProjectCustomBlockSizeEditPolicy(pkg.block),
     environment,
     dependencies,
     ...(hasResourceErrors ? { hasResourceErrors: true } : {}),

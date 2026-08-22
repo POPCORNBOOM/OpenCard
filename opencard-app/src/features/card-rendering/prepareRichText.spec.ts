@@ -27,7 +27,6 @@ function runtime(
     manifest: {
       packageId,
       publicFieldKeys,
-      resize: { widthLocked: true, heightLocked: true },
     },
     block,
     environment,

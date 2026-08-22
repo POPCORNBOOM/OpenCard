@@ -134,20 +134,20 @@ describe('useCdeDataTableModel', () => {
   it('exposes only public custom-block fields as non-deletable data rows', () => {
     const { customBlockCatalog, document, model, documentRevision } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', customBlockKey: 'square', notes: 'Internal', visible: 'true',
+      id: 'custom', packageId: 'alice/square', notes: 'Internal', visible: 'true',
     })
     ;(custom as unknown as Record<string, unknown>).size = '120'
     ;(custom as unknown as Record<string, unknown>).content = 'Public native content'
     const packageRoot = createBlock('text-block')
     packageRoot.additionalFieldDefinition = { size: { fieldType: 'number', title: 'Size' } }
-    customBlockCatalog.value = new Map([['square', {
+    customBlockCatalog.value = new Map([['alice/square', {
       manifest: {
-        type: 'opencard-custom-block', customBlockKey: 'square', name: 'Square',
+        type: 'opencard-custom-block', packageId: 'alice/square', version: '0.1.0', name: 'Square',
         publicFieldKeys: ['size', 'content'], resize: { widthLocked: false, heightLocked: false },
       },
       block: packageRoot,
-      archivePath: 'square.ocblock',
-      files: new Map(),
+      installationPath: 'D:/Project/.opencard/blocks/alice/square',
+      resourceRootPath: 'D:/Project/.opencard/blocks/alice/square/resources',
     }]])
     document.faces.back.children.push({
       block: custom,

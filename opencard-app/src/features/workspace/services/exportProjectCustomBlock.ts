@@ -67,16 +67,15 @@ export async function prepareProjectCustomBlockExport(options: {
   const bindingIssue = materialized.issues[0]
   if (bindingIssue) return { blocked: bindingIssue }
 
+  const block = buildProjectCustomBlockRoot(materialized.root, options.resize)
   const manifest = await buildProjectCustomBlockManifest({
-    root: materialized.root,
+    root: block,
     publisherKey: options.publisherKey,
     blockKey: options.blockKey,
     version: options.version,
     name: options.name,
     exposedFieldKeys: options.exposedFieldKeys,
-    resize: options.resize,
   })
-  const block = buildProjectCustomBlockRoot(materialized.root)
   const resourceAnalysis = await analyzeProjectCustomBlockResources({
     root: block,
     projectRootPath: options.projectRootPath,

@@ -45,7 +45,7 @@ describe('appSettings', () => {
         fontFamilies: { dark: 'system', light: 'system' },
         userThemePresets: { dark: [], light: [] },
       },
-      shell: { sidebarWidth: 640, sidebarCollapsed: true },
+      shell: { sidebarWidth: 420, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: false },
       exporting: { openCdeWorkbookAfterExport: true },
       workspace: {

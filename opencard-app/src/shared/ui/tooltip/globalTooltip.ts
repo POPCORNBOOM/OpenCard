@@ -17,6 +17,7 @@ function getTooltipTarget(target: EventTarget | null): HTMLElement | null {
 }
 
 function getTooltipText(target: HTMLElement): string {
+  if (target.hasAttribute('data-tooltip-overflow') && target.scrollWidth <= target.clientWidth) return '';
   return target.getAttribute('data-tooltip')?.trim() ?? '';
 }
 

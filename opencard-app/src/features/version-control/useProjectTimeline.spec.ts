@@ -95,6 +95,12 @@ describe('useProjectTimeline', () => {
       'change:cards/index.ocdocument',
       'change:cards/conflict.ocdocument',
     ]))
+    expect(state.statusEntries.value).toHaveLength(4)
+    expect(state.statusEntries.value.find(entry => entry.path === 'cards/index.ocdocument')?.indexNew).toBe(true)
+    expect(state.statusUpdatedAt.value).not.toBeNull()
+    expect(state.statusStale.value).toBe(false)
+    expect(state.changesTreeData.value.items.get('change:cards/worktree.ocdocument')?.tail).toEqual({ key: 'git-status', title: 'Modified', icon: 'status.circle-medium', iconTone: 'warning' })
+    expect(state.changesTreeData.value.items.get('change:cards/index.ocdocument')?.tail).toEqual({ key: 'git-status', title: 'Added', icon: 'action.add', iconTone: 'success' })
     const historyCalls = mocks.readHistory.mock.calls.length
     mocks.readStatus.mockResolvedValueOnce(ok({
       entries: [statusEntry('cards/new.ocdocument', { worktreeNew: true })],
@@ -104,6 +110,30 @@ describe('useProjectTimeline', () => {
 
     expect(state.changesTreeData.value.rootKeys).toEqual(['change:cards/new.ocdocument'])
     expect(mocks.readHistory).toHaveBeenCalledTimes(historyCalls)
+  })
+
+  it('keeps the last status and marks it stale when a refresh fails', async () => {
+    const initialEntry = statusEntry('cards/initial.ocdocument', { worktreeModified: true })
+    mocks.readStatus.mockResolvedValueOnce(ok({ entries: [initialEntry] }))
+    const state = useTimeline(ref('D:/Cards/demo'))
+    await vi.waitFor(() => expect(state.statusEntries.value).toEqual([initialEntry]))
+    const updatedAt = state.statusUpdatedAt.value
+    mocks.readStatus.mockRejectedValueOnce(new Error('status unavailable'))
+    await state.refreshStatus()
+    expect(state.statusEntries.value).toEqual([initialEntry])
+    expect(state.statusUpdatedAt.value).toBe(updatedAt)
+    expect(state.statusStale.value).toBe(true)
+  })
+
+  it('coalesces rapid status refresh requests', async () => {
+    const state = useTimeline(ref('D:/Cards/demo'))
+    await vi.waitFor(() => expect(mocks.readStatus).toHaveBeenCalledOnce())
+    mocks.readStatus.mockResolvedValue(ok({ entries: [statusEntry('cards/rapid.ocdocument', { worktreeNew: true })] }))
+    const first = state.refreshStatus()
+    const second = state.refreshStatus()
+    await Promise.all([first, second])
+    expect(mocks.readStatus).toHaveBeenCalledTimes(2)
+    expect(state.changesTreeData.value.rootKeys).toEqual(['change:cards/rapid.ocdocument'])
   })
 
   it('shows only commits that edited the selected document in the timeline', async () => {

@@ -194,7 +194,7 @@ describe('useSettingsWorkspace', () => {
     ))
     expect(darkPanel).toMatchObject({ preset: { value: 'user:Forest', canDelete: true } })
     expect(darkPanel?.type === 'theme-color-panel' && darkPanel.preset.options).toEqual(expect.arrayContaining([
-      { value: 'user:Forest', label: 'Forest · Imported' },
+      { value: 'user:Forest', label: 'Forest Imported' },
     ]))
   })
 })

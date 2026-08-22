@@ -383,11 +383,11 @@ describe('CreateProjectWorkspace', () => {
 
   it('shows and submits custom blocks selected for the new project', async () => {
     const badge: UserCustomBlockCatalogEntry = {
-      key: 'user:badge',
-      id: 'badge',
-      customBlockKey: 'badge',
+      key: 'user:alice/badge',
+      id: 'alice/badge',
+      packageId: 'alice/badge',
       name: 'Badge',
-      path: '/app/custom-blocks/badge.ocblock',
+      path: '/app/custom-blocks/alice-badge.ocblock',
     }
     customBlockStore.blocks.value = [badge]
     customBlockStore.findBlock.mockImplementation(key => key === badge.key ? badge : null)

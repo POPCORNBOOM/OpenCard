@@ -160,7 +160,6 @@
                 :face="viewFace"
                 :resource-context="renderResources"
                 readonly
-                :selected-block-id="dataTablePreviewTarget?.blockId ?? null"
                 :restore-key="`${props.filePath}:data-table-preview`"
               />
               <OcEmpty v-else tone="muted">{{ t('cardDesigner.dataTable.previewEmpty') }}</OcEmpty>
@@ -384,7 +383,7 @@ import CardViewport, {
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
-import type { PropertyEditorInput, PropertyEditorItem } from '../../shared/ui/property-editor/propertyEditor.types'
+import type { PropertyEditorFieldDefinition, PropertyEditorInput } from '../../shared/ui/property-editor/propertyEditor.types'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
@@ -426,6 +425,7 @@ import {
   type PreparedProjectCustomBlockExport,
 } from '../workspace/services/exportProjectCustomBlock'
 import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
+import { resolvePropertyEditorSchema } from '../../entities/card/schema'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -464,6 +464,12 @@ import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
 import { useProjectStore } from '../workspace/store/projectStore'
+import {
+  cloneClipboardBlocksWithNewIds,
+  createCardBlocksClipboard,
+  getClipboardBlockPayloads,
+} from '../../shared/model/clipboard/cardBlockClipboard'
+import { readOcClipboard, writeOcClipboard } from '../../shared/model/clipboard/ocClipboardService'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import {
   getEditorResourceRelativePath,
@@ -887,6 +893,7 @@ function createViewState(): CardDesignerViewState {
     selectedInstanceId: selectedCardId.value === BLUEPRINT_CARD_ID
       ? null
       : selectedCardId.value,
+    selectedBlockIdsByFace: selectedBlockIdsByFace.value,
   }
 }
 
@@ -987,7 +994,6 @@ function toggleAlignmentSnapping(): void {
 
 function toggleActiveFace(): void {
   activeFaceKey.value = activeFaceKey.value === 'front' ? 'back' : 'front'
-  selectedBlockKeys.value = []
   forceStructureTreeReveal.value = false
   commitViewState()
   cardViewportRef.value?.flashStatus?.({
@@ -1053,12 +1059,12 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
   ['block-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'export-custom-block', 'duplicate', 'delete'],
+    children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'duplicate', 'delete']
   }],
   ['container-more', {
     icon: 'nav.more',
     title: '更多操作',
-    children: ['rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete'],
+    children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete']
   }],
   ['packaged-container-more', {
     icon: 'nav.more',
@@ -1070,6 +1076,8 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
     title: '添加',
     children: addChildren,
   }],
+  ['copy-block', { icon: 'action.copy', title: '复制块', shortcut: getCdeShortcutParts('block.copy') }],
+  ['paste-block', { icon: 'action.copy', title: '粘贴块', shortcut: getCdeShortcutParts('block.paste') }],
   ['duplicate-selected', {
     icon: 'action.copy',
     title: '复制选中',
@@ -1161,7 +1169,20 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
 }
 
 // 当前选择状态
-const selectedBlockKeys = ref<string[]>([])
+const selectedBlockIdsByFace = ref<Record<CardFaceKey, string[]>>({
+  front: [...(props.cardDesignerView?.selectedBlockIdsByFace?.front ?? [])],
+  back: [...(props.cardDesignerView?.selectedBlockIdsByFace?.back ?? [])],
+})
+const selectedBlockKeys = computed<string[]>({
+  get: () => selectedBlockIdsByFace.value[activeFaceKey.value],
+  set: keys => {
+    selectedBlockIdsByFace.value = {
+      ...selectedBlockIdsByFace.value,
+      [activeFaceKey.value]: [...keys],
+    }
+    commitViewState()
+  },
+})
 const diffSelectedBlockKeys = ref<string[]>([])
 const effectiveSelectedBlockKeys = computed(() => props.mode === 'diff' ? diffSelectedBlockKeys.value : selectedBlockKeys.value)
 const isMultiBlockSelection = computed(() => effectiveSelectedBlockKeys.value.length > 1)
@@ -1301,7 +1322,7 @@ const {
     if (props.mode !== 'diff') emit('save')
   },
   resetSelection: () => {
-    selectedBlockKeys.value = []
+    selectedBlockIdsByFace.value = { front: [], back: [] }
     selectedCardKeys.value = []
     selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
@@ -1600,6 +1621,8 @@ const {
   clearSelection,
   getBlockById,
   insertBlockAtRoot,
+  exportSelectedBlockPayloads,
+  pasteBlockPayloads,
 } = useCdeTreeOps({
   activeFace,
   documentRevision,
@@ -1613,6 +1636,25 @@ const {
   refreshDocumentState,
   markDocumentChanged,
 })
+
+async function copySelectedBlocks(): Promise<void> {
+  const payloads = exportSelectedBlockPayloads()
+  if (payloads.length === 0) return
+  await writeOcClipboard(createCardBlocksClipboard(payloads, {
+    documentId: cardDoc.value?.id,
+    sessionId: props.sessionId,
+    faceKey: activeFaceKey.value,
+  }))
+}
+
+async function pasteClipboardBlocks(): Promise<void> {
+  const envelope = await readOcClipboard()
+  if (!envelope) return
+  const cloned = cloneClipboardBlocksWithNewIds(getClipboardBlockPayloads(envelope))
+  const pastedIds = pasteBlockPayloads(cloned)
+  if (pastedIds.length === 0) return
+  commitViewState()
+}
 function clearEffectiveBlockSelection(): void {
   if (props.mode === 'diff') diffSelectedBlockKeys.value = []
   else clearSelection()
@@ -1684,6 +1726,20 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
     void structureTreeRef.value?.beginRename(intent.key)
     return
   }
+  if (intent.type === 'action.invoke' && (intent.actionKey === 'copy-block' || intent.actionKey === 'paste-block')) {
+    if (!selectedBlockKeys.value.includes(intent.key)) {
+      handleTreeIntent({
+        type: 'selection.change',
+        triggerKey: intent.key,
+        selectedKeys: [intent.key],
+        mode: 'replace',
+        input: 'right',
+      })
+    }
+    if (intent.actionKey === 'copy-block') await copySelectedBlocks()
+    else await pasteClipboardBlocks()
+    return
+  }
   if (intent.type === 'action.invoke' && intent.actionKey === 'rename') {
     handleTreeIntent(intent)
     void structureTreeRef.value?.beginRename(intent.key)
@@ -1714,7 +1770,6 @@ async function handleCustomBlockExport(payload: {
   blockKey: string
   version: string
   exposedFieldKeys: string[]
-  resize: ProjectCustomBlockResizePolicy
   selectedResourceIds: Set<string>
   prepared: PreparedProjectCustomBlockExport
 }): Promise<void> {
@@ -1826,6 +1881,7 @@ const {
   selectedCard,
   selectedCardId,
   customBlockCatalog: projectStore.projectCustomBlockCatalog,
+  customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog,
   documentRevision,
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
@@ -1878,12 +1934,18 @@ function diffValuesEqual(before: unknown, after: unknown): boolean {
     && beforeKeys.every(key => diffValuesEqual(beforeRecord[key], afterRecord[key]))
 }
 
-function createDiffItems(
+type DiffPropertyProjection = {
+  record: Readonly<Record<string, unknown>>
+  fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
+}
+
+function createDiffPropertyProjection(
   beforeRecord: Readonly<Record<string, unknown>> | null,
   afterRecord: Readonly<Record<string, unknown>> | null,
   fields: PropertyEditorInput['fields'],
-): PropertyEditorItem[] {
-  const items: PropertyEditorItem[] = []
+): DiffPropertyProjection {
+  const record: Record<string, unknown> = {}
+  const projectedFields: Record<string, PropertyEditorFieldDefinition> = {}
   const fieldKeys = new Set([...Object.keys(beforeRecord ?? {}), ...Object.keys(afterRecord ?? {})])
   const wholeRecordAddedOrRemoved = !beforeRecord || !afterRecord
   for (const fieldKey of fieldKeys) {
@@ -1894,16 +1956,36 @@ function createDiffItems(
     const beforeValue = beforeRecord?.[fieldKey]
     const afterValue = afterRecord?.[fieldKey]
     if (!wholeRecordAddedOrRemoved && hasBefore && hasAfter && diffValuesEqual(beforeValue, afterValue)) continue
-    if (hasBefore) items.push({
-      key: `${fieldKey}:before`, fieldKey, title: definition.title, definition, value: beforeValue, readonly: true,
-      tail: { key: `diff:${fieldKey}:removed`, icon: 'action.minus', iconTone: 'danger', title: t('sidebar.diffViewer.removed') },
-    })
-    if (hasAfter) items.push({
-      key: `${fieldKey}:after`, fieldKey, title: definition.title, definition, value: afterValue, readonly: true,
-      tail: { key: `diff:${fieldKey}:added`, icon: 'action.add', iconTone: 'success', title: t('sidebar.diffViewer.added') },
-    })
+    if (hasBefore) {
+      const projectedKey = `${fieldKey}@old`
+      record[projectedKey] = beforeValue
+      projectedFields[projectedKey] = {
+        ...definition,
+        isReadonly: true,
+        tail: {
+          key: `diff:${fieldKey}:removed`,
+          icon: 'action.minus',
+          iconTone: 'danger',
+          title: t('sidebar.diffViewer.removed'),
+        },
+      }
+    }
+    if (hasAfter) {
+      const projectedKey = `${fieldKey}@new`
+      record[projectedKey] = afterValue
+      projectedFields[projectedKey] = {
+        ...definition,
+        isReadonly: true,
+        tail: {
+          key: `diff:${fieldKey}:added`,
+          icon: 'action.add',
+          iconTone: 'success',
+          title: t('sidebar.diffViewer.added'),
+        },
+      }
+    }
   }
-  return items
+  return { record, fields: projectedFields }
 }
 
 const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
@@ -1919,16 +2001,16 @@ const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     translate: key => t(key),
     hasMessage: key => te(key),
   })
+  const blockProjection = createDiffPropertyProjection(
+    beforeDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
+    afterDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
+    blockFields,
+  )
   const inputs: PropertyEditorInput[] = [{
     key: blockId,
     title: block.name?.trim() || blockId,
-    record: (afterDescriptor?.block ?? beforeDescriptor!.block) as unknown as Readonly<Record<string, unknown>>,
-    fields: blockFields,
-    items: createDiffItems(
-      beforeDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
-      afterDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
-      blockFields,
-    ),
+    record: blockProjection.record,
+    fields: blockProjection.fields,
   }]
   const beforeLayout = beforeDescriptor ? {
     parent: beforeDescriptor.parentId,
@@ -1949,15 +2031,15 @@ const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
       translate: key => t(key),
       hasMessage: key => te(key),
     })
+    const layoutProjection = createDiffPropertyProjection(beforeLayout, afterLayout, layoutFields)
     inputs.push({
       key: `${blockId}:layout`,
       title: 'Layout',
-      record: layoutRecord,
-      fields: layoutFields,
-      items: createDiffItems(beforeLayout, afterLayout, layoutFields),
+      record: layoutProjection.record,
+      fields: layoutProjection.fields,
     })
   }
-  return inputs.filter(input => (input.items?.length ?? 0) > 0)
+  return inputs.filter(input => Object.keys(input.record).length > 0)
 })
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
@@ -2152,12 +2234,20 @@ const transformDisabledBlockIds = computed(() => {
   }
   return ids
 })
+function resolveCustomBlockResizePolicy(block: CardBlock): ProjectCustomBlockResizePolicy {
+  if (block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
+  const entry = projectStore.projectCustomBlockCatalog.value.get(block.packageId.toLowerCase())
+  if (!entry) return { widthLocked: false, heightLocked: false }
+  const fields = resolvePropertyEditorSchema(entry.block as Readonly<Record<string, unknown>>).fields
+  return {
+    widthLocked: fields.width?.isReadonly === true,
+    heightLocked: fields.height?.isReadonly === true,
+  }
+}
+
 const selectedCustomBlockResize = computed(() => {
   const block = selectedBlock.value
-  if (!block || block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
-  const key = block.packageId.toLowerCase()
-  return projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
-    ?? { widthLocked: false, heightLocked: false }
+  return block ? resolveCustomBlockResizePolicy(block) : { widthLocked: false, heightLocked: false }
 })
 
 const renderTargetInstance = computed(() => (
@@ -2238,9 +2328,8 @@ const {
   isResizeAxisLocked: (blockId: string, axis: 'width' | 'height') => {
     const block = getBlockById(blockId)
     if (!block || block.type !== 'custom-block') return false
-    const key = block.packageId.toLowerCase()
-    const policy = projectStore.projectCustomBlockCatalog.value.get(key)?.manifest.resize
-    return axis === 'width' ? Boolean(policy?.widthLocked) : Boolean(policy?.heightLocked)
+    const policy = resolveCustomBlockResizePolicy(block)
+    return axis === 'width' ? policy.widthLocked : policy.heightLocked
   },
 })
 
@@ -2257,7 +2346,6 @@ const {
   rootElement: editorRootRef,
   hasRenderableFace,
   selectedBlockId: interactionSelectedBlockId,
-  selectedLocationType,
   viewportPort: cardViewportRef,
   selectBlock: selectViewportBlock,
   changeZIndex: changeSelectionZIndex,
@@ -2274,6 +2362,20 @@ const layerViewAtomicBlockIds = computed(() => {
 })
 
 const cdeShortcutCommands = [
+  ...(['fill-parent', 'center', 'inset', 'outset'] as const).map(actionKey => ({
+    key: `selection.${actionKey}` as const,
+    shortcut: getCdeShortcutBindings(`selection.${actionKey}` as const),
+    scopes: ['canvas', 'structure-tree'] as const,
+    canRun: () => workspaceMode.value === 'design' && !layerViewActive.value && selectedLocationType.value === 'simple-container-location' && Boolean(selectedBlock.value),
+    run: () => { void cardViewportRef.value?.runSelectionQuickAction(actionKey) },
+  })),
+  ...(['fill-cross-axis', 'center-cross-axis'] as const).map(actionKey => ({
+    key: `selection.${actionKey}` as const,
+    shortcut: getCdeShortcutBindings(`selection.${actionKey}` as const),
+    scopes: ['canvas', 'structure-tree'] as const,
+    canRun: () => workspaceMode.value === 'design' && !layerViewActive.value && selectedLocationType.value === 'flow-container-location' && Boolean(selectedBlock.value),
+    run: () => { void cardViewportRef.value?.runSelectionQuickAction(actionKey) },
+  })),
   {
     key: 'instance.rename',
     shortcut: getCdeShortcutBindings('instance.rename'),
@@ -2307,6 +2409,20 @@ const cdeShortcutCommands = [
       const key = selectedBlockKeys.value[0]
       if (key) void structureTreeRef.value?.beginRename(key)
     },
+  },
+  {
+    key: 'block.copy',
+    shortcut: getCdeShortcutBindings('block.copy'),
+    scopes: ['canvas', 'structure-tree'],
+    canRun: () => workspaceMode.value === 'design' && selectedBlockKeys.value.length > 0,
+    run: copySelectedBlocks,
+  },
+  {
+    key: 'block.paste',
+    shortcut: getCdeShortcutBindings('block.paste'),
+    scopes: ['canvas', 'structure-tree'],
+    canRun: () => workspaceMode.value === 'design' && Boolean(activeFace.value),
+    run: pasteClipboardBlocks,
   },
   {
     key: 'block.duplicate',
@@ -2554,8 +2670,9 @@ async function saveFile() {
 }
 
 function ensureSelectionValidity() {
-  if (selectedBlockKeys.value.length > 0 && !selectedBlock.value) {
-    selectedBlockKeys.value = []
+  const selectedKeys = selectedBlockKeys.value
+  if (selectedKeys.length > 0 && !selectedKeys.every(blockId => getBlockById(blockId))) {
+    selectedBlockKeys.value = selectedKeys.filter(blockId => getBlockById(blockId))
   }
 
   if (selectedCardId.value !== BLUEPRINT_CARD_ID && !selectedCard.value) {
@@ -2667,8 +2784,11 @@ watch(
     const nextFace = view?.activeFace ?? 'front'
     if (activeFaceKey.value !== nextFace) {
       activeFaceKey.value = nextFace
-      selectedBlockKeys.value = []
       forceStructureTreeReveal.value = false
+    }
+    selectedBlockIdsByFace.value = {
+      front: [...(view?.selectedBlockIdsByFace?.front ?? [])],
+      back: [...(view?.selectedBlockIdsByFace?.back ?? [])],
     }
     clipToFace.value = view?.clipToFace ?? false
     alignmentSnappingEnabled.value = view?.alignmentSnappingEnabled

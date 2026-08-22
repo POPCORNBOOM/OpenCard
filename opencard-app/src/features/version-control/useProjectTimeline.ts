@@ -9,6 +9,7 @@ import { resolveEntryIcon } from '../workspace/model/fileTypes'
 
 const HISTORY_LIMIT = 50
 export const TIMELINE_COMPARE_WITH_DISK_ACTION_KEY = 'timeline.compare-with-disk'
+const STATUS_REFRESH_DEBOUNCE_MS = 120
 
 const emptyHistoryResult = () => ({
   ok: true as const,
@@ -28,13 +29,18 @@ export function useProjectTimeline(
 ) {
   const commits = ref<CommitSummary[]>([])
   const projectCommits = ref<CommitSummary[]>([])
-  const changePaths = ref<string[]>([])
+  const statusEntries = ref<GitStatusEntry[]>([])
+  const statusUpdatedAt = ref<number | null>(null)
+  const statusStale = ref(false)
   const loading = ref(false)
   const historyLoaded = ref(false)
   const initialized = ref<boolean | null>(null)
   const errorKind = ref<GitErrorKind | null>(null)
   let requestRevision = 0
   let statusRequestRevision = 0
+  let inspectedRoot: string | null = null
+  let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
+  let statusRefreshResolvers: Array<() => void> = []
 
   function changedFileTail(file: CommitChangedFile) {
     const titles = locale.value === 'zh-CN'
@@ -43,6 +49,15 @@ export function useProjectTimeline(
     if (file.status === 'added') return { key: 'status', title: titles.added, icon: 'action.add' as const, iconTone: 'success' as const }
     if (file.status === 'deleted') return { key: 'status', title: titles.deleted, icon: 'action.minus' as const, iconTone: 'danger' as const }
     return { key: 'status', title: titles.modified, icon: 'status.circle-medium' as const, iconTone: 'warning' as const }
+  }
+
+  function statusTail(entry: GitStatusEntry) {
+    const titles = locale.value === 'zh-CN'
+      ? { added: '新增', modified: '修改', deleted: '删除' }
+      : { added: 'Added', modified: 'Modified', deleted: 'Deleted' }
+    if (entry.indexDeleted || entry.worktreeDeleted) return { key: 'git-status', title: titles.deleted, icon: 'action.minus' as const, iconTone: 'danger' as const }
+    if (entry.indexNew || entry.worktreeNew) return { key: 'git-status', title: titles.added, icon: 'action.add' as const, iconTone: 'success' as const }
+    return { key: 'git-status', title: titles.modified, icon: 'status.circle-medium' as const, iconTone: 'warning' as const }
   }
 
   function createCommitTree(
@@ -59,7 +74,7 @@ export function useProjectTimeline(
     for (const commit of commits) {
       const key = `${keyPrefix}:${commit.id}`
       items.set(key, {
-        label: `${commit.summary.trim() || commit.shortId} · ${commit.shortId}`,
+        label: `${commit.summary.trim() || commit.shortId} ${commit.shortId}`,
         tail: formatRelativeTime(commit.authoredAtSeconds * 1000, locale.value),
         icon: 'file.git',
         actions,
@@ -95,12 +110,23 @@ export function useProjectTimeline(
     true,
   ))
 
+  const changeEntries = computed(() => statusEntries.value.filter(entry => (
+    entry.indexNew || entry.indexModified || entry.indexDeleted
+    || entry.worktreeNew || entry.worktreeModified || entry.worktreeDeleted
+    || entry.conflicted
+  )))
+
   const changesTreeData = computed<OcTreeData>(() => {
     const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
-    const rootKeys = changePaths.value.map(path => `change:${path}`)
-    for (const path of changePaths.value) {
-      const presentation = resolveEntryIcon(path, false)
-      items.set(`change:${path}`, { label: path, icon: presentation.icon, iconTone: presentation.tone })
+    const rootKeys = changeEntries.value.map(entry => `change:${entry.path}`)
+    for (const entry of changeEntries.value) {
+      const presentation = resolveEntryIcon(entry.path, false)
+      items.set(`change:${entry.path}`, {
+        label: entry.path,
+        icon: presentation.icon,
+        iconTone: presentation.tone,
+        tail: statusTail(entry),
+      })
     }
     return { rootKeys, items, children: new Map() }
   })
@@ -115,40 +141,64 @@ export function useProjectTimeline(
     })),
   ])
 
-  function updateChangePaths(entries: readonly GitStatusEntry[]): void {
-    changePaths.value = [...new Set(entries
-      .filter(entry => (
-        entry.indexNew || entry.indexModified || entry.indexDeleted
-        || entry.worktreeNew || entry.worktreeModified || entry.worktreeDeleted
-        || entry.conflicted
-      ))
-      .map(entry => entry.path))]
+  function updateStatus(entries: readonly GitStatusEntry[]): void {
+    statusEntries.value = [...entries]
+    statusUpdatedAt.value = Date.now()
+    statusStale.value = false
   }
 
-  async function refreshStatus(): Promise<void> {
+  async function runStatusRefresh(): Promise<void> {
     const revision = ++statusRequestRevision
     const root = projectPath.value
     if (!root || initialized.value === false) return
     try {
       const result = await readStatus(root)
-      if (revision !== statusRequestRevision || root !== projectPath.value || !result.ok || !result.value) return
-      updateChangePaths(result.value.entries)
+      if (revision !== statusRequestRevision || root !== projectPath.value) return
+      if (!result.ok || !result.value) {
+        statusStale.value = true
+        return
+      }
+      updateStatus(result.value.entries)
     } catch {
-      // Keep the last known change paths when a lightweight refresh fails.
+      if (revision === statusRequestRevision && root === projectPath.value) statusStale.value = true
     }
+  }
+
+  function refreshStatus(): Promise<void> {
+    return new Promise(resolve => {
+      statusRefreshResolvers.push(resolve)
+      if (statusRefreshTimer) clearTimeout(statusRefreshTimer)
+      statusRefreshTimer = setTimeout(() => {
+        statusRefreshTimer = null
+        const resolvers = statusRefreshResolvers
+        statusRefreshResolvers = []
+        void runStatusRefresh().finally(() => {
+          resolvers.forEach(resolveRefresh => resolveRefresh())
+        })
+      }, STATUS_REFRESH_DEBOUNCE_MS)
+    })
   }
 
   async function refresh() {
     const revision = ++requestRevision
     const root = projectPath.value
     const hasCurrentFile = Boolean(currentFilePath.value)
+    const rootChanged = root !== inspectedRoot
     commits.value = []
     projectCommits.value = []
-    changePaths.value = []
+    statusEntries.value = []
+    statusUpdatedAt.value = null
+    statusStale.value = false
     historyLoaded.value = false
-    initialized.value = null
+    if (rootChanged) initialized.value = null
     errorKind.value = null
-    if (!root) return
+    if (!root) {
+      inspectedRoot = null
+      initialized.value = null
+      loading.value = false
+      return
+    }
+    inspectedRoot = root
 
     loading.value = true
     try {
@@ -176,7 +226,8 @@ export function useProjectTimeline(
       }
       projectCommits.value = history.value
       commits.value = fileHistory.value
-      if (statusResult.ok && statusResult.value) updateChangePaths(statusResult.value.entries)
+      if (statusResult.ok && statusResult.value) updateStatus(statusResult.value.entries)
+      else statusStale.value = true
       historyLoaded.value = true
     } catch {
       if (revision === requestRevision) {
@@ -199,6 +250,9 @@ export function useProjectTimeline(
     treeData,
     projectTreeData,
     changesTreeData,
+    statusEntries,
+    statusUpdatedAt,
+    statusStale,
     loading,
     initialized,
     errorKind,

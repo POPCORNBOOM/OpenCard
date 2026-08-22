@@ -16,8 +16,10 @@ const props = defineProps<{
   collapseListTooltip?: string;
   expandListTooltip?: string;
   minResizeWidth?: number;
+  maxResizeWidth?: number;
   compactGroupWidth?: number;
   persistedLayout?: ProjectWorkspaceSidebarState;
+  resizeToggleAnimating?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +28,8 @@ const emit = defineEmits<{
   'body-group-changed': [groupKey: string];
   'tail-button-clicked': [buttonKey: string];
   resize: [width: number];
+  'resize-start': [];
+  'resize-end': [];
   'layout-change': [layout: ProjectWorkspaceSidebarState];
 }>();
 
@@ -140,19 +144,42 @@ function onListResizePointerDown(event: PointerEvent, index: number): void {
 function onResizePointerDown(event: PointerEvent): void {
   if (props.collapsed) return;
   resizing.value = true;
+  emit('resize-start');
   const pointerId = event.pointerId;
   const startLeft = sidebarElement.value?.getBoundingClientRect().left ?? 0;
   const minWidth = props.minResizeWidth ?? 78;
-  const move = (moveEvent: PointerEvent): void => { if (resizing.value) emit('resize', Math.max(minWidth, Math.round(moveEvent.clientX - startLeft))); };
-  const stop = (): void => { resizing.value = false; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', stop); if (sidebarElement.value?.hasPointerCapture(pointerId)) sidebarElement.value.releasePointerCapture(pointerId); };
+  const maxWidth = Math.max(minWidth, props.maxResizeWidth ?? Number.POSITIVE_INFINITY);
+  const move = (moveEvent: PointerEvent): void => {
+    if (!resizing.value) return;
+    const width = Math.round(moveEvent.clientX - startLeft);
+    emit('resize', Math.min(maxWidth, Math.max(minWidth, width)));
+  };
+  const stop = (): void => {
+    if (!resizing.value) return;
+    resizing.value = false;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+    if (sidebarElement.value?.hasPointerCapture(pointerId)) sidebarElement.value.releasePointerCapture(pointerId);
+    emit('resize-end');
+  };
   sidebarElement.value?.setPointerCapture(pointerId);
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', stop);
+  window.addEventListener('pointercancel', stop);
 }
 </script>
 
 <template>
-  <aside ref="sidebarElement" class="shell-sidebar" :class="{ collapsed }" :style="{ width: `${width}px` }">
+  <aside
+    ref="sidebarElement"
+    class="shell-sidebar"
+    :class="{
+      collapsed,
+      'is-resizing': resizing && !props.resizeToggleAnimating,
+    }"
+    :style="{ width: `${width}px` }"
+  >
     <OcOptionGroup
       v-if="listGroups.length > 1"
       class="shell-sidebar-group-switcher"

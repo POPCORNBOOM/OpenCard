@@ -45,7 +45,7 @@
           <ul v-else>
             <li v-for="field in publicFields" :key="field.key">
               <span>{{ field.title || field.key }}</span>
-              <OcText mono tone="muted" size="sm">{{ field.key }} · {{ field.fieldType }}</OcText>
+              <OcText mono tone="muted" size="sm">{{ field.key }} {{ field.fieldType }}</OcText>
             </li>
           </ul>
         </section>
@@ -75,7 +75,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { CardBlock } from '../../entities/card/model'
-import { getTypePropertyEditorSchema, parseAdditionalFieldDefinitions } from '../../entities/card/schema'
+import { resolvePropertyEditorSchema } from '../../entities/card/schema'
 import type { ProjectCustomBlockManifest, ProjectCustomBlockPackageIssue } from '../../features/workspace/model/projectCustomBlocks'
 import { readProjectCustomBlockPackage } from '../../features/workspace/services/projectCustomBlock'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
@@ -109,19 +109,26 @@ const existingEntry = computed(() => manifest.value
   : undefined)
 const publicFields = computed<readonly { key: string; title?: string; fieldType: string }[]>(() => {
   if (!manifest.value || !packageBlock.value) return []
-  const definitions = parseAdditionalFieldDefinitions(packageBlock.value.additionalFieldDefinition)
-  const nativeSchema = getTypePropertyEditorSchema(packageBlock.value.type)
+  const resolved = resolvePropertyEditorSchema(packageBlock.value as unknown as Readonly<Record<string, unknown>>)
   return manifest.value.publicFieldKeys.flatMap(key => {
-    const additional = definitions[key]
-    if (additional) return [{ key, title: additional.title, fieldType: String(additional.fieldType) }]
-    const native = nativeSchema[key]
-    return native ? [{ key, fieldType: String(native.fieldType), title: t(`propertyEditor.fields.${key}`) }] : []
+    const definition = resolved.fields[key]
+    if (!definition) return []
+    return [{
+      key,
+      fieldType: String(definition.fieldType),
+      title: resolved.labels[key]
+        ?? (t(`propertyEditor.fields.${key}`) as string),
+    }]
   })
 })
 const packageIssueCount = computed(() => packageIssues.value.length)
 const resizeDescription = computed(() => {
-  if (!manifest.value) return ''
-  const { widthLocked, heightLocked } = manifest.value.resize
+  if (!packageBlock.value) return ''
+  const fields = resolvePropertyEditorSchema(
+    packageBlock.value as unknown as Readonly<Record<string, unknown>>,
+  ).fields
+  const widthLocked = fields.width?.isReadonly === true
+  const heightLocked = fields.height?.isReadonly === true
   if (widthLocked && heightLocked) return t('customBlockPackage.resizeLocked')
   if (widthLocked) return t('customBlockPackage.widthLocked')
   if (heightLocked) return t('customBlockPackage.heightLocked')

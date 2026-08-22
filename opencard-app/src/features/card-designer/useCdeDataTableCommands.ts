@@ -309,7 +309,7 @@ function isCustomBlockFieldAllowed(
   if (!document) return false
   const block = createBlockLookup(document).get(blockId)
   if (block?.type !== 'custom-block') return true
-  return catalog?.get(block.customBlockKey.toLowerCase())?.manifest.publicFieldKeys
+  return catalog?.get(block.packageId.toLowerCase())?.manifest.publicFieldKeys
     .some(key => key.toLowerCase() === fieldKey.toLowerCase()) === true
 }
 

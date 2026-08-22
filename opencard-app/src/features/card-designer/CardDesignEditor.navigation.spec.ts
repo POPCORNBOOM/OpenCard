@@ -758,6 +758,7 @@ describe('CardDesignEditor issue navigation', () => {
       clipToFace: true,
       alignmentSnappingEnabled: true,
       selectedInstanceId: null,
+      selectedBlockIdsByFace: { front: [], back: [] },
     })
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(wrapper.emitted('modified')).toBeUndefined()
@@ -769,6 +770,44 @@ describe('CardDesignEditor issue navigation', () => {
     const latestContent = contentUpdates[contentUpdates.length - 1]?.[0]
     expect(JSON.parse(String(latestContent)).width).toBe('600')
     expect(wrapper.emitted('modified')?.[0]?.[0]).toBe(true)
+  })
+
+  it('keeps independent block selections for each face', async () => {
+    const document = createDocument()
+    document.faces.back = createCardFace({
+      id: 'face-back',
+      children: [{
+        block: createTextBlock({ id: 'back-text-1', name: 'Back title', content: 'Back' }),
+        location: { id: 'back-location-1', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      emits: ['block-click'],
+      template: '<div />',
+    })
+    const wrapper = shallowMount(CardDesignEditor, {
+      props: { filePath: 'card.ocdocument', modelValue: JSON.stringify(document) },
+      global: { plugins: [i18n], stubs: { CardViewport: CardViewportStub, Teleport: true } },
+    })
+    await nextTick()
+
+    const editor = wrapper.vm as unknown as {
+      selectViewportBlock: (blockId: string) => void
+      toggleActiveFace: () => void
+    }
+    editor.selectViewportBlock('text-1')
+    await nextTick()
+    editor.toggleActiveFace()
+    await nextTick()
+    const updates = wrapper.emitted('update-card-designer-view') ?? []
+    const backState = updates[updates.length - 1]?.[0] as { selectedBlockIdsByFace?: Record<string, string[]> }
+    expect(backState.selectedBlockIdsByFace).toEqual({ front: ['text-1'], back: [] })
+    editor.selectViewportBlock('back-text-1')
+    await nextTick()
+    const latest = (wrapper.emitted('update-card-designer-view') ?? [(undefined as unknown)]).slice(-1)[0] as { selectedBlockIdsByFace?: Record<string, string[]> }
+    expect(latest.selectedBlockIdsByFace).toEqual({ front: ['text-1'], back: ['back-text-1'] })
   })
 
   it('fills a simple-container child without changing its anchor', async () => {

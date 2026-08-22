@@ -50,8 +50,7 @@
               :class="{ 'is-revealed': revealedFieldIdentity === fieldIdentity(category.inputKey, entry.key) }"
               :data-input-key="category.inputKey" :data-field-key="entry.key">
               <div class="property-editor__row-label">
-                <OcIcon :name="entry.action?.icon ?? getPropertyFieldIcon(entry.definition.fieldType)"
-                  :tone="entry.action?.iconTone ?? 'muted'" size="md" />
+                <OcIcon :name="getPropertyFieldIcon(entry.definition.fieldType)" tone="muted" size="md" />
                 <OcIcon v-if="fieldWarnings?.has(fieldIdentity(category.inputKey, entry.key))"
                   name="status.warning" tone="warning" size="sm"
                   :data-tooltip="fieldWarnings.get(fieldIdentity(category.inputKey, entry.key))" />
@@ -82,9 +81,9 @@
                   <template v-for="(part, index) in normalizeItemTail(entry.tail)"
                     :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
                     <OcText v-if="typeof part === 'string'" tone="muted" size="xs">{{ part }}</OcText>
-                    <span v-else class="property-editor__tail-action" :data-tooltip="part.title" aria-hidden="true">
-                      <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
-                    </span>
+                    <OcActionButton v-else class="property-editor__tail-action" :action="part"
+                      size="sm" variant="ghost"
+                      @select="handleTailAction(category.inputKey, entry, $event)" />
                   </template>
                 </span>
               </div>
@@ -110,6 +109,7 @@ import type {
   PropertyEditorFieldIntent,
   PropertyEditorInput,
   PropertyEditorMutation,
+  PropertyEditorTailActionIntent,
   PropertyEditorSortMode,
 } from './propertyEditor.types'
 import { isArrayPropertyFieldType } from './propertyEditor.types'
@@ -140,6 +140,7 @@ const emit = defineEmits<{
   (e: 'add-property', payload: PropertyEditorMutation): void
   (e: 'reset-property', payload: PropertyEditorFieldIntent): void
   (e: 'delete-property', payload: PropertyEditorFieldIntent): void
+  (e: 'tail-action', payload: PropertyEditorTailActionIntent): void
 }>()
 
 // 组件输入协议。
@@ -190,6 +191,14 @@ async function copyFieldKey(fieldKey: string): Promise<void> {
   } catch (error) {
     reportAppError('OC-E1002', { source: 'property-field-key', fieldKey, error })
   }
+}
+
+function handleTailAction(
+  key: string,
+  entry: PropertyEditorEntry,
+  payload: { key: string },
+): void {
+  emit('tail-action', { key, fieldKey: entry.fieldKey, actionKey: payload.key })
 }
 
 const { displaySources } = usePropertyEditorView({

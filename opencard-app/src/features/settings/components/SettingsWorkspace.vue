@@ -133,7 +133,7 @@
                 <OcColorPicker
                   class="settings-workspace__color-picker"
                   :model-value="color.value"
-                  :label="`${field.label} · ${color.label}`"
+                  :label="`${field.label} ${color.label}`"
                   variant="field"
                   :allow-alpha="false"
                   @preview="emitThemeColor('theme-color.preview', field.themeId, color, $event)"
@@ -149,7 +149,7 @@
                 class="settings-workspace__theme-font"
                 :model-value="field.fontFamily.value"
                 :font-families="field.fontFamily.fontFamilies"
-                :label="`${field.label} · ${field.fontFamily.label}`"
+                :label="`${field.label} ${field.fontFamily.label}`"
                 :placeholder="field.fontFamily.placeholder"
                 @commit="emitThemeFont(field.themeId, $event)"
               />
@@ -164,7 +164,7 @@
                   :max="field.accentNeighborAngle.max"
                   :step="field.accentNeighborAngle.step"
                   :value-text="`${field.accentNeighborAngle.value}${field.accentNeighborAngle.suffix}`"
-                  :aria-label="`${field.label} · ${field.accentNeighborAngle.label}`"
+                  :aria-label="`${field.label} ${field.accentNeighborAngle.label}`"
                   @preview="emitThemeAngle('theme-angle.preview', field.themeId, $event)"
                   @commit="emitThemeAngle('theme-angle.change', field.themeId, $event)"
                 />

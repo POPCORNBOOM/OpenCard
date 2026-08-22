@@ -108,11 +108,12 @@ describe('ImagePreviewEditor', () => {
     }])
   })
 
-  it('renders two synchronized snapshot viewports in diff mode', () => {
+  it('renders two labeled synchronized snapshot viewports in diff mode', async () => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
     const wrapper = mount(ImagePreviewEditor, {
       props: {
-        filePath: 'assets/example.png',
+        filePath: 'D:/project/assets/example.png',
+        resourceRootPath: 'D:/project',
         mode: 'diff',
         comparison: {
           before: { revisionId: 'a', label: 'A', content: '', resourceRootPath: 'D:/snapshot-a' },
@@ -123,8 +124,31 @@ describe('ImagePreviewEditor', () => {
         plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
       },
     })
-    expect(wrapper.findAll('.image-preview-editor__diff-viewport')).toHaveLength(2)
-    expect(wrapper.findAll('.image-preview-editor__diff-viewport img')).toHaveLength(2)
-    expect(wrapper.find('img[src*="snapshot-a"]').exists()).toBe(true)
+    const panels = wrapper.findAll('.image-preview-editor__diff-panel')
+    const images = wrapper.findAll<HTMLImageElement>('.image-preview-editor__diff-panel img')
+    expect(panels).toHaveLength(2)
+    expect(images).toHaveLength(2)
+    expect(wrapper.findAll('.image-preview-editor__diff-label').map(label => label.text())).toEqual(['A', 'Current'])
+    expect(images[0]!.attributes('src')).toBe('asset://D:/snapshot-a/assets/example.png')
+    expect(images[1]!.attributes('src')).toBe('asset://D:/project/assets/example.png')
+    const dimensions = [{ width: 1000, height: 500 }, { width: 2000, height: 500 }]
+    for (const [index, image] of images.entries()) {
+      Object.defineProperty(image.element, 'naturalWidth', { value: dimensions[index]!.width })
+      Object.defineProperty(image.element, 'naturalHeight', { value: dimensions[index]!.height })
+      await image.trigger('load')
+    }
+    expect(wrapper.get('.oc-overlay-toolbar__text').text()).toBe('18%')
+    expect(images[0]!.attributes('style')).toContain('width: 1000px')
+    expect(images[1]!.attributes('style')).toContain('width: 2000px')
+
+    await wrapper.setProps({
+      comparison: {
+        before: { revisionId: 'a', label: 'A', content: '', resourceRootPath: 'D:/snapshot-a' },
+        after: { revisionId: null, label: 'Current', content: '', resourceRootPath: 'D:/project' },
+      },
+      viewportTransform: { x: 12, y: 8, scale: 1 },
+    })
+    expect(images[0]!.attributes('style')).toContain('width: 1000px')
+    expect(images[1]!.attributes('style')).toContain('width: 2000px')
   })
 })

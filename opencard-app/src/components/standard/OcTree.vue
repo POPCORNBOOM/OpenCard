@@ -5,6 +5,7 @@
     class="oc-tree"
     :class="{
       'is-fill': props.fill,
+      'is-empty': visibleEntries.length === 0,
       'is-dragging': draggedKey,
       'is-root-drop': draggedKey && dropTargetKey === null && dropPosition === 'inside',
       'are-actions-always-visible': props.actionVisibility === 'always',
@@ -13,6 +14,14 @@
     :aria-multiselectable="props.selectionMode === 'multiple' ? 'true' : undefined"
     @scroll.passive="handleTreeScroll"
   >
+    <OcText
+      v-if="visibleEntries.length === 0 && props.placeholder"
+      class="oc-tree__placeholder"
+      tone="muted"
+      size="sm"
+    >
+      {{ props.placeholder }}
+    </OcText>
     <div class="oc-tree__content" :class="{ 'is-virtualized': props.virtualized }"
       :style="virtualContentStyle">
     <div
@@ -99,11 +108,21 @@
           @keydown.stop="handleRenameKeydown($event, entry.key)"
           @blur="commitRename(entry.key)"
         />
-        <OcText v-else class="oc-tree__label" :tone="entry.item.tone" :truncate="true">
+        <OcText
+          v-else
+          class="oc-tree__label"
+          :tone="entry.item.tone"
+          :truncate="true"
+          :tooltip-on-overflow="entry.item.label"
+        >
           {{ entry.item.label }}
         </OcText>
 
-        <span v-if="entry.item.tail" class="oc-tree__tail">
+        <span
+          v-if="entry.item.tail"
+          class="oc-tree__tail"
+          :class="{ 'is-action-only': normalizeItemTail(entry.item.tail).every(part => typeof part !== 'string') }"
+        >
           <template v-for="(part, index) in normalizeItemTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
             <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
             <span v-else class="oc-tree__tail-action" :data-tooltip="part.title" aria-hidden="true">
@@ -138,7 +157,7 @@ import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import { normalizeItemTail } from '../../shared/ui/itemViewModel.types'
-import { useFloatingMenu } from '../../composables/useFloatingMenu'
+import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type {
   OcTreeActionDefinition,
   OcTreeData,
@@ -168,6 +187,7 @@ interface OcTreeProps {
   actionOverflowTitle?: string
   actionVisibility?: 'on-interaction' | 'always'
   tabNavigation?: 'roving' | 'none'
+  placeholder?: string
 }
 
 type VisibleEntry = {
@@ -195,6 +215,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   actionOverflowTitle: 'More actions',
   actionVisibility: 'on-interaction',
   tabNavigation: 'roving',
+  placeholder: '',
 })
 
 const emit = defineEmits<{
@@ -291,7 +312,9 @@ function validateContract(): void {
   }
   for (const item of props.data.items.values()) {
     for (const actionKey of item.actions ?? []) visitAction(actionKey, new Set())
-    for (const actionKey of item.contextActions ?? []) visitAction(actionKey, new Set())
+    for (const entry of item.contextActions ?? []) {
+      if (typeof entry === 'string') visitAction(entry, new Set())
+    }
   }
 }
 
@@ -681,10 +704,18 @@ function resolveItemActions(key: OcTreeKey): OcActionButtonAction[] {
   }]
 }
 
-function resolveContextActions(key: OcTreeKey): OcActionButtonAction[] {
-  return (props.data.items.get(key)?.contextActions ?? [])
-    .map((actionKey) => resolveAction(key, actionKey, new Set()))
-    .filter((action): action is OcActionButtonAction => action !== null)
+function resolveContextActions(key: OcTreeKey): FloatingMenuItem[] {
+  const result: FloatingMenuItem[] = []
+  for (const entry of props.data.items.get(key)?.contextActions ?? []) {
+    if (typeof entry === 'string') {
+      const action = resolveAction(key, entry, new Set())
+      if (action) result.push(action)
+      continue
+    }
+    if (result.length > 0 && result[result.length - 1]?.type !== 'divider') result.push(entry)
+  }
+  if (result[result.length - 1]?.type === 'divider') result.pop()
+  return result
 }
 
 function openItemContextMenu(key: OcTreeKey, event?: MouseEvent): boolean {
@@ -933,6 +964,17 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
+.oc-tree__placeholder {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--oc-size-md);
+  padding: var(--oc-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .oc-tree__content {
   display: flex;
   flex-direction: column;
@@ -1085,6 +1127,11 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
 }
 
+.oc-tree__tail.is-action-only {
+  flex: 0 0 auto;
+  min-width: auto;
+}
+
 .oc-tree__tail-action { display: inline-flex; align-items: center; flex: 0 0 auto; }
 
 .oc-tree__rename-input {
@@ -1103,6 +1150,7 @@ onBeforeUnmount(() => {
 .oc-tree__row:hover .oc-tree__controls,
 .oc-tree__row:focus-within .oc-tree__controls,
 .oc-tree__node.is-selected .oc-tree__controls,
+.oc-tree__controls:has(.oc-action-button.is-menu-open),
 .oc-tree.are-actions-always-visible .oc-tree__controls {
   display: flex;
 }

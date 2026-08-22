@@ -16,6 +16,7 @@ import {
   type ProjectIconCatalog,
 } from './projectIconCatalog'
 import type { PreparedProjectCustomBlockExport } from './exportProjectCustomBlock'
+import { resolveProjectCustomBlockSizeEditPolicy } from './projectCustomBlockPublicFields'
 import {
   createSelectedProjectCustomBlockFontDocument,
   type ProjectCustomBlockResourceCandidate,
@@ -225,6 +226,7 @@ export async function createProjectCustomBlockPreview(options: {
   const runtimeEntry: CustomBlockRuntimeEntry = {
     manifest: options.prepared.manifest,
     block: options.prepared.block,
+    sizeEditPolicy: resolveProjectCustomBlockSizeEditPolicy(options.prepared.block),
     environment,
     dependencies,
   }

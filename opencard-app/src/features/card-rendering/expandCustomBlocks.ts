@@ -1,6 +1,6 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import { toRaw } from 'vue'
-import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
+import type { ProjectCustomBlockSizeEditPolicy } from '../workspace/services/projectCustomBlockPublicFields'
 import type {
   ProjectResourceEnvironment,
   ProjectResourceScopeMap,
@@ -13,9 +13,9 @@ export type CustomBlockRuntimeEntry = {
   readonly manifest: {
     readonly packageId: string
     readonly publicFieldKeys: readonly string[]
-    readonly resize: Readonly<ProjectCustomBlockResizePolicy>
   }
   readonly block: CardBlock
+  readonly sizeEditPolicy?: ProjectCustomBlockSizeEditPolicy
   readonly environment: ProjectResourceEnvironment
   readonly dependencies: CustomBlockRuntimeCatalog
   readonly hasResourceErrors?: boolean
@@ -142,6 +142,7 @@ export function expandCustomBlocks(
       if (inherited) inheritedScopes.set(fieldKey, inherited)
     }
     const root = clone(entry.block) as CardBlock
+    const { widthReadonly = false, heightReadonly = false } = entry.sizeEditPolicy ?? {}
     namespaceDescendantIds(root, block.id)
     scopeStrings(root, entry.environment, resourceScopes)
 
@@ -151,12 +152,12 @@ export function expandCustomBlocks(
       const inherited = inheritedScopes.get(fieldKey)
       if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, fieldKey), inherited)
     }
-    if (!entry.manifest.resize.widthLocked && block.width !== undefined) {
+    if (!widthReadonly && block.width !== undefined) {
       root.width = block.width
       const inherited = inheritedScopes.get('width')
       if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'width'), inherited)
     }
-    if (!entry.manifest.resize.heightLocked && block.height !== undefined) {
+    if (!heightReadonly && block.height !== undefined) {
       root.height = block.height
       const inherited = inheritedScopes.get('height')
       if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'height'), inherited)

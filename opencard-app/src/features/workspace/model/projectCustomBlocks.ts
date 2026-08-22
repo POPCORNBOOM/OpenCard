@@ -31,7 +31,6 @@ export type ProjectCustomBlockManifest = {
   name: string
   description?: string
   publicFieldKeys: readonly string[]
-  resize: ProjectCustomBlockResizePolicy
 }
 
 export type ProjectCustomBlockPackageIssue = {
@@ -148,12 +147,6 @@ function parsePublicFieldKeys(value: unknown, issues: ProjectCustomBlockPackageI
   return fields
 }
 
-function parseResize(value: unknown): ProjectCustomBlockResizePolicy {
-  return {
-    widthLocked: isRecord(value) && typeof value.widthLocked === 'boolean' ? value.widthLocked : false,
-    heightLocked: isRecord(value) && typeof value.heightLocked === 'boolean' ? value.heightLocked : false,
-  }
-}
 
 export function normalizeProjectCustomBlockManifest(
   value: unknown,
@@ -190,7 +183,6 @@ export function normalizeProjectCustomBlockManifest(
         ? { description: source.description.trim() }
         : {}),
       publicFieldKeys,
-      resize: parseResize(source.resize),
     },
     issues,
   }

@@ -41,7 +41,6 @@ function customBlockEntry(
       version: '0.1.0',
       name,
       publicFieldKeys,
-      resize: { widthLocked: true, heightLocked: true },
     },
     block,
     installationPath,
@@ -501,16 +500,25 @@ describe('OcRichTextEditor', () => {
     await ensureLoaded('alice/badge')
     editor.chain().focus().insertContent({
       type: 'inlineCustomBlock',
-      attrs: { embedId: 'badge-1', packageId: 'alice/badge', properties: {} },
+      attrs: { embedId: 'badge-1', packageId: 'alice/badge', properties: { legacy: 'kept' } },
     }).run()
     editor.commands.setNodeSelection(editor.state.selection.from - 1)
     await nextTick()
     expect(editor.getHTML()).toContain('data-oc-package="alice/badge"')
     ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
     await nextTick()
-    expect(wrapper.findComponent(PropertyEditor).exists()).toBe(true)
-    expect(document.querySelector('.oc-rich-text-editor__node-dialog-content')?.textContent).toContain('label')
-    expect(document.querySelector('.oc-rich-text-editor__node-dialog-content')?.textContent).not.toContain('secret')
+    const propertyEditor = wrapper.findComponent(PropertyEditor)
+    expect(propertyEditor.exists()).toBe(true)
+    const input = propertyEditor.props('inputs')[0]!
+    expect(input.record).toEqual({ legacy: 'kept' })
+    expect(input.fields.label).toMatchObject({ title: 'Label', defaultValue: 'Default', category: 'customFields' })
+    expect(input.fields.secret).toBeUndefined()
+    expect(input.fields.legacy).toMatchObject({ category: undefined })
+    propertyEditor.vm.$emit('add-property', {
+      key: String(editor.state.selection.from), fieldKey: 'label', value: input.fields.label!.defaultValue,
+    })
+    await nextTick()
+    expect(wrapper.findComponent(PropertyEditor).props('inputs')[0]?.record).toMatchObject({ label: 'Default' })
     wrapper.unmount()
   })
 
@@ -590,6 +598,12 @@ describe('OcRichTextEditor', () => {
     ;(wrapper.vm as unknown as { openSelectedNodeEditor: () => void }).openSelectedNodeEditor()
     await nextTick()
 
+    const propertyEditor = wrapper.findComponent(PropertyEditor)
+    const input = propertyEditor.props('inputs')[0]!
+    propertyEditor.vm.$emit('add-property', {
+      key: String(position), fieldKey: 'amount', value: input.fields.amount!.defaultValue,
+    })
+    await nextTick()
     const dialogField = document.querySelector('[role="dialog"]')!
     const fieldRenderer = wrapper.findAllComponents(PropertyFieldRenderer)[0]!
     const actionRail = wrapper.findAllComponents(PropertyFieldActionRail)[0]!

@@ -254,6 +254,33 @@ describe('ShellSidebar', () => {
     }])
   })
 
+  it('keeps an empty declarative tree mounted and shows its placeholder', () => {
+    const wrapper = mount(ShellSidebar, {
+      props: {
+        collapsed: false,
+        width: 260,
+        tailButtons: [],
+        bodyGroups: primaryGroup([{
+          key: 'editors',
+          title: 'Open Editors',
+          placeholder: 'Opened files appear here',
+          actions: [],
+          content: {
+            type: 'tree',
+            data: { rootKeys: [], items: new Map(), children: new Map() },
+            role: 'listbox',
+            selectionMode: 'single',
+            activationMode: 'none',
+          },
+        }]),
+      },
+    })
+
+    expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(true)
+    expect(wrapper.get('.oc-tree__placeholder').text()).toBe('Opened files appear here')
+    expect(wrapper.find('.shell-sidebar-empty').exists()).toBe(false)
+  })
+
   it('renders declarative empty content without mounting a tree', () => {
     const wrapper = mount(ShellSidebar, {
       props: {
@@ -292,6 +319,47 @@ describe('ShellSidebar', () => {
 
     expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(false)
     expect(wrapper.find('.shell-sidebar-empty').exists()).toBe(false)
+  })
+
+  it('reports the horizontal resize lifecycle', async () => {
+    const wrapper = mount(ShellSidebar, {
+      attachTo: document.body,
+      props: {
+        collapsed: false,
+        width: 260,
+        maxResizeWidth: 420,
+        tailButtons: [],
+        bodyGroups: primaryGroup([]),
+      },
+    })
+    const sidebar = wrapper.get('.shell-sidebar').element as HTMLElement
+    Object.defineProperties(sidebar, {
+      setPointerCapture: { value: () => undefined },
+      hasPointerCapture: { value: () => true },
+      releasePointerCapture: { value: () => undefined },
+    })
+
+    wrapper.get('.shell-sidebar-resizer').element.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      clientX: 260,
+      pointerId: 4,
+    }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('resize-start')).toHaveLength(1)
+    expect(wrapper.get('.shell-sidebar').classes()).toContain('is-resizing')
+    await wrapper.setProps({ resizeToggleAnimating: true })
+    expect(wrapper.get('.shell-sidebar').classes()).not.toContain('is-resizing')
+    await wrapper.setProps({ resizeToggleAnimating: false })
+    expect(wrapper.get('.shell-sidebar').classes()).toContain('is-resizing')
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 300, pointerId: 4 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 900, pointerId: 4 }))
+    expect(wrapper.emitted('resize')).toEqual([[300], [420]])
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 4 }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('resize-end')).toHaveLength(1)
+    expect(wrapper.get('.shell-sidebar').classes()).not.toContain('is-resizing')
   })
 
   it('uses medium icons for group, group action, and bottom buttons', () => {

@@ -124,7 +124,7 @@ describe('ProjectCustomBlockRegistryEditor', () => {
 
     expect(mocks.reloadProjectCustomBlocks).toHaveBeenCalledOnce()
     expect(wrapper.getComponent(OcTree).text()).toContain('Square')
-    expect(wrapper.getComponent(OcTree).text()).toContain('alice/square · 0.1.0')
+    expect(wrapper.getComponent(OcTree).text()).toContain('alice/square 0.1.0')
   })
 
   it('installs a selected transport package into the project', async () => {

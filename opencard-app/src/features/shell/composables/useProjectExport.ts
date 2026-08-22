@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只提供端口适配和运行生命周期，不定义队列、命名、冲突或失败策略。
  */
-import { nextTick, readonly, ref, type Ref } from 'vue'
+import { nextTick, readonly, ref, shallowRef, type Ref } from 'vue'
 import { normalizeCardDocument } from '../../../entities/card/storage'
 import { prepareExportTask } from '../../exporting/exportPlanner'
 import { runExportPlan } from '../../exporting/exportRunner'
@@ -133,8 +133,8 @@ async function waitForExportAssets(root: HTMLElement, iconCatalog: ProjectIconCa
 
 export function useProjectExport(options: UseProjectExportOptions) {
   const showExportRenderer = ref(false)
-  const exportCardFace = ref<RenderReadyCardFace | null>(null)
-  const exportResourceContext = ref<CardRenderResourceContext | null>(null)
+  const exportCardFace = shallowRef<RenderReadyCardFace | null>(null)
+  const exportResourceContext = shallowRef<CardRenderResourceContext | null>(null)
   const isRunning = ref(false)
   const controller = ref<AbortController | null>(null)
   const { setTask, removeTask } = useShellProgressTasks()
@@ -317,7 +317,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
   return {
     showExportRenderer: readonly(showExportRenderer),
     exportCardFace,
-    exportResourceContext: readonly(exportResourceContext),
+    exportResourceContext,
     isRunning: readonly(isRunning),
     loadDocumentSnapshot,
     prepare,

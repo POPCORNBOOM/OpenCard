@@ -33,20 +33,32 @@
       @cancel-task="cancelShellProgressTask"
     />
 
-    <div class="shell-main" :class="{ 'shell-main-collapsed': effectiveSidebarCollapsed }" :style="shellMainStyle">
+    <div
+      class="shell-main"
+      :class="{
+        'shell-main-collapsed': effectiveSidebarCollapsed,
+        'shell-main-resizing': sidebarResizeActive && !sidebarResizeToggleAnimating,
+      }"
+      :style="shellMainStyle"
+      @transitionend="handleSidebarTransitionEnd"
+    >
       <ShellSidebar
         :collapsed="effectiveSidebarCollapsed"
         :width="sidebarWidth"
         :body-groups="sidebarBodyGroups"
         :tail-buttons="sidebarTailButtons"
-        :min-resize-width="SIDEBAR_AUTO_COLLAPSE_WIDTH"
-        :compact-group-width="SIDEBAR_MIN_WIDTH"
+        :min-resize-width="SHELL_SIDEBAR_COLLAPSE_THRESHOLD"
+        :max-resize-width="MAX_SIDEBAR_WIDTH"
+        :compact-group-width="MIN_SIDEBAR_WIDTH"
         :persisted-layout="sidebarPersistedLayout"
+        :resize-toggle-animating="sidebarResizeToggleAnimating"
         @head-button-clicked="runShellCommand"
         @list-button-clicked="handleSidebarListAction"
         @tail-button-clicked="runShellCommand"
         @body-group-changed="handleSidebarBodyGroupChanged"
+        @resize-start="handleSidebarResizeStart"
         @resize="handleSidebarResize"
+        @resize-end="handleSidebarResizeEnd"
         @layout-change="handleSidebarLayoutChange"
       />
 
@@ -184,6 +196,13 @@
       @close="closeCommitVersionDialog"
       @submit="commitVersion"
     />
+    <InitializeRepositoryDialog
+      :open="initializeRepositoryDialogOpen"
+      :busy="isInitializingRepository"
+      :error="initializeRepositoryError"
+      @close="closeInitializeRepositoryDialog"
+      @submit="initializeProjectRepository"
+    />
 
     <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
       <OcIcon name="file.generic" size="lg" tone="opencard" />
@@ -268,7 +287,12 @@ import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
-import type { ProjectWorkspaceSidebarState, ProjectWorkspaceState } from '../settings/model/appSettings'
+import {
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  type ProjectWorkspaceSidebarState,
+  type ProjectWorkspaceState,
+} from '../settings/model/appSettings'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -326,6 +350,8 @@ import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTy
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import CommitVersionDialog from '../version-control/components/CommitVersionDialog.vue'
+import InitializeRepositoryDialog from '../version-control/components/InitializeRepositoryDialog.vue'
+import type { GitIdentity } from '../version-control/git.types'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -380,13 +406,12 @@ import {
   type PrimaryShellPage,
   type ShellPage,
 } from './shellPage'
+import { isRepositorySidebarReady, SHELL_SIDEBAR_COLLAPSE_THRESHOLD } from './shellSidebarConfig'
 import { TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, useProjectTimeline } from '../version-control/useProjectTimeline'
 import { useOcdocumentDiffSession } from '../version-control/useOcdocumentDiffSession'
-import { createCommit, stageAll } from '../version-control/gitService'
+import { createCommit, initializeRepository, stageAll } from '../version-control/gitService'
 
 const { t, locale } = useI18n()
-const SIDEBAR_MIN_WIDTH = 220
-const SIDEBAR_AUTO_COLLAPSE_WIDTH = 168
 const PROJECT_FILES_LIST_KEY = 'project-files'
 const PROJECT_MANAGEMENT_LIST_KEY = 'project-management'
 const OPENED_EDITORS_LIST_KEY = 'opened-editors'
@@ -580,11 +605,19 @@ const { categoryTreeData: settingsCategoryTreeData, activeCategory: activeSettin
 })
 
 const sidebarCollapsed = computed(() => settingsStore.settings.value.shell.sidebarCollapsed)
-const effectiveSidebarCollapsed = computed(() => (
-  sidebarCollapsed.value || (viewportWidth.value < 960 && !isCreateProjectMode.value)
-))
-const sidebarWidth = computed(() => settingsStore.settings.value.shell.sidebarWidth)
+const sidebarWidth = ref(settingsStore.settings.value.shell.sidebarWidth)
 const lastExpandedSidebarWidth = ref(sidebarWidth.value)
+const sidebarResizeActive = ref(false)
+const sidebarResizeCollapsed = ref<boolean | null>(null)
+const sidebarResizeToggleAnimating = ref(false)
+let sidebarResizeRevision = 0
+const effectiveSidebarCollapsed = computed(() => (
+  (sidebarResizeCollapsed.value ?? sidebarCollapsed.value)
+  || (viewportWidth.value < 960 && !isCreateProjectMode.value)
+))
+watch(() => settingsStore.settings.value.shell.sidebarWidth, width => {
+  if (!sidebarResizeActive.value) sidebarWidth.value = width
+})
 const sidebarWorkspaceStateKey = computed(() => projectPath.value.replace(/\\/g, '/').replace(/\/+$/, ''))
 const sidebarPersistedLayout = computed<ProjectWorkspaceSidebarState | undefined>(() => {
   const key = sidebarWorkspaceStateKey.value
@@ -651,6 +684,9 @@ const feedbackCenterPage = ref<FeedbackPage | null>(null)
 const commitVersionDialogOpen = ref(false)
 const isCommittingVersion = ref(false)
 const commitVersionError = ref('')
+const initializeRepositoryDialogOpen = ref(false)
+const isInitializingRepository = ref(false)
+const initializeRepositoryError = ref('')
 const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
 const {
   unreadReplyCount: unreadFeedbackReplyCount,
@@ -735,18 +771,16 @@ const {
   refreshStatus: refreshTimelineStatus,
   revisionOptions: timelineRevisionOptions,
 } = projectTimeline
+const repositoryReady = computed(() => isRepositorySidebarReady(timelineInitialized.value))
+const repositoryNeedsInitialization = computed(() => (
+  timelineInitialized.value === false && !timelineErrorKind.value
+))
 const versionGraphExpandedKeys = ref<string[]>([])
 watch(timelineProjectTreeData, data => {
   versionGraphExpandedKeys.value = versionGraphExpandedKeys.value.filter(key => data.children.has(key))
 })
-let changeStatusRefreshTimer: ReturnType<typeof setTimeout> | null = null
 watch(fileChangeRevision, () => {
-  if (!projectPath.value) return
-  if (changeStatusRefreshTimer) clearTimeout(changeStatusRefreshTimer)
-  changeStatusRefreshTimer = setTimeout(() => {
-    changeStatusRefreshTimer = null
-    void refreshTimelineStatus()
-  }, 120)
+  if (projectPath.value) void refreshTimelineStatus()
 })
 const timelineFileName = computed(() => activeSession.value?.name ?? timelineFilePath.value?.split(/[\\/]/).pop() ?? 'ocdocument')
 const diffSessionState = useOcdocumentDiffSession({
@@ -1628,7 +1662,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           hoverTip: t('projectTemplates.actions.importIconPack'),
           disabled: isProjectTemplateBusy.value || iconPackStore.isLoading.value,
         }],
-        content: iconPackTreeData.value.rootKeys.length > 0 ? {
+        content: {
           type: 'tree',
           data: iconPackTreeData.value,
           actions: iconPackActions.value,
@@ -1636,7 +1670,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           selectionMode: 'none',
           activationMode: 'none',
           onIntent: handleIconPackTreeIntent,
-        } : { type: 'none' },
+        },
       },
       {
         key: CUSTOM_BLOCKS_LIST_KEY,
@@ -1652,7 +1686,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           hoverTip: t('projectTemplates.actions.importCustomBlock'),
           disabled: isProjectTemplateBusy.value || customBlockCatalogStore.isLoading.value,
         }],
-        content: customBlockTreeData.value.rootKeys.length > 0 ? {
+        content: {
           type: 'tree',
           data: customBlockTreeData.value,
           actions: customBlockActions.value,
@@ -1660,13 +1694,13 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           selectionMode: 'none',
           activationMode: 'none',
           onIntent: handleCustomBlockTreeIntent,
-        } : { type: 'none' },
+        },
       },
     ]
   }
 
   if (isExportTemplateMode.value) {
-    const projectContent = projectTreeData.value.rootKeys.length > 0 ? {
+    const projectContent = {
       type: 'tree' as const,
       data: exportTemplateTreeData.value,
       actions: exportTemplateTreeActions.value,
@@ -1677,7 +1711,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       activationMode: 'none' as const,
       onIntent: handleExportTemplateTreeIntent,
       captureInstance: captureProjectTreeInstance,
-    } : { type: 'none' as const }
+    }
     return [
       {
         key: PROJECT_FILES_LIST_KEY,
@@ -1691,7 +1725,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         title: t('projectTemplates.fields.entry'),
         placeholder: t('templateExport.noSelectedEntries'),
         actions: [],
-        content: exportTemplateEntryTreeData.value.rootKeys.length > 0 ? {
+        content: {
           type: 'tree',
           data: exportTemplateEntryTreeData.value,
           actions: exportTemplateTreeActions.value,
@@ -1700,14 +1734,14 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           selectionMode: 'none',
           activationMode: 'none',
           onIntent: handleExportSelectionTreeIntent,
-        } : { type: 'none' },
+        },
       },
       {
         key: TEMPLATE_COVERS_LIST_KEY,
         title: t('projectTemplates.fields.covers'),
         placeholder: t('templateExport.noSelectedCovers'),
         actions: [],
-        content: exportTemplateCoverTreeData.value.rootKeys.length > 0 ? {
+        content: {
           type: 'tree',
           data: exportTemplateCoverTreeData.value,
           actions: exportTemplateTreeActions.value,
@@ -1716,7 +1750,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           selectionMode: 'none',
           activationMode: 'none',
           onIntent: handleExportSelectionTreeIntent,
-        } : { type: 'none' },
+        },
       },
     ]
   }
@@ -1727,7 +1761,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       title: t('sidebar.recentProjects'),
       placeholder: t('sidebar.noRecentProjects'),
       actions: [],
-      content: recentProjectTreeData.value.rootKeys.length > 0 ? {
+      content: {
         type: 'tree',
         data: recentProjectTreeData.value,
         actions: recentProjectActions.value,
@@ -1736,17 +1770,17 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         selectionMode: 'single',
         activationMode: 'double-click',
         onIntent: handleRecentProjectTreeIntent,
-      } : { type: 'none' },
+      },
     }]
   }
 
-  return [
+  const lists: ShellList[] = [
     {
       key: OPENED_EDITORS_LIST_KEY,
       title: t('sidebar.openedEditors'),
       placeholder: t('sidebar.noOpenedEditors', 'No open editors'),
       actions: [],
-      content: openedEditorTreeData.value.rootKeys.length > 0 ? {
+      content: {
         type: 'tree',
         data: openedEditorTreeData.value,
         actions: openedEditorActions.value,
@@ -1756,14 +1790,14 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         activationMode: 'none',
         onIntent: handleOpenedEditorTreeIntent,
         onAuxclick: handleOpenedEditorAuxClick,
-      } : { type: 'none' },
+      },
     },
     {
       key: PROJECT_MANAGEMENT_LIST_KEY,
       title: t('sidebar.projectManagement'),
       placeholder: '',
       actions: [],
-      content: projectManagementTreeData.value.rootKeys.length > 0 ? {
+      content: {
         type: 'tree',
         data: projectManagementTreeData.value,
         actions: projectManagementActions.value,
@@ -1773,7 +1807,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         selectionMode: 'single',
         activationMode: 'none',
         onIntent: handleProjectManagementTreeIntent,
-      } : { type: 'none' },
+      },
     },
     {
       key: PROJECT_FILES_LIST_KEY,
@@ -1800,7 +1834,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           disabled: !projectPath.value,
         },
       ],
-      content: projectTreeData.value.rootKeys.length > 0 ? {
+      content: {
         type: 'tree',
         data: projectTreeData.value,
         actions: projectEntryActions.value,
@@ -1811,9 +1845,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         activationMode: 'double-click',
         onIntent: handleProjectTreeIntent,
         captureInstance: captureProjectTreeInstance,
-      } : { type: 'none' },
+      },
     },
-    {
+  ]
+  if (repositoryReady.value) {
+    lists.push({
       key: TIMELINE_LIST_KEY,
       title: t('sidebar.timeline'),
       placeholder: timelinePlaceholder.value,
@@ -1823,7 +1859,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         hoverTip: t('sidebar.timelineRefresh'),
         disabled: !timelineFilePath.value || timelineLoading.value,
       }],
-      content: timelineTreeData.value.rootKeys.length > 0 ? {
+      content: {
         type: 'tree',
         data: timelineTreeData.value,
         actions: timelineTreeActions.value,
@@ -1832,9 +1868,10 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         selectionMode: 'none',
         activationMode: 'none',
         onIntent: handleTimelineTreeIntent,
-      } : { type: 'none' },
-    },
-  ]
+      },
+    })
+  }
+  return lists
 })
 
 const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
@@ -1860,47 +1897,58 @@ const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
       key: 'version-control',
       title: t('sidebar.versionControlGroup', 'Version Control'),
       icon: 'file.git',
-      headButtons: [{
-        key: 'publish-version',
-        icon: 'action.publish',
-        title: t('sidebar.commitVersion', 'Commit version'),
-        disabled: changesTreeData.value.rootKeys.length === 0 || isCommittingVersion.value,
-      }],
-      lists: [
-        {
-          key: 'changes',
-          title: t('sidebar.changes', 'Changes'),
-          placeholder: '',
-          actions: [],
-          content: {
-            type: 'tree',
-            data: changesTreeData.value,
-            selectedKeys: [],
-            role: 'tree',
-            selectionMode: 'none',
-            activationMode: 'none',
-          },
-        },
-        {
-          key: 'version-graph',
-          title: t('sidebar.versionGraph', 'Version graph'),
-          placeholder: '',
-          actions: [],
-          content: timelineProjectTreeData.value.rootKeys.length > 0 ? {
-            type: 'tree',
-            data: timelineProjectTreeData.value,
-            selectedKeys: [],
-            expandedKeys: versionGraphExpandedKeys.value,
-            role: 'tree',
-            selectionMode: 'none',
-            activationMode: 'none',
-            onIntent: handleVersionGraphTreeIntent,
-          } : { type: 'empty' },
-        },
-      ],
+      headButtons: repositoryNeedsInitialization.value
+        ? [{
+            key: 'initialize-repository',
+            icon: 'file.git',
+            title: t('sidebar.initializeRepository', 'Initialize repository'),
+            disabled: isInitializingRepository.value,
+          }]
+        : repositoryReady.value
+          ? [{
+              key: 'publish-version',
+              icon: 'action.publish',
+              title: t('sidebar.commitVersion', 'Commit version'),
+              disabled: changesTreeData.value.rootKeys.length === 0 || isCommittingVersion.value,
+            }]
+          : [],
+      lists: repositoryReady.value
+        ? [
+            {
+              key: 'changes',
+              title: t('sidebar.changes', 'Changes'),
+              placeholder: t('sidebar.changesEmpty', 'Uncommitted project files appear here'),
+              actions: [],
+              content: {
+                type: 'tree',
+                data: changesTreeData.value,
+                selectedKeys: [],
+                role: 'tree',
+                selectionMode: 'none',
+                activationMode: 'none',
+              },
+            },
+            {
+              key: 'version-graph',
+              title: t('sidebar.versionGraph', 'Version graph'),
+              placeholder: t('sidebar.versionGraphEmpty', 'Project commits appear here'),
+              actions: [],
+              content: {
+                type: 'tree',
+                data: timelineProjectTreeData.value,
+                selectedKeys: [],
+                expandedKeys: versionGraphExpandedKeys.value,
+                role: 'tree',
+                selectionMode: 'none',
+                activationMode: 'none',
+                onIntent: handleVersionGraphTreeIntent,
+              },
+            },
+          ]
+        : [],
     },
   ];
-  return groups.filter(group => group.lists.length > 0);
+  return groups;
 });
 
 const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
@@ -2086,7 +2134,7 @@ const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
       : diffSessionState.after.value?.commitId ?? null
     const formatRevisionLabel = (option: typeof timelineRevisionOptions.value[number] | undefined, fallback: string) => {
       if (!option) return fallback
-      return option.shortId ? `${option.label} · ${option.shortId}` : option.label
+      return option.shortId ? `${option.label} ${option.shortId}` : option.label
     }
     const createRevisionMenu = (prefix: string, selectedId: string | null) => timelineRevisionOptions.value.map(option => ({
       key: `${prefix}:${option.commitId ?? 'current'}`,
@@ -2266,11 +2314,11 @@ async function revealRecentProject(path: string): Promise<void> {
 }
 
 function handleSidebarBodyGroupChanged(groupKey: string): void {
-  if (groupKey === 'version-control') void refreshTimelineStatus()
+  if (groupKey === 'version-control' && repositoryReady.value) void refreshTimelineStatus()
 }
 
 function handleWindowFocus(): void {
-  if (shellPage.value.type === 'workbench' && projectPath.value && timelineInitialized.value !== false) {
+  if (shellPage.value.type === 'workbench' && projectPath.value && repositoryReady.value) {
     void refreshTimelineStatus()
   }
 }
@@ -2741,22 +2789,46 @@ function toggleSidebarCollapsed() {
     return
   }
 
-  lastExpandedSidebarWidth.value = Math.max(sidebarWidth.value, SIDEBAR_MIN_WIDTH)
+  lastExpandedSidebarWidth.value = Math.max(sidebarWidth.value, MIN_SIDEBAR_WIDTH)
   settingsStore.updateShell({ sidebarCollapsed: true })
 }
 
-function handleSidebarResize(width: number) {
-  if (width <= SIDEBAR_AUTO_COLLAPSE_WIDTH) {
-    settingsStore.updateShell({ sidebarCollapsed: true })
-    return
-  }
+function handleSidebarResizeStart(): void {
+  sidebarResizeRevision += 1
+  sidebarResizeActive.value = true
+  sidebarResizeCollapsed.value = sidebarCollapsed.value
+  sidebarResizeToggleAnimating.value = false
+}
 
-  const nextWidth = Math.max(width, SIDEBAR_MIN_WIDTH)
-  lastExpandedSidebarWidth.value = nextWidth
+function handleSidebarResizeEnd(): void {
+  const revision = sidebarResizeRevision
+  const collapsed = sidebarResizeCollapsed.value ?? sidebarCollapsed.value
   settingsStore.updateShell({
-    sidebarCollapsed: false,
-    sidebarWidth: nextWidth,
+    sidebarCollapsed: collapsed,
+    sidebarWidth: sidebarWidth.value,
   })
+  void nextTick(() => {
+    if (sidebarResizeRevision !== revision) return
+    sidebarResizeActive.value = false
+    sidebarResizeCollapsed.value = null
+    sidebarResizeToggleAnimating.value = false
+  })
+}
+
+function handleSidebarTransitionEnd(event: TransitionEvent): void {
+  if (event.propertyName === 'grid-template-columns') sidebarResizeToggleAnimating.value = false
+}
+
+function handleSidebarResize(width: number) {
+  const collapsed = width <= SHELL_SIDEBAR_COLLAPSE_THRESHOLD
+  const previousCollapsed = sidebarResizeCollapsed.value ?? sidebarCollapsed.value
+  if (collapsed !== previousCollapsed) sidebarResizeToggleAnimating.value = true
+  sidebarResizeCollapsed.value = collapsed
+  if (collapsed) return
+
+  const nextWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(width, MIN_SIDEBAR_WIDTH))
+  sidebarWidth.value = nextWidth
+  lastExpandedSidebarWidth.value = nextWidth
 }
 
 function createUntitledOpenCard() {
@@ -2884,6 +2956,14 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'initialize-repository') {
+    if (projectPath.value && repositoryNeedsInitialization.value) {
+      initializeRepositoryError.value = ''
+      initializeRepositoryDialogOpen.value = true
+    }
+    return
+  }
+
   if (actionKey === 'export-project-template') {
     if (projectPath.value) {
       const returnPage = getCurrentPrimaryShellPage()
@@ -2904,6 +2984,34 @@ function closeCommitVersionDialog(): void {
   if (isCommittingVersion.value) return
   commitVersionDialogOpen.value = false
   commitVersionError.value = ''
+}
+
+function closeInitializeRepositoryDialog(): void {
+  if (isInitializingRepository.value) return
+  initializeRepositoryDialogOpen.value = false
+  initializeRepositoryError.value = ''
+}
+
+async function initializeProjectRepository(identity: GitIdentity): Promise<void> {
+  const root = projectPath.value
+  if (!root || isInitializingRepository.value) return
+  isInitializingRepository.value = true
+  initializeRepositoryError.value = ''
+  try {
+    const result = await initializeRepository(root, identity)
+    if (!result.ok || !result.value) {
+      initializeRepositoryError.value = result.error?.message ?? t('sidebar.initializeDialog.failed')
+      return
+    }
+    initializeRepositoryDialogOpen.value = false
+    await refreshTimeline()
+  } catch (error) {
+    initializeRepositoryError.value = error instanceof Error
+      ? error.message
+      : t('sidebar.initializeDialog.failed')
+  } finally {
+    isInitializingRepository.value = false
+  }
 }
 
 async function commitVersion(value: { summary: string; description: string }): Promise<void> {
@@ -3298,7 +3406,6 @@ onMounted(() => {
 
 
 onUnmounted(() => {
-  if (changeStatusRefreshTimer) clearTimeout(changeStatusRefreshTimer)
   removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
@@ -3337,7 +3444,9 @@ onUnmounted(() => {
 
 .open-card-shell__sidebar-tree {
   width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
 .shell-file-drop-overlay {

@@ -10,6 +10,7 @@ const props = defineProps<{
 <template>
   <OcTree
     v-if="props.list.content?.type === 'tree'"
+    fill
     :ref="props.list.content.captureInstance"
     class="open-card-shell__sidebar-tree"
     :data="props.list.content.data"
@@ -24,6 +25,7 @@ const props = defineProps<{
     :virtualized="props.list.content.virtualized"
     :action-visibility="props.list.content.actionVisibility"
     :tab-navigation="props.list.content.tabNavigation"
+    :placeholder="props.list.placeholder"
     @intent="props.list.content.onIntent"
     @auxclick="props.list.content.onAuxclick"
   />

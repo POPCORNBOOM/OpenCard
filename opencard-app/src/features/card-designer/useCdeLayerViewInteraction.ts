@@ -13,11 +13,6 @@ export type CdeLayerViewPort = {
   cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
 }
 
-type SelectionLocationType =
-  | 'simple-container-location'
-  | 'flow-container-location'
-  | null
-
 type ZIndexIntent = {
   blockId: string
   delta: -1 | 1
@@ -28,7 +23,6 @@ type UseCdeLayerViewInteractionOptions = {
   rootElement: Readonly<Ref<HTMLElement | null>>
   hasRenderableFace: Readonly<Ref<boolean>>
   selectedBlockId: Readonly<Ref<string | null>>
-  selectedLocationType: Readonly<Ref<SelectionLocationType>>
   viewportPort: Readonly<Ref<CdeLayerViewPort | null>>
   selectBlock: (blockId: string) => void
   changeZIndex: (intent: ZIndexIntent) => boolean
@@ -97,14 +91,6 @@ export function useCdeLayerViewInteraction(options: UseCdeLayerViewInteractionOp
       return
     }
 
-    const shortcut = event.key.toLowerCase()
-    const actionKey = options.selectedLocationType.value === 'simple-container-location'
-      ? ({ f: 'fill-parent', c: 'center', i: 'inset', o: 'outset' } as const)[shortcut as 'f' | 'c' | 'i' | 'o']
-      : options.selectedLocationType.value === 'flow-container-location'
-        ? ({ f: 'fill-cross-axis', c: 'center-cross-axis' } as const)[shortcut as 'f' | 'c']
-        : undefined
-    if (!actionKey || !options.viewportPort.value?.runSelectionQuickAction(actionKey)) return
-    consume(event)
   }
 
   function handleCanvasPointerDown(event: PointerEvent): void {

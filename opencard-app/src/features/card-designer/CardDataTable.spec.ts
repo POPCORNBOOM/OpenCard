@@ -295,20 +295,26 @@ describe('CardDataTable', () => {
     const headings = wrapper.findAll('.card-data-table__column-heading')
 
     await headings[1]!.trigger('contextmenu', { clientX: 20, clientY: 30 })
-    expect(menu.state.value.items.map(item => item.key)).toEqual(['rename', 'duplicate', 'delete'])
+    expect(menu.state.value.items.map(item => item.key)).toEqual([
+      'rename', 'duplicate', 'column-danger-divider', 'delete',
+    ])
     menu.selectMenuItem('duplicate')
     expect(wrapper.emitted('duplicate-card')).toEqual([['instance']])
 
     await wrapper.get('.card-data-table__block-heading').trigger('contextmenu')
-    expect(menu.state.value.items.map(item => item.key)).toEqual(['manage-fields', 'remove-block'])
+    expect(menu.state.value.items.map(item => item.key)).toEqual([
+      'manage-fields', 'block-remove-divider', 'remove-block',
+    ])
     const manageFields = menu.state.value.items[0]
     expect(manageFields?.type !== 'divider' && manageFields.children?.map(item => item.key))
-      .toEqual(['include-field:fontSize', 'create-field'])
+      .toEqual(['include-field:fontSize', 'create-field-divider', 'create-field'])
     menu.selectMenuItem('remove-block')
     expect(wrapper.emitted('remove-block')).toEqual([['text']])
 
     await wrapper.get('.card-data-table__field-heading').trigger('contextmenu')
-    expect(menu.state.value.items.map(item => item.key)).toEqual(['delete-field', 'exclude-field'])
+    expect(menu.state.value.items.map(item => item.key)).toEqual([
+      'exclude-field', 'field-delete-divider', 'delete-field',
+    ])
     menu.selectMenuItem('exclude-field')
     expect(wrapper.emitted('exclude-field')).toEqual([['text', 'content']])
   })

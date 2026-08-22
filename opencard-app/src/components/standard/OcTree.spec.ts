@@ -37,6 +37,21 @@ describe('OcTree', () => {
     vi.restoreAllMocks()
   })
 
+  it('centers a placeholder while the tree has no visible entries', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({ roots: [], items: [] }),
+        placeholder: 'Opened files appear here',
+      },
+    })
+
+    expect(wrapper.classes()).toContain('is-empty')
+    expect(wrapper.get('.oc-tree__placeholder').text()).toBe('Opened files appear here')
+    await wrapper.setProps({ data: createData() })
+    expect(wrapper.classes()).not.toContain('is-empty')
+    expect(wrapper.find('.oc-tree__placeholder').exists()).toBe(false)
+  })
+
   it('renders roots as list rows and emits key-only selection intent', async () => {
     const wrapper = mount(OcTree, {
       props: {
@@ -62,6 +77,23 @@ describe('OcTree', () => {
       mode: 'replace',
       input: 'left',
     }])
+  })
+
+  it('reserves layout width for an action-only tail', () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'A long changed file name',
+            tail: { key: 'status', title: 'Added', icon: 'action.add', iconTone: 'success' },
+          }]],
+        }),
+      },
+    })
+
+    expect(wrapper.get('.oc-tree__tail').classes()).toContain('is-action-only')
+    expect(wrapper.get('.oc-tree__label').attributes('data-tooltip')).toBe('A long changed file name')
+    expect(wrapper.get('.oc-tree__label').attributes()).toHaveProperty('data-tooltip-overflow')
   })
 
   it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
@@ -632,6 +664,29 @@ describe('OcTree', () => {
       .toBeLessThan(rowChildren.indexOf(wrapper.get('.oc-tree__controls').element))
   })
 
+  it('keeps inline action controls mounted while their floating menu is open', async () => {
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: {
+        data: createData({
+          items: [['root', { label: 'Root', actions: ['more'] }]],
+        }),
+        actions: new Map<string, OcTreeActionDefinition>([
+          ['more', { title: 'More', children: ['rename'] }],
+          ['rename', { title: 'Rename' }],
+        ]),
+      },
+    })
+    const controls = wrapper.get('.oc-tree__controls')
+    const actionButton = wrapper.getComponent(OcActionButton)
+
+    await actionButton.trigger('pointerenter')
+
+    expect(actionButton.classes()).toContain('is-menu-open')
+    expect(controls.element.matches(':has(.oc-action-button.is-menu-open)')).toBe(true)
+    wrapper.unmount()
+  })
+
   it('opens direct context actions without exposing the inline more wrapper', async () => {
     const actions = new Map<string, OcTreeActionDefinition>([
       ['more', { title: 'More', children: ['rename', 'delete'] }],
@@ -644,7 +699,14 @@ describe('OcTree', () => {
           items: [['root', {
             label: 'Root',
             actions: ['more'],
-            contextActions: ['rename', 'delete'],
+            contextActions: [
+              { type: 'divider', key: 'leading' },
+              'rename',
+              { type: 'divider', key: 'danger' },
+              { type: 'divider', key: 'duplicate-divider' },
+              'delete',
+              { type: 'divider', key: 'trailing' },
+            ],
           }]],
         }),
         actions,
@@ -654,7 +716,8 @@ describe('OcTree', () => {
 
     await wrapper.get('.oc-tree__row').trigger('contextmenu', { clientX: 12, clientY: 18 })
     const menu = useFloatingMenu()
-    expect(menu.state.value.items.map(item => item.key)).toEqual(['rename', 'delete'])
+    expect(menu.state.value.items.map(item => item.key)).toEqual(['rename', 'danger', 'delete'])
+    expect(menu.state.value.items[1]).toEqual({ type: 'divider', key: 'danger' })
     expect(wrapper.emitted<OcTreeIntent[]>('intent')?.[0]).toEqual([{
       type: 'selection.change',
       triggerKey: 'root',

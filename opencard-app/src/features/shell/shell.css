@@ -351,6 +351,10 @@
   transition: grid-template-columns 220ms ease;
 }
 
+.shell-main.shell-main-resizing {
+  transition: none;
+}
+
 .shell-main.shell-main-collapsed {
   grid-template-columns: minmax(0, var(--shell-sidebar-width, 0px)) minmax(0, 1fr);
 }
@@ -414,6 +418,15 @@
   transition:
     width 220ms ease,
     opacity 180ms ease;
+}
+
+.shell-sidebar.is-resizing,
+.shell-sidebar.is-resizing::before,
+.shell-sidebar.is-resizing::after,
+.shell-sidebar.is-resizing *,
+.shell-sidebar.is-resizing *::before,
+.shell-sidebar.is-resizing *::after {
+  transition: none !important;
 }
 
 .shell-sidebar.collapsed {
@@ -549,8 +562,9 @@
 
 .shell-sidebar-list-content {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   gap: 2px;
 }
 .shell-sidebar-list-resizer {

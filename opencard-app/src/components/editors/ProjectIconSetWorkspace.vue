@@ -147,7 +147,16 @@ const iconTreeData = computed<OcTreeData>(() => {
           : { icon: 'file.image' as const }),
         draggable: true,
         actions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
-        contextActions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
+        contextActions: [
+          'duplicate',
+          { type: 'divider', key: 'icon-move-divider' },
+          'move-top',
+          'move-up',
+          'move-down',
+          'move-bottom',
+          { type: 'divider', key: 'icon-delete-divider' },
+          'delete',
+        ],
         disabledActions: new Map([
           ...(index === 0 ? [
             ['move-top', t('projectConfig.icons.alreadyAtTop')],

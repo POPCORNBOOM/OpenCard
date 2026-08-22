@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createTextBlock, type CardDocument } from '../../entities/card/model'
+import { createBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
+import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import { useCdePropertyPanelState } from './useCdePropertyPanelState'
 
 function createHarness() {
@@ -176,5 +177,62 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(document.instances[0]!.data.text).toBeUndefined()
     expect(state.deleteProperty({ key: block.id, fieldKey: 'content' })).toBe(false)
     expect(block.content).toBe('Blueprint')
+  })
+
+  it('derives custom-block fields from the package schema and keeps absent values addable', () => {
+    const block = createBlock('custom-block', { id: 'custom', packageId: 'alice/card' })
+    Object.assign(block, { legacy: 'kept' })
+    const packageRoot = createBlock('simple-container-block', { id: 'package-root' })
+    packageRoot.additionalFieldDefinition = {
+      suit: { fieldType: 'string', title: 'Suit', options: ['heart', 'spade'] },
+      showsuit: { fieldType: 'boolean', title: 'Show suit' },
+    }
+    Object.assign(packageRoot, { suit: 'heart', showsuit: 'true' })
+    const catalog = ref(new Map<string, ProjectCustomBlockCatalogEntry>([['alice/card', {
+      manifest: {
+        type: 'opencard-custom-block', packageId: 'alice/card', version: '0.1.0', name: 'Card',
+        publicFieldKeys: ['suit', 'showsuit'],
+      },
+      block: packageRoot,
+      installationPath: '/project/.opencard/blocks/alice/card',
+      resourceRootPath: '/project/.opencard/blocks/alice/card/resources',
+    }]]))
+    const document: CardDocument = {
+      type: 'card-document', id: 'document', version: '1.0.0', width: '540', height: '850', instances: [],
+      faces: {
+        front: {
+          type: 'card-face', id: 'front', background: '#fff',
+          children: [{ block, location: { id: 'location', type: 'simple-container-location', anchor: 'lt' } }],
+        },
+        back: { type: 'card-face', id: 'back', background: '#000', children: [] },
+      },
+    }
+    const cardDoc = ref<CardDocument | null>(document)
+    const selectedCardId = ref('__blueprint__')
+    const documentRevision = ref(0)
+    const state = useCdePropertyPanelState({
+      cardDoc,
+      activeFace: computed(() => cardDoc.value?.faces.front ?? null),
+      selectedLocation: computed(() => cardDoc.value?.faces.front.children[0]?.location ?? null),
+      selectedBlock: computed(() => cardDoc.value?.faces.front.children[0]?.block ?? null),
+      selectedCard: computed(() => null),
+      selectedCardId,
+      customBlockCatalog: catalog,
+      documentRevision,
+      blueprintCardId: '__blueprint__',
+      refreshDocumentState: () => { documentRevision.value += 1 },
+      markDocumentChanged: vi.fn(),
+      translate: key => key,
+      hasMessage: () => false,
+    })
+
+    const input = state.propertyInputs.value[0]!
+    expect(input.record).not.toHaveProperty('suit')
+    expect(input.fields.suit).toMatchObject({ title: 'Suit', defaultValue: 'heart', category: 'customFields' })
+    expect(input.fields.showsuit).toMatchObject({ title: 'Show suit', defaultValue: 'true', category: 'customFields' })
+    expect(input.fields.legacy).toMatchObject({ isReadonly: true, category: undefined })
+
+    state.addProperty({ key: block.id, fieldKey: 'suit', value: input.fields.suit!.defaultValue })
+    expect((block as unknown as Record<string, unknown>).suit).toBe('heart')
   })
 })

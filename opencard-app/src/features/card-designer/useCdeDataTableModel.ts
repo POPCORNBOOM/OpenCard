@@ -1,16 +1,15 @@
 import { computed, type DeepReadonly, type Ref } from 'vue'
-import {
-  getAdditionalFieldPropertyDefinition,
-  type CardBlock,
-  type CardDocument,
-  type CardFaceKey,
+import type {
+  CardBlock,
+  CardDocument,
+  CardFaceKey,
 } from '../../entities/card/model'
-import { getTypePropertyEditorSchema, type EditorPropertyDefinition } from '../../entities/card/schema'
 import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
 import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
+import { createProjectCustomBlockPropertySchema } from '../workspace/services/projectCustomBlockPublicFields'
 
 export type CdeDataTableColumn = {
   key: string
@@ -174,33 +173,19 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     }
 
     const customEntry = block.type === 'custom-block'
-      ? options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
+      ? options.customBlockCatalog?.value.get(block.packageId.toLowerCase())
       : undefined
-    const sourceDefinitions = block.additionalFieldDefinition ?? {}
-    const customRootSchema = getTypePropertyEditorSchema(customEntry?.block.type)
-    const override = customEntry
-      ? Object.fromEntries(customEntry.manifest.publicFieldKeys.flatMap(fieldKey => {
-          const additional = customEntry.block.additionalFieldDefinition?.[fieldKey]
-          const definition = additional
-            ? getAdditionalFieldPropertyDefinition({ ...additional })
-            : customRootSchema[fieldKey]
-          return definition ? [[fieldKey, definition]] : []
-        }))
-      : Object.fromEntries(Object.entries(sourceDefinitions).map(([fieldKey, definition]) => [
-          fieldKey,
-          getAdditionalFieldPropertyDefinition({ ...definition }) as Partial<EditorPropertyDefinition>,
-        ]))
-    const labels = Object.fromEntries(Object.entries(customEntry?.block.additionalFieldDefinition ?? sourceDefinitions)
-      .map(([fieldKey, definition]) => [fieldKey, definition.title ?? fieldKey]))
+    const packageSchema = customEntry ? createProjectCustomBlockPropertySchema(customEntry) : null
+    const override = packageSchema?.fields ?? {}
     const definitions = resolveCardPropertyFields(definitionRecord, {
       allowDelete: true,
       translate: options.translate,
       hasMessage: options.hasMessage,
-      override,
-      labels,
-      customKeys: new Set(customEntry
-        ? customEntry.manifest.publicFieldKeys.filter(fieldKey => Boolean(customEntry.block.additionalFieldDefinition?.[fieldKey]))
-        : Object.keys(sourceDefinitions)),
+      ...(packageSchema ? {
+        override,
+        labels: packageSchema.labels,
+        customKeys: packageSchema.customKeys,
+      } : {}),
     })
     const blockRecord = block as unknown as Record<string, unknown>
 

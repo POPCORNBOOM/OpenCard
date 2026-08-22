@@ -107,13 +107,15 @@ function projectBlock(value: unknown, path: string, warnings: CardStorageWarning
   const block = projectKnownFields(type, value, path, warnings, options.materializeRequiredDefaults)
   block.type = type
   block.id = nonEmptyString(block.id) ?? `${type}@${path}`
-  const definitions = parseAdditionalFieldDefinitions(value.additionalFieldDefinition)
+  const definitions = parseAdditionalFieldDefinitions(value.additionalFieldDefinition, [], type)
   if (Object.keys(definitions).length > 0) block.additionalFieldDefinition = definitions
 
   for (const [fieldKey, definition] of Object.entries(definitions)) {
     const fieldValue = value[fieldKey]
     if (isCardStoredValue(fieldValue)) block[fieldKey] = structuredClone(fieldValue)
-    else if (options.materializeRequiredDefaults) block[fieldKey] = additionalFieldDefault(definition.fieldType)
+    else if (options.materializeRequiredDefaults && definition.fieldType) {
+      block[fieldKey] = additionalFieldDefault(definition.fieldType)
+    }
   }
 
   if (type === 'custom-block') {

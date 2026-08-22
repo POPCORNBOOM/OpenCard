@@ -17,6 +17,7 @@ type EditorPropertyBase = {
     isReadonly?: boolean
     resettable?: boolean
     deletable?: boolean
+    nonOverridable?: true
     acceptsBinding?: false
     bindingScopes?: readonly BindingScopeKind[]
     exposesReference?: false
@@ -59,12 +60,17 @@ export type PropertyConstraintMap = {
 }
 
 export type PropertyFieldType = keyof PropertyConstraintMap
-type AdditionalFieldDefinitionBase<T extends PropertyFieldType> = { title?: string; fieldType: T }
+type AdditionalFieldEditorOptions = Pick<EditorPropertyBase,
+    'required' | 'isHidden' | 'isReadonly' | 'resettable' | 'deletable' | 'categoryId' | 'displayFieldKey'>
+type AdditionalFieldDefinitionBase<T extends PropertyFieldType> = AdditionalFieldEditorOptions & {
+    title?: string
+    fieldType: T
+}
 export type AdditionalFieldDefinition =
-    | (AdditionalFieldDefinitionBase<'string'> & Pick<PropertyConstraintMap['string'],
-        'minLength' | 'maxLength' | 'options' | 'enumMode' | 'multiline'>)
+    | (AdditionalFieldDefinitionBase<'string'> & PropertyConstraintMap['string'])
+    | (AdditionalFieldDefinitionBase<'filePath'> & PropertyConstraintMap['filePath'])
     | (AdditionalFieldDefinitionBase<'number'> & PropertyConstraintMap['number'])
-    | AdditionalFieldDefinitionBase<Exclude<(typeof additionalFieldTypes)[number], 'string' | 'number'>>
+    | AdditionalFieldDefinitionBase<Exclude<(typeof additionalFieldTypes)[number], 'string' | 'filePath' | 'number'>>
 export type AdditionalFieldDefinitionMap = Record<string, AdditionalFieldDefinition>
 export type AdditionalFieldKeyError = 'required' | 'invalid' | 'duplicate' | 'unsupported-field-type'
 export type { BindingValueKind } from '../../features/editor-runtime/model/binding'
@@ -86,10 +92,15 @@ const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
 export function parseAdditionalFieldDefinitions(
     value: unknown,
     reservedKeys: readonly string[] = [],
+    typeName?: string,
 ): AdditionalFieldDefinitionMap {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
 
     const reservedIdentities = new Set(reservedKeys.map(key => key.toLocaleLowerCase()))
+    const nativeSchema = getTypePropertyEditorSchema(typeName)
+    const nativeKeysByIdentity = new Map(
+        Object.keys(nativeSchema).map(fieldKey => [fieldKey.toLocaleLowerCase(), fieldKey]),
+    )
     const definitions: AdditionalFieldDefinitionMap = {}
 
     for (const [fieldKey, fieldValue] of Object.entries(value)) {
@@ -102,41 +113,62 @@ export function parseAdditionalFieldDefinitions(
         }
 
         const source = fieldValue as Record<string, unknown>
-        if (typeof source.fieldType !== 'string'
-            || !additionalFieldTypeSet.has(source.fieldType as PropertyFieldType)) {
-            continue
-        }
-
-        const fieldType = source.fieldType as (typeof additionalFieldTypes)[number]
+        const nativeKey = nativeKeysByIdentity.get(fieldKey.toLocaleLowerCase())
+        const nativeDefinition = nativeKey ? nativeSchema[nativeKey] : undefined
+        if (nativeDefinition?.nonOverridable) continue
+        const hasFieldType = typeof source.fieldType === 'string'
+            && additionalFieldTypeSet.has(source.fieldType as PropertyFieldType)
+        const fieldType = hasFieldType
+            ? source.fieldType as (typeof additionalFieldTypes)[number]
+            : nativeDefinition?.fieldType
+        if (!fieldType || fieldType === 'object') continue
+        const normalizedFieldKey = nativeKey ?? fieldKey
         const title = typeof source.title === 'string' ? source.title.trim() : ''
-        const base = { fieldType, ...(title ? { title } : {}) }
+        const base = {
+            ...(hasFieldType ? { fieldType } : {}),
+            ...(title ? { title } : {}),
+            ...parseAdditionalEditorOptions(source),
+        }
         if (fieldType === 'string') {
             const minLength = parseNonNegativeInteger(source.minLength)
             const maxLength = parseNonNegativeInteger(source.maxLength)
-            const options = parseStringOptions(source.options)
-            definitions[fieldKey] = {
+            const options = Array.isArray(source.options) ? parseStringOptions(source.options) : undefined
+            const autocomplete = Array.isArray(source.autocomplete) ? parseStringOptions(source.autocomplete) : undefined
+            const optionLabelKeys = parseStringRecord(source.optionLabelKeys)
+            definitions[normalizedFieldKey] = {
                 ...base,
-                fieldType,
                 ...(minLength !== undefined ? { minLength } : {}),
                 ...(maxLength !== undefined ? { maxLength } : {}),
                 ...(typeof source.multiline === 'boolean' ? { multiline: source.multiline } : {}),
-                ...(options.length ? { options } : {}),
-                ...(options.length && (source.enumMode === 'select' || source.enumMode === 'stepper')
+                ...(typeof source.richText === 'boolean' ? { richText: source.richText } : {}),
+                ...(options ? { options } : {}),
+                ...(autocomplete ? { autocomplete } : {}),
+                ...(optionLabelKeys ? { optionLabelKeys } : {}),
+                ...(source.enumMode === 'select' || source.enumMode === 'stepper'
                     ? { enumMode: source.enumMode } : {}),
-            }
+            } as AdditionalFieldDefinition
+        } else if (fieldType === 'filePath') {
+            const minLength = parseNonNegativeInteger(source.minLength)
+            const maxLength = parseNonNegativeInteger(source.maxLength)
+            const filter = parseFilePathFilter(source.filter)
+            definitions[normalizedFieldKey] = {
+                ...base,
+                ...(minLength !== undefined ? { minLength } : {}),
+                ...(maxLength !== undefined ? { maxLength } : {}),
+                ...(filter ? { filter } : {}),
+            } as AdditionalFieldDefinition
         } else if (fieldType === 'number') {
             const min = parseFiniteNumber(source.min)
             const max = parseFiniteNumber(source.max)
             const step = parseFiniteNumber(source.step)
-            definitions[fieldKey] = {
+            definitions[normalizedFieldKey] = {
                 ...base,
-                fieldType,
                 ...(min !== undefined ? { min } : {}),
                 ...(max !== undefined ? { max } : {}),
                 ...(step !== undefined && step > 0 ? { step } : {}),
-            }
+            } as AdditionalFieldDefinition
         } else {
-            definitions[fieldKey] = { ...base, fieldType } as AdditionalFieldDefinition
+            definitions[normalizedFieldKey] = { ...base, ...(hasFieldType ? { fieldType } : {}) } as AdditionalFieldDefinition
         }
     }
 
@@ -162,6 +194,41 @@ function parseStringOptions(value: unknown): string[] {
         seen.add(identity)
         return [option]
     })
+}
+
+function parseAdditionalEditorOptions(source: Record<string, unknown>): AdditionalFieldEditorOptions {
+    const categoryId = typeof source.categoryId === 'string'
+        && Object.prototype.hasOwnProperty.call(propertyEditorCategoryDefinitions, source.categoryId)
+        ? source.categoryId as PropertyEditorCategoryId
+        : undefined
+    const displayFieldKey = typeof source.displayFieldKey === 'string' ? source.displayFieldKey.trim() : ''
+    return {
+        ...(typeof source.required === 'boolean' ? { required: source.required } : {}),
+        ...(typeof source.isHidden === 'boolean' ? { isHidden: source.isHidden } : {}),
+        ...(typeof source.isReadonly === 'boolean' ? { isReadonly: source.isReadonly } : {}),
+        ...(typeof source.resettable === 'boolean' ? { resettable: source.resettable } : {}),
+        ...(typeof source.deletable === 'boolean' ? { deletable: source.deletable } : {}),
+        ...(categoryId ? { categoryId } : {}),
+        ...(displayFieldKey ? { displayFieldKey } : {}),
+    }
+}
+
+function parseStringRecord(value: unknown): Readonly<Record<string, string>> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+    const entries = Object.entries(value).flatMap(([key, label]) => (
+        key && typeof label === 'string' && label.trim() ? [[key, label.trim()] as const] : []
+    ))
+    return entries.length ? Object.fromEntries(entries) : undefined
+}
+
+function parseFilePathFilter(value: unknown): FilePathFilter | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+    const source = value as Record<string, unknown>
+    const target = source.target === 'file' || source.target === 'directory' || source.target === 'both'
+        ? source.target
+        : undefined
+    const extensions = Array.isArray(source.extensions) ? parseStringOptions(source.extensions) : undefined
+    return target || extensions ? { ...(target ? { target } : {}), ...(extensions ? { extensions } : {}) } : undefined
 }
 
 export function validateAdditionalFieldKey(
@@ -713,13 +780,150 @@ function cloneDefaultValue(value: unknown): unknown {
     return value
 }
 
-export const propertyEditorSchemaByType: TypePropertyDefinitions = applyDefaultsToSchema(rawPropertyEditorSchemaByType)
+const nonOverridableFieldIdentities = new Set([
+    'type',
+    'id',
+    'additionalfielddefinition',
+    'children',
+    'faces',
+    'instances',
+    'data',
+    'packageid',
+])
+
+function markNonOverridableFields(schemaByType: TypePropertyDefinitions): TypePropertyDefinitions {
+    return Object.fromEntries(Object.entries(schemaByType).map(([typeName, schema]) => [
+        typeName,
+        Object.fromEntries(Object.entries(schema).map(([fieldKey, definition]) => [
+            fieldKey,
+            nonOverridableFieldIdentities.has(fieldKey.toLocaleLowerCase())
+                ? { ...definition, nonOverridable: true }
+                : definition,
+        ])),
+    ]))
+}
+
+export const propertyEditorSchemaByType: TypePropertyDefinitions = markNonOverridableFields(
+    applyDefaultsToSchema(rawPropertyEditorSchemaByType),
+)
 
 export function getTypePropertyEditorSchema(typeName: string | undefined): Record<string, EditorPropertyDefinition> {
     if (!typeName) {
         return {}
     }
     return propertyEditorSchemaByType[typeName] ?? {}
+}
+
+export type ResolvedPropertyEditorSchema = {
+    fields: Readonly<Record<string, EditorPropertyDefinition>>
+    labels: Readonly<Record<string, string>>
+    customKeys: ReadonlySet<string>
+}
+
+const editorConstraintKeys = [
+    'minLength', 'maxLength', 'options', 'optionLabelKeys', 'enumMode', 'autocomplete', 'multiline', 'richText',
+    'filter', 'min', 'max', 'step', 'objectType', 'isArray', 'defaultValue',
+] as const
+
+function createDefinitionForFieldType(
+    base: EditorPropertyDefinition | undefined,
+    fieldType: PropertyFieldType,
+    fieldTypeChanged: boolean,
+): Record<string, unknown> {
+    const definition = base ? { ...base } as Record<string, unknown> : {}
+    if (fieldTypeChanged) {
+        for (const key of editorConstraintKeys) delete definition[key]
+    }
+    definition.fieldType = fieldType
+    return definition
+}
+
+function applyAdditionalConstraints(
+    target: Record<string, unknown>,
+    source: Record<string, unknown>,
+    fieldType: PropertyFieldType,
+): void {
+    if (fieldType === 'string') {
+        const minLength = parseNonNegativeInteger(source.minLength)
+        const maxLength = parseNonNegativeInteger(source.maxLength)
+        if (minLength !== undefined) target.minLength = minLength
+        if (maxLength !== undefined) target.maxLength = maxLength
+        if (Array.isArray(source.options)) target.options = parseStringOptions(source.options)
+        if (Array.isArray(source.autocomplete)) target.autocomplete = parseStringOptions(source.autocomplete)
+        const optionLabelKeys = parseStringRecord(source.optionLabelKeys)
+        if (optionLabelKeys) target.optionLabelKeys = optionLabelKeys
+        if (source.enumMode === 'select' || source.enumMode === 'stepper') target.enumMode = source.enumMode
+        if (typeof source.multiline === 'boolean') target.multiline = source.multiline
+        if (typeof source.richText === 'boolean') target.richText = source.richText
+        return
+    }
+    if (fieldType === 'filePath') {
+        const minLength = parseNonNegativeInteger(source.minLength)
+        const maxLength = parseNonNegativeInteger(source.maxLength)
+        const filter = parseFilePathFilter(source.filter)
+        if (minLength !== undefined) target.minLength = minLength
+        if (maxLength !== undefined) target.maxLength = maxLength
+        if (filter) target.filter = filter
+        return
+    }
+    if (fieldType === 'number') {
+        const min = parseFiniteNumber(source.min)
+        const max = parseFiniteNumber(source.max)
+        const step = parseFiniteNumber(source.step)
+        if (min !== undefined) target.min = min
+        if (max !== undefined) target.max = max
+        if (step !== undefined && step > 0) target.step = step
+    }
+}
+
+/** Resolve the editor-only field contract for one typed record. */
+export function resolvePropertyEditorSchema(
+    record: Readonly<Record<string, unknown>>,
+): ResolvedPropertyEditorSchema {
+    const typeName = typeof record.type === 'string' ? record.type : undefined
+    const nativeSchema = getTypePropertyEditorSchema(typeName)
+    const fields: Record<string, EditorPropertyDefinition> = { ...nativeSchema }
+    const labels: Record<string, string> = {}
+    const customKeys = new Set<string>()
+    const nativeKeysByIdentity = new Map(
+        Object.keys(nativeSchema).map(fieldKey => [fieldKey.toLocaleLowerCase(), fieldKey]),
+    )
+    const additional = record.additionalFieldDefinition
+    if (!additional || typeof additional !== 'object' || Array.isArray(additional)) {
+        return { fields, labels, customKeys }
+    }
+
+    const seenIdentities = new Set<string>()
+    for (const [candidateKey, candidateValue] of Object.entries(additional)) {
+        const identity = candidateKey.toLocaleLowerCase()
+        if (seenIdentities.has(identity) || !additionalFieldKeyPattern.test(candidateKey)
+            || !candidateValue || typeof candidateValue !== 'object' || Array.isArray(candidateValue)) {
+            continue
+        }
+        seenIdentities.add(identity)
+        const source = candidateValue as Record<string, unknown>
+        const nativeKey = nativeKeysByIdentity.get(identity)
+        const base = nativeKey ? nativeSchema[nativeKey] : undefined
+        if (base?.nonOverridable) continue
+
+        const requestedFieldType = typeof source.fieldType === 'string'
+            && additionalFieldTypeSet.has(source.fieldType as PropertyFieldType)
+            ? source.fieldType as PropertyFieldType
+            : undefined
+        const fieldType = requestedFieldType ?? base?.fieldType
+        if (!fieldType) continue
+
+        const fieldKey = nativeKey ?? candidateKey
+        const target = createDefinitionForFieldType(base, fieldType, Boolean(base && fieldType !== base.fieldType))
+        Object.assign(target, parseAdditionalEditorOptions(source))
+        applyAdditionalConstraints(target, source, fieldType)
+        fields[fieldKey] = target as EditorPropertyDefinition
+
+        const title = typeof source.title === 'string' ? source.title.trim() : ''
+        if (title) labels[fieldKey] = title
+        if (!base) customKeys.add(fieldKey)
+    }
+    return { fields, labels, customKeys }
 }
 
 export function getPropertyValueKind(definition: EditorPropertyDefinition | undefined): BindingValueKind {

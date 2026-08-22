@@ -105,6 +105,7 @@ describe('OcActionButton', () => {
     await wrapper.trigger('pointerenter')
     await flushPromises()
     expect(document.body.querySelector('.oc-floating-layer')).not.toBeNull()
+    expect(wrapper.classes()).toContain('is-menu-open')
     expect(addListener.mock.calls.some(([type]) => type === 'pointerdown')).toBe(false)
 
     await wrapper.get('button').trigger('click')

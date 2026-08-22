@@ -15,8 +15,21 @@
     @keydown="handleKeydown"
   >
     <div v-if="isDiff" class="image-preview-editor__diff-viewports">
-      <div class="image-preview-editor__diff-viewport"><img v-if="beforeImageSrc" class="image-preview-editor__image" :src="beforeImageSrc" :alt="`${fileName} (before)`" :style="imageStyle" draggable="false" @load="handleLoad" @error="handleError" /></div>
-      <div class="image-preview-editor__diff-viewport"><img v-if="afterImageSrc" class="image-preview-editor__image" :src="afterImageSrc" :alt="`${fileName} (after)`" :style="imageStyle" draggable="false" @load="handleLoad" @error="handleError" /></div>
+      <article v-for="side in diffSides" :key="side.key" class="image-preview-editor__diff-panel">
+        <header class="image-preview-editor__diff-label">{{ side.label }}</header>
+        <img
+          v-if="side.src"
+          class="image-preview-editor__image"
+          :class="{ 'is-pixelated': pixelated }"
+          :src="side.src"
+          :alt="`${fileName} (${side.label})`"
+          :style="resolveImageStyle(side.key)"
+          :data-image-side="side.key"
+          draggable="false"
+          @load="handleLoad"
+          @error="handleError"
+        />
+      </article>
     </div>
     <img
       v-else-if="imageSrc && !loadError"
@@ -24,7 +37,8 @@
       :class="{ 'is-pixelated': pixelated }"
       :src="imageSrc"
       :alt="fileName"
-      :style="imageStyle"
+      :style="resolveImageStyle('single')"
+      data-image-side="single"
       draggable="false"
       @load="handleLoad"
       @error="handleError"
@@ -48,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
@@ -57,6 +71,8 @@ import OcText from '../base/OcText.vue'
 import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
 
 type ViewportTransform = { x: number; y: number; scale: number }
+type ImageSideKey = 'single' | 'before' | 'after'
+type ImageState = { width: number; height: number; failed: boolean }
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 16
@@ -78,9 +94,11 @@ const { resolveAssetSrc } = useProjectStore()
 const viewportRef = ref<HTMLElement | null>(null)
 const viewportWidth = ref(0)
 const viewportHeight = ref(0)
-const naturalWidth = ref(0)
-const naturalHeight = ref(0)
-const loadFailed = ref(false)
+const imageStates = reactive<Record<ImageSideKey, ImageState>>({
+  single: { width: 0, height: 0, failed: false },
+  before: { width: 0, height: 0, failed: false },
+  after: { width: 0, height: 0, failed: false },
+})
 const panX = ref(props.viewportTransform?.x ?? 0)
 const panY = ref(props.viewportTransform?.y ?? 0)
 const scale = ref(clamp(props.viewportTransform?.scale ?? 1, MIN_SCALE, MAX_SCALE))
@@ -100,31 +118,69 @@ let lastEmittedTransform: ViewportTransform | null = props.viewportTransform
 
 const imageSrc = computed(() => resolveAssetSrc(props.filePath))
 const isDiff = computed(() => props.mode === 'diff' && Boolean(props.comparison))
+function snapshotRelativePath(): string {
+  const normalizedPath = props.filePath.replace(/\\/g, '/')
+  const normalizedProjectRoot = props.resourceRootPath?.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (normalizedProjectRoot
+    && normalizedPath.toLocaleLowerCase().startsWith(`${normalizedProjectRoot.toLocaleLowerCase()}/`)) {
+    return normalizedPath.slice(normalizedProjectRoot.length + 1)
+  }
+  return normalizedPath.replace(/^[/\\]+/, '')
+}
+
 function snapshotAssetSrc(root: string | null | undefined): string {
   if (!root) return ''
-  const normalizedRoot = root.replace(/[\\/]+$/, '')
-  const relativePath = props.filePath.replace(/^[/\\]+/, '').replace(/\\/g, '/')
-  return convertFileSrc(`${normalizedRoot}/${relativePath}`)
+  return convertFileSrc(`${root.replace(/[\\/]+$/, '')}/${snapshotRelativePath()}`)
 }
+
 const beforeImageSrc = computed(() => snapshotAssetSrc(props.comparison?.before.resourceRootPath))
 const afterImageSrc = computed(() => snapshotAssetSrc(props.comparison?.after.resourceRootPath))
+const diffSides = computed(() => ([
+  {
+    key: 'before' as const,
+    label: props.comparison?.before.label ?? 'Before',
+    src: beforeImageSrc.value,
+  },
+  {
+    key: 'after' as const,
+    label: props.comparison?.after.label ?? 'After',
+    src: afterImageSrc.value,
+  },
+]))
 const fileName = computed(() => props.filePath.split(/[/\\]/).pop() || props.filePath)
-const loadError = computed(() => !imageSrc.value || loadFailed.value)
-const isImageReady = computed(() => naturalWidth.value > 0 && naturalHeight.value > 0 && !loadError.value)
-const fitScale = computed(() => {
-  if (!isImageReady.value || viewportWidth.value <= 0 || viewportHeight.value <= 0) return 1
-  const availableWidth = Math.max(1, viewportWidth.value - VIEWPORT_PADDING)
-  const availableHeight = Math.max(1, viewportHeight.value - VIEWPORT_PADDING)
-  return Math.min(availableWidth / naturalWidth.value, availableHeight / naturalHeight.value)
+const loadError = computed(() => !imageSrc.value || imageStates.single.failed)
+const primaryImageState = computed(() => {
+  if (!isDiff.value) return imageStates.single
+  if (imageStates.after.width > 0 && imageStates.after.height > 0) return imageStates.after
+  return imageStates.before
 })
+const isImageReady = computed(() => {
+  if (!isDiff.value) return imageStates.single.width > 0 && imageStates.single.height > 0 && !loadError.value
+  return [imageStates.before, imageStates.after].some(state => state.width > 0 && state.height > 0 && !state.failed)
+})
+const contentViewportWidth = computed(() => isDiff.value ? viewportWidth.value / 2 : viewportWidth.value)
+
+function resolveFitScale(state: ImageState): number {
+  if (state.width <= 0 || state.height <= 0 || contentViewportWidth.value <= 0 || viewportHeight.value <= 0) return 1
+  const availableWidth = Math.max(1, contentViewportWidth.value - VIEWPORT_PADDING)
+  const availableHeight = Math.max(1, viewportHeight.value - VIEWPORT_PADDING)
+  return Math.min(availableWidth / state.width, availableHeight / state.height)
+}
+
+const fitScale = computed(() => resolveFitScale(primaryImageState.value))
 const renderedScale = computed(() => fitScale.value * scale.value)
-const baseOffsetX = computed(() => getBaseOffsetX(scale.value))
-const baseOffsetY = computed(() => getBaseOffsetY(scale.value))
-const imageStyle = computed<CSSProperties>(() => ({
-  width: `${naturalWidth.value}px`,
-  height: `${naturalHeight.value}px`,
-  transform: `translate(${baseOffsetX.value + panX.value}px, ${baseOffsetY.value + panY.value}px) scale(${renderedScale.value})`,
-}))
+function resolveImageStyle(side: ImageSideKey): CSSProperties {
+  const state = imageStates[side]
+  const sideFitScale = resolveFitScale(state)
+  const sideRenderedScale = sideFitScale * scale.value
+  const offsetX = (contentViewportWidth.value - state.width * sideRenderedScale) / 2
+  const offsetY = (viewportHeight.value - state.height * sideRenderedScale) / 2
+  return {
+    width: `${state.width}px`,
+    height: `${state.height}px`,
+    transform: `translate(${offsetX + panX.value}px, ${offsetY + panY.value}px) scale(${sideRenderedScale})`,
+  }
+}
 const scaleLabel = computed(() => `${Math.round(renderedScale.value * 100)}%`)
 const pixelated = computed(() => props.pixelated ?? false)
 const pixelatedLabel = computed(() => t('projectConfig.icons.pixelated'))
@@ -168,26 +224,37 @@ function applyViewportTransform(value?: ViewportTransform): void {
 }
 
 function getBaseOffsetX(zoomScale: number): number {
-  return (viewportWidth.value - naturalWidth.value * fitScale.value * zoomScale) / 2
+  const state = primaryImageState.value
+  return (contentViewportWidth.value - state.width * fitScale.value * zoomScale) / 2
 }
 
 function getBaseOffsetY(zoomScale: number): number {
-  return (viewportHeight.value - naturalHeight.value * fitScale.value * zoomScale) / 2
+  const state = primaryImageState.value
+  return (viewportHeight.value - state.height * fitScale.value * zoomScale) / 2
+}
+
+function resolveImageSide(image: HTMLImageElement): ImageSideKey {
+  const side = image.dataset.imageSide
+  return side === 'before' || side === 'after' ? side : 'single'
 }
 
 function handleLoad(event: Event): void {
   const image = event.currentTarget
   if (!(image instanceof HTMLImageElement)) return
-  naturalWidth.value = image.naturalWidth
-  naturalHeight.value = image.naturalHeight
-  loadFailed.value = false
+  const state = imageStates[resolveImageSide(image)]
+  state.width = image.naturalWidth
+  state.height = image.naturalHeight
+  state.failed = false
   emit('modified', false)
 }
 
-function handleError(): void {
-  naturalWidth.value = 0
-  naturalHeight.value = 0
-  loadFailed.value = true
+function handleError(event: Event): void {
+  const image = event.currentTarget
+  if (!(image instanceof HTMLImageElement)) return
+  const state = imageStates[resolveImageSide(image)]
+  state.width = 0
+  state.height = 0
+  state.failed = true
   emit('modified', false)
 }
 
@@ -230,7 +297,11 @@ function handleWheel(event: WheelEvent): void {
   const rect = viewport.getBoundingClientRect()
   const delta = normalizeWheelDelta(event)
   const nextScale = targetScale.value * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY)
-  zoomAt(nextScale, event.clientX - rect.left, event.clientY - rect.top)
+  const pointerX = event.clientX - rect.left
+  const viewportX = isDiff.value && contentViewportWidth.value > 0
+    ? pointerX % contentViewportWidth.value
+    : pointerX
+  zoomAt(nextScale, viewportX, event.clientY - rect.top)
 }
 
 function normalizeWheelDelta(event: WheelEvent): number {
@@ -243,7 +314,7 @@ function normalizeWheelDelta(event: WheelEvent): number {
 function zoomBy(factor: number): void {
   zoomAt(
     targetScale.value * factor,
-    viewportWidth.value / 2,
+    contentViewportWidth.value / 2,
     viewportHeight.value / 2,
   )
 }
@@ -343,10 +414,12 @@ function save(): void {
   emit('save')
 }
 
-watch(imageSrc, () => {
-  loadFailed.value = false
-  naturalWidth.value = 0
-  naturalHeight.value = 0
+watch([imageSrc, beforeImageSrc, afterImageSrc], () => {
+  for (const state of Object.values(imageStates)) {
+    state.width = 0
+    state.height = 0
+    state.failed = false
+  }
   applyViewportTransform(props.viewportTransform)
 })
 
@@ -441,12 +514,29 @@ defineExpose({ save, resetView })
   height: 100%;
 }
 
-.image-preview-editor__diff-viewport {
+.image-preview-editor__diff-panel {
   position: relative;
   min-width: 0;
   min-height: 0;
+  margin: 0;
   overflow: hidden;
-  border-right: var(--oc-border-width) solid var(--oc-border-muted);
+}
+
+.image-preview-editor__diff-panel + .image-preview-editor__diff-panel {
+  border-left: var(--oc-border-width) solid var(--oc-border-muted);
+}
+
+.image-preview-editor__diff-label {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: 0;
+  padding: var(--oc-space-2) var(--oc-space-3);
+  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
+  background: var(--oc-bg-raised);
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-sm);
 }
 
 .image-preview-editor__empty {

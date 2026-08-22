@@ -154,6 +154,7 @@ editorRegistry.register({
   component: ImagePreviewEditor,
   history: 'none',
   hasPreview: false,
+  supportsDiff: true,
 })
 
 editorRegistry.register({

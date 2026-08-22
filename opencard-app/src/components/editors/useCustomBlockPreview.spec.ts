@@ -42,7 +42,6 @@ function createEntry(packageId: string): ProjectCustomBlockCatalogEntry {
       version: '0.1.0',
       name: packageId.toUpperCase(),
       publicFieldKeys: ['label', 'count', 'enabled', 'color', 'content'],
-      resize: { widthLocked: false, heightLocked: false },
     },
     block: Object.assign(root, { label: 'Ready' }),
   }

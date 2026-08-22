@@ -1,0 +1,7 @@
+
+> opencard-app@0.4.7 lint:ui
+> node scripts/lint-naming.mjs --check && node scripts/lint-icons.mjs && node scripts/lint-controls.mjs
+
+[naming] pass
+[lint:icons] pass
+[lint:controls] pass

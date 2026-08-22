@@ -18,13 +18,12 @@
           </OcEmpty>
         </aside>
 
-        <section class="custom-block-registry-editor__right"
-          :style="{ '--oc-custom-block-preview-occlusion': `${propertyOcclusion}px` }">
+        <section class="custom-block-registry-editor__right">
           <main class="custom-block-registry-editor__preview">
             <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
               class="custom-block-registry-editor__viewport" :face="previewFace"
               :restore-key="selectedPackageId ?? undefined" :show-info="false"
-              :viewport-insets="previewViewportInsets" :resource-context="previewResources"
+              :resource-context="previewResources"
               @viewport-transform-change="handleViewportTransformChange"
               @viewport-size-change="fitPreview" />
             <OcEmpty v-else tone="muted" inset="comfortable">
@@ -41,22 +40,20 @@
             </OcCard>
           </main>
 
-          <OcViewportInspector v-model:expanded="propertyPanelExpanded" v-model:height="propertyPanelHeight"
-            class="custom-block-registry-editor__properties" :heading="t('customBlockRegistry.preview.publicFields')"
-            :actions="propertyCardActions" :expand-label="t('app.shell.expandBottomPanel')"
-            :collapse-label="t('app.shell.collapseBottomPanel')"
-            :resize-label="t('customBlockRegistry.preview.resizeProperties')"
-            @action="handlePropertyCardAction" @occlusion-change="propertyOcclusion = $event">
-            <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
-              <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
-                @update-property="updateProperty" />
-            </OcPanel>
-            <OcEmpty v-else tone="muted" inset="comfortable">
-              {{ selectedEntry?.catalogEntry
-                ? t('customBlockRegistry.preview.noPublicFields')
-                : t('customBlockRegistry.preview.unavailable') }}
-            </OcEmpty>
-          </OcViewportInspector>
+          <aside class="custom-block-registry-editor__properties">
+            <OcCard fill :title="t('customBlockRegistry.preview.publicFields')" :actions="propertyCardActions"
+              @action="handlePropertyCardAction">
+              <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
+                <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
+                  @update-property="updateProperty" />
+              </OcPanel>
+              <OcEmpty v-else tone="muted" inset="comfortable">
+                {{ selectedEntry?.catalogEntry
+                  ? t('customBlockRegistry.preview.noPublicFields')
+                  : t('customBlockRegistry.preview.unavailable') }}
+              </OcEmpty>
+            </OcCard>
+          </aside>
         </section>
       </div>
     </div>
@@ -80,7 +77,6 @@ import OcText from '../base/OcText.vue'
 import OcCard, { type OcCardAction } from '../standard/OcCard.vue'
 import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
 import OcTree from '../standard/OcTree.vue'
-import OcViewportInspector from '../standard/OcViewportInspector.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import { useCustomBlockPreview } from './useCustomBlockPreview'
 
@@ -92,11 +88,7 @@ const busy = ref(false)
 const error = ref('')
 const viewportRef = ref<{ zoomBy: (factor: number) => void, fitView?: () => void, fitContent?: (rect: { left: number, top: number, width: number, height: number }) => void } | null>(null)
 const viewportScale = ref(1)
-const propertyPanelExpanded = ref(true)
-const propertyPanelHeight = ref<number | null>(null)
-const propertyOcclusion = ref(0)
 const resourceRootPath = computed(() => props.resourceRootPath ?? projectStore.projectPath.value ?? null)
-const previewViewportInsets = computed(() => ({ bottom: propertyOcclusion.value }))
 const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
 
 const {
@@ -136,10 +128,7 @@ const treeData = computed<OcTreeData>(() => ({
   rootKeys: entries.value.map(entry => entry.packageId),
   items: new Map(entries.value.map(entry => [entry.packageId, {
     label: entry.descriptor.manifest.name,
-    tail: [
-      `${entry.packageId} · ${entry.descriptor.manifest.version} · ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
-      entry.descriptor.installationPath,
-    ],
+    tail: `${entry.packageId} ${entry.descriptor.manifest.version} ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
     icon: entry.descriptor.unavailable ? 'status.warning' : 'file.custom-block',
     actions: ['reveal', 'remove'],
     contextActions: ['reveal', 'remove'],
@@ -201,15 +190,16 @@ watch(selectedPackageId, async () => { viewportScale.value = 1; await nextTick()
 </script>
 
 <style scoped>
-.custom-block-registry-editor { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-inset); }
+.custom-block-registry-editor { min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; background: var(--oc-bg-inset); }
 .custom-block-registry-editor > [role="alert"] { padding: var(--oc-space-2) var(--oc-space-4); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
-.custom-block-registry-editor__workbench { display: grid; grid-template-columns: minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width)) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.custom-block-registry-editor__workbench { flex: 1; display: grid; grid-template-columns: minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-list-width)) minmax(0, 1fr); min-width: 0; min-height: 0; }
 .custom-block-registry-editor__list { min-width: 0; min-height: 0; overflow: hidden; border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
 .custom-block-registry-editor__right, .custom-block-registry-editor__preview { min-width: 0; min-height: 0; overflow: hidden; }
-.custom-block-registry-editor__right { position: relative; }
+.custom-block-registry-editor__right { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-preview-properties-width)); }
 .custom-block-registry-editor__preview { position: relative; display: grid; place-items: center; width: 100%; height: 100%; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
 .custom-block-registry-editor__viewport { width: 100%; height: 100%; }
-.custom-block-registry-editor__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); z-index: var(--oc-z-overlay-toolbar); }
-.custom-block-registry-editor__issues { position: absolute; left: var(--oc-floating-surface-gap); bottom: calc(var(--oc-custom-block-preview-occlusion, 0px) + var(--oc-floating-surface-gap)); max-width: var(--oc-content-width-md); }
-.custom-block-registry-editor__properties { --oc-viewport-inspector-default-height: var(--oc-custom-block-property-height); min-width: 0; min-height: 0; }
+.custom-block-registry-editor__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); z-index: var(--oc-z-overlay-toolbar); }
+.custom-block-registry-editor__issues { position: absolute; left: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); max-width: var(--oc-content-width-md); }
+.custom-block-registry-editor__properties { min-width: 0; min-height: 0; overflow: hidden; border-left: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+.custom-block-registry-editor__properties > :deep(.oc-card) { border: 0; border-radius: 0; }
 </style>

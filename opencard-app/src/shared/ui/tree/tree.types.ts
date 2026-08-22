@@ -4,6 +4,11 @@ import type { OcItemViewModel } from '../itemViewModel.types'
 
 export type OcTreeKey = string
 export type OcTreeActionKey = string
+export interface OcTreeContextDivider {
+  readonly type: 'divider'
+  readonly key: string
+}
+export type OcTreeContextEntry = OcTreeActionKey | OcTreeContextDivider
 export type OcTreeDropPosition = 'before' | 'inside' | 'after'
 export type OcTreeSelectionInput = 'left' | 'middle' | 'right' | 'keyboard'
 export type OcTreeActionSource = 'inline' | 'context'
@@ -31,7 +36,7 @@ export interface OcTreeItem extends Omit<OcItemViewModel, 'key' | 'title'> {
   renamable?: boolean
   draggable?: boolean
   actions?: readonly OcTreeActionKey[]
-  contextActions?: readonly OcTreeActionKey[]
+  contextActions?: readonly OcTreeContextEntry[]
   disabledActions?: ReadonlyMap<OcTreeActionKey, string>
 }
 

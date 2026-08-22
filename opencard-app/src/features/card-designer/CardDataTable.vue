@@ -164,6 +164,7 @@ import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
 import OcActionButton, { type OcActionButtonAction } from '../../components/standard/OcActionButton.vue'
+import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
 import type { PropertyEditorBindingInterpreter, PropertyEditorFieldDefinition } from '../../shared/ui/property-editor/propertyEditor.types'
 import PropertyFieldActionRail from '../../shared/ui/property-editor/PropertyFieldActionRail.vue'
@@ -352,22 +353,23 @@ function handleCellValueUpdate(
   emit('update-cell', { cardId: cell.cardId, blockId, fieldKey: field.key, value })
 }
 
-function columnCommands(column: CdeDataTableColumn): OcActionButtonAction[] {
+function columnCommands(column: CdeDataTableColumn): OcActionMenuEntry[] {
   if (column.kind === 'blueprint') return [{
-      key: 'duplicate',
-      icon: 'action.add',
-      title: t('cardDesigner.dataTable.duplicateBlueprint'),
-    }]
+    key: 'duplicate',
+    icon: 'action.add',
+    title: t('cardDesigner.dataTable.duplicateBlueprint'),
+  }]
   return [
     { key: 'rename', icon: 'action.edit', title: t('cardDesigner.dataTable.renameInstance') },
     { key: 'duplicate', icon: 'action.copy', title: t('cardDesigner.dataTable.duplicateInstance') },
-    { key: 'delete', icon: 'action.delete', title: t('cardDesigner.dataTable.deleteInstance') },
+    { type: 'divider', key: 'column-danger-divider' },
+    { key: 'delete', icon: 'action.delete', iconTone: 'danger', title: t('cardDesigner.dataTable.deleteInstance') },
   ]
 }
 
 function columnAction(column: CdeDataTableColumn): OcActionButtonAction {
   const commands = columnCommands(column)
-  if (column.kind === 'blueprint') return commands[0]!
+  if (column.kind === 'blueprint') return commands[0] as OcActionButtonAction
   return {
     key: 'more',
     icon: 'nav.more',
@@ -407,24 +409,25 @@ function faceBlockAction(face: CdeDataTableFaceGroup): OcActionButtonAction | nu
   }
 }
 
-function blockFieldCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
+function blockFieldCommands(block: CdeDataTableBlockCatalogEntry): OcActionMenuEntry[] {
   const selectedFieldKeys = new Set(block.fields.map(field => field.key))
   const catalogBlock = props.catalogFaceGroups
     .flatMap(face => face.blocks)
     .find(candidate => candidate.key === block.key)
   const availableFields = catalogBlock?.fields.filter(field => !selectedFieldKeys.has(field.key)) ?? []
   return [
-      ...availableFields.map(field => ({
-        key: `${INCLUDE_FIELD_PREFIX}${field.key}`,
-        icon: getPropertyFieldIcon(field.definition.fieldType),
-        title: field.title,
-      })),
-      {
-        key: 'create-field',
-        icon: 'action.add',
-        title: t('cardDesigner.dataTable.createField'),
-      },
-    ]
+    ...availableFields.map(field => ({
+      key: `${INCLUDE_FIELD_PREFIX}${field.key}`,
+      icon: getPropertyFieldIcon(field.definition.fieldType),
+      title: field.title,
+    })),
+    ...(availableFields.length > 0 ? [{ type: 'divider' as const, key: 'create-field-divider' }] : []),
+    {
+      key: 'create-field',
+      icon: 'action.add',
+      title: t('cardDesigner.dataTable.createField'),
+    },
+  ]
 }
 
 function blockFieldAction(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction {
@@ -469,8 +472,12 @@ function resetCellAction(): OcActionButtonAction {
   }
 }
 
-function blockContextCommands(block: CdeDataTableBlockCatalogEntry): OcActionButtonAction[] {
-  return [blockFieldAction(block), removeBlockAction()]
+function blockContextCommands(block: CdeDataTableBlockCatalogEntry): OcActionMenuEntry[] {
+  return [
+    blockFieldAction(block),
+    { type: 'divider', key: 'block-remove-divider' },
+    removeBlockAction(),
+  ]
 }
 
 function handleBlockAction(blockId: string, actionKey: string): void {
@@ -480,16 +487,19 @@ function handleBlockAction(blockId: string, actionKey: string): void {
   else if (actionKey === 'remove-block') emit('remove-block', blockId)
 }
 
-function fieldCommands(field: CdeDataTableFieldRow): OcActionButtonAction[] {
+function fieldCommands(field: CdeDataTableFieldRow): OcActionMenuEntry[] {
   return [
-    ...(field.deletable ? [deleteFieldAction()] : []),
     excludeFieldAction(),
+    ...(field.deletable ? [
+      { type: 'divider' as const, key: 'field-delete-divider' },
+      deleteFieldAction(),
+    ] : []),
   ]
 }
 
 function openKeyboardContextMenu(
   event: KeyboardEvent,
-  items: readonly OcActionButtonAction[],
+  items: readonly OcActionMenuEntry[],
   onSelect: (key: string) => void,
 ): void {
   if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return

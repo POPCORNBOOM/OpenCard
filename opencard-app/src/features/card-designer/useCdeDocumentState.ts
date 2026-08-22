@@ -18,7 +18,7 @@ type UseCdeDocumentStateOptions = {
   emitModified: (modified: boolean) => void
   emitSave: () => void
   resetSelection: () => void
-  resolveCustomBlockPublicFieldKeys?: (customBlockKey: string) => readonly string[] | undefined
+  resolveCustomBlockPublicFieldKeys?: (packageId: string) => readonly string[] | undefined
 }
 
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {

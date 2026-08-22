@@ -1,14 +1,11 @@
 import { computed, ref, shallowRef, watch, type DeepReadonly, type Ref } from 'vue'
 import {
   createCardFace,
-  getAdditionalFieldPropertyDefinition,
   type CardDocument,
 } from '../../entities/card/model'
 import {
   createPropertyDefaultValue,
   fillDefaults,
-  getTypePropertyEditorSchema,
-  parseAdditionalFieldDefinitions,
   type EditorPropertyDefinition,
 } from '../../entities/card/schema'
 import { resolveCardPropertyFields } from '../../features/card-properties/cardPropertyFieldDefinitions'
@@ -19,6 +16,7 @@ import type {
   ProjectCustomBlockManifestCatalogEntry,
 } from '../../features/workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockInstance } from '../../features/workspace/services/createProjectCustomBlockInstance'
+import { createProjectCustomBlockPropertySchema } from '../../features/workspace/services/projectCustomBlockPublicFields'
 import type {
   PropertyEditorCategoryDefinition,
   PropertyEditorInput,
@@ -58,15 +56,13 @@ type UseCustomBlockPreviewOptions = {
 }
 
 function createDefaultValues(entry: DeepReadonly<ProjectCustomBlockCatalogEntry>): Record<string, unknown> {
-  const definitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
-  const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
-  return Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => {
-    const additional = definitions[fieldKey]
-    const editorDefinition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[fieldKey]
-    return [fieldKey, Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
+  const schema = createProjectCustomBlockPropertySchema(entry)
+  return Object.fromEntries(Object.entries(schema.fields).map(([fieldKey, editorDefinition]) => [
+    fieldKey,
+    Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
       ? structuredClone((entry.block as Readonly<Record<string, unknown>>)[fieldKey])
-      : editorDefinition ? createPropertyDefaultValue(editorDefinition) : '']
-  }))
+      : createPropertyDefaultValue(editorDefinition),
+  ]))
 }
 
 function createPreviewDocument(
@@ -188,32 +184,23 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
   const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     const entry = selectedEntry.value?.catalogEntry
     if (!entry || entry.manifest.publicFieldKeys.length === 0) return []
-    const rootDefinitions = parseAdditionalFieldDefinitions(entry.block.additionalFieldDefinition)
-    const nativeSchema = getTypePropertyEditorSchema(entry.block.type)
-    const publicKeys = new Set(entry.manifest.publicFieldKeys)
-    const override = Object.fromEntries(entry.manifest.publicFieldKeys.flatMap(fieldKey => {
-      const additional = rootDefinitions[fieldKey]
-      const definition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[fieldKey]
-      return definition ? [[fieldKey, {
+    const schema = createProjectCustomBlockPropertySchema(entry)
+    const publicKeys = new Set(Object.keys(schema.fields))
+    const override = Object.fromEntries(Object.entries(schema.fields).map(([fieldKey, definition]) => [
+      fieldKey,
+      {
         ...definition,
         required: true,
         resettable: Object.prototype.hasOwnProperty.call(activeOverrides.value, fieldKey),
-      } satisfies Partial<EditorPropertyDefinition>] as const] : []
-    }))
-    const labels = Object.fromEntries(entry.manifest.publicFieldKeys.map(fieldKey => [
-      fieldKey,
-      rootDefinitions[fieldKey]?.title
-        ?? (options.hasMessage(`propertyEditor.fields.${fieldKey}`)
-          ? options.translate(`propertyEditor.fields.${fieldKey}`)
-          : fieldKey),
+      } satisfies Partial<EditorPropertyDefinition>,
     ]))
     const fields = resolveCardPropertyFields({ type: 'custom-block', ...activeValues.value }, {
       allowDelete: false,
       translate: options.translate,
       hasMessage: options.hasMessage,
       override,
-      labels,
-      customKeys: new Set([...publicKeys].filter(fieldKey => Boolean(rootDefinitions[fieldKey]))),
+      labels: schema.labels,
+      customKeys: schema.customKeys,
     })
     return [{
       key: PREVIEW_INPUT_KEY,

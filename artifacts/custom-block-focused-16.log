@@ -1,0 +1,50 @@
+
+ RUN  v4.1.11 /mnt/d/Projects/OpenCard/opencard-app
+
+·································································x························
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/shared/rich-text/richTextHtml.spec.ts > parseRichTextHtml > accepts lists, tables, icons, bindings, and public custom block fields
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/shared/rich-text/richTextHtml.spec.ts:88:39
+     86|       { resolveCustomBlock: key => key === 'badge' ? { publicFieldKeys…
+     87|     )
+     88|     expect(result.canEnterVisualMode).toBe(true)
+       |                                       ^
+     89|     expect(result.diagnostics).toEqual([])
+     90|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files /mnt/d/Projects/OpenCard/opencard-app/src/features/workspace/services/createProjectCustomBlockInstance.spec.ts.
+ ❯ node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:94
+ ❯ Pool.schedule node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3532:5
+
+Caused by: Error: [vitest-pool-runner]: Timeout waiting for worker to respond
+ ❯ Timeout.<anonymous> node_modules/vitest/dist/chunks/cli-api.CnMVyzaz.js:3108:58
+ ❯ listOnTimeout node:internal/timers:585:17
+ ❯ processTimers node:internal/timers:521:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed | 13 passed (14)
+      Tests  1 failed | 89 passed (90)
+     Errors  1 error
+   Start at  03:56:00
+   Duration  63.79s (transform 33.39s, setup 0ms, import 73.18s, tests 4.27s, environment 539.13s)
+

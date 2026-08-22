@@ -3,7 +3,15 @@ import { onMounted, onUnmounted, type Ref } from 'vue'
 import type { OcShortcutPart } from '../../components/standard/OcShortcut.vue'
 
 export type CdeShortcutCommandKey =
+  | 'selection.fill-parent'
+  | 'selection.center'
+  | 'selection.inset'
+  | 'selection.outset'
+  | 'selection.fill-cross-axis'
+  | 'selection.center-cross-axis'
   | 'block.rename'
+  | 'block.copy'
+  | 'block.paste'
   | 'block.duplicate'
   | 'block.delete'
   | 'instance.rename'
@@ -33,7 +41,7 @@ export type CdeShortcutCommand = {
   shortcut: readonly CdeShortcutBinding[]
   scopes?: readonly CdeShortcutScope[]
   canRun: () => boolean
-  run: () => void
+  run: () => void | Promise<void>
 }
 
 type UseCdeShortcutsOptions = {
@@ -51,7 +59,15 @@ const contexts: ShortcutContext[] = []
 let globalListeners = 0
 
 const commandBindings: Readonly<Record<CdeShortcutCommandKey, readonly CdeShortcutBinding[]>> = {
+  'selection.fill-parent': [{ key: 'f' }],
+  'selection.center': [{ key: 'c' }],
+  'selection.inset': [{ key: 'i' }],
+  'selection.outset': [{ key: 'o' }],
+  'selection.fill-cross-axis': [{ key: 'f' }],
+  'selection.center-cross-axis': [{ key: 'c' }],
   'block.rename': [{ key: 'F2' }],
+  'block.copy': [{ key: 'c', mod: true }],
+  'block.paste': [{ key: 'v', mod: true }],
   'block.duplicate': [{ key: 'd', mod: true }],
   'block.delete': [{ key: 'Delete' }, { key: 'Backspace' }],
   'instance.rename': [{ key: 'F2' }],

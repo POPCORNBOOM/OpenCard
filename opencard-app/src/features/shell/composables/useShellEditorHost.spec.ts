@@ -1,6 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
+import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 import { createDefaultAppSettings } from '../../settings/model/appSettings'
@@ -120,6 +121,26 @@ describe('useShellEditorHost', () => {
     expect(workspace.host.props.value.mode).toBe('diff')
     expect(workspace.host.props.value['onUpdate:modelValue']).toBeUndefined()
     workspace.host.dispose()
+  })
+
+  it('keeps image files in the native preview editor during diff mode', () => {
+    const image = createHost(createSession({
+      resourceKind: 'workspace',
+      path: 'D:/project/assets/cover.png',
+      fileTypeId: 'image',
+      name: 'cover.png',
+      editorId: 'image-preview',
+      mode: 'diff',
+      diff: { beforeRevisionId: 'abc', afterRevisionId: null },
+    }))
+
+    expect(image.host.component.value).toBe(ImagePreviewEditor)
+    expect(image.host.props.value).toMatchObject({
+      mode: 'diff',
+      filePath: 'D:/project/assets/cover.png',
+      resourceRootPath: 'D:/project',
+    })
+    image.host.dispose()
   })
 
   it('uses Monaco only for explicitly supported text files', () => {

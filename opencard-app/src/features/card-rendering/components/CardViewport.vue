@@ -278,6 +278,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AnchorPosition, FlowDirection } from '../../../entities/card/model'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
+import type { OcActionMenuEntry } from '../../../components/standard/OcActionMenu.vue'
 import OcOverlayToolbar from '../../../components/standard/OcOverlayToolbar.vue'
 import type { OcShortcutPart } from '../../../components/standard/OcShortcut.vue'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
@@ -780,6 +781,17 @@ const selectionQuickActions = computed<OcActionButtonAction[]>(() => {
   return []
 })
 
+const selectionContextMenuActions = computed<OcActionMenuEntry[]>(() => {
+  const actions = selectionQuickActions.value
+  const commandCount = props.selectionCommandActions.length
+  if (commandCount === 0 || commandCount >= actions.length) return actions
+  return [
+    ...actions.slice(0, commandCount),
+    { type: 'divider', key: 'selection-layout-divider' },
+    ...actions.slice(commandCount),
+  ]
+})
+
 function findSelectionAction(
   actions: readonly OcActionButtonAction[],
   actionKey: string,
@@ -799,7 +811,7 @@ const { openContextMenu } = useFloatingMenu()
 function openSelectionContextMenu(event: MouseEvent): void {
   openContextMenu({
     event,
-    items: selectionQuickActions.value,
+    items: selectionContextMenuActions.value,
     onSelect: handleSelectionQuickAction,
   })
 }
@@ -810,7 +822,7 @@ function openSelectionKeyboardMenu(event: KeyboardEvent): void {
   event.preventDefault()
   openContextMenu({
     anchor: event.currentTarget,
-    items: selectionQuickActions.value,
+    items: selectionContextMenuActions.value,
     onSelect: handleSelectionQuickAction,
   })
 }
