@@ -7,7 +7,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import OcTree from '../../../components/standard/OcTree.vue'
-import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
+import { resolveDirectoryIcon, resolveEntryIcon, type EntryIconPresentation } from '../model/fileTypes'
+import {
+  PROJECT_CUSTOM_BLOCK_DIRECTORY,
+  PROJECT_FONT_REGISTRY_FILE_NAME,
+  PROJECT_ICON_REGISTRY_FILE_NAME,
+  PROJECT_INTERNAL_DIRECTORY_NAME,
+} from '../model/projectStructure'
 import type {
   OcTreeActionDefinition,
   OcTreeData,
@@ -57,8 +63,8 @@ const categoryDefinitions = computed(() => [
 ] as const)
 const selectedSet = computed(() => new Set(props.selectedIds))
 const actions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [SELECT_ACTION, { title: props.selectLabel, icon: 'action.add', iconTone: 'success' }],
-  [DESELECT_ACTION, { title: props.deselectLabel, icon: 'action.minus', iconTone: 'danger' }],
+  [SELECT_ACTION, { title: props.selectLabel, icon: 'action.checkbox-blank' }],
+  [DESELECT_ACTION, { title: props.deselectLabel, icon: 'action.checkbox-marked' }],
 ]))
 
 const projection = computed(() => {
@@ -117,9 +123,11 @@ const treeData = computed<OcTreeData>(() => {
           : candidate?.suggested
             ? props.suggestedLabel
             : candidate && selectedCount > 0 ? props.manualLabel : ''
+    const presentation = nodePresentation(node)
     items.set(node.key, {
       label: node.label,
-      icon: node.children.size > 0 ? 'status.folder-open' : iconForKind(node.kind),
+      icon: presentation.icon,
+      iconTone: presentation.tone,
       ...(status ? { tail: status } : node.children.size > 0 && descendants.length > 0
         ? { tail: `${selectedCount}/${descendants.length}` } : {}),
       ...(descendants.length > 0 ? {
@@ -161,9 +169,19 @@ function findNode(node: ResourceNode, key: string): ResourceNode | null {
   return null
 }
 
-function iconForKind(kind?: ProjectCustomBlockResourceCandidateKind): IconToken {
-  if (kind === 'font') return 'file.font'
-  if (kind === 'custom-block') return 'file.custom-block'
-  return 'file.image'
+function nodePresentation(node: ResourceNode): EntryIconPresentation {
+  if (node.key.startsWith('resource:category:')) {
+    if (node.kind === 'font') return resolveEntryIcon(PROJECT_FONT_REGISTRY_FILE_NAME, false)
+    if (node.kind === 'icon') return resolveEntryIcon(PROJECT_ICON_REGISTRY_FILE_NAME, false)
+    if (node.kind === 'custom-block') {
+      return resolveEntryIcon(`${PROJECT_INTERNAL_DIRECTORY_NAME}/${PROJECT_CUSTOM_BLOCK_DIRECTORY}`, false)
+    }
+    return resolveDirectoryIcon('', true)
+  }
+  if (node.candidate?.kind === 'custom-block') {
+    return { icon: 'file.custom-block', tone: resolveDirectoryIcon(node.candidate.path, true).tone }
+  }
+  if (node.candidate) return resolveEntryIcon(node.candidate.path, false)
+  return resolveDirectoryIcon(node.label, true)
 }
 </script>

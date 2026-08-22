@@ -25,6 +25,14 @@ const candidates: ProjectCustomBlockResourceCandidate[] = [
     id: 'custom-block:bob/child', kind: 'custom-block', path: '.opencard/blocks/bob/child', label: 'Child',
     automatic: true, suggested: false, referenceCount: 1, references: ['child.packageId'], packageId: 'bob/child',
   },
+  {
+    id: 'font:brand', kind: 'font', path: '.opencard/fonts/Brand.otf', label: 'Brand.otf',
+    automatic: false, suggested: false, referenceCount: 0, references: [], fontKey: 'brand',
+  },
+  {
+    id: 'icon:suits', kind: 'icon', path: '.opencard/icons/suits.png', label: 'Suits',
+    automatic: false, suggested: false, referenceCount: 0, references: [], iconSeriesKey: 'suits',
+  },
 ]
 
 function mountTree(selectedIds: string[]) {
@@ -68,10 +76,19 @@ describe('CustomBlockResourceTree', () => {
     ]))
     const tree = wrapper.getComponent(OcTree)
     expect(tree.props('data').items.get('resource:path:image:assets')?.actions).toEqual(['resource.select'])
+    expect(tree.props('actions')?.get('resource.select')).toEqual({ title: 'Select', icon: 'action.checkbox-blank' })
+    expect(tree.props('actions')?.get('resource.deselect')).toEqual({ title: 'Deselect', icon: 'action.checkbox-marked' })
+    expect(tree.props('data').items.get('font:brand')).toMatchObject({ icon: 'file.font', iconTone: 'active' })
+    expect(tree.props('data').items.get('icon:suits')).toMatchObject({ icon: 'file.image', iconTone: 'image' })
+    expect(tree.props('data').items.get('custom-block:bob/child')).toMatchObject({ icon: 'file.custom-block', iconTone: 'folder-open' })
   })
 
-  it('keeps all package resource categories visible when they are empty', () => {
+  it('keeps all package resource categories visible and aligned with project tree presentation', () => {
     const tree = mountTree([]).getComponent(OcTree)
+    expect(tree.props('data').items.get('resource:category:font')).toMatchObject({ icon: 'file.font', iconTone: 'config' })
+    expect(tree.props('data').items.get('resource:category:icon')).toMatchObject({ icon: 'file.project-icon', iconTone: 'config' })
+    expect(tree.props('data').items.get('resource:category:custom-block')).toMatchObject({ icon: 'file.custom-block', iconTone: 'config' })
+    expect(tree.props('data').items.get('resource:category:image')).toMatchObject({ icon: 'folder.open', iconTone: 'folder-open' })
     expect(tree.props('data').rootKeys).toEqual([
       'resource:category:font', 'resource:category:icon',
       'resource:category:custom-block', 'resource:category:image',

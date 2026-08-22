@@ -8,6 +8,8 @@ export const iconTokens = {
   'action.add': true,
   'action.minus': true,
   'action.check': true,
+  'action.checkbox-blank': true,
+  'action.checkbox-marked': true,
   'action.clean': true,
   'action.close': true,
   'action.copy': true,

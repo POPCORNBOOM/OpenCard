@@ -33,6 +33,8 @@ import {
   mdiCardTextOutline,
   mdiCardsOutline,
   mdiCheck,
+  mdiCheckboxBlankOutline,
+  mdiCheckboxMarkedOutline,
   mdiCircleMedium,
   mdiChevronDown,
   mdiChevronRight,
@@ -179,6 +181,8 @@ function glyph(path: string, viewBox?: string): IconGlyph {
 export const iconGlyphs = {
   'action.add': glyph(mdiPlus),
   'action.check': glyph(mdiCheck),
+  'action.checkbox-blank': glyph(mdiCheckboxBlankOutline),
+  'action.checkbox-marked': glyph(mdiCheckboxMarkedOutline),
   'action.clean': glyph(mdiBroom),
   'action.close': glyph(mdiClose),
   'action.copy': glyph(mdiContentCopy, '-1 -1 26 26'),

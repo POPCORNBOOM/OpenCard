@@ -150,6 +150,7 @@ import OcOptionGroup, { type OcOption } from '../../../components/standard/OcOpt
 import { toKeySlug } from '../../../shared/model/keySlug'
 import PropertyEditor from '../../../shared/ui/property-editor/PropertyEditor.vue'
 import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEditorMutation } from '../../../shared/ui/property-editor/propertyEditor.types'
+import { getPropertyFieldIcon } from '../../../shared/ui/property-editor/propertyFieldRegistry'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
@@ -281,8 +282,8 @@ const previewFitRect = computed(() => {
 })
 
 const fieldTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['move-exposed', { title: t('cardDesigner.customBlock.moveToExposed'), icon: 'nav.arrow-up' }],
-  ['move-private', { title: t('cardDesigner.customBlock.moveToPrivate'), icon: 'nav.arrow-down' }],
+  ['move-exposed', { title: t('cardDesigner.customBlock.moveToExposed'), icon: 'status.eye' }],
+  ['move-private', { title: t('cardDesigner.customBlock.moveToPrivate'), icon: 'status.eye-off' }],
 ]))
 const fieldTreeData = computed<OcTreeData>(() => {
   const items = new Map<string, OcTreeItem>()
@@ -293,7 +294,7 @@ const fieldTreeData = computed<OcTreeData>(() => {
     const key = `resize:${axis}`
     const isPublic = exposed.value.has(key)
     ;(isPublic ? publicKeys : privateKeys).push(key)
-    items.set(key, { label, icon: 'layout.fill', draggable: true, actions: [isPublic ? 'move-private' : 'move-exposed'] })
+    items.set(key, { label, icon: getPropertyFieldIcon('string'), draggable: true, actions: [isPublic ? 'move-private' : 'move-exposed'] })
   }
   for (const field of props.fields) {
     const key = `field:${field.key}`
@@ -302,13 +303,13 @@ const fieldTreeData = computed<OcTreeData>(() => {
     items.set(key, {
       label: field.title || (te(`propertyEditor.fields.${field.key}`) ? t(`propertyEditor.fields.${field.key}`) : field.key),
       tail: t(field.referenceCount === 1 ? 'cardDesigner.customBlock.referenceCountOne' : 'cardDesigner.customBlock.referenceCountOther', { count: field.referenceCount }),
-      icon: 'entity.block-custom',
+      icon: getPropertyFieldIcon(field.fieldType),
       draggable: true,
       actions: [isPublic ? 'move-private' : 'move-exposed'],
     })
   }
-  items.set('group:exposed', { label: t('cardDesigner.customBlock.exposed'), icon: 'entity.block-custom' })
-  items.set('group:private', { label: t('cardDesigner.customBlock.private'), icon: 'entity.block-custom' })
+  items.set('group:exposed', { label: t('cardDesigner.customBlock.exposed'), icon: 'status.eye' })
+  items.set('group:private', { label: t('cardDesigner.customBlock.private'), icon: 'status.eye-off' })
   children.set('group:exposed', publicKeys)
   children.set('group:private', privateKeys)
   return { rootKeys: fieldGroupKeys, items, children }
@@ -395,6 +396,7 @@ watch(() => props.open, open => {
   exposed.value = new Set([
     ...(!props.resize.widthLocked ? ['resize:width'] : []),
     ...(!props.resize.heightLocked ? ['resize:height'] : []),
+    ...props.fields.filter(field => field.referenceCount > 0).map(field => field.key),
   ])
   selectedResourceIds.value = new Set()
   selectionInitialized.value = false

@@ -142,8 +142,10 @@ function createPreviewDocument(
     id: 'custom-block-export-preview-instance',
     name: prepared.manifest.name,
     packageId: prepared.manifest.packageId,
-    ...overrides,
   })
+  for (const [fieldKey, value] of Object.entries(overrides)) {
+    ;(block as Record<string, unknown>)[fieldKey] = value
+  }
   const front = createCardFace({ id: 'custom-block-export-preview-front', background: 'transparent' })
   front.children.push({
     block,

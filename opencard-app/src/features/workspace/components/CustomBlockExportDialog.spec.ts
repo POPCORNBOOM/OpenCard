@@ -134,13 +134,16 @@ describe('CustomBlockExportDialog', () => {
     await finishInitialPreview()
     const tree = wrapper.getComponent(OcTree)
     expect(wrapper.text()).not.toContain('publisher-test')
-    expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height'])
-    expect(tree.props('data').children.get('group:private')).toEqual(['field:content'])
+    expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height', 'field:content'])
+    expect(tree.props('data').children.get('group:private')).toEqual([])
+    expect(tree.props('data').items.get('field:content')).toMatchObject({ icon: 'data.symbol-string' })
+    expect(tree.props('data').items.get('group:exposed')).toMatchObject({ icon: 'status.eye' })
+    expect(tree.props('data').items.get('group:private')).toMatchObject({ icon: 'status.eye-off' })
     expect(wrapper.getComponent(CustomBlockResourceTree).props('selectedIds')).toEqual([resourceCandidate.id])
     expect(wrapper.getComponent({ name: 'PropertyEditor' }).props('inputs')).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        record: expect.objectContaining({ width: '', height: '' }),
-        fields: expect.objectContaining({ width: expect.any(Object), height: expect.any(Object) }),
+        record: expect.objectContaining({ width: '', height: '', content: 'Default' }),
+        fields: expect.objectContaining({ width: expect.any(Object), height: expect.any(Object), content: expect.any(Object) }),
       }),
     ]))
   })
