@@ -1,4 +1,4 @@
-import { strFromU8, strToU8, unzip, zipSync, type UnzipFileInfo } from 'fflate'
+import { strFromU8, strToU8, unzip, zip, zipSync, type UnzipFileInfo } from 'fflate'
 import type { FileSystemService } from './fileSystemService'
 import { normalizeStoredCardBlock } from '../../../entities/card/storage'
 import type { CardBlock } from '../../../entities/card/model'
@@ -340,11 +340,11 @@ export async function readProjectCustomBlockPackageFromBytes(
   }
 }
 
-export function createProjectCustomBlockArchive(
+function createProjectCustomBlockArchiveEntries(
   manifest: ProjectCustomBlockManifest,
   block: CardBlock,
-  files: ReadonlyMap<string, Uint8Array> = new Map(),
-): Uint8Array {
+  files: ReadonlyMap<string, Uint8Array>,
+): Record<string, Uint8Array> {
   const issues: ProjectCustomBlockPackageIssue[] = []
   const normalizedManifest = normalizeProjectCustomBlockManifest(manifest, manifest.packageId).manifest
   const normalizedRoot = normalizeRoot(block, normalizedManifest, issues)
@@ -364,7 +364,29 @@ export function createProjectCustomBlockArchive(
     identities.add(identity!)
     archive[normalized.path] = bytes
   }
-  return zipSync(archive, { level: 9 })
+  return archive
+}
+
+export function createProjectCustomBlockArchive(
+  manifest: ProjectCustomBlockManifest,
+  block: CardBlock,
+  files: ReadonlyMap<string, Uint8Array> = new Map(),
+): Uint8Array {
+  return zipSync(createProjectCustomBlockArchiveEntries(manifest, block, files), { level: 9 })
+}
+
+export async function createProjectCustomBlockArchiveAsync(
+  manifest: ProjectCustomBlockManifest,
+  block: CardBlock,
+  files: ReadonlyMap<string, Uint8Array> = new Map(),
+): Promise<Uint8Array> {
+  const entries = createProjectCustomBlockArchiveEntries(manifest, block, files)
+  return await new Promise<Uint8Array>((resolve, reject) => {
+    zip(entries, { level: 9 }, (error, data) => {
+      if (error) reject(error)
+      else resolve(data)
+    })
+  })
 }
 
 export async function readProjectCustomBlockPackage(
@@ -602,7 +624,7 @@ export async function exportProjectCustomBlockPackage(options: {
     : `${options.outputPath}.ocblock`
   await options.fs.writeBinaryFile(
     outputPath,
-    createProjectCustomBlockArchive(options.manifest, options.block, options.files),
+    await createProjectCustomBlockArchiveAsync(options.manifest, options.block, options.files),
   )
   return outputPath
 }

@@ -421,7 +421,10 @@ import OcText from '../../components/base/OcText.vue'
 import { toKeySlug } from '../../shared/model/keySlug'
 import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
 import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
-import { exportProjectCustomBlock } from '../workspace/services/exportProjectCustomBlock'
+import {
+  exportPreparedProjectCustomBlock,
+  type PreparedProjectCustomBlockExport,
+} from '../workspace/services/exportProjectCustomBlock'
 import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
@@ -1713,26 +1716,16 @@ async function handleCustomBlockExport(payload: {
   exposedFieldKeys: string[]
   resize: ProjectCustomBlockResizePolicy
   selectedResourceIds: Set<string>
+  prepared: PreparedProjectCustomBlockExport
 }): Promise<void> {
-  const root = customBlockExportBlock.value
-  const document = cardDoc.value
-  if (!root || !document || customBlockExportBusy.value) return
+  if (customBlockExportBusy.value) return
   customBlockExportBusy.value = true
   customBlockExportErrorText.value = ''
   try {
-    const result = await exportProjectCustomBlock({
-      document,
-      rootBlockId: root.id,
-      name: payload.name,
-      publisherKey: payload.publisherKey,
-      blockKey: payload.blockKey,
-      version: payload.version,
-      exposedFieldKeys: payload.exposedFieldKeys,
-      resize: payload.resize,
+    const result = await exportPreparedProjectCustomBlock({
+      prepared: payload.prepared,
       selectedResourceIds: payload.selectedResourceIds,
       projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
-      project: projectStore.resolvedProject.value,
-      dictionary: projectStore.resolvedDictionary.value,
       projectFonts: projectStore.projectFonts.value,
       projectIconSeries: projectStore.projectIconSeries.value,
       customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,

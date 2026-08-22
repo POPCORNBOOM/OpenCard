@@ -1634,6 +1634,7 @@ export function useProjectStore() {
     projectDictionary: readonly(projectDictionary),
     projectCustomBlockManifestCatalog,
     projectCustomBlockCatalog,
+    projectCustomBlockRuntimeCatalog,
     customBlockCatalogError: readonly(customBlockCatalogError),
     projectResourceEnvironment,
     customBlockFontLoadErrors: readonly(customBlockFontLoadErrors),

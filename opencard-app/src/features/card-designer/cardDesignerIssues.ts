@@ -1,5 +1,5 @@
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
-import type { CardPipelineIssue, CardIssueType } from '../card-rendering/cardPipelineIssue'
+import { cardIssueMessageKey, type CardPipelineIssue } from '../card-rendering/cardPipelineIssue'
 import type { RenderPipelineResult } from '../card-rendering/renderPipeline'
 import type { EditorIssue, EditorIssueSnapshot } from '../editor-runtime/model/editorIssue'
 import type { CardDesignerNavigationToken } from './cardDesignerNavigation'
@@ -7,30 +7,6 @@ import type { CardStorageWarning } from '../../entities/card/storage'
 
 type Translate = (key: string, parameters?: Readonly<Record<string, string | number>>) => string
 type ResolveFieldLabel = (fieldKey: string) => string
-
-const issueMessageKeys: Readonly<Record<CardIssueType, string>> = {
-  'card-designer.binding.invalid-token': 'app.problems.bindingCodes.INVALID_TOKEN',
-  'card-designer.binding.source-not-found': 'app.problems.bindingCodes.SOURCE_NOT_FOUND',
-  'card-designer.binding.field-not-allowed': 'app.problems.bindingCodes.FIELD_NOT_ALLOWED',
-  'card-designer.binding.field-not-found': 'app.problems.bindingCodes.FIELD_NOT_FOUND',
-  'card-designer.binding.cycle': 'app.problems.bindingCodes.CYCLE',
-  'card-designer.binding.max-depth': 'app.problems.bindingCodes.MAX_DEPTH',
-  'card-designer.binding.type-mismatch': 'app.problems.bindingCodes.TYPE_MISMATCH',
-  'card-designer.render-parse.invalid-type': 'app.problems.renderCodes.INVALID_TYPE',
-  'card-designer.render-parse.conversion-failed': 'app.problems.renderCodes.CONVERSION_FAILED',
-  'card-designer.render-parse.invalid-option': 'app.problems.renderCodes.INVALID_OPTION',
-  'card-designer.render-parse.out-of-range': 'app.problems.renderCodes.OUT_OF_RANGE',
-  'card-designer.render-parse.required': 'app.problems.renderCodes.REQUIRED',
-  'card-designer.render-parse.invalid-color': 'app.problems.renderCodes.INVALID_COLOR',
-  'card-designer.render-parse.invalid-css-length': 'app.problems.renderCodes.INVALID_CSS_LENGTH',
-  'card-designer.render-parse.invalid-file-path': 'app.problems.renderCodes.INVALID_FILE_PATH',
-  'card-designer.render-parse.invalid-object': 'app.problems.renderCodes.INVALID_OBJECT',
-  'card-designer.custom-block.unavailable': 'app.problems.customBlockCodes.UNAVAILABLE',
-  'card-designer.custom-block.content-error': 'app.problems.customBlockCodes.CONTENT_ERROR',
-  'card-designer.custom-block.resource-error': 'app.problems.customBlockCodes.RESOURCE_ERROR',
-  'card-designer.rich-text.invalid-html': 'app.problems.richTextCodes.INVALID_HTML',
-  'card-designer.rich-text.limit-exceeded': 'app.problems.richTextCodes.LIMIT_EXCEEDED',
-}
 
 const valueKindMessageKeys: Readonly<Record<string, string>> = {
   string: 'app.problems.valueKinds.string',
@@ -180,7 +156,7 @@ export function createCardDesignerIssues(
       severity: issue.severity,
       locationText: createLocationText(issue, cardLabel, translate, resolveFieldLabel),
       description: translate(
-        issueMessageKeys[issue.type],
+        cardIssueMessageKey(issue.type),
         createDescriptionParameters(issue, translate, resolveFieldLabel),
       ),
       ...(navigationToken ? { navigationToken } : {}),

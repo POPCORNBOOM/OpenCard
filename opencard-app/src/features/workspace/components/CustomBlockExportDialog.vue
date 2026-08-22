@@ -77,14 +77,14 @@
             @viewport-transform-change="viewportScale = $event.scale"
             @viewport-size-change="fitPreview" />
           <OcEmpty v-else tone="muted" inset="comfortable">
-            {{ previewError || (preparing ? t('cardDesigner.customBlock.previewPreparing') : t('cardDesigner.customBlock.previewUnavailable')) }}
+            {{ previewError || ((analysisBusy || previewRefreshing) ? t('cardDesigner.customBlock.previewPreparing') : t('cardDesigner.customBlock.previewUnavailable')) }}
           </OcEmpty>
           <OcOverlayToolbar v-if="previewFace" class="custom-block-export-dialog__viewport-tools"
             :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
             @select="handleViewportToolbar" />
-          <OcCard v-if="diagnostics.length" class="custom-block-export-dialog__diagnostics" variant="glass" role="status">
-            <OcText size="sm" tone="warning">{{ t('cardDesigner.customBlock.previewDiagnostics', { count: diagnostics.length }) }}</OcText>
-            <OcText v-for="diagnostic in diagnostics.slice(0, 3)" :key="diagnostic" size="xs" tone="muted">
+          <OcCard v-if="previewDiagnostics.length" class="custom-block-export-dialog__diagnostics" variant="glass" role="status">
+            <OcText size="sm" tone="warning">{{ t('cardDesigner.customBlock.previewDiagnostics', { count: previewDiagnostics.length }) }}</OcText>
+            <OcText v-for="diagnostic in previewDiagnostics.slice(0, 3)" :key="diagnostic" size="xs" tone="muted">
               {{ diagnostic }}
             </OcText>
           </OcCard>
@@ -108,7 +108,7 @@
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="requestClose">{{ t('cardDesigner.customBlock.cancel') }}</OcButton>
       <OcButton type="submit" variant="solid"
-        :disabled="busy || preparing || !name.trim() || !validPackageId || !validVersion || !prepared">
+        :disabled="busy || !name.trim() || !validPackageId || !validVersion || !prepared">
         {{ busy ? t('cardDesigner.customBlock.exporting') : t('cardDesigner.customBlock.export') }}
       </OcButton>
     </template>
@@ -136,6 +136,7 @@ import { resolveCardPropertyFields } from '../../card-properties/cardPropertyFie
 import CardViewport from '../../card-rendering/components/CardViewport.vue'
 import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
 import type { RenderReadyCardFace } from '../../card-rendering/render.types'
+import { cardIssueMessageKey } from '../../card-rendering/cardPipelineIssue'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcEmpty from '../../../components/base/OcEmpty.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
@@ -158,13 +159,15 @@ import {
   type ProjectCustomBlockResizePolicy,
 } from '../model/projectCustomBlocks'
 import { fileSystemService } from '../services/fileSystemService'
+import { buildProjectCustomBlockManifest } from '../services/buildProjectCustomBlockManifest'
 import {
-  buildProjectCustomBlockCandidate,
   prepareProjectCustomBlockExport,
   type PreparedProjectCustomBlockExport,
-  type ProjectCustomBlockCandidate,
 } from '../services/exportProjectCustomBlock'
-import { createProjectCustomBlockCandidatePreview, type ProjectCustomBlockCandidatePreview } from '../services/projectCustomBlockCandidatePreview'
+import {
+  collectProjectCustomBlockSelectionIssues,
+  createProjectCustomBlockPreview,
+} from '../services/projectCustomBlockPreview'
 import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
 import type { ProjectCustomBlockResourceCandidate } from '../services/projectCustomBlockResources'
 import { useProjectStore } from '../store/projectStore'
@@ -193,6 +196,7 @@ const emit = defineEmits<{
     exposedFieldKeys: string[]
     resize: ProjectCustomBlockResizePolicy
     selectedResourceIds: Set<string>
+    prepared: PreparedProjectCustomBlockExport
   }]
 }>()
 const { t, te } = useI18n()
@@ -206,20 +210,21 @@ const exposed = ref(new Set<string>())
 const selectedResourceIds = ref(new Set<string>())
 const selectionInitialized = ref(false)
 const prepared = shallowRef<PreparedProjectCustomBlockExport | null>(null)
-const candidate = shallowRef<ProjectCustomBlockCandidate | null>(null)
-const previewSession = shallowRef<ProjectCustomBlockCandidatePreview | null>(null)
 const previewFace = shallowRef<RenderReadyCardFace | null>(null)
 const previewResources = shallowRef<CardRenderResourceContext | null>(null)
 const previewOverrides = ref<Record<string, unknown>>({})
 const previewError = ref('')
-const preparing = ref(false)
+const analysisBusy = ref(false)
+const previewRefreshing = ref(false)
 const packageDiagnostics = ref<string[]>([])
 const confirmingDiagnostics = ref(false)
 const viewportRef = ref<{ zoomBy: (factor: number) => void, fitView?: () => void, fitContent?: (rect: { left: number, top: number, width: number, height: number }) => void } | null>(null)
 const viewportScale = ref(1)
-let prepareTimer: ReturnType<typeof setTimeout> | null = null
-let previewTimer: ReturnType<typeof setTimeout> | null = null
-let revision = 0
+let analysisRevision = 0
+let manifestRevision = 0
+let previewRevision = 0
+let manifestQueued = false
+let previewQueued = false
 const activePage = ref<'package' | 'preview'>('package')
 const pageOptions = computed<readonly OcOption[]>(() => [
   { value: 'package', label: t('cardDesigner.customBlock.packagePage') },
@@ -236,10 +241,19 @@ const validPackageId = computed(() => Boolean(resolvedPackageId.value))
 const validVersion = computed(() => Boolean(normalizeProjectCustomBlockVersion(version.value)))
 const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => prepared.value?.resourceAnalysis.candidates ?? [])
 const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
+const selectionDiagnostics = computed(() => prepared.value
+  ? collectProjectCustomBlockSelectionIssues(prepared.value, selectedResourceIds.value)
+    .map(issue => `${issue.path}: ${issue.message}`)
+  : [])
 const diagnostics = computed(() => [
   ...(props.errorText ? [props.errorText] : []),
-  ...packageDiagnostics.value,
+  ...selectionDiagnostics.value,
 ])
+const previewDiagnostics = computed(() => [...new Set([
+  ...(previewError.value ? [previewError.value] : []),
+  ...diagnostics.value,
+  ...packageDiagnostics.value,
+])])
 const effectiveResize = computed<ProjectCustomBlockResizePolicy>(() => ({
   widthLocked: !exposed.value.has('resize:width'),
   heightLocked: !exposed.value.has('resize:height'),
@@ -312,7 +326,7 @@ function clonePreviewValue<T>(value: T, seen = new WeakMap<object, object>()): T
 }
 
 const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
-  const current = candidate.value
+  const current = prepared.value
   if (!current || exposedFieldKeys.value.length === 0) return []
   const definitions = parseAdditionalFieldDefinitions(current.block.additionalFieldDefinition)
   const nativeSchema = getTypePropertyEditorSchema(current.block.type)
@@ -346,32 +360,28 @@ const propertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDe
   ['publicFields', { title: t('customBlockRegistry.preview.publicFields'), icon: 'entity.block-custom' }],
 ]))
 
-function releasePreviewSession(): Promise<void> {
-  const previous = previewSession.value
-  previewSession.value = null
-  candidate.value = null
+function clearPreview(): void {
   previewFace.value = null
   previewResources.value = null
-  return previous?.release() ?? Promise.resolve()
+}
+
+function resetWorkspace(): void {
+  analysisRevision += 1
+  manifestRevision += 1
+  previewRevision += 1
+  manifestQueued = false
+  previewQueued = false
+  analysisBusy.value = false
+  previewRefreshing.value = false
+  previewError.value = ''
+  packageDiagnostics.value = []
+  confirmingDiagnostics.value = false
+  clearPreview()
 }
 
 watch(() => props.open, open => {
-  revision += 1
-  if (prepareTimer) {
-    clearTimeout(prepareTimer)
-    prepareTimer = null
-  }
-  if (previewTimer) {
-    clearTimeout(previewTimer)
-    previewTimer = null
-  }
-  if (!open) {
-    preparing.value = false
-    confirmingDiagnostics.value = false
-    void releasePreviewSession()
-    return
-  }
-  void releasePreviewSession()
+  resetWorkspace()
+  if (!open) return
   name.value = props.defaultName
   activePage.value = 'package'
   blockKey.value = ''
@@ -384,30 +394,33 @@ watch(() => props.open, open => {
   selectionInitialized.value = false
   previewOverrides.value = {}
   prepared.value = null
-  packageDiagnostics.value = []
-  confirmingDiagnostics.value = false
-  schedulePrepare()
+  scheduleAnalysis()
 }, { immediate: true })
-watch([name, blockKey, version, exposedFieldKeys, effectiveResize], schedulePrepare, { deep: true })
+watch([() => props.document, () => props.rootBlockId], () => {
+  if (!props.open) return
+  selectionInitialized.value = false
+  prepared.value = null
+  clearPreview()
+  scheduleAnalysis()
+})
+watch([name, blockKey, version, exposedFieldKeys, effectiveResize], scheduleManifestRefresh, { deep: true })
 watch(activePage, page => {
   if (page === 'preview') void nextTick().then(fitPreview)
 })
-watch(selectedResourceIds, scheduleCandidatePreview, { deep: true })
-watch(previewOverrides, schedulePreviewOnly, { deep: true })
+watch(selectedResourceIds, schedulePreview, { deep: true })
 
-function schedulePrepare(): void {
+function scheduleAnalysis(): void {
   if (!props.open) return
-  if (prepareTimer) clearTimeout(prepareTimer)
-  prepareTimer = setTimeout(() => void rebuildPrepared(), 180)
+  const currentRevision = ++analysisRevision
+  queueMicrotask(() => void rebuildPrepared(currentRevision))
 }
-async function rebuildPrepared(): Promise<void> {
-  const currentRevision = ++revision
+
+async function rebuildPrepared(currentRevision: number): Promise<void> {
   if (!props.document || !props.rootBlockId || !validPackageId.value || !validVersion.value) {
-    prepared.value = null
-    void releasePreviewSession()
+    if (currentRevision === analysisRevision) prepared.value = null
     return
   }
-  preparing.value = true
+  analysisBusy.value = true
   previewError.value = ''
   try {
     const result = await prepareProjectCustomBlockExport({
@@ -427,11 +440,10 @@ async function rebuildPrepared(): Promise<void> {
       customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
       fs: fileSystemService,
     })
-    if (currentRevision !== revision) return
+    if (currentRevision !== analysisRevision) return
     if ('blocked' in result) {
       prepared.value = null
       previewError.value = t('cardDesigner.customBlock.exportBindingError')
-      void releasePreviewSession()
       return
     }
     prepared.value = result
@@ -442,67 +454,98 @@ async function rebuildPrepared(): Promise<void> {
       const available = new Set(result.resourceAnalysis.candidates.map(item => item.id))
       selectedResourceIds.value = new Set([...selectedResourceIds.value].filter(id => available.has(id)))
     }
+    schedulePreview()
   } catch (cause) {
-    if (currentRevision === revision) {
+    if (currentRevision === analysisRevision) {
       prepared.value = null
       previewError.value = cause instanceof Error ? cause.message : String(cause)
-      void releasePreviewSession()
     }
   } finally {
-    if (currentRevision === revision) preparing.value = false
+    if (currentRevision === analysisRevision) analysisBusy.value = false
   }
 }
-function scheduleCandidatePreview(): void {
-  if (!props.open || !prepared.value) return
-  const currentRevision = ++revision
-  if (previewTimer) clearTimeout(previewTimer)
-  previewTimer = setTimeout(() => void rebuildCandidatePreview(currentRevision), 120)
+
+function scheduleManifestRefresh(): void {
+  if (!props.open || !prepared.value || manifestQueued) return
+  manifestQueued = true
+  queueMicrotask(() => {
+    manifestQueued = false
+    void refreshPreparedManifest(++manifestRevision)
+  })
 }
-function schedulePreviewOnly(): void { scheduleCandidatePreview() }
-async function rebuildCandidatePreview(currentRevision = ++revision): Promise<void> {
+
+async function refreshPreparedManifest(currentRevision: number): Promise<void> {
+  const base = prepared.value
+  if (!base || !validPackageId.value || !validVersion.value) return
+  try {
+    const manifest = await buildProjectCustomBlockManifest({
+      root: base.block,
+      publisherKey: publisherKey.value,
+      blockKey: blockKey.value.trim() || suggestedBlockKey.value,
+      version: version.value,
+      name: name.value,
+      exposedFieldKeys: exposedFieldKeys.value,
+      resize: effectiveResize.value,
+    })
+    if (currentRevision !== manifestRevision) return
+    prepared.value = { ...base, manifest }
+    schedulePreview()
+  } catch (cause) {
+    if (currentRevision === manifestRevision) {
+      previewError.value = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+}
+
+function schedulePreview(): void {
+  if (!props.open || !prepared.value || previewQueued) return
+  previewQueued = true
+  queueMicrotask(() => {
+    previewQueued = false
+    void refreshPreview(++previewRevision)
+  })
+}
+
+async function refreshPreview(currentRevision: number): Promise<void> {
   const base = prepared.value
   if (!base) return
-  preparing.value = true
-  previewError.value = ''
+  const selectedIds = new Set(selectedResourceIds.value)
+  const overrides = { ...previewOverrides.value }
+  const dependencyIds = base.resourceAnalysis.candidates.flatMap(candidate => (
+    candidate.kind === 'custom-block' && candidate.packageId && selectedIds.has(candidate.id)
+      ? [candidate.packageId]
+      : []
+  ))
+  previewRefreshing.value = true
   try {
-    const nextCandidate = await buildProjectCustomBlockCandidate({
+    await projectStore.ensureProjectCustomBlocksLoaded(dependencyIds)
+    const nextPreview = await createProjectCustomBlockPreview({
       prepared: base,
-      selectedResourceIds: selectedResourceIds.value,
-      projectRootPath: props.projectRootPath,
-      projectFonts: projectStore.projectFonts.value,
-      projectIconSeries: projectStore.projectIconSeries.value,
-      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
-      fs: fileSystemService,
+      selectedResourceIds: selectedIds,
+      overrides,
+      sourceEnvironment: projectStore.projectResourceEnvironment.value,
+      sourceFonts: projectStore.projectFonts.value,
+      sourceIconSeries: projectStore.projectIconSeries.value,
+      sourceIconCatalog: projectStore.projectIconCatalog.value,
+      sourceCustomBlockCatalog: projectStore.projectCustomBlockRuntimeCatalog.value,
+      remoteResourcePolicy: projectStore.renderEnvironment.value.remoteResourcePolicy,
     })
-    const nextPreview = await createProjectCustomBlockCandidatePreview({
-      candidate: nextCandidate,
-      overrides: previewOverrides.value,
-      sourceProjectRootPath: props.projectRootPath,
-      fs: fileSystemService,
-    })
-    if (currentRevision !== revision) {
-      await nextPreview.release()
-      return
-    }
-    const previous = previewSession.value
-    candidate.value = nextCandidate
-    previewSession.value = nextPreview
+    if (currentRevision !== previewRevision) return
     previewFace.value = nextPreview.render.document.faces.front
     previewResources.value = nextPreview.render.resources
+    previewError.value = ''
     packageDiagnostics.value = [
-      ...nextPreview.packageIssues.map(item => `${item.path}: ${item.message}`),
-      ...nextPreview.render.issues.map(item => item.type),
+      ...nextPreview.issues.map(item => `${item.path}: ${item.message}`),
+      ...nextPreview.render.issues.map(item => t(cardIssueMessageKey(item.type), item.parameters ?? {})),
     ]
-    await previous?.release()
     await nextTick()
     fitPreview()
   } catch (cause) {
-    if (currentRevision === revision) {
+    if (currentRevision === previewRevision) {
       previewError.value = cause instanceof Error ? cause.message : String(cause)
-      void releasePreviewSession()
     }
   } finally {
-    if (currentRevision === revision) preparing.value = false
+    if (currentRevision === previewRevision) previewRefreshing.value = false
   }
 }
 
@@ -541,8 +584,12 @@ function updatePreviewProperty(mutation: PropertyEditorMutation): void {
   if (mutation.value === undefined) delete next[mutation.fieldKey]
   else next[mutation.fieldKey] = mutation.value
   previewOverrides.value = next
+  schedulePreview()
 }
-function resetPreviewOverrides(): void { previewOverrides.value = {} }
+function resetPreviewOverrides(): void {
+  previewOverrides.value = {}
+  schedulePreview()
+}
 function fitPreview(): void {
   if (previewFitRect.value && viewportRef.value?.fitContent) viewportRef.value.fitContent(previewFitRect.value)
   else viewportRef.value?.fitView?.()
@@ -552,36 +599,51 @@ function handleViewportToolbar({ key }: { key: string }): void {
   else if (key === 'viewport.fit') fitPreview()
   else if (key === 'viewport.zoom-in') viewportRef.value?.zoomBy(VIEWPORT_ZOOM_STEP)
 }
-function emitExport(): void {
-  emit('submit', {
-    name: name.value.trim(),
-    publisherKey: publisherKey.value.trim().toLocaleLowerCase(),
-    blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
-    version: version.value.trim(),
-    exposedFieldKeys: exposedFieldKeys.value,
-    resize: effectiveResize.value,
-    selectedResourceIds: new Set(selectedResourceIds.value),
-  })
+async function emitExport(): Promise<void> {
+  const base = prepared.value
+  if (!base) return
+  try {
+    const manifest = await buildProjectCustomBlockManifest({
+      root: base.block,
+      publisherKey: publisherKey.value,
+      blockKey: blockKey.value.trim() || suggestedBlockKey.value,
+      version: version.value,
+      name: name.value,
+      exposedFieldKeys: exposedFieldKeys.value,
+      resize: effectiveResize.value,
+    })
+    emit('submit', {
+      name: name.value.trim(),
+      publisherKey: publisherKey.value.trim().toLocaleLowerCase(),
+      blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
+      version: version.value.trim(),
+      exposedFieldKeys: exposedFieldKeys.value,
+      resize: effectiveResize.value,
+      selectedResourceIds: new Set(selectedResourceIds.value),
+      prepared: { ...base, manifest },
+    })
+  } catch (cause) {
+    previewError.value = cause instanceof Error ? cause.message : String(cause)
+  }
 }
 function submit(): void {
-  if (props.busy || preparing.value || !prepared.value || !validPackageId.value || !validVersion.value) return
+  if (props.busy || !prepared.value || !validPackageId.value || !validVersion.value) return
   if (diagnostics.value.length > 0) {
     confirmingDiagnostics.value = true
     return
   }
-  emitExport()
+  void emitExport()
 }
 function confirmDiagnosticExport(): void {
   confirmingDiagnostics.value = false
-  emitExport()
+  void emitExport()
 }
 function requestClose(): void { if (!props.busy) emit('close') }
 
 onBeforeUnmount(() => {
-  revision += 1
-  if (prepareTimer) clearTimeout(prepareTimer)
-  if (previewTimer) clearTimeout(previewTimer)
-  void releasePreviewSession()
+  analysisRevision += 1
+  manifestRevision += 1
+  previewRevision += 1
 })
 </script>
 

@@ -294,7 +294,7 @@ export async function analyzeProjectCustomBlockResources(options: {
   }
 }
 
-function selectedFontDocument(
+export function createSelectedProjectCustomBlockFontDocument(
   selected: readonly ProjectCustomBlockResourceCandidate[],
   registry: ProjectFontRegistry,
 ): ProjectFontRegistryDocument {
@@ -395,7 +395,7 @@ export async function materializeProjectCustomBlockResources(options: {
     }
   }
 
-  const fontDocument = selectedFontDocument(selected, options.projectFonts ?? {})
+  const fontDocument = createSelectedProjectCustomBlockFontDocument(selected, options.projectFonts ?? {})
   if (Object.keys(fontDocument).length > 0) {
     files.set('resources/.opencard/.ocfonts', strToU8(serializeProjectFontRegistry(fontDocument)))
   }
@@ -417,8 +417,8 @@ export async function materializeProjectCustomBlockResources(options: {
   }
 
   for (const candidate of options.analysis.candidates) {
-    if (!candidate.automatic || options.selectedIds.has(candidate.id)) continue
-    issues.push(issue('resource-unavailable', candidate.path, 'Automatically detected resource was excluded by the author'))
+    if ((!candidate.automatic && !candidate.suggested) || options.selectedIds.has(candidate.id)) continue
+    issues.push(issue('resource-unavailable', candidate.path, 'Detected or suggested resource was excluded by the author'))
   }
   return { files, issues: [...options.analysis.issues, ...issues], selectedCandidates: selected }
 }

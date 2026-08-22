@@ -12,6 +12,14 @@ import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCusto
 
 export type ProjectResourceScopeKind = 'project' | 'package'
 
+export type ProjectResourceAccessPolicy = {
+  readonly mode: 'allow-list'
+  readonly assetPaths: ReadonlySet<string>
+  readonly fontFiles: ReadonlyMap<string, ReadonlySet<string>>
+  readonly icons: ReadonlyMap<string, ReadonlySet<string>>
+  readonly packageIds: ReadonlySet<string>
+}
+
 export type ProjectResourceEnvironment = {
   readonly kind: ProjectResourceScopeKind
   readonly namespace: string
@@ -22,6 +30,7 @@ export type ProjectResourceEnvironment = {
   readonly iconCatalog: ProjectIconCatalog
   readonly issues: readonly ProjectResourceEnvironmentIssue[]
   readonly customBlockCatalog?: CustomBlockRuntimeCatalog
+  readonly accessPolicy?: ProjectResourceAccessPolicy
 }
 
 export type ProjectResourceEnvironmentIssue = {
@@ -75,13 +84,18 @@ export function resolveProjectInternalResourceFilePath(
 
 export function resolveProjectEnvironmentAssetSrc(
   source: string,
-  environment: Pick<ProjectResourceEnvironment, 'rootPath'>,
+  environment: Pick<ProjectResourceEnvironment, 'rootPath' | 'accessPolicy'>,
   remoteResourcePolicy?: ProjectRemoteResourcePolicy,
 ): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(source) && !/^[a-z]:[\\/]/i.test(source)) {
     return isRemoteResourceAllowed(source, remoteResourcePolicy) ? source : ''
   }
-  const path = resolveProjectResourceFilePath(environment, source)
+  const relative = normalizeProjectResourcePath(source)
+  if (!relative) return ''
+  const allowed = environment.accessPolicy?.mode !== 'allow-list'
+    || environment.accessPolicy.assetPaths.has(relative.toLocaleLowerCase())
+  if (!allowed) return ''
+  const path = resolveProjectResourceFilePath(environment, relative)
   return path ? convertFileSrc(path) : ''
 }
 

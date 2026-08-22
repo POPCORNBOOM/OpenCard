@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (path: string) => `asset://${path}` }))
 import { EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import {
   createProjectResourceNamespace,
   normalizeProjectResourcePath,
   projectResourceScopeIdentity,
   resolveProjectEnvironmentFontFamily,
+  resolveProjectEnvironmentAssetSrc,
   resolveProjectResourceFilePath,
   type ProjectResourceEnvironment,
 } from './projectResourceEnvironment'
@@ -42,6 +44,22 @@ describe('ProjectResourceEnvironment', () => {
     expect(aliceFamily).toContain('package-alice-badge')
     expect(bobFamily).toContain('package-bob-badge')
     expect(aliceFamily).not.toBe(bobFamily)
+  })
+
+  it('treats local assets outside an environment allow-list as unavailable', () => {
+    const environment = {
+      rootPath: '/project',
+      accessPolicy: {
+        mode: 'allow-list' as const,
+        assetPaths: new Set(['assets/allowed.png']),
+        fontFiles: new Map<string, ReadonlySet<string>>(),
+        icons: new Map<string, ReadonlySet<string>>(),
+        packageIds: new Set<string>(),
+      },
+    }
+    expect(resolveProjectEnvironmentAssetSrc('assets/allowed.png', environment)).not.toBe('')
+    expect(resolveProjectEnvironmentAssetSrc('assets/excluded.png', environment)).toBe('')
+    expect(resolveProjectEnvironmentAssetSrc('../secret.png', environment)).toBe('')
   })
 
   it('keeps field-level scope identities distinct for the same block', () => {

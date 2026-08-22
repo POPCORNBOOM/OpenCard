@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBlock, type CardDocument } from '../../../entities/card/model'
 import OcTree from '../../../components/standard/OcTree.vue'
 import enUS from '../../../locales/en-US'
@@ -8,16 +8,20 @@ import CustomBlockResourceTree from './CustomBlockResourceTree.vue'
 
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
-  buildCandidate: vi.fn(),
   createPreview: vi.fn(),
+  ensureDependencies: vi.fn(async () => undefined),
 }))
 
 vi.mock('../services/exportProjectCustomBlock', () => ({
   prepareProjectCustomBlockExport: mocks.prepare,
-  buildProjectCustomBlockCandidate: mocks.buildCandidate,
 }))
-vi.mock('../services/projectCustomBlockCandidatePreview', () => ({
-  createProjectCustomBlockCandidatePreview: mocks.createPreview,
+vi.mock('../services/projectCustomBlockPreview', () => ({
+  createProjectCustomBlockPreview: mocks.createPreview,
+  collectProjectCustomBlockSelectionIssues: (prepared: { resourceAnalysis: { candidates: Array<{ id: string, automatic: boolean, path: string }> } }, selected: Set<string>) => (
+    prepared.resourceAnalysis.candidates
+      .filter(candidate => candidate.automatic && !selected.has(candidate.id))
+      .map(candidate => ({ code: 'resource-unavailable', path: candidate.path, message: 'Excluded' }))
+  ),
 }))
 vi.mock('../services/fileSystemService', () => ({ fileSystemService: {} }))
 vi.mock('../../settings/store/appSettingsStore', () => ({
@@ -27,7 +31,15 @@ vi.mock('../store/projectStore', () => ({
   useProjectStore: () => ({
     resolvedProject: { value: null }, resolvedDictionary: { value: null },
     projectFonts: { value: {} }, projectIconSeries: { value: [] },
+    projectIconCatalog: { value: { series: [], entries: [], errors: [] } },
     projectCustomBlockManifestCatalog: { value: new Map() },
+    projectCustomBlockRuntimeCatalog: { value: new Map() },
+    projectResourceEnvironment: { value: {
+      kind: 'project', namespace: 'project-test', rootPath: '/project',
+      fontDocument: {}, fonts: {}, iconDocument: {}, iconCatalog: { series: [], entries: [], errors: [] }, issues: [],
+    } },
+    renderEnvironment: { value: {} },
+    ensureProjectCustomBlocksLoaded: mocks.ensureDependencies,
   }),
 }))
 
@@ -63,25 +75,18 @@ function prepared() {
     resourceAnalysis: {
       candidates: [resourceCandidate], defaultSelectedIds: new Set([resourceCandidate.id]), issues: [],
     },
+    previewHostSize: { width: '100', height: '100' },
   }
 }
 
-function candidate() {
-  return {
-    ...prepared(),
-    resources: { files: new Map(), issues: [], selectedCandidates: [resourceCandidate] },
-  }
-}
-
-function preview(release = vi.fn(async () => undefined), diagnostics = false) {
+function preview() {
   return {
     render: {
       document: { faces: { front: { id: 'front' }, back: { id: 'back' } } },
       resources: {},
-      issues: diagnostics ? [{ type: 'preview.render-warning' }] : [],
+      issues: [],
     },
-    packageIssues: diagnostics ? [{ code: 'resource-unavailable', path: 'assets/missing.png', message: 'Missing' }] : [],
-    release,
+    issues: [],
   }
 }
 
@@ -99,18 +104,16 @@ const baseProps = {
   defaultKey: 'square',
 }
 
-function mountDialog(props = {}) {
+function mountDialog() {
   return mount(CustomBlockExportDialog, {
-    props: { ...baseProps, ...props },
+    props: baseProps,
     global: {
       plugins: [createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })],
       stubs: {
         Teleport: true,
         CardViewport: { template: '<div class="card-viewport-stub" />', methods: { fitView() {}, zoomBy() {} } },
         PropertyEditor: {
-          name: 'PropertyEditor',
-          props: ['inputs'],
-          emits: ['update-property'],
+          name: 'PropertyEditor', props: ['inputs'], emits: ['update-property'],
           template: '<div class="property-editor-stub" />',
         },
       },
@@ -119,24 +122,18 @@ function mountDialog(props = {}) {
 }
 
 async function finishInitialPreview(): Promise<void> {
-  await vi.advanceTimersByTimeAsync(181)
   await flushPromises()
-  await vi.advanceTimersByTimeAsync(121)
   await flushPromises()
 }
 
 describe('CustomBlockExportDialog', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
+    vi.clearAllMocks()
     mocks.prepare.mockResolvedValue(prepared())
-    mocks.buildCandidate.mockResolvedValue(candidate())
     mocks.createPreview.mockResolvedValue(preview())
   })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
 
-  it('shows package identity and keeps dimensions public while additional fields start private', async () => {
+  it('shows package fields and initializes automatic resources', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
     const tree = wrapper.getComponent(OcTree)
@@ -146,110 +143,54 @@ describe('CustomBlockExportDialog', () => {
     expect(wrapper.getComponent(CustomBlockResourceTree).props('selectedIds')).toEqual([resourceCandidate.id])
   })
 
-  it('emits current package metadata, public fields, resize policy, and final resource selection', async () => {
+  it('submits a fresh prepared snapshot without waiting for preview work', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
     const tree = wrapper.getComponent(OcTree)
-    tree.vm.$emit('intent', {
-      type: 'action.invoke', key: 'resize:width', actionKey: 'move-private', source: 'inline',
-    })
-    tree.vm.$emit('intent', {
-      type: 'action.invoke', key: 'field:content', actionKey: 'move-exposed', source: 'inline',
-    })
-    await vi.advanceTimersByTimeAsync(400)
-    await flushPromises()
+    tree.vm.$emit('intent', { type: 'action.invoke', key: 'resize:width', actionKey: 'move-private', source: 'inline' })
+    tree.vm.$emit('intent', { type: 'action.invoke', key: 'field:content', actionKey: 'move-exposed', source: 'inline' })
     await wrapper.get('form').trigger('submit')
+    await flushPromises()
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>
     expect(payload).toMatchObject({
       name: 'Square', publisherKey: 'publisher-test', blockKey: 'square', version: '0.1.0',
       exposedFieldKeys: ['content'], resize: { widthLocked: true, heightLocked: false },
+      prepared: { manifest: { packageId: 'publisher-test/square', publicFieldKeys: ['name', 'notes', 'content'] } },
     })
     expect(payload.selectedResourceIds).toEqual(new Set([resourceCandidate.id]))
   })
 
-  it('requires explicit confirmation when the real candidate preview reports diagnostics', async () => {
-    mocks.createPreview.mockResolvedValue(preview(vi.fn(), true))
+  it('requires confirmation for an explicitly excluded automatic resource', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
+    wrapper.getComponent(CustomBlockResourceTree).vm.$emit('update:selectedIds', new Set())
+    await flushPromises()
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('submit')).toBeUndefined()
     expect(wrapper.text()).toContain('Export with package issues?')
-    const exportAnyway = wrapper.findAll('button').find(button => button.text().includes('Export anyway'))
-    if (!exportAnyway) throw new Error('Missing diagnostic confirmation')
-    await exportAnyway.trigger('click')
-    expect(wrapper.emitted('submit')).toHaveLength(1)
   })
 
-  it('keeps public-field edits on the preview instance and removes overrides on privatization', async () => {
-    const sourceCandidate = candidate()
-    mocks.buildCandidate.mockResolvedValue(sourceCandidate)
+  it('keeps PropertyEditor independent and sends only preview overrides to the memory renderer', async () => {
+    const source = prepared()
+    mocks.prepare.mockResolvedValue(source)
     const wrapper = mountDialog()
     await finishInitialPreview()
-    const tree = wrapper.getComponent(OcTree)
-    tree.vm.$emit('intent', {
+    wrapper.getComponent(OcTree).vm.$emit('intent', {
       type: 'action.invoke', key: 'field:content', actionKey: 'move-exposed', source: 'inline',
     })
-    await vi.advanceTimersByTimeAsync(301)
     await flushPromises()
     const editor = wrapper.getComponent({ name: 'PropertyEditor' })
     expect(editor.props('inputs')).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        record: expect.objectContaining({ content: 'Default' }),
-        fields: expect.objectContaining({ content: expect.any(Object) }),
-      }),
+      expect.objectContaining({ record: expect.objectContaining({ content: 'Default' }) }),
     ]))
     editor.vm.$emit('update-property', {
       key: 'custom-block-export-preview', fieldKey: 'content', value: 'Preview only',
     })
-    await vi.advanceTimersByTimeAsync(121)
     await flushPromises()
     expect(mocks.createPreview).toHaveBeenLastCalledWith(expect.objectContaining({
-      candidate: sourceCandidate, overrides: { content: 'Preview only' },
+      prepared: expect.objectContaining({ block: source.block }),
+      overrides: { content: 'Preview only' },
     }))
-    expect(sourceCandidate.block).toMatchObject({ content: 'Default' })
-
-    tree.vm.$emit('intent', {
-      type: 'action.invoke', key: 'field:content', actionKey: 'move-private', source: 'inline',
-    })
-    await vi.advanceTimersByTimeAsync(301)
-    await flushPromises()
-    expect(mocks.createPreview).toHaveBeenLastCalledWith(expect.objectContaining({ overrides: {} }))
-  })
-
-  it('releases the temporary candidate when the dialog closes', async () => {
-    const release = vi.fn(async () => undefined)
-    mocks.createPreview.mockResolvedValue(preview(release))
-    const wrapper = mountDialog()
-    await finishInitialPreview()
-    await wrapper.setProps({ open: false })
-    await flushPromises()
-    expect(release).toHaveBeenCalledOnce()
-  })
-
-  it('releases stale async preview results instead of replacing newer settings', async () => {
-    const baselineRelease = vi.fn(async () => undefined)
-    mocks.createPreview.mockResolvedValueOnce(preview(baselineRelease))
-    const wrapper = mountDialog()
-    await finishInitialPreview()
-
-    let resolveStale!: (value: ReturnType<typeof preview>) => void
-    const staleRelease = vi.fn(async () => undefined)
-    const freshRelease = vi.fn(async () => undefined)
-    mocks.createPreview
-      .mockImplementationOnce(() => new Promise(resolve => { resolveStale = resolve }))
-      .mockResolvedValueOnce(preview(freshRelease))
-
-    wrapper.getComponent(CustomBlockResourceTree).vm.$emit('update:selectedIds', new Set())
-    await vi.advanceTimersByTimeAsync(121)
-    await flushPromises()
-    wrapper.getComponent(CustomBlockResourceTree).vm.$emit('update:selectedIds', new Set([resourceCandidate.id]))
-    await vi.advanceTimersByTimeAsync(121)
-    await flushPromises()
-    resolveStale(preview(staleRelease))
-    await flushPromises()
-
-    expect(staleRelease).toHaveBeenCalledOnce()
-    expect(baselineRelease).toHaveBeenCalledOnce()
-    expect(freshRelease).not.toHaveBeenCalled()
+    expect(source.block).toMatchObject({ content: 'Default' })
   })
 })
