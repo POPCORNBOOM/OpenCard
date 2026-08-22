@@ -148,6 +148,7 @@ import OcOverlayToolbar, { createViewportToolbarItems } from '../../../component
 import OcTree from '../../../components/standard/OcTree.vue'
 import OcOptionGroup, { type OcOption } from '../../../components/standard/OcOptionGroup.vue'
 import { toKeySlug } from '../../../shared/model/keySlug'
+import PropertyEditor from '../../../shared/ui/property-editor/PropertyEditor.vue'
 import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEditorMutation } from '../../../shared/ui/property-editor/propertyEditor.types'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'

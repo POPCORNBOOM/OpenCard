@@ -112,10 +112,6 @@ function mountDialog() {
       stubs: {
         Teleport: true,
         CardViewport: { template: '<div class="card-viewport-stub" />', methods: { fitView() {}, zoomBy() {} } },
-        PropertyEditor: {
-          name: 'PropertyEditor', props: ['inputs'], emits: ['update-property'],
-          template: '<div class="property-editor-stub" />',
-        },
       },
     },
   })
