@@ -227,6 +227,10 @@ export async function createProjectCustomBlockPreview(options: {
     dependencies,
   }
   const catalog = new Map([[options.prepared.manifest.packageId.toLocaleLowerCase(), runtimeEntry]])
+  const hostEnvironment: ProjectResourceEnvironment = {
+    ...options.sourceEnvironment,
+    customBlockCatalog: catalog,
+  }
   const unavailableDependencies = [...accessPolicy.packageIds].filter(packageId => !dependencies.has(packageId))
   const selectionIssues = collectProjectCustomBlockSelectionIssues(
     options.prepared, options.selectedResourceIds,
@@ -246,7 +250,7 @@ export async function createProjectCustomBlockPreview(options: {
       dictionary: null,
       remoteResourcePolicy: options.remoteResourcePolicy,
       projectIconCatalog: options.sourceEnvironment.iconCatalog,
-      projectResourceEnvironment: options.sourceEnvironment,
+      projectResourceEnvironment: hostEnvironment,
       customBlockCatalog: catalog,
     },
   })

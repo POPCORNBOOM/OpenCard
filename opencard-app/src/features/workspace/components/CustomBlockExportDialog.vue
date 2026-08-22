@@ -259,6 +259,11 @@ const effectiveResize = computed<ProjectCustomBlockResizePolicy>(() => ({
   heightLocked: !exposed.value.has('resize:height'),
 }))
 const exposedFieldKeys = computed(() => props.fields.map(field => field.key).filter(key => exposed.value.has(key)))
+const previewPropertyFieldKeys = computed(() => [
+  ...(!effectiveResize.value.widthLocked ? ['width'] : []),
+  ...(!effectiveResize.value.heightLocked ? ['height'] : []),
+  ...exposedFieldKeys.value,
+])
 const previewFitRect = computed(() => {
   const face = previewFace.value
   const child = face?.children?.[0]
@@ -327,18 +332,18 @@ function clonePreviewValue<T>(value: T, seen = new WeakMap<object, object>()): T
 
 const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   const current = prepared.value
-  if (!current || exposedFieldKeys.value.length === 0) return []
+  if (!current || previewPropertyFieldKeys.value.length === 0) return []
   const definitions = parseAdditionalFieldDefinitions(current.block.additionalFieldDefinition)
   const nativeSchema = getTypePropertyEditorSchema(current.block.type)
-  const defaults = Object.fromEntries(exposedFieldKeys.value.map(key => [
+  const defaults = Object.fromEntries(previewPropertyFieldKeys.value.map(key => [
     key,
     Object.prototype.hasOwnProperty.call(current.block, key)
       ? clonePreviewValue((current.block as Record<string, unknown>)[key])
       : '',
   ]))
   const values = { ...defaults, ...previewOverrides.value }
-  const publicKeys = new Set(exposedFieldKeys.value)
-  const override = Object.fromEntries(exposedFieldKeys.value.flatMap(key => {
+  const publicKeys = new Set(previewPropertyFieldKeys.value)
+  const override = Object.fromEntries(previewPropertyFieldKeys.value.flatMap(key => {
     const additional = definitions[key]
     const definition = additional ? getAdditionalFieldPropertyDefinition(additional) : nativeSchema[key]
     return definition ? [[key, { ...definition, required: true, resettable: Object.prototype.hasOwnProperty.call(previewOverrides.value, key) }]] : []
@@ -348,7 +353,7 @@ const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     translate: t,
     hasMessage: te,
     override,
-    labels: Object.fromEntries(exposedFieldKeys.value.map(key => [key, definitions[key]?.title ?? key])),
+    labels: Object.fromEntries(previewPropertyFieldKeys.value.map(key => [key, definitions[key]?.title ?? key])),
     customKeys: new Set(exposedFieldKeys.value.filter(key => Boolean(definitions[key]))),
   })
   return [{
@@ -564,9 +569,9 @@ function moveField(key: string, makePublic: boolean): void {
   if (makePublic) next.add(key)
   else next.delete(key)
   exposed.value = next
-  if (!makePublic && !key.startsWith('resize:')) {
+  if (!makePublic) {
     const overrides = { ...previewOverrides.value }
-    delete overrides[key]
+    delete overrides[key.startsWith('resize:') ? key.slice('resize:'.length) : key]
     previewOverrides.value = overrides
   }
 }
@@ -579,7 +584,7 @@ function handleFieldTreeIntent(intent: OcTreeIntent): void {
   }
 }
 function updatePreviewProperty(mutation: PropertyEditorMutation): void {
-  if (mutation.key !== 'custom-block-export-preview' || !exposedFieldKeys.value.includes(mutation.fieldKey)) return
+  if (mutation.key !== 'custom-block-export-preview' || !previewPropertyFieldKeys.value.includes(mutation.fieldKey)) return
   const next = { ...previewOverrides.value }
   if (mutation.value === undefined) delete next[mutation.fieldKey]
   else next[mutation.fieldKey] = mutation.value

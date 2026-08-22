@@ -12,6 +12,7 @@ import { createProjectCustomBlockPreview } from './projectCustomBlockPreview'
 const sourceEnvironment: ProjectResourceEnvironment = {
   kind: 'project', namespace: 'project-source', rootPath: '/project',
   fontDocument: {}, fonts: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+  customBlockCatalog: new Map(),
 }
 
 function prepared() {
@@ -72,6 +73,7 @@ describe('createProjectCustomBlockPreview', () => {
     const request = mocks.prepareRender.mock.calls[0]![0]
     expect(request.document).toMatchObject({ width: '570', height: '880' })
     const entry = request.environment.customBlockCatalog.get('alice/card')
+    expect(request.environment.projectResourceEnvironment.customBlockCatalog.get('alice/card')).toBe(entry)
     expect(resolveProjectEnvironmentAssetSrc('assets/allowed.png', entry.environment)).not.toBe('')
     expect(resolveProjectEnvironmentAssetSrc('assets/excluded.png', entry.environment)).toBe('')
     expect(entry.environment.fontDocument.families[0].files.normal).toEqual({ upright: 'fonts/body-normal.ttf' })

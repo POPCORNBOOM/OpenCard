@@ -141,6 +141,12 @@ describe('CustomBlockExportDialog', () => {
     expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height'])
     expect(tree.props('data').children.get('group:private')).toEqual(['field:content'])
     expect(wrapper.getComponent(CustomBlockResourceTree).props('selectedIds')).toEqual([resourceCandidate.id])
+    expect(wrapper.getComponent({ name: 'PropertyEditor' }).props('inputs')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        record: expect.objectContaining({ width: '', height: '' }),
+        fields: expect.objectContaining({ width: expect.any(Object), height: expect.any(Object) }),
+      }),
+    ]))
   })
 
   it('submits a fresh prepared snapshot without waiting for preview work', async () => {
