@@ -192,6 +192,12 @@ describe('CustomBlockExportDialog', () => {
     await vi.advanceTimersByTimeAsync(301)
     await flushPromises()
     const editor = wrapper.getComponent({ name: 'PropertyEditor' })
+    expect(editor.props('inputs')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        record: expect.objectContaining({ content: 'Default' }),
+        fields: expect.objectContaining({ content: expect.any(Object) }),
+      }),
+    ]))
     editor.vm.$emit('update-property', {
       key: 'custom-block-export-preview', fieldKey: 'content', value: 'Preview only',
     })

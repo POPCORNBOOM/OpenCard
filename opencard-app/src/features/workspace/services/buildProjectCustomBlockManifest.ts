@@ -11,8 +11,21 @@ import {
 } from '../model/projectCustomBlocks'
 import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
 
+function clonePackageValue<T>(value: T, seen = new WeakMap<object, object>()): T {
+  if (value === null || typeof value !== 'object') return value
+  const source = value as object
+  const existing = seen.get(source)
+  if (existing) return existing as T
+  const copy: unknown[] | Record<string, unknown> = Array.isArray(value) ? [] : {}
+  seen.set(source, copy)
+  for (const [key, entry] of Object.entries(source)) {
+    ;(copy as Record<string, unknown>)[key] = clonePackageValue(entry, seen)
+  }
+  return copy as T
+}
+
 export function buildProjectCustomBlockRoot(root: CardBlock): CardBlock {
-  const cloned = structuredClone(root)
+  const cloned = clonePackageValue(root)
   visitCardBlockTree(cloned, block => {
     const rawDefinitions = block.additionalFieldDefinition
     if (rawDefinitions !== undefined) {

@@ -1,3 +1,4 @@
+import { reactive } from 'vue'
 import { describe, expect, it } from 'vitest'
 import { createBlock } from '../../../entities/card/model'
 import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
@@ -40,6 +41,17 @@ describe('buildProjectCustomBlockManifest', () => {
       blockKey: 'badge',
       exposedFieldKeys: ['missing'],
     })).rejects.toThrow('not available on the root')
+  })
+
+  it('projects reactive editor blocks without invoking structuredClone on proxies', () => {
+    const root = reactive(createBlock('image-block', {
+      id: 'root',
+      image: 'assets/picture.png',
+    }))
+    expect(buildProjectCustomBlockRoot(root)).toMatchObject({
+      id: 'root',
+      image: 'assets/picture.png',
+    })
   })
 
   it('removes editor packaging state without flattening nested custom blocks', () => {

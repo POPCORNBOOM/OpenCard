@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CardDocument } from '../../../entities/card/model'
 import { getAdditionalFieldPropertyDefinition } from '../../../entities/card/model'
@@ -205,11 +205,11 @@ const version = ref(PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION)
 const exposed = ref(new Set<string>())
 const selectedResourceIds = ref(new Set<string>())
 const selectionInitialized = ref(false)
-const prepared = ref<PreparedProjectCustomBlockExport | null>(null)
-const candidate = ref<ProjectCustomBlockCandidate | null>(null)
-const previewSession = ref<ProjectCustomBlockCandidatePreview | null>(null)
-const previewFace = ref<RenderReadyCardFace | null>(null)
-const previewResources = ref<CardRenderResourceContext | null>(null)
+const prepared = shallowRef<PreparedProjectCustomBlockExport | null>(null)
+const candidate = shallowRef<ProjectCustomBlockCandidate | null>(null)
+const previewSession = shallowRef<ProjectCustomBlockCandidatePreview | null>(null)
+const previewFace = shallowRef<RenderReadyCardFace | null>(null)
+const previewResources = shallowRef<CardRenderResourceContext | null>(null)
 const previewOverrides = ref<Record<string, unknown>>({})
 const previewError = ref('')
 const preparing = ref(false)
@@ -298,6 +298,19 @@ const propertyActions = computed<OcCardAction[]>(() => [{
   key: 'reset-preview-values', icon: 'action.discard',
   title: t('customBlockRegistry.preview.reset'), disabled: Object.keys(previewOverrides.value).length === 0,
 }])
+function clonePreviewValue<T>(value: T, seen = new WeakMap<object, object>()): T {
+  if (value === null || typeof value !== 'object') return value
+  const source = value as object
+  const existing = seen.get(source)
+  if (existing) return existing as T
+  const copy: unknown[] | Record<string, unknown> = Array.isArray(value) ? [] : {}
+  seen.set(source, copy)
+  for (const [key, entry] of Object.entries(source)) {
+    ;(copy as Record<string, unknown>)[key] = clonePreviewValue(entry, seen)
+  }
+  return copy as T
+}
+
 const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   const current = candidate.value
   if (!current || exposedFieldKeys.value.length === 0) return []
@@ -306,7 +319,7 @@ const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   const defaults = Object.fromEntries(exposedFieldKeys.value.map(key => [
     key,
     Object.prototype.hasOwnProperty.call(current.block, key)
-      ? structuredClone(toRaw((current.block as Record<string, unknown>)[key]))
+      ? clonePreviewValue((current.block as Record<string, unknown>)[key])
       : '',
   ]))
   const values = { ...defaults, ...previewOverrides.value }
