@@ -18,13 +18,14 @@ describe('projectStructure', () => {
       PROJECT_DICTIONARY_FILE_NAME,
       ...PROJECT_INTERNAL_DIRECTORIES,
     ]).toEqual([
-      '.opencard/.ocproject',
-      '.opencard/.ocfonts',
-      '.opencard/.ocicons',
-      '.opencard/.oclocale',
+      '.opencard/project.json',
+      '.opencard/fonts/fonts.json',
+      '.opencard/icons/icons.json',
+      '.opencard/locale.json',
       '.opencard/fonts',
       '.opencard/icons',
       '.opencard/blocks',
+      '.opencard/packages',
     ])
   })
 

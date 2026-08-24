@@ -328,7 +328,6 @@
       :document="cardDoc"
       :root-block-id="customBlockExportBlock?.id ?? null"
       :fields="customBlockExportFields"
-      :resize="customBlockExportResize"
       :default-name="customBlockExportBlock?.name ?? ''"
       :default-key="customBlockExportDefaultKey"
       :project-root-path="props.resourceRootPath || projectStore.projectPath.value"
@@ -1303,7 +1302,6 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
 const {
   rawContent,
   cardDoc,
-  storageWarnings,
   documentRevision,
   parentLookup,
   markDocumentChanged,
@@ -1349,7 +1347,7 @@ const activeCustomBlockKeys = computed(() => {
   for (const face of Object.values(document.faces)) {
     for (const child of face.children) {
       visitCardBlockTree(child.block, block => {
-        if (block.type === 'custom-block') keys.add(block.packageId.toLowerCase())
+        if (block.type === 'custom-block') keys.add(block.customBlockKey.toLowerCase())
         if (block.type === 'text-block') collectRichTextKeys(block.content)
       })
     }
@@ -1670,14 +1668,13 @@ const customBlockRegistrationBusy = ref(false)
 const customBlockRegistrationError = ref('')
 const customBlockExportAnalysis = computed(() => customBlockExportBlock.value
   ? analyzeProjectCustomBlockExport(customBlockExportBlock.value)
-  : { fields: [] as readonly CustomBlockFieldAnalysis[], resize: { widthLocked: true, heightLocked: true } })
+  : { fields: [] as readonly CustomBlockFieldAnalysis[] })
 const customBlockExportFields = computed(() => customBlockExportAnalysis.value.fields.map(field => ({
   ...field,
   title: field.title ?? (te(`propertyEditor.fields.${field.key}`)
     ? t(`propertyEditor.fields.${field.key}`)
     : field.key),
 })))
-const customBlockExportResize = computed(() => customBlockExportAnalysis.value.resize)
 const customBlockExportDefaultKey = computed(() => toKeySlug(
   customBlockExportBlock.value?.name ?? '',
   'custom-block',
@@ -1766,9 +1763,7 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
 
 async function handleCustomBlockExport(payload: {
   name: string
-  publisherKey: string
   blockKey: string
-  version: string
   exposedFieldKeys: string[]
   selectedResourceIds: Set<string>
   prepared: PreparedProjectCustomBlockExport
@@ -1898,6 +1893,7 @@ const propertyProjectContext = computed(() => ({
   projectIconCatalog: projectStore.projectIconCatalog.value,
   customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
   customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+  resourceEnvironment: projectStore.projectResourceEnvironment.value,
   ensureCustomBlockLoaded: projectStore.ensureProjectCustomBlockLoaded,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
@@ -2236,7 +2232,7 @@ const transformDisabledBlockIds = computed(() => {
 })
 function resolveCustomBlockResizePolicy(block: CardBlock): ProjectCustomBlockResizePolicy {
   if (block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
-  const entry = projectStore.projectCustomBlockCatalog.value.get(block.packageId.toLowerCase())
+  const entry = projectStore.projectCustomBlockCatalog.value.get(block.customBlockKey.toLowerCase())
   if (!entry) return { widthLocked: false, heightLocked: false }
   const fields = resolvePropertyEditorSchema(entry.block as Readonly<Record<string, unknown>>).fields
   return {
@@ -2653,7 +2649,6 @@ const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
   result: renderPipelineResult.value,
-  storageWarnings: storageWarnings.value,
   translate: (key, parameters) => t(key, parameters ?? {}),
   resolveFieldLabel: (fieldKey) => {
     const messageKey = `propertyEditor.fields.${fieldKey}`

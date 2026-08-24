@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
+import { CARD_DOCUMENT_SUFFIX, RESOURCE_PACKAGE_SUFFIX } from '../../workspace/model/fileTypes'
 import { PROJECT_PROFILE_FILE_NAME } from '../../workspace/model/projectMetadata'
 import { PROJECT_FONT_REGISTRY_FILE_NAME } from '../../workspace/model/projectFontRegistry'
 import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../../workspace/model/projectIconRegistry'
@@ -12,7 +12,7 @@ import { PROJECT_CUSTOM_BLOCK_SUFFIX } from '../../workspace/model/projectCustom
 const EXTERNAL_OPEN_EVENT = 'external-open-requested'
 const TAKE_EXTERNAL_OPEN_REQUESTS_COMMAND = 'take_external_open_requests'
 
-export type ExternalOpenPathKind = 'card' | 'project-resource' | 'template' | 'icon-pack' | 'custom-block'
+export type ExternalOpenPathKind = 'card' | 'project-resource' | 'template' | 'icon-pack' | 'custom-block' | 'resource-package'
 
 export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | null {
   const normalizedPath = path.replace(/\\/g, '/')
@@ -29,6 +29,7 @@ export function classifyExternalOpenPath(path: string): ExternalOpenPathKind | n
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_TEMPLATE_PACKAGE_SUFFIX)) return 'template'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_ICON_PACK_PACKAGE_SUFFIX)) return 'icon-pack'
   if (comparableFileName.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_SUFFIX)) return 'custom-block'
+  if (comparableFileName.toLocaleLowerCase().endsWith(RESOURCE_PACKAGE_SUFFIX)) return 'resource-package'
   if (comparableFileName.toLocaleLowerCase().endsWith(CARD_DOCUMENT_SUFFIX)) return 'card'
   return null
 }

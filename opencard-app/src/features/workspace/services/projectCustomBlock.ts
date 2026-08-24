@@ -1,6 +1,12 @@
+import {
+  discoverProjectCustomBlockDefinitions,
+  parseProjectCustomBlockDefinitionText,
+  readProjectCustomBlockDefinition,
+  serializeProjectCustomBlockDefinition,
+} from './projectCustomBlockDefinition'
 import { strFromU8, strToU8, unzip, zip, zipSync, type UnzipFileInfo } from 'fflate'
 import type { FileSystemService } from './fileSystemService'
-import { normalizeStoredCardBlock } from '../../../entities/card/storage'
+import { parseStoredCardBlock } from '../../../entities/card/storage'
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
 import { toKeySlug } from '../../../shared/model/keySlug'
@@ -35,6 +41,8 @@ export type ProjectCustomBlockPackage = {
   block: CardBlock | null
   /** Transport-only resource payload. Installed runtime code reads the expanded directory instead. */
   files: ReadonlyMap<string, Uint8Array>
+  /** Resource candidates explicitly retained by the block author in a standalone .ocblock. */
+  declaredResourceDependencies?: readonly string[]
   issues: readonly ProjectCustomBlockPackageIssue[]
   hasResourceErrors: boolean
 }
@@ -222,13 +230,7 @@ function normalizeRoot(
   manifest: ProjectCustomBlockManifest,
   issues: ProjectCustomBlockPackageIssue[],
 ): { block: CardBlock | null, manifest: ProjectCustomBlockManifest } {
-  const normalized = normalizeStoredCardBlock(root)
-  issues.push(...normalized.warnings.map(warning => ({
-    code: 'block-entry-ignored' as const,
-    path: `${PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME}${warning.path.slice(1)}`,
-    message: warning.message,
-  })))
-  const block = normalized.block
+  const block = parseStoredCardBlock(root)
   if (!block || block.type === 'custom-block') {
     addIssue(issues, 'block-unavailable', PROJECT_CUSTOM_BLOCK_BLOCK_FILE_NAME, 'Root Block is unavailable')
     return { block: null, manifest }
@@ -392,8 +394,78 @@ export async function createProjectCustomBlockArchiveAsync(
 export async function readProjectCustomBlockPackage(
   fs: Pick<FileSystemService, 'readBinaryFile'>,
   sourcePath: string,
-): Promise<ProjectCustomBlockPackage> {
-  return await readProjectCustomBlockPackageFromBytes(await fs.readBinaryFile(sourcePath), sourcePath)
+ ): Promise<ProjectCustomBlockPackage> {
+  const bytes = await fs.readBinaryFile(sourcePath)
+  if (sourcePath.toLocaleLowerCase().endsWith('.ocblock')) {
+    const content = strFromU8(bytes)
+    const fileName = sourcePath.replace(/\\/g, '/').split('/').pop() ?? 'custom-block'
+    const fallbackKey = fileName.replace(/\.ocblock$/i, '')
+    const parsed = parseProjectCustomBlockDefinitionText(content, fallbackKey)
+    const definition = parsed.definition
+    return {
+      manifest: {
+        type: 'opencard-custom-block',
+        packageId: `block:${definition?.key ?? fallbackKey}`,
+        version: '0.0.0',
+        name: definition?.name ?? fallbackKey,
+        publicFieldKeys: definition?.publicFieldKeys ?? [],
+      },
+      block: definition?.root ?? null,
+      files: new Map(),
+      declaredResourceDependencies: definition?.declaredResourceDependencies ?? [],
+      issues: parsed.issues.map(issue => ({
+        code: issue.code === 'invalid-root' ? 'block-entry-ignored' as const : 'manifest-field-ignored' as const,
+        path: issue.path,
+        message: issue.message,
+      })),
+      hasResourceErrors: false,
+    }
+  }
+  return await readProjectCustomBlockPackageFromBytes(bytes, sourcePath)
+}
+
+export async function readProjectCustomBlockDefinitionAsPackage(
+  fs: Pick<FileSystemService, 'readFile'>,
+  sourcePath: string,
+ ): Promise<ProjectCustomBlockPackage> {
+  const normalizedPath = sourcePath.replace(/[\\/]+$/, '')
+  const fileName = normalizedPath.split('/').pop() ?? 'custom-block'
+  const fallbackKey = fileName.replace(/\.ocblock$/i, '')
+  const result = await readProjectCustomBlockDefinition(fs, sourcePath)
+  const issueCode = (code: 'invalid-definition' | 'invalid-root' | 'duplicate-key'): ProjectCustomBlockPackageIssue['code'] => (
+    code === 'invalid-root' ? 'block-unavailable' : 'manifest-field-ignored'
+  )
+  if (!result.definition) {
+    return {
+      manifest: {
+        type: 'opencard-custom-block',
+        packageId: `block:${fallbackKey}`,
+        version: '0.0.0',
+        name: fallbackKey,
+        publicFieldKeys: [],
+      },
+      block: null,
+      files: new Map(),
+      declaredResourceDependencies: [],
+      issues: result.issues.map(issue => ({ code: issueCode(issue.code), path: issue.path, message: issue.message })),
+      hasResourceErrors: false,
+    }
+  }
+  const definition = result.definition
+  return {
+    manifest: {
+      type: 'opencard-custom-block',
+      packageId: `block:${definition.key}`,
+      version: '0.0.0',
+      name: definition.name,
+      publicFieldKeys: definition.publicFieldKeys,
+    },
+    block: definition.root,
+    files: new Map(),
+    declaredResourceDependencies: definition.declaredResourceDependencies,
+    issues: result.issues.map(issue => ({ code: issueCode(issue.code), path: issue.path, message: issue.message })),
+    hasResourceErrors: false,
+  }
 }
 
 export async function readProjectCustomBlockManifest(
@@ -441,45 +513,26 @@ export async function discoverInstalledProjectCustomBlocks(
 ): Promise<Map<string, ProjectCustomBlockManifestCatalogEntry>> {
   const root = projectRootPath.replace(/[\\/]+$/, '')
   const blocksRoot = `${root}/.opencard/blocks`
-  if (!await fs.fileExists(blocksRoot)) return new Map()
-  const entries = await fs.readDirectoryEntries(blocksRoot, 2)
-  const packageDirectories = entries.filter(entry => (
-    entry.isDirectory && !entry.isSymlink && entry.name.replace(/\\/g, '/').split('/').length === 2
-  ))
   const catalog = new Map<string, ProjectCustomBlockManifestCatalogEntry>()
-  for (const directory of packageDirectories) {
-    const relativeDirectory = directory.name.replace(/\\/g, '/')
-    const expectedPackageId = normalizeProjectCustomBlockPackageId(relativeDirectory)
-    if (!expectedPackageId) continue
-    const installationPath = `${blocksRoot}/${relativeDirectory}`
-    try {
-      const result = await readInstalledProjectCustomBlockManifest(fs, installationPath)
-      const identityMatchesPath = result.manifest.packageId.toLocaleLowerCase() === expectedPackageId
-      const issues = [...result.issues]
-      if (!identityMatchesPath) {
-        addIssue(issues, 'manifest-field-ignored', 'packageId', 'Package ID does not match the installation directory')
-      }
-      catalog.set(expectedPackageId, {
-        manifest: identityMatchesPath ? result.manifest : { ...result.manifest, packageId: expectedPackageId },
-        installationPath,
-        resourceRootPath: `${installationPath}/${PROJECT_CUSTOM_BLOCK_RESOURCES_DIRECTORY_NAME}`,
-        loadState: identityMatchesPath ? 'unloaded' : 'error',
-        issues,
-        ...(!identityMatchesPath ? { unavailable: true } : {}),
-      })
-    } catch (cause) {
-      const fallback = normalizeProjectCustomBlockManifest({}, expectedPackageId).manifest
-      catalog.set(expectedPackageId, {
-        manifest: fallback,
-        installationPath,
-        resourceRootPath: `${installationPath}/${PROJECT_CUSTOM_BLOCK_RESOURCES_DIRECTORY_NAME}`,
-        loadState: 'error',
-        unavailable: true,
-        issues: [{
-          code: 'manifest-field-ignored',
-          path: PROJECT_CUSTOM_BLOCK_MANIFEST_FILE_NAME,
-          message: cause instanceof Error ? cause.message : String(cause),
-        }],
+  if (await fs.fileExists(blocksRoot)) {
+    const localDefinitions = await discoverProjectCustomBlockDefinitions(fs, root)
+    for (const [identity, entry] of localDefinitions) {
+      catalog.set(`block:${identity}`, {
+        manifest: {
+          type: 'opencard-custom-block',
+          packageId: `block:${entry.definition.key}`,
+          version: '0.0.0',
+          name: entry.definition.name,
+          publicFieldKeys: entry.definition.publicFieldKeys,
+        },
+        installationPath: entry.path,
+        resourceRootPath: root,
+        loadState: 'unloaded',
+        ...(entry.issues ? { issues: entry.issues.map(issue => ({
+          code: issue.code === 'invalid-root' ? 'block-entry-ignored' as const : 'manifest-field-ignored' as const,
+          path: issue.path,
+          message: issue.message,
+        })) } : {}),
       })
     }
   }
@@ -593,6 +646,31 @@ export async function installProjectCustomBlockPackage(options: {
   sourcePath: string
   createId?: () => string
 }): Promise<ProjectCustomBlockInstallResult> {
+  if (options.sourcePath.toLocaleLowerCase().endsWith('.ocblock')) {
+    const source = await readProjectCustomBlockPackage(options.fs, options.sourcePath)
+    if (!source.block) throw new Error('Custom block definition cannot form a usable Block')
+    const key = source.manifest.packageId.replace(/^block:/i, '') || 'custom-block'
+    const projectRoot = options.projectRootPath.replace(/[\\/]+$/, '')
+    const directory = `${projectRoot}/.opencard/blocks`
+    const target = `${directory}/${key}.ocblock`
+    const replaced = await options.fs.fileExists(target)
+    await options.fs.createDirectory(directory)
+    await options.fs.writeFile(target, serializeProjectCustomBlockDefinition({
+      type: 'opencard-custom-block',
+      key,
+      name: source.manifest.name,
+      root: source.block,
+      publicFieldKeys: source.manifest.publicFieldKeys,
+      declaredResourceDependencies: source.declaredResourceDependencies ?? [],
+    }))
+    return {
+      manifest: source.manifest,
+      installationPath: target,
+      resourceRootPath: projectRoot,
+      replaced,
+      issues: source.issues,
+    }
+  }
   return await installProjectCustomBlockPackageFromBytes({
     ...options,
     bytes: await options.fs.readBinaryFile(options.sourcePath),
@@ -604,6 +682,14 @@ export async function uninstallProjectCustomBlockPackage(options: {
   projectRootPath: string
   packageId: string
 }): Promise<boolean> {
+  const normalized = options.packageId.toLocaleLowerCase()
+  if (normalized.startsWith('block:')) {
+    const key = normalized.slice('block:'.length)
+    const target = `${options.projectRootPath.replace(/[\\/]+$/, '')}/.opencard/blocks/${key}.ocblock`
+    if (!await options.fs.fileExists(target)) return false
+    await options.fs.deleteFile(target)
+    return true
+  }
   const relativePath = projectCustomBlockInstallationRelativePath(options.packageId)
   if (!relativePath) throw new Error('Invalid custom block Package ID')
   const target = `${options.projectRootPath.replace(/[\\/]+$/, '')}/${relativePath}`
@@ -613,18 +699,25 @@ export async function uninstallProjectCustomBlockPackage(options: {
 }
 
 export async function exportProjectCustomBlockPackage(options: {
-  fs: Pick<FileSystemService, 'writeBinaryFile'>
+  fs: Pick<FileSystemService, 'writeBinaryFile'> & Partial<Pick<FileSystemService, 'writeFile'>>
   manifest: ProjectCustomBlockManifest
   block: CardBlock
   files?: ReadonlyMap<string, Uint8Array>
+  declaredResourceDependencies?: readonly string[]
   outputPath: string
 }): Promise<string> {
   const outputPath = options.outputPath.toLocaleLowerCase().endsWith('.ocblock')
     ? options.outputPath
     : `${options.outputPath}.ocblock`
-  await options.fs.writeBinaryFile(
-    outputPath,
-    await createProjectCustomBlockArchiveAsync(options.manifest, options.block, options.files),
-  )
+  const content = serializeProjectCustomBlockDefinition({
+    type: 'opencard-custom-block',
+    key: options.manifest.packageId.split('/').pop()?.replace(/^block:/i, '') ?? 'custom-block',
+    name: options.manifest.name,
+    root: options.block,
+    publicFieldKeys: options.manifest.publicFieldKeys,
+    declaredResourceDependencies: options.declaredResourceDependencies ?? [],
+  })
+  if (options.fs.writeFile) await options.fs.writeFile(outputPath, content)
+  else await options.fs.writeBinaryFile(outputPath, strToU8(content))
   return outputPath
 }

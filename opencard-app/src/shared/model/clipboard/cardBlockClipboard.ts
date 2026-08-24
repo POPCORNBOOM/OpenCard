@@ -4,7 +4,7 @@ import type {
   FlowContainerLocationInfo,
   SimpleContainerLocationInfo,
 } from '../../../entities/card/model'
-import { normalizeStoredCardBlock } from '../../../entities/card/storage'
+import { parseStoredCardBlock } from '../../../entities/card/storage'
 import { isBlockContainer } from '../../../entities/card/tree'
 
 export const OC_CLIPBOARD_MIME = 'application/x-opencard-clipboard+json'
@@ -64,10 +64,10 @@ function normalizeLocation(value: unknown): CardBlockLocation | null {
 
 function normalizeBlockPayload(value: unknown): CardBlockPayload | null {
   if (!isRecord(value)) return null
-  const normalized = normalizeStoredCardBlock(value.block)
+  const block = parseStoredCardBlock(value.block)
   const location = normalizeLocation(value.location)
-  if (!normalized.block || !location) return null
-  return { block: normalized.block, location }
+  if (!block || !location) return null
+  return { block, location }
 }
 
 function normalizeBlocksPayload(value: unknown): CardBlocksPayload | null {

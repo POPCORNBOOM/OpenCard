@@ -96,7 +96,7 @@ function resourceRoot() {
       location: { id: 'text-location', type: 'simple-container-location', anchor: 'lt' },
     },
     {
-      block: createBlock('custom-block', { id: 'child', packageId: 'bob/child' }),
+      block: createBlock('custom-block', { id: 'child', customBlockKey: 'bob@block:child' }),
       location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
     },
   )
@@ -119,13 +119,22 @@ describe('project custom block resource analysis', () => {
     expect(byId.get('custom-block:bob/child')).toMatchObject({ automatic: true, packageId: 'bob/child' })
   })
 
-  it('keeps missing static images visible as selected diagnostic candidates', async () => {
-    const root = createBlock('image-block', { id: 'missing', image: 'assets/missing.png' })
-    const analysis = await analyzeProjectCustomBlockResources({ root, projectRootPath: '/project', fs })
-    expect(analysis.candidates).toContainEqual(expect.objectContaining({
-      id: 'image:assets/missing.png', automatic: true, missing: true,
-    }))
-    expect(analysis.defaultSelectedIds.has('image:assets/missing.png')).toBe(true)
+  it('records host and package-scoped typed references without materializing them locally', async () => {
+    const root = createBlock('text-block', {
+      id: 'scoped',
+      fontFamily: '@font:body; theme@font:body',
+      content: '[[theme@icon:status/star]]',
+    })
+    const analysis = await analyzeProjectCustomBlockResources({
+      root, projectRootPath: '/project', fs, projectFonts, projectIconSeries,
+    })
+    expect(analysis.candidates.filter(candidate => candidate.automatic)).toEqual([])
+    expect(analysis.dependencies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'font', scope: 'host', key: 'body' }),
+      expect.objectContaining({ kind: 'font', scope: 'package', packageKey: 'theme', key: 'body' }),
+      expect.objectContaining({ kind: 'package', scope: 'package', packageKey: 'theme' }),
+      expect.objectContaining({ kind: 'icon', scope: 'package', packageKey: 'theme', key: 'status/star' }),
+    ]))
   })
 
   it('materializes only the final selection, trims registries, and copies nested packages recursively', async () => {
@@ -146,13 +155,10 @@ describe('project custom block resource analysis', () => {
     expect(result.files.has('resources/.opencard/blocks/bob/child/manifest.json')).toBe(true)
     expect(result.files.has('resources/.opencard/blocks/bob/child/resources/.opencard/blocks/carol/grandchild/manifest.json')).toBe(true)
 
-    const fontRegistry = parseProjectFontRegistryText(strFromU8(result.files.get('resources/.opencard/.ocfonts')!))
+    const fontRegistry = parseProjectFontRegistryText(strFromU8(result.files.get('resources/.opencard/fonts.json')!))
     expect(fontRegistry?.families?.map(font => font.key)).toEqual(['body', 'symbols'])
     expect(fontRegistry?.compositions?.map(composition => composition.key)).toEqual(['mixed'])
-    const iconRegistry = parseProjectIconRegistryText(strFromU8(result.files.get('resources/.opencard/.ocicons')!))
+    const iconRegistry = parseProjectIconRegistryText(strFromU8(result.files.get('resources/.opencard/icons.json')!))
     expect(iconRegistry?.iconSeries?.[0]?.icons.map(icon => icon.iconKey)).toEqual(['star'])
-    expect(result.issues).toContainEqual(expect.objectContaining({
-      code: 'resource-unavailable', path: 'assets/background.png',
-    }))
   })
 })

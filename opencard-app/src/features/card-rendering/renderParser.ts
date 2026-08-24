@@ -1,4 +1,5 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
+import { createPropertyDefaultValue, getPropertyAllowedValues, resolvePropertyEditorSchema } from '../../entities/card/schema'
 import { isRenderCssColor, isRenderCssLength, normalizeRenderCssLength } from './renderValueSyntax'
 import {
   createCardPipelineIssue,
@@ -157,6 +158,7 @@ function parseBlock(
     typeName: type,
   }
   const fields = createFieldReader(source, context, issues)
+  validateAdditionalFields(source, context, issues)
   const base = parseBaseBlock(fields)
 
   context.blockId = base.id || undefined
@@ -260,7 +262,7 @@ function parseBlock(
       return {
         ...base,
         type,
-        packageId: fields.string('packageId'),
+        customBlockKey: fields.string('customBlockKey'),
         content: null,
       }
   }
@@ -357,6 +359,59 @@ function createLocationContext(
     blockPath,
     blockId: block.id || undefined,
     typeName,
+  }
+}
+
+function dynamicRenderContract(
+  definition: ReturnType<typeof resolvePropertyEditorSchema>['fields'][string],
+ ): RenderFieldContract | null {
+  let kind: RenderFieldContract['kind']
+  switch (definition.fieldType) {
+    case 'filePath':
+      kind = 'file-path'
+      break
+    case 'number':
+    case 'boolean':
+      kind = definition.fieldType
+      break
+    case 'color':
+      kind = 'color'
+      break
+    case 'string':
+      kind = 'string'
+      break
+    case 'object':
+      return null
+    default:
+      kind = 'option'
+      break
+  }
+  const allowedValues = getPropertyAllowedValues(definition)
+  return {
+    kind,
+    defaultValue: createPropertyDefaultValue(definition),
+    ...(definition.required ? { required: true } : {}),
+    ...(definition.min !== undefined ? { min: definition.min } : {}),
+    ...(definition.max !== undefined ? { max: definition.max } : {}),
+    ...(allowedValues ? { options: allowedValues } : {}),
+  }
+}
+
+function validateAdditionalFields(
+  source: SourceRecord,
+  context: IssueContext,
+  issues: CardPipelineIssue[],
+ ): void {
+  const schema = resolvePropertyEditorSchema(source)
+  for (const fieldKey of schema.customKeys) {
+    const contract = dynamicRenderContract(schema.fields[fieldKey])
+    if (!contract || !Object.prototype.hasOwnProperty.call(source, fieldKey)) continue
+    const parsed = parseRenderField(source[fieldKey], contract)
+    if (!parsed.ok) {
+      for (const diagnostic of parsed.diagnostics) {
+        pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
+      }
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createImageBlock, type CardDocument } from './model'
-import { normalizeCardDocument, serializeCardDocument, serializeCardDocumentWithWarnings } from './storage'
+import type { CardDocument } from './model'
+import { parseCardDocument, parseStoredCardBlock, stringifyCardDocument } from './storage'
 
 function createDocument(): CardDocument {
   return {
@@ -10,7 +10,8 @@ function createDocument(): CardDocument {
         type: 'card-face', id: 'front', background: '#fff',
         children: [{
           block: {
-            type: 'text-block', id: 'text', content: 'Hello',
+            type: 'custom-block', id: 'custom', customBlockKey: 'block:card',
+            width: '100%', mystery: 'preserved',
             additionalFieldDefinition: { score: { fieldType: 'number', title: 'Score' } }, score: '12',
           } as any,
           location: { type: 'simple-container-location', id: 'location', anchor: 'lt', x: '0', y: '0' },
@@ -18,136 +19,31 @@ function createDocument(): CardDocument {
       },
       back: { type: 'card-face', id: 'back', background: '#000', children: [] },
     },
-    instances: [{ type: 'card-instance', id: 'instance', name: 'Instance', amount: '1', data: { text: { score: '24' } } }],
+    instances: [{ type: 'card-instance', id: 'instance', name: 'Instance', amount: '1', data: { custom: { width: '80%' } } }],
   }
 }
 
-describe('card document storage projection', () => {
-  it('writes only the current model without a schema version', () => {
-    const source = createDocument() as unknown as Record<string, unknown>
-    source.schemaVersion = 'old'
-    source.extra = true
-    const serialized = serializeCardDocument(normalizeCardDocument(source).document)
-
-    expect(JSON.parse(serialized)).not.toHaveProperty('schemaVersion')
-    expect(JSON.parse(serialized)).not.toHaveProperty('extra')
-  })
-
-  it('does not materialize missing schema fields while serializing', () => {
-    const stored = JSON.parse(serializeCardDocument(createDocument()))
-    const block = stored.faces.front.children[0].block
-
-    expect(stored).not.toHaveProperty('description')
-    expect(block).toMatchObject({ type: 'text-block', id: 'text', content: 'Hello' })
-    expect(block).not.toHaveProperty('width')
-    expect(block).not.toHaveProperty('fontSize')
-    expect(block).not.toHaveProperty('visible')
-  })
-
-  it('fills required fields while preserving missing optional fields', () => {
-    const result = normalizeCardDocument({
-      faces: { front: { children: [{ block: { type: 'text-block' }, location: {} }] } },
-      instances: [{}],
-    })
-
-    expect(result.document.type).toBe('card-document')
-    expect(result.document.faces.front.type).toBe('card-face')
-    expect(result.document.faces.back.type).toBe('card-face')
-    expect(result.document.faces.front.children[0]?.block.type).toBe('text-block')
-    const block = result.document.faces.front.children[0]?.block as unknown as Record<string, unknown>
-    expect(block.content).toBe('')
-    expect(block).not.toHaveProperty('width')
-    expect(result.document).not.toHaveProperty('description')
-    expect(result.document.faces.front.children[0]?.location.type).toBe('simple-container-location')
-    expect(result.document.instances[0]?.type).toBe('card-instance')
-
-    const stored = JSON.parse(serializeCardDocument(result.document))
-    expect(stored).not.toHaveProperty('description')
-    expect(stored.faces.front.children[0].block).not.toHaveProperty('width')
-  })
-
-  it('ignores unknown Blocks and invalid collection entries without losing siblings', () => {
-    const source = createDocument() as unknown as Record<string, unknown>
-    const faces = source.faces as Record<string, Record<string, unknown>>
-    const children = faces.front!.children as unknown[]
-    children.unshift({ block: { type: 'future-block', id: 'future' }, location: {} }, null)
-    source.instances = [null, ...(source.instances as unknown[])]
-
-    const result = normalizeCardDocument(source)
-    expect(result.document.faces.front.children.map(child => child.block.id)).toEqual(['text'])
-    expect(result.document.faces.back.children).toEqual([])
-    expect(result.document.instances.map(instance => instance.id)).toEqual(['instance'])
-    expect(result.warnings.some(warning => warning.path.includes('children'))).toBe(true)
-  })
-
-  it('ignores malformed extension definitions and keeps valid declared fields', () => {
-    const source = createDocument() as unknown as Record<string, unknown>
-    const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>
-    block.additionalFieldDefinition = {
-      score: { fieldType: 'number', title: 'Score' },
-      broken: { datatype: 'number' },
-    }
-    block.broken = 'discard me'
-
-    const normalized = normalizeCardDocument(source).document
-    const stored = JSON.parse(serializeCardDocument(normalized))
-    expect(stored.faces.front.children[0].block.score).toBe('12')
-    expect(stored.faces.front.children[0].block).not.toHaveProperty('broken')
-  })
-
-  it('projects only constraints supported by each additional field type', () => {
-    const source = createDocument() as unknown as Record<string, unknown>
-    const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>
-    block.additionalFieldDefinition = {
-      label: {
-        fieldType: 'string', minLength: 1, maxLength: 12, multiline: true,
-        options: ['One', '', 'one', 'Two'], enumMode: 'select', min: 5,
-      },
-      score: { fieldType: 'number', min: 0, max: 100, step: 5, multiline: true },
-    }
-
-    const normalized = normalizeCardDocument(source).document
-    expect(normalized.faces.front.children[0]!.block.additionalFieldDefinition).toEqual({
-      label: { fieldType: 'string', minLength: 1, maxLength: 12, multiline: true, options: ['One', 'Two'], enumMode: 'select' },
-      score: { fieldType: 'number', min: 0, max: 100, step: 5 },
-    })
-  })
-
-  it('keeps custom instance extras in memory and writes only resolvable public fields', () => {
-    const source = createDocument() as unknown as Record<string, unknown>
-    const block = ((source.faces as any).front.children[0].block) as Record<string, unknown>
-    Object.assign(block, { type: 'custom-block', packageId: 'alice/badge', title: 'Visible', source: 'old', mystery: 'value' })
-    const normalized = normalizeCardDocument(source).document
-    const projected = normalized.faces.front.children[0]!.block as unknown as Record<string, unknown>
-    expect(projected.mystery).toBe('value')
-
-    const stored = JSON.parse(serializeCardDocument(normalized, {
-      resolveCustomBlockPublicFieldKeys: () => ['title'],
-    }))
-    expect(stored.faces.front.children[0].block.title).toBe('Visible')
-    expect(stored.faces.front.children[0].block).not.toHaveProperty('source')
-    expect(stored.faces.front.children[0].block).not.toHaveProperty('mystery')
-  })
-
-  it('preserves field values without duplicating binding or render diagnostics', () => {
+describe('card document storage', () => {
+  it('round-trips the in-memory document without schema projection', () => {
     const document = createDocument()
-    const block = document.faces.front.children[0]!.block as unknown as Record<string, unknown>
-    block.color = 'not a color!'
-    block.opacity = '2'
-    document.faces.front.children.push({
-      block: createImageBlock({ id: 'image', image: '{{parent.parent:image}}' }),
-      location: { type: 'simple-container-location', id: 'image-location', anchor: 'lt', x: '0', y: '0' },
-    })
-
-    const result = serializeCardDocumentWithWarnings(document)
-    const stored = JSON.parse(result.text).faces.front.children
-
-    expect(stored[0].block).toMatchObject({ color: 'not a color!', opacity: '2' })
-    expect(stored[1].block.image).toBe('{{parent.parent:image}}')
-    expect(result.warnings).toEqual([])
+    const stored = JSON.parse(stringifyCardDocument(document))
+    expect(stored).toEqual(document)
   })
 
-  it('hard-fails only when the root cannot form a document', () => {
-    expect(() => normalizeCardDocument(null)).toThrow('JSON object')
+  it('preserves unknown and custom block fields during parsing', () => {
+    const source = createDocument() as unknown as Record<string, unknown>
+    source.extra = true
+    const parsed = parseCardDocument(source)
+    expect(parsed).toBe(source)
+    expect(parsed).toHaveProperty('extra', true)
+    expect(parsed.faces.front.children[0]?.block).toMatchObject({ width: '100%', mystery: 'preserved' })
+  })
+
+  it('only rejects a non-object document root', () => {
+    expect(() => parseCardDocument(null)).toThrow('JSON object')
+    expect(parseStoredCardBlock({ type: 'custom-block', id: 'x', customBlockKey: 'block:x' })).toMatchObject({
+      type: 'custom-block',
+    })
+    expect(parseStoredCardBlock({ type: 1 })).toBeNull()
   })
 })

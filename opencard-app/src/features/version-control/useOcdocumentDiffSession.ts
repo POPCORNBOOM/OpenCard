@@ -1,3 +1,4 @@
+import { parseResourceReferenceList } from '../workspace/services/resourceReference'
 import { computed, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -66,10 +67,11 @@ function createSnapshotFontResolver(root: string, fontDocument: NonNullable<Retu
     ))).join('')
     document.head.appendChild(style)
   }
-  return references => references.split(';').map(reference => {
-    const value = reference.trim()
-    if (!value.toLowerCase().startsWith('font:')) return value
-    const key = value.slice(5).trim().toLowerCase()
+  return references => parseResourceReferenceList(references, 'font').map(token => {
+    if (token.diagnostics.length > 0) return ''
+    if (!token.reference) return token.source
+    if (token.reference.scope !== 'current') return ''
+    const key = token.reference.key.toLocaleLowerCase()
     const family = families.get(key) ?? (compositions.get(key) ? families.get(compositions.get(key)!) : undefined)
     return family ? JSON.stringify(family) : ''
   }).filter(Boolean).join(', ')

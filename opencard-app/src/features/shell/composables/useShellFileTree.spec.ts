@@ -1,12 +1,8 @@
-import { nextTick, ref } from 'vue'
+import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY,
-  PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY,
-  PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY,
-  PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY,
   projectEntryMoreActionKey,
   useShellFileTree,
 } from './useShellFileTree'
@@ -130,65 +126,42 @@ describe('useShellFileTree opened editors', () => {
       activateSession: vi.fn(),
       openPreviewFile,
       ensureProjectManagementStructure,
-      registeredFontSources: ref(['fonts/Brand.otf']),
-      registeredIconSources: ref(['icons/status.png']),
     })
 
     expect(result.projectManagementTreeData.value.rootKeys).toEqual([
-      `${projectPath}/.opencard/.ocproject`,
-      `${projectPath}/.opencard/.oclocale`,
-      `${projectPath}/.opencard/.ocfonts`,
-      `${projectPath}/.opencard/.ocicons`,
-      `${projectPath}/.opencard/blocks`,
+      `${projectPath}/.opencard/project.json`,
+      `${projectPath}/.opencard/locale.json`,
+      `${projectPath}/.opencard/fonts/fonts.json`,
+      `${projectPath}/.opencard/icons/icons.json`,
+      `${projectPath}/.opencard/blocks/blocks.json`,
+      `${projectPath}/.opencard/packages/packages.json`,
     ])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`)?.label)
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.label)
       .toBe('translated:fileTypes.opencardFontRegistry')
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`))
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`))
       .toMatchObject({ icon: 'file.font', iconTone: 'config' })
-    expect(result.projectManagementTreeData.value.children.get(`${projectPath}/.opencard/.ocfonts`))
-      .toEqual([
-        `${projectPath}/.opencard/fonts/Brand.otf`,
-        `${projectPath}/.opencard/fonts/Unused.otf`,
-      ])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/Brand.otf`))
-      .toMatchObject({ label: 'Brand.otf', icon: 'file.font', iconTone: 'active' })
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/Brand.otf`)?.actions)
+    expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/fonts/fonts.json`)).toBe(false)
+    expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/icons/icons.json`)).toBe(false)
+    expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/blocks/blocks.json`)).toBe(false)
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.actions)
       .toBeUndefined()
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/Unused.otf`)?.actions)
-      .toEqual([PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocfonts`)?.actions)
-      .toEqual([PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY])
-    expect(result.unusedProjectFontFileKeys.value)
-      .toEqual([`${projectPath}/.opencard/fonts/Unused.otf`])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/status.png`))
-      .toMatchObject({ label: 'status.png', icon: 'file.image' })
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/status.png`)?.actions)
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/icons.json`)?.actions)
       .toBeUndefined()
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/unused.png`)?.actions)
-      .toEqual([PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/.ocicons`)?.actions)
-      .toEqual([PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY])
-    expect(result.unusedProjectIconFileKeys.value)
-      .toEqual([`${projectPath}/.opencard/icons/unused.png`])
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/alice/square`))
-      .toMatchObject({ label: 'square', icon: 'file.custom-block' })
+    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/blocks.json`)?.actions)
+      .toBeUndefined()
     expect(result.projectManagementExpandedKeys.value).toEqual([
-      `${projectPath}/.opencard/.ocfonts`,
-      `${projectPath}/.opencard/.ocicons`,
-      `${projectPath}/.opencard/blocks`,
-      `${projectPath}/.opencard/blocks/alice`,
-      `${projectPath}/.opencard/blocks/alice/square`,
+      `${projectPath}/.opencard/packages/packages.json`,
+      `${projectPath}/.opencard/packages/alice`,
+      `${projectPath}/.opencard/packages/alice/square`,
     ])
 
-    const fontRegistryKey = `${projectPath}/.opencard/.ocfonts`
-    expect(result.setProjectManagementEntryExpanded(fontRegistryKey, false)).toBe(true)
-    expect(result.projectManagementExpandedKeys.value).not.toContain(fontRegistryKey)
-    expect(result.setProjectManagementEntryExpanded(fontRegistryKey, true)).toBe(true)
-    expect(result.projectManagementExpandedKeys.value).toContain(fontRegistryKey)
+    const fontRegistryKey = `${projectPath}/.opencard/fonts/fonts.json`
+    expect(result.setProjectManagementEntryExpanded(fontRegistryKey, false)).toBe(false)
+    expect(result.setProjectManagementEntryExpanded(fontRegistryKey, true)).toBe(false)
 
-    await result.handleProjectManagementSelect([`${projectPath}/.opencard/.ocfonts`])
+    await result.handleProjectManagementSelect([`${projectPath}/.opencard/fonts/fonts.json`])
     expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
-    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/.ocfonts`)
+    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/fonts/fonts.json`)
 
     await result.handleProjectManagementSelect([`${projectPath}/.opencard/icons/status.png`])
     expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
@@ -197,8 +170,6 @@ describe('useShellFileTree opened editors', () => {
 
   it('does not expose cleanup actions before asset registries finish loading', async () => {
     const projectPath = 'D:/project'
-    const registeredFontSources = ref<readonly string[] | null>(null)
-    const registeredIconSources = ref<readonly string[] | null>(null)
     const result = useShellFileTree({
       projectPath: ref(projectPath),
       indexedEntries: ref([
@@ -212,17 +183,9 @@ describe('useShellFileTree opened editors', () => {
       activateSession: vi.fn(),
       openPreviewFile: vi.fn(async () => undefined),
       ensureProjectManagementStructure: vi.fn(async () => undefined),
-      registeredFontSources,
-      registeredIconSources,
     })
 
-    expect(result.unusedProjectFontFileKeys.value).toEqual([])
-    expect(result.unusedProjectIconFileKeys.value).toEqual([])
-    registeredFontSources.value = []
-    registeredIconSources.value = []
-    await nextTick()
-    expect(result.unusedProjectFontFileKeys.value).toHaveLength(1)
-    expect(result.unusedProjectIconFileKeys.value).toHaveLength(1)
+    expect(result.projectManagementTreeData.value.children.size).toBe(0)
   })
 
   it('keeps selection references stable when active editor content changes', async () => {

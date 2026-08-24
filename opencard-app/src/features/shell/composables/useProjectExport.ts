@@ -5,7 +5,7 @@
  * - 只提供端口适配和运行生命周期，不定义队列、命名、冲突或失败策略。
  */
 import { nextTick, readonly, ref, shallowRef, type Ref } from 'vue'
-import { normalizeCardDocument } from '../../../entities/card/storage'
+import { parseCardDocument } from '../../../entities/card/storage'
 import { prepareExportTask } from '../../exporting/exportPlanner'
 import { runExportPlan } from '../../exporting/exportRunner'
 import type {
@@ -145,12 +145,11 @@ export function useProjectExport(options: UseProjectExportOptions) {
       && candidate.path
       && options.getRelativeProjectPath(candidate.path).toLocaleLowerCase() === normalizedRelativePath.toLocaleLowerCase())
     const content = session?.draftContent ?? await options.readProjectFile(normalizedRelativePath)
-    const normalized = normalizeCardDocument(JSON.parse(content) as unknown)
+    const document = parseCardDocument(JSON.parse(content) as unknown)
     return {
       sourcePath: normalizedRelativePath,
       resourceRootPath: normalizePath(options.resolveProjectPath('')),
-      document: normalized.document,
-      storageWarnings: normalized.warnings,
+      document,
     }
   }
 
@@ -169,7 +168,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
       for (const face of Object.values(snapshot.document.faces)) {
         for (const child of face.children) {
           visitCardBlockTree(child.block, block => {
-            if (block.type === 'custom-block') packageIds.add(block.packageId)
+            if (block.type === 'custom-block') packageIds.add(block.customBlockKey)
           })
         }
       }

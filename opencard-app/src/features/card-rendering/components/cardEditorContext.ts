@@ -1,5 +1,5 @@
 import { inject, type ComputedRef, type InjectionKey } from 'vue'
-import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import type { ProjectIconCatalog, ProjectIconCatalogEntry } from '../../workspace/services/projectIconCatalog'
 import type { CustomBlockRuntimeCatalog } from '../expandCustomBlocks'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
 import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
@@ -9,7 +9,7 @@ export interface CardEditorContext {
   handleBlockClick: (blockId: string, event: MouseEvent) => void
   resolveAssetSrc: (path: string, blockId?: string, fieldKey?: string) => string
   resolveFontFamily: (value: string, blockId?: string, fieldKey?: string) => string
-  resolveIconCatalog: (blockId?: string, fieldKey?: string) => ProjectIconCatalog
+  resolveIconReference: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalogEntry | null
   projectIconCatalog?: ComputedRef<ProjectIconCatalog>
   customBlockCatalog?: ComputedRef<CustomBlockRuntimeCatalog>
   richText?: ComputedRef<PreparedRichTextCatalog>

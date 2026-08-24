@@ -31,6 +31,7 @@ function prepared() {
         { id: 'icon:suits', kind: 'icon' as const, path: '.opencard/icons/suits.ocicons', label: 'Suits', iconSeriesKey: 'suits', iconKeys: ['heart'], automatic: true, suggested: false, referenceCount: 1, references: ['root.content'] },
         { id: 'custom-block:bob/label', kind: 'custom-block' as const, path: '.opencard/blocks/bob/label', label: 'Label', packageId: 'bob/label', automatic: true, suggested: false, referenceCount: 1, references: ['nested'] },
       ],
+      dependencies: [],
       defaultSelectedIds: new Set<string>(),
       issues: [],
     },

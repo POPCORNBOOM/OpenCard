@@ -1,4 +1,4 @@
-import { parseProjectIconPath } from './projectIconReference'
+import { parseResourceReference } from '../../features/workspace/services/resourceReference'
 
 const allowedTags = new Set([
   'B', 'BR', 'COL', 'COLGROUP', 'EM', 'I', 'LI', 'MARK', 'OL', 'P', 'S', 'SPAN',
@@ -126,7 +126,11 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
     if (node instanceof Text) return { type: 'text', value: node.data }
     if (!(node instanceof Element) || !allowedTags.has(node.tagName) || node.tagName === 'OC-PROP') return null
     if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-path')) {
-      const reference = parseProjectIconPath(node.getAttribute('data-oc-icon-path') ?? '')
+      const parsed = parseResourceReference(`icon:${node.getAttribute('data-oc-icon-path') ?? ''}`)
+      const reference = parsed.reference?.kind === 'icon' ? {
+        seriesKey: parsed.reference.key.split('/')[0] ?? '',
+        iconKey: parsed.reference.key.split('/')[1] ?? '',
+      } : null
       return {
         type: 'icon',
         seriesKey: reference?.seriesKey ?? '',
@@ -241,9 +245,10 @@ function normalizeProjectFontFamilyStyle(value: string): string {
   const trimmed = value.trim()
   const unquoted = trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
     ? trimmed.slice(1, -1) : trimmed
-  if (!unquoted.startsWith('font:')) return value
-  const id = unquoted.slice('font:'.length)
-  return id ? JSON.stringify(`OpenCardProjectFont-${id}`) : value
+  const parsed = parseResourceReference(unquoted)
+  if (parsed.diagnostics.length > 0) return value
+  if (!parsed.reference || parsed.reference.kind !== 'font' || parsed.reference.scope !== 'current') return value
+  return JSON.stringify(`OpenCardProjectFont-${parsed.reference.key}`)
 }
 function sanitizeBindingExpression(value: string | null): string | null {
   if (value === null) return null
@@ -252,13 +257,15 @@ function sanitizeBindingExpression(value: string | null): string | null {
 }
 function sanitizeIconPath(value: string | null): string | null {
   const path = value?.trim() ?? ''
-  return parseProjectIconPath(path) || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
+  const parsed = parseResourceReference(`icon:${path}`)
+  return parsed.reference?.kind === 'icon' || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
 }
 function sanitizeKey(value: string | null): string | null { const key = value?.trim() ?? ''; return keyPattern.test(key) ? key : null }
 function sanitizePackageId(value: string | null): string | null { const id = value?.trim() ?? ''; return packageIdPattern.test(id) ? id.toLocaleLowerCase() : null }
 function sanitizeEmbedId(value: string | null): string | null { const id = value?.trim() ?? ''; return embedIdPattern.test(id) ? id : null }
 
 export function normalizeRichTextHtml(source: string): string {
+  if (source === '') return '<p></p>'
   const sourceDocument = new DOMParser().parseFromString(source, 'text/html')
   if (sourceDocument.body.children.length > 0) {
     const sanitizedDocument = new DOMParser().parseFromString(sanitizeRichTextHtml(source), 'text/html')

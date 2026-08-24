@@ -2,7 +2,7 @@ import type { CardBlock, FlowContainerBlock, SimpleContainerBlock } from '../../
 import { resolvePropertyEditorSchema } from '../../../entities/card/schema'
 import { isBindingStartEscaped, parseFieldReference } from '../../editor-runtime/model/bindingExpression'
 import { PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
-  type ProjectCustomBlockPublicField, type ProjectCustomBlockResizePolicy } from '../model/projectCustomBlocks'
+  type ProjectCustomBlockPublicField } from '../model/projectCustomBlocks'
 
 export type CustomBlockFieldAnalysis = ProjectCustomBlockPublicField & {
   referenceCount: number
@@ -12,7 +12,6 @@ export type CustomBlockFieldAnalysis = ProjectCustomBlockPublicField & {
 
 export type CustomBlockExportAnalysis = {
   fields: readonly CustomBlockFieldAnalysis[]
-  resize: ProjectCustomBlockResizePolicy
 }
 
 const bindingTokenPattern = /\{\{\s*([^{}]+?)\s*\}\}/g
@@ -57,8 +56,8 @@ export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExp
   const alwaysPublicKeys = new Set(PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS.map(key => key.toLowerCase()))
   const resolved = resolvePropertyEditorSchema(root as Readonly<Record<string, unknown>>)
   const definitions = Object.entries(resolved.fields).flatMap(([key, definition]) => (
-    key === 'width' || key === 'height' || alwaysPublicKeys.has(key.toLowerCase())
-      || definition.isHidden || definition.isReadonly || definition.fieldType === 'object'
+    alwaysPublicKeys.has(key.toLowerCase())
+      || definition.isHidden || (definition.isReadonly && key !== 'width' && key !== 'height') || definition.fieldType === 'object'
       ? []
       : [{ key, fieldType: definition.fieldType, title: resolved.labels[key] }]
   ))
@@ -83,7 +82,5 @@ export function analyzeProjectCustomBlockExport(root: CardBlock): CustomBlockExp
     definitionOrder,
     exposed: false,
   })).sort((a, b) => b.referenceCount - a.referenceCount || a.definitionOrder - b.definitionOrder)
-  const widthLocked = resolved.fields.width?.isReadonly === true || scanValue(root.width, keys, 0).size > 0
-  const heightLocked = resolved.fields.height?.isReadonly === true || scanValue(root.height, keys, 0).size > 0
-  return { fields, resize: { widthLocked, heightLocked } }
+  return { fields }
 }

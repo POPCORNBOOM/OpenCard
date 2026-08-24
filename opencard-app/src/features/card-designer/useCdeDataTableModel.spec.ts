@@ -134,7 +134,7 @@ describe('useCdeDataTableModel', () => {
   it('exposes only public custom-block fields as non-deletable data rows', () => {
     const { customBlockCatalog, document, model, documentRevision } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', packageId: 'alice/square', notes: 'Internal', visible: 'true',
+      id: 'custom', customBlockKey: 'alice@block:square', notes: 'Internal', visible: 'true',
     })
     ;(custom as unknown as Record<string, unknown>).size = '120'
     ;(custom as unknown as Record<string, unknown>).content = 'Public native content'

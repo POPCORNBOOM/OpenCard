@@ -619,7 +619,7 @@ function confirmWorkbookImport(): void {
 
 function dictionaryWorkbookFileName(): string {
   const source = (props.fileName || props.filePath.split(/[\\/]/).pop() || '')
-    .replace(/\.oclocale$/i, '')
+    .replace(/\.json$/i, '')
   const normalized = source.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').trim()
   return normalized || 'OpenCard Dictionary'
 }

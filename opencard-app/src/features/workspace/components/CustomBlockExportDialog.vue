@@ -1,14 +1,11 @@
 <template>
   <OcDialog :open="open" :title="dialogTitle" as="form" size="xl"
-    height-mode="fixed" height="workspace" :padded="false" :scrollable="false"
+    :height-mode="activePage === 'preview' || advancedOpen ? 'fixed' : 'content'"
+    :height="activePage === 'preview' || advancedOpen ? 'workspace' : undefined"
+    :padded="false" :scrollable="false"
     :dismissible="!busy" :close-on-backdrop="!busy" :aria-busy="busy"
     @request-close="requestClose" @submit="submit">
     <div class="custom-block-export-dialog" :inert="busy ? true : undefined">
-      <nav class="custom-block-export-dialog__pages" :aria-label="t('cardDesigner.customBlock.pages')">
-        <OcOptionGroup v-model="activePage" :options="pageOptions" appearance="sliding-outline"
-          semantics="tabs" fill />
-      </nav>
-
       <section v-show="activePage === 'package'" class="custom-block-export-dialog__package"
         role="tabpanel">
         <section class="custom-block-export-dialog__section custom-block-export-dialog__information">
@@ -22,17 +19,20 @@
             <label class="custom-block-export-dialog__field">
               <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.key') }}</OcText>
               <OcFieldInput full-width mono :value="blockKey" :placeholder="suggestedBlockKey"
-                :aria-invalid="!validPackageId" @input="blockKey = ($event.target as HTMLInputElement).value" />
+                :aria-invalid="!validBlockKey" @input="blockKey = ($event.target as HTMLInputElement).value" />
             </label>
-            <label class="custom-block-export-dialog__field">
-              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.version') }}</OcText>
-              <OcFieldInput full-width mono :value="version" :aria-invalid="!validVersion"
-                @input="version = ($event.target as HTMLInputElement).value" />
-            </label>
+            <OcButton type="button" variant="ghost" icon="tool.settings" @click="toggleAdvancedSettings">
+              {{ advancedOpen ? t('cardDesigner.customBlock.simpleSettings') : t('cardDesigner.customBlock.advancedSettings') }}
+            </OcButton>
           </div>
         </section>
 
-        <div class="custom-block-export-dialog__package-columns">
+        <div v-if="advancedOpen" class="custom-block-export-dialog__advanced">
+          <nav class="custom-block-export-dialog__pages" :aria-label="t('cardDesigner.customBlock.pages')">
+            <OcOptionGroup v-model="activePage" :options="pageOptions" appearance="sliding-outline"
+              semantics="tabs" fill />
+          </nav>
+          <div class="custom-block-export-dialog__package-columns">
           <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
             <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
             <OcPanel fill padding="none" overflow="auto">
@@ -66,6 +66,7 @@
                 @update:selected-ids="selectedResourceIds = $event" />
             </OcPanel>
           </section>
+          </div>
         </div>
       </section>
 
@@ -108,7 +109,7 @@
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="requestClose">{{ t('cardDesigner.customBlock.cancel') }}</OcButton>
       <OcButton type="submit" variant="solid"
-        :disabled="busy || !name.trim() || !validPackageId || !validVersion || !prepared">
+        :disabled="busy || !name.trim() || !validBlockKey || !prepared">
         {{ busy ? t('cardDesigner.customBlock.exporting') : t('cardDesigner.customBlock.export') }}
       </OcButton>
     </template>
@@ -151,12 +152,8 @@ import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEdi
 import { getPropertyFieldIcon } from '../../../shared/ui/property-editor/propertyFieldRegistry'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'
-import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import {
-  createProjectCustomBlockPackageId,
-  normalizeProjectCustomBlockVersion,
-  PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION,
-  type ProjectCustomBlockResizePolicy,
+  normalizeProjectCustomBlockKey,
 } from '../model/projectCustomBlocks'
 import { fileSystemService } from '../services/fileSystemService'
 import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from '../services/buildProjectCustomBlockManifest'
@@ -164,10 +161,7 @@ import {
   prepareProjectCustomBlockExport,
   type PreparedProjectCustomBlockExport,
 } from '../services/exportProjectCustomBlock'
-import {
-  collectProjectCustomBlockSelectionIssues,
-  createProjectCustomBlockPreview,
-} from '../services/projectCustomBlockPreview'
+import { createProjectCustomBlockPreview } from '../services/projectCustomBlockPreview'
 import type { CustomBlockFieldAnalysis } from '../services/projectCustomBlockExportAnalyzer'
 import type { ProjectCustomBlockResourceCandidate } from '../services/projectCustomBlockResources'
 import { createProjectCustomBlockPropertySchema } from '../services/projectCustomBlockPublicFields'
@@ -180,7 +174,6 @@ const props = withDefaults(defineProps<{
   document: CardDocument | null
   rootBlockId: string | null
   fields: readonly CustomBlockFieldAnalysis[]
-  resize: ProjectCustomBlockResizePolicy
   defaultName?: string
   defaultKey?: string
   projectRootPath: string
@@ -191,9 +184,7 @@ const emit = defineEmits<{
   close: []
   submit: [payload: {
     name: string
-    publisherKey: string
     blockKey: string
-    version: string
     exposedFieldKeys: string[]
     selectedResourceIds: Set<string>
     prepared: PreparedProjectCustomBlockExport
@@ -201,11 +192,8 @@ const emit = defineEmits<{
 }>()
 const { t, te } = useI18n()
 const projectStore = useProjectStore()
-const appSettingsStore = useAppSettingsStore()
 const name = ref('')
-const publisherKey = computed(() => appSettingsStore.settings.value.identity.publisherKey)
 const blockKey = ref('')
-const version = ref(PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION)
 const exposed = ref(new Set<string>())
 const selectedResourceIds = ref(new Set<string>())
 const selectionInitialized = ref(false)
@@ -226,6 +214,7 @@ let previewRevision = 0
 let manifestQueued = false
 let previewQueued = false
 const activePage = ref<'package' | 'preview'>('package')
+const advancedOpen = ref(false)
 const pageOptions = computed<readonly OcOption[]>(() => [
   { value: 'package', label: t('cardDesigner.customBlock.packagePage') },
   { value: 'preview', label: t('cardDesigner.customBlock.previewPage') },
@@ -233,37 +222,19 @@ const pageOptions = computed<readonly OcOption[]>(() => [
 const fieldGroupKeys = ['group:exposed', 'group:private']
 
 const suggestedBlockKey = computed(() => toKeySlug(name.value, props.defaultKey || 'custom-block'))
-const resolvedPackageId = computed(() => createProjectCustomBlockPackageId(
-  publisherKey.value,
+const validBlockKey = computed(() => Boolean(normalizeProjectCustomBlockKey(
   blockKey.value.trim() || suggestedBlockKey.value,
-) ?? '')
-const validPackageId = computed(() => Boolean(resolvedPackageId.value))
-const validVersion = computed(() => Boolean(normalizeProjectCustomBlockVersion(version.value)))
+)))
 const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => prepared.value?.resourceAnalysis.candidates ?? [])
 const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
-const selectionDiagnostics = computed(() => prepared.value
-  ? collectProjectCustomBlockSelectionIssues(prepared.value, selectedResourceIds.value)
-    .map(issue => `${issue.path}: ${issue.message}`)
-  : [])
-const diagnostics = computed(() => [
-  ...(props.errorText ? [props.errorText] : []),
-  ...selectionDiagnostics.value,
-])
+const diagnostics = computed(() => props.errorText ? [props.errorText] : [])
 const previewDiagnostics = computed(() => [...new Set([
   ...(previewError.value ? [previewError.value] : []),
   ...diagnostics.value,
   ...packageDiagnostics.value,
 ])])
-const effectiveResize = computed<ProjectCustomBlockResizePolicy>(() => ({
-  widthLocked: !exposed.value.has('resize:width'),
-  heightLocked: !exposed.value.has('resize:height'),
-}))
 const exposedFieldKeys = computed(() => props.fields.map(field => field.key).filter(key => exposed.value.has(key)))
-const previewPropertyFieldKeys = computed(() => [
-  ...(!effectiveResize.value.widthLocked ? ['width'] : []),
-  ...(!effectiveResize.value.heightLocked ? ['height'] : []),
-  ...exposedFieldKeys.value,
-])
+const previewPropertyFieldKeys = computed(() => exposedFieldKeys.value)
 const previewFitRect = computed(() => {
   const face = previewFace.value
   const child = face?.children?.[0]
@@ -288,12 +259,6 @@ const fieldTreeData = computed<OcTreeData>(() => {
   const children = new Map<string, readonly string[]>()
   const publicKeys: string[] = []
   const privateKeys: string[] = []
-  for (const [axis, label] of [['width', t('propertyEditor.fields.width')], ['height', t('propertyEditor.fields.height')]] as const) {
-    const key = `resize:${axis}`
-    const isPublic = exposed.value.has(key)
-    ;(isPublic ? publicKeys : privateKeys).push(key)
-    items.set(key, { label, icon: getPropertyFieldIcon('string'), draggable: true, actions: [isPublic ? 'move-private' : 'move-exposed'] })
-  }
   for (const field of props.fields) {
     const key = `field:${field.key}`
     const isPublic = exposed.value.has(field.key)
@@ -387,13 +352,9 @@ watch(() => props.open, open => {
   if (!open) return
   name.value = props.defaultName
   activePage.value = 'package'
+  advancedOpen.value = false
   blockKey.value = ''
-  version.value = PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION
-  exposed.value = new Set([
-    ...(!props.resize.widthLocked ? ['resize:width'] : []),
-    ...(!props.resize.heightLocked ? ['resize:height'] : []),
-    ...props.fields.filter(field => field.referenceCount > 0).map(field => field.key),
-  ])
+  exposed.value = new Set(props.fields.filter(field => field.referenceCount > 0).map(field => field.key))
   selectedResourceIds.value = new Set()
   selectionInitialized.value = false
   previewOverrides.value = {}
@@ -407,7 +368,7 @@ watch([() => props.document, () => props.rootBlockId], () => {
   clearPreview()
   scheduleAnalysis()
 })
-watch([name, blockKey, version, exposedFieldKeys, effectiveResize], scheduleManifestRefresh, { deep: true })
+watch([name, blockKey, exposedFieldKeys], scheduleManifestRefresh, { deep: true })
 watch(activePage, page => {
   if (page === 'preview') void nextTick().then(fitPreview)
 })
@@ -420,7 +381,7 @@ function scheduleAnalysis(): void {
 }
 
 async function rebuildPrepared(currentRevision: number): Promise<void> {
-  if (!props.document || !props.rootBlockId || !validPackageId.value || !validVersion.value) {
+  if (!props.document || !props.rootBlockId || !validBlockKey.value) {
     if (currentRevision === analysisRevision) prepared.value = null
     return
   }
@@ -431,11 +392,8 @@ async function rebuildPrepared(currentRevision: number): Promise<void> {
       document: props.document,
       rootBlockId: props.rootBlockId,
       name: name.value,
-      publisherKey: publisherKey.value,
       blockKey: blockKey.value.trim() || suggestedBlockKey.value,
-      version: version.value,
       exposedFieldKeys: exposedFieldKeys.value,
-      resize: effectiveResize.value,
       projectRootPath: props.projectRootPath,
       project: projectStore.resolvedProject.value,
       dictionary: projectStore.resolvedDictionary.value,
@@ -480,14 +438,12 @@ function scheduleManifestRefresh(): void {
 
 async function refreshPreparedManifest(currentRevision: number): Promise<void> {
   const base = prepared.value
-  if (!base || !validPackageId.value || !validVersion.value) return
+  if (!base || !validBlockKey.value) return
   try {
-    const block = buildProjectCustomBlockRoot(base.block, effectiveResize.value)
+    const block = buildProjectCustomBlockRoot(base.block, exposedFieldKeys.value)
     const manifest = await buildProjectCustomBlockManifest({
       root: block,
-      publisherKey: publisherKey.value,
-      blockKey: blockKey.value.trim() || suggestedBlockKey.value,
-      version: version.value,
+      key: blockKey.value.trim() || suggestedBlockKey.value,
       name: name.value,
       exposedFieldKeys: exposedFieldKeys.value,
     })
@@ -538,10 +494,7 @@ async function refreshPreview(currentRevision: number): Promise<void> {
     previewFace.value = nextPreview.render.document.faces.front
     previewResources.value = nextPreview.render.resources
     previewError.value = ''
-    packageDiagnostics.value = [
-      ...nextPreview.issues.map(item => `${item.path}: ${item.message}`),
-      ...nextPreview.render.issues.map(item => t(cardIssueMessageKey(item.type), item.parameters ?? {})),
-    ]
+    packageDiagnostics.value = nextPreview.render.issues.map(item => t(cardIssueMessageKey(item.type), item.parameters ?? {}))
     await nextTick()
     fitPreview()
   } catch (cause) {
@@ -561,7 +514,7 @@ function resolvePreviewLength(value: string, parentSize: number): number | null 
 }
 function fieldKey(treeKey: string): string | null {
   if (treeKey.startsWith('field:')) return treeKey.slice(6)
-  return treeKey.startsWith('resize:') ? treeKey : null
+  return treeKey.startsWith('field:') ? treeKey.slice(6) : null
 }
 function moveField(key: string, makePublic: boolean): void {
   const next = new Set(exposed.value)
@@ -570,7 +523,7 @@ function moveField(key: string, makePublic: boolean): void {
   exposed.value = next
   if (!makePublic) {
     const overrides = { ...previewOverrides.value }
-    delete overrides[key.startsWith('resize:') ? key.slice('resize:'.length) : key]
+    delete overrides[key]
     previewOverrides.value = overrides
   }
 }
@@ -594,6 +547,10 @@ function resetPreviewOverrides(): void {
   previewOverrides.value = {}
   schedulePreview()
 }
+function toggleAdvancedSettings(): void {
+  if (advancedOpen.value) activePage.value = 'package'
+  advancedOpen.value = !advancedOpen.value
+}
 function fitPreview(): void {
   if (previewFitRect.value && viewportRef.value?.fitContent) viewportRef.value.fitContent(previewFitRect.value)
   else viewportRef.value?.fitView?.()
@@ -607,20 +564,16 @@ async function emitExport(): Promise<void> {
   const base = prepared.value
   if (!base) return
   try {
-    const block = buildProjectCustomBlockRoot(base.block, effectiveResize.value)
+    const block = buildProjectCustomBlockRoot(base.block, exposedFieldKeys.value)
     const manifest = await buildProjectCustomBlockManifest({
       root: block,
-      publisherKey: publisherKey.value,
-      blockKey: blockKey.value.trim() || suggestedBlockKey.value,
-      version: version.value,
+      key: blockKey.value.trim() || suggestedBlockKey.value,
       name: name.value,
       exposedFieldKeys: exposedFieldKeys.value,
     })
     emit('submit', {
       name: name.value.trim(),
-      publisherKey: publisherKey.value.trim().toLocaleLowerCase(),
       blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
-      version: version.value.trim(),
       exposedFieldKeys: exposedFieldKeys.value,
       selectedResourceIds: new Set(selectedResourceIds.value),
       prepared: { ...base, block, manifest },
@@ -630,7 +583,7 @@ async function emitExport(): Promise<void> {
   }
 }
 function submit(): void {
-  if (props.busy || !prepared.value || !validPackageId.value || !validVersion.value) return
+  if (props.busy || !prepared.value || !validBlockKey.value) return
   if (diagnostics.value.length > 0) {
     confirmingDiagnostics.value = true
     return
@@ -659,7 +612,8 @@ onBeforeUnmount(() => {
 .custom-block-export-dialog__section { display: grid; align-content: start; gap: var(--oc-space-2); min-width: 0; min-height: 0; padding: var(--oc-space-3); background: var(--oc-bg-base); }
 .custom-block-export-dialog__section h3 { margin: 0; }
 .custom-block-export-dialog__section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-2); }
-.custom-block-export-dialog__metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--oc-space-3); }
+.custom-block-export-dialog__metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--oc-space-3); }
+.custom-block-export-dialog__metadata > :deep(.oc-button) { grid-column: 1 / -1; justify-self: start; }
 .custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); min-width: 0; }
 .custom-block-export-dialog__fields-section, .custom-block-export-dialog__resources-section { grid-template-rows: auto minmax(0, 1fr); }
 .custom-block-export-dialog__fields-section { border-right: var(--oc-border-width) solid var(--oc-border-muted); }

@@ -21,6 +21,11 @@ describe('sanitizeRichTextHtml', () => {
       .toBe('<p><span style="font-family: &quot;OpenCardProjectFont-brand-sans&quot;;">Text</span></p>')
   })
 
+  it('does not rewrite package-qualified font references as local fonts', () => {
+    expect(normalizeRichTextHtml('<p><span style="font-family: &quot;theme@font:body&quot;">Text</span></p>'))
+      .toBe('<p><span style="font-family: &quot;theme@font:body&quot;;">Text</span></p>')
+  })
+
   it('preserves underline and strikethrough marks', () => {
     expect(sanitizeRichTextHtml('<p><u>Underline</u> <s>Strike</s></p>'))
       .toBe('<p><u>Underline</u> <s>Strike</s></p>')
@@ -35,6 +40,15 @@ describe('sanitizeRichTextHtml', () => {
 })
 
 describe('formatRichTextHtmlSource', () => {
+  it('represents empty rich text without an explicit line break', () => {
+    expect(normalizeRichTextHtml('')).toBe('<p></p>')
+    expect(formatRichTextHtmlSource('')).toBe('<p></p>')
+  })
+
+  it('preserves explicit empty lines in plain text', () => {
+    expect(normalizeRichTextHtml('\n')).toBe('<p><br></p><p><br></p>')
+  })
+
   it('keeps top-level blocks adjacent so source formatting does not become document whitespace', () => {
     expect(formatRichTextHtmlSource('<p>Hello <strong>world</strong></p><p>Next</p>'))
       .toBe('<p>Hello <strong>world</strong></p><p>Next</p>')

@@ -32,14 +32,6 @@ export type ProjectCustomBlockPreview = {
   issues: readonly ProjectCustomBlockPackageIssue[]
 }
 
-function packageIssue(
-  code: ProjectCustomBlockPackageIssue['code'],
-  path: string,
-  message: string,
-): ProjectCustomBlockPackageIssue {
-  return { code, path, message }
-}
-
 function selectedCandidates(
   prepared: PreparedProjectCustomBlockExport,
   selectedIds: ReadonlySet<string>,
@@ -142,7 +134,7 @@ function createPreviewDocument(
   const block = createCustomBlock({
     id: 'custom-block-export-preview-instance',
     name: prepared.manifest.name,
-    packageId: prepared.manifest.packageId,
+    customBlockKey: prepared.manifest.packageId,
   })
   for (const [fieldKey, value] of Object.entries(overrides)) {
     ;(block as Record<string, unknown>)[fieldKey] = value
@@ -169,30 +161,6 @@ function createPreviewDocument(
     },
     instances: [],
   }) as unknown as CardDocument
-}
-
-export function collectProjectCustomBlockSelectionIssues(
-  prepared: PreparedProjectCustomBlockExport,
-  selectedResourceIds: ReadonlySet<string>,
-): readonly ProjectCustomBlockPackageIssue[] {
-  const selected = selectedCandidates(prepared, selectedResourceIds)
-  const excludedReferenced = prepared.resourceAnalysis.candidates.filter(candidate => (
-    (candidate.automatic || candidate.suggested) && !selectedResourceIds.has(candidate.id)
-  ))
-  const missingSelected = selected.filter(candidate => candidate.missing)
-  return [
-    ...prepared.resourceAnalysis.issues,
-    ...excludedReferenced.map(candidate => packageIssue(
-      candidate.kind === 'custom-block' ? 'dependency-unavailable' : 'resource-unavailable',
-      candidate.path,
-      'Detected or suggested resource was excluded by the author',
-    )),
-    ...missingSelected.map(candidate => packageIssue(
-      candidate.kind === 'custom-block' ? 'dependency-unavailable' : 'resource-unavailable',
-      candidate.path,
-      'Selected resource is unavailable',
-    )),
-  ]
 }
 
 export async function createProjectCustomBlockPreview(options: {
@@ -235,16 +203,7 @@ export async function createProjectCustomBlockPreview(options: {
     ...options.sourceEnvironment,
     customBlockCatalog: catalog,
   }
-  const unavailableDependencies = [...accessPolicy.packageIds].filter(packageId => !dependencies.has(packageId))
-  const selectionIssues = collectProjectCustomBlockSelectionIssues(
-    options.prepared, options.selectedResourceIds,
-  )
-  const issues = [
-    ...selectionIssues,
-    ...unavailableDependencies.map(packageId => packageIssue(
-      'dependency-unavailable', packageId, 'Selected nested custom block is unavailable',
-    )),
-  ]
+  const issues: readonly ProjectCustomBlockPackageIssue[] = []
   const render = prepareCardRender({
     document: createPreviewDocument(options.prepared, options.overrides),
     instance: null,

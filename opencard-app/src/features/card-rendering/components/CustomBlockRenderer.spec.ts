@@ -13,7 +13,7 @@ describe('CustomBlockRenderer', () => {
     const block = {
       ...content,
       type: 'custom-block' as const,
-      packageId: 'alice/badge',
+      customBlockKey: 'alice@block:badge',
       content,
     }
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: {

@@ -13,6 +13,7 @@ import {
     getPropertyValueKind,
     getTypePropertyEditorSchema,
     parseAdditionalFieldDefinitions,
+    resolvePropertyEditorSchema,
     validateAdditionalFieldKey as validateRecordAdditionalFieldKey,
 } from './schema'
 import type {
@@ -159,7 +160,7 @@ export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
 
 export type CustomBlock = BaseBlock & {
     type: 'custom-block'
-    packageId: string
+    customBlockKey: string
 }
 
 export type CardBlock = TextBlock | MarkdownTextBlock | ImageBlock | QrCodeBlock | ShapeBlock | SimpleContainerBlock | FlowContainerBlock | CustomBlock
@@ -244,9 +245,8 @@ export function getAdditionalFieldPropertyDefinition(
 export function getCardFieldDefinition(
     record: Record<string, unknown>,
     fieldKey: string,
-): EditorPropertyDefinition | undefined {
-    const typeName = typeof record.type === 'string' ? record.type : undefined
-    return getTypePropertyEditorSchema(typeName)[fieldKey]
+ ): EditorPropertyDefinition | undefined {
+    return resolvePropertyEditorSchema(record).fields[fieldKey]
 }
 
 export function getCardFieldKeys(record: Record<string, unknown>): string[] {
@@ -304,7 +304,10 @@ const additionalFieldTypeSet = new Set<PropertyFieldType>(additionalFieldTypes)
 export function validateAdditionalFieldKey(block: CardBlock, candidate: string): AdditionalFieldKeyError | null {
     return validateRecordAdditionalFieldKey(
         block as Record<string, unknown>,
-        Object.keys(getTypePropertyEditorSchema(block.type)),
+        [
+            ...Object.keys(getTypePropertyEditorSchema(block.type)),
+            ...(block.type === 'custom-block' ? ['customBlockKey'] : []),
+        ],
         candidate,
     )
 }
@@ -564,7 +567,7 @@ export function createCustomBlock(init: CustomBlockInit = {}): CustomBlock {
             ...init,
         }),
         type: 'custom-block',
-        packageId: init.packageId ?? '',
+        customBlockKey: init.customBlockKey ?? '',
     }
 }
 

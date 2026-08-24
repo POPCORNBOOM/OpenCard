@@ -1,13 +1,9 @@
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { describe, expect, it, vi } from 'vitest'
-import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { strToU8, zipSync } from 'fflate'
 import type { FileSystemService } from '../../workspace/services/fileSystemService'
 import type { ProjectTemplate } from '../model/projectTemplate'
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
-import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
-import { createBlock } from '../../../entities/card/model'
-import { buildProjectCustomBlockManifest } from '../../workspace/services/buildProjectCustomBlockManifest'
-import { createProjectCustomBlockArchive } from '../../workspace/services/projectCustomBlock'
 import {
   ProjectTemplateService,
   type ProjectTemplatePathService,
@@ -368,52 +364,6 @@ function templateFixture(contentPath = '/template/content', entry = 'main.ocdocu
   }
 }
 
-async function customBlockFixture(
-  fs: MemoryFileSystem,
-  path: string,
-  packageId: string,
-  name = packageId,
-  version = '0.1.0',
-): Promise<UserCustomBlockCatalogEntry> {
-  const [publisherKey, blockKey] = packageId.split('/') as [string, string]
-  const root = createBlock('text-block', { id: 'root' })
-  const manifest = await buildProjectCustomBlockManifest({
-    root,
-    publisherKey,
-    blockKey,
-    version,
-  })
-  manifest.name = name
-  fs.putFile(path, createProjectCustomBlockArchive(manifest, root))
-  return {
-    key: `user:${packageId.toLocaleLowerCase()}`,
-    id: packageId,
-    packageId,
-    name,
-    path,
-  }
-}
-
-async function addInstalledCustomBlock(
-  fs: MemoryFileSystem,
-  projectRoot: string,
-  packageId: string,
-  name = packageId,
-): Promise<void> {
-  const [publisherKey, blockKey] = packageId.split('/') as [string, string]
-  const root = createBlock('text-block', { id: 'root' })
-  const manifest = await buildProjectCustomBlockManifest({
-    root,
-    publisherKey,
-    blockKey,
-    version: '1.0.0',
-    name,
-  })
-  const installationPath = `${projectRoot}/.opencard/blocks/${packageId}`
-  fs.putFile(`${installationPath}/manifest.json`, JSON.stringify(manifest))
-  fs.putFile(`${installationPath}/block.json`, JSON.stringify(root))
-  fs.putDirectory(`${installationPath}/resources`)
-}
 
 describe('ProjectTemplateService catalog', () => {
   it('preserves built-in order, sorts user templates, and reports an invalid user manifest', async () => {
@@ -517,88 +467,9 @@ describe('ProjectTemplateService prepared package import', () => {
     await expect(createService(fs).importUserTemplate('/unsafe.rar')).rejects.toMatchObject({ code: 'invalid-package' })
   })
 
-  it('imports expanded installed custom block packages as ordinary template content', async () => {
-    const fs = new MemoryFileSystem()
-    const packageManifest = {
-      type: 'opencard-custom-block',
-      packageId: 'alice/badge',
-      version: '1.0.0',
-      name: 'Badge',
-      publicFieldKeys: [],
-      resize: { widthLocked: false, heightLocked: false },
-    }
-    fs.putFile('/installed-package.octemplate', zipSync({
-      'template.json': strToU8(JSON.stringify({
-        schemaVersion: 1,
-        id: 'installed-package',
-        name: 'Installed package',
-        description: '',
-        entry: 'main.ocdocument',
-      })),
-      'content/main.ocdocument': strToU8(cardDocument()),
-      'content/.opencard/blocks/alice/badge/manifest.json': strToU8(JSON.stringify(packageManifest)),
-      'content/.opencard/blocks/alice/badge/block.json': strToU8(JSON.stringify(
-        createBlock('text-block', { id: 'badge-root' }),
-      )),
-      'content/.opencard/blocks/alice/badge/resources/assets/badge.png': new Uint8Array([1, 2, 3]),
-    }))
-
-    const imported = await createService(fs).importUserTemplate('/installed-package.octemplate')
-
-    const installedManifest = fs.rawFile(
-      `${imported.contentPath}/.opencard/blocks/alice/badge/manifest.json`,
-    ) as Uint8Array
-    expect(JSON.parse(strFromU8(installedManifest))).toMatchObject({
-      packageId: 'alice/badge',
-      version: '1.0.0',
-    })
-    expect(fs.rawFile(
-      '/appdata/templates/installed-package/content/.opencard/blocks/alice/badge/resources/assets/badge.png',
-    )).toEqual(new Uint8Array([1, 2, 3]))
-  })
 })
 
 describe('ProjectTemplateService package export', () => {
-  it('exports a compliant .octemplate archive and excludes runtime cache', async () => {
-    const fs = new MemoryFileSystem()
-    addImportSource(fs)
-    fs.putFile('/source/alternate.ocdocument', cardDocument())
-    fs.putFile('/source/notes/private.txt', 'private')
-    fs.putFile('/source/.opencard/.oclocale', JSON.stringify({ base: { title: 'Hello' } }))
-    await addInstalledCustomBlock(fs, '/source', 'alice/square', 'Square')
-    fs.putFile('/source/.opencard/blocks/alice/square/resources/assets/square.png', new Uint8Array([5, 6]))
-
-    const outputPath = await createService(fs, 'portable').exportProjectTemplate({
-      sourcePath: '/source',
-      outputPath: '/exports/My Template',
-      name: 'My Template',
-      description: 'Portable',
-      entry: 'main.ocdocument',
-      entries: ['main.ocdocument', 'alternate.ocdocument'],
-      covers: ['assets/portrait.png'],
-      excludedPaths: ['notes'],
-    })
-
-    expect(outputPath).toBe('/exports/My Template.octemplate')
-    const archive = unzipSync(fs.rawFile(outputPath) as Uint8Array)
-    expect(Object.keys(archive)).toEqual(expect.arrayContaining([
-      'template.json',
-      'content/.opencard/.ocproject',
-      'content/.opencard/.oclocale',
-      'content/.opencard/blocks/alice/square/manifest.json',
-      'content/.opencard/blocks/alice/square/block.json',
-      'content/.opencard/blocks/alice/square/resources/assets/square.png',
-      'content/main.ocdocument',
-      'content/alternate.ocdocument',
-      'content/assets/portrait.png',
-    ]))
-    expect(Object.keys(archive)).not.toContain('content/notes/private.txt')
-    expect(Object.keys(archive).some((path) => path.startsWith('content/.opencard-cache/'))).toBe(false)
-    expect(JSON.parse(strFromU8(archive['template.json']))).toMatchObject({
-      entry: 'main.ocdocument',
-      entries: ['main.ocdocument', 'alternate.ocdocument'],
-    })
-  })
 
   it('does not allow an existing project dictionary to be excluded', async () => {
     const fs = new MemoryFileSystem()
@@ -817,82 +688,6 @@ describe('ProjectTemplateService project creation', () => {
     expect(fs.rawFile('/projects/Demo/.opencard/icons/Status.png')).toEqual(new Uint8Array([7, 8, 9]))
   })
 
-  it('installs selected custom block packages into namespaced project directories', async () => {
-    const fs = new MemoryFileSystem()
-    fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
-    fs.putFile('/template/content/main.ocdocument', cardDocument())
-    const block = await customBlockFixture(
-      fs,
-      '/library/badge.ocblock',
-      'alice/badge',
-      'Badge',
-      '1.2.0',
-    )
-
-    await createService(fs).createProject({
-      template: templateFixture(),
-      parentPath: '/projects',
-      projectName: 'Demo',
-      customBlocks: [block],
-    })
-
-    const installationPath = '/projects/Demo/.opencard/blocks/alice/badge'
-    expect(JSON.parse(fs.rawFile(`${installationPath}/manifest.json`) as string)).toMatchObject({
-      packageId: 'alice/badge',
-      version: '1.2.0',
-      name: 'Badge',
-    })
-    expect(await fs.fileExists(`${installationPath}/block.json`)).toBe(true)
-    expect(await fs.fileExists(`${installationPath}/resources`)).toBe(true)
-  })
-
-  it('preserves template packages and installs a selected package with a distinct Package ID', async () => {
-    const fs = new MemoryFileSystem()
-    fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
-    fs.putFile('/template/content/main.ocdocument', cardDocument())
-    await addInstalledCustomBlock(fs, '/template/content', 'template/badge', 'Template Badge')
-    const selected = await customBlockFixture(
-      fs,
-      '/library/badge.ocblock',
-      'alice/badge',
-      'Selected Badge',
-    )
-
-    await createService(fs).createProject({
-      template: templateFixture(),
-      parentPath: '/projects',
-      projectName: 'Demo',
-      customBlocks: [selected],
-    })
-
-    expect(await fs.fileExists(
-      '/projects/Demo/.opencard/blocks/template/badge/manifest.json',
-    )).toBe(true)
-    expect(await fs.fileExists(
-      '/projects/Demo/.opencard/blocks/alice/badge/manifest.json',
-    )).toBe(true)
-  })
-
-  it('rejects a selected Package ID already installed by the template and cleans the temporary project', async () => {
-    const fs = new MemoryFileSystem()
-    fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
-    fs.putFile('/template/content/main.ocdocument', cardDocument())
-    await addInstalledCustomBlock(fs, '/template/content', 'alice/badge', 'Template Badge')
-    const selected = await customBlockFixture(fs, '/library/badge.ocblock', 'alice/badge', 'Selected Badge')
-
-    await expect(createService(fs, 'custom-block-conflict').createProject({
-      template: templateFixture(),
-      parentPath: '/projects',
-      projectName: 'Demo',
-      customBlocks: [selected],
-    })).rejects.toMatchObject({ code: 'custom-block-failed' })
-
-    expect(await fs.fileExists('/projects/Demo')).toBe(false)
-    expect(fs.allPaths().some(path => path.includes('.Demo.opencard-create-'))).toBe(false)
-  })
 
   it('returns a selected candidate entry without persisting it as project metadata', async () => {
     const fs = new MemoryFileSystem()

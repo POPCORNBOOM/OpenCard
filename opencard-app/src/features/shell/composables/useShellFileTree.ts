@@ -3,9 +3,11 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
+import type { IconToken } from '../../../shared/ui/icon/iconTokens'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   PROJECT_CUSTOM_BLOCK_DIRECTORY,
+  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   PROJECT_DICTIONARY_FILE_NAME,
   PROJECT_FONT_DIRECTORY,
   PROJECT_FONT_REGISTRY_FILE_NAME,
@@ -13,6 +15,8 @@ import {
   PROJECT_ICON_REGISTRY_FILE_NAME,
   PROJECT_INTERNAL_DIRECTORY_NAME,
   PROJECT_PROFILE_FILE_NAME,
+  PROJECT_PACKAGE_DIRECTORY,
+  PROJECT_PACKAGE_MANIFEST_FILE_NAME,
 } from '../../workspace/model/projectStructure'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
@@ -20,10 +24,6 @@ export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
 export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
 export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
 export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-absolute-path'
-export const PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY = 'project-unused-font-remove'
-export const PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY = 'project-unused-fonts-clean'
-export const PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY = 'project-unused-icon-remove'
-export const PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY = 'project-unused-icons-clean'
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
 const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
 const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
@@ -40,9 +40,15 @@ const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
   { path: PROJECT_FONT_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardFontRegistry', assetDirectory: PROJECT_FONT_DIRECTORY },
   { path: PROJECT_ICON_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardIconRegistry', assetDirectory: PROJECT_ICON_DIRECTORY },
   {
-    path: `${PROJECT_INTERNAL_DIRECTORY_NAME}/${PROJECT_CUSTOM_BLOCK_DIRECTORY}`,
+    path: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
     labelKey: 'fileTypes.opencardCustomBlockRegistry',
     assetDirectory: PROJECT_CUSTOM_BLOCK_DIRECTORY,
+    packageDirectory: true,
+  },
+  {
+    path: PROJECT_PACKAGE_MANIFEST_FILE_NAME,
+    labelKey: 'fileTypes.opencardResourcePackage',
+    assetDirectory: PROJECT_PACKAGE_DIRECTORY,
     packageDirectory: true,
   },
 ] as const
@@ -89,20 +95,10 @@ type UseShellFileTreeOptions = {
   ensureProjectManagementStructure: () => Promise<void>
   translate: (key: string) => string
   registeredFontSources?: Readonly<Ref<readonly string[] | null>>
-  registeredIconSources?: Readonly<Ref<readonly string[] | null>>
 }
 
 function normalizeShellPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function managedSourceIdentities(sources: ReadonlySet<string>): Set<string> {
-  return new Set([...sources].map((source) => {
-    const normalized = normalizeShellPath(source).replace(/^\/+/, '')
-    return (normalized.startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`)
-      ? normalized
-      : `${PROJECT_INTERNAL_DIRECTORY_NAME}/${normalized}`).toLocaleLowerCase()
-  }))
 }
 
 function resolveFilenameRenameSelection(name: string): OcTreeRenameSelection {
@@ -119,10 +115,14 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedFileKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
   const collapsedProjectManagementKeys = ref<ReadonlySet<string>>(new Set())
-  const registeredFontSources = computed(() => new Set(options.registeredFontSources?.value ?? []))
-  const registeredIconSources = computed(() => new Set(options.registeredIconSources?.value ?? []))
-  const managedRegisteredFontSources = computed(() => managedSourceIdentities(registeredFontSources.value))
-  const managedRegisteredIconSources = computed(() => managedSourceIdentities(registeredIconSources.value))
+  const managedRegisteredFontSources = computed(() => new Set(
+    (options.registeredFontSources?.value ?? []).map((source) => {
+      const normalized = normalizeShellPath(source).replace(/^\/+/, '')
+      return (normalized.startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`)
+        ? normalized
+        : `${PROJECT_INTERNAL_DIRECTORY_NAME}/${normalized}`).toLocaleLowerCase()
+    }),
+  ))
 
   function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
     if (target.value.length === nextKeys.length
@@ -172,7 +172,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         entry.isDirectory,
         entry.isExpanded,
         options.projectPath.value,
-        registeredFontSources.value,
+        managedRegisteredFontSources.value,
       )
       items.set(entry.key, {
         label: entry.label,
@@ -211,18 +211,21 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     const children = new Map<string, readonly string[]>()
     const rootKeys = PROJECT_MANAGEMENT_ENTRIES.map((entry) => {
       const key = normalizeShellPath(`${options.projectPath.value}/${entry.path}`)
-      const presentation = resolveEntryIcon(key, false, false, options.projectPath.value)
+      const presentation = entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY
+        ? { icon: 'file.package' as IconToken, tone: 'config' as const }
+        : resolveEntryIcon(key, false, false, options.projectPath.value)
       items.set(key, {
         label: options.translate(entry.labelKey),
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
-      if (entry.packageDirectory && entry.assetDirectory) {
+      if (entry.packageDirectory && entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY) {
         const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
         const childSets = new Map<string, Set<string>>()
         for (const indexedEntry of options.indexedEntries.value) {
           const relativePath = normalizeShellPath(indexedEntry.name)
           if (!relativePath.startsWith(`${directory}/`)) continue
+          if (relativePath === entry.path || relativePath === `${directory}/${entry.path.split('/').pop()}`) continue
           const segments = relativePath.slice(directory.length + 1).split('/').filter(Boolean)
           let parentKey = key
           segments.forEach((segment, index) => {
@@ -230,10 +233,13 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
             const nodeKey = normalizeShellPath(`${options.projectPath.value}/${nodeRelativePath}`)
             const isDirectory = index < segments.length - 1 || Boolean(indexedEntry.isDirectory)
             if (!items.has(nodeKey)) {
-              const nodePresentation = resolveEntryIcon(nodeKey, isDirectory, false, options.projectPath.value)
+              const nodePresentation = entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY
+                ? { icon: 'file.package' as IconToken, tone: 'config' as const }
+                : resolveEntryIcon(nodeKey, isDirectory, false, options.projectPath.value)
               items.set(nodeKey, {
                 label: segment,
-                icon: index === 1 && isDirectory ? 'file.custom-block' : nodePresentation.icon,
+                icon: index === 1 && isDirectory && entry.assetDirectory !== PROJECT_PACKAGE_DIRECTORY
+                  ? 'file.custom-block' : nodePresentation.icon,
                 iconTone: nodePresentation.tone,
                 ...(index === 1 ? { tail: `${segments[0]}/${segments[1]}` } : {}),
               })
@@ -246,61 +252,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         for (const [parentKey, childKeys] of childSets) {
           children.set(parentKey, [...childKeys].sort())
         }
-      } else if (entry.assetDirectory) {
-        const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
-        const isFontRegistry = entry.path === PROJECT_FONT_REGISTRY_FILE_NAME
-        const isIconRegistry = entry.path === PROJECT_ICON_REGISTRY_FILE_NAME
-        const canResolveFontUsage = options.registeredFontSources?.value !== null
-        const canResolveIconUsage = options.registeredIconSources?.value !== null
-        let unusedAssetCount = 0
-        const childKeys = options.indexedEntries.value.flatMap((indexedEntry) => {
-          const relativePath = normalizeShellPath(indexedEntry.name)
-          if (indexedEntry.isDirectory || !relativePath.startsWith(`${directory}/`)) return []
-          const filename = relativePath.slice(directory.length + 1)
-          if (!filename || filename.includes('/')) return []
-          const childKey = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
-          const childPresentation = resolveEntryIcon(
-            childKey,
-            false,
-            false,
-            options.projectPath.value,
-            managedRegisteredFontSources.value,
-            managedRegisteredIconSources.value,
-          )
-          const isUnusedFont = isFontRegistry
-            && canResolveFontUsage
-            && childPresentation.icon === 'file.font'
-            && !managedRegisteredFontSources.value.has(relativePath.toLocaleLowerCase())
-          const isUnusedIcon = isIconRegistry
-            && canResolveIconUsage
-            && childPresentation.icon === 'file.image'
-            && !managedRegisteredIconSources.value.has(relativePath.toLocaleLowerCase())
-          const removeActionKey = isUnusedFont
-            ? PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY
-            : isUnusedIcon ? PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY : null
-          if (removeActionKey) unusedAssetCount += 1
-          items.set(childKey, {
-            label: filename,
-            icon: childPresentation.icon,
-            iconTone: childPresentation.tone,
-            ...(removeActionKey ? {
-              actions: [removeActionKey],
-              contextActions: [removeActionKey],
-            } : {}),
-          })
-          return [childKey]
-        })
-        if (childKeys.length > 0) children.set(key, childKeys)
-        if (unusedAssetCount > 0) {
-          const cleanActionKey = isFontRegistry
-            ? PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY
-            : PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY
-          items.set(key, {
-            ...items.get(key)!,
-            actions: [cleanActionKey],
-            contextActions: [cleanActionKey],
-          })
-        }
       }
       return key
     })
@@ -312,13 +263,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       key => !collapsedProjectManagementKeys.value.has(key),
     )
   ))
-
-  const unusedProjectFontFileKeys = computed(() => [...projectManagementTreeData.value.items]
-    .filter(([, item]) => item.actions?.includes(PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY))
-    .map(([key]) => key))
-  const unusedProjectIconFileKeys = computed(() => [...projectManagementTreeData.value.items]
-    .filter(([, item]) => item.actions?.includes(PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY))
-    .map(([key]) => key))
 
   function setProjectManagementEntryExpanded(key: string, expanded: boolean): boolean {
     if ((projectManagementTreeData.value.children.get(key)?.length ?? 0) === 0) return false
@@ -422,8 +366,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     projectTreeData,
     projectManagementTreeData,
     projectManagementExpandedKeys,
-    unusedProjectFontFileKeys,
-    unusedProjectIconFileKeys,
     projectExpandedKeys,
     openedEditorTreeData,
     selectedFileKeys,

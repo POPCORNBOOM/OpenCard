@@ -26,4 +26,16 @@ describe('renderMarkdown project icons', () => {
     expect(renderMarkdown('`[[icon:status/wide]]`', { projectIconCatalog: catalog })).not.toContain('project-inline-icon')
     expect(renderMarkdown('\\[[icon:status/wide]]', { projectIconCatalog: catalog })).not.toContain('project-inline-icon')
   })
+
+  it('resolves each icon through the supplied reference resolver', () => {
+    const references: string[] = []
+    const html = renderMarkdown('[[icon:status/wide]]', {
+      resolveIconReference: source => {
+        references.push(source)
+        return catalog.entries[0]!
+      },
+    })
+    expect(references).toEqual(['icon:status/wide'])
+    expect(html).toContain('project-inline-icon oc-project-icon')
+  })
 })

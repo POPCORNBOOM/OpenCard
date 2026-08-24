@@ -56,14 +56,13 @@ describe('useProjectExport document source', () => {
     expect(readProjectFile).toHaveBeenCalledWith('cards/main.ocdocument')
   })
 
-  it('records non-blocking storage warnings on an export snapshot', async () => {
+  it('preserves unknown document block data on an export snapshot', async () => {
     const source = JSON.parse(content('640'))
     source.faces.front.children = [{ block: { type: 'future-block' }, location: {} }]
     const { adapter } = createAdapter([], vi.fn(async () => JSON.stringify(source)))
 
     const snapshot = await adapter.loadDocumentSnapshot('cards/main.ocdocument')
-    expect(snapshot.document.faces.front.children).toEqual([])
-    expect(snapshot.storageWarnings).toContainEqual(expect.objectContaining({ code: 'entry-ignored' }))
+    expect(snapshot.document.faces.front.children).toEqual(source.faces.front.children)
   })
 })
 

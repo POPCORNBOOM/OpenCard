@@ -20,6 +20,18 @@ function environment(kind: 'project' | 'package', identity: string, rootPath: st
   }
 }
 
+function definitionEnvironment(kind: 'project' | 'package', identity: string, rootPath: string, key: string, root: CardBlock): ProjectResourceEnvironment {
+  return {
+    ...environment(kind, identity, rootPath),
+    customBlockDefinitions: new Map([[key, {
+      definition: {
+        type: 'opencard-custom-block', key, name: key, root,
+        publicFieldKeys: ['name', 'notes', 'width', 'height'], declaredResourceDependencies: [],
+      }, path: `${rootPath}/.opencard/blocks/${key}.ocblock`, resourceRootPath: rootPath,
+    }]]),
+  }
+}
+
 function runtime(
   packageId: string,
   block: CardBlock,
@@ -52,6 +64,14 @@ function documentWith(...blocks: CardBlock[]): CardDocument {
 }
 
 describe('expandCustomBlocks', () => {
+  it('resolves a local block definition from the resource environment without a runtime package entry', () => {
+    const root = createBlock('text-block', { id: 'definition-root', content: 'Ready' })
+    const hostEnvironment = definitionEnvironment('project', 'host', '/project', 'badge', root)
+    const host = createBlock('custom-block', { id: 'host', customBlockKey: 'block:badge' })
+    const result = expandCustomBlocks(documentWith(host), new Map(), hostEnvironment)
+    expect(result.issues).toEqual([])
+    expect(result.document.faces.front.children[0]?.block).toMatchObject({ type: 'text-block', content: 'Ready' })
+  })
   it('namespaces descendants independently for each Package ID instance', () => {
     const root = createBlock('simple-container-block', { id: 'root' })
     root.children.push({
@@ -60,8 +80,8 @@ describe('expandCustomBlocks', () => {
     })
     const packageEnvironment = environment('package', 'alice/item', '/packages/alice/item/resources')
     const entry = runtime('alice/item', root, packageEnvironment)
-    const first = createBlock('custom-block', { id: 'first', packageId: 'alice/item' })
-    const second = createBlock('custom-block', { id: 'second', packageId: 'alice/item' })
+    const first = createBlock('custom-block', { id: 'first', customBlockKey: 'alice@block:item' })
+    const second = createBlock('custom-block', { id: 'second', customBlockKey: 'alice@block:item' })
     const result = expandCustomBlocks(documentWith(first, second), new Map([['alice/item', entry]]))
     const [a, b] = result.document.faces.front.children.map(child => child.block)
     expect(a.type === 'simple-container-block' && a.children[0]?.block.id).toBe('first::block:label')
@@ -69,14 +89,33 @@ describe('expandCustomBlocks', () => {
     expect(a.type === 'simple-container-block' && a.children[0]?.location.id).toBe('first::location:label-location')
   })
 
+  it('resolves a package-qualified block from a direct child environment definition catalog', () => {
+    const root = createBlock('text-block', { id: 'definition-root', content: 'Package ready' })
+    const packageEnvironment = definitionEnvironment('package', 'theme', '/project/.opencard/packages/theme', 'badge', root)
+    const hostEnvironment: ProjectResourceEnvironment = {
+      ...environment('project', 'host', '/project'),
+      packages: new Map([['theme', {
+        manifest: {
+          type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.0.0', contentHash: '',
+          public: { blocks: ['badge'], fonts: [], iconSeries: [], assets: [] }, dependencies: [],
+        }, rootPath: '/project/.opencard/packages/theme', issues: [],
+      }]]),
+      packageEnvironments: new Map([['theme', packageEnvironment]]),
+    }
+    const host = createBlock('custom-block', { id: 'host', customBlockKey: 'theme@block:badge' })
+    const result = expandCustomBlocks(documentWith(host), new Map(), hostEnvironment)
+    expect(result.issues).toEqual([])
+    expect(result.document.faces.front.children[0]?.block).toMatchObject({ type: 'text-block', content: 'Package ready' })
+  })
+
   it('reports a missing Package ID without removing the host reference', () => {
-    const host = createBlock('custom-block', { id: 'host', packageId: 'alice/missing' })
+    const host = createBlock('custom-block', { id: 'host', customBlockKey: 'alice@block:missing' })
     const result = expandCustomBlocks(documentWith(host), new Map())
     expect(result.document.faces.front.children[0]?.block).toMatchObject({
-      type: 'custom-block', packageId: 'alice/missing',
+      type: 'custom-block', customBlockKey: 'alice@block:missing',
     })
     expect(result.issues).toEqual([{
-      blockId: 'host', faceKey: 'front', reason: 'missing', packageId: 'alice/missing',
+      blockId: 'host', faceKey: 'front', reason: 'missing', packageId: 'alice@block:missing',
     }])
   })
 
@@ -86,8 +125,8 @@ describe('expandCustomBlocks', () => {
     const root = createBlock('image-block', { id: 'root', image: 'assets/default.png' })
     const entry = runtime('alice/picture', root, packageEnvironment, new Map(), ['image'])
 
-    const defaultHost = createBlock('custom-block', { id: 'default-host', packageId: 'alice/picture' })
-    const overrideHost = createBlock('custom-block', { id: 'override-host', packageId: 'alice/picture' })
+    const defaultHost = createBlock('custom-block', { id: 'default-host', customBlockKey: 'alice@block:picture' })
+    const overrideHost = createBlock('custom-block', { id: 'override-host', customBlockKey: 'alice@block:picture' })
     Object.assign(overrideHost, { image: 'assets/override.png' })
     const result = expandCustomBlocks(documentWith(defaultHost, overrideHost), new Map([
       ['alice/picture', entry],
@@ -105,14 +144,14 @@ describe('expandCustomBlocks', () => {
     const bEntry = runtime('bob/b', bRoot, bEnvironment, new Map(), ['image'])
     const bDependencies = new Map([['bob/b', bEntry]])
     const aRoot = createBlock('simple-container-block', { id: 'a-root' })
-    const nested = createBlock('custom-block', { id: 'nested-b', packageId: 'bob/b' })
+    const nested = createBlock('custom-block', { id: 'nested-b', customBlockKey: 'bob@block:b' })
     Object.assign(nested, { image: 'assets/a-override.png' })
     aRoot.children.push({
       block: nested,
       location: { id: 'nested-location', type: 'simple-container-location', anchor: 'lt' },
     })
     const aEntry = runtime('alice/a', aRoot, aEnvironment, bDependencies)
-    const host = createBlock('custom-block', { id: 'host-a', packageId: 'alice/a' })
+    const host = createBlock('custom-block', { id: 'host-a', customBlockKey: 'alice@block:a' })
     const result = expandCustomBlocks(documentWith(host), new Map([['alice/a', aEntry]]))
     const expandedA = result.document.faces.front.children[0]?.block
     const expandedB = expandedA?.type === 'simple-container-block' ? expandedA.children[0]?.block : null
@@ -131,20 +170,20 @@ describe('expandCustomBlocks', () => {
     const cDependencies = new Map([['carol/c', cEntry]])
     const bRoot = createBlock('simple-container-block', { id: 'b' })
     bRoot.children.push({
-      block: createBlock('custom-block', { id: 'c-host', packageId: 'carol/c' }),
+      block: createBlock('custom-block', { id: 'c-host', customBlockKey: 'carol@block:c' }),
       location: { id: 'c-location', type: 'simple-container-location', anchor: 'lt' },
     })
     const bEntry = runtime('bob/b', bRoot, bEnvironment, cDependencies)
     const bDependencies = new Map([['bob/b', bEntry]])
     const aRoot = createBlock('simple-container-block', { id: 'a' })
     aRoot.children.push({
-      block: createBlock('custom-block', { id: 'b-host', packageId: 'bob/b' }),
+      block: createBlock('custom-block', { id: 'b-host', customBlockKey: 'bob@block:b' }),
       location: { id: 'b-location', type: 'simple-container-location', anchor: 'lt' },
     })
     const aEntry = runtime('alice/a', aRoot, aEnvironment, bDependencies)
     const incompatibleHostB = runtime('bob/b', createBlock('text-block', { id: 'host-b', content: 'wrong-host-version' }), hostBEnvironment)
     const result = expandCustomBlocks(
-      documentWith(createBlock('custom-block', { id: 'a-host', packageId: 'alice/a' })),
+      documentWith(createBlock('custom-block', { id: 'a-host', customBlockKey: 'alice@block:a' })),
       new Map([['alice/a', aEntry], ['bob/b', incompatibleHostB]]),
     )
     const expandedA = result.document.faces.front.children[0]?.block
@@ -157,16 +196,16 @@ describe('expandCustomBlocks', () => {
     const aEnvironment = environment('package', 'alice/a', '/a/resources')
     const aRoot = createBlock('simple-container-block', { id: 'a' })
     aRoot.children.push({
-      block: createBlock('custom-block', { id: 'a-again', packageId: 'alice/a' }),
+      block: createBlock('custom-block', { id: 'a-again', customBlockKey: 'alice@block:a' }),
       location: { id: 'cycle-location', type: 'simple-container-location', anchor: 'lt' },
     })
     const dependencies = new Map<string, CustomBlockRuntimeEntry>()
     const entry = runtime('alice/a', aRoot, aEnvironment, dependencies)
     dependencies.set('alice/a', entry)
     const result = expandCustomBlocks(
-      documentWith(createBlock('custom-block', { id: 'host', packageId: 'alice/a' })),
+      documentWith(createBlock('custom-block', { id: 'host', customBlockKey: 'alice@block:a' })),
       new Map([['alice/a', entry]]),
     )
-    expect(result.issues).toEqual([expect.objectContaining({ reason: 'cycle', packageId: 'alice/a' })])
+    expect(result.issues).toEqual([expect.objectContaining({ reason: 'cycle', packageId: 'alice@block:a' })])
   })
 })

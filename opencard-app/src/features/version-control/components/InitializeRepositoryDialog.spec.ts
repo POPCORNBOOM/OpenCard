@@ -23,8 +23,25 @@ describe('InitializeRepositoryDialog', () => {
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('submit')).toEqual([[{
-      name: 'Card Author',
-      email: 'author@example.com',
+      identity: {
+        name: 'Card Author',
+        email: 'author@example.com',
+      },
+      createInitialCommit: false,
+    }]])
+  })
+
+  it('can request an initial commit after initialization', async () => {
+    const wrapper = mountDialog()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('Card Author')
+    await inputs[1]!.setValue('author@example.com')
+    await inputs[2]!.setValue(true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')).toEqual([[{
+      identity: { name: 'Card Author', email: 'author@example.com' },
+      createInitialCommit: true,
     }]])
   })
 

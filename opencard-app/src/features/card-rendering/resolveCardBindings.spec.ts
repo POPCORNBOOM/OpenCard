@@ -37,6 +37,29 @@ function createDocument(block: CardBlock = createTextBlock({ id: 'text', content
 }
 
 describe('card additional fields and bindings', () => {
+  it('resolves a parent custom boolean field into child visibility', () => {
+    const child = createTextBlock({
+      id: 'child',
+      visible: '{{parent:showsuit}}',
+    })
+    const parent = createSimpleContainerBlock({
+      id: 'parent',
+      children: [{
+        block: child,
+        location: { id: 'child-location', type: 'simple-container-location', anchor: 'lt' },
+      }],
+    })
+    parent.additionalFieldDefinition = { showsuit: { fieldType: 'boolean' } }
+    ;(parent as unknown as Record<string, unknown>).showsuit = 'true'
+
+    const result = resolveReferences(createDocument(parent))
+    const resolvedParent = result.document.faces.front.children[0]!.block
+    if (resolvedParent.type !== 'simple-container-block') throw new Error('Expected container')
+
+    expect(result.issues).toEqual([])
+    expect(resolvedParent.children[0]!.block).toMatchObject({ visible: 'true' })
+  })
+
   it('resolves rich-text HTML with the ordinary string template path', () => {
     const block = createTextBlock({
       id: 'text', content: '<p><mark style="background-color: {{self:color}}">{{self:label}}</mark></p>',

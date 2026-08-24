@@ -15,6 +15,13 @@ describe('project font catalog', () => {
     expect(resolveProjectFontExpression('font:body').familyKeys).toEqual(['brand-latin', 'brand-cjk'])
   })
 
+  it('keeps ordinary CSS fallbacks and reports scoped references without an environment', () => {
+    const result = resolveProjectFontExpression('font:brand-latin; Arial; theme@font:body')
+    expect(result.cssFontFamily).toContain('OpenCardProjectFont-brand-latin')
+    expect(result.cssFontFamily).toContain('Arial')
+    expect(result.issues).toContainEqual({ kind: 'missing', key: 'body', path: [] })
+  })
+
   it('reports missing fonts and empty compositions', () => {
     expect(findProjectFontRegistryIssues({
       families: [{ key: 'empty', name: 'Empty', files: {} }],

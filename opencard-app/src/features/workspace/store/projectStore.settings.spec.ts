@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   discoverInstalledProjectCustomBlocks: vi.fn(),
   installProjectCustomBlockPackage: vi.fn(),
   uninstallProjectCustomBlockPackage: vi.fn(),
+  installResourcePackage: vi.fn(),
+  uninstallResourcePackage: vi.fn(),
   loadInstalledProjectCustomBlockRuntime: vi.fn(),
   createProjectCustomBlockFontSession: vi.fn(),
   fontSessionRelease: vi.fn(),
@@ -73,6 +75,10 @@ vi.mock('../services/projectCustomBlock', () => ({
   installProjectCustomBlockPackage: mocks.installProjectCustomBlockPackage,
   uninstallProjectCustomBlockPackage: mocks.uninstallProjectCustomBlockPackage,
 }))
+vi.mock('../services/resourcePackageInstaller', () => ({
+  installResourcePackage: mocks.installResourcePackage,
+  uninstallResourcePackage: mocks.uninstallResourcePackage,
+}))
 vi.mock('../services/projectCustomBlockAssetLoader', () => ({
   loadInstalledProjectCustomBlockRuntime: mocks.loadInstalledProjectCustomBlockRuntime,
 }))
@@ -106,6 +112,10 @@ describe('projectStore settings actions', () => {
       resourceRootPath: '.opencard/blocks/alice/square/resources', replaced: false, issues: [],
     })
     mocks.uninstallProjectCustomBlockPackage.mockResolvedValue(true)
+    mocks.installResourcePackage.mockResolvedValue({
+      manifest: packageResultForTest().manifest, targetPath: '.opencard/packages/theme', replaced: false,
+    })
+    mocks.uninstallResourcePackage.mockResolvedValue(true)
     mocks.loadInstalledProjectCustomBlockRuntime.mockResolvedValue(runtimeResultForTest())
     mocks.createProjectCustomBlockFontSession.mockResolvedValue({ errors: [], release: mocks.fontSessionRelease })
     mocks.initializeProjectStructure.mockResolvedValue(undefined)
@@ -534,6 +544,16 @@ describe('projectStore settings actions', () => {
     expect(mocks.fontSessionRelease).toHaveBeenCalledOnce()
     expect(store.renderEnvironment.value.customBlockCatalog?.has('alice/square')).toBe(false)
     expect(store.projectCustomBlockManifestCatalog.value.has('alice/square')).toBe(false)
+    await store.setProjectPath('')
+  })
+
+  it('uninstalls a resource package and refreshes the resource environment', async () => {
+    const store = useProjectStore()
+    await store.setProjectPath('D:/project')
+    await expect(store.uninstallResourcePackageFile('theme')).resolves.toBe(true)
+    expect(mocks.uninstallResourcePackage).toHaveBeenCalledWith(expect.objectContaining({
+      projectRootPath: 'D:/project', packageKey: 'theme',
+    }))
     await store.setProjectPath('')
   })
 

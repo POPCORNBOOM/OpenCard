@@ -1,3 +1,4 @@
+import { parseResourceReferenceList } from '../services/resourceReference'
 import type {
   ProjectFontComposition,
   ProjectFont,
@@ -119,16 +120,24 @@ export function resolveProjectFontExpression(
   const seenFamilies = new Set<string>()
   const seenCssFamilies = new Set<string>()
 
-  for (const value of splitFontReferences(reference)) {
-    if (!value.startsWith('font:')) {
-      const identity = value.toLocaleLowerCase()
+  for (const token of parseResourceReferenceList(reference, 'font')) {
+    if (token.diagnostics.length > 0) {
+      issues.push({ kind: 'missing', key: token.source, path: [] })
+      continue
+    }
+    if (!token.reference) {
+      const identity = token.source.toLocaleLowerCase()
       if (!seenCssFamilies.has(identity)) {
         seenCssFamilies.add(identity)
-        cssFamilies.push(value)
+        cssFamilies.push(token.source)
       }
       continue
     }
-    const key = value.slice('font:'.length)
+    if (token.reference.scope !== 'current') {
+      issues.push({ kind: 'missing', key: token.reference.key, path: [] })
+      continue
+    }
+    const key = token.reference.key
     const identity = key.toLocaleLowerCase()
     const font = fontsByKey.get(identity)
     if (font) {
@@ -189,7 +198,7 @@ export function unicodeRangeContains(ranges: readonly UnicodeRange[] | undefined
 }
 
 export function splitFontReferences(value: string): string[] {
-  return value.split(';').map(reference => reference.trim()).filter(Boolean)
+  return parseResourceReferenceList(value, 'font').map(token => token.source)
 }
 
 function splitCssFontFamilies(value: string): string[] {

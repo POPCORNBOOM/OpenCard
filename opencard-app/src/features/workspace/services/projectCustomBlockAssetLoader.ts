@@ -5,6 +5,7 @@ import {
   MAX_CUSTOM_BLOCK_DEPENDENCIES,
   MAX_CUSTOM_BLOCK_DEPENDENCY_DEPTH,
   readInstalledProjectCustomBlockPackage,
+  readProjectCustomBlockDefinitionAsPackage,
 } from './projectCustomBlock'
 import type { FileSystemService } from './fileSystemService'
 import type { ProjectImageDimensionLoader } from './projectIconCatalog'
@@ -23,6 +24,7 @@ export type InstalledProjectCustomBlockRuntime = {
 
 type RuntimeLoadState = {
   dependencyCount: number
+  readonly generation: number
   readonly loadDimensions?: ProjectImageDimensionLoader
 }
 
@@ -41,18 +43,41 @@ async function loadRuntime(options: {
   depth: number
   state: RuntimeLoadState
 }): Promise<InstalledProjectCustomBlockRuntime> {
-  const pkg = await readInstalledProjectCustomBlockPackage(options.fs, options.installationPath)
+  const isLocalDefinition = options.installationPath.toLocaleLowerCase().endsWith('.ocblock')
+  const pkg = isLocalDefinition
+    ? await readProjectCustomBlockDefinitionAsPackage(options.fs, options.installationPath)
+    : await readInstalledProjectCustomBlockPackage(options.fs, options.installationPath)
   if (!pkg.block) throw new Error(`Custom block is unavailable: ${pkg.manifest.packageId}`)
   const packageId = pkg.manifest.packageId.toLocaleLowerCase()
-  const resourceRootPath = `${options.installationPath.replace(/[\\/]+$/, '')}/resources`
+  const resourceRootPath = isLocalDefinition
+    ? options.installationPath.replace(/[\\/]+\.opencard[\\/]blocks[\\/][^\\/]+\.ocblock$/i, '')
+    : `${options.installationPath.replace(/[\\/]+$/, '')}/resources`
   const issues: ProjectCustomBlockPackageIssue[] = [...pkg.issues]
   const baseEnvironment = await loadProjectResourceEnvironment({
     fs: options.fs,
     rootPath: resourceRootPath,
-    kind: 'package',
+    kind: isLocalDefinition ? 'project' : 'package',
     identity: pkg.manifest.packageId,
     loadDimensions: options.state.loadDimensions,
   })
+  if (isLocalDefinition) {
+    const environment: ProjectResourceEnvironment = { ...baseEnvironment, customBlockCatalog: new Map() }
+    const entry: ProjectCustomBlockCatalogEntry = {
+      manifest: pkg.manifest,
+      block: pkg.block,
+      installationPath: options.installationPath,
+      resourceRootPath,
+      issues,
+    }
+    const runtimeEntry: CustomBlockRuntimeEntry = {
+      manifest: pkg.manifest,
+      block: pkg.block,
+      sizeEditPolicy: resolveProjectCustomBlockSizeEditPolicy(pkg.block),
+      environment,
+      dependencies: new Map(),
+    }
+    return { entry, runtimeEntry, environments: [environment], issues }
+  }
 
   const dependencies = new Map<string, CustomBlockRuntimeEntry>()
   const environments: ProjectResourceEnvironment[] = []
@@ -142,7 +167,7 @@ export async function loadInstalledProjectCustomBlockRuntime(options: {
     installationPath: options.installationPath,
     ancestors: [],
     depth: 0,
-    state: { dependencyCount: 0, loadDimensions: options.loadDimensions },
+    state: { dependencyCount: 0, generation: 0, loadDimensions: options.loadDimensions },
   })
 }
 

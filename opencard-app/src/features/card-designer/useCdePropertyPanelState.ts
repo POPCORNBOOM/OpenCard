@@ -155,6 +155,16 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     return options.selectedLocation.value
   })
 
+  function findCustomBlockEntry(customBlockKey: string): DeepReadonly<ProjectCustomBlockCatalogEntry> | undefined {
+    const catalog = options.customBlockCatalog?.value
+    if (!catalog) return undefined
+    const identity = customBlockKey.toLowerCase()
+    const legacyIdentity = identity.includes('@block:')
+      ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + '@block:'.length)}`
+      : identity
+    return catalog.get(identity) ?? catalog.get(legacyIdentity)
+  }
+
   const selectedBlockEditorRecord = computed<Record<string, unknown> & { type?: string } | null>(() => {
     options.documentRevision.value
     const block = options.selectedBlock.value
@@ -162,35 +172,42 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
       return null
     }
 
-    if (options.selectedCardId.value === options.blueprintCardId || !options.selectedCard.value) {
-      return resolveNulls(
-        block.type,
-        block as Record<string, unknown>,
-      ) as Record<string, unknown> & { type?: string }
-    }
-
-    const blockOverrides = Object.fromEntries(Object.entries(
-      options.selectedCard.value.data[block.id] ?? {},
-    ).filter(([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey)))
-    return {
+    const blockOverrides = options.selectedCardId.value === options.blueprintCardId || !options.selectedCard.value
+      ? {}
+      : Object.fromEntries(Object.entries(
+        options.selectedCard.value.data[block.id] ?? {},
+      ).filter(([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey)))
+    const record = {
       ...resolveNulls(block.type, {
         ...block,
         ...blockOverrides,
       }),
     } as Record<string, unknown> & { type?: string }
+    if (block.type !== 'custom-block') return record
+    const entry = findCustomBlockEntry(block.customBlockKey)
+    if (!entry) return { type: 'custom-block', customBlockKey: block.customBlockKey }
+    const schema = createProjectCustomBlockPropertySchema(entry)
+    const publicKeys = new Set(entry.manifest.publicFieldKeys.map(key => key.toLocaleLowerCase()))
+    for (const fieldKey of entry.manifest.publicFieldKeys) {
+      if (Object.prototype.hasOwnProperty.call(record, fieldKey)) continue
+      const definition = schema.fields[fieldKey]
+      const value = Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
+        ? (entry.block as Record<string, unknown>)[fieldKey]
+        : definition?.defaultValue
+      if (value !== undefined) record[fieldKey] = value
+    }
+    return Object.fromEntries(Object.entries(record).filter(([fieldKey]) => (
+      fieldKey === 'type' || fieldKey === 'customBlockKey' || publicKeys.has(fieldKey.toLocaleLowerCase())
+    ))) as Record<string, unknown> & { type?: string }
   })
 
   const selectedBlockPropertySchema = computed(() => {
     const block = options.selectedBlock.value
     if (!block) return { fields: {}, labels: {}, customKeys: new Set<string>() }
     if (block.type === 'custom-block') {
-      const entry = options.customBlockCatalog?.value.get(block.packageId.toLowerCase())
+      const entry = findCustomBlockEntry(block.customBlockKey)
       return entry
-        ? createProjectCustomBlockPropertySchema(entry, [
-          ...entry.manifest.publicFieldKeys,
-          'width',
-          'height',
-        ])
+        ? createProjectCustomBlockPropertySchema(entry)
         : { fields: {}, labels: {}, customKeys: new Set<string>() }
     }
     return { fields: {}, labels: {}, customKeys: new Set<string>() }
@@ -199,8 +216,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   const selectedCustomBlockExcludedKeys = computed(() => {
     const block = options.selectedBlock.value
     if (block?.type !== 'custom-block') return new Set<string>()
-    const identity = block.packageId.toLowerCase()
-    const entry = options.customBlockCatalog?.value.get(identity)
+    const entry = findCustomBlockEntry(block.customBlockKey)
     if (!entry) return new Set(Object.keys(getTypePropertyEditorSchema('custom-block')))
     const allowed = new Set(Object.keys(selectedBlockPropertySchema.value.fields).map(key => key.toLowerCase()))
     return new Set(Object.keys(getTypePropertyEditorSchema('custom-block'))

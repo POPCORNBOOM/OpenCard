@@ -78,11 +78,7 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
     }
   }
   if (loadIssues.length > 0) return { ok: false, issues: loadIssues }
-  const warnings = snapshots.flatMap(snapshot => (snapshot.storageWarnings ?? []).map(warning => ({
-    code: 'document-normalized' as const,
-    path: `${snapshot.sourcePath}:${warning.path}`,
-    message: warning.message,
-  })))
+  const warnings: ExportTaskValidationIssue[] = []
 
   const usedFileNames = new Set<string>()
   const entries: ExportPlanEntry[] = []

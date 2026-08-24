@@ -44,6 +44,9 @@
       <OcText v-if="submitted && !email.trim()" as="p" size="sm" tone="danger" role="alert">
         {{ t('sidebar.initializeDialog.emailRequired') }}
       </OcText>
+      <OcCheckbox v-model:checked="createInitialCommit" :disabled="busy">
+        {{ t('sidebar.initializeDialog.createInitialCommit') }}
+      </OcCheckbox>
       <OcText v-if="error" as="p" size="sm" tone="danger" role="alert">
         {{ error }}
       </OcText>
@@ -64,10 +67,11 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../../../components/base/OcButton.vue'
+import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
-import type { GitIdentity } from '../git.types'
+import type { RepositoryInitializationInput } from '../git.types'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -79,17 +83,19 @@ const props = withDefaults(defineProps<{
 })
 const emit = defineEmits<{
   close: []
-  submit: [identity: GitIdentity]
+  submit: [input: RepositoryInitializationInput]
 }>()
 const { t } = useI18n()
 const name = ref('')
 const email = ref('')
+const createInitialCommit = ref(false)
 const submitted = ref(false)
 
 watch(() => props.open, open => {
   if (!open) return
   name.value = ''
   email.value = ''
+  createInitialCommit.value = false
   submitted.value = false
 })
 
@@ -104,7 +110,9 @@ function requestClose(): void {
 function submit(): void {
   submitted.value = true
   const identity = { name: name.value.trim(), email: email.value.trim() }
-  if (!props.busy && identity.name && identity.email) emit('submit', identity)
+  if (!props.busy && identity.name && identity.email) {
+    emit('submit', { identity, createInitialCommit: createInitialCommit.value })
+  }
 }
 </script>
 

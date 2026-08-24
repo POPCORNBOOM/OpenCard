@@ -173,7 +173,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     }
 
     const customEntry = block.type === 'custom-block'
-      ? options.customBlockCatalog?.value.get(block.packageId.toLowerCase())
+      ? options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
       : undefined
     const packageSchema = customEntry ? createProjectCustomBlockPropertySchema(customEntry) : null
     const override = packageSchema?.fields ?? {}

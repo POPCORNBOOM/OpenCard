@@ -144,7 +144,7 @@ import {
   type ProjectExportTask,
 } from '../../features/workspace/model/projectMetadata'
 import { createDefaultProjectExportTask } from '../../features/exporting/exportTask'
-import { normalizeCardDocument } from '../../entities/card/storage'
+import { parseCardDocument } from '../../entities/card/storage'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
@@ -212,7 +212,7 @@ watch(() => projectStore.indexedEntries.value, async entries => {
     .map(entry => entry.name.replace(/\\/g, '/'))
   exportDocumentCandidates.value = await Promise.all(paths.map(async path => {
     try {
-      const document = normalizeCardDocument(JSON.parse(await projectStore.readFile(path)) as unknown).document
+      const document = parseCardDocument(JSON.parse(await projectStore.readFile(path)) as unknown)
       const width = Number(document.width)
       const height = Number(document.height)
       return {

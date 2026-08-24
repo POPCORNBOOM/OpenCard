@@ -3,13 +3,14 @@ import { createBlock } from '../../../entities/card/model'
 import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
 
 describe('analyzeProjectCustomBlockExport', () => {
-  it('offers editable native fields alongside additional fields, with dimensions handled separately', () => {
+  it('offers editable native fields alongside additional fields, including dimensions', () => {
     const root = createBlock('text-block', { content: 'Default' })
     const result = analyzeProjectCustomBlockExport(root)
 
     expect(result.fields.map(field => field.key)).toEqual(expect.arrayContaining(['content', 'fontFamily', 'visible']))
+    expect(result.fields.map(field => field.key)).toEqual(expect.arrayContaining(['width', 'height']))
     expect(result.fields.map(field => field.key)).not.toEqual(expect.arrayContaining([
-      'name', 'notes', 'width', 'height', 'type', 'id',
+      'name', 'notes', 'type', 'id',
     ]))
   })
 
@@ -18,7 +19,7 @@ describe('analyzeProjectCustomBlockExport', () => {
     root.additionalFieldDefinition = { size: { fieldType: 'number', title: '尺寸' } }
     const result = analyzeProjectCustomBlockExport(root)
     expect(result.fields[0]).toMatchObject({ key: 'size', referenceCount: 2 })
-    expect(result.resize).toEqual({ widthLocked: true, heightLocked: true })
+    expect(result.fields.map(field => field.key)).toEqual(expect.arrayContaining(['width', 'height']))
   })
 
   it('counts descendant parent references and locations', () => {
@@ -53,6 +54,6 @@ describe('analyzeProjectCustomBlockExport', () => {
     const result = analyzeProjectCustomBlockExport(root)
 
     expect(result.fields[0]?.referenceCount).toBe(2)
-    expect(result.resize.widthLocked).toBe(true)
+    expect(result.fields.map(field => field.key)).toEqual(expect.arrayContaining(['width', 'height']))
   })
 })

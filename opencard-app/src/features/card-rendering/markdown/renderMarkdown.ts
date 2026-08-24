@@ -4,6 +4,7 @@ import type Token from 'markdown-it/lib/token.mjs'
 import {
   createProjectIconCssProperties,
   findProjectIcon,
+  type ProjectIconCatalogEntry,
   type ProjectIconCatalog,
 } from '../../workspace/services/projectIconCatalog'
 
@@ -58,24 +59,32 @@ markdown.core.ruler.after('curly_attributes', 'opencard_image_attributes', (stat
 export type MarkdownRenderOptions = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
+  resolveIconReference?: (source: string) => ProjectIconCatalogEntry | null
   missingProjectIconLabel?: string
 }
 
 type MarkdownEnvironment = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
+  resolveIconReference?: (source: string) => ProjectIconCatalogEntry | null
   missingProjectIconLabel?: string
 }
 
 markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, environment) => {
   const token = tokens[index]
   const reference = token?.meta as { seriesKey?: string; iconKey?: string } | undefined
-  const entry = reference?.seriesKey && reference.iconKey
-    ? findProjectIcon((environment as MarkdownEnvironment).projectIconCatalog, reference.seriesKey, reference.iconKey)
-    : null
+  const source = reference?.seriesKey && reference.iconKey
+    ? `icon:${reference.seriesKey}/${reference.iconKey}`
+    : ''
+  const markdownEnvironment = environment as MarkdownEnvironment
+  const entry = source && markdownEnvironment.resolveIconReference
+    ? markdownEnvironment.resolveIconReference(source)
+    : reference?.seriesKey && reference.iconKey
+      ? findProjectIcon(markdownEnvironment.projectIconCatalog, reference.seriesKey, reference.iconKey)
+      : null
   if (!entry) {
     const label = markdown.utils.escapeHtml(
-      (environment as MarkdownEnvironment).missingProjectIconLabel ?? 'Project icon unavailable',
+      markdownEnvironment.missingProjectIconLabel ?? 'Project icon unavailable',
     )
     return `<span class="project-inline-icon project-inline-icon--missing" role="img" aria-label="${label}" data-oc-icon-missing="true"></span>`
   }
@@ -146,6 +155,7 @@ export function renderMarkdown(source: string, options: MarkdownRenderOptions = 
   return markdown.render(source, {
     resolveImageSrc: options.resolveImageSrc,
     projectIconCatalog: options.projectIconCatalog,
+    resolveIconReference: options.resolveIconReference,
     missingProjectIconLabel: options.missingProjectIconLabel,
   } satisfies MarkdownEnvironment)
 }

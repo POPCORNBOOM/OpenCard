@@ -72,6 +72,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     resources: createCardRenderResourceContext({
       resourceRootPath: request.resourceRootPath,
       hostEnvironment: request.environment.projectResourceEnvironment,
+      packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
       customBlockCatalog: request.environment.customBlockCatalog,
       projectIconCatalog: request.environment.projectIconCatalog,

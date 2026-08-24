@@ -128,7 +128,7 @@ const treeData = computed<OcTreeData>(() => ({
   rootKeys: entries.value.map(entry => entry.packageId),
   items: new Map(entries.value.map(entry => [entry.packageId, {
     label: entry.descriptor.manifest.name,
-    tail: `${entry.packageId} ${entry.descriptor.manifest.version} ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
+    tail: `${entry.packageId} ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
     icon: entry.descriptor.unavailable ? 'status.warning' : 'file.custom-block',
     actions: ['reveal', 'remove'],
     contextActions: ['reveal', 'remove'],
@@ -155,8 +155,9 @@ async function addBlock(): Promise<void> {
   try {
     const installed = await projectStore.installProjectCustomBlockFile(source)
     selectPackage(installed.packageId)
-  } catch {
-    error.value = t('customBlockRegistry.importFailed')
+  } catch (cause) {
+    const detail = cause instanceof Error && cause.message ? `: ${cause.message}` : ''
+    error.value = `${t('customBlockRegistry.importFailed')}${detail}`
   } finally {
     busy.value = false
   }

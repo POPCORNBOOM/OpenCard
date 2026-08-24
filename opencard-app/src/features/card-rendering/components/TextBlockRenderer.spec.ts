@@ -181,7 +181,7 @@ describe('TextBlockRenderer', () => {
     const embedded = {
       ...parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
       type: 'custom-block' as const,
-      packageId: 'alice/badge',
+      customBlockKey: 'alice@block:badge',
       content: parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
     }
     const parsed = parseRichTextHtml(block.content)

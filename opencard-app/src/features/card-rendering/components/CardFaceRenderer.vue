@@ -14,7 +14,7 @@ import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../re
 import {
     resolveCardAssetSrc,
     resolveCardFontFamily,
-    resolveCardIconCatalog,
+    resolveCardIconReference,
     type CardRenderResourceContext,
 } from '../cardRenderResources'
 import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
@@ -116,7 +116,7 @@ provide(cardEditorContextKey, {
         ...props.resourceContext,
         resolveFontFamily: props.resourceContext.resolveFontFamily ?? toCssFontFamily,
     }, blockId, fieldKey),
-    resolveIconCatalog: (blockId, fieldKey) => resolveCardIconCatalog(props.resourceContext, blockId, fieldKey),
+    resolveIconReference: (source, blockId, fieldKey) => resolveCardIconReference(source, props.resourceContext, blockId, fieldKey),
     projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
     customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
 	    richText: computed(() => props.resourceContext.richText ?? new Map()),

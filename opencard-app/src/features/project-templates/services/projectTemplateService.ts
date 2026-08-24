@@ -1,7 +1,7 @@
 import { basename, join, resolveResource } from '@tauri-apps/api/path'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { normalizeCardDocument } from '../../../entities/card/storage'
+import { parseCardDocument } from '../../../entities/card/storage'
 import { resolveAppStorageRoot } from '../../../shared/storage/appStoragePaths'
 import { fileSystemService, type FileSystemService } from '../../workspace/services/fileSystemService'
 import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
@@ -257,7 +257,7 @@ export class ProjectTemplateService {
 
       const absolutePath = await this.paths.join(sourcePath, ...pathSegments(relativePath))
       try {
-        const document = normalizeCardDocument(JSON.parse(await this.fs.readFile(absolutePath))).document
+        const document = parseCardDocument(JSON.parse(await this.fs.readFile(absolutePath)) as unknown)
         documentEntries.push(relativePath)
         entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch {
@@ -597,7 +597,7 @@ export class ProjectTemplateService {
     const entryNames: Record<string, string> = {}
     for (const entry of entries) {
       try {
-        const document = normalizeCardDocument(JSON.parse(strFromU8(content.get(entry)!))).document
+        const document = parseCardDocument(JSON.parse(strFromU8(content.get(entry)!)) as unknown)
         entryNames[entry] = resolveEntryName(document, entry)
       } catch (cause) {
         throw new TemplateServiceError('entry-not-found', 'Template entry is invalid', { cause })
@@ -762,7 +762,7 @@ export class ProjectTemplateService {
     const templateEntries = resolveTemplateEntries(manifest)
     for (const [index, entryPath] of entryPaths.entries()) {
       try {
-        const document = normalizeCardDocument(JSON.parse(await this.fs.readFile(entryPath))).document
+        const document = parseCardDocument(JSON.parse(await this.fs.readFile(entryPath)) as unknown)
         const relativePath = templateEntries[index]
         if (relativePath) entryNames[relativePath] = resolveEntryName(document, relativePath)
       } catch (cause) {

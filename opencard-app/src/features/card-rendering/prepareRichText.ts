@@ -2,6 +2,7 @@ import { createBlock, createCustomBlock, type CardBlock, type CardDocument, type
 import { visitCardBlockTree } from '../../entities/card/tree'
 import { parseRichTextHtml, type RichTextCustomBlockNode, type RichTextDocument, type RichTextNode } from '../../shared/rich-text/richTextHtml'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
+import { getProjectCustomBlockPublicFieldKeys } from '../workspace/services/projectCustomBlockPublicFields'
 import {
   projectResourceScopeIdentity,
   type ProjectResourceEnvironment,
@@ -64,7 +65,7 @@ function createProxy(host: RichTextHost, embeds: readonly EmbedWork[]): CardBloc
   proxy.children = embeds.map((embed, index) => {
     const instance = createCustomBlock({
       id: embed.identity,
-      packageId: embed.node.packageId,
+      customBlockKey: embed.node.packageId,
       name: embed.node.packageId,
     })
     Object.assign(instance, embed.node.properties)
@@ -159,7 +160,11 @@ export function prepareRichText(options: {
         resolveCustomBlock: packageId => {
           const catalogEntry = hostCatalog.get(packageId.toLowerCase())
           return catalogEntry
-            ? { publicFieldKeys: catalogEntry.manifest.publicFieldKeys }
+            ? {
+                publicFieldKeys: getProjectCustomBlockPublicFieldKeys({
+                  manifest: catalogEntry.manifest, block: catalogEntry.block,
+                }),
+              }
             : null
         },
       })
@@ -214,7 +219,7 @@ export function prepareRichText(options: {
     for (const embed of work) {
       const environment = environmentForHost(embed.host)
       if (!environment) continue
-      workScopes.set(projectResourceScopeIdentity(embed.identity, 'packageId'), environment)
+      workScopes.set(projectResourceScopeIdentity(embed.identity, 'customBlockKey'), environment)
       for (const fieldKey of Object.keys(embed.node.properties)) {
         workScopes.set(projectResourceScopeIdentity(embed.identity, fieldKey), environment)
       }

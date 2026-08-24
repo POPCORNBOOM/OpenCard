@@ -1,3 +1,4 @@
+export { RESOURCE_PACKAGE_EXTENSION, RESOURCE_PACKAGE_SUFFIX } from './resourcePackage'
 /**
  * 模块说明：
  * - 定义文件类型语义与文件树图标解析规则
@@ -9,11 +10,14 @@ import { PROJECT_INTERNAL_DIRECTORY_NAME } from './projectStructure'
 
 export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
 export const CARD_DOCUMENT_SUFFIX = `.${CARD_DOCUMENT_EXTENSION}`
+export const CUSTOM_BLOCK_EXTENSION = 'ocblock'
+export const CUSTOM_BLOCK_SUFFIX = `.${CUSTOM_BLOCK_EXTENSION}`
 
 export interface FileTypeDefinition {
   id: string
   labelKey: string
   extensions?: string[]
+  patterns?: string[]
   fileNames?: string[]
   icon: IconToken
   iconTone?: IconTone
@@ -71,7 +75,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-project-profile',
     labelKey: 'fileTypes.opencardProjectProfile',
-    fileNames: ['.ocproject'],
+    patterns: ['.opencard/project.json'],
     icon: 'file.opencard-project',
     iconTone: iconTone.config,
     language: 'json',
@@ -82,7 +86,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-font-registry',
     labelKey: 'fileTypes.opencardFontRegistry',
-    fileNames: ['.ocfonts'],
+    patterns: ['.opencard/fonts/fonts.json'],
     icon: 'file.font',
     iconTone: iconTone.config,
     language: 'json',
@@ -93,7 +97,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-icon-registry',
     labelKey: 'fileTypes.opencardIconRegistry',
-    fileNames: ['.ocicons'],
+    patterns: ['.opencard/icons/icons.json'],
     icon: 'file.project-icon',
     iconTone: iconTone.config,
     language: 'json',
@@ -104,7 +108,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-dictionary',
     labelKey: 'fileTypes.opencardDictionary',
-    fileNames: ['.oclocale'],
+    patterns: ['.opencard/locale.json'],
     icon: 'file.dictionary',
     iconTone: iconTone.config,
     language: 'json',
@@ -115,7 +119,7 @@ const fileTypes: FileTypeDefinition[] = [
   {
     id: 'opencard-custom-block-manager',
     labelKey: 'fileTypes.opencardCustomBlockRegistry',
-    fileNames: ['blocks'],
+    patterns: ['.opencard/blocks/blocks.json'],
     icon: 'file.custom-block',
     iconTone: iconTone.config,
     editorId: 'custom-block-manager',
@@ -128,7 +132,28 @@ const fileTypes: FileTypeDefinition[] = [
     extensions: ['ocblock'],
     icon: 'file.custom-block',
     iconTone: iconTone.opencard,
-    editorId: 'custom-block-package',
+    language: 'json',
+    editorId: 'monaco',
+    previewable: true,
+  },
+  {
+    id: 'opencard-project-package-manifest',
+    labelKey: 'fileTypes.opencardResourcePackage',
+    patterns: ['.opencard/packages/packages.json'],
+    icon: 'file.package',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'external-package-manager',
+    previewable: true,
+    projectTreePriority: 5,
+  },
+  {
+    id: 'opencard-resource-package',
+    labelKey: 'fileTypes.opencardResourcePackage',
+    extensions: ['ocpack'],
+    icon: 'file.package',
+    iconTone: iconTone.opencard,
+    editorId: 'unsupported-file',
   },
   {
     id: 'opencard',
@@ -144,7 +169,8 @@ const fileTypes: FileTypeDefinition[] = [
     id: 'json',
     labelKey: 'fileTypes.json',
     extensions: ['json'],
-    fileNames: ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json'],
+    patterns: ['**/package.json'],
+    fileNames: ['package-lock.json', 'tsconfig.json', 'jsconfig.json'],
     icon: 'file.json',
     iconTone: iconTone.json,
     language: 'json',
@@ -243,16 +269,12 @@ const fileTypes: FileTypeDefinition[] = [
   },
 ]
 
-const specialFileIcons: Record<string, EntryIconPresentation> = {
-  '.ocproject': { icon: 'file.opencard-project', tone: iconTone.config },
-  '.ocfonts': { icon: 'file.font', tone: iconTone.config },
-  '.ocicons': { icon: 'file.project-icon', tone: iconTone.config },
-  '.oclocale': { icon: 'file.dictionary', tone: iconTone.config },
-  'package.json': { icon: 'file.package', tone: iconTone.config },
-  'package-lock.json': { icon: 'file.lock', tone: 'warning' },
-  'tsconfig.json': { icon: 'file.settings', tone: iconTone.config },
-  'jsconfig.json': { icon: 'file.settings', tone: iconTone.config },
-  'vite.config.ts': { icon: 'file.settings', tone: iconTone.config },
+function globMatches(value: string, pattern: string, caseInsensitive: boolean): boolean {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+  return new RegExp(`^${escaped}$`, caseInsensitive ? 'i' : '').test(value)
 }
 
 function normalizeSegment(value: string): string {
@@ -320,30 +342,23 @@ function isRegisteredManagedSource(
 
 export function resolveFileType(path: string, projectRoot?: string): FileTypeDefinition {
   const baseName = normalizeSegment(getBaseName(path))
+  const normalizedPath = path.replace(/\\/g, '/').replace(/^.*?(?=\.opencard\/)/i, '').replace(/^\/+/, '')
+  const caseInsensitive = isWindowsLikePath(projectRoot ?? path)
+
+  const patternMatch = fileTypes.find((definition) => definition.patterns?.some((pattern) => (
+    globMatches(normalizedPath, pattern, caseInsensitive)
+  )))
+  if (patternMatch) return patternMatch
 
   const fileNameMatch = fileTypes.find((definition) => {
-    const isProjectMetadata = definition.id === 'opencard-project-profile'
-      || definition.id === 'opencard-font-registry'
-      || definition.id === 'opencard-icon-registry'
-      || definition.id === 'opencard-dictionary'
-      || definition.id === 'opencard-custom-block-manager'
-    const compareCaseInsensitive = !isProjectMetadata
-      || isWindowsLikePath(projectRoot ?? path)
-    const fileNameMatches = definition.fileNames?.some((fileName) => (
-      compareCaseInsensitive
-        ? normalizeSegment(fileName) === baseName
-        : fileName === getBaseName(path)
+    const matches = definition.fileNames?.some((fileName) => (
+      caseInsensitive ? normalizeSegment(fileName) === baseName : fileName === getBaseName(path)
     ))
-    return fileNameMatches && (!projectRoot || !isProjectMetadata || isProjectInternalFile(path, projectRoot))
+    const isLegacyProjectAlias = definition.id.startsWith('opencard-')
+      && definition.fileNames?.some((fileName) => fileName.startsWith('.oc'))
+    return Boolean(matches) && (!isLegacyProjectAlias || !projectRoot || isProjectInternalFile(path, projectRoot))
   })
-  if (fileNameMatch) {
-    const specialPresentation = specialFileIcons[baseName]
-    return {
-      ...fileNameMatch,
-      icon: specialPresentation?.icon ?? fileNameMatch.icon,
-      iconTone: specialPresentation?.tone ?? fileNameMatch.iconTone,
-    }
-  }
+  if (fileNameMatch) return fileNameMatch
 
   const extension = getExtension(path)
   const extensionMatch = fileTypes.find((definition) =>

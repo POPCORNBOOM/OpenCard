@@ -135,7 +135,7 @@ const contractsByType: Readonly<Record<string, Readonly<Record<string, RenderFie
   },
   'custom-block': {
     ...baseBlockContracts('custom-block'),
-    packageId: { kind: 'string', defaultValue: '', required: true },
+    customBlockKey: { kind: 'string', defaultValue: '', required: true },
   },
   'simple-container-location': {
     id: { kind: 'string', defaultValue: '', required: true },

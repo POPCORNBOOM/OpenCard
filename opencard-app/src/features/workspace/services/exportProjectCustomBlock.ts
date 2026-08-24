@@ -6,7 +6,6 @@ import type {
   ProjectCustomBlockManifest,
   ProjectCustomBlockManifestCatalog,
   ProjectCustomBlockPackageIssue,
-  ProjectCustomBlockResizePolicy,
 } from '../model/projectCustomBlocks'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import type { ResolvedProjectDictionary } from '../model/projectDictionary'
@@ -37,20 +36,16 @@ export type ProjectCustomBlockExportResult =
   | { status: 'cancelled' }
   | { status: 'blocked', reason: 'binding', issue: CardPipelineIssue }
 
-type CustomBlockExportFileSystem = Pick<
-  FileSystemService,
-  'pickSavePath' | 'readBinaryFile' | 'readDirectoryEntries' | 'fileExists' | 'writeBinaryFile'
->
+type CustomBlockExportFileSystem = Pick<FileSystemService,
+  'pickSavePath' | 'readBinaryFile' | 'readDirectoryEntries' | 'fileExists' | 'writeBinaryFile'>
+  & Partial<Pick<FileSystemService, 'writeFile'>>
 
 export async function prepareProjectCustomBlockExport(options: {
   document: CardDocument
   rootBlockId: string
   name: string
-  publisherKey: string
   blockKey: string
-  version?: string
   exposedFieldKeys: readonly string[]
-  resize: ProjectCustomBlockResizePolicy
   projectRootPath: string
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<ResolvedProjectDictionary> | null
@@ -67,12 +62,10 @@ export async function prepareProjectCustomBlockExport(options: {
   const bindingIssue = materialized.issues[0]
   if (bindingIssue) return { blocked: bindingIssue }
 
-  const block = buildProjectCustomBlockRoot(materialized.root, options.resize)
+  const block = buildProjectCustomBlockRoot(materialized.root, options.exposedFieldKeys)
   const manifest = await buildProjectCustomBlockManifest({
     root: block,
-    publisherKey: options.publisherKey,
-    blockKey: options.blockKey,
-    version: options.version,
+    key: options.blockKey,
     name: options.name,
     exposedFieldKeys: options.exposedFieldKeys,
   })
@@ -122,8 +115,7 @@ export async function exportPreparedProjectCustomBlock(options: {
   customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
   fs: CustomBlockExportFileSystem
 }): Promise<ProjectCustomBlockExportResult> {
-  const packageSegments = options.prepared.manifest.packageId.split('/')
-  const blockKey = packageSegments[packageSegments.length - 1] ?? 'custom-block'
+  const blockKey = options.prepared.manifest.packageId.replace(/^block:/i, '') || 'custom-block'
   const outputPath = await options.fs.pickSavePath({
     defaultPath: `${blockKey}.ocblock`,
     fileTypeName: 'OpenCard custom block',
@@ -136,6 +128,9 @@ export async function exportPreparedProjectCustomBlock(options: {
     manifest: candidate.manifest,
     block: candidate.block,
     files: candidate.resources.files,
+    declaredResourceDependencies: candidate.resources.selectedCandidates
+      .filter(resource => !resource.automatic)
+      .map(resource => resource.id),
     outputPath,
   })
   return {
@@ -150,11 +145,8 @@ export async function exportProjectCustomBlock(options: {
   document: CardDocument
   rootBlockId: string
   name: string
-  publisherKey: string
   blockKey: string
-  version?: string
   exposedFieldKeys: readonly string[]
-  resize: ProjectCustomBlockResizePolicy
   selectedResourceIds?: ReadonlySet<string>
   projectRootPath: string
   project?: Readonly<ProjectInformation> | null

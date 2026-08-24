@@ -33,7 +33,7 @@ export const rendererTestGlobal = {
       handleBlockClick: () => undefined,
       resolveAssetSrc: (path: string) => `asset://${path}`,
       resolveFontFamily: (value: string) => value,
-      resolveIconCatalog: () => EMPTY_PROJECT_ICON_CATALOG,
+      resolveIconReference: () => null,
     },
   },
 }
@@ -53,7 +53,13 @@ export function richTextRendererTestGlobal(block: RenderReadyTextBlock, projectI
         handleBlockClick: () => undefined,
         resolveAssetSrc: (path: string) => `asset://${path}`,
         resolveFontFamily: (value: string) => value,
-        resolveIconCatalog: () => (projectIconCatalog as ProjectIconCatalog | undefined) ?? EMPTY_PROJECT_ICON_CATALOG,
+        resolveIconReference: (source: string) => {
+          const catalog = (projectIconCatalog as ProjectIconCatalog | undefined) ?? EMPTY_PROJECT_ICON_CATALOG
+          const [, path] = source.split(':', 2)
+          const [seriesKey, iconKey] = path?.split('/') ?? []
+          return catalog.entries.find(entry => entry.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
+            && entry.iconKey.toLowerCase() === iconKey?.toLowerCase()) ?? null
+        },
         richText: computed(() => prepared),
         ...(projectIconCatalog ? { projectIconCatalog: computed(() => projectIconCatalog) } : {}),
       },

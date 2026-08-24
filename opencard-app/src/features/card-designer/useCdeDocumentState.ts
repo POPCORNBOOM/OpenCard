@@ -4,9 +4,8 @@ import {
 } from '../../entities/card/model'
 import { buildParentLookup, type ParentLookup } from '../../entities/card/tree'
 import {
-  normalizeCardDocument,
-  serializeCardDocumentWithWarnings,
-  type CardStorageWarning,
+  parseCardDocument,
+  stringifyCardDocument,
 } from '../../entities/card/storage'
 import { reportAppError } from '../logging/appErrorCatalog'
 import type { HistoryOperationMeta } from '../editor-runtime/history/structuredHistory'
@@ -24,7 +23,6 @@ type UseCdeDocumentStateOptions = {
 export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const rawContent = ref('')
   const cardDoc = ref<CardDocument | null>(null)
-  const storageWarnings = ref<readonly CardStorageWarning[]>([])
   const parentLookup = ref<ParentLookup>(new Map())
   const isModified = ref(false)
   const savedContent = ref('')
@@ -33,11 +31,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   const hasDocument = computed(() => Boolean(cardDoc.value))
 
   function serializeCurrentDocument(document: CardDocument): string {
-    const serialized = serializeCardDocumentWithWarnings(document, {
-      resolveCustomBlockPublicFieldKeys: options.resolveCustomBlockPublicFieldKeys,
-    })
-    storageWarnings.value = serialized.warnings
-    return serialized.text
+    return stringifyCardDocument(document)
   }
 
   function updateModifiedState(nextContent: string) {
@@ -129,16 +123,13 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
 
     try {
       const parsed = JSON.parse(content) as unknown
-      const normalized = normalizeCardDocument(parsed)
-      cardDoc.value = normalized.document
-      storageWarnings.value = normalized.warnings
+      cardDoc.value = parseCardDocument(parsed)
       rebuildParentLookup()
       if (saved) setSavedContent(content)
       else updateModifiedState(content)
     } catch (e) {
       reportAppError('OC-E4003', e)
       cardDoc.value = null
-      storageWarnings.value = []
       rebuildParentLookup()
       if (saved) setSavedContent(content)
       else updateModifiedState(content)
@@ -162,7 +153,6 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
   return {
     rawContent,
     cardDoc,
-    storageWarnings,
     documentRevision,
     parentLookup,
     isModified,

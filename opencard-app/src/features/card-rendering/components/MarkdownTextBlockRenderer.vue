@@ -23,7 +23,7 @@ const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
   resolveImageSrc: source => editorContext.resolveAssetSrc(source, props.block.id, 'content'),
-  projectIconCatalog: editorContext.resolveIconCatalog(props.block.id, 'content'),
+  resolveIconReference: source => editorContext.resolveIconReference(source, props.block.id, 'content'),
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,

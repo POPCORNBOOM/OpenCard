@@ -3,39 +3,35 @@ import { resolveDirectoryIcon, resolveEntryIcon, resolveFileType } from './fileT
 
 describe('project metadata file types', () => {
   it('recognizes exact project resource file names and custom block packages', () => {
-    expect(resolveFileType('D:/Cards/.ocproject').id).toBe('opencard-project-profile')
-    expect(resolveFileType('D:/Cards/.oclocale').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/.ocfonts').id).toBe('opencard-font-registry')
-    expect(resolveFileType('D:/Cards/.ocicons').id).toBe('opencard-icon-registry')
-    expect(resolveFileType('D:/Cards/.opencard/blocks', 'D:/Cards')).toMatchObject({
+    expect(resolveFileType('D:/Cards/.opencard/project.json', 'D:/Cards').id).toBe('opencard-project-profile')
+    expect(resolveFileType('D:/Cards/.opencard/locale.json', 'D:/Cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/Cards/.opencard/fonts/fonts.json', 'D:/Cards').id).toBe('opencard-font-registry')
+    expect(resolveFileType('D:/Cards/.opencard/icons/icons.json', 'D:/Cards').id).toBe('opencard-icon-registry')
+    expect(resolveFileType('D:/Cards/.opencard/blocks/blocks.json', 'D:/Cards')).toMatchObject({
       id: 'opencard-custom-block-manager',
       editorId: 'custom-block-manager',
     })
     expect(resolveFileType('D:/Cards/assets/square.ocblock')).toMatchObject({
       id: 'opencard-custom-block',
-      editorId: 'custom-block-package',
+      editorId: 'monaco',
     })
     expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })
 
   it('restricts special files to the managed project directory', () => {
-    expect(resolveFileType('D:/Cards/.opencard/.oclocale', 'D:/Cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('D:/Cards/.oclocale', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/locales/.oclocale', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.ocproject', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.ocfonts', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/.ocicons', 'D:/Cards').id).toBe('unsupported')
-    expect(resolveFileType('D:/Cards/nested/blocks', 'D:/Cards').id).toBe('unsupported')
+    expect(resolveFileType('D:/Cards/.opencard/fonts/fonts.json', 'D:/Cards').id).toBe('opencard-font-registry')
+    expect(resolveFileType('D:/Cards/.opencard/blocks/blocks.json', 'D:/Cards').id).toBe('opencard-custom-block-manager')
+    expect(resolveFileType('D:/Cards/.opencard/other/blocks/blocks.json', 'D:/Cards').id).toBe('json')
   })
 
   it('uses Windows-style case-insensitive project path comparison', () => {
-    expect(resolveFileType('D:/CARDS/.OPENCARD/.OCLOCALE', 'd:/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('D:/CARDS/.OPENCARD/LOCALE.JSON', 'd:/cards').id).toBe('opencard-dictionary')
   })
 
   it('keeps special file names case-sensitive on POSIX paths', () => {
-    expect(resolveFileType('/cards/.opencard/.oclocale', '/cards').id).toBe('opencard-dictionary')
-    expect(resolveFileType('/cards/.opencard/.OCLOCALE', '/cards').id).toBe('unsupported')
+    expect(resolveFileType('/cards/.opencard/locale.json', '/cards').id).toBe('opencard-dictionary')
+    expect(resolveFileType('/cards/.opencard/LOCALE.JSON', '/cards').id).toBe('json')
   })
 
   it('recognizes card documents only by the new extension', () => {
@@ -64,21 +60,21 @@ describe('workspace entry icon tokens', () => {
   })
 
   it('uses the config tone for package metadata', () => {
-    expect(resolveEntryIcon('D:/Cards/package.json', false)).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.opencard/packages/packages.json', false, false, 'D:/Cards')).toEqual({
       icon: 'file.package',
       tone: 'config',
     })
   })
 
   it('uses the project icon glyph for the project icon registry', () => {
-    expect(resolveEntryIcon('D:/Cards/.opencard/.ocicons', false, false, 'D:/Cards')).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.opencard/icons/icons.json', false, false, 'D:/Cards')).toEqual({
       icon: 'file.project-icon',
       tone: 'config',
     })
   })
 
   it('uses the translate icon for the project dictionary', () => {
-    expect(resolveEntryIcon('D:/Cards/.opencard/.oclocale', false, false, 'D:/Cards')).toEqual({
+    expect(resolveEntryIcon('D:/Cards/.opencard/locale.json', false, false, 'D:/Cards')).toEqual({
       icon: 'file.dictionary',
       tone: 'config',
     })

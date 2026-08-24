@@ -24,6 +24,8 @@ import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalo
 import type { DeepReadonly } from 'vue'
 import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../workspace/model/projectCustomBlocks'
 import { createProjectIconCompletionProvider } from '../workspace/services/projectIconCompletion'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
+import { buildResourceFontCatalog } from '../workspace/services/resourceReference'
 import {
   resolveReferenceCompletion,
   type ReferenceCompletionContext,
@@ -42,6 +44,7 @@ export type CdePropertyProjectContext = {
   customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
   customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
   ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
+  resourceEnvironment?: ProjectResourceEnvironment
 }
 
 export function createCdeCardReferenceScope(options: {
@@ -113,14 +116,18 @@ export function enrichCardPropertyFieldDefinition(options: {
   customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
   customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
   ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
+  resourceEnvironment?: ProjectResourceEnvironment
 }): PropertyEditorFieldDefinition {
   const bindingProvider = options.referenceContext
     && options.definition.acceptsBinding !== false
     && options.definition.fieldType !== 'object'
     ? createReferenceCompletionProvider(options.referenceContext)
     : undefined
+  const fontCatalog = options.resourceEnvironment
+    ? buildResourceFontCatalog(options.resourceEnvironment)
+    : options.fontCatalog
   const fontProvider = options.fieldKey === 'fontFamily'
-    ? createFontCompletionProvider(options.fontCatalog)
+    ? createFontCompletionProvider(fontCatalog)
     : undefined
   const iconProvider = options.fieldKey === 'content' && options.definition.fieldType === 'string'
     ? createProjectIconCompletionProvider(options.iconSeries, options.projectIconCatalog)
@@ -129,7 +136,7 @@ export function enrichCardPropertyFieldDefinition(options: {
     ? chainPropertyCompletionProviders([bindingProvider, fontProvider, iconProvider])
     : undefined
   const fontOptions = options.definition.fieldType === 'string' && options.definition.richText
-    ? options.fontCatalog.map(font => ({
+    ? fontCatalog.map(font => ({
         label: font.label,
         value: font.value,
         cssFamily: toCssFontFamily(font.value),

@@ -77,22 +77,19 @@ where
 }
 
 fn is_supported_path(path: &Path) -> bool {
-    if path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| {
-            [".ocproject", ".ocfonts", ".ocicons", ".oclocale"]
-            .iter()
-            .any(|supported| name.eq_ignore_ascii_case(supported))
-        })
-    {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    let comparable = normalized.to_ascii_lowercase();
+    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+    let internal_json_names = ["project.json", "fonts.json", "icons.json", "locale.json", "manifest.json"];
+    if internal_json_names.iter().any(|name| file_name.eq_ignore_ascii_case(name))
+        && comparable.contains("/.opencard/") {
         return true;
     }
 
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            ["ocdocument", "ocblock", "octemplate", "ociconpack"]
+            ["ocdocument", "ocblock", "ocpack", "octemplate", "ociconpack"]
                 .iter()
                 .any(|supported| extension.eq_ignore_ascii_case(supported))
         })

@@ -86,17 +86,17 @@ const BUILTIN_THEME_DEFINITIONS: Partial<Record<AppThemePresetId, AppThemeDefini
     fontFamily: 'system',
   },
   'sakura-paper': {
-    colors: { '--oc-accent': '#E56B9F', '--oc-bg-base': '#FFF6FA', '--oc-fg-default': '#3D2933' },
+    colors: { '--oc-accent': '#DE4285', '--oc-bg-base': '#FFF6FA', '--oc-fg-default': '#3D2933' },
     accentNeighborAngle: 40,
     fontFamily: 'system',
   },
   dune: {
-    colors: { '--oc-accent': '#C7822F', '--oc-bg-base': '#FFF8E9', '--oc-fg-default': '#3B3022' },
+    colors: { '--oc-accent': '#B27328', '--oc-bg-base': '#FFF8E9', '--oc-fg-default': '#3B3022' },
     accentNeighborAngle: -45,
     fontFamily: 'system',
   },
   mint: {
-    colors: { '--oc-accent': '#2AAE88', '--oc-bg-base': '#F1FBF7', '--oc-fg-default': '#203A33' },
+    colors: { '--oc-accent': '#1B916F', '--oc-bg-base': '#F1FBF7', '--oc-fg-default': '#203A33' },
     accentNeighborAngle: 45,
     fontFamily: 'system',
   },

@@ -1,13 +1,10 @@
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
-import { parseAdditionalFieldDefinitions } from '../../../entities/card/schema'
+import { parseAdditionalFieldDefinitions, resolvePropertyEditorSchema } from '../../../entities/card/schema'
 import {
-  createProjectCustomBlockPackageId,
-  normalizeProjectCustomBlockVersion,
+  normalizeProjectCustomBlockKey,
   PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
-  PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION,
   type ProjectCustomBlockManifest,
-  type ProjectCustomBlockResizePolicy,
 } from '../model/projectCustomBlocks'
 import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
 
@@ -26,7 +23,7 @@ function clonePackageValue<T>(value: T, seen = new WeakMap<object, object>()): T
 
 export function buildProjectCustomBlockRoot(
   root: CardBlock,
-  resize?: ProjectCustomBlockResizePolicy,
+  exposedFieldKeys: readonly string[] = [],
 ): CardBlock {
   const cloned = clonePackageValue(root)
   visitCardBlockTree(cloned, block => {
@@ -38,9 +35,11 @@ export function buildProjectCustomBlockRoot(
     }
     if (block.type === 'simple-container-block' || block.type === 'flow-container-block') delete block.packaged
   })
-  if (resize) {
-    setRootFieldReadonly(cloned, 'width', resize.widthLocked)
-    setRootFieldReadonly(cloned, 'height', resize.heightLocked)
+  const exposed = new Set(exposedFieldKeys.map(key => key.toLocaleLowerCase()))
+  for (const fieldKey of Object.keys(resolvePropertyEditorSchema(cloned as Readonly<Record<string, unknown>>).fields)) {
+    if (fieldKey === 'width' || fieldKey === 'height') {
+      setRootFieldReadonly(cloned, fieldKey, !exposed.has(fieldKey.toLocaleLowerCase()))
+    }
   }
   return cloned
 }
@@ -65,17 +64,13 @@ function setRootFieldReadonly(
 
 export async function buildProjectCustomBlockManifest(options: {
   root: CardBlock
-  publisherKey: string
-  blockKey: string
-  version?: string
+  key: string
   name?: string
   description?: string
   exposedFieldKeys?: readonly string[]
 }): Promise<ProjectCustomBlockManifest> {
-  const packageId = createProjectCustomBlockPackageId(options.publisherKey, options.blockKey)
-  if (!packageId) throw new Error('Invalid custom block Package ID')
-  const version = normalizeProjectCustomBlockVersion(options.version ?? PROJECT_CUSTOM_BLOCK_DEFAULT_VERSION)
-  if (!version) throw new Error('Invalid custom block version')
+  const key = normalizeProjectCustomBlockKey(options.key)
+  if (!key) throw new Error('Invalid custom block Key')
   const analysis = analyzeProjectCustomBlockExport(options.root)
   const exposed = new Set(options.exposedFieldKeys ?? [])
   const exposableKeys = new Set(analysis.fields.map(field => field.key))
@@ -90,9 +85,9 @@ export async function buildProjectCustomBlockManifest(options: {
   ]
   return {
     type: 'opencard-custom-block',
-    packageId,
-    version,
-    name: options.name?.trim() || options.root.name?.trim() || options.blockKey,
+    packageId: `block:${key}`,
+    version: '0.0.0',
+    name: options.name?.trim() || options.root.name?.trim() || key,
     ...(options.description?.trim() ? { description: options.description.trim() } : {}),
     publicFieldKeys,
   }

@@ -1,6 +1,6 @@
 import type { CardBlock, CardDocument, CardFaceKey } from '../../entities/card/model'
 import { toRaw } from 'vue'
-import type { ProjectCustomBlockSizeEditPolicy } from '../workspace/services/projectCustomBlockPublicFields'
+import { getProjectCustomBlockPublicFieldKeys, type ProjectCustomBlockSizeEditPolicy } from '../workspace/services/projectCustomBlockPublicFields'
 import type {
   ProjectResourceEnvironment,
   ProjectResourceScopeMap,
@@ -8,6 +8,8 @@ import type {
 import { projectResourceScopeIdentity } from '../workspace/services/projectResourceEnvironment'
 import { visitCardBlockTree } from '../../entities/card/tree'
 import type { RenderReadyCardBlock, RenderReadyCardDocument, RenderReadyCustomBlock } from './render.types'
+import { resolveProjectCustomBlockSizeEditPolicy } from '../workspace/services/projectCustomBlockPublicFields'
+import { projectCustomBlockDefinitionIdentity } from '../workspace/services/projectCustomBlockDefinition'
 
 export type CustomBlockRuntimeEntry = {
   readonly manifest: {
@@ -31,7 +33,7 @@ export type CustomBlockExpansionIssue = {
 }
 
 export type CustomBlockExpansionHost = {
-  packageId: string
+  customBlockKey: string
   faceKey: CardFaceKey
   hasResourceErrors: boolean
 }
@@ -114,53 +116,68 @@ export function expandCustomBlocks(
       return block
     }
 
-    const packageId = block.packageId
-    const identity = packageId.toLocaleLowerCase()
-    const referenceEnvironment = resourceScopes.get(projectResourceScopeIdentity(block.id, 'packageId'))
+    const customBlockKey = block.customBlockKey ?? ''
+    const identity = customBlockKey.toLocaleLowerCase()
+    const referenceEnvironment = resourceScopes.get(projectResourceScopeIdentity(block.id, 'customBlockKey'))
       ?? currentEnvironment
     const effectiveCatalog = referenceEnvironment?.customBlockCatalog ?? scopedCatalog
-    const entry = effectiveCatalog.get(identity)
+    const legacyCatalogIdentity = identity.includes('@block:')
+      ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + '@block:'.length)}`
+      : identity
+    let entry = effectiveCatalog.get(identity) ?? effectiveCatalog.get(legacyCatalogIdentity)
     if (!entry) {
-      issues.push({ blockId: block.id, faceKey, reason: 'missing', packageId })
+      const at = identity.indexOf('@block:')
+      const packageKey = at > 0 ? identity.slice(0, at) : undefined
+      const blockKey = at > 0 ? identity.slice(at + '@block:'.length) : identity.replace(/^block:/, '')
+      const definitionEnvironment = packageKey
+        ? referenceEnvironment?.packageEnvironments?.get(packageKey)
+        : referenceEnvironment
+      const definitionEntry = definitionEnvironment?.customBlockDefinitions?.get(blockKey)
+      if (definitionEntry) {
+        entry = {
+          manifest: {
+            packageId: projectCustomBlockDefinitionIdentity(definitionEntry.definition.key, packageKey),
+            publicFieldKeys: definitionEntry.definition.publicFieldKeys,
+          },
+          block: definitionEntry.definition.root,
+          sizeEditPolicy: resolveProjectCustomBlockSizeEditPolicy(definitionEntry.definition.root),
+          environment: definitionEnvironment!,
+          dependencies: new Map(),
+        }
+      }
+    }
+    if (!entry) {
+      issues.push({ blockId: block.id, faceKey, reason: 'missing', packageId: customBlockKey })
       return block
     }
     if (ancestors.has(identity)) {
-      issues.push({ blockId: block.id, faceKey, reason: 'cycle', packageId })
+      issues.push({ blockId: block.id, faceKey, reason: 'cycle', packageId: customBlockKey })
       return block
     }
 
     hosts.set(block.id, {
-      packageId,
+      customBlockKey,
       faceKey,
       hasResourceErrors: entry.hasResourceErrors === true || entry.environment.issues.length > 0,
     })
+    const publicFieldKeys = getProjectCustomBlockPublicFieldKeys({
+      manifest: entry.manifest, block: entry.block,
+    })
     const inheritedScopes = new Map<string, ProjectResourceEnvironment>()
-    for (const fieldKey of [...entry.manifest.publicFieldKeys, 'width', 'height']) {
+    for (const fieldKey of publicFieldKeys) {
       const inherited = resourceScopes.get(projectResourceScopeIdentity(block.id, fieldKey))
         ?? currentEnvironment
         ?? hostEnvironment
       if (inherited) inheritedScopes.set(fieldKey, inherited)
     }
     const root = clone(entry.block) as CardBlock
-    const { widthReadonly = false, heightReadonly = false } = entry.sizeEditPolicy ?? {}
     namespaceDescendantIds(root, block.id)
     scopeStrings(root, entry.environment, resourceScopes)
-
-    for (const fieldKey of entry.manifest.publicFieldKeys) {
+    for (const fieldKey of publicFieldKeys) {
       if (!Object.prototype.hasOwnProperty.call(block, fieldKey)) continue
       ;(root as Record<string, unknown>)[fieldKey] = (block as Record<string, unknown>)[fieldKey]
       const inherited = inheritedScopes.get(fieldKey)
       if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, fieldKey), inherited)
-    }
-    if (!widthReadonly && block.width !== undefined) {
-      root.width = block.width
-      const inherited = inheritedScopes.get('width')
-      if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'width'), inherited)
-    }
-    if (!heightReadonly && block.height !== undefined) {
-      root.height = block.height
-      const inherited = inheritedScopes.get('height')
-      if (inherited) resourceScopes.set(projectResourceScopeIdentity(root.id, 'height'), inherited)
     }
 
     const nextAncestors = new Set(ancestors)
@@ -207,7 +224,7 @@ export function wrapExpandedCustomBlocks(
     return {
       ...content,
       type: 'custom-block',
-      packageId: host.packageId,
+      customBlockKey: host.customBlockKey,
       content,
     } satisfies RenderReadyCustomBlock
   }

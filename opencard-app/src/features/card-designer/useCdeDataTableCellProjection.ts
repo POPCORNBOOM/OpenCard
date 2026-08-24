@@ -100,6 +100,7 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
       fontCatalog: buildFontCatalog(options.projectContext.value.fonts),
       iconSeries: options.projectContext.value.iconSeries,
       projectIconCatalog: options.projectContext.value.projectIconCatalog,
+      resourceEnvironment: options.projectContext.value.resourceEnvironment,
       directoryProvider: options.directoryProvider.value,
     })
     definitionCache.set(cell.identity, definition)

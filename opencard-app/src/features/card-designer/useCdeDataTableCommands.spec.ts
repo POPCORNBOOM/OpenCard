@@ -242,7 +242,7 @@ describe('useCdeDataTableCommands', () => {
   it('allows custom-block public values but protects its interface definition', () => {
     const { cardDoc, createBlockField, customBlockCatalog, deleteBlockField, state, updateBlockField } = createHarness()
     const custom = createBlock('custom-block', {
-      id: 'custom', packageId: 'alice/square', notes: 'Protected',
+      id: 'custom', customBlockKey: 'alice@block:square', notes: 'Protected',
     })
     ;(custom as unknown as Record<string, unknown>).size = '120'
     const packageRoot = createBlock('text-block')

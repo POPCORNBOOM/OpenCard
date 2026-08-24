@@ -71,16 +71,15 @@ describe('prepareExportTask', () => {
     if (result.ok) expect(result.plan.entries).toHaveLength(expectedCount)
   })
 
-  it('keeps document normalization warnings non-blocking', async () => {
+  it('keeps valid document loading non-blocking', async () => {
     const source: ExportDocumentSource = {
       load: async sourcePath => ({
         sourcePath, resourceRootPath: 'D:/project/cards', document: document(),
-        storageWarnings: [{ code: 'entry-ignored', path: '$.faces.front.children[0]', message: 'ignored' }],
-      }),
+        }),
     }
     const result = await prepareExportTask({ task: task('blueprint'), source, destination, environment })
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.warnings).toEqual([expect.objectContaining({ code: 'document-normalized' })])
+    if (result.ok) expect(result.warnings).toEqual([])
   })
 
   it('keeps the custom-block runtime catalog in the prepared renderer resources', async () => {

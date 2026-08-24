@@ -189,6 +189,13 @@
       :preparation-issues="exportPreparationIssues"
       @update:model-value="projectExportDialogTask = $event" @close="closeProjectExportDialog"
       @submit="startProjectExport" />
+    <ResourcePackageBuilderDialog
+      :open="resourcePackageBuilderOpen"
+      :project-root-path="projectPath ?? ''"
+      :entries="resourcePackageBuilderEntries"
+      @close="resourcePackageBuilderOpen = false"
+      @built="handleResourcePackageBuilt"
+    />
     <CommitVersionDialog
       :open="commitVersionDialogOpen"
       :busy="isCommittingVersion"
@@ -267,18 +274,10 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message as showMessage } from '@tauri-apps/plugin-dialog'
+import { confirm as showConfirm, message as showMessage } from '@tauri-apps/plugin-dialog'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
-import {
-  parseProjectFontRegistryText,
-  PROJECT_FONT_REGISTRY_FILE_NAME,
-  projectFontSources,
-} from '../workspace/model/projectFontRegistry'
-import {
-  parseProjectIconRegistryText,
-  PROJECT_ICON_REGISTRY_FILE_NAME,
-} from '../workspace/model/projectIconRegistry'
+import { projectFontSources } from '../workspace/model/projectFontRegistry'
 import {
   createDefaultOpenCardContent,
   useEditorSessionStore,
@@ -349,9 +348,10 @@ import type {
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
+import ResourcePackageBuilderDialog from '../workspace/components/ResourcePackageBuilderDialog.vue'
 import CommitVersionDialog from '../version-control/components/CommitVersionDialog.vue'
 import InitializeRepositoryDialog from '../version-control/components/InitializeRepositoryDialog.vue'
-import type { GitIdentity } from '../version-control/git.types'
+import type { RepositoryInitializationInput } from '../version-control/git.types'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -372,10 +372,6 @@ import {
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
   PROJECT_ENTRY_REVEAL_ACTION_KEY,
-  PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY,
-  PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY,
-  PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY,
-  PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY,
   isProjectEntryConfirmDeleteActionKey,
   projectEntryConfirmDeleteActionKey,
   projectEntryDeleteActionKey,
@@ -436,6 +432,7 @@ const REGISTERED_ICON_PACK_ACTION_KEY = 'registered-icon-pack'
 const REGISTER_CUSTOM_BLOCK_ACTION_KEY = 'register-custom-block'
 const REGISTERED_CUSTOM_BLOCK_ACTION_KEY = 'registered-custom-block'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
+const BUILD_RESOURCE_PACKAGE_ACTION_KEY = 'file.build-package'
 const RECENT_PROJECT_REVEAL_ACTION_KEY = 'recent-project.reveal'
 const RECENT_PROJECT_RELOCATE_ACTION_KEY = 'recent-project.relocate'
 const RECENT_PROJECT_REMOVE_ACTION_KEY = 'recent-project.remove'
@@ -469,8 +466,6 @@ const {
   projectInformation,
   projectFontFamilies,
   fontRegistryReady,
-  projectIconSeries,
-  iconRegistryReady,
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
   fileChangeRevision,
@@ -486,8 +481,6 @@ const {
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
   trashFile,
-  trashUnusedProjectFontFiles,
-  trashUnusedProjectIconFiles,
   revealEntryInFileManager,
   getRelativeProjectPath,
   moveEntryByDrop,
@@ -543,6 +536,10 @@ const exportPreparationIssues = ref<readonly ExportTaskValidationIssue[]>([])
 const projectExportDialogOpen = ref(false)
 const projectExportDialogTask = ref<ProjectExportTask>(createDefaultProjectExportTask())
 const projectExportDocumentCandidates = ref<readonly ExportDocumentCandidate[]>([])
+const resourcePackageBuilderOpen = ref(false)
+const resourcePackageBuilderEntries = computed(() => indexedEntries.value
+  .filter(entry => entry.isFile)
+  .map(entry => entry.name.replace(/\\/g, '/')))
 const developerMode = ref(false)
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
@@ -687,6 +684,7 @@ const commitVersionError = ref('')
 const initializeRepositoryDialogOpen = ref(false)
 const isInitializingRepository = ref(false)
 const initializeRepositoryError = ref('')
+const repositoryInitializedDuringDialog = ref(false)
 const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
 const {
   unreadReplyCount: unreadFeedbackReplyCount,
@@ -1043,35 +1041,10 @@ const {
   translate: t,
 })
 
-const registeredFontSourcesForManagement = computed<readonly string[] | null>(() => {
-  const registryPath = resolveProjectPath(PROJECT_FONT_REGISTRY_FILE_NAME).replace(/\\/g, '/').toLocaleLowerCase()
-  const openRegistrySession = sessions.value.find(session => (
-    session.path?.replace(/\\/g, '/').toLocaleLowerCase() === registryPath
-  ))
-  if (!openRegistrySession) return fontRegistryReady.value
-    ? projectFontFamilies.value.flatMap(projectFontSources)
-    : null
-  const draft = parseProjectFontRegistryText(openRegistrySession.draftContent)
-  return draft ? (draft.families ?? []).flatMap(projectFontSources) : null
-})
-const registeredIconSourcesForManagement = computed<readonly string[] | null>(() => {
-  const registryPath = resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME).replace(/\\/g, '/').toLocaleLowerCase()
-  const openRegistrySession = sessions.value.find(session => (
-    session.path?.replace(/\\/g, '/').toLocaleLowerCase() === registryPath
-  ))
-  if (!openRegistrySession) return iconRegistryReady.value
-    ? projectIconSeries.value.map(series => series.source)
-    : null
-  const draft = parseProjectIconRegistryText(openRegistrySession.draftContent)
-  return draft ? (draft.iconSeries ?? []).map(series => series.source) : null
-})
-
 const {
   projectTreeData,
   projectManagementTreeData,
   projectManagementExpandedKeys,
-  unusedProjectFontFileKeys,
-  unusedProjectIconFileKeys,
   projectExpandedKeys,
   openedEditorTreeData,
   selectedFileKeys,
@@ -1093,8 +1066,9 @@ const {
   openPreviewFile,
   ensureProjectManagementStructure,
   translate: t,
-  registeredFontSources: registeredFontSourcesForManagement,
-  registeredIconSources: registeredIconSourcesForManagement,
+  registeredFontSources: computed(() => fontRegistryReady.value
+    ? projectFontFamilies.value.flatMap(projectFontSources)
+    : null),
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
@@ -1385,10 +1359,12 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
   for (const [key, item] of projectTreeData.value.items) {
     const relativePath = exportRelativePath(key)
     const isProjectFile = [
-      '.ocproject',
-      '.ocfonts',
-      '.ocicons',
-      '.oclocale',
+      'project.json',
+      'locale.json',
+      'fonts/fonts.json',
+      'icons/icons.json',
+      'blocks/blocks.json',
+      'packages/packages.json',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
     const isExcluded = isExportPathExcluded(relativePath)
@@ -1480,24 +1456,7 @@ const updateOperationTask = computed<{
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
 
-const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY, {
-    title: t('sidebar.fileActions.removeUnusedFont'),
-    icon: 'action.close',
-  }],
-  [PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY, {
-    title: t('sidebar.fileActions.cleanUnusedFonts'),
-    icon: 'action.clean',
-  }],
-  [PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY, {
-    title: t('sidebar.fileActions.removeUnusedIcon'),
-    icon: 'action.close',
-  }],
-  [PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY, {
-    title: t('sidebar.fileActions.cleanUnusedIcons'),
-    icon: 'action.clean',
-  }],
-]))
+const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map())
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -1992,6 +1951,12 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
       },
       { type: 'divider', key: 'file-export-divider' },
       {
+        key: BUILD_RESOURCE_PACKAGE_ACTION_KEY,
+        title: t('resourcePackage.buildTitle'),
+        icon: 'file.package',
+        disabled: !projectPath.value,
+      },
+      {
         key: 'export-project-template',
         title: t('templateExport.menu'),
         icon: 'action.export',
@@ -2189,7 +2154,9 @@ const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
       ],
     })),
   }
-  if (!tableMode) return [renderImageAction, modeAction]
+  if (!tableMode) return [
+    renderImageAction, modeAction,
+  ]
   return [
     {
       key: CARD_DATA_TABLE_IMPORT_ACTION_KEY,
@@ -2580,31 +2547,6 @@ async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
     return
   }
 
-  if (intent.type === 'action.invoke') {
-    const fontTargets = intent.actionKey === PROJECT_UNUSED_FONT_REMOVE_ACTION_KEY
-      ? unusedProjectFontFileKeys.value.includes(intent.key) ? [intent.key] : []
-      : intent.actionKey === PROJECT_UNUSED_FONTS_CLEAN_ACTION_KEY
-        ? [...unusedProjectFontFileKeys.value]
-        : []
-    const iconTargets = intent.actionKey === PROJECT_UNUSED_ICON_REMOVE_ACTION_KEY
-      ? unusedProjectIconFileKeys.value.includes(intent.key) ? [intent.key] : []
-      : intent.actionKey === PROJECT_UNUSED_ICONS_CLEAN_ACTION_KEY
-        ? [...unusedProjectIconFileKeys.value]
-        : []
-    const targets = fontTargets.length ? fontTargets : iconTargets
-    const registeredSources = fontTargets.length
-      ? registeredFontSourcesForManagement.value
-      : registeredIconSourcesForManagement.value
-    if (targets.length === 0 || registeredSources === null) return
-    try {
-      if (fontTargets.length) await trashUnusedProjectFontFiles(targets, registeredSources)
-      else await trashUnusedProjectIconFiles(targets, registeredSources)
-      for (const path of targets) closeSessionsByPath(path)
-      selectedFileKeys.value = selectedFileKeys.value.filter(key => !targets.includes(key))
-    } catch (error) {
-      reportAppError('OC-E4001', { actionKey: intent.actionKey, paths: targets, error })
-    }
-  }
 }
 
 async function handleProjectTreeIntent(intent: OcTreeIntent) {
@@ -2732,6 +2674,22 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
     if (!kind) continue
 
     try {
+      if (kind === 'resource-package') {
+        if (!projectPath.value) {
+          await showMessage(t('resourcePackage.openProjectFirst'), { kind: 'error' })
+          continue
+        }
+        const installed = await projectStore.installResourcePackageFile(normalizedPath, async (next, previous) => {
+          if (!previous) return true
+          return await showConfirm(t('resourcePackage.confirmUpgrade', {
+            name: next.name, version: next.version, previousVersion: previous.version,
+          }), { title: t('resourcePackage.title'), kind: 'warning' })
+        })
+        await showMessage(t('resourcePackage.installed', { name: path.split('/').pop() ?? installed.manifest.name }), {
+          title: t('resourcePackage.title'), kind: 'info',
+        })
+        continue
+      }
       if (kind === 'project-resource') {
         const projectDirectory = getPathDirectory(getPathDirectory(normalizedPath))
         if (!projectDirectory) continue
@@ -2739,20 +2697,17 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         await openEditorSession(normalizedPath)
         continue
       }
-
       if (kind === 'card' || kind === 'custom-block') {
         await openEditorSession(normalizedPath)
         showPrimaryShellPage('workbench')
         continue
       }
-
       if (kind === 'template') {
         const imported = await templateStore.importUserTemplate(normalizedPath)
         selectedTemplateKey.value = imported.key
         shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
         continue
       }
-
       if (kind === 'icon-pack') {
         const imported = await iconPackStore.importUserIconPack(normalizedPath)
         if (imported) selectedIconPackKeys.value = [...selectedIconPackKeys.value, imported.key]
@@ -2840,6 +2795,11 @@ function createUntitledOpenCard() {
 
 async function runShellCommand(actionKey: string) {
   if ((isCreateProjectMode.value && isProjectTemplateBusy.value) || isExportTemplateBusy.value) return
+
+  if (actionKey === BUILD_RESOURCE_PACKAGE_ACTION_KEY) {
+    await openResourcePackageBuilder()
+    return
+  }
 
   if (actionKey === 'open-settings') {
     shellPage.value = {
@@ -2959,6 +2919,7 @@ async function runShellCommand(actionKey: string) {
   if (actionKey === 'initialize-repository') {
     if (projectPath.value && repositoryNeedsInitialization.value) {
       initializeRepositoryError.value = ''
+      repositoryInitializedDuringDialog.value = false
       initializeRepositoryDialogOpen.value = true
     }
     return
@@ -2990,25 +2951,49 @@ function closeInitializeRepositoryDialog(): void {
   if (isInitializingRepository.value) return
   initializeRepositoryDialogOpen.value = false
   initializeRepositoryError.value = ''
+  repositoryInitializedDuringDialog.value = false
 }
 
-async function initializeProjectRepository(identity: GitIdentity): Promise<void> {
+async function initializeProjectRepository(input: RepositoryInitializationInput): Promise<void> {
   const root = projectPath.value
   if (!root || isInitializingRepository.value) return
   isInitializingRepository.value = true
   initializeRepositoryError.value = ''
   try {
-    const result = await initializeRepository(root, identity)
-    if (!result.ok || !result.value) {
-      initializeRepositoryError.value = result.error?.message ?? t('sidebar.initializeDialog.failed')
-      return
+    if (!repositoryInitializedDuringDialog.value) {
+      const initialized = await initializeRepository(root, input.identity)
+      if (!initialized.ok || !initialized.value) {
+        initializeRepositoryError.value = initialized.error?.message ?? t('sidebar.initializeDialog.failed')
+        return
+      }
+      repositoryInitializedDuringDialog.value = true
+      await refreshTimeline()
     }
+
+    if (input.createInitialCommit) {
+      const staged = await stageAll(root)
+      if (!staged.ok || !staged.value) {
+        initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
+        return
+      }
+      const committed = await createCommit(root, { message: t('sidebar.initializeDialog.initialCommitMessage') })
+      if (!committed.ok || !committed.value) {
+        initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
+        return
+      }
+    }
+
     initializeRepositoryDialogOpen.value = false
+    repositoryInitializedDuringDialog.value = false
     await refreshTimeline()
   } catch (error) {
-    initializeRepositoryError.value = error instanceof Error
-      ? error.message
-      : t('sidebar.initializeDialog.failed')
+    if (error instanceof Error) {
+      initializeRepositoryError.value = error.message
+    } else if (repositoryInitializedDuringDialog.value) {
+      initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
+    } else {
+      initializeRepositoryError.value = t('sidebar.initializeDialog.failed')
+    }
   } finally {
     isInitializingRepository.value = false
   }
@@ -3177,6 +3162,10 @@ async function handleTitleBarAppAction(actionKey: string): Promise<void> {
 }
 
 async function handleWorkspaceFrameAction(actionKey: string) {
+  if (actionKey === BUILD_RESOURCE_PACKAGE_ACTION_KEY) {
+    await openResourcePackageBuilder()
+    return
+  }
   if (actionKey === DIFF_EXIT_ACTION_KEY) {
     if (activeSession.value) setSessionMode(activeSession.value.id, 'edit')
     return
@@ -3414,6 +3403,18 @@ onUnmounted(() => {
   disposeAppUpdater()
   disposeFeedbackInbox()
 })
+async function openResourcePackageBuilder(): Promise<void> {
+  if (!projectPath.value) return
+  await ensureProjectTreeLoaded()
+  resourcePackageBuilderOpen.value = true
+}
+
+async function handleResourcePackageBuilt(path: string): Promise<void> {
+  if (!path) return
+  await showMessage(t('resourcePackage.built', { name: path.split(/[\\/]/).pop() ?? path }), {
+    title: t('resourcePackage.title'), kind: 'info',
+  })
+}
 </script>
 
 <style scoped>
@@ -3467,3 +3468,4 @@ onUnmounted(() => {
   font-weight: 600;
 }
 </style>
+

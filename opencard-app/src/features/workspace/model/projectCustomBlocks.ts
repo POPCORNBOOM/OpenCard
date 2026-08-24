@@ -39,6 +39,7 @@ export type ProjectCustomBlockPackageIssue = {
     | 'block-unavailable'
     | 'block-entry-ignored'
     | 'resource-unavailable'
+    | 'host-dependency'
     | 'dependency-unavailable'
     | 'dependency-cycle'
     | 'package-structure-ignored'

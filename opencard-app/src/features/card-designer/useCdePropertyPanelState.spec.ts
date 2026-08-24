@@ -179,8 +179,8 @@ describe('useCdePropertyPanelState additional fields', () => {
     expect(block.content).toBe('Blueprint')
   })
 
-  it('derives custom-block fields from the package schema and keeps absent values addable', () => {
-    const block = createBlock('custom-block', { id: 'custom', packageId: 'alice/card' })
+  it('derives custom-block public fields from the package schema and displays their values', () => {
+    const block = createBlock('custom-block', { id: 'custom', customBlockKey: 'alice@block:card' })
     Object.assign(block, { legacy: 'kept' })
     const packageRoot = createBlock('simple-container-block', { id: 'package-root' })
     packageRoot.additionalFieldDefinition = {
@@ -227,10 +227,11 @@ describe('useCdePropertyPanelState additional fields', () => {
     })
 
     const input = state.propertyInputs.value[0]!
-    expect(input.record).not.toHaveProperty('suit')
+    expect(input.record).toMatchObject({ suit: 'heart', showsuit: 'true' })
     expect(input.fields.suit).toMatchObject({ title: 'Suit', defaultValue: 'heart', category: 'customFields' })
     expect(input.fields.showsuit).toMatchObject({ title: 'Show suit', defaultValue: 'true', category: 'customFields' })
-    expect(input.fields.legacy).toMatchObject({ isReadonly: true, category: undefined })
+    expect(input.record).not.toHaveProperty('legacy')
+    expect(input.fields.legacy).toBeUndefined()
 
     state.addProperty({ key: block.id, fieldKey: 'suit', value: input.fields.suit!.defaultValue })
     expect((block as unknown as Record<string, unknown>).suit).toBe('heart')

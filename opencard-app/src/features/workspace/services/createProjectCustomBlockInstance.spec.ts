@@ -11,7 +11,7 @@ describe('createProjectCustomBlockInstance', () => {
       type: 'custom-block',
       id: 'host',
       name: 'Preview Badge',
-      packageId: 'alice/status-badge',
+      customBlockKey: 'alice@block:status-badge',
     })
     expect(instance).not.toHaveProperty('content')
     expect(instance).not.toHaveProperty('width')

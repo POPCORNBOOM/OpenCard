@@ -224,7 +224,7 @@ describe('renderPipeline', () => {
 
   it('wraps an expanded custom block around its resolved native content', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', packageId: 'alice/label', label: 'Ready' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'alice@block:label', label: 'Ready' })
     const root = createTextBlock({ id: 'root', content: '{{self:label}}' })
     root.additionalFieldDefinition = { label: { fieldType: 'string' } }
     const result = render(createDocument(host), null, {
@@ -235,7 +235,7 @@ describe('renderPipeline', () => {
     const rendered = result.document.faces.front.children[0]!.block
 
     expect(rendered).toMatchObject({
-      type: 'custom-block', id: 'host', packageId: 'alice/label',
+      type: 'custom-block', id: 'host', customBlockKey: 'alice@block:label',
       content: { type: 'text-block', id: 'host', content: 'Ready' },
     })
   })
@@ -262,7 +262,7 @@ describe('renderPipeline', () => {
 
   it('reports packaged resource degradation on the host without exposing resource identity', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', packageId: 'alice/label' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'alice@block:label' })
     const result = render(createDocument(host), null, {
       customBlockCatalog: new Map([
         ['alice/label', runtime(
@@ -286,7 +286,7 @@ describe('renderPipeline', () => {
 
   it('collapses internal custom block issues onto the opaque host', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', packageId: 'alice/label' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'alice@block:label' })
     const root = createSimpleContainerBlock({
       id: 'root',
       children: [{
@@ -318,7 +318,7 @@ describe('renderPipeline', () => {
 
   it('reports an unavailable custom block without exposing its source', () => {
     const host = createTextBlock({ id: 'host' }) as unknown as CardBlock
-    Object.assign(host, { type: 'custom-block', packageId: 'alice/private-package' })
+    Object.assign(host, { type: 'custom-block', customBlockKey: 'alice@block:private-package' })
     const result = render(createDocument(host), null)
 
     expect(result.issues).toEqual([

@@ -17,11 +17,6 @@ vi.mock('../services/exportProjectCustomBlock', () => ({
 }))
 vi.mock('../services/projectCustomBlockPreview', () => ({
   createProjectCustomBlockPreview: mocks.createPreview,
-  collectProjectCustomBlockSelectionIssues: (prepared: { resourceAnalysis: { candidates: Array<{ id: string, automatic: boolean, path: string }> } }, selected: Set<string>) => (
-    prepared.resourceAnalysis.candidates
-      .filter(candidate => candidate.automatic && !selected.has(candidate.id))
-      .map(candidate => ({ code: 'resource-unavailable', path: candidate.path, message: 'Excluded' }))
-  ),
 }))
 vi.mock('../services/fileSystemService', () => ({ fileSystemService: {} }))
 vi.mock('../../settings/store/appSettingsStore', () => ({
@@ -122,6 +117,12 @@ async function finishInitialPreview(): Promise<void> {
   await flushPromises()
 }
 
+async function openAdvancedSettings(wrapper: ReturnType<typeof mountDialog>): Promise<void> {
+  const button = wrapper.findAll('button').find(candidate => candidate.text().includes('Advanced settings'))
+  button?.trigger('click')
+  await flushPromises()
+}
+
 describe('CustomBlockExportDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -132,9 +133,10 @@ describe('CustomBlockExportDialog', () => {
   it('shows package fields and initializes automatic resources', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
+    await openAdvancedSettings(wrapper)
     const tree = wrapper.getComponent(OcTree)
     expect(wrapper.text()).not.toContain('publisher-test')
-    expect(tree.props('data').children.get('group:exposed')).toEqual(['resize:width', 'resize:height', 'field:content'])
+    expect(tree.props('data').children.get('group:exposed')).toEqual(['field:content'])
     expect(tree.props('data').children.get('group:private')).toEqual([])
     expect(tree.props('data').items.get('field:content')).toMatchObject({ icon: 'data.symbol-string' })
     expect(tree.props('data').items.get('group:exposed')).toMatchObject({ icon: 'status.eye' })
@@ -142,8 +144,8 @@ describe('CustomBlockExportDialog', () => {
     expect(wrapper.getComponent(CustomBlockResourceTree).props('selectedIds')).toEqual([resourceCandidate.id])
     expect(wrapper.getComponent({ name: 'PropertyEditor' }).props('inputs')).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        record: expect.objectContaining({ width: '', height: '', content: 'Default' }),
-        fields: expect.objectContaining({ width: expect.any(Object), height: expect.any(Object), content: expect.any(Object) }),
+        record: expect.objectContaining({ content: 'Default' }),
+        fields: expect.objectContaining({ content: expect.any(Object) }),
       }),
     ]))
   })
@@ -151,28 +153,28 @@ describe('CustomBlockExportDialog', () => {
   it('submits a fresh prepared snapshot without waiting for preview work', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
+    await openAdvancedSettings(wrapper)
     const tree = wrapper.getComponent(OcTree)
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'resize:width', actionKey: 'move-private', source: 'inline' })
+    tree.vm.$emit('intent', { type: 'action.invoke', key: 'field:content', actionKey: 'move-private', source: 'inline' })
     tree.vm.$emit('intent', { type: 'action.invoke', key: 'field:content', actionKey: 'move-exposed', source: 'inline' })
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>
     expect(payload).toMatchObject({
-      name: 'Square', publisherKey: 'publisher-test', blockKey: 'square', version: '0.1.0',
-      exposedFieldKeys: ['content'], resize: { widthLocked: true, heightLocked: false },
-      prepared: { manifest: { packageId: 'publisher-test/square', publicFieldKeys: ['name', 'notes', 'content'] } },
+      name: 'Square', blockKey: 'square', exposedFieldKeys: ['content'],
+      prepared: { manifest: { packageId: 'block:square', publicFieldKeys: ['name', 'notes', 'content'] } },
     })
     expect(payload.selectedResourceIds).toEqual(new Set([resourceCandidate.id]))
   })
 
-  it('requires confirmation for an explicitly excluded automatic resource', async () => {
+  it('exports without confirmation when a resource is explicitly excluded', async () => {
     const wrapper = mountDialog()
     await finishInitialPreview()
+    await openAdvancedSettings(wrapper)
     wrapper.getComponent(CustomBlockResourceTree).vm.$emit('update:selectedIds', new Set())
     await flushPromises()
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.emitted('submit')).toBeUndefined()
-    expect(wrapper.text()).toContain('Export with package issues?')
+    expect(wrapper.emitted('submit')).toHaveLength(1)
   })
 
   it('keeps PropertyEditor independent and sends only preview overrides to the memory renderer', async () => {
@@ -180,6 +182,7 @@ describe('CustomBlockExportDialog', () => {
     mocks.prepare.mockResolvedValue(source)
     const wrapper = mountDialog()
     await finishInitialPreview()
+    await openAdvancedSettings(wrapper)
     wrapper.getComponent(OcTree).vm.$emit('intent', {
       type: 'action.invoke', key: 'field:content', actionKey: 'move-exposed', source: 'inline',
     })
@@ -193,7 +196,13 @@ describe('CustomBlockExportDialog', () => {
     })
     await flushPromises()
     expect(mocks.createPreview).toHaveBeenLastCalledWith(expect.objectContaining({
-      prepared: expect.objectContaining({ block: source.block }),
+      prepared: expect.objectContaining({
+        block: expect.objectContaining({
+          additionalFieldDefinition: expect.objectContaining({
+            width: { isReadonly: true }, height: { isReadonly: true },
+          }),
+        }),
+      }),
       overrides: { content: 'Preview only' },
     }))
     expect(source.block).toMatchObject({ content: 'Default' })

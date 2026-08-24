@@ -26,7 +26,7 @@ export function createProjectCustomBlockPropertySchema(
   const blockRecord = entry.block as DeepReadonly<Record<string, unknown>>
   const fields = Object.fromEntries(fieldKeys.flatMap(fieldKey => {
     const definition = resolved.fields[fieldKey]
-    if (!definition || definition.fieldType === 'object' || definition.isReadonly || fieldKey === 'customCss') return []
+    if (!definition || definition.fieldType === 'object' || fieldKey === 'customCss') return []
     return [[fieldKey, {
       ...definition,
       ...(Object.prototype.hasOwnProperty.call(blockRecord, fieldKey)
@@ -57,4 +57,12 @@ export function getProjectCustomBlockPublicFields(
   entry: ProjectCustomBlockFieldSource,
 ): Readonly<Record<string, EditorPropertyDefinition>> {
   return createProjectCustomBlockPropertySchema(entry).fields
+}
+
+export function getProjectCustomBlockPublicFieldKeys(
+  entry: ProjectCustomBlockFieldSource,
+  requestedKeys: readonly string[] = entry.manifest.publicFieldKeys,
+ ): readonly string[] {
+  const allowed = new Set(Object.keys(createProjectCustomBlockPropertySchema(entry, requestedKeys).fields))
+  return requestedKeys.filter(key => allowed.has(key))
 }

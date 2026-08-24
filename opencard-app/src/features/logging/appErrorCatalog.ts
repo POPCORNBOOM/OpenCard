@@ -101,12 +101,12 @@ export const APP_ERROR_CATALOG = {
   'OC-E3009': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法加载项目字体注册表', 'en-US': 'Could not load the project font registry' },
-    solution: '检查 .ocfonts 的语法、字体 Key 与项目相对路径，然后重新打开项目。',
+    solution: '检查 fonts.json 的语法、字体 Key 与项目相对路径，然后重新打开项目。',
   },
   'OC-E3010': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法加载项目图标', 'en-US': 'Could not load the project icon registry' },
-    solution: '检查 .ocicons 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
+    solution: '检查 icons.json 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
   },
   'OC-E3011': {
     area: '项目与资源',

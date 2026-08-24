@@ -1,7 +1,7 @@
 import { strToU8 } from 'fflate'
 import type { CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
-import { collectProjectIconReferences } from '../../../shared/rich-text/projectIconReference'
+import { parseEmbeddedResourceReferences, parseResourceReference, parseResourceReferenceList, type ResourceReference } from './resourceReference'
 import type { ProjectFontRegistry, ProjectFontRegistryDocument } from '../model/projectFontRegistry'
 import { projectFontFileEntries, serializeProjectFontRegistry } from '../model/projectFontRegistry'
 import type { ProjectIconSeries } from '../model/projectIcons'
@@ -19,6 +19,15 @@ import { normalizeProjectResourcePath } from './projectResourceEnvironment'
 
 export type ProjectCustomBlockResourceCandidateKind = 'image' | 'font' | 'icon' | 'custom-block'
 
+export type ProjectCustomBlockResourceDependency = {
+  kind: 'asset' | 'font' | 'icon' | 'block' | 'package'
+  scope: 'current' | 'host' | 'package'
+  packageKey?: string
+  key: string
+  requiredBy: readonly string[]
+  declared?: boolean
+}
+
 export type ProjectCustomBlockResourceCandidate = {
   id: string
   kind: ProjectCustomBlockResourceCandidateKind
@@ -32,13 +41,14 @@ export type ProjectCustomBlockResourceCandidate = {
   iconSeriesKey?: string
   packageId?: string
   iconKeys?: readonly string[]
+  declared?: boolean
   missing?: boolean
 }
 
 export type ProjectCustomBlockResourceAnalysis = {
   candidates: readonly ProjectCustomBlockResourceCandidate[]
+  dependencies: readonly ProjectCustomBlockResourceDependency[]
   defaultSelectedIds: ReadonlySet<string>
-  issues: readonly ProjectCustomBlockPackageIssue[]
 }
 
 export type MaterializedProjectCustomBlockResources = {
@@ -114,6 +124,72 @@ function collectFontSources(
   return located.composition.members.flatMap(member => collectFontSources(member.fontKey, registry, seen))
 }
 
+function dependencyForCandidate(
+  candidate: ProjectCustomBlockResourceCandidate,
+  references: readonly string[],
+  declared = false,
+ ): ProjectCustomBlockResourceDependency[] {
+  if (references.length === 0 && !declared) return []
+  const requiredBy = references.length > 0 ? references : ['author-declaration']
+  const declaration = declared ? { declared: true } : {}
+  switch (candidate.kind) {
+    case 'image':
+      return [{ kind: 'asset', scope: 'current', key: candidate.path, requiredBy, ...declaration }]
+    case 'font':
+      return candidate.fontKey
+        ? [{ kind: 'font', scope: 'current', key: candidate.fontKey, requiredBy, ...declaration }]
+        : []
+    case 'icon':
+      return candidate.iconSeriesKey
+        ? (candidate.iconKeys ?? []).map(iconKey => ({
+            kind: 'icon' as const,
+            scope: 'current' as const,
+            key: `${candidate.iconSeriesKey}/${iconKey}`,
+            requiredBy,
+            ...declaration,
+          }))
+        : []
+    case 'custom-block':
+      return candidate.packageId
+        ? [{ kind: 'block', scope: 'current', key: candidate.packageId, requiredBy, ...declaration }]
+        : []
+  }
+}
+
+function scopedDependency(
+  kind: ProjectCustomBlockResourceDependency['kind'],
+  reference: ResourceReference,
+  requiredBy: string,
+): ProjectCustomBlockResourceDependency[] {
+  const resource = { kind, scope: reference.scope, ...(reference.packageKey ? { packageKey: reference.packageKey } : {}), key: reference.key, requiredBy: [requiredBy] }
+  return reference.scope === 'package' && reference.packageKey
+    ? [resource, { kind: 'package', scope: 'package', packageKey: reference.packageKey, key: reference.packageKey, requiredBy: [requiredBy] }]
+    : [resource]
+}
+
+function mergeDependencies(
+  dependencies: readonly ProjectCustomBlockResourceDependency[],
+ ): ProjectCustomBlockResourceDependency[] {
+  const merged = new Map<string, ProjectCustomBlockResourceDependency>()
+  for (const dependency of dependencies) {
+    const identity = `${dependency.kind}:${dependency.scope}:${dependency.packageKey ?? ''}:${dependency.key}`.toLocaleLowerCase()
+    const previous = merged.get(identity)
+    if (!previous) {
+      merged.set(identity, { ...dependency, requiredBy: [...new Set(dependency.requiredBy)] })
+      continue
+    }
+    merged.set(identity, {
+      ...previous,
+      requiredBy: [...new Set([...previous.requiredBy, ...dependency.requiredBy])],
+      ...(previous.declared || dependency.declared ? { declared: true } : {}),
+    })
+  }
+  return [...merged.values()].sort((left, right) => (
+    `${left.kind}:${left.scope}:${left.packageKey ?? ''}:${left.key}`
+      .localeCompare(`${right.kind}:${right.scope}:${right.packageKey ?? ''}:${right.key}`)
+  ))
+}
+
 export async function analyzeProjectCustomBlockResources(options: {
   root: CardBlock
   projectRootPath: string
@@ -121,9 +197,9 @@ export async function analyzeProjectCustomBlockResources(options: {
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
   customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  declaredResourceDependencies?: readonly string[]
 }): Promise<ProjectCustomBlockResourceAnalysis> {
   const root = options.projectRootPath.replace(/[\\/]+$/, '')
-  const issues: ProjectCustomBlockPackageIssue[] = []
   const allEntries = await options.fs.readDirectoryEntries(root, Number.POSITIVE_INFINITY)
   const iconSources = new Set((options.projectIconSeries ?? []).map(series => (
     `.opencard/${series.source}`.toLocaleLowerCase()
@@ -175,6 +251,7 @@ export async function analyzeProjectCustomBlockResources(options: {
   }
   for (const descriptor of options.customBlockManifestCatalog?.values() ?? []) {
     const packageId = descriptor.manifest.packageId
+    if (packageId.toLocaleLowerCase().startsWith('block:')) continue
     const id = `custom-block:${packageId.toLocaleLowerCase()}`
     candidates.set(id, {
       id,
@@ -190,23 +267,25 @@ export async function analyzeProjectCustomBlockResources(options: {
   }
 
   const references = new Map<string, Set<string>>()
+  const scopedDependencies: ProjectCustomBlockResourceDependency[] = []
   const automatic = new Set<string>()
   const suggested = new Set<string>()
   const referencedIconKeys = new Map<string, Set<string>>()
   const values = stringValues(options.root)
   for (const { blockId, fieldKey, value } of values) {
     const referenceLabel = `${blockId}.${fieldKey}`
-    const directPath = !dynamicTokenPattern.test(value) ? normalizeRelativeProjectPath(value) : null
-    let directId = directPath ? candidateByPath.get(directPath.toLocaleLowerCase()) : undefined
-    if (!directId && directPath && imageExtensionPattern.test(directPath)) {
-      const identity = directPath.toLocaleLowerCase()
-      directId = `image:${identity}`
-      candidates.set(directId, {
-        id: directId, kind: 'image', path: directPath, label: basename(directPath),
-        automatic: false, suggested: false, referenceCount: 0, references: [], missing: true,
-      })
-      candidateByPath.set(identity, directId)
+    const typedReference = /^(?:[a-z0-9._-]+@|@)?(?:asset|font|icon|block):/i.test(value)
+      ? parseResourceReference(value)
+      : null
+    if (typedReference?.reference) {
+      scopedDependencies.push(...scopedDependency(typedReference.reference.kind, typedReference.reference, referenceLabel))
     }
+    const directPath = typedReference?.reference?.scope === 'current' && typedReference.reference.kind === 'asset'
+      ? normalizeRelativeProjectPath(typedReference.reference.key)
+      : !typedReference?.reference && !dynamicTokenPattern.test(value)
+      ? normalizeRelativeProjectPath(value) : null
+    let directId = directPath ? candidateByPath.get(directPath.toLocaleLowerCase()) : undefined
+
     if (directId) {
       automatic.add(directId)
       addReference(references, directId, referenceLabel)
@@ -223,13 +302,16 @@ export async function analyzeProjectCustomBlockResources(options: {
     }
 
     if (fieldKey === 'fontFamily') {
-      for (const family of value.split(';').map(item => item.trim())) {
-        if (!family.toLocaleLowerCase().startsWith('font:')) continue
-        const fontKey = family.slice('font:'.length)
-        const sources = collectFontSources(fontKey, options.projectFonts ?? {})
-        if (sources.length === 0) {
-          issues.push(issue('resource-unavailable', family, 'Referenced project font is unavailable'))
+      for (const token of parseResourceReferenceList(value, 'font')) {
+        if (token.diagnostics.length > 0) continue
+        const reference = token.reference
+        if (!reference) continue
+        if (reference.scope !== 'current') {
+          scopedDependencies.push(...scopedDependency('font', reference, referenceLabel))
+          continue
         }
+        const sources = collectFontSources(reference.key, options.projectFonts ?? {})
+        if (sources.length === 0) continue
         for (const source of sources) {
           const candidateId = candidateByPath.get(`.opencard/${source.source}`.toLocaleLowerCase())
           if (!candidateId) continue
@@ -239,22 +321,26 @@ export async function analyzeProjectCustomBlockResources(options: {
       }
     }
 
-    for (const iconReference of collectProjectIconReferences(value)) {
-      const candidateId = `icon:${iconReference.seriesKey.toLocaleLowerCase()}`
-      const series = (options.projectIconSeries ?? []).find(candidate => (
-        candidate.key.toLocaleLowerCase() === iconReference.seriesKey.toLocaleLowerCase()
-      ))
-      const iconExists = series?.icons.some(icon => (
-        icon.iconKey.toLocaleLowerCase() === iconReference.iconKey.toLocaleLowerCase()
-      ))
-      if (!candidates.has(candidateId) || !iconExists) {
-        issues.push(issue('resource-unavailable', `${iconReference.seriesKey}/${iconReference.iconKey}`, 'Referenced project icon is unavailable'))
+    for (const token of parseEmbeddedResourceReferences(value)) {
+      if (token.diagnostics.length > 0 || !token.reference) continue
+      if (token.reference.kind !== 'icon') continue
+      if (token.reference.scope !== 'current') {
+        scopedDependencies.push(...scopedDependency('icon', token.reference, referenceLabel))
         continue
       }
+      const [seriesKey, iconKey] = token.reference.key.split('/')
+      const candidateId = `icon:${seriesKey!.toLocaleLowerCase()}`
+      const series = (options.projectIconSeries ?? []).find(candidate => (
+        candidate.key.toLocaleLowerCase() === seriesKey!.toLocaleLowerCase()
+      ))
+      const iconExists = series?.icons.some(icon => (
+        icon.iconKey.toLocaleLowerCase() === iconKey!.toLocaleLowerCase()
+      ))
+      if (!candidates.has(candidateId) || !iconExists) continue
       automatic.add(candidateId)
       addReference(references, candidateId, referenceLabel)
       const iconKeys = referencedIconKeys.get(candidateId) ?? new Set<string>()
-      iconKeys.add(iconReference.iconKey.toLocaleLowerCase())
+      iconKeys.add(iconKey!.toLocaleLowerCase())
       referencedIconKeys.set(candidateId, iconKeys)
     }
     for (const match of value.matchAll(dynamicIconSeriesPattern)) {
@@ -267,30 +353,35 @@ export async function analyzeProjectCustomBlockResources(options: {
 
   visitCardBlockTree(options.root, block => {
     if (block.type !== 'custom-block') return
-    const candidateId = `custom-block:${block.packageId.toLocaleLowerCase()}`
-    if (!candidates.has(candidateId)) {
-      issues.push(issue('dependency-unavailable', block.packageId, 'Nested custom block is not installed'))
-      return
-    }
+    const packageIdentity = block.customBlockKey.toLocaleLowerCase()
+    if (packageIdentity.startsWith('block:')) return
+    const candidateId = `custom-block:${packageIdentity}`
+    if (!candidates.has(candidateId)) return
     automatic.add(candidateId)
     addReference(references, candidateId, block.id)
   })
 
+  const declaredIds = new Set(options.declaredResourceDependencies ?? [])
   const enriched = [...candidates.values()].map(candidate => {
     const candidateReferences = [...(references.get(candidate.id) ?? [])]
+    const declared = declaredIds.has(candidate.id)
     return {
       ...(candidate.kind === 'icon' ? { iconKeys: [...(referencedIconKeys.get(candidate.id) ?? [])] } : {}),
       ...candidate,
+      declared,
       automatic: automatic.has(candidate.id),
-      suggested: !automatic.has(candidate.id) && suggested.has(candidate.id),
+      suggested: !automatic.has(candidate.id) && (suggested.has(candidate.id) || declared),
       referenceCount: candidateReferences.length,
       references: candidateReferences,
     }
   }).sort((left, right) => left.path.localeCompare(right.path))
+  const dependencies = mergeDependencies(enriched.flatMap(candidate => dependencyForCandidate(
+    candidate, candidate.references, candidate.declared,
+  )))
   return {
     candidates: enriched,
+    dependencies: mergeDependencies([...dependencies, ...scopedDependencies]),
     defaultSelectedIds: new Set(enriched.filter(candidate => candidate.automatic || candidate.suggested).map(candidate => candidate.id)),
-    issues,
   }
 }
 
@@ -397,7 +488,7 @@ export async function materializeProjectCustomBlockResources(options: {
 
   const fontDocument = createSelectedProjectCustomBlockFontDocument(selected, options.projectFonts ?? {})
   if (Object.keys(fontDocument).length > 0) {
-    files.set('resources/.opencard/.ocfonts', strToU8(serializeProjectFontRegistry(fontDocument)))
+    files.set('resources/.opencard/fonts/fonts.json', strToU8(serializeProjectFontRegistry(fontDocument)))
   }
   const selectedIconCandidates = new Map(selected.filter(candidate => candidate.kind === 'icon')
     .map(candidate => [candidate.iconSeriesKey?.toLocaleLowerCase(), candidate]))
@@ -413,12 +504,8 @@ export async function materializeProjectCustomBlockResources(options: {
     }]
   })
   if (iconSeries.length > 0) {
-    files.set('resources/.opencard/.ocicons', strToU8(serializeProjectIconRegistry({ iconSeries })))
+    files.set('resources/.opencard/icons/icons.json', strToU8(serializeProjectIconRegistry({ iconSeries })))
   }
 
-  for (const candidate of options.analysis.candidates) {
-    if ((!candidate.automatic && !candidate.suggested) || options.selectedIds.has(candidate.id)) continue
-    issues.push(issue('resource-unavailable', candidate.path, 'Detected or suggested resource was excluded by the author'))
-  }
-  return { files, issues: [...options.analysis.issues, ...issues], selectedCandidates: selected }
+  return { files, issues, selectedCandidates: selected }
 }

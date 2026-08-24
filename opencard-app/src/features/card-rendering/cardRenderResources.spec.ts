@@ -4,7 +4,7 @@ import {
   projectResourceScopeIdentity,
   type ProjectResourceEnvironment,
 } from '../workspace/services/projectResourceEnvironment'
-import { createCardRenderResourceContext, resolveCardAssetSrc } from './cardRenderResources'
+import { createCardRenderResourceContext, resolveCardAssetSrc, resolveCardFontFamily } from './cardRenderResources'
 
 const { convertFileSrc } = vi.hoisted(() => ({
   convertFileSrc: vi.fn((path: string) => `asset://${path}`),
@@ -57,5 +57,41 @@ describe('cardRenderResources', () => {
     expect(resolveCardAssetSrc('blob:untrusted', context)).toBe('')
     expect(resolveCardAssetSrc('data:image/png;base64,abc', context)).toBe('')
     expect(convertFileSrc).not.toHaveBeenCalled()
+  })
+
+  it('resolves package-qualified font references with a package namespace', () => {
+    const packageEnvironment: ProjectResourceEnvironment = {
+      kind: 'package',
+      namespace: 'package-theme',
+      rootPath: '/project/.opencard/packages/theme',
+      fontDocument: {},
+      fonts: { body: { kind: 'family', name: 'Body', family: { key: 'body', name: 'Body', files: {} } } },
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      issues: [],
+    }
+    const projectEnvironment: ProjectResourceEnvironment = {
+      kind: 'project',
+      namespace: 'project-root',
+      rootPath: '/project',
+      fontDocument: {},
+      fonts: { body: { kind: 'family', name: 'Body', family: { key: 'body', name: 'Body', files: {} } } },
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      packages: new Map([['theme', {
+        manifest: {
+          type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.0.0', contentHash: '',
+          public: { blocks: [], fonts: [], iconSeries: [], assets: [] }, dependencies: [],
+        },
+        rootPath: '/project/.opencard/packages/theme', issues: [],
+      }]]),
+      issues: [],
+    }
+    const context = createCardRenderResourceContext({
+      hostEnvironment: projectEnvironment,
+      packageEnvironments: new Map([['theme', packageEnvironment]]),
+    })
+    expect(resolveCardFontFamily('theme@font:body; Arial', context)).toContain('OpenCardResource-package-theme-body')
+    expect(resolveCardFontFamily('theme@font:body; Arial', context)).toContain('Arial')
   })
 })

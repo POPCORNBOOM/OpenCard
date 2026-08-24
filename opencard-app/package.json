@@ -5,7 +5,7 @@
   "description": "A visual card design and template workspace.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-with-log.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
     "qq:group-openid": "node scripts/get-qq-group-openid.mjs",

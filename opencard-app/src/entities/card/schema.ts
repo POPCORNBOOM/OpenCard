@@ -374,7 +374,7 @@ function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyD
             key,
             visibleKeys.has(key) ? definition : { ...definition, isHidden: true },
         ])),
-        packageId: {
+        customBlockKey: {
             fieldType: 'string',
             required: true,
             isReadonly: true,
@@ -735,8 +735,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         notes: '',
         visible: 'true',
         type: 'custom-block',
-        packageId: '',
-    },
+        customBlockKey: '',    },
     'card-instance': {
         type: 'card-instance',
         amount: '1',

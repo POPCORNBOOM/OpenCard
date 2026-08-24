@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CardDocument } from '../../entities/card/model'
-import { serializeCardDocument } from '../../entities/card/storage'
+import { stringifyCardDocument } from '../../entities/card/storage'
 import { useCdeDocumentState } from './useCdeDocumentState'
 
 function createDocument(): CardDocument {
@@ -34,7 +34,7 @@ describe('useCdeDocumentState lifecycle', () => {
       emitSave: vi.fn(),
       resetSelection: vi.fn(),
     })
-    state.loadRawDoc(serializeCardDocument(createDocument()))
+    state.loadRawDoc(stringifyCardDocument(createDocument()))
     emitModelValueUpdate.mockClear()
 
     state.cardDoc.value!.name = 'Latest typing'

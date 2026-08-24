@@ -1,5 +1,5 @@
 import type { CardBlock, CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
-import { normalizeCardDocument, type CardStorageWarning } from '../../entities/card/storage'
+import { parseCardDocument } from '../../entities/card/storage'
 
 export type OcdocumentChangeKind = 'added' | 'removed' | 'changed' | 'moved'
 
@@ -24,8 +24,8 @@ export type OcdocumentDiffModel =
       ok: true
       beforeDocument: CardDocument
       afterDocument: CardDocument
-      beforeWarnings: readonly CardStorageWarning[]
-      afterWarnings: readonly CardStorageWarning[]
+      beforeWarnings: readonly never[]
+      afterWarnings: readonly never[]
       changes: readonly OcdocumentChange[]
     }
   | {
@@ -46,7 +46,7 @@ type ChangeContext = Pick<OcdocumentChange, 'blockId' | 'faceKey' | 'instanceId'
 
 function parseDocument(content: string, side: OcdocumentDiffError['side']) {
   try {
-    return { value: normalizeCardDocument(JSON.parse(content) as unknown), error: null }
+    return { value: { document: parseCardDocument(JSON.parse(content) as unknown), warnings: [] }, error: null }
   } catch (error) {
     return {
       value: null,

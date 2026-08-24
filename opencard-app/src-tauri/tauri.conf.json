@@ -62,79 +62,31 @@
       },
       {
         "ext": [
-          "ocproject"
-        ],
-        "name": "OpenCard Project Configuration",
-        "description": "OpenCard project configuration",
-        "mimeType": "application/vnd.opencard.project-configuration+json",
-        "role": "Editor",
-        "rank": "Owner",
-        "exportedType": {
-          "identifier": "per.yiguwang.opencard.project-configuration",
-          "conformsTo": [
-            "public.json"
-          ]
-        }
-      },
-      {
-        "ext": [
-          "ocfonts"
-        ],
-        "name": "OpenCard Project Font Registry",
-        "description": "OpenCard project font registry",
-        "mimeType": "application/vnd.opencard.project-font-registry+json",
-        "role": "Editor",
-        "rank": "Owner",
-        "exportedType": {
-          "identifier": "per.yiguwang.opencard.project-font-registry",
-          "conformsTo": [
-            "public.json"
-          ]
-        }
-      },
-      {
-        "ext": [
-          "ocicons"
-        ],
-        "name": "OpenCard Project Icon Registry",
-        "description": "OpenCard project icon registry",
-        "mimeType": "application/vnd.opencard.project-icon-registry+json",
-        "role": "Editor",
-        "rank": "Owner",
-        "exportedType": {
-          "identifier": "per.yiguwang.opencard.project-icon-registry",
-          "conformsTo": [
-            "public.json"
-          ]
-        }
-      },
-      {
-        "ext": [
-          "oclocale"
-        ],
-        "name": "OpenCard Project Global Dictionary",
-        "description": "OpenCard project global dictionary",
-        "mimeType": "application/vnd.opencard.project-global-dictionary+json",
-        "role": "Editor",
-        "rank": "Owner",
-        "exportedType": {
-          "identifier": "per.yiguwang.opencard.project-global-dictionary",
-          "conformsTo": [
-            "public.json"
-          ]
-        }
-      },
-      {
-        "ext": [
           "ocblock"
         ],
         "name": "OpenCard Custom Block",
-        "description": "OpenCard custom block package",
-        "mimeType": "application/vnd.opencard.custom-block+zip",
+        "description": "OpenCard custom block structure",
+        "mimeType": "application/vnd.opencard.custom-block+json",
         "role": "Editor",
         "rank": "Owner",
         "exportedType": {
           "identifier": "per.yiguwang.opencard.custom-block",
+          "conformsTo": [
+            "public.json"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "ocpack"
+        ],
+        "name": "OpenCard Resource Package",
+        "description": "OpenCard resource package",
+        "mimeType": "application/vnd.opencard.resource-package+zip",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "per.yiguwang.opencard.resource-package",
           "conformsTo": [
             "public.zip-archive"
           ]

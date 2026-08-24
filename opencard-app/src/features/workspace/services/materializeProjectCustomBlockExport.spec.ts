@@ -47,7 +47,7 @@ describe('materializeProjectCustomBlockExport', () => {
   })
 
   it('preserves nested custom block nodes for recursive vendoring', () => {
-    const host = createBlock('custom-block', { id: 'nested', packageId: 'bob/label' })
+    const host = createBlock('custom-block', { id: 'nested', customBlockKey: 'bob@block:label' })
     ;(host as unknown as Record<string, unknown>).label = 'Exported'
     const root = createBlock('simple-container-block', { id: 'root' })
     root.children.push({
@@ -63,7 +63,7 @@ describe('materializeProjectCustomBlockExport', () => {
     expect(result.issues).toEqual([])
     if (result.root.type !== 'simple-container-block') throw new Error('Expected container')
     expect(result.root.children[0]!.block).toMatchObject({
-      type: 'custom-block', id: 'nested', packageId: 'bob/label', label: 'Exported',
+      type: 'custom-block', id: 'nested', customBlockKey: 'bob@block:label', label: 'Exported',
     })
   })
 
