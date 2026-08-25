@@ -20,6 +20,7 @@
       :class="{ 'is-layer-view-active': layerViewActive }"
     >
       <div class="card-design-editor__mode-view">
+        <Transition name="card-designer-view-fade" mode="out-in">
           <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
         <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
           <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
@@ -103,8 +104,8 @@
         </OcPanel>
       </div>
 
+      <div v-else class="card-design-editor__data-table-view">
       <CardDataTable
-        v-else
         ref="cardDataTableRef"
         :readonly="props.mode === 'diff'"
         :columns="dataTableColumns"
@@ -127,8 +128,10 @@
         @reset-cell="resetDataTableCell"
         @cell-select="handleDataTableCellSelect"
       />
-
-      <div v-if="workspaceMode === 'data-table'" class="card-design-editor__data-table-preview-layer">
+      </div>
+        </Transition>
+      </div>
+      <div v-if="workspaceMode === 'data-table'" class="card-design-editor__data-table-preview-layer" :class="{ 'is-opening': dataTablePreviewOpening }">
         <OcButton
           v-if="dataTablePreviewMinimized"
           class="card-design-editor__data-table-preview-restore"
@@ -144,7 +147,7 @@
           ref="dataTablePreviewPanelRef"
           class="card-design-editor__data-table-preview-panel"
           :style="dataTablePreviewPanelStyle"
-          :class="{ 'is-dragging': dataTablePreviewDrag }"
+          :class="{ 'is-opening': dataTablePreviewOpening, 'is-dragging': dataTablePreviewDrag }"
           @pointerdown="startDataTablePreviewDrag"
           @pointermove="handleDataTablePreviewDrag"
           @pointerup="stopDataTablePreviewDrag"
@@ -300,7 +303,6 @@
           :style="faceToolsStyle" label="卡牌画布控制" :items="props.mode === 'diff' ? diffFaceToolbarItems : faceToolbarItems"
           @select="handleFaceToolbarSelect" />
       </div>
-        </div>
     </div>
 
     <AdditionalFieldCreateDialog
@@ -751,12 +753,20 @@ function handleDataTableCellSelect(payload: {
 }
 
 const dataTablePreviewMinimized = ref(false)
+const dataTablePreviewOpening = ref(false)
 const dataTablePreviewPanelRef = ref<HTMLElement | null>(null)
 const dataTablePreviewPosition = ref({ x: 0, y: 0 })
+const dataTablePreviewSize = ref<{ width: number; height: number } | null>(null)
 const dataTablePreviewPositionInitialized = ref(false)
 const dataTablePreviewDrag = ref<{ pointerId: number; offsetX: number; offsetY: number } | null>(null)
 const dataTablePreviewPanelStyle = computed(() => ({
-  transform: `translate(${dataTablePreviewPosition.value.x}px, ${dataTablePreviewPosition.value.y}px)`,
+  transform: dataTablePreviewOpening.value
+    ? 'translate(0, 0)'
+    : `translate(${dataTablePreviewPosition.value.x}px, ${dataTablePreviewPosition.value.y}px)`,
+  ...(!dataTablePreviewOpening.value && dataTablePreviewSize.value ? {
+    width: `${dataTablePreviewSize.value.width}px`,
+    height: `${dataTablePreviewSize.value.height}px`,
+  } : {}),
 }))
 const dataTablePreviewActions = computed<OcActionButtonAction[]>(() => [
   {
@@ -861,14 +871,28 @@ function positionDataTablePreviewAtBottomRight(): void {
   dataTablePreviewPositionInitialized.value = true
 }
 
+function cacheDataTablePreviewSize(): void {
+  const panel = dataTablePreviewPanelRef.value
+  if (!panel) return
+  const rect = panel.getBoundingClientRect()
+  dataTablePreviewSize.value = { width: rect.width, height: rect.height }
+}
+
 watch(workspaceMode, mode => {
-  if (mode === 'design') renderContentReady.value = false
-  if (mode === 'data-table') {
-    void nextTick(() => {
-      if (!dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
+  if (mode === 'design') {
+    cacheDataTablePreviewSize()
+    renderContentReady.value = false
+    dataTablePreviewOpening.value = false
+    return
+  }
+  dataTablePreviewOpening.value = true
+  void nextTick(() => {
+    if (!dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
+    requestAnimationFrame(() => {
+      dataTablePreviewOpening.value = false
       dataTablePreviewViewportRef.value?.fitView()
     })
-  }
+  })
 })
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
 const dataTablePreviewTarget = ref<{
@@ -3031,6 +3055,20 @@ onUnmounted(() => {
   z-index: var(--oc-z-data-table-preview);
 }
 
+.card-design-editor__data-table-preview-layer.is-opening .card-design-editor__data-table-preview-panel {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  transition: none;
+}
+
+.card-design-editor__data-table-preview-panel.is-opening :deep(.oc-card__header) {
+  cursor: default;
+}
+
 .card-design-editor__data-table-preview-panel {
   position: absolute;
   top: var(--oc-floating-surface-gap);
@@ -3046,7 +3084,13 @@ onUnmounted(() => {
   resize: both;
   touch-action: none;
   cursor: grab;
-  transition: transform var(--oc-duration-normal) var(--oc-ease);
+  transition:
+    top var(--oc-duration-normal) var(--oc-ease),
+    left var(--oc-duration-normal) var(--oc-ease),
+    width var(--oc-duration-normal) var(--oc-ease),
+    height var(--oc-duration-normal) var(--oc-ease),
+    max-width var(--oc-duration-normal) var(--oc-ease),
+    max-height var(--oc-duration-normal) var(--oc-ease);
 }
 
 .card-design-editor__data-table-preview-panel.is-dragging {

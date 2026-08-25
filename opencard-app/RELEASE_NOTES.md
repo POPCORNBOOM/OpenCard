@@ -1,5 +1,6 @@
 - 项目内部资源配置现在统一使用 `.opencard` 下的 `project.json`、`fonts/fonts.json`、`icons/icons.json`、`blocks/blocks.json` 和 `locale.json`；资源包使用 `.ocpack`，自定义块结构使用 `.ocblock`。
 ## 新增
+- CDE 切换到数据表视图时，会先展开并淡出设计画布，再将卡牌预览平滑收回到上次记住的位置和尺寸。
 
 - 外部包管理页面现在支持导入本地 `.ocpack`，并查看项目声明与已安装包的差异。
 - 文件菜单现在提供“制作包”工作台：可按资源类别选择 `blocks.json` 注册的自定义块、`fonts.json` 注册的字体、`icons.json` 注册的图标集和项目图片，填写包信息并制作 `.ocpack`；内部协议清单不会被误选入包内容。
