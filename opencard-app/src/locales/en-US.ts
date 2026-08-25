@@ -216,6 +216,10 @@ export default {
       sendFeedback: 'Feedback and Suggestions',
       viewFeedback: 'My Feedback and Suggestions',
     },
+    debug: {
+      hideCdeOverlays: 'Hide CDE overlays (debug)',
+      showCdeOverlays: 'Show CDE overlays (debug)',
+    },
     feedback: {
       title: 'Feedback and Suggestions',
       unreadReplies: '{count} unread replies',

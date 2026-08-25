@@ -17,7 +17,7 @@
     tabindex="-1" @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
-      :class="{ 'is-layer-view-active': layerViewActive }"
+      :class="{ 'is-layer-view-active': layerViewActive || props.debugHideCdeOverlays }"
     >
       <div class="card-design-editor__mode-view">
         <Transition name="card-designer-view-fade" mode="out-in">

@@ -62,6 +62,7 @@ type UseShellEditorHostOptions = {
   settings: Readonly<Ref<DeepReadonly<AppSettings>>>
   sessionActions: SessionActions
   comparison?: Readonly<Ref<EditorComparisonInput | null>>
+  debugHideCdeOverlays?: Readonly<Ref<boolean>>
 }
 
 const AUTO_SAVE_REGISTRY_EDITOR_IDS = new Set(['font-registry', 'icon-registry'])
@@ -197,6 +198,7 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
             options.settings.value.workspace.showSelectionSizeOnResize,
           alignmentSnappingEnabledByDefault:
             options.settings.value.workspace.alignmentSnappingEnabledByDefault,
+          debugHideCdeOverlays: options.debugHideCdeOverlays?.value ?? false,
         }
       }
 

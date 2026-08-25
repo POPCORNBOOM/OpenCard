@@ -216,6 +216,10 @@ export default {
       sendFeedback: '反馈与建议',
       viewFeedback: '我的反馈/建议',
     },
+    debug: {
+      hideCdeOverlays: '隐藏 CDE 浮层（调试）',
+      showCdeOverlays: '显示 CDE 浮层（调试）',
+    },
     feedback: {
       title: '反馈与建议',
       unreadReplies: '{count} 条未读回复',

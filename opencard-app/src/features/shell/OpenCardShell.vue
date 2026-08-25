@@ -540,6 +540,7 @@ const resourcePackageBuilderEntries = computed(() => indexedEntries.value
   .filter(entry => entry.isFile)
   .map(entry => entry.name.replace(/\\/g, '/')))
 const developerMode = ref(false)
+const debugHideCdeOverlays = ref(false)
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 const SHELL_SHORTCUT_KEYS = {
@@ -898,6 +899,7 @@ const {
   projectProfile,
   settings: settingsStore.settings,
   comparison: editorComparison,
+  debugHideCdeOverlays,
   sessionActions: {
     updateDraftContent,
     setSessionDirtyState,
@@ -1921,6 +1923,18 @@ const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
     : []
 ))
 
+const debugMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
+  import.meta.env.DEV
+    ? [{
+        key: 'toggle-debug-hide-cde-overlays',
+        title: debugHideCdeOverlays.value
+          ? t('app.debug.showCdeOverlays')
+          : t('app.debug.hideCdeOverlays'),
+        icon: debugHideCdeOverlays.value ? 'action.check' : 'format.code-braces',
+      }]
+    : []
+))
+
 const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   {
     key: 'file',
@@ -2051,6 +2065,7 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
           || isInstallingUpdate.value,
       },
       ...developerModeMenuActions.value,
+      ...debugMenuActions.value,
       { type: 'divider', key: 'help-feedback-divider' },
       {
         key: 'send-feedback',
@@ -2817,6 +2832,11 @@ async function runShellCommand(actionKey: string) {
   if (actionKey === 'toggle-developer-mode' && import.meta.env.DEV) {
     developerMode.value = !developerMode.value
     stopDeveloperUpdatePreview()
+    return
+  }
+
+  if (actionKey === 'toggle-debug-hide-cde-overlays' && import.meta.env.DEV) {
+    debugHideCdeOverlays.value = !debugHideCdeOverlays.value
     return
   }
 

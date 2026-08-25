@@ -43,6 +43,7 @@ export interface EditorProps {
   showSelectionPositionOnMove?: boolean
   showSelectionSizeOnResize?: boolean
   alignmentSnappingEnabledByDefault?: boolean
+  debugHideCdeOverlays?: boolean
   themeId?: OcThemeId
   themeOverrides?: OcThemeColorOverrides
 }
