@@ -17,7 +17,7 @@
     tabindex="-1" @keydown="handleRootKeydown">
     <div
       class="card-design-editor__stage"
-      :class="{ 'is-layer-view-active': layerViewActive || props.debugHideCdeOverlays }"
+      :class="{ 'is-layer-view-active': layerViewActive, 'is-debug-overlays-hidden': props.debugHideCdeOverlays }"
     >
       <div class="card-design-editor__mode-view">
         <Transition name="card-designer-view-fade" mode="out-in">
@@ -3138,6 +3138,12 @@ onUnmounted(() => {
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer,
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer * {
   pointer-events: none !important;
+}
+
+.card-design-editor__stage.is-debug-overlays-hidden .card-design-editor__stage-layer {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .card-design-editor__face-tools {
