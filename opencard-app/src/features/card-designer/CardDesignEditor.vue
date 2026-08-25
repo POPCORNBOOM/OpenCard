@@ -38,7 +38,66 @@
               @render-readiness-change="handleRenderReadinessChange" />
           </div>
           <template v-else>
-          <div v-if="viewFace && renderResources" ref="designViewportTargetRef" class="card-design-editor__viewport-target" />
+          <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
+          :clip-to-face="clipToFace"
+          :resource-context="renderResources"
+          :restore-key="props.filePath" :transform="viewportTransform"
+          :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
+          :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
+          :selected-parent-flow-direction="selectedParentFlowDirection"
+          :selected-flow-align="selectedFlowAlign"
+          :viewport-insets="viewportInsets"
+          :selection-info="selectionInfo"
+          :width-locked="selectedCustomBlockResize.widthLocked"
+          :height-locked="selectedCustomBlockResize.heightLocked"
+          :selection-action-labels="selectionActionLabels"
+          :selection-command-actions="selectionCommandActions"
+          :layer-view-active="layerViewActive"
+          :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
+          :space-modifier-active="spaceHeld"
+          :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
+          :layer-view-shortcut-hints="layerViewShortcutHints"
+          :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
+          :show-info="!selectedBlock"
+          :show-position-on-move="props.showSelectionPositionOnMove ?? true"
+          :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
+          :alignment-snapping-enabled="alignmentSnappingEnabled"
+          :transform-disabled-block-ids="transformDisabledBlockIds"
+          @pointerdown.capture="handleCanvasPointerDown"
+          @block-click="handleViewportBlockClick"
+          @blank-click="clearEffectiveBlockSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
+          @selection-action="handleSelectionAction"
+          @selection-command="handleSelectionCommand"
+          @z-index-step="handleLayerZIndexStep"
+          @face-dimension-change="handleFaceDimensionChange"
+          @viewport-transform-change="handleViewportTransformChange"
+          @viewport-size-change="handleViewportSizeChange"
+          @render-readiness-change="handleRenderReadinessChange">
+          <template #info>
+            <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
+              <span v-for="item in viewportCardInfo" :key="item.key"
+                :class="{
+                  'is-highlighted': highlightedInfoKeys.has(item.key),
+                  'is-group-separated': item.separated,
+                  'is-multiline': item.multiline,
+                }">
+                {{ item.value }}
+              </span>
+            </section>
+          </template>
+          <template #left-info>
+            <span class="card-design-editor__dimension-info"
+              :class="{ 'is-highlighted': highlightedInfoKeys.has('height') }">
+              {{ viewportCardDimensions.height }}
+            </span>
+          </template>
+          <template #bottom-info>
+            <span class="card-design-editor__dimension-info"
+              :class="{ 'is-highlighted': highlightedInfoKeys.has('width') }">
+              {{ viewportCardDimensions.width }}
+            </span>
+          </template>
+        </CardViewport>
         <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
           </template>
         </OcPanel>
@@ -94,9 +153,16 @@
           <OcCard fill variant="glass" :title="t('cardDesigner.dataTable.previewTitle')"
             :actions="dataTablePreviewActions" @action="handleDataTablePreviewAction">
             <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
-              <div ref="dataTablePreviewViewportTargetRef" class="card-design-editor__data-table-preview-viewport-target">
-                <OcEmpty v-if="!viewFace || !renderResources" tone="muted">{{ t('cardDesigner.dataTable.previewEmpty') }}</OcEmpty>
-              </div>
+              <CardViewport
+                v-if="viewFace && renderResources"
+                ref="dataTablePreviewViewportRef"
+                class="card-design-editor__data-table-preview-viewport"
+                :face="viewFace"
+                :resource-context="renderResources"
+                readonly
+                :restore-key="`${props.filePath}:data-table-preview`"
+              />
+              <OcEmpty v-else tone="muted">{{ t('cardDesigner.dataTable.previewEmpty') }}</OcEmpty>
             </OcPanel>
           </OcCard>
         </div>
@@ -235,39 +301,6 @@
           @select="handleFaceToolbarSelect" />
       </div>
         </div>
-    </div>
-
-    <div v-if="props.mode !== 'diff' && viewFace && renderResources && (workspaceMode === 'design' || !dataTablePreviewMinimized)"
-      class="card-design-editor__viewport-actor" :style="viewportActorStyle"
-      :class="{ 'is-transitioning': viewportPresentationTransitioning }">
-      <CardViewport ref="cardViewportRef" class="card-design-editor__viewport" :face="viewFace" :readonly="workspaceMode === 'data-table'"
-        :clip-to-face="clipToFace" :resource-context="renderResources" :restore-key="props.filePath"
-        :transform="viewportTransform" :selected-block-id="selectedBlock?.id ?? null"
-        :selected-location-type="selectedLocationType" :selected-anchor="selectedAnchor"
-        :selected-parent-block-id="selectedParentBlockId" :selected-parent-flow-direction="selectedParentFlowDirection"
-        :selected-flow-align="selectedFlowAlign" :viewport-insets="viewportInsets" :selection-info="selectionInfo"
-        :width-locked="selectedCustomBlockResize.widthLocked" :height-locked="selectedCustomBlockResize.heightLocked"
-        :selection-action-labels="selectionActionLabels" :selection-command-actions="selectionCommandActions"
-        :layer-view-active="layerViewActive" :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
-        :space-modifier-active="spaceHeld" :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
-        :layer-view-shortcut-hints="layerViewShortcutHints" :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
-        :show-info="!selectedBlock" :show-position-on-move="props.showSelectionPositionOnMove ?? true"
-        :show-size-on-resize="props.showSelectionSizeOnResize ?? true" :alignment-snapping-enabled="alignmentSnappingEnabled"
-        :transform-disabled-block-ids="transformDisabledBlockIds" @pointerdown.capture="handleCanvasPointerDown"
-        @block-click="handleViewportBlockClick" @blank-click="clearEffectiveBlockSelection"
-        @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
-        @selection-action="handleSelectionAction" @selection-command="handleSelectionCommand"
-        @z-index-step="handleLayerZIndexStep" @face-dimension-change="handleFaceDimensionChange"
-        @viewport-transform-change="handleViewportTransformChange" @viewport-size-change="handleViewportSizeChange"
-        @render-readiness-change="handleRenderReadinessChange">
-        <template #info>
-          <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
-            <span v-for="item in viewportCardInfo" :key="item.key" :class="{ 'is-highlighted': highlightedInfoKeys.has(item.key), 'is-group-separated': item.separated, 'is-multiline': item.multiline }">{{ item.value }}</span>
-          </section>
-        </template>
-        <template #left-info><span class="card-design-editor__dimension-info" :class="{ 'is-highlighted': highlightedInfoKeys.has('height') }">{{ viewportCardDimensions.height }}</span></template>
-        <template #bottom-info><span class="card-design-editor__dimension-info" :class="{ 'is-highlighted': highlightedInfoKeys.has('width') }">{{ viewportCardDimensions.width }}</span></template>
-      </CardViewport>
     </div>
 
     <AdditionalFieldCreateDialog
@@ -714,7 +747,7 @@ function handleDataTableCellSelect(payload: {
   activeFaceKey.value = payload.faceKey
   selectedCardId.value = payload.cardId
   selectedCardKeys.value = [payload.cardId]
-  void nextTick(() => cardViewportRef.value?.fitView())
+  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
 }
 
 const dataTablePreviewMinimized = ref(false)
@@ -739,13 +772,13 @@ const dataTablePreviewActions = computed<OcActionButtonAction[]>(() => [
 ])
 
 function handleDataTablePreviewAction(payload: { key: string }): void {
-  if (payload.key === 'fit-preview') cardViewportRef.value?.fitView()
+  if (payload.key === 'fit-preview') dataTablePreviewViewportRef.value?.fitView()
   else if (payload.key === 'minimize-preview') dataTablePreviewMinimized.value = true
 }
 
 function restoreDataTablePreview(): void {
   dataTablePreviewMinimized.value = false
-  void nextTick(() => cardViewportRef.value?.fitView())
+  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
 }
 
 function clampDataTablePreviewPosition(x: number, y: number): { x: number; y: number } {
@@ -828,44 +861,15 @@ function positionDataTablePreviewAtBottomRight(): void {
   dataTablePreviewPositionInitialized.value = true
 }
 
-function getViewportTargetRect(target: HTMLElement | null): DOMRect | null {
-  const root = editorRootRef.value
-  if (!root || !target) return null
-  const rootRect = root.getBoundingClientRect()
-  const rect = target.getBoundingClientRect()
-  return new DOMRect(rect.left - rootRect.left, rect.top - rootRect.top, rect.width, rect.height)
-}
-
-function updateViewportActor(mode: 'design' | 'data-table', animate: boolean): void {
-  const target = mode === 'design' ? designViewportTargetRef.value : dataTablePreviewViewportTargetRef.value
-  const rect = getViewportTargetRect(target)
-  if (!rect) return
-  viewportPresentationTransitioning.value = animate
-  viewportActorStyle.value = {
-    left: `${rect.left}px`,
-    top: `${rect.top}px`,
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
-  }
-  if (animate) window.setTimeout(() => { viewportPresentationTransitioning.value = false }, 220)
-}
-
-function fitCardViewport(): void {
-  const viewport = cardViewportRef.value
-  if (viewport && typeof viewport.fitView === 'function') viewport.fitView()
-}
-
 watch(workspaceMode, mode => {
   if (mode === 'design') renderContentReady.value = false
-  void nextTick(async () => {
-    if (mode === 'data-table' && !dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
-    await nextTick()
-    updateViewportActor(mode, true)
-    fitCardViewport()
-  })
+  if (mode === 'data-table') {
+    void nextTick(() => {
+      if (!dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
+      dataTablePreviewViewportRef.value?.fitView()
+    })
+  }
 })
-
-void nextTick(() => updateViewportActor('design', false))
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
 const dataTablePreviewTarget = ref<{
   cardId: string
@@ -1019,10 +1023,7 @@ type CardDataTableHandle = {
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
-const designViewportTargetRef = ref<HTMLElement | null>(null)
-const dataTablePreviewViewportTargetRef = ref<HTMLElement | null>(null)
-const viewportActorStyle = ref<Record<string, string>>({})
-const viewportPresentationTransitioning = ref(false)
+const dataTablePreviewViewportRef = ref<CardViewportHandle | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
@@ -3030,35 +3031,6 @@ onUnmounted(() => {
   z-index: var(--oc-z-data-table-preview);
 }
 
-.card-design-editor__viewport-target,
-.card-design-editor__data-table-preview-viewport-target {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-}
-
-.card-design-editor__viewport-actor {
-  position: absolute;
-  z-index: var(--oc-z-data-table-preview);
-  pointer-events: auto;
-  overflow: hidden;
-  will-change: left, top, width, height;
-}
-
-.card-design-editor__viewport-actor.is-transitioning {
-  transition:
-    left var(--oc-duration-normal) var(--oc-ease),
-    top var(--oc-duration-normal) var(--oc-ease),
-    width var(--oc-duration-normal) var(--oc-ease),
-    height var(--oc-duration-normal) var(--oc-ease);
-}
-
-.card-design-editor__viewport-actor .card-design-editor__viewport {
-  width: 100%;
-  height: 100%;
-}
-
 .card-design-editor__data-table-preview-panel {
   position: absolute;
   top: var(--oc-floating-surface-gap);
@@ -3198,12 +3170,6 @@ onUnmounted(() => {
   height: 100%;
   min-width: 0;
   min-height: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card-design-editor__viewport-actor.is-transitioning {
-    transition-duration: 0.01ms;
-  }
 }
 
 </style>

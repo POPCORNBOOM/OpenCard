@@ -1,5 +1,4 @@
 - 项目内部资源配置现在统一使用 `.opencard` 下的 `project.json`、`fonts/fonts.json`、`icons/icons.json`、`blocks/blocks.json` 和 `locale.json`；资源包使用 `.ocpack`，自定义块结构使用 `.ocblock`。
-- CDE 在切换数据表视图时，卡牌预览会平滑移动到预览浮窗，减少视图跳变并保留当前画布状态。
 ## 新增
 
 - 外部包管理页面现在支持导入本地 `.ocpack`，并查看项目声明与已安装包的差异。
