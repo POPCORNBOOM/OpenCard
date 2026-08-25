@@ -1,115 +1,107 @@
 <template>
   <OcDialog :open="open" :title="dialogTitle" as="form" size="xl"
-    :height-mode="activePage === 'preview' || advancedOpen ? 'fixed' : 'content'"
-    :height="activePage === 'preview' || advancedOpen ? 'workspace' : undefined"
+    :height-mode="currentView === 'preview' || fieldResourceEditorOpen ? 'fixed' : 'content'"
+    :height="currentView === 'preview' || fieldResourceEditorOpen ? 'workspace' : undefined"
     :padded="false" :scrollable="false"
     :dismissible="!busy" :close-on-backdrop="!busy" :aria-busy="busy"
     @request-close="requestClose" @submit="submit">
     <div class="custom-block-export-dialog" :inert="busy ? true : undefined">
-      <section v-show="activePage === 'package'" class="custom-block-export-dialog__package"
-        role="tabpanel">
-        <section class="custom-block-export-dialog__section custom-block-export-dialog__information">
-          <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.packageInformation') }}</OcText>
-          <div class="custom-block-export-dialog__metadata">
-            <label class="custom-block-export-dialog__field">
-              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.name') }}</OcText>
-              <OcFieldInput full-width autofocus :value="name" :aria-invalid="!name.trim()"
-                @input="name = ($event.target as HTMLInputElement).value" />
-            </label>
-            <label class="custom-block-export-dialog__field">
-              <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.key') }}</OcText>
-              <OcFieldInput full-width mono :value="blockKey" :placeholder="suggestedBlockKey"
-                :aria-invalid="!validBlockKey" @input="blockKey = ($event.target as HTMLInputElement).value" />
-            </label>
-            <OcButton type="button" variant="ghost" icon="tool.settings" @click="toggleAdvancedSettings">
-              {{ advancedOpen ? t('cardDesigner.customBlock.simpleSettings') : t('cardDesigner.customBlock.advancedSettings') }}
-            </OcButton>
+      <nav class="custom-block-export-dialog__pages" :aria-label="t('cardDesigner.customBlock.pages')">
+        <OcOptionGroup v-model="currentView" :options="pageOptions" appearance="sliding-outline"
+          semantics="tabs" fill />
+      </nav>
+      <div class="custom-block-export-dialog__content">
+        <section v-show="currentView === 'package'" class="custom-block-export-dialog__package" role="tabpanel">
+          <section class="custom-block-export-dialog__section custom-block-export-dialog__information">
+            <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.packageInformation') }}</OcText>
+            <div class="custom-block-export-dialog__metadata">
+              <label class="custom-block-export-dialog__field">
+                <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.name') }}</OcText>
+                <OcFieldInput full-width autofocus :value="name" :aria-invalid="!name.trim()"
+                  @input="name = ($event.target as HTMLInputElement).value" />
+              </label>
+              <label class="custom-block-export-dialog__field">
+                <OcText as="span" size="sm">{{ t('cardDesigner.customBlock.key') }}</OcText>
+                <OcFieldInput full-width mono :value="blockKey" :placeholder="suggestedBlockKey"
+                  :aria-invalid="!validBlockKey" @input="blockKey = ($event.target as HTMLInputElement).value" />
+              </label>
+              <OcButton type="button" variant="ghost" icon="tool.settings" @click="toggleFieldResourceEditor">
+                {{ fieldResourceEditorOpen ? t('cardDesigner.customBlock.simpleSettings') : t('cardDesigner.customBlock.advancedSettings') }}
+              </OcButton>
+            </div>
+          </section>
+          <div v-if="fieldResourceEditorOpen" class="custom-block-export-dialog__editor">
+            <div class="custom-block-export-dialog__package-columns">
+              <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
+                <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
+                <OcPanel fill padding="none" overflow="auto">
+                  <OcTree fill :data="fieldTreeData" :actions="fieldTreeActions" :selected-keys="[]"
+                    :expanded-keys="fieldGroupIds" :aria-label="t('cardDesigner.customBlock.fields')"
+                    selection-mode="none" action-visibility="always" @intent="handleFieldTreeIntent" />
+                </OcPanel>
+              </section>
+              <section class="custom-block-export-dialog__section custom-block-export-dialog__resources-section">
+                <div class="custom-block-export-dialog__section-heading">
+                  <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.resources') }}</OcText>
+                  <OcText size="xs" tone="muted">{{ selectedResourceIds.size }}/{{ resourceCandidates.length }}</OcText>
+                </div>
+                <OcPanel fill padding="none" overflow="auto">
+                  <CustomBlockResourceTree
+                    :candidates="resourceCandidates" :selected-ids="[...selectedResourceIds]"
+                    :ariaLabel="t('cardDesigner.customBlock.resources')"
+                    :automatic-label="t('cardDesigner.customBlock.resourceAutomatic')"
+                    :suggested-label="t('cardDesigner.customBlock.resourceSuggested')"
+                    :manual-label="t('cardDesigner.customBlock.resourceManual')"
+                    :excluded-label="t('cardDesigner.customBlock.resourceExcluded')"
+                    :missing-label="t('cardDesigner.customBlock.resourceMissing')"
+                    :nested-label="t('cardDesigner.customBlock.resourceNested')"
+                    :font-label="t('cardDesigner.customBlock.fonts')"
+                    :icon-label="t('cardDesigner.customBlock.icons')"
+                    :package-label="t('cardDesigner.customBlock.nestedPackages')"
+                    :image-label="t('cardDesigner.customBlock.otherImages')"
+                    :select-label="t('cardDesigner.customBlock.resourceSelect')"
+                    :deselect-label="t('cardDesigner.customBlock.resourceDeselect')"
+                    @update:selected-ids="selectedResourceIds = $event" />
+                </OcPanel>
+              </section>
+            </div>
           </div>
         </section>
-
-        <div v-if="advancedOpen" class="custom-block-export-dialog__advanced">
-          <nav class="custom-block-export-dialog__pages" :aria-label="t('cardDesigner.customBlock.pages')">
-            <OcOptionGroup v-model="activePage" :options="pageOptions" appearance="sliding-outline"
-              semantics="tabs" fill />
-          </nav>
-          <div class="custom-block-export-dialog__package-columns">
-          <section class="custom-block-export-dialog__section custom-block-export-dialog__fields-section">
-            <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.fields') }}</OcText>
-            <OcPanel fill padding="none" overflow="auto">
-              <OcTree fill :data="fieldTreeData" :actions="fieldTreeActions" :selected-keys="[]"
-                :expanded-keys="fieldGroupKeys" :aria-label="t('cardDesigner.customBlock.fields')"
-                selection-mode="none" action-visibility="always" @intent="handleFieldTreeIntent" />
-            </OcPanel>
-          </section>
-
-          <section class="custom-block-export-dialog__section custom-block-export-dialog__resources-section">
-            <div class="custom-block-export-dialog__section-heading">
-              <OcText as="h3" size="sm">{{ t('cardDesigner.customBlock.resources') }}</OcText>
-              <OcText size="xs" tone="muted">{{ selectedResourceIds.size }}/{{ resourceCandidates.length }}</OcText>
-            </div>
-            <OcPanel fill padding="none" overflow="auto">
-              <CustomBlockResourceTree
-                :candidates="resourceCandidates" :selected-ids="[...selectedResourceIds]"
-                :ariaLabel="t('cardDesigner.customBlock.resources')"
-                :automatic-label="t('cardDesigner.customBlock.resourceAutomatic')"
-                :suggested-label="t('cardDesigner.customBlock.resourceSuggested')"
-                :manual-label="t('cardDesigner.customBlock.resourceManual')"
-                :excluded-label="t('cardDesigner.customBlock.resourceExcluded')"
-                :missing-label="t('cardDesigner.customBlock.resourceMissing')"
-                :nested-label="t('cardDesigner.customBlock.resourceNested')"
-                :font-label="t('cardDesigner.customBlock.fonts')"
-                :icon-label="t('cardDesigner.customBlock.icons')"
-                :package-label="t('cardDesigner.customBlock.nestedPackages')"
-                :image-label="t('cardDesigner.customBlock.otherImages')"
-                :select-label="t('cardDesigner.customBlock.resourceSelect')"
-                :deselect-label="t('cardDesigner.customBlock.resourceDeselect')"
-                @update:selected-ids="selectedResourceIds = $event" />
-            </OcPanel>
-          </section>
-          </div>
-        </div>
-      </section>
-
-      <section v-show="activePage === 'preview'" class="custom-block-export-dialog__preview" role="tabpanel">
-        <main class="custom-block-export-dialog__viewport-area">
-          <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
-            class="custom-block-export-dialog__viewport" :face="previewFace"
-            :show-info="false" :resource-context="previewResources"
-            @viewport-transform-change="viewportScale = $event.scale"
-            @viewport-size-change="fitPreview" />
-          <OcEmpty v-else tone="muted" inset="comfortable">
-            {{ previewError || ((analysisBusy || previewRefreshing) ? t('cardDesigner.customBlock.previewPreparing') : t('cardDesigner.customBlock.previewUnavailable')) }}
-          </OcEmpty>
-          <OcOverlayToolbar v-if="previewFace" class="custom-block-export-dialog__viewport-tools"
-            :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
-            @select="handleViewportToolbar" />
-          <OcCard v-if="previewDiagnostics.length" class="custom-block-export-dialog__diagnostics" variant="glass" role="status">
-            <OcText size="sm" tone="warning">{{ t('cardDesigner.customBlock.previewDiagnostics', { count: previewDiagnostics.length }) }}</OcText>
-            <OcText v-for="diagnostic in previewDiagnostics.slice(0, 3)" :key="diagnostic" size="xs" tone="muted">
-              {{ diagnostic }}
-            </OcText>
-          </OcCard>
-        </main>
-
-        <aside class="custom-block-export-dialog__properties">
-          <OcCard fill :title="t('customBlockRegistry.preview.publicFields')" :actions="propertyActions"
-            @action="resetPreviewOverrides">
-            <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
-              <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
-                @update-property="updatePreviewProperty" />
-            </OcPanel>
+        <section v-show="currentView === 'preview'" class="custom-block-export-dialog__preview" role="tabpanel">
+          <main class="custom-block-export-dialog__viewport-area">
+            <CardViewport v-if="previewFace && previewResources" ref="viewportRef"
+              class="custom-block-export-dialog__viewport" :face="previewFace" :show-info="false"
+              :resource-context="previewResources" @viewport-transform-change="viewportScale = $event.scale"
+              @viewport-size-change="fitPreview" />
             <OcEmpty v-else tone="muted" inset="comfortable">
-              {{ t('customBlockRegistry.preview.noPublicFields') }}
+              {{ previewError || ((analysisBusy || previewRefreshing) ? t('cardDesigner.customBlock.previewPreparing') : t('cardDesigner.customBlock.previewUnavailable')) }}
             </OcEmpty>
-          </OcCard>
-        </aside>
-      </section>
+            <OcOverlayToolbar v-if="previewFace" class="custom-block-export-dialog__viewport-tools"
+              :label="t('customBlockRegistry.preview.viewportControls')" :items="previewToolbarItems"
+              @select="handleViewportToolbar" />
+            <OcCard v-if="previewDiagnostics.length" class="custom-block-export-dialog__diagnostics" variant="glass" role="status">
+              <OcText size="sm" tone="warning">{{ t('cardDesigner.customBlock.previewDiagnostics', { count: previewDiagnostics.length }) }}</OcText>
+              <OcText v-for="diagnostic in previewDiagnostics.slice(0, 3)" :key="diagnostic" size="xs" tone="muted">{{ diagnostic }}</OcText>
+            </OcCard>
+          </main>
+          <aside class="custom-block-export-dialog__properties">
+            <OcCard fill :title="t('customBlockRegistry.preview.publicFields')" :actions="propertyActions"
+              @action="resetPreviewOverrides">
+              <OcPanel v-if="propertyInputs.length" fill tone="transparent" border="none" padding="none" overflow="auto">
+                <PropertyEditor :inputs="propertyInputs" :categories="propertyCategories" sort-mode="category"
+                  @update-property="updatePreviewProperty" />
+              </OcPanel>
+              <OcEmpty v-else tone="muted" inset="comfortable">{{ t('customBlockRegistry.preview.noPublicFields') }}</OcEmpty>
+            </OcCard>
+          </aside>
+        </section>
+      </div>
     </div>
 
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="requestClose">{{ t('cardDesigner.customBlock.cancel') }}</OcButton>
       <OcButton type="submit" variant="solid"
-        :disabled="busy || !name.trim() || !validBlockKey || !prepared">
+        :disabled="busy || !name.trim() || !validBlockKey || !preparedExport">
         {{ busy ? t('cardDesigner.customBlock.exporting') : t('cardDesigner.customBlock.export') }}
       </OcButton>
     </template>
@@ -152,11 +144,9 @@ import type { PropertyEditorCategoryDefinition, PropertyEditorInput, PropertyEdi
 import { getPropertyFieldIcon } from '../../../shared/ui/property-editor/propertyFieldRegistry'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { VIEWPORT_ZOOM_STEP } from '../../../shared/ui/viewport/viewportNavigation'
-import {
-  normalizeProjectCustomBlockKey,
-} from '../model/projectCustomBlocks'
+import { normalizeKeySlug } from '../../../shared/model/keySlug'
 import { fileSystemService } from '../services/fileSystemService'
-import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from '../services/buildProjectCustomBlockManifest'
+import { buildProjectCustomBlockDefinition, buildProjectCustomBlockRoot } from '../services/buildProjectCustomBlockManifest'
 import {
   prepareProjectCustomBlockExport,
   type PreparedProjectCustomBlockExport,
@@ -197,7 +187,7 @@ const blockKey = ref('')
 const exposed = ref(new Set<string>())
 const selectedResourceIds = ref(new Set<string>())
 const selectionInitialized = ref(false)
-const prepared = shallowRef<PreparedProjectCustomBlockExport | null>(null)
+const preparedExport = shallowRef<PreparedProjectCustomBlockExport | null>(null)
 const previewFace = shallowRef<RenderReadyCardFace | null>(null)
 const previewResources = shallowRef<CardRenderResourceContext | null>(null)
 const previewOverrides = ref<Record<string, unknown>>({})
@@ -213,19 +203,19 @@ let manifestRevision = 0
 let previewRevision = 0
 let manifestQueued = false
 let previewQueued = false
-const activePage = ref<'package' | 'preview'>('package')
-const advancedOpen = ref(false)
+const currentView = ref<'package' | 'preview'>('package')
+const fieldResourceEditorOpen = ref(false)
 const pageOptions = computed<readonly OcOption[]>(() => [
   { value: 'package', label: t('cardDesigner.customBlock.packagePage') },
   { value: 'preview', label: t('cardDesigner.customBlock.previewPage') },
 ])
-const fieldGroupKeys = ['group:exposed', 'group:private']
+const fieldGroupIds = ['group:exposed', 'group:private']
 
 const suggestedBlockKey = computed(() => toKeySlug(name.value, props.defaultKey || 'custom-block'))
-const validBlockKey = computed(() => Boolean(normalizeProjectCustomBlockKey(
-  blockKey.value.trim() || suggestedBlockKey.value,
+const validBlockKey = computed(() => Boolean(normalizeKeySlug(
+blockKey.value.trim() || suggestedBlockKey.value,
 )))
-const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => prepared.value?.resourceAnalysis.candidates ?? [])
+const resourceCandidates = computed<readonly ProjectCustomBlockResourceCandidate[]>(() => preparedExport.value?.resourceAnalysis.candidates ?? [])
 const previewToolbarItems = computed(() => createViewportToolbarItems(`${Math.round(viewportScale.value * 100)}%`))
 const diagnostics = computed(() => props.errorText ? [props.errorText] : [])
 const previewDiagnostics = computed(() => [...new Set([
@@ -275,7 +265,7 @@ const fieldTreeData = computed<OcTreeData>(() => {
   items.set('group:private', { label: t('cardDesigner.customBlock.private'), icon: 'status.eye-off' })
   children.set('group:exposed', publicKeys)
   children.set('group:private', privateKeys)
-  return { rootKeys: fieldGroupKeys, items, children }
+  return { rootKeys: fieldGroupIds, items, children }
 })
 
 const propertyActions = computed<OcCardAction[]>(() => [{
@@ -296,9 +286,9 @@ function clonePreviewValue<T>(value: T, seen = new WeakMap<object, object>()): T
 }
 
 const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
-  const current = prepared.value
+  const current = preparedExport.value
   if (!current || previewPropertyFieldKeys.value.length === 0) return []
-  const schema = createProjectCustomBlockPropertySchema(current, previewPropertyFieldKeys.value)
+  const schema = createProjectCustomBlockPropertySchema({ definition: current.definition, block: current.block }, previewPropertyFieldKeys.value)
   const fieldKeys = Object.keys(schema.fields)
   const defaults = Object.fromEntries(fieldKeys.map(key => [
     key,
@@ -320,7 +310,7 @@ const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     customKeys: schema.customKeys,
   })
   return [{
-    key: 'custom-block-export-preview', title: current.manifest.name, record: values,
+    key: 'custom-block-export-preview', title: current.definition.name, record: values,
     fields: Object.fromEntries(Object.entries(fields).filter(([key]) => schema.fields[key]).map(([key, definition]) => [key, { ...definition, category: 'publicFields' }])),
   }]
 })
@@ -351,26 +341,26 @@ watch(() => props.open, open => {
   resetWorkspace()
   if (!open) return
   name.value = props.defaultName
-  activePage.value = 'package'
-  advancedOpen.value = false
+  currentView.value = 'package'
+  fieldResourceEditorOpen.value = false
   blockKey.value = ''
   exposed.value = new Set(props.fields.filter(field => field.referenceCount > 0).map(field => field.key))
   selectedResourceIds.value = new Set()
   selectionInitialized.value = false
   previewOverrides.value = {}
-  prepared.value = null
+  preparedExport.value = null
   scheduleAnalysis()
 }, { immediate: true })
 watch([() => props.document, () => props.rootBlockId], () => {
   if (!props.open) return
   selectionInitialized.value = false
-  prepared.value = null
+  preparedExport.value = null
   clearPreview()
   scheduleAnalysis()
 })
 watch([name, blockKey, exposedFieldKeys], scheduleManifestRefresh, { deep: true })
-watch(activePage, page => {
-  if (page === 'preview') void nextTick().then(fitPreview)
+watch(currentView, view => {
+  if (view === 'preview') void nextTick().then(fitPreview)
 })
 watch(selectedResourceIds, schedulePreview, { deep: true })
 
@@ -382,7 +372,7 @@ function scheduleAnalysis(): void {
 
 async function rebuildPrepared(currentRevision: number): Promise<void> {
   if (!props.document || !props.rootBlockId || !validBlockKey.value) {
-    if (currentRevision === analysisRevision) prepared.value = null
+    if (currentRevision === analysisRevision) preparedExport.value = null
     return
   }
   analysisBusy.value = true
@@ -399,16 +389,16 @@ async function rebuildPrepared(currentRevision: number): Promise<void> {
       dictionary: projectStore.resolvedDictionary.value,
       projectFonts: projectStore.projectFonts.value,
       projectIconSeries: projectStore.projectIconSeries.value,
-      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+      customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
       fs: fileSystemService,
     })
     if (currentRevision !== analysisRevision) return
     if ('blocked' in result) {
-      prepared.value = null
+      preparedExport.value = null
       previewError.value = t('cardDesigner.customBlock.exportBindingError')
       return
     }
-    prepared.value = result
+    preparedExport.value = result
     if (!selectionInitialized.value) {
       selectedResourceIds.value = new Set(result.resourceAnalysis.defaultSelectedIds)
       selectionInitialized.value = true
@@ -419,7 +409,7 @@ async function rebuildPrepared(currentRevision: number): Promise<void> {
     schedulePreview()
   } catch (cause) {
     if (currentRevision === analysisRevision) {
-      prepared.value = null
+      preparedExport.value = null
       previewError.value = cause instanceof Error ? cause.message : String(cause)
     }
   } finally {
@@ -428,7 +418,7 @@ async function rebuildPrepared(currentRevision: number): Promise<void> {
 }
 
 function scheduleManifestRefresh(): void {
-  if (!props.open || !prepared.value || manifestQueued) return
+  if (!props.open || !preparedExport.value || manifestQueued) return
   manifestQueued = true
   queueMicrotask(() => {
     manifestQueued = false
@@ -437,18 +427,18 @@ function scheduleManifestRefresh(): void {
 }
 
 async function refreshPreparedManifest(currentRevision: number): Promise<void> {
-  const base = prepared.value
+  const base = preparedExport.value
   if (!base || !validBlockKey.value) return
   try {
     const block = buildProjectCustomBlockRoot(base.block, exposedFieldKeys.value)
-    const manifest = await buildProjectCustomBlockManifest({
+    const definition = await buildProjectCustomBlockDefinition({
       root: block,
       key: blockKey.value.trim() || suggestedBlockKey.value,
       name: name.value,
       exposedFieldKeys: exposedFieldKeys.value,
     })
     if (currentRevision !== manifestRevision) return
-    prepared.value = { ...base, block, manifest }
+    preparedExport.value = { ...base, block, definition }
     schedulePreview()
   } catch (cause) {
     if (currentRevision === manifestRevision) {
@@ -458,7 +448,7 @@ async function refreshPreparedManifest(currentRevision: number): Promise<void> {
 }
 
 function schedulePreview(): void {
-  if (!props.open || !prepared.value || previewQueued) return
+  if (!props.open || !preparedExport.value || previewQueued) return
   previewQueued = true
   queueMicrotask(() => {
     previewQueued = false
@@ -467,13 +457,13 @@ function schedulePreview(): void {
 }
 
 async function refreshPreview(currentRevision: number): Promise<void> {
-  const base = prepared.value
+  const base = preparedExport.value
   if (!base) return
   const selectedIds = new Set(selectedResourceIds.value)
   const overrides = { ...previewOverrides.value }
   const dependencyIds = base.resourceAnalysis.candidates.flatMap(candidate => (
-    candidate.kind === 'custom-block' && candidate.packageId && selectedIds.has(candidate.id)
-      ? [candidate.packageId]
+    candidate.kind === 'custom-block' && candidate.blockKey && selectedIds.has(candidate.id)
+      ? [candidate.blockKey]
       : []
   ))
   previewRefreshing.value = true
@@ -513,7 +503,6 @@ function resolvePreviewLength(value: string, parentSize: number): number | null 
   return normalized.endsWith('%') ? parentSize * numeric / 100 : numeric
 }
 function fieldKey(treeKey: string): string | null {
-  if (treeKey.startsWith('field:')) return treeKey.slice(6)
   return treeKey.startsWith('field:') ? treeKey.slice(6) : null
 }
 function moveField(key: string, makePublic: boolean): void {
@@ -547,9 +536,8 @@ function resetPreviewOverrides(): void {
   previewOverrides.value = {}
   schedulePreview()
 }
-function toggleAdvancedSettings(): void {
-  if (advancedOpen.value) activePage.value = 'package'
-  advancedOpen.value = !advancedOpen.value
+function toggleFieldResourceEditor(): void {
+  fieldResourceEditorOpen.value = !fieldResourceEditorOpen.value
 }
 function fitPreview(): void {
   if (previewFitRect.value && viewportRef.value?.fitContent) viewportRef.value.fitContent(previewFitRect.value)
@@ -561,11 +549,11 @@ function handleViewportToolbar({ key }: { key: string }): void {
   else if (key === 'viewport.zoom-in') viewportRef.value?.zoomBy(VIEWPORT_ZOOM_STEP)
 }
 async function emitExport(): Promise<void> {
-  const base = prepared.value
+  const base = preparedExport.value
   if (!base) return
   try {
     const block = buildProjectCustomBlockRoot(base.block, exposedFieldKeys.value)
-    const manifest = await buildProjectCustomBlockManifest({
+    const definition = await buildProjectCustomBlockDefinition({
       root: block,
       key: blockKey.value.trim() || suggestedBlockKey.value,
       name: name.value,
@@ -576,14 +564,14 @@ async function emitExport(): Promise<void> {
       blockKey: (blockKey.value.trim() || suggestedBlockKey.value).toLocaleLowerCase(),
       exposedFieldKeys: exposedFieldKeys.value,
       selectedResourceIds: new Set(selectedResourceIds.value),
-      prepared: { ...base, block, manifest },
+      prepared: { ...base, block, definition },
     })
   } catch (cause) {
     previewError.value = cause instanceof Error ? cause.message : String(cause)
   }
 }
 function submit(): void {
-  if (props.busy || !prepared.value || !validBlockKey.value) return
+  if (props.busy || !preparedExport.value || !validBlockKey.value) return
   if (diagnostics.value.length > 0) {
     confirmingDiagnostics.value = true
     return
@@ -605,23 +593,25 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .custom-block-export-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
+.custom-block-export-dialog__content { min-width: 0; min-height: 0; overflow: hidden; }
 .custom-block-export-dialog__pages { padding: var(--oc-space-2) var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
-.custom-block-export-dialog__package { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__package { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .custom-block-export-dialog__information { border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.custom-block-export-dialog__package-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+.custom-block-export-dialog__editor { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.custom-block-export-dialog__package-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
 .custom-block-export-dialog__section { display: grid; align-content: start; gap: var(--oc-space-2); min-width: 0; min-height: 0; padding: var(--oc-space-3); background: var(--oc-bg-base); }
 .custom-block-export-dialog__section h3 { margin: 0; }
 .custom-block-export-dialog__section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-2); }
 .custom-block-export-dialog__metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--oc-space-3); }
 .custom-block-export-dialog__metadata > :deep(.oc-button) { grid-column: 1 / -1; justify-self: start; }
 .custom-block-export-dialog__field { display: grid; gap: var(--oc-space-1); min-width: 0; }
-.custom-block-export-dialog__fields-section, .custom-block-export-dialog__resources-section { grid-template-rows: auto minmax(0, 1fr); }
+.custom-block-export-dialog__fields-section, .custom-block-export-dialog__resources-section { grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
 .custom-block-export-dialog__fields-section { border-right: var(--oc-border-width) solid var(--oc-border-muted); }
-.custom-block-export-dialog__preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-preview-properties-width)); min-width: 0; min-height: 0; overflow: hidden; }
-.custom-block-export-dialog__viewport-area { position: relative; display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
-.custom-block-export-dialog__properties { min-width: 0; min-height: 0; overflow: hidden; border-left: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
-.custom-block-export-dialog__properties > :deep(.oc-card) { border: 0; border-radius: 0; }
-.custom-block-export-dialog__viewport { width: 100%; height: 100%; }
-.custom-block-export-dialog__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); z-index: var(--oc-z-overlay-toolbar); }
-.custom-block-export-dialog__diagnostics { position: absolute; left: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); display: grid; gap: var(--oc-space-1); max-width: var(--oc-content-width-md); }
+ .custom-block-export-dialog__preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(var(--oc-custom-block-list-min-width), var(--oc-custom-block-preview-properties-width)); width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
+ .custom-block-export-dialog__viewport-area { position: relative; display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--oc-bg-raised); background-image: var(--oc-viewport-dot-pattern); background-size: var(--oc-viewport-dot-size); background-position: var(--oc-viewport-dot-position); }
+ .custom-block-export-dialog__properties { min-width: 0; min-height: 0; overflow: hidden; border-left: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
+ .custom-block-export-dialog__properties > :deep(.oc-card) { border: 0; border-radius: 0; }
+ .custom-block-export-dialog__viewport { width: 100%; height: 100%; }
+ .custom-block-export-dialog__viewport-tools { position: absolute; right: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); z-index: var(--oc-z-overlay-toolbar); }
+ .custom-block-export-dialog__diagnostics { position: absolute; left: var(--oc-floating-surface-gap); bottom: var(--oc-floating-surface-gap); display: grid; gap: var(--oc-space-1); max-width: var(--oc-content-width-md); }
 </style>

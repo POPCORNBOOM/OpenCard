@@ -12,8 +12,8 @@ import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjec
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
 import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG, loadProjectImageDimensions } from '../workspace/services/projectIconCatalog'
-import { discoverInstalledProjectCustomBlocks } from '../workspace/services/projectCustomBlock'
-import { loadInstalledProjectCustomBlockRuntime } from '../workspace/services/projectCustomBlockAssetLoader'
+import { discoverProjectCustomBlockDefinitions } from '../workspace/services/projectCustomBlockDefinition'
+import { loadProjectCustomBlockDefinitionRuntime } from '../workspace/services/projectCustomBlockAssetLoader'
 import { createProjectCustomBlockFontSession } from '../workspace/services/projectCustomBlockFontLoader'
 import { resolveProjectInternalRelativePath } from '../workspace/model/projectStructure'
 
@@ -115,17 +115,18 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
       )
     }
   }
-  const customBlockDescriptors = await discoverInstalledProjectCustomBlocks(fileSystemService, root)
+  const customBlockDescriptors = await discoverProjectCustomBlockDefinitions(fileSystemService, root)
   if (customBlockDescriptors.size > 0) {
     const catalog = new Map()
     const environments = []
     for (const descriptor of customBlockDescriptors.values()) {
-      const loaded = await loadInstalledProjectCustomBlockRuntime({
+      const loaded = await loadProjectCustomBlockDefinitionRuntime({
         fs: fileSystemService,
-        installationPath: descriptor.installationPath,
+        entry: descriptor,
+        environment: { kind: 'project', namespace: root, rootPath: root, fontDocument: {}, fonts: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [] },
         loadDimensions: loadSnapshotImageDimensions,
       })
-      catalog.set(descriptor.manifest.packageId.toLocaleLowerCase(), loaded.runtimeEntry)
+      catalog.set(`block:${descriptor.definition.key}`.toLocaleLowerCase(), loaded.runtimeEntry)
       environments.push(...loaded.environments)
     }
     await createProjectCustomBlockFontSession(environments)

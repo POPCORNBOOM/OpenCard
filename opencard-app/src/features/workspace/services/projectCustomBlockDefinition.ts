@@ -226,23 +226,18 @@ export async function discoverProjectCustomBlockDefinitions(
   } catch {
     registry = null
   }
-  if (!registry) return new Map()
-  const registeredSources = new Map((registry.blocks ?? []).map(entry => [
-    entry.key.toLocaleLowerCase(), entry.source.toLocaleLowerCase().replace(/\\/g, '/'),
+  const registeredNames = new Map((registry?.blocks ?? []).map(entry => [
+    entry.key.toLocaleLowerCase(), entry.name,
   ]))
   const entries = await fs.readDirectoryEntries(blocksRoot, 1)
-  const files = entries.filter(entry => {
-    if (!entry.isFile || entry.isSymlink || !entry.name.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_DEFINITION_SUFFIX)) return false
-    const source = `${PROJECT_CUSTOM_BLOCK_DEFINITION_DIRECTORY}/${entry.name}`.toLocaleLowerCase()
-    return [...registeredSources.values()].includes(source)
-  })
+  const files = entries.filter(entry => entry.isFile && !entry.isSymlink
+    && entry.name.toLocaleLowerCase().endsWith(PROJECT_CUSTOM_BLOCK_DEFINITION_SUFFIX))
   const catalog = new Map<string, ProjectCustomBlockDefinitionCatalogEntry>()
   for (const entry of files) {
     const path = `${blocksRoot}/${entry.name.replace(/\\/g, '/')}`
     const result = await readProjectCustomBlockDefinition(fs, path)
     if (!result.definition) continue
     const identity = result.definition.key.toLocaleLowerCase()
-    if (!registeredSources.has(identity)) continue
     if (catalog.has(identity)) {
       const previous = catalog.get(identity)!
       catalog.set(identity, {
@@ -256,7 +251,7 @@ export async function discoverProjectCustomBlockDefinitions(
       continue
     }
     catalog.set(identity, {
-      definition: result.definition,
+      definition: { ...result.definition, name: registeredNames.get(identity) ?? result.definition.name },
       path,
       resourceRootPath: root,
       ...(result.issues.length > 0 ? { issues: result.issues } : {}),

@@ -6,7 +6,6 @@ export { PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME }
 export type ProjectCustomBlockRegistryEntry = {
   key: string
   name: string
-  source: string
 }
 
 export type ProjectCustomBlockRegistryDocument = {
@@ -17,13 +16,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function normalizeSource(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const source = value.trim().replace(/\\/g, '/').replace(/^\/+/, '')
-  if (!source || source.includes('..') || (!source.toLocaleLowerCase().startsWith('.opencard/blocks/') && source.startsWith('.'))
-    || !source.toLocaleLowerCase().endsWith('.ocblock')) return null
-  return source
-}
 
 export function parseProjectCustomBlockRegistry(value: unknown): ProjectCustomBlockRegistryDocument | null {
   if (!isRecord(value)) return null
@@ -35,10 +27,9 @@ export function parseProjectCustomBlockRegistry(value: unknown): ProjectCustomBl
     if (!isRecord(item)) continue
     const key = typeof item.key === 'string' ? normalizeKeySlug(item.key) : null
     const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : null
-    const source = normalizeSource(item.source)
-    if (!key || !name || !source || keys.has(key.toLocaleLowerCase())) continue
+    if (!key || !name || keys.has(key.toLocaleLowerCase())) continue
     keys.add(key.toLocaleLowerCase())
-    blocks.push({ key, name, source })
+    blocks.push({ key, name })
   }
   return blocks.length > 0 ? { blocks } : {}
 }

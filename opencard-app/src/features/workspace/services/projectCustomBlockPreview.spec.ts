@@ -17,9 +17,10 @@ const sourceEnvironment: ProjectResourceEnvironment = {
 
 function prepared() {
   return {
-    manifest: {
-      type: 'opencard-custom-block' as const, packageId: 'alice/card', version: '0.1.0', name: 'Card',
-      publicFieldKeys: ['name', 'notes', 'suit'], resize: { widthLocked: false, heightLocked: false },
+    definition: {
+      type: 'opencard-custom-block' as const, key: 'card', name: 'Card',
+      root: createBlock('image-block', { id: 'root', image: 'assets/allowed.png' }),
+      publicFieldKeys: ['name', 'notes', 'suit'], declaredResourceDependencies: [],
     },
     block: createBlock('image-block', { id: 'root', image: 'assets/allowed.png' }),
     previewHostSize: { width: '570', height: '880' },
@@ -74,8 +75,8 @@ describe('createProjectCustomBlockPreview', () => {
     const request = mocks.prepareRender.mock.calls[0]![0]
     expect(request.document).toMatchObject({ width: '570', height: '880' })
     expect(request.document.faces.front.children[0].block).toMatchObject({ suit: 'heart' })
-    const entry = request.environment.customBlockCatalog.get('alice/card')
-    expect(request.environment.projectResourceEnvironment.customBlockCatalog.get('alice/card')).toBe(entry)
+    const entry = request.environment.customBlockCatalog.get('block:card')
+    expect(request.environment.projectResourceEnvironment.customBlockCatalog.get('block:card')).toBe(entry)
     expect(resolveProjectEnvironmentAssetSrc('assets/allowed.png', entry.environment)).not.toBe('')
     expect(resolveProjectEnvironmentAssetSrc('assets/excluded.png', entry.environment)).toBe('')
     expect(entry.environment.fontDocument.families[0].files.normal).toEqual({ upright: 'fonts/body-normal.ttf' })

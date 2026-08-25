@@ -8,7 +8,7 @@ import {
   type UserCustomBlockCatalogEntry,
   type UserCustomBlockCatalogSnapshot,
 } from '../model/userCustomBlockCatalog'
-import { readProjectCustomBlockPackage } from './projectCustomBlock'
+import { readProjectCustomBlockDefinitionFile } from './projectCustomBlock'
 import { fileSystemService, type FileSystemService } from './fileSystemService'
 
 export interface UserCustomBlockCatalogPathService {
@@ -29,8 +29,8 @@ function isCustomBlockFile(entry: { isFile: boolean; name: string }): boolean {
   return entry.isFile && entry.name.toLocaleLowerCase().endsWith(USER_CUSTOM_BLOCK_CATALOG_SUFFIX)
 }
 
-function safeCustomBlockFileName(packageId: string): string {
-  const safe = packageId.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
+function safeCustomBlockFileName(blockKey: string): string {
+  const safe = blockKey.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '')
   return `${safe || 'custom-block'}${USER_CUSTOM_BLOCK_CATALOG_SUFFIX}`
 }
 
@@ -53,14 +53,15 @@ export class UserCustomBlockCatalogService {
     for (const entry of entries) {
       const path = await this.paths.join(root, entry.name)
       try {
-        const customBlock = await readProjectCustomBlockPackage(this.fs, path)
-        const identity = customBlock.manifest.packageId.toLocaleLowerCase()
+        const customBlock = await readProjectCustomBlockDefinitionFile(this.fs, path)
+        if (!customBlock.definition) throw new Error('Custom block definition is unavailable')
+        const identity = customBlock.definition.key.toLocaleLowerCase()
         if (identities.has(identity)) {
-          warnings.push({ path, reason: `Duplicate custom block Package ID: ${customBlock.manifest.packageId}` })
+          warnings.push({ path, reason: `Duplicate custom block Key: ${customBlock.definition.key}` })
           continue
         }
         identities.add(identity)
-        blocks.push(createUserCustomBlockCatalogEntry(customBlock.manifest, path))
+        blocks.push(createUserCustomBlockCatalogEntry(customBlock.definition, path))
       } catch (cause) {
         warnings.push({ path, reason: describeError(cause) })
       }
@@ -79,10 +80,11 @@ export class UserCustomBlockCatalogService {
   }
 
   async importUserCustomBlock(sourcePath: string): Promise<string> {
-    const customBlock = await readProjectCustomBlockPackage(this.fs, sourcePath)
+    const customBlock = await readProjectCustomBlockDefinitionFile(this.fs, sourcePath)
+    if (!customBlock.definition) throw new Error('Custom block definition is unavailable')
     const catalog = await this.loadCatalog()
     const existing = catalog.blocks.find(block => (
-      block.packageId.toLocaleLowerCase() === customBlock.manifest.packageId.toLocaleLowerCase()
+      block.blockKey.toLocaleLowerCase() === customBlock.definition!.key.toLocaleLowerCase()
     ))
 
     const root = await this.resolveUserRoot()
@@ -92,7 +94,7 @@ export class UserCustomBlockCatalogService {
       return existing.path
     }
 
-    const baseName = safeCustomBlockFileName(customBlock.manifest.packageId)
+    const baseName = safeCustomBlockFileName(customBlock.definition.key)
     let candidateName = baseName
     let candidatePath = await this.paths.join(root, candidateName)
     let suffix = 2

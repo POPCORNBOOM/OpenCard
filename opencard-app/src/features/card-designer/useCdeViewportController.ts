@@ -184,6 +184,17 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
     options.viewportPort.value?.fitView()
   }
 
+  function fitBottomRightHalfViewport(): void {
+    const { width, height } = viewportSize.value
+    if (width <= 0 || height <= 0) return
+    options.viewportPort.value?.fitView({
+      left: width / 2,
+      top: height / 2,
+      width: width / 2,
+      height: height / 2,
+    })
+  }
+
   function scheduleInitialViewportFit(): void {
     void nextTick(() => {
       if (
@@ -303,6 +314,7 @@ export function useCdeViewportController(options: UseCdeViewportControllerOption
 
   return {
     completeFileLoad,
+    fitBottomRightHalfViewport,
     fitViewport,
     handlePreviewViewportDrag,
     handlePreviewViewportKeydown,

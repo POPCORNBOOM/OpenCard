@@ -11,10 +11,7 @@ import {
 import { resolveCardPropertyFields } from '../../features/card-properties/cardPropertyFieldDefinitions'
 import { prepareCardRender, type CardRenderEnvironment } from '../../features/card-rendering/renderPipeline'
 import type { RenderReadyCardFace } from '../../features/card-rendering/render.types'
-import type {
-  ProjectCustomBlockCatalogEntry,
-  ProjectCustomBlockManifestCatalogEntry,
-} from '../../features/workspace/model/projectCustomBlocks'
+import type { ProjectCustomBlockCatalogEntry } from '../../features/workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockInstance } from '../../features/workspace/services/createProjectCustomBlockInstance'
 import { createProjectCustomBlockPropertySchema } from '../../features/workspace/services/projectCustomBlockPublicFields'
 import type {
@@ -29,7 +26,7 @@ const PUBLIC_FIELDS_CATEGORY_KEY = 'publicFields'
 
 export type CustomBlockPreviewEntry = {
   packageId: string
-  descriptor: DeepReadonly<ProjectCustomBlockManifestCatalogEntry>
+  descriptor: DeepReadonly<ProjectCustomBlockCatalogEntry>
   catalogEntry: DeepReadonly<ProjectCustomBlockCatalogEntry> | null
 }
 
@@ -41,13 +38,13 @@ export type CustomBlockPreviewFitRect = {
 }
 
 type PreviewValueState = {
-  block: DeepReadonly<ProjectCustomBlockCatalogEntry['block']>
+  block: DeepReadonly<ProjectCustomBlockCatalogEntry['definition']['root']>
   overrides: Record<string, unknown>
 }
 
 type UseCustomBlockPreviewOptions = {
   catalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
-  manifestCatalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockManifestCatalogEntry>>>>
+  definitionCatalog: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   ensureLoaded: (packageId: string) => Promise<ProjectCustomBlockCatalogEntry | null>
   renderEnvironment: Readonly<Ref<CardRenderEnvironment>>
   resourceRootPath: Readonly<Ref<string | null>>
@@ -56,11 +53,11 @@ type UseCustomBlockPreviewOptions = {
 }
 
 function createDefaultValues(entry: DeepReadonly<ProjectCustomBlockCatalogEntry>): Record<string, unknown> {
-  const schema = createProjectCustomBlockPropertySchema(entry)
+  const schema = createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root })
   return Object.fromEntries(Object.entries(schema.fields).map(([fieldKey, editorDefinition]) => [
     fieldKey,
-    Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
-      ? structuredClone((entry.block as Readonly<Record<string, unknown>>)[fieldKey])
+    Object.prototype.hasOwnProperty.call(entry.definition.root, fieldKey)
+      ? structuredClone((entry.definition.root as Readonly<Record<string, unknown>>)[fieldKey])
       : createPropertyDefaultValue(editorDefinition),
   ]))
 }
@@ -69,7 +66,7 @@ function createPreviewDocument(
   entry: DeepReadonly<ProjectCustomBlockCatalogEntry>,
   overrides: Readonly<Record<string, unknown>>,
 ): CardDocument {
-  const host = createProjectCustomBlockInstance(entry, { id: PREVIEW_BLOCK_ID })
+  const host = createProjectCustomBlockInstance({ definition: entry.definition }, { id: PREVIEW_BLOCK_ID })
   Object.assign(host, overrides)
   const front = createCardFace({
     id: 'custom-block-preview-front',
@@ -88,8 +85,8 @@ function createPreviewDocument(
   const back = createCardFace({ id: 'custom-block-preview-back', background: 'transparent' })
   return fillDefaults('card-document', {
     type: 'card-document',
-    id: `custom-block-preview-${entry.manifest.packageId.replace('/', '-')}`,
-    name: entry.manifest.name,
+    id: `custom-block-preview-${entry.definition.key.replace('/', '-')}`,
+    name: entry.definition.name,
     faces: { front, back },
     instances: [],
   }) as unknown as CardDocument
@@ -106,7 +103,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
   const selectedPackageId = ref<string | null>(null)
   const valueStates = shallowRef(new Map<string, PreviewValueState>())
 
-  const entries = computed<CustomBlockPreviewEntry[]>(() => [...options.manifestCatalog.value.entries()]
+  const entries = computed<CustomBlockPreviewEntry[]>(() => [...options.definitionCatalog.value.entries()]
     .map(([packageId, descriptor]) => ({
       packageId,
       descriptor,
@@ -136,9 +133,9 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     entry => {
       if (!entry || !selectedPackageId.value) return
       const current = valueStates.value.get(selectedPackageId.value)
-      if (current?.block === entry.block) return
+      if (current?.block === entry.definition.root) return
       const next = new Map(valueStates.value)
-      next.set(selectedPackageId.value, { block: entry.block, overrides: {} })
+      next.set(selectedPackageId.value, { block: entry.definition.root, overrides: {} })
       valueStates.value = next
     },
     { immediate: true },
@@ -183,8 +180,8 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
 
   const propertyInputs = computed<readonly PropertyEditorInput[]>(() => {
     const entry = selectedEntry.value?.catalogEntry
-    if (!entry || entry.manifest.publicFieldKeys.length === 0) return []
-    const schema = createProjectCustomBlockPropertySchema(entry)
+    if (!entry || entry.definition.publicFieldKeys.length === 0) return []
+    const schema = createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root })
     const publicKeys = new Set(Object.keys(schema.fields))
     const override = Object.fromEntries(Object.entries(schema.fields).map(([fieldKey, definition]) => [
       fieldKey,
@@ -204,7 +201,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     })
     return [{
       key: PREVIEW_INPUT_KEY,
-      title: entry.manifest.name,
+      title: entry.definition.name,
       record: activeValues.value,
       fields: Object.fromEntries(Object.entries(fields)
         .filter(([fieldKey]) => publicKeys.has(fieldKey))
@@ -227,12 +224,12 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     const entry = selectedEntry.value?.catalogEntry
     const packageId = selectedPackageId.value
     if (!entry || !packageId || mutation.key !== PREVIEW_INPUT_KEY
-      || !entry.manifest.publicFieldKeys.includes(mutation.fieldKey)) return
+      || !entry.definition.publicFieldKeys.includes(mutation.fieldKey)) return
     const next = new Map(valueStates.value)
     const overrides = { ...activeOverrides.value }
     if (mutation.value === undefined) delete overrides[mutation.fieldKey]
     else overrides[mutation.fieldKey] = mutation.value
-    next.set(packageId, { block: entry.block, overrides })
+    next.set(packageId, { block: entry.definition.root, overrides })
     valueStates.value = next
   }
 
@@ -241,7 +238,7 @@ export function useCustomBlockPreview(options: UseCustomBlockPreviewOptions) {
     const packageId = selectedPackageId.value
     if (!entry || !packageId) return
     const next = new Map(valueStates.value)
-    next.set(packageId, { block: entry.block, overrides: {} })
+    next.set(packageId, { block: entry.definition.root, overrides: {} })
     valueStates.value = next
   }
 

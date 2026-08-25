@@ -913,7 +913,7 @@ export default {
       registerDescription: '是否将这个导出包安装到当前项目？',
       skipRegistration: '暂不安装',
       register: '安装',
-      fields: '拖拽改变字段可用性',
+      fields: '字段可用性',
       exportTitle: '导出自定义块结构',
       packageInformation: '块结构信息',
       pages: '自定义块结构导出分页',

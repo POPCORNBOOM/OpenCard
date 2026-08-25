@@ -23,7 +23,7 @@ const candidates: ProjectCustomBlockResourceCandidate[] = [
   },
   {
     id: 'custom-block:bob/child', kind: 'custom-block', path: '.opencard/blocks/bob/child', label: 'Child',
-    automatic: true, suggested: false, referenceCount: 1, references: ['child.packageId'], packageId: 'bob/child',
+    automatic: true, suggested: false, referenceCount: 1, references: ['child.blockKey'], blockKey: 'bob/child',
   },
   {
     id: 'font:brand', kind: 'font', path: '.opencard/fonts/Brand.otf', label: 'Brand.otf',

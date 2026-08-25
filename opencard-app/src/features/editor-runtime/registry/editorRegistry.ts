@@ -128,7 +128,6 @@ import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 import ProjectCustomBlockRegistryEditor from '../../../components/editors/ProjectCustomBlockRegistryEditor.vue'
-import CustomBlockPackageEditor from '../../../components/editors/CustomBlockPackageEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -220,13 +219,6 @@ editorRegistry.register({
   hasPreview: false,
 })
 
-editorRegistry.register({
-  id: 'custom-block-package',
-  name: 'Custom Block Package',
-  component: CustomBlockPackageEditor,
-  history: 'none',
-  hasPreview: false,
-})
 
 editorRegistry.register({
   id: 'dictionary',

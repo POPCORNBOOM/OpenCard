@@ -33,9 +33,13 @@ export function useCdeLayerViewInteraction(options: UseCdeLayerViewInteractionOp
   const spaceHeld = ref(false)
 
   function handleRootKeydown(event: KeyboardEvent): void {
+    const root = options.rootElement.value
+    const isInsideRoot = event.target instanceof Node && root?.contains(event.target)
+    const isRootTarget = event.target === root
     if (
       event.defaultPrevented
-      || event.target !== options.rootElement.value
+      || !isInsideRoot
+      || (!isRootTarget && event.key !== 'Tab')
       || event.ctrlKey
       || event.metaKey
       || event.altKey
@@ -129,12 +133,20 @@ export function useCdeLayerViewInteraction(options: UseCdeLayerViewInteractionOp
     layerViewActive.value = false
   }
 
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Tab' || !layerViewActive.value) return
+    consume(event)
+    options.rootElement.value?.focus({ preventScroll: true })
+  }
+
   onMounted(() => {
+    window.addEventListener('keydown', handleWindowKeydown, true)
     window.addEventListener('keyup', handleWindowKeyup)
     window.addEventListener('blur', handleWindowBlur)
   })
 
   onUnmounted(() => {
+    window.removeEventListener('keydown', handleWindowKeydown, true)
     window.removeEventListener('keyup', handleWindowKeyup)
     window.removeEventListener('blur', handleWindowBlur)
     handleWindowBlur()

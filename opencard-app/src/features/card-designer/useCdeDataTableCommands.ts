@@ -317,7 +317,7 @@ function isCustomBlockFieldAllowed(
     ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + 7)}`
     : identity
   const entry = catalog?.get(identity) ?? catalog?.get(legacy)
-  return entry?.manifest.publicFieldKeys
+  return entry?.definition.publicFieldKeys
     .some(key => key.toLowerCase() === fieldKey.toLowerCase()) === true
 }
 

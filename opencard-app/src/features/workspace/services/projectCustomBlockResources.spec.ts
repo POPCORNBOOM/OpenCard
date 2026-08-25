@@ -116,7 +116,7 @@ describe('project custom block resource analysis', () => {
     expect(byId.get('font:.opencard/fonts/body.woff2')).toMatchObject({ automatic: true, fontKey: 'body' })
     expect(byId.get('font:.opencard/fonts/symbols.woff2')).toMatchObject({ automatic: true, fontKey: 'symbols' })
     expect(byId.get('icon:status')).toMatchObject({ automatic: true, iconKeys: ['star'] })
-    expect(byId.get('custom-block:bob/child')).toMatchObject({ automatic: true, packageId: 'bob/child' })
+    expect(byId.get('custom-block:bob/child')).toMatchObject({ automatic: true, blockKey: 'bob/child' })
   })
 
   it('records host and package-scoped typed references without materializing them locally', async () => {

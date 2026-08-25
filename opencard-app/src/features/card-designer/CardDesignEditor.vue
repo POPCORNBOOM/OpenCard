@@ -13,224 +13,145 @@
   - `save`（请求外层执行保存）
 -->
 <template>
-  <div ref="editorRootRef" class="card-design-editor" :class="{ 'is-content-pending': editorContentPending }" :style="editorShellStyle"
-    tabindex="-1" @keydown="handleRootKeydown">
-    <div
-      class="card-design-editor__stage"
-      :class="{ 'is-layer-view-active': layerViewActive, 'is-debug-overlays-hidden': props.debugHideCdeOverlays }"
-    >
+  <div ref="editorRootRef" class="card-design-editor" :class="{ 'is-content-pending': editorContentPending }"
+    :style="editorShellStyle" tabindex="-1" @keydown="handleRootKeydown">
+    <div class="card-design-editor__stage"
+      :class="{ 'is-layer-view-active': layerViewActive, 'is-debug-overlays-hidden': props.debugHideCdeOverlays }">
       <div class="card-design-editor__mode-view">
-        <Transition name="card-designer-view-fade" mode="out-in">
-          <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-base">
-        <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
-          <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
-            <OcEmpty v-if="!props.comparison" tone="muted">{{ t('sidebar.diffViewer.loading') }}</OcEmpty>
-            <OcEmpty v-else-if="!diffBeforeRender || !diffAfterRender">{{ t('sidebar.diffViewer.parseFailedGeneric') }}</OcEmpty>
-            <CardViewport v-else ref="cardViewportRef"
-              class="card-design-editor__viewport"
-              :face="diffAfterRender.document.faces[activeFaceKey]"
-              :resource-context="diffAfterRender.resources" readonly :transform="viewportTransform"
-              :viewport-insets="diffViewportInsets"
-              :comparison="diffViewportComparison"
-              :comparison-divider-label="t('sidebar.diffViewer.divider')"
-              @diff-divider-change="handleDiffDividerChange"
-              @blank-click="clearEffectiveBlockSelection"
-              @viewport-transform-change="handleViewportTransformChange"
-              @render-readiness-change="handleRenderReadinessChange" />
-          </div>
-          <template v-else>
-          <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :class="{ 'is-debug-transparent': props.debugTransparentCdeViewport, 'is-debug-passive': props.debugPassiveCdeViewport }" :face="viewFace"
-          :clip-to-face="clipToFace"
-          :resource-context="renderResources"
-          :restore-key="props.filePath" :transform="viewportTransform"
-          :selected-block-id="props.debugPassiveCdeViewport ? null : selectedBlock?.id ?? null" :selected-location-type="props.debugPassiveCdeViewport ? null : selectedLocationType"
-          :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
-          :selected-parent-flow-direction="selectedParentFlowDirection"
-          :selected-flow-align="selectedFlowAlign"
-          :viewport-insets="viewportInsets"
-          :selection-info="props.debugPassiveCdeViewport ? null : selectionInfo"
-          :width-locked="selectedCustomBlockResize.widthLocked"
-          :height-locked="selectedCustomBlockResize.heightLocked"
-          :selection-action-labels="selectionActionLabels"
-          :selection-command-actions="selectionCommandActions"
-          :layer-view-active="layerViewActive"
-          :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
-          :space-modifier-active="spaceHeld"
-          :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
-          :layer-view-shortcut-hints="layerViewShortcutHints"
-          :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
-          :show-info="!selectedBlock && !props.debugPassiveCdeViewport"
-          :show-position-on-move="!props.debugPassiveCdeViewport && (props.showSelectionPositionOnMove ?? true)"
-          :show-size-on-resize="!props.debugPassiveCdeViewport && (props.showSelectionSizeOnResize ?? true)"
-          :alignment-snapping-enabled="!props.debugPassiveCdeViewport && alignmentSnappingEnabled"
-          :transform-disabled-block-ids="transformDisabledBlockIds"
-          @pointerdown.capture="handleCanvasPointerDown"
-          @block-click="handleViewportBlockClick"
-          @blank-click="clearEffectiveBlockSelection" @resize-selection="handleSelectionResize" @move-selection="handleSelectionMove"
-          @selection-action="handleSelectionAction"
-          @selection-command="handleSelectionCommand"
-          @z-index-step="handleLayerZIndexStep"
-          @face-dimension-change="handleFaceDimensionChange"
-          @viewport-transform-change="handleViewportTransformChange"
-          @viewport-size-change="handleViewportSizeChange"
-          @render-readiness-change="handleRenderReadinessChange">
-          <template #info>
-            <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
-              <span v-for="item in viewportCardInfo" :key="item.key"
-                :class="{
-                  'is-highlighted': highlightedInfoKeys.has(item.key),
-                  'is-group-separated': item.separated,
-                  'is-multiline': item.multiline,
-                }">
-                {{ item.value }}
-              </span>
-            </section>
-          </template>
-          <template #left-info>
-            <span class="card-design-editor__dimension-info"
-              :class="{ 'is-highlighted': highlightedInfoKeys.has('height') }">
-              {{ viewportCardDimensions.height }}
-            </span>
-          </template>
-          <template #bottom-info>
-            <span class="card-design-editor__dimension-info"
-              :class="{ 'is-highlighted': highlightedInfoKeys.has('width') }">
-              {{ viewportCardDimensions.width }}
-            </span>
-          </template>
-        </CardViewport>
-        <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
-          </template>
-        </OcPanel>
-      </div>
-
-      <div v-else class="card-design-editor__data-table-view">
-      <CardDataTable
-        ref="cardDataTableRef"
-        :readonly="props.mode === 'diff'"
-        :columns="dataTableColumns"
-        :catalog-face-groups="dataTableCatalogFaceGroups"
-        :face-groups="dataTableFaceGroups"
-        :binding-interpreter="propertyBindingInterpreter"
-        :get-cell-definition="getDataTableCellDefinition"
-        @add-instance="createInstance"
-        @rename-instance="renameInstance"
-        @duplicate-card="duplicateDataTableCard"
-        @delete-instance="deleteInstance"
-        @set-instance-exported="setDataTableInstanceExported"
-        @add-block="includeDataTableBlock"
-        @remove-block="removeDataTableBlock"
-        @include-field="includeDataTableField"
-        @exclude-field="excludeDataTableField"
-        @create-field="openDataTableFieldDialog"
-        @delete-field="deleteDataTableField"
-        @update-cell="updateDataTableCell"
-        @reset-cell="resetDataTableCell"
-        @cell-select="handleDataTableCellSelect"
-      />
-      </div>
-        </Transition>
-      </div>
-      <div v-if="workspaceMode === 'data-table'" class="card-design-editor__data-table-preview-layer" :class="{ 'is-opening': dataTablePreviewOpening }">
-        <OcButton
-          v-if="dataTablePreviewMinimized"
-          class="card-design-editor__data-table-preview-restore"
-          icon="window.restore"
-          icon-only
-          variant="solid"
-          :aria-label="t('cardDesigner.dataTable.restorePreview')"
-          :data-tooltip="t('cardDesigner.dataTable.restorePreview')"
-          @click="restoreDataTablePreview"
-        />
-        <div
-          v-else
-          ref="dataTablePreviewPanelRef"
-          class="card-design-editor__data-table-preview-panel"
-          :style="dataTablePreviewPanelStyle"
-          :class="{ 'is-opening': dataTablePreviewOpening, 'is-dragging': dataTablePreviewDrag }"
-          @pointerdown="startDataTablePreviewDrag"
-          @pointermove="handleDataTablePreviewDrag"
-          @pointerup="stopDataTablePreviewDrag"
-          @pointercancel="stopDataTablePreviewDrag"
-        >
-          <OcCard fill variant="glass" :title="t('cardDesigner.dataTable.previewTitle')"
-            :actions="dataTablePreviewActions" @action="handleDataTablePreviewAction">
-            <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
-              <CardViewport
-                v-if="viewFace && renderResources"
-                ref="dataTablePreviewViewportRef"
-                class="card-design-editor__data-table-preview-viewport"
-                :face="viewFace"
-                :resource-context="renderResources"
-                readonly
-                :restore-key="`${props.filePath}:data-table-preview`"
-              />
-              <OcEmpty v-else tone="muted">{{ t('cardDesigner.dataTable.previewEmpty') }}</OcEmpty>
+          <div class="card-design-editor__stage-base" :class="{ 'is-data-table-mode': workspaceMode === 'data-table' }">
+            <OcPanel fill tone="transparent" border="none" padding="none" overflow="hidden">
+              <div v-if="props.mode === 'diff'" class="card-design-editor__diff-mode-stage">
+                <OcEmpty v-if="!props.comparison" tone="muted">{{ t('sidebar.diffViewer.loading') }}</OcEmpty>
+                <OcEmpty v-else-if="!diffBeforeRender || !diffAfterRender">{{ t('sidebar.diffViewer.parseFailedGeneric')
+                }}</OcEmpty>
+                <CardViewport v-else ref="cardViewportRef" class="card-design-editor__viewport" :class="{ 'is-data-table-mode': workspaceMode === 'data-table' }"
+                  :face="diffAfterRender.document.faces[activeFaceKey]" :resource-context="diffAfterRender.resources"
+                  readonly :transform="viewportTransform" :viewport-insets="diffViewportInsets"
+                  :comparison="diffViewportComparison" :comparison-divider-label="t('sidebar.diffViewer.divider')"
+                  @diff-divider-change="handleDiffDividerChange" @blank-click="clearEffectiveBlockSelection"
+                  @viewport-transform-change="handleViewportTransformChange"
+                  @render-readiness-change="handleRenderReadinessChange" />
+              </div>
+              <template v-else>
+                <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources"
+                  class="card-design-editor__viewport" :class="{ 'is-debug-transparent': props.debugTransparentCdeViewport, 'is-debug-passive': props.debugPassiveCdeViewport, 'is-data-table-mode': workspaceMode === 'data-table' }"
+                  :face="viewFace" :clip-to-face="clipToFace" :resource-context="renderResources" :readonly="workspaceMode !== 'design'"
+                  :restore-key="props.filePath" :transform="viewportTransform"
+                  :selected-block-id="props.debugPassiveCdeViewport || workspaceMode !== 'design' ? null : selectedBlock?.id ?? null"
+                  :selected-location-type="props.debugPassiveCdeViewport || workspaceMode !== 'design' ? null : selectedLocationType"
+                  :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
+                  :selected-parent-flow-direction="selectedParentFlowDirection" :selected-flow-align="selectedFlowAlign"
+                  :viewport-insets="viewportInsets"
+                  :selection-info="props.debugPassiveCdeViewport || workspaceMode !== 'design' ? null : selectionInfo"
+                  :width-locked="selectedCustomBlockResize.widthLocked"
+                  :height-locked="selectedCustomBlockResize.heightLocked"
+                  :selection-action-labels="selectionActionLabels" :selection-command-actions="selectionCommandActions"
+                  :layer-view-active="layerViewActive"
+                  :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
+                  :space-modifier-active="spaceHeld"
+                  :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
+                  :layer-view-shortcut-hints="layerViewShortcutHints"
+                  :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
+                  :show-info="workspaceMode === 'design' && !selectedBlock && !props.debugPassiveCdeViewport"
+                  :show-position-on-move="workspaceMode === 'design' && !props.debugPassiveCdeViewport && (props.showSelectionPositionOnMove ?? true)"
+                  :show-size-on-resize="workspaceMode === 'design' && !props.debugPassiveCdeViewport && (props.showSelectionSizeOnResize ?? true)"
+                  :alignment-snapping-enabled="workspaceMode === 'design' && !props.debugPassiveCdeViewport && alignmentSnappingEnabled"
+                  :transform-disabled-block-ids="transformDisabledBlockIds"
+                  @pointerdown.capture="handleCanvasPointerDown" @block-click="handleViewportBlockClick"
+                  @blank-click="clearEffectiveBlockSelection" @resize-selection="handleSelectionResize"
+                  @move-selection="handleSelectionMove" @selection-action="handleSelectionAction"
+                  @selection-command="handleSelectionCommand" @z-index-step="handleLayerZIndexStep"
+                  @face-dimension-change="handleFaceDimensionChange"
+                  @viewport-transform-change="handleViewportTransformChange"
+                  @viewport-size-change="handleViewportSizeChange"
+                  @render-readiness-change="handleRenderReadinessChange">
+                  <template #info>
+                    <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
+                      <span v-for="item in viewportCardInfo" :key="item.key" :class="{
+                        'is-highlighted': highlightedInfoKeys.has(item.key),
+                        'is-group-separated': item.separated,
+                        'is-multiline': item.multiline,
+                      }">
+                        {{ item.value }}
+                      </span>
+                    </section>
+                  </template>
+                  <template #left-info>
+                    <span class="card-design-editor__dimension-info"
+                      :class="{ 'is-highlighted': highlightedInfoKeys.has('height') }">
+                      {{ viewportCardDimensions.height }}
+                    </span>
+                  </template>
+                  <template #bottom-info>
+                    <span class="card-design-editor__dimension-info"
+                      :class="{ 'is-highlighted': highlightedInfoKeys.has('width') }">
+                      {{ viewportCardDimensions.width }}
+                    </span>
+                  </template>
+                </CardViewport>
+                <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
+              </template>
             </OcPanel>
-          </OcCard>
-        </div>
+          </div>
+
+          <div class="card-design-editor__data-table-view" :class="{ 'is-active': workspaceMode === 'data-table' }">
+            <CardDataTable ref="cardDataTableRef" :readonly="props.mode === 'diff'" :columns="dataTableColumns"
+              :catalog-face-groups="dataTableCatalogFaceGroups" :face-groups="dataTableFaceGroups"
+              :binding-interpreter="propertyBindingInterpreter" :get-cell-definition="getDataTableCellDefinition"
+              @add-instance="createInstance" @rename-instance="renameInstance" @duplicate-card="duplicateDataTableCard"
+              @delete-instance="deleteInstance" @set-instance-exported="setDataTableInstanceExported"
+              @add-block="includeDataTableBlock" @remove-block="removeDataTableBlock"
+              @include-field="includeDataTableField" @exclude-field="excludeDataTableField"
+              @create-field="openDataTableFieldDialog" @delete-field="deleteDataTableField"
+              @update-cell="updateDataTableCell" @reset-cell="resetDataTableCell"
+              @cell-select="handleDataTableCellSelect" />
+          </div>
       </div>
 
-      <div v-if="workspaceMode === 'design'" class="card-design-editor__stage-layer">
-        <CdeOverlayDock
-          side="left"
-          :extent="leftDockExtent"
-          :collapsed-extent="overlayGeometryConfig.collapsedExtent"
-          :min-extent="overlayGeometryConfig.minExtent"
-          :max-extent="overlayGeometryConfig.maxExtent"
+      <div class="card-design-editor__stage-layer" :class="{ 'is-data-table-mode': workspaceMode === 'data-table' }">
+        <CdeOverlayDock side="left" :extent="leftDockExtent" :collapsed-extent="overlayGeometryConfig.collapsedExtent"
+          :min-extent="overlayGeometryConfig.minExtent" :max-extent="overlayGeometryConfig.maxExtent"
           :expand-drag-threshold="overlayGeometryConfig.expandDragThreshold"
           :collapse-drag-threshold="overlayGeometryConfig.collapseDragThreshold"
-          :floating-gap="overlayGeometryConfig.floatingGap"
-          :top-expanded="isInstancePanelExpanded"
-          :bottom-expanded="isPreviewPanelExpanded"
-          :top-size="leftSidebarTopHeight"
-          :top-min-height="overlayTopMinHeight"
-          :bottom-min-height="overlayBottomMinHeight"
-          :responsive-min-stage-width="overlayResponsiveWidth"
-          :split-gap="overlaySplitGap"
-          :width-label="t('cardDesigner.layout.resizeLeftSidebar')"
-          :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
+          :floating-gap="overlayGeometryConfig.floatingGap" :top-expanded="isInstancePanelExpanded"
+          :bottom-expanded="isPreviewPanelExpanded" :top-size="leftSidebarTopHeight"
+          :top-min-height="overlayTopMinHeight" :bottom-min-height="overlayBottomMinHeight"
+          :responsive-min-stage-width="overlayResponsiveWidth" :split-gap="overlaySplitGap"
+          :width-label="t('cardDesigner.layout.resizeLeftSidebar')" :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
             label: t('cardDesigner.layout.resizeLeftSidebar'),
-          })"
-          split-label="调整卡牌树与预览高度"
-          @update:extent="updateDockExtent('left', $event)"
-          @update:top-size="updateDockTopSize('left', $event)"
-          @toggle-collapse="toggleDockCollapsed('left')"
-          @resize-start="handleDockResizeStart"
-          @resize-end="handleDockResizeEnd('left', $event)"
-        >
+          })" split-label="调整卡牌树与预览高度" @update:extent="updateDockExtent('left', $event)"
+          @update:top-size="updateDockTopSize('left', $event)" @toggle-collapse="toggleDockCollapsed('left')"
+          @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('left', $event)">
           <template #top>
             <OcCard fill variant="glass" title="卡牌树" :actions="props.mode === 'diff' ? [] : instanceCardActions"
               :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
-                  data-cde-shortcut-scope="instance-tree"
-                  tab-navigation="none"
-                  :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
+                  data-cde-shortcut-scope="instance-tree" tab-navigation="none"
+                  :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData"
+                  :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
                   selection-mode="multiple" @intent="handleInstanceTreeIntent" />
               </OcPanel>
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" title="预览" :actions="previewCardActions"
-              :collapsed="!isPreviewPanelExpanded" @action="handlePreviewCardAction">
+            <OcCard fill variant="glass" title="预览" :actions="previewCardActions" :collapsed="!isPreviewPanelExpanded"
+              @action="handlePreviewCardAction">
               <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
                 <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host"
                   @wheel.prevent.stop="handlePreviewViewportWheel">
                   <div ref="transformPreviewViewportRef" class="card-design-editor__transform-preview-viewport"
                     :style="transformPreviewViewportStyle">
                     <CardFaceRenderer v-if="viewFace && renderResources" :face="viewFace" :clip-to-face="true"
-                      :resource-context="renderResources"
-                      :style="transformPreviewRendererStyle" />
+                      :resource-context="renderResources" :style="transformPreviewRendererStyle" />
                     <button v-if="transformPreviewFrameStyle" type="button"
                       class="card-design-editor__transform-preview-frame"
                       :class="{ 'is-visible': isTransformPreviewFrameVisible, 'is-dragging': isPreviewViewportDragging }"
                       :style="transformPreviewFrameStyle" aria-label="移动画布视口"
                       :aria-hidden="!isTransformPreviewFrameVisible || undefined"
-                      :tabindex="isTransformPreviewFrameVisible ? 0 : -1"
-                      @keydown="handlePreviewViewportKeydown" @pointerdown="startPreviewViewportDrag"
-                      @pointermove="handlePreviewViewportDrag" @pointerup="stopPreviewViewportDrag"
-                      @pointercancel="stopPreviewViewportDrag" />
+                      :tabindex="isTransformPreviewFrameVisible ? 0 : -1" @keydown="handlePreviewViewportKeydown"
+                      @pointerdown="startPreviewViewportDrag" @pointermove="handlePreviewViewportDrag"
+                      @pointerup="stopPreviewViewportDrag" @pointercancel="stopPreviewViewportDrag" />
                   </div>
                 </div>
               </OcPanel>
@@ -238,41 +159,28 @@
           </template>
         </CdeOverlayDock>
 
-        <CdeOverlayDock
-          side="right"
-          :extent="rightDockExtent"
-          :collapsed-extent="overlayGeometryConfig.collapsedExtent"
-          :min-extent="overlayGeometryConfig.minExtent"
-          :max-extent="overlayGeometryConfig.maxExtent"
+        <CdeOverlayDock side="right" :extent="rightDockExtent" :collapsed-extent="overlayGeometryConfig.collapsedExtent"
+          :min-extent="overlayGeometryConfig.minExtent" :max-extent="overlayGeometryConfig.maxExtent"
           :expand-drag-threshold="overlayGeometryConfig.expandDragThreshold"
           :collapse-drag-threshold="overlayGeometryConfig.collapseDragThreshold"
-          :floating-gap="overlayGeometryConfig.floatingGap"
-          :top-expanded="isStructureTreePanelExpanded"
-          :bottom-expanded="isPropertyPanelExpanded"
-          :top-size="rightSidebarTopHeight"
-          :top-min-height="overlayTopMinHeight"
-          :bottom-min-height="overlayBottomMinHeight"
-          :responsive-min-stage-width="overlayResponsiveWidth"
-          :split-gap="overlaySplitGap"
-          :width-label="t('cardDesigner.layout.resizeRightSidebar')"
-          :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
+          :floating-gap="overlayGeometryConfig.floatingGap" :top-expanded="isStructureTreePanelExpanded"
+          :bottom-expanded="isPropertyPanelExpanded" :top-size="rightSidebarTopHeight"
+          :top-min-height="overlayTopMinHeight" :bottom-min-height="overlayBottomMinHeight"
+          :responsive-min-stage-width="overlayResponsiveWidth" :split-gap="overlaySplitGap"
+          :width-label="t('cardDesigner.layout.resizeRightSidebar')" :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
             label: t('cardDesigner.layout.resizeRightSidebar'),
-          })"
-          split-label="调整结构树与属性高度"
-          @update:extent="updateDockExtent('right', $event)"
-          @update:top-size="updateDockTopSize('right', $event)"
-          @toggle-collapse="toggleDockCollapsed('right')"
-          @resize-start="handleDockResizeStart"
-          @resize-end="handleDockResizeEnd('right', $event)"
-        >
+          })" split-label="调整结构树与属性高度" @update:extent="updateDockExtent('right', $event)"
+          @update:top-size="updateDockTopSize('right', $event)" @toggle-collapse="toggleDockCollapsed('right')"
+          @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('right', $event)">
           <template #top>
             <OcCard fill variant="glass" title="结构树" :actions="props.mode === 'diff' ? [] : structureTreeCardActions"
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
-                <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree"
-                  tab-navigation="none"
-                  :data="props.mode === 'diff' ? diffBlockTreeData : blockTreeData" :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
-                  :selected-keys="props.mode === 'diff' ? diffSelectedBlockKeys : selectedBlockKeys" :expanded-keys="expandedBlockKeys"
+                <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree" tab-navigation="none"
+                  :data="props.mode === 'diff' ? diffBlockTreeData : blockTreeData"
+                  :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
+                  :selected-keys="props.mode === 'diff' ? diffSelectedBlockKeys : selectedBlockKeys"
+                  :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
                   selection-mode="multiple" activation-mode="double-click" @intent="handleStructureTreeIntent" />
@@ -290,59 +198,38 @@
                   :inputs="props.mode === 'diff' ? diffPropertyInputs : propertyEditorInputs"
                   :categories="propertyCategories" :sort-mode="propertySortMode"
                   :binding-interpreter="propertyBindingInterpreter" :delete-mode="propertyDeleteMode"
-                  :field-warnings="propertyFieldWarnings"
-                  @update-property="updateBlockProp" @add-property="addBlockProp"
-                  @reset-property="resetBlockProp" @delete-property="deleteProperty" />
+                  :field-warnings="propertyFieldWarnings" @update-property="updateBlockProp"
+                  @add-property="addBlockProp" @reset-property="resetBlockProp" @delete-property="deleteProperty" />
               </OcPanel>
             </OcCard>
           </template>
         </CdeOverlayDock>
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools"
-          :class="{ 'is-resizing': isDockResizing }" orientation="vertical"
-          :style="faceToolsStyle" label="卡牌画布控制" :items="props.mode === 'diff' ? diffFaceToolbarItems : faceToolbarItems"
-          @select="handleFaceToolbarSelect" />
+          :class="{ 'is-resizing': isDockResizing }" orientation="vertical" :style="faceToolsStyle" label="卡牌画布控制"
+          :items="props.mode === 'diff' ? diffFaceToolbarItems : faceToolbarItems" @select="handleFaceToolbarSelect" />
       </div>
     </div>
 
-    <AdditionalFieldCreateDialog
-      :open="additionalFieldCreateDialogOpen"
-      :field-types="additionalFieldTypeOptions"
-      :field-type="additionalFieldCreateDraft.fieldType"
-      :field-key="additionalFieldCreateDraft.fieldKey"
-      :title="additionalFieldCreateDraft.title"
-      :error-text="additionalFieldCreateErrorText"
-      :invalid="Boolean(additionalFieldCreateError)"
-      @update-field-type="updateAdditionalFieldType"
-      @update-field-key="updateAdditionalFieldKey"
-      @update-title="updateAdditionalFieldTitle"
-      @close="closeAdditionalFieldDialog"
-      @submit="submitAdditionalFieldDialog"
-    />
-    <DataTableWorkbookImportDialog
-      :result="pendingDataTableWorkbookImport"
-      @cancel="cancelDataTableWorkbookImport"
-      @confirm="confirmDataTableWorkbookImport"
-    />
-    <CustomBlockExportDialog
-      :open="customBlockExportDialogOpen"
-      :dialog-title="t('cardDesigner.customBlock.exportTitle')"
-      :document="cardDoc"
-      :root-block-id="customBlockExportBlock?.id ?? null"
-      :fields="customBlockExportFields"
+    <AdditionalFieldCreateDialog :open="additionalFieldCreateDialogOpen" :field-types="additionalFieldTypeOptions"
+      :field-type="additionalFieldCreateDraft.fieldType" :field-key="additionalFieldCreateDraft.fieldKey"
+      :title="additionalFieldCreateDraft.title" :error-text="additionalFieldCreateErrorText"
+      :invalid="Boolean(additionalFieldCreateError)" @update-field-type="updateAdditionalFieldType"
+      @update-field-key="updateAdditionalFieldKey" @update-title="updateAdditionalFieldTitle"
+      @close="closeAdditionalFieldDialog" @submit="submitAdditionalFieldDialog" />
+    <DataTableWorkbookImportDialog :result="pendingDataTableWorkbookImport" @cancel="cancelDataTableWorkbookImport"
+      @confirm="confirmDataTableWorkbookImport" />
+    <CustomBlockExportDialog :open="customBlockExportDialogOpen"
+      :dialog-title="t('cardDesigner.customBlock.exportTitle')" :document="cardDoc"
+      :root-block-id="customBlockExportBlock?.id ?? null" :fields="customBlockExportFields"
       :default-name="getBlockProperty<string>(customBlockExportBlock, 'name') ?? ''"
       :default-key="customBlockExportDefaultKey"
-      :project-root-path="props.resourceRootPath || projectStore.projectPath.value"
-      :busy="customBlockExportBusy"
-      :error-text="customBlockExportErrorText"
-      @close="closeCustomBlockExportDialog"
-      @submit="handleCustomBlockExport"
-    />
-    <OcDialog :open="Boolean(pendingCustomBlockRegistrationPath)"
-      :title="t('cardDesigner.customBlock.registerTitle')"
-      :description="t('cardDesigner.customBlock.registerDescription')"
-      size="sm" :dismissible="!customBlockRegistrationBusy"
-      @request-close="closeCustomBlockRegistration">
+      :project-root-path="props.resourceRootPath || projectStore.projectPath.value" :busy="customBlockExportBusy"
+      :error-text="customBlockExportErrorText" @close="closeCustomBlockExportDialog"
+      @submit="handleCustomBlockExport" />
+    <OcDialog :open="Boolean(pendingCustomBlockRegistrationPath)" :title="t('cardDesigner.customBlock.registerTitle')"
+      :description="t('cardDesigner.customBlock.registerDescription')" size="sm"
+      :dismissible="!customBlockRegistrationBusy" @request-close="closeCustomBlockRegistration">
       <OcText v-if="customBlockRegistrationError" tone="danger" size="sm" role="alert">
         {{ customBlockRegistrationError }}
       </OcText>
@@ -516,7 +403,7 @@ const diffBeforeRender = computed<PreparedCardRender | null>(() => {
   if (!model || !snapshot) return null
   return prepareCardRender({
     document: model.beforeDocument,
-              instance: diffBeforeInstance.value,
+    instance: diffBeforeInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
@@ -535,7 +422,7 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
   if (!model || !snapshot) return null
   return prepareCardRender({
     document: model.afterDocument,
-              instance: diffAfterInstance.value,
+    instance: diffAfterInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
@@ -745,102 +632,11 @@ function handleDataTableCellSelect(payload: {
   blockId: string
   fieldKey: string
 }): void {
-  dataTablePreviewTarget.value = payload
   activeFaceKey.value = payload.faceKey
   selectedCardId.value = payload.cardId
   selectedCardKeys.value = [payload.cardId]
-  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
 }
 
-const dataTablePreviewMinimized = ref(false)
-const dataTablePreviewOpening = ref(false)
-const dataTablePreviewPanelRef = ref<HTMLElement | null>(null)
-const dataTablePreviewPosition = ref({ x: 0, y: 0 })
-const dataTablePreviewSize = ref<{ width: number; height: number } | null>(null)
-const dataTablePreviewPositionInitialized = ref(false)
-const dataTablePreviewDrag = ref<{ pointerId: number; offsetX: number; offsetY: number } | null>(null)
-const dataTablePreviewPanelStyle = computed(() => ({
-  transform: dataTablePreviewOpening.value
-    ? 'translate(0, 0)'
-    : `translate(${dataTablePreviewPosition.value.x}px, ${dataTablePreviewPosition.value.y}px)`,
-  ...(!dataTablePreviewOpening.value && dataTablePreviewSize.value ? {
-    width: `${dataTablePreviewSize.value.width}px`,
-    height: `${dataTablePreviewSize.value.height}px`,
-  } : {}),
-}))
-const dataTablePreviewActions = computed<OcActionButtonAction[]>(() => [
-  {
-    key: 'fit-preview',
-    icon: 'tool.fit-screen',
-    title: t('cardDesigner.dataTable.fitPreview'),
-  },
-  {
-    key: 'minimize-preview',
-    icon: 'window.minimize',
-    title: t('cardDesigner.dataTable.minimizePreview'),
-  },
-])
-
-function handleDataTablePreviewAction(payload: { key: string }): void {
-  if (payload.key === 'fit-preview') dataTablePreviewViewportRef.value?.fitView()
-  else if (payload.key === 'minimize-preview') dataTablePreviewMinimized.value = true
-}
-
-function restoreDataTablePreview(): void {
-  dataTablePreviewMinimized.value = false
-  void nextTick(() => dataTablePreviewViewportRef.value?.fitView())
-}
-
-function clampDataTablePreviewPosition(x: number, y: number): { x: number; y: number } {
-  const root = editorRootRef.value
-  const panel = dataTablePreviewPanelRef.value
-  if (!root || !panel) return { x, y }
-  const rootRect = root.getBoundingClientRect()
-  const panelRect = panel.getBoundingClientRect()
-  const maxX = Math.max(0, rootRect.width - panelRect.width)
-  const maxY = Math.max(0, rootRect.height - panelRect.height)
-  return {
-    x: Math.min(maxX, Math.max(0, x)),
-    y: Math.min(maxY, Math.max(0, y)),
-  }
-}
-
-function startDataTablePreviewDrag(event: PointerEvent): void {
-  const target = event.target
-  if (!(target instanceof HTMLElement) || !target.closest('.oc-card__header')) return
-  if (event.button !== 0) return
-  const panel = dataTablePreviewPanelRef.value
-  if (!panel) return
-  const rect = panel.getBoundingClientRect()
-  dataTablePreviewDrag.value = {
-    pointerId: event.pointerId,
-    offsetX: event.clientX - rect.left,
-    offsetY: event.clientY - rect.top,
-  }
-  panel.setPointerCapture(event.pointerId)
-  event.preventDefault()
-}
-
-function handleDataTablePreviewDrag(event: PointerEvent): void {
-  const drag = dataTablePreviewDrag.value
-  if (!drag || drag.pointerId !== event.pointerId) return
-  const root = editorRootRef.value
-  const panel = dataTablePreviewPanelRef.value
-  if (!root || !panel) return
-  const rootRect = root.getBoundingClientRect()
-  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
-    event.clientX - rootRect.left - drag.offsetX,
-    event.clientY - rootRect.top - drag.offsetY,
-  )
-}
-
-function stopDataTablePreviewDrag(event: PointerEvent): void {
-  if (dataTablePreviewDrag.value?.pointerId === event.pointerId) dataTablePreviewDrag.value = null
-  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
-    dataTablePreviewPosition.value.x,
-    dataTablePreviewPosition.value.y,
-  )
-}
 
 // 文档与编辑器状态
 const propertySortMode = ref<CdePropertySortMode>('category')
@@ -858,55 +654,13 @@ function handleRenderReadinessChange(state: { revision: number; status: 'pending
   if (state.status === 'ready') renderContentReady.value = true
 }
 
-function positionDataTablePreviewAtBottomRight(): void {
-  const root = editorRootRef.value
-  const panel = dataTablePreviewPanelRef.value
-  if (!root || !panel) return
-  const rootRect = root.getBoundingClientRect()
-  const panelRect = panel.getBoundingClientRect()
-  dataTablePreviewPosition.value = clampDataTablePreviewPosition(
-    rootRect.width - panelRect.width - overlayGeometryConfig.floatingGap,
-    rootRect.height - panelRect.height - overlayGeometryConfig.floatingGap,
-  )
-  dataTablePreviewPositionInitialized.value = true
-}
-
-function cacheDataTablePreviewSize(): void {
-  const panel = dataTablePreviewPanelRef.value
-  if (!panel) return
-  const rect = panel.getBoundingClientRect()
-  dataTablePreviewSize.value = { width: rect.width, height: rect.height }
-}
-
-watch(workspaceMode, mode => {
-  if (mode === 'design') {
-    cacheDataTablePreviewSize()
-    renderContentReady.value = false
-    dataTablePreviewOpening.value = false
-    return
-  }
-  dataTablePreviewOpening.value = true
-  void nextTick(() => {
-    if (!dataTablePreviewPositionInitialized.value) positionDataTablePreviewAtBottomRight()
-    requestAnimationFrame(() => {
-      dataTablePreviewOpening.value = false
-      dataTablePreviewViewportRef.value?.fitView()
-    })
-  })
-})
 const dataTableCustomFieldTargetBlockId = ref<string | null>(null)
-const dataTablePreviewTarget = ref<{
-  cardId: string
-  faceKey: CardFaceKey
-  blockId: string
-  fieldKey: string
-} | null>(null)
 const activeFaceKey = ref<CardFaceKey>(props.cardDesignerView?.activeFace ?? 'front')
 const clipToFace = ref(props.cardDesignerView?.clipToFace ?? false)
 const alignmentSnappingEnabled = ref(
   props.cardDesignerView?.alignmentSnappingEnabled
-    ?? props.alignmentSnappingEnabledByDefault
-    ?? true,
+  ?? props.alignmentSnappingEnabledByDefault
+  ?? true,
 )
 
 function createViewState(): CardDesignerViewState {
@@ -1047,7 +801,6 @@ type CardDataTableHandle = {
 }
 
 const cardViewportRef = ref<CardViewportHandle | null>(null)
-const dataTablePreviewViewportRef = ref<CardViewportHandle | null>(null)
 const propertyEditorRef = ref<PropertyEditorHandle | null>(null)
 const cardDataTableRef = ref<CardDataTableHandle | null>(null)
 const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
@@ -1066,103 +819,103 @@ const nativeAddActionKeys = [
 
 // 结构树操作定义
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const customBlockActions = [...projectStore.projectCustomBlockManifestCatalog.value.entries()].map(([key, entry]) => ([
+  const customBlockActions = [...projectStore.projectCustomBlockDefinitionCatalog.value.entries()].map(([key, entry]) => ([
     `add-custom-block:${key}`,
-    { icon: 'entity.block-custom', title: entry.manifest.name },
+    { icon: 'entity.block-custom', title: entry.definition.name },
   ] as const))
   const addChildren = [
     ...nativeAddActionKeys,
     ...(customBlockActions.length ? ['add-custom-block-menu'] : []),
   ]
   return new Map<string, OcTreeActionDefinition>([
-  ['instance-more', {
-    icon: 'nav.more',
-    title: '更多操作',
-    children: ['rename', 'duplicate-instance', 'delete-instance'],
-  }],
-  ['block-more', {
-    icon: 'nav.more',
-    title: '更多操作',
-    children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'duplicate', 'delete']
-  }],
-  ['container-more', {
-    icon: 'nav.more',
-    title: '更多操作',
-    children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete']
-  }],
-  ['packaged-container-more', {
-    icon: 'nav.more',
-    title: '更多操作',
-    children: ['rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
-  }],
-  ['add-root', {
-    icon: 'action.add',
-    title: '添加',
-    children: addChildren,
-  }],
-  ['copy-block', { icon: 'action.copy', title: '复制块', shortcut: getCdeShortcutParts('block.copy') }],
-  ['paste-block', { icon: 'action.copy', title: '粘贴块', shortcut: getCdeShortcutParts('block.paste') }],
-  ['duplicate-selected', {
-    icon: 'action.copy',
-    title: '复制选中',
-    shortcut: getCdeShortcutParts('block.duplicate'),
-  }],
-  ['delete-selected', {
-    icon: 'action.delete',
-    title: '删除选中',
-    shortcut: getCdeShortcutParts('block.delete'),
-  }],
-  ['add', {
-    icon: 'action.add',
-    title: '添加子块',
-    children: addChildren,
-  }],
-  ['add-text-block', { ...getBlockPresentation('text-block'), title: '文本块' }],
-  ['add-markdown-text-block', { ...getBlockPresentation('markdown-text-block'), title: 'Markdown 文本块' }],
-  ['add-image-block', { ...getBlockPresentation('image-block'), title: '图片块' }],
-  ['add-qrcode-block', { ...getBlockPresentation('qrcode-block'), title: '二维码' }],
-  ['add-shape-block', { ...getBlockPresentation('shape-block'), title: '形状' }],
-  ['add-simple-container-block', { ...getBlockPresentation('simple-container-block'), title: '简单容器' }],
-  ['add-flow-container-block', { ...getBlockPresentation('flow-container-block'), title: '流式容器' }],
-  ['duplicate', {
-    icon: 'action.copy',
-    title: '复制',
-    shortcut: getCdeShortcutParts('block.duplicate'),
-  }],
-  ['delete', {
-    icon: 'action.delete',
-    title: '删除',
-    shortcut: getCdeShortcutParts('block.delete'),
-  }],
-  ['rename', {
-    icon: 'action.edit',
-    title: '重命名',
-    shortcut: getCdeShortcutParts('block.rename'),
-  }],
-  ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
-  ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
-  ['export-custom-block', { icon: 'action.download', title: t('cardDesigner.treeActions.exportCustomBlock') }],
-  ['hide-block', { icon: 'status.eye', title: '隐藏' }],
-  ['show-block', { icon: 'status.eye-off', title: '显示' }],
-  ['duplicate-instance', {
-    icon: 'action.copy',
-    title: '复制实例',
-    shortcut: getCdeShortcutParts('instance.duplicate'),
-  }],
-  ['delete-instance', {
-    icon: 'action.delete',
-    title: '删除实例',
-    shortcut: getCdeShortcutParts('instance.delete'),
-  }],
-  ...(customBlockActions.length ? [[
-    'add-custom-block-menu',
-    {
-      icon: 'entity.block-custom',
-      title: t('cardDesigner.treeActions.addCustomBlock'),
-      children: customBlockActions.map(([key]) => key),
-    },
-  ] as const] : []),
-  ...customBlockActions,
+    ['instance-more', {
+      icon: 'nav.more',
+      title: '更多操作',
+      children: ['rename', 'duplicate-instance', 'delete-instance'],
+    }],
+    ['block-more', {
+      icon: 'nav.more',
+      title: '更多操作',
+      children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'duplicate', 'delete']
+    }],
+    ['container-more', {
+      icon: 'nav.more',
+      title: '更多操作',
+      children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete']
+    }],
+    ['packaged-container-more', {
+      icon: 'nav.more',
+      title: '更多操作',
+      children: ['rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
+    }],
+    ['add-root', {
+      icon: 'action.add',
+      title: '添加',
+      children: addChildren,
+    }],
+    ['copy-block', { icon: 'action.copy', title: '复制块', shortcut: getCdeShortcutParts('block.copy') }],
+    ['paste-block', { icon: 'action.copy', title: '粘贴块', shortcut: getCdeShortcutParts('block.paste') }],
+    ['duplicate-selected', {
+      icon: 'action.copy',
+      title: '复制选中',
+      shortcut: getCdeShortcutParts('block.duplicate'),
+    }],
+    ['delete-selected', {
+      icon: 'action.delete',
+      title: '删除选中',
+      shortcut: getCdeShortcutParts('block.delete'),
+    }],
+    ['add', {
+      icon: 'action.add',
+      title: '添加子块',
+      children: addChildren,
+    }],
+    ['add-text-block', { ...getBlockPresentation('text-block'), title: '文本块' }],
+    ['add-markdown-text-block', { ...getBlockPresentation('markdown-text-block'), title: 'Markdown 文本块' }],
+    ['add-image-block', { ...getBlockPresentation('image-block'), title: '图片块' }],
+    ['add-qrcode-block', { ...getBlockPresentation('qrcode-block'), title: '二维码' }],
+    ['add-shape-block', { ...getBlockPresentation('shape-block'), title: '形状' }],
+    ['add-simple-container-block', { ...getBlockPresentation('simple-container-block'), title: '简单容器' }],
+    ['add-flow-container-block', { ...getBlockPresentation('flow-container-block'), title: '流式容器' }],
+    ['duplicate', {
+      icon: 'action.copy',
+      title: '复制',
+      shortcut: getCdeShortcutParts('block.duplicate'),
+    }],
+    ['delete', {
+      icon: 'action.delete',
+      title: '删除',
+      shortcut: getCdeShortcutParts('block.delete'),
+    }],
+    ['rename', {
+      icon: 'action.edit',
+      title: '重命名',
+      shortcut: getCdeShortcutParts('block.rename'),
+    }],
+    ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
+    ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
+    ['export-custom-block', { icon: 'action.download', title: t('cardDesigner.treeActions.exportCustomBlock') }],
+    ['hide-block', { icon: 'status.eye', title: '隐藏' }],
+    ['show-block', { icon: 'status.eye-off', title: '显示' }],
+    ['duplicate-instance', {
+      icon: 'action.copy',
+      title: '复制实例',
+      shortcut: getCdeShortcutParts('instance.duplicate'),
+    }],
+    ['delete-instance', {
+      icon: 'action.delete',
+      title: '删除实例',
+      shortcut: getCdeShortcutParts('instance.delete'),
+    }],
+    ...(customBlockActions.length ? [[
+      'add-custom-block-menu',
+      {
+        icon: 'entity.block-custom',
+        title: t('cardDesigner.treeActions.addCustomBlock'),
+        children: customBlockActions.map(([key]) => key),
+      },
+    ] as const] : []),
+    ...customBlockActions,
   ])
 })
 const emptyTreeActions = new Map<string, OcTreeActionDefinition>()
@@ -1350,7 +1103,7 @@ const {
     selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
   resolveCustomBlockPublicFieldKeys: packageId => (
-    projectStore.projectCustomBlockManifestCatalog.value.get(packageId.toLowerCase())?.manifest.publicFieldKeys
+    projectStore.projectCustomBlockDefinitionCatalog.value.get(packageId.toLowerCase())?.definition.publicFieldKeys
   ),
 })
 
@@ -1557,10 +1310,10 @@ const propertyCardActions = computed<OcCardAction[]>(() => {
   return [
     ...(canCreateAdditionalField.value
       ? [{
-          key: 'additional-field.create',
-          icon: 'action.add' as const,
-          title: t('propertyEditor.customFields.create'),
-        }]
+        key: 'additional-field.create',
+        icon: 'action.add' as const,
+        title: t('propertyEditor.customFields.create'),
+      }]
       : []),
     {
       key: 'toggle-property-delete-mode',
@@ -1655,7 +1408,7 @@ const {
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
   createCustomBlock: key => {
     const entry = projectStore.projectCustomBlockCatalog.value.get(key.toLowerCase())
-    return entry ? createProjectCustomBlockInstance(entry) : null
+    return entry ? createProjectCustomBlockInstance({ definition: { key: entry.definition.key, name: entry.definition.name } }) : null
   },
   refreshDocumentState,
   markDocumentChanged,
@@ -1804,7 +1557,7 @@ async function handleCustomBlockExport(payload: {
       projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
       projectFonts: projectStore.projectFonts.value,
       projectIconSeries: projectStore.projectIconSeries.value,
-      customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+      customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
       fs: fileSystemService,
     })
     if (result.status === 'cancelled') return
@@ -1867,7 +1620,7 @@ async function handleStructureTreeCardAction(payload: { key: string }): Promise<
   if (payload.key.startsWith('add-custom-block:')) {
     const key = payload.key.slice('add-custom-block:'.length).toLowerCase()
     const entry = await projectStore.ensureProjectCustomBlockLoaded(key)
-    if (entry) insertBlockAtRoot(createProjectCustomBlockInstance(entry))
+    if (entry) insertBlockAtRoot(createProjectCustomBlockInstance({ definition: entry.definition }))
     return
   }
   if (payload.key === 'toggle-structure-tree-panel') {
@@ -1902,7 +1655,7 @@ const {
   selectedCard,
   selectedCardId,
   customBlockCatalog: projectStore.projectCustomBlockCatalog,
-  customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog,
+  customBlockDefinitionCatalog: projectStore.projectCustomBlockDefinitionCatalog,
   documentRevision,
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
@@ -1918,7 +1671,7 @@ const propertyProjectContext = computed(() => ({
   iconSeries: projectStore.projectIconSeries.value,
   projectIconCatalog: projectStore.projectIconCatalog.value,
   customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-  customBlockManifestCatalog: projectStore.projectCustomBlockManifestCatalog.value,
+  customBlockDefinitionCatalog: projectStore.projectCustomBlockDefinitionCatalog.value,
   resourceEnvironment: projectStore.projectResourceEnvironment.value,
   ensureCustomBlockLoaded: projectStore.ensureProjectCustomBlockLoaded,
 }))
@@ -2260,7 +2013,7 @@ function resolveCustomBlockResizePolicy(block: CardBlock): ProjectCustomBlockRes
   if (block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
   const entry = projectStore.projectCustomBlockCatalog.value.get(block.customBlockKey.toLowerCase())
   if (!entry) return { widthLocked: false, heightLocked: false }
-  const fields = resolvePropertyEditorSchema(entry.block as Readonly<Record<string, unknown>>).fields
+  const fields = resolvePropertyEditorSchema(entry.definition.root as Readonly<Record<string, unknown>>).fields
   return {
     widthLocked: fields.width?.isReadonly === true,
     heightLocked: fields.height?.isReadonly === true,
@@ -2304,6 +2057,7 @@ const viewportFaceSize = computed(() => {
 })
 const {
   completeFileLoad,
+  fitBottomRightHalfViewport,
   fitViewport,
   handlePreviewViewportDrag,
   handlePreviewViewportKeydown,
@@ -2329,6 +2083,13 @@ const {
   viewportPort: cardViewportRef,
   commitTransform: transform => emit('update-viewport-transform', transform),
 })
+
+watch(workspaceMode, async mode => {
+  await nextTick()
+  if (mode === 'data-table') fitBottomRightHalfViewport()
+  else if (mode === 'design') fitViewport()
+})
+
 
 const availableLayerZIndices = computed(() => (
   viewFace.value
@@ -2918,12 +2679,12 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.card-design-editor__card-info:hover > span,
+.card-design-editor__card-info:hover>span,
 .card-design-editor__dimension-info:hover {
   opacity: 1;
 }
 
-.card-design-editor__card-info > span {
+.card-design-editor__card-info>span {
   overflow: hidden;
   opacity: 0.34;
   text-overflow: ellipsis;
@@ -2931,12 +2692,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.card-design-editor__card-info > span.is-multiline {
+.card-design-editor__card-info>span.is-multiline {
   text-overflow: clip;
   white-space: pre-wrap;
 }
 
-.card-design-editor__card-info > span.is-group-separated {
+.card-design-editor__card-info>span.is-group-separated {
   margin-top: var(--oc-space-4);
 }
 
@@ -2951,7 +2712,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.card-design-editor__card-info > span.is-highlighted,
+.card-design-editor__card-info>span.is-highlighted,
 .card-design-editor__dimension-info.is-highlighted {
   animation: card-info-value-highlight 900ms ease-out;
 }
@@ -3001,6 +2762,7 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .card-designer-view-fade-enter-active,
   .card-designer-view-fade-leave-active {
     transition-duration: 0.01ms;
@@ -3024,6 +2786,7 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .card-designer-diff-status-enter-active,
   .card-designer-diff-status-leave-active {
     transition-duration: 0.01ms;
@@ -3037,12 +2800,43 @@ onUnmounted(() => {
   z-index: 0;
 }
 
+.card-design-editor__stage-base.is-data-table-mode {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.card-design-editor__data-table-view {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card-design-editor__data-table-view.is-active {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-design-editor__viewport.is-data-table-mode {
+  background-color: transparent;
+  background-image: none;
+  pointer-events: none;
+}
+
+.card-design-editor__stage-layer.is-data-table-mode {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-base {
   z-index: var(--oc-z-overlay-toolbar);
 }
 
-.card-design-editor__data-table-preview-layer,
- .card-design-editor__stage-layer {
+.card-design-editor__stage-layer {
   position: absolute;
   inset: 0;
   display: flex;
@@ -3054,85 +2848,17 @@ onUnmounted(() => {
   transition: opacity var(--oc-duration-normal) var(--oc-ease);
 }
 
-.card-design-editor__data-table-preview-layer {
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: var(--oc-z-data-table-preview);
-}
-
-.card-design-editor__data-table-preview-layer.is-opening .card-design-editor__data-table-preview-panel {
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  transition: none;
-}
-
-.card-design-editor__data-table-preview-panel.is-opening :deep(.oc-card__header) {
-  cursor: default;
-}
-
 .card-design-editor__viewport.is-debug-transparent {
   background-color: transparent;
   background-image: none;
 }
 
 
-.card-design-editor__data-table-preview-panel {
-  position: absolute;
-  top: var(--oc-floating-surface-gap);
-  left: var(--oc-floating-surface-gap);
-  width: var(--oc-data-table-preview-default-width);
-  height: var(--oc-data-table-preview-default-height);
-  min-width: var(--oc-data-table-preview-min-width);
-  min-height: var(--oc-data-table-preview-min-height);
-  max-width: calc(100% - var(--oc-floating-surface-gap) * 2);
-  max-height: calc(100% - var(--oc-floating-surface-gap) * 2);
-  overflow: hidden;
-  pointer-events: auto;
-  resize: both;
-  touch-action: none;
-  cursor: grab;
-  transition:
-    top var(--oc-duration-normal) var(--oc-ease),
-    left var(--oc-duration-normal) var(--oc-ease),
-    width var(--oc-duration-normal) var(--oc-ease),
-    height var(--oc-duration-normal) var(--oc-ease),
-    max-width var(--oc-duration-normal) var(--oc-ease),
-    max-height var(--oc-duration-normal) var(--oc-ease);
-}
-
-.card-design-editor__data-table-preview-panel.is-dragging {
-  cursor: grabbing;
-  transition: none;
-}
-
-.card-design-editor__data-table-preview-panel :deep(.oc-card__header) {
-  cursor: grab;
-}
-
-.card-design-editor__data-table-preview-panel.is-dragging :deep(.oc-card__header) {
-  cursor: grabbing;
-}
-
-.card-design-editor__data-table-preview-restore {
-  position: absolute;
-  right: var(--oc-floating-surface-gap);
-  bottom: var(--oc-floating-surface-gap);
-  pointer-events: auto;
-  z-index: var(--oc-z-data-table-preview);
-}
-
-.card-design-editor__data-table-preview-viewport {
-  width: 100%;
-  height: 100%;
-}
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer {
-  opacity: 0.45;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .card-design-editor__stage.is-layer-view-active .card-design-editor__stage-layer,
@@ -3233,5 +2959,4 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
 }
-
 </style>

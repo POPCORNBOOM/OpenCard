@@ -6,14 +6,11 @@ import type { ProjectFontRegistry, ProjectFontRegistryDocument } from '../model/
 import { projectFontFileEntries, serializeProjectFontRegistry } from '../model/projectFontRegistry'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import { serializeProjectIconRegistry } from '../model/projectIconRegistry'
-import type {
-  ProjectCustomBlockManifestCatalog,
-  ProjectCustomBlockPackageIssue,
-} from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockCatalog, ProjectCustomBlockIssue } from '../model/projectCustomBlocks'
 import {
   MAX_CUSTOM_BLOCK_ENTRIES,
   MAX_CUSTOM_BLOCK_UNPACKED_BYTES,
-} from './projectCustomBlock'
+} from './projectCustomBlockResourceLimits'
 import type { FileSystemService } from './fileSystemService'
 import { normalizeProjectResourcePath } from './projectResourceEnvironment'
 
@@ -39,7 +36,7 @@ export type ProjectCustomBlockResourceCandidate = {
   references: readonly string[]
   fontKey?: string
   iconSeriesKey?: string
-  packageId?: string
+  blockKey?: string
   iconKeys?: readonly string[]
   declared?: boolean
   missing?: boolean
@@ -53,7 +50,7 @@ export type ProjectCustomBlockResourceAnalysis = {
 
 export type MaterializedProjectCustomBlockResources = {
   files: ReadonlyMap<string, Uint8Array>
-  issues: readonly ProjectCustomBlockPackageIssue[]
+  issues: readonly ProjectCustomBlockIssue[]
   selectedCandidates: readonly ProjectCustomBlockResourceCandidate[]
 }
 
@@ -70,10 +67,10 @@ function basename(path: string): string {
 }
 
 function issue(
-  code: ProjectCustomBlockPackageIssue['code'],
+  code: ProjectCustomBlockIssue['code'],
   path: string,
   message: string,
-): ProjectCustomBlockPackageIssue {
+): ProjectCustomBlockIssue {
   return { code, path, message }
 }
 
@@ -150,8 +147,8 @@ function dependencyForCandidate(
           }))
         : []
     case 'custom-block':
-      return candidate.packageId
-        ? [{ kind: 'block', scope: 'current', key: candidate.packageId, requiredBy, ...declaration }]
+      return candidate.blockKey
+        ? [{ kind: 'block', scope: 'current', key: candidate.blockKey, requiredBy, ...declaration }]
         : []
   }
 }
@@ -196,7 +193,7 @@ export async function analyzeProjectCustomBlockResources(options: {
   fs: Pick<FileSystemService, 'readDirectoryEntries' | 'fileExists'>
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
   declaredResourceDependencies?: readonly string[]
 }): Promise<ProjectCustomBlockResourceAnalysis> {
   const root = options.projectRootPath.replace(/[\\/]+$/, '')
@@ -249,20 +246,20 @@ export async function analyzeProjectCustomBlockResources(options: {
       referenceCount: 0, references: [], iconSeriesKey: series.key,
     })
   }
-  for (const descriptor of options.customBlockManifestCatalog?.values() ?? []) {
-    const packageId = descriptor.manifest.packageId
-    if (packageId.toLocaleLowerCase().startsWith('block:')) continue
-    const id = `custom-block:${packageId.toLocaleLowerCase()}`
+  for (const descriptor of options.customBlockCatalog?.values() ?? []) {
+    const blockKey = descriptor.definition.key
+    if (blockKey.toLocaleLowerCase().startsWith('block:')) continue
+    const id = `custom-block:${blockKey.toLocaleLowerCase()}`
     candidates.set(id, {
       id,
       kind: 'custom-block',
-      path: `.opencard/blocks/${packageId}`,
-      label: descriptor.manifest.name,
+      path: `.opencard/blocks/${blockKey}`,
+      label: descriptor.definition.name,
       automatic: false,
       suggested: false,
       referenceCount: 0,
       references: [],
-      packageId,
+      blockKey,
     })
   }
 
@@ -444,25 +441,25 @@ export async function materializeProjectCustomBlockResources(options: {
   fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readBinaryFile'>
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
 }): Promise<MaterializedProjectCustomBlockResources> {
   const root = options.projectRootPath.replace(/[\\/]+$/, '')
   const files = new Map<string, Uint8Array>()
-  const issues: ProjectCustomBlockPackageIssue[] = []
+  const issues: ProjectCustomBlockIssue[] = []
   const selected = options.analysis.candidates.filter(candidate => options.selectedIds.has(candidate.id))
   const budget = { entries: 0, bytes: 0 }
 
   for (const candidate of selected) {
     try {
       if (candidate.kind === 'custom-block') {
-        const descriptor = candidate.packageId
-          ? options.customBlockManifestCatalog?.get(candidate.packageId.toLocaleLowerCase())
+        const descriptor = candidate.blockKey
+          ? options.customBlockCatalog?.get(candidate.blockKey.toLocaleLowerCase())
           : undefined
-        if (!descriptor || !candidate.packageId) throw new Error('Nested custom block is unavailable')
+        if (!descriptor || !candidate.blockKey) throw new Error('Nested custom block is unavailable')
         await copyDirectoryToArchive({
           fs: options.fs,
-          sourceRoot: descriptor.installationPath,
-          archiveRoot: `resources/.opencard/blocks/${candidate.packageId}`,
+          sourceRoot: descriptor.path,
+          archiveRoot: `resources/.opencard/blocks/${candidate.blockKey}`,
           files,
           budget,
         })

@@ -162,7 +162,7 @@ export function prepareRichText(options: {
           return catalogEntry
             ? {
                 publicFieldKeys: getProjectCustomBlockPublicFieldKeys({
-                  manifest: catalogEntry.manifest, block: catalogEntry.block,
+                  definition: catalogEntry.manifest, block: catalogEntry.block,
                 }),
               }
             : null

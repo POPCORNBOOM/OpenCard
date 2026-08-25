@@ -9,11 +9,7 @@ import { parseProjectMetadataText, serializeProjectMetadata } from '../../worksp
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
-import {
-  discoverInstalledProjectCustomBlocks,
-  installProjectCustomBlockPackage,
-  readProjectCustomBlockPackage,
-} from '../../workspace/services/projectCustomBlock'
+import { readProjectCustomBlockDefinitionFile, writeProjectCustomBlockDefinitionFile } from '../../workspace/services/projectCustomBlock'
 import { initializeProjectStructure } from '../../workspace/services/projectStructureService'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -517,27 +513,23 @@ export class ProjectTemplateService {
   ): Promise<void> {
     if (blocks.length === 0) return
     try {
-      const existingKeys = new Set((await discoverInstalledProjectCustomBlocks(this.fs, projectPath)).keys())
+      const existingKeys = new Set<string>()
       const selectedKeys = new Set<string>()
       for (const block of blocks) {
-        const customBlock = await readProjectCustomBlockPackage(this.fs, block.path)
-        const identity = customBlock.manifest.packageId.toLocaleLowerCase()
-        if (identity !== block.packageId.toLocaleLowerCase()) {
-          throw new Error(`Installed custom block changed after selection: ${block.packageId}`)
+        const customBlock = await readProjectCustomBlockDefinitionFile(this.fs, block.path)
+        if (!customBlock.definition) throw new Error(`Custom block definition is unavailable: ${block.path}`)
+        const identity = customBlock.definition.key.toLocaleLowerCase()
+        if (identity !== block.blockKey.toLocaleLowerCase()) {
+          throw new Error(`Selected custom block changed after selection: ${block.blockKey}`)
         }
         if (selectedKeys.has(identity)) {
-          throw new Error(`Selected custom block Package ID is duplicated: ${customBlock.manifest.packageId}`)
+          throw new Error(`Selected custom block Key is duplicated: ${customBlock.definition.key}`)
         }
         if (existingKeys.has(identity)) {
-          throw new Error(`Custom block Package ID already exists in the template: ${customBlock.manifest.packageId}`)
+          throw new Error(`Custom block Key already exists in the template: ${customBlock.definition.key}`)
         }
         selectedKeys.add(identity)
-        await installProjectCustomBlockPackage({
-          fs: this.fs,
-          projectRootPath: projectPath,
-          sourcePath: block.path,
-          createId: this.createId,
-        })
+        await writeProjectCustomBlockDefinitionFile(this.fs, projectPath, customBlock.definition)
       }
     } catch (cause) {
       if (cause instanceof TemplateServiceError) throw cause

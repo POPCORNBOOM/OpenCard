@@ -93,6 +93,17 @@ describe('useCdeLayerViewInteraction', () => {
     wrapper.unmount()
   })
 
+  it('activates Layer View when Tab starts from a CDE child control', async () => {
+    const { interaction, wrapper } = createHarness()
+    const input = wrapper.get('.input')
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    input.element.dispatchEvent(event)
+    await nextTick()
+    expect(event.defaultPrevented).toBe(true)
+    expect(interaction.layerViewActive.value).toBe(true)
+    wrapper.unmount()
+  })
+
   it('owns Tab activation and clears transient state on keyup, blur, and unmount', async () => {
     const { hasRenderableFace, interaction, wrapper } = createHarness()
     const root = wrapper.get('.root')

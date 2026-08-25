@@ -106,7 +106,7 @@ const {
   resetActiveValues,
 } = useCustomBlockPreview({
   catalog: projectStore.projectCustomBlockCatalog,
-  manifestCatalog: projectStore.projectCustomBlockManifestCatalog,
+  definitionCatalog: projectStore.projectCustomBlockDefinitionCatalog,
   ensureLoaded: projectStore.ensureProjectCustomBlockLoaded,
   renderEnvironment: projectStore.renderEnvironment,
   resourceRootPath,
@@ -127,9 +127,9 @@ const propertyCardActions = computed<OcCardAction[]>(() => [{
 const treeData = computed<OcTreeData>(() => ({
   rootKeys: entries.value.map(entry => entry.packageId),
   items: new Map(entries.value.map(entry => [entry.packageId, {
-    label: entry.descriptor.manifest.name,
-    tail: `${entry.packageId} ${t(`customBlockRegistry.status.${entry.descriptor.unavailable ? 'error' : entry.descriptor.loadState}`)}`,
-    icon: entry.descriptor.unavailable ? 'status.warning' : 'file.custom-block',
+    label: entry.descriptor.definition.name,
+    tail: entry.packageId,
+    icon: 'file.custom-block',
     actions: ['reveal', 'remove'],
     contextActions: ['reveal', 'remove'],
   }])),
@@ -154,7 +154,7 @@ async function addBlock(): Promise<void> {
   busy.value = true
   try {
     const installed = await projectStore.installProjectCustomBlockFile(source)
-    selectPackage(installed.packageId)
+    selectPackage(`block:${installed.blockKey}`)
   } catch (cause) {
     const detail = cause instanceof Error && cause.message ? `: ${cause.message}` : ''
     error.value = `${t('customBlockRegistry.importFailed')}${detail}`

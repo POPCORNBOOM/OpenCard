@@ -62,9 +62,9 @@ function prepared() {
   const block = createBlock('text-block', { id: 'root', content: 'Default' })
   block.additionalFieldDefinition = { content: { fieldType: 'string', title: 'Content' } }
   return {
-    manifest: {
-      type: 'opencard-custom-block' as const, packageId: 'local/square', version: '0.1.0', name: 'Square',
-      publicFieldKeys: ['name', 'notes'], resize: { widthLocked: false, heightLocked: false },
+    definition: {
+      type: 'opencard-custom-block' as const, key: 'square', name: 'Square',
+      root: block, publicFieldKeys: ['name', 'notes'], declaredResourceDependencies: [],
     },
     block,
     resourceAnalysis: {
@@ -162,7 +162,7 @@ describe('CustomBlockExportDialog', () => {
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>
     expect(payload).toMatchObject({
       name: 'Square', blockKey: 'square', exposedFieldKeys: ['content'],
-      prepared: { manifest: { packageId: 'block:square', publicFieldKeys: ['name', 'notes', 'content'] } },
+      prepared: { definition: { key: 'square', name: 'Square', publicFieldKeys: ['name', 'notes', 'content'] } },
     })
     expect(payload.selectedResourceIds).toEqual(new Set([resourceCandidate.id]))
   })

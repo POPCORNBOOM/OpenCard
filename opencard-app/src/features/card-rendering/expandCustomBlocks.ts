@@ -161,7 +161,7 @@ export function expandCustomBlocks(
       hasResourceErrors: entry.hasResourceErrors === true || entry.environment.issues.length > 0,
     })
     const publicFieldKeys = getProjectCustomBlockPublicFieldKeys({
-      manifest: entry.manifest, block: entry.block,
+      definition: entry.manifest, block: entry.block,
     })
     const inheritedScopes = new Map<string, ProjectResourceEnvironment>()
     for (const fieldKey of publicFieldKeys) {

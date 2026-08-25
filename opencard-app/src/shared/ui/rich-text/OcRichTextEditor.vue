@@ -179,7 +179,7 @@ import type {
   PropertyEditorMutation,
 } from '../property-editor/propertyEditor.types'
 import type { DeepReadonly } from 'vue'
-import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../../../features/workspace/model/projectCustomBlocks'
+import type { ProjectCustomBlockCatalog } from '../../../features/workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockPropertySchema } from '../../../features/workspace/services/projectCustomBlockPublicFields'
 import { resolveCardPropertyFields } from '../../../features/card-properties/cardPropertyFieldDefinitions'
 import { InlineCustomBlockNode, BlockCustomBlockNode, remapPastedEmbedIds } from './customBlockNode'
@@ -216,7 +216,6 @@ const props = defineProps<{
   projectIconCatalog?: ProjectIconCatalog
   customBlockCatalog?: {
     catalog: DeepReadonly<ProjectCustomBlockCatalog>
-    manifests: DeepReadonly<ProjectCustomBlockManifestCatalog>
     ensureLoaded: (key: string) => Promise<unknown>
   }
   fontOptions?: readonly RichTextFontOption[]
@@ -437,11 +436,11 @@ const projectIconAction = computed<OcActionButtonAction>(() => {
 })
 const customBlockAction = computed<OcActionButtonAction>(() => ({
   key: 'custom-block', icon: 'action.custom-block-plus', title: '插入自定义块',
-  children: [...(props.customBlockCatalog?.manifests.values() ?? [])].map(item => ({
-    key: `custom-block:${item.manifest.packageId}`,
-    title: item.manifest.name,
-    disabled: loadingCustomBlockPackageId.value === item.manifest.packageId,
-    icon: failedCustomBlockPackageIds.value.has(item.manifest.packageId.toLowerCase())
+  children: [...(props.customBlockCatalog?.catalog.values() ?? [])].map(item => ({
+    key: `custom-block:${item.definition.key}`,
+    title: item.definition.name,
+    disabled: loadingCustomBlockPackageId.value === item.definition.key,
+    icon: failedCustomBlockPackageIds.value.has(item.definition.key.toLowerCase())
       ? 'status.warning' as const : 'data.symbol-custom-block' as const,
   })),
 }))
@@ -481,7 +480,7 @@ const selectedCustomBlock = computed(() => {
     entry,
     position: selection.from,
     nodeType: selection.node.type.name,
-    schema: entry ? createProjectCustomBlockPropertySchema(entry) : null,
+    schema: entry ? createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root }) : null,
   }
 })
 
@@ -547,7 +546,7 @@ const dialogCustomBlockInputs = computed<readonly PropertyEditorInput[]>(() => {
   const included = new Set([...Object.keys(selected.schema.fields), ...Object.keys(record)])
   return [{
     key: String(selected.position),
-    title: selected.entry?.manifest.name ?? selected.key,
+    title: selected.entry?.definition.name ?? selected.key,
     record,
     fields: Object.fromEntries(Object.entries(resolved).filter(([fieldKey]) => included.has(fieldKey))),
   }]

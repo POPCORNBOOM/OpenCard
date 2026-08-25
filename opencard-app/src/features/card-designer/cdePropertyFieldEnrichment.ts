@@ -22,7 +22,7 @@ import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/proje
 import type { ProjectIconSeries } from '../workspace/model/projectIcons'
 import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
 import type { DeepReadonly } from 'vue'
-import type { ProjectCustomBlockCatalog, ProjectCustomBlockManifestCatalog } from '../workspace/model/projectCustomBlocks'
+import type { ProjectCustomBlockCatalog } from '../workspace/model/projectCustomBlocks'
 import { createProjectIconCompletionProvider } from '../workspace/services/projectIconCompletion'
 import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
 import { buildResourceFontCatalog } from '../workspace/services/resourceReference'
@@ -42,7 +42,6 @@ export type CdePropertyProjectContext = {
   iconSeries?: readonly ProjectIconSeries[] | null
   projectIconCatalog?: ProjectIconCatalog | null
   customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
-  customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
   ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
   resourceEnvironment?: ProjectResourceEnvironment
 }
@@ -114,7 +113,6 @@ export function enrichCardPropertyFieldDefinition(options: {
   iconSeries?: readonly ProjectIconSeries[] | null
   projectIconCatalog?: ProjectIconCatalog | null
   customBlockCatalog?: DeepReadonly<ProjectCustomBlockCatalog> | null
-  customBlockManifestCatalog?: DeepReadonly<ProjectCustomBlockManifestCatalog> | null
   ensureCustomBlockLoaded?: (key: string) => Promise<unknown>
   resourceEnvironment?: ProjectResourceEnvironment
 }): PropertyEditorFieldDefinition {
@@ -157,8 +155,8 @@ export function enrichCardPropertyFieldDefinition(options: {
     : undefined
 
   const customBlock = options.definition.fieldType === 'string' && options.definition.richText
-    && options.customBlockCatalog && options.customBlockManifestCatalog && options.ensureCustomBlockLoaded
-    ? { catalog: options.customBlockCatalog, manifests: options.customBlockManifestCatalog, ensureLoaded: options.ensureCustomBlockLoaded }
+    && options.customBlockCatalog && options.ensureCustomBlockLoaded
+    ? { catalog: options.customBlockCatalog, ensureLoaded: options.ensureCustomBlockLoaded }
     : undefined
   if (!provider && !fontOptions && !richTextBaseStyle && !customBlock) return options.definition
   return {

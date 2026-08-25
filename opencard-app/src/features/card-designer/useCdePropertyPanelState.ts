@@ -29,10 +29,7 @@ import {
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 import { findCdeBlock, useCdeBlockFieldCommands } from './useCdeBlockFieldCommands'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
-import type {
-  ProjectCustomBlockCatalogEntry,
-  ProjectCustomBlockManifestCatalogEntry,
-} from '../workspace/model/projectCustomBlocks'
+import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import { createProjectCustomBlockPropertySchema } from '../workspace/services/projectCustomBlockPublicFields'
 import {
   resolveCardPropertyFields,
@@ -84,7 +81,7 @@ type UseCdePropertyPanelStateOptions = {
   selectedCard: Readonly<ComputedRef<CardInstanceRecord | null>>
   selectedCardId: Readonly<Ref<string | null>>
   customBlockCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
-  customBlockManifestCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockManifestCatalogEntry>>>>
+  customBlockDefinitionCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
   refreshDocumentState: () => void
@@ -187,13 +184,13 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (block.type !== 'custom-block') return record
     const entry = findCustomBlockEntry(block.customBlockKey)
     if (!entry) return { type: 'custom-block', customBlockKey: block.customBlockKey }
-    const schema = createProjectCustomBlockPropertySchema(entry)
-    const publicKeys = new Set(entry.manifest.publicFieldKeys.map(key => key.toLocaleLowerCase()))
-    for (const fieldKey of entry.manifest.publicFieldKeys) {
+    const schema = createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root })
+    const publicKeys = new Set(entry.definition.publicFieldKeys.map(key => key.toLocaleLowerCase()))
+    for (const fieldKey of entry.definition.publicFieldKeys) {
       if (Object.prototype.hasOwnProperty.call(record, fieldKey)) continue
       const definition = schema.fields[fieldKey]
-      const value = Object.prototype.hasOwnProperty.call(entry.block, fieldKey)
-        ? (entry.block as Record<string, unknown>)[fieldKey]
+      const value = Object.prototype.hasOwnProperty.call(entry.definition.root, fieldKey)
+        ? (entry.definition.root as Record<string, unknown>)[fieldKey]
         : definition?.defaultValue
       if (value !== undefined) record[fieldKey] = value
     }
@@ -208,7 +205,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (block.type === 'custom-block') {
       const entry = findCustomBlockEntry(block.customBlockKey)
       return entry
-        ? createProjectCustomBlockPropertySchema(entry)
+        ? createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root })
         : { fields: {}, labels: {}, customKeys: new Set<string>() }
     }
     return { fields: {}, labels: {}, customKeys: new Set<string>() }

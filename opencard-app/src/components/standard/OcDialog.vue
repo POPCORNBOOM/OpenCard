@@ -205,6 +205,21 @@ function handleKeydown(event: KeyboardEvent): void {
   color: var(--oc-fg-default);
 }
 
+ .oc-dialog {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+ .oc-dialog input,
+ .oc-dialog textarea,
+ .oc-dialog select,
+ .oc-dialog [contenteditable='true'],
+ .oc-dialog pre,
+ .oc-dialog code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .oc-dialog--sm { width: min(100%, var(--oc-dialog-width-sm)); }
 .oc-dialog--md { width: min(100%, var(--oc-dialog-width-md)); }
 .oc-dialog--lg { width: min(100%, var(--oc-dialog-width-lg)); }

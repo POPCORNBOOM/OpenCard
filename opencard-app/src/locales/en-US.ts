@@ -914,7 +914,7 @@ export default {
       registerDescription: 'Install this exported package into the current project?',
       skipRegistration: 'Not now',
       register: 'Install',
-      fields: 'Drag fields to change availability',
+      fields: 'Field availability',
       exportTitle: 'Export custom block structure',
       packageInformation: 'Block structure information',
       pages: 'Custom block export pages',

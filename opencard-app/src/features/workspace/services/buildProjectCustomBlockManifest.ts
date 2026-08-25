@@ -1,11 +1,9 @@
 import { getBlockProperty, type CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
 import { parseAdditionalFieldDefinitions, resolvePropertyEditorSchema } from '../../../entities/card/schema'
-import {
-  normalizeProjectCustomBlockKey,
-  PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
-  type ProjectCustomBlockManifest,
-} from '../model/projectCustomBlocks'
+import { PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS } from '../model/projectCustomBlocks'
+import { normalizeKeySlug } from '../../../shared/model/keySlug'
+import type { ProjectCustomBlockDefinition } from './projectCustomBlockDefinition'
 import { analyzeProjectCustomBlockExport } from './projectCustomBlockExportAnalyzer'
 
 function clonePackageValue<T>(value: T, seen = new WeakMap<object, object>()): T {
@@ -62,14 +60,13 @@ function setRootFieldReadonly(
   else delete root.additionalFieldDefinition
 }
 
-export async function buildProjectCustomBlockManifest(options: {
+export async function buildProjectCustomBlockDefinition(options: {
   root: CardBlock
   key: string
   name?: string
-  description?: string
   exposedFieldKeys?: readonly string[]
-}): Promise<ProjectCustomBlockManifest> {
-  const key = normalizeProjectCustomBlockKey(options.key)
+}): Promise<ProjectCustomBlockDefinition> {
+  const key = normalizeKeySlug(options.key)
   if (!key) throw new Error('Invalid custom block Key')
   const analysis = analyzeProjectCustomBlockExport(options.root)
   const exposed = new Set(options.exposedFieldKeys ?? [])
@@ -79,16 +76,15 @@ export async function buildProjectCustomBlockManifest(options: {
       throw new Error(`Custom block public field is not available on the root: ${fieldKey}`)
     }
   }
-  const publicFieldKeys = [
-    ...PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
-    ...analysis.fields.filter(field => exposed.has(field.key)).map(field => field.key),
-  ]
   return {
     type: 'opencard-custom-block',
-    packageId: `block:${key}`,
-    version: '0.0.0',
+    key,
     name: options.name?.trim() || getBlockProperty<string>(options.root, 'name')?.trim() || key,
-    ...(options.description?.trim() ? { description: options.description.trim() } : {}),
-    publicFieldKeys,
+    root: options.root,
+    publicFieldKeys: [
+      ...PROJECT_CUSTOM_BLOCK_ALWAYS_PUBLIC_FIELD_KEYS,
+      ...analysis.fields.filter(field => exposed.has(field.key)).map(field => field.key),
+    ],
+    declaredResourceDependencies: [],
   }
 }

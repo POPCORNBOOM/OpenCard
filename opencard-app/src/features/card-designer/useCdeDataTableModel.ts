@@ -188,7 +188,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     const customEntry = block.type === 'custom-block'
       ? findCatalogEntry(options.customBlockCatalog?.value, block.customBlockKey)
       : undefined
-    const packageSchema = customEntry ? createProjectCustomBlockPropertySchema(customEntry) : null
+    const packageSchema = customEntry ? createProjectCustomBlockPropertySchema({ definition: customEntry.definition, block: customEntry.definition.root }) : null
     const override = packageSchema?.fields ?? {}
     const definitions = resolveCardPropertyFields(definitionRecord, {
       allowDelete: true,

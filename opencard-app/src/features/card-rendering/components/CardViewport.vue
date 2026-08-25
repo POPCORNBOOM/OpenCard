@@ -1153,6 +1153,17 @@ function fitView(targetRect?: { left: number; top: number; width: number; height
   fitContent({ left: 0, top: 0, width: props.face.width, height: props.face.height }, targetRect)
 }
 
+function fitBottomRightHalfView(): void {
+  const viewport = viewportRef.value
+  if (!viewport) return
+  fitView({
+    left: viewport.getBoundingClientRect().left + viewportWidth.value / 2,
+    top: viewport.getBoundingClientRect().top + viewportHeight.value / 2,
+    width: viewportWidth.value / 2,
+    height: viewportHeight.value / 2,
+  })
+}
+
 function fitContent(
   contentRect: { left: number; top: number; width: number; height: number },
   targetRect?: { left: number; top: number; width: number; height: number },
@@ -1945,6 +1956,7 @@ defineExpose({
   zoomByWheelAt,
   resetView,
   fitView,
+  fitBottomRightHalfView,
   fitContent,
   nudgeSelection,
   runSelectionQuickAction,

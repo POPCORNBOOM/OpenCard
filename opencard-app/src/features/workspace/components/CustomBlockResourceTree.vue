@@ -77,7 +77,7 @@ const projection = computed(() => {
     const relativePath = candidate.kind === 'font'
       ? candidate.path.replace(/^\.opencard\/fonts\//i, '')
       : candidate.kind === 'custom-block'
-        ? candidate.packageId ?? candidate.path.replace(/^\.opencard\/blocks\//i, '')
+        ? candidate.blockKey ?? candidate.path.replace(/^\.opencard\/blocks\//i, '')
         : candidate.kind === 'icon' ? candidate.label : candidate.path
     const segments = relativePath.split('/').filter(Boolean)
     let parent = category

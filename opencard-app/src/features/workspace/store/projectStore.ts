@@ -8,6 +8,7 @@ import { computed, readonly, ref, shallowRef } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
+import { readProjectCustomBlockDefinitionFile, writeProjectCustomBlockDefinitionFile } from '../services/projectCustomBlock'
 import { fileSystemService } from '../services/fileSystemService'
 import { initializeProjectStructure } from '../services/projectStructureService'
 import {
@@ -83,22 +84,17 @@ import {
 import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
 } from '../model/projectFonts'
+import type { ProjectCustomBlockCatalog } from '../model/projectCustomBlocks'
 import {
-  type ProjectCustomBlockCatalog,
-  type ProjectCustomBlockCatalogEntry,
-  type ProjectCustomBlockManifestCatalog,
-} from '../model/projectCustomBlocks'
-import {
-  discoverInstalledProjectCustomBlocks,
-  installProjectCustomBlockPackage,
-  uninstallProjectCustomBlockPackage,
-} from '../services/projectCustomBlock'
+  discoverProjectCustomBlockDefinitions,
+  type ProjectCustomBlockDefinitionCatalogEntry,
+} from '../services/projectCustomBlockDefinition'
 import {
   createProjectCustomBlockFontSession,
   type ProjectCustomBlockFontLoadError,
   type ProjectCustomBlockFontSession,
 } from '../services/projectCustomBlockFontLoader'
-import { loadInstalledProjectCustomBlockRuntime } from '../services/projectCustomBlockAssetLoader'
+import { loadProjectCustomBlockDefinitionRuntime } from '../services/projectCustomBlockAssetLoader'
 import {
   installResourcePackage,
   uninstallResourcePackage,
@@ -129,9 +125,8 @@ export type ImportedProjectFontFiles = {
 }
 export type ImportedProjectIconFile = ImportedProjectFontFile
 export type ImportedProjectCustomBlockFile = {
-  packageId: string
-  installationPath: string
-  resourceRootPath: string
+  blockKey: string
+  path: string
   replaced: boolean
 }
 export type ImportedResourcePackage = ResourcePackageInstallResult
@@ -185,7 +180,7 @@ const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const projectCustomBlockRegistry = shallowRef<ProjectCustomBlockRegistryDocument>({})
 const dictionaryError = ref<string | null>(null)
 const projectCustomBlockCatalog = shallowRef<ProjectCustomBlockCatalog>(new Map())
-const projectCustomBlockManifestCatalog = shallowRef<ProjectCustomBlockManifestCatalog>(new Map())
+const projectCustomBlockDefinitionCatalog = shallowRef<ReadonlyMap<string, ProjectCustomBlockDefinitionCatalogEntry>>(new Map())
 const projectCustomBlockRuntimeCatalog = shallowRef<CustomBlockRuntimeCatalog>(new Map())
 const customBlockCatalogError = ref<string | null>(null)
 const customBlockFontLoadErrors = ref<readonly ProjectCustomBlockFontLoadError[]>([])
@@ -235,7 +230,7 @@ const customBlockSessions = new Map<string, {
   fontSession: ProjectCustomBlockFontSession
   errors: readonly ProjectCustomBlockFontLoadError[]
 }>()
-const customBlockLoadPromises = new Map<string, Promise<ProjectCustomBlockCatalogEntry | null>>()
+const customBlockLoadPromises = new Map<string, Promise<ProjectCustomBlockDefinitionCatalogEntry | null>>()
 
 function releaseProjectCustomBlock(key: string): void {
   const identity = key.toLocaleLowerCase()
@@ -455,7 +450,7 @@ function clearProjectCustomBlocks() {
   for (const session of customBlockSessions.values()) session.fontSession.release()
   customBlockSessions.clear()
   customBlockLoadPromises.clear()
-  projectCustomBlockManifestCatalog.value = new Map()
+  projectCustomBlockDefinitionCatalog.value = new Map()
   projectCustomBlockCatalog.value = new Map()
   projectCustomBlockRuntimeCatalog.value = new Map()
   customBlockCatalogError.value = null
@@ -497,53 +492,34 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
   }
 }
 
-async function ensureProjectCustomBlockLoaded(packageId: string): Promise<ProjectCustomBlockCatalogEntry | null> {
-  const key = packageId.toLocaleLowerCase()
-  const descriptor = projectCustomBlockManifestCatalog.value.get(key)
+async function ensureProjectCustomBlockLoaded(blockKey: string): Promise<ProjectCustomBlockDefinitionCatalogEntry | null> {
+  const key = blockKey.toLocaleLowerCase()
+  const descriptor = projectCustomBlockDefinitionCatalog.value.get(key)
   if (!descriptor || !projectPath.value) return null
   const ready = projectCustomBlockCatalog.value.get(key)
-  if (ready) return ready
+  if (ready) return descriptor
   const pending = customBlockLoadPromises.get(key)
   if (pending) return await pending
-  projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
-    ...descriptor,
-    loadState: 'loading',
-  })
-  let promise!: Promise<ProjectCustomBlockCatalogEntry | null>
-  promise = (async (): Promise<ProjectCustomBlockCatalogEntry | null> => {
+  let promise!: Promise<ProjectCustomBlockDefinitionCatalogEntry | null>
+  promise = (async (): Promise<ProjectCustomBlockDefinitionCatalogEntry | null> => {
     try {
-      const loaded = await loadInstalledProjectCustomBlockRuntime({
+      const loaded = await loadProjectCustomBlockDefinitionRuntime({
         fs: fileSystemService,
-        installationPath: descriptor.installationPath,
+        entry: descriptor,
+        environment: projectResourceEnvironment.value,
       })
-      if (loaded.entry.manifest.packageId.toLocaleLowerCase() !== key) {
-        throw new Error(`Custom block Package ID changed while loading: ${packageId}`)
-      }
       const fontSession = await createProjectCustomBlockFontSession(loaded.environments)
       releaseProjectCustomBlock(key)
       customBlockSessions.set(key, { fontSession, errors: fontSession.errors })
-      projectCustomBlockCatalog.value = new Map(projectCustomBlockCatalog.value).set(key, loaded.entry)
+      projectCustomBlockCatalog.value = new Map(projectCustomBlockCatalog.value).set(key, descriptor as never)
       projectCustomBlockRuntimeCatalog.value = new Map(projectCustomBlockRuntimeCatalog.value).set(
         key,
-        fontSession.errors.length > 0
-          ? { ...loaded.runtimeEntry, hasResourceErrors: true }
-          : loaded.runtimeEntry,
+        fontSession.errors.length > 0 ? { ...loaded.runtimeEntry, hasResourceErrors: true } : loaded.runtimeEntry,
       )
-      projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
-        ...descriptor,
-        manifest: loaded.entry.manifest,
-        issues: loaded.issues,
-        loadState: 'ready',
-      })
       customBlockFontLoadErrors.value = [...customBlockSessions.values()].flatMap(session => session.errors)
-      return loaded.entry
+      return descriptor
     } catch (error) {
-      projectCustomBlockManifestCatalog.value = new Map(projectCustomBlockManifestCatalog.value).set(key, {
-        ...descriptor,
-        loadState: 'error',
-        unavailable: true,
-      })
-      reportAppError('OC-E3011', { path: descriptor.installationPath, error })
+      reportAppError('OC-E3011', { path: descriptor.path, error })
       return null
     } finally {
       if (customBlockLoadPromises.get(key) === promise) customBlockLoadPromises.delete(key)
@@ -579,14 +555,14 @@ function reloadProjectCustomBlocks(): Promise<boolean> {
         : {}
       if (!registry) throw new Error('Invalid blocks.json content')
       projectCustomBlockRegistry.value = registry
-      const catalog = await discoverInstalledProjectCustomBlocks(fileSystemService, expectedProjectPath)
-      const registeredKeys = new Set((registry.blocks ?? []).map(entry => `block:${entry.key.toLocaleLowerCase()}`))
+      const catalog = await discoverProjectCustomBlockDefinitions(fileSystemService, expectedProjectPath)
+      const registeredKeys = new Set((registry.blocks ?? []).map(entry => entry.key.toLocaleLowerCase()))
       for (const key of [...catalog.keys()]) {
-        if (key.startsWith('block:') && !registeredKeys.has(key)) catalog.delete(key)
+        if (!registeredKeys.has(key)) catalog.delete(key)
       }
       if (!isCurrent()) return false
       for (const key of [...customBlockSessions.keys()]) releaseProjectCustomBlock(key)
-      projectCustomBlockManifestCatalog.value = catalog
+      projectCustomBlockDefinitionCatalog.value = catalog
       projectCustomBlockCatalog.value = new Map()
       projectCustomBlockRuntimeCatalog.value = new Map()
       customBlockFontLoadErrors.value = []
@@ -842,10 +818,10 @@ function installedPackageIdForPath(path: string): string | null {
   if (!projectPath.value) return null
   const blocksRoot = pathIdentity(resolveProjectPath('.opencard/blocks'))
   const identity = pathIdentity(path)
-  if (identity !== blocksRoot && !identity.startsWith(`${blocksRoot}/`)) return null
+  if (identity === blocksRoot || !identity.startsWith(`${blocksRoot}/`)) return null
   const relative = normalizePath(path).slice(normalizePath(resolveProjectPath('.opencard/blocks')).length + 1)
-  const segments = relative.split('/').filter(Boolean)
-  return segments.length >= 2 ? `${segments[0]}/${segments[1]}`.toLocaleLowerCase() : null
+  const fileName = relative.split('/').filter(Boolean).pop() ?? ''
+  return fileName.replace(/\.ocblock$/i, '').toLocaleLowerCase() || null
 }
 
 async function flushProjectCustomBlockChanges(): Promise<void> {
@@ -860,22 +836,16 @@ async function flushProjectCustomBlockChanges(): Promise<void> {
     return packageId ? [packageId] : []
   }))
   try {
-    const previousCatalog = projectCustomBlockManifestCatalog.value
-    const discovered = await discoverInstalledProjectCustomBlocks(fileSystemService, projectPath.value)
+    const previousCatalog = projectCustomBlockDefinitionCatalog.value
+    const discovered = await discoverProjectCustomBlockDefinitions(fileSystemService, projectPath.value)
     if (rootChanged) {
-      for (const packageId of previousCatalog.keys()) affected.add(packageId)
-      for (const packageId of discovered.keys()) affected.add(packageId)
+      for (const blockKey of previousCatalog.keys()) affected.add(blockKey)
+      for (const blockKey of discovered.keys()) affected.add(blockKey)
     }
-    for (const packageId of affected) releaseProjectCustomBlock(packageId)
-    const next = new Map(discovered)
-    for (const [packageId, descriptor] of next) {
-      const previous = previousCatalog.get(packageId)
-      if (!affected.has(packageId) && previous?.loadState === 'ready') next.set(packageId, previous)
-      else next.set(packageId, { ...descriptor, loadState: 'unloaded' })
-    }
-    projectCustomBlockManifestCatalog.value = next
+    for (const blockKey of affected) releaseProjectCustomBlock(blockKey)
+    projectCustomBlockDefinitionCatalog.value = discovered
     for (const packageId of affected) {
-      if (next.has(packageId) && activeCustomBlockKeys.has(packageId)) {
+      if (projectCustomBlockDefinitionCatalog.value.has(packageId) && activeCustomBlockKeys.has(packageId)) {
         void ensureProjectCustomBlockLoaded(packageId)
       }
     }
@@ -1280,28 +1250,19 @@ async function importProjectIconFile(
 }
 
 async function installProjectCustomBlockFile(sourcePath: string): Promise<ImportedProjectCustomBlockFile> {
-  const installed = await installProjectCustomBlockPackage({
-    fs: fileSystemService,
-    projectRootPath: ensureProjectOpen(),
-    sourcePath: normalizePath(sourcePath),
-  })
-  const blockKey = installed.manifest.packageId.replace(/^block:/i, '').split('/').pop() ?? installed.manifest.packageId
-  const currentBlocks = [...(projectCustomBlockRegistry.value.blocks ?? [])]
-    .filter(entry => entry.key.toLocaleLowerCase() !== blockKey.toLocaleLowerCase())
   const projectRoot = ensureProjectOpen()
-  const relativeSource = installed.installationPath.replace(/[\\/]+/g, '/').replace(`${projectRoot.replace(/[\\/]+$/, '').replace(/\\/g, '/')}/`, '')
-  currentBlocks.push({ key: blockKey, name: installed.manifest.name, source: relativeSource })
-  const registryPath = `${projectRoot}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`
-  await fileSystemService.writeFile(registryPath, serializeProjectCustomBlockRegistry({ blocks: currentBlocks }))
-  releaseProjectCustomBlock(installed.manifest.packageId)
+  const loaded = await readProjectCustomBlockDefinitionFile(fileSystemService, normalizePath(sourcePath))
+  if (!loaded.definition) throw new Error('Custom block definition is unavailable')
+  const blockKey = loaded.definition.key.toLocaleLowerCase()
+  const currentBlocks = [...(projectCustomBlockRegistry.value.blocks ?? [])]
+    .filter(entry => entry.key.toLocaleLowerCase() !== blockKey)
+  const path = await writeProjectCustomBlockDefinitionFile(fileSystemService, projectRoot, loaded.definition)
+  currentBlocks.push({ key: loaded.definition.key, name: loaded.definition.name })
+  await fileSystemService.writeFile(`${projectRoot}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`, serializeProjectCustomBlockRegistry({ blocks: currentBlocks }))
+  releaseProjectCustomBlock(blockKey)
   await reloadProjectCustomBlocks()
   await refreshIndexedEntries()
-  return {
-    packageId: installed.manifest.packageId,
-    installationPath: installed.installationPath,
-    resourceRootPath: installed.resourceRootPath,
-    replaced: installed.replaced,
-  }
+  return { blockKey, path, replaced: false }
 }
 
 async function installResourcePackageFile(
@@ -1339,25 +1300,17 @@ async function uninstallResourcePackageFile(
   return true
 }
 
-function findInstalledProjectCustomBlock(packageId: string) {
-  return projectCustomBlockManifestCatalog.value.get(packageId.toLocaleLowerCase())
+function findInstalledProjectCustomBlock(blockKey: string) {
+  return projectCustomBlockDefinitionCatalog.value.get(blockKey.toLocaleLowerCase())
 }
-
-async function uninstallProjectCustomBlock(packageId: string): Promise<boolean> {
-  const removed = await uninstallProjectCustomBlockPackage({
-    fs: fileSystemService,
-    projectRootPath: ensureProjectOpen(),
-    packageId,
-  })
-  if (!removed) return false
-  const blockKey = packageId.replace(/^block:/i, '').toLocaleLowerCase()
+async function uninstallProjectCustomBlock(blockKey: string): Promise<boolean> {
+  const descriptor = findInstalledProjectCustomBlock(blockKey)
+  if (!descriptor) return false
+  await fileSystemService.deleteFile(descriptor.path)
   const remainingBlocks = (projectCustomBlockRegistry.value.blocks ?? [])
-    .filter(entry => entry.key.toLocaleLowerCase() !== blockKey)
-  await fileSystemService.writeFile(
-    `${ensureProjectOpen()}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`,
-    serializeProjectCustomBlockRegistry({ blocks: remainingBlocks }),
-  )
-  releaseProjectCustomBlock(packageId)
+    .filter(entry => entry.key.toLocaleLowerCase() !== blockKey.toLocaleLowerCase())
+  await fileSystemService.writeFile(`${ensureProjectOpen()}/${PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME}`, serializeProjectCustomBlockRegistry({ blocks: remainingBlocks }))
+  releaseProjectCustomBlock(blockKey)
   await reloadProjectCustomBlocks()
   await refreshIndexedEntries()
   return true
@@ -1366,7 +1319,7 @@ async function uninstallProjectCustomBlock(packageId: string): Promise<boolean> 
 async function revealProjectCustomBlock(packageId: string): Promise<void> {
   const descriptor = findInstalledProjectCustomBlock(packageId)
   if (!descriptor) throw new Error('Custom block is not installed')
-  await fileSystemService.revealInFileManager(descriptor.installationPath)
+  await fileSystemService.revealInFileManager(descriptor.path)
 }
 
 async function getProjectIconImportConflict(
@@ -1769,7 +1722,7 @@ export function useProjectStore() {
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
     projectCustomBlockRegistry: readonly(projectCustomBlockRegistry),
-    projectCustomBlockManifestCatalog,
+    projectCustomBlockDefinitionCatalog,
     projectCustomBlockCatalog,
     projectCustomBlockRuntimeCatalog,
     customBlockCatalogError: readonly(customBlockCatalogError),

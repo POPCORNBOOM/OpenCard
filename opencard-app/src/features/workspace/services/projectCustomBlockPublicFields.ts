@@ -3,7 +3,7 @@ import { resolvePropertyEditorSchema, type EditorPropertyDefinition } from '../.
 import type { DeepReadonly } from 'vue'
 
 type ProjectCustomBlockFieldSource = {
-  manifest: { publicFieldKeys: readonly string[] }
+  definition: { publicFieldKeys: readonly string[] }
   block: DeepReadonly<CardBlock>
 }
 
@@ -20,7 +20,7 @@ export type ProjectCustomBlockSizeEditPolicy = {
 
 export function createProjectCustomBlockPropertySchema(
   entry: ProjectCustomBlockFieldSource,
-  fieldKeys: readonly string[] = entry.manifest.publicFieldKeys,
+  fieldKeys: readonly string[] = entry.definition.publicFieldKeys,
 ): ProjectCustomBlockPropertySchema {
   const resolved = resolvePropertyEditorSchema(entry.block as DeepReadonly<Record<string, unknown>>)
   const blockRecord = entry.block as DeepReadonly<Record<string, unknown>>
@@ -61,7 +61,7 @@ export function getProjectCustomBlockPublicFields(
 
 export function getProjectCustomBlockPublicFieldKeys(
   entry: ProjectCustomBlockFieldSource,
-  requestedKeys: readonly string[] = entry.manifest.publicFieldKeys,
+  requestedKeys: readonly string[] = entry.definition.publicFieldKeys,
  ): readonly string[] {
   const allowed = new Set(Object.keys(createProjectCustomBlockPropertySchema(entry, requestedKeys).fields))
   return requestedKeys.filter(key => allowed.has(key))

@@ -8,7 +8,7 @@ import { buildProjectFontRegistry, type ProjectFontRegistry } from '../model/pro
 import type { ProjectIconRegistryDocument } from '../model/projectIconRegistry'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
-import type { ProjectCustomBlockPackageIssue } from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockIssue } from '../model/projectCustomBlocks'
 import { prepareCardRender, type PreparedCardRender } from '../../card-rendering/renderPipeline'
 import type { CustomBlockRuntimeCatalog, CustomBlockRuntimeEntry } from '../../card-rendering/expandCustomBlocks'
 import {
@@ -29,7 +29,7 @@ import {
 
 export type ProjectCustomBlockPreview = {
   render: PreparedCardRender
-  issues: readonly ProjectCustomBlockPackageIssue[]
+  issues: readonly ProjectCustomBlockIssue[]
 }
 
 function selectedCandidates(
@@ -74,8 +74,8 @@ function createAccessPolicy(
       icons.set(seriesKey, requested)
       continue
     }
-    if (candidate.kind === 'custom-block' && candidate.packageId) {
-      packageIds.add(candidate.packageId.toLocaleLowerCase())
+    if (candidate.kind === 'custom-block' && candidate.blockKey) {
+      packageIds.add(candidate.blockKey.toLocaleLowerCase())
     }
   }
 
@@ -133,8 +133,8 @@ function createPreviewDocument(
 ): CardDocument {
   const block = createCustomBlock({
     id: 'custom-block-export-preview-instance',
-    name: prepared.manifest.name,
-    customBlockKey: prepared.manifest.packageId,
+    name: prepared.definition.name,
+    customBlockKey: `block:${prepared.definition.key}`,
   })
   for (const [fieldKey, value] of Object.entries(overrides)) {
     ;(block as Record<string, unknown>)[fieldKey] = value
@@ -153,7 +153,7 @@ function createPreviewDocument(
   return fillDefaults('card-document', {
     type: 'card-document',
     id: 'custom-block-export-preview-document',
-    name: prepared.manifest.name,
+    name: prepared.definition.name,
     ...(prepared.previewHostSize ? prepared.previewHostSize : {}),
     faces: {
       front,
@@ -192,18 +192,21 @@ export async function createProjectCustomBlockPreview(options: {
     accessPolicy,
   }
   const runtimeEntry: CustomBlockRuntimeEntry = {
-    manifest: options.prepared.manifest,
+    manifest: {
+      packageId: `block:${options.prepared.definition.key}`,
+      publicFieldKeys: options.prepared.definition.publicFieldKeys,
+    },
     block: options.prepared.block,
     sizeEditPolicy: resolveProjectCustomBlockSizeEditPolicy(options.prepared.block),
     environment,
     dependencies,
   }
-  const catalog = new Map([[options.prepared.manifest.packageId.toLocaleLowerCase(), runtimeEntry]])
+  const catalog = new Map([[`block:${options.prepared.definition.key}`.toLocaleLowerCase(), runtimeEntry]])
   const hostEnvironment: ProjectResourceEnvironment = {
     ...options.sourceEnvironment,
     customBlockCatalog: catalog,
   }
-  const issues: readonly ProjectCustomBlockPackageIssue[] = []
+  const issues: readonly ProjectCustomBlockIssue[] = []
   const render = prepareCardRender({
     document: createPreviewDocument(options.prepared, options.overrides),
     instance: null,

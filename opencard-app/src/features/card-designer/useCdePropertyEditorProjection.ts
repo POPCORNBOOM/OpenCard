@@ -132,7 +132,6 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           iconSeries: projectContext.iconSeries,
           projectIconCatalog: projectContext.projectIconCatalog,
           customBlockCatalog: projectContext.customBlockCatalog,
-          customBlockManifestCatalog: projectContext.customBlockManifestCatalog,
           ensureCustomBlockLoaded: projectContext.ensureCustomBlockLoaded,
           resourceEnvironment: projectContext.resourceEnvironment,
           directoryProvider: options.directoryProvider.value,

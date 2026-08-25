@@ -3,15 +3,15 @@ import type { CardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
 import type { ProjectFontRegistry } from '../model/projectFontRegistry'
 import type { ProjectInformation } from '../model/projectMetadata'
 import type {
-  ProjectCustomBlockManifest,
-  ProjectCustomBlockManifestCatalog,
-  ProjectCustomBlockPackageIssue,
+  ProjectCustomBlockCatalog,
+  ProjectCustomBlockIssue,
 } from '../model/projectCustomBlocks'
+import type { ProjectCustomBlockDefinition } from './projectCustomBlockDefinition'
 import type { ProjectIconSeries } from '../model/projectIcons'
 import type { ResolvedProjectDictionary } from '../model/projectDictionary'
 import type { FileSystemService } from './fileSystemService'
-import { buildProjectCustomBlockManifest, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
-import { exportProjectCustomBlockPackage } from './projectCustomBlock'
+import { buildProjectCustomBlockDefinition, buildProjectCustomBlockRoot } from './buildProjectCustomBlockManifest'
+import { serializeProjectCustomBlockDefinition } from './projectCustomBlockDefinition'
 import {
   analyzeProjectCustomBlockResources,
   materializeProjectCustomBlockResources,
@@ -21,7 +21,7 @@ import {
 import { materializeProjectCustomBlockExport } from './materializeProjectCustomBlockExport'
 
 export type PreparedProjectCustomBlockExport = {
-  manifest: ProjectCustomBlockManifest
+  definition: ProjectCustomBlockDefinition
   block: CardBlock
   resourceAnalysis: ProjectCustomBlockResourceAnalysis
   previewHostSize?: { width: string, height: string }
@@ -32,7 +32,7 @@ export type ProjectCustomBlockCandidate = PreparedProjectCustomBlockExport & {
 }
 
 export type ProjectCustomBlockExportResult =
-  | { status: 'exported', outputPath: string, manifest: ProjectCustomBlockManifest, issues: readonly ProjectCustomBlockPackageIssue[] }
+  | { status: 'exported', outputPath: string, definition: ProjectCustomBlockDefinition, issues: readonly ProjectCustomBlockIssue[] }
   | { status: 'cancelled' }
   | { status: 'blocked', reason: 'binding', issue: CardPipelineIssue }
 
@@ -51,7 +51,7 @@ export async function prepareProjectCustomBlockExport(options: {
   dictionary?: Readonly<ResolvedProjectDictionary> | null
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
   fs: Pick<FileSystemService, 'readDirectoryEntries' | 'fileExists'>
 }): Promise<PreparedProjectCustomBlockExport | { blocked: CardPipelineIssue }> {
   const materialized = materializeProjectCustomBlockExport({
@@ -63,7 +63,7 @@ export async function prepareProjectCustomBlockExport(options: {
   if (bindingIssue) return { blocked: bindingIssue }
 
   const block = buildProjectCustomBlockRoot(materialized.root, options.exposedFieldKeys)
-  const manifest = await buildProjectCustomBlockManifest({
+  const definition = await buildProjectCustomBlockDefinition({
     root: block,
     key: options.blockKey,
     name: options.name,
@@ -75,10 +75,10 @@ export async function prepareProjectCustomBlockExport(options: {
     fs: options.fs,
     projectFonts: options.projectFonts,
     projectIconSeries: options.projectIconSeries,
-    customBlockManifestCatalog: options.customBlockManifestCatalog,
+    customBlockCatalog: options.customBlockCatalog,
   })
   return {
-    manifest,
+    definition,
     block,
     resourceAnalysis,
     previewHostSize: { width: options.document.width, height: options.document.height },
@@ -91,7 +91,7 @@ export async function buildProjectCustomBlockCandidate(options: {
   projectRootPath: string
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
   fs: Pick<FileSystemService, 'readDirectoryEntries' | 'readBinaryFile'>
 }): Promise<ProjectCustomBlockCandidate> {
   const resources = await materializeProjectCustomBlockResources({
@@ -101,7 +101,7 @@ export async function buildProjectCustomBlockCandidate(options: {
     fs: options.fs,
     projectFonts: options.projectFonts,
     projectIconSeries: options.projectIconSeries,
-    customBlockManifestCatalog: options.customBlockManifestCatalog,
+    customBlockCatalog: options.customBlockCatalog,
   })
   return { ...options.prepared, resources }
 }
@@ -112,10 +112,10 @@ export async function exportPreparedProjectCustomBlock(options: {
   projectRootPath: string
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
   fs: CustomBlockExportFileSystem
 }): Promise<ProjectCustomBlockExportResult> {
-  const blockKey = options.prepared.manifest.packageId.replace(/^block:/i, '') || 'custom-block'
+  const blockKey = options.prepared.definition.key
   const outputPath = await options.fs.pickSavePath({
     defaultPath: `${blockKey}.ocblock`,
     fileTypeName: 'OpenCard custom block',
@@ -123,20 +123,20 @@ export async function exportPreparedProjectCustomBlock(options: {
   })
   if (!outputPath) return { status: 'cancelled' }
   const candidate = await buildProjectCustomBlockCandidate(options)
-  const writtenPath = await exportProjectCustomBlockPackage({
-    fs: options.fs,
-    manifest: candidate.manifest,
-    block: candidate.block,
-    files: candidate.resources.files,
+  if (!options.fs.writeFile) throw new Error('Custom block export requires a writable file system')
+  const definition = {
+    ...candidate.definition,
+    root: candidate.block,
     declaredResourceDependencies: candidate.resources.selectedCandidates
       .filter(resource => !resource.automatic)
       .map(resource => resource.id),
-    outputPath,
-  })
+  }
+  await options.fs.writeFile(outputPath, serializeProjectCustomBlockDefinition(definition))
+  const writtenPath = outputPath
   return {
     status: 'exported',
     outputPath: writtenPath,
-    manifest: candidate.manifest,
+    definition,
     issues: candidate.resources.issues,
   }
 }
@@ -153,7 +153,7 @@ export async function exportProjectCustomBlock(options: {
   dictionary?: Readonly<ResolvedProjectDictionary> | null
   projectFonts?: ProjectFontRegistry
   projectIconSeries?: readonly ProjectIconSeries[]
-  customBlockManifestCatalog?: ProjectCustomBlockManifestCatalog
+  customBlockCatalog?: ProjectCustomBlockCatalog
   fs: CustomBlockExportFileSystem
 }): Promise<ProjectCustomBlockExportResult> {
   const prepared = await prepareProjectCustomBlockExport(options)

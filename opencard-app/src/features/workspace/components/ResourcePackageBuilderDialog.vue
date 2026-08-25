@@ -141,11 +141,11 @@ function projectInternalPath(source: string): string {
 const candidates = computed<readonly PackageCandidate[]>(() => [
   ...(projectStore.projectCustomBlockRegistry.value.blocks ?? []).flatMap(registration => {
     const key = registration.key.toLocaleLowerCase()
-    const descriptor = projectStore.projectCustomBlockManifestCatalog.value.get(`block:${key}`)
+    const descriptor = projectStore.projectCustomBlockDefinitionCatalog.value.get(key)
     if (!descriptor || descriptor.unavailable) return []
     return [{
       id: `block:${key}`, kind: 'blocks' as const, label: registration.name,
-      detail: `block:${registration.key}`, paths: [descriptor.installationPath],
+      detail: `block:${registration.key}`, paths: [descriptor.path],
     }]
   }),
   ...projectStore.projectFontFamilies.value.map(font => ({
